@@ -15,12 +15,21 @@ export function RunReviewDropdown({
   prId,
   size = "sm",
   kind = "primary",
+  warnMerged = false,
+  onRunStart,
   onRunsStarted,
+  onRunSettled,
 }: {
   prId: string;
   size?: "sm" | "md" | "lg";
   kind?: "primary" | "secondary";
+  /** PR is already merged/closed — dim the trigger and warn, but still allow. */
+  warnMerged?: boolean;
+  /** Fired the moment a run is kicked off (before it completes). */
+  onRunStart?: () => void;
   onRunsStarted?: (runIds: string[]) => void;
+  /** Fired when the run request settles (success or error). */
+  onRunSettled?: () => void;
 }) {
   const t = useTranslations("prReview");
   const router = useRouter();
@@ -30,8 +39,13 @@ export function RunReviewDropdown({
   const hasEnabled = all.some((a) => a.enabled);
 
   const kick = async (opts: { all?: boolean; agentId?: string }) => {
-    const res = await run.mutateAsync({ prId, ...opts });
-    onRunsStarted?.(res.runs.map((r) => r.run_id));
+    onRunStart?.();
+    try {
+      const res = await run.mutateAsync({ prId, ...opts });
+      onRunsStarted?.(res.runs.map((r) => r.run_id));
+    } finally {
+      onRunSettled?.();
+    }
   };
 
   // List EVERY agent (not just enabled) so they're always visible; a specific
@@ -47,6 +61,14 @@ export function RunReviewDropdown({
     : [{ label: "No agents yet — create one", icon: "Plus", muted: true, onClick: () => router.push("/agents") }];
 
   const items: DropdownItemDef[] = [
+    // Merged/closed PRs can still be reviewed (informational only); lead with a
+    // muted, non-actionable warning so the intent is clear.
+    ...(warnMerged
+      ? [
+          { label: t("runReview.mergedWarning"), icon: "AlertTriangle" as const, muted: true },
+          { divider: true } as DropdownItemDef,
+        ]
+      : []),
     {
       label: t("runReview.runAll"),
       icon: "Play",
@@ -65,9 +87,14 @@ export function RunReviewDropdown({
       align="right"
       items={items}
       trigger={
-        <Button kind={kind} size={size} iconRight="ChevronDown" icon="Sparkles">
-          {run.isPending ? t("runReview.running") : t("runReview.runReview")}
-        </Button>
+        <span
+          title={warnMerged ? t("runReview.mergedTooltip") : undefined}
+          style={warnMerged ? { opacity: 0.6 } : undefined}
+        >
+          <Button kind={kind} size={size} iconRight="ChevronDown" icon="Sparkles" loading={run.isPending}>
+            {run.isPending ? t("runReview.running") : t("runReview.runReview")}
+          </Button>
+        </span>
       }
     />
   );

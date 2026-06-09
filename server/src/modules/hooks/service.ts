@@ -4,7 +4,7 @@ import type { HookScanResult } from '@devdigest/shared/contracts/eval-ci';
 import { parseUnifiedDiff } from '../../adapters/git/diff-parser.js';
 import { groundFindings } from '../../platform/grounding.js';
 import { NotFoundError } from '../../platform/errors.js';
-import { ReviewRepository, type PullRow } from '../reviews/repository.js';
+import type { PullRow } from '../../db/rows.js';
 import { runHookDetectors } from './detectors.js';
 import { summarizeKinds } from './helpers.js';
 
@@ -17,10 +17,10 @@ import { summarizeKinds } from './helpers.js';
  * groundFindings keeps them as long as the file is present in the diff.
  */
 export class HooksService {
-  private reviews: ReviewRepository;
+  private reviews: Container['reviewRepo'];
 
   constructor(private container: Container) {
-    this.reviews = new ReviewRepository(container.db);
+    this.reviews = container.reviewRepo;
   }
 
   async scan(

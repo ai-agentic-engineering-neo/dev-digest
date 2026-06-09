@@ -97,6 +97,13 @@ export default async function skillsRoutes(app: FastifyInstance) {
     return skill;
   });
 
+  app.delete<{ Params: { id: string } }>('/skills/:id', async (req) => {
+    const { workspaceId } = await getContext(app.container, req);
+    const ok = await service.delete(workspaceId, req.params.id);
+    if (!ok) throw new NotFoundError('Skill not found');
+    return { ok: true };
+  });
+
   app.post('/skills/import', async (req, reply) => {
     const { workspaceId } = await getContext(app.container, req);
     const body = ImportBody.parse(req.body);

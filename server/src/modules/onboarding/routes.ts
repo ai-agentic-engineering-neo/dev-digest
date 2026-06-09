@@ -13,11 +13,12 @@ export default async function onboardingRoutes(app: FastifyInstance) {
   const { container } = app;
   const service = new OnboardingService(container);
 
-  app.post<{ Params: { id: string } }>(
+  app.post<{ Params: { id: string }; Body: { lang?: 'en' | 'uk' } }>(
     '/repos/:id/onboarding/generate',
     async (req): Promise<Onboarding> => {
       const { workspaceId } = await getContext(container, req);
-      return service.generate(workspaceId, req.params.id);
+      const lang = req.body?.lang === 'uk' ? 'uk' : 'en';
+      return service.generate(workspaceId, req.params.id, { lang, logger: req.log });
     },
   );
 

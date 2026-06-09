@@ -1,4 +1,4 @@
-import type { FindingRow } from '../reviews/repository.js';
+import type { FindingRow } from '../../db/rows.js';
 
 /** Severity tallies for a set of findings, rendered as the review summary line. */
 export function severityCounts(findings: FindingRow[]): string {

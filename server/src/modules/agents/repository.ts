@@ -1,7 +1,7 @@
 import { and, asc, eq } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
-import type { Provider } from '@devdigest/shared';
+import type { CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
 import { DEFAULT_AGENT_DESCRIPTION, INITIAL_AGENT_VERSION } from './constants.js';
 import { isConfigChange } from './helpers.js';
 
@@ -11,7 +11,8 @@ import { isConfigChange } from './helpers.js';
  * agent side: link/reorder/list for an agent). Workspace-scoped throughout.
  */
 
-export type AgentRow = typeof t.agents.$inferSelect;
+import type { AgentRow } from '../../db/rows.js';
+export type { AgentRow };
 
 export interface InsertAgent {
   workspaceId: string;
@@ -21,6 +22,8 @@ export interface InsertAgent {
   model: string;
   systemPrompt: string;
   outputSchema?: unknown;
+  strategy?: ReviewStrategy;
+  ciFailOn?: CiFailOn;
   enabled?: boolean;
   createdBy?: string | null;
 }
@@ -32,6 +35,8 @@ export interface UpdateAgent {
   model?: string;
   systemPrompt?: string;
   outputSchema?: unknown;
+  strategy?: ReviewStrategy;
+  ciFailOn?: CiFailOn;
   enabled?: boolean;
 }
 
@@ -63,6 +68,17 @@ export class AgentsRepository {
     return row;
   }
 
+  /** Delete an agent (scoped to workspace). Versions/skill-links cascade;
+   *  agent_runs keep their history with agent_id set null. Returns false if
+   *  no such agent existed in the workspace. */
+  async deleteById(workspaceId: string, id: string): Promise<boolean> {
+    const rows = await this.db
+      .delete(t.agents)
+      .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.id, id)))
+      .returning({ id: t.agents.id });
+    return rows.length > 0;
+  }
+
   /** Insert an agent AND record version 1 in agent_versions (immutable snapshot). */
   async insert(values: InsertAgent): Promise<AgentRow> {
     const [row] = await this.db
@@ -75,6 +91,8 @@ export class AgentsRepository {
         model: values.model,
         systemPrompt: values.systemPrompt,
         outputSchema: (values.outputSchema as object | undefined) ?? null,
+        ...(values.strategy !== undefined ? { strategy: values.strategy } : {}),
+        ...(values.ciFailOn !== undefined ? { ciFailOn: values.ciFailOn } : {}),
         enabled: values.enabled ?? true,
         version: INITIAL_AGENT_VERSION,
         createdBy: values.createdBy ?? null,
@@ -111,6 +129,8 @@ export class AgentsRepository {
         ...(patch.outputSchema !== undefined
           ? { outputSchema: patch.outputSchema as object }
           : {}),
+        ...(patch.strategy !== undefined ? { strategy: patch.strategy } : {}),
+        ...(patch.ciFailOn !== undefined ? { ciFailOn: patch.ciFailOn } : {}),
         ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
         ...(configChanged ? { version: nextVersion } : {}),
       })
@@ -133,6 +153,8 @@ export class AgentsRepository {
           model: row.model,
           system_prompt: row.systemPrompt,
           output_schema: row.outputSchema,
+          strategy: row.strategy,
+          ci_fail_on: row.ciFailOn,
           skills,
         },
       })

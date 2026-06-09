@@ -78,8 +78,27 @@
     "heading": "Continuous Integration",
     "subtitle": "Run this agent automatically on pull requests in a target repo.",
     "exportToCi": "Export to CI",
-    "empty": "Not deployed to CI yet. Use “Export to CI” to open a PR that adds the workflow + agent artifacts.",
+    "publish": "Publish to CI",
+    "update": "Update CI",
+    "noRepo": "Connect a repository first",
+    "empty": "Not deployed to CI yet. Use “Publish to CI” to open a PR that adds the workflow + agent config.",
     "installed": "installed {date}"
+  },
+  "publishDialog": {
+    "title": "Publish to CI",
+    "subtitle": "Run {agentName} on every pull request in {repo}",
+    "intro": "Opens a pull request in {repo} adding a GitHub Actions workflow + this agent's config under .devdigest/. On every PR the agent reviews the diff.",
+    "filesLabel": "FILES",
+    "generating": "Generating…",
+    "secretNote": "Add {key} to the repo's Actions secrets before the workflow runs. GITHUB_TOKEN is provided automatically.",
+    "cancel": "Cancel",
+    "publish": "Publish",
+    "publishing": "Publishing…",
+    "republish": "Re-publish (update)",
+    "doneTitle": "Published",
+    "doneBody": "Opened/updated a pull request in {repo} with the workflow + agent config.",
+    "openPr": "View pull request",
+    "close": "Close"
   },
   "page": {
     "crumb": "CI Runs"

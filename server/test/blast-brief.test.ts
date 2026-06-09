@@ -267,10 +267,10 @@ d('A3 blast / brief / why / onboarding / context (Testcontainers pg)', () => {
     // canonical kinds enforced
     expect(onboarding.sections.map((s) => s.kind)).toEqual([
       'overview',
+      'tech_stack',
       'architecture',
-      'modules',
-      'getting-started',
-      'conventions',
+      'routes_and_apis',
+      'getting_started',
     ]);
 
     const get = await app.inject({ method: 'GET', url: `/repos/${repo.id}/onboarding` });

@@ -6,34 +6,74 @@ import { Onboarding as OnboardingSchema } from '@devdigest/shared';
 import type { Container } from '../../platform/container.js';
 import * as t from '../../db/schema.js';
 import { NotFoundError } from '../../platform/errors.js';
-import { assemblePrompt } from '../../platform/prompt.js';
+import { wrapUntrusted } from '../../platform/prompt.js';
 import {
+  buildSystemPrompt,
+  DEFAULT_LANG,
   KEYWORD_SCAN_LIMIT,
   ONBOARDING_MAX_RETRIES,
   ONBOARDING_MODEL,
   ONBOARDING_PROVIDER,
   RETRIEVE_TOP_K,
   SECTION_PLAN,
-  SECTION_SYSTEM_PROMPT,
   TREE_IGNORE_DIRS,
   TREE_MAX_DEPTH,
   TREE_MAX_ENTRIES,
   TREE_MAX_FILE_BYTES,
+  type OnboardingLang,
 } from './constants.js';
-import { queryTokens, scoreChunks, skeletonSection } from './helpers.js';
+import {
+  buildFactsBlock,
+  buildKeyFilesBlock,
+  queryTokens,
+  scoreChunks,
+  skeletonTour,
+} from './helpers.js';
+import { analyzeRepo, emptyFacts } from './analyzer.js';
+
+/** A mermaid diagram must start with a known graph keyword. */
+const MERMAID_RE =
+  /^(flowchart|graph|sequenceDiagram|classDiagram|stateDiagram(-v2)?|erDiagram|journey|gantt|pie|mindmap|timeline|gitGraph|quadrantChart|requirementDiagram|C4Context)\b/;
+
+/**
+ * Keep `diagram` only if it's a real mermaid string. The model sometimes emits
+ * junk (empty string, prose, even a serialized Buffer like {"type":"Buffer"…})
+ * for sections that should have no diagram — store null instead so the UI never
+ * tries to render garbage.
+ */
+function sanitizeDiagram(d: unknown): string | null {
+  if (typeof d !== 'string') return null;
+  const s = d
+    .trim()
+    .replace(/^```(?:mermaid)?\s*/i, '')
+    .replace(/```$/, '')
+    .trim();
+  return MERMAID_RE.test(s) ? s : null;
+}
+
+/** Minimal structured logger (pino-compatible: (obj, msg)). */
+type Logger = {
+  info: (obj: unknown, msg?: string) => void;
+  warn: (obj: unknown, msg?: string) => void;
+  error: (obj: unknown, msg?: string) => void;
+  debug: (obj: unknown, msg?: string) => void;
+};
+
+export interface GenerateOptions {
+  lang?: OnboardingLang;
+  logger?: Logger;
+}
 
 /**
  * A3 — Onboarding generator (L05, §7).
  *
- * RAG over the repo (`code_chunks`, source=code|spec) + a shallow file tree →
- * a 5-section `Onboarding` tour, persisted to the `onboarding` table (one doc
- * per repo). Sections: Overview · Architecture · Key Modules · Getting Started ·
- * Conventions & Gotchas. Each section is a structured LLM write grounded in
- * retrieved context; degrades to a deterministic skeleton if no LLM key.
+ * Deterministic local analysis (analyzer.ts) computes the hard facts (stack,
+ * services, structure, routes/APIs, tests, key files); ONE structured LLM call
+ * turns those facts + a combined RAG retrieval into the 5-section `Onboarding`
+ * tour (overview · tech_stack · architecture · routes_and_apis · getting_started),
+ * persisted one-per-repo. Degrades to a deterministic, fact-based skeleton if
+ * the repo is not JS/TS or the LLM call fails — and logs the real reason.
  */
-
-const SectionWrite = OnboardingSchema.shape.sections.element;
-
 export class OnboardingService {
   constructor(private container: Container) {}
 
@@ -45,22 +85,118 @@ export class OnboardingService {
     return row?.json as Onboarding | undefined;
   }
 
-  async generate(workspaceId: string, repoId: string): Promise<Onboarding> {
+  async generate(
+    workspaceId: string,
+    repoId: string,
+    opts: GenerateOptions = {},
+  ): Promise<Onboarding> {
+    const lang = opts.lang ?? DEFAULT_LANG;
+    const log = opts.logger;
+
     const [repo] = await this.container.db
       .select()
       .from(t.repos)
       .where(and(eq(t.repos.workspaceId, workspaceId), eq(t.repos.id, repoId)));
     if (!repo) throw new NotFoundError('Repo not found');
 
-    const tree = repo.clonePath ? await this.fileTree(repo.clonePath) : [];
-    const sections: OnboardingSection[] = [];
-    for (const plan of SECTION_PLAN) {
-      const context = await this.retrieve(workspaceId, repoId, plan.query);
-      const section = await this.writeSection(repo.fullName, plan, context, tree);
-      sections.push(section);
+    if (!repo.clonePath) {
+      return this.persist(
+        repoId,
+        skeletonTour(emptyFacts('Repo is not cloned yet.'), 'Repo is not cloned yet.'),
+      );
     }
 
-    const onboarding: Onboarding = { sections };
+    // 1. deterministic local facts (~0 tokens)
+    const facts = await analyzeRepo(repo.clonePath);
+    const tree = await this.fileTree(repo.clonePath);
+
+    // 2. JS/TS-only gate — no LLM call for unsupported projects
+    if (!facts.isJsTs) {
+      log?.info({ repoId, reason: facts.reason }, 'onboarding: skipped LLM (unsupported project)');
+      return this.persist(repoId, skeletonTour(facts, facts.reason));
+    }
+
+    // 3. one combined RAG retrieval (was 5 separate)
+    const query = SECTION_PLAN.map((s) => s.query).join(' ');
+    const context = await this.retrieve(repoId, query);
+
+    // 4. ONE structured LLM call → full Onboarding
+    const system = await buildSystemPrompt(lang);
+    const user = [
+      `Repo: ${repo.fullName}. Generate the onboarding tour.`,
+      `## FACTS (precomputed — trust these)\n${wrapUntrusted('facts', buildFactsBlock(facts))}`,
+      tree.length ? `## File tree\n${wrapUntrusted('tree', tree.join('\n'))}` : '',
+      `## Key files\n${wrapUntrusted('key-files', buildKeyFilesBlock(facts))}`,
+      context.length
+        ? `## Indexed context\n${context.map((c, i) => wrapUntrusted(`chunk-${i}`, c)).join('\n\n')}`
+        : '',
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+    const messages = [
+      { role: 'system' as const, content: system },
+      { role: 'user' as const, content: user },
+    ];
+
+    const startedAt = Date.now();
+    try {
+      const llm = await this.container.llm(ONBOARDING_PROVIDER);
+      log?.debug(
+        { repoId, lang, model: ONBOARDING_MODEL, messages },
+        'onboarding: LLM request (prompt)',
+      );
+      const res = await llm.completeStructured<Onboarding>({
+        model: ONBOARDING_MODEL,
+        schema: OnboardingSchema,
+        schemaName: 'Onboarding',
+        messages,
+        maxRetries: ONBOARDING_MAX_RETRIES,
+      });
+      log?.info(
+        {
+          repoId,
+          lang,
+          provider: ONBOARDING_PROVIDER,
+          model: res.model,
+          promptChars: system.length + user.length,
+          tokensIn: res.tokensIn,
+          tokensOut: res.tokensOut,
+          costUsd: res.costUsd,
+          attempts: res.attempts,
+          durationMs: Date.now() - startedAt,
+          outcome: 'ok',
+        },
+        'onboarding: LLM response',
+      );
+      return this.persist(repoId, this.normalize(res.data));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      // No silent skeleton: surface WHY it degraded.
+      log?.error(
+        { repoId, lang, model: ONBOARDING_MODEL, durationMs: Date.now() - startedAt, err: msg },
+        'onboarding: LLM call failed — falling back to deterministic skeleton',
+      );
+      return this.persist(repoId, skeletonTour(facts, `LLM generation failed: ${msg}`));
+    }
+  }
+
+  /** Force the canonical 5 sections (kind/title/order) regardless of model output. */
+  private normalize(data: Onboarding): Onboarding {
+    const bySectionKind = new Map(data.sections.map((s) => [s.kind, s]));
+    const sections: OnboardingSection[] = SECTION_PLAN.map((plan, i) => {
+      const src = bySectionKind.get(plan.kind) ?? data.sections[i];
+      return {
+        kind: plan.kind,
+        title: plan.title,
+        body: src?.body ?? '',
+        diagram: sanitizeDiagram(src?.diagram),
+        links: src?.links ?? [],
+      };
+    });
+    return { sections };
+  }
+
+  private async persist(repoId: string, onboarding: Onboarding): Promise<Onboarding> {
     await this.container.db
       .insert(t.onboarding)
       .values({ repoId, json: onboarding, generatedAt: new Date() })
@@ -74,9 +210,8 @@ export class OnboardingService {
   /**
    * RAG retrieval: pgvector cosine top-k over `code_chunks` for this repo when
    * an embedder is configured; otherwise a keyword fallback over chunk content.
-   * Returns plain strings (chunk bodies) for the prompt.
    */
-  private async retrieve(workspaceId: string, repoId: string, query: string): Promise<string[]> {
+  private async retrieve(repoId: string, query: string): Promise<string[]> {
     const embedder = await this.tryEmbedder();
     if (embedder) {
       try {
@@ -95,7 +230,6 @@ export class OnboardingService {
         /* fall through to keyword */
       }
     }
-    // keyword fallback: any chunk mentioning a query token (cheap ILIKE OR)
     const tokens = queryTokens(query);
     const rows = await this.container.db
       .select({ content: t.codeChunks.content })
@@ -103,35 +237,6 @@ export class OnboardingService {
       .where(eq(t.codeChunks.repoId, repoId))
       .limit(KEYWORD_SCAN_LIMIT);
     return scoreChunks(rows, tokens, RETRIEVE_TOP_K);
-  }
-
-  private async writeSection(
-    repoName: string,
-    plan: { kind: string; title: string; query: string },
-    context: string[],
-    tree: string[],
-  ): Promise<OnboardingSection> {
-    try {
-      const llm = await this.container.llm(ONBOARDING_PROVIDER);
-      const treeBlock = tree.length ? `Repo file tree (truncated):\n${tree.join('\n')}` : '';
-      const { messages } = assemblePrompt({
-        system: SECTION_SYSTEM_PROMPT,
-        specs: context,
-        diff: treeBlock || '(no file tree available)',
-        task: `Repo: ${repoName}. Write the "${plan.title}" section (kind="${plan.kind}"). Focus: ${plan.query}.`,
-      });
-      const res = await llm.completeStructured<OnboardingSection>({
-        model: ONBOARDING_MODEL,
-        schema: SectionWrite,
-        schemaName: 'OnboardingSection',
-        messages,
-        maxRetries: ONBOARDING_MAX_RETRIES,
-      });
-      // force the canonical kind/title so the 5-section contract is stable
-      return { ...res.data, kind: plan.kind, title: plan.title };
-    } catch {
-      return skeletonSection(plan, context, tree);
-    }
   }
 
   private async tryEmbedder() {

@@ -152,8 +152,20 @@ export const ConventionCandidate = z.object({
 export type ConventionCandidate = z.infer<typeof ConventionCandidate>;
 
 // ---- Agents ----
-export const Provider = z.enum(['openai', 'anthropic']);
+export const Provider = z.enum(['openai', 'anthropic', 'openrouter']);
 export type Provider = z.infer<typeof Provider>;
+
+// Review execution strategy (matches @devdigest/reviewer-core's ReviewStrategy):
+//  - single-pass: send the WHOLE diff in ONE model call (default)
+//  - map-reduce:  one model call PER changed file (for very large diffs)
+//  - auto:        single-pass, switching to map-reduce when the diff is large
+export const ReviewStrategy = z.enum(['single-pass', 'map-reduce', 'auto']);
+export type ReviewStrategy = z.infer<typeof ReviewStrategy>;
+
+// CI gate policy — when a CI review should BLOCK (REQUEST_CHANGES + fail the
+// check) vs just comment. Deterministic from severities; acted on ONLY in CI.
+export const CiFailOn = z.enum(['never', 'critical', 'warning', 'any']);
+export type CiFailOn = z.infer<typeof CiFailOn>;
 
 export const Agent = z.object({
   id: z.string(),
@@ -165,6 +177,8 @@ export const Agent = z.object({
   output_schema: z.unknown().nullish(),
   enabled: z.boolean(),
   version: z.number().int(),
+  strategy: ReviewStrategy.default('single-pass'),
+  ci_fail_on: CiFailOn.default('critical'),
 });
 export type Agent = z.infer<typeof Agent>;
 

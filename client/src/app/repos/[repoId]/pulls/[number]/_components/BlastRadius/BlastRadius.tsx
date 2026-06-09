@@ -147,8 +147,10 @@ export interface BlastRadiusViewProps {
 export function BlastRadiusView({ blast, onWhy }: BlastRadiusViewProps) {
   const t = useTranslations("blast");
   const [view, setView] = React.useState<BlastView>("tree");
-  const [open, setOpen] = React.useState<Record<string, boolean>>(() =>
-    blast.downstream[0] ? { [blast.downstream[0].symbol]: true } : {},
+  // Keyed by index, not symbol — downstream can contain the same symbol twice
+  // (e.g. "CompletionResult"), which would collide as a React key and share toggle state.
+  const [open, setOpen] = React.useState<Record<number, boolean>>((): Record<number, boolean> =>
+    blast.downstream[0] ? { 0: true } : {},
   );
 
   if (isEmptyBlast(blast)) {
@@ -173,12 +175,12 @@ export function BlastRadiusView({ blast, onWhy }: BlastRadiusViewProps) {
           {blast.downstream.length === 0 ? (
             <div style={s.treeEmpty}>{t("noDownstream", { count: blast.changed_symbols.length })}</div>
           ) : (
-            blast.downstream.map((d) => (
+            blast.downstream.map((d, i) => (
               <DownstreamNode
-                key={d.symbol}
+                key={`${d.symbol}-${i}`}
                 d={d}
-                open={!!open[d.symbol]}
-                onToggle={() => setOpen((o) => ({ ...o, [d.symbol]: !o[d.symbol] }))}
+                open={!!open[i]}
+                onToggle={() => setOpen((o) => ({ ...o, [i]: !o[i] }))}
                 onWhy={onWhy}
               />
             ))

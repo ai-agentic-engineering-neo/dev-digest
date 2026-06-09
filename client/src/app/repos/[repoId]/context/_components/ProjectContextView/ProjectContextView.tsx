@@ -8,7 +8,8 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Button, Badge, Card, Icon, PercentProgress, EmptyState, ErrorState, Skeleton } from "@devdigest/ui";
 import { AppShell } from "../../../../../../components/app-shell";
-import { useActiveRepo } from "../../../../../../lib/repo-context";
+import { RepoNotFound } from "../../../../../../components/RepoNotFound";
+import { useActiveRepo, useRepoNotFound } from "../../../../../../lib/repo-context";
 import { useSpecs, useIndexStatus, useReindex } from "../../../../../../lib/hooks/context";
 import { type SpecMode } from "./constants";
 import { isIndexing, kb, progressColor, shortSpecPath } from "./helpers";
@@ -23,6 +24,7 @@ export function ProjectContextView() {
   const router = useRouter();
   const repoId = params.repoId;
   const { activeRepo } = useActiveRepo();
+  const repoNotFound = useRepoNotFound(repoId);
 
   const path = search.get("path");
   const mode = (search.get("mode") as SpecMode | null) ?? "preview";
@@ -59,6 +61,15 @@ export function ProjectContextView() {
 
   const indexing = isIndexing(status?.status);
   const specList = specs ?? [];
+
+  // Stale/unknown :repoId → friendly empty state instead of a 404 error.
+  if (repoNotFound) {
+    return (
+      <AppShell crumb={crumb}>
+        <RepoNotFound />
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell crumb={crumb}>

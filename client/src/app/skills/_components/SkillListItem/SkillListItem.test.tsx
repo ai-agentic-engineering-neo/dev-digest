@@ -3,6 +3,11 @@ import { render, screen, cleanup } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { Skill } from "@devdigest/shared";
 import messages from "../../../../../messages/en/skills.json";
+
+vi.mock("../../../../lib/hooks/skills", () => ({
+  useDeleteSkill: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
+}));
+
 import { SkillListItem } from "./SkillListItem";
 
 afterEach(cleanup);

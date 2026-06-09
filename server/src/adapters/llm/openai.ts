@@ -16,6 +16,29 @@ const DEFAULT_TIMEOUT = 60_000;
 const EMBED_MODEL = 'text-embedding-3-small';
 
 /**
+ * GPT-5 and the o-series reasoning models reject a custom `temperature` (only
+ * the default is allowed) and use `max_completion_tokens` instead of
+ * `max_tokens`. Detect them so we can omit/remap those params.
+ */
+function isReasoningModel(model: string): boolean {
+  return /^(gpt-5|o1|o3|o4)/.test(model);
+}
+
+/** Build the temperature + token-cap params appropriate for the given model. */
+function tuningParams(
+  model: string,
+  temperature: number | undefined,
+  maxTokens: number | undefined,
+): Record<string, number> {
+  if (isReasoningModel(model)) {
+    return maxTokens ? { max_completion_tokens: maxTokens } : {};
+  }
+  const p: Record<string, number> = { temperature: temperature ?? 0 };
+  if (maxTokens) p.max_tokens = maxTokens;
+  return p;
+}
+
+/**
  * OpenAI LLMProvider (§5, §6).
  * - listModels: dynamic via GET /models (not hardcoded).
  * - completeStructured: response_format json_schema + Zod validate + reprompt.
@@ -48,10 +71,9 @@ export class OpenAIProvider implements LLMProvider {
     const res = await this.client.chat.completions.create({
       model: req.model,
       messages: req.messages,
-      temperature: req.temperature ?? 0.2,
-      max_tokens: req.maxTokens,
+      ...tuningParams(req.model, req.temperature ?? 0.2, req.maxTokens),
     });
-    const text = res.choices[0]?.message?.content ?? '';
+    const text = res.choices?.[0]?.message?.content ?? '';
     const tokensIn = res.usage?.prompt_tokens ?? 0;
     const tokensOut = res.usage?.completion_tokens ?? 0;
     return {
@@ -77,8 +99,7 @@ export class OpenAIProvider implements LLMProvider {
           this.client.chat.completions.create({
             model: req.model,
             messages,
-            temperature: req.temperature ?? 0,
-            max_tokens: req.maxTokens,
+            ...tuningParams(req.model, req.temperature, req.maxTokens),
             response_format: {
               type: 'json_schema',
               json_schema: { name: req.schemaName, schema: jsonSchema.schema, strict: true },
@@ -87,7 +108,7 @@ export class OpenAIProvider implements LLMProvider {
           req.timeoutMs ?? DEFAULT_TIMEOUT,
         ),
       );
-      lastRaw = res.choices[0]?.message?.content ?? '';
+      lastRaw = res.choices?.[0]?.message?.content ?? '';
       tokensIn += res.usage?.prompt_tokens ?? 0;
       tokensOut += res.usage?.completion_tokens ?? 0;
 

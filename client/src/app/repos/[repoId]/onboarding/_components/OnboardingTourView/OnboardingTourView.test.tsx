@@ -21,6 +21,7 @@ vi.mock("../../../../../../components/app-shell", () => ({
 }));
 vi.mock("../../../../../../lib/repo-context", () => ({
   useActiveRepo: () => ({ activeRepo: { full_name: "octo/repo" } }),
+  useRepoNotFound: () => false,
 }));
 vi.mock("../../../../../../lib/hooks/onboarding", () => ({
   useOnboarding: () => ({ data: ONBOARDING, isLoading: false, isError: false, error: undefined }),

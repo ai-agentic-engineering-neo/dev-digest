@@ -20,6 +20,8 @@ export const agentRuns = pgTable('agent_runs', {
   tokensOut: integer('tokens_out'),
   costUsd: doublePrecision('cost_usd'),
   status: text('status'),
+  /** Failure reason when status='failed' (LLM/API error, timeout, quota, …). */
+  error: text('error'),
   source: text('source', { enum: ['local', 'ci'] }).notNull().default('local'),
   findingsCount: integer('findings_count'),
   grounding: text('grounding'),

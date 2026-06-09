@@ -32,6 +32,15 @@ export function LiveLogStream({
   const shown = filter.trim()
     ? log.filter((l) => l.m.toLowerCase().includes(filter.toLowerCase()) || l.k.includes(filter.toLowerCase()))
     : log;
+
+  // Copy the (filtered) log to the clipboard, with brief visual confirmation.
+  const [copied, setCopied] = React.useState(false);
+  const copyLog = () => {
+    const text = shown.map((l) => `[${l.t}] [${l.k}] ${l.m}`).join("\n");
+    void navigator.clipboard?.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
   return (
     <div style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden", background: "var(--code-bg)" }}>
       <div
@@ -89,8 +98,12 @@ export function LiveLogStream({
           <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{shown.length} lines</span>
         )}
         <div style={{ marginLeft: "auto", display: "flex", gap: 2 }}>
-          <IconBtn icon="RefreshCw" label="Replay" size={26} />
-          <IconBtn icon="Copy" label="Copy log" size={26} />
+          <IconBtn
+            icon={copied ? "Check" : "Copy"}
+            label={copied ? "Copied!" : "Copy log"}
+            size={26}
+            onClick={copyLog}
+          />
         </div>
       </div>
       <div style={{ height, overflow: "auto", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 4 }}>

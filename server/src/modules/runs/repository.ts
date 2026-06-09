@@ -16,7 +16,8 @@ import type { RunTrace } from '@devdigest/shared';
  * rather than denormalised columns — no schema change required (parallel rule #2).
  */
 
-export type AgentRunRow = typeof t.agentRuns.$inferSelect;
+import type { AgentRunRow } from '../../db/rows.js';
+export type { AgentRunRow };
 
 export class RunsRepository {
   constructor(private db: Db) {}

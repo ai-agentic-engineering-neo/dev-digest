@@ -9,48 +9,23 @@
 
 import React from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import {
-  Icon,
-  Avatar,
-  Badge,
-  Button,
-  Chip,
-  Tabs,
-  Skeleton,
-  EmptyState,
-  ErrorState,
-  SectionLabel,
-} from "@devdigest/ui";
+import { Skeleton, ErrorState } from "@devdigest/ui";
 import { AppShell } from "../../../../../components/app-shell";
-import { DiffViewer } from "../../../../../components/diff-viewer";
-import { SmartDiffViewer } from "./_components/SmartDiffViewer";
-import { FindingsPanel } from "./_components/FindingsPanel";
-import { VerdictBanner } from "./_components/VerdictBanner";
-import { RunReviewDropdown } from "./_components/RunReviewDropdown";
-import { RunStatus } from "./_components/RunStatus";
-import PrBriefCard from "./_components/PrBriefCard";
-import WhyTimelineDrawer from "./_components/WhyTimelineDrawer";
-import ConformanceReport from "./conformance/_components/ConformanceReport";
+import { RepoNotFound } from "../../../../../components/RepoNotFound";
 import ComposeReviewDrawer from "./_components/ComposeReviewDrawer";
 import RunTraceDrawer from "./_components/RunTraceDrawer";
+import WhyTimelineDrawer from "./_components/WhyTimelineDrawer";
+import { PrDetailHeader } from "./_components/PrDetailHeader";
+import { OverviewTab } from "./_components/OverviewTab";
+import { FindingsTab } from "./_components/FindingsTab";
+import { DiffTab } from "./_components/DiffTab";
+import { ConformanceTab } from "./_components/ConformanceTab";
 import { usePullDetail, usePulls } from "../../../../../lib/hooks";
-import { usePrReviews, usePrIntent, useSmartDiff } from "../../../../../lib/hooks/reviews";
-import { useActiveRepo } from "../../../../../lib/repo-context";
+import { useQueryClient } from "@tanstack/react-query";
+import { usePrReviews, usePrIntent, useSmartDiff, useCancelRun, usePrActiveRuns, usePrRuns, useDeleteRun } from "../../../../../lib/hooks/reviews";
+import { useActiveRepo, useRepoNotFound } from "../../../../../lib/repo-context";
 import { ApiError } from "../../../../../lib/api";
-import type { FindingRecord, Verdict } from "@devdigest/shared";
-
-/** Mount point a feature agent (A3/A4) replaces with its real screen. */
-function MountPoint({ title, owner, icon = "Boxes" }: { title: string; owner: string; icon?: any }) {
-  return (
-    <div style={{ border: "1px dashed var(--border-strong)", borderRadius: 8, background: "var(--bg-surface)" }}>
-      <EmptyState
-        icon={icon}
-        title={title}
-        body={`Mount point for ${owner}. The PR-detail shell (header, tabs, routing, data) is wired by F2/A2 — ${owner} renders here.`}
-      />
-    </div>
-  );
-}
+import type { FindingRecord } from "@devdigest/shared";
 
 export default function PRDetailPage() {
   const params = useParams<{ repoId: string; number: string }>();
@@ -58,6 +33,7 @@ export default function PRDetailPage() {
   const router = useRouter();
   const { repoId, number } = params;
   const { activeRepo } = useActiveRepo();
+  const repoNotFound = useRepoNotFound(repoId);
   // The route is keyed by PR number, but every PR API is keyed by the row's
   // uuid — resolve number → uuid via the (cached) pulls list before fetching.
   const { data: pulls, isLoading: pullsLoading } = usePulls(repoId);
@@ -65,11 +41,27 @@ export default function PRDetailPage() {
   const { data: pr, isLoading: detailLoading, isError, error, refetch } = usePullDetail(prId);
 
   const isLoading = pullsLoading || (prId != null && detailLoading);
-  const { data: reviews } = usePrReviews(prId);
+  const { data: reviews, refetch: refetchReviews } = usePrReviews(prId);
   const { data: intent } = usePrIntent(prId);
   const { data: smartDiff } = useSmartDiff(prId);
 
-  const [liveRunIds, setLiveRunIds] = React.useState<string[]>([]);
+  // Live run tracking is SERVER-SOURCED (agent_runs status='running'): survives
+  // navigation AND reload, and self-clears via polling when runs finish.
+  const qc = useQueryClient();
+  const { data: activeRuns } = usePrActiveRuns(prId);
+  const { data: prRuns } = usePrRuns(prId);
+  const deleteRun = useDeleteRun(prId);
+  const liveRunIds = (activeRuns ?? []).map((r) => r.run_id);
+  const reviewRunning = liveRunIds.length > 0;
+  const cancel = useCancelRun();
+  const invalidateActiveRuns = () => {
+    if (prId) qc.invalidateQueries({ queryKey: ["pr-active-runs", prId] });
+  };
+  // When a run settles (done OR failed) refresh the full run history too, so a
+  // just-failed run shows up in "Run history" immediately — no page reload.
+  const invalidateRunHistory = () => {
+    if (prId) qc.invalidateQueries({ queryKey: ["pr-runs", prId] });
+  };
 
   const tab = search.get("tab") ?? "overview";
   const setParam = (key: string, val: string | null) => {
@@ -93,15 +85,14 @@ export default function PRDetailPage() {
     return file && Number.isFinite(line) ? { file, line } : null;
   }, [whyParam]);
 
-  // Latest review = most recent (reviews come newest-first); aggregate findings.
-  const latestReview = reviews?.[0];
+  // Reviews come newest-first; each is its own run (grouped into accordions).
+  const runs = reviews ?? [];
   const allFindings: FindingRecord[] = React.useMemo(
-    () => (reviews ?? []).flatMap((r) => r.findings),
+    () => runs.flatMap((r) => r.findings),
     [reviews],
   );
   const lethalTrifecta = allFindings.filter((f) => f.kind === "lethal_trifecta");
   const findingsCount = allFindings.length;
-  const blockers = allFindings.filter((f) => f.severity === "CRITICAL" && !f.dismissed_at).length;
 
   const repoName = activeRepo?.full_name ?? repoId;
   const crumb = [
@@ -109,6 +100,15 @@ export default function PRDetailPage() {
     { label: "Pull Requests", href: `/repos/${repoId}/pulls` },
     { label: `#${number}`, mono: true },
   ];
+
+  // Stale/unknown :repoId → friendly empty state instead of a 404 error.
+  if (repoNotFound) {
+    return (
+      <AppShell crumb={crumb}>
+        <RepoNotFound />
+      </AppShell>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -127,7 +127,7 @@ export default function PRDetailPage() {
       <AppShell crumb={crumb}>
         <ErrorState
           fullScreen
-          title="Couldn’t load this pull request"
+          title="Couldn't load this pull request"
           body={error instanceof ApiError ? error.message : `PR #${number} could not be loaded.`}
           onRetry={() => refetch()}
         />
@@ -137,217 +137,59 @@ export default function PRDetailPage() {
 
   return (
     <AppShell crumb={crumb}>
-      {/* Header */}
-      <div
-        style={{
-          position: "sticky",
-          top: 0,
-          zIndex: 5,
-          background: "var(--bg-primary)",
-          borderBottom: "1px solid var(--border)",
-          padding: "18px 32px 0",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 18 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.02em", display: "flex", alignItems: "center", gap: 12 }}>
-              <span className="mono" style={{ fontSize: 18, color: "var(--text-muted)", fontWeight: 500 }}>
-                #{pr.number}
-              </span>
-              {pr.title}
-            </h1>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 14,
-                marginTop: 10,
-                marginBottom: 14,
-                fontSize: 13,
-                color: "var(--text-secondary)",
-                flexWrap: "wrap",
-              }}
-            >
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                <Avatar name={pr.author} size={17} />
-                {pr.author}
-              </span>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                <Icon.GitBranch size={13} style={{ color: "var(--text-muted)" }} />
-                <span className="mono" style={{ fontSize: 12 }}>
-                  {pr.branch}
-                </span>
-                <Icon.ArrowRight size={11} />
-                <span className="mono" style={{ fontSize: 12 }}>
-                  {pr.base}
-                </span>
-              </span>
-              <span className="mono tnum">
-                <span style={{ color: "var(--code-add-text)" }}>+{pr.additions}</span>{" "}
-                <span style={{ color: "var(--code-del-text)" }}>−{pr.deletions}</span>
-              </span>
-              <Badge color="var(--warn)" bg="var(--warn-bg)" dot>
-                {pr.status}
-              </Badge>
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: 10, flexShrink: 0 }}>
-            <Button kind="ghost" size="sm" icon="ExternalLink">
-              View on GitHub
-            </Button>
-            {prId && (
-              <Button kind="ghost" size="sm" icon="MessageSquare" onClick={() => setParam("compose", "1")}>
-                Compose Review
-              </Button>
-            )}
-            {prId && (
-              <RunReviewDropdown
-                prId={prId}
-                onRunsStarted={(ids) => {
-                  setLiveRunIds(ids);
-                  setTab("findings");
-                }}
-              />
-            )}
-          </div>
-        </div>
-        <Tabs
-          value={tab}
-          onChange={setTab}
-          pad="0"
-          tabs={[
-            { key: "overview", label: "Overview", icon: "FileText" },
-            { key: "findings", label: "Findings", icon: "AlertOctagon", count: findingsCount || undefined },
-            { key: "diff", label: "Files changed", icon: "Code", count: pr.files_count },
-            { key: "conformance", label: "Conformance", icon: "ListChecks" },
-          ]}
-        />
-      </div>
+      <PrDetailHeader
+        pr={pr}
+        prId={prId}
+        tab={tab}
+        findingsCount={findingsCount}
+        onSetTab={setTab}
+        onComposeOpen={() => setParam("compose", "1")}
+        onRunStart={() => setTab("findings")}
+        onRunsStarted={() => invalidateActiveRuns()}
+      />
 
       <div style={{ padding: "24px 32px 44px", display: "flex", flexDirection: "column", gap: 24, maxWidth: 1080, margin: "0 auto" }}>
         {tab === "overview" && (
-          <>
-            <section>
-              <SectionLabel icon="FileText">PR Brief</SectionLabel>
-              {prId && (
-                <PrBriefCard
-                  prId={prId}
-                  onWhy={(file, line) => setParam("why", `${file}:${line}`)}
-                />
-              )}
-            </section>
-            {pr.body && (
-              <section>
-                <SectionLabel icon="MessageSquare">Description</SectionLabel>
-                <div
-                  style={{
-                    border: "1px solid var(--border)",
-                    borderRadius: 8,
-                    background: "var(--bg-elevated)",
-                    padding: 18,
-                    fontSize: 14,
-                    color: "var(--text-secondary)",
-                    whiteSpace: "pre-wrap",
-                    lineHeight: 1.55,
-                  }}
-                >
-                  {pr.body}
-                </div>
-              </section>
-            )}
-          </>
+          <OverviewTab
+            prId={prId}
+            prBody={pr.body}
+            onWhy={(file, line) => setParam("why", `${file}:${line}`)}
+          />
         )}
 
         {tab === "findings" && (
-          <section>
-            {liveRunIds.length > 0 && (
-              <div style={{ marginBottom: 18 }}>
-                <SectionLabel
-                  icon="Sparkles"
-                  right={
-                    <Button kind="ghost" size="sm" icon="FileText" onClick={() => setParam("trace", liveRunIds[0]!)}>
-                      Open run trace
-                    </Button>
-                  }
-                >
-                  Live review
-                </SectionLabel>
-                <RunStatus runIds={liveRunIds} onDone={() => refetch()} />
-              </div>
-            )}
-
-            {latestReview?.verdict && (
-              <div style={{ marginBottom: 18 }}>
-                <VerdictBanner
-                  verdict={latestReview.verdict as Verdict}
-                  summary={latestReview.summary}
-                  score={latestReview.score}
-                  findingsCount={findingsCount}
-                  blockers={blockers}
-                  agentName={latestReview.agent_name}
-                />
-              </div>
-            )}
-
-            {lethalTrifecta.length > 0 && (
-              <div
-                style={{
-                  marginBottom: 18,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  padding: "12px 16px",
-                  borderRadius: 8,
-                  border: "1px solid var(--crit)",
-                  background: "var(--crit-bg)",
-                }}
-              >
-                <Icon.Shield size={16} style={{ color: "var(--crit)" }} />
-                <span style={{ fontSize: 14, fontWeight: 700, color: "var(--crit)" }}>
-                  Lethal Trifecta detected
-                </span>
-                <Badge color="var(--crit)" bg="transparent">
-                  {lethalTrifecta.length} finding(s)
-                </Badge>
-              </div>
-            )}
-
-            <SectionLabel
-              icon="AlertOctagon"
-              right={<span style={{ fontSize: 12, color: "var(--text-muted)" }}>sorted by severity · j/k to navigate</span>}
-            >
-              Findings
-            </SectionLabel>
-            {findingsCount === 0 && liveRunIds.length === 0 ? (
-              <EmptyState
-                icon="Sparkles"
-                title="No findings yet"
-                body="Run a review to generate findings. Use Run Review ▾ above (run all enabled agents or a specific one)."
-              />
-            ) : (
-              prId && <FindingsPanel findings={allFindings} prId={prId} />
-            )}
-          </section>
+          <FindingsTab
+            prId={prId}
+            liveRunIds={liveRunIds}
+            reviewRunning={reviewRunning}
+            lethalTrifecta={lethalTrifecta}
+            runs={runs}
+            prRuns={prRuns}
+            prCommits={pr.commits}
+            cancelMutation={cancel}
+            onOpenTrace={(id) => setParam("trace", id)}
+            onDelete={(id) => {
+              if (window.confirm("Delete this run from history? (its trace/logs are removed too)"))
+                deleteRun.mutate(id);
+            }}
+            onRunDone={() => {
+              invalidateActiveRuns();
+              invalidateRunHistory();
+              refetchReviews();
+            }}
+          />
         )}
 
         {tab === "diff" && (
-          <section>
-            <SectionLabel icon="Code">
-              Files changed · {pr.files_count} files{smartDiff ? " · Smart Diff (grouped by role)" : ""}
-            </SectionLabel>
-            {smartDiff && smartDiff.groups.length > 0 ? (
-              <SmartDiffViewer smartDiff={smartDiff} files={pr.files} />
-            ) : (
-              <DiffViewer files={pr.files} />
-            )}
-          </section>
+          <DiffTab
+            filesCount={pr.files_count}
+            files={pr.files}
+            smartDiff={smartDiff}
+          />
         )}
 
         {tab === "conformance" && (
-          <section>
-            <SectionLabel icon="ListChecks">PRD ↔ PR Conformance</SectionLabel>
-            {prId && <ConformanceReport prId={prId} prNumber={pr.number} />}
-          </section>
+          <ConformanceTab prId={prId} prNumber={pr.number} />
         )}
       </div>
 

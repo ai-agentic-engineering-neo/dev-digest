@@ -1,6 +1,4 @@
 import type { Container } from '../../platform/container.js';
-import { AgentsRepository } from '../agents/repository.js';
-import { RunsRepository } from '../runs/repository.js';
 import type { AgentPerf, AgentPerfRow, Severity } from '@devdigest/shared';
 import { DONE_STATUS } from './constants.js';
 import {
@@ -20,12 +18,12 @@ import {
  * (replaces the old "cost" emphasis, §7 L08); cost is shown as a breakdown.
  */
 export class PerformanceService {
-  private agents: AgentsRepository;
-  private runs: RunsRepository;
+  private agents: Container['agentsRepo'];
+  private runs: Container['runsRepo'];
 
   constructor(container: Container) {
-    this.agents = new AgentsRepository(container.db);
-    this.runs = new RunsRepository(container.db);
+    this.agents = container.agentsRepo;
+    this.runs = container.runsRepo;
   }
 
   async performance(workspaceId: string): Promise<AgentPerf> {

@@ -1,4 +1,4 @@
-import type { Agent, Provider } from '@devdigest/shared';
+import type { Agent, CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
 import type { AgentRow } from './repository.js';
 
 /**
@@ -19,6 +19,8 @@ export function toAgentDto(row: AgentRow): Agent {
     output_schema: row.outputSchema ?? null,
     enabled: row.enabled,
     version: row.version,
+    strategy: row.strategy as ReviewStrategy,
+    ci_fail_on: row.ciFailOn as CiFailOn,
   };
 }
 
@@ -30,6 +32,8 @@ export interface ConfigChangePatch {
   model?: string;
   systemPrompt?: string;
   outputSchema?: unknown;
+  strategy?: ReviewStrategy;
+  ciFailOn?: CiFailOn;
 }
 
 /**
@@ -37,7 +41,10 @@ export interface ConfigChangePatch {
  * existing row — a config change bumps the version and snapshots agent_versions.
  */
 export function isConfigChange(
-  existing: Pick<AgentRow, 'name' | 'description' | 'provider' | 'model' | 'systemPrompt'>,
+  existing: Pick<
+    AgentRow,
+    'name' | 'description' | 'provider' | 'model' | 'systemPrompt' | 'strategy' | 'ciFailOn'
+  >,
   patch: ConfigChangePatch,
 ): boolean {
   return (
@@ -46,6 +53,8 @@ export function isConfigChange(
     (patch.provider !== undefined && patch.provider !== existing.provider) ||
     (patch.model !== undefined && patch.model !== existing.model) ||
     (patch.systemPrompt !== undefined && patch.systemPrompt !== existing.systemPrompt) ||
+    (patch.strategy !== undefined && patch.strategy !== existing.strategy) ||
+    (patch.ciFailOn !== undefined && patch.ciFailOn !== existing.ciFailOn) ||
     patch.outputSchema !== undefined
   );
 }

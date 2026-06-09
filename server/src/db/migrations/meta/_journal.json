@@ -8,6 +8,27 @@
       "when": 1780354425323,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1780846544941,
+      "tag": "0001_add_agent_run_error",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780851211507,
+      "tag": "0002_warm_moonstone",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1780867068517,
+      "tag": "0003_minor_overlord",
+      "breakpoints": true
     }
   ]
 }

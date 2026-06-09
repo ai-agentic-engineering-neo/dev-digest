@@ -223,6 +223,16 @@ export default function RunTraceDrawer({
   const stillRunning = running && liveRunning;
   const { data: trace, isLoading } = useRunTrace(runId, !stillRunning);
 
+  // Copy the model's raw output to the clipboard (footer button), with a brief
+  // visual confirmation. Disabled until the trace (and its raw output) loads.
+  const [rawCopied, setRawCopied] = React.useState(false);
+  const copyRaw = () => {
+    if (!trace?.raw_output) return;
+    void navigator.clipboard?.writeText(trace.raw_output);
+    setRawCopied(true);
+    setTimeout(() => setRawCopied(false), 1500);
+  };
+
   const log: LogLine[] = eventsToLog(events);
   // When historical, fall back to the trace's persisted log for the Live-log tab.
   const persistedLog: LogLine[] = traceLog(trace);
@@ -239,8 +249,14 @@ export default function RunTraceDrawer({
       onClose={onClose}
       footer={
         <div style={s.footer}>
-          <Button kind="secondary" size="sm" icon="Copy">
-            {t("drawer.copyRawOutput")}
+          <Button
+            kind="secondary"
+            size="sm"
+            icon={rawCopied ? "Check" : "Copy"}
+            onClick={copyRaw}
+            disabled={!trace?.raw_output}
+          >
+            {rawCopied ? t("drawer.copied") : t("drawer.copyRawOutput")}
           </Button>
         </div>
       }

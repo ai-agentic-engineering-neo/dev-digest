@@ -3,7 +3,9 @@
 import { useParams, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { AppShell } from "../../../../../../components/app-shell";
+import { RepoNotFound } from "../../../../../../components/RepoNotFound";
 import { usePullDetail } from "../../../../../../lib/hooks";
+import { useRepoNotFound } from "../../../../../../lib/repo-context";
 import { ConformanceReport } from "./_components/ConformanceReport";
 import { s } from "./styles";
 
@@ -11,6 +13,7 @@ export default function ConformancePage() {
   const t = useTranslations("conformance");
   const { repoId, number } = useParams<{ repoId: string; number: string }>();
   const spec = useSearchParams().get("spec") ?? undefined;
+  const repoNotFound = useRepoNotFound(repoId);
   const { data: pr } = usePullDetail(number);
   const prId = pr?.id ?? null;
 
@@ -23,7 +26,9 @@ export default function ConformancePage() {
       ]}
     >
       <div style={s.wrap}>
-        {prId ? (
+        {repoNotFound ? (
+          <RepoNotFound />
+        ) : prId ? (
           <ConformanceReport prId={prId} prNumber={Number(number)} spec={spec} />
         ) : (
           <div style={s.loading}>{t("page.loadingPr")}</div>

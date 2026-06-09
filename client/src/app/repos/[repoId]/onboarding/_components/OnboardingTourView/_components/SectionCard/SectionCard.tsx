@@ -3,6 +3,7 @@
 import React from "react";
 import { Icon, Markdown, MonoLink } from "@devdigest/ui";
 import type { OnboardingSection } from "@devdigest/shared";
+import { MermaidDiagram } from "../../../../../../../../components/MermaidDiagram";
 import { DEFAULT_SECTION_ICON, SECTION_ICON } from "../../constants";
 import { s } from "./styles";
 
@@ -29,11 +30,7 @@ export function SectionCard({ section, open, onToggle }: SectionCardProps) {
           <div style={s.markdown}>
             <Markdown>{section.body}</Markdown>
           </div>
-          {section.diagram && (
-            <pre style={s.diagram} className="mono">
-              {section.diagram}
-            </pre>
-          )}
+          {section.diagram && <MermaidDiagram chart={section.diagram} />}
           {section.links.length > 0 && (
             <div style={s.links}>
               {section.links.map((l, i) => (

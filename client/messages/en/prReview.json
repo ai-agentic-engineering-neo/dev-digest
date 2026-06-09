@@ -35,7 +35,9 @@
     "runAll": "Run all enabled agents",
     "configureAgents": "Configure agents…",
     "running": "Running…",
-    "runReview": "Run Review"
+    "runReview": "Run Review",
+    "mergedWarning": "Already merged — review is informational",
+    "mergedTooltip": "This PR is already merged; running a review won’t affect the merged code."
   },
   "runStatus": {
     "elapsed": "Running · {count} agent(s)"
@@ -53,21 +55,18 @@
   "list": {
     "breadcrumb": "Pull Requests",
     "title": "Pull Requests",
-    "summary": "{open} open · {needsReview} need review",
+    "summary": "{open} open · {merged} merged",
     "loading": "Loading pull requests…",
     "status": {
-      "needsReview": "Needs review",
-      "reviewed": "Reviewed",
-      "stale": "Stale",
       "open": "Open",
       "closed": "Closed",
       "merged": "Merged"
     },
     "filter": {
       "all": "All",
-      "needsReview": "Needs review",
-      "reviewed": "Reviewed",
-      "stale": "Stale"
+      "open": "Open",
+      "merged": "Merged",
+      "closed": "Closed"
     },
     "refresh": "Refresh",
     "refreshing": "Refreshing…",

@@ -12,10 +12,19 @@ export const agents = pgTable('agents', {
     .references(() => workspaces.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   description: text('description').notNull().default(''),
-  provider: text('provider', { enum: ['openai', 'anthropic'] }).notNull(),
+  provider: text('provider', { enum: ['openai', 'anthropic', 'openrouter'] }).notNull(),
   model: text('model').notNull(),
   systemPrompt: text('system_prompt').notNull(),
   outputSchema: jsonb('output_schema'),
+  // Review execution strategy — whole diff in one call (default) vs per-file.
+  strategy: text('strategy', { enum: ['single-pass', 'map-reduce', 'auto'] })
+    .notNull()
+    .default('single-pass'),
+  // CI gate policy — when a CI review should BLOCK (REQUEST_CHANGES + fail the
+  // check) vs just comment. Deterministic from finding severities.
+  ciFailOn: text('ci_fail_on', { enum: ['never', 'critical', 'warning', 'any'] })
+    .notNull()
+    .default('critical'),
   enabled: boolean('enabled').notNull().default(true),
   version: integer('version').notNull().default(1),
   createdBy: uuid('created_by').references(() => users.id),

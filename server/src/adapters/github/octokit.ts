@@ -7,6 +7,7 @@ import type {
   PrStatus,
   GitHubReviewPayload,
   OpenPrPayload,
+  CommitFilesPayload,
   IssueMeta,
 } from '@devdigest/shared';
 import { withRetry, withTimeout } from '../../platform/resilience.js';
@@ -34,10 +35,14 @@ export class OctokitGitHubClient implements GitHubClient {
     return withRetry(() =>
       withTimeout(
         (async () => {
+          // Fetch open + recently merged/closed (most-recently-updated first) so
+          // the list shows which PRs are merged vs still open — not just open.
           const res = await this.octokit.rest.pulls.list({
             owner: repo.owner,
             repo: repo.name,
-            state: 'open',
+            state: 'all',
+            sort: 'updated',
+            direction: 'desc',
             per_page: 50,
           });
           return res.data.map((pr) => ({
@@ -167,6 +172,93 @@ export class OctokitGitHubClient implements GitHubClient {
             body: payload.body,
           });
           return { url: res.data.html_url };
+        })(),
+        TIMEOUT,
+      ),
+    );
+  }
+
+  async commitFiles(
+    repo: RepoRef,
+    payload: CommitFilesPayload,
+  ): Promise<{ branch: string }> {
+    return withRetry(() =>
+      withTimeout(
+        (async () => {
+          const owner = repo.owner;
+          const name = repo.name;
+          const g = this.octokit.rest.git;
+
+          // Parent commit: the target branch if it already exists, else the base.
+          let parentSha: string;
+          let branchExists = false;
+          try {
+            const ref = await g.getRef({ owner, repo: name, ref: `heads/${payload.branch}` });
+            parentSha = ref.data.object.sha;
+            branchExists = true;
+          } catch {
+            const baseRef = await g.getRef({ owner, repo: name, ref: `heads/${payload.base}` });
+            parentSha = baseRef.data.object.sha;
+          }
+
+          // New tree layered on the parent's tree (so unrelated files are kept).
+          const parentCommit = await g.getCommit({ owner, repo: name, commit_sha: parentSha });
+          const tree = await g.createTree({
+            owner,
+            repo: name,
+            base_tree: parentCommit.data.tree.sha,
+            tree: payload.files.map((f) => ({
+              path: f.path,
+              mode: '100644',
+              type: 'blob',
+              content: f.contents,
+            })),
+          });
+
+          const commit = await g.createCommit({
+            owner,
+            repo: name,
+            message: payload.message,
+            tree: tree.data.sha,
+            parents: [parentSha],
+          });
+
+          if (branchExists) {
+            await g.updateRef({
+              owner,
+              repo: name,
+              ref: `heads/${payload.branch}`,
+              sha: commit.data.sha,
+              force: true,
+            });
+          } else {
+            await g.createRef({
+              owner,
+              repo: name,
+              ref: `refs/heads/${payload.branch}`,
+              sha: commit.data.sha,
+            });
+          }
+          return { branch: payload.branch };
+        })(),
+        TIMEOUT,
+      ),
+    );
+  }
+
+  async findOpenPr(repo: RepoRef, branch: string): Promise<{ url: string } | null> {
+    return withRetry(() =>
+      withTimeout(
+        (async () => {
+          const res = await this.octokit.rest.pulls.list({
+            owner: repo.owner,
+            repo: repo.name,
+            state: 'open',
+            head: `${repo.owner}:${branch}`,
+            per_page: 1,
+          });
+          const pr = res.data[0];
+          return pr ? { url: pr.html_url } : null;
         })(),
         TIMEOUT,
       ),

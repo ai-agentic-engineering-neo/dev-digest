@@ -3,6 +3,7 @@ import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { Agent } from "@devdigest/shared";
 import messages from "../../../../../../messages/en/agents.json";
+import { ToastProvider } from "../../../../../lib/toast";
 
 // Mock the data hooks so the editor renders without a network/query client.
 vi.mock("../../../../../lib/hooks/agents", () => ({
@@ -37,6 +38,8 @@ const AGENT: Agent = {
   model: "gpt-4.1",
   system_prompt: "You are a security reviewer.",
   output_schema: null,
+  strategy: "single-pass",
+  ci_fail_on: "critical",
   enabled: true,
   version: 1,
 };
@@ -44,7 +47,7 @@ const AGENT: Agent = {
 function renderWithIntl(ui: React.ReactElement) {
   return render(
     <NextIntlClientProvider locale="en" messages={{ agents: messages }}>
-      {ui}
+      <ToastProvider>{ui}</ToastProvider>
     </NextIntlClientProvider>,
   );
 }

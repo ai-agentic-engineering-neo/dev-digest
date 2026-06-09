@@ -14,6 +14,10 @@ const EnvSchema = z.object({
     .default('postgres://devdigest:devdigest@localhost:5432/devdigest'),
   OPENAI_API_KEY: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
+  // Memory/RAG embeddings run on OpenAI (text-embedding-3-small, 1536-dim — the
+  // pgvector columns are locked to that). Default OFF so the app makes ZERO
+  // OpenAI requests; set EMBEDDINGS_ENABLED=true to turn memory retrieval on.
+  EMBEDDINGS_ENABLED: z.string().optional(),
   GITHUB_PAT: z.string().optional(),
   GITHUB_TOKEN: z.string().optional(),
   API_PORT: z.coerce.number().int().default(3001),
@@ -35,6 +39,8 @@ export type AppConfig = {
   logLevel: string;
   /** Allowed CORS origin for the Next.js dev server. */
   webOrigin: string;
+  /** Whether memory/RAG embeddings (OpenAI) are enabled. Default false. */
+  embeddingsEnabled: boolean;
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -51,5 +57,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     nodeEnv: parsed.NODE_ENV,
     logLevel: parsed.LOG_LEVEL ?? (parsed.NODE_ENV === 'test' ? 'silent' : 'info'),
     webOrigin: `http://localhost:${parsed.WEB_PORT}`,
+    embeddingsEnabled: parsed.EMBEDDINGS_ENABLED === 'true',
   };
 }

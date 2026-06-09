@@ -16,12 +16,13 @@
     "sourceMap": true,
     "composite": false,
     "outDir": "dist",
-    "rootDir": "src",
     "types": ["node"],
     "lib": ["ES2022"],
     "paths": {
       "@devdigest/shared": ["./src/vendor/shared/index.ts"],
-      "@devdigest/shared/*": ["./src/vendor/shared/*"]
+      "@devdigest/shared/*": ["./src/vendor/shared/*"],
+      "@devdigest/reviewer-core": ["../reviewer-core/src/index.ts"],
+      "@devdigest/reviewer-core/*": ["../reviewer-core/src/*"]
     }
   },
   "include": ["src/**/*.ts"]

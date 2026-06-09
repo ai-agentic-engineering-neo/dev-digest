@@ -37,6 +37,16 @@ export class SkillsRepository {
     return row;
   }
 
+  /** Delete a skill (scoped to workspace). Versions and agent links cascade.
+   *  Returns false if no such skill existed in the workspace. */
+  async deleteById(workspaceId: string, id: string): Promise<boolean> {
+    const rows = await this.db
+      .delete(t.skills)
+      .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.id, id)))
+      .returning({ id: t.skills.id });
+    return rows.length > 0;
+  }
+
   /** Insert a skill AND record version 1 in skill_versions (immutable snapshot). */
   async insert(values: InsertSkill): Promise<SkillRow> {
     const [row] = await this.db

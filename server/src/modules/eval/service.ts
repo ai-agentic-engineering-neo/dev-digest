@@ -1,21 +1,20 @@
 import type { Container } from '../../platform/container.js';
-import type { Finding, Provider, Review, EvalRun } from '@devdigest/shared';
+import type { Provider, Review, EvalRun } from '@devdigest/shared';
 import { Review as ReviewSchema } from '@devdigest/shared';
 import type {
   EvalCaseInput,
   EvalDashboard,
   EvalRunRecord,
   EvalRunResult,
-  EvalTrendPoint,
 } from '@devdigest/shared/contracts/eval-ci';
 import { assemblePrompt } from '../../platform/prompt.js';
 import { parseUnifiedDiff } from '../../adapters/git/diff-parser.js';
 import { groundFindings } from '../../platform/grounding.js';
 import { AppError, NotFoundError } from '../../platform/errors.js';
-import { AgentsRepository } from '../agents/repository.js';
 import { EvalRepository, type EvalCaseRow, type EvalRunRow } from './repository.js';
-import { RECENT_RUNS_LIMIT, REGRESSION_THRESHOLD } from './constants.js';
-import { expectedFindings, normPath, round } from './helpers.js';
+import { expectedFindings } from './helpers.js';
+import { score, aggregate } from './scoring.js';
+import { dashboard, runToRecord } from './dashboard.js';
 
 /**
  * A4 — Eval pipeline (§7 L06). For a case whose owner is an *agent*, we run the
@@ -32,11 +31,11 @@ import { expectedFindings, normPath, round } from './helpers.js';
  */
 export class EvalService {
   private repo: EvalRepository;
-  private agents: AgentsRepository;
+  private agents: Container['agentsRepo'];
 
   constructor(private container: Container) {
     this.repo = new EvalRepository(container.db);
-    this.agents = new AgentsRepository(container.db);
+    this.agents = container.agentsRepo;
   }
 
   // ---- CRUD ---------------------------------------------------------------
@@ -51,7 +50,7 @@ export class EvalService {
     for (const r of runs) if (!byCase.has(r.caseId)) byCase.set(r.caseId, r); // newest first
     return cases.map((c) => {
       const last = byCase.get(c.id);
-      return { ...c, last_run: last ? this.runToRecord(last, c.name) : undefined };
+      return { ...c, last_run: last ? runToRecord(last, c.name) : undefined };
     });
   }
 
@@ -110,7 +109,7 @@ export class EvalService {
     const actual = ground.kept;
 
     const expected = expectedFindings(ec.expectedOutput);
-    const metrics = this.score(expected, actual, review.findings.length);
+    const metrics = score(expected, actual, review.findings.length);
 
     const pass = metrics.recall === 1 && metrics.precision === 1;
 
@@ -162,27 +161,7 @@ export class EvalService {
       };
     }
     const results = await Promise.all(cases.map((c) => this.runCase(workspaceId, c.id)));
-    return this.aggregate(results.map((r) => r.result));
-  }
-
-  /** Merge per-case EvalRuns into one (means over cases; sums for traces/cost). */
-  private aggregate(runs: EvalRun[]): EvalRun {
-    const n = runs.length || 1;
-    const mean = (sel: (r: EvalRun) => number) => runs.reduce((s, r) => s + sel(r), 0) / n;
-    const cost = runs.reduce<number | null>(
-      (s, r) => (s == null || r.cost_usd == null ? null : s + r.cost_usd),
-      0,
-    );
-    return {
-      recall: mean((r) => r.recall),
-      precision: mean((r) => r.precision),
-      citation_accuracy: mean((r) => r.citation_accuracy),
-      traces_passed: runs.reduce((s, r) => s + r.traces_passed, 0),
-      traces_total: runs.reduce((s, r) => s + r.traces_total, 0),
-      duration_ms: runs.reduce((s, r) => s + r.duration_ms, 0),
-      cost_usd: cost,
-      per_trace: runs.flatMap((r) => r.per_trace),
-    };
+    return aggregate(results.map((r) => r.result));
   }
 
   // ---- Dashboard ----------------------------------------------------------
@@ -191,66 +170,7 @@ export class EvalService {
     workspaceId: string,
     filter?: { ownerKind?: 'agent' | 'skill'; ownerId?: string },
   ): Promise<EvalDashboard> {
-    const cases = await this.repo.listCases(workspaceId, filter);
-    const runs = await this.repo.runsForCases(cases.map((c) => c.id));
-    const caseName = new Map(cases.map((c) => [c.id, c.name]));
-
-    // chronological (oldest → newest) for the trend line
-    const chrono = [...runs].sort((a, b) => a.ranAt.getTime() - b.ranAt.getTime());
-    const trend: EvalTrendPoint[] = chrono.map((r) => ({
-      ran_at: r.ranAt.toISOString(),
-      recall: r.recall ?? 0,
-      precision: r.precision ?? 0,
-      citation_accuracy: r.citationAccuracy ?? 0,
-      pass_rate: r.pass ? 1 : 0,
-      cost_usd: r.costUsd ?? null,
-    }));
-
-    // "current" = mean of the most-recent run per case
-    const latestByCase = new Map<string, EvalRunRow>();
-    for (const r of runs) if (!latestByCase.has(r.caseId)) latestByCase.set(r.caseId, r); // newest first
-    const latest = [...latestByCase.values()];
-    const meanOf = (sel: (r: EvalRunRow) => number | null) =>
-      latest.length ? latest.reduce((s, r) => s + (sel(r) ?? 0), 0) / latest.length : 0;
-
-    const current = {
-      recall: meanOf((r) => r.recall),
-      precision: meanOf((r) => r.precision),
-      citation_accuracy: meanOf((r) => r.citationAccuracy),
-      traces_passed: latest.filter((r) => r.pass).length,
-      traces_total: latest.length,
-      cost_usd: latest.reduce<number | null>(
-        (s, r) => (s == null || r.costUsd == null ? null : s + r.costUsd),
-        0,
-      ),
-    };
-
-    // delta = current vs the previous run's metrics (last two trend points)
-    const prev = trend.length >= 2 ? trend[trend.length - 2]! : null;
-    const last = trend.length >= 1 ? trend[trend.length - 1]! : null;
-    const delta = {
-      recall: last && prev ? round(last.recall - prev.recall) : 0,
-      precision: last && prev ? round(last.precision - prev.precision) : 0,
-      citation_accuracy: last && prev ? round(last.citation_accuracy - prev.citation_accuracy) : 0,
-    };
-
-    const alert =
-      delta.precision < REGRESSION_THRESHOLD
-        ? `Precision dropped ${Math.round(Math.abs(delta.precision) * 100)}pts on the latest run — review for new false positives.`
-        : delta.recall < REGRESSION_THRESHOLD
-          ? `Recall dropped ${Math.round(Math.abs(delta.recall) * 100)}pts on the latest run — a regression may be missing findings.`
-          : null;
-
-    return {
-      owner_kind: filter?.ownerKind ?? null,
-      owner_id: filter?.ownerId ?? null,
-      cases_total: cases.length,
-      current,
-      delta,
-      trend,
-      recent_runs: runs.slice(0, RECENT_RUNS_LIMIT).map((r) => this.runToRecord(r, caseName.get(r.caseId))),
-      alert,
-    };
+    return dashboard(this.repo, workspaceId, filter);
   }
 
   // ---- Helpers ------------------------------------------------------------
@@ -308,79 +228,5 @@ export class EvalService {
   private async collectSkills(agentId: string): Promise<string[]> {
     const links = await this.agents.linkedSkills(agentId);
     return links.filter((l) => l.skill.enabled).map((l) => `### ${l.skill.name}\n${l.skill.body}`);
-  }
-
-  /**
-   * Compute recall/precision/citation. An expected finding is "matched" when an
-   * actual finding hits the same file and an overlapping line (or same title,
-   * case-insensitive). Citation = fraction of *all* model findings that survived
-   * grounding (groundedCount / rawCount).
-   */
-  private score(
-    expected: Partial<Finding>[],
-    actual: Finding[],
-    rawCount: number,
-  ): { recall: number; precision: number; citation_accuracy: number } {
-    if (expected.length === 0 && actual.length === 0) {
-      return { recall: 1, precision: 1, citation_accuracy: 1 };
-    }
-    const usedActual = new Set<number>();
-    let matched = 0;
-    for (const e of expected) {
-      const idx = actual.findIndex((a, i) => !usedActual.has(i) && this.findingMatches(e, a));
-      if (idx >= 0) {
-        usedActual.add(idx);
-        matched += 1;
-      }
-    }
-    const recall = expected.length ? matched / expected.length : actual.length === 0 ? 1 : 0;
-    const precision = actual.length ? matched / actual.length : expected.length === 0 ? 1 : 0;
-    const citation = rawCount ? actual.length / rawCount : 1;
-    return {
-      recall: round(recall),
-      precision: round(precision),
-      citation_accuracy: round(citation),
-    };
-  }
-
-  private findingMatches(e: Partial<Finding>, a: Finding): boolean {
-    const sameFile = e.file ? normPath(e.file) === normPath(a.file) : true;
-    if (!sameFile) return false;
-    // line overlap when an expected line is provided
-    if (typeof e.start_line === 'number') {
-      const eStart = e.start_line;
-      const eEnd = typeof e.end_line === 'number' ? e.end_line : e.start_line;
-      const overlap = a.start_line <= eEnd && a.end_line >= eStart;
-      if (overlap) return true;
-    }
-    // title match (case-insensitive substring either way)
-    if (e.title) {
-      const et = e.title.toLowerCase();
-      const at = a.title.toLowerCase();
-      if (at.includes(et) || et.includes(at)) return true;
-    }
-    // category + severity match as a weaker signal when no line/title given
-    if (!e.start_line && !e.title) {
-      return (
-        (!e.severity || e.severity === a.severity) && (!e.category || e.category === a.category)
-      );
-    }
-    return false;
-  }
-
-  private runToRecord(r: EvalRunRow, caseName?: string): EvalRunRecord {
-    return {
-      id: r.id,
-      case_id: r.caseId,
-      case_name: caseName ?? null,
-      ran_at: r.ranAt.toISOString(),
-      actual_output: r.actualOutput,
-      pass: r.pass,
-      recall: r.recall,
-      precision: r.precision,
-      citation_accuracy: r.citationAccuracy,
-      duration_ms: r.durationMs,
-      cost_usd: r.costUsd,
-    };
   }
 }

@@ -58,6 +58,7 @@
     "running": "running",
     "completed": "completed",
     "copyRawOutput": "Copy raw output",
+  "copied": "Copied!",
     "tracePending": "Trace is written when the run completes — see the Live log tab.",
     "loadingTrace": "Loading trace…",
     "noTrace": "No trace available yet."

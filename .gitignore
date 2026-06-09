@@ -1,5 +1,9 @@
 node_modules/
 dist/
+# agent-runner ships as a JS GitHub Action — its bundled dist/ MUST be committed
+# (GitHub runs action.yml `main: dist/index.js` as-is, with no build step).
+!agent-runner/dist/
+!agent-runner/dist/**
 build/
 .next/
 out/

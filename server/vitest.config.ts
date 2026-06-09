@@ -5,6 +5,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@devdigest/shared': path.resolve(__dirname, 'src/vendor/shared'),
+      '@devdigest/reviewer-core': path.resolve(__dirname, '../reviewer-core/src'),
     },
   },
   test: {

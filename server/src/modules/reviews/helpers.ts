@@ -3,15 +3,13 @@
  * behaviour change). These functions are side-effect free and operate purely on
  * their arguments (no DB / network / `this`).
  */
-import type { Finding, Intent, Review, UnifiedDiff } from '@devdigest/shared';
+import type { Finding, Intent } from '@devdigest/shared';
 import type { FindingRow, PullRow, ReviewRow } from './repository.js';
-import {
-  BOILERPLATE_RE,
-  MAX_FINDINGS_PER_REVIEW,
-  MEMORY_QUERY_MAX_CHARS,
-  VERDICT_RANK,
-  WIRING_RE,
-} from './constants.js';
+import { BOILERPLATE_RE, MAX_FINDINGS_PER_REVIEW, MEMORY_QUERY_MAX_CHARS, WIRING_RE } from './constants.js';
+
+// reduceReviews + sliceDiff moved to @devdigest/reviewer-core (pure engine logic
+// shared with the CI runner); re-exported here for backward-compatible imports.
+export { reduceReviews, sliceDiff } from '@devdigest/reviewer-core';
 
 export interface ReviewDtoFinding extends Finding {
   review_id: string;
@@ -75,21 +73,6 @@ export function reviewToDto(
   };
 }
 
-/** Merge per-file Reviews: union findings, worst verdict, mean score. */
-export function reduceReviews(partials: Review[]): Review {
-  if (partials.length === 1) return partials[0]!;
-  const findings = partials.flatMap((p) => p.findings);
-  let verdict: Review['verdict'] = 'approve';
-  for (const p of partials) {
-    if ((VERDICT_RANK[p.verdict] ?? 0) > (VERDICT_RANK[verdict] ?? 0)) verdict = p.verdict;
-  }
-  const score = partials.length
-    ? Math.round(partials.reduce((s, p) => s + p.score, 0) / partials.length)
-    : 0;
-  const summary = partials.map((p) => p.summary).filter(Boolean).join(' ');
-  return { verdict, score, summary, findings };
-}
-
 /** Mark findings whose file falls under an out_of_scope hint (downgrade only). */
 export function flagOutOfScope(findings: Finding[], intent: Intent | undefined): Finding[] {
   if (!intent || intent.out_of_scope.length === 0) return findings;
@@ -111,23 +94,6 @@ export function classifyFile(path: string): 'core' | 'wiring' | 'boilerplate' {
   if (BOILERPLATE_RE.test(p)) return 'boilerplate';
   if (WIRING_RE.test(p)) return 'wiring';
   return 'core';
-}
-
-/** Extract the slice of the unified diff for a single file. */
-export function sliceDiff(diff: UnifiedDiff, path: string): string {
-  const lines = diff.raw.split('\n');
-  const out: string[] = [];
-  let capture = false;
-  for (const line of lines) {
-    if (line.startsWith('diff --git'))
-      capture = line.includes(`b/${path}`) || line.includes(` ${path}`);
-    if (capture) out.push(line);
-  }
-  if (out.length > 0) return out.join('\n');
-  // fallback: synthesize from the file's hunks
-  const f = diff.files.find((x) => x.path === path);
-  if (!f) return diff.raw;
-  return `diff --git a/${path} b/${path}\n--- a/${path}\n+++ b/${path}`;
 }
 
 /** Build the per-run task instruction line for a PR (+ optional intent hints). */

@@ -5,14 +5,48 @@
 import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, API_BASE } from "../api";
+import { notify } from "../toast";
 import type {
   FindingActionKind,
   Intent,
   ReviewRecord,
   ReviewRunResponse,
   RunEvent,
+  RunSummary,
   SmartDiff,
 } from "@devdigest/shared";
+
+// ---- Active (in-flight) runs — server-side source of truth ----
+export interface ActiveRun {
+  run_id: string;
+  agent_id: string | null;
+  agent_name: string | null;
+  ran_at: string | null;
+}
+
+/** In-flight runs for a PR, from the server (agent_runs where status='running').
+   Survives reloads/devices; polls while anything is running so it self-clears. */
+export function usePrActiveRuns(prId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["pr-active-runs", prId],
+    queryFn: () => api.get<ActiveRun[]>(`/pulls/${prId}/runs/active`),
+    enabled: !!prId,
+    refetchInterval: (query) => ((query.state.data?.length ?? 0) > 0 ? 4000 : false),
+  });
+}
+
+// ---- Full run history for a PR (every agent_runs row, any status) ----
+/** All runs for a PR — done, failed (with error), cancelled, running. Survives
+   reload (DB-backed). Polls while anything is running so it self-updates. */
+export function usePrRuns(prId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["pr-runs", prId],
+    queryFn: () => api.get<RunSummary[]>(`/pulls/${prId}/runs`),
+    enabled: !!prId,
+    refetchInterval: (query) =>
+      (query.state.data ?? []).some((r) => r.status === "running") ? 4000 : false,
+  });
+}
 
 // ---- Persisted reviews + findings for a PR ----
 export function usePrReviews(prId: string | null | undefined) {
@@ -20,6 +54,31 @@ export function usePrReviews(prId: string | null | undefined) {
     queryKey: ["reviews", prId],
     queryFn: () => api.get<ReviewRecord[]>(`/pulls/${prId}/reviews`),
     enabled: !!prId,
+  });
+}
+
+/** Delete one run from the PR's run history (+ its trace). */
+export function useDeleteRun(prId: string | null | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (runId: string) => api.del<{ ok: boolean }>(`/runs/${runId}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["pr-runs", prId] }),
+  });
+}
+
+/** Request cancellation of an in-flight run (takes effect at the next step). */
+export function useCancelRun() {
+  return useMutation({
+    mutationFn: (runId: string) => api.post<{ ok: boolean }>(`/runs/${runId}/cancel`),
+  });
+}
+
+/** Delete a whole review run (one agent's pass) + its findings. */
+export function useDeleteReview(prId: string | null | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (reviewId: string) => api.del<{ ok: boolean }>(`/reviews/${reviewId}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["reviews", prId] }),
   });
 }
 
@@ -111,8 +170,12 @@ export function useRunEvents(runIds: string[]) {
         try {
           const parsed = JSON.parse(ev.data) as RunEvent;
           setEvents((prev) => [...prev, parsed]);
+          // Runtime agent failures arrive as SSE `error` events (not as a
+          // mutation/query error), so the global error toast never sees them —
+          // surface them here so the user gets a notification without a reload.
+          if (parsed.kind === "error" && parsed.msg) notify.error(parsed.msg);
         } catch {
-          /* ignore non-JSON keepalive frames */
+          /* ignore non-JSON keepalive frames (and dataless native error events) */
         }
       };
       // The server tags events with kind as the SSE `event:` name AND emits them

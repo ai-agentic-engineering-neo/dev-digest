@@ -8,7 +8,7 @@ import type {
 import { eq } from 'drizzle-orm';
 import * as t from '../../db/schema.js';
 import { NotFoundError } from '../../platform/errors.js';
-import { ReviewRepository, type FindingRow } from '../reviews/repository.js';
+import type { FindingRow } from '../../db/rows.js';
 import { SEV_EMOJI, VERDICT_EVENT } from './constants.js';
 import { severityCounts } from './helpers.js';
 
@@ -22,10 +22,10 @@ import { severityCounts } from './helpers.js';
  */
 
 export class ComposeService {
-  private reviews: ReviewRepository;
+  private reviews: Container['reviewRepo'];
 
   constructor(private container: Container) {
-    this.reviews = new ReviewRepository(container.db);
+    this.reviews = container.reviewRepo;
   }
 
   /** Compose a draft (no GitHub side-effect) — used to seed the editor. */

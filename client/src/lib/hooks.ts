@@ -33,10 +33,16 @@ export function useUpdateSettings() {
 }
 
 export function useTestConnection() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: ConnTestProvider | { provider: ConnTestProvider; key?: string }) => {
       const body = typeof input === "string" ? { provider: input } : input;
       return api.post<ConnTestResult>("/settings/test-connection", body);
+    },
+    // Saving/validating a provider key can change which models resolve — drop the
+    // cached (possibly empty) model lists so the agent picker refetches.
+    onSuccess: (res) => {
+      if (res.ok) qc.invalidateQueries({ queryKey: ["provider-models"] });
     },
   });
 }
@@ -82,6 +88,10 @@ export function usePulls(repoId: string | null | undefined) {
     queryKey: ["pulls", repoId],
     queryFn: () => api.get<PrMeta[]>(`/repos/${repoId}/pulls`),
     enabled: !!repoId,
+    // Auto-refresh PR statuses: re-sync from GitHub every 60s while the page is
+    // open, and whenever the window regains focus.
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
   });
 }
 

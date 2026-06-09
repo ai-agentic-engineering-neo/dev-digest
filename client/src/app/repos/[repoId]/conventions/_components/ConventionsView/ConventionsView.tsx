@@ -7,8 +7,10 @@ import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Button, EmptyState, ErrorState, Skeleton } from "@devdigest/ui";
 import { AppShell } from "../../../../../../components/app-shell";
+import { RepoNotFound } from "../../../../../../components/RepoNotFound";
 import { useConventions, useExtractConventions, useAcceptConvention } from "../../../../../../lib/hooks/conventions";
 import { useRepos } from "../../../../../../lib/hooks";
+import { useRepoNotFound } from "../../../../../../lib/repo-context";
 import { ApiError } from "../../../../../../lib/api";
 import { ConventionCard } from "../ConventionCard";
 import { s } from "./styles";
@@ -19,6 +21,7 @@ export function ConventionsView() {
   const repoId = params.repoId;
   const { data: repos } = useRepos();
   const repo = repos?.find((r) => r.id === repoId);
+  const repoNotFound = useRepoNotFound(repoId);
 
   const { data: conventions, isLoading, isError, refetch } = useConventions(repoId);
   const extract = useExtractConventions(repoId);
@@ -46,6 +49,15 @@ export function ConventionsView() {
 
   const candidates = conventions ?? [];
   const pending = candidates.filter((c) => !c.accepted);
+
+  // Stale/unknown :repoId → friendly empty state instead of a 404 error.
+  if (repoNotFound) {
+    return (
+      <AppShell crumb={[{ label: t("page.crumbLab") }, { label: t("page.crumbConventions") }]}>
+        <RepoNotFound />
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell crumb={[{ label: t("page.crumbLab") }, { label: t("page.crumbConventions") }]}>

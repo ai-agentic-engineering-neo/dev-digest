@@ -19,7 +19,12 @@ import { RipgrepCodeIndex } from '../adapters/codeindex/ripgrep.js';
 import { OpenAIProvider } from '../adapters/llm/openai.js';
 import { AnthropicProvider } from '../adapters/llm/anthropic.js';
 import { OpenAIEmbedder } from '../adapters/embedder/openai.js';
+import { OpenRouterProvider } from '@devdigest/reviewer-core';
+import { estimateCost } from '../adapters/llm/pricing.js';
 import { ConfigError } from './errors.js';
+import { AgentsRepository } from '../modules/agents/repository.js';
+import { ReviewRepository } from '../modules/reviews/repository.js';
+import { RunsRepository } from '../modules/runs/repository.js';
 
 /**
  * DI container (§2.1). One per app instance. Holds config, db, the JobRunner,
@@ -36,7 +41,7 @@ export interface ContainerOverrides {
   codeIndex?: CodeIndex;
   embedder?: Embedder;
   /** Pre-built providers by id (skip key lookup). */
-  llm?: Partial<Record<'openai' | 'anthropic', LLMProvider>>;
+  llm?: Partial<Record<'openai' | 'anthropic' | 'openrouter', LLMProvider>>;
 }
 
 export class Container {
@@ -53,6 +58,13 @@ export class Container {
   private _embedder?: Embedder;
   private llmCache = new Map<string, LLMProvider>();
 
+  // Shared repositories for cross-cutting entities (agents, reviews/pulls,
+  // runs). Constructed here, in the composition root, so consuming modules use
+  // `container.agentsRepo` instead of reaching into another module's folder.
+  private _agentsRepo?: AgentsRepository;
+  private _reviewRepo?: ReviewRepository;
+  private _runsRepo?: RunsRepository;
+
   constructor(config: AppConfig, db: Db, private overrides: ContainerOverrides = {}) {
     this.config = config;
     this.db = db;
@@ -66,6 +78,18 @@ export class Container {
     if (this.overrides.git) return this.overrides.git;
     this._git ??= new SimpleGitClient(this.config.cloneDir);
     return this._git;
+  }
+
+  get agentsRepo(): AgentsRepository {
+    return (this._agentsRepo ??= new AgentsRepository(this.db));
+  }
+
+  get reviewRepo(): ReviewRepository {
+    return (this._reviewRepo ??= new ReviewRepository(this.db));
+  }
+
+  get runsRepo(): RunsRepository {
+    return (this._runsRepo ??= new RunsRepository(this.db));
   }
 
   get codeIndex(): CodeIndex {
@@ -84,7 +108,7 @@ export class Container {
   }
 
   /** Resolve an LLM provider by id; constructs from the secret key, cached. */
-  async llm(id: 'openai' | 'anthropic'): Promise<LLMProvider> {
+  async llm(id: 'openai' | 'anthropic' | 'openrouter'): Promise<LLMProvider> {
     const injected = this.overrides.llm?.[id];
     if (injected) return injected;
     const cached = this.llmCache.get(id);
@@ -94,11 +118,18 @@ export class Container {
     return provider;
   }
 
-  private async buildLlm(id: 'openai' | 'anthropic'): Promise<LLMProvider> {
+  private async buildLlm(id: 'openai' | 'anthropic' | 'openrouter'): Promise<LLMProvider> {
     if (id === 'openai') {
       const key = await this.secrets.get('OPENAI_API_KEY');
       if (!key) throw new ConfigError('OPENAI_API_KEY is not configured');
       return new OpenAIProvider(key);
+    }
+    if (id === 'openrouter') {
+      // Single OpenRouter provider lives in reviewer-core (shared with the CI
+      // runner); inject the server's pricing table for cost attribution.
+      const key = await this.secrets.get('OPENROUTER_API_KEY');
+      if (!key) throw new ConfigError('OPENROUTER_API_KEY is not configured');
+      return new OpenRouterProvider(key, { estimateCost });
     }
     const key = await this.secrets.get('ANTHROPIC_API_KEY');
     if (!key) throw new ConfigError('ANTHROPIC_API_KEY is not configured');
@@ -106,7 +137,14 @@ export class Container {
   }
 
   async embedder(): Promise<Embedder> {
+    // Injected embedders (tests) always win. Otherwise embeddings are gated by
+    // config: when disabled we throw BEFORE constructing the OpenAI client, so
+    // the app makes ZERO OpenAI requests. All callers wrap this in try/catch and
+    // degrade gracefully (memory/RAG simply returns no hits).
     if (this.overrides.embedder) return this.overrides.embedder;
+    if (!this.config.embeddingsEnabled) {
+      throw new ConfigError('Embeddings are disabled (set EMBEDDINGS_ENABLED=true to enable memory/RAG)');
+    }
     if (this._embedder) return this._embedder;
     const openai = await this.llm('openai');
     this._embedder = new OpenAIEmbedder(openai);

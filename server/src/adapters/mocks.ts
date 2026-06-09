@@ -13,6 +13,7 @@ import type {
   PrDetail,
   GitHubReviewPayload,
   OpenPrPayload,
+  CommitFilesPayload,
   IssueMeta,
   GitClient,
   CloneOptions,
@@ -42,6 +43,12 @@ export interface MockLLMOptions {
   models?: ModelInfo[];
   /** Fixture returned by completeStructured (validated against the schema). */
   structured?: unknown;
+  /**
+   * Per-schemaName fixtures for multi-call flows (e.g. the conventions 2-step
+   * dialogue: 'ConventionFileSelection' then 'ConventionExtraction'). Looked up
+   * by req.schemaName; falls back to `structured` when no entry matches.
+   */
+  structuredBySchema?: Record<string, unknown>;
   completionText?: string;
   embedding?: number[];
 }
@@ -79,7 +86,7 @@ export class MockLLMProvider implements LLMProvider {
 
   async completeStructured<T>(req: StructuredRequest<T>): Promise<StructuredResult<T>> {
     this.calls.push({ method: 'completeStructured', req });
-    const fixture = this.opts.structured ?? {};
+    const fixture = this.opts.structuredBySchema?.[req.schemaName] ?? this.opts.structured ?? {};
     const parsed = (req.schema as z.ZodType<T>).safeParse(fixture);
     if (!parsed.success) {
       throw new Error(`MockLLMProvider fixture failed schema: ${parsed.error.message}`);
@@ -119,6 +126,7 @@ export interface MockGitHubOptions {
 export class MockGitHubClient implements GitHubClient {
   public posted: { n: number; review: GitHubReviewPayload }[] = [];
   public openedPrs: OpenPrPayload[] = [];
+  public committed: CommitFilesPayload[] = [];
 
   constructor(private opts: MockGitHubOptions = {}) {}
 
@@ -180,6 +188,16 @@ export class MockGitHubClient implements GitHubClient {
   async openPullRequest(_repo: RepoRef, payload: OpenPrPayload): Promise<{ url: string }> {
     this.openedPrs.push(payload);
     return { url: 'https://github.com/mock/mock/pull/1' };
+  }
+
+  async commitFiles(_repo: RepoRef, payload: CommitFilesPayload): Promise<{ branch: string }> {
+    this.committed.push(payload);
+    return { branch: payload.branch };
+  }
+
+  async findOpenPr(_repo: RepoRef, branch: string): Promise<{ url: string } | null> {
+    const pr = this.openedPrs.find((p) => p.head === branch);
+    return pr ? { url: 'https://github.com/mock/mock/pull/1' } : null;
   }
 
   async getIssue(_repo: RepoRef, n: number): Promise<IssueMeta> {

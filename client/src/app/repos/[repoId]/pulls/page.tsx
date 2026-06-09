@@ -17,8 +17,9 @@ import {
   AutoTriggerStatus,
 } from "@devdigest/ui";
 import { AppShell } from "../../../../components/app-shell";
+import { RepoNotFound } from "../../../../components/RepoNotFound";
 import { usePulls, useRefreshRepo } from "../../../../lib/hooks";
-import { useActiveRepo } from "../../../../lib/repo-context";
+import { useActiveRepo, useRepoNotFound } from "../../../../lib/repo-context";
 import { ApiError } from "../../../../lib/api";
 import type { PrMeta } from "../../../../lib/types";
 import {
@@ -123,20 +124,32 @@ export default function PullsPage() {
   const search = useSearchParams();
   const router = useRouter();
   const { activeRepo } = useActiveRepo();
+  const repoNotFound = useRepoNotFound(repoId);
   const { data: pulls, isLoading, isError, error, refetch } = usePulls(repoId);
   const refresh = useRefreshRepo();
 
-  const status = search.get("status") ?? "all";
+  // Default to Open-only (merged/closed are a click away via the filter chips).
+  const status = search.get("status") ?? "open";
   const setStatus = (k: string) => {
     const sp = new URLSearchParams(search.toString());
-    if (k === "all") sp.delete("status");
+    if (k === "open") sp.delete("status");
     else sp.set("status", k);
     router.replace(`/repos/${repoId}/pulls?${sp.toString()}`);
   };
 
   const filtered = (pulls ?? []).filter((p) => status === "all" || p.status === status);
   const repoName = activeRepo?.full_name ?? repoId;
-  const needsReview = (pulls ?? []).filter((p) => p.status === "needs_review").length;
+  const openCount = (pulls ?? []).filter((p) => p.status === "open").length;
+  const mergedCount = (pulls ?? []).filter((p) => p.status === "merged").length;
+
+  // Stale/unknown :repoId → friendly empty state instead of a 404 error.
+  if (repoNotFound) {
+    return (
+      <AppShell crumb={[{ label: repoName, mono: true }, { label: t("list.breadcrumb") }]}>
+        <RepoNotFound />
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell crumb={[{ label: repoName, mono: true }, { label: t("list.breadcrumb") }]}>
@@ -144,7 +157,9 @@ export default function PullsPage() {
         <div>
           <h1 style={s.pageTitle}>{t("list.title")}</h1>
           <p style={s.pageSubtitle}>
-            {pulls ? t("list.summary", { open: pulls.length, needsReview }) : t("list.loading")}
+            {pulls
+              ? t("list.summary", { open: openCount, merged: mergedCount })
+              : t("list.loading")}
           </p>
         </div>
         <div style={s.headerActions}>
@@ -183,7 +198,11 @@ export default function PullsPage() {
           <EmptyState
             icon="GitPullRequest"
             title={t("list.emptyTitle")}
-            body={status === "all" ? t("list.emptyAllBody") : t("list.emptyStatusBody", { status })}
+            body={
+              status === "all" || status === "open"
+                ? t("list.emptyAllBody")
+                : t("list.emptyStatusBody", { status })
+            }
           />
         ) : (
           filtered.map((pr) => <PRRow key={pr.number} pr={pr} repoId={repoId} />)

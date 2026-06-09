@@ -1,5 +1,5 @@
 import type { Container } from '../../platform/container.js';
-import type { Agent, AgentSkillLink, ModelInfo, Provider } from '@devdigest/shared';
+import type { Agent, AgentSkillLink, CiFailOn, ModelInfo, Provider, ReviewStrategy } from '@devdigest/shared';
 import { AgentsRepository } from './repository.js';
 import { toAgentDto } from './helpers.js';
 
@@ -21,6 +21,8 @@ export interface CreateAgentInput {
   model: string;
   system_prompt: string;
   output_schema?: unknown;
+  strategy?: ReviewStrategy;
+  ci_fail_on?: CiFailOn;
   enabled?: boolean;
 }
 
@@ -31,6 +33,8 @@ export interface UpdateAgentInput {
   model?: string;
   system_prompt?: string;
   output_schema?: unknown;
+  strategy?: ReviewStrategy;
+  ci_fail_on?: CiFailOn;
   enabled?: boolean;
 }
 
@@ -51,6 +55,11 @@ export class AgentsService {
     return row ? toAgentDto(row) : undefined;
   }
 
+  /** Delete an agent (and its versions/skill-links, via cascade). */
+  async delete(workspaceId: string, id: string): Promise<boolean> {
+    return this.repo.deleteById(workspaceId, id);
+  }
+
   async create(workspaceId: string, input: CreateAgentInput, userId?: string): Promise<Agent> {
     const row = await this.repo.insert({
       workspaceId,
@@ -60,6 +69,8 @@ export class AgentsService {
       model: input.model,
       systemPrompt: input.system_prompt,
       outputSchema: input.output_schema,
+      ...(input.strategy !== undefined ? { strategy: input.strategy } : {}),
+      ...(input.ci_fail_on !== undefined ? { ciFailOn: input.ci_fail_on } : {}),
       enabled: input.enabled,
       createdBy: userId ?? null,
     });
@@ -78,6 +89,8 @@ export class AgentsService {
       ...(patch.model !== undefined ? { model: patch.model } : {}),
       ...(patch.system_prompt !== undefined ? { systemPrompt: patch.system_prompt } : {}),
       ...(patch.output_schema !== undefined ? { outputSchema: patch.output_schema } : {}),
+      ...(patch.strategy !== undefined ? { strategy: patch.strategy } : {}),
+      ...(patch.ci_fail_on !== undefined ? { ciFailOn: patch.ci_fail_on } : {}),
       ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
     });
     return row ? toAgentDto(row) : undefined;

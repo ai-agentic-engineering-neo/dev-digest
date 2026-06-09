@@ -10,8 +10,7 @@ import * as t from '../../db/schema.js';
 import { assemblePrompt } from '../../platform/prompt.js';
 import { parseUnifiedDiff } from '../../adapters/git/diff-parser.js';
 import { NotFoundError, AppError } from '../../platform/errors.js';
-import { ReviewRepository, type PullRow } from '../reviews/repository.js';
-import { AgentsRepository } from '../agents/repository.js';
+import type { PullRow } from '../../db/rows.js';
 import { DEFAULT_PROVIDER, SPEC_CHUNK_LIMIT, SPEC_SOURCE } from './constants.js';
 import { defaultModel, specTitle } from './helpers.js';
 
@@ -23,12 +22,12 @@ import { defaultModel, specTitle } from './helpers.js';
  * `conformance_checks` row. Returns the 3-column `Conformance` report.
  */
 export class ConformanceService {
-  private reviews: ReviewRepository;
-  private agents: AgentsRepository;
+  private reviews: Container['reviewRepo'];
+  private agents: Container['agentsRepo'];
 
   constructor(private container: Container) {
-    this.reviews = new ReviewRepository(container.db);
-    this.agents = new AgentsRepository(container.db);
+    this.reviews = container.reviewRepo;
+    this.agents = container.agentsRepo;
   }
 
   async run(workspaceId: string, prId: string, input: ConformanceInput): Promise<ConformanceReport> {

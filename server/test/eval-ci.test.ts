@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { startPg, dockerAvailable, type PgFixture } from './helpers/pg.js';
+import { waitForPrRuns } from './helpers/runs.js';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/platform/config.js';
 import { seed } from '../src/db/seed.js';
@@ -249,8 +250,9 @@ d('A4 eval / compose / ci / conformance / hooks (Testcontainers pg)', () => {
     const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
     const agent = await makeAgent(app, 'ComposeAgent');
 
-    // run a review to produce findings to compose from
+    // run a review to produce findings to compose from (fire-and-forget; wait)
     await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } });
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
 
     const res = await app.inject({
       method: 'POST',

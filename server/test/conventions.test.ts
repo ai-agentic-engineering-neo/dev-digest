@@ -38,7 +38,13 @@ d('A1 conventions extractor (MockLLM candidates + evidence grounding)', () => {
   });
 
   function appWithMocks() {
+    // 2-step dialogue: step 1 (ConventionFileSelection) picks files from the repo
+    // map; step 2 (ConventionExtraction) returns candidates. MockCodeIndex.symbols
+    // surfaces EVIDENCE_FILE, so the selector picks it and step 2 can ground.
     const llm = new MockLLMProvider('openai', {
+      structuredBySchema: {
+        ConventionFileSelection: { files: [EVIDENCE_FILE] },
+      },
       structured: {
         conventions: [
           {

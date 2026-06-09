@@ -11,10 +11,9 @@ import type { RunEvent, RunEventKind } from '@devdigest/shared';
  * Event shape on the wire (SSE `data`): RunEvent (see @devdigest/shared).
  */
 
-const START = Date.now();
-function elapsed(): string {
-  const s = (Date.now() - START) / 1000;
-  return s.toFixed(2).padStart(5, '0');
+/** Wall-clock time-of-day (HH:MM:SS, local) stamped on each log line. */
+function clockTime(): string {
+  return new Date().toTimeString().slice(0, 8);
 }
 
 export class RunBus {
@@ -22,6 +21,18 @@ export class RunBus {
   private buffers = new Map<string, RunEvent[]>();
   private seq = new Map<string, number>();
   private completed = new Set<string>();
+  private cancelled = new Set<string>();
+
+  /** Request cancellation of an in-flight run. The runner checks `isCancelled`
+   *  at its next checkpoint (between map-reduce files) and stops. */
+  cancel(runId: string): void {
+    this.cancelled.add(runId);
+  }
+
+  /** Whether cancellation has been requested for a run. */
+  isCancelled(runId: string): boolean {
+    return this.cancelled.has(runId);
+  }
 
   private emitterFor(runId: string): EventEmitter {
     let e = this.emitters.get(runId);
@@ -42,7 +53,7 @@ export class RunBus {
     const e = this.emitterFor(runId);
     const next = (this.seq.get(runId) ?? 0) + 1;
     this.seq.set(runId, next);
-    const event: RunEvent = { runId, seq: next, kind, msg, t: elapsed(), data };
+    const event: RunEvent = { runId, seq: next, kind, msg, t: clockTime(), data };
     this.buffers.get(runId)!.push(event);
     e.emit('event', event);
     return event;
@@ -65,6 +76,7 @@ export class RunBus {
   complete(runId: string): void {
     const e = this.emitters.get(runId);
     this.completed.add(runId);
+    this.cancelled.delete(runId);
     e?.emit('done');
     // Keep the buffer briefly available for late subscribers; clear emitter.
     this.emitters.delete(runId);

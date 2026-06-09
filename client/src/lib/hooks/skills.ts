@@ -50,6 +50,17 @@ export function useUpdateSkill() {
   });
 }
 
+export function useDeleteSkill() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.del<{ ok: boolean }>(`/skills/${id}`),
+    onSuccess: (_d, id) => {
+      qc.invalidateQueries({ queryKey: ["skills"] });
+      qc.removeQueries({ queryKey: ["skill", id] });
+    },
+  });
+}
+
 export interface ImportSkillInput {
   body?: string;
   url?: string;

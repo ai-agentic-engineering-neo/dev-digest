@@ -2,21 +2,39 @@
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { FormField, TextInput, SelectInput, Textarea, Toggle, Button } from "@devdigest/ui";
-import type { Agent, Provider } from "@devdigest/shared";
+import { FormField, TextInput, SelectInput, SearchableSelect, Textarea, Toggle, Button } from "@devdigest/ui";
+import type { Agent, CiFailOn, Provider, ReviewStrategy } from "@devdigest/shared";
 import { useUpdateAgent, useProviderModels } from "../../../../../../../lib/hooks/agents";
-import { OUTPUT_SCHEMA_VALUE, PROVIDER_OPTIONS } from "./constants";
+import { useToast } from "../../../../../../../lib/toast";
+import { CI_FAIL_ON_VALUES, OUTPUT_SCHEMA_VALUE, PROVIDER_OPTIONS, STRATEGY_VALUES } from "./constants";
 import { s } from "./styles";
+
+/** Compact USD-per-1M formatter for the model price label. */
+const fmt = (n: number) => (n === 0 ? "0" : n < 1 ? n.toFixed(3) : n.toFixed(2));
+
+/** Compact token-count formatter for the context window (e.g. 1048576 → "1M"). */
+const ctx = (n: number) => (n >= 1_000_000 ? `${Math.round(n / 1_000_000)}M` : `${Math.round(n / 1000)}k`);
+
+/** Build the model dropdown label: price + context window when available. */
+function modelLabel(m: { id: string; pricing?: { promptPerM: number; completionPerM: number } | null; contextLength?: number | null }): string {
+  const parts: string[] = [];
+  if (m.pricing) parts.push(`$${fmt(m.pricing.promptPerM)}/$${fmt(m.pricing.completionPerM)} per 1M`);
+  if (m.contextLength) parts.push(`${ctx(m.contextLength)} ctx`);
+  return parts.length ? `${m.id} — ${parts.join(" · ")}` : m.id;
+}
 
 /** Config tab — name/description/provider/model/system-prompt + enabled toggle. */
 export function ConfigTab({ agent }: { agent: Agent }) {
   const t = useTranslations("agents");
+  const toast = useToast();
   const update = useUpdateAgent();
   const [name, setName] = React.useState(agent.name);
   const [description, setDescription] = React.useState(agent.description);
   const [provider, setProvider] = React.useState<Provider>(agent.provider);
   const [model, setModel] = React.useState(agent.model);
   const [systemPrompt, setSystemPrompt] = React.useState(agent.system_prompt);
+  const [strategy, setStrategy] = React.useState<ReviewStrategy>(agent.strategy);
+  const [ciFailOn, setCiFailOn] = React.useState<CiFailOn>(agent.ci_fail_on);
   const [enabled, setEnabled] = React.useState(agent.enabled);
 
   // Reset local form when switching agents.
@@ -26,18 +44,48 @@ export function ConfigTab({ agent }: { agent: Agent }) {
     setProvider(agent.provider);
     setModel(agent.model);
     setSystemPrompt(agent.system_prompt);
+    setStrategy(agent.strategy);
+    setCiFailOn(agent.ci_fail_on);
     setEnabled(agent.enabled);
   }, [agent.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { data: models } = useProviderModels(provider);
-  const modelOptions = (models ?? []).map((m) => m.id);
-  if (!modelOptions.includes(model)) modelOptions.unshift(model);
+  // Show the price (USD per 1M in/out tokens) in the label when the provider
+  // exposes it (OpenRouter) so a cheap model is easy to pick; value stays the id.
+  const modelOptions: (string | { value: string; label: string })[] = (models ?? []).map((m) =>
+    m.pricing || m.contextLength ? { value: m.id, label: modelLabel(m) } : m.id,
+  );
+  const hasModel = modelOptions.some((o) => (typeof o === "string" ? o : o.value) === model);
+  if (!hasModel) modelOptions.unshift(model);
+  // Empty list after load = provider key missing/invalid (listModels failed) —
+  // guide the user instead of showing a silent one-item dropdown.
+  const noModels = models !== undefined && models.length === 0;
+
+  // Friendly labels for the strategy select (values come from constants).
+  const strategyOptions = STRATEGY_VALUES.map((v) => ({ value: v, label: t(`config.strategyOptions.${v}`) }));
+  const ciFailOnOptions = CI_FAIL_ON_VALUES.map((v) => ({ value: v, label: t(`config.ciFailOnOptions.${v}`) }));
 
   const save = () =>
-    update.mutate({
-      id: agent.id,
-      patch: { name, description, provider, model, system_prompt: systemPrompt, enabled },
-    });
+    update.mutate(
+      {
+        id: agent.id,
+        patch: {
+          name,
+          description,
+          provider,
+          model,
+          system_prompt: systemPrompt,
+          strategy,
+          ci_fail_on: ciFailOn,
+          enabled,
+        },
+      },
+      {
+        // Failures are surfaced by the global mutation error toast; confirm the
+        // save with a success toast (not just the inline "Saved (vN)" note).
+        onSuccess: (data) => toast.success(t("config.savedToast", { version: data.version })),
+      },
+    );
 
   return (
     <div style={s.wrap}>
@@ -61,8 +109,30 @@ export function ConfigTab({ agent }: { agent: Agent }) {
           options={[...PROVIDER_OPTIONS]}
         />
       </FormField>
-      <FormField label={t("config.model")} hint={t("config.modelHint")}>
-        <SelectInput value={model} onChange={setModel} options={modelOptions} />
+      <FormField
+        label={t("config.model")}
+        hint={noModels ? t("config.modelEmptyHint", { provider }) : t("config.modelHint")}
+      >
+        <SearchableSelect
+          value={model}
+          onChange={setModel}
+          options={modelOptions}
+          placeholder={t("config.modelSearch")}
+        />
+      </FormField>
+      <FormField label={t("config.strategy")} hint={t("config.strategyHint")}>
+        <SelectInput
+          value={strategy}
+          onChange={(v) => setStrategy(v as ReviewStrategy)}
+          options={strategyOptions}
+        />
+      </FormField>
+      <FormField label={t("config.ciFailOn")} hint={t("config.ciFailOnHint")}>
+        <SelectInput
+          value={ciFailOn}
+          onChange={(v) => setCiFailOn(v as CiFailOn)}
+          options={ciFailOnOptions}
+        />
       </FormField>
       <FormField label={t("config.systemPrompt")} hint={t("config.systemPromptHint")}>
         <Textarea value={systemPrompt} onChange={setSystemPrompt} rows={8} mono />

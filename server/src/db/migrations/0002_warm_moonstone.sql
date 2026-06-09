@@ -1,0 +1,1 @@
+ALTER TABLE "agents" ADD COLUMN "strategy" text DEFAULT 'single-pass' NOT NULL;

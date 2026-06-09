@@ -44,6 +44,11 @@ export class SkillsService {
     return row ? toDto(row) : undefined;
   }
 
+  /** Delete a skill (and its versions/agent-links, via cascade). */
+  async delete(workspaceId: string, id: string): Promise<boolean> {
+    return this.repo.deleteById(workspaceId, id);
+  }
+
   async create(
     workspaceId: string,
     input: {

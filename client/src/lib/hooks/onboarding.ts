@@ -12,6 +12,10 @@ export function useOnboarding(repoId: string | null | undefined) {
     queryFn: () => api.get<Onboarding>(`/repos/${repoId}/onboarding`),
     enabled: !!repoId,
     retry: false,
+    // The tour rarely changes; keep it fresh + cached so navigating away and
+    // back re-shows it instantly from the global cache (no refetch flicker).
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
   });
 }
 

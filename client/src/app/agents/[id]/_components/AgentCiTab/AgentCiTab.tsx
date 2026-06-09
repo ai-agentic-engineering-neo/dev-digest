@@ -1,37 +1,40 @@
-/* AgentCiTab — A4 default-export for the Agent Editor "CI" tab.
-   Shows existing CI installations for the agent + an "Export to CI" button that
-   opens the 4-step wizard. */
+/* AgentCiTab — Agent Editor "CI" tab. One-click "Publish to CI": the target is
+   always GitHub Actions, the repo is the active workspace repo, and the agent
+   config (incl. ci_fail_on gate) lives in the agent — so there's nothing to
+   configure here. Publishing opens/updates a PR adding the workflow + .devdigest/. */
 "use client";
 
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Badge, Button, Icon, MonoLink } from "@devdigest/ui";
 import { useCiInstallations } from "../../../../../lib/hooks/ci";
-import { ExportWizard } from "../../../../ci-runs/_components/ExportWizard";
+import { useActiveRepo } from "../../../../../lib/repo-context";
+import { PublishDialog } from "./PublishDialog";
 import { s } from "./styles";
 
 export function AgentCiTab({
   agentId,
   agentName,
-  defaultRepo,
 }: {
   agentId: string;
   agentName?: string;
-  defaultRepo?: string;
 }) {
   const t = useTranslations("ci");
   const { data: installs } = useCiInstallations();
-  const [wizard, setWizard] = React.useState(false);
+  const { activeRepo } = useActiveRepo();
+  const [open, setOpen] = React.useState(false);
   const mine = (installs ?? []).filter((i) => i.agent_id === agentId);
+  const published = mine.length > 0;
 
   return (
     <div>
-      {wizard && (
-        <ExportWizard
+      {open && activeRepo && (
+        <PublishDialog
           agentId={agentId}
           agentName={agentName}
-          defaultRepo={defaultRepo ?? ""}
-          onClose={() => setWizard(false)}
+          repo={activeRepo.full_name}
+          base={activeRepo.default_branch}
+          onClose={() => setOpen(false)}
         />
       )}
 
@@ -41,13 +44,21 @@ export function AgentCiTab({
           <p style={s.subtitle}>{t("ciTab.subtitle")}</p>
         </div>
         <div style={s.actions}>
-          <Button kind="primary" size="sm" icon="Workflow" onClick={() => setWizard(true)}>
-            {t("ciTab.exportToCi")}
+          <Button
+            kind="primary"
+            size="sm"
+            icon="GitPullRequest"
+            disabled={!activeRepo}
+            onClick={() => setOpen(true)}
+          >
+            {published ? t("ciTab.update") : t("ciTab.publish")}
           </Button>
         </div>
       </div>
 
-      {mine.length === 0 ? (
+      {!activeRepo ? (
+        <div style={s.empty}>{t("ciTab.noRepo")}</div>
+      ) : mine.length === 0 ? (
         <div style={s.empty}>{t("ciTab.empty")}</div>
       ) : (
         <div style={s.list}>

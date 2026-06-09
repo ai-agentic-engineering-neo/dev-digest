@@ -19,6 +19,7 @@ vi.mock("../../../../../../components/app-shell", () => ({
 }));
 vi.mock("../../../../../../lib/repo-context", () => ({
   useActiveRepo: () => ({ activeRepo: { full_name: "octo/repo" } }),
+  useRepoNotFound: () => false,
 }));
 vi.mock("../../../../../../lib/hooks/context", () => ({
   useSpecs: () => ({ data: SPECS, isLoading: false, isError: false, error: undefined }),

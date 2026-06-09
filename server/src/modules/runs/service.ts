@@ -11,12 +11,12 @@ import * as t from '../../db/schema.js';
 import { parseUnifiedDiff } from '../../adapters/git/diff-parser.js';
 import { NotFoundError } from '../../platform/errors.js';
 import { ReviewService } from '../reviews/service.js';
-import { AgentsRepository } from '../agents/repository.js';
-import { RunsRepository, type AgentRunRow } from './repository.js';
+import { RunsRepository } from './repository.js';
 import { computeConflicts, type AgentFindingInput } from './conflicts.js';
 import { TrifectaDetector } from './trifecta.js';
-import { MEMBER_RUN_GRACE_MS, TREND_WINDOW } from './constants.js';
-import { average, averageRounded, sumCostsOrNull } from './helpers.js';
+import { MEMBER_RUN_GRACE_MS } from './constants.js';
+import { sumCostsOrNull } from './helpers.js';
+import { agentStats } from './stats.js';
 
 /**
  * A5 — runs service: Multi-Agent Review, Run-Trace passthrough (enriched), and
@@ -31,13 +31,13 @@ type Severity = 'CRITICAL' | 'WARNING' | 'SUGGESTION';
 
 export class RunsService {
   private repo: RunsRepository;
-  private agents: AgentsRepository;
+  private agents: Container['agentsRepo'];
   private reviews: ReviewService;
   private trifecta: TrifectaDetector;
 
   constructor(private container: Container) {
     this.repo = new RunsRepository(container.db);
-    this.agents = new AgentsRepository(container.db);
+    this.agents = container.agentsRepo;
     this.reviews = new ReviewService(container);
     this.trifecta = new TrifectaDetector(container);
   }
@@ -216,59 +216,7 @@ export class RunsService {
   // ===========================================================================
 
   async agentStats(workspaceId: string, agentId: string): Promise<AgentStats> {
-    const agent = await this.repo.getAgent(workspaceId, agentId);
-    if (!agent) throw new NotFoundError('Agent not found');
-
-    const runs = await this.repo.agentRunsForAgent(workspaceId, agentId);
-    const findings = await this.repo.findingsForAgent(workspaceId, agentId);
-
-    const accepted = findings.filter((f) => f.acceptedAt != null).length;
-    const dismissed = findings.filter((f) => f.dismissedAt != null).length;
-    const pending = findings.length - accepted - dismissed;
-    const acted = accepted + dismissed;
-
-    const bySeverity = { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 };
-    for (const f of findings) {
-      if (f.severity === 'CRITICAL' || f.severity === 'WARNING' || f.severity === 'SUGGESTION') {
-        bySeverity[f.severity as Severity] += 1;
-      }
-    }
-
-    const doneRuns = runs.filter((r) => r.status === 'done');
-    const costs = doneRuns.map((r) => r.costUsd).filter((c): c is number => c != null);
-    const totalCost = costs.length > 0 ? costs.reduce((n, c) => n + c, 0) : null;
-    const latencies = doneRuns.map((r) => r.durationMs).filter((d): d is number => d != null);
-    const avgLatency = averageRounded(latencies);
-
-    const findingsCounts = doneRuns
-      .map((r) => r.findingsCount)
-      .filter((c): c is number => c != null);
-    const avgFindings = average(findingsCounts);
-
-    return {
-      agent_id: agentId,
-      agent_name: agent.name,
-      runs: runs.length,
-      findings_total: findings.length,
-      accepted,
-      dismissed,
-      pending,
-      accept_rate: acted > 0 ? accepted / acted : null,
-      dismiss_rate: acted > 0 ? dismissed / acted : null,
-      avg_findings_per_run: avgFindings,
-      total_cost_usd: totalCost,
-      avg_cost_usd: costs.length > 0 ? (totalCost ?? 0) / costs.length : null,
-      avg_latency_ms: avgLatency,
-      findings_by_severity: bySeverity,
-      trend: this.buildTrend(runs),
-    };
-  }
-
-  /** A small accept-rate-friendly trend: findings per run over the last 12 runs. */
-  private buildTrend(runs: AgentRunRow[]): { label: string; value: number }[] {
-    return runs
-      .slice(-TREND_WINDOW)
-      .map((r, i) => ({ label: `run ${i + 1}`, value: r.findingsCount ?? 0 }));
+    return agentStats(this.repo, workspaceId, agentId);
   }
 
   // ===========================================================================

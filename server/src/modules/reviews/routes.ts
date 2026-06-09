@@ -27,7 +27,12 @@ export default async function reviewsRoutes(app: FastifyInstance) {
       ...(body.agentId !== undefined ? { agentId: body.agentId } : {}),
       ...(body.all !== undefined ? { all: body.all } : {}),
     });
-    const { runs, reviews } = await service.runReview(workspaceId, req.params.id, targets);
+    const { runs, reviews } = await service.runReview(
+      workspaceId,
+      req.params.id,
+      targets,
+      req.log,
+    );
     return { pr_id: req.params.id, runs, reviews };
   });
 
@@ -75,6 +80,32 @@ export default async function reviewsRoutes(app: FastifyInstance) {
     );
   });
 
+  // ---- Active (in-flight) runs for a PR (server source of truth) ----------
+  app.get<{ Params: { id: string } }>('/pulls/:id/runs/active', async (req) => {
+    const { workspaceId } = await getContext(container, req);
+    return service.activeRuns(workspaceId, req.params.id);
+  });
+
+  // ---- All runs for a PR (any status; the run history, incl. failures) -----
+  app.get<{ Params: { id: string } }>('/pulls/:id/runs', async (req) => {
+    const { workspaceId } = await getContext(container, req);
+    return service.listRuns(workspaceId, req.params.id);
+  });
+
+  // ---- Delete one run from the history (+ its trace) ----------------------
+  app.delete<{ Params: { id: string } }>('/runs/:id', async (req) => {
+    const { workspaceId } = await getContext(container, req);
+    const ok = await service.deleteRun(workspaceId, req.params.id);
+    return { ok };
+  });
+
+  // ---- Cancel an in-flight run --------------------------------------------
+  app.post<{ Params: { id: string } }>('/runs/:id/cancel', async (req) => {
+    await getContext(container, req);
+    await service.cancelRun(req.params.id);
+    return { ok: true };
+  });
+
   // ---- Run trace (single document; A5 enriches with multi-agent/stats) ----
   app.get<{ Params: { id: string } }>('/runs/:id/trace', async (req) => {
     await getContext(container, req);
@@ -99,6 +130,14 @@ export default async function reviewsRoutes(app: FastifyInstance) {
   app.get<{ Params: { id: string } }>('/pulls/:id/smart-diff', async (req) => {
     const { workspaceId } = await getContext(container, req);
     return service.smartDiff(workspaceId, req.params.id);
+  });
+
+  // ---- Delete a whole review run (one agent's pass) + its findings --------
+  app.delete<{ Params: { id: string } }>('/reviews/:id', async (req) => {
+    const { workspaceId } = await getContext(container, req);
+    const ok = await service.deleteReview(workspaceId, req.params.id);
+    if (!ok) throw new NotFoundError('Review not found');
+    return { ok: true };
   });
 
   // ---- Finding actions ----------------------------------------------------

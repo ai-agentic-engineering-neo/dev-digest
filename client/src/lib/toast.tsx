@@ -27,6 +27,17 @@ export function useToast(): ToastApi {
   return ctx;
 }
 
+/* Module-level bridge so non-React code (e.g. the React Query cache) can raise
+   toasts without the hook. The mounted <ToastProvider> registers its pusher. */
+type Pusher = (message: string, kind?: ToastKind) => void;
+let activePusher: Pusher | null = null;
+export const notify = {
+  toast: (m: string, k?: ToastKind) => activePusher?.(m, k),
+  success: (m: string) => activePusher?.(m, "success"),
+  error: (m: string) => activePusher?.(m, "error"),
+  info: (m: string) => activePusher?.(m, "info"),
+};
+
 const COLORS: Record<ToastKind, { bg: string; border: string; icon: string }> = {
   success: { bg: "var(--ok-bg, #052e1c)", border: "var(--ok)", icon: "✓" },
   error: { bg: "var(--crit-bg, #2e0a0a)", border: "var(--crit)", icon: "✕" },
@@ -53,6 +64,14 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     }),
     [push],
   );
+
+  // Expose this provider's pusher to the module-level `notify` bridge.
+  React.useEffect(() => {
+    activePusher = push;
+    return () => {
+      if (activePusher === push) activePusher = null;
+    };
+  }, [push]);
 
   return (
     <ToastCtx.Provider value={api}>

@@ -1,13 +1,15 @@
 import type { FastifyInstance } from 'fastify';
 import { and, eq } from 'drizzle-orm';
-import type { PrMeta, PrDetail } from '@devdigest/shared';
+import type { PrMeta, PrDetail, GitHubClient } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
 import { getContext } from '../_shared/context.js';
 import { NotFoundError } from '../../platform/errors.js';
 
 /**
  * F1 — pulls module (§12). PR import via Octokit (list + per-PR detail).
- *   GET /repos/:id/pulls → list open PRs for a repo (synced from GitHub, persisted)
+ *   GET /repos/:id/pulls → list PRs for a repo (open + recently merged/closed,
+ *                          synced from GitHub, persisted). `status` is GitHub's
+ *                          merge state (open/merged/closed).
  *   GET /pulls/:id       → full PR detail (diff/files, commits, body, linked issue)
  *
  * Import is idempotent (unique repo_id+number). Review trigger is MANUAL (§8.1)
@@ -24,48 +26,86 @@ export default async function pullsRoutes(app: FastifyInstance) {
       .where(and(eq(t.repos.workspaceId, workspaceId), eq(t.repos.id, req.params.id)));
     if (!repo) throw new NotFoundError('Repo not found');
 
+    let gh: GitHubClient | null = null;
+    try {
+      gh = await container.github();
+    } catch (err) {
+      app.log.warn({ err }, 'GitHub client unavailable (no token / offline); serving persisted PRs');
+    }
+
     // Local-first (§1): sync from GitHub when a token is configured, but never
     // fail the read — already-imported/seeded PRs stay viewable offline.
-    try {
-      const gh = await container.github();
-      const pulls = await gh.listPullRequests({ owner: repo.owner, name: repo.name });
-      for (const pr of pulls) {
-        await container.db
-          .insert(t.pullRequests)
-          .values({
-            workspaceId,
-            repoId: repo.id,
-            number: pr.number,
-            title: pr.title,
-            author: pr.author,
-            branch: pr.branch,
-            base: pr.base,
-            headSha: pr.head_sha,
-            additions: pr.additions,
-            deletions: pr.deletions,
-            filesCount: pr.files_count,
-            status: pr.status,
-            openedAt: pr.opened_at ? new Date(pr.opened_at) : null,
-            updatedAt: pr.updated_at ? new Date(pr.updated_at) : null,
-          })
-          .onConflictDoUpdate({
-            target: [t.pullRequests.repoId, t.pullRequests.number],
-            set: {
+    if (gh) {
+      try {
+        const pulls = await gh.listPullRequests({ owner: repo.owner, name: repo.name });
+        for (const pr of pulls) {
+          await container.db
+            .insert(t.pullRequests)
+            .values({
+              workspaceId,
+              repoId: repo.id,
+              number: pr.number,
               title: pr.title,
+              author: pr.author,
+              branch: pr.branch,
+              base: pr.base,
               headSha: pr.head_sha,
+              additions: pr.additions,
+              deletions: pr.deletions,
+              filesCount: pr.files_count,
               status: pr.status,
+              openedAt: pr.opened_at ? new Date(pr.opened_at) : null,
               updatedAt: pr.updated_at ? new Date(pr.updated_at) : null,
-            },
-          });
+            })
+            .onConflictDoUpdate({
+              target: [t.pullRequests.repoId, t.pullRequests.number],
+              set: {
+                title: pr.title,
+                headSha: pr.head_sha,
+                status: pr.status,
+                updatedAt: pr.updated_at ? new Date(pr.updated_at) : null,
+              },
+            });
+        }
+      } catch (err) {
+        app.log.warn({ err }, 'GitHub PR sync skipped (no token / offline); serving persisted PRs');
       }
-    } catch (err) {
-      app.log.warn({ err }, 'GitHub PR sync skipped (no token / offline); serving persisted PRs');
     }
 
     const rows = await container.db
       .select()
       .from(t.pullRequests)
       .where(eq(t.pullRequests.repoId, repo.id));
+
+    // Diff stats aren't on GitHub's PR-list payload, so freshly-imported PRs
+    // land with zeroed size/diff. Backfill them once from the detail endpoint
+    // so the list shows real S/M/L + ± counts. Capped per request (each backfill
+    // is a detail fetch) — the periodic refetch chips away at any remainder.
+    const BACKFILL_LIMIT = 10;
+    if (gh) {
+      const needStats = rows
+        .filter((r) => r.additions === 0 && r.deletions === 0 && r.filesCount === 0)
+        .slice(0, BACKFILL_LIMIT);
+      for (const r of needStats) {
+        try {
+          const detail = await gh.getPullRequest({ owner: repo.owner, name: repo.name }, r.number);
+          await container.db
+            .update(t.pullRequests)
+            .set({
+              additions: detail.additions,
+              deletions: detail.deletions,
+              filesCount: detail.files_count,
+            })
+            .where(eq(t.pullRequests.id, r.id));
+          r.additions = detail.additions;
+          r.deletions = detail.deletions;
+          r.filesCount = detail.files_count;
+        } catch (err) {
+          app.log.warn({ err, number: r.number }, 'PR diff-stat backfill skipped');
+        }
+      }
+    }
+
     return rows.map((r) => ({
       id: r.id,
       number: r.number,

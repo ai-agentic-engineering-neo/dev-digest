@@ -1,5 +1,5 @@
 import type { AgentPerfRow, PerfCostSegment } from '@devdigest/shared';
-import type { AgentRunRow } from '../runs/repository.js';
+import type { AgentRunRow } from '../../db/rows.js';
 import { TREND_WINDOW } from './constants.js';
 
 /**

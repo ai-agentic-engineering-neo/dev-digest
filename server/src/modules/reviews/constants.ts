@@ -5,6 +5,16 @@
 /** Diffs bigger than this (changed lines) trigger map-reduce per file. */
 export const FILE_MAP_THRESHOLD_LINES = 400;
 
+/**
+ * Studio review strategy. 'single-pass' = send the WHOLE diff in ONE LLM call.
+ * We deliberately do NOT use 'auto'/map-reduce by default: map-reduce makes one
+ * call PER FILE, which is slow and fragile (any single file's transient 5xx
+ * fails the entire run) and unnecessary — the whole diff already fits the
+ * model's context (the intent pass sends it in one shot). For genuinely
+ * oversized PRs the Smart-Diff split nudge guides the user to split instead.
+ */
+export const REVIEW_STRATEGY = 'single-pass' as const;
+
 /** Verdict severity ordering — higher wins when reducing per-file reviews. */
 export const VERDICT_RANK: Record<string, number> = {
   request_changes: 2,

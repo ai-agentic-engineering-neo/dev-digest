@@ -2,22 +2,21 @@ import type { Container } from '../../platform/container.js';
 import type {
   CiExport,
   CiExportInput,
-  CiFile,
   CiInstallation,
   CiRun,
-  CiTarget,
 } from '@devdigest/shared/contracts/eval-ci';
 import { and, eq } from 'drizzle-orm';
 import * as t from '../../db/schema.js';
 import { NotFoundError } from '../../platform/errors.js';
-import { AgentsRepository } from '../agents/repository.js';
 import {
   OctokitCiActionsClient,
   type CiActionsClient,
   type WorkflowRunSummary,
 } from './actions-client.js';
-import { CI_RUN_SOURCE, EXPORT_PR_TITLE, WORKFLOW_PATH } from './constants.js';
+import { CI_RUN_SOURCE, EXPORT_BRANCH, EXPORT_PR_TITLE } from './constants.js';
+import { generateFiles, prBody } from './generators.js';
 import { mapConclusion, slugify, splitRepo } from './helpers.js';
+import { installationToDto, runToDto } from './mappers.js';
 
 /**
  * A4 — Export-to-CI + CI Runs (§7 L06).
@@ -31,7 +30,7 @@ import { mapConclusion, slugify, splitRepo } from './helpers.js';
  * `devdigest-result.json` artifact, and upsert `ci_runs`. No webhooks.
  */
 export class CiService {
-  private agents: AgentsRepository;
+  private agents: Container['agentsRepo'];
 
   constructor(
     private container: Container,
@@ -39,7 +38,7 @@ export class CiService {
      *  undefined, in which case the real Octokit client is used. */
     private actionsClientFactory?: () => Promise<CiActionsClient | undefined>,
   ) {
-    this.agents = new AgentsRepository(container.db);
+    this.agents = container.agentsRepo;
   }
 
   // ---- Export -------------------------------------------------------------
@@ -47,41 +46,69 @@ export class CiService {
   async export(workspaceId: string, agentId: string, input: CiExportInput): Promise<CiExport> {
     const agent = await this.agents.getById(workspaceId, agentId);
     if (!agent) throw new NotFoundError('Agent not found');
-    const skillIds = await this.agents.skillIdsForAgent(agentId);
+    // Touch skill IDs (preserves the original read); manifests use linkedSkills.
+    await this.agents.skillIdsForAgent(agentId);
     const skills = await this.agents.linkedSkills(agentId);
 
-    const files = this.generateFiles(input, {
+    const files = generateFiles(input, {
       name: agent.name,
       slug: slugify(agent.name),
       provider: agent.provider,
       model: agent.model,
       systemPrompt: agent.systemPrompt,
+      strategy: agent.strategy,
+      ciFailOn: agent.ciFailOn,
       skills: skills.map((l) => ({ name: l.skill.name, body: l.skill.body })),
     });
 
     let prUrl: string | null = null;
     if (input.action === 'open_pr') {
-      const { owner, name } = splitRepo(input.repo);
+      const repo = splitRepo(input.repo);
       const github = await this.container.github();
-      const res = await github.openPullRequest(
-        { owner, name },
-        {
-          title: EXPORT_PR_TITLE,
-          head: `devdigest/ci-${input.target}`,
-          base: input.base,
-          body: this.prBody(agent.name, input.target, files),
-        },
-      );
-      prUrl = res.url;
+      const branch = EXPORT_BRANCH;
+
+      // Commit the generated files onto the branch as one atomic commit. On
+      // re-publish this just adds a new commit to the same branch — idempotent.
+      await github.commitFiles(repo, {
+        branch,
+        base: input.base,
+        message: EXPORT_PR_TITLE,
+        files: files.map((f) => ({ path: f.path, contents: f.contents })),
+      });
+
+      // Reuse the open PR for this branch if there is one (re-publish), else open it.
+      const existing = await github.findOpenPr(repo, branch);
+      prUrl =
+        existing?.url ??
+        (
+          await github.openPullRequest(repo, {
+            title: EXPORT_PR_TITLE,
+            head: branch,
+            base: input.base,
+            body: prBody(agent.name, input.target, files),
+          })
+        ).url;
     }
 
-    const [row] = await this.container.db
-      .insert(t.ciInstallations)
-      .values({ agentId, repo: input.repo, targetType: input.target })
-      .returning();
+    // Upsert the installation row so re-publishing the same agent→repo doesn't
+    // accumulate duplicates.
+    const [existingInstall] = await this.container.db
+      .select()
+      .from(t.ciInstallations)
+      .where(
+        and(eq(t.ciInstallations.agentId, agentId), eq(t.ciInstallations.repo, input.repo)),
+      );
+    const row =
+      existingInstall ??
+      (
+        await this.container.db
+          .insert(t.ciInstallations)
+          .values({ agentId, repo: input.repo, targetType: input.target })
+          .returning()
+      )[0];
 
     return {
-      installation: this.installationToDto(row!),
+      installation: installationToDto(row!),
       files,
       pr_url: prUrl,
     };
@@ -94,7 +121,7 @@ export class CiService {
       .from(t.ciInstallations)
       .innerJoin(t.agents, eq(t.agents.id, t.ciInstallations.agentId))
       .where(eq(t.agents.workspaceId, workspaceId));
-    return rows.map((r) => this.installationToDto(r.ci));
+    return rows.map((r) => installationToDto(r.ci));
   }
 
   // ---- CI Runs (ingestion + read) ----------------------------------------
@@ -118,7 +145,7 @@ export class CiService {
       .leftJoin(t.agents, eq(t.agents.id, t.ciInstallations.agentId))
       .where(eq(t.agents.workspaceId, workspaceId));
     return rows
-      .map((r) => this.runToDto(r.run))
+      .map((r) => runToDto(r.run))
       .sort((a, b) => (b.ran_at ?? '').localeCompare(a.ran_at ?? ''));
   }
 
@@ -183,123 +210,7 @@ export class CiService {
     await this.container.db.insert(t.ciRuns).values(values);
   }
 
-  // ---- File generation ----------------------------------------------------
-
-  private generateFiles(
-    input: CiExportInput,
-    agent: {
-      name: string;
-      slug: string;
-      provider: string;
-      model: string;
-      systemPrompt: string;
-      skills: { name: string; body: string }[];
-    },
-  ): CiFile[] {
-    const files: CiFile[] = [];
-
-    files.push({
-      path: WORKFLOW_PATH,
-      contents: this.workflowYaml(input, agent.slug),
-      editable: true,
-    });
-
-    files.push({
-      path: `.devdigest/agents/${agent.slug}.yaml`,
-      contents: this.agentYaml(agent),
-      editable: true,
-    });
-
-    for (const s of agent.skills) {
-      files.push({
-        path: `.devdigest/skills/${slugify(s.name)}.md`,
-        contents: `# ${s.name}\n\n${s.body}\n`,
-        editable: true,
-      });
-    }
-
-    files.push({
-      path: '.devdigest/memory.jsonl',
-      contents: '',
-      editable: true,
-    });
-
-    return files;
-  }
-
-  private workflowYaml(input: CiExportInput, slug: string): string {
-    if (input.target !== 'gha') {
-      // non-GHA targets get a CLI-style stub; GHA is the supported path.
-      return [
-        '# DevDigest CI (generic) — runs the devdigest CLI on each PR',
-        'steps:',
-        '  - run: npx devdigest review --pr "$PR_NUMBER" --agent ' + slug,
-        '',
-      ].join('\n');
-    }
-    const types = input.triggers.map((x) => x).join(', ');
-    const post =
-      input.post_as === 'github_review'
-        ? '          post: github-review'
-        : input.post_as === 'pr_comment'
-          ? '          post: pr-comment'
-          : '          post: none';
-    return [
-      'name: DevDigest Review',
-      'on:',
-      '  pull_request:',
-      `    types: [${types}]`,
-      '',
-      'jobs:',
-      '  review:',
-      '    runs-on: ubuntu-latest',
-      '    steps:',
-      '      - uses: actions/checkout@v4',
-      '      - uses: devdigest/review-action@v1',
-      '        with:',
-      `          agent: ${slug}`,
-      '          openai-key: ${{ secrets.OPENAI_API_KEY }}',
-      post,
-      '        env:',
-      '          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}',
-      '',
-    ].join('\n');
-  }
-
-  private agentYaml(agent: {
-    name: string;
-    provider: string;
-    model: string;
-    systemPrompt: string;
-    skills: { name: string }[];
-  }): string {
-    return [
-      `name: ${agent.name}`,
-      `provider: ${agent.provider}`,
-      `model: ${agent.model}`,
-      'system_prompt: |',
-      ...agent.systemPrompt.split('\n').map((l) => `  ${l}`),
-      'skills:',
-      ...agent.skills.map((s) => `  - ${slugify(s.name)}`),
-      '',
-    ].join('\n');
-  }
-
-  private prBody(agentName: string, target: CiTarget, files: CiFile[]): string {
-    const list = files.map((f) => `- \`${f.path}\``).join('\n');
-    return [
-      `This PR wires up **DevDigest** to review pull requests automatically using the **${agentName}** agent (${target}).`,
-      '',
-      '**Files added:**',
-      list,
-      '',
-      'Add `OPENAI_API_KEY` to the repo Actions secrets before the workflow runs. `GITHUB_TOKEN` is auto-provided.',
-      '',
-      '_Opened via DevDigest Export-to-CI._',
-    ].join('\n');
-  }
-
-  // ---- DTOs / clients -----------------------------------------------------
+  // ---- Clients ------------------------------------------------------------
 
   private async resolveActionsClient(): Promise<CiActionsClient> {
     if (this.actionsClientFactory) {
@@ -311,30 +222,5 @@ export class CiService {
     const token = await this.container.secrets.get('GITHUB_TOKEN');
     if (!token) throw new NotFoundError('GITHUB_TOKEN is not configured for Actions ingestion');
     return new OctokitCiActionsClient(token);
-  }
-
-  private installationToDto(row: typeof t.ciInstallations.$inferSelect): CiInstallation {
-    return {
-      id: row.id,
-      agent_id: row.agentId,
-      repo: row.repo,
-      target_type: row.targetType as CiTarget,
-      installed_at: row.installedAt.toISOString(),
-    };
-  }
-
-  private runToDto(row: typeof t.ciRuns.$inferSelect): CiRun {
-    return {
-      id: row.id,
-      ci_installation_id: row.ciInstallationId,
-      pr_number: row.prNumber,
-      ran_at: row.ranAt?.toISOString() ?? null,
-      status: row.status,
-      findings_count: row.findingsCount,
-      cost_usd: row.costUsd,
-      github_url: row.githubUrl,
-      source: row.source,
-      duration_s: null,
-    };
   }
 }

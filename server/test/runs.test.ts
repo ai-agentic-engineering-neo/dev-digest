@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { startPg, dockerAvailable, type PgFixture } from './helpers/pg.js';
+import { waitForPrRuns } from './helpers/runs.js';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/platform/config.js';
 import { seed } from '../src/db/seed.js';
@@ -231,6 +232,9 @@ d('A5 runs / observability (Testcontainers pg)', () => {
     expect(run.agent_count).toBe(2);
     expect(run.columns).toHaveLength(2);
 
+    // Reviews persist in the background (fire-and-forget) — wait for both runs.
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 2 });
+
     // Two agent_runs rows + two run_traces docs for THIS pr (one document each).
     const runs = await pg.handle.db
       .select()
@@ -300,11 +304,13 @@ d('A5 runs / observability (Testcontainers pg)', () => {
     const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
     const agent = await createAgent(app, 'StatsAgent');
 
-    // Run a single review → 1 kept finding.
-    const body = (
-      await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } })
+    // Run a single review → 1 kept finding (fire-and-forget; wait for it).
+    await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } });
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+    const reviews = (
+      await app.inject({ method: 'GET', url: `/pulls/${pr.id}/reviews` })
     ).json();
-    const findingId = body.reviews[0].findings[0].id;
+    const findingId = reviews[0].findings[0].id;
 
     // Before any action: pending=1, accept_rate=null (no acted findings).
     let stats = (await app.inject({ method: 'GET', url: `/agents/${agent.id}/stats` })).json();

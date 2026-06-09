@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { Provider } from '@devdigest/shared';
+import { CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { NotFoundError } from '../../platform/errors.js';
 import { AgentsService } from './service.js';
@@ -24,6 +24,8 @@ const CreateAgentBody = z.object({
   model: z.string().min(1),
   system_prompt: z.string().min(1),
   output_schema: z.unknown().optional(),
+  strategy: ReviewStrategy.optional(),
+  ci_fail_on: CiFailOn.optional(),
   enabled: z.boolean().optional(),
 });
 
@@ -34,6 +36,8 @@ const UpdateAgentBody = z.object({
   model: z.string().min(1).optional(),
   system_prompt: z.string().min(1).optional(),
   output_schema: z.unknown().optional(),
+  strategy: ReviewStrategy.optional(),
+  ci_fail_on: CiFailOn.optional(),
   enabled: z.boolean().optional(),
 });
 
@@ -75,6 +79,8 @@ export default async function agentsRoutes(app: FastifyInstance) {
         system_prompt: body.system_prompt,
         ...(body.description !== undefined ? { description: body.description } : {}),
         ...(body.output_schema !== undefined ? { output_schema: body.output_schema } : {}),
+        ...(body.strategy !== undefined ? { strategy: body.strategy } : {}),
+        ...(body.ci_fail_on !== undefined ? { ci_fail_on: body.ci_fail_on } : {}),
         ...(body.enabled !== undefined ? { enabled: body.enabled } : {}),
       },
       userId,
@@ -89,6 +95,13 @@ export default async function agentsRoutes(app: FastifyInstance) {
     const agent = await service.update(workspaceId, req.params.id, patch);
     if (!agent) throw new NotFoundError('Agent not found');
     return agent;
+  });
+
+  app.delete<{ Params: { id: string } }>('/agents/:id', async (req) => {
+    const { workspaceId } = await getContext(app.container, req);
+    const ok = await service.delete(workspaceId, req.params.id);
+    if (!ok) throw new NotFoundError('Agent not found');
+    return { ok: true };
   });
 
   app.get<{ Params: { id: string } }>('/agents/:id/skills', async (req) => {

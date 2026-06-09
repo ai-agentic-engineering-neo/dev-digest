@@ -8,7 +8,8 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Button, Badge, EmptyState, ErrorState, Skeleton } from "@devdigest/ui";
 import { AppShell } from "../../../../../../components/app-shell";
-import { useActiveRepo } from "../../../../../../lib/repo-context";
+import { RepoNotFound } from "../../../../../../components/RepoNotFound";
+import { useActiveRepo, useRepoNotFound } from "../../../../../../lib/repo-context";
 import { useOnboarding, useGenerateOnboarding } from "../../../../../../lib/hooks/onboarding";
 import { isNotGenerated } from "./helpers";
 import { SectionCard } from "./_components/SectionCard";
@@ -22,12 +23,14 @@ export function OnboardingTourView() {
   const router = useRouter();
   const repoId = params.repoId;
   const { activeRepo } = useActiveRepo();
+  const repoNotFound = useRepoNotFound(repoId);
 
   const { data, isLoading, isError, error } = useOnboarding(repoId);
   const generate = useGenerateOnboarding(repoId);
 
   const sectionParam = search.get("section");
   const sections = data?.sections ?? [];
+  const hasData = sections.length > 0;
   const [openKind, setOpenKind] = React.useState<string | null>(null);
 
   // Sync open section from ?section= (deep-link) once data is present.
@@ -58,21 +61,24 @@ export function OnboardingTourView() {
   return (
     <AppShell crumb={crumb}>
       <div style={s.page}>
-        {isLoading ? (
+        {repoNotFound ? (
+          <RepoNotFound />
+        ) : !hasData && isLoading ? (
           <div style={s.loadingStack}>
             <Skeleton height={28} width={320} />
             <Skeleton height={120} />
             <Skeleton height={120} />
           </div>
-        ) : notGenerated ? (
+        ) : !hasData && notGenerated ? (
           <EmptyState
             icon="Boxes"
             title={t("generate.title")}
             body={t("generate.body")}
             cta={generate.isPending ? t("generate.generating") : t("generate.cta")}
             onCta={() => generate.mutate()}
+            ctaLoading={generate.isPending}
           />
-        ) : isError ? (
+        ) : !hasData && isError ? (
           <ErrorState title={t("loadError.title")} body={(error as Error)?.message ?? t("unknownError")} />
         ) : (
           <div style={s.layout}>
@@ -106,7 +112,7 @@ export function OnboardingTourView() {
                   size="sm"
                   icon="RefreshCw"
                   onClick={() => generate.mutate()}
-                  disabled={generate.isPending}
+                  loading={generate.isPending}
                 >
                   {generate.isPending ? t("regenerating") : t("regenerate")}
                 </Button>

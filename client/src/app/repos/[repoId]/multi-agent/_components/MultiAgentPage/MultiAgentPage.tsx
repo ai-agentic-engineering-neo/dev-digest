@@ -12,7 +12,8 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Button, Dropdown, EmptyState, Icon, Skeleton } from "@devdigest/ui";
 import { AppShell } from "../../../../../../components/app-shell";
-import { useActiveRepo } from "../../../../../../lib/repo-context";
+import { RepoNotFound } from "../../../../../../components/RepoNotFound";
+import { useActiveRepo, useRepoNotFound } from "../../../../../../lib/repo-context";
 import { usePulls } from "../../../../../../lib/hooks";
 import { useMultiAgentRun, useRunMultiAgent } from "../../../../../../lib/hooks/multiagent";
 import { useAgents } from "../../../../../../lib/hooks/agents";
@@ -30,6 +31,7 @@ export function MultiAgentPage() {
   const router = useRouter();
   const { repoId } = params;
   const { activeRepo } = useActiveRepo();
+  const repoNotFound = useRepoNotFound(repoId);
 
   const { data: pulls } = usePulls(repoId);
   const { data: agents } = useAgents();
@@ -64,6 +66,15 @@ export function MultiAgentPage() {
   ];
 
   const traceColumn: AgentColumn | undefined = run?.columns.find((c) => c.run_id === traceRunId);
+
+  // Stale/unknown :repoId → friendly empty state instead of a 404 error.
+  if (repoNotFound) {
+    return (
+      <AppShell crumb={crumb}>
+        <RepoNotFound />
+      </AppShell>
+    );
+  }
 
   if (enabledCount === 0 && !run) {
     return (

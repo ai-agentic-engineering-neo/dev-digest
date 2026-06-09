@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { startPg, dockerAvailable, type PgFixture } from './helpers/pg.js';
+import { waitForPrRuns } from './helpers/runs.js';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/platform/config.js';
 import { seed } from '../src/db/seed.js';
@@ -192,9 +193,16 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.runs).toHaveLength(1);
-    expect(body.reviews).toHaveLength(1);
 
-    const review = body.reviews[0];
+    // runReview is fire-and-forget: wait for the background run, then read the
+    // persisted reviews (the POST returns runIds, not the reviews themselves).
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+    const reviews = (
+      await app.inject({ method: 'GET', url: `/pulls/${pr.id}/reviews` })
+    ).json();
+    expect(reviews).toHaveLength(1);
+
+    const review = reviews[0];
     expect(review.verdict).toBe('request_changes');
     expect(review.score).toBe(42);
     // grounding kept only the valid finding (line 11), dropped the line-999 one
@@ -228,11 +236,13 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
         payload: { name: 'Claude Rev', provider: 'anthropic', model: 'claude-x', system_prompt: 'rev' },
       })
     ).json();
-    const body = (
-      await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } })
+    await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } });
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+    const reviews = (
+      await app.inject({ method: 'GET', url: `/pulls/${pr.id}/reviews` })
     ).json();
-    expect(body.reviews[0].findings).toHaveLength(1);
-    expect(body.reviews[0].model).toBe('claude-x');
+    expect(reviews[0].findings).toHaveLength(1);
+    expect(reviews[0].model).toBe('claude-x');
     await app.close();
   });
 
@@ -277,10 +287,12 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
         payload: { name: 'ActAgent', provider: 'openai', model: 'gpt-4.1', system_prompt: 's' },
       })
     ).json();
-    const body = (
-      await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } })
+    await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } });
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+    const reviews = (
+      await app.inject({ method: 'GET', url: `/pulls/${pr.id}/reviews` })
     ).json();
-    const findingId = body.reviews[0].findings[0].id;
+    const findingId = reviews[0].findings[0].id;
 
     const accepted = (
       await app.inject({ method: 'POST', url: `/findings/${findingId}/accept` })

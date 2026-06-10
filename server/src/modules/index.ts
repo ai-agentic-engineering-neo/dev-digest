@@ -14,6 +14,7 @@ import reviews from './reviews/routes.js';
 import blast from './blast/routes.js';
 import brief from './brief/routes.js';
 import onboarding from './onboarding/routes.js';
+import repoIntel from './repo-intel/routes.js';
 // A4 — Eval & CI
 import evalModule from './eval/routes.js';
 import compose from './compose/routes.js';
@@ -54,6 +55,7 @@ export const modules: Record<string, FastifyPluginAsync> = {
   blast,
   brief,
   onboarding,
+  repoIntel,
   eval: evalModule,
   compose,
   ci,

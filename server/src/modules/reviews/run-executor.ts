@@ -216,6 +216,11 @@ export class ReviewRunExecutor {
       );
       if (specs.length > 0) runLog.info(`${specs.length} project-context spec(s) loaded`);
 
+      // T1.3 — callers-in-prompt. Best-effort: when repo-intel is off (default)
+      // the facade returns []; we omit the section and behavior is identical
+      // to the pre-T1.3 prompt (acceptance #10).
+      const callersDigest = await this.buildCallersDigest(pull.repoId, diff, runLog);
+
       const task = taskLine(pull, intent);
 
       // ---- Engine: assemble → (single-pass | map-reduce) → reduce → grounding
@@ -233,6 +238,9 @@ export class ReviewRunExecutor {
         skills: skillBodies,
         memory: memoryStrings,
         specs,
+        // T1.3 — pass the callers digest only when we built one. assemblePrompt
+        // omits the section when this is empty/undefined.
+        ...(callersDigest ? { callers: callersDigest } : {}),
         task,
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
@@ -334,6 +342,49 @@ export class ReviewRunExecutor {
       this.container.runBus.complete(runId);
       throw err;
     }
+  }
+
+  /**
+   * Build a compact "Callers of changed symbols" digest for the prompt.
+   *
+   * Returns `undefined` when nothing should be added (flag off, no callers
+   * found, or repo-intel errors) — `reviewPullRequest` omits the section in
+   * that case (acceptance #10: flag off → identical prompt).
+   *
+   * Compact format: one bullet per caller, grouped by file. Trimmed (limit 10
+   * rows per `getCallerSignatures` call) so the section stays under ~600
+   * tokens even on heavy PRs.
+   */
+  private async buildCallersDigest(
+    repoId: string,
+    diff: UnifiedDiff,
+    runLog: RunLogger,
+  ): Promise<string | undefined> {
+    const changedFiles = diff.files.map((f) => f.path);
+    if (changedFiles.length === 0) return undefined;
+    let rows;
+    try {
+      rows = await this.container.repoIntel.getCallerSignatures(repoId, changedFiles, 10);
+    } catch (err) {
+      // Never let an enrichment break the run — surface only as a Live Log info.
+      runLog.info(`callers digest: repoIntel failed — ${(err as Error).message}`);
+      return undefined;
+    }
+    if (rows.length === 0) return undefined;
+
+    const byFile = new Map<string, string[]>();
+    for (const r of rows) {
+      const lines = byFile.get(r.file) ?? [];
+      lines.push(`- \`${r.symbol}\` — ${r.signature}`);
+      byFile.set(r.file, lines);
+    }
+    const out: string[] = [];
+    for (const [file, lines] of byFile) {
+      out.push(`### ${file}`);
+      out.push(...lines);
+    }
+    runLog.info(`callers digest: ${rows.length} caller signature(s) attached`);
+    return out.join('\n');
   }
 
   /**

@@ -18,6 +18,10 @@ const EnvSchema = z.object({
   // pgvector columns are locked to that). Default OFF so the app makes ZERO
   // OpenAI requests; set EMBEDDINGS_ENABLED=true to turn memory retrieval on.
   EMBEDDINGS_ENABLED: z.string().optional(),
+  // repo-intel facade (Tier 1). Default OFF so the template ships degraded:
+  // ripgrep-identical behavior in every consumer (acceptance #10 by construction).
+  // Eval/tests turn it ON via REPO_INTEL_ENABLED=true.
+  REPO_INTEL_ENABLED: z.string().optional(),
   GITHUB_PAT: z.string().optional(),
   GITHUB_TOKEN: z.string().optional(),
   API_PORT: z.coerce.number().int().default(3001),
@@ -41,6 +45,12 @@ export type AppConfig = {
   webOrigin: string;
   /** Whether memory/RAG embeddings (OpenAI) are enabled. Default false. */
   embeddingsEnabled: boolean;
+  /**
+   * Whether the repo-intel facade (Tier 1: phantom-gate, callers-in-prompt) is
+   * active. Default false — every facade method returns its degraded result
+   * (`[]`) so consumers behave EXACTLY like the ripgrep-only baseline.
+   */
+  repoIntelEnabled: boolean;
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -58,5 +68,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     logLevel: parsed.LOG_LEVEL ?? (parsed.NODE_ENV === 'test' ? 'silent' : 'info'),
     webOrigin: `http://localhost:${parsed.WEB_PORT}`,
     embeddingsEnabled: parsed.EMBEDDINGS_ENABLED === 'true',
+    repoIntelEnabled: parsed.REPO_INTEL_ENABLED === 'true',
   };
 }

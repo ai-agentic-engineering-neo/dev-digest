@@ -5,7 +5,7 @@ import { parseUnifiedDiff } from '../../adapters/git/diff-parser.js';
 import { groundFindings } from '../../platform/grounding.js';
 import { NotFoundError } from '../../platform/errors.js';
 import type { PullRow } from '../../db/rows.js';
-import { runHookDetectors } from './detectors.js';
+import { runHookDetectors, detectPhantomReferences } from './detectors.js';
 import { summarizeKinds } from './helpers.js';
 
 /**
@@ -35,6 +35,14 @@ export class HooksService {
 
     const diff = await this.loadDiff(pull, repo);
     const raw = runHookDetectors(diff, which);
+
+    // T1.3 — AST-backed phantom-API gate via repo-intel. Additive to the regex
+    // detectors above; a no-op when repoIntelEnabled=false (facade returns [])
+    // or phantom scanning is disabled. Never throws (the detector swallows any
+    // repo-intel error so the deterministic layer is never silenced).
+    if (which.phantom !== false) {
+      raw.push(...(await detectPhantomReferences(diff, this.container.repoIntel, repo.id)));
+    }
 
     // Honor the citation gate (full-file kinds pass when the file is in the diff).
     const { kept } = groundFindings(raw, diff);

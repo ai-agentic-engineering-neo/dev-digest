@@ -1,4 +1,5 @@
 import type { Finding, UnifiedDiff } from '@devdigest/shared';
+import type { RepoIntel } from '../repo-intel/types.js';
 import {
   PHANTOM_IMPORT,
   PHANTOM_RULES,
@@ -140,7 +141,97 @@ export function detectPhantomApis(diff: UnifiedDiff): Finding[] {
   return findings;
 }
 
-/** Run both detectors. */
+// ===========================================================================
+// Phantom-API reference detector (T1.3) — augments PHANTOM_RULES with a
+// structural check via repo-intel. A call/new/JSX head on an ADDED diff line
+// that the file neither declares nor imports (and isn't a known global) is
+// emitted as a Finding with kind:'phantom'.
+//
+// This is the "hallucinated/renamed/mis-imported API" gate. It complements the
+// regex-based PHANTOM_RULES (which catch placeholder/TODO stubs); the two run
+// independently and dedupe by line+id so a single line never emits twice.
+// ===========================================================================
+
+/**
+ * Detect phantom references in the added lines of a diff.
+ *
+ * Inputs:
+ *  - `diff`: the unified diff (same shape every detector takes).
+ *  - `repoIntel`: the facade. Behind the flag this returns `[]` — the gate
+ *    then emits nothing (acceptance #10: flag off → zero behavior change).
+ *  - `repoId`: forwarded to `getUnresolvedReferences` so the facade can find
+ *    the clone path / repo basics.
+ *
+ * Output: zero or more `Finding`s with `kind: 'phantom'`. Empty input + a
+ * degraded facade both produce `[]`. NEVER throws — any repo-intel error is
+ * swallowed (the deterministic regex layer is the always-on baseline).
+ */
+export async function detectPhantomReferences(
+  diff: UnifiedDiff,
+  repoIntel: RepoIntel,
+  repoId: string,
+): Promise<Finding[]> {
+  // Build (file, line)-keyed set of added lines so we only flag NEW code (per
+  // §3 — never penalize pre-existing references that the PR happens to touch).
+  const added = addedLines(diff);
+  if (added.length === 0) return [];
+  const addedByFile = new Map<string, Set<number>>();
+  for (const a of added) {
+    let set = addedByFile.get(a.file);
+    if (!set) {
+      set = new Set();
+      addedByFile.set(a.file, set);
+    }
+    set.add(a.line);
+  }
+
+  const changedFiles = [...addedByFile.keys()];
+
+  let unresolved: Awaited<ReturnType<RepoIntel['getUnresolvedReferences']>>;
+  try {
+    unresolved = await repoIntel.getUnresolvedReferences(repoId, changedFiles);
+  } catch {
+    // Degraded silently — never let the deterministic layer go silent.
+    return [];
+  }
+  if (unresolved.length === 0) return [];
+
+  const findings: Finding[] = [];
+  const seen = new Set<string>();
+  for (const ref of unresolved) {
+    const fileAdded = addedByFile.get(ref.refFile);
+    if (!fileAdded || !fileAdded.has(ref.refLine)) continue;
+
+    const key = `${ref.refFile}:${ref.refLine}:${ref.symbolName}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const safeId =
+      `phantom-ref-${ref.symbolName}-${ref.refFile}-${ref.refLine}`.replace(
+        /[^a-zA-Z0-9_-]/g,
+        '_',
+      );
+    findings.push({
+      id: safeId,
+      severity: 'WARNING',
+      category: 'bug',
+      title: `Phantom API: \`${ref.symbolName}\` not declared or imported`,
+      file: ref.refFile,
+      start_line: ref.refLine,
+      end_line: ref.refLine,
+      rationale: `\`${ref.symbolName}\` is called but not declared or imported in this file (possible hallucinated/renamed/mis-imported API).`,
+      suggestion:
+        'Import the symbol from the correct module, or remove the call if it was added by mistake.',
+      confidence: 0.7,
+      kind: 'phantom',
+      trifecta_components: null,
+      evidence: null,
+    });
+  }
+  return findings;
+}
+
+/** Run the regex-driven detectors. */
 export function runHookDetectors(
   diff: UnifiedDiff,
   which: { secret?: boolean; phantom?: boolean } = { secret: true, phantom: true },

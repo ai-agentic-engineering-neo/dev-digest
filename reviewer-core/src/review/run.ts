@@ -58,6 +58,11 @@ export interface ReviewInput {
   memory?: string[];
   /** Project-context spec chunks (untrusted; delimiter-wrapped downstream). */
   specs?: string[];
+  /**
+   * Optional callers-of-changed-symbols digest (T1.3). Untrusted; rendered
+   * before the diff section. Empty/undefined → section omitted.
+   */
+  callers?: string;
   /** Task framing line, e.g. "Review PR #482 …". */
   task?: string;
   /** Override the structured-output retry budget. */
@@ -119,6 +124,7 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
     skills: input.skills,
     memory: input.memory,
     specs: input.specs,
+    callers: input.callers,
     task: input.task,
   };
 

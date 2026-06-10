@@ -25,6 +25,8 @@ import { ConfigError } from './errors.js';
 import { AgentsRepository } from '../modules/agents/repository.js';
 import { ReviewRepository } from '../modules/reviews/repository.js';
 import { RunsRepository } from '../modules/runs/repository.js';
+import type { RepoIntel } from '../modules/repo-intel/types.js';
+import { RepoIntelService } from '../modules/repo-intel/service.js';
 
 /**
  * DI container (§2.1). One per app instance. Holds config, db, the JobRunner,
@@ -42,6 +44,8 @@ export interface ContainerOverrides {
   embedder?: Embedder;
   /** Pre-built providers by id (skip key lookup). */
   llm?: Partial<Record<'openai' | 'anthropic' | 'openrouter', LLMProvider>>;
+  /** repo-intel facade (T1.1+) — tests inject mock RepoIntel implementations. */
+  repoIntel?: RepoIntel;
 }
 
 export class Container {
@@ -64,6 +68,7 @@ export class Container {
   private _agentsRepo?: AgentsRepository;
   private _reviewRepo?: ReviewRepository;
   private _runsRepo?: RunsRepository;
+  private _repoIntel?: RepoIntel;
 
   constructor(config: AppConfig, db: Db, private overrides: ContainerOverrides = {}) {
     this.config = config;
@@ -96,6 +101,17 @@ export class Container {
     if (this.overrides.codeIndex) return this.overrides.codeIndex;
     this._codeIndex ??= new RipgrepCodeIndex(this.git);
     return this._codeIndex;
+  }
+
+  /**
+   * The repo-intel facade (T1.1). All higher-level features (reviews,
+   * blast/onboarding migrations, phantom-gate) code against this interface.
+   * Tests inject a mock via `ContainerOverrides.repoIntel`.
+   */
+  get repoIntel(): RepoIntel {
+    if (this.overrides.repoIntel) return this.overrides.repoIntel;
+    this._repoIntel ??= new RepoIntelService(this);
+    return this._repoIntel;
   }
 
   async github(): Promise<GitHubClient> {

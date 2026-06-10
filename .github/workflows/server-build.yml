@@ -1,0 +1,55 @@
+# Proves `@ast-grep/napi` ships a working prebuilt for every OS we care about
+# (Linux + Windows), with no node-gyp toolchain on the runner — so the
+# server install never trips on a missing C++ build chain when contributors
+# pull the lockfile.
+#
+# Why a separate workflow: the DevDigest reviewer runs only on PRs against
+# this repo. Server typecheck must run on every push to main and on every PR
+# (matrix over OS), independent of the agent-runner pipeline.
+
+name: server build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - '.github/workflows/server-build.yml'
+  pull_request:
+    paths:
+      - 'server/**'
+      - '.github/workflows/server-build.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  typecheck:
+    name: typecheck (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: server/pnpm-lock.yaml
+
+      # `pnpm install` here is the actual gate for the Windows prebuilt: if
+      # @ast-grep/napi can't resolve `napi-rs/cli` prebuilts for win32-x64,
+      # the install fails (no node-gyp fallback is configured on the runner).
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm typecheck

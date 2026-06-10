@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.33.1",
+    "@ast-grep/napi": "0.43.0",
     "@fastify/autoload": "^6.0.3",
     "@fastify/cors": "^10.0.2",
     "@vscode/ripgrep": "^1.15.9",

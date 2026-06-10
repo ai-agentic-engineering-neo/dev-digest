@@ -27,6 +27,13 @@ export interface PromptParts {
   memory?: string[];
   /** Project-context spec chunks (untrusted content). */
   specs?: string[];
+  /**
+   * Callers-of-changed-symbols digest (T1.3). Untrusted (derived from repo
+   * code) — delimiter-wrapped like specs. When present, rendered before
+   * `## Diff to review` so the model sees crossfile context first. Empty /
+   * undefined → section omitted (no behavior change).
+   */
+  callers?: string;
   /** The unified diff / user task (untrusted content). */
   diff: string;
   /** Optional task framing line, e.g. "Review PR #482 '…'". */
@@ -62,6 +69,11 @@ export function assemblePrompt(parts: PromptParts): AssembledPrompt {
   if (skillsBlock) userSections.push(`## Skills / rules\n${skillsBlock}`);
   if (memoryBlock) userSections.push(`## Relevant memory\n${memoryBlock}`);
   if (specsBlock) userSections.push(`## Project context\n${specsBlock}`);
+  if (parts.callers && parts.callers.trim().length > 0) {
+    userSections.push(
+      `## Callers of changed symbols\n${wrapUntrusted('callers', parts.callers)}`,
+    );
+  }
   userSections.push(`## Diff to review\n${wrapUntrusted('diff', parts.diff)}`);
 
   const user = userSections.join('\n\n');

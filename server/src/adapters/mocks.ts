@@ -213,6 +213,10 @@ export class MockGitHubClient implements GitHubClient {
 export interface MockGitOptions {
   diff?: string;
   files?: Record<string, string>;
+  /** Name-only diff result (drives the incremental indexer's "changed files since X" path). */
+  diffNameOnly?: string[];
+  /** Override `currentHead()` so tests can simulate "sha unchanged since last index". */
+  head?: string;
 }
 
 export class MockGitClient implements GitClient {
@@ -229,7 +233,10 @@ export class MockGitClient implements GitClient {
   }
   async fetchPullHead(): Promise<void> {}
   async currentHead(): Promise<string> {
-    return 'a1b2c3d4';
+    return this.opts.head ?? 'a1b2c3d4';
+  }
+  async diffNameOnly(): Promise<string[]> {
+    return this.opts.diffNameOnly ?? [];
   }
   async diff(): Promise<UnifiedDiff> {
     const raw =

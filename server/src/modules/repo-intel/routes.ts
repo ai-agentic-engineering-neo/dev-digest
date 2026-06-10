@@ -1,21 +1,29 @@
 /**
- * repo-intel HTTP module — T1 surface.
+ * repo-intel HTTP module.
  *
- *   GET  /repos/:id/index-state  → IndexState (always works, may be degraded)
- *   POST /repos/:id/reindex      → 202 no-op stub
+ *   GET  /repos/:id/index-state  → IndexState (always works; degraded on missing data)
+ *   POST /repos/:id/reindex      → enqueues an INDEX_JOB_KIND job (202 + job id)
  *
- * Mirrors the blast module: pulls `RepoIntel` off the container (via the
- * `repoIntel` getter wired in platform/container.ts) so tests can override it.
- *
- * T2 will replace the POST stub with an `INDEX_JOB_KIND` enqueue against
- * `container.jobs`.
+ * Job-handler registration lives here: this plugin runs once at app boot and
+ * calls `RepoIntelService.registerIndexJobHandlers()` so INDEX/REFRESH jobs
+ * enqueued by `repos/service.ts` (after clone / on refresh) have a handler
+ * to run against. Mirrors the `RepoService.registerCloneJobHandler()` shape.
  */
 import type { FastifyInstance } from 'fastify';
 import { getContext } from '../_shared/context.js';
+import { RepoIntelService } from './service.js';
+import { INDEX_JOB_KIND } from './constants.js';
 import type { IndexState } from './types.js';
 
 export default async function repoIntelRoutes(app: FastifyInstance) {
   const { container } = app;
+  // Register the INDEX/REFRESH handlers exactly once at module load. Using a
+  // local service here (instead of `container.repoIntel`) is fine — the
+  // JobRunner stores the handler closure, not the service instance, and the
+  // lazy `container.repoIntel` getter constructs its own service for read
+  // calls. Both share the same DB, so behaviour is identical.
+  const service = new RepoIntelService(container);
+  service.registerIndexJobHandlers();
 
   app.get<{ Params: { id: string } }>(
     '/repos/:id/index-state',
@@ -30,12 +38,23 @@ export default async function repoIntelRoutes(app: FastifyInstance) {
   app.post<{ Params: { id: string } }>(
     '/repos/:id/reindex',
     async (req, reply) => {
-      await getContext(container, req);
-      // TODO(T2): container.jobs.enqueue(workspaceId, INDEX_JOB_KIND, { repoId })
-      // and return the job id. T1 is a no-op acknowledgement so the UI can
-      // wire the button now and start polling /index-state.
+      const { workspaceId } = await getContext(container, req);
+      // 202 even when enqueue fails (no handler / DB hiccup) so the UI can
+      // still poll /index-state without an inline error path. The actual
+      // outcome shows up in `repo_index_state` once the worker runs.
+      let jobId: string | null = null;
+      try {
+        const job = await container.jobs.enqueue(workspaceId, INDEX_JOB_KIND, {
+          repoId: req.params.id,
+        });
+        jobId = job.id;
+      } catch {
+        // swallow — degraded path
+      }
       reply.code(202);
-      return { status: 'accepted', degraded: true, reason: 't1-skeleton' };
+      return jobId
+        ? { status: 'accepted', jobId }
+        : { status: 'accepted', degraded: true, reason: 'no_handler' };
     },
   );
 }

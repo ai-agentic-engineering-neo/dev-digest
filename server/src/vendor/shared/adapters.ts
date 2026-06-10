@@ -186,6 +186,13 @@ export interface GitClient {
   fetchPullHead(repo: RepoRef, n: number): Promise<void>;
   currentHead(repo: RepoRef): Promise<string>;
   diff(repo: RepoRef, base: string, head: string): Promise<UnifiedDiff>;
+  /**
+   * Names of files changed between two commits (`git diff --name-only base..head`).
+   * Two-dot form is intentional — we want files reachable from `head` but not `base`,
+   * matching the incremental indexer's "what moved since last_indexed_sha?" semantics.
+   * Returns an empty array when the two refs resolve to the same commit.
+   */
+  diffNameOnly(repo: RepoRef, base: string, head: string): Promise<string[]>;
   blame(repo: RepoRef, path: string): Promise<BlameLine[]>;
   log(repo: RepoRef, path?: string): Promise<GitCommit[]>;
   readFile(repo: RepoRef, path: string): Promise<string>;

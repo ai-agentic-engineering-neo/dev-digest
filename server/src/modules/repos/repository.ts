@@ -55,6 +55,20 @@ export class RepoRepository {
     return row!;
   }
 
+  /**
+   * Look up the workspace owning a repo (by repo id, no tenancy scope —
+   * the JobRunner's `runCloneJob` is the only caller and it already trusted
+   * the payload that came out of an authenticated `add()`). Returns null
+   * if the repo was deleted before the followup ran.
+   */
+  async workspaceIdFor(repoId: string): Promise<string | null> {
+    const [row] = await this.db
+      .select({ workspaceId: t.repos.workspaceId })
+      .from(t.repos)
+      .where(eq(t.repos.id, repoId));
+    return row?.workspaceId ?? null;
+  }
+
   /** Persist the clone path and bump `last_polled_at` once a clone job completes. */
   async updateClonePath(repoId: string, clonePath: string): Promise<void> {
     await this.db

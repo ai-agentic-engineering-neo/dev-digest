@@ -76,6 +76,21 @@ export class SimpleGitClient implements GitClient {
     return parseUnifiedDiff(raw);
   }
 
+  /**
+   * `git diff --name-only base..head` — used by the incremental indexer to
+   * pick the file set that changed since `last_indexed_sha`. Two-dot is
+   * intentional (commits reachable from `head` but not `base`), unlike the
+   * three-dot symmetric form `diff()` uses for review diffs.
+   */
+  async diffNameOnly(repo: RepoRef, base: string, head: string): Promise<string[]> {
+    if (base === head) return [];
+    const raw = await this.git(repo).raw(['diff', '--name-only', `${base}..${head}`]);
+    return raw
+      .split('\n')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+  }
+
   async blame(repo: RepoRef, path: string): Promise<BlameLine[]> {
     const raw = await this.git(repo).raw(['blame', '--line-porcelain', path]);
     return parseBlamePorcelain(raw);

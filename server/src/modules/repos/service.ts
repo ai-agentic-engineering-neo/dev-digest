@@ -8,6 +8,10 @@ import {
   CLONE_DEPTH,
   GITHUB_TOKEN_SECRET,
 } from './constants.js';
+import {
+  INDEX_JOB_KIND,
+  REFRESH_JOB_KIND,
+} from '../repo-intel/constants.js';
 
 /**
  * F1 — repos service. Business logic for the Repositories feature:
@@ -52,6 +56,26 @@ export class RepoService {
       depth: CLONE_DEPTH,
     });
     await this.repo.updateClonePath(repoId, path);
+
+    // T2.2 — kick off the indexer in the background. ENQUEUE (not call) so the
+    // clone job closes immediately and the (heavier) index runs as its own
+    // job under JobRunner's timeout/retry. If the handler isn't registered
+    // (e.g. repo-intel disabled at module wiring), enqueue() throws — log and
+    // continue so the clone result is preserved either way.
+    const workspaceId = await this.repo.workspaceIdFor(repoId);
+    if (workspaceId) {
+      try {
+        await this.container.jobs.enqueue(workspaceId, INDEX_JOB_KIND, {
+          repoId,
+          owner,
+          name,
+        });
+      } catch {
+        // No handler registered or transient enqueue failure — clone has
+        // already succeeded, so we don't fail the job for an index-followup
+        // miss. The user can hit POST /repos/:id/reindex to retry.
+      }
+    }
   }
 
   /**
@@ -96,6 +120,20 @@ export class RepoService {
       name: repo.name,
       url: `https://github.com/${repo.fullName}.git`,
     } satisfies CloneJobPayload);
+    // T2.2 — also enqueue an incremental refresh. The two queue positions are
+    // independent (p-queue doesn't FIFO across kinds), but `runIncremental` is
+    // a no-op when `currentHead === lastIndexedSha`, so ordering is safe: if
+    // refresh fires before the new clone settles, it cheaply exits; if after,
+    // it picks up the new HEAD.
+    try {
+      await this.container.jobs.enqueue(workspaceId, REFRESH_JOB_KIND, {
+        repoId: repo.id,
+        owner: repo.owner,
+        name: repo.name,
+      });
+    } catch {
+      // No handler / transient enqueue failure — refresh button is best-effort.
+    }
     return { status: 'refreshing' };
   }
 

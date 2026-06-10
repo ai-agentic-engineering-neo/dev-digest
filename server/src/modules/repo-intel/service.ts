@@ -43,10 +43,14 @@ import type {
   SymbolRow,
 } from './types.js';
 import {
+  INDEX_JOB_KIND,
   INDEXER_VERSION,
   MAX_CALLERS_PER_SYMBOL,
+  REFRESH_JOB_KIND,
   SUPPORTED_EXT,
 } from './constants.js';
+import { runFullIndex, type IndexPayload } from './pipeline/full.js';
+import { runIncremental } from './pipeline/incremental.js';
 
 /**
  * GLOBALS allowlist — common JS/TS builtins + runtime that appear as bare
@@ -99,30 +103,47 @@ export class RepoIntelService implements RepoIntel {
   }
 
   // -------------------------------------------------------------------------
-  // Indexing — T1 no-ops. T2 enqueues INDEX_JOB_KIND on the JobRunner.
+  // Indexing — T2.2 worker. The job handlers (registered via
+  // registerIndexJobHandlers below) are the ASYNC entry; these methods are
+  // SYNC-from-the-handler (they ARE the handler body). HTTP/Repo callers go
+  // through `container.jobs.enqueue(INDEX_JOB_KIND, ...)` so the clone job
+  // closes promptly and the index runs in the background.
   // -------------------------------------------------------------------------
 
-  // TODO(T2): enqueue INDEX_JOB_KIND on container.jobs and return 'partial'
-  //           once the worker emits a row into repo_index_state.
-  async indexRepo(_repoId: string): Promise<IndexResult> {
-    return {
-      status: 'degraded',
-      filesIndexed: 0,
-      filesSkipped: 0,
-      durationMs: 0,
-      reason: 't1-skeleton',
-    };
+  /**
+   * Run a full index of the repo INLINE (no enqueue). The job handler for
+   * INDEX_JOB_KIND delegates to this, and tests / explicit calls can also
+   * use it. The CI runner needs the synchronous variant — long-running CI
+   * jobs already have their own time budget and don't want a second queue.
+   */
+  async indexRepo(repoId: string): Promise<IndexResult> {
+    return runFullIndex(this.container, this.repo, { repoId });
   }
 
-  // TODO(T2): enqueue REFRESH_JOB_KIND against the last indexed sha.
-  async refreshIndex(_repoId: string): Promise<IndexResult> {
-    return {
-      status: 'degraded',
-      filesIndexed: 0,
-      filesSkipped: 0,
-      durationMs: 0,
-      reason: 't1-skeleton',
-    };
+  /**
+   * Run an incremental refresh INLINE. Same enqueue/inline split as indexRepo.
+   * If the persisted state is missing or its `indexerVersion` is stale, this
+   * delegates to `runFullIndex` internally (plan §9.3).
+   */
+  async refreshIndex(repoId: string): Promise<IndexResult> {
+    return runIncremental(this.container, this.repo, { repoId });
+  }
+
+  /**
+   * Register the INDEX_JOB_KIND + REFRESH_JOB_KIND handlers on the JobRunner.
+   * Mirrors `RepoService.registerCloneJobHandler` so the registration is an
+   * explicit one-shot at app startup (`repoIntel/routes.ts` invokes this).
+   *
+   * The handlers swallow the IndexResult on purpose — JobRunner expects
+   * `Promise<void>`. Status/progress is observable via `repo_index_state`.
+   */
+  registerIndexJobHandlers(): void {
+    this.container.jobs.register(INDEX_JOB_KIND, async (payload) => {
+      await this.indexRepo((payload as IndexPayload).repoId);
+    });
+    this.container.jobs.register(REFRESH_JOB_KIND, async (payload) => {
+      await this.refreshIndex((payload as IndexPayload).repoId);
+    });
   }
 
   /**

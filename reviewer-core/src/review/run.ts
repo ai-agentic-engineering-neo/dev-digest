@@ -63,6 +63,11 @@ export interface ReviewInput {
    * before the diff section. Empty/undefined → section omitted.
    */
   callers?: string;
+  /**
+   * Optional repo skeleton / map (T3). Untrusted; rendered before the project
+   * context section. Empty/undefined → section omitted.
+   */
+  repoMap?: string;
   /** Task framing line, e.g. "Review PR #482 …". */
   task?: string;
   /** Override the structured-output retry budget. */
@@ -125,6 +130,7 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
     memory: input.memory,
     specs: input.specs,
     callers: input.callers,
+    repoMap: input.repoMap,
     task: input.task,
   };
 

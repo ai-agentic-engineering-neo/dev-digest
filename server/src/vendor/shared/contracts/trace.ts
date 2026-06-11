@@ -41,6 +41,11 @@ export const PromptAssembly = z.object({
   skills: z.string().nullish(),
   memory: z.string().nullish(),
   specs: z.string().nullish(),
+  /** Callers-of-changed-symbols digest (T1.3); null when absent. */
+  callers: z.string().nullish(),
+  /** Repo skeleton / map (T3); null when absent. Enables per-slot token
+      attribution in the run trace (acceptance §5). */
+  repo_map: z.string().nullish(),
   user: z.string(),
 });
 export type PromptAssembly = z.infer<typeof PromptAssembly>;

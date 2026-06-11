@@ -221,7 +221,13 @@ export class ReviewRunExecutor {
       // to the pre-T1.3 prompt (acceptance #10).
       const callersDigest = await this.buildCallersDigest(pull.repoId, diff, runLog);
 
-      const task = taskLine(pull, intent);
+      // T3 — repo skeleton + "changed files are top-5%" framing. Both best-
+      // effort: when repo-intel is off / unindexed the facade degrades and the
+      // prompt is identical to the pre-T3 shape.
+      const repoMap = await this.buildRepoMapDigest(pull.repoId, runLog);
+      const rankNote = await this.buildRankNote(pull.repoId, diff, runLog);
+
+      const task = taskLine(pull, intent) + rankNote;
 
       // ---- Engine: assemble → (single-pass | map-reduce) → reduce → grounding
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
@@ -241,6 +247,8 @@ export class ReviewRunExecutor {
         // T1.3 — pass the callers digest only when we built one. assemblePrompt
         // omits the section when this is empty/undefined.
         ...(callersDigest ? { callers: callersDigest } : {}),
+        // T3 — repo skeleton, same omit-when-empty contract.
+        ...(repoMap ? { repoMap } : {}),
         task,
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
@@ -385,6 +393,50 @@ export class ReviewRunExecutor {
     }
     runLog.info(`callers digest: ${rows.length} caller signature(s) attached`);
     return out.join('\n');
+  }
+
+  /**
+   * T3 — fetch the cached repo skeleton for the prompt's `## Repo skeleton`
+   * slot. Returns `undefined` when repo-intel is off / the repo isn't indexed
+   * (the facade degrades), so the prompt stays identical to the pre-T3 shape.
+   */
+  private async buildRepoMapDigest(
+    repoId: string,
+    runLog: RunLogger,
+  ): Promise<string | undefined> {
+    try {
+      const map = await this.container.repoIntel.getRepoMap(repoId);
+      if (map.degraded || map.text.trim().length === 0) return undefined;
+      runLog.info(`repo map: ${map.tokens} token(s) attached (cached=${map.cached})`);
+      return map.text;
+    } catch (err) {
+      runLog.info(`repo map: repoIntel failed — ${(err as Error).message}`);
+      return undefined;
+    }
+  }
+
+  /**
+   * T3 — a one-line "N of M changed files are in the top 5% most-depended-on"
+   * note appended to the task framing, so the model prioritises hot core files.
+   * Empty string when repo-intel is off / no changed file is hot.
+   */
+  private async buildRankNote(
+    repoId: string,
+    diff: UnifiedDiff,
+    runLog: RunLogger,
+  ): Promise<string> {
+    const changedFiles = diff.files.map((f) => f.path);
+    if (changedFiles.length === 0) return '';
+    try {
+      const ranks = await this.container.repoIntel.getFileRank(repoId, changedFiles);
+      if (ranks.length === 0) return '';
+      const hot = ranks.filter((r) => r.percentile >= 95);
+      if (hot.length === 0) return '';
+      runLog.info(`file rank: ${hot.length}/${changedFiles.length} changed file(s) in top 5%`);
+      return `\n\n${hot.length} of ${changedFiles.length} changed file(s) are in the top 5% most-depended-on (high blast risk) — prioritise their correctness.`;
+    } catch {
+      return '';
+    }
   }
 
   /**

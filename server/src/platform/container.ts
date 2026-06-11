@@ -27,6 +27,8 @@ import { ReviewRepository } from '../modules/reviews/repository.js';
 import { RunsRepository } from '../modules/runs/repository.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
+import { type DepGraph, DepCruiseGraph } from '../adapters/depgraph/index.js';
+import { type Tokenizer, TiktokenTokenizer } from '../adapters/tokenizer/index.js';
 
 /**
  * DI container (§2.1). One per app instance. Holds config, db, the JobRunner,
@@ -46,6 +48,9 @@ export interface ContainerOverrides {
   llm?: Partial<Record<'openai' | 'anthropic' | 'openrouter', LLMProvider>>;
   /** repo-intel facade (T1.1+) — tests inject mock RepoIntel implementations. */
   repoIntel?: RepoIntel;
+  /** repo-intel T3 adapters — only the indexer pipeline reads these. */
+  depgraph?: DepGraph;
+  tokenizer?: Tokenizer;
 }
 
 export class Container {
@@ -69,6 +74,8 @@ export class Container {
   private _reviewRepo?: ReviewRepository;
   private _runsRepo?: RunsRepository;
   private _repoIntel?: RepoIntel;
+  private _depgraph?: DepGraph;
+  private _tokenizer?: Tokenizer;
 
   constructor(config: AppConfig, db: Db, private overrides: ContainerOverrides = {}) {
     this.config = config;
@@ -112,6 +119,20 @@ export class Container {
     if (this.overrides.repoIntel) return this.overrides.repoIntel;
     this._repoIntel ??= new RepoIntelService(this);
     return this._repoIntel;
+  }
+
+  /** Import-graph builder (dependency-cruiser). T3 indexer pipeline only. */
+  get depgraph(): DepGraph {
+    if (this.overrides.depgraph) return this.overrides.depgraph;
+    this._depgraph ??= new DepCruiseGraph();
+    return this._depgraph;
+  }
+
+  /** Token counter (js-tiktoken) for the repo-map budget search. */
+  get tokenizer(): Tokenizer {
+    if (this.overrides.tokenizer) return this.overrides.tokenizer;
+    this._tokenizer ??= new TiktokenTokenizer();
+    return this._tokenizer;
   }
 
   async github(): Promise<GitHubClient> {

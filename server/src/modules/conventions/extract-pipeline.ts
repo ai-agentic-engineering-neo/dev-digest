@@ -84,7 +84,19 @@ export async function runExtraction(
     .filter((p) => map.paths.has(p))
     .slice(0, MAX_SELECTED_FILES);
   let files = await readSelectedFiles(container, ref, picked);
-  if (files.length === 0) files = await sampleFiles(container, ref); // heuristic fallback
+  if (files.length === 0) {
+    // T3: when the model picks nothing, prefer rank-driven samples (top files
+    // by import-graph rank, minus tests/configs) over the legacy grep heuristic.
+    // Both degrade to [] cleanly (flag off / unindexed → heuristic fallback).
+    let ranked: string[] = [];
+    try {
+      ranked = await container.repoIntel.getConventionSamples(repoId, MAX_SELECTED_FILES);
+    } catch {
+      /* degrade to the heuristic below */
+    }
+    if (ranked.length > 0) files = await readSelectedFiles(container, ref, ranked);
+    if (files.length === 0) files = await sampleFiles(container, ref); // heuristic fallback
+  }
   if (files.length === 0) {
     await repo.replaceForRepo(workspaceId, repoId, []);
     return [];

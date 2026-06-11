@@ -28,6 +28,10 @@ vi.mock("../../../../../../lib/hooks/context", () => ({
   useSpecFile: () => ({ data: null, isLoading: true, isError: false }),
   useSaveSpec: () => ({ mutate: vi.fn(), isPending: false }),
 }));
+vi.mock("../../../../../../lib/hooks/repo-intel", () => ({
+  useRepoIntelStatus: () => ({ data: { status: "full", filesIndexed: 12, filesSkipped: 0 } }),
+  useReindexRepoIntel: () => ({ mutate: vi.fn(), isPending: false }),
+}));
 
 import { ProjectContextView } from "./ProjectContextView";
 

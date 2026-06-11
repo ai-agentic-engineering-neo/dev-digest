@@ -594,6 +594,10 @@ await Promise.all(files.map((f) => parseQ.add(async () => {
 
 `SimpleGitClient.clone()` викликається з `depth: CLONE_DEPTH = 1` (`server/src/modules/repos/constants.ts`) — у клоні фізично немає історії, на якій можна порахувати hotness за 180 днів. Це блокуюча розбіжність зі спекою §3.
 
+> **РІШЕННЯ (2026-06-11): Опція B.** `rank = pagerank`, hotness викинуто з v1.
+> Деталі й обґрунтування — `docs/repo-intel-t3-spec.md` §0. Мітка «рекомендована
+> для v1» на Опції A нижче — застаріла; clone-шлях НЕ поглиблюємо.
+
 Рішення на T2/T3 фазах (див. також §4 «Полагодити незалежно від фаз»):
 1. **Опція A (рекомендована для v1):** ввести `CLONE_DEPTH_FOR_INDEX` і викликати `git.fetch(['--shallow-since=180.days'])`/`--deepen` ВСЕРЕДИНІ `runFullIndex` перед `git log` (deepen дешевший за повний `--depth`). Тоді поточний clone-шлях не сповільнюється, hotness отримує осмислене вікно.
 2. **Опція B (швидко, але приховує дані):** лишити hotness як `0` у v1, `rank = pagerank` — фіча працює, але деградує сенс ранжування при відсутньому графі (status `partial`); repo map чесно називає це «top-ranked by import graph only».

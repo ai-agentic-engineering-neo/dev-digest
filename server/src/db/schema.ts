@@ -38,7 +38,13 @@ import { evalCases, evalRuns, conformanceChecks, composedReviews } from './schem
 import { ciInstallations, ciRuns } from './schema/ci';
 import { agentRuns, runTraces, multiAgentRuns } from './schema/runs';
 import { jobs, installedPlugins, digests } from './schema/ops';
-import { repoIndexState, fileEdges, fileFacts } from './schema/repo-intel';
+import {
+  repoIndexState,
+  fileEdges,
+  fileFacts,
+  fileRank,
+  repoMapCache,
+} from './schema/repo-intel';
 
 /** Convenience: the full schema object for drizzle() client typing. */
 export const schema = {
@@ -77,8 +83,10 @@ export const schema = {
   jobs,
   installedPlugins,
   digests,
-  // T2 — repo-intel (plan §6.3). T3 tables land in a later slice.
+  // repo-intel (plan §6.3): T2 = index state + graph + facts; T3 = rank + map.
   repoIndexState,
   fileEdges,
   fileFacts,
+  fileRank,
+  repoMapCache,
 };

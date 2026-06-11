@@ -9,8 +9,9 @@
  *        - >INCREMENTAL_FULL_THRESHOLD → delegate to runFullIndex (cheaper than the slice).
  *      Else: delete the slice's rows + reparse + persist.
  *
- * EXCLUDED IN T2.2 (→ T3): rank recompute, graph delta, repo-map invalidation.
- * The decl_file column stays NULL on every newly-written row (no resolver yet).
+ * [T3] After the slice reparse, the graph + rank are rebuilt over the full
+ * file set and `decl_file` is re-resolved; the per-commit repo-map cache is
+ * invalidated and re-rendered. §9.5 Option B: rank = PageRank, hotness=0.
  */
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
@@ -19,18 +20,25 @@ import type { RepoRef } from '@devdigest/shared';
 import type { Container } from '../../../platform/container.js';
 import { withTimeout } from '../../../platform/resilience.js';
 import { parseSymbols, parseReferences, langForFile } from '../../../adapters/astgrep/index.js';
+import { extractEndpoints, extractCrons } from '../../../adapters/codeindex/extract.js';
 import {
+  DEFAULT_REPO_MAP_TOKEN_BUDGET,
   INDEXER_VERSION,
   MAX_PARSE_MS_PER_FILE,
   SUPPORTED_EXT,
 } from '../constants.js';
 import type {
+  IndexerEdgeRow,
+  IndexerFileFactsRow,
   IndexerReferenceRow,
   IndexerSymbolRow,
   RepoIntelRepository,
 } from '../repository.js';
-import type { IndexResult } from '../types.js';
+import type { IndexResult, IndexStatus } from '../types.js';
 import { runFullIndex, type IndexPayload } from './full.js';
+import { walkClone } from './walk.js';
+import { computeFileRank } from './rank.js';
+import { renderRepoMap } from './repo-map.js';
 
 /**
  * Threshold above which incremental becomes more expensive than full-index.
@@ -130,6 +138,7 @@ export async function runIncremental(
   // (5) Slice path: delete then reparse the changed files.
   const symbolsBuf: IndexerSymbolRow[] = [];
   const refsBuf: IndexerReferenceRow[] = [];
+  const factsBuf: IndexerFileFactsRow[] = [];
   let filesIndexed = 0;
   let filesSkipped = 0;
   const parseDegraded: Array<{ file: string; reason: string }> = [];
@@ -181,6 +190,11 @@ export async function runIncremental(
           contentHash,
         });
       }
+      const endpoints = extractEndpoints(source);
+      const crons = extractCrons(source);
+      if (endpoints.length > 0 || crons.length > 0) {
+        factsBuf.push({ filePath: relPath, endpoints, crons });
+      }
       filesIndexed += 1;
     } catch (err) {
       filesSkipped += 1;
@@ -191,14 +205,51 @@ export async function runIncremental(
   await repository.deleteForFiles(repoId, changed);
   await repository.insertSymbols(symbolsBuf);
   await repository.insertReferences(refsBuf);
+  await repository.patchFileFacts(repoId, changed, factsBuf);
 
-  // TODO(T3): re-resolve `decl_file` for references touching the changed
-  // file set; recompute file_rank; invalidate repo_map_cache.
+  // --- T3: rebuild graph + rank, re-resolve, invalidate the repo-map -----
+  // The symbol reparse above is sliced, but the graph + rank are global, so we
+  // rebuild them over the full file set (cheap vs. the avoided whole-tree AST
+  // parse). A future optimization could patch only the changed files' edges;
+  // v1 favours simple correctness.
+  let graphFailed: string | undefined;
+  let edgeRows: IndexerEdgeRow[] = [];
+  try {
+    const allFiles = (await walkClone(repo.clonePath)).files;
+    const edges = await container.depgraph.buildEdges(repo.clonePath, allFiles);
+    edgeRows = edges.map((e) => ({ fromFile: e.from, toFile: e.to }));
+    await repository.replaceEdges(repoId, edgeRows);
+    // reset: a changed decl-file can invalidate a prior resolution.
+    await repository.resolveReferences(repoId, { reset: true });
+    const rankRows = computeFileRank(allFiles, edgeRows);
+    await repository.replaceFileRank(repoId, rankRows);
+    // The repo-map is keyed per commit_sha → prior entries are now stale.
+    const candidates = await repository.getRepoMapCandidates(repoId);
+    const map = renderRepoMap(candidates, container.tokenizer, DEFAULT_REPO_MAP_TOKEN_BUDGET);
+    await repository.deleteRepoMapCache(repoId);
+    await repository.putRepoMapCache(
+      repoId,
+      currentSha,
+      DEFAULT_REPO_MAP_TOKEN_BUDGET,
+      map.text,
+      map.tokens,
+    );
+  } catch (err) {
+    graphFailed = asMessage(err);
+  }
+
+  // Keep 'full' only if the prior index was full AND this slice stayed clean.
+  const clean = parseDegraded.length === 0 && !graphFailed;
+  const status: IndexStatus = clean && state.status === 'full' ? 'full' : 'partial';
+
   const stats: Record<string, unknown> = {
     incremental: true,
     changedFiles: changed.length,
     symbolsWritten: symbolsBuf.length,
     referencesWritten: refsBuf.length,
+    edgesWritten: edgeRows.length,
+    hotnessAvailable: false,
+    ...(graphFailed ? { graphFailed } : {}),
     parseDegraded,
     durationMs: Date.now() - startedAt,
   };
@@ -213,14 +264,14 @@ export async function runIncremental(
     repoId,
     lastIndexedSha: currentSha,
     indexerVersion: INDEXER_VERSION,
-    status: 'partial', // remains 'partial' until T3 promotes it.
+    status,
     filesIndexed: newFilesIndexed,
     filesSkipped: newFilesSkipped,
     stats,
   });
 
   return {
-    status: 'partial',
+    status,
     filesIndexed,
     filesSkipped,
     durationMs: Date.now() - startedAt,

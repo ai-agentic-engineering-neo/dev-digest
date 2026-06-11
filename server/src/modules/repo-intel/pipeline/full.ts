@@ -3,20 +3,20 @@
  *
  * One-pass full index of a repo. Drives:
  *   1. walk + filter           (pipeline/walk.ts)
- *   2. parse (ast-grep, parallel via p-queue, per-file watchdog)
+ *   2. parse (ast-grep, parallel via p-queue, per-file watchdog) + facts
  *   3. delete-and-rewrite the cached symbols/references for this repo
  *      (idempotent — re-running is safe; UNIQUE constraint guards dup rows)
- *   4. upsert `repo_index_state`
+ *   4. [T3] graph (dependency-cruiser) → resolve decl_file → rank (PageRank)
+ *      → repo-map render → file_facts
+ *   5. upsert `repo_index_state` (status='full' on a clean pass)
  *
  * Soft budget self-watch: JobRunner wraps the handler in
  * `withTimeout(120s)` and rejects → `failed`+retry on hit (plan §9.4).
  * The handler can't catch its own outer timeout, so we self-monitor
  * `INDEX_SOFT_BUDGET_MS ≈ 110s` and finish 'partial' BEFORE the hard cap.
  *
- * EXCLUDED IN T2.2 (→ T3): dependency-cruiser graph, file_edges population,
- * decl_file resolution, file_rank, repo-map render, tokenizer. We therefore
- * stamp status='partial' on every successful run — the rank-driven story
- * isn't ready yet and 'full' would imply it is.
+ * §9.5 (Option B): rank = PageRank only, hotness=0 (clone is shallow). The T3
+ * block is skipped when the soft budget trips, leaving status 'partial'.
  */
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
@@ -27,18 +27,24 @@ import type { RepoRef } from '@devdigest/shared';
 import type { Container } from '../../../platform/container.js';
 import { withTimeout } from '../../../platform/resilience.js';
 import { parseSymbols, parseReferences, langForFile } from '../../../adapters/astgrep/index.js';
+import { extractEndpoints, extractCrons } from '../../../adapters/codeindex/extract.js';
 import {
+  DEFAULT_REPO_MAP_TOKEN_BUDGET,
   INDEX_SOFT_BUDGET_MS,
   INDEXER_VERSION,
   MAX_PARSE_MS_PER_FILE,
 } from '../constants.js';
 import type {
+  IndexerEdgeRow,
+  IndexerFileFactsRow,
   IndexerReferenceRow,
   IndexerSymbolRow,
   RepoIntelRepository,
 } from '../repository.js';
-import type { IndexResult } from '../types.js';
-import { walkClone, type WalkStats } from './walk.js';
+import type { IndexResult, IndexStatus } from '../types.js';
+import { walkClone } from './walk.js';
+import { computeFileRank } from './rank.js';
+import { renderRepoMap } from './repo-map.js';
 
 export interface IndexPayload {
   repoId: string;
@@ -110,6 +116,7 @@ export async function runFullIndex(
   // Parse phase ---------------------------------------------------------
   const symbolsBuf: IndexerSymbolRow[] = [];
   const refsBuf: IndexerReferenceRow[] = [];
+  const factsBuf: IndexerFileFactsRow[] = [];
   const parseDegraded: ParseDegradedEntry[] = [];
   let filesIndexed = 0;
   let filesSkipped = walk.stats.skippedTooLarge;
@@ -174,6 +181,13 @@ export async function runFullIndex(
             contentHash,
           });
         }
+        // Per-file facts (endpoints/crons) so blast reads from file_facts
+        // instead of re-parsing the clone (plan §6.3, T3 blast migration).
+        const endpoints = extractEndpoints(source);
+        const crons = extractCrons(source);
+        if (endpoints.length > 0 || crons.length > 0) {
+          factsBuf.push({ filePath: relPath, endpoints, crons });
+        }
         filesIndexed += 1;
       } catch (err) {
         filesSkipped += 1;
@@ -191,19 +205,65 @@ export async function runFullIndex(
   await repository.insertSymbols(symbolsBuf);
   await repository.insertReferences(refsBuf);
 
-  // Always 'partial' in T2.2 — rank + graph haven't landed yet.
-  // TODO(T3): when graph + rank exist, stamp 'full' on a clean pass and
-  //           leave 'partial' for the budget-reached / parse-degraded paths.
-  const status: 'partial' = 'partial';
+  // --- T3: graph → resolve → rank → repo-map → facts -------------------
+  // Skipped when the soft budget tripped: we're already over time, and the
+  // graph build would blow past the hard cap. status then stays 'partial'.
+  let graphFailed: string | undefined;
+  let edgeRows: IndexerEdgeRow[] = [];
+  let rankCount = 0;
+  if (!softBudgetReached) {
+    try {
+      const edges = await container.depgraph.buildEdges(repo.clonePath, walk.files);
+      edgeRows = edges.map((e) => ({ fromFile: e.from, toFile: e.to }));
+    } catch (err) {
+      graphFailed = asMessage(err);
+    }
+    await repository.replaceEdges(repoId, edgeRows);
+
+    // Resolve references.decl_file via the fresh graph. Full index inserts
+    // rows with NULL decl_file, so no reset is needed (plan §9.2 step 5).
+    await repository.resolveReferences(repoId, { reset: false });
+
+    // Rank (PageRank only; hotness=0 — §9.5 Option B).
+    const rankRows = computeFileRank(walk.files, edgeRows);
+    rankCount = rankRows.length;
+    await repository.replaceFileRank(repoId, rankRows);
+
+    // Repo-map render → cache. Drop stale entries (prior SHAs) first.
+    const candidates = await repository.getRepoMapCandidates(repoId);
+    const map = renderRepoMap(candidates, container.tokenizer, DEFAULT_REPO_MAP_TOKEN_BUDGET);
+    await repository.deleteRepoMapCache(repoId);
+    if (currentSha) {
+      await repository.putRepoMapCache(
+        repoId,
+        currentSha,
+        DEFAULT_REPO_MAP_TOKEN_BUDGET,
+        map.text,
+        map.tokens,
+      );
+    }
+
+    // Per-file facts (endpoints/crons) for the blast facade.
+    await repository.replaceFileFacts(repoId, factsBuf);
+  }
+
+  // Clean pass → 'full'. Any degradation (soft budget, graph failure, or a
+  // parse error) keeps it honestly 'partial'.
+  const clean = !softBudgetReached && !graphFailed && parseDegraded.length === 0;
+  const status: IndexStatus = clean ? 'full' : 'partial';
   const stats: Record<string, unknown> = {
     ...walk.stats,
     filesSeen: walk.files.length,
     symbolsWritten: symbolsBuf.length,
     referencesWritten: refsBuf.length,
+    edgesWritten: edgeRows.length,
+    ranked: rankCount,
+    factsWritten: factsBuf.length,
+    hotnessAvailable: false, // §9.5 Option B — rank = pagerank only
+    ...(graphFailed ? { graphFailed } : {}),
     softBudgetReached,
     parseDegraded,
     durationMs: Date.now() - startedAt,
-    // TODO(T3): file_edges populated, decl_file resolved, file_rank computed.
   };
 
   await repository.upsertIndexState({
@@ -221,7 +281,7 @@ export async function runFullIndex(
     filesIndexed,
     filesSkipped,
     durationMs: Date.now() - startedAt,
-    reason: softBudgetReached ? 'soft_budget' : undefined,
+    reason: softBudgetReached ? 'soft_budget' : graphFailed ? 'graph_failed' : undefined,
   };
 }
 

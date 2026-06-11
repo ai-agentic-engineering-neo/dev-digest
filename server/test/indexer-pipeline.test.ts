@@ -4,8 +4,8 @@
  * No real DB. Uses a small in-memory `RepoIntelRepository` stub so the focus
  * stays on pipeline flow:
  *   - runFullIndex over a tmpdir clone → expected symbols/references persisted,
- *     repo_index_state stamped 'partial' (T2.2 always 'partial', see TODO(T3)),
- *     unsupported extensions / oversize files counted correctly.
+ *     repo_index_state stamped 'full' on a clean pass (T3: graph/rank/map ran
+ *     via stubbed depgraph+tokenizer), unsupported / oversize files counted.
  *   - runIncremental flow branches:
  *       * indexer-version mismatch → delegates to full
  *       * sha unchanged             → touchIndexState, no file work
@@ -97,6 +97,15 @@ function makeRepoStub(opts: {
     advanceSha: async (_id: string, sha: string) => {
       if (state) state = { ...state, lastIndexedSha: sha, updatedAt: new Date() };
     },
+    // T3 writes/reads — no-op/in-memory; persistence is covered by integration.
+    replaceEdges: async () => {},
+    replaceFileRank: async () => {},
+    replaceFileFacts: async () => {},
+    patchFileFacts: async () => {},
+    resolveReferences: async () => {},
+    getRepoMapCandidates: async () => [],
+    deleteRepoMapCache: async () => {},
+    putRepoMapCache: async () => {},
   };
 
   // The pipeline calls these via the typed repository; the stub satisfies the
@@ -120,7 +129,12 @@ interface MiniGit {
   ) => Promise<string[]>;
 }
 function makeContainer(git: MiniGit): Container {
-  return { git } as unknown as Container;
+  return {
+    git,
+    // T3 adapters — stubbed: empty graph (rank degrades to flat) + char/4 tokens.
+    depgraph: { buildEdges: async () => [] },
+    tokenizer: { count: (text: string) => Math.ceil(text.length / 4) },
+  } as unknown as Container;
 }
 
 async function writeFileAt(root: string, rel: string, contents: string): Promise<void> {
@@ -144,7 +158,7 @@ describe('runFullIndex', () => {
     await rm(root, { recursive: true, force: true });
   });
 
-  it('walks, parses, persists, and stamps status="partial" with INDEXER_VERSION', async () => {
+  it('walks, parses, persists, and stamps status="full" with INDEXER_VERSION', async () => {
     await writeFileAt(
       root,
       'src/util.ts',
@@ -168,7 +182,8 @@ describe('runFullIndex', () => {
 
     const result = await runFullIndex(container, stub.repo, { repoId: 'r1' });
 
-    expect(result.status).toBe('partial');
+    // Clean pass (no soft-budget / graph failure / parse errors) → 'full' (T3).
+    expect(result.status).toBe('full');
     expect(result.filesIndexed).toBe(2);
     expect(result.filesSkipped).toBe(0);
 
@@ -187,7 +202,7 @@ describe('runFullIndex', () => {
     expect(state).not.toBeNull();
     expect(state!.lastIndexedSha).toBe('sha-head');
     expect(state!.indexerVersion).toBe(INDEXER_VERSION);
-    expect(state!.status).toBe('partial');
+    expect(state!.status).toBe('full');
     expect(state!.filesIndexed).toBe(2);
   });
 
@@ -282,8 +297,8 @@ describe('runIncremental', () => {
     });
 
     const result = await runIncremental(container, stub.repo, { repoId: 'r1' });
-    // Full path → 'partial' with the new sha persisted.
-    expect(result.status).toBe('partial');
+    // Full path on a clean tree → 'full' with the new sha persisted (T3).
+    expect(result.status).toBe('full');
     expect(stub.getState()!.lastIndexedSha).toBe('sha-new');
   });
 
@@ -383,7 +398,7 @@ describe('runIncremental', () => {
 
     const result = await runIncremental(container, stub.repo, { repoId: 'r1' });
     // Full reindex ran — it walked the real tmpdir (just src/a.ts) and persisted.
-    expect(result.status).toBe('partial');
+    expect(result.status).toBe('full');
     expect(stub.getState()!.lastIndexedSha).toBe('sha-huge');
     const names = stub.symbols.map((s) => (s as { name: string }).name);
     // The 'a' const declarator has no function-like value → not emitted by parseSymbols.
@@ -406,7 +421,7 @@ describe('runIncremental', () => {
     });
 
     const result = await runIncremental(container, stub.repo, { repoId: 'r1' });
-    expect(result.status).toBe('partial');
+    expect(result.status).toBe('full');
     expect(stub.getState()!.lastIndexedSha).toBe('sha-new');
   });
 });

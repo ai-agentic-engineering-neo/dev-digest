@@ -28,7 +28,7 @@ import {
 } from '../../adapters/astgrep/index.js';
 import { readFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
-import { RepoIntelRepository } from './repository.js';
+import { RepoIntelRepository, type FullSymbolRow } from './repository.js';
 import type {
   BlastCallerRow,
   BlastChangedSymbol,
@@ -43,6 +43,8 @@ import type {
   SymbolRow,
 } from './types.js';
 import {
+  BFS_DEPTH,
+  DEFAULT_REPO_MAP_TOKEN_BUDGET,
   INDEX_JOB_KIND,
   INDEXER_VERSION,
   MAX_CALLERS_PER_SYMBOL,
@@ -183,6 +185,13 @@ export class RepoIntelService implements RepoIntel {
    * clone (not the index). T2 promotes this path to the persistent layer.
    */
   async getBlastRadius(repoId: string, changedFiles: string[]): Promise<BlastResult> {
+    // T3: serve from the persistent index when it's built. Falls through to the
+    // ripgrep best-effort below when the flag is off / index is absent.
+    if (this.container.config.repoIntelEnabled && changedFiles.length > 0) {
+      const persistent = await this.tryPersistentBlast(repoId, changedFiles);
+      if (persistent) return persistent;
+    }
+
     const empty: BlastResult = {
       changedSymbols: [],
       callers: [],
@@ -260,21 +269,126 @@ export class RepoIntelService implements RepoIntel {
     };
   }
 
-  // TODO(T3): build a token-budgeted repo-map once file_rank + content cache exist.
-  async getRepoMap(_repoId: string, _tokenBudget?: number): Promise<RepoMapResult> {
-    return { text: '', tokens: 0, cached: false, degraded: true, reason: 'no_data' };
+  /**
+   * Persistent-index blast (T3): reads symbols / resolved references / file_rank
+   * / file_facts straight from Postgres — NO clone parsing on the hot path.
+   * Returns `null` when the index isn't usable (caller falls back to ripgrep).
+   *
+   * Callers are PRECISE: only references whose `decl_file` resolved to a changed
+   * file count. That favours precision over recall (plan §3) — an ambiguous
+   * (NULL decl_file) reference is not asserted as a caller.
+   */
+  private async tryPersistentBlast(
+    repoId: string,
+    changedFiles: string[],
+  ): Promise<BlastResult | null> {
+    const state = await this.repo.tryGetIndexState(repoId);
+    if (!state || (state.status !== 'full' && state.status !== 'partial')) return null;
+
+    // Changed symbols = declared in a changed file. Skip the qualified
+    // `Class.method` dual-emit (the bare form already covers the name).
+    const declRows = await this.repo.getSymbolRows(repoId, changedFiles);
+    const changedSymbols: BlastChangedSymbol[] = [];
+    const nameSet = new Set<string>();
+    const seenSym = new Set<string>();
+    for (const s of declRows) {
+      if (s.name.includes('.')) continue;
+      const key = `${s.name}:${s.path}`;
+      if (!seenSym.has(key)) {
+        seenSym.add(key);
+        changedSymbols.push({ file: s.path, name: s.name, kind: s.kind });
+      }
+      nameSet.add(s.name);
+    }
+    if (nameSet.size === 0) {
+      return { changedSymbols, callers: [], impactedEndpoints: [], degraded: false };
+    }
+
+    // Resolved cross-file callers.
+    const callerRows = await this.repo.getResolvedCallers(repoId, changedFiles, [...nameSet]);
+    const callerFiles = [...new Set(callerRows.map((c) => c.fromPath))];
+
+    // Enclosing caller symbol from the callers' persistent symbol rows.
+    const callerSymRows = await this.repo.getSymbolRows(repoId, callerFiles);
+    const symsByFile = new Map<string, FullSymbolRow[]>();
+    for (const s of callerSymRows) {
+      const arr = symsByFile.get(s.path);
+      if (arr) arr.push(s);
+      else symsByFile.set(s.path, [s]);
+    }
+
+    const callers: BlastCallerRow[] = [];
+    const seenCaller = new Set<string>();
+    for (const c of callerRows) {
+      const enclosing =
+        enclosingFromRows(symsByFile.get(c.fromPath) ?? [], c.line) ??
+        c.fromPath.split('/').pop() ??
+        c.fromPath;
+      const key = `${c.fromPath}|${enclosing}|${c.toSymbol}`;
+      if (seenCaller.has(key)) continue;
+      seenCaller.add(key);
+      callers.push({ file: c.fromPath, symbol: enclosing, viaSymbol: c.toSymbol, rank: c.rank });
+    }
+    callers.sort((a, b) => b.rank - a.rank);
+
+    // Impacted endpoints from precomputed file_facts of the caller files.
+    const facts = await this.repo.getFileFacts(repoId, callerFiles);
+    const endpoints = new Set<string>();
+    for (const f of facts) for (const e of f.endpoints) endpoints.add(e);
+
+    return {
+      changedSymbols,
+      callers: callers.slice(0, MAX_CALLERS_PER_SYMBOL),
+      impactedEndpoints: [...endpoints],
+      degraded: false,
+    };
   }
 
-  // TODO(T2/T3): return file_rank.percentile for each path once T2 populates it.
-  async getFileRank(_repoId: string, _paths: string[]): Promise<FileRankRow[]> {
-    return [];
+  /**
+   * Serve the cached repo-map for the repo's last-indexed SHA. The map is only
+   * rendered by the pipeline at `DEFAULT_REPO_MAP_TOKEN_BUDGET`; other budgets
+   * (or an unindexed / partial-without-rank repo) miss and degrade cleanly.
+   */
+  async getRepoMap(repoId: string, tokenBudget?: number): Promise<RepoMapResult> {
+    const degraded: RepoMapResult = {
+      text: '',
+      tokens: 0,
+      cached: false,
+      degraded: true,
+      reason: 'no_data',
+    };
+    if (!this.container.config.repoIntelEnabled) {
+      return { ...degraded, reason: 'flag_off' };
+    }
+    const state = await this.repo.tryGetIndexState(repoId);
+    if (!state || !state.lastIndexedSha) return degraded;
+    const budget = tokenBudget ?? DEFAULT_REPO_MAP_TOKEN_BUDGET;
+    const hit = await this.repo.getRepoMapCache(repoId, state.lastIndexedSha, budget);
+    if (!hit) return degraded;
+    return { text: hit.mapText, tokens: hit.tokenCount, cached: true };
   }
 
-  // TODO(T1.3 / T2): read from the persistent symbols read-model (with
-  // signature + start/end line + exported flag). The existing `symbols` table
-  // doesn't carry those columns yet, so we degrade.
-  async getSymbolsInFiles(_repoId: string, _paths: string[]): Promise<SymbolRow[]> {
-    return [];
+  /** Percentile per path from `file_rank` (smart-diff / run-executor "top-N%"). */
+  async getFileRank(repoId: string, paths: string[]): Promise<FileRankRow[]> {
+    if (!this.container.config.repoIntelEnabled) return [];
+    if (paths.length === 0) return [];
+    return this.repo.getFileRankFor(repoId, paths);
+  }
+
+  /** Persistent symbol read-model (T2 columns) for the given files. */
+  async getSymbolsInFiles(repoId: string, paths: string[]): Promise<SymbolRow[]> {
+    if (!this.container.config.repoIntelEnabled) return [];
+    if (paths.length === 0) return [];
+    const rows = await this.repo.getSymbolRows(repoId, paths);
+    return rows.map((r) => ({
+      file: r.path,
+      name: r.name,
+      kind: r.kind,
+      exported: r.exported,
+      startLine: r.line ?? 0,
+      endLine: r.endLine ?? r.line ?? 0,
+      signature: r.signature,
+    }));
   }
 
   /**
@@ -383,8 +497,20 @@ export class RepoIntelService implements RepoIntel {
           file: r.fromPath,
           symbol: enclosing.name,
           signature,
-          rank: 0, // TODO(T3): file_rank.rank lookup
+          rank: 0, // enriched from file_rank below (T3)
         });
+      }
+    }
+
+    // T3: enrich each caller with its file's rank percentile so the prompt can
+    // lead with the most important callers. No-op when no index exists yet.
+    if (out.length > 0) {
+      const files = [...new Set(out.map((o) => o.file))];
+      const ranks = await this.repo.getFileRankFor(repoId, files);
+      if (ranks.length > 0) {
+        const byFile = new Map(ranks.map((r) => [r.path, r.percentile]));
+        for (const o of out) o.rank = byFile.get(o.file) ?? 0;
+        out.sort((a, b) => b.rank - a.rank);
       }
     }
 
@@ -454,27 +580,118 @@ export class RepoIntelService implements RepoIntel {
     return out;
   }
 
-  // TODO(T2): top-N file paths by file_rank.percentile, filtered of
-  // tests/configs (see plan §8). The existing `conventions` module owns the
-  // production heuristic; the facade exposes `[]` in T1 so consumers degrade
-  // cleanly instead of double-running heuristics.
-  async getConventionSamples(_repoId: string, _n: number): Promise<string[]> {
-    return [];
+  /** Top-N files by rank, minus tests/configs/migrations — conventions sample. */
+  async getConventionSamples(repoId: string, n: number): Promise<string[]> {
+    return this.getTopFilesByRank(repoId, n);
   }
 
-  // TODO(T3): rank-driven top-N (depends on file_rank). T1: degrade.
+  /**
+   * Top-N file paths by rank DESC, dropping tests/configs/migrations and any
+   * caller-supplied `exclude` substrings. Over-fetches by 10× before filtering
+   * so the post-filter still yields N where possible.
+   */
   async getTopFilesByRank(
-    _repoId: string,
-    _n: number,
-    _opts?: { exclude?: string[] },
+    repoId: string,
+    n: number,
+    opts?: { exclude?: string[] },
   ): Promise<string[]> {
-    return [];
+    if (!this.container.config.repoIntelEnabled) return [];
+    if (n <= 0) return [];
+    const exclude = opts?.exclude ?? [];
+    const rows = await this.repo.getRankedPaths(repoId, Math.max(n * 10, 100));
+    const out: string[] = [];
+    for (const r of rows) {
+      if (isJunkPath(r.path)) continue;
+      if (exclude.some((e) => r.path.includes(e))) continue;
+      out.push(r.path);
+      if (out.length >= n) break;
+    }
+    return out;
   }
 
-  // TODO(T3): graph-required critical-paths read. T1: degrade.
-  async getCriticalPaths(_repoId: string): Promise<string[][]> {
-    return [];
+  /**
+   * Dependency chains from the highest-ranked files (onboarding reading-path).
+   * For each of the top roots, greedily follow the highest-ranked import target
+   * up to BFS_DEPTH hops. Pure read over `file_edges` + `file_rank`.
+   */
+  async getCriticalPaths(repoId: string): Promise<string[][]> {
+    if (!this.container.config.repoIntelEnabled) return [];
+    const edges = await this.repo.getEdges(repoId);
+    if (edges.length === 0) return [];
+
+    const ranked = await this.repo.getRankedPaths(repoId, 100_000);
+    const rankOf = new Map(ranked.map((r) => [r.path, r.rank]));
+
+    // Adjacency importer → imported.
+    const adj = new Map<string, string[]>();
+    for (const e of edges) {
+      const arr = adj.get(e.fromFile);
+      if (arr) arr.push(e.toFile);
+      else adj.set(e.fromFile, [e.toFile]);
+    }
+
+    const roots = ranked.slice(0, CRITICAL_PATH_ROOTS).map((r) => r.path);
+    const paths: string[][] = [];
+    const seenPaths = new Set<string>();
+    for (const root of roots) {
+      const chain = [root];
+      const inChain = new Set(chain);
+      let cur = root;
+      for (let depth = 0; depth < BFS_DEPTH; depth += 1) {
+        const next = (adj.get(cur) ?? [])
+          .filter((t) => !inChain.has(t))
+          .sort((a, b) => (rankOf.get(b) ?? 0) - (rankOf.get(a) ?? 0))[0];
+        if (!next) break;
+        chain.push(next);
+        inChain.add(next);
+        cur = next;
+      }
+      if (chain.length < 2) continue;
+      const key = chain.join('>');
+      if (seenPaths.has(key)) continue;
+      seenPaths.add(key);
+      paths.push(chain);
+    }
+    return paths;
   }
+}
+
+/** How many top-ranked files seed `getCriticalPaths` dependency chains. */
+const CRITICAL_PATH_ROOTS = 5;
+
+/**
+ * Path kinds excluded from rank-driven file samples (conventions/onboarding):
+ * tests, configs, declaration files, migrations, generated dirs. Substring
+ * match on the repo-relative path (kept deliberately simple + deterministic).
+ */
+const JUNK_PATH_PATTERNS = [
+  '.test.',
+  '.spec.',
+  '.d.ts',
+  '__tests__/',
+  '__mocks__/',
+  '/test/',
+  '/tests/',
+  '/migrations/',
+  '/__fixtures__/',
+  '.config.',
+  'vitest.',
+  'jest.',
+  'eslint',
+  'prettier',
+] as const;
+
+function isJunkPath(path: string): boolean {
+  const lower = path.toLowerCase();
+  return JUNK_PATH_PATTERNS.some((p) => lower.includes(p));
+}
+
+/** Enclosing top-level (bare-name) symbol for a line, from persistent rows. */
+function enclosingFromRows(rows: FullSymbolRow[], line: number): string | null {
+  const hit = rows
+    .filter((s) => !s.name.includes('.') && (s.line ?? 0) <= line)
+    .sort((a, b) => (b.line ?? 0) - (a.line ?? 0))[0];
+  return hit?.name ?? null;
 }
 
 // ---------------------------------------------------------------------------

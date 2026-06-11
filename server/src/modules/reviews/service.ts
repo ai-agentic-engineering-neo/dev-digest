@@ -185,7 +185,7 @@ export class ReviewService {
    * is too big (§7 split nudger). No LLM call required (deterministic, cheap).
    */
   async smartDiff(workspaceId: string, prId: string): Promise<SmartDiff> {
-    return smartDiffImpl(this.repo, workspaceId, prId);
+    return smartDiffImpl(this.container, this.repo, workspaceId, prId);
   }
 
   // ===========================================================================

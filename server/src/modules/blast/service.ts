@@ -79,8 +79,13 @@ export class BlastService {
       changedSymbols.push({ name: s.name, file: s.path, kind: s.kind });
     }
 
-    // Persist symbols cache for the repo (idempotent: clear + reinsert changed-file symbols).
-    await this.persistSymbols(repo.id, allSymbols);
+    // Persist symbols cache — ONLY when repo-intel is off. When it's on, the
+    // repo-intel indexer is the SOLE writer of symbols/references (with the
+    // rich exported/signature/content_hash columns the repo-map + decl_file
+    // resolution depend on). Blast must not clobber that with its ripgrep rows.
+    if (!this.container.config.repoIntelEnabled) {
+      await this.persistSymbols(repo.id, allSymbols);
+    }
 
     // (3) downstream callers per changed symbol.
     const downstream: DownstreamImpact[] = [];
@@ -97,7 +102,9 @@ export class BlastService {
       }
       if (callers.length === 0) continue;
 
-      await this.persistReferences(repo.id, refs.filter((r) => r.fromPath !== sym.file));
+      if (!this.container.config.repoIntelEnabled) {
+        await this.persistReferences(repo.id, refs.filter((r) => r.fromPath !== sym.file));
+      }
 
       const endpoints = new Set<string>();
       const crons = new Set<string>();

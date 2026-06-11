@@ -16,6 +16,8 @@ import {
   uuid,
   text,
   integer,
+  smallint,
+  doublePrecision,
   jsonb,
   timestamp,
   primaryKey,
@@ -82,5 +84,61 @@ export const fileFacts = pgTable(
   },
   (t) => ({
     pk: primaryKey({ columns: [t.repoId, t.filePath] }),
+  }),
+);
+
+// ------------------------------------------------------------------- T3 -----
+//
+// `file_rank` and `repo_map_cache` land in their own migration (0005) — they
+// depend on the dependency-cruiser graph + PageRank + token-budget work.
+//
+// §9.5 DECISION (Option B, see docs/repo-intel-t3-spec.md §0): rank = pagerank,
+// hotness is always 0 in v1 (the clone is shallow; no churn window). The
+// `hotness` column stays so hotness can be switched on later WITHOUT a schema
+// change — `rank` would then become `pagerank * (1 + hotness)`.
+
+/**
+ * Per-file importance rank. PK = (repoId, filePath). Written by pipeline/rank.ts
+ * on every full index and recomputed on every incremental refresh (cheap on
+ * ≤ MAX_INDEXED_FILES nodes).
+ */
+export const fileRank = pgTable(
+  'file_rank',
+  {
+    repoId: uuid('repo_id')
+      .notNull()
+      .references(() => repos.id, { onDelete: 'cascade' }),
+    filePath: text('file_path').notNull(),
+    pagerank: doublePrecision('pagerank').notNull(),
+    hotness: doublePrecision('hotness').notNull(), // always 0 under Option B
+    rank: doublePrecision('rank').notNull(), // = pagerank under Option B
+    percentile: smallint('percentile').notNull(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.repoId, t.filePath] }),
+    rankIdx: index('file_rank_repo_rank_idx').on(t.repoId, t.rank),
+  }),
+);
+
+/**
+ * Rendered repo-map cache, keyed by (repoId, commitSha, tokenBudget). The map
+ * text is deterministic per HEAD + budget, which keeps it a stable prompt-cache
+ * prefix (plan §10.5). Invalidated by `runIncremental` when the SHA moves and by
+ * the `ON DELETE CASCADE` when the repo is removed.
+ */
+export const repoMapCache = pgTable(
+  'repo_map_cache',
+  {
+    repoId: uuid('repo_id')
+      .notNull()
+      .references(() => repos.id, { onDelete: 'cascade' }),
+    commitSha: text('commit_sha').notNull(),
+    tokenBudget: integer('token_budget').notNull(),
+    mapText: text('map_text').notNull(),
+    tokenCount: integer('token_count').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.repoId, t.commitSha, t.tokenBudget] }),
   }),
 );

@@ -108,6 +108,32 @@ export class OnboardingService {
 
     // 1. deterministic local facts (~0 tokens)
     const facts = await analyzeRepo(repo.clonePath);
+
+    // T3: reading path = top files by import-graph rank ∪ critical dependency
+    // paths (rank first, then chain order). Reorders the existing key files so
+    // "read these first" is computed, not guessed. Degrades to the heuristic
+    // order when repo-intel is off / unindexed (both calls → empty).
+    try {
+      const [top, critical] = await Promise.all([
+        this.container.repoIntel.getTopFilesByRank(repoId, 7),
+        this.container.repoIntel.getCriticalPaths(repoId),
+      ]);
+      const ordered = [...top, ...critical.flat()];
+      if (ordered.length > 0) {
+        const order = new Map<string, number>();
+        ordered.forEach((p, i) => {
+          if (!order.has(p)) order.set(p, i);
+        });
+        facts.keyFiles = [...facts.keyFiles].sort(
+          (a, b) =>
+            (order.get(a.path) ?? Number.MAX_SAFE_INTEGER) -
+            (order.get(b.path) ?? Number.MAX_SAFE_INTEGER),
+        );
+      }
+    } catch {
+      /* keep the heuristic key-file order */
+    }
+
     const tree = await this.fileTree(repo.clonePath);
 
     // 2. JS/TS-only gate — no LLM call for unsupported projects

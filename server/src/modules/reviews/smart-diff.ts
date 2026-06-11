@@ -13,6 +13,7 @@ import { classifyFile } from './helpers.js';
  * is too big (§7 split nudger). No LLM call required (deterministic, cheap).
  */
 export async function smartDiff(
+  container: Container,
   repo: ReviewRepository,
   workspaceId: string,
   prId: string,
@@ -20,6 +21,20 @@ export async function smartDiff(
   const pull = await repo.getPull(workspaceId, prId);
   if (!pull) throw new NotFoundError('Pull request not found');
   const files = await repo.getPrFiles(prId);
+
+  // T3: import-graph rank percentile per changed file. Confirms a 'core'
+  // verdict (percentile ≥ 80) and demotes weakly-ranked files to 'wiring'.
+  // Best-effort: flag off / unindexed → empty map → classifyFile verdict kept.
+  let pctByPath = new Map<string, number>();
+  try {
+    const ranks = await container.repoIntel.getFileRank(
+      pull.repoId,
+      files.map((f) => f.path),
+    );
+    pctByPath = new Map(ranks.map((r) => [r.path, r.percentile]));
+  } catch {
+    /* degrade — keep the heuristic verdicts */
+  }
 
   // finding-lines per file (from the latest reviews)
   const reviews = await repo.reviewsForPull(prId);
@@ -42,7 +57,11 @@ export async function smartDiff(
     const additions = f.additions ?? 0;
     const deletions = f.deletions ?? 0;
     totalLines += additions + deletions;
-    const role = classifyFile(f.path);
+    let role = classifyFile(f.path);
+    if (role === 'core') {
+      const pct = pctByPath.get(f.path);
+      if (pct !== undefined && pct < 80) role = 'wiring';
+    }
     const findingLines = [...(findingLinesByFile.get(f.path) ?? [])].sort((a, b) => a - b);
     groups[role].push({
       path: f.path,

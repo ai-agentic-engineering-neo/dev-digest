@@ -11,6 +11,7 @@ import { AppShell } from "../../../../../../components/app-shell";
 import { RepoNotFound } from "../../../../../../components/RepoNotFound";
 import { useActiveRepo, useRepoNotFound } from "../../../../../../lib/repo-context";
 import { useSpecs, useIndexStatus, useReindex } from "../../../../../../lib/hooks/context";
+import { useRepoIntelStatus, useReindexRepoIntel } from "../../../../../../lib/hooks/repo-intel";
 import { type SpecMode } from "./constants";
 import { isIndexing, kb, progressColor, shortSpecPath } from "./helpers";
 import { SpecEditor } from "./_components/SpecEditor";
@@ -34,6 +35,9 @@ export function ProjectContextView() {
   // poll status while a reindex is running (status not done/idle/error)
   const [polling, setPolling] = React.useState(false);
   const { data: status } = useIndexStatus(repoId, polling);
+  // repo-intel (T3) index state — separate from the project-context index above.
+  const { data: repoIntel } = useRepoIntelStatus(repoId);
+  const reindexRepoIntel = useReindexRepoIntel(repoId);
 
   React.useEffect(() => {
     if (!status) return;
@@ -81,9 +85,40 @@ export function ProjectContextView() {
               {t("chunks", { count: status.chunks_indexed })}
             </Badge>
           )}
+          {/* repo-intel (T3) status — hidden when no index exists (feature off /
+              never run) so the page is unchanged in the degraded-no-data case. */}
+          {repoIntel &&
+            !(repoIntel.status === "degraded" && repoIntel.degradedReason === "no_data") && (
+              <Badge
+                dot
+                color={
+                  repoIntel.status === "full"
+                    ? "#16a34a"
+                    : repoIntel.status === "partial"
+                      ? "#d97706"
+                      : "var(--text-muted)"
+                }
+                icon="Database"
+              >
+                {`repo intel: ${repoIntel.status}${
+                  repoIntel.filesIndexed ? ` · ${repoIntel.filesIndexed} files` : ""
+                }`}
+              </Badge>
+            )}
           <Button kind="secondary" size="sm" icon="RefreshCw" onClick={onReindex} disabled={reindex.isPending || indexing}>
             {indexing ? t("indexing") : t("reindex")}
           </Button>
+          {repoIntel && (
+            <Button
+              kind="secondary"
+              size="sm"
+              icon="RefreshCw"
+              onClick={() => reindexRepoIntel.mutate()}
+              disabled={reindexRepoIntel.isPending}
+            >
+              {reindexRepoIntel.isPending ? "Re-indexing map…" : "Re-index map"}
+            </Button>
+          )}
         </div>
 
         {/* coverage indicator + progress */}

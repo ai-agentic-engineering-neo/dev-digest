@@ -28,6 +28,13 @@ export interface PromptParts {
   /** Project-context spec chunks (untrusted content). */
   specs?: string[];
   /**
+   * Repo skeleton / map (T3): top-ranked symbols by signature, token-budgeted.
+   * Untrusted (derived from repo code) — delimiter-wrapped. Rendered before
+   * `## Project context` so the model sees structure first. Empty/undefined →
+   * section omitted (no behavior change).
+   */
+  repoMap?: string;
+  /**
    * Callers-of-changed-symbols digest (T1.3). Untrusted (derived from repo
    * code) — delimiter-wrapped like specs. When present, rendered before
    * `## Diff to review` so the model sees crossfile context first. Empty /
@@ -68,6 +75,9 @@ export function assemblePrompt(parts: PromptParts): AssembledPrompt {
   if (parts.task) userSections.push(parts.task);
   if (skillsBlock) userSections.push(`## Skills / rules\n${skillsBlock}`);
   if (memoryBlock) userSections.push(`## Relevant memory\n${memoryBlock}`);
+  if (parts.repoMap && parts.repoMap.trim().length > 0) {
+    userSections.push(`## Repo skeleton\n${wrapUntrusted('repo-map', parts.repoMap)}`);
+  }
   if (specsBlock) userSections.push(`## Project context\n${specsBlock}`);
   if (parts.callers && parts.callers.trim().length > 0) {
     userSections.push(
@@ -88,6 +98,8 @@ export function assemblePrompt(parts: PromptParts): AssembledPrompt {
     skills: skillsBlock ?? null,
     memory: memoryBlock ?? null,
     specs: specsBlock ?? null,
+    callers: parts.callers ?? null,
+    repo_map: parts.repoMap ?? null,
     user,
   };
 

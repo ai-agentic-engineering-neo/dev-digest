@@ -16,7 +16,52 @@
     "placeholder": "•••• stored via SecretsProvider (.env)",
     "testConnection": "Test connection",
     "testing": "Testing…",
-    "testFailed": "Test failed"
+    "testFailed": "Test failed",
+    "configured": "Configured",
+    "notSet": "Not set"
+  },
+  "models": {
+    "title": "Feature Models",
+    "body": "Choose the model each system feature uses. The list and live prices come from OpenRouter; a feature falls back to its default until you pick one.",
+    "usingDefault": "default",
+    "search": "Search models…",
+    "liveNote": "Prices are pulled live from OpenRouter — USD per 1M input/output tokens.",
+    "noKeyNote": "Add an OpenRouter API key under API Keys to load the model list and prices."
+  },
+  "workspace": {
+    "title": "Workspace",
+    "body": "Appearance and sync preferences for this workspace.",
+    "theme": "Theme",
+    "themeHint": "Color scheme for the studio UI.",
+    "themeDark": "Dark",
+    "themeLight": "Light",
+    "density": "Density",
+    "densityHint": "Spacing of lists and tables.",
+    "densityRegular": "Regular",
+    "densityCompact": "Compact",
+    "pollingInterval": "Polling interval",
+    "pollingHint": "How often to check GitHub for new PRs when automatic reviews are on.",
+    "everyMin": "Every {n} min",
+    "syncTitle": "Sync generated docs to a folder",
+    "syncOn": "On — onboarding tours and digests are written to the repo folder",
+    "syncOff": "Off"
+  },
+  "github": {
+    "title": "GitHub Integration",
+    "body": "Connect GitHub to import pull requests and post reviews.",
+    "connected": "Connected to GitHub",
+    "connectedSub": "A personal access token is configured for this workspace.",
+    "notConnected": "Not connected",
+    "notConnectedSub": "Add a GitHub personal access token to import PRs and post reviews.",
+    "addToken": "Add token",
+    "connectedRepos": "Connected repositories ({count})",
+    "noRepos": "No repositories connected yet. Add one from the workspace switcher."
+  },
+  "about": {
+    "title": "About",
+    "body": "Version and the model each feature currently uses.",
+    "modelsSummary": "Feature models in use",
+    "default": "default"
   },
   "autoReviews": {
     "title": "Automatic Reviews",

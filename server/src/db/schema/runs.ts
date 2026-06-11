@@ -25,6 +25,10 @@ export const agentRuns = pgTable('agent_runs', {
   source: text('source', { enum: ['local', 'ci'] }).notNull().default('local'),
   findingsCount: integer('findings_count'),
   grounding: text('grounding'),
+  /** Review score (0-100) for this run; null on failed/cancelled runs. */
+  score: integer('score'),
+  /** Findings that tripped the agent's gate (severity ≥ ciFailOn). */
+  blockers: integer('blockers'),
 });
 
 /** Whole trace of one run as a SINGLE jsonb document (§11). */

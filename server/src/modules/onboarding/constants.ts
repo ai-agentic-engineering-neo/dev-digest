@@ -60,9 +60,15 @@ export const SECTION_PLAN: { kind: string; title: string; focus: string; query: 
   },
 ];
 
-/** Default provider/model + retry budget for the single section-writing pass. */
-export const ONBOARDING_PROVIDER: Provider = 'openai';
-export const ONBOARDING_MODEL = 'gpt-4.1';
+/**
+ * Default provider/model + retry budget for the single section-writing pass.
+ * Runs on OpenRouter → DeepSeek V4 Flash: near-frontier quality at ~1/30th the
+ * price of a flagship, with a 1M-token context that comfortably fits the
+ * facts + file-tree + RAG context. Requires OPENROUTER_API_KEY (set it in
+ * Settings or the env). Falls back to the deterministic skeleton on any error.
+ */
+export const ONBOARDING_PROVIDER: Provider = 'openrouter';
+export const ONBOARDING_MODEL = 'deepseek/deepseek-v4-flash';
 export const ONBOARDING_MAX_RETRIES = 1;
 
 /**

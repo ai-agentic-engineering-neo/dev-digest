@@ -32,6 +32,14 @@
   },
   "diffViewer": {
     "noDiffText": "No diff text available (binary or unfetched patch).",
-    "noChangedFiles": "No changed files."
+    "noChangedFiles": "No changed files.",
+    "commentPlaceholder": "Leave a comment… (⌘/Ctrl+Enter to post)",
+    "post": "Comment",
+    "posting": "Posting…",
+    "cancel": "Cancel",
+    "reply": "Reply",
+    "viewOnGitHub": "View on GitHub",
+    "postedToGitHub": "Posts to GitHub immediately",
+    "outdatedTitle": "{count} comment(s) on older revisions"
   }
 }

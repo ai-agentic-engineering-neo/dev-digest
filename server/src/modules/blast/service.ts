@@ -12,6 +12,7 @@ import type {
 } from '@devdigest/shared';
 import type { Container } from '../../platform/container.js';
 import * as t from '../../db/schema.js';
+import { clampIndexedName } from '../../db/schema/context.js';
 import { NotFoundError } from '../../platform/errors.js';
 import { extractEndpoints, extractCrons } from '../../adapters/codeindex/extract.js';
 import { INSERT_CHUNK_SIZE, NO_FILES_SUMMARY, NOT_CLONED_SUMMARY } from './constants.js';
@@ -152,7 +153,7 @@ export class BlastService {
     const rows = symbols.map((s) => ({
       repoId,
       path: s.path,
-      name: s.name,
+      name: clampIndexedName(s.name),
       kind: s.kind,
       line: s.line,
     }));
@@ -167,7 +168,7 @@ export class BlastService {
     const rows = refs.map((r) => ({
       repoId,
       fromPath: r.fromPath,
-      toSymbol: r.toSymbol,
+      toSymbol: clampIndexedName(r.toSymbol),
       line: r.line,
     }));
     for (let i = 0; i < rows.length; i += INSERT_CHUNK_SIZE) {
@@ -181,7 +182,7 @@ export class BlastService {
  * `BlastRadius`: group callers by the changed symbol they reach, and attribute
  * endpoints/crons from each caller file's precomputed facts (`factsByFile`).
  */
-function mapFacadeBlast(fb: BlastResult): BlastRadius {
+export function mapFacadeBlast(fb: BlastResult): BlastRadius {
   const changed_symbols: ChangedSymbol[] = fb.changedSymbols.map((s) => ({
     name: s.name,
     file: s.file,

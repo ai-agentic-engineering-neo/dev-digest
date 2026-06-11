@@ -9,6 +9,7 @@ import type {
   SettingsUpdate,
   ConnTestProvider,
   ConnTestResult,
+  SecretsStatus,
   Repo,
   PrMeta,
   PrDetail,
@@ -40,10 +41,23 @@ export function useTestConnection() {
       return api.post<ConnTestResult>("/settings/test-connection", body);
     },
     // Saving/validating a provider key can change which models resolve — drop the
-    // cached (possibly empty) model lists so the agent picker refetches.
+    // cached (possibly empty) model lists so the agent picker refetches, and
+    // refresh the "Configured / Not set" key-status badges.
     onSuccess: (res) => {
-      if (res.ok) qc.invalidateQueries({ queryKey: ["provider-models"] });
+      if (res.ok) {
+        qc.invalidateQueries({ queryKey: ["provider-models"] });
+        qc.invalidateQueries({ queryKey: ["secrets-status"] });
+      }
     },
+  });
+}
+
+/** Which provider keys are configured (booleans only — never the values). */
+export function useSecretsStatus() {
+  return useQuery({
+    queryKey: ["secrets-status"],
+    queryFn: () => api.get<SecretsStatus>("/settings/secrets-status"),
+    staleTime: 30_000,
   });
 }
 

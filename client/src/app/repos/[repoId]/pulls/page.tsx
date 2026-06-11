@@ -15,6 +15,8 @@ import {
   EmptyState,
   ErrorState,
   AutoTriggerStatus,
+  CircularScore,
+  SEV,
 } from "@devdigest/ui";
 import { AppShell } from "../../../../components/app-shell";
 import { RepoNotFound } from "../../../../components/RepoNotFound";
@@ -24,20 +26,27 @@ import { ApiError } from "../../../../lib/api";
 import type { PrMeta } from "../../../../lib/types";
 import {
   COLUMN_KEYS,
+  FINDINGS_FIELDS,
   SIZE_COLOR,
   SKELETON_ROWS,
   STATUS_FILTERS,
   STATUS_META,
 } from "./constants";
-import { sizeOf } from "./helpers";
+import { relativeTime, sizeOf } from "./helpers";
 import { s } from "./styles";
+
+/** Open PRs carry a derived review status; everything else is merged/closed. */
+const OPEN_STATUSES = new Set(["needs_review", "reviewed", "stale"]);
 
 function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
   const t = useTranslations("prReview");
   const router = useRouter();
   const [h, setH] = React.useState(false);
-  const st = STATUS_META[pr.status] ?? STATUS_META.open!;
+  const st = STATUS_META[pr.status] ?? STATUS_META.needs_review!;
   const { size, lines } = sizeOf(pr);
+  const reviewed = pr.score != null; // null score ⇒ PR has never been reviewed
+  const totalFindings =
+    (pr.findings_critical ?? 0) + (pr.findings_warning ?? 0) + (pr.findings_suggestion ?? 0);
   return (
     <div
       onMouseEnter={() => setH(true)}
@@ -67,16 +76,37 @@ function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
           {size} · {lines}
         </Badge>
       </div>
-      <div className="mono tnum" style={s.diffCell}>
-        <span style={s.addCount}>+{pr.additions}</span>{" "}
-        <span style={s.delCount}>−{pr.deletions}</span>
+      <div style={s.scoreCell}>
+        {reviewed ? (
+          <CircularScore score={pr.score!} size={34} stroke={3} />
+        ) : (
+          <span style={s.muted}>—</span>
+        )}
+      </div>
+      <div style={s.findingsCell}>
+        {!reviewed || totalFindings === 0 ? (
+          <span style={s.muted}>—</span>
+        ) : (
+          FINDINGS_FIELDS.map(({ sev, field }) => {
+            const n = pr[field] ?? 0;
+            if (!n) return null;
+            const meta = SEV[sev];
+            const SIcon = Icon[meta.icon];
+            return (
+              <span key={sev} className="tnum" style={s.findingChip(meta.c)}>
+                <SIcon size={13} />
+                {n}
+              </span>
+            );
+          })
+        )}
       </div>
       <div>
         <Badge dot color={st.c} bg="transparent">
           {t(`list.status.${st.labelKey}`)}
         </Badge>
       </div>
-      <div style={s.filesCell}>{t("list.filesCount", { count: pr.files_count })}</div>
+      <div style={s.updatedCell}>{relativeTime(pr.updated_at)}</div>
     </div>
   );
 }
@@ -128,19 +158,19 @@ export default function PullsPage() {
   const { data: pulls, isLoading, isError, error, refetch } = usePulls(repoId);
   const refresh = useRefreshRepo();
 
-  // Default to Open-only (merged/closed are a click away via the filter chips).
-  const status = search.get("status") ?? "open";
+  // Default to all (open PRs now carry a review status: needs_review/reviewed/stale).
+  const status = search.get("status") ?? "all";
   const setStatus = (k: string) => {
     const sp = new URLSearchParams(search.toString());
-    if (k === "open") sp.delete("status");
+    if (k === "all") sp.delete("status");
     else sp.set("status", k);
     router.replace(`/repos/${repoId}/pulls?${sp.toString()}`);
   };
 
   const filtered = (pulls ?? []).filter((p) => status === "all" || p.status === status);
   const repoName = activeRepo?.full_name ?? repoId;
-  const openCount = (pulls ?? []).filter((p) => p.status === "open").length;
-  const mergedCount = (pulls ?? []).filter((p) => p.status === "merged").length;
+  const openCount = (pulls ?? []).filter((p) => OPEN_STATUSES.has(p.status)).length;
+  const needsReviewCount = (pulls ?? []).filter((p) => p.status === "needs_review").length;
 
   // Stale/unknown :repoId → friendly empty state instead of a 404 error.
   if (repoNotFound) {
@@ -158,7 +188,7 @@ export default function PullsPage() {
           <h1 style={s.pageTitle}>{t("list.title")}</h1>
           <p style={s.pageSubtitle}>
             {pulls
-              ? t("list.summary", { open: openCount, merged: mergedCount })
+              ? t("list.summary", { open: openCount, needsReview: needsReviewCount })
               : t("list.loading")}
           </p>
         </div>
@@ -199,7 +229,7 @@ export default function PullsPage() {
             icon="GitPullRequest"
             title={t("list.emptyTitle")}
             body={
-              status === "all" || status === "open"
+              status === "all"
                 ? t("list.emptyAllBody")
                 : t("list.emptyStatusBody", { status })
             }

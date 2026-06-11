@@ -1,9 +1,11 @@
 import type { FastifyInstance } from 'fastify';
-import { and, eq } from 'drizzle-orm';
-import type { PrMeta, PrDetail, GitHubClient } from '@devdigest/shared';
+import { and, desc, eq, inArray } from 'drizzle-orm';
+import type { PrMeta, PrDetail, GitHubClient, PrReviewComment } from '@devdigest/shared';
+import { PrCommentInput } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
 import { getContext } from '../_shared/context.js';
-import { NotFoundError } from '../../platform/errors.js';
+import { AppError, NotFoundError } from '../../platform/errors.js';
+import { deriveReviewStatus, rollupSeverities, type SeverityCounts } from './status.js';
 
 /**
  * F1 — pulls module (§12). PR import via Octokit (list + per-PR detail).
@@ -106,21 +108,69 @@ export default async function pullsRoutes(app: FastifyInstance) {
       }
     }
 
-    return rows.map((r) => ({
-      id: r.id,
-      number: r.number,
-      title: r.title,
-      author: r.author,
-      branch: r.branch,
-      base: r.base,
-      head_sha: r.headSha,
-      additions: r.additions,
-      deletions: r.deletions,
-      files_count: r.filesCount,
-      status: r.status as PrMeta['status'],
-      opened_at: r.openedAt?.toISOString() ?? null,
-      updated_at: r.updatedAt?.toISOString() ?? null,
-    }));
+    // Latest-review rollup per PR (score + findings severity counts), so the
+    // list can show a SCORE ring and FINDINGS breakdown. Computed on read from
+    // reviews/findings (no FK denorm); the list is small, so two IN-queries +
+    // JS grouping is cheap.
+    const prIds = rows.map((r) => r.id);
+    const latestReviewByPr = new Map<string, { id: string; score: number | null }>();
+    const sevByReview = new Map<string, SeverityCounts>();
+    if (prIds.length > 0) {
+      const reviewRows = await container.db
+        .select({ id: t.reviews.id, prId: t.reviews.prId, score: t.reviews.score })
+        .from(t.reviews)
+        .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review')))
+        .orderBy(desc(t.reviews.createdAt));
+      // Rows are newest-first → first seen per PR is the latest review.
+      for (const rv of reviewRows) {
+        if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { id: rv.id, score: rv.score });
+      }
+      const latestIds = [...latestReviewByPr.values()].map((v) => v.id);
+      if (latestIds.length > 0) {
+        const findingRows = await container.db
+          .select({ reviewId: t.findings.reviewId, severity: t.findings.severity })
+          .from(t.findings)
+          .where(inArray(t.findings.reviewId, latestIds));
+        const byReview = new Map<string, { severity: string }[]>();
+        for (const f of findingRows) {
+          const list = byReview.get(f.reviewId) ?? [];
+          list.push({ severity: f.severity });
+          byReview.set(f.reviewId, list);
+        }
+        for (const [reviewId, fs] of byReview) sevByReview.set(reviewId, rollupSeverities(fs));
+      }
+    }
+
+    const now = Date.now();
+    return rows.map((r) => {
+      const review = latestReviewByPr.get(r.id);
+      const sev = review ? sevByReview.get(review.id) : undefined;
+      return {
+        id: r.id,
+        number: r.number,
+        title: r.title,
+        author: r.author,
+        branch: r.branch,
+        base: r.base,
+        head_sha: r.headSha,
+        additions: r.additions,
+        deletions: r.deletions,
+        files_count: r.filesCount,
+        status: deriveReviewStatus({
+          ghStatus: r.status,
+          lastReviewedSha: r.lastReviewedSha,
+          headSha: r.headSha,
+          updatedAt: r.updatedAt,
+          now,
+        }),
+        opened_at: r.openedAt?.toISOString() ?? null,
+        updated_at: r.updatedAt?.toISOString() ?? null,
+        score: review ? review.score : null,
+        findings_critical: review ? (sev?.critical ?? 0) : null,
+        findings_warning: review ? (sev?.warning ?? 0) : null,
+        findings_suggestion: review ? (sev?.suggestion ?? 0) : null,
+      };
+    });
   });
 
   app.get<{ Params: { id: string } }>('/pulls/:id', async (req): Promise<PrDetail> => {
@@ -216,4 +266,73 @@ export default async function pullsRoutes(app: FastifyInstance) {
       };
     }
   });
+
+  // ---- Inline review comments (Files changed tab) -------------------------
+  // Proxied live to GitHub (no local persistence): GET reflects existing PR
+  // comments; POST creates one immediately. Keeps the tab in lock-step with
+  // GitHub and avoids a stale local mirror.
+  async function resolvePrAndRepo(id: string, workspaceId: string) {
+    const [pr] = await container.db
+      .select()
+      .from(t.pullRequests)
+      .where(and(eq(t.pullRequests.workspaceId, workspaceId), eq(t.pullRequests.id, id)));
+    if (!pr) throw new NotFoundError('Pull request not found');
+    const [repo] = await container.db.select().from(t.repos).where(eq(t.repos.id, pr.repoId));
+    if (!repo) throw new NotFoundError('Repo not found');
+    return { pr, repo };
+  }
+
+  app.get<{ Params: { id: string } }>(
+    '/pulls/:id/comments',
+    async (req): Promise<PrReviewComment[]> => {
+      const { workspaceId } = await getContext(container, req);
+      const { pr, repo } = await resolvePrAndRepo(req.params.id, workspaceId);
+      let gh: GitHubClient;
+      try {
+        gh = await container.github();
+      } catch (err) {
+        app.log.warn({ err }, 'GitHub client unavailable; serving no PR comments');
+        return [];
+      }
+      try {
+        return await gh.listReviewComments({ owner: repo.owner, name: repo.name }, pr.number);
+      } catch (err) {
+        app.log.warn({ err }, 'GitHub review-comments fetch skipped (offline / error)');
+        return [];
+      }
+    },
+  );
+
+  app.post<{ Params: { id: string }; Body: unknown }>(
+    '/pulls/:id/comments',
+    async (req): Promise<PrReviewComment> => {
+      const { workspaceId } = await getContext(container, req);
+      const { pr, repo } = await resolvePrAndRepo(req.params.id, workspaceId);
+      const input = PrCommentInput.parse(req.body ?? {});
+      let gh: GitHubClient;
+      try {
+        gh = await container.github();
+      } catch {
+        throw new AppError(
+          'github_unavailable',
+          'Connect a GitHub token to post comments.',
+          400,
+        );
+      }
+      try {
+        return await gh.createReviewComment({ owner: repo.owner, name: repo.name }, pr.number, {
+          commitId: pr.headSha,
+          path: input.path,
+          line: input.line,
+          ...(input.side ? { side: input.side } : {}),
+          body: input.body,
+          ...(input.in_reply_to != null ? { inReplyTo: input.in_reply_to } : {}),
+        });
+      } catch (err) {
+        // GitHub rejects comments on lines outside the diff / on closed PRs (422).
+        const msg = err instanceof Error ? err.message : 'Failed to post the comment to GitHub.';
+        throw new AppError('github_comment_failed', msg, 400, { cause: String(err) });
+      }
+    },
+  );
 }

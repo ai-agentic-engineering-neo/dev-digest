@@ -5,7 +5,6 @@ import type {
   PrBrief,
   PrHistory,
   PrHistoryItem,
-  Provider,
   Risks,
   UnifiedDiff,
 } from '@devdigest/shared';
@@ -19,11 +18,10 @@ import { BlastService } from '../blast/service.js';
 import {
   MAX_HISTORY_ITEMS,
   RISK_MAX_RETRIES,
-  RISK_MODEL,
-  RISK_PROVIDER,
   RISK_SYSTEM_PROMPT,
   SPEC_CHUNK_LIMIT,
 } from './constants.js';
+import { resolveFeatureModel } from '../settings/feature-models.js';
 import { heuristicRisks, stubIntent } from './helpers.js';
 
 /**
@@ -58,7 +56,7 @@ export class BriefService {
     const blast = await this.blast.forPull(workspaceId, prId);
     const diff = await this.loadDiff(prId, repo, pull.base, pull.headSha);
     const specs = await this.collectSpecs(pull.repoId);
-    const risks = await this.deriveRisks(diff, specs, intent);
+    const risks = await this.deriveRisks(workspaceId, diff, specs, intent);
     const history = await this.deriveHistory(workspaceId, repo.id, prId, pull.number);
 
     const brief: PrBrief = { intent, blast, risks, history };
@@ -94,11 +92,16 @@ export class BriefService {
   }
 
   // ---- Risks ---------------------------------------------------------------
-  private async deriveRisks(diff: UnifiedDiff, specs: string[], intent: Intent): Promise<Risks> {
+  private async deriveRisks(
+    workspaceId: string,
+    diff: UnifiedDiff,
+    specs: string[],
+    intent: Intent,
+  ): Promise<Risks> {
     if (!diff.raw.trim()) return { risks: [] };
     try {
-      const provider: Provider = RISK_PROVIDER;
-      const llm = await this.container.llm(provider);
+      const fm = await resolveFeatureModel(this.container, workspaceId, 'risk_brief');
+      const llm = await this.container.llm(fm.provider);
       const { messages } = assemblePrompt({
         system: RISK_SYSTEM_PROMPT,
         specs,
@@ -106,7 +109,7 @@ export class BriefService {
         task: `PR intent: ${intent.intent}\nIn scope: ${intent.in_scope.join(', ') || '(none stated)'}`,
       });
       const res = await llm.completeStructured<Risks>({
-        model: RISK_MODEL,
+        model: fm.model,
         schema: RisksSchema,
         schemaName: 'Risks',
         messages,

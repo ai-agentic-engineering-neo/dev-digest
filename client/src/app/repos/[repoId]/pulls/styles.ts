@@ -39,14 +39,26 @@ export const s = {
     color: "var(--text-secondary)",
   } satisfies CSSProperties,
   sizeBadgeBorder: (color: string): CSSProperties => ({ border: `1px solid ${color}` }),
-  diffCell: { fontSize: 13, color: "var(--text-muted)" } satisfies CSSProperties,
-  addCount: { color: "var(--code-add-text)" } satisfies CSSProperties,
-  delCount: { color: "var(--code-del-text)" } satisfies CSSProperties,
-  filesCell: {
-    fontSize: 13,
+  scoreCell: { display: "flex", alignItems: "center" } satisfies CSSProperties,
+  findingsCell: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    fontSize: 12.5,
+    color: "var(--text-secondary)",
+  } satisfies CSSProperties,
+  findingChip: (color: string): CSSProperties => ({
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 3,
+    color,
+  }),
+  updatedCell: {
+    fontSize: 12,
     color: "var(--text-muted)",
     textAlign: "right",
   } satisfies CSSProperties,
+  muted: { color: "var(--text-muted)" } satisfies CSSProperties,
   filterBar: {
     display: "flex",
     alignItems: "center",

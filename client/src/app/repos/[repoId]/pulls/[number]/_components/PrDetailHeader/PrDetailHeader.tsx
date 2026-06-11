@@ -11,6 +11,8 @@ interface PrDetailHeaderProps {
   prId: string | null;
   tab: string;
   findingsCount: number;
+  /** github.com PR URL; null when the repo's full_name isn't known yet. */
+  githubUrl?: string | null;
   onSetTab: (tab: string) => void;
   onComposeOpen: () => void;
   onRunStart: () => void;
@@ -22,6 +24,7 @@ export function PrDetailHeader({
   prId,
   tab,
   findingsCount,
+  githubUrl,
   onSetTab,
   onComposeOpen,
   onRunStart,
@@ -81,7 +84,15 @@ export function PrDetailHeader({
           </div>
         </div>
         <div style={s.actions}>
-          <Button kind="ghost" size="sm" icon="ExternalLink">
+          <Button
+            kind="ghost"
+            size="sm"
+            icon="ExternalLink"
+            disabled={!githubUrl}
+            onClick={() =>
+              githubUrl && window.open(githubUrl, "_blank", "noopener,noreferrer")
+            }
+          >
             View on GitHub
           </Button>
           {prId && (

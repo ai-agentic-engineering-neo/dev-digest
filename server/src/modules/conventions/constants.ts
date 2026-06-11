@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { Provider } from '@devdigest/shared';
 
 /**
  * A1 — conventions module constants (extracted from service.ts; no behaviour
@@ -102,9 +103,10 @@ export const EXTRACTION_TEMPERATURE = 0;
 export const EXTRACTION_MAX_RETRIES = 2;
 
 /** Default models per provider (used when the provider lists none). */
-export const DEFAULT_MODEL: Record<'openai' | 'anthropic', string> = {
+export const DEFAULT_MODEL: Record<Provider, string> = {
   openai: 'gpt-5.4',
   anthropic: 'claude-3-5-sonnet',
+  openrouter: 'deepseek/deepseek-v4-flash',
 };
 
 /** Max length of the skill name derived from an accepted convention's rule. */

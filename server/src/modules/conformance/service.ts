@@ -13,6 +13,7 @@ import { NotFoundError, AppError } from '../../platform/errors.js';
 import type { PullRow } from '../../db/rows.js';
 import { DEFAULT_PROVIDER, SPEC_CHUNK_LIMIT, SPEC_SOURCE } from './constants.js';
 import { defaultModel, specTitle } from './helpers.js';
+import { getFeatureModelOverride } from '../settings/feature-models.js';
 
 /**
  * A4 — PRD ↔ PR Conformance (dogfooding, §7 L06). Pull the Project-Context spec
@@ -46,7 +47,11 @@ export class ConformanceService {
     }
 
     const diff = await this.loadDiff(workspaceId, pull, repo);
-    const provider = (input.provider as Provider) ?? DEFAULT_PROVIDER;
+    // Precedence: explicit input > workspace setting (Settings → Feature Models) >
+    // the provider-dependent default. Keeping the override form preserves the
+    // per-provider default model below.
+    const fm = await getFeatureModelOverride(this.container, workspaceId, 'conformance');
+    const provider = (input.provider as Provider) ?? fm?.provider ?? DEFAULT_PROVIDER;
     const llm = await this.container.llm(provider);
 
     const { messages } = assemblePrompt({
@@ -58,7 +63,7 @@ export class ConformanceService {
     });
 
     const res = await llm.completeStructured<Conformance>({
-      model: input.model ?? defaultModel(provider),
+      model: input.model ?? fm?.model ?? defaultModel(provider),
       schema: ConformanceSchema,
       schemaName: 'Conformance',
       messages,

@@ -29,8 +29,16 @@ vi.mock("../../../../../../lib/hooks/context", () => ({
   useSaveSpec: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 vi.mock("../../../../../../lib/hooks/repo-intel", () => ({
-  useRepoIntelStatus: () => ({ data: { status: "full", filesIndexed: 12, filesSkipped: 0 } }),
-  useReindexRepoIntel: () => ({ mutate: vi.fn(), isPending: false }),
+  useRepoIntelStatus: () => ({
+    data: {
+      status: "full",
+      filesIndexed: 12,
+      filesSkipped: 0,
+      lastIndexedSha: "abc123",
+      updatedAt: "2026-06-11T00:00:00.000Z",
+    },
+  }),
+  useResyncRepoIntel: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 import { ProjectContextView } from "./ProjectContextView";
@@ -53,5 +61,10 @@ describe("ProjectContextView (smoke)", () => {
     expect(screen.getByText("architecture.md")).toBeInTheDocument();
     expect(screen.getByText("prd.md")).toBeInTheDocument();
     expect(screen.getByText("2kb")).toBeInTheDocument();
+  });
+
+  it("renders the repo-intel Resync button (resync, not re-clone)", () => {
+    renderWithIntl(<ProjectContextView />);
+    expect(screen.getByText("Resync")).toBeInTheDocument();
   });
 });

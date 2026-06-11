@@ -12,6 +12,8 @@ import type {
   PrMeta,
   PrDetail,
   GitHubReviewPayload,
+  CreateReviewCommentInput,
+  PrReviewComment,
   OpenPrPayload,
   CommitFilesPayload,
   IssueMeta,
@@ -121,12 +123,15 @@ export interface MockGitHubOptions {
   pulls?: PrMeta[];
   detail?: Partial<PrDetail>;
   login?: string;
+  /** Existing inline review comments returned by listReviewComments. */
+  comments?: PrReviewComment[];
 }
 
 export class MockGitHubClient implements GitHubClient {
   public posted: { n: number; review: GitHubReviewPayload }[] = [];
   public openedPrs: OpenPrPayload[] = [];
   public committed: CommitFilesPayload[] = [];
+  public createdComments: CreateReviewCommentInput[] = [];
 
   constructor(private opts: MockGitHubOptions = {}) {}
 
@@ -185,6 +190,31 @@ export class MockGitHubClient implements GitHubClient {
     return { id: `mock-review-${n}` };
   }
 
+  async listReviewComments(_repo: RepoRef, _n: number): Promise<PrReviewComment[]> {
+    return this.opts.comments ?? [];
+  }
+
+  async createReviewComment(
+    _repo: RepoRef,
+    _n: number,
+    input: CreateReviewCommentInput,
+  ): Promise<PrReviewComment> {
+    this.createdComments.push(input);
+    return {
+      id: this.createdComments.length,
+      path: input.path,
+      line: input.line,
+      original_line: input.line,
+      side: input.side ?? 'RIGHT',
+      body: input.body,
+      user: this.opts.login ?? 'mock-user',
+      created_at: '2026-06-01T00:00:00Z',
+      html_url: `https://github.com/mock/mock/pull/1#discussion_r${this.createdComments.length}`,
+      in_reply_to_id: input.inReplyTo ?? null,
+      is_outdated: false,
+    };
+  }
+
   async openPullRequest(_repo: RepoRef, payload: OpenPrPayload): Promise<{ url: string }> {
     this.openedPrs.push(payload);
     return { url: 'https://github.com/mock/mock/pull/1' };
@@ -217,10 +247,14 @@ export interface MockGitOptions {
   diffNameOnly?: string[];
   /** Override `currentHead()` so tests can simulate "sha unchanged since last index". */
   head?: string;
+  /** Head `currentHead()` returns AFTER `sync()` runs — simulates fetch+reset advancing HEAD. */
+  syncedHead?: string;
 }
 
 export class MockGitClient implements GitClient {
   public cloned: { repo: RepoRef; url: string }[] = [];
+  public syncs: { repo: RepoRef; branch: string }[] = [];
+  private syncedHead?: string;
 
   constructor(private opts: MockGitOptions = {}) {}
 
@@ -232,8 +266,14 @@ export class MockGitClient implements GitClient {
     return { path: this.clonePathFor(repo) };
   }
   async fetchPullHead(): Promise<void> {}
+  async sync(repo: RepoRef, branch: string): Promise<{ head: string }> {
+    this.syncs.push({ repo, branch });
+    // After a sync, HEAD advances to syncedHead (or stays at head if unset).
+    this.syncedHead = this.opts.syncedHead ?? this.opts.head ?? 'a1b2c3d4';
+    return { head: this.syncedHead };
+  }
   async currentHead(): Promise<string> {
-    return this.opts.head ?? 'a1b2c3d4';
+    return this.syncedHead ?? this.opts.head ?? 'a1b2c3d4';
   }
   async diffNameOnly(): Promise<string[]> {
     return this.opts.diffNameOnly ?? [];

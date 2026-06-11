@@ -49,6 +49,7 @@ import {
   INDEXER_VERSION,
   MAX_CALLERS_PER_SYMBOL,
   REFRESH_JOB_KIND,
+  RESYNC_JOB_KIND,
   SUPPORTED_EXT,
 } from './constants.js';
 import { runFullIndex, type IndexPayload } from './pipeline/full.js';
@@ -132,6 +133,35 @@ export class RepoIntelService implements RepoIntel {
   }
 
   /**
+   * Manual "re-analyze": advance the clone to `origin/<defaultBranch>` (so the
+   * index reflects the latest code), then run an incremental refresh. The
+   * incremental pass falls back to a full reindex internally when the diff base
+   * is unreachable or the indexer version moved (plan §9.3), so this is always
+   * correct — never a destructive re-clone. Degrades (never throws) when the
+   * repo isn't cloned yet or the fetch fails.
+   */
+  async resyncRepo(repoId: string): Promise<IndexResult> {
+    const startedAt = Date.now();
+    const repo = await this.repo.getRepoBasics(repoId);
+    if (!repo || !repo.clonePath) {
+      return { status: 'degraded', filesIndexed: 0, filesSkipped: 0, durationMs: Date.now() - startedAt, reason: 'no_clone' };
+    }
+    const ref: RepoRef = { owner: repo.owner, name: repo.name };
+    try {
+      await this.container.git.sync(ref, repo.defaultBranch);
+    } catch (err) {
+      return {
+        status: 'degraded',
+        filesIndexed: 0,
+        filesSkipped: 0,
+        durationMs: Date.now() - startedAt,
+        reason: `sync_failed:${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
+    return runIncremental(this.container, this.repo, { repoId });
+  }
+
+  /**
    * Register the INDEX_JOB_KIND + REFRESH_JOB_KIND handlers on the JobRunner.
    * Mirrors `RepoService.registerCloneJobHandler` so the registration is an
    * explicit one-shot at app startup (`repoIntel/routes.ts` invokes this).
@@ -145,6 +175,9 @@ export class RepoIntelService implements RepoIntel {
     });
     this.container.jobs.register(REFRESH_JOB_KIND, async (payload) => {
       await this.refreshIndex((payload as IndexPayload).repoId);
+    });
+    this.container.jobs.register(RESYNC_JOB_KIND, async (payload) => {
+      await this.resyncRepo((payload as IndexPayload).repoId);
     });
   }
 

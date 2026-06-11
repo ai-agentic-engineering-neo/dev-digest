@@ -3,14 +3,36 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Button, Icon, FormField, TextInput } from "@devdigest/ui";
-import { useTestConnection } from "../../../../../../../lib/hooks";
+import { useTestConnection, useSecretsStatus } from "../../../../../../../lib/hooks";
 import { ApiError } from "../../../../../../../lib/api";
 import type { ConnTestProvider } from "../../../../../../../lib/types";
 import { SectionTitle } from "../SectionTitle";
 import { KEY_ROWS } from "./constants";
 import { s } from "./styles";
 
-function KeyRow({ label, provider, hint }: { label: string; provider: ConnTestProvider; hint: string }) {
+/** "Configured / Not set" pill driven by GET /settings/secrets-status. */
+function StatusBadge({ configured }: { configured: boolean | undefined }) {
+  const t = useTranslations("settings");
+  if (configured === undefined) return null; // status still loading
+  return (
+    <span style={s.badge(configured)}>
+      <span style={s.badgeDot(configured)} />
+      {configured ? t("apiKeys.configured") : t("apiKeys.notSet")}
+    </span>
+  );
+}
+
+function KeyRow({
+  label,
+  provider,
+  hint,
+  configured,
+}: {
+  label: string;
+  provider: ConnTestProvider;
+  hint: string;
+  configured: boolean | undefined;
+}) {
   const t = useTranslations("settings");
   const [val, setVal] = React.useState("");
   const [reveal, setReveal] = React.useState(false);
@@ -28,7 +50,7 @@ function KeyRow({ label, provider, hint }: { label: string; provider: ConnTestPr
   };
 
   return (
-    <FormField label={label} hint={hint}>
+    <FormField label={label} hint={hint} right={<StatusBadge configured={configured} />}>
       <div style={s.keyRow}>
         <div style={s.keyInput}>
           <TextInput
@@ -58,6 +80,7 @@ function KeyRow({ label, provider, hint }: { label: string; provider: ConnTestPr
 
 export function SettingsApiKeys() {
   const t = useTranslations("settings");
+  const { data: status } = useSecretsStatus();
   return (
     <div style={s.wrap}>
       <SectionTitle title={t("apiKeys.title")} body={t("apiKeys.body")} />
@@ -67,6 +90,7 @@ export function SettingsApiKeys() {
           label={t(row.labelKey)}
           provider={row.provider}
           hint={t(row.hintKey)}
+          configured={status?.[row.provider]}
         />
       ))}
     </div>

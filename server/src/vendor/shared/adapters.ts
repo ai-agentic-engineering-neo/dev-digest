@@ -3,6 +3,7 @@ import type {
   PrMeta,
   PrDetail,
   IssueMeta,
+  PrReviewComment,
 } from './contracts/platform.js';
 
 /**
@@ -105,6 +106,18 @@ export interface GitHubReviewPayload {
   comments?: { path: string; line: number; body: string }[];
 }
 
+/** Create one standalone inline review comment (or a reply to a thread). */
+export interface CreateReviewCommentInput {
+  /** Head commit the comment pins to (GitHub requires commit_id). */
+  commitId: string;
+  path: string;
+  line: number;
+  side?: 'LEFT' | 'RIGHT';
+  body: string;
+  /** When set, post as a reply to that comment's thread instead of a new one. */
+  inReplyTo?: number;
+}
+
 export interface OpenPrPayload {
   title: string;
   head: string;
@@ -131,6 +144,14 @@ export interface GitHubClient {
   listPullRequests(repo: RepoRef): Promise<PrMeta[]>;
   getPullRequest(repo: RepoRef, n: number): Promise<PrDetail>;
   postReview(repo: RepoRef, n: number, review: GitHubReviewPayload): Promise<{ id: string }>;
+  /** List inline review comments on a PR (for the "Files changed" tab). */
+  listReviewComments(repo: RepoRef, n: number): Promise<PrReviewComment[]>;
+  /** Create one inline review comment (or reply) on a PR; returns the new comment. */
+  createReviewComment(
+    repo: RepoRef,
+    n: number,
+    input: CreateReviewCommentInput,
+  ): Promise<PrReviewComment>;
   openPullRequest(repo: RepoRef, payload: OpenPrPayload): Promise<{ url: string }>;
   /**
    * Commit `files` onto `branch` as ONE atomic commit (Git Data API: blobs →
@@ -184,6 +205,13 @@ export interface GitCommit {
 export interface GitClient {
   clone(repo: RepoRef, url: string, opts?: CloneOptions): Promise<{ path: string }>;
   fetchPullHead(repo: RepoRef, n: number): Promise<void>;
+  /**
+   * Resync an already-cloned repo to the tip of `branch`: fetch from origin and
+   * advance the local working tree to `origin/<branch>`. Unlike `clone`'s bare
+   * `fetch` (which only moves remote-tracking refs), this moves local HEAD so a
+   * subsequent index reflects the latest code. Returns the new HEAD sha.
+   */
+  sync(repo: RepoRef, branch: string): Promise<{ head: string }>;
   currentHead(repo: RepoRef): Promise<string>;
   diff(repo: RepoRef, base: string, head: string): Promise<UnifiedDiff>;
   /**

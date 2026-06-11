@@ -157,11 +157,20 @@ export class ReviewRepository {
       costUsd: number | null;
       findingsCount: number;
       grounding: string;
+      /** Review score (0-100); null on failed/cancelled runs. */
+      score?: number | null;
+      /** Findings that tripped the agent's gate; 0 on failed/cancelled runs. */
+      blockers?: number | null;
       /** Failure reason (status='failed') / cancellation note. Null clears it. */
       error?: string | null;
     },
   ): Promise<void> {
     return runRepo.completeAgentRun(this.db, runId, values);
+  }
+
+  /** Record the head SHA a review ran against (PR-list freshness derivation). */
+  markReviewed(prId: string, sha: string): Promise<void> {
+    return pullRepo.markReviewed(this.db, prId, sha);
   }
 
   /** Persist the WHOLE run log as ONE document (§7). PK = runId → agent_runs. */

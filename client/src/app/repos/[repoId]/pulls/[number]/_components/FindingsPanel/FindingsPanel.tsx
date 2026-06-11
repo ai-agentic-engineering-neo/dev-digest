@@ -12,7 +12,17 @@ import { FILTER_SEVERITIES, KEY_TO_ACTION } from "./constants";
 import { countBySeverity, visibleFindings } from "./helpers";
 import { s } from "./styles";
 
-export function FindingsPanel({ findings, prId }: { findings: FindingRecord[]; prId: string }) {
+export function FindingsPanel({
+  findings,
+  prId,
+  repoFullName,
+  headSha,
+}: {
+  findings: FindingRecord[];
+  prId: string;
+  repoFullName?: string | null;
+  headSha?: string | null;
+}) {
   const t = useTranslations("prReview");
   const action = useFindingAction();
   const [sevFilter, setSevFilter] = React.useState<Record<string, boolean>>({
@@ -78,6 +88,8 @@ export function FindingsPanel({ findings, prId }: { findings: FindingRecord[]; p
               focused={i === focusIdx}
               defaultExpanded={i === 0}
               pending={action.isPending}
+              repoFullName={repoFullName}
+              headSha={headSha}
               onAction={(act, reply) => action.mutate({ findingId: f.id, action: act, reply, prId })}
             />
           ))

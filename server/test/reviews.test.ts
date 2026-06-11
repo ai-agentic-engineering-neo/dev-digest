@@ -204,7 +204,9 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
 
     const review = reviews[0];
     expect(review.verdict).toBe('request_changes');
-    expect(review.score).toBe(42);
+    // Score is derived from the GROUNDED findings, not the model's self-reported
+    // 42: grounding keeps one CRITICAL (line 11) ⇒ 100 − 35 = 65.
+    expect(review.score).toBe(65);
     // grounding kept only the valid finding (line 11), dropped the line-999 one
     expect(review.findings).toHaveLength(1);
     expect(review.findings[0].file).toBe('src/config.ts');
@@ -271,6 +273,10 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     // succeeds, the review structured call will fail schema → run marked failed but
     // intent is persisted). We assert the intent endpoint regardless.
     await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } });
+    // runReview is fire-and-forget: wait for the background run so intent has been
+    // persisted before we read it (the review step itself fails schema, but intent
+    // is derived + persisted first). Avoids a read-before-write race under load.
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
     const intent = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/intent` })).json();
     expect(intent.intent).toBe(INTENT_FIXTURE.intent);
     expect(intent.out_of_scope).toContain('docs');

@@ -63,6 +63,8 @@ export async function listRunsForPull(
     findings_count: run.findingsCount,
     grounding: run.grounding,
     ran_at: run.ranAt ? run.ranAt.toISOString() : null,
+    score: run.score,
+    blockers: run.blockers,
   }));
 }
 
@@ -139,6 +141,10 @@ export async function completeAgentRun(
     costUsd: number | null;
     findingsCount: number;
     grounding: string;
+    /** Review score (0-100); null on failed/cancelled runs. */
+    score?: number | null;
+    /** Findings that tripped the agent's gate; 0 on failed/cancelled runs. */
+    blockers?: number | null;
     /** Failure reason (status='failed') / cancellation note. Null clears it. */
     error?: string | null;
   },
@@ -153,6 +159,8 @@ export async function completeAgentRun(
       costUsd: values.costUsd,
       findingsCount: values.findingsCount,
       grounding: values.grounding,
+      score: values.score ?? null,
+      blockers: values.blockers ?? null,
       error: values.error ?? null,
     })
     .where(eq(t.agentRuns.id, runId));

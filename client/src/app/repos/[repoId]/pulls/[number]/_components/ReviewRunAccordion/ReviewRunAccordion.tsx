@@ -27,10 +27,14 @@ export function ReviewRunAccordion({
   review,
   prId,
   defaultOpen = false,
+  repoFullName,
+  headSha,
 }: {
   review: ReviewRecord;
   prId: string;
   defaultOpen?: boolean;
+  repoFullName?: string | null;
+  headSha?: string | null;
 }) {
   const [open, setOpen] = React.useState(defaultOpen);
   const del = useDeleteReview(prId);
@@ -126,7 +130,12 @@ export function ReviewRunAccordion({
               />
             </div>
           )}
-          <FindingsPanel findings={findings} prId={prId} />
+          <FindingsPanel
+            findings={findings}
+            prId={prId}
+            repoFullName={repoFullName}
+            headSha={headSha}
+          />
         </div>
       )}
     </div>

@@ -4,6 +4,7 @@ import {
   SettingsUpdate,
   ConnTestRequest,
   type ConnTestResult,
+  type SecretsStatus,
 } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
 import { getContext } from '../_shared/context.js';
@@ -29,6 +30,18 @@ export default async function settingsRoutes(app: FastifyInstance) {
       .from(t.settings)
       .where(eq(t.settings.workspaceId, workspaceId));
     return rowsToSettings(rows);
+  });
+
+  // Which provider keys are configured (booleans only — the values are NEVER
+  // returned). Drives the "Configured / Not set" badges in the API Keys panel.
+  app.get('/settings/secrets-status', async (req): Promise<SecretsStatus> => {
+    await getContext(container, req);
+    const entries = await Promise.all(
+      (Object.entries(SECRET_KEY_BY_PROVIDER) as [keyof SecretsStatus, string][]).map(
+        async ([provider, key]) => [provider, Boolean(await container.secrets.get(key))] as const,
+      ),
+    );
+    return Object.fromEntries(entries) as SecretsStatus;
   });
 
   app.put('/settings', async (req) => {

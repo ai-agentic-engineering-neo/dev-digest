@@ -1,23 +1,39 @@
 "use client";
 
 import React from "react";
-import { Badge, Icon, type IconName } from "@devdigest/ui";
+import { useTranslations } from "next-intl";
+import { Badge, Icon, CircularScore, type IconName } from "@devdigest/ui";
 import type { RunSummary, PrCommit } from "@devdigest/shared";
 
 /**
- * PR timeline — every agent run (any status: done / failed / cancelled /
- * running) interleaved with the PR's commits, newest-first and DB-backed so it
- * survives reload. Showing commits between runs makes it clear which commit
- * each review ran against (a review on an older commit covered different files).
- * Failed runs show their error inline; clicking a run row opens its trace.
+ * PR timeline — every agent run interleaved with the PR's commits, newest-first
+ * and DB-backed so it survives reload. Showing commits between runs makes it
+ * clear which commit each review ran against. Failed runs show their error
+ * inline; clicking a run row opens its trace.
+ *
+ * The badge reflects the review OUTCOME, not just the run lifecycle: a finished
+ * run that found blockers reads "rejected" (red), never a green "done". Outcome
+ * is derived from the denormalized blocker/finding counts on the run row, so it
+ * matches the CI gate (deterministic) rather than the model's verdict.
  */
 
-const STATUS: Record<string, { color: string; bg: string; icon: IconName }> = {
-  done: { color: "var(--ok)", bg: "var(--ok-bg)", icon: "CheckCircle" },
-  failed: { color: "var(--crit)", bg: "var(--crit-bg)", icon: "XCircle" },
-  cancelled: { color: "var(--text-muted)", bg: "var(--bg-hover)", icon: "X" },
-  running: { color: "var(--accent)", bg: "var(--accent-bg)", icon: "RefreshCw" },
-};
+type Outcome = { key: string; color: string; bg: string; icon: IconName };
+
+function outcomeOf(run: RunSummary): Outcome {
+  const status = run.status ?? "";
+  if (status === "running")
+    return { key: "running", color: "var(--accent)", bg: "var(--accent-bg)", icon: "RefreshCw" };
+  if (status === "failed")
+    return { key: "error", color: "var(--crit)", bg: "var(--crit-bg)", icon: "XCircle" };
+  if (status === "cancelled")
+    return { key: "cancelled", color: "var(--text-muted)", bg: "var(--bg-hover)", icon: "X" };
+  // Settled ("done"): color by the deterministic outcome.
+  if ((run.blockers ?? 0) > 0)
+    return { key: "rejected", color: "var(--crit)", bg: "var(--crit-bg)", icon: "XCircle" };
+  if ((run.findings_count ?? 0) > 0)
+    return { key: "reviewed", color: "var(--warn)", bg: "var(--warn-bg)", icon: "MessageSquare" };
+  return { key: "approved", color: "var(--ok)", bg: "var(--ok-bg)", icon: "CheckCircle" };
+}
 
 const rowStyle: React.CSSProperties = {
   display: "flex",
@@ -67,6 +83,7 @@ export function RunHistory({
   onOpenTrace: (runId: string) => void;
   onDelete?: (runId: string) => void;
 }) {
+  const t = useTranslations("prReview");
   if (runs.length === 0 && commits.length === 0) return null;
 
   const items: TimelineItem[] = [
@@ -114,13 +131,15 @@ export function RunHistory({
         }
 
         const r = item.run;
-        const st = STATUS[r.status ?? ""] ?? STATUS.cancelled!;
+        const o = outcomeOf(r);
         const tok = (r.tokens_in ?? 0) + (r.tokens_out ?? 0);
+        const settled = r.status === "done";
         return (
           <button key={`run:${r.run_id}`} onClick={() => onOpenTrace(r.run_id)} style={rowStyle}>
-            <Badge color={st.color} bg={st.bg} icon={st.icon}>
-              {r.status ?? "—"}
+            <Badge color={o.color} bg={o.bg} icon={o.icon}>
+              {t(`runStatus.${o.key}`)}
             </Badge>
+            {settled && r.score != null && <CircularScore score={r.score} size={30} stroke={3} />}
             <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>
                 {r.agent_name ?? "Agent"}{" "}
@@ -136,9 +155,10 @@ export function RunHistory({
                   {r.error}
                 </div>
               )}
-              {r.status === "done" && (
+              {settled && (
                 <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                  {r.findings_count ?? 0} finding(s){r.grounding ? ` · ${r.grounding}` : ""}
+                  {t("runStatus.findings", { count: r.findings_count ?? 0 })}
+                  {(r.blockers ?? 0) > 0 ? t("runStatus.blockers", { count: r.blockers ?? 0 }) : ""}
                 </div>
               )}
             </div>

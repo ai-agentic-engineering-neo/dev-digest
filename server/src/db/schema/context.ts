@@ -15,6 +15,19 @@ import { repos } from './repos';
 
 // ============================================================ Context & codebase
 
+/**
+ * `symbols.name` and `references.to_symbol` are btree-indexed
+ * (`symbols_repo_name_idx`, `references_repo_decl_symbol_idx`). Postgres rejects
+ * any index row larger than ~2704 bytes, so a pathological multi-KB "name" from
+ * a bad parse (e.g. a whole expression captured as an identifier) crashes the
+ * indexer with `index row size … exceeds btree version 4 maximum`. Real
+ * identifiers are short, so clamp these values well under the limit before
+ * insert. 255 chars ≤ ~1 KB even for 4-byte code points — comfortably safe.
+ */
+export const MAX_INDEXED_NAME_LEN = 255;
+export const clampIndexedName = (s: string): string =>
+  s.length > MAX_INDEXED_NAME_LEN ? s.slice(0, MAX_INDEXED_NAME_LEN) : s;
+
 export const codeChunks = pgTable(
   'code_chunks',
   {

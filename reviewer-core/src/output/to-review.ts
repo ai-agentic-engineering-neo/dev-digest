@@ -20,10 +20,10 @@ const SEV_EMOJI: Record<string, string> = {
 };
 
 /** Severity rank (higher = worse) for gate comparisons. */
-const SEV_RANK: Record<string, number> = { SUGGESTION: 1, WARNING: 2, CRITICAL: 3 };
+export const SEV_RANK: Record<string, number> = { SUGGESTION: 1, WARNING: 2, CRITICAL: 3 };
 
 /** Minimum severity rank that trips the gate, per policy. `never` → unreachable. */
-const FAIL_ON_MIN_RANK: Record<CiFailOn, number> = {
+export const FAIL_ON_MIN_RANK: Record<CiFailOn, number> = {
   never: Number.POSITIVE_INFINITY,
   critical: 3,
   warning: 2,
@@ -37,6 +37,17 @@ const FAIL_ON_MIN_RANK: Record<CiFailOn, number> = {
 export function gateTriggered(findings: Finding[], failOn: CiFailOn): boolean {
   const min = FAIL_ON_MIN_RANK[failOn];
   return findings.some((f) => (SEV_RANK[f.severity] ?? 0) >= min);
+}
+
+/**
+ * How many findings trip the gate under `failOn` (severity rank ≥ the gate
+ * minimum). This is the "blockers" count surfaced on the run row and the PR
+ * list rollup — the deterministic signal the UI colors on, NOT the model's
+ * self-reported verdict. `never` → always 0.
+ */
+export function countBlockers(findings: Finding[], failOn: CiFailOn): number {
+  const min = FAIL_ON_MIN_RANK[failOn];
+  return findings.reduce((n, f) => n + ((SEV_RANK[f.severity] ?? 0) >= min ? 1 : 0), 0);
 }
 
 export interface ToReviewOptions {

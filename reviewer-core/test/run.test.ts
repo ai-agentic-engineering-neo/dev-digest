@@ -62,8 +62,30 @@ describe('reviewPullRequest (engine)', () => {
     expect(outcome.review.findings).toHaveLength(1);
     expect(outcome.review.findings[0]!.start_line).toBe(11);
     expect(outcome.dropped).toHaveLength(1);
+    // Score is derived from the SURVIVING findings, not the model's self-reported
+    // 38: one CRITICAL remains after grounding ⇒ 100 − 35 = 65.
+    expect(outcome.review.score).toBe(65);
     // progress is surfaced (server bridges this onto SSE; runner logs it)
     expect(events.some((m) => m.includes('Citation grounding'))).toBe(true);
+  });
+
+  it('score is deterministic from findings: a clean approve scores 100', async () => {
+    // Model "approves" but reports a nonsense low score (the cheap-model bug).
+    // The engine must ignore that and score the zero findings as a perfect 100.
+    const clean = { verdict: 'approve', summary: 'looks good', score: 10, findings: [] };
+    const llm = new MockLLMProvider('openai', { structured: clean });
+    const diff = await new MockGitClient().diff();
+
+    const outcome = await reviewPullRequest({
+      systemPrompt: 'security reviewer',
+      model: 'deepseek/deepseek-v4-flash',
+      diff,
+      llm,
+      task: 'Review PR #5',
+    });
+
+    expect(outcome.review.findings).toHaveLength(0);
+    expect(outcome.review.score).toBe(100);
   });
 
   it('checkCancelled throwing aborts before the LLM call', async () => {

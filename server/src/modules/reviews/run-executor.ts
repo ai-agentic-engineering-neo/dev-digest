@@ -1,6 +1,6 @@
 import type { Container } from '../../platform/container.js';
 import type { Intent, Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
-import { reviewPullRequest } from '@devdigest/reviewer-core';
+import { reviewPullRequest, countBlockers } from '@devdigest/reviewer-core';
 import { RunLogger } from '../../platform/run-logger.js';
 import * as schema from '../../db/schema.js';
 import type { AgentRow } from '../../db/rows.js';
@@ -278,7 +278,15 @@ export class ReviewRunExecutor {
       const findingRows = await this.repo.insertFindings(review.id, keptFindings);
       runLog.result(`Persisted review ${review.id} with ${findingRows.length} finding(s)`);
 
+      // Mark the commit this review ran against so the PR list can tell
+      // reviewed / needs-review (head moved) / stale apart.
+      await this.repo.markReviewed(pull.id, pull.headSha);
+
       const durationMs = Date.now() - start;
+
+      // Deterministic blocker count (severity ≥ the agent's gate) — the signal
+      // the timeline colors on, NOT the model's self-reported verdict.
+      const blockers = countBlockers(keptFindings, agent.ciFailOn);
 
       // ---- Observability: agent_runs + ONE run_traces document --------------
       await this.repo.completeAgentRun(runId, {
@@ -289,6 +297,8 @@ export class ReviewRunExecutor {
         costUsd,
         findingsCount: findingRows.length,
         grounding,
+        score: outcome.review.score,
+        blockers,
         error: null,
       });
 

@@ -21,6 +21,7 @@ import { AnthropicProvider } from '../adapters/llm/anthropic.js';
 import { OpenAIEmbedder } from '../adapters/embedder/openai.js';
 import { OpenRouterProvider } from '@devdigest/reviewer-core';
 import { estimateCost } from '../adapters/llm/pricing.js';
+import { PriceBook } from './price-book.js';
 import { ConfigError } from './errors.js';
 import { AgentsRepository } from '../modules/agents/repository.js';
 import { ReviewRepository } from '../modules/reviews/repository.js';
@@ -76,6 +77,7 @@ export class Container {
   private _repoIntel?: RepoIntel;
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
+  private _priceBook?: PriceBook;
 
   constructor(config: AppConfig, db: Db, private overrides: ContainerOverrides = {}) {
     this.config = config;
@@ -135,6 +137,25 @@ export class Container {
     return this._tokenizer;
   }
 
+  /**
+   * Live OpenRouter pricing for cost attribution. The lister builds a bare
+   * OpenRouter provider just for `/models` (no estimator needed) and degrades to
+   * `[]` when no key is configured; the static `estimateCost` table is the
+   * fallback for OpenAI/Anthropic and a cold/cold-failed cache.
+   */
+  get priceBook(): PriceBook {
+    this._priceBook ??= new PriceBook(async () => {
+      try {
+        const key = await this.secrets.get('OPENROUTER_API_KEY');
+        if (!key) return [];
+        return await new OpenRouterProvider(key).listModels();
+      } catch {
+        return [];
+      }
+    }, estimateCost);
+    return this._priceBook;
+  }
+
   async github(): Promise<GitHubClient> {
     if (this.overrides.github) return this.overrides.github;
     if (this._github) return this._github;
@@ -163,10 +184,14 @@ export class Container {
     }
     if (id === 'openrouter') {
       // Single OpenRouter provider lives in reviewer-core (shared with the CI
-      // runner); inject the server's pricing table for cost attribution.
+      // runner); inject the PriceBook so cost attribution uses LIVE OpenRouter
+      // prices (with the static table as a fallback) rather than a hardcoded one.
       const key = await this.secrets.get('OPENROUTER_API_KEY');
       if (!key) throw new ConfigError('OPENROUTER_API_KEY is not configured');
-      return new OpenRouterProvider(key, { estimateCost });
+      return new OpenRouterProvider(key, {
+        estimateCost: (model, tokensIn, tokensOut) =>
+          this.priceBook.estimate(model, tokensIn, tokensOut),
+      });
     }
     const key = await this.secrets.get('ANTHROPIC_API_KEY');
     if (!key) throw new ConfigError('ANTHROPIC_API_KEY is not configured');

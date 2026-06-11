@@ -12,8 +12,6 @@ import {
   DEFAULT_LANG,
   KEYWORD_SCAN_LIMIT,
   ONBOARDING_MAX_RETRIES,
-  ONBOARDING_MODEL,
-  ONBOARDING_PROVIDER,
   RETRIEVE_TOP_K,
   SECTION_PLAN,
   TREE_IGNORE_DIRS,
@@ -22,6 +20,7 @@ import {
   TREE_MAX_FILE_BYTES,
   type OnboardingLang,
 } from './constants.js';
+import { resolveFeatureModel } from '../settings/feature-models.js';
 import {
   buildFactsBlock,
   buildKeyFilesBlock,
@@ -165,14 +164,17 @@ export class OnboardingService {
     ];
 
     const startedAt = Date.now();
+    // Provider/model are configurable per workspace (Settings → Feature Models);
+    // falls back to the registry default when unset.
+    const fm = await resolveFeatureModel(this.container, workspaceId, 'onboarding');
     try {
-      const llm = await this.container.llm(ONBOARDING_PROVIDER);
+      const llm = await this.container.llm(fm.provider);
       log?.debug(
-        { repoId, lang, model: ONBOARDING_MODEL, messages },
+        { repoId, lang, model: fm.model, messages },
         'onboarding: LLM request (prompt)',
       );
       const res = await llm.completeStructured<Onboarding>({
-        model: ONBOARDING_MODEL,
+        model: fm.model,
         schema: OnboardingSchema,
         schemaName: 'Onboarding',
         messages,
@@ -182,7 +184,7 @@ export class OnboardingService {
         {
           repoId,
           lang,
-          provider: ONBOARDING_PROVIDER,
+          provider: fm.provider,
           model: res.model,
           promptChars: system.length + user.length,
           tokensIn: res.tokensIn,
@@ -199,7 +201,7 @@ export class OnboardingService {
       const msg = err instanceof Error ? err.message : String(err);
       // No silent skeleton: surface WHY it degraded.
       log?.error(
-        { repoId, lang, model: ONBOARDING_MODEL, durationMs: Date.now() - startedAt, err: msg },
+        { repoId, lang, model: fm.model, durationMs: Date.now() - startedAt, err: msg },
         'onboarding: LLM call failed — falling back to deterministic skeleton',
       );
       return this.persist(repoId, skeletonTour(facts, `LLM generation failed: ${msg}`));

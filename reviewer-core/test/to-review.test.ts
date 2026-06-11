@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Finding, Review, UnifiedDiff } from '@devdigest/shared';
-import { toReviewPayload, gateTriggered } from '../src/index.js';
+import { toReviewPayload, gateTriggered, countBlockers } from '../src/index.js';
 
 /**
  * The review EVENT is computed deterministically from finding severities + the
@@ -67,6 +67,26 @@ describe('toReviewPayload — deterministic CI gate', () => {
   it('body header reflects the computed event, not the model verdict', () => {
     const blocked = toReviewPayload(review([finding('CRITICAL')]), { failOn: 'critical' });
     expect(blocked.body).toContain('Changes requested');
+  });
+});
+
+describe('countBlockers — deterministic blocker count', () => {
+  const fs = [finding('CRITICAL'), finding('CRITICAL'), finding('WARNING'), finding('SUGGESTION')];
+
+  it('counts findings at or above the gate severity', () => {
+    expect(countBlockers(fs, 'critical')).toBe(2);
+    expect(countBlockers(fs, 'warning')).toBe(3);
+    expect(countBlockers(fs, 'any')).toBe(4);
+    expect(countBlockers(fs, 'never')).toBe(0);
+  });
+
+  it('is 0 for no findings and agrees with gateTriggered', () => {
+    expect(countBlockers([], 'critical')).toBe(0);
+    const warnOnly = [finding('WARNING')];
+    expect(countBlockers(warnOnly, 'critical')).toBe(0);
+    expect(gateTriggered(warnOnly, 'critical')).toBe(false);
+    expect(countBlockers(warnOnly, 'warning')).toBe(1);
+    expect(gateTriggered(warnOnly, 'warning')).toBe(true);
   });
 });
 

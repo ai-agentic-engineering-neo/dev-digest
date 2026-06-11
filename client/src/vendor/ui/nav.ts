@@ -57,6 +57,7 @@ export const SETTINGS_ITEM: NavItemDef = {
 
 export const SETTINGS_SECTIONS = [
   { key: "api-keys", label: "API Keys" },
+  { key: "models", label: "Feature Models" },
   { key: "github", label: "GitHub Integration" },
   { key: "workspace", label: "Workspace" },
   { key: "automatic-reviews", label: "Automatic Reviews" },

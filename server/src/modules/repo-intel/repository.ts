@@ -16,6 +16,7 @@
 import { and, asc, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
+import { clampIndexedName } from '../../db/schema/context.js';
 import type { DegradedReason, FileRankRow, IndexState, IndexStatus } from './types.js';
 
 /** Chunk size for batched inserts — same value blast already uses. */
@@ -58,6 +59,7 @@ export interface RepoBasics {
   id: string;
   owner: string;
   name: string;
+  defaultBranch: string;
   clonePath: string | null;
 }
 
@@ -137,6 +139,7 @@ export class RepoIntelRepository {
         id: t.repos.id,
         owner: t.repos.owner,
         name: t.repos.name,
+        defaultBranch: t.repos.defaultBranch,
         clonePath: t.repos.clonePath,
       })
       .from(t.repos)
@@ -265,16 +268,20 @@ export class RepoIntelRepository {
   /** Batched insert into `symbols`. Uses the same chunk size as blast. */
   async insertSymbols(rows: IndexerSymbolRow[]): Promise<void> {
     if (rows.length === 0) return;
-    for (let i = 0; i < rows.length; i += INSERT_CHUNK_SIZE) {
-      await this.db.insert(t.symbols).values(rows.slice(i, i + INSERT_CHUNK_SIZE));
+    // Clamp the indexed `name` so a pathological multi-KB identifier can't blow
+    // the btree row-size limit and crash the indexer (see clampIndexedName).
+    const safe = rows.map((r) => ({ ...r, name: clampIndexedName(r.name) }));
+    for (let i = 0; i < safe.length; i += INSERT_CHUNK_SIZE) {
+      await this.db.insert(t.symbols).values(safe.slice(i, i + INSERT_CHUNK_SIZE));
     }
   }
 
   /** Batched insert into `references`. */
   async insertReferences(rows: IndexerReferenceRow[]): Promise<void> {
     if (rows.length === 0) return;
-    for (let i = 0; i < rows.length; i += INSERT_CHUNK_SIZE) {
-      await this.db.insert(t.references).values(rows.slice(i, i + INSERT_CHUNK_SIZE));
+    const safe = rows.map((r) => ({ ...r, toSymbol: clampIndexedName(r.toSymbol) }));
+    for (let i = 0; i < safe.length; i += INSERT_CHUNK_SIZE) {
+      await this.db.insert(t.references).values(safe.slice(i, i + INSERT_CHUNK_SIZE));
     }
   }
 

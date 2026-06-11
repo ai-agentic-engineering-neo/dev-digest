@@ -3,6 +3,7 @@ import type {
   PrMeta,
   PrDetail,
   IssueMeta,
+  PrReviewComment,
 } from './contracts/platform.js';
 
 /**
@@ -99,6 +100,18 @@ export interface GitHubReviewPayload {
   comments?: { path: string; line: number; body: string }[];
 }
 
+/** Create one standalone inline review comment (or a reply to a thread). */
+export interface CreateReviewCommentInput {
+  /** Head commit the comment pins to (GitHub requires commit_id). */
+  commitId: string;
+  path: string;
+  line: number;
+  side?: 'LEFT' | 'RIGHT';
+  body: string;
+  /** When set, post as a reply to that comment's thread instead of a new one. */
+  inReplyTo?: number;
+}
+
 export interface OpenPrPayload {
   title: string;
   head: string;
@@ -110,6 +123,14 @@ export interface GitHubClient {
   listPullRequests(repo: RepoRef): Promise<PrMeta[]>;
   getPullRequest(repo: RepoRef, n: number): Promise<PrDetail>;
   postReview(repo: RepoRef, n: number, review: GitHubReviewPayload): Promise<{ id: string }>;
+  /** List inline review comments on a PR (for the "Files changed" tab). */
+  listReviewComments(repo: RepoRef, n: number): Promise<PrReviewComment[]>;
+  /** Create one inline review comment (or reply) on a PR; returns the new comment. */
+  createReviewComment(
+    repo: RepoRef,
+    n: number,
+    input: CreateReviewCommentInput,
+  ): Promise<PrReviewComment>;
   openPullRequest(repo: RepoRef, payload: OpenPrPayload): Promise<{ url: string }>;
   getIssue(repo: RepoRef, n: number): Promise<IssueMeta>;
   /** GET /user — for "posting as @user". */

@@ -40,7 +40,15 @@
     "mergedTooltip": "This PR is already merged; running a review won’t affect the merged code."
   },
   "runStatus": {
-    "elapsed": "Running · {count} agent(s)"
+    "elapsed": "Running · {count} agent(s)",
+    "approved": "approved",
+    "reviewed": "reviewed",
+    "rejected": "rejected",
+    "error": "error",
+    "cancelled": "cancelled",
+    "running": "running",
+    "findings": "{count} finding(s)",
+    "blockers": " · {count} blockers"
   },
   "smartDiff": {
     "coreLabel": "Core",
@@ -55,18 +63,21 @@
   "list": {
     "breadcrumb": "Pull Requests",
     "title": "Pull Requests",
-    "summary": "{open} open · {merged} merged",
+    "summary": "{open} open · {needsReview} need review",
     "loading": "Loading pull requests…",
     "status": {
       "open": "Open",
       "closed": "Closed",
-      "merged": "Merged"
+      "merged": "Merged",
+      "needs_review": "Needs review",
+      "reviewed": "Reviewed",
+      "stale": "Stale"
     },
     "filter": {
       "all": "All",
-      "open": "Open",
-      "merged": "Merged",
-      "closed": "Closed"
+      "needs_review": "Needs review",
+      "reviewed": "Reviewed",
+      "stale": "Stale"
     },
     "refresh": "Refresh",
     "refreshing": "Refreshing…",
@@ -74,9 +85,10 @@
       "pullRequest": "Pull request",
       "author": "Author",
       "size": "Size",
-      "diff": "Diff",
+      "score": "Score",
+      "findings": "Findings",
       "status": "Status",
-      "files": "Files"
+      "updated": "Updated"
     },
     "filesCount": "{count} files",
     "errorTitle": "Couldn’t load pull requests",

@@ -9,6 +9,7 @@ import { notify } from "../toast";
 import type {
   FindingActionKind,
   Intent,
+  PrReviewComment,
   ReviewRecord,
   ReviewRunResponse,
   RunEvent,
@@ -96,6 +97,34 @@ export function useSmartDiff(prId: string | null | undefined) {
     queryKey: ["smart-diff", prId],
     queryFn: () => api.get<SmartDiff>(`/pulls/${prId}/smart-diff`),
     enabled: !!prId,
+  });
+}
+
+// ---- Inline review comments on the "Files changed" tab (proxied to GitHub) --
+/** Existing GitHub PR review comments, fetched live. */
+export function usePrComments(prId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["pr-comments", prId],
+    queryFn: () => api.get<PrReviewComment[]>(`/pulls/${prId}/comments`),
+    enabled: !!prId,
+  });
+}
+
+export interface CreateCommentInput {
+  path: string;
+  line: number;
+  side?: "LEFT" | "RIGHT";
+  body: string;
+  in_reply_to?: number;
+}
+
+/** Post one inline comment (or reply) to GitHub; refreshes the thread list. */
+export function useCreatePrComment(prId: string | null | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateCommentInput) =>
+      api.post<PrReviewComment>(`/pulls/${prId}/comments`, input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["pr-comments", prId] }),
   });
 }
 

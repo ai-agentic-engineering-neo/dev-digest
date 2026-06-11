@@ -11,7 +11,7 @@ import { AppShell } from "../../../../../../components/app-shell";
 import { RepoNotFound } from "../../../../../../components/RepoNotFound";
 import { useActiveRepo, useRepoNotFound } from "../../../../../../lib/repo-context";
 import { useSpecs, useIndexStatus, useReindex } from "../../../../../../lib/hooks/context";
-import { useRepoIntelStatus, useReindexRepoIntel } from "../../../../../../lib/hooks/repo-intel";
+import { useRepoIntelStatus, useResyncRepoIntel } from "../../../../../../lib/hooks/repo-intel";
 import { type SpecMode } from "./constants";
 import { isIndexing, kb, progressColor, shortSpecPath } from "./helpers";
 import { SpecEditor } from "./_components/SpecEditor";
@@ -36,13 +36,29 @@ export function ProjectContextView() {
   const [polling, setPolling] = React.useState(false);
   const { data: status } = useIndexStatus(repoId, polling);
   // repo-intel (T3) index state — separate from the project-context index above.
-  const { data: repoIntel } = useRepoIntelStatus(repoId);
-  const reindexRepoIntel = useReindexRepoIntel(repoId);
+  // `resyncing` drives both the button label and the status poll; we clear it
+  // when the index row advances (updatedAt bumps on every non-degraded resync)
+  // or after a bounded window (covers the degraded path, which never touches it).
+  const [resyncing, setResyncing] = React.useState(false);
+  const resyncBaselineRef = React.useRef<string | null>(null);
+  const { data: repoIntel } = useRepoIntelStatus(repoId, resyncing);
+  const resyncRepoIntel = useResyncRepoIntel(repoId);
 
   React.useEffect(() => {
     if (!status) return;
     setPolling(isIndexing(status.status));
   }, [status?.status]);
+
+  React.useEffect(() => {
+    if (!resyncing) return;
+    if (repoIntel && repoIntel.updatedAt !== resyncBaselineRef.current) setResyncing(false);
+  }, [resyncing, repoIntel?.updatedAt]);
+
+  React.useEffect(() => {
+    if (!resyncing) return;
+    const timer = setTimeout(() => setResyncing(false), 30_000);
+    return () => clearTimeout(timer);
+  }, [resyncing]);
 
   const repoName = activeRepo?.full_name ?? repoId;
   const crumb = [
@@ -61,6 +77,12 @@ export function ProjectContextView() {
   const onReindex = () => {
     setPolling(true);
     reindex.mutate();
+  };
+
+  const onResync = () => {
+    resyncBaselineRef.current = repoIntel?.updatedAt ?? null;
+    setResyncing(true);
+    resyncRepoIntel.mutate();
   };
 
   const indexing = isIndexing(status?.status);
@@ -113,10 +135,10 @@ export function ProjectContextView() {
               kind="secondary"
               size="sm"
               icon="RefreshCw"
-              onClick={() => reindexRepoIntel.mutate()}
-              disabled={reindexRepoIntel.isPending}
+              onClick={onResync}
+              disabled={resyncRepoIntel.isPending || resyncing}
             >
-              {reindexRepoIntel.isPending ? "Re-indexing map…" : "Re-index map"}
+              {resyncing ? t("resyncing") : t("resync")}
             </Button>
           )}
         </div>

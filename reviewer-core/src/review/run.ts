@@ -9,7 +9,7 @@ import type {
 import { Review as ReviewSchema } from '@devdigest/shared';
 import { assemblePrompt } from '../prompt.js';
 import { groundFindings, groundingSummary } from '../grounding.js';
-import { reduceReviews, sliceDiff } from './reduce.js';
+import { reduceReviews, scoreFromFindings, sliceDiff } from './reduce.js';
 
 /**
  * reviewPullRequest — the review engine entry point.
@@ -201,8 +201,11 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
   }
   emit('result', `Citation grounding: ${grounding}`);
 
+  // Score is derived from the findings that SURVIVED grounding (not the model's
+  // self-reported number, and not the pre-grounding set) so the score, the
+  // findings list, and the deterministic event always agree.
   return {
-    review: { ...merged, findings: ground.kept },
+    review: { ...merged, findings: ground.kept, score: scoreFromFindings(ground.kept) },
     grounding,
     dropped: ground.dropped,
     mode,

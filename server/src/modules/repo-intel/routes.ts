@@ -2,7 +2,8 @@
  * repo-intel HTTP module.
  *
  *   GET  /repos/:id/index-state  → IndexState (always works; degraded on missing data)
- *   POST /repos/:id/reindex      → enqueues an INDEX_JOB_KIND job (202 + job id)
+ *   POST /repos/:id/resync       → enqueues a RESYNC_JOB_KIND job (202 + job id):
+ *                                  fetch latest from origin + incremental reindex.
  *
  * Job-handler registration lives here: this plugin runs once at app boot and
  * calls `RepoIntelService.registerIndexJobHandlers()` so INDEX/REFRESH jobs
@@ -12,7 +13,7 @@
 import type { FastifyInstance } from 'fastify';
 import { getContext } from '../_shared/context.js';
 import { RepoIntelService } from './service.js';
-import { INDEX_JOB_KIND } from './constants.js';
+import { RESYNC_JOB_KIND } from './constants.js';
 import type { IndexState } from './types.js';
 
 export default async function repoIntelRoutes(app: FastifyInstance) {
@@ -36,7 +37,7 @@ export default async function repoIntelRoutes(app: FastifyInstance) {
   );
 
   app.post<{ Params: { id: string } }>(
-    '/repos/:id/reindex',
+    '/repos/:id/resync',
     async (req, reply) => {
       const { workspaceId } = await getContext(container, req);
       // 202 even when enqueue fails (no handler / DB hiccup) so the UI can
@@ -44,7 +45,7 @@ export default async function repoIntelRoutes(app: FastifyInstance) {
       // outcome shows up in `repo_index_state` once the worker runs.
       let jobId: string | null = null;
       try {
-        const job = await container.jobs.enqueue(workspaceId, INDEX_JOB_KIND, {
+        const job = await container.jobs.enqueue(workspaceId, RESYNC_JOB_KIND, {
           repoId: req.params.id,
         });
         jobId = job.id;

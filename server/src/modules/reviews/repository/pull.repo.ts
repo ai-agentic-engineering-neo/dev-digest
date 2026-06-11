@@ -33,6 +33,17 @@ export async function getPrFiles(
   return db.select().from(t.prFiles).where(eq(t.prFiles.prId, prId));
 }
 
+/**
+ * Record the commit a review just ran against, so the PR list can derive
+ * `reviewed` vs `needs_review` (head moved since the last review) vs `stale`.
+ */
+export async function markReviewed(db: Db, prId: string, sha: string): Promise<void> {
+  await db
+    .update(t.pullRequests)
+    .set({ lastReviewedSha: sha })
+    .where(eq(t.pullRequests.id, prId));
+}
+
 // ---- intent ---------------------------------------------------------------
 
 export async function upsertIntent(db: Db, prId: string, intent: Intent): Promise<void> {

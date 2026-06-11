@@ -15,4 +15,18 @@ export const s = {
     color: ok ? "var(--ok)" : "var(--crit)",
     fontWeight: 600,
   }),
+  badge: (configured: boolean): CSSProperties => ({
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    fontSize: 12,
+    fontWeight: 600,
+    color: configured ? "var(--ok)" : "var(--text-muted)",
+  }),
+  badgeDot: (configured: boolean): CSSProperties => ({
+    width: 7,
+    height: 7,
+    borderRadius: "50%",
+    background: configured ? "var(--ok)" : "var(--text-muted)",
+  }),
 } as const;

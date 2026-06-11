@@ -6,22 +6,9 @@ import { FormField, TextInput, SelectInput, SearchableSelect, Textarea, Toggle, 
 import type { Agent, CiFailOn, Provider, ReviewStrategy } from "@devdigest/shared";
 import { useUpdateAgent, useProviderModels } from "../../../../../../../lib/hooks/agents";
 import { useToast } from "../../../../../../../lib/toast";
+import { toModelOptions } from "../../../../../../../lib/model-label";
 import { CI_FAIL_ON_VALUES, OUTPUT_SCHEMA_VALUE, PROVIDER_OPTIONS, STRATEGY_VALUES } from "./constants";
 import { s } from "./styles";
-
-/** Compact USD-per-1M formatter for the model price label. */
-const fmt = (n: number) => (n === 0 ? "0" : n < 1 ? n.toFixed(3) : n.toFixed(2));
-
-/** Compact token-count formatter for the context window (e.g. 1048576 → "1M"). */
-const ctx = (n: number) => (n >= 1_000_000 ? `${Math.round(n / 1_000_000)}M` : `${Math.round(n / 1000)}k`);
-
-/** Build the model dropdown label: price + context window when available. */
-function modelLabel(m: { id: string; pricing?: { promptPerM: number; completionPerM: number } | null; contextLength?: number | null }): string {
-  const parts: string[] = [];
-  if (m.pricing) parts.push(`$${fmt(m.pricing.promptPerM)}/$${fmt(m.pricing.completionPerM)} per 1M`);
-  if (m.contextLength) parts.push(`${ctx(m.contextLength)} ctx`);
-  return parts.length ? `${m.id} — ${parts.join(" · ")}` : m.id;
-}
 
 /** Config tab — name/description/provider/model/system-prompt + enabled toggle. */
 export function ConfigTab({ agent }: { agent: Agent }) {
@@ -52,9 +39,7 @@ export function ConfigTab({ agent }: { agent: Agent }) {
   const { data: models } = useProviderModels(provider);
   // Show the price (USD per 1M in/out tokens) in the label when the provider
   // exposes it (OpenRouter) so a cheap model is easy to pick; value stays the id.
-  const modelOptions: (string | { value: string; label: string })[] = (models ?? []).map((m) =>
-    m.pricing || m.contextLength ? { value: m.id, label: modelLabel(m) } : m.id,
-  );
+  const modelOptions = toModelOptions(models);
   const hasModel = modelOptions.some((o) => (typeof o === "string" ? o : o.value) === model);
   if (!hasModel) modelOptions.unshift(model);
   // Empty list after load = provider key missing/invalid (listModels failed) —

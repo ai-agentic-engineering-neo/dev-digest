@@ -6,7 +6,8 @@ import { RunLogger } from '../../platform/run-logger.js';
 import { NotFoundError } from '../../platform/errors.js';
 import type { AgentRow } from '../../db/rows.js';
 import type { ReviewRepository, PullRow } from './repository.js';
-import { DEFAULT_INTENT_MODEL, DEFAULT_INTENT_PROVIDER, INTENT_MAX_RETRIES, INTENT_SYSTEM_PROMPT } from './constants.js';
+import { INTENT_MAX_RETRIES, INTENT_SYSTEM_PROMPT } from './constants.js';
+import { resolveFeatureModel } from '../settings/feature-models.js';
 import { taskLine } from './helpers.js';
 
 export async function deriveIntent(
@@ -18,8 +19,17 @@ export async function deriveIntent(
   agent?: AgentRow,
   log?: RunLogger,
 ): Promise<Intent> {
-  const provider = (agent?.provider as Provider) ?? DEFAULT_INTENT_PROVIDER;
-  const model = agent?.model ?? DEFAULT_INTENT_MODEL;
+  // An explicit agent provider/model wins; otherwise fall back to the workspace's
+  // configured model for this feature (Settings → Feature Models), else the
+  // registry default. Only hit the resolver when the agent doesn't fully specify.
+  const agentProvider = agent?.provider as Provider | undefined;
+  const agentModel = agent?.model ?? undefined;
+  const fm =
+    agentProvider && agentModel
+      ? { provider: agentProvider, model: agentModel }
+      : await resolveFeatureModel(container, workspaceId, 'review_intent');
+  const provider = agentProvider ?? fm.provider;
+  const model = agentModel ?? fm.model;
   const llm = await container.llm(provider);
   const { messages } = assemblePrompt({
     system: INTENT_SYSTEM_PROMPT,

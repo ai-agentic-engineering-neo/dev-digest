@@ -1,5 +1,6 @@
 import type { Container } from '../../platform/container.js';
-import type { ChatMessage, ConventionCandidate, RepoRef } from '@devdigest/shared';
+import type { ChatMessage, ConventionCandidate, Provider, RepoRef } from '@devdigest/shared';
+import { getFeatureModelOverride } from '../settings/feature-models.js';
 import { assemblePrompt, wrapUntrusted } from '../../platform/prompt.js';
 import { AppError, NotFoundError } from '../../platform/errors.js';
 import * as schema from '../../db/schema.js';
@@ -60,9 +61,12 @@ export async function runExtraction(
     return [];
   }
 
-  const provider = opts.provider ?? 'openai';
+  // Explicit opts win; else the workspace's configured conventions model
+  // (Settings → Feature Models); else the provider-dependent dynamic default.
+  const override = await getFeatureModelOverride(container, workspaceId, 'conventions');
+  const provider: Provider = opts.provider ?? override?.provider ?? 'openai';
   const llm = await container.llm(provider);
-  const model = opts.model ?? (await defaultModel(container, provider));
+  const model = opts.model ?? override?.model ?? (await defaultModel(container, provider));
 
   // --- Step 1: the model picks files from the REPO MAP (no bodies sent yet). ---
   const { messages } = assemblePrompt({
@@ -272,7 +276,7 @@ async function readSelectedFiles(
 /** Pick the model: our pinned default if the provider grants it, else first available. */
 async function defaultModel(
   container: Container,
-  provider: 'openai' | 'anthropic',
+  provider: Provider,
 ): Promise<string> {
   const preferred = DEFAULT_MODEL[provider];
   try {

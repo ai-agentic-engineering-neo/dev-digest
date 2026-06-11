@@ -246,7 +246,8 @@ export class RepoIntelService implements RepoIntel {
           file: r.fromPath,
           symbol: callerName,
           viaSymbol: sym.name,
-          rank: 0, // TODO(T3): file_rank.rank lookup once the rank table exists.
+          line: r.line,
+          rank: 0, // ripgrep/degraded path has no persistent rank
         });
         callerFiles.add(r.fromPath);
       }
@@ -327,19 +328,31 @@ export class RepoIntelService implements RepoIntel {
       const key = `${c.fromPath}|${enclosing}|${c.toSymbol}`;
       if (seenCaller.has(key)) continue;
       seenCaller.add(key);
-      callers.push({ file: c.fromPath, symbol: enclosing, viaSymbol: c.toSymbol, rank: c.rank });
+      callers.push({
+        file: c.fromPath,
+        symbol: enclosing,
+        viaSymbol: c.toSymbol,
+        line: c.line,
+        rank: c.rank,
+      });
     }
     callers.sort((a, b) => b.rank - a.rank);
 
-    // Impacted endpoints from precomputed file_facts of the caller files.
+    // Precomputed facts per caller file (endpoints + crons), so consumers can
+    // attribute them to the changed symbol whose callers live in that file.
     const facts = await this.repo.getFileFacts(repoId, callerFiles);
     const endpoints = new Set<string>();
-    for (const f of facts) for (const e of f.endpoints) endpoints.add(e);
+    const factsByFile: Record<string, { endpoints: string[]; crons: string[] }> = {};
+    for (const f of facts) {
+      factsByFile[f.filePath] = { endpoints: f.endpoints, crons: f.crons };
+      for (const e of f.endpoints) endpoints.add(e);
+    }
 
     return {
       changedSymbols,
       callers: callers.slice(0, MAX_CALLERS_PER_SYMBOL),
       impactedEndpoints: [...endpoints],
+      factsByFile,
       degraded: false,
     };
   }

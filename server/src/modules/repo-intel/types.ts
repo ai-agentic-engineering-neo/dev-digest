@@ -65,15 +65,23 @@ export interface BlastCallerRow {
   symbol: string;
   /** Which changed symbol this caller reaches. */
   viaSymbol: string;
-  /** file_rank.rank of the caller file (0 until T3 rank exists). */
+  /** 1-based line of the reference (representative; for the BlastRadius view). */
+  line: number;
+  /** file_rank.rank of the caller file (0 in the degraded/ripgrep path). */
   rank: number;
 }
 
 export interface BlastResult {
   changedSymbols: BlastChangedSymbol[];
   callers: BlastCallerRow[];
-  /** "METHOD /path" (via extractEndpoints / file_facts). */
+  /** "METHOD /path" (via extractEndpoints / file_facts) — flat union. */
   impactedEndpoints: string[];
+  /**
+   * Per-caller-file precomputed facts, so consumers (blast) can attribute
+   * endpoints/crons to the changed symbol whose callers live in that file.
+   * Present on the persistent (non-degraded) path; absent otherwise.
+   */
+  factsByFile?: Record<string, { endpoints: string[]; crons: string[] }>;
   degraded?: boolean;
   reason?: DegradedReason;
 }

@@ -16,6 +16,7 @@ import { NotFoundError } from '../../platform/errors.js';
 import { extractEndpoints, extractCrons } from '../../adapters/codeindex/extract.js';
 import { INSERT_CHUNK_SIZE, NO_FILES_SUMMARY, NOT_CLONED_SUMMARY } from './constants.js';
 import { callerName, summarizeBlast } from './helpers.js';
+import type { BlastResult, BlastCallerRow } from '../repo-intel/types.js';
 
 /**
  * A3 — Blast-radius service (L04, §7.x).
@@ -62,6 +63,15 @@ export class BlastService {
         downstream: [],
         summary: changedFiles.length === 0 ? NO_FILES_SUMMARY : NOT_CLONED_SUMMARY,
       };
+    }
+
+    // T3 — facade-first: when repo-intel is enabled AND the persistent index is
+    // built, serve blast from the cache (symbols / resolved refs / file_rank /
+    // file_facts) with ZERO clone parsing (acceptance #3). The ripgrep path
+    // below stays as the degraded fallback (flag off, or index not ready yet).
+    if (this.container.config.repoIntelEnabled) {
+      const fb = await this.container.repoIntel.getBlastRadius(repo.id, changedFiles);
+      if (!fb.degraded) return mapFacadeBlast(fb);
     }
 
     const changedSet = new Set(changedFiles);
@@ -164,4 +174,56 @@ export class BlastService {
       await db.insert(t.references).values(rows.slice(i, i + INSERT_CHUNK_SIZE));
     }
   }
+}
+
+/**
+ * Map the repo-intel facade's `BlastResult` (persistent path) into the public
+ * `BlastRadius`: group callers by the changed symbol they reach, and attribute
+ * endpoints/crons from each caller file's precomputed facts (`factsByFile`).
+ */
+function mapFacadeBlast(fb: BlastResult): BlastRadius {
+  const changed_symbols: ChangedSymbol[] = fb.changedSymbols.map((s) => ({
+    name: s.name,
+    file: s.file,
+    kind: s.kind,
+  }));
+
+  const byVia = new Map<string, BlastCallerRow[]>();
+  for (const c of fb.callers) {
+    const arr = byVia.get(c.viaSymbol);
+    if (arr) arr.push(c);
+    else byVia.set(c.viaSymbol, [c]);
+  }
+
+  const facts = fb.factsByFile ?? {};
+  const downstream: DownstreamImpact[] = [];
+  for (const [symbol, callers] of byVia) {
+    const endpoints = new Set<string>();
+    const crons = new Set<string>();
+    const mapped: BlastCaller[] = [];
+    const seen = new Set<string>();
+    for (const c of callers) {
+      const f = facts[c.file];
+      if (f) {
+        for (const e of f.endpoints) endpoints.add(e);
+        for (const x of f.crons) crons.add(x);
+      }
+      const k = `${c.file}|${c.symbol}|${c.line}`;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      mapped.push({ name: c.symbol, file: c.file, line: c.line });
+    }
+    downstream.push({
+      symbol,
+      callers: mapped,
+      endpoints_affected: [...endpoints],
+      crons_affected: [...crons],
+    });
+  }
+
+  return {
+    changed_symbols,
+    downstream,
+    summary: summarizeBlast(changed_symbols, downstream),
+  };
 }

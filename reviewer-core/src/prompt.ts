@@ -18,6 +18,9 @@ export function wrapUntrusted(label: string, content: string): string {
   return `<untrusted source="${label}">\n${safe}\n</untrusted>`;
 }
 
+/** Cap the PR description so a huge author body can't blow the token budget. */
+const MAX_PR_DESCRIPTION_CHARS = 4000;
+
 export interface PromptParts {
   /** Agent's system prompt (trusted). */
   system: string;
@@ -41,6 +44,13 @@ export interface PromptParts {
    * undefined → section omitted (no behavior change).
    */
   callers?: string;
+  /**
+   * The PR author's description/body (untrusted — author-controlled, a prime
+   * injection vector). Delimiter-wrapped + truncated. Rendered right after the
+   * task line so the model knows what the PR claims to do and why. Empty /
+   * undefined → section omitted.
+   */
+  prDescription?: string;
   /** The unified diff / user task (untrusted content). */
   diff: string;
   /** Optional task framing line, e.g. "Review PR #482 '…'". */
@@ -71,8 +81,16 @@ export function assemblePrompt(parts: PromptParts): AssembledPrompt {
       ? parts.specs.map((s, i) => wrapUntrusted(`spec-${i}`, s)).join('\n\n')
       : undefined;
 
+  const prDescription =
+    parts.prDescription && parts.prDescription.trim().length > 0
+      ? parts.prDescription.slice(0, MAX_PR_DESCRIPTION_CHARS)
+      : undefined;
+
   const userSections: string[] = [];
   if (parts.task) userSections.push(parts.task);
+  if (prDescription) {
+    userSections.push(`## PR description\n${wrapUntrusted('pr-description', prDescription)}`);
+  }
   if (skillsBlock) userSections.push(`## Skills / rules\n${skillsBlock}`);
   if (memoryBlock) userSections.push(`## Relevant memory\n${memoryBlock}`);
   if (parts.repoMap && parts.repoMap.trim().length > 0) {
@@ -100,6 +118,7 @@ export function assemblePrompt(parts: PromptParts): AssembledPrompt {
     specs: specsBlock ?? null,
     callers: parts.callers ?? null,
     repo_map: parts.repoMap ?? null,
+    pr_description: prDescription ?? null,
     user,
   };
 

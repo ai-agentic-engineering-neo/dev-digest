@@ -68,6 +68,9 @@ export interface ReviewInput {
    * context section. Empty/undefined → section omitted.
    */
   repoMap?: string;
+  /** PR author's description/body (untrusted; truncated + delimiter-wrapped in
+      the prompt). Empty/undefined → section omitted. */
+  prDescription?: string;
   /** Task framing line, e.g. "Review PR #482 …". */
   task?: string;
   /** Override the structured-output retry budget. */
@@ -131,6 +134,7 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
     specs: input.specs,
     callers: input.callers,
     repoMap: input.repoMap,
+    prDescription: input.prDescription,
     task: input.task,
   };
 

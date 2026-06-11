@@ -25,6 +25,9 @@ export async function deriveIntent(
     system: INTENT_SYSTEM_PROMPT,
     diff: diff.raw,
     task: taskLine(pull, undefined),
+    // Feed the author's description so intent is read from what the PR claims,
+    // not guessed from title + diff alone.
+    ...(pull.body ? { prDescription: pull.body } : {}),
   });
   log?.tool(`Intent: requesting ${provider}/${model}`);
   const res = await llm.completeStructured<Intent>({

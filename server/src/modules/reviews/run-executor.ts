@@ -249,6 +249,9 @@ export class ReviewRunExecutor {
         ...(callersDigest ? { callers: callersDigest } : {}),
         // T3 — repo skeleton, same omit-when-empty contract.
         ...(repoMap ? { repoMap } : {}),
+        // PR author's description/body — untrusted; assemblePrompt wraps +
+        // truncates it. Omitted when the PR has no body.
+        ...(pull.body ? { prDescription: pull.body } : {}),
         task,
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),

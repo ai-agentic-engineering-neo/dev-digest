@@ -16,13 +16,17 @@ import { reviewAndPost, type PostMode } from './review-pr.js';
 
 const ARTIFACT_FILE = 'devdigest-result.json';
 
-/** PR number from the triggering `pull_request` event payload. */
-async function prNumberFromEvent(): Promise<number | null> {
+/** PR number + author body from the triggering `pull_request` event payload. */
+async function prFromEvent(): Promise<{ number: number; body: string | null } | null> {
   const path = process.env.GITHUB_EVENT_PATH;
   if (!path) return null;
   try {
-    const ev = JSON.parse(await readFile(path, 'utf8')) as { pull_request?: { number?: number } };
-    return ev.pull_request?.number ?? null;
+    const ev = JSON.parse(await readFile(path, 'utf8')) as {
+      pull_request?: { number?: number; body?: string | null };
+    };
+    const number = ev.pull_request?.number;
+    if (number == null) return null;
+    return { number, body: ev.pull_request?.body ?? null };
   } catch {
     return null;
   }
@@ -81,11 +85,12 @@ export async function run(): Promise<void> {
   const [owner, repo] = (process.env.GITHUB_REPOSITORY ?? '').split('/');
   if (!owner || !repo) throw new Error('GITHUB_REPOSITORY is not set ("owner/name").');
 
-  const prNumber = await prNumberFromEvent();
-  if (prNumber == null) {
+  const pr = await prFromEvent();
+  if (pr == null) {
     core.info('No pull_request found in the event payload — nothing to review.');
     return;
   }
+  const prNumber = pr.number;
 
   const root = core.getInput('devdigest-dir') || '.devdigest';
   const agentsDir = join(root, 'agents');
@@ -121,6 +126,7 @@ export async function run(): Promise<void> {
       repo,
       prNumber,
       post,
+      ...(pr.body ? { prDescription: pr.body } : {}),
       sessionId: process.env.SESSION_ID, // undefined → owner/repo#pr:agent
       onEvent: (e) => core.info(`[${slug}] ${e.msg}`),
     });

@@ -25,6 +25,9 @@ export interface ReviewAndPostInput {
   inline?: boolean;
   /** OpenRouter session id; defaults to `owner/repo#pr:agent` (one review = one session). */
   sessionId?: string;
+  /** PR author's description/body (from the event payload). Untrusted; the
+      reviewer-core prompt wraps + truncates it. Omitted when absent. */
+  prDescription?: string;
   onEvent?: (e: ReviewEvent) => void;
 }
 
@@ -60,6 +63,7 @@ export async function reviewAndPost(input: ReviewAndPostInput): Promise<ReviewAn
     llm,
     skills: agent.skillBodies,
     task: `Review pull request #${prNumber} in ${owner}/${repo} with agent "${agent.manifest.name}".`,
+    ...(input.prDescription ? { prDescription: input.prDescription } : {}),
     sessionId,
     onEvent: log,
   });

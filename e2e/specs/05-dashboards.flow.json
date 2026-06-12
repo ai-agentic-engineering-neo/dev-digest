@@ -1,0 +1,20 @@
+{
+  "name": "Memory, CI runs, and Eval dashboards render",
+  "description": "Visits the three read-only dashboards in sequence and confirms each route renders its heading after data settles. Broad smoke that the secondary top-level pages don't crash against the seeded backend.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/memory"], "label": "load the memory page" },
+    { "cmd": ["wait", "--url", "/memory"], "label": "memory route reached" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "memory fetch settles" },
+    { "cmd": ["wait", "--text", "Memory"], "label": "memory heading renders" },
+
+    { "cmd": ["open", "{BASE}/ci-runs"], "label": "load the CI runs page" },
+    { "cmd": ["wait", "--url", "/ci-runs"], "label": "ci-runs route reached" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "ci-runs fetch settles" },
+    { "cmd": ["wait", "--text", "CI Runs"], "label": "CI runs heading renders" },
+
+    { "cmd": ["open", "{BASE}/eval"], "label": "load the eval dashboard" },
+    { "cmd": ["wait", "--url", "/eval"], "label": "eval route reached" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "eval fetch settles" },
+    { "cmd": ["wait", "--text", "Eval"], "label": "eval dashboard renders" }
+  ]
+}

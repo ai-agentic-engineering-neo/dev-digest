@@ -1,0 +1,10 @@
+{
+  "name": "Skills library renders",
+  "description": "Loads /skills and confirms the Skills Lab page renders after its data fetch. Exercises the skills list route.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/skills"], "label": "load the skills page" },
+    { "cmd": ["wait", "--url", "/skills"], "label": "skills route reached" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "skills fetch settles" },
+    { "cmd": ["wait", "--text", "Skills"], "label": "skills page heading renders" }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "name": "Open a PR from the list and load its review detail",
+  "description": "From the seeded repo's PR list, click into PR #482 and confirm the detail route loads with the PR title and review surface. Exercises nested routing (/repos/<id>/pulls/<number>) and the per-PR detail fetch. Assumes a freshly-seeded DB where the demo repo acme/payments-api (PR #482) is the first repo — guaranteed by the e2e-web.yml workflow's fresh seed; run locally against a clean DB (see e2e/README.md).",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "land on the PR list" },
+    { "cmd": ["wait", "--text", "Add rate limiting to public API endpoints"], "label": "seeded PR title row is visible" },
+    { "cmd": ["find", "text", "Add rate limiting to public API endpoints", "click"], "label": "open the PR row" },
+    { "cmd": ["wait", "--url", "/pulls/482"], "label": "navigate to the PR detail route" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "PR detail data settles" },
+    { "cmd": ["wait", "--text", "Add rate limiting to public API endpoints"], "label": "PR title renders on the detail page" }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "name": "App boots and lands on a repo's PR list",
+  "description": "Whole-stack smoke, order-independent: the client loads, calls the API for repos, and the root route redirects to /repos/<id>/pulls. The redirect only happens when the API returns at least one repo (zero repos shows an empty state instead), so reaching /pulls + the heading proves client + API + DB are all live. The seeded-PR specifics are asserted in 02.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "initial data fetch settles" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "root redirects to a repo's PRs (≥1 repo loaded)" },
+    { "cmd": ["wait", "--text", "Pull Requests"], "label": "PR list page heading renders" }
+  ]
+}

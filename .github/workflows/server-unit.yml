@@ -1,0 +1,103 @@
+# Server unit suite — Fastify API (@devdigest/api), hermetic tests only.
+#
+# Two jobs:
+#  - typecheck: matrix over Linux + Windows. The `pnpm install` here is also the
+#    real gate for `@ast-grep/napi`'s Windows prebuilt (no node-gyp on the
+#    runner) — it absorbs the old server-build.yml's purpose.
+#  - unit: the ~19 DB-free test files (everything that is NOT `*.it.test.ts`).
+#    LLM/git/embeddings are mocked via src/adapters/mocks.ts — no Docker.
+#
+# DB-backed tests run in server-integration.yml. reviewer-core/** is in the
+# path filter because server aliases ../reviewer-core/src at type-check time.
+name: server unit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - 'reviewer-core/**'
+      - '.github/workflows/server-unit.yml'
+  pull_request:
+    paths:
+      - 'server/**'
+      - 'reviewer-core/**'
+      - '.github/workflows/server-unit.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: server-unit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck:
+    name: typecheck (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: server/pnpm-lock.yaml
+
+      # Also the @ast-grep/napi prebuilt gate (win32-x64): a missing prebuilt
+      # fails install here, with no node-gyp fallback configured.
+      - run: pnpm install --frozen-lockfile
+
+      # The server type-checks reviewer-core's RAW source: tsconfig aliases
+      # @devdigest/reviewer-core → ../reviewer-core/src, and platform/structured.ts
+      # re-exports from it. That source imports `openai`/`zod`, so without
+      # reviewer-core's deps installed, tsc fails with TS2307 → cascading
+      # unknown→T errors. reviewer-core uses npm (see reviewer-core.yml).
+      - name: Install reviewer-core deps
+        working-directory: reviewer-core
+        run: npm ci
+
+      - run: pnpm typecheck
+
+  unit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: server/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      # The unit tests load server src, which imports @devdigest/reviewer-core
+      # (../reviewer-core/src) → which imports `openai`/`zod`. Install reviewer-core's
+      # deps so those resolve at module load. reviewer-core uses npm (see reviewer-core.yml).
+      - name: Install reviewer-core deps
+        working-directory: reviewer-core
+        run: npm ci
+
+      # Inlined rather than `pnpm test:unit`: server/package.json is
+      # skip-worktree (a local variant), so the committed package.json may
+      # not carry the split scripts. Run vitest directly.
+      - run: pnpm exec vitest run --exclude '**/*.it.test.ts'

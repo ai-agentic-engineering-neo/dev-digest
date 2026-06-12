@@ -1,0 +1,64 @@
+# Server integration suite — the 12 DB-backed test files (`*.it.test.ts`).
+#
+# Each spins up a real Postgres (pgvector) via testcontainers, builds the
+# Fastify app, migrates + seeds, and exercises the routes end-to-end against
+# the DB. Docker is present on ubuntu-latest, so testcontainers can pull the
+# image; the tests also self-skip (`dockerAvailable()`) if Docker is somehow
+# absent, so this job degrades to a no-op rather than a hard failure.
+#
+# Linux only — testcontainers needs a Linux Docker daemon (Windows runners
+# don't provide one).
+name: server integration
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - '.github/workflows/server-integration.yml'
+  pull_request:
+    paths:
+      - 'server/**'
+      - '.github/workflows/server-integration.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: server-integration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: server/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      # Integration tests load server src, which imports @devdigest/reviewer-core
+      # (../reviewer-core/src) → which imports `openai`/`zod`. Install reviewer-core's
+      # deps so those resolve at module load. reviewer-core uses npm (see reviewer-core.yml).
+      - name: Install reviewer-core deps
+        working-directory: reviewer-core
+        run: npm ci
+
+      # Inlined rather than `pnpm test:integration`: server/package.json is
+      # skip-worktree, so we don't rely on the committed file carrying the split
+      # script. The `.it.test` filter selects exactly the 12 DB-backed files.
+      # vitest's config gives these a 120s timeout for container spin-up; no API
+      # keys needed — LLM/git are mocked.
+      - run: pnpm exec vitest run .it.test

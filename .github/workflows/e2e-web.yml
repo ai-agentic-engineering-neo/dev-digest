@@ -1,0 +1,119 @@
+# Web end-to-end suite — the real stack + deterministic agent-browser flows.
+#
+# Boots exactly what scripts/dev.sh boots: Postgres (pgvector) in Docker, the
+# Fastify API on :3001 (migrated + seeded), and the Next.js app on :3000 built
+# against that API. Then runs the e2e/ specs through the agent-browser CLI.
+#
+# No API keys: loadConfig() marks every secret optional, so the API boots and
+# serves the seeded read-only data the specs exercise — no LLM is called.
+name: e2e web
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'client/**'
+      - 'server/**'
+      - 'e2e/**'
+      - '.github/workflows/e2e-web.yml'
+  pull_request:
+    paths:
+      - 'client/**'
+      - 'server/**'
+      - 'e2e/**'
+      - '.github/workflows/e2e-web.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-web-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DATABASE_URL: postgres://devdigest:devdigest@localhost:5432/devdigest
+  NEXT_PUBLIC_API_BASE: http://localhost:3001
+  E2E_BASE_URL: http://localhost:3000
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # --- Postgres (pgvector) via the repo's compose file ---
+      - name: Start Postgres
+        run: |
+          docker compose up -d
+          echo "waiting for Postgres health…"
+          for i in $(seq 1 30); do
+            status=$(docker inspect -f '{{.State.Health.Status}}' devdigest-postgres 2>/dev/null || echo starting)
+            [ "$status" = "healthy" ] && { echo "postgres healthy"; break; }
+            sleep 2
+          done
+          [ "$(docker inspect -f '{{.State.Health.Status}}' devdigest-postgres)" = "healthy" ]
+
+      # --- API: install, migrate, seed, then start in the background ---
+      - name: Install + migrate + seed (server)
+        working-directory: server
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm db:migrate
+          pnpm db:seed
+
+      - name: Start API (:3001)
+        working-directory: server
+        run: |
+          # tsx directly (not `pnpm start`): the committed package.json's start
+          # is `node dist/server.js`, which would need a build first. tsx runs
+          # the TS entrypoint as dev does. (server/package.json is skip-worktree.)
+          nohup pnpm exec tsx src/server.ts > "$RUNNER_TEMP/api.log" 2>&1 &
+          echo "waiting for API /health…"
+          for i in $(seq 1 30); do
+            curl -fsS http://localhost:3001/health >/dev/null 2>&1 && { echo "api up"; break; }
+            sleep 2
+          done
+          curl -fsS http://localhost:3001/health || { echo "::error::API never became healthy"; cat "$RUNNER_TEMP/api.log"; exit 1; }
+
+      # --- Web: build against the API, then serve in the background ---
+      - name: Build + start web (:3000)
+        working-directory: client
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+          nohup pnpm start > "$RUNNER_TEMP/web.log" 2>&1 &
+          echo "waiting for web :3000…"
+          for i in $(seq 1 30); do
+            curl -fsS http://localhost:3000 >/dev/null 2>&1 && { echo "web up"; break; }
+            sleep 2
+          done
+          curl -fsS http://localhost:3000 >/dev/null 2>&1 || { echo "::error::web never became reachable"; cat "$RUNNER_TEMP/web.log"; exit 1; }
+
+      # --- agent-browser CLI (Rust + CDP) + Chrome for Testing ---
+      - name: Install agent-browser
+        run: |
+          npm i -g agent-browser
+          agent-browser install --with-deps
+
+      - name: Run e2e flows
+        working-directory: e2e
+        run: |
+          npm ci
+          npm test
+
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-failure
+          path: |
+            e2e/test-results/**
+          if-no-files-found: ignore

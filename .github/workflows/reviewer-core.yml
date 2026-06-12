@@ -1,0 +1,48 @@
+# reviewer-core suite — the pure review engine (@devdigest/reviewer-core).
+# diff → prompt → LLM → grounded findings, with no DB / GitHub / filesystem.
+# Tests are hermetic units (the LLM is stubbed). Uses npm (package-lock.json).
+#
+# server/src/vendor/shared/** is in the path filter because reviewer-core
+# aliases @devdigest/shared to it at type-check time.
+name: reviewer-core
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'reviewer-core/**'
+      - 'server/src/vendor/shared/**'
+      - '.github/workflows/reviewer-core.yml'
+  pull_request:
+    paths:
+      - 'reviewer-core/**'
+      - 'server/src/vendor/shared/**'
+      - '.github/workflows/reviewer-core.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reviewer-core-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: reviewer-core
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: reviewer-core/package-lock.json
+
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      - run: npm test

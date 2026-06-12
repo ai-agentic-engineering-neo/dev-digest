@@ -1,0 +1,59 @@
+# agent-runner suite — the JS GitHub Action that runs reviewer-core in CI.
+# Uses npm (package-lock.json). reviewer-core/** and the shared contracts are
+# in the path filter because agent-runner aliases both at type-check time.
+#
+# The action ships its bundled dist/ committed (GitHub runs `main: dist/index.js`
+# with no build step). We don't byte-diff the rebuild against the committed
+# bundle — ncc output isn't reproducible across environments — so instead we
+# prove the bundle still BUILDS and is non-trivial (build smoke).
+name: agent-runner
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'agent-runner/**'
+      - 'reviewer-core/**'
+      - 'server/src/vendor/shared/**'
+      - '.github/workflows/agent-runner.yml'
+  pull_request:
+    paths:
+      - 'agent-runner/**'
+      - 'reviewer-core/**'
+      - 'server/src/vendor/shared/**'
+      - '.github/workflows/agent-runner.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-runner-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: agent-runner
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: agent-runner/package-lock.json
+
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      - run: npm test
+
+      # Build smoke: the ncc bundle must still build and emit a non-empty entry.
+      - name: action bundles (ncc build smoke)
+        run: |
+          npm run package
+          test -s dist/index.js || { echo "::error::dist/index.js missing or empty after ncc build"; exit 1; }
+          echo "bundled dist/index.js ($(du -h dist/index.js | cut -f1))"

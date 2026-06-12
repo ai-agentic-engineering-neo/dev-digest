@@ -26,6 +26,7 @@ import runs from './runs/routes.js';
 import plugins from './plugins/routes.js';
 import performance from './performance/routes.js';
 import digest from './digest/routes.js';
+import share from './share/routes.js';
 
 /**
  * Module registry. Each feature module is a Fastify plugin in
@@ -63,4 +64,5 @@ export const modules: Record<string, FastifyPluginAsync> = {
   plugins,
   performance,
   digest,
+  share,
 };

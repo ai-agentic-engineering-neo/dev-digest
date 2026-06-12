@@ -24,6 +24,7 @@ export interface InsertAgent {
   outputSchema?: unknown;
   strategy?: ReviewStrategy;
   ciFailOn?: CiFailOn;
+  repoIntel?: boolean;
   enabled?: boolean;
   createdBy?: string | null;
 }
@@ -37,6 +38,7 @@ export interface UpdateAgent {
   outputSchema?: unknown;
   strategy?: ReviewStrategy;
   ciFailOn?: CiFailOn;
+  repoIntel?: boolean;
   enabled?: boolean;
 }
 
@@ -93,6 +95,7 @@ export class AgentsRepository {
         outputSchema: (values.outputSchema as object | undefined) ?? null,
         ...(values.strategy !== undefined ? { strategy: values.strategy } : {}),
         ...(values.ciFailOn !== undefined ? { ciFailOn: values.ciFailOn } : {}),
+        ...(values.repoIntel !== undefined ? { repoIntel: values.repoIntel } : {}),
         enabled: values.enabled ?? true,
         version: INITIAL_AGENT_VERSION,
         createdBy: values.createdBy ?? null,
@@ -131,6 +134,7 @@ export class AgentsRepository {
           : {}),
         ...(patch.strategy !== undefined ? { strategy: patch.strategy } : {}),
         ...(patch.ciFailOn !== undefined ? { ciFailOn: patch.ciFailOn } : {}),
+        ...(patch.repoIntel !== undefined ? { repoIntel: patch.repoIntel } : {}),
         ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
         ...(configChanged ? { version: nextVersion } : {}),
       })
@@ -155,6 +159,7 @@ export class AgentsRepository {
           output_schema: row.outputSchema,
           strategy: row.strategy,
           ci_fail_on: row.ciFailOn,
+          repo_intel: row.repoIntel,
           skills,
         },
       })

@@ -47,6 +47,11 @@ export async function deriveIntent(
     messages,
     maxRetries: INTENT_MAX_RETRIES,
   });
+  // NOTE: intent is author-influenced (the LLM reads untrusted PR text), so we
+  // do NOT trust it as a directive. It is rendered to the reviewer as an
+  // <untrusted> block by `taskLine`, and the reviewer is told it can never
+  // withhold a finding — so we persist it as-is without keyword scrubbing
+  // (which would only ever catch one language anyway).
   log?.result(
     `Intent: ${res.data.in_scope?.length ?? 0} in-scope / ${res.data.out_of_scope?.length ?? 0} out-of-scope ` +
       `(${res.tokensIn}→${res.tokensOut} tokens)`,

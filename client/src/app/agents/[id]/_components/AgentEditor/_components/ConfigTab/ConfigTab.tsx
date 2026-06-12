@@ -22,6 +22,7 @@ export function ConfigTab({ agent }: { agent: Agent }) {
   const [systemPrompt, setSystemPrompt] = React.useState(agent.system_prompt);
   const [strategy, setStrategy] = React.useState<ReviewStrategy>(agent.strategy);
   const [ciFailOn, setCiFailOn] = React.useState<CiFailOn>(agent.ci_fail_on);
+  const [repoIntel, setRepoIntel] = React.useState(agent.repo_intel);
   const [enabled, setEnabled] = React.useState(agent.enabled);
 
   // Reset local form when switching agents.
@@ -33,6 +34,7 @@ export function ConfigTab({ agent }: { agent: Agent }) {
     setSystemPrompt(agent.system_prompt);
     setStrategy(agent.strategy);
     setCiFailOn(agent.ci_fail_on);
+    setRepoIntel(agent.repo_intel);
     setEnabled(agent.enabled);
   }, [agent.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -62,6 +64,7 @@ export function ConfigTab({ agent }: { agent: Agent }) {
           system_prompt: systemPrompt,
           strategy,
           ci_fail_on: ciFailOn,
+          repo_intel: repoIntel,
           enabled,
         },
       },
@@ -118,6 +121,11 @@ export function ConfigTab({ agent }: { agent: Agent }) {
           onChange={(v) => setCiFailOn(v as CiFailOn)}
           options={ciFailOnOptions}
         />
+      </FormField>
+      <FormField label={t("config.repoIntel")} hint={t("config.repoIntelHint")}>
+        <label style={s.enabledLabel}>
+          <Toggle on={repoIntel} onChange={setRepoIntel} size={16} />
+        </label>
       </FormField>
       <FormField label={t("config.systemPrompt")} hint={t("config.systemPromptHint")}>
         <Textarea value={systemPrompt} onChange={setSystemPrompt} rows={8} mono />

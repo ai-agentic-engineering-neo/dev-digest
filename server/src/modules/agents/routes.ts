@@ -26,6 +26,7 @@ const CreateAgentBody = z.object({
   output_schema: z.unknown().optional(),
   strategy: ReviewStrategy.optional(),
   ci_fail_on: CiFailOn.optional(),
+  repo_intel: z.boolean().optional(),
   enabled: z.boolean().optional(),
 });
 
@@ -38,6 +39,7 @@ const UpdateAgentBody = z.object({
   output_schema: z.unknown().optional(),
   strategy: ReviewStrategy.optional(),
   ci_fail_on: CiFailOn.optional(),
+  repo_intel: z.boolean().optional(),
   enabled: z.boolean().optional(),
 });
 
@@ -81,6 +83,7 @@ export default async function agentsRoutes(app: FastifyInstance) {
         ...(body.output_schema !== undefined ? { output_schema: body.output_schema } : {}),
         ...(body.strategy !== undefined ? { strategy: body.strategy } : {}),
         ...(body.ci_fail_on !== undefined ? { ci_fail_on: body.ci_fail_on } : {}),
+        ...(body.repo_intel !== undefined ? { repo_intel: body.repo_intel } : {}),
         ...(body.enabled !== undefined ? { enabled: body.enabled } : {}),
       },
       userId,

@@ -11,6 +11,27 @@ function userOf(parts: Parameters<typeof assemblePrompt>[0]): string {
   return messages[1]!.content;
 }
 
+function systemOf(parts: Parameters<typeof assemblePrompt>[0]): string {
+  return assemblePrompt(parts).messages[0]!.content;
+}
+
+describe('assemblePrompt — shared injection guard (server + CI)', () => {
+  const sys = systemOf({ system: 'AGENT-SYS', diff: 'DIFF' });
+
+  it('appends the guard to the agent system prompt', () => {
+    expect(sys.startsWith('AGENT-SYS')).toBe(true);
+    expect(sys).toMatch(/<untrusted>.*DATA to be analyzed/s);
+  });
+
+  it('forbids "intentional/test/demo" claims from descoping the review', () => {
+    // The defense that replaced the keyword sanitizer: a general, trusted,
+    // language-agnostic rule — not text parsing of untrusted input.
+    expect(sys).toMatch(/test fixture|intentional|demo/i);
+    expect(sys).toMatch(/never reduce|never .*descope|REPORT it/i);
+    expect(sys).toMatch(/any language/i);
+  });
+});
+
 describe('assemblePrompt — ## PR description', () => {
   it('renders the section (untrusted-wrapped) before the diff when present', () => {
     const { messages, assembly } = assemblePrompt({

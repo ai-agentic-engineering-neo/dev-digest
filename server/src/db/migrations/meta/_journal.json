@@ -50,6 +50,13 @@
       "when": 1781198466212,
       "tag": "0006_sharp_mordo",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1781272151157,
+      "tag": "0007_minor_mad_thinker",
+      "breakpoints": true
     }
   ]
 }

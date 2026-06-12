@@ -80,6 +80,8 @@
       "warning": "Block on warning or critical",
       "any": "Block on any finding"
     },
+    "repoIntel": "Repo intelligence",
+    "repoIntelHint": "Inject repo context (repo skeleton, callers of changed symbols, and a 'high blast-radius' note) into this agent's review prompt. On by default. Turning it off sends only the diff — useful for cheap models or self-contained PRs.",
     "save": "Save agent",
     "saving": "Saving…",
     "saved": "Saved (v{version})",

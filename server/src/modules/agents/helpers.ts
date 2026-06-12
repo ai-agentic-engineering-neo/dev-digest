@@ -21,6 +21,7 @@ export function toAgentDto(row: AgentRow): Agent {
     version: row.version,
     strategy: row.strategy as ReviewStrategy,
     ci_fail_on: row.ciFailOn as CiFailOn,
+    repo_intel: row.repoIntel,
   };
 }
 
@@ -34,6 +35,7 @@ export interface ConfigChangePatch {
   outputSchema?: unknown;
   strategy?: ReviewStrategy;
   ciFailOn?: CiFailOn;
+  repoIntel?: boolean;
 }
 
 /**
@@ -43,7 +45,14 @@ export interface ConfigChangePatch {
 export function isConfigChange(
   existing: Pick<
     AgentRow,
-    'name' | 'description' | 'provider' | 'model' | 'systemPrompt' | 'strategy' | 'ciFailOn'
+    | 'name'
+    | 'description'
+    | 'provider'
+    | 'model'
+    | 'systemPrompt'
+    | 'strategy'
+    | 'ciFailOn'
+    | 'repoIntel'
   >,
   patch: ConfigChangePatch,
 ): boolean {
@@ -55,6 +64,7 @@ export function isConfigChange(
     (patch.systemPrompt !== undefined && patch.systemPrompt !== existing.systemPrompt) ||
     (patch.strategy !== undefined && patch.strategy !== existing.strategy) ||
     (patch.ciFailOn !== undefined && patch.ciFailOn !== existing.ciFailOn) ||
+    (patch.repoIntel !== undefined && patch.repoIntel !== existing.repoIntel) ||
     patch.outputSchema !== undefined
   );
 }

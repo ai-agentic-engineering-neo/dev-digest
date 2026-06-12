@@ -216,16 +216,25 @@ export class ReviewRunExecutor {
       );
       if (specs.length > 0) runLog.info(`${specs.length} project-context spec(s) loaded`);
 
-      // T1.3 — callers-in-prompt. Best-effort: when repo-intel is off (default)
-      // the facade returns []; we omit the section and behavior is identical
-      // to the pre-T1.3 prompt (acceptance #10).
-      const callersDigest = await this.buildCallersDigest(pull.repoId, diff, runLog);
+      // Per-agent repo-intel toggle (Agent editor). When an agent opts out we
+      // skip all enrichment entirely so its prompt is identical to the
+      // repo-intel-off baseline — independent of the global REPO_INTEL_ENABLED
+      // flag, which still gates the facade internally.
+      const repoIntelOn = agent.repoIntel !== false;
+      if (!repoIntelOn) runLog.info('Repo intel disabled for this agent — skipping context enrichment');
+
+      // T1.3 — callers-in-prompt. Best-effort: when repo-intel is off the facade
+      // returns []; we omit the section and behavior is identical to the
+      // pre-T1.3 prompt (acceptance #10).
+      const callersDigest = repoIntelOn
+        ? await this.buildCallersDigest(pull.repoId, diff, runLog)
+        : undefined;
 
       // T3 — repo skeleton + "changed files are top-5%" framing. Both best-
       // effort: when repo-intel is off / unindexed the facade degrades and the
       // prompt is identical to the pre-T3 shape.
-      const repoMap = await this.buildRepoMapDigest(pull.repoId, runLog);
-      const rankNote = await this.buildRankNote(pull.repoId, diff, runLog);
+      const repoMap = repoIntelOn ? await this.buildRepoMapDigest(pull.repoId, runLog) : undefined;
+      const rankNote = repoIntelOn ? await this.buildRankNote(pull.repoId, diff, runLog) : '';
 
       const task = taskLine(pull, intent) + rankNote;
 

@@ -6,8 +6,8 @@ import type { IndexState } from '../src/modules/repo-intel/types.js';
 /**
  * T1.4 — Facade degraded contract (acceptance #10 in docs/repo-intel-plan.md §13).
  *
- * When `repoIntelEnabled=false` (the SHIPPED DEFAULT), every facade method
- * MUST return a safe degraded value WITHOUT throwing. Consumers (run-executor,
+ * When `repoIntelEnabled=false` (opt-out; the default is now ON), every facade
+ * method MUST return a safe degraded value WITHOUT throwing. Consumers (run-executor,
  * blast, hooks) downgrade to their pre-T1.3 behavior on these returns; if any
  * method threw or returned malformed shape, every consumer would crash.
  *

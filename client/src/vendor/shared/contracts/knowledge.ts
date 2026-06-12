@@ -179,6 +179,9 @@ export const Agent = z.object({
   version: z.number().int(),
   strategy: ReviewStrategy.default('single-pass'),
   ci_fail_on: CiFailOn.default('critical'),
+  // Inject repo-intel context (repo skeleton + callers + rank note) into this
+  // agent's review prompt. Default on; gated again by the global flag.
+  repo_intel: z.boolean().default(true),
 });
 export type Agent = z.infer<typeof Agent>;
 

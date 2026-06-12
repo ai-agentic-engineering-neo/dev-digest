@@ -23,6 +23,7 @@ export interface CreateAgentInput {
   output_schema?: unknown;
   strategy?: ReviewStrategy;
   ci_fail_on?: CiFailOn;
+  repo_intel?: boolean;
   enabled?: boolean;
 }
 
@@ -35,6 +36,7 @@ export interface UpdateAgentInput {
   output_schema?: unknown;
   strategy?: ReviewStrategy;
   ci_fail_on?: CiFailOn;
+  repo_intel?: boolean;
   enabled?: boolean;
 }
 
@@ -71,6 +73,7 @@ export class AgentsService {
       outputSchema: input.output_schema,
       ...(input.strategy !== undefined ? { strategy: input.strategy } : {}),
       ...(input.ci_fail_on !== undefined ? { ciFailOn: input.ci_fail_on } : {}),
+      ...(input.repo_intel !== undefined ? { repoIntel: input.repo_intel } : {}),
       enabled: input.enabled,
       createdBy: userId ?? null,
     });
@@ -91,6 +94,7 @@ export class AgentsService {
       ...(patch.output_schema !== undefined ? { outputSchema: patch.output_schema } : {}),
       ...(patch.strategy !== undefined ? { strategy: patch.strategy } : {}),
       ...(patch.ci_fail_on !== undefined ? { ciFailOn: patch.ci_fail_on } : {}),
+      ...(patch.repo_intel !== undefined ? { repoIntel: patch.repo_intel } : {}),
       ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
     });
     return row ? toAgentDto(row) : undefined;

@@ -2,6 +2,16 @@
 
 Two runnable surfaces that reuse the DevDigest engine (`apps/api`):
 
+```mermaid
+flowchart LR
+  IDE["Claude Code / Cursor"] -->|"stdio (MCP)"| SRV["mcp server.ts<br/>6 tools"]
+  SRV -->|"read_pr · blast_radius · read_memory · review_diff(prId)"| API[("DevDigest API<br/>:3001")]
+  SRV -->|"grep_repo · read_file · review_diff(working/push)"| LOCAL["local.ts<br/>working checkout (git)"]
+```
+
+Engine-backed tools call the HTTP API; local tools read the working checkout so
+they work pre-push on uncommitted changes.
+
 ## 1. DevDigest MCP server (stdio)
 
 A Model Context Protocol server for Claude Code / Cursor. Exposes six tools

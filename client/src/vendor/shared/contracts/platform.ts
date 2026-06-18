@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Provider } from './knowledge.js';
+import { Finding } from './findings.js';
 
 /**
  * Platform / scaffolding DTOs owned by F1:
@@ -173,6 +174,13 @@ export const PrMeta = z.object({
   // Cost (USD) of the latest review batch (list endpoint only). null/absent
   // when the PR has no priced run yet; UI shows "—", not "$0".
   cost_usd: z.number().nullish(),
+  // Findings of the latest review batch (list endpoint only; null/absent until
+  // reviewed). The list shows both per-severity chips (counts derived client-
+  // side) and a hover popover, so it carries the findings themselves rather than
+  // just counts. Same batch window as `cost_usd`, so chips / score ring / cost
+  // all describe one "Review all" batch. The repo's PR list is small/capped, so
+  // the payload stays modest.
+  findings: z.array(Finding).nullish(),
 });
 export type PrMeta = z.infer<typeof PrMeta>;
 

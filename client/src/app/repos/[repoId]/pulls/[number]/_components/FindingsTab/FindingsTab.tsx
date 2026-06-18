@@ -11,6 +11,7 @@ import type { UseMutationResult } from "@tanstack/react-query";
 
 interface FindingsTabProps {
   prId: string | null;
+  prNumber?: number;
   liveRunIds: string[];
   reviewRunning: boolean;
   lethalTrifecta: FindingRecord[];
@@ -21,6 +22,10 @@ interface FindingsTabProps {
   /** owner/repo + head sha — used to deep-link a finding's file:line to GitHub. */
   repoFullName?: string | null;
   headSha?: string | null;
+  /** A finding to scroll to + expand (from a findings popover / deep-link). */
+  focusFindingId?: string | null;
+  /** Select a finding (updates the `finding` URL param → drives focus). */
+  onFocusFinding?: (id: string) => void;
   onOpenTrace: (id: string) => void;
   onDelete: (id: string) => void;
   onRunDone: () => void;
@@ -28,6 +33,7 @@ interface FindingsTabProps {
 
 export function FindingsTab({
   prId,
+  prNumber,
   liveRunIds,
   reviewRunning,
   lethalTrifecta,
@@ -37,6 +43,8 @@ export function FindingsTab({
   cancelMutation,
   repoFullName,
   headSha,
+  focusFindingId,
+  onFocusFinding,
   onOpenTrace,
   onDelete,
   onRunDone,
@@ -63,6 +71,15 @@ export function FindingsTab({
     [onDelete],
   );
 
+  // Per-run findings for the timeline's count chips + hover popover. Reviews
+  // carry their findings keyed by run_id; the timeline (RunSummary rows) has
+  // only denormalized counts, so we join them here.
+  const findingsByRunId = React.useMemo(() => {
+    const m = new Map<string, FindingRecord[]>();
+    for (const r of runs) if (r.run_id) m.set(r.run_id, r.findings);
+    return m;
+  }, [runs]);
+
   // Timeline → Review-runs navigation: clicking an agent name in the timeline
   // opens + scrolls to that run's accordion below. The nonce re-triggers the
   // scroll even when the same run is clicked twice.
@@ -70,6 +87,15 @@ export function FindingsTab({
   const handleGoToReview = useCallback((runId: string) => {
     setTarget((p) => ({ runId, n: (p?.n ?? 0) + 1 }));
   }, []);
+
+  // Focus a specific finding (from a findings popover / deep-link): open the run
+  // that owns it (so its accordion scrolls into view), then the FindingsPanel
+  // scrolls to + expands the exact card via targetFindingId.
+  React.useEffect(() => {
+    if (!focusFindingId) return;
+    const owner = runs.find((r) => r.run_id && r.findings.some((f) => f.id === focusFindingId));
+    if (owner?.run_id) setTarget((p) => ({ runId: owner.run_id!, n: (p?.n ?? 0) + 1 }));
+  }, [focusFindingId, runs]);
 
   return (
     <section>
@@ -131,6 +157,11 @@ export function FindingsTab({
           <RunHistory
             runs={prRuns ?? []}
             commits={prCommits}
+            findingsByRunId={findingsByRunId}
+            repoFullName={repoFullName}
+            headSha={headSha}
+            prNumber={prNumber}
+            onSelectFinding={onFocusFinding}
             onOpenTrace={handleOpenTrace}
             onGoToReview={handleGoToReview}
             onDelete={handleDelete}
@@ -164,6 +195,7 @@ export function FindingsTab({
             headSha={headSha}
             targetRunId={target?.runId ?? null}
             targetNonce={target?.n ?? 0}
+            targetFindingId={focusFindingId ?? null}
           />
         ))
       )}

@@ -3,8 +3,11 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Badge, Icon, CircularScore, type IconName } from "@devdigest/ui";
-import type { RunSummary, PrCommit } from "@devdigest/shared";
+import type { RunSummary, PrCommit, FindingRecord } from "@devdigest/shared";
 import { RunCostBadge } from "@/components/RunCostBadge";
+import { FindingsCountChips, countBySeverity, totalCount } from "@/components/FindingsCountChips";
+import { FindingsHoverCard } from "@/components/FindingsHoverCard";
+import { FindingPreview } from "@/components/FindingPreview";
 
 /**
  * PR timeline — every agent run interleaved with the PR's commits, newest-first
@@ -88,12 +91,26 @@ function tsOf(s: string | null | undefined): number {
 export function RunHistory({
   runs,
   commits = [],
+  findingsByRunId,
+  repoFullName,
+  headSha,
+  prNumber,
+  onSelectFinding,
   onOpenTrace,
   onGoToReview,
   onDelete,
 }: {
   runs: RunSummary[];
   commits?: PrCommit[];
+  /** Per-run findings (keyed by run_id) for the count chips + hover popover. */
+  findingsByRunId?: Map<string, FindingRecord[]>;
+  /** owner/repo + head sha — deep-link a finding's file:line to GitHub. */
+  repoFullName?: string | null;
+  headSha?: string | null;
+  /** PR number — lets a finding's file link open the PR's Files changed tab. */
+  prNumber?: number;
+  /** Select a finding in a run's popover → focus it in the review below. */
+  onSelectFinding?: (findingId: string) => void;
   /** Open the trace + log drawer for a run (the logs icon). */
   onOpenTrace: (runId: string) => void;
   /** Jump to this run's inline review accordion below (clicking the agent name). */
@@ -189,12 +206,62 @@ export function RunHistory({
                   {r.error}
                 </div>
               )}
-              {settled && (
-                <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                  {t("runStatus.findings", { count: r.findings_count ?? 0 })}
-                  {(r.blockers ?? 0) > 0 ? t("runStatus.blockers", { count: r.blockers ?? 0 }) : ""}
-                </div>
-              )}
+              {settled &&
+                (() => {
+                  const runFindings = findingsByRunId?.get(r.run_id) ?? [];
+                  const counts = countBySeverity(runFindings);
+                  const total = totalCount(counts);
+                  const blockers = r.blockers ?? 0;
+                  const blockerSuffix =
+                    blockers > 0 ? (
+                      <span style={{ color: "var(--text-muted)" }}>
+                        {t("runStatus.blockers", { count: blockers })}
+                      </span>
+                    ) : null;
+
+                  // Have the actual findings → chips + hover popover.
+                  if (total > 0) {
+                    return (
+                      <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12 }}>
+                        <FindingsHoverCard
+                          align="left"
+                          anchor={<FindingsCountChips counts={counts} size={13} />}
+                          header={t("timeline.findingsInRun", { count: total })}
+                        >
+                          {runFindings.map((f) => (
+                            <FindingPreview
+                              key={f.id}
+                              f={f}
+                              repoFullName={repoFullName}
+                              headSha={headSha}
+                              prNumber={prNumber}
+                              onSelect={onSelectFinding}
+                            />
+                          ))}
+                        </FindingsHoverCard>
+                        {blockerSuffix}
+                      </div>
+                    );
+                  }
+
+                  // Findings not loaded but the run row says there were some →
+                  // neutral count, no popover (e.g. a summary-kind run).
+                  if ((r.findings_count ?? 0) > 0) {
+                    return (
+                      <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                        {t("runStatus.findings", { count: r.findings_count ?? 0 })}
+                        {blockers > 0 ? t("runStatus.blockers", { count: blockers }) : ""}
+                      </div>
+                    );
+                  }
+
+                  // Settled with zero findings.
+                  return (
+                    <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                      {t("runStatus.findings", { count: 0 })}
+                    </div>
+                  );
+                })()}
             </div>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, fontSize: 11, color: "var(--text-muted)", flexShrink: 0 }}>
               {r.ran_at && <span>{new Date(r.ran_at).toLocaleTimeString()}</span>}

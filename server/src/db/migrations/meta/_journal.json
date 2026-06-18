@@ -78,6 +78,13 @@
       "when": 1781473551344,
       "tag": "0010_solid_baron_zemo",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1781741443959,
+      "tag": "0011_far_stryfe",
+      "breakpoints": true
     }
   ]
 }

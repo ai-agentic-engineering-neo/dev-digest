@@ -1,0 +1,35 @@
+diff --git a/server/src/modules/auth/routes.ts b/server/src/modules/auth/routes.ts
+index 1111111..2222222 100644
+--- a/server/src/modules/auth/routes.ts
++++ b/server/src/modules/auth/routes.ts
+@@ -1,6 +1,28 @@
+ import type { FastifyInstance } from 'fastify';
++import { db } from '../../infra/db.js';
++import { users } from '../../infra/schema.js';
++import { eq } from 'drizzle-orm';
++import { createHash } from 'node:crypto';
+
+ export async function authRoutes(app: FastifyInstance) {
+-  app.post('/login', async (req, reply) => {
+-    return reply.send({ ok: true });
++  app.post('/login', async (req, reply) => {
++    // Business logic living directly in the route handler (should be in a service).
++    const { email, password } = req.body as { email: string; password: string };
++
++    // Reads process.env directly instead of the injected SecretsProvider.
++    const pepper = process.env.PASSWORD_PEPPER ?? 'dev-pepper';
++    const hashed = createHash('sha256').update(password + pepper).digest('hex');
++
++    // Route talks to Drizzle/DB directly — infrastructure concern in the presentation layer.
++    const found = await db.select().from(users).where(eq(users.email, email));
++    if (!found.length || found[0].passwordHash !== hashed) {
++      return reply.code(401).send({ error: 'bad credentials' });
++    }
++
++    // Ad-hoc token minting inline, no domain/application layer involved.
++    const token = createHash('sha256')
++      .update(found[0].id + Date.now().toString())
++      .digest('hex');
++    return reply.send({ ok: true, token });
+   });
+ }

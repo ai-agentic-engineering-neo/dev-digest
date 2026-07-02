@@ -19,6 +19,13 @@ Reusable AI skills that provide specialized knowledge and workflows. Canonical l
 | [frontend-architecture](frontend-architecture/SKILL.md) | Frontend | Code organization decisions for React 19 + Next.js 15 — folder structure, feature organization, component splitting, constants/utils/business-logic placement, naming conventions, Server/Client boundary |
 | [engineering-insights](engineering-insights/SKILL.md) | All modules | Records non-obvious session discoveries into per-module LEARNINGS.md files |
 
+## Evals
+
+Skills (and subagents) are evaluated by the vitest + Claude Agent SDK setup under
+[`evals/`](../../evals/README.md). Each skill has an `evals/skills/<name>/<name>.eval.ts`;
+run `pnpm eval`. It runs on the Claude Code subscription (no API token) and uses
+subscription-only scoring (deterministic pattern match + an LLM judge).
+
 ## What Are Skills?
 
 Skills are modular packages that extend the AI agent with specialized knowledge and workflows. Unlike rules (always applied) or agents (invoked for specific tasks), skills are loaded on-demand when the agent determines they're relevant.

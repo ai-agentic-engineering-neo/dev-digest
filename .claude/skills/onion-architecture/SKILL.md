@@ -101,6 +101,19 @@ modules/<name>/
 
 ---
 
+## Reviewing an existing module — name the violation, then the fix
+
+When auditing code, don't just say "this is wrong". Name the symptom, the layer it wrongly sits in, and the concrete move:
+
+| Symptom in the code | Violation | Concrete fix |
+|---|---|---|
+| `service.ts` calls `container.db.select()` / any Drizzle query | DB access in application layer | Move the query into `repository.ts` (infrastructure); service calls a repo method that returns a DTO |
+| A service or route signature exposes `$inferSelect` / `$inferInsert` (a raw row type) | Drizzle type leaks out of infrastructure | Return a DTO from `vendor/shared/contracts/`; map rows with `toDomain()` inside the repository |
+| `new SomeAdapter()` (LLM, GitHub, Git) in a service constructor or field | Adapter built outside the composition root | Register it in `src/platform/container.ts`; inject via the `Container` |
+| Route handler has `if`/branching business rules, tier logic, or a Drizzle query | Fat route — logic in presentation | Move rules into a `service.ts` method; keep the handler to validate → call one service method → reply |
+
+---
+
 ## Core Principles
 
 1. **Inward-only dependencies** — `routes.ts` can import `service.ts`; `service.ts` can NEVER import `routes.ts`. Violations break testability and create circular dependencies.

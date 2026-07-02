@@ -15,6 +15,9 @@ trigger rules ("Use proactively when…").
 | [`plan-verifier`](./plan-verifier.md) | sonnet | Read-only requirements-completion / traceability check | No |
 | [`doc-writer`](./doc-writer.md) | sonnet | Writes documentation (Diátaxis + Mermaid), knows where docs belong | Yes |
 
+> Subagents are evaluated by the vitest + Claude Agent SDK setup under [`evals/`](../../evals/README.md)
+> (`evals/agents/<name>/<name>.eval.ts`; run `pnpm eval`).
+
 ## Intended workflow
 
 ```

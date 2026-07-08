@@ -15,10 +15,14 @@ on:
     branches: [main]
     paths:
       - 'server/**'
+      - 'agent-runner/**'
+      - 'reviewer-core/**'
       - '.github/workflows/server-integration.yml'
   pull_request:
     paths:
       - 'server/**'
+      - 'agent-runner/**'
+      - 'reviewer-core/**'
       - '.github/workflows/server-integration.yml'
 
 permissions:
@@ -55,6 +59,16 @@ jobs:
       - name: Install reviewer-core deps
         working-directory: reviewer-core
         run: npm ci
+
+      # The server's CI-export ships the bundled agent-runner (agent-runner/dist/).
+      # `CiService.readRunnerBundleFiles()` fails loudly if that dir is absent
+      # (matching production), so the export/ingest integration tests need it built.
+      # dist/ is gitignored, so build it here; the lockfile is committed.
+      - name: Build agent-runner bundle
+        working-directory: agent-runner
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
 
       # Inlined rather than `pnpm test:integration`: server/package.json is
       # skip-worktree, so we don't rely on the committed file carrying the split

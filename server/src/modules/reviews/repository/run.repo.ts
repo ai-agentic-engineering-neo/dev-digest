@@ -2,6 +2,7 @@ import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { Db } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
 import type { RunSummary, RunTrace } from '@devdigest/shared';
+import type { AgentRunRow } from '../../../db/rows.js';
 
 // ---- in-flight / history --------------------------------------------------
 
@@ -208,4 +209,81 @@ export async function saveRunTrace(db: Db, runId: string, trace: RunTrace): Prom
 export async function getRunTrace(db: Db, runId: string): Promise<RunTrace | undefined> {
   const [row] = await db.select().from(t.runTraces).where(eq(t.runTraces.runId, runId));
   return row ? (row.trace as RunTrace) : undefined;
+}
+
+// ---- CI ingest (modules/ci/ingest.ts) — the SECOND legitimate agent_runs writer ----
+
+export interface CreateCiAgentRunValues {
+  workspaceId: string;
+  agentId: string;
+  /** Internal PR linkage, when resolvable. CI-ingested rows are commonly null (AC-28) —
+   *  ingest never attempts to match an internal `pull_requests` row. */
+  prId: string | null;
+  ciInstallationId: string;
+  repo: string;
+  externalPrNumber: number | null;
+  /** GitHub Actions run id (string — matches the `actions_run_id` column type). */
+  actionsRunId: string;
+  actionsJobUrl: string | null;
+  provider: string | null;
+  model: string | null;
+  status: string;
+  durationMs: number | null;
+  costUsd: number | null;
+  findingsCount: number;
+  score: number | null;
+  blockers: number;
+}
+
+/**
+ * Idempotent CI-run writer. Relies on the `agent_runs_ci_installation_actions_run_uq`
+ * unique index (T2) on `(ci_installation_id, actions_run_id)` — `onConflictDoNothing`
+ * means re-ingesting the same workflow run is a no-op (AC-30): returns `undefined`
+ * instead of throwing or creating a duplicate row.
+ */
+export async function createCiAgentRun(
+  db: Db,
+  values: CreateCiAgentRunValues,
+): Promise<AgentRunRow | undefined> {
+  const [row] = await db
+    .insert(t.agentRuns)
+    .values({
+      workspaceId: values.workspaceId,
+      agentId: values.agentId,
+      prId: values.prId,
+      source: 'ci',
+      status: values.status,
+      durationMs: values.durationMs,
+      costUsd: values.costUsd,
+      findingsCount: values.findingsCount,
+      score: values.score,
+      blockers: values.blockers,
+      provider: values.provider,
+      model: values.model,
+      ciInstallationId: values.ciInstallationId,
+      repo: values.repo,
+      externalPrNumber: values.externalPrNumber,
+      actionsRunId: values.actionsRunId,
+      actionsJobUrl: values.actionsJobUrl,
+    })
+    .onConflictDoNothing({
+      target: [t.agentRuns.ciInstallationId, t.agentRuns.actionsRunId],
+    })
+    .returning();
+  return row;
+}
+
+/** All `source='ci'` runs for a workspace (`GET /ci/runs`), newest first, with the
+ *  producing agent's display name for the `CiRun.agent` DTO field. */
+export async function listCiRunsForWorkspace(
+  db: Db,
+  workspaceId: string,
+): Promise<{ run: AgentRunRow; agentName: string | null }[]> {
+  const rows = await db
+    .select({ run: t.agentRuns, agentName: t.agents.name })
+    .from(t.agentRuns)
+    .leftJoin(t.agents, eq(t.agents.id, t.agentRuns.agentId))
+    .where(and(eq(t.agentRuns.workspaceId, workspaceId), eq(t.agentRuns.source, 'ci')))
+    .orderBy(desc(t.agentRuns.ranAt));
+  return rows.map((r) => ({ run: r.run, agentName: r.agentName ?? null }));
 }

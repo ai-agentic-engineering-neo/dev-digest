@@ -9,6 +9,13 @@ import type { Finding, Intent, RunSummary, RunTrace } from '@devdigest/shared';
  * observability rows `agent_runs` + `run_traces` (one trace doc per run).
  * Workspace scoping is enforced via the PR (which carries workspace_id).
  *
+ * `agent_runs` has exactly two legitimate writers, both funneled through this
+ * class: the local review flow (`createAgentRun`/`completeAgentRun`, driven by
+ * an in-process run) and CI ingest (`createCiAgentRun`, called from
+ * `modules/ci/ingest.ts` when pulling results back from a workflow run). No
+ * other module inserts into `agent_runs` directly — `modules/ci/repository.ts`
+ * in particular owns `ci_installations` only and explicitly never touches it.
+ *
  * The query implementations are colocated, split by aggregate, under
  * `./repository/` (review+findings, agent runs, pull/intent). This class
  * composes them so its public API stays identical.
@@ -187,6 +194,21 @@ export class ReviewRepository {
 
   getRunTrace(runId: string): Promise<RunTrace | undefined> {
     return runRepo.getRunTrace(this.db, runId);
+  }
+
+  // ---- CI ingest (modules/ci/ingest.ts) — the second legitimate agent_runs writer ----
+
+  /** Idempotent CI-run writer — see the class doc comment. Returns `undefined`
+   *  when the (ci_installation_id, actions_run_id) pair already exists (AC-30). */
+  createCiAgentRun(values: runRepo.CreateCiAgentRunValues): Promise<AgentRunRow | undefined> {
+    return runRepo.createCiAgentRun(this.db, values);
+  }
+
+  /** All `source='ci'` runs for a workspace (`GET /ci/runs`), newest first. */
+  listCiRunsForWorkspace(
+    workspaceId: string,
+  ): Promise<{ run: AgentRunRow; agentName: string | null }[]> {
+    return runRepo.listCiRunsForWorkspace(this.db, workspaceId);
   }
 
   // ---- observability: multi_agent_runs (T7) -------------------------------

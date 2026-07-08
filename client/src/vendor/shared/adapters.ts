@@ -119,6 +119,48 @@ export interface OpenPrPayload {
   body: string;
 }
 
+/** Filters for `listWorkflowRuns` — used to poll CI status without a webhook. */
+export interface ListWorkflowRunsOptions {
+  /** Workflow file name or id (e.g. "devdigest.yml"); omit to list runs across all workflows. */
+  workflowFile?: string;
+  /** Filter to a specific branch. */
+  branch?: string;
+  /** Filter to a specific head commit SHA (e.g. the PR's head). */
+  headSha?: string;
+  perPage?: number;
+  page?: number;
+}
+
+/** One workflow run row, as surfaced by `GET /repos/:owner/:repo/actions/runs`. */
+export interface WorkflowRunSummary {
+  id: number;
+  runNumber: number;
+  name: string | null;
+  status: string;
+  conclusion: string | null;
+  headBranch: string;
+  headSha: string;
+  event: string;
+  htmlUrl: string;
+  createdAt: string;
+  updatedAt: string;
+  pullRequestNumber: number | null;
+}
+
+/** Locates one artifact on a workflow run — by id when known, else by exact name. */
+export interface ArtifactRef {
+  runId: number;
+  artifactId?: number;
+  name?: string;
+}
+
+/** The downloaded artifact's raw bytes (caller unzips + parses `devdigest-result.json`). */
+export interface ArtifactDownload {
+  name: string;
+  sizeBytes: number;
+  contents: Buffer;
+}
+
 export interface GitHubClient {
   listPullRequests(repo: RepoRef): Promise<PrMeta[]>;
   getPullRequest(repo: RepoRef, n: number): Promise<PrDetail>;
@@ -135,6 +177,10 @@ export interface GitHubClient {
   getIssue(repo: RepoRef, n: number): Promise<IssueMeta>;
   /** GET /user — for "posting as @user". */
   currentLogin(): Promise<string>;
+  /** List workflow runs for a repo — poll fallback when no webhook/artifact push arrived. */
+  listWorkflowRuns(repo: RepoRef, opts?: ListWorkflowRunsOptions): Promise<WorkflowRunSummary[]>;
+  /** Download one artifact's raw contents. */
+  downloadArtifact(repo: RepoRef, artifactRef: ArtifactRef): Promise<ArtifactDownload>;
 }
 
 // ---------- Git (simple-git, heavy) ----------

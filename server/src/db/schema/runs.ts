@@ -1,7 +1,18 @@
-import { pgTable, uuid, text, integer, jsonb, timestamp, doublePrecision, index } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  uuid,
+  text,
+  integer,
+  jsonb,
+  timestamp,
+  doublePrecision,
+  index,
+  uniqueIndex,
+} from 'drizzle-orm/pg-core';
 import { workspaces } from './core';
 import { agents } from './agents';
 import { pullRequests } from './pulls';
+import { ciInstallations } from './ci';
 
 // ============================================================ Observability
 
@@ -36,8 +47,25 @@ export const agentRuns = pgTable(
     score: integer('score'),
     /** Findings that tripped the agent's gate (severity ≥ ciFailOn). */
     blockers: integer('blockers'),
+    /** CI installation that produced this run, when ingested from a CI workflow. */
+    ciInstallationId: uuid('ci_installation_id').references(() => ciInstallations.id, {
+      onDelete: 'set null',
+    }),
+    /** "owner/name" of the repo the run was executed against (CI-ingested runs). */
+    repo: text('repo'),
+    /** GitHub PR number on the external repo (CI-ingested runs; not the internal `pr_id`). */
+    externalPrNumber: integer('external_pr_number'),
+    /** GitHub Actions run id — used together with `ci_installation_id` for ingest idempotency. */
+    actionsRunId: text('actions_run_id'),
+    /** Link to the GitHub Actions job that produced this run. */
+    actionsJobUrl: text('actions_job_url'),
   },
   (t) => ({
+    ciInstallationIdx: index('agent_runs_ci_installation_id_idx').on(t.ciInstallationId),
+    ciInstallationActionsRunUq: uniqueIndex('agent_runs_ci_installation_actions_run_uq').on(
+      t.ciInstallationId,
+      t.actionsRunId,
+    ),
     multiRunIdx: index('agent_runs_multi_run_idx').on(t.multiRunId),
   }),
 );

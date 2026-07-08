@@ -1,0 +1,98 @@
+import type { CSSProperties } from "react";
+
+export const s = {
+  wrap: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 14,
+    padding: 16,
+    borderRadius: 8,
+    border: "1px solid var(--border)",
+    background: "var(--bg-elevated)",
+  } satisfies CSSProperties,
+  headerRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  } satisfies CSSProperties,
+  title: {
+    fontSize: 14,
+    fontWeight: 700,
+    color: "var(--text-primary)",
+  } satisfies CSSProperties,
+  toggleGroup: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    fontSize: 13,
+    color: "var(--text-secondary)",
+  } satisfies CSSProperties,
+  groups: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 12,
+  } satisfies CSSProperties,
+  group: {
+    border: "1px solid var(--border)",
+    borderRadius: 7,
+    overflow: "hidden",
+  } satisfies CSSProperties,
+  groupHeader: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "10px 12px",
+    background: "var(--bg-hover)",
+    borderBottom: "1px solid var(--border)",
+  } satisfies CSSProperties,
+  groupTitle: {
+    fontSize: 13,
+    fontWeight: 600,
+    color: "var(--text-primary)",
+    flex: 1,
+    minWidth: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  } satisfies CSSProperties,
+  groupLocation: {
+    fontSize: 12,
+    color: "var(--text-muted)",
+    flexShrink: 0,
+  } satisfies CSSProperties,
+  takeRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "8px 12px",
+    borderBottom: "1px solid var(--border)",
+  } satisfies CSSProperties,
+  takeRowLast: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "8px 12px",
+  } satisfies CSSProperties,
+  persona: {
+    fontSize: 13,
+    color: "var(--text-secondary)",
+    flex: 1,
+    minWidth: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  } satisfies CSSProperties,
+  note: {
+    fontSize: 12,
+    color: "var(--text-muted)",
+  } satisfies CSSProperties,
+  didNotFlag: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    fontSize: 12,
+    fontWeight: 600,
+    color: "var(--text-muted)",
+  } satisfies CSSProperties,
+} as const;

@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Icon, Avatar, Badge, Button, Tabs } from "@devdigest/ui";
-import { RunReviewDropdown } from "../RunReviewDropdown";
+import { usePrLatestMultiAgentRun } from "@/lib/hooks";
+import { AgentPicker } from "../AgentPicker";
 import { s } from "./styles";
 import type { PrDetail } from "@/lib/types";
 
@@ -28,6 +30,12 @@ export function PrDetailHeader({
   onRunStart,
   onRunsStarted,
 }: PrDetailHeaderProps) {
+  const router = useRouter();
+  // Gate the "Multi-Agent Review" link on an actual run for this PR (200-null,
+  // no 404 noise) — the link lets you jump to the same side-by-side view the
+  // global Multi-Agent Review screen shows for this PR.
+  const { data: multiRun } = usePrLatestMultiAgentRun(prId);
+
   const handleRunStart = useCallback(() => {
     onRunStart();
   }, [onRunStart]);
@@ -89,8 +97,20 @@ export function PrDetailHeader({
           >
             View on GitHub
           </Button>
+          {prId && multiRun && (
+            <Button
+              kind="ghost"
+              size="sm"
+              icon="Workflow"
+              onClick={() =>
+                router.push(`/multi-agent-review/${prId}?multiRunId=${multiRun.id}`)
+              }
+            >
+              Multi-Agent Review
+            </Button>
+          )}
           {prId && (
-            <RunReviewDropdown
+            <AgentPicker
               prId={prId}
               warnMerged={pr.status === "merged" || pr.status === "closed"}
               onRunStart={handleRunStart}

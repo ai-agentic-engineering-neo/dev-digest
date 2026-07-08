@@ -76,6 +76,18 @@ export const NAV: NavGroup[] = [
       },
     ],
   },
+  {
+    section: "GLOBAL",
+    items: [
+      {
+        key: "multi-agent-review",
+        label: "Multi-Agent Review",
+        icon: "Workflow",
+        href: "/multi-agent-review",
+        gKey: "m",
+      },
+    ],
+  },
 ];
 
 export const SETTINGS_ITEM: NavItemDef = {
@@ -107,6 +119,7 @@ export const SHORTCUTS: ShortcutDef[] = [
   { keys: "g s", label: "Go to Skills", group: "Navigation" },
   { keys: "g v", label: "Go to Conventions", group: "Navigation" },
   { keys: "g i", label: "Go to CI Runs", group: "Navigation" },
+  { keys: "g m", label: "Go to Multi-Agent Review", group: "Navigation" },
   { keys: "j / k", label: "Next / previous finding", group: "Findings" },
   { keys: "a", label: "Accept finding", group: "Findings" },
   { keys: "d", label: "Dismiss finding", group: "Findings" },

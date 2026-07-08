@@ -85,6 +85,8 @@ describe('listRunsForPull — severity aggregation', () => {
 
     const [result] = await listRunsForPull(db, 'ws-1', 'pr-1');
 
+    if (!result) throw new Error('expected a run row');
+
     expect(result.findings_critical).toBe(2);
     expect(result.findings_warning).toBe(3);
     expect(result.findings_suggestion).toBe(1);
@@ -97,6 +99,8 @@ describe('listRunsForPull — severity aggregation', () => {
     );
 
     const [result] = await listRunsForPull(db, 'ws-1', 'pr-1');
+
+    if (!result) throw new Error('expected a run row');
 
     expect(result.findings_critical).toBe(4);
     expect(result.findings_warning).toBe(0);
@@ -137,6 +141,8 @@ describe('listRunsForPull — severity aggregation', () => {
     const db = makeDb([runRow('run-1')], []);
 
     const [result] = await listRunsForPull(db, 'ws-1', 'pr-1');
+
+    if (!result) throw new Error('expected a run row');
 
     expect(result.findings_critical).toBe(0);
     expect(result.findings_warning).toBe(0);

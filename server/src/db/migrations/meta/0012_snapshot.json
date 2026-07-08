@@ -1,5 +1,5 @@
 {
-  "id": "0f51dd5f-27c9-405c-8dfe-a1acd86f2be9",
+  "id": "124c74ca-b234-43ee-9ebf-b558ad7cd0ff",
   "prevId": "e1d27221-cd6d-407b-a47a-c23d33e338ae",
   "version": "7",
   "dialect": "postgresql",
@@ -2456,18 +2456,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "workflow_version": {
-          "name": "workflow_version",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {},
@@ -2603,6 +2591,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "multi_run_id": {
+          "name": "multi_run_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "ran_at": {
           "name": "ran_at",
           "type": "timestamp with time zone",
@@ -2688,71 +2682,20 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": false
-        },
-        "ci_installation_id": {
-          "name": "ci_installation_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "repo": {
-          "name": "repo",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "external_pr_number": {
-          "name": "external_pr_number",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "actions_run_id": {
-          "name": "actions_run_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "actions_job_url": {
-          "name": "actions_job_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
-        "agent_runs_ci_installation_id_idx": {
-          "name": "agent_runs_ci_installation_id_idx",
+        "agent_runs_multi_run_idx": {
+          "name": "agent_runs_multi_run_idx",
           "columns": [
             {
-              "expression": "ci_installation_id",
+              "expression": "multi_run_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
             }
           ],
           "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "agent_runs_ci_installation_actions_run_uq": {
-          "name": "agent_runs_ci_installation_actions_run_uq",
-          "columns": [
-            {
-              "expression": "ci_installation_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "actions_run_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -2798,12 +2741,12 @@
           "onDelete": "set null",
           "onUpdate": "no action"
         },
-        "agent_runs_ci_installation_id_ci_installations_id_fk": {
-          "name": "agent_runs_ci_installation_id_ci_installations_id_fk",
+        "agent_runs_multi_run_id_multi_agent_runs_id_fk": {
+          "name": "agent_runs_multi_run_id_multi_agent_runs_id_fk",
           "tableFrom": "agent_runs",
-          "tableTo": "ci_installations",
+          "tableTo": "multi_agent_runs",
           "columnsFrom": [
-            "ci_installation_id"
+            "multi_run_id"
           ],
           "columnsTo": [
             "id"

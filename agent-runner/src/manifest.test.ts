@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { loadManifest, findManifestPath, loadAgentManifest } from './manifest.js';
+import { loadManifests, findManifestPaths, loadAgentManifest } from './manifest.js';
 import { RunnerError } from './errors.js';
 
 const VALID_MANIFEST_YAML = `
@@ -30,12 +30,29 @@ describe('manifest loading + validation (AC-20)', () => {
   it('loads and validates a well-formed manifest against the AgentManifest schema', () => {
     writeFileSync(path.join(dir, 'agents', 'security-reviewer.yaml'), VALID_MANIFEST_YAML);
 
-    const manifest = loadManifest(dir);
+    const manifests = loadManifests(dir);
 
+    expect(manifests).toHaveLength(1);
+    const manifest = manifests[0]!;
     expect(manifest.name).toBe('Security Reviewer');
     expect(manifest.model).toBe('deepseek/deepseek-v4-flash');
     expect(manifest.skills).toEqual(['security-basics']);
     expect(manifest.ci_fail_on).toBe('critical');
+  });
+
+  it('loads MULTIPLE manifests (multi-agent), in deterministic filename order', () => {
+    writeFileSync(path.join(dir, 'agents', 'b-second.yaml'), VALID_MANIFEST_YAML);
+    writeFileSync(
+      path.join(dir, 'agents', 'a-first.yaml'),
+      VALID_MANIFEST_YAML.replace('Security Reviewer', 'Performance Reviewer'),
+    );
+
+    expect(findManifestPaths(dir).map((p) => path.basename(p))).toEqual([
+      'a-first.yaml',
+      'b-second.yaml',
+    ]);
+    const names = loadManifests(dir).map((m) => m.name);
+    expect(names).toEqual(['Performance Reviewer', 'Security Reviewer']);
   });
 
   it('fails clearly when the manifest fails schema validation (bad ci_fail_on)', () => {
@@ -49,24 +66,24 @@ ci_fail_on: "sometimes"
 `,
     );
 
-    expect(() => loadManifest(dir)).toThrow(RunnerError);
-    expect(() => loadManifest(dir)).toThrow(/failed validation/i);
+    expect(() => loadManifests(dir)).toThrow(RunnerError);
+    expect(() => loadManifests(dir)).toThrow(/failed validation/i);
   });
 
   it('fails clearly when the manifest is missing required fields', () => {
     writeFileSync(path.join(dir, 'agents', 'incomplete.yaml'), 'name: "No model or prompt"\n');
-    expect(() => loadManifest(dir)).toThrow(RunnerError);
+    expect(() => loadManifests(dir)).toThrow(RunnerError);
   });
 
   it('fails clearly when no manifest file exists', () => {
     rmSync(path.join(dir, 'agents', ), { recursive: true, force: true });
-    expect(() => findManifestPath(dir)).toThrow(/not found/i);
+    expect(() => findManifestPaths(dir)).toThrow(/not found/i);
   });
 
-  it('fails clearly when more than one manifest file exists', () => {
-    writeFileSync(path.join(dir, 'agents', 'a.yaml'), VALID_MANIFEST_YAML);
-    writeFileSync(path.join(dir, 'agents', 'b.yaml'), VALID_MANIFEST_YAML);
-    expect(() => findManifestPath(dir)).toThrow(/exactly one/i);
+  it('fails the whole batch if ANY of several manifests is invalid (never partial)', () => {
+    writeFileSync(path.join(dir, 'agents', 'a-good.yaml'), VALID_MANIFEST_YAML);
+    writeFileSync(path.join(dir, 'agents', 'b-bad.yaml'), 'name: "Bad"\nci_fail_on: "sometimes"\n');
+    expect(() => loadManifests(dir)).toThrow(RunnerError);
   });
 
   it('fails clearly on malformed YAML', () => {

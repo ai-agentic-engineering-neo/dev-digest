@@ -204,7 +204,7 @@ describe('runCi (T8 agent-runner orchestrator)', () => {
     const result = await runCi(baseDeps({ llm: stub.llm }));
 
     expect(result.exitCode).toBe(1);
-    expect(result.artifact).toBeNull();
+    expect(result.results).toBeNull();
     expect(result.error).toMatch(/failed validation/i);
     expect(stub.capturedMessages).toHaveLength(0); // never reached the LLM
     expect(existsSync(resultPath)).toBe(false);
@@ -238,9 +238,9 @@ describe('runCi (T8 agent-runner orchestrator)', () => {
     );
 
     expect(result.error).toBeUndefined();
-    expect(result.artifact).not.toBeNull();
-    expect(result.artifact!.findings_count).toBe(0);
-    expect(result.gateTriggered).toBe(false);
+    expect(result.results).not.toBeNull();
+    expect(result.results![0]!.artifact.findings_count).toBe(0);
+    expect(result.results![0]!.gateTriggered).toBe(false);
     expect(result.exitCode).toBe(0);
   });
 
@@ -253,9 +253,9 @@ describe('runCi (T8 agent-runner orchestrator)', () => {
     );
 
     expect(result.error).toBeUndefined();
-    expect(result.blockers).toBe(1); // only the grounded CRITICAL counts
-    expect(result.gateTriggered).toBe(true);
-    expect(result.posted!.payload!.event).toBe('REQUEST_CHANGES');
+    expect(result.results![0]!.blockers).toBe(1); // only the grounded CRITICAL counts
+    expect(result.results![0]!.gateTriggered).toBe(true);
+    expect(result.results![0]!.posted.payload!.event).toBe('REQUEST_CHANGES');
     expect(result.exitCode).toBe(1);
   });
 
@@ -295,10 +295,10 @@ describe('runCi (T8 agent-runner orchestrator)', () => {
 
     expect(calls).toHaveLength(0);
     expect(result.exitCode).toBe(0);
-    expect(result.gateTriggered).toBe(false);
+    expect(result.results![0]!.gateTriggered).toBe(false);
   });
 
-  it('AC-26: the written devdigest-result.json passes CiResultArtifact.safeParse', async () => {
+  it('AC-26: the written devdigest-result.json is a CiResultArtifact[] (one per reviewer)', async () => {
     const stub = makeStubLlm(GROUNDED_PLUS_HALLUCINATED_REVIEW);
     const result = await runCi(
       baseDeps({ llm: stub.llm, fetchDiff: async () => FIXTURE_DIFF_RAW }),
@@ -307,13 +307,14 @@ describe('runCi (T8 agent-runner orchestrator)', () => {
     expect(result.error).toBeUndefined();
     expect(existsSync(resultPath)).toBe(true);
     const onDisk = JSON.parse(readFileSync(resultPath, 'utf8')) as unknown;
-    const parsed = CiResultArtifactSchema.safeParse(onDisk);
+    const parsed = CiResultArtifactSchema.array().safeParse(onDisk);
     expect(parsed.success).toBe(true);
-    const artifact = parsed.data as CiResultArtifact;
-    expect(artifact.findings_count).toBe(1);
-    expect(artifact.critical).toBe(1);
-    expect(artifact.pr_number).toBe(42);
-    expect(artifact.agent).toBe('Security Reviewer');
+    const artifacts = parsed.data as CiResultArtifact[];
+    expect(artifacts).toHaveLength(1);
+    expect(artifacts[0]!.findings_count).toBe(1);
+    expect(artifacts[0]!.critical).toBe(1);
+    expect(artifacts[0]!.pr_number).toBe(42);
+    expect(artifacts[0]!.agent).toBe('Security Reviewer');
   });
 
   it('Q5: an LLM/model-call error hard-fails — non-zero exit, error status, nothing posted, no artifact, no synthetic review', async () => {
@@ -324,8 +325,8 @@ describe('runCi (T8 agent-runner orchestrator)', () => {
     );
 
     expect(result.exitCode).toBe(1);
-    expect(result.artifact).toBeNull();
-    expect(result.posted).toBeNull();
+    expect(result.results).toBeNull();
+    expect(result.artifacts).toBeNull();
     expect(result.error).toMatch(/simulated model\/network failure/);
     expect(calls).toHaveLength(0); // nothing posted to the PR
     expect(existsSync(resultPath)).toBe(false); // no artifact written
@@ -359,6 +360,32 @@ describe('runCi (T8 agent-runner orchestrator)', () => {
       title: 'Security Reviewer',
     });
 
-    expect(result.posted!.payload).toEqual(directPayload);
+    expect(result.results![0]!.posted.payload).toEqual(directPayload);
+  });
+
+  it('multi-agent: runs EVERY manifest, posts one review per reviewer, aggregates exit code', async () => {
+    // Second manifest: a general reviewer whose stub returns zero grounded
+    // findings (approve). The security reviewer (default fixture) returns a
+    // grounded CRITICAL → gate trips → aggregate exit code must be 1.
+    writeFileSync(
+      path.join(dir, 'agents', 'general-reviewer.yaml'),
+      VALID_MANIFEST_YAML.replace('Security Reviewer', 'General Reviewer'),
+    );
+    const stub = makeStubLlm(GROUNDED_PLUS_HALLUCINATED_REVIEW);
+    const { fetchImpl, calls } = makeFetchRecorder();
+    const result = await runCi(
+      baseDeps({ llm: stub.llm, fetchDiff: async () => FIXTURE_DIFF_RAW, fetchImpl }),
+    );
+
+    expect(result.error).toBeUndefined();
+    // Two reviewers → two results, sorted by manifest filename
+    // (general-reviewer.yaml before security-reviewer.yaml).
+    expect(result.results!.map((r) => r.agent)).toEqual(['General Reviewer', 'Security Reviewer']);
+    // One posted review per reviewer.
+    expect(calls).toHaveLength(2);
+    expect(calls.every((c) => c.url.includes('/pulls/42/reviews'))).toBe(true);
+    // Both reviewers saw the same grounded CRITICAL under ci_fail_on: critical.
+    expect(result.exitCode).toBe(1);
+    expect(result.artifacts).toHaveLength(2);
   });
 });

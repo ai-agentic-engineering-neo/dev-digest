@@ -9,6 +9,10 @@ export const ciInstallations = pgTable('ci_installations', {
   repo: text('repo').notNull(),
   targetType: text('target_type', { enum: ['gha', 'circle', 'jenkins', 'cli'] }).notNull(),
   installedAt: timestamp('installed_at', { withTimezone: true }).defaultNow().notNull(),
+  /** Lifecycle state of the install: awaiting PR merge, live, or erroring on runs. */
+  status: text('status', { enum: ['active', 'pr_open', 'error'] }),
+  /** Version of the generated workflow file last installed (for drift/upgrade checks). */
+  workflowVersion: text('workflow_version'),
 });
 
 export const ciRuns = pgTable('ci_runs', {

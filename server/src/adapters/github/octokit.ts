@@ -11,6 +11,10 @@ import type {
   OpenPrPayload,
   CommitFilesPayload,
   IssueMeta,
+  ListWorkflowRunsOptions,
+  WorkflowRunSummary,
+  ArtifactRef,
+  ArtifactDownload,
 } from '@devdigest/shared';
 import { withRetry, withTimeout } from '../../platform/resilience.js';
 
@@ -368,5 +372,114 @@ export class OctokitGitHubClient implements GitHubClient {
       withTimeout(this.octokit.rest.users.getAuthenticated(), TIMEOUT),
     );
     return res.data.login;
+  }
+
+  /** List workflow runs for a repo — used to poll CI status without a webhook. */
+  async listWorkflowRuns(
+    repo: RepoRef,
+    opts: ListWorkflowRunsOptions = {},
+  ): Promise<WorkflowRunSummary[]> {
+    return withRetry(() =>
+      withTimeout(
+        (async () => {
+          const query = {
+            owner: repo.owner,
+            repo: repo.name,
+            branch: opts.branch,
+            head_sha: opts.headSha,
+            per_page: opts.perPage ?? 30,
+            page: opts.page ?? 1,
+          };
+          const res = opts.workflowFile
+            ? await this.octokit.rest.actions.listWorkflowRuns({
+                ...query,
+                workflow_id: opts.workflowFile,
+              })
+            : await this.octokit.rest.actions.listWorkflowRunsForRepo(query);
+          return res.data.workflow_runs.map((run) => ({
+            id: run.id,
+            runNumber: run.run_number,
+            name: run.name ?? null,
+            status: run.status ?? 'unknown',
+            conclusion: run.conclusion ?? null,
+            headBranch: run.head_branch ?? '',
+            headSha: run.head_sha,
+            event: run.event,
+            htmlUrl: run.html_url,
+            createdAt: run.created_at,
+            updatedAt: run.updated_at,
+            pullRequestNumber: run.pull_requests?.[0]?.number ?? null,
+          }));
+        })(),
+        TIMEOUT,
+      ),
+    );
+  }
+
+  /**
+   * Download one artifact's raw contents.
+   *
+   * GitHub's "download artifact" REST endpoint returns a 302 redirect to a
+   * short-lived blob-storage URL; Octokit's underlying fetch follows that
+   * redirect automatically and — because the final response's Content-Type is
+   * `application/zip` — hands back the body as a raw `ArrayBuffer` rather than
+   * parsed JSON. We wrap those bytes in a `Buffer` as-is: the returned
+   * `contents` are the artifact's zip archive, NOT its unzipped payload. The
+   * caller (ingest step) is responsible for unzipping and parsing
+   * `devdigest-result.json` out of it.
+   *
+   * `artifactRef.artifactId` is used directly when present; otherwise we list
+   * the run's artifacts and resolve by exact `artifactRef.name` match, which
+   * also gives us the artifact's declared name/size for cases where only the
+   * id was known.
+   */
+  async downloadArtifact(repo: RepoRef, artifactRef: ArtifactRef): Promise<ArtifactDownload> {
+    return withRetry(() =>
+      withTimeout(
+        (async () => {
+          const owner = repo.owner;
+          const name = repo.name;
+
+          let artifactId = artifactRef.artifactId;
+          let artifactName = artifactRef.name;
+          let sizeBytes: number | undefined;
+
+          if (artifactId == null || artifactName == null) {
+            const list = await this.octokit.rest.actions.listWorkflowRunArtifacts({
+              owner,
+              repo: name,
+              run_id: artifactRef.runId,
+              per_page: 100,
+            });
+            const match =
+              artifactId != null
+                ? list.data.artifacts.find((a) => a.id === artifactId)
+                : list.data.artifacts.find((a) => a.name === artifactRef.name);
+            if (!match) {
+              throw new Error(
+                `Artifact not found on run ${artifactRef.runId} (id=${artifactId ?? 'n/a'}, name=${artifactRef.name ?? 'n/a'})`,
+              );
+            }
+            artifactId = match.id;
+            artifactName = match.name;
+            sizeBytes = match.size_in_bytes;
+          }
+
+          const res = await this.octokit.rest.actions.downloadArtifact({
+            owner,
+            repo: name,
+            artifact_id: artifactId,
+            archive_format: 'zip',
+          });
+          const contents = Buffer.from(res.data as ArrayBuffer);
+          return {
+            name: artifactName ?? `artifact-${artifactId}`,
+            sizeBytes: sizeBytes ?? contents.byteLength,
+            contents,
+          };
+        })(),
+        TIMEOUT,
+      ),
+    );
   }
 }

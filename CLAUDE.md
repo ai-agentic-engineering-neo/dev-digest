@@ -22,6 +22,7 @@ Prerequisites: Node ≥22, pnpm ≥10, Docker.
 | `@devdigest/web` | `client/` | 3000 |
 | `@devdigest/reviewer-core` | `reviewer-core/` | — |
 | `@devdigest/e2e` | `e2e/` | — |
+| `@devdigest/agent-runner` | `agent-runner/` | — |
 | `@devdigest/shared` | `server/src/vendor/shared/` | — (alias only) |
 
 Not a monorepo. Cross-package code sharing is done via TypeScript path aliases — no `workspace:*`, no published packages.

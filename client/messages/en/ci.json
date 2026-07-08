@@ -57,6 +57,7 @@
     "repoLabel": "Target repository",
     "repoHint": "owner/name — the repo to add the workflow to",
     "repoPlaceholder": "acme/payments-api",
+    "repoSelectPlaceholder": "Search repositories…",
     "filesToCreate": "FILES TO CREATE",
     "generating": "Generating…",
     "editable": "editable",
@@ -72,7 +73,38 @@
     "installCardTitle": "Open a PR with these files",
     "installCardBody": "DevDigest opens a PR in {repo} titled “Add DevDigest CI review” with the {count} generated files.",
     "ownerRepo": "owner/repo",
-    "secretNote": "Add {key} to the repo's Actions secrets before the workflow runs."
+    "secretNote": "Add {key} to the repo's Actions secrets before the workflow runs.",
+    "targetsLabel": "Choose a CI target",
+    "previewErrorTitle": "Couldn't generate the preview",
+    "preview": {
+      "manifestTitle": "Agent manifest",
+      "skillsTitle": "Linked skills ({count})",
+      "noSkills": "No skills linked to this agent yet.",
+      "memoryTitle": "Memory log",
+      "workflowTitle": "Workflow file",
+      "workflowHint": "Edit the workflow before installing — your changes carry through to the Install step."
+    },
+    "triggers": {
+      "opened": "Opened",
+      "synchronize": "Synchronize (new commits pushed)",
+      "reopened": "Reopened"
+    },
+    "secrets": {
+      "heading": "Secrets",
+      "checking": "Checking…",
+      "set": "Set",
+      "notSet": "Not set",
+      "missingHint": "Add {key} in Settings before this workflow can run.",
+      "autoProvided": "Auto-provided"
+    },
+    "installStep": {
+      "prOpened": "Pull request opened",
+      "viewPr": "View pull request",
+      "cliOnlyNotice": "Opening a PR is only available for GitHub Actions. Download the files below and wire them into your {target} pipeline manually.",
+      "zipTitle": "Copy files as a zip",
+      "zipHint": "Downloads a .zip of the generated files — no PR is opened and no installation is recorded.",
+      "zipButton": "Copy files as a zip"
+    }
   },
   "ciTab": {
     "heading": "Continuous Integration",

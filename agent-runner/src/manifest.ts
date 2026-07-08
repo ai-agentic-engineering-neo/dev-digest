@@ -21,8 +21,14 @@ export interface FsDeps {
   readDir?: typeof readdirSync;
 }
 
-/** Find the single agent manifest file under `<devdigestDir>/agents/`. */
-export function findManifestPath(devdigestDir: string, deps: FsDeps = {}): string {
+/**
+ * Find EVERY agent manifest file under `<devdigestDir>/agents/`, sorted by
+ * filename for deterministic ordering. A `.devdigest/` export may hold more than
+ * one manifest — the multi-agent case (lesson-7): each is a distinct reviewer
+ * the runner runs and posts independently. Throws only when the directory is
+ * missing or holds no `*.yaml` at all (there must be at least one reviewer).
+ */
+export function findManifestPaths(devdigestDir: string, deps: FsDeps = {}): string[] {
   const readDir = deps.readDir ?? readdirSync;
   const agentsDir = path.join(devdigestDir, 'agents');
   let entries: string[];
@@ -33,16 +39,13 @@ export function findManifestPath(devdigestDir: string, deps: FsDeps = {}): strin
       `Agent manifest directory not found: ${agentsDir} (${(err as Error).message})`,
     );
   }
-  const yamlFiles = entries.filter((f) => f.endsWith('.yaml') || f.endsWith('.yml'));
+  const yamlFiles = entries
+    .filter((f) => f.endsWith('.yaml') || f.endsWith('.yml'))
+    .sort((a, b) => a.localeCompare(b));
   if (yamlFiles.length === 0) {
     throw new RunnerError(`No agent manifest (*.yaml) found in ${agentsDir}`);
   }
-  if (yamlFiles.length > 1) {
-    throw new RunnerError(
-      `Expected exactly one agent manifest in ${agentsDir}, found ${yamlFiles.length}: ${yamlFiles.join(', ')}`,
-    );
-  }
-  return path.join(agentsDir, yamlFiles[0]!);
+  return yamlFiles.map((f) => path.join(agentsDir, f));
 }
 
 /** Read, parse, and Zod-validate the manifest at `manifestPath` (AC-20). */
@@ -76,8 +79,12 @@ export function loadAgentManifest(manifestPath: string, deps: FsDeps = {}): Agen
   return result.data;
 }
 
-/** Convenience: locate + load + validate in one call. */
-export function loadManifest(devdigestDir: string, deps: FsDeps = {}): AgentManifest {
-  const manifestPath = findManifestPath(devdigestDir, deps);
-  return loadAgentManifest(manifestPath, deps);
+/**
+ * Convenience: locate + load + validate EVERY manifest in one call, preserving
+ * the deterministic filename order from `findManifestPaths`. Any single invalid
+ * manifest throws (fail loudly, AC-20) — a partially-trusted batch is never
+ * returned.
+ */
+export function loadManifests(devdigestDir: string, deps: FsDeps = {}): AgentManifest[] {
+  return findManifestPaths(devdigestDir, deps).map((p) => loadAgentManifest(p, deps));
 }

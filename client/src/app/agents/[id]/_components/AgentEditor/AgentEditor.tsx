@@ -10,6 +10,7 @@ import type { Agent } from "@devdigest/shared";
 import { ConfigTab } from "./_components/ConfigTab";
 import { SkillsTab } from "./_components/SkillsTab/SkillsTab";
 import { ContextTab } from "./_components/ContextTab/ContextTab";
+import { CiTab } from "./_components/CiTab";
 import { TABS } from "./constants";
 import { s } from "./styles";
 
@@ -42,6 +43,7 @@ export function AgentEditor({
             attachedDocPaths={agent.attached_doc_paths}
           />
         )}
+        {tab === "ci" && <CiTab agent={agent} />}
       </div>
     </div>
   );

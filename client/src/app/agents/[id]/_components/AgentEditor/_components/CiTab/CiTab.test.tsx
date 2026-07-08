@@ -63,6 +63,9 @@ const AGENT: Agent = {
   enabled: true,
   version: 1,
   attached_doc_paths: [],
+  est_duration_ms: null,
+  est_cost_usd: null,
+  has_history: false,
 };
 
 const INSTALLATION: CiInstallation = {

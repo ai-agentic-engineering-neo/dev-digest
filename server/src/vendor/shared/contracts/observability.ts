@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Severity } from './findings.js';
+import { ReviewRunTarget } from './review-api.js';
 
 /**
  * A5 — Observability / Multi-agent contracts (L07).
@@ -38,7 +39,7 @@ export const AgentColumn = z.object({
   agent_name: z.string(),
   provider: z.string().nullable(),
   model: z.string().nullable(),
-  status: z.enum(['done', 'failed', 'running']),
+  status: z.enum(['done', 'failed', 'running', 'cancelled']),
   verdict: z.string().nullable(),
   score: z.number().int().nullable(),
   summary: z.string().nullable(),
@@ -84,6 +85,41 @@ export const MultiAgentRun = z.object({
   conflicts: z.array(Conflict),
 });
 export type MultiAgentRun = z.infer<typeof MultiAgentRun>;
+
+/** Request body of POST /pulls/:id/multi-agent-run. */
+export const MultiAgentRunRequest = z.object({
+  agent_ids: z.array(z.string()).min(1),
+});
+export type MultiAgentRunRequest = z.infer<typeof MultiAgentRunRequest>;
+
+/**
+ * Response of POST /pulls/:id/multi-agent-run — the id of the created
+ * multi-agent run plus the per-agent run targets, so the client can
+ * subscribe to each per-run SSE stream immediately. Reuses the existing
+ * `ReviewRunTarget` shape (`{run_id, agent_id, agent_name}`) rather than
+ * introducing a new per-agent target type.
+ */
+export const MultiAgentRunTriggerResult = z.object({
+  id: z.string(),
+  pr_id: z.string(),
+  targets: z.array(ReviewRunTarget),
+});
+export type MultiAgentRunTriggerResult = z.infer<typeof MultiAgentRunTriggerResult>;
+
+/**
+ * Response of GET /multi-agent/latest — the single most recent multi-agent run
+ * across the whole workspace (regardless of PR), or `null` when none exist yet.
+ * The GLOBAL "Multi-Agent Review" nav has no PR context, so this powers landing
+ * back on the last run instead of always re-opening the "configure run" form.
+ */
+export const MultiAgentRunLatest = z
+  .object({
+    id: z.string(),
+    pr_id: z.string(),
+    pr_number: z.number().int().nullish(),
+  })
+  .nullable();
+export type MultiAgentRunLatest = z.infer<typeof MultiAgentRunLatest>;
 
 // ---------------------------------------------------------------------------
 // Per-agent Stats (GET /agents/:id/stats)

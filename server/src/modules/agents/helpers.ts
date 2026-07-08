@@ -1,5 +1,5 @@
 import type { Agent, CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
-import type { AgentRow } from './repository.js';
+import type { AgentEstimate, AgentRow } from './repository.js';
 
 /**
  * Pure helpers for the agents module — DB row ⇄ DTO mapping and the
@@ -7,8 +7,17 @@ import type { AgentRow } from './repository.js';
  * implementations.
  */
 
-/** Map a persisted agent row to the public `Agent` DTO. */
-export function toAgentDto(row: AgentRow): Agent {
+/**
+ * Map a persisted agent row to the public `Agent` DTO.
+ *
+ * `estimate` is optional (like `skill_count`, added by the caller via spread
+ * in most call sites) because it comes from a separate grouped aggregate
+ * query (`AgentsRepository.estimatesForWorkspace`), not from the agent row
+ * itself. When omitted (create/update/get — a fresh or single-agent write
+ * path with no aggregate at hand), the DTO reports "no history yet", which is
+ * also the correct value for a just-created/updated agent.
+ */
+export function toAgentDto(row: AgentRow, estimate?: AgentEstimate): Agent {
   return {
     id: row.id,
     name: row.name,
@@ -23,6 +32,9 @@ export function toAgentDto(row: AgentRow): Agent {
     ci_fail_on: row.ciFailOn as CiFailOn,
     repo_intel: row.repoIntel,
     attached_doc_paths: row.attachedDocPaths ?? [],
+    est_duration_ms: estimate?.avgDurationMs ?? null,
+    est_cost_usd: estimate?.avgCostUsd ?? null,
+    has_history: (estimate?.runCount ?? 0) > 0,
   };
 }
 

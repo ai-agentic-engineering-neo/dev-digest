@@ -159,7 +159,7 @@ export function useFindingAction() {
 /**
  * Subscribe to a run's SSE event stream. Returns the accumulated RunEvents and a
  * `running` flag (true until the stream closes). Live status for the
- * RunReviewDropdown / Live Log. Multiple runIds are subscribed in parallel.
+ * AgentPicker / RunTraceDrawer / Live Log. Multiple runIds are subscribed in parallel.
  */
 export function useRunEvents(runIds: string[]) {
   const [events, setEvents] = React.useState<RunEvent[]>([]);

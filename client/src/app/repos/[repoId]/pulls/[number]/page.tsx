@@ -1,6 +1,6 @@
 /* PR Detail — /repos/:repoId/pulls/:number. F2 shell extended by A2 with:
    - Findings panel (VerdictBanner + FindingCards)
-   - RunReviewDropdown (run all / a specific agent) + live SSE RunStatus
+   - AgentPicker (multi-select agent run) + live SSE RunStatus
    - Basic file-by-file diff viewer in the Files tab
    Tab state lives in query (?tab). */
 "use client";
@@ -14,7 +14,7 @@ import { PrDetailHeader } from "./_components/PrDetailHeader";
 import { OverviewTab } from "./_components/OverviewTab";
 import { FindingsTab } from "./_components/FindingsTab";
 import { DiffTab } from "./_components/DiffTab";
-import RunTraceDrawer from "./_components/RunTraceDrawer";
+import RunTraceDrawer from "@/components/RunTraceDrawer";
 import { usePullDetail, usePulls } from "../../../../../lib/hooks";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePrReviews, useCancelRun, usePrActiveRuns, usePrRuns, useDeleteRun } from "../../../../../lib/hooks/reviews";

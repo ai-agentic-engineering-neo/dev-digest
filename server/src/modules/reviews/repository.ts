@@ -1,3 +1,4 @@
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import type { Finding, Intent, RunSummary, RunTrace } from '@devdigest/shared';
@@ -13,10 +14,11 @@ import type { Finding, Intent, RunSummary, RunTrace } from '@devdigest/shared';
  * composes them so its public API stays identical.
  */
 
-import type { FindingRow, PullRow } from '../../db/rows.js';
-export type { FindingRow, PullRow };
+import type { AgentRunRow, FindingRow, PullRow } from '../../db/rows.js';
+export type { AgentRunRow, FindingRow, PullRow };
 
 export type ReviewRow = typeof t.reviews.$inferSelect;
+export type MultiAgentRunRow = typeof t.multiAgentRuns.$inferSelect;
 
 import * as reviewRepo from './repository/review.repo.js';
 import * as runRepo from './repository/run.repo.js';
@@ -185,5 +187,93 @@ export class ReviewRepository {
 
   getRunTrace(runId: string): Promise<RunTrace | undefined> {
     return runRepo.getRunTrace(this.db, runId);
+  }
+
+  // ---- observability: multi_agent_runs (T7) -------------------------------
+  //
+  // These queries are new for the multi-agent review feature and are kept
+  // inline here (rather than delegated to `./repository/*.repo.ts`) since this
+  // file — not the repository/ subfolder — is the owned surface for this work.
+
+  /** Create the ONE persistent multi_agent_runs row that groups a fan-out. */
+  async createMultiAgentRun(workspaceId: string, prId: string): Promise<MultiAgentRunRow> {
+    const [row] = await this.db.insert(t.multiAgentRuns).values({ workspaceId, prId }).returning();
+    return row!;
+  }
+
+  /** Create an agent_runs row already linked to a multi-agent run (fan-out target). */
+  async createAgentRunForMultiRun(values: {
+    workspaceId: string;
+    agentId: string | null;
+    prId: string;
+    provider: string | null;
+    model: string | null;
+    multiRunId: string;
+  }): Promise<string> {
+    const [row] = await this.db
+      .insert(t.agentRuns)
+      .values({
+        workspaceId: values.workspaceId,
+        agentId: values.agentId,
+        prId: values.prId,
+        provider: values.provider,
+        model: values.model,
+        multiRunId: values.multiRunId,
+        status: 'running',
+        source: 'local',
+      })
+      .returning({ id: t.agentRuns.id });
+    return row!.id;
+  }
+
+  /** A specific multi-agent run, workspace-scoped. */
+  getMultiAgentRun(workspaceId: string, id: string): Promise<MultiAgentRunRow | undefined> {
+    return this.db
+      .select()
+      .from(t.multiAgentRuns)
+      .where(and(eq(t.multiAgentRuns.workspaceId, workspaceId), eq(t.multiAgentRuns.id, id)))
+      .then((rows) => rows[0]);
+  }
+
+  /** The most recent multi-agent run for a PR (Q1 default when no id is given). */
+  latestMultiAgentRunForPr(workspaceId: string, prId: string): Promise<MultiAgentRunRow | undefined> {
+    return this.db
+      .select()
+      .from(t.multiAgentRuns)
+      .where(and(eq(t.multiAgentRuns.workspaceId, workspaceId), eq(t.multiAgentRuns.prId, prId)))
+      .orderBy(desc(t.multiAgentRuns.ranAt))
+      .limit(1)
+      .then((rows) => rows[0]);
+  }
+
+  /** The most recent multi-agent run across the whole workspace (any PR). */
+  latestMultiAgentRunForWorkspace(workspaceId: string): Promise<MultiAgentRunRow | undefined> {
+    return this.db
+      .select()
+      .from(t.multiAgentRuns)
+      .where(eq(t.multiAgentRuns.workspaceId, workspaceId))
+      .orderBy(desc(t.multiAgentRuns.ranAt))
+      .limit(1)
+      .then((rows) => rows[0]);
+  }
+
+  /** All agent_runs fanned out under one multi-agent run. */
+  agentRunsForMultiRun(multiRunId: string): Promise<AgentRunRow[]> {
+    return this.db.select().from(t.agentRuns).where(eq(t.agentRuns.multiRunId, multiRunId));
+  }
+
+  /** Reviews + findings for a specific set of runs (by run_id, not pr_id). */
+  async reviewsAndFindingsForRuns(
+    runIds: string[],
+  ): Promise<{ review: ReviewRow; findings: FindingRow[] }[]> {
+    if (runIds.length === 0) return [];
+    const reviews = await this.db.select().from(t.reviews).where(inArray(t.reviews.runId, runIds));
+    if (reviews.length === 0) return [];
+    const reviewIds = reviews.map((r) => r.id);
+    const findings = await this.db.select().from(t.findings).where(inArray(t.findings.reviewId, reviewIds));
+    return reviews.map((review) => ({
+      review,
+      findings: findings.filter((f) => f.reviewId === review.id),
+    }));
   }
 }

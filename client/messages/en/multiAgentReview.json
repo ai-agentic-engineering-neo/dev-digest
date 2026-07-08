@@ -1,0 +1,70 @@
+{
+  "crumbLabel": "Global",
+  "crumb": "Multi-Agent Review",
+  "title": "Multi-Agent Review",
+  "subtitle": "Fan a pull request out to several specialised agents and compare their findings side by side.",
+  "step1Number": "STEP 1",
+  "step1Title": "Pick a pull request",
+  "prPlaceholder": "Search pull requests…",
+  "step2Number": "STEP 2",
+  "step2Title": "Choose agents",
+  "step2EmptyTitle": "Pick a pull request first",
+  "step2EmptyBody": "Select a repository and pull request above to choose which agents review it.",
+  "noAgentsTitle": "No enabled agents",
+  "noAgentsBody": "Enable at least one agent to run a multi-agent review.",
+  "agentEstimate": "≈ {time} · {cost}",
+  "noHistory": "— no history",
+  "summary": "≈ {time} · {cost} · parallel fan-out",
+  "summaryNoEstimate": "No estimate available yet — run these agents once to build history.",
+  "configureAgentsLink": "Configure agents…",
+  "runAction": "Run multi-agent review ({count})",
+  "startNewReview": "Start New Review",
+  "resultsCrumb": "Run results",
+  "resultsTitle": "PR #{number}",
+  "resultsSubtitle": "{count} agents in this run",
+  "loadError": "Failed to load this multi-agent run.",
+  "finding": {
+    "accepted": "accepted",
+    "dismissed": "dismissed",
+    "suggestedFix": "Suggested fix",
+    "accept": "Accept",
+    "dismiss": "Dismiss",
+    "learn": "Learn",
+    "turnIntoEval": "Turn into eval case",
+    "comingSoon": "Coming soon",
+    "detailsPending": "Full details for this finding are still syncing — reload shortly to see confidence, rationale and suggested fix."
+  },
+  "agentSummary": {
+    "status": {
+      "running": "Running",
+      "done": "Done",
+      "failed": "Failed"
+    },
+    "score": "Score",
+    "duration": "Duration",
+    "cost": "Cost",
+    "noValue": "—",
+    "unknownError": "This agent failed with no further detail.",
+    "viewTrace": "View trace"
+  },
+  "disagree": {
+    "title": "Where agents disagree",
+    "onlyConflicts": "Show only conflicts",
+    "emptyTitle": "No overlapping findings",
+    "emptyBody": "No two agents flagged the same location in this run.",
+    "noneMatchTitle": "No conflicts",
+    "noneMatchBody": "Every agent agrees on the groups in this run — turn the toggle off to see them.",
+    "didNotFlag": "Did not flag"
+  },
+  "columns": {
+    "noFindings": "No findings from this agent."
+  },
+  "tabs": {
+    "noFindings": "No findings from this agent."
+  },
+  "viewToggle": {
+    "label": "Result view",
+    "columns": "Columns",
+    "tabs": "Tabs"
+  }
+}

@@ -207,6 +207,12 @@ export const Agent = z.object({
   /** Ordered list of repo-relative markdown paths attached to this agent for
    *  project-context injection. Additive; does NOT trigger a version bump. */
   attached_doc_paths: z.array(z.string()).default([]),
+  /** Pre-run estimate derived from this agent's past `done` runs (avg). Null
+   *  when the agent has no completed run history yet (see has_history). */
+  est_duration_ms: z.number().nullable(),
+  est_cost_usd: z.number().nullable(),
+  /** Whether this agent has at least one past completed (`done`) run. */
+  has_history: z.boolean().default(false),
 });
 export type Agent = z.infer<typeof Agent>;
 

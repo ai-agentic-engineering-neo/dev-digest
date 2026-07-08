@@ -17,13 +17,13 @@
   "nav": {
     "pulls": "Pull Requests",
     "onboarding-tour": "Onboarding Tour",
-    "context": "Project Context",
+    "project-context": "Project Context",
     "skills": "Skills",
     "agents": "Agents",
     "conventions": "Conventions",
     "eval": "Eval Dashboard",
     "memory": "Memory",
-    "multi-agent": "Multi-Agent Review",
+    "multi-agent-review": "Multi-Agent Review",
     "agent-performance": "Agent Performance",
     "ci-runs": "CI Runs"
   },

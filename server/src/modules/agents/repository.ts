@@ -1,4 +1,4 @@
-import { and, asc, count, eq, inArray } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, sql } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import type { CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
@@ -48,6 +48,14 @@ export interface LinkedSkillRow {
   order: number;
 }
 
+/** Per-agent aggregate over its completed runs, backing the pre-run estimate
+ *  fields (`est_duration_ms` / `est_cost_usd` / `has_history`) on the Agent DTO. */
+export interface AgentEstimate {
+  avgDurationMs: number | null;
+  avgCostUsd: number | null;
+  runCount: number;
+}
+
 export class AgentsRepository {
   constructor(private db: Db) {}
 
@@ -68,6 +76,16 @@ export class AgentsRepository {
       .from(t.agents)
       .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.id, id)));
     return row;
+  }
+
+  /** Bulk lookup by id, workspace-scoped (T7 — resolving a multi-agent run's
+   *  agent_ids into full agent rows without N+1 `getById` calls). */
+  async listByIds(workspaceId: string, ids: string[]): Promise<AgentRow[]> {
+    if (ids.length === 0) return [];
+    return this.db
+      .select()
+      .from(t.agents)
+      .where(and(eq(t.agents.workspaceId, workspaceId), inArray(t.agents.id, ids)));
   }
 
   /** Delete an agent (scoped to workspace). Versions/skill-links cascade;
@@ -257,5 +275,36 @@ export class AgentsRepository {
       .where(inArray(t.agentSkills.agentId, agentIds))
       .groupBy(t.agentSkills.agentId);
     return new Map(rows.map((r) => [r.agentId, r.n]));
+  }
+
+  /**
+   * Map of agentId → { avgDurationMs, avgCostUsd, runCount } over that agent's
+   * completed (`status='done'`) runs, for the whole workspace in ONE grouped
+   * query (T9 — avoids an N+1 per-agent query so the agents list stays fast).
+   * An agent with no completed runs is simply absent from the map — callers
+   * treat that as `has_history: false` / estimates `null`, not `0`.
+   */
+  async estimatesForWorkspace(workspaceId: string): Promise<Map<string, AgentEstimate>> {
+    const rows = await this.db
+      .select({
+        agentId: t.agentRuns.agentId,
+        avgDurationMs: sql<number | null>`avg(${t.agentRuns.durationMs})`,
+        avgCostUsd: sql<number | null>`avg(${t.agentRuns.costUsd})`,
+        n: sql<number>`count(*)::int`,
+      })
+      .from(t.agentRuns)
+      .where(and(eq(t.agentRuns.workspaceId, workspaceId), eq(t.agentRuns.status, 'done')))
+      .groupBy(t.agentRuns.agentId);
+
+    const map = new Map<string, AgentEstimate>();
+    for (const row of rows) {
+      if (!row.agentId) continue;
+      map.set(row.agentId, {
+        avgDurationMs: row.avgDurationMs !== null ? Number(row.avgDurationMs) : null,
+        avgCostUsd: row.avgCostUsd !== null ? Number(row.avgCostUsd) : null,
+        runCount: Number(row.n),
+      });
+    }
+    return map;
   }
 }

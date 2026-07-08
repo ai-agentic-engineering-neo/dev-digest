@@ -1,0 +1,1 @@
+export { TabsView } from "./TabsView";

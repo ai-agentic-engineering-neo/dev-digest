@@ -1,0 +1,14 @@
+{
+  "trigger": "Run agents",
+  "running": "Running…",
+  "heading": "Pick agents to run",
+  "noAgents": "No agents yet — create one",
+  "noAgentsEnabled": "No enabled agents — configure one first",
+  "noHistory": "no history",
+  "configureAgents": "Configure agents…",
+  "mergedWarning": "Already merged — review is informational",
+  "mergedTooltip": "This PR is already merged; running a review won’t affect the merged code.",
+  "summary": "≈ {time} · {cost} · parallel fan-out",
+  "summaryNoEstimate": "No cost/time history yet",
+  "runAction": "Run multi-agent review ({count})"
+}

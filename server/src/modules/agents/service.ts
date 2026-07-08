@@ -49,9 +49,14 @@ export class AgentsService {
 
   async list(workspaceId: string): Promise<Agent[]> {
     const rows = await this.repo.list(workspaceId);
-    // Attach skill_count to each agent (one extra query for all agents).
+    // Attach skill_count + pre-run estimates to each agent (one extra grouped
+    // query each for all agents — avoids N+1 per-agent lookups, T9).
     const skillCounts = await this.repo.skillCountsForWorkspace(workspaceId);
-    return rows.map((row) => ({ ...toAgentDto(row), skill_count: skillCounts.get(row.id) ?? 0 }));
+    const estimates = await this.repo.estimatesForWorkspace(workspaceId);
+    return rows.map((row) => ({
+      ...toAgentDto(row, estimates.get(row.id)),
+      skill_count: skillCounts.get(row.id) ?? 0,
+    }));
   }
 
   async get(workspaceId: string, id: string): Promise<Agent | undefined> {

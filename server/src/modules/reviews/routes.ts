@@ -1,11 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { RunRequest } from '@devdigest/shared';
+import { z } from 'zod';
+import { MultiAgentRunRequest, MultiAgentRunTriggerResult, MultiAgentRun, MultiAgentRunLatest, RunRequest } from '@devdigest/shared';
 import type { RunEvent } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { NotFoundError } from '../../platform/errors.js';
 import { ReviewService } from './service.js';
+import { MultiAgentReviewService } from './multi-agent-service.js';
 
 /**
  * reviews module.
@@ -14,12 +16,19 @@ import { ReviewService } from './service.js';
  *   GET    /runs/:id/trace                             → the single-document RunTrace
  *   GET    /pulls/:id/reviews                          → persisted reviews + findings for a PR
  *   POST   /findings/:id/(accept|dismiss)              → finding actions
+ *   POST   /pulls/:id/multi-agent-run {agent_ids}       → T8: fan N agents out; returns targets
+ *   GET    /pulls/:id/multi-agent      ?multiRunId      → T8: columns + conflicts + totals
  */
 const FINDING_ACTIONS = ['accept', 'dismiss'] as const;
+
+/** Optional target: default to the latest multi-agent run for the PR (Q1). */
+const MultiAgentQuery = z.object({ multiRunId: z.string().uuid().optional() });
+
 export default async function reviewsRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
   const { container } = app;
   const service = new ReviewService(container);
+  const multiAgentService = new MultiAgentReviewService(container);
 
   // ---- Run a review (manual trigger) -------------------------------
   // Tight per-route limit: each call can fan out to expensive LLM runs.
@@ -42,6 +51,54 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
     );
     return { pr_id: req.params.id, runs, reviews };
   });
+
+  // ---- Trigger a multi-agent review (fan N agents out over one PR) --------
+  // Same tight per-route limit as the single-agent trigger above — each call
+  // can fan out to N expensive LLM runs.
+  app.post(
+    '/pulls/:id/multi-agent-run',
+    {
+      schema: { params: IdParams, body: MultiAgentRunRequest, response: { 200: MultiAgentRunTriggerResult } },
+      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+    },
+    async (req) => {
+      const { workspaceId } = await getContext(container, req);
+      return multiAgentService.trigger(workspaceId, req.params.id, req.body.agent_ids, req.log);
+    },
+  );
+
+  // ---- Latest multi-agent run across the workspace (any PR) ---------------
+  // Powers the GLOBAL nav landing back on the last run; null when none exist.
+  app.get(
+    '/multi-agent/latest',
+    { schema: { response: { 200: MultiAgentRunLatest } } },
+    async (req) => {
+      const { workspaceId } = await getContext(container, req);
+      return multiAgentService.latest(workspaceId);
+    },
+  );
+
+  // ---- Latest multi-agent run for ONE PR (200-null; gates PR-detail link) -
+  app.get(
+    '/pulls/:id/multi-agent/latest',
+    { schema: { params: IdParams, response: { 200: MultiAgentRunLatest } } },
+    async (req) => {
+      const { workspaceId } = await getContext(container, req);
+      return multiAgentService.latestForPr(workspaceId, req.params.id);
+    },
+  );
+
+  // ---- Read a multi-agent review (columns + conflicts + totals) -----------
+  // Defaults to the most recent multi-agent run for the PR; pass ?multiRunId
+  // to target a specific one (Q1).
+  app.get(
+    '/pulls/:id/multi-agent',
+    { schema: { params: IdParams, querystring: MultiAgentQuery, response: { 200: MultiAgentRun } } },
+    async (req) => {
+      const { workspaceId } = await getContext(container, req);
+      return multiAgentService.read(workspaceId, req.params.id, req.query.multiRunId);
+    },
+  );
 
   // ---- SSE: live run events (replay buffer first, then live; ends on done) -
   // No rate limit: SSE is one long-lived connection, not burst traffic.

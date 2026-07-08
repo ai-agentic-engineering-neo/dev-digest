@@ -1,2 +1,2 @@
 export { AgentSummary } from "./AgentSummary";
-export { STATUS_META, type LiveAgentStatus } from "./constants";
+export { STATUS_META, toLiveStatus, type LiveAgentStatus } from "./constants";

@@ -8,7 +8,7 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Tabs, type TabDef } from "@devdigest/ui";
 import type { FindingActionKind } from "@devdigest/shared";
-import { AgentSummary, type LiveAgentStatus } from "../AgentSummary";
+import { AgentSummary, toLiveStatus, type LiveAgentStatus } from "../AgentSummary";
 import { FindingCard } from "../FindingCard";
 import type { EnrichedAgentColumn } from "../types";
 import { s } from "./styles";
@@ -49,7 +49,7 @@ export function TabsView({
         <div style={s.tabPanel}>
           <AgentSummary
             column={current}
-            status={statuses[current.run_id] ?? current.status}
+            status={statuses[current.run_id] ?? toLiveStatus(current.status)}
             onViewTrace={() => onViewTrace(current.run_id)}
           />
           <div style={s.findings}>

@@ -1,6 +1,13 @@
+import type { AgentColumn } from "@devdigest/shared";
 import type { IconName } from "@devdigest/ui";
 
 export type LiveAgentStatus = "running" | "done" | "failed";
+
+/** Fold a raw persisted run status into the 3 live states this view renders.
+    `cancelled` has no separate affordance here → shown as `failed`. */
+export function toLiveStatus(status: AgentColumn["status"]): LiveAgentStatus {
+  return status === "cancelled" ? "failed" : status;
+}
 
 /** Status → icon + colour tokens. Icon + label always accompany colour
     (WCAG AA: status is never colour-alone). */

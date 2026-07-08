@@ -7,7 +7,7 @@ import type {
   RunSummary,
 } from "@devdigest/shared";
 import type { ActiveRun } from "@/lib/hooks/reviews";
-import type { LiveAgentStatus } from "../_components/AgentSummary";
+import { toLiveStatus, type LiveAgentStatus } from "../_components/AgentSummary";
 import type { EnrichedAgentColumn } from "../_components/types";
 
 /** Live status precedence: the authoritative run-history row (`usePrRuns`)
@@ -25,7 +25,7 @@ export function resolveColumnStatus(
   if (summary?.status === "failed" || summary?.status === "cancelled") return "failed";
   if (summary?.status === "running") return "running";
   if (activeRuns?.some((r) => r.run_id === column.run_id)) return "running";
-  return column.status;
+  return toLiveStatus(column.status);
 }
 
 /** Build a findingId → FindingRecord lookup across every review of the PR

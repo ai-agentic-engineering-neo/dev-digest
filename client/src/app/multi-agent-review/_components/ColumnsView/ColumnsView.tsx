@@ -7,7 +7,7 @@
 
 import { useTranslations } from "next-intl";
 import type { FindingActionKind } from "@devdigest/shared";
-import { AgentSummary, type LiveAgentStatus } from "../AgentSummary";
+import { AgentSummary, toLiveStatus, type LiveAgentStatus } from "../AgentSummary";
 import { FindingCard } from "../FindingCard";
 import type { EnrichedAgentColumn } from "../types";
 import { s } from "./styles";
@@ -42,7 +42,7 @@ export function ColumnsView({
         <div key={col.run_id} style={s.column} data-agent-run-id={col.run_id}>
           <AgentSummary
             column={col}
-            status={statuses[col.run_id] ?? col.status}
+            status={statuses[col.run_id] ?? toLiveStatus(col.status)}
             onViewTrace={() => onViewTrace(col.run_id)}
           />
           <div style={s.findings}>

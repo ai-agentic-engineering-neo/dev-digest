@@ -31,6 +31,10 @@ export function ReviewRunAccordion({
   headSha,
   targetRunId = null,
   targetNonce = 0,
+  tokensIn,
+  tokensOut,
+  costUsd,
+  runSettled,
 }: {
   review: ReviewRecord;
   prId: string;
@@ -41,6 +45,12 @@ export function ReviewRunAccordion({
    *  (driven from the Timeline: clicking an agent name navigates here). */
   targetRunId?: string | null;
   targetNonce?: number;
+  /** Usage from the agent_runs row matching review.run_id (looked up by the
+   *  parent, which already holds the run list for the Timeline). */
+  tokensIn?: number | null;
+  tokensOut?: number | null;
+  costUsd?: number | null;
+  runSettled?: boolean;
 }) {
   const [open, setOpen] = React.useState(defaultOpen);
   const rootRef = React.useRef<HTMLDivElement | null>(null);
@@ -144,6 +154,10 @@ export function ReviewRunAccordion({
                 findingsCount={findings.length}
                 blockers={blockers}
                 agentName={review.agent_name}
+                tokensIn={tokensIn}
+                tokensOut={tokensOut}
+                costUsd={costUsd}
+                runSettled={runSettled}
               />
             </div>
           )}

@@ -129,9 +129,41 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
+    // Latest agent_runs row per PR, for the list's COST badge. Zero extra LLM
+    // calls — reads columns already populated by run-executor at completion.
+    // Gated on status='done' here so a PR whose newest run is still
+    // running/failed shows "—", not stale numbers from an older run.
+    const latestRunByPr = new Map<
+      string,
+      { tokensIn: number | null; tokensOut: number | null; costUsd: number | null }
+    >();
+    if (prIds.length > 0) {
+      const runRows = await container.db
+        .select({
+          prId: t.agentRuns.prId,
+          tokensIn: t.agentRuns.tokensIn,
+          tokensOut: t.agentRuns.tokensOut,
+          costUsd: t.agentRuns.costUsd,
+          status: t.agentRuns.status,
+        })
+        .from(t.agentRuns)
+        .where(and(inArray(t.agentRuns.prId, prIds), eq(t.agentRuns.workspaceId, workspaceId)))
+        .orderBy(desc(t.agentRuns.ranAt));
+      for (const r of runRows) {
+        if (!r.prId || latestRunByPr.has(r.prId)) continue;
+        latestRunByPr.set(
+          r.prId,
+          r.status === 'done'
+            ? { tokensIn: r.tokensIn, tokensOut: r.tokensOut, costUsd: r.costUsd }
+            : { tokensIn: null, tokensOut: null, costUsd: null },
+        );
+      }
+    }
+
     const now = Date.now();
     return rows.map((r) => {
       const review = latestReviewByPr.get(r.id);
+      const run = latestRunByPr.get(r.id);
       return {
         id: r.id,
         number: r.number,
@@ -153,6 +185,9 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
+        tokens_in: run?.tokensIn ?? null,
+        tokens_out: run?.tokensOut ?? null,
+        cost_usd: run?.costUsd ?? null,
       };
     });
   });

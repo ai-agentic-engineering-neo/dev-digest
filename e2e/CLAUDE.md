@@ -38,9 +38,12 @@ above holds.
 
 ## Read when
 
+- What a flow is actually exercising end to end:
+  [../docs/architecture.md](../docs/architecture.md).
 - Testing/CI questions: [../TESTING.md](../TESTING.md).
-- The future root-level `specs/` (not created yet) is unrelated to this
-  package's own `specs/` (flow definitions) — don't confuse the two.
+- Root-level [../specs/](../specs/) holds **feature specs** and is unrelated to
+  this package's own `specs/` (`*.flow.json` browser flows) — same name, two
+  different things; don't confuse them.
 
 Finishing a substantive task here (bug fix, non-trivial change, discovery)?
 Append an entry to [LEARNINGS.md](LEARNINGS.md) — don't skip it.

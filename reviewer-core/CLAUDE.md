@@ -46,9 +46,12 @@ typecheck` doubles as the build.
 
 ## Read when
 
+- Where this engine sits in the run lifecycle, and who calls it:
+  [../docs/architecture.md](../docs/architecture.md).
 - Testing/CI questions: [../TESTING.md](../TESTING.md).
 - How `assemblePrompt` builds an agent's system prompt: [../docs/agent-prompts](../docs/agent-prompts/).
-- `../specs/` — not created yet; will feed the `specs` prompt slot from L05.
+- Building a feature that has a spec: [../specs/](../specs/) — also the future
+  source for the `specs` prompt slot (L05).
 
 Finishing a substantive task here (bug fix, non-trivial change, discovery)?
 Append an entry to [LEARNINGS.md](LEARNINGS.md) — don't skip it.

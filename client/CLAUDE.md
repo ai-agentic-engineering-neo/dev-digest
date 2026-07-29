@@ -42,9 +42,11 @@ high-confidence guidance unless it's obviously stale.
 
 ## Read when
 
+- Following data from a hook through the API into the server:
+  [../docs/architecture.md](../docs/architecture.md).
 - Testing/CI questions, or real browser journeys: [../TESTING.md](../TESTING.md), [`../e2e`](../e2e/README.md).
 - Building the agent editor / system-prompt UI: [../docs/agent-prompts](../docs/agent-prompts/).
-- `../specs/` — not created yet.
+- Building a feature that has a spec: [../specs/](../specs/).
 
 Finishing a substantive task here (bug fix, non-trivial change, discovery)?
 Append an entry to [LEARNINGS.md](LEARNINGS.md) — don't skip it.

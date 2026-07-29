@@ -24,9 +24,12 @@ contracts via tsconfig path aliases, not a real workspace.
 | reviewer-core | [reviewer-core/README.md](reviewer-core/README.md) | [reviewer-core/CLAUDE.md](reviewer-core/CLAUDE.md) | — |
 | e2e | [e2e/README.md](e2e/README.md) | [e2e/CLAUDE.md](e2e/CLAUDE.md) | — |
 
+Read when you need the call path through the layers, the review-run lifecycle,
+or where state lands: [docs/architecture.md](docs/architecture.md).
 Read when testing/CI questions come up: [TESTING.md](TESTING.md).
 Read when working on agent system prompts: [docs/agent-prompts](docs/agent-prompts/).
-`specs/` — not created yet, will hold feature specs starting around lesson L03/L05.
+Read when building a feature that has one: [specs/](specs/) — one file per
+feature, written before the code (used from ~L03/L05).
 
 There is no root `LEARNINGS.md` — each module keeps its own (linked in the
 Map above), right next to the code it's about. Read a module's `LEARNINGS.md`

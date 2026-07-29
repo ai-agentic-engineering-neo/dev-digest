@@ -51,9 +51,11 @@ Docker); everything else is hermetic. `pnpm test` runs both.
 
 ## Read when
 
+- Tracing a request through route → service → repository, or debugging a run's
+  lifecycle: [../docs/architecture.md](../docs/architecture.md).
 - Testing/CI questions: [../TESTING.md](../TESTING.md).
 - Writing/editing an agent's system prompt: [../docs/agent-prompts](../docs/agent-prompts/).
-- `../specs/` — not created yet.
+- Building a feature that has a spec: [../specs/](../specs/).
 
 Finishing a substantive task here (bug fix, non-trivial change, discovery)?
 Append an entry to [LEARNINGS.md](LEARNINGS.md) — don't skip it.

@@ -72,6 +72,48 @@ where the breakage surfaces, and gives the decision rule for next time.
 Why it works: carries the measured range, so a future session doesn't
 re-derive it — and names the specific wrong answer someone would reach for.
 
+## Adding an entry without clobbering the file
+
+This file only ever grows. Existing entries are other sessions' work — some
+of them were expensive to learn.
+
+**1. Read the whole file first.** Not a slice of it. Editing from a partial
+read is how content gets dropped, and it's also how duplicates get written:
+the entry you're about to add may already be three sections down.
+
+**2. Insert with `Edit`, never `Write`.** `Write` replaces the file wholesale
+— one call and every prior entry is gone. `Edit` fails loudly when its anchor
+doesn't match uniquely, which is exactly the safety you want here.
+
+**3. Anchor on the section heading.** Each of the seven headings appears
+exactly once, so it's an unambiguous anchor, and the edit touches only the
+two lines around the insertion point:
+
+```
+old_string:   ## What Doesn't Work
+
+new_string:   ## What Doesn't Work
+
+              ### 2026-07-29 — <title>
+
+              <entry>
+```
+
+Everything already under that heading shifts down untouched. Anchoring on an
+existing *entry* instead risks swallowing it if the match is loose.
+
+**4. One entry per edit.** Two insertions in one call means a bad anchor can
+damage both.
+
+**5. Correcting an old entry: supersede, don't rewrite.** Add a new dated
+entry that says what changed and why. History stays readable, and a wrong
+correction can't silently erase a right original. The only edit permitted to
+an existing entry is appending to it — never rewording or reflowing it.
+
+**6. Nothing to add is a valid outcome.** If the session produced no lesson
+that clears the bar, say so and leave the file untouched. Padding it lowers
+the signal for every future read.
+
 ## Placement
 
 | Section | Holds |

@@ -31,6 +31,24 @@ there is the bug the whole format exists to prevent.
 
 ## Codebase Patterns
 
+### 2026-07-29 — filter chips must count the list they filter, not the raw prop
+
+`FindingsPanel` composes two independent filters: `hideLow` (confidence) and
+severity. Counting from the `findings` prop would show "1 SUGGESTION" while
+that card is hidden by hide-low-confidence — the number and the list
+disagree, and the chip becomes a lie.
+
+The order that keeps them honest, in `FindingsPanel.tsx`:
+`visibleFindings(findings, hideLow)` → `countBySeverity(visible)` →
+`bySeverity(visible, severity)`. Counts sit *between* the two filters, so
+every chip's number equals exactly what clicking it yields.
+`countBySeverity` also drops zero-count severities — a chip that filters to
+an empty list is a dead end.
+
+Reset `focusIdx` to 0 whenever either filter changes. j/k navigation
+otherwise points past the end of the narrowed list and the focus ring
+silently vanishes.
+
 ### 2026-07-28 — run usage reaches the verdict banner via `prRuns`, not `ReviewRecord`
 
 `ReviewRecord` (`vendor/shared/contracts/review-api.ts`) carries `run_id` but
@@ -55,6 +73,23 @@ Editing a shared contract only here does not reach the server; the server
 keeps stale types and still type-checks clean.
 
 ## Tool & Library Notes
+
+### 2026-07-29 — `borderColor` is a shorthand too, and clashes with `borderLeftColor`
+
+`FindingCard/styles.ts` carried a comment warning "never mix `border`
+shorthand with `borderLeft`" — right advice, but it missed its own case.
+`borderColor` is *itself* shorthand for the four side colours, so having it
+alongside `borderLeftColor` makes React warn: *"Updating a style property
+during rerender (borderColor) when a conflicting property is set
+(borderLeftColor)"*.
+
+It only fires when the value actually changes mid-life — here `focused`
+flipping. It sat dormant until the severity filter (which resets focus on
+every filter change) made it fire on every test click.
+
+Fix: set `borderTopColor` / `borderRightColor` / `borderBottomColor`
+explicitly and leave `borderLeftColor` as the accent. `transition:
+border-color` still animates all four.
 
 ## Recurring Errors & Fixes
 

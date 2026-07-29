@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { FindingRecord } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/prReview.json";
@@ -12,9 +12,8 @@ import { FindingsPanel } from "./FindingsPanel";
 
 afterEach(cleanup);
 
-const FINDINGS: FindingRecord[] = [
-  {
-    id: "f1",
+function finding(o: Partial<FindingRecord> & { id: string }): FindingRecord {
+  return {
     severity: "CRITICAL",
     category: "security",
     title: "Hardcoded secret",
@@ -30,7 +29,18 @@ const FINDINGS: FindingRecord[] = [
     review_id: "r1",
     accepted_at: null,
     dismissed_at: null,
-  },
+    ...o,
+  };
+}
+
+const FINDINGS: FindingRecord[] = [finding({ id: "f1" })];
+
+/** 2 CRITICAL · 1 WARNING · 1 SUGGESTION, one of them low-confidence. */
+const MIXED: FindingRecord[] = [
+  finding({ id: "c1", severity: "CRITICAL", title: "Hardcoded secret" }),
+  finding({ id: "c2", severity: "CRITICAL", title: "Open redirect" }),
+  finding({ id: "w1", severity: "WARNING", title: "Missing rate limit" }),
+  finding({ id: "s1", severity: "SUGGESTION", title: "Extract helper", confidence: 0.2 }),
 ];
 
 function renderWithIntl(ui: React.ReactElement) {
@@ -39,6 +49,11 @@ function renderWithIntl(ui: React.ReactElement) {
       {ui}
     </NextIntlClientProvider>,
   );
+}
+
+/** The severity chips are the toolbar's buttons; cards are headings elsewhere. */
+function chips() {
+  return screen.getAllByRole("button").filter((b) => /^\d+ [A-Z]+$/.test(b.textContent ?? ""));
 }
 
 describe("FindingsPanel (smoke)", () => {
@@ -51,5 +66,55 @@ describe("FindingsPanel (smoke)", () => {
   it("shows the empty state when nothing matches", () => {
     renderWithIntl(<FindingsPanel findings={[]} prId="pr1" />);
     expect(screen.getByText("No findings match")).toBeInTheDocument();
+  });
+});
+
+describe("FindingsPanel — severity counters", () => {
+  it("counts each severity, in severity order", () => {
+    renderWithIntl(<FindingsPanel findings={MIXED} prId="pr1" />);
+    expect(chips().map((c) => c.textContent)).toEqual([
+      "2 CRITICAL",
+      "1 WARNING",
+      "1 SUGGESTION",
+    ]);
+  });
+
+  it("omits a severity with no findings", () => {
+    renderWithIntl(<FindingsPanel findings={FINDINGS} prId="pr1" />);
+    expect(chips().map((c) => c.textContent)).toEqual(["1 CRITICAL"]);
+  });
+
+  it("clicking a severity leaves only its findings", () => {
+    renderWithIntl(<FindingsPanel findings={MIXED} prId="pr1" />);
+    fireEvent.click(screen.getByText("1 WARNING"));
+
+    expect(screen.getByText("Missing rate limit")).toBeInTheDocument();
+    expect(screen.queryByText("Hardcoded secret")).not.toBeInTheDocument();
+    expect(screen.queryByText("Extract helper")).not.toBeInTheDocument();
+  });
+
+  it("clicking the active severity again clears the filter", () => {
+    renderWithIntl(<FindingsPanel findings={MIXED} prId="pr1" />);
+    const warning = screen.getByText("1 WARNING");
+
+    fireEvent.click(warning);
+    expect(warning).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByText("Hardcoded secret")).not.toBeInTheDocument();
+
+    fireEvent.click(warning);
+    expect(warning).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByText("Hardcoded secret")).toBeInTheDocument();
+  });
+
+  it("counts follow hide-low-confidence, so a chip always matches its list", () => {
+    renderWithIntl(<FindingsPanel findings={MIXED} prId="pr1" />);
+    // The 0.2-confidence SUGGESTION is counted while the toggle is off…
+    expect(chips().map((c) => c.textContent)).toContain("1 SUGGESTION");
+
+    fireEvent.click(screen.getByRole("switch"));
+
+    // …and disappears from the chips once it's hidden from the list.
+    expect(chips().map((c) => c.textContent)).toEqual(["2 CRITICAL", "1 WARNING"]);
+    expect(screen.queryByText("Extract helper")).not.toBeInTheDocument();
   });
 });

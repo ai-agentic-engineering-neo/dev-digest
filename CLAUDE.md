@@ -31,10 +31,10 @@ Read when working on agent system prompts: [docs/agent-prompts](docs/agent-promp
 Read when building a feature that has one: [specs/](specs/) — one file per
 feature, written before the code (used from ~L03/L05).
 
-There is no root `LEARNINGS.md` — each module keeps its own (linked in the
-Map above), right next to the code it's about. Read a module's `LEARNINGS.md`
-before working in it; append to it (via the `engineering-insights` skill or
-`/engineering-insights`) when you finish a substantive task there.
+There is no root `LEARNINGS.md` — each module keeps its own (linked in the Map
+above), right next to the code it's about. **Read the `LEARNINGS.md` of the
+module you're about to work in before you start** — treat it as
+high-confidence guidance unless it's obviously stale.
 
 ## Conventions (non-default)
 
@@ -65,3 +65,11 @@ before working in it; append to it (via the `engineering-insights` skill or
   that folder (mechanism #3 — AUTO). There's a known VS Code-extension bug
   (#24987) where this doesn't always trigger. If module-specific rules seem
   ignored, open that module's `CLAUDE.md` via the Map above explicitly.
+
+## Before you finish
+
+Finished a substantive task (bug fix, non-trivial change, discovery)? Append
+what a future session would need to the touched module's `LEARNINGS.md` — via
+the `engineering-insights` skill or `/engineering-insights`. Read it first and
+extend an existing entry rather than duplicating it; if nothing non-obvious
+came up, write nothing. Don't skip this step.

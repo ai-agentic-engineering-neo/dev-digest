@@ -170,6 +170,10 @@ export const PrMeta = z.object({
   updated_at: z.string().nullish(),
   // Latest-review score (list endpoint only; null/absent until reviewed).
   score: z.number().int().nullish(),
+  // Non-dismissed finding counts keyed by severity, across every run on the PR
+  // (list endpoint only; null until reviewed). A record rather than three
+  // fields so a new severity needs no contract change.
+  findings: z.record(z.string(), z.number().int()).nullish(),
   // Latest-run tokens/cost (list endpoint only; null until a run has completed).
   tokens_in: z.number().int().nullish(),
   tokens_out: z.number().int().nullish(),

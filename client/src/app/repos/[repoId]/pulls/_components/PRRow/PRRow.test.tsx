@@ -28,6 +28,7 @@ function pr(o: Partial<PrMeta> = {}): PrMeta {
     opened_at: null,
     updated_at: new Date().toISOString(),
     score: 61,
+    findings: { CRITICAL: 2, WARNING: 2, SUGGESTION: 2 },
     tokens_in: 8200,
     tokens_out: 1300,
     cost_usd: 0.014,
@@ -50,8 +51,28 @@ describe("PRRow — cost cell", () => {
   });
 
   it("shows an em dash rather than a fake $0.00 when there's no completed run", () => {
-    renderRow(pr({ cost_usd: null }));
+    renderRow(pr({ cost_usd: null, findings: { CRITICAL: 1 } }));
     expect(screen.getByText("—")).toBeInTheDocument();
     expect(screen.queryByText("$0.00")).not.toBeInTheDocument();
+  });
+});
+
+describe("PRRow — findings column", () => {
+  it("shows a badge per severity, in severity order", () => {
+    const { container } = renderRow(pr({ findings: { SUGGESTION: 2, CRITICAL: 3, WARNING: 5 } }));
+    // SeverityBadge renders its count in a .tnum span.
+    const counts = [...container.querySelectorAll("span.tnum")].map((n) => n.textContent);
+    expect(counts).toEqual(["3", "5", "2"]);
+  });
+
+  it("omits a severity with no findings", () => {
+    const { container } = renderRow(pr({ findings: { CRITICAL: 1, WARNING: 0 } }));
+    expect([...container.querySelectorAll("span.tnum")].map((n) => n.textContent)).toEqual(["1"]);
+  });
+
+  it("shows an em dash when the PR has never been reviewed", () => {
+    const { container } = renderRow(pr({ findings: null, score: null, cost_usd: 0.014 }));
+    expect(container.querySelectorAll("span.tnum")).toHaveLength(0);
+    expect(screen.getAllByText("—").length).toBeGreaterThan(0);
   });
 });

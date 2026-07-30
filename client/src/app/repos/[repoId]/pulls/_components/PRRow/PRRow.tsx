@@ -4,9 +4,10 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Icon, Avatar, Badge, CircularScore } from "@devdigest/ui";
+import { Icon, Avatar, Badge, CircularScore, SeverityBadge, type Severity } from "@devdigest/ui";
 import type { PrMeta } from "@/lib/types";
 import { formatCost } from "@/lib/format";
+import { orderedSeverityCounts } from "@/lib/severity";
 import { SIZE_COLOR, STATUS_META } from "../../constants";
 import { relativeTime, sizeOf } from "../../helpers";
 import { s } from "../../styles";
@@ -18,6 +19,7 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
   const st = STATUS_META[pr.status] ?? STATUS_META.needs_review!;
   const { size, lines } = sizeOf(pr);
   const reviewed = pr.score != null; // null score ⇒ PR has never been reviewed
+  const severities = orderedSeverityCounts(pr.findings);
   return (
     <div
       onMouseEnter={() => setH(true)}
@@ -54,13 +56,22 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
           <span style={s.muted}>—</span>
         )}
       </div>
-      <div className="mono" style={s.costCell}>
-        {formatCost(pr.cost_usd)}
+      <div style={s.findingsCell}>
+        {severities.length === 0 ? (
+          <span style={s.muted}>—</span>
+        ) : (
+          severities.map(({ severity, count }) => (
+            <SeverityBadge key={severity} severity={severity as Severity} count={count} compact />
+          ))
+        )}
       </div>
       <div>
         <Badge dot color={st.c} bg="transparent">
           {t(`list.status.${st.labelKey}`)}
         </Badge>
+      </div>
+      <div className="mono" style={s.costCell}>
+        {formatCost(pr.cost_usd)}
       </div>
       <div style={s.updatedCell}>{relativeTime(pr.updated_at)}</div>
     </div>

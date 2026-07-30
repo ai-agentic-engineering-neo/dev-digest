@@ -63,6 +63,13 @@ export function FindingsTab({
     [onDelete],
   );
 
+  // The Timeline already has every run's usage; reuse it to put cost on each
+  // run's verdict banner rather than re-joining agent_runs onto ReviewRecord.
+  const runsById = React.useMemo(
+    () => new Map((prRuns ?? []).map((r) => [r.run_id, r])),
+    [prRuns],
+  );
+
   // Timeline → Review-runs navigation: clicking an agent name in the timeline
   // opens + scrolls to that run's accordion below. The nonce re-triggers the
   // scroll even when the same run is clicked twice.
@@ -154,18 +161,25 @@ export function FindingsTab({
         )
       ) : (
         prId &&
-        runs.map((review, i) => (
-          <ReviewRunAccordion
-            key={review.id}
-            review={review}
-            prId={prId}
-            defaultOpen={i === 0}
-            repoFullName={repoFullName}
-            headSha={headSha}
-            targetRunId={target?.runId ?? null}
-            targetNonce={target?.n ?? 0}
-          />
-        ))
+        runs.map((review, i) => {
+          const run = review.run_id ? runsById.get(review.run_id) : undefined;
+          return (
+            <ReviewRunAccordion
+              key={review.id}
+              review={review}
+              prId={prId}
+              defaultOpen={i === 0}
+              repoFullName={repoFullName}
+              headSha={headSha}
+              targetRunId={target?.runId ?? null}
+              targetNonce={target?.n ?? 0}
+              tokensIn={run?.tokens_in ?? null}
+              tokensOut={run?.tokens_out ?? null}
+              costUsd={run?.cost_usd ?? null}
+              runSettled={run?.status === "done"}
+            />
+          );
+        })
       )}
     </section>
   );

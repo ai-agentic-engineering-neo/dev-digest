@@ -28,6 +28,8 @@
   },
   "panel": {
     "hideLowConfidence": "Hide low confidence",
+    "filterBySeverity": "Show only {severity} findings",
+    "clearFilter": "Show all severities",
     "noMatchTitle": "No findings match",
     "noMatchBody": "Adjust the filters above, or run a review to generate findings."
   },
@@ -91,6 +93,8 @@
       "author": "Author",
       "size": "Size",
       "score": "Score",
+      "findings": "Findings",
+      "cost": "Cost",
       "status": "Status",
       "updated": "Updated"
     },

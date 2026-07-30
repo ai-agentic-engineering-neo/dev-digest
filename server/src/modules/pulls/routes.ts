@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import type { PrMeta, PrDetail, GitHubClient, PrReviewComment } from '@devdigest/shared';
 import { PrCommentInput } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
@@ -113,8 +113,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
 
     // Latest-review SCORE per PR for the list's score ring. Computed on read
     // from reviews (no FK denorm); the list is small, so one IN-query + JS
-    // grouping is cheap. (The per-severity FINDINGS breakdown is intentionally
-    // not surfaced on the list — findings live on the PR detail page.)
+    // grouping is cheap.
     const prIds = rows.map((r) => r.id);
     const latestReviewByPr = new Map<string, { score: number | null }>();
     if (prIds.length > 0) {
@@ -129,9 +128,64 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
+    // Per-severity FINDINGS counts per PR, for the list's severity badges.
+    // Counts EVERY non-dismissed finding across all runs, not just the latest
+    // review's: the list is a triage screen, so the question it answers is
+    // "what is still open on this PR", not "what did whichever agent happened
+    // to finish last report". Dismissed findings are excluded, matching how
+    // blockers are counted on the PR page.
+    // NOTE: `score` above is latest-review only, so the two columns
+    // deliberately have different scopes. Inherited from `score`; not a bug.
+    const findingsByPr = new Map<string, Record<string, number>>();
+    if (prIds.length > 0) {
+      const findingRows = await container.db
+        .select({ prId: t.reviews.prId, severity: t.findings.severity })
+        .from(t.findings)
+        .innerJoin(t.reviews, eq(t.reviews.id, t.findings.reviewId))
+        .where(and(inArray(t.reviews.prId, prIds), isNull(t.findings.dismissedAt)));
+      for (const f of findingRows) {
+        if (!f.severity) continue;
+        const counts = findingsByPr.get(f.prId) ?? {};
+        counts[f.severity] = (counts[f.severity] ?? 0) + 1;
+        findingsByPr.set(f.prId, counts);
+      }
+    }
+
+    // Latest agent_runs row per PR, for the list's COST badge. Zero extra LLM
+    // calls — reads columns already populated by run-executor at completion.
+    // Gated on status='done' here so a PR whose newest run is still
+    // running/failed shows "—", not stale numbers from an older run.
+    const latestRunByPr = new Map<
+      string,
+      { tokensIn: number | null; tokensOut: number | null; costUsd: number | null }
+    >();
+    if (prIds.length > 0) {
+      const runRows = await container.db
+        .select({
+          prId: t.agentRuns.prId,
+          tokensIn: t.agentRuns.tokensIn,
+          tokensOut: t.agentRuns.tokensOut,
+          costUsd: t.agentRuns.costUsd,
+          status: t.agentRuns.status,
+        })
+        .from(t.agentRuns)
+        .where(and(inArray(t.agentRuns.prId, prIds), eq(t.agentRuns.workspaceId, workspaceId)))
+        .orderBy(desc(t.agentRuns.ranAt));
+      for (const r of runRows) {
+        if (!r.prId || latestRunByPr.has(r.prId)) continue;
+        latestRunByPr.set(
+          r.prId,
+          r.status === 'done'
+            ? { tokensIn: r.tokensIn, tokensOut: r.tokensOut, costUsd: r.costUsd }
+            : { tokensIn: null, tokensOut: null, costUsd: null },
+        );
+      }
+    }
+
     const now = Date.now();
     return rows.map((r) => {
       const review = latestReviewByPr.get(r.id);
+      const run = latestRunByPr.get(r.id);
       return {
         id: r.id,
         number: r.number,
@@ -153,6 +207,10 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
+        findings: findingsByPr.get(r.id) ?? null,
+        tokens_in: run?.tokensIn ?? null,
+        tokens_out: run?.tokensOut ?? null,
+        cost_usd: run?.costUsd ?? null,
       };
     });
   });

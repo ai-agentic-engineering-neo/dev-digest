@@ -7,9 +7,10 @@ import { useTranslations } from "next-intl";
 import { Toggle, EmptyState } from "@devdigest/ui";
 import type { FindingRecord } from "@devdigest/shared";
 import { FindingCard } from "../FindingCard";
+import { SEV_COLOR, SEV_COLOR_FALLBACK } from "../FindingCard/constants";
 import { useFindingAction } from "../../../../../../../lib/hooks/reviews";
 import { KEY_TO_ACTION } from "./constants";
-import { visibleFindings } from "./helpers";
+import { visibleFindings, countBySeverity, bySeverity } from "./helpers";
 import { s } from "./styles";
 
 export function FindingsPanel({
@@ -26,9 +27,22 @@ export function FindingsPanel({
   const t = useTranslations("prReview");
   const action = useFindingAction();
   const [hideLow, setHideLow] = React.useState(false);
+  const [severity, setSeverity] = React.useState<string | null>(null);
   const [focusIdx, setFocusIdx] = React.useState(0);
 
-  const shown = React.useMemo(() => visibleFindings(findings, hideLow), [findings, hideLow]);
+  // Counts come from the post-hide-low list, so a chip's number always equals
+  // the number of cards you get when you click it.
+  const visible = React.useMemo(() => visibleFindings(findings, hideLow), [findings, hideLow]);
+  const counts = React.useMemo(() => countBySeverity(visible), [visible]);
+  const shown = React.useMemo(() => bySeverity(visible, severity), [visible, severity]);
+
+  // A narrower list can't keep the old focus — it may now point past the end.
+  React.useEffect(() => setFocusIdx(0), [severity, hideLow]);
+
+  const toggleSeverity = React.useCallback(
+    (sev: string) => setSeverity((cur) => (cur === sev ? null : sev)),
+    [],
+  );
 
   // j/k navigation + a/d shortcuts on the focused finding (keyboard).
   React.useEffect(() => {
@@ -48,6 +62,22 @@ export function FindingsPanel({
   return (
     <div>
       <div style={s.toolbar}>
+        {counts.map(({ severity: sev, count }) => {
+          const active = severity === sev;
+          const color = SEV_COLOR[sev] ?? SEV_COLOR_FALLBACK;
+          return (
+            <button
+              key={sev}
+              type="button"
+              aria-pressed={active}
+              title={active ? t("panel.clearFilter") : t("panel.filterBySeverity", { severity: sev })}
+              onClick={() => toggleSeverity(sev)}
+              style={s.severityChip(color, active)}
+            >
+              {count} {sev}
+            </button>
+          );
+        })}
         <div style={s.toggleGroup}>
           {t("panel.hideLowConfidence")}
           <Toggle on={hideLow} onChange={setHideLow} size={16} />

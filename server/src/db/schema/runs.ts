@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, integer, jsonb, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, integer, jsonb, timestamp, doublePrecision } from 'drizzle-orm/pg-core';
 import { workspaces } from './core';
 import { agents } from './agents';
 import { pullRequests } from './pulls';
@@ -18,6 +18,12 @@ export const agentRuns = pgTable('agent_runs', {
   durationMs: integer('duration_ms'),
   tokensIn: integer('tokens_in'),
   tokensOut: integer('tokens_out'),
+  /**
+   * USD billed for this run — OpenRouter's real `usage.cost` when it reports one,
+   * otherwise a PriceBook estimate. Null (never 0) when the model is unpriced or
+   * the run failed before reaching the model.
+   */
+  costUsd: doublePrecision('cost_usd'),
   status: text('status'),
   /** Failure reason when status='failed' (LLM/API error, timeout, quota, …). */
   error: text('error'),

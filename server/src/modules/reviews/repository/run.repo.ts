@@ -59,6 +59,7 @@ export async function listRunsForPull(
     duration_ms: run.durationMs,
     tokens_in: run.tokensIn,
     tokens_out: run.tokensOut,
+    cost_usd: run.costUsd,
     findings_count: run.findingsCount,
     grounding: run.grounding,
     ran_at: run.ranAt ? run.ranAt.toISOString() : null,
@@ -146,6 +147,11 @@ export async function completeAgentRun(
     durationMs: number;
     tokensIn: number;
     tokensOut: number;
+    /**
+     * USD billed for this run. Omit (or pass null) on failed/cancelled runs and
+     * whenever the model is unpriced — 0 would claim the review was free.
+     */
+    costUsd?: number | null;
     findingsCount: number;
     grounding: string;
     /** Review score (0-100); null on failed/cancelled runs. */
@@ -163,6 +169,7 @@ export async function completeAgentRun(
       durationMs: values.durationMs,
       tokensIn: values.tokensIn,
       tokensOut: values.tokensOut,
+      costUsd: values.costUsd ?? null,
       findingsCount: values.findingsCount,
       grounding: values.grounding,
       score: values.score ?? null,

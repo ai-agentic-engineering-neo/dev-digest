@@ -10,11 +10,10 @@ import {
   Badge,
   CircularScore,
   SeverityBadge,
-  CategoryTag,
   type Severity,
-  type Category,
 } from "@devdigest/ui";
 import { RunCostBadge } from "@/components/run-cost-badge";
+import { FindingsPreviewCard } from "@/components/findings-preview";
 import type { PrMeta } from "@/lib/types";
 import { usePrReviews } from "@/lib/hooks/reviews";
 import { FINDINGS_SEVERITIES, SIZE_COLOR, STATUS_META } from "../../constants";
@@ -102,30 +101,12 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
           <span style={s.muted}>—</span>
         )}
         {preview && previewFindings.length > 0 && (
-          <div style={s.findingsPreview(preview.top, preview.left)} onClick={(e) => e.stopPropagation()}>
-            <div style={s.findingsPreviewTitle}>
-              <Icon.AlertOctagon size={12} />
-              {t("list.findingsPreviewTitle", { count: previewFindings.length })}
-            </div>
-            {previewFindings.map((f) => (
-              <div key={f.id} style={s.findingsPreviewItem}>
-                <div style={s.findingsPreviewHead}>
-                  <SeverityBadge severity={f.severity as Severity} compact />
-                  <span style={s.findingsPreviewItemTitle}>{f.title}</span>
-                  <CategoryTag category={f.category as Category} />
-                </div>
-                <div style={s.findingsPreviewMeta}>
-                  <span className="mono" style={{ color: "var(--accent)" }}>
-                    {f.file}:{f.start_line}
-                  </span>
-                  <span style={s.findingsPreviewConf}>
-                    {Math.round(f.confidence * 100)}% conf
-                  </span>
-                </div>
-                <div style={s.findingsPreviewRationale}>{f.rationale}</div>
-              </div>
-            ))}
-          </div>
+          <FindingsPreviewCard
+            findings={previewFindings}
+            title={t("list.findingsPreviewTitle", { count: previewFindings.length })}
+            top={preview.top}
+            left={preview.left}
+          />
         )}
       </div>
       <div>

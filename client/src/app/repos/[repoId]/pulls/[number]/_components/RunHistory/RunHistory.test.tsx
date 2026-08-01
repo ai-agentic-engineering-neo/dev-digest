@@ -5,9 +5,9 @@
  * and shows the review score ring.
  */
 import { describe, it, expect, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
-import type { RunSummary } from "@devdigest/shared";
+import type { RunSummary, ReviewRecord } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/prReview.json";
 import { RunHistory } from "./RunHistory";
 
@@ -35,10 +35,10 @@ function run(o: Partial<RunSummary>): RunSummary {
   };
 }
 
-function renderRuns(runs: RunSummary[]) {
+function renderRuns(runs: RunSummary[], reviews: ReviewRecord[] = []) {
   return render(
     <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
-      <RunHistory runs={runs} onOpenTrace={() => {}} />
+      <RunHistory runs={runs} reviews={reviews} onOpenTrace={() => {}} />
     </NextIntlClientProvider>,
   );
 }
@@ -72,6 +72,81 @@ describe("RunHistory — outcome badge", () => {
   it("a running run reads 'running'", () => {
     renderRuns([run({ status: "running", score: null, blockers: null })]);
     expect(screen.getByText("running")).toBeInTheDocument();
+  });
+});
+
+const REVIEW: ReviewRecord = {
+  id: "rv1",
+  pr_id: "pr1",
+  agent_id: "a1",
+  run_id: "run-1",
+  kind: "review",
+  verdict: "request_changes",
+  summary: null,
+  score: 38,
+  model: null,
+  created_at: "2026-06-11T18:44:34.000Z",
+  findings: [
+    {
+      id: "f-w",
+      severity: "WARNING",
+      category: "perf",
+      title: "N+1 query in user list endpoint",
+      file: "src/api/users.ts",
+      start_line: 45,
+      end_line: 52,
+      rationale: "The loop issues one query per user.",
+      suggestion: null,
+      confidence: 0.86,
+      kind: "finding",
+      trifecta_components: null,
+      evidence: null,
+      review_id: "rv1",
+      accepted_at: null,
+      dismissed_at: null,
+    },
+    {
+      id: "f-c",
+      severity: "CRITICAL",
+      category: "security",
+      title: "Hardcoded Stripe secret key in commit",
+      file: "src/config.ts",
+      start_line: 12,
+      end_line: 12,
+      rationale: "A live Stripe key is committed.",
+      suggestion: null,
+      confidence: 0.98,
+      kind: "finding",
+      trifecta_components: null,
+      evidence: null,
+      review_id: "rv1",
+      accepted_at: null,
+      dismissed_at: null,
+    },
+  ],
+};
+
+describe("RunHistory — per-run severity chips + hover preview", () => {
+  it("a run matched to a review shows severity chips instead of the findings text", () => {
+    renderRuns([run({ status: "done", findings_count: 2, blockers: 1, score: 38 })], [REVIEW]);
+    expect(screen.queryByText(/2 finding/)).not.toBeInTheDocument();
+    expect(screen.getByText(/1 blockers/)).toBeInTheDocument();
+  });
+
+  it("hovering the chips shows this run's findings preview, sorted by severity", () => {
+    renderRuns([run({ status: "done", findings_count: 2, blockers: 1, score: 38 })], [REVIEW]);
+    fireEvent.mouseEnter(screen.getByText(/1 blockers/).parentElement!);
+    expect(screen.getByText("2 findings in this run")).toBeInTheDocument();
+    const titles = screen
+      .getAllByText(/Stripe secret key|N\+1 query/)
+      .map((el) => el.textContent);
+    expect(titles[0]).toContain("Stripe"); // CRITICAL first
+    expect(screen.getByText("src/config.ts:12")).toBeInTheDocument();
+  });
+
+  it("a run without a matching review keeps the findings text line", () => {
+    renderRuns([run({ status: "done", findings_count: 3, blockers: 0, score: 72 })]);
+    expect(screen.getByText(/3 finding/)).toBeInTheDocument();
   });
 });
 

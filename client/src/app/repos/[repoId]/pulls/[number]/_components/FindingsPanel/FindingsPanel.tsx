@@ -3,12 +3,13 @@
 "use client";
 
 import React from "react";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Toggle, EmptyState, SeverityBadge, type Severity } from "@devdigest/ui";
 import type { FindingRecord } from "@devdigest/shared";
 import { FindingCard } from "../FindingCard";
 import { useFindingAction } from "../../../../../../../lib/hooks/reviews";
-import { KEY_TO_ACTION } from "./constants";
+import { KEY_TO_ACTION, SEVERITY_ORDER } from "./constants";
 import { severityCounts, visibleFindings } from "./helpers";
 import { s } from "./styles";
 
@@ -25,8 +26,13 @@ export function FindingsPanel({
 }) {
   const t = useTranslations("prReview");
   const action = useFindingAction();
+  // Deep link: /pulls/N?tab=findings&severity=CRITICAL pre-applies the filter
+  // (the PR list's findings chips navigate here). Unknown values are ignored.
+  const urlSeverity = useSearchParams().get("severity");
   const [hideLow, setHideLow] = React.useState(false);
-  const [severityFilter, setSeverityFilter] = React.useState<string | null>(null);
+  const [severityFilter, setSeverityFilter] = React.useState<string | null>(
+    urlSeverity && urlSeverity in SEVERITY_ORDER ? urlSeverity : null,
+  );
   const [focusIdx, setFocusIdx] = React.useState(0);
 
   const counts = React.useMemo(() => severityCounts(findings), [findings]);

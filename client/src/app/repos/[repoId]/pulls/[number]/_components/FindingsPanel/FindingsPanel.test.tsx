@@ -8,9 +8,17 @@ vi.mock("../../../../../../../lib/hooks/reviews", () => ({
   useFindingAction: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
+let searchParams = new URLSearchParams();
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => searchParams,
+}));
+
 import { FindingsPanel } from "./FindingsPanel";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  searchParams = new URLSearchParams();
+});
 
 const FINDINGS: FindingRecord[] = [
   {
@@ -96,5 +104,20 @@ describe("FindingsPanel severity counters", () => {
     const group = screen.getByRole("group", { name: "Findings by severity" });
     const buttons = Array.from(group.querySelectorAll("button"));
     expect(buttons.map((b) => b.textContent)).toEqual(["Critical2", "Warning1", "Suggestion1"]);
+  });
+
+  it("pre-applies the filter from the ?severity= URL param", () => {
+    searchParams = new URLSearchParams("tab=findings&severity=WARNING");
+    renderWithIntl(<FindingsPanel findings={MANY} prId="pr1" />);
+    expect(screen.getByText("A warning")).toBeInTheDocument();
+    expect(screen.queryByText("Hardcoded secret")).not.toBeInTheDocument();
+    expect(screen.getByTitle("Show all severities")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("ignores an unknown ?severity= value", () => {
+    searchParams = new URLSearchParams("severity=BOGUS");
+    renderWithIntl(<FindingsPanel findings={MANY} prId="pr1" />);
+    expect(screen.getByText("Hardcoded secret")).toBeInTheDocument();
+    expect(screen.getByText("A warning")).toBeInTheDocument();
   });
 });

@@ -10,6 +10,8 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 ## What Doesn't Work
 
+- **2026-08-01** — The "all-longhand" border trick in FindingCard does not fully silence React's style warning: `borderColor` is itself a shorthand for the four `border-*-color` longhands, so a rerender that changes `borderColor` while `borderLeftColor` is set still logs "Updating a style property during rerender (borderColor) when a conflicting property is set (borderLeftColor)" — any test that re-renders FindingCard (focus moves, list filters) emits this stderr noise despite the comment claiming otherwise. Evidence: `client/src/app/repos/[repoId]/pulls/[number]/_components/FindingCard/styles.ts:7-13`.
+
 ## Codebase Patterns
 
 ## Tool & Library Notes
@@ -18,8 +20,12 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 - **2026-07-29** — Vitest only collects `src/**/*.test.{ts,tsx}`, so a test file placed outside `src/` is silently never run rather than reported as missing. Evidence: `client/vitest.config.ts:18`.
 
+- **2026-08-01** — `SeverityBadge` renders its label as `Critical`/`Warning`/`Suggestion` and only uppercases via CSS `textTransform`, so RTL assertions on `textContent` (e.g. `getByText("CRITICAL")`) fail even though the UI shows "CRITICAL". Evidence: `client/src/vendor/ui/primitives/tokens.ts:10-13`, `client/src/vendor/ui/primitives/Badge.tsx:76`.
+
 ## Recurring Errors & Fixes
 
 ## Session Notes
+
+- **2026-08-01** — Added severity counter chips + click-to-filter to `FindingsPanel` (feat/severity-findings-counters); counts derive from already-fetched findings, no new API/LLM calls. Verified with vitest and agent-browser against the live app.
 
 ## Open Questions

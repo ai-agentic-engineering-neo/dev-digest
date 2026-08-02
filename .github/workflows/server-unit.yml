@@ -1,11 +1,11 @@
 # Server unit suite — Fastify API (@devdigest/api), hermetic tests only.
 #
 # Two jobs:
-#  - typecheck: type-check on Linux only — the platform CI and the exported
-#    agent-runner both run on. We deliberately do NOT matrix over Windows/macOS:
-#    macOS is covered by daily local dev, Windows is not a ship target, and
-#    `@ast-grep/napi` is exact-pinned so its native binary only changes on a
-#    deliberate version bump.
+#  - typecheck: type-check + architecture boundaries, on Linux only — the
+#    platform CI and the exported agent-runner both run on. We deliberately do
+#    NOT matrix over Windows/macOS: macOS is covered by daily local dev, Windows
+#    is not a ship target, and `@ast-grep/napi` is exact-pinned so its native
+#    binary only changes on a deliberate version bump.
 #  - unit: the ~19 DB-free test files (everything that is NOT `*.it.test.ts`).
 #    LLM/git/embeddings are mocked via src/adapters/mocks.ts — no Docker.
 #
@@ -64,6 +64,19 @@ jobs:
         run: npm ci
 
       - run: pnpm typecheck
+
+      # Onion Architecture boundaries (.claude/skills/onion-architecture/).
+      # Runs here rather than as its own job: it needs the same reviewer-core
+      # deps installed above, since server's tsconfig aliases
+      # @devdigest/reviewer-core → ../reviewer-core/src and depcruise resolves
+      # through that alias.
+      #
+      # `pnpm arch` = `depcruise src --ignore-known`: the 20 pre-existing
+      # violations are baselined in .dependency-cruiser-known-violations.json,
+      # so this fails only on a NEW one. Fix a violation → regenerate the
+      # baseline with `pnpm arch:baseline`; the file only ever shrinks.
+      - name: Architecture boundaries
+        run: pnpm arch
 
   unit:
     name: tests

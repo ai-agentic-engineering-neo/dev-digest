@@ -1,4 +1,4 @@
-import type { Container } from '../../platform/container.js';
+import type { LLMProvider, Provider as ProviderId } from '@devdigest/shared';
 import type {
   Agent,
   AgentSkillLink,
@@ -48,12 +48,12 @@ export interface UpdateAgentInput {
   enabled?: boolean;
 }
 
-export class AgentsService {
-  private repo: AgentsRepository;
+/** Resolves an LLM provider by id. Injected so the service never reaches into
+ *  the composition root; the container supplies its own `llm` method. */
+export type LlmResolver = (id: ProviderId) => Promise<LLMProvider>;
 
-  constructor(private container: Container) {
-    this.repo = new AgentsRepository(container.db);
-  }
+export class AgentsService {
+  constructor(private repo: AgentsRepository, private llm: LlmResolver) {}
 
   async list(workspaceId: string): Promise<Agent[]> {
     const rows = await this.repo.list(workspaceId);
@@ -177,7 +177,7 @@ export class AgentsService {
    */
   async listModels(provider: Provider): Promise<ModelInfo[]> {
     try {
-      const llm = await this.container.llm(provider);
+      const llm = await this.llm(provider);
       return await llm.listModels();
     } catch {
       return [];

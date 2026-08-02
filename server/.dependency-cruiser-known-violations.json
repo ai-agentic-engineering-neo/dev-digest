@@ -9,7 +9,7 @@
       "import"
     ],
     "rule": {
-      "severity": "warn",
+      "severity": "error",
       "name": "db-only-in-repositories"
     }
   },
@@ -23,7 +23,7 @@
       "import"
     ],
     "rule": {
-      "severity": "warn",
+      "severity": "error",
       "name": "db-only-in-repositories"
     }
   },
@@ -38,7 +38,7 @@
       "import"
     ],
     "rule": {
-      "severity": "warn",
+      "severity": "error",
       "name": "db-only-in-repositories"
     }
   },
@@ -52,7 +52,7 @@
       "import"
     ],
     "rule": {
-      "severity": "warn",
+      "severity": "error",
       "name": "db-only-in-repositories"
     }
   },
@@ -67,7 +67,7 @@
       "import"
     ],
     "rule": {
-      "severity": "warn",
+      "severity": "error",
       "name": "db-only-in-repositories"
     }
   },
@@ -81,7 +81,7 @@
       "import"
     ],
     "rule": {
-      "severity": "warn",
+      "severity": "error",
       "name": "db-only-in-repositories"
     }
   },
@@ -96,7 +96,7 @@
       "import"
     ],
     "rule": {
-      "severity": "warn",
+      "severity": "error",
       "name": "no-circular"
     },
     "cycle": [
@@ -128,7 +128,7 @@
       "import"
     ],
     "rule": {
-      "severity": "warn",
+      "severity": "error",
       "name": "no-circular"
     },
     "cycle": [
@@ -166,7 +166,7 @@
       "import"
     ],
     "rule": {
-      "severity": "warn",
+      "severity": "error",
       "name": "no-circular"
     },
     "cycle": [
@@ -212,7 +212,7 @@
       "import"
     ],
     "rule": {
-      "severity": "warn",
+      "severity": "error",
       "name": "no-circular"
     },
     "cycle": [
@@ -251,7 +251,7 @@
       "import"
     ],
     "rule": {
-      "severity": "warn",
+      "severity": "error",
       "name": "no-circular"
     },
     "cycle": [
@@ -274,21 +274,6 @@
   },
   {
     "type": "dependency",
-    "from": "src/modules/agents/service.ts",
-    "to": "src/platform/container.ts",
-    "unresolvedTo": "../../platform/container.js",
-    "dependencyTypes": [
-      "local",
-      "type-only",
-      "import"
-    ],
-    "rule": {
-      "severity": "warn",
-      "name": "no-container-in-services"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/modules/repo-intel/service.ts",
     "to": "src/platform/container.ts",
     "unresolvedTo": "../../platform/container.js",
@@ -298,37 +283,7 @@
       "import"
     ],
     "rule": {
-      "severity": "warn",
-      "name": "no-container-in-services"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/modules/repos/service.ts",
-    "to": "src/platform/container.ts",
-    "unresolvedTo": "../../platform/container.js",
-    "dependencyTypes": [
-      "local",
-      "type-only",
-      "import"
-    ],
-    "rule": {
-      "severity": "warn",
-      "name": "no-container-in-services"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/modules/reviews/service.ts",
-    "to": "src/platform/container.ts",
-    "unresolvedTo": "../../platform/container.js",
-    "dependencyTypes": [
-      "local",
-      "type-only",
-      "import"
-    ],
-    "rule": {
-      "severity": "warn",
+      "severity": "error",
       "name": "no-container-in-services"
     }
   },
@@ -342,7 +297,7 @@
       "import"
     ],
     "rule": {
-      "severity": "warn",
+      "severity": "error",
       "name": "no-cross-module"
     }
   },
@@ -356,7 +311,7 @@
       "import"
     ],
     "rule": {
-      "severity": "warn",
+      "severity": "error",
       "name": "routes-are-adapters"
     }
   },
@@ -370,7 +325,7 @@
       "import"
     ],
     "rule": {
-      "severity": "warn",
+      "severity": "error",
       "name": "routes-are-adapters"
     }
   },
@@ -384,7 +339,7 @@
       "import"
     ],
     "rule": {
-      "severity": "warn",
+      "severity": "error",
       "name": "routes-are-adapters"
     }
   },
@@ -398,7 +353,7 @@
       "import"
     ],
     "rule": {
-      "severity": "warn",
+      "severity": "error",
       "name": "routes-are-adapters"
     }
   }

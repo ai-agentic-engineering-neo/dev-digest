@@ -17,5 +17,15 @@
     "title": "No repo selected",
     "body": "This repository isn't in your workspace — it may have been removed, or the link is stale. Add a repo or pick another from the switcher to get started.",
     "cta": "Add repository"
+  },
+  "routeError": {
+    "title": "This page hit an error",
+    "body": "Something went wrong while rendering. Retrying re-runs the failed part without a full reload.",
+    "retry": "Try again"
+  },
+  "notFound": {
+    "title": "Page not found",
+    "body": "That URL doesn't match anything in DevDigest. It may have been removed, or the link is stale.",
+    "cta": "Back to dashboard"
   }
 }

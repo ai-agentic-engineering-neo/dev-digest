@@ -1,4 +1,15 @@
-import type { Container } from '../../platform/container.js';
+import type { RunBus } from '../../platform/sse.js';
+
+/**
+ * What review orchestration needs from the agents side — declared HERE, by the
+ * consumer, not imported from the agents module. AgentsRepository satisfies it
+ * structurally, so the container can still pass the real one while this module
+ * stays independent of agents' internals.
+ */
+export interface AgentLookup {
+  listEnabled(workspaceId: string): Promise<AgentRow[]>;
+  getById(workspaceId: string, id: string): Promise<AgentRow | null | undefined>;
+}
 import type { FindingActionKind, RunEventKind, RunTrace } from '@devdigest/shared';
 import { AppError, NotFoundError } from '../../platform/errors.js';
 import type { AgentRow } from '../../db/rows.js';
@@ -26,15 +37,12 @@ export type { ReviewDto, ReviewDtoFinding } from './helpers.js';
  * run-executor; this class keeps the public method surface.
  */
 export class ReviewService {
-  private repo: ReviewRepository;
-  private agents: Container['agentsRepo'];
-  private executor: ReviewRunExecutor;
-
-  constructor(private container: Container) {
-    this.repo = new ReviewRepository(container.db);
-    this.agents = container.agentsRepo;
-    this.executor = new ReviewRunExecutor(container, this.repo, this.agents);
-  }
+  constructor(
+    private repo: ReviewRepository,
+    private agents: AgentLookup,
+    private executor: ReviewRunExecutor,
+    private runBus: RunBus,
+  ) {}
 
   // ===========================================================================
   // Run a review for one or all enabled agents on a PR.
@@ -84,9 +92,9 @@ export class ReviewService {
    */
   async cancelRun(runId: string): Promise<void> {
     this.publish(runId, 'info', 'Cancellation requested — stopping…');
-    this.container.runBus.cancel(runId);
+    this.runBus.cancel(runId);
     await this.repo.cancelRunIfRunning(runId);
-    this.container.runBus.complete(runId);
+    this.runBus.complete(runId);
   }
 
   /** Reap runs left 'running' by a previous (now-dead) process. Called on boot. */
@@ -138,7 +146,7 @@ export class ReviewService {
   }
 
   private publish(runId: string, kind: RunEventKind, msg: string, data?: unknown) {
-    return this.container.runBus.publish(runId, kind, msg, data);
+    return this.runBus.publish(runId, kind, msg, data);
   }
 
   // ===========================================================================

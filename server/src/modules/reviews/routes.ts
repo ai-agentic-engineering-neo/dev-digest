@@ -6,6 +6,8 @@ import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { NotFoundError } from '../../platform/errors.js';
 import { ReviewService } from './service.js';
+import { ReviewRunExecutor } from './run-executor.js';
+
 
 /**
  * reviews module.
@@ -19,7 +21,15 @@ const FINDING_ACTIONS = ['accept', 'dismiss'] as const;
 export default async function reviewsRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
   const { container } = app;
-  const service = new ReviewService(container);
+  // Composition point: the route ring is the only ring allowed to know concrete
+  // classes. ReviewService itself declares its collaborators and never imports
+  // the container, so reviews/service.ts stays free of infrastructure.
+  const service = new ReviewService(
+    container.reviewRepo,
+    container.agentsRepo,
+    new ReviewRunExecutor(container, container.reviewRepo, container.agentsRepo),
+    container.runBus,
+  );
 
   // ---- Run a review (manual trigger) -------------------------------
   // Tight per-route limit: each call can fan out to expensive LLM runs.

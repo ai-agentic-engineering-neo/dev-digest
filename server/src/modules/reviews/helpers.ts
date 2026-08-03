@@ -27,6 +27,7 @@ export interface ReviewDto {
   score: number | null;
   model: string | null;
   grounding?: string | null;
+  cost_usd: number | null;
   created_at: string;
   findings: ReviewDtoFinding[];
 }
@@ -68,6 +69,7 @@ export function reviewToDto(
     summary: review.summary,
     score: review.score,
     model: review.model,
+    cost_usd: review.costUsd,
     created_at: review.createdAt.toISOString(),
     findings: findings.map(findingRowToDto),
   };

@@ -19,6 +19,8 @@ export async function insertReview(
     verdict: string | null;
     summary: string | null;
     score: number | null;
+    /** USD cost of the run that produced this review; null when unknown. */
+    costUsd: number | null;
     model: string | null;
   },
 ): Promise<ReviewRow> {

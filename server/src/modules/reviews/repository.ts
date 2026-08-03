@@ -50,6 +50,8 @@ export class ReviewRepository {
     verdict: string | null;
     summary: string | null;
     score: number | null;
+    /** USD cost of the run that produced this review; null when unknown. */
+    costUsd: number | null;
     model: string | null;
   }): Promise<ReviewRow> {
     return reviewRepo.insertReview(this.db, values);
@@ -155,6 +157,8 @@ export class ReviewRepository {
       durationMs: number;
       tokensIn: number;
       tokensOut: number;
+      /** USD cost of this run; null when unknown (unpriced model or the run never completed an LLM call). */
+      costUsd: number | null;
       findingsCount: number;
       grounding: string;
       /** Review score (0-100); null on failed/cancelled runs. */

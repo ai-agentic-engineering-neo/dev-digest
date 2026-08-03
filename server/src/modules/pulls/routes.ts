@@ -129,6 +129,23 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
+    // Total cost across ALL agent runs ever executed for each PR. Computed on
+    // read from agent_runs (no FK denorm), same "list is small" IN-query + JS
+    // grouping idiom as the score map above. A PR's total is absent from the
+    // map (→ null) only when NONE of its runs have a known cost (never run,
+    // or every run used an unpriced model / never completed an LLM call).
+    const costByPr = new Map<string, number>();
+    if (prIds.length > 0) {
+      const costRows = await container.db
+        .select({ prId: t.agentRuns.prId, costUsd: t.agentRuns.costUsd })
+        .from(t.agentRuns)
+        .where(inArray(t.agentRuns.prId, prIds));
+      for (const run of costRows) {
+        if (!run.prId || run.costUsd == null) continue;
+        costByPr.set(run.prId, (costByPr.get(run.prId) ?? 0) + run.costUsd);
+      }
+    }
+
     const now = Date.now();
     return rows.map((r) => {
       const review = latestReviewByPr.get(r.id);
@@ -153,6 +170,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
+        cost_usd: costByPr.get(r.id) ?? null,
       };
     });
   });

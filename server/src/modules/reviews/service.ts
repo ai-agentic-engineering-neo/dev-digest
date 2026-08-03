@@ -97,11 +97,6 @@ export class ReviewService {
     this.runBus.complete(runId);
   }
 
-  /** Reap runs left 'running' by a previous (now-dead) process. Called on boot. */
-  async reapStaleRuns(): Promise<number> {
-    return this.repo.reapStaleRunningRuns();
-  }
-
   /**
    * Run a review for each target agent. Each agent gets its own runId
    * (= agent_runs.id) created up-front so the SSE route can be subscribed

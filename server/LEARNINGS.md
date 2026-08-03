@@ -99,6 +99,30 @@ they're not identical: server has `sessionId`, the `openrouter` provider id,
 script — editing a shared contract in one copy does not propagate to the
 other; the other package keeps stale types and still type-checks clean.
 
+### 2026-08-03 — a new module needing another module's repo/service must use the `AgentLookup`-style local port, not a direct import — `pnpm arch` catches it, but only per-file
+
+`no-cross-module` in `.dependency-cruiser.cjs` fires on ANY file inside a
+module folder — `service.ts` and `routes.ts` alike, not just services — so
+composing a new module (`conventions/{service,routes}.ts`) by importing
+another module's repository or service class directly fails CI immediately
+(6 errors from one new module in `add page conversations`, 2026-08-03). The
+established fix, already used by `reviews/service.ts`'s `AgentLookup`
+(`modules/reviews/service.ts:1-12`): declare a narrow interface locally in the
+consuming service describing only the methods it calls, and let the real
+class satisfy it structurally — never import the other module's type. Wire
+the concrete instance only at the composition point (`routes.ts`), and if the
+dependency is cross-cutting (a repository, or a same-shaped instantiation
+every module would otherwise repeat), promote it to a `platform/container.ts`
+getter (`container.repoRepo`, `container.skillsService`) instead of
+`new XRepository(app.container.db)` inline in the route — mirrors the existing
+`agentsRepo`/`skillsRepo`/`reviewRepo` getters. `service.ts` files additionally
+may not import `Container` at all (`no-container-in-services`), including
+type-only — so a container-dependent helper (e.g. `resolveFeatureModel`) needs
+its signature narrowed to the one thing it actually reads (here: `Db`, not the
+whole `Container`) before it can be called from a `service.ts` at all, and
+before `container.ts` can wrap it as a method without creating an import cycle
+(`container.ts → feature-models.ts → container.ts`).
+
 ## Tool & Library Notes
 
 ## Recurring Errors & Fixes
@@ -227,6 +251,22 @@ nothing ever wrote it. Threading one optional field through
 change; no schema migration needed, since the column had shipped speculatively
 in spec 02's migration. When a column's comment names a future feature,
 that's usually the whole integration contract, not just documentation.
+
+### 2026-08-03 — `.dependency-cruiser-known-violations.json` baselines exact from→to edges, not files — narrowing a param type can silently add a new violation next to an already-ignored one
+
+Changing `getFeatureModelOverride`/`resolveFeatureModel`
+(`modules/settings/feature-models.ts`) to take `Db` instead of `Container` (to
+break an import cycle — see the port-injection entry above) turned a
+type-only `Container` import into a value import of `db/client.ts`. The file
+already had a *grandfathered* `db-only-in-repositories` violation for
+`db/schema.ts` on the same file, but the baseline matches on the literal
+`to` path, so the new `db/client.ts` edge was NOT covered and failed `pnpm arch`
+even though it's the same pre-existing class of debt (settings module reads
+`t.settings` directly, bypassing a repository). Fix was `pnpm arch:baseline`
+(regenerates the whole file) — diff it afterward (`git diff
+.dependency-cruiser-known-violations.json`) to confirm it added only the one
+expected edge and didn't silently swallow an unrelated new violation elsewhere
+in the tree.
 
 ## Session Notes
 

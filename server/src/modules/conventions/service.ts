@@ -1,15 +1,65 @@
-import type { ConventionsList, Skill } from '@devdigest/shared';
-import type { Container } from '../../platform/container.js';
+import type {
+  ConventionsList,
+  FeatureModelChoice,
+  LLMProvider,
+  Provider as ProviderId,
+  Skill,
+} from '@devdigest/shared';
 import { NotFoundError, ValidationError } from '../../platform/errors.js';
-import type { RepoRepository } from '../repos/repository.js';
-import type { SkillsService } from '../skills/service.js';
-import { resolveFeatureModel } from '../settings/feature-models.js';
 import type { ConventionsRepository } from './repository.js';
-import { getConventionsSampleSet, readClone, type ConventionsSampleSet } from './samples.js';
+import { readClone, type ConventionsSampleSet } from './samples.js';
 import { buildConventionsPrompt } from './prompts.js';
 import { ConventionExtractionOutput, type ConventionExtractionCandidate } from './schemas.js';
 import { findSnippetLines } from './evidence.js';
 import { evidenceFilesFor, renderConventionsSkillBody, toConventionDto, toScanDto } from './helpers.js';
+
+/** A repo, as far as extraction needs it — declared HERE, not imported from
+ *  the repos module. `RepoRepository` satisfies it structurally, so the
+ *  container can pass the real one while this module stays independent of
+ *  repos' internals. */
+export interface RepoLookup {
+  getById(
+    workspaceId: string,
+    id: string,
+  ): Promise<{ id: string; owner: string; name: string; clonePath: string | null } | undefined>;
+}
+
+/** What merging accepted candidates into a skill needs — declared HERE, not
+ *  imported from the skills module. `SkillsService` satisfies it structurally. */
+export interface SkillCreator {
+  create(
+    workspaceId: string,
+    input: {
+      name: string;
+      description: string;
+      type: 'convention';
+      source: 'extracted';
+      body: string;
+      enabled?: boolean;
+      evidenceFiles?: string[];
+    },
+  ): Promise<Skill>;
+}
+
+/** Code-only sample selection for one repo (config files + ranked source
+ *  files) — the container closes over its own `repoIntel`/`git` to build one
+ *  of these, so this module never needs to see `Container`. */
+export type SampleProvider = (repo: {
+  id: string;
+  owner: string;
+  name: string;
+  clonePath: string | null;
+}) => Promise<ConventionsSampleSet>;
+
+/** The workspace's chosen provider+model for the `conventions` feature. */
+export type FeatureModelResolver = (
+  workspaceId: string,
+  id: 'conventions',
+) => Promise<FeatureModelChoice>;
+
+/** Resolve an LLM provider by id — the container supplies its own cached,
+ *  secret-backed resolver at the composition root. */
+export type LlmResolver = (id: ProviderId) => Promise<LLMProvider>;
 
 /**
  * Conventions Extractor application service.
@@ -47,18 +97,20 @@ interface VerifiedCandidate {
 export class ConventionsService {
   constructor(
     private repo: ConventionsRepository,
-    private repos: RepoRepository,
-    private container: Container,
-    private skills: SkillsService,
+    private repos: RepoLookup,
+    private skills: SkillCreator,
+    private sampleRepo: SampleProvider,
+    private resolveModel: FeatureModelResolver,
+    private llm: LlmResolver,
   ) {}
 
   async extract(workspaceId: string, repoId: string): Promise<ConventionsList> {
     const repoRow = await this.repos.getById(workspaceId, repoId);
     if (!repoRow) throw new NotFoundError('Repo not found');
 
-    const sample = await getConventionsSampleSet(this.container, repoRow);
-    const { provider, model } = await resolveFeatureModel(this.container, workspaceId, 'conventions');
-    const llm = await this.container.llm(provider);
+    const sample = await this.sampleRepo(repoRow);
+    const { provider, model } = await this.resolveModel(workspaceId, 'conventions');
+    const llm = await this.llm(provider);
     const { data } = await llm.completeStructured({
       model,
       schema: ConventionExtractionOutput,

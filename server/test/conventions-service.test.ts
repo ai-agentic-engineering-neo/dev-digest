@@ -3,6 +3,7 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ConventionsService } from '../src/modules/conventions/service.js';
+import { getConventionsSampleSet } from '../src/modules/conventions/samples.js';
 import type {
   ConventionRow,
   ConventionScanRow,
@@ -11,9 +12,6 @@ import type {
 } from '../src/modules/conventions/repository.js';
 import { ValidationError } from '../src/platform/errors.js';
 import { MockLLMProvider } from '../src/adapters/mocks.js';
-import type { Container } from '../src/platform/container.js';
-import type { RepoRepository } from '../src/modules/repos/repository.js';
-import type { SkillsService } from '../src/modules/skills/service.js';
 
 /**
  * Hermetic service test (no DB, no network) — an in-memory fake repository
@@ -85,15 +83,6 @@ class FakeConventionsRepository {
   }
 }
 
-/** `resolveFeatureModel` reads `settings` via `container.db` — an empty
- *  result set means "no workspace override", falling back to the registry
- *  default deterministically. */
-function fakeDb() {
-  return {
-    select: () => ({ from: () => ({ where: async () => [] }) }),
-  } as unknown as Container['db'];
-}
-
 async function withClone(files: Record<string, string>): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'devdigest-conv-svc-'));
   for (const [path, content] of Object.entries(files)) {
@@ -138,20 +127,26 @@ describe('ConventionsService.extract', () => {
         },
       });
 
-      const container = {
-        db: fakeDb(),
+      // Fakes only `getConventionsSampleSet`'s own dependencies (repoIntel, git)
+      // — same code path as production, minus the container.
+      const fakeContainer = {
         repoIntel: { getConventionSamples: async () => ['src/foo.ts'] },
         git: { currentHead: async () => 'sha-abc' },
-        llm: async () => llm,
-      } as unknown as Container;
+      } as unknown as Parameters<typeof getConventionsSampleSet>[0];
 
       const repos = {
         getById: async () => ({ id: 'repo-1', owner: 'acme', name: 'demo', clonePath }),
-      } as unknown as RepoRepository;
+      };
 
       const repo = new FakeConventionsRepository();
-      const skills = {} as unknown as SkillsService;
-      const service = new ConventionsService(repo as never, repos, container, skills);
+      const service = new ConventionsService(
+        repo as never,
+        repos,
+        {} as never, // skills — unused by extract()
+        (r) => getConventionsSampleSet(fakeContainer, r),
+        async () => ({ provider: 'openai', model: 'gpt-x' }),
+        async () => llm,
+      );
 
       const result = await service.extract('ws-1', 'repo-1');
 
@@ -179,12 +174,14 @@ describe('ConventionsService.createSkillFromConventions', () => {
         created.push(input);
         return { id: 'skill-1', ...(input as object) };
       },
-    } as unknown as SkillsService;
+    };
     const service = new ConventionsService(
       repo as never,
-      {} as unknown as RepoRepository,
-      {} as unknown as Container,
+      {} as never,
       skills,
+      {} as never,
+      {} as never,
+      {} as never,
     );
     return { service, created };
   }

@@ -6,6 +6,8 @@ import type {
   CodeIndex,
   Embedder,
   LLMProvider,
+  FeatureModelId,
+  FeatureModelChoice,
 } from '@devdigest/shared';
 import type { AppConfig } from './config.js';
 import type { Db } from '../db/client.js';
@@ -25,9 +27,12 @@ import { PriceBook } from './price-book.js';
 import { ConfigError } from './errors.js';
 import { AgentsRepository } from '../modules/agents/repository.js';
 import { SkillsRepository } from '../modules/skills/repository.js';
+import { SkillsService } from '../modules/skills/service.js';
 import { ReviewRepository } from '../modules/reviews/repository.js';
+import { RepoRepository } from '../modules/repos/repository.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
+import { resolveFeatureModel as resolveFeatureModelForWorkspace } from '../modules/settings/feature-models.js';
 import { type DepGraph, DepCruiseGraph } from '../adapters/depgraph/index.js';
 import { type Tokenizer, TiktokenTokenizer } from '../adapters/tokenizer/index.js';
 
@@ -73,7 +78,9 @@ export class Container {
   // `container.agentsRepo` instead of reaching into another module's folder.
   private _agentsRepo?: AgentsRepository;
   private _skillsRepo?: SkillsRepository;
+  private _skillsService?: SkillsService;
   private _reviewRepo?: ReviewRepository;
+  private _repoRepo?: RepoRepository;
   private _repoIntel?: RepoIntel;
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
@@ -104,8 +111,26 @@ export class Container {
     return (this._skillsRepo ??= new SkillsRepository(this.db));
   }
 
+  /** Application service over `skillsRepo` — shared so a consuming module
+   *  (e.g. conventions, merging accepted candidates into a skill) never has to
+   *  import `modules/skills/service.ts` directly. */
+  get skillsService(): SkillsService {
+    return (this._skillsService ??= new SkillsService(this.skillsRepo, this.tokenizer));
+  }
+
   get reviewRepo(): ReviewRepository {
     return (this._reviewRepo ??= new ReviewRepository(this.db));
+  }
+
+  get repoRepo(): RepoRepository {
+    return (this._repoRepo ??= new RepoRepository(this.db));
+  }
+
+  /** Per-feature model choice (workspace override, else registry default) —
+   *  shared so callers outside `modules/settings` never import
+   *  `feature-models.ts` directly. */
+  resolveFeatureModel(workspaceId: string, id: FeatureModelId): Promise<FeatureModelChoice> {
+    return resolveFeatureModelForWorkspace(this.db, workspaceId, id);
   }
 
   get codeIndex(): CodeIndex {

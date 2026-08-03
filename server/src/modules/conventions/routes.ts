@@ -5,10 +5,9 @@ import { CreateSkillFromConventionsRequest } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { NotFoundError } from '../../platform/errors.js';
-import { RepoRepository } from '../repos/repository.js';
-import { SkillsService } from '../skills/service.js';
 import { ConventionsRepository } from './repository.js';
 import { ConventionsService } from './service.js';
+import { getConventionsSampleSet } from './samples.js';
 
 /**
  * Conventions module — scan a repo, propose candidate coding rules with real
@@ -29,10 +28,16 @@ const SetStatusBody = z.object({ status: z.enum(['accepted', 'rejected']) });
 
 export default async function conventionsRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
-  const conventionsRepo = new ConventionsRepository(app.container.db);
-  const repoRepo = new RepoRepository(app.container.db);
-  const skillsService = new SkillsService(app.container.skillsRepo, app.container.tokenizer);
-  const service = new ConventionsService(conventionsRepo, repoRepo, app.container, skillsService);
+  const { container } = app;
+  const conventionsRepo = new ConventionsRepository(container.db);
+  const service = new ConventionsService(
+    conventionsRepo,
+    container.repoRepo,
+    container.skillsService,
+    (repo) => getConventionsSampleSet(container, repo),
+    (workspaceId, id) => container.resolveFeatureModel(workspaceId, id),
+    (id) => container.llm(id),
+  );
 
   app.post(
     '/repos/:id/conventions/extract',

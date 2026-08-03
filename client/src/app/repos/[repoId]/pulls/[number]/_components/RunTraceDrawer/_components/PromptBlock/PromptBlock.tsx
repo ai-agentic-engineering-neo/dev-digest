@@ -6,6 +6,7 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Button, Icon, Modal } from "@devdigest/ui";
 import { s } from "../../styles";
+import { estimateTokens } from "../../helpers";
 import { PromptModalBody } from "../PromptModalBody";
 
 const miniBtnStyle: React.CSSProperties = {
@@ -35,6 +36,11 @@ export function PromptBlock({ label, text, color }: { label: string; text: strin
       <div onClick={() => setOpen((o) => !o)} style={s.promptHead}>
         <span style={s.promptDot(color)} />
         <span style={s.promptLabel}>{label}</span>
+        {/* Estimate only (chars/4) — the tilde is deliberate, unlike the skill
+            editor's real tokenizer count. Never drop it; see helpers.ts. */}
+        <span className="tnum" style={{ fontSize: 11, color: "var(--text-muted)" }}>
+          {t("trace.prompt.tokens", { count: estimateTokens(text) })}
+        </span>
         <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
           <button
             type="button"

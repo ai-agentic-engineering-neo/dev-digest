@@ -8,6 +8,9 @@ import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './reposit
 import { REVIEW_STRATEGY } from './constants.js';
 import { taskLine } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
+// THE one skill renderer, shared with `GET /skills/:id/preview`. Never
+// re-implement this formatting here — a second copy makes the Preview tab lie.
+import { renderSkillBlock } from '../skills/helpers.js';
 
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
 export class RunCancelledError extends Error {
@@ -184,6 +187,24 @@ export class ReviewRunExecutor {
 
       const task = taskLine(pull) + rankNote;
 
+      // L02 — skills into the prompt. Resolve the agent's enabled skills, in
+      // link order, into prompt blocks. BOTH gates must pass: the skill is
+      // active in the workspace (vetted) AND enabled on this agent.
+      const linkedSkills = await runLog.step(
+        'Loading skills',
+        () => this.agents.enabledSkills(agent.id),
+        { kind: 'tool' },
+      );
+      // ONE renderer, shared with GET /skills/:id/preview — if this ever
+      // formats differently from `renderSkillBlock`, the Preview tab is lying
+      // about what the model actually receives.
+      const skillBlocks = linkedSkills.map(renderSkillBlock);
+      if (linkedSkills.length > 0) {
+        runLog.info(
+          `Loaded ${linkedSkills.length} skill(s): ${linkedSkills.map((s) => s.name).join(', ')}`,
+        );
+      }
+
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
       // the CI runner). The service owns only I/O: repo-intel context resolution
@@ -196,6 +217,10 @@ export class ReviewRunExecutor {
         // Per-agent review strategy (configured in the Agent editor); falls back
         // to the studio default. single-pass = whole diff in one call.
         strategy: agent.strategy ?? REVIEW_STRATEGY,
+        // L02 — linked skill BODIES (not slugs), in link order. Omit-when-empty:
+        // an agent with zero enabled skills produces a prompt byte-identical to
+        // the pre-skills baseline, with PromptAssembly.skills === null.
+        ...(skillBlocks.length > 0 ? { skills: skillBlocks } : {}),
         // T1.3 — pass the callers digest only when we built one. assemblePrompt
         // omits the section when this is empty/undefined.
         ...(callersDigest ? { callers: callersDigest } : {}),
@@ -212,6 +237,26 @@ export class ReviewRunExecutor {
         },
       });
       const { tokensIn, tokensOut, costUsd, grounding } = outcome;
+
+      // One row per injected skill — the Stats tab's only source of truth, and
+      // the reason it can say "this skill was pulled into 71% of runs" after the
+      // links have since been toggled. Tokenized with the SAME counter the skill
+      // editor uses (container.tokenizer), never an estimate, so the number in
+      // the editor and the number in Stats can't disagree.
+      // Best-effort, like the other observability writes: never fail a review
+      // that already produced findings because a metrics row didn't land.
+      if (linkedSkills.length > 0) {
+        await this.repo
+          .recordRunSkills(
+            runId,
+            linkedSkills.map((s, i) => ({
+              skillId: s.id,
+              order: i,
+              tokens: this.container.tokenizer.count(skillBlocks[i]!),
+            })),
+          )
+          .catch(() => undefined);
+      }
 
       const keptFindings = outcome.review.findings;
 

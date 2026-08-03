@@ -54,4 +54,15 @@ describe("A5 Run Trace drawer (smoke)", () => {
     // LiveLogStream renders its filter input
     expect(screen.getByPlaceholderText("Filter log…")).toBeInTheDocument();
   });
+
+  it("shows an estimated token count (with the tilde) on every prompt block, including skills", () => {
+    renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    fireEvent.click(screen.getByText("Prompt assembly"));
+
+    // system: "You are a reviewer." — 20 chars, ceil(20/4) = 5.
+    expect(screen.getByText("~5 tok")).toBeInTheDocument();
+    // skills: "### skill" — 9 chars, ceil(9/4) = 3. This is the block L02 wires
+    // into the prompt; before that wire it was always null and never rendered.
+    expect(screen.getByText("~3 tok")).toBeInTheDocument();
+  });
 });

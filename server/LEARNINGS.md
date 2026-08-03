@@ -80,6 +80,53 @@ where `score`, `opened_at` etc. are already `.nullish()`. Picking the wrong
 one is not caught by tests — it shows up as a spray of TS2741/TS2719 errors
 in unrelated files, or as a field that silently goes missing from responses.
 
+### 2026-08-03 — a `*/` inside a JSDoc comment's own text silently truncates the comment, and the cascade of errors points nowhere near the cause
+
+Writing `.claude/skills/*/SKILL.md` or `` `*/SKILL.md` `` inside a `/** ... */`
+block (describing a glob path) closes the comment at that literal `*/` —
+whatever the comment meant to say next becomes real code. `tsc` doesn't error
+at that line; it errors dozens of lines later, wherever the resulting
+stray-identifier soup finally produces something structurally invalid
+(`TS1127 Invalid character`, `TS1443 Module declaration names...`, `TS1161
+Unterminated regular expression`). The line numbers in the diagnostic are
+nowhere near the actual bug.
+
+Found in `modules/skills/helpers.ts` (written by an agent, describing
+`SKILL.md`-matching glob patterns in its own doc comments) — two separate
+occurrences, ~30 and ~90 lines before their respective error clusters started.
+The fix is always the same: grep the file for `\*/` and check whether every
+hit is an *intentional* comment terminator (`grep -n '\*/' file.ts`, read each
+one). When a comment must describe a path containing `*/`, rephrase around it
+("matches `SKILL.md` at any depth") rather than writing the literal glob.
+
+### 2026-08-03 — two independent enabled-gates, not one: don't let "disabled" collapse to a single flag
+
+Skills (L02) are gated twice: `skills.enabled` (workspace/vetting — is this
+skill trustworthy at all) and `agent_skills.enabled` (per-agent — does *this*
+reviewer use it). A skill reaches a prompt only when both are true, and they
+must stay genuinely independent columns, not one derived from the other:
+disabling a skill workspace-wide must silently drop it from every agent's
+prompt while every agent's own checkbox stays visibly checked (so re-enabling
+the skill instantly restores every agent that had it), and toggling the
+per-agent gate off must NOT delete the `agent_skills` row — deleting it loses
+`order`, and re-linking would append the skill to the end of the prompt instead
+of restoring its place. `AgentsRepository.setSkillEnabled` upserts in place for
+exactly this reason; `AgentsRepository.enabledSkills` ANDs both flags in one
+query rather than checking them in two places that could drift apart.
+
+### 2026-08-03 — findings attribution from `run_skills` is RUN-level, not skill-level, and the UI must say so
+
+`run_skills` records which skills were injected into *a run's* prompt, not
+which skill produced *which finding* — the model doesn't (yet) name a skill
+per finding. So a run that injected four skills has all of its findings
+counted toward all four skills' stats. This over-counts by design, and
+`SkillsRepository`'s `findingCounts`/`findingsByCategory` comments call it out
+explicitly so nobody "fixes" the over-count into a false precision the data
+doesn't support. The Stats tab's panel title reflects this too: "Findings in
+runs using this skill", never "caused by". If per-finding attribution is ever
+wanted, it needs the `Review` schema to carry a skill reference per finding —
+a real schema change, not a stats-query fix.
+
 ## Session Notes
 
 ## Open Questions

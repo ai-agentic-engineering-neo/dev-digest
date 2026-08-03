@@ -52,6 +52,7 @@
       "user": "User / diff (dynamic)",
       "copy": "Copy",
       "fullscreen": "Open fullscreen",
+      "tokens": "~{count} tok",
       "search": "Search in this block…",
       "noMatches": "No matches for “{q}”."
     },

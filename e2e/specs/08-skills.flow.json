@@ -9,6 +9,7 @@
     { "cmd": ["wait", "--text", "test-coverage-nudge"], "label": "seeded test-quality skill is in the rail" },
     { "cmd": ["wait", "--text", "phantom-api-gate"], "label": "the imported, not-yet-vetted skill is listed too" },
 
+    { "cmd": ["find", "placeholder", "Search skills…", "fill", "pr-quality-rubric"], "label": "filter the rail to the target skill (it sorts below the fold otherwise — agent-browser's click doesn't scroll a nested overflow container into view)" },
     { "cmd": ["find", "text", "pr-quality-rubric", "click"], "label": "select the skill in the rail" },
     { "cmd": ["wait", "--url", "/skills/"], "label": "editor route reached for the selected skill" },
     { "cmd": ["wait", "--load", "networkidle"], "label": "skill detail settles" },

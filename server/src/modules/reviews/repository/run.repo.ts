@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import type { Db } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
 import type { RunSummary, RunTrace } from '@devdigest/shared';
@@ -173,6 +173,33 @@ export async function completeAgentRun(
       error: values.error ?? null,
     })
     .where(eq(t.agentRuns.id, runId));
+}
+
+/**
+ * Record which skills were injected into ONE run's prompt, and what each cost.
+ *
+ * Written by the run executor at prompt-assembly time — this table is NOT
+ * derivable from `agent_skills`, because links get toggled and reordered after
+ * the fact and `run_skills` has to keep saying what was true when the run ran.
+ * It is the only source of truth behind the Skill Stats tab (pull frequency,
+ * tokens/run, run-level findings attribution).
+ *
+ * Idempotent on (run_id, skill_id) so a retried write can't blow up the run.
+ * No rows → nothing written (an agent with no enabled skills).
+ */
+export async function recordRunSkills(
+  db: Db,
+  runId: string,
+  rows: { skillId: string; order: number; tokens: number }[],
+): Promise<void> {
+  if (rows.length === 0) return;
+  await db
+    .insert(t.runSkills)
+    .values(rows.map((r) => ({ runId, skillId: r.skillId, order: r.order, tokens: r.tokens })))
+    .onConflictDoUpdate({
+      target: [t.runSkills.runId, t.runSkills.skillId],
+      set: { order: sql`excluded."order"`, tokens: sql`excluded."tokens"` },
+    });
 }
 
 /** Persist the WHOLE run log as ONE document. PK = runId → agent_runs. */

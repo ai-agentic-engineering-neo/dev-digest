@@ -4,9 +4,11 @@
     "crumbSkills": "Skills",
     "heading": "Skills",
     "addSkill": "Add Skill",
+    "add": "Add",
     "searchPlaceholder": "Search skills…",
     "loadError": "Could not load skills.",
     "menu": {
+      "create": "Create skill",
       "fromFile": "Import from file",
       "fromUrl": "Import from URL",
       "community": "Search community skills…"
@@ -45,11 +47,11 @@
     "nameHint": "Optional — derived from the first heading if blank.",
     "namePlaceholder": "pr-quality-rubric",
     "bodyLabel": "Skill body (Markdown)",
-    "bodyHint": "Pasted content is wrapped as untrusted data — never executed as instructions.",
+    "bodyHint": "This becomes part of the agent's prompt as instructions, at the same trust level as your system prompt. Read it before you enable it.",
     "bodyPlaceholder": "# Rule\nDescribe the rule…",
     "importing": "Importing…",
     "import": "Import skill",
-    "success": "Imported \"{name}\" (stored as untrusted data)."
+    "success": "Imported \"{name}\". Disabled until you read and enable it."
   },
   "url": {
     "label": "Skill URL",
@@ -74,6 +76,10 @@
   "listItem": {
     "needsVetting": "needs vetting",
     "vettingTitle": "Untrusted source — vet before enabling",
+    "noDescription": "No description",
+    "agents": "{count, plural, =1 {# agent} other {# agents}}",
+    "pull": "{pct}% pull",
+    "accept": "{pct}% accept",
     "type": {
       "rubric": "rubric",
       "convention": "convention",
@@ -87,6 +93,40 @@
       "imported_url": "Imported"
     }
   },
+  "editor": {
+    "version": "v{version}",
+    "runEvals": "Run on evals",
+    "runEvalsTooltip": "Skill evals arrive in L06 — the runner is not built yet.",
+    "tabs": {
+      "config": "Config",
+      "preview": "Preview",
+      "evals": "Evals",
+      "stats": "Stats",
+      "versions": "Versions"
+    }
+  },
+  "config": {
+    "title": "Configuration",
+    "enabled": "Enabled",
+    "name": "Name",
+    "nameHint": "A slug — lowercase letters, digits and dashes. It names the file and the prompt heading.",
+    "nameInvalid": "Use lowercase letters, digits and dashes, e.g. pr-quality-rubric.",
+    "nameTaken": "A skill named \"{name}\" already exists in this workspace.",
+    "description": "Description",
+    "descriptionHint": "This is the skill's interface — write it imperatively (\"Flag any test that asserts only the happy path\"), not descriptively (\"This skill is about test coverage\").",
+    "type": "Type",
+    "body": "Skill body (Markdown)",
+    "save": "Save skill",
+    "saving": "Saving…",
+    "saved": "Saved (v{version})",
+    "savedToast": "Saved skill (v{version})."
+  },
+  "markdown": {
+    "unsaved": "unsaved",
+    "tokens": "{count} tokens",
+    "tokensPending": "counting…",
+    "lineNumbers": "Line numbers"
+  },
   "preview": {
     "untrustedBadge": "untrusted source",
     "enabled": "Enabled",
@@ -96,6 +136,60 @@
     "untrustedNotice": "This skill came from an untrusted source. Its body is stored as data (delimiter-wrapped) and must be vetted before it is enabled for an agent.",
     "bodyLabel": "Skill body (Markdown)",
     "bodyHint": "Saving a changed body creates a new immutable version.",
-    "version": "v{version}"
+    "version": "v{version}",
+    "title": "PREVIEW",
+    "tokens": "{count} tokens",
+    "hint": "This is exactly the block the run executor injects into the agent's prompt.",
+    "loadError": "Could not load the preview."
+  },
+  "evals": {
+    "title": "Evals",
+    "emptyTitle": "Skill evals arrive in L06",
+    "emptyBody": "Eval cases already accept a skill owner in the schema; running them is a later lesson. Nothing here is wired yet."
+  },
+  "stats": {
+    "usedBy": "USED BY",
+    "pullFrequency": "PULL FREQUENCY",
+    "acceptRate": "ACCEPT RATE",
+    "findings30d": "FINDINGS (30D)",
+    "pullHint": "of runs by agents linked to this skill",
+    "acceptHint": "judged findings only — unjudged are excluded from both sides",
+    "avgTokens": "{count} tokens / run",
+    "agentsTitle": "AGENTS USING THIS SKILL",
+    "agentsEmpty": "No agent uses this skill yet.",
+    "open": "Open",
+    "findingsTitle": "Findings in runs using this skill",
+    "findingsHint": "Attribution is run-level: a run that injected four skills counts its findings toward all four. This is not \"findings caused by this skill\".",
+    "findingsEmpty": "No findings recorded in runs that used this skill.",
+    "loadError": "Could not load stats for this skill."
+  },
+  "versions": {
+    "title": "Versions",
+    "hint": "Append-only. Saving a changed body archives the previous one here; there is no restore.",
+    "row": "v{version}",
+    "current": "Current (v{version})",
+    "selected": "Version v{version}",
+    "delta": "{sign}{bytes} B",
+    "noDelta": "first version",
+    "empty": "No earlier versions yet. Saving a changed body archives the previous one here.",
+    "loadError": "Could not load version history.",
+    "selectPrompt": "Select a version on the left to compare it with the current body."
+  },
+  "import": {
+    "title": "Import a skill",
+    "subtitle": "Read a Markdown file or a .zip. Nothing is saved until you confirm.",
+    "fileLabel": "Skill file",
+    "fileHint": "A .md file, or a .zip containing a SKILL.md. Only that one file is read — scripts, hooks and binaries in the archive are never extracted or run.",
+    "reading": "Reading…",
+    "previewTitle": "Parsed preview",
+    "sourcePath": "Read from {path}",
+    "ignoredEntries": "{count, plural, =0 {No other entries in this upload} =1 {1 other entry was not read} other {# other entries were not read}}",
+    "candidates": "More than one SKILL.md was found; the first was used: {paths}",
+    "collides": "A skill named \"{name}\" already exists — rename it below before importing.",
+    "arrivesDisabled": "Imported skills arrive disabled with a \"needs vetting\" badge until you read the body and enable it.",
+    "confirm": "Import skill",
+    "cancel": "Cancel",
+    "importing": "Importing…",
+    "failed": "Could not read that file."
   }
 }

@@ -117,6 +117,101 @@ Fix: set `borderTopColor` / `borderRightColor` / `borderBottomColor`
 explicitly and leave `borderLeftColor` as the accent. `transition:
 border-color` still animates all four.
 
+### 2026-08-03 — `getByText(exactString)` throws "multiple elements" when a wrapper div has exactly one text-bearing child
+
+`<div><span>{name}</span></div>` with no other content in the div: both the
+`span` and its parent `div` have an *identical* normalized `textContent`, so
+`screen.getByText("the-name")` (default `exact: true`) matches both and
+throws, even though visually there's only one piece of text on the page. Hit
+this in `ImportSkillDrawer.test.tsx` waiting on a preview name rendered inside
+a header div that wrapped nothing else.
+
+Don't reach for `{ exact: false }` as the fix — that spreads the ambiguity
+instead of resolving it (now *more* ancestors match as a substring). Prefer
+asserting on something structurally unique instead: a button's enabled state,
+a `role` query, or (for prose/paragraph-shaped content where nesting is
+unpredictable) `render(...).container.textContent.toContain(...)` — note that
+route bypasses RTL's whitespace normalizer entirely, so a `<pre>` block's
+literal `\n` must appear in the expected string, not the space RTL's default
+normalizer would collapse it to.
+
+### 2026-08-03 — counting `../` to `messages/<locale>/*.json` from a test file: measure, don't guess
+
+Every `*.test.tsx` under `app/` imports its namespace's JSON directly
+(`import messages from "../../../.../messages/en/foo.json"`), and the segment
+count is easy to miscount by one once a component sits 6+ folders deep
+(`skills/_components/SkillsView/_components/SkillEditor/_components/
+MarkdownEditor/`). Getting it wrong fails with a Vite "Failed to resolve
+import" pointing at the right file with the wrong path — not a hint about
+which direction to adjust. Compute it instead of counting by eye:
+
+```sh
+node -e "console.log(require('path').relative(
+  require('path').resolve('src/app/.../TargetDir'),
+  require('path').resolve('messages/en/foo.json'),
+))"
+```
+
+### 2026-08-03 — importing a RUNTIME value (not just a type) from `@devdigest/shared`'s barrel can make Next's webpack dev/prod build fail with a misleading "Module not found" pointing at the barrel's OWN internal `export *` lines
+
+Two new files under `app/skills/**` — `ConfigTab.tsx` and `ImportSkillDrawer.tsx`
+— both did `import { SKILL_NAME_RE, type SkillType } from "@devdigest/shared"`,
+mixing a real runtime value (a `RegExp`) with a type in one specifier. `next
+build` (and `next dev`) failed with `Module not found: Can't resolve
+'./contracts/findings.js'` etc., blamed on `src/vendor/shared/index.ts`'s own
+`export *` lines — nothing about the failing line even mentions
+`SKILL_NAME_RE`. `pnpm typecheck` (tsc via vitest/tsc, not webpack) saw nothing
+wrong, so this only surfaces by actually booting `next dev` or running `next
+build` — **typecheck and the vitest suite are not enough evidence that a new
+route boots.**
+
+The tell: every OTHER file that imports from this barrel under `app/skills/**`
+uses `import type { ... }` only (erased entirely before bundling, never
+exercises the barrel's runtime resolution). The two broken files were the only
+ones pulling a real value through the 10-contract `export *` barrel — and
+worse, fixing the FIRST one just moved the identical error to the next file
+still doing that, confirming it's about "resolving the barrel for a runtime
+value from this route," not about either file individually.
+
+Fix: import the runtime value from its OWN contract module via the narrower
+alias, not the aggregating barrel — `import { SKILL_NAME_RE } from
+"@devdigest/shared/contracts/knowledge"` (the `"@devdigest/shared/*"` tsconfig
+path exists for exactly this). Bypassed the bug and is arguably more precise
+anyway. If a THIRD file needs to import a runtime value (not just a type) from
+this barrel, prefer the same narrow-module import over the barrel by default —
+don't wait to rediscover this by a broken build.
+
+**Process note:** after adding a new route with several new files, actually
+boot it (`pnpm dev` + `curl`, or `next build`) before calling the feature
+done — a passing `pnpm typecheck` + `pnpm test` was not sufficient evidence
+here.
+
+### 2026-08-03 — a new route needs FOUR wirings to be reachable, and the sidebar link is the one nothing errors on if you skip it
+
+Shipping `/skills` end to end (page, hooks, i18n) still left it invisible: the
+sidebar had no link to it. Three of the four things a new top-level route
+needs were already in place and made it *feel* done —
+
+1. the route itself (`app/skills/page.tsx`) — exists, 200s, fully functional
+2. active-key detection (`components/app-shell/helpers.ts`) — already had
+   `if (pathname.startsWith("/skills")) return "skills";`
+3. the i18n label (`messages/en/shell.json` → `nav.skills: "Skills"`)
+
+— but the FOURTH, the actual nav item, lives in a completely different file
+that none of those three touch: `src/vendor/ui/nav.ts`'s `NAV: NavGroup[]`
+array, a static hardcoded list `Sidebar.tsx` maps over. Skip it and nothing
+throws, no test fails, `pnpm typecheck` is clean — the page is just
+unreachable from the UI, silently. (2 and 3 without 4 is actually WORSE than
+having none of them: the active-key logic and the label sit there ready,
+creating the impression the nav is wired when it isn't.)
+
+When adding a new top-level section, grep `src/vendor/ui/nav.ts` for the
+route's key FIRST — if it's not in the `NAV` array, the route does not exist
+as far as a user clicking through the sidebar is concerned, no matter how
+complete everything else is. Also update `SHORTCUTS` in the same file with a
+`g <letter>` entry if the section is meant to be keyboard-reachable — that
+list is independent of `NAV` and drifts the same way.
+
 ## Recurring Errors & Fixes
 
 ### 2026-07-28 — PR-list columns live in three places that must stay in sync

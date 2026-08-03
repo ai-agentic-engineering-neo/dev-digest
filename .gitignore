@@ -23,3 +23,7 @@ test-results/
 
 # emdash worktree config (local)
 .emdash.json
+
+# Claude local settings
+.claude/settings.local.json
+.claude/settings.json

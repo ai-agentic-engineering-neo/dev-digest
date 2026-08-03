@@ -169,6 +169,19 @@ export class ReviewRepository {
     return runRepo.completeAgentRun(this.db, runId, values);
   }
 
+  /**
+   * Record which skills were injected into a run's prompt (one row each, with
+   * the real tokenizer count of the rendered block). Called by the run executor
+   * right after prompt assembly; best-effort at the call site — a failure here
+   * must never fail the review.
+   */
+  recordRunSkills(
+    runId: string,
+    rows: { skillId: string; order: number; tokens: number }[],
+  ): Promise<void> {
+    return runRepo.recordRunSkills(this.db, runId, rows);
+  }
+
   /** Record the head SHA a review ran against (PR-list freshness derivation). */
   markReviewed(prId: string, sha: string): Promise<void> {
     return pullRepo.markReviewed(this.db, prId, sha);

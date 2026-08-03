@@ -36,7 +36,7 @@ import { memory, conventions } from './schema/knowledge';
 import { codeChunks, symbols, references, onboarding } from './schema/context';
 import { evalCases, evalRuns, conformanceChecks, composedReviews } from './schema/eval';
 import { ciInstallations, ciRuns } from './schema/ci';
-import { agentRuns, runTraces, multiAgentRuns } from './schema/runs';
+import { agentRuns, runSkills, runTraces, multiAgentRuns } from './schema/runs';
 import { jobs, installedPlugins, digests } from './schema/ops';
 import {
   repoIndexState,
@@ -78,6 +78,7 @@ export const schema = {
   ciInstallations,
   ciRuns,
   agentRuns,
+  runSkills,
   runTraces,
   multiAgentRuns,
   jobs,

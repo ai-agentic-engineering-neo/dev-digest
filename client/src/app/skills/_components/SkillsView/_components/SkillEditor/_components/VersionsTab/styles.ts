@@ -1,0 +1,48 @@
+import type { CSSProperties } from "react";
+
+export const s = {
+  wrap: { display: "flex", gap: 18, alignItems: "flex-start" } satisfies CSSProperties,
+  list: { width: 260, flexShrink: 0, display: "flex", flexDirection: "column", gap: 8 } satisfies CSSProperties,
+  hint: { fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5, marginBottom: 4 } satisfies CSSProperties,
+  row: (active: boolean): CSSProperties => ({
+    display: "block",
+    width: "100%",
+    textAlign: "left",
+    padding: "10px 12px",
+    borderRadius: 7,
+    cursor: "pointer",
+    border: "1px solid " + (active ? "var(--border-strong)" : "var(--border)"),
+    background: active ? "var(--bg-hover)" : "var(--bg-elevated)",
+  }),
+  rowTop: { display: "flex", alignItems: "center", gap: 8 } satisfies CSSProperties,
+  rowVersion: { fontSize: 13, fontWeight: 700 } satisfies CSSProperties,
+  rowDelta: { marginLeft: "auto", fontSize: 12, color: "var(--text-muted)" } satisfies CSSProperties,
+  rowTime: { fontSize: 11.5, color: "var(--text-muted)", marginTop: 4 } satisfies CSSProperties,
+  panes: { flex: 1, minWidth: 0, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 } satisfies CSSProperties,
+  pane: {
+    border: "1px solid var(--border)",
+    borderRadius: 9,
+    background: "var(--bg-elevated)",
+    overflow: "hidden",
+    minWidth: 0,
+  } satisfies CSSProperties,
+  paneHead: {
+    padding: "9px 12px",
+    borderBottom: "1px solid var(--border)",
+    background: "var(--bg-surface)",
+    fontSize: 12,
+    fontWeight: 700,
+    color: "var(--text-secondary)",
+  } satisfies CSSProperties,
+  paneBody: {
+    margin: 0,
+    padding: 14,
+    fontSize: 12,
+    lineHeight: 1.55,
+    whiteSpace: "pre-wrap",
+    wordBreak: "break-word",
+    maxHeight: "52vh",
+    overflow: "auto",
+  } satisfies CSSProperties,
+  placeholder: { flex: 1, fontSize: 13, color: "var(--text-muted)" } satisfies CSSProperties,
+} as const;

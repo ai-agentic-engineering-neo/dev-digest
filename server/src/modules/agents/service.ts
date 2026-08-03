@@ -135,10 +135,19 @@ export class AgentsService {
     return row ? toAgentVersionDto(row) : undefined;
   }
 
-  /** Linked skills for an agent as AgentSkillLink[] (ordered). */
+  /**
+   * Linked skills for an agent as AgentSkillLink[] (ordered). `enabled` is the
+   * PER-AGENT gate only — a link can be enabled here while the skill itself is
+   * disabled workspace-wide, in which case it still doesn't reach the prompt.
+   */
   async skillLinks(agentId: string): Promise<AgentSkillLink[]> {
     const links = await this.repo.linkedSkills(agentId);
-    return links.map((l) => ({ agent_id: agentId, skill_id: l.skill.id, order: l.order }));
+    return links.map((l) => ({
+      agent_id: agentId,
+      skill_id: l.skill.id,
+      order: l.order,
+      enabled: l.enabled,
+    }));
   }
 
   /**
@@ -162,12 +171,34 @@ export class AgentsService {
     agentId: string,
     skillId: string,
     order?: number,
+    enabled?: boolean,
   ): Promise<AgentSkillLink[] | undefined> {
     const agent = await this.repo.getById(workspaceId, agentId);
     if (!agent) return undefined;
     const existing = await this.repo.linkedSkills(agentId);
     const resolvedOrder = order ?? existing.length;
-    await this.repo.linkSkill(agentId, skillId, resolvedOrder);
+    await this.repo.linkSkill(agentId, skillId, resolvedOrder, enabled);
+    return this.skillLinks(agentId);
+  }
+
+  /**
+   * Toggle (or reposition) ONE link without unlinking it. Backs
+   * `PUT /agents/:id/skills/:skillId` — the agent editor's checkbox.
+   *
+   * Unchecking must never delete the row: the `enabled` column exists precisely
+   * so `order` survives, and re-checking restores the skill's place in the
+   * assembled prompt instead of appending it to the end. A skill that was never
+   * linked is inserted on first check.
+   */
+  async setSkillEnabled(
+    workspaceId: string,
+    agentId: string,
+    skillId: string,
+    patch: { enabled?: boolean; order?: number },
+  ): Promise<AgentSkillLink[] | undefined> {
+    const agent = await this.repo.getById(workspaceId, agentId);
+    if (!agent) return undefined;
+    await this.repo.setSkillEnabled(agentId, skillId, patch);
     return this.skillLinks(agentId);
   }
 

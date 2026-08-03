@@ -140,6 +140,81 @@ export const CommunitySkill = z.object({
 });
 export type CommunitySkill = z.infer<typeof CommunitySkill>;
 
+/** Skill names are slugs — the editor renders one as `<name>.md`. */
+export const SKILL_NAME_RE = /^[a-z0-9][a-z0-9-]*$/;
+export const SkillName = z.string().min(1).max(64).regex(SKILL_NAME_RE);
+
+/**
+ * Parse result of an uploaded `.md` / `.zip`, returned by `POST /skills/import`.
+ * NOTHING is persisted at this point — the client shows this for confirmation
+ * and only then calls `POST /skills`.
+ */
+export const SkillImportPreview = z.object({
+  name: z.string(),
+  description: z.string(),
+  body: z.string(),
+  /** Which archive entry the body came from; null for a plain .md upload. */
+  source_path: z.string().nullish(),
+  /** How many other entries the archive had. They were NOT read or extracted. */
+  ignored_entries: z.number().int(),
+  /** Present when the archive held more than one SKILL.md and the user must pick. */
+  candidates: z.array(z.string()).nullish(),
+  /** An existing skill with this name — the UI offers replace / rename. */
+  collides_with: z.string().nullish(),
+});
+export type SkillImportPreview = z.infer<typeof SkillImportPreview>;
+
+/**
+ * The skill exactly as the run executor will inject it, plus its real token
+ * cost. `block` is produced by the SAME renderer the executor uses — if these
+ * two ever diverge, the Preview tab is lying.
+ */
+export const SkillPreview = z.object({
+  block: z.string(),
+  tokens: z.number().int(),
+});
+export type SkillPreview = z.infer<typeof SkillPreview>;
+
+/**
+ * Skill Stats tab. Findings figures are attributed at RUN level: a run that
+ * injected four skills counts its findings toward all four. The UI says so —
+ * "findings in runs using this skill", never "caused by".
+ *
+ * `null` means unmeasured (no runs / nothing judged yet) and renders as "—";
+ * a measured zero renders as 0. Those are different facts.
+ */
+export const SkillStats = z.object({
+  used_by: z.number().int(),
+  agents: z.array(z.object({ id: z.string(), name: z.string() })),
+  pull_pct: z.number().nullable(),
+  accept_pct: z.number().nullable(),
+  findings_30d: z.number().int(),
+  by_category: z.array(z.object({ category: z.string(), count: z.number().int() })),
+  avg_tokens: z.number().int().nullable(),
+});
+export type SkillStats = z.infer<typeof SkillStats>;
+
+/** Rail-card stats — the cheap subset, batched for the whole list. */
+export const SkillListStats = z.object({
+  used_by: z.number().int(),
+  pull_pct: z.number().nullable(),
+  accept_pct: z.number().nullable(),
+});
+export type SkillListStats = z.infer<typeof SkillListStats>;
+
+/** A skill plus its rail-card stats — the `GET /skills` row shape. */
+export const SkillWithStats = Skill.extend({ stats: SkillListStats });
+export type SkillWithStats = z.infer<typeof SkillWithStats>;
+
+/** One archived body from `skill_versions`. */
+export const SkillVersion = z.object({
+  skill_id: z.string(),
+  version: z.number().int(),
+  body: z.string(),
+  created_at: z.string(),
+});
+export type SkillVersion = z.infer<typeof SkillVersion>;
+
 // ---- Conventions ----
 export const ConventionCandidate = z.object({
   id: z.string(),
@@ -189,5 +264,11 @@ export const AgentSkillLink = z.object({
   agent_id: z.string(),
   skill_id: z.string(),
   order: z.number().int(),
+  /**
+   * Per-agent gate. The link survives being switched off so `order` is kept —
+   * re-enabling restores the skill's place instead of appending it. A skill is
+   * injected only when this AND `Skill.enabled` are both true.
+   */
+  enabled: z.boolean().default(true),
 });
 export type AgentSkillLink = z.infer<typeof AgentSkillLink>;

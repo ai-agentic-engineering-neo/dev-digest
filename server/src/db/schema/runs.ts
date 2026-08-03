@@ -1,6 +1,17 @@
-import { pgTable, uuid, text, integer, jsonb, timestamp, doublePrecision } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  uuid,
+  text,
+  integer,
+  index,
+  jsonb,
+  primaryKey,
+  timestamp,
+  doublePrecision,
+} from 'drizzle-orm/pg-core';
 import { workspaces } from './core';
 import { agents } from './agents';
+import { skills } from './skills';
 import { pullRequests } from './pulls';
 
 // ============================================================ Observability
@@ -30,6 +41,36 @@ export const agentRuns = pgTable('agent_runs', {
   /** Findings that tripped the agent's gate (severity ≥ ciFailOn). */
   blockers: integer('blockers'),
 });
+
+/**
+ * Which skills were actually injected into ONE run's prompt, and what each one
+ * cost. Written by the run executor at prompt-assembly time — NOT derived from
+ * `agent_skills`, because links get toggled and reordered after the fact and
+ * this table has to keep saying what was true when the run happened.
+ *
+ * The single source of truth behind the Skill Stats tab: pull frequency, token
+ * attribution, and (joined via `reviews.run_id`) the run-level findings /
+ * accept-rate figures.
+ */
+export const runSkills = pgTable(
+  'run_skills',
+  {
+    runId: uuid('run_id')
+      .notNull()
+      .references(() => agentRuns.id, { onDelete: 'cascade' }),
+    skillId: uuid('skill_id')
+      .notNull()
+      .references(() => skills.id, { onDelete: 'cascade' }),
+    /** Position in the assembled `## Skills / rules` section (0-based). */
+    order: integer('order').notNull(),
+    /** Real tokenizer count of the rendered block — never an estimate. */
+    tokens: integer('tokens').notNull(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.runId, t.skillId] }),
+    skillIdx: index('run_skills_skill_idx').on(t.skillId),
+  }),
+);
 
 /** Whole trace of one run as a SINGLE jsonb document. */
 export const runTraces = pgTable('run_traces', {

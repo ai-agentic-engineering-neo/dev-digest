@@ -31,6 +31,32 @@ there is the bug the whole format exists to prevent.
 
 ## Codebase Patterns
 
+### 2026-08-02 — don't copy `pulls/page.tsx` as a route template; it's the deviation, not the pattern
+
+`client/CLAUDE.md` says pages stay thin, and `agents/page.tsx`,
+`settings/[section]/page.tsx` and `onboarding/page.tsx` do exactly that — 7–9
+lines returning a colocated `*View`. But `repos/[repoId]/pulls/page.tsx` (135
+lines) and `pulls/[number]/page.tsx` do the opposite: `"use client"` on the
+route file itself, plus fetching, `useSearchParams` parsing and domain rules
+(`OPEN_STATUSES`) inline. They're the two biggest files under `app/`, so
+they're the ones you land on first when looking for "how a route is built here"
+— and copying them propagates a client boundary that covers the whole route.
+
+Use an `AgentsListView`-shaped route as the template instead: `page.tsx`
+returns `<XxxView />` and nothing else; `"use client"` goes on the view.
+
+Two more deviations in the same area, worth knowing before you extend them:
+`RunTraceDrawer` nests a second `_components/` level (`.../RunTraceDrawer/
+_components/TraceSection/TraceSection.tsx`, 11 path segments) — a second level
+means it has outgrown "component" and wants `src/features/`. And
+`src/lib/hooks/index.ts` is an `export *` aggregation barrel, so importing one
+hook from `@/lib/hooks` pulls in all five modules; import from
+`@/lib/hooks/core` or `@/lib/hooks/reviews` directly.
+
+Placement rules are codified in
+[`.claude/skills/frontend-ui-architecture/`](../.claude/skills/frontend-ui-architecture/SKILL.md);
+its README lists these deviations so they stay visible.
+
 ### 2026-07-29 — filter chips must count the list they filter, not the raw prop
 
 `FindingsPanel` composes two independent filters: `hideLow` (confidence) and

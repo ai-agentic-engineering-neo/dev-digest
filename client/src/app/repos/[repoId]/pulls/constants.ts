@@ -16,6 +16,12 @@ export const STATUS_META: Record<string, { c: string; labelKey: string }> = {
   closed: { c: "var(--stale)", labelKey: "closed" },
 };
 
+/**
+ * Which review statuses count as "open" for the header summary. Open PRs carry
+ * a derived review status; everything else is merged/closed.
+ */
+export const OPEN_STATUSES = new Set(["needs_review", "reviewed", "stale"]);
+
 /** Size bucket → colour token. */
 export const SIZE_COLOR: Record<string, string> = {
   S: "var(--ok)",

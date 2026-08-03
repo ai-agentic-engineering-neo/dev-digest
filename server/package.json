@@ -9,6 +9,10 @@
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
+    "arch": "depcruise src --ignore-known",
+    "arch:all": "depcruise src",
+    "arch:baseline": "depcruise src --output-type baseline -f .dependency-cruiser-known-violations.json",
+    "arch:graph": "depcruise src --output-type dot | dot -T svg > arch.svg",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
     "db:seed": "tsx src/db/seed.ts"

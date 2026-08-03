@@ -22,9 +22,11 @@ import { SkillsService } from './service.js';
  *   GET    /skills/:id/stats              → Stats tab payload
  *   POST   /skills/tokens                 → live editor token counter
  *   POST   /skills/import                 → parse a .md/.zip upload; NOT saved
+ *   POST   /skills/import-url             → fetch + parse a URL; NOT saved
  *
- * Static segments (`/skills/tokens`, `/skills/import`) win over the parametric
- * `/skills/:id` in Fastify's router, so no ordering trick is needed here.
+ * Static segments (`/skills/tokens`, `/skills/import`, `/skills/import-url`)
+ * win over the parametric `/skills/:id` in Fastify's router, so no ordering
+ * trick is needed here.
  */
 
 /** `/skills/:id/versions/:version` — id is a uuid, version a positive integer. */
@@ -70,6 +72,8 @@ const ImportBody = z.object({
   content_b64: z.string().min(1).max(Math.ceil(MAX_UPLOAD_BYTES * 1.4)),
 });
 
+const ImportUrlBody = z.object({ url: z.string().min(1).max(2048) });
+
 export default async function skillsRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
   const service = new SkillsService(app.container.skillsRepo, app.container.tokenizer);
@@ -104,6 +108,13 @@ export default async function skillsRoutes(appBase: FastifyInstance) {
   app.post('/skills/import', { schema: { body: ImportBody } }, async (req) => {
     const { workspaceId } = await getContext(app.container, req);
     return service.parseImport(workspaceId, req.body.filename, req.body.content_b64);
+  });
+
+  /** Parse-only, same contract as /skills/import: fetch a URL server-side,
+   *  parse it, return a preview. The client confirms via POST /skills. */
+  app.post('/skills/import-url', { schema: { body: ImportUrlBody } }, async (req) => {
+    const { workspaceId } = await getContext(app.container, req);
+    return service.parseImportFromUrl(workspaceId, req.body.url);
   });
 
   app.get('/skills/:id', { schema: { params: IdParams } }, async (req) => {

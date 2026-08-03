@@ -212,6 +212,33 @@ complete everything else is. Also update `SHORTCUTS` in the same file with a
 `g <letter>` entry if the section is meant to be keyboard-reachable — that
 list is independent of `NAV` and drifts the same way.
 
+### 2026-08-03 — a repo-scoped feature route (`/repos/:repoId/...`) has its own established pattern; don't reach for the workspace-scoped one
+
+Built `/repos/:repoId/conventions` (specs/03) right after `/skills` existed as
+the nearest example, but `/skills` is workspace-global — the actual template
+for anything scoped to the *active repo* is `repos/[repoId]/pulls`:
+`useParams<{ repoId: string }>()` for the id, `useActiveRepo()` for the repo
+object (`activeRepo?.full_name`, never trust the raw route param as a display
+name), and `useRepoNotFound(repoId)` gating an early `<RepoNotFound />` return
+before anything else renders. `nav.ts` entries route through the same
+`:repoId` token (`resolveHref`) that `useActiveRepo`'s pathname-first
+resolution already expects — no new wiring needed there beyond adding the
+`NavItemDef`.
+
+### 2026-08-03 — a component that unconditionally calls two mutation hooks (one per "mode") breaks an existing test that only mocked one
+
+Added a URL-import tab to `ImportSkillDrawer` alongside the existing file tab.
+Both `useImportSkillPreview()` and the new `useImportSkillFromUrlPreview()`
+are called unconditionally at the top of the component (correct per rules of
+hooks — you can't call a hook only in one branch), but the FILE-mode test
+suite only mocked the first one via `vi.spyOn`. The second hook hit the real
+`useMutation` and failed with "No QueryClient set" — a failure with no
+apparent connection to the file-mode test itself, since that test never
+touches the URL tab. Whenever a component grows a second parallel hook call
+for an alternate mode, go back and stub it in every EXISTING test for that
+component, not just the new test for the new mode — the old tests will fail
+for a reason invisible from their own diff.
+
 ## Recurring Errors & Fixes
 
 ### 2026-07-28 — PR-list columns live in three places that must stay in sync

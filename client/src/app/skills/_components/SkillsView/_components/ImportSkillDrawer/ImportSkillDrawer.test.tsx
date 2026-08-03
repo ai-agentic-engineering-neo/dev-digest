@@ -58,6 +58,14 @@ function mockHooks(preview: SkillImportPreview, createMutate = vi.fn()) {
     mutate: createMutate,
     isPending: false,
   } as unknown as ReturnType<typeof hooks.useCreateSkill>);
+  // The URL tab isn't exercised by these file-mode tests, but the component
+  // calls both hooks unconditionally (rules of hooks) — stub it so it never
+  // reaches the real React Query mutation (which needs a QueryClientProvider).
+  vi.spyOn(hooks, "useImportSkillFromUrlPreview").mockReturnValue({
+    mutateAsync: vi.fn(),
+    data: undefined,
+    isPending: false,
+  } as unknown as ReturnType<typeof hooks.useImportSkillFromUrlPreview>);
   return { parseMutateAsync, createMutate };
 }
 
@@ -140,5 +148,57 @@ describe("ImportSkillDrawer", () => {
     await pickFile();
     expect(container.textContent).toContain("2 other entries were not read");
     expect(container.textContent).toContain("Read from SKILL.md");
+  });
+});
+
+describe("ImportSkillDrawer — URL tab", () => {
+  it("opens on the URL tab when initialMode='url', fetches server-side, and only confirms on explicit click", async () => {
+    const createMutate = vi.fn();
+    vi.spyOn(hooks, "useImportSkillPreview").mockReturnValue({
+      mutateAsync: vi.fn(),
+      data: undefined,
+      isPending: false,
+    } as unknown as ReturnType<typeof hooks.useImportSkillPreview>);
+    vi.spyOn(hooks, "useCreateSkill").mockReturnValue({
+      mutate: createMutate,
+      isPending: false,
+    } as unknown as ReturnType<typeof hooks.useCreateSkill>);
+
+    let urlPreview: typeof PREVIEW | undefined;
+    const fetchMutateAsync = vi.fn(async (url: string) => {
+      expect(url).toBe("https://example.com/skills/remote.md");
+      urlPreview = { ...PREVIEW, name: "remote-skill" };
+      return urlPreview;
+    });
+    vi.spyOn(hooks, "useImportSkillFromUrlPreview").mockImplementation(
+      () =>
+        ({
+          mutateAsync: fetchMutateAsync,
+          get data() {
+            return urlPreview;
+          },
+          isPending: false,
+        }) as unknown as ReturnType<typeof hooks.useImportSkillFromUrlPreview>,
+    );
+
+    renderWithIntl(
+      <ImportSkillDrawer initialMode="url" onClose={vi.fn()} onImported={vi.fn()} />,
+    );
+
+    // File-mode-only control is not shown on the URL tab.
+    expect(screen.queryByLabelText("Skill file")).not.toBeInTheDocument();
+
+    const urlInput = screen.getByPlaceholderText("https://example.com/skills/security.md");
+    fireEvent.change(urlInput, { target: { value: "https://example.com/skills/remote.md" } });
+    fireEvent.click(screen.getByRole("button", { name: "Fetch" }));
+
+    await waitFor(() => expect(confirmButton()).not.toBeDisabled());
+    expect(fetchMutateAsync).toHaveBeenCalledWith("https://example.com/skills/remote.md");
+    expect(createMutate).not.toHaveBeenCalled();
+
+    fireEvent.click(confirmButton());
+    expect(createMutate).toHaveBeenCalledTimes(1);
+    const [payload] = createMutate.mock.calls[0]!;
+    expect(payload).toMatchObject({ name: "remote-skill", source: "imported_url", enabled: false });
   });
 });

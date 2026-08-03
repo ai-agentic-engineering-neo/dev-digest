@@ -57,8 +57,10 @@
     "label": "Skill URL",
     "hint": "Fetched server-side, stored as untrusted, and left disabled until vetted.",
     "placeholder": "https://example.com/skills/security.md",
+    "fetch": "Fetch",
     "fetching": "Fetching…",
     "import": "Import from URL",
+    "fetchFailed": "Could not fetch that URL.",
     "success": "Imported \"{name}\". Disabled until you vet + enable it."
   },
   "community": {

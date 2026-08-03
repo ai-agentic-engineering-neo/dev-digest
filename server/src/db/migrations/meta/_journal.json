@@ -85,6 +85,20 @@
       "when": 1785743989338,
       "tag": "0011_easy_nekra",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1785783340536,
+      "tag": "0012_equal_king_cobra",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1785783391075,
+      "tag": "0013_handy_exiles",
+      "breakpoints": true
     }
   ]
 }

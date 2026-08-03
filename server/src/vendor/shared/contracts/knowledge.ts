@@ -216,15 +216,51 @@ export const SkillVersion = z.object({
 export type SkillVersion = z.infer<typeof SkillVersion>;
 
 // ---- Conventions ----
+export const ConventionStatus = z.enum(['pending', 'accepted', 'rejected']);
+export type ConventionStatus = z.infer<typeof ConventionStatus>;
+
 export const ConventionCandidate = z.object({
   id: z.string(),
+  category: z.string(),
   rule: z.string(),
-  evidence_path: z.string(),
-  evidence_snippet: z.string(),
-  confidence: z.number().min(0).max(1),
-  accepted: z.boolean(),
+  evidence_path: z.string().nullable(),
+  evidence_start_line: z.number().int().nullable(),
+  evidence_end_line: z.number().int().nullable(),
+  evidence_snippet: z.string().nullable(),
+  confidence: z.number().min(0).max(1).nullable(),
+  status: ConventionStatus,
 });
 export type ConventionCandidate = z.infer<typeof ConventionCandidate>;
+
+/** One extraction run — what was sampled, against which commit, by which model. */
+export const ConventionScan = z.object({
+  id: z.string(),
+  repo_id: z.string(),
+  sample_file_count: z.number().int(),
+  source_sha: z.string(),
+  model: z.string(),
+  created_at: z.string(),
+});
+export type ConventionScan = z.infer<typeof ConventionScan>;
+
+/** GET /repos/:id/conventions — the latest scan (if any) plus its candidates. */
+export const ConventionsList = z.object({
+  scan: ConventionScan.nullable(),
+  candidates: z.array(ConventionCandidate),
+});
+export type ConventionsList = z.infer<typeof ConventionsList>;
+
+/** POST /repos/:id/conventions/skill request body. */
+export const CreateSkillFromConventionsRequest = z.object({
+  convention_ids: z.array(z.string()).min(1),
+  name: SkillName,
+  description: z.string().min(1),
+  enabled: z.boolean().default(false),
+  /** Editable in the "Create skill" modal before saving; server renders the
+   *  default (rule + evidence citation per candidate) when omitted. */
+  body: z.string().min(1).optional(),
+});
+export type CreateSkillFromConventionsRequest = z.infer<typeof CreateSkillFromConventionsRequest>;
 
 // ---- Agents ----
 // 'openrouter' routes through the OpenAI-compatible API (OpenAIProvider with a

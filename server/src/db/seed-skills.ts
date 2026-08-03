@@ -10,8 +10,10 @@
  * interface, the sentence that tells a reader (and, once selection becomes
  * dynamic, the router) when the skill applies.
  *
- * NOT seeded here: `api-contract-guard`. It is imported through the UI's
- * preview-then-confirm flow so the import path gets exercised end to end.
+ * NOT seeded here: `api-contract-guard` (Test Quality Reviewer, spec 02) and
+ * `deprecation-policy` (API Contract Reviewer, specs/03). Both are imported
+ * live through the UI's preview-then-confirm flow so the import path gets
+ * exercised end to end — see `demo-assets/deprecation-policy.SKILL.md`.
  */
 
 export interface SeedSkill {
@@ -178,16 +180,105 @@ Flag tests in the diff that:
 
 For each, say what the test would still pass with, to make the gap concrete.`,
   },
+  {
+    name: 'breaking-change',
+    description: 'Flag removal or incompatible change to a public route, param, or exported contract.',
+    type: 'security',
+    source: 'manual',
+    enabled: true,
+    body: `# Breaking-change guard
+
+Flag any change in the diff that a caller outside this diff cannot safely
+ignore: a removed or renamed route, a removed or renamed exported
+function/type, a request parameter that became required, or a parameter/field
+that was removed.
+
+**Bad** — an existing caller silently breaks:
+\`\`\`ts
+// before: GET /users/:id
+// after:
+app.get('/users/:userId', handler); // route param renamed, callers 404
+\`\`\`
+
+**Good** — the old shape keeps working, or the break is explicit and versioned:
+\`\`\`ts
+app.get('/users/:id', handler);
+app.get('/users/:userId', handler); // alias added, nothing removed
+\`\`\`
+
+Report the change at CRITICAL. Name the exact symbol/route and cite the line
+that removed or renamed it. Do NOT flag a change to a function that is not
+exported, or a route added for the first time (no existing caller to break).`,
+  },
+  {
+    name: 'response-schema',
+    description: 'Flag changes to a response shape: field type, nullability, or removal.',
+    type: 'security',
+    source: 'manual',
+    enabled: true,
+    body: `# Response-schema guard
+
+Flag any change to what a route or function RETURNS to a caller: a field
+removed, renamed, or made optional→required or required→optional in the wrong
+direction, or a field's type changed (e.g. \`string\` → \`string | null\`,
+\`number\` → \`string\`).
+
+**Bad** — a caller reading \`user.email\` breaks or gets undefined behaviour:
+\`\`\`ts
+// before: { id, name, email }
+return { id, name }; // email silently dropped from the response
+\`\`\`
+
+**Good** — the field stays, or its removal is called out as a breaking change
+elsewhere in this review (see \`breaking-change\`):
+\`\`\`ts
+return { id, name, email: user.email ?? null }; // shape preserved
+\`\`\`
+
+A field becoming MORE permissive for callers (required → optional, narrower →
+wider type) is not breaking; the reverse direction is. Report breaking
+direction changes at CRITICAL, citing the exact field and file:line.`,
+  },
+  {
+    name: 'semver-discipline',
+    description: 'Flag a change that requires a major version bump but is not marked as one.',
+    type: 'security',
+    source: 'manual',
+    enabled: true,
+    body: `# Semver discipline
+
+When this diff touches a published package's public API (exported functions,
+types, routes) in a way that breaks an existing caller, check whether the
+version bump (package.json, CHANGELOG, or PR title) reflects a MAJOR change.
+
+**Bad** — a breaking change shipped as a patch/minor:
+\`\`\`diff
+- "version": "2.4.1"
++ "version": "2.4.2"   // but a required param was added to an exported fn
+\`\`\`
+
+**Good** — the bump matches the change:
+\`\`\`diff
+- "version": "2.4.1"
++ "version": "3.0.0"   // major bump for the breaking signature change
+\`\`\`
+
+Only flag this when BOTH are true in the diff: (1) a breaking change to a
+public contract, and (2) a version file or changelog entry that under-bumps
+it. Report at WARNING — this is a discipline check, not a correctness bug —
+and name the specific breaking change that justifies the higher bump.`,
+  },
 ];
 
 /**
  * Which seeded agent gets which skills, in prompt order. Names, not ids —
  * resolved at seed time.
  *
- * `api-contract-guard` is deliberately absent: it is imported live in the UI
- * and attached to Test Quality Reviewer as its fourth skill.
+ * `api-contract-guard` and `deprecation-policy` are deliberately absent: both
+ * are imported live in the UI and attached as each agent's fourth skill.
  */
 export const SEED_AGENT_SKILLS: Record<string, string[]> = {
   'Security Reviewer': ['pr-quality-rubric', 'secret-leakage-gate', 'lethal-trifecta'],
   'Test Quality Reviewer': ['test-coverage-nudge', 'corner-case-checklist', 'mock-discipline'],
+  'API Contract Reviewer': ['breaking-change', 'response-schema', 'semver-discipline'],
 };

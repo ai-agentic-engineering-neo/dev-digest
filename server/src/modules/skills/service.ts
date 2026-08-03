@@ -11,8 +11,15 @@ import type {
 import type { Tokenizer } from '../../adapters/tokenizer/index.js';
 import { ValidationError } from '../../platform/errors.js';
 import { SkillsRepository, type SkillRow } from './repository.js';
-import { MAX_BODY_BYTES, MAX_UPLOAD_BYTES } from './constants.js';
-import { isBodyChange, parseSkillUpload, renderSkillBlock, toSkillDto } from './helpers.js';
+import { MAX_BODY_BYTES, MAX_UPLOAD_BYTES, URL_FETCH_TIMEOUT_MS } from './constants.js';
+import {
+  assertPublicHttpUrl,
+  isBodyChange,
+  parseSkillMarkdown,
+  parseSkillUpload,
+  renderSkillBlock,
+  toSkillDto,
+} from './helpers.js';
 
 /**
  * Skills application service — CRUD, version bump, preview, import parse, stats.
@@ -39,6 +46,8 @@ export interface CreateSkillInput {
   source?: Skill['source'];
   body: string;
   enabled?: boolean;
+  /** File:line citations — set by the Conventions extractor, left unset otherwise. */
+  evidenceFiles?: string[];
 }
 
 export interface UpdateSkillInput {
@@ -85,6 +94,7 @@ export class SkillsService {
       source: input.source ?? 'manual',
       body: input.body,
       ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
+      ...(input.evidenceFiles !== undefined ? { evidenceFiles: input.evidenceFiles } : {}),
     });
     return toSkillDto(row);
   }
@@ -220,6 +230,67 @@ export class SkillsService {
       candidates: parsed.candidates ?? null,
       collides_with: collision ? collision.name : null,
     };
+  }
+
+  /**
+   * Parse-only, same contract as `parseImport`: fetch a URL server-side,
+   * parse it as a `SKILL.md`, and return a preview. NOTHING is persisted —
+   * the client confirms via `POST /skills`, same as the file-upload path.
+   */
+  async parseImportFromUrl(workspaceId: string, url: string): Promise<SkillImportPreview> {
+    const target = assertPublicHttpUrl(url);
+    const text = await this.fetchSkillText(target);
+    const parsed = parseSkillMarkdown(text, { filename: target.pathname });
+    const collision = await this.repo.getByName(workspaceId, parsed.name);
+    return {
+      name: parsed.name,
+      description: parsed.description,
+      body: parsed.body,
+      source_path: null,
+      ignored_entries: 0,
+      candidates: null,
+      collides_with: collision ? collision.name : null,
+    };
+  }
+
+  private async fetchSkillText(url: URL): Promise<string> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), URL_FETCH_TIMEOUT_MS);
+    let res: Response;
+    try {
+      res = await fetch(url, { signal: controller.signal, redirect: 'follow' });
+    } catch (e) {
+      throw new ValidationError(
+        e instanceof Error && e.name === 'AbortError'
+          ? `Timed out fetching ${url.href}`
+          : `Could not fetch ${url.href}`,
+        { field: 'url' },
+      );
+    } finally {
+      clearTimeout(timeout);
+    }
+    if (!res.ok) {
+      throw new ValidationError(`${url.href} returned ${res.status}`, { field: 'url' });
+    }
+    // Enforce the same size cap as a file upload — a slow-drip response body
+    // must not be read past MAX_UPLOAD_BYTES regardless of Content-Length.
+    const reader = res.body?.getReader();
+    if (!reader) return res.text();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_UPLOAD_BYTES) {
+        await reader.cancel();
+        throw new ValidationError(`Response is larger than ${MAX_UPLOAD_BYTES} bytes`, {
+          field: 'url',
+        });
+      }
+      chunks.push(value);
+    }
+    return Buffer.concat(chunks.map((c) => Buffer.from(c))).toString('utf8');
   }
 
   private assertBodyFits(body: string): void {

@@ -174,3 +174,14 @@ export function useImportSkillPreview() {
       api.post<SkillImportPreview>("/skills/import", input),
   });
 }
+
+/**
+ * Parse-only import from a URL — same contract as `useImportSkillPreview`,
+ * fetched server-side (see `SkillsService.parseImportFromUrl`) so the browser
+ * never makes the cross-origin request itself.
+ */
+export function useImportSkillFromUrlPreview() {
+  return useMutation({
+    mutationFn: (url: string) => api.post<SkillImportPreview>("/skills/import-url", { url }),
+  });
+}

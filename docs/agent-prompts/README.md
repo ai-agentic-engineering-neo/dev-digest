@@ -11,6 +11,8 @@ in the DB). The canonical, reviewable copies live next to this file:
 - [`performance-reviewer.md`](./performance-reviewer.md)
 - [`test-quality-reviewer.md`](./test-quality-reviewer.md) — deliberately thin;
   its review signal comes from linked **skills**, not from the prompt
+- [`api-contract-reviewer.md`](./api-contract-reviewer.md) — same reasoning;
+  breaking-change detection comes from linked skills, not the prompt
 
 > The DB is the source of truth at run time. These files are the human-readable
 > originals — when you change a prompt, edit the file here **and** push it to the

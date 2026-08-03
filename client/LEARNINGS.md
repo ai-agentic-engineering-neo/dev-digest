@@ -186,6 +186,18 @@ boot it (`pnpm dev` + `curl`, or `next build`) before calling the feature
 done — a passing `pnpm typecheck` + `pnpm test` was not sufficient evidence
 here.
 
+**Recurred 2026-08-03** in the conventions feature:
+`ConventionsView/_components/CreateSkillModal/CreateSkillModal.tsx` did
+`import { SKILL_NAME_RE, type ConventionCandidate } from "@devdigest/shared"`
+— identical shape, identical failure (`Can't resolve './contracts/findings.js'`
+in the barrel). Same fix (split the runtime value out to
+`@devdigest/shared/contracts/knowledge`), plus `rm -rf .next` was needed once
+to clear the dev server's cached failing module graph even after the source
+fix landed. This is now a confirmed recurring trap for any new
+`@devdigest/shared` consumer, not a one-off — when reviewing a diff that adds
+an import from the bare `@devdigest/shared` barrel, check whether anything in
+the specifier list is a value (not `type`-only) before it ships.
+
 ### 2026-08-03 — a new route needs FOUR wirings to be reachable, and the sidebar link is the one nothing errors on if you skip it
 
 Shipping `/skills` end to end (page, hooks, i18n) still left it invisible: the

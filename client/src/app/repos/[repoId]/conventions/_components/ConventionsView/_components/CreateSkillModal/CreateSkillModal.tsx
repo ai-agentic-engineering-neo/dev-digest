@@ -6,7 +6,8 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Button, FormField, TextInput, Textarea, Toggle, Modal } from "@devdigest/ui";
-import { SKILL_NAME_RE, type ConventionCandidate } from "@devdigest/shared";
+import type { ConventionCandidate } from "@devdigest/shared";
+import { SKILL_NAME_RE } from "@devdigest/shared/contracts/knowledge";
 import type { CreateSkillFromConventionsInput } from "@/lib/hooks/conventions";
 import { renderConventionsSkillBodyPreview, suggestSkillName } from "./helpers";
 

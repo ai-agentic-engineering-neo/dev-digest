@@ -10,7 +10,7 @@ import { taskLine } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
 // THE one skill renderer, shared with `GET /skills/:id/preview`. Never
 // re-implement this formatting here — a second copy makes the Preview tab lie.
-import { renderSkillBlock } from '../skills/helpers.js';
+import { renderSkillBlock } from '../_shared/skill-render.js';
 
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
 export class RunCancelledError extends Error {

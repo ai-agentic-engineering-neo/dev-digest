@@ -17,30 +17,10 @@ import {
  * particular are unit-tested without a container.
  */
 
-/** The subset of a skill needed to render its prompt block. */
-export interface RenderableSkill {
-  name: string;
-  type: SkillType;
-  body: string;
-}
-
-/**
- * Render ONE skill as it appears inside the prompt's `## Skills / rules`
- * section.
- *
- * THIS IS THE ONLY RENDERER. Both the run executor (which injects the block)
- * and `GET /skills/:id/preview` (which shows the user what will be injected)
- * call it. If a second copy of this formatting ever appears, the Preview tab
- * silently starts lying about what the model actually receives — so import
- * this function rather than re-deriving the heading anywhere.
- *
- * The `### Skill: <name>` heading is load-bearing: plain concatenation makes
- * four skills read as one undifferentiated wall of instructions, and the name
- * is what the model cites back and what the run log asserts on.
- */
-export function renderSkillBlock(skill: RenderableSkill): string {
-  return `### Skill: ${skill.name} (${skill.type})\n${skill.body.trim()}`;
-}
+// Re-exported for existing callers within this module and its tests;
+// the renderer itself lives in `_shared` (the reviews module needs it too,
+// and modules compose through `_shared`, not by importing each other).
+export { renderSkillBlock, type RenderableSkill } from '../_shared/skill-render.js';
 
 /** Row → API DTO. `evidence_files` stays null until the Conventions extractor. */
 export function toSkillDto(row: {

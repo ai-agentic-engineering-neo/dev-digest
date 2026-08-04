@@ -30,12 +30,43 @@ function threadsForLine(ln: Line, matched: Map<string, CommentThread[]>): Commen
   return out;
 }
 
-export function FileCard({ file, commenting }: { file: PrFile; commenting?: DiffCommentApi }) {
+export function FileCard({
+  file,
+  commenting,
+  defaultOpen,
+  scrollTarget,
+  headerExtra,
+}: {
+  file: PrFile;
+  commenting?: DiffCommentApi;
+  /** Overrides the default size-based auto-expand when provided (e.g. force
+   *  boilerplate files closed regardless of how small the diff is). */
+  defaultOpen?: boolean;
+  /** When set, opens this file and smooth-scrolls to `line` (anchor id
+   *  `diffline-{path}-{line}`, set by CodeLine). `nonce` forces a re-scroll
+   *  even when `line` is unchanged — same pattern as ReviewRunAccordion's
+   *  targetRunId/targetNonce. */
+  scrollTarget?: { line: number; nonce: number } | null;
+  /** Extra content rendered at the end of the header row (e.g. a findings
+   *  count badge). Caller is responsible for stopping click propagation if
+   *  it renders something clickable, so it doesn't also toggle the card. */
+  headerExtra?: React.ReactNode;
+}) {
   const t = useTranslations("shell");
   const [open, setOpen] = React.useState(
-    (file.additions ?? 0) + (file.deletions ?? 0) <= AUTO_EXPAND_MAX_LINES
+    defaultOpen ?? (file.additions ?? 0) + (file.deletions ?? 0) <= AUTO_EXPAND_MAX_LINES
   );
   const lines = React.useMemo(() => parsePatch(file.patch), [file.patch]);
+
+  React.useEffect(() => {
+    if (!scrollTarget) return;
+    setOpen(true);
+    const id = `diffline-${file.path}-${scrollTarget.line}`;
+    requestAnimationFrame(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scrollTarget?.line, scrollTarget?.nonce]);
 
   // Group this file's comments into threads, then split into ones we can anchor
   // to a rendered line vs. "outdated" (GitHub dropped the line / it's not here).
@@ -72,6 +103,7 @@ export function FileCard({ file, commenting }: { file: PrFile; commenting?: Diff
             {commentCount}
           </span>
         )}
+        {headerExtra}
       </div>
       {open && (
         <div style={s.fileBody}>

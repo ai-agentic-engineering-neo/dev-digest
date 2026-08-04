@@ -31,6 +31,28 @@ there is the bug the whole format exists to prevent.
 
 ## Codebase Patterns
 
+### 2026-08-04 — `diff-viewer/`'s deliberately narrow public surface had to be widened for a second real consumer; the target+nonce scroll pattern now exists in two places
+
+Building `SmartDiffViewer` (`app/repos/[repoId]/pulls/[number]/_components/
+SmartDiffViewer/`), the existing `src/components/diff-viewer/` module needed
+to render files grouped by risk instead of `DiffViewer`'s flat list — but
+still reuse the same patch parsing and inline-commenting logic, not fork a
+second renderer. `diff-viewer/index.ts` originally exported only `DiffViewer`
++ `DiffCommentApi` on purpose (its own top comment said so); it now also
+exports `FileCard`, the per-file collapsible unit, since a grouped view needs
+to render one `FileCard` per file directly rather than going through
+`DiffViewer`'s flat `files.map`. `FileCard`/`CodeLine` gained three additive,
+backward-compatible optional props: `defaultOpen` (override the size-based
+auto-expand — used to force boilerplate files closed), `scrollTarget: {
+line, nonce } | null` + a matching `id={diffline-{path}-{line}}` on
+`CodeLine`'s row, and `headerExtra: ReactNode` (a findings-count badge
+rendered in the file header, with the caller responsible for
+`stopPropagation` so clicking it doesn't also toggle the card). The
+`scrollTarget`/`nonce` shape is a direct copy of `ReviewRunAccordion.tsx`'s
+`targetRunId`/`targetNonce` pattern — it now exists in two independent
+places. If a third "click X, open + scroll to Y" need shows up, it's worth
+extracting into a shared hook instead of copying a third time.
+
 ### 2026-08-02 — don't copy `pulls/page.tsx` as a route template; it's the deviation, not the pattern
 
 `client/CLAUDE.md` says pages stay thin, and `agents/page.tsx`,

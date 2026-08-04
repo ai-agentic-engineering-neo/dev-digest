@@ -10,7 +10,7 @@ export interface AgentLookup {
   listEnabled(workspaceId: string): Promise<AgentRow[]>;
   getById(workspaceId: string, id: string): Promise<AgentRow | null | undefined>;
 }
-import type { FindingActionKind, RunEventKind, RunTrace } from '@devdigest/shared';
+import type { FindingActionKind, RunEventKind, RunTrace, SmartDiff } from '@devdigest/shared';
 import { AppError, NotFoundError } from '../../platform/errors.js';
 import type { AgentRow } from '../../db/rows.js';
 import { ReviewRepository } from './repository.js';
@@ -18,6 +18,7 @@ import { type ReviewDto, type ReviewDtoFinding } from './helpers.js';
 import { ReviewRunExecutor, type Logger } from './run-executor.js';
 import { actOnFinding as actOnFindingImpl } from './findings.js';
 import { reviewToDto } from './helpers.js';
+import { buildSmartDiff } from './smart-diff.js';
 
 // Re-export DTO types + converters for backward-compatible imports from
 // './service.js' (these previously lived here; logic now in ./helpers.ts).
@@ -178,5 +179,18 @@ export class ReviewService {
 
   async getRunTrace(runId: string): Promise<RunTrace | undefined> {
     return this.repo.getRunTrace(runId);
+  }
+
+  /**
+   * Deterministic file-risk classification + latest-review findings merge —
+   * no LLM call. See `smart-diff.ts` for the pure classifier/assembler.
+   */
+  async smartDiff(workspaceId: string, prId: string): Promise<SmartDiff> {
+    const pull = await this.repo.getPull(workspaceId, prId);
+    if (!pull) throw new NotFoundError('Pull request not found');
+    const files = await this.repo.getPrFiles(prId);
+    const reviews = await this.repo.reviewsForPull(prId);
+    const findings = reviews[0]?.findings ?? []; // newest first
+    return buildSmartDiff(files, findings);
   }
 }

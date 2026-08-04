@@ -30,7 +30,9 @@ export const pullRequests = pgTable(
     // overwritten every review run (no staleness tracking / history — see
     // specs/05-intent-layer.md's Schema changes section).
     intentSummary: text('intent_summary'),
-    intentConfidence: text('intent_confidence', { enum: ['high', 'medium', 'low'] }),
+    intentInScope: jsonb('intent_in_scope').$type<string[]>(),
+    intentOutOfScope: jsonb('intent_out_of_scope').$type<string[]>(),
+    intentContextGaps: jsonb('intent_context_gaps').$type<string[]>(),
     intentSignals: jsonb('intent_signals').$type<string[]>(),
     intentResolvedAt: timestamp('intent_resolved_at', { withTimezone: true }),
   },

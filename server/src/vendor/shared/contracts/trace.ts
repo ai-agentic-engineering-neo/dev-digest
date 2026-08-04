@@ -48,9 +48,14 @@ export const PromptAssembly = z.object({
   repo_map: z.string().nullish(),
   /** PR author's description/body (truncated); null when absent. */
   pr_description: z.string().nullish(),
-  /** L03 — derived PR intent (summary + confidence + signals), rendered as one
-      string; null when intent resolution was skipped/failed. */
+  /** L03 — derived PR intent (free-text summary), rendered as one string;
+      null when intent resolution was skipped/failed. */
   intent: z.string().nullish(),
+  /** Revision 2 (specs/05-intent-layer.md) — the composed "## Declared PR
+      scope" block (in_scope/out_of_scope, one rendered string, mirroring how
+      every other slot here stores exactly one rendered section's raw text);
+      null when both arrays were empty/undefined. */
+  intent_scope: z.string().nullish(),
   user: z.string(),
 });
 export type PromptAssembly = z.infer<typeof PromptAssembly>;

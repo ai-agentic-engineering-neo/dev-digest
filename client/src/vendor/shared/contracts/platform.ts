@@ -20,12 +20,6 @@ export const FeatureModelId = z.enum([
 ]);
 export type FeatureModelId = z.infer<typeof FeatureModelId>;
 
-/** Confidence the intent classifier reports for a derived PR intent — a
- *  deterministic ceiling (never the model's self-report alone) clamps this
- *  down when the underlying signals are thin. See specs/05-intent-layer.md. */
-export const IntentConfidence = z.enum(['high', 'medium', 'low']);
-export type IntentConfidence = z.infer<typeof IntentConfidence>;
-
 /** A chosen provider + model for one feature. */
 export const FeatureModelChoice = z.object({
   provider: Provider,
@@ -220,8 +214,13 @@ export const PrDetail = PrMeta.extend({
   linked_issue: IssueMeta.nullish(),
   // L03 — cached `review_intent` result (read-only pass-through; recomputed
   // only on the next review run, never as a side effect of this GET).
+  // Revision 2 (specs/05-intent-layer.md): scope-based, not confidence-based
+  // — `intent_confidence` is gone, replaced by structured in/out-of-scope
+  // lists plus a deterministic `intent_context_gaps` list.
   intent: z.string().nullish(),
-  intent_confidence: IntentConfidence.nullish(),
+  intent_in_scope: z.array(z.string()).nullish(),
+  intent_out_of_scope: z.array(z.string()).nullish(),
+  intent_context_gaps: z.array(z.string()).nullish(),
   intent_signals: z.array(z.string()).nullish(),
 });
 export type PrDetail = z.infer<typeof PrDetail>;

@@ -1,38 +1,45 @@
-import type { IntentConfidence } from '@devdigest/shared';
-
 /**
  * Pure helpers for the intent module (side-effect free; operate purely on
  * their arguments), matching `reviews/helpers.ts`'s convention.
  */
 
 /** A PR body under this many trimmed characters counts as "empty/near-empty"
- *  for the confidence ceiling (specs/05-intent-layer.md's Call sequence step 5). */
+ *  for context-gap detection (specs/05-intent-layer.md's Call sequence step 5). */
 export const INDIRECT_BODY_THRESHOLD = 40;
 
+export interface ContextGapInput {
+  body: string | null;
+  issueNumberParsed: number | null;
+  hasResolvedIssue: boolean;
+  specPathParsed: string | null;
+  hasResolvedSpec: boolean;
+}
+
 /**
- * Deterministic confidence ceiling — never trust the model's self-reported
- * `confidence` alone (the `groundFindings`/score precedent, generalized). A
- * PR that is "indirect-only" (near-empty body AND no ticket/spec resolved) is
- * force-capped to 'low' regardless of what the model claims.
+ * Deterministic context-gap detection (revision 2 — replaces v1's confidence
+ * ceiling, same underlying principle: never trust the model's self-report
+ * alone, the `groundFindings`/score precedent, generalized). Computed purely
+ * from the signals already gathered by `service.ts`'s `resolve()` — the model
+ * is never asked to self-assess confidence; gaps are named, not scored.
  */
-export function applyConfidenceCeiling(
-  modelConfidence: IntentConfidence,
-  body: string | null,
-  hasResolvedIssue: boolean,
-  hasResolvedSpec: boolean,
-): IntentConfidence {
-  const indirectOnly =
-    (body ?? '').trim().length < INDIRECT_BODY_THRESHOLD && !hasResolvedIssue && !hasResolvedSpec;
-  return indirectOnly ? 'low' : modelConfidence;
+export function detectContextGaps(input: ContextGapInput): string[] {
+  const gaps: string[] = [];
+  if ((input.body ?? '').trim().length < INDIRECT_BODY_THRESHOLD) {
+    gaps.push('PR description is empty or near-empty');
+  }
+  if (input.issueNumberParsed != null && !input.hasResolvedIssue) {
+    gaps.push(`referenced issue #${input.issueNumberParsed} could not be resolved`);
+  }
+  if (input.specPathParsed != null && !input.hasResolvedSpec) {
+    gaps.push(`referenced spec ${input.specPathParsed} could not be read`);
+  }
+  return gaps;
 }
 
 /** Render the single composite string threaded into the review prompt's
- *  `intent` slot and shown in the UI's "Derived from: …" line. */
-export function renderIntentText(
-  summary: string,
-  confidence: IntentConfidence,
-  signals: string[],
-): string {
+ *  free-text `intent` slot (kept for backward-compatible narrative context
+ *  alongside the new structured `intentScope` slot — see prompt.ts). */
+export function renderIntentText(summary: string, signals: string[]): string {
   const derivedFrom = signals.length > 0 ? signals.join(', ') : 'PR title only';
-  return `Summary: ${summary}\nConfidence: ${confidence}\nDerived from: ${derivedFrom}`;
+  return `Summary: ${summary}\nDerived from: ${derivedFrom}`;
 }

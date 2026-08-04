@@ -1,44 +1,70 @@
 "use client";
 
 import React from "react";
-import { SectionLabel, Badge } from "@devdigest/ui";
+import { SectionLabel } from "@devdigest/ui";
 import { s } from "./styles";
-import type { IntentConfidence } from "@/lib/types";
 
 interface OverviewTabProps {
   prBody: string | null | undefined;
   /** L03 — derived PR intent (summary text); null until a review run has
    *  computed one. */
   intent?: string | null;
-  intentConfidence?: IntentConfidence | null;
+  /** Revision 2 (specs/05-intent-layer.md) — structured declared scope,
+   *  alongside the free-text summary above. */
+  intentInScope?: string[] | null;
+  intentOutOfScope?: string[] | null;
+  /** Deterministic (never model-judged) gaps in the signals available —
+   *  rendered as a "Limited context" note when non-empty. */
+  intentContextGaps?: string[] | null;
   intentSignals?: string[] | null;
 }
 
-const CONFIDENCE_COLOR: Record<IntentConfidence, string> = {
-  high: "var(--ok)",
-  medium: "var(--warn)",
-  low: "var(--stale)",
-};
-
-export function OverviewTab({ prBody, intent, intentConfidence, intentSignals }: OverviewTabProps) {
+export function OverviewTab({
+  prBody,
+  intent,
+  intentInScope,
+  intentOutOfScope,
+  intentContextGaps,
+  intentSignals,
+}: OverviewTabProps) {
   return (
     <>
       <section>
-        <SectionLabel
-          icon="Target"
-          right={
-            intent && intentConfidence ? (
-              <Badge dot bg="transparent" color={CONFIDENCE_COLOR[intentConfidence]}>
-                {intentConfidence}
-              </Badge>
-            ) : undefined
-          }
-        >
-          Intent
-        </SectionLabel>
+        <SectionLabel icon="Target">Intent</SectionLabel>
         {intent ? (
           <div style={s.descriptionBox}>
-            <div>{intent}</div>
+            <div style={s.intentSummary}>“{intent}”</div>
+            <div style={s.scopeColumns}>
+              <div>
+                <div style={s.scopeHeading}>✓ IN SCOPE</div>
+                {intentInScope && intentInScope.length > 0 ? (
+                  <ul style={s.scopeList}>
+                    {intentInScope.map((item, i) => (
+                      <li key={i}>{item}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div style={s.scopeListEmpty}>Nothing stated</div>
+                )}
+              </div>
+              <div>
+                <div style={s.scopeHeading}>✗ OUT OF SCOPE</div>
+                {intentOutOfScope && intentOutOfScope.length > 0 ? (
+                  <ul style={s.scopeList}>
+                    {intentOutOfScope.map((item, i) => (
+                      <li key={i}>{item}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div style={s.scopeListEmpty}>Nothing stated</div>
+                )}
+              </div>
+            </div>
+            {intentContextGaps && intentContextGaps.length > 0 && (
+              <div style={s.contextGapsNote}>
+                ⚠ Limited context: {intentContextGaps.join("; ")}
+              </div>
+            )}
             {intentSignals && intentSignals.length > 0 && (
               <div style={s.intentSignals}>Derived from: {intentSignals.join(", ")}</div>
             )}

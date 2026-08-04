@@ -78,6 +78,14 @@ export interface ReviewInput {
    * section omitted.
    */
   intent?: string;
+  /**
+   * Revision 2 (specs/05-intent-layer.md) — already-resolved structured
+   * scope, alongside `intent` above. Untrusted; delimiter-wrapped downstream.
+   * Empty/undefined → section omitted.
+   */
+  intentInScope?: string[];
+  /** Declared out-of-scope items — see `intentInScope`. */
+  intentOutOfScope?: string[];
   /** Task framing line, e.g. "Review PR #482 …". */
   task?: string;
   /** Override the structured-output retry budget. */
@@ -143,6 +151,8 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
     repoMap: input.repoMap,
     prDescription: input.prDescription,
     intent: input.intent,
+    intentInScope: input.intentInScope,
+    intentOutOfScope: input.intentOutOfScope,
     task: input.task,
   };
 

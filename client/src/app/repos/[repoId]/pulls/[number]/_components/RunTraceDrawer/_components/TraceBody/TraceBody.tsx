@@ -91,6 +91,13 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
         {trace.prompt_assembly.intent != null && (
           <PromptBlock label={t("trace.prompt.intent")} text={trace.prompt_assembly.intent} color={PROMPT_COLORS.intent} />
         )}
+        {trace.prompt_assembly.intent_scope != null && (
+          <PromptBlock
+            label={t("trace.prompt.intentScope")}
+            text={trace.prompt_assembly.intent_scope}
+            color={PROMPT_COLORS.intentScope}
+          />
+        )}
         <PromptBlock label={t("trace.prompt.user")} text={trace.prompt_assembly.user} color={PROMPT_COLORS.user} />
       </TraceSection>
 

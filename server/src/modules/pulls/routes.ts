@@ -278,8 +278,12 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         id: pr.id,
         // L03 — pure column read-through, no LLM call in a GET. Cached by the
         // last review run (recomputed only on the next run — never here).
+        // Revision 2 (specs/05-intent-layer.md): scope-based, not
+        // confidence-based.
         intent: pr.intentSummary ?? null,
-        intent_confidence: pr.intentConfidence ?? null,
+        intent_in_scope: pr.intentInScope ?? null,
+        intent_out_of_scope: pr.intentOutOfScope ?? null,
+        intent_context_gaps: pr.intentContextGaps ?? null,
         intent_signals: pr.intentSignals ?? null,
       };
     } catch (err) {
@@ -315,7 +319,9 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         })),
         // L03 — same pure column read-through as the online branch above.
         intent: pr.intentSummary ?? null,
-        intent_confidence: pr.intentConfidence ?? null,
+        intent_in_scope: pr.intentInScope ?? null,
+        intent_out_of_scope: pr.intentOutOfScope ?? null,
+        intent_context_gaps: pr.intentContextGaps ?? null,
         intent_signals: pr.intentSignals ?? null,
       };
     }

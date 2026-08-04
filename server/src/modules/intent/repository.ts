@@ -1,5 +1,4 @@
 import { eq } from 'drizzle-orm';
-import type { IntentConfidence } from '@devdigest/shared';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 
@@ -14,7 +13,9 @@ import * as t from '../../db/schema.js';
 
 export interface SaveIntentInput {
   summary: string;
-  confidence: IntentConfidence;
+  inScope: string[];
+  outOfScope: string[];
+  contextGaps: string[];
   signals: string[];
 }
 
@@ -34,7 +35,9 @@ export class IntentRepository {
       .update(t.pullRequests)
       .set({
         intentSummary: input.summary,
-        intentConfidence: input.confidence,
+        intentInScope: input.inScope,
+        intentOutOfScope: input.outOfScope,
+        intentContextGaps: input.contextGaps,
         intentSignals: input.signals,
         intentResolvedAt: new Date(),
       })

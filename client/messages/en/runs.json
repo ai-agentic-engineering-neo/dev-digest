@@ -50,6 +50,7 @@
       "specs": "Project context (dynamic)",
       "callers": "Callers of changed symbols — repo-intel (dynamic)",
       "intent": "Derived PR intent (dynamic)",
+      "intentScope": "Declared PR scope (dynamic)",
       "user": "User / diff (dynamic)",
       "copy": "Copy",
       "fullscreen": "Open fullscreen",

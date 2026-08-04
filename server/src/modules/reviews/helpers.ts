@@ -111,6 +111,7 @@ export function promptAssemblySections(
     ['repo_map', 'repo_intel.repo_map', assembly.repo_map],
     ['pr_description', 'pr.body', assembly.pr_description],
     ['intent', 'intent_module', assembly.intent],
+    ['intent_scope', 'intent_module_scope', assembly.intent_scope],
   ];
   for (const [section, source, value] of optional) {
     if (value != null && value.length > 0) sections.push({ section, source, chars: value.length });

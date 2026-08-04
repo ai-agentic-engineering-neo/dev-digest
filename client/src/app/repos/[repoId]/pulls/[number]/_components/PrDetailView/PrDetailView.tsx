@@ -147,7 +147,9 @@ export function PrDetailView() {
           <OverviewTab
             prBody={pr.body}
             intent={pr.intent}
-            intentConfidence={pr.intent_confidence}
+            intentInScope={pr.intent_in_scope}
+            intentOutOfScope={pr.intent_out_of_scope}
+            intentContextGaps={pr.intent_context_gaps}
             intentSignals={pr.intent_signals}
           />
         )}

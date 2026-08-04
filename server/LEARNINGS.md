@@ -55,6 +55,12 @@ before assuming the same is safe elsewhere.
 
 ## What Doesn't Work
 
+### 2026-08-04 — `reviews.it.test.ts`'s "runs a review" test intermittently times out because `intentService.resolve()` makes a REAL OpenRouter network call on a dev machine with real secrets configured
+
+`test/reviews.it.test.ts`'s `appWith()` helper only overrides `llm: { [provider]: mockLLM }` for `openai`/`anthropic` — never `openrouter`. `review_intent`'s `FEATURE_MODELS` default is `openrouter`/`deepseek-v4-flash` (unchanged since L03 v1), so every `executeRuns` batch's intent-resolution step calls the REAL, un-mocked `container.llm('openrouter')` → a genuine network call to OpenRouter, IF `~/.devdigest/secrets.json` has a real `OPENROUTER_API_KEY` (as it does on a dev machine that's used the app for real). Without that key it fails fast with a `ConfigError` (no network attempt) and the flake doesn't happen — this is why it may not reproduce in a clean CI sandbox.
+
+Measured with temporary timing instrumentation: the intent-resolution block took anywhere from ~500ms to 3.4s+ across repeated runs of the same test, depending on network conditions and how many other testcontainers/`.it.test.ts` files were running in parallel. `test/helpers/runs.ts`'s `waitForPrRuns` has only a 10s default timeout — under load (e.g. the full `pnpm test` run, 30+ files, several spinning up their own Postgres testcontainer), the review run can genuinely take longer than 10s end-to-end and `waitForPrRuns` gives up early, so the test reads back zero persisted reviews (`expect(reviews).toHaveLength(1)` fails with `+0`, or a later test in the same file reads `reviews[0]` as `undefined`). Confirmed NOT a functional regression: re-running the same test file in isolation, or the full suite at a quieter moment, passes cleanly every time (verified twice, including a full 34-file/216-test green run) — this is a pre-existing timing race between a live network call and a fixed local timeout, present since L03 v1 shipped `intentService.resolve()` with this same provider default, not something introduced by the revision-2 (scope-based) rewrite. If this test starts failing, check whether it's this race before suspecting the diff — rerunning it alone, or bumping `waitForPrRuns`'s `timeoutMs`, is the fix, not touching `run-executor.ts`/`intent/service.ts`.
+
 ### 2026-08-03 — `drizzle-kit generate` hangs (spins CPU, never prompts, never exits) under piped/non-TTY stdin when it needs a rename-ambiguity answer
 
 Dropping a column and adding several new ones to the same table in one

@@ -114,6 +114,8 @@ export class ReviewRunExecutor {
     // pre-L03 baseline (reviewPullRequest omits the `intent` slot when
     // undefined) — unlike a diff-load failure, it never fails the queued runs.
     let resolvedIntent: string | undefined;
+    let resolvedInScope: string[] | undefined;
+    let resolvedOutOfScope: string[] | undefined;
     try {
       const intent = await runLog.step(
         'Resolving PR intent',
@@ -122,13 +124,34 @@ export class ReviewRunExecutor {
             workspaceId,
             pull: { id: pull.id, title: pull.title, body: pull.body },
             repo: { owner: repo.owner, name: repo.name, clonePath: repo.clonePath },
+            diffFiles: diff.files.map((f) => ({
+              path: f.path,
+              hunks: f.hunks.map((h) => ({
+                oldStart: h.oldStart,
+                oldLines: h.oldLines,
+                newStart: h.newStart,
+                newLines: h.newLines,
+              })),
+            })),
             onSignal: (msg) => runLog.info(msg),
           }),
         { kind: 'tool' },
       );
       resolvedIntent = intent.rendered;
+      resolvedInScope = intent.inScope;
+      resolvedOutOfScope = intent.outOfScope;
       logger?.info(
-        { prId: pull.id, confidence: intent.confidence ?? null, signals: intent.signals.length },
+        {
+          prId: pull.id,
+          provider: intent.provider ?? null,
+          model: intent.model ?? null,
+          promptTokensEstimate: intent.userMessageText
+            ? this.container.tokenizer.count(intent.userMessageText)
+            : null,
+          inScope: intent.inScope?.length ?? 0,
+          outOfScope: intent.outOfScope?.length ?? 0,
+          contextGaps: intent.contextGaps?.length ?? 0,
+        },
         'review: intent resolved',
       );
     } catch (err) {
@@ -151,6 +174,8 @@ export class ReviewRunExecutor {
           runId,
           runLog,
           resolvedIntent,
+          resolvedInScope,
+          resolvedOutOfScope,
           logger,
         );
         logger?.info(
@@ -188,6 +213,10 @@ export class ReviewRunExecutor {
      *  in `executeRuns`, not here). `undefined` when resolution was skipped/
      *  failed — reviewPullRequest omits the slot in that case. */
     resolvedIntent?: string,
+    /** Revision 2 (specs/05-intent-layer.md) — the already-resolved structured
+     *  scope, alongside `resolvedIntent`. Same omit-when-undefined contract. */
+    resolvedInScope?: string[],
+    resolvedOutOfScope?: string[],
     logger?: Logger,
   ): Promise<RunOutcome> {
     const start = Date.now();
@@ -275,6 +304,11 @@ export class ReviewRunExecutor {
         // empty: a skipped/failed resolution produces a prompt identical to
         // the pre-L03 baseline.
         ...(resolvedIntent ? { intent: resolvedIntent } : {}),
+        // Revision 2 (specs/05-intent-layer.md) — structured declared scope,
+        // alongside the free-text intent summary above. Same omit-when-empty
+        // contract.
+        ...(resolvedInScope?.length ? { intentInScope: resolvedInScope } : {}),
+        ...(resolvedOutOfScope?.length ? { intentOutOfScope: resolvedOutOfScope } : {}),
         task,
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
@@ -544,6 +578,7 @@ export class ReviewRunExecutor {
         memory: null,
         specs: null,
         intent: null,
+        intent_scope: null,
         user: '',
       },
       tool_calls: [],

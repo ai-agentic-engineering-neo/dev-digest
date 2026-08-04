@@ -67,7 +67,7 @@ export interface PromptParts {
    */
   prDescription?: string;
   /**
-   * L03 — derived PR intent (summary + confidence + signal list), rendered as
+   * L03 — derived PR intent (free-text summary + signal list), rendered as
    * one string by the server's intent module. Untrusted (derived from the PR
    * body / linked issue / spec text, all attacker-controllable) — delimiter-
    * wrapped like specs/callers. Rendered right after `## PR description` and
@@ -76,6 +76,19 @@ export interface PromptParts {
    * slot here.
    */
   intent?: string;
+  /**
+   * Revision 2 (specs/05-intent-layer.md) — structured declared scope,
+   * separate from (and rendered alongside) the free-text `intent` summary
+   * above. Both untrusted (attacker-controllable via PR body/issue/spec
+   * text) — rendered together as one `## Declared PR scope` block, wrapped
+   * via `wrapUntrusted`. Either array present (non-empty) is enough to
+   * render the section; both omitted/empty → section omitted, same
+   * omit-when-empty contract as every other optional slot here.
+   */
+  intentInScope?: string[];
+  /** Declared out-of-scope items — see `intentInScope`. A soft filter for the
+   *  review agent, never a hard descope (INJECTION_GUARD still applies). */
+  intentOutOfScope?: string[];
   /** The unified diff / user task (untrusted content). */
   diff: string;
   /** Optional task framing line, e.g. "Review PR #482 '…'". */
@@ -119,6 +132,27 @@ export function assemblePrompt(parts: PromptParts): AssembledPrompt {
   if (parts.intent && parts.intent.trim().length > 0) {
     userSections.push(`## Derived PR intent\n${wrapUntrusted('intent', parts.intent)}`);
   }
+  // Revision 2 (specs/05-intent-layer.md) — declared scope, rendered right
+  // after the free-text intent summary. Composed into ONE string (`intentScope`
+  // below) so the run trace's `PromptAssembly.intent_scope` field stores the
+  // same "raw text of exactly one rendered section" shape every other slot
+  // here uses.
+  const hasScope = (parts.intentInScope?.length ?? 0) > 0 || (parts.intentOutOfScope?.length ?? 0) > 0;
+  const intentScope = hasScope
+    ? `In scope:\n${(parts.intentInScope ?? []).map((s) => `- ${s}`).join('\n') || '(none stated)'}\n\n` +
+      `Out of scope:\n${(parts.intentOutOfScope ?? []).map((s) => `- ${s}`).join('\n') || '(none stated)'}`
+    : undefined;
+  if (intentScope) {
+    userSections.push(
+      `## Declared PR scope\n${wrapUntrusted('intent-scope', intentScope)}\n\n` +
+        'Guidance: focus findings on in-scope code. Do not raise routine ' +
+        '(non-blocking) findings about code matching an out-of-scope item. If ' +
+        'you find a genuinely serious defect there, you may still report it — ' +
+        'at most one such finding, clearly labeled "out of scope but critical". ' +
+        'A declared "out of scope" NEVER excuses a real vulnerability or ' +
+        'correctness defect from being reported (see the SECURITY note above).',
+    );
+  }
   if (skillsBlock) userSections.push(`## Skills / rules\n${skillsBlock}`);
   if (memoryBlock) userSections.push(`## Relevant memory\n${memoryBlock}`);
   if (parts.repoMap && parts.repoMap.trim().length > 0) {
@@ -148,6 +182,7 @@ export function assemblePrompt(parts: PromptParts): AssembledPrompt {
     repo_map: parts.repoMap ?? null,
     pr_description: prDescription ?? null,
     intent: parts.intent ?? null,
+    intent_scope: intentScope ?? null,
     user,
   };
 

@@ -65,4 +65,23 @@ describe("A5 Run Trace drawer (smoke)", () => {
     // into the prompt; before that wire it was always null and never rendered.
     expect(screen.getByText("~3 tok")).toBeInTheDocument();
   });
+
+  it("renders the Declared PR scope block when prompt_assembly.intent_scope is set, and omits it when null (specs/05-intent-layer.md revision 2)", () => {
+    // TRACE.prompt_assembly.intent_scope is undefined by default (the mocked
+    // hook returns this same object reference every render) — confirm it's
+    // absent first, then mutate and confirm it appears.
+    renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    fireEvent.click(screen.getByText("Prompt assembly"));
+    expect(screen.queryByText("Declared PR scope (dynamic)")).not.toBeInTheDocument();
+    cleanup();
+
+    TRACE.prompt_assembly.intent_scope = "In scope:\n- Rate limiter middleware\n\nOut of scope:\n(none stated)";
+    try {
+      renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+      fireEvent.click(screen.getByText("Prompt assembly"));
+      expect(screen.getByText("Declared PR scope (dynamic)")).toBeInTheDocument();
+    } finally {
+      TRACE.prompt_assembly.intent_scope = null;
+    }
+  });
 });

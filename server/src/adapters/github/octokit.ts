@@ -13,6 +13,7 @@ import type {
   IssueMeta,
 } from '@devdigest/shared';
 import { withRetry, withTimeout } from '../../platform/resilience.js';
+import { resolveLinkedIssue } from '../../modules/_shared/linked-issue.js';
 
 const TIMEOUT = 30_000;
 
@@ -88,7 +89,7 @@ export class OctokitGitHubClient implements GitHubClient {
             pull_number: n,
             per_page: 100,
           });
-          const linkedIssue = await this.resolveLinkedIssue(repo, pr.body ?? '');
+          const linkedIssue = await resolveLinkedIssue(this, repo, pr.title, pr.body ?? null);
           return {
             number: pr.number,
             title: pr.title,
@@ -121,17 +122,6 @@ export class OctokitGitHubClient implements GitHubClient {
         TIMEOUT,
       ),
     );
-  }
-
-  /** linked issue via regex on PR body (#123 / closes #123). */
-  private async resolveLinkedIssue(repo: RepoRef, body: string): Promise<IssueMeta | undefined> {
-    const m = body.match(/(?:closes|fixes|resolves)?\s*#(\d+)/i);
-    if (!m?.[1]) return undefined;
-    try {
-      return await this.getIssue(repo, Number(m[1]));
-    } catch {
-      return undefined;
-    }
   }
 
   async postReview(

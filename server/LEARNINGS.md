@@ -55,6 +55,12 @@ before assuming the same is safe elsewhere.
 
 ## What Doesn't Work
 
+### 2026-08-04 — `reviews.it.test.ts`'s "runs a review" test intermittently times out because `intentService.resolve()` makes a REAL OpenRouter network call on a dev machine with real secrets configured
+
+`test/reviews.it.test.ts`'s `appWith()` helper only overrides `llm: { [provider]: mockLLM }` for `openai`/`anthropic` — never `openrouter`. `review_intent`'s `FEATURE_MODELS` default is `openrouter`/`deepseek-v4-flash` (unchanged since L03 v1), so every `executeRuns` batch's intent-resolution step calls the REAL, un-mocked `container.llm('openrouter')` → a genuine network call to OpenRouter, IF `~/.devdigest/secrets.json` has a real `OPENROUTER_API_KEY` (as it does on a dev machine that's used the app for real). Without that key it fails fast with a `ConfigError` (no network attempt) and the flake doesn't happen — this is why it may not reproduce in a clean CI sandbox.
+
+Measured with temporary timing instrumentation: the intent-resolution block took anywhere from ~500ms to 3.4s+ across repeated runs of the same test, depending on network conditions and how many other testcontainers/`.it.test.ts` files were running in parallel. `test/helpers/runs.ts`'s `waitForPrRuns` has only a 10s default timeout — under load (e.g. the full `pnpm test` run, 30+ files, several spinning up their own Postgres testcontainer), the review run can genuinely take longer than 10s end-to-end and `waitForPrRuns` gives up early, so the test reads back zero persisted reviews (`expect(reviews).toHaveLength(1)` fails with `+0`, or a later test in the same file reads `reviews[0]` as `undefined`). Confirmed NOT a functional regression: re-running the same test file in isolation, or the full suite at a quieter moment, passes cleanly every time (verified twice, including a full 34-file/216-test green run) — this is a pre-existing timing race between a live network call and a fixed local timeout, present since L03 v1 shipped `intentService.resolve()` with this same provider default, not something introduced by the revision-2 (scope-based) rewrite. If this test starts failing, check whether it's this race before suspecting the diff — rerunning it alone, or bumping `waitForPrRuns`'s `timeoutMs`, is the fix, not touching `run-executor.ts`/`intent/service.ts`.
+
 ### 2026-08-03 — `drizzle-kit generate` hangs (spins CPU, never prompts, never exits) under piped/non-TTY stdin when it needs a rename-ambiguity answer
 
 Dropping a column and adding several new ones to the same table in one
@@ -122,6 +128,37 @@ its signature narrowed to the one thing it actually reads (here: `Db`, not the
 whole `Container`) before it can be called from a `service.ts` at all, and
 before `container.ts` can wrap it as a method without creating an import cycle
 (`container.ts → feature-models.ts → container.ts`).
+
+### 2026-08-04 — a spec's "byproduct" claim about existing behavior can be stale; verify against the adapter, not just the route it cites
+
+specs/05-intent-layer.md's Scope item 8 asserted `PrDetail.linked_issue` is
+"defined but never set by either branch of `GET /pulls/:id`
+(`modules/pulls/routes.ts:218-309`)". Reading only that route file, the claim
+looks right. It's actually stale: `OctokitGitHubClient.getPullRequest`
+(`adapters/github/octokit.ts`) already resolves `linked_issue` itself, via its
+own private `resolveLinkedIssue` (regex over the PR body + a `getIssue` call),
+and `pulls/routes.ts`'s GitHub-refreshed branch already returns it by
+spreading `...detail`. Only the OFFLINE/persisted branch never sets it — and
+it structurally can't (no column to cache it in, no GitHub client available
+offline to fetch it with), so that's not a gap either, just the same offline
+posture every other GitHub-refresh field in this route already has. Net
+effect: nothing needed to change for that scope item. When a spec names a
+"today this doesn't happen" gap as justification for new work, check the
+actual adapter/service implementation the route calls into before building
+the fix — the route file alone can look like the whole story and not be.
+
+**Follow-up (same day, caught by `plan-verifier`):** "nothing needed to
+change" was true for the *output* (the field was already populated) but false
+for the spec's actual instruction, which was "shared, not duplicated — put
+the regex+fetch pair in `_shared`". The new `_shared/linked-issue.ts` got
+built exactly as specified, but nobody deleted the old private
+`resolveLinkedIssue` in `octokit.ts` (a weaker regex — no past-tense
+"closed"/"fixed", no word boundary on the bare-issue match) — so two
+implementations of the same lookup existed side by side, one of them dead
+code. Fixed by having `getPullRequest` call the shared helper and deleting
+the private one. Lesson: "the behavior already exists" and "the plan's
+de-duplication instruction was carried out" are two separate claims — verify
+both, not just the one that's easier to check by reading the route.
 
 ## Tool & Library Notes
 
@@ -313,6 +350,26 @@ change; no schema migration needed, since the column had shipped speculatively
 in spec 02's migration. When a column's comment names a future feature,
 that's usually the whole integration contract, not just documentation.
 
+**2026-08-04 addendum — the same pattern can reserve TWO different integration
+points under the same word.** Implementing specs/05-intent-layer.md (L03,
+`review_intent`) found `db/schema/reviews.ts`'s `pr_intent` table (columns:
+`pr_id`, `intent`, `in_scope`/`out_of_scope` jsonb) plus a `pr_brief` table,
+backed by `Intent`/`BlastRadius`/`Risks`/`PrHistory`/`SmartDiff`/`PrBrief`
+contracts (`vendor/shared/contracts/brief.ts`, `review-api.ts`) and
+`ReviewRepository.upsertIntent`/`getIntent` — all already fully wired
+end-to-end at the repository layer, and all completely unused (zero routes,
+zero other callers). Grepping "intent" makes this look like the obvious place
+to land L03's work. It isn't: it's reserved for the LATER "PR Brief card"
+lesson (README's roadmap: L04 Blast Radius, L05 PR Brief card), whose `Intent`
+shape (`{intent, in_scope[], out_of_scope[]}`) is richer and serves a
+different composed document. specs/05-intent-layer.md never references
+`pr_intent` at all — it deliberately defines its own simpler cache (four
+nullable columns directly on `pull_requests`) because there's nothing to
+accept/reject or version for a single advisory string. Before wiring into a
+same-named existing table/contract, confirm which `FeatureModelId` / which
+lesson the spec in front of you actually targets — this codebase can reserve
+more than one integration point under the same name for different lessons.
+
 ### 2026-08-03 — `.dependency-cruiser-known-violations.json` baselines exact from→to edges, not files — narrowing a param type can silently add a new violation next to an already-ignored one
 
 Changing `getFeatureModelOverride`/`resolveFeatureModel`
@@ -328,6 +385,24 @@ even though it's the same pre-existing class of debt (settings module reads
 .dependency-cruiser-known-violations.json`) to confirm it added only the one
 expected edge and didn't silently swallow an unrelated new violation elsewhere
 in the tree.
+
+### 2026-08-04 — a debug log gated on `container.config.X` breaks every test that builds a partial mock `Container`
+
+Adding `PROMPT_ASSEMBLY_DEBUG` (logs prompt-assembly section name/source/char-length
+per run, metadata only, gated by `AppConfig.promptAssemblyDebugEnabled`) as a
+plain `this.container.config.promptAssemblyDebugEnabled` check in
+`run-executor.ts`'s `runOneAgent` broke 11 tests across 2 files immediately.
+Cause: several tests (`test/skills-preview.test.ts` and one other) construct
+`ReviewRunExecutor` with a hand-rolled `{ runBus, llm, tokenizer } as unknown
+as Container` — no `config` key at all — so `.config.promptAssemblyDebugEnabled`
+threw `Cannot read properties of undefined`. Fix: `this.container.config
+?.promptAssemblyDebugEnabled` (optional-chain the `config` access itself, not
+just the boolean). Generalizes: this codebase's test suite leans on
+`as unknown as Container` casts that only populate the fields a given test
+actually exercises — any new `container.config.<field>` read added to shared
+executor code must optional-chain `config` defensively, or grep
+`as unknown as Container` first to see which mocks would need updating
+instead.
 
 ## Session Notes
 

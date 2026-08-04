@@ -52,8 +52,10 @@ export const FEATURE_MODELS: FeatureModelDef[] = [
     id: 'review_intent',
     label: 'PR Review · Intent',
     description: 'Derives a PR’s intent and scope before review.',
-    defaultProvider: 'openai',
-    defaultModel: 'gpt-4.1',
+    // Advisory context, not a merge-gate agent — cheap model per
+    // docs/agent-prompts/choosing-a-model.md's mixed-strategy guidance.
+    defaultProvider: 'openrouter',
+    defaultModel: 'deepseek/deepseek-v4-flash',
   },
   {
     id: 'risk_brief',
@@ -210,6 +212,16 @@ export const PrDetail = PrMeta.extend({
   files: z.array(PrFile),
   commits: z.array(PrCommit),
   linked_issue: IssueMeta.nullish(),
+  // L03 — cached `review_intent` result (read-only pass-through; recomputed
+  // only on the next review run, never as a side effect of this GET).
+  // Revision 2 (specs/05-intent-layer.md): scope-based, not confidence-based
+  // — `intent_confidence` is gone, replaced by structured in/out-of-scope
+  // lists plus a deterministic `intent_context_gaps` list.
+  intent: z.string().nullish(),
+  intent_in_scope: z.array(z.string()).nullish(),
+  intent_out_of_scope: z.array(z.string()).nullish(),
+  intent_context_gaps: z.array(z.string()).nullish(),
+  intent_signals: z.array(z.string()).nullish(),
 });
 export type PrDetail = z.infer<typeof PrDetail>;
 

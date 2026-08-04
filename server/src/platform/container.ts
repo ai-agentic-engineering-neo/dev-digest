@@ -35,6 +35,9 @@ import { RepoIntelService } from '../modules/repo-intel/service.js';
 import { resolveFeatureModel as resolveFeatureModelForWorkspace } from '../modules/settings/feature-models.js';
 import { type DepGraph, DepCruiseGraph } from '../adapters/depgraph/index.js';
 import { type Tokenizer, TiktokenTokenizer } from '../adapters/tokenizer/index.js';
+import { IntentRepository } from '../modules/intent/repository.js';
+import { IntentService } from '../modules/intent/service.js';
+import { readClone } from '../modules/intent/clone.js';
 
 /**
  * DI container. One per app instance. Holds config, db, the JobRunner,
@@ -85,6 +88,8 @@ export class Container {
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
   private _priceBook?: PriceBook;
+  private _intentRepo?: IntentRepository;
+  private _intentService?: IntentService;
 
   constructor(config: AppConfig, db: Db, private overrides: ContainerOverrides = {}) {
     this.config = config;
@@ -124,6 +129,27 @@ export class Container {
 
   get repoRepo(): RepoRepository {
     return (this._repoRepo ??= new RepoRepository(this.db));
+  }
+
+  get intentRepo(): IntentRepository {
+    return (this._intentRepo ??= new IntentRepository(this.db));
+  }
+
+  /**
+   * L03 — PR intent resolution (signals → one structured LLM call → cached on
+   * `pull_requests`). Shared getter so `reviews/run-executor.ts` never
+   * imports `modules/intent/*` directly (dependency-cruiser's
+   * `no-cross-module`) — it only ever calls `container.intentService.resolve(...)`,
+   * the same composition-root pattern `skillsService` already establishes.
+   */
+  get intentService(): IntentService {
+    return (this._intentService ??= new IntentService(
+      this.intentRepo,
+      (workspaceId, id) => this.resolveFeatureModel(workspaceId, id),
+      (id) => this.llm(id),
+      () => this.github(),
+      readClone,
+    ));
   }
 
   /** Per-feature model choice (workspace override, else registry default) —

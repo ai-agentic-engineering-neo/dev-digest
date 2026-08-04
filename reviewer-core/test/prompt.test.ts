@@ -64,3 +64,59 @@ describe('assemblePrompt — ## PR description', () => {
     expect((assembly.pr_description as string).length).toBe(4000);
   });
 });
+
+describe('assemblePrompt — ## Declared PR scope (specs/05-intent-layer.md revision 2)', () => {
+  it('omits the section when both arrays are empty/undefined (no behaviour change)', () => {
+    expect(userOf({ system: 'sys', diff: 'DIFF' })).not.toContain('## Declared PR scope');
+    expect(
+      assemblePrompt({ system: 'sys', diff: 'DIFF' }).assembly.intent_scope ?? null,
+    ).toBeNull();
+    expect(
+      userOf({ system: 'sys', diff: 'DIFF', intentInScope: [], intentOutOfScope: [] }),
+    ).not.toContain('## Declared PR scope');
+  });
+
+  it('renders the section (untrusted-wrapped) when in_scope is present, right after ## Derived PR intent', () => {
+    const user = userOf({
+      system: 'sys',
+      diff: 'DIFF',
+      intent: 'Adds rate limiting to public endpoints.',
+      intentInScope: ['Rate limiter middleware'],
+      intentOutOfScope: [],
+    });
+    expect(user).toContain('## Declared PR scope');
+    expect(user).toContain('<untrusted source="intent-scope">');
+    expect(user).toContain('In scope:\n- Rate limiter middleware');
+    expect(user).toContain('Out of scope:\n(none stated)');
+    expect(user.indexOf('## Derived PR intent')).toBeLessThan(user.indexOf('## Declared PR scope'));
+    expect(user.indexOf('## Declared PR scope')).toBeLessThan(user.indexOf('## Diff to review'));
+  });
+
+  it('renders when only out_of_scope is present', () => {
+    const user = userOf({
+      system: 'sys',
+      diff: 'DIFF',
+      intentOutOfScope: ['Authentication changes'],
+    });
+    expect(user).toContain('## Declared PR scope');
+    expect(user).toContain('In scope:\n(none stated)');
+    expect(user).toContain('Out of scope:\n- Authentication changes');
+  });
+
+  it('includes the never-descope guidance text, redundant with INJECTION_GUARD', () => {
+    const user = userOf({ system: 'sys', diff: 'DIFF', intentInScope: ['x'] });
+    expect(user).toMatch(/NEVER excuses a real vulnerability or.*correctness defect/i);
+    expect(user).toMatch(/out of scope but critical/i);
+  });
+
+  it('stores exactly one composed string on assembly.intent_scope (not two arrays)', () => {
+    const { assembly } = assemblePrompt({
+      system: 'sys',
+      diff: 'DIFF',
+      intentInScope: ['a'],
+      intentOutOfScope: ['b'],
+    });
+    expect(typeof assembly.intent_scope).toBe('string');
+    expect(assembly.intent_scope).toBe('In scope:\n- a\n\nOut of scope:\n- b');
+  });
+});

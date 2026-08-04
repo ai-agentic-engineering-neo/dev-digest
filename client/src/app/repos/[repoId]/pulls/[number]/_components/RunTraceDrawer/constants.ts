@@ -18,5 +18,9 @@ export const PROMPT_COLORS = {
   repoMap: "var(--accent)",
   specs: "var(--text-secondary)",
   callers: "var(--warn)",
+  intent: "var(--accent)",
+  // Revision 2 (specs/05-intent-layer.md) — distinct accent from `intent`
+  // above so the two intent-related blocks are visually distinguishable.
+  intentScope: "var(--ok)",
   user: "var(--ok)",
 } as const;

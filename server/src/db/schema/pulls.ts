@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, integer, timestamp, uniqueIndex, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, integer, jsonb, timestamp, uniqueIndex, index } from 'drizzle-orm/pg-core';
 import { workspaces } from './core';
 import { repos } from './repos';
 
@@ -26,6 +26,15 @@ export const pullRequests = pgTable(
     body: text('body'),
     openedAt: timestamp('opened_at', { withTimezone: true }),
     updatedAt: timestamp('updated_at', { withTimezone: true }),
+    // L03 — Intent layer. Cache of the last-computed `review_intent` result,
+    // overwritten every review run (no staleness tracking / history — see
+    // specs/05-intent-layer.md's Schema changes section).
+    intentSummary: text('intent_summary'),
+    intentInScope: jsonb('intent_in_scope').$type<string[]>(),
+    intentOutOfScope: jsonb('intent_out_of_scope').$type<string[]>(),
+    intentContextGaps: jsonb('intent_context_gaps').$type<string[]>(),
+    intentSignals: jsonb('intent_signals').$type<string[]>(),
+    intentResolvedAt: timestamp('intent_resolved_at', { withTimezone: true }),
   },
   (t) => ({
     uq: uniqueIndex('pr_repo_number_uq').on(t.repoId, t.number), // idempotent import

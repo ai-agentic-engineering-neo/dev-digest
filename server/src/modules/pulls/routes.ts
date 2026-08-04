@@ -273,7 +273,19 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         })
         .where(eq(t.pullRequests.id, pr.id));
 
-      return { ...detail, id: pr.id };
+      return {
+        ...detail,
+        id: pr.id,
+        // L03 — pure column read-through, no LLM call in a GET. Cached by the
+        // last review run (recomputed only on the next run — never here).
+        // Revision 2 (specs/05-intent-layer.md): scope-based, not
+        // confidence-based.
+        intent: pr.intentSummary ?? null,
+        intent_in_scope: pr.intentInScope ?? null,
+        intent_out_of_scope: pr.intentOutOfScope ?? null,
+        intent_context_gaps: pr.intentContextGaps ?? null,
+        intent_signals: pr.intentSignals ?? null,
+      };
     } catch (err) {
       app.log.warn({ err }, 'GitHub PR detail refresh skipped (no token / offline); serving persisted detail');
       const files = await container.db.select().from(t.prFiles).where(eq(t.prFiles.prId, pr.id));
@@ -305,6 +317,12 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
           author: c.author,
           committed_at: c.committedAt?.toISOString() ?? null,
         })),
+        // L03 — same pure column read-through as the online branch above.
+        intent: pr.intentSummary ?? null,
+        intent_in_scope: pr.intentInScope ?? null,
+        intent_out_of_scope: pr.intentOutOfScope ?? null,
+        intent_context_gaps: pr.intentContextGaps ?? null,
+        intent_signals: pr.intentSignals ?? null,
       };
     }
   });

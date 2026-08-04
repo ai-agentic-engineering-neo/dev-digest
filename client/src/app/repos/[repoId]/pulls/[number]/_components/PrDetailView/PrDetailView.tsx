@@ -143,7 +143,16 @@ export function PrDetailView() {
       />
 
       <div style={s.body}>
-        {tab === "overview" && <OverviewTab prBody={pr.body} />}
+        {tab === "overview" && (
+          <OverviewTab
+            prBody={pr.body}
+            intent={pr.intent}
+            intentInScope={pr.intent_in_scope}
+            intentOutOfScope={pr.intent_out_of_scope}
+            intentContextGaps={pr.intent_context_gaps}
+            intentSignals={pr.intent_signals}
+          />
+        )}
 
         {tab === "findings" && (
           <FindingsTab

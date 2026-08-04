@@ -98,6 +98,28 @@ not auto-synced — it's already missing fields/types the server copy has
 Editing a shared contract only here does not reach the server; the server
 keeps stale types and still type-checks clean.
 
+### 2026-08-04 — `TraceBody.tsx` does not render `PromptAssembly` generically; each field needs three explicit additions
+
+Implementing specs/05-intent-layer.md's UI (wiring `PromptAssembly.intent`
+into the Run Trace drawer), the spec claimed "RunTraceDrawer's existing
+PromptBlock/PromptModalBody need no new code — they already render whatever
+PromptAssembly contains section-by-section." That's not true of this
+component: `TraceBody.tsx`
+(`app/repos/[repoId]/pulls/[number]/_components/RunTraceDrawer/_components/TraceBody/TraceBody.tsx`)
+enumerates each optional slot explicitly — `{trace.prompt_assembly.X != null
+&& <PromptBlock .../>}`, plus its own `PROMPT_COLORS.X` entry
+(`RunTraceDrawer/constants.ts`) and its own `trace.prompt.X` i18n key
+(`messages/en/runs.json`). Proof this was already a pre-existing gap, not
+something this session introduced: `pr_description` was added to
+`PromptAssembly` before this session but was never wired into `TraceBody.tsx`
+at all — it silently does not render in the trace drawer today, and no test
+catches it (`RunTraceDrawer.test.tsx`'s fixture never asserts it renders). I
+added the three pieces for `intent` but deliberately left the pre-existing
+`pr_description` gap alone (out of this task's scope). Any future
+`PromptAssembly` field needs the same three additions here — don't trust a
+spec's "renders generically, no new code" claim about this component without
+checking `TraceBody.tsx` directly.
+
 ## Tool & Library Notes
 
 ### 2026-07-29 — `borderColor` is a shorthand too, and clashes with `borderLeftColor`

@@ -66,6 +66,16 @@ export interface PromptParts {
    * undefined → section omitted.
    */
   prDescription?: string;
+  /**
+   * L03 — derived PR intent (summary + confidence + signal list), rendered as
+   * one string by the server's intent module. Untrusted (derived from the PR
+   * body / linked issue / spec text, all attacker-controllable) — delimiter-
+   * wrapped like specs/callers. Rendered right after `## PR description` and
+   * before `## Skills / rules`. Empty/undefined → section omitted (no
+   * behavior change), same omit-when-empty contract as every other optional
+   * slot here.
+   */
+  intent?: string;
   /** The unified diff / user task (untrusted content). */
   diff: string;
   /** Optional task framing line, e.g. "Review PR #482 '…'". */
@@ -106,6 +116,9 @@ export function assemblePrompt(parts: PromptParts): AssembledPrompt {
   if (prDescription) {
     userSections.push(`## PR description\n${wrapUntrusted('pr-description', prDescription)}`);
   }
+  if (parts.intent && parts.intent.trim().length > 0) {
+    userSections.push(`## Derived PR intent\n${wrapUntrusted('intent', parts.intent)}`);
+  }
   if (skillsBlock) userSections.push(`## Skills / rules\n${skillsBlock}`);
   if (memoryBlock) userSections.push(`## Relevant memory\n${memoryBlock}`);
   if (parts.repoMap && parts.repoMap.trim().length > 0) {
@@ -134,6 +147,7 @@ export function assemblePrompt(parts: PromptParts): AssembledPrompt {
     callers: parts.callers ?? null,
     repo_map: parts.repoMap ?? null,
     pr_description: prDescription ?? null,
+    intent: parts.intent ?? null,
     user,
   };
 

@@ -43,6 +43,16 @@ export function PrDetailHeader({
         ? "var(--stale)"
         : "var(--warn)";
 
+  // L03 — Intent badge, color-coded by the deterministic confidence ceiling
+  // (never the model's self-report alone). Omitted until the next review run
+  // has computed one (pr.intent is null) — no placeholder/guess shown.
+  const intentColor =
+    pr.intent_confidence === "high"
+      ? "var(--ok)"
+      : pr.intent_confidence === "medium"
+        ? "var(--warn)"
+        : "var(--stale)";
+
   return (
     <div style={s.root}>
       <div style={s.titleRow}>
@@ -75,6 +85,11 @@ export function PrDetailHeader({
             <Badge dot bg="transparent" color={statusColor}>
               {pr.status}
             </Badge>
+            {pr.intent && (
+              <Badge icon="Target" bg="transparent" color={intentColor}>
+                Intent: {pr.intent_confidence ?? "low"}
+              </Badge>
+            )}
           </div>
         </div>
         <div style={s.actions}>

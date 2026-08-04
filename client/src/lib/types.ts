@@ -17,6 +17,7 @@ export type {
   FeatureModelId,
   FeatureModelChoice,
   FeatureModelDef,
+  IntentConfidence,
   Provider,
   ModelInfo,
   Repo,

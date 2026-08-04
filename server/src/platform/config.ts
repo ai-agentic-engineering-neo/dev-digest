@@ -26,6 +26,11 @@ const EnvSchema = z.object({
   // Note: even when on, sections only populate once the repo is indexed; an
   // unindexed repo degrades gracefully. Per-agent override: agents.repo_intel.
   REPO_INTEL_ENABLED: z.string().optional(),
+  // Local-only debug: logs prompt-assembly section metadata (section name,
+  // source, length in characters) for every review run — NEVER section
+  // content (no diff, no spec/issue text, no secrets). Default OFF; don't
+  // enable in a shared/hosted environment, only for local prompt debugging.
+  PROMPT_ASSEMBLY_DEBUG: z.string().optional(),
   API_PORT: z.coerce.number().int().default(3001),
   WEB_PORT: z.coerce.number().int().default(3000),
   DEVDIGEST_CLONE_DIR: z.string().optional(),
@@ -59,6 +64,12 @@ export type AppConfig = {
    * EXACTLY like the ripgrep-only baseline.
    */
   repoIntelEnabled: boolean;
+  /**
+   * Local-only: emit one pino `debug` line per agent run with prompt-assembly
+   * section metadata (name, source, char length) — never section content.
+   * Default false. See PROMPT_ASSEMBLY_DEBUG above.
+   */
+  promptAssemblyDebugEnabled: boolean;
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -77,5 +88,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     webOrigin: `http://localhost:${parsed.WEB_PORT}`,
     embeddingsEnabled: parsed.EMBEDDINGS_ENABLED === 'true',
     repoIntelEnabled: parsed.REPO_INTEL_ENABLED !== 'false',
+    promptAssemblyDebugEnabled: parsed.PROMPT_ASSEMBLY_DEBUG === 'true',
   };
 }

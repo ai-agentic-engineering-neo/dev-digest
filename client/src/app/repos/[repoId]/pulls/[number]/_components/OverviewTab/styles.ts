@@ -10,5 +10,19 @@ export const s = {
     color: "var(--text-secondary)",
     whiteSpace: "pre-wrap",
     lineHeight: 1.55,
+    marginBottom: 24,
+  } satisfies CSSProperties,
+  intentSignals: {
+    marginTop: 10,
+    fontSize: 12.5,
+    color: "var(--text-muted)",
+  } satisfies CSSProperties,
+  intentEmpty: {
+    border: "1px dashed var(--border)",
+    borderRadius: 8,
+    padding: 18,
+    fontSize: 13,
+    color: "var(--text-muted)",
+    marginBottom: 24,
   } satisfies CSSProperties,
 } as const;

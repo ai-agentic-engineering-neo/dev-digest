@@ -6,7 +6,7 @@ import * as schema from '../../db/schema.js';
 import type { AgentRow } from '../../db/rows.js';
 import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './repository.js';
 import { REVIEW_STRATEGY } from './constants.js';
-import { taskLine } from './helpers.js';
+import { promptAssemblySections, taskLine } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
 // THE one skill renderer, shared with `GET /skills/:id/preview`. Never
 // re-implement this formatting here — a second copy makes the Preview tab lie.
@@ -108,6 +108,33 @@ export class ReviewRunExecutor {
     }
     runLog.info(`Diff ready — ${diff.files.length} changed file(s); starting ${jobs.length} agent run(s)`);
 
+    // L03 — resolve PR intent ONCE per run batch (not per agent), right after
+    // the diff load, exactly as this class's own docstring has always framed
+    // it. Best-effort: any failure here degrades the prompt back to the
+    // pre-L03 baseline (reviewPullRequest omits the `intent` slot when
+    // undefined) — unlike a diff-load failure, it never fails the queued runs.
+    let resolvedIntent: string | undefined;
+    try {
+      const intent = await runLog.step(
+        'Resolving PR intent',
+        () =>
+          this.container.intentService.resolve({
+            workspaceId,
+            pull: { id: pull.id, title: pull.title, body: pull.body },
+            repo: { owner: repo.owner, name: repo.name, clonePath: repo.clonePath },
+            onSignal: (msg) => runLog.info(msg),
+          }),
+        { kind: 'tool' },
+      );
+      resolvedIntent = intent.rendered;
+      logger?.info(
+        { prId: pull.id, confidence: intent.confidence ?? null, signals: intent.signals.length },
+        'review: intent resolved',
+      );
+    } catch (err) {
+      runLog.info(`intent: resolution failed — ${(err as Error).message}`);
+    }
+
     for (const { agent, runId } of jobs) {
       const agentStart = Date.now();
       logger?.info(
@@ -115,7 +142,17 @@ export class ReviewRunExecutor {
         `review: agent "${agent.name}" started (${agent.provider}/${agent.model})`,
       );
       try {
-        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, agent, runId, runLog);
+        const outcome = await this.runOneAgent(
+          workspaceId,
+          pull,
+          repo,
+          diff,
+          agent,
+          runId,
+          runLog,
+          resolvedIntent,
+          logger,
+        );
         logger?.info(
           {
             runId,
@@ -147,6 +184,11 @@ export class ReviewRunExecutor {
     agent: AgentRow,
     runId: string,
     parentLog: RunLogger,
+    /** L03 — the already-resolved intent string (resolved once per run batch
+     *  in `executeRuns`, not here). `undefined` when resolution was skipped/
+     *  failed — reviewPullRequest omits the slot in that case. */
+    resolvedIntent?: string,
+    logger?: Logger,
   ): Promise<RunOutcome> {
     const start = Date.now();
     // Narrow the fanned-out pre-work logger to THIS run; the shared diff/intent
@@ -229,6 +271,10 @@ export class ReviewRunExecutor {
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
+        // L03 — derived PR intent, resolved once per run batch. Omit-when-
+        // empty: a skipped/failed resolution produces a prompt identical to
+        // the pre-L03 baseline.
+        ...(resolvedIntent ? { intent: resolvedIntent } : {}),
         task,
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
@@ -237,6 +283,27 @@ export class ReviewRunExecutor {
         },
       });
       const { tokensIn, tokensOut, costUsd, grounding } = outcome;
+
+      // Local-only, metadata-only prompt-assembly log (PROMPT_ASSEMBLY_DEBUG).
+      // Goes straight to the structured stdout logger — deliberately NOT through
+      // `runLog`, which fans out to the SSE Live Log every viewer of this run
+      // can see; this data is for local debugging only. Section CONTENT is
+      // never included (see promptAssemblySections's contract), only name,
+      // origin, and char length, alongside the model and runId (correlation).
+      if (this.container.config?.promptAssemblyDebugEnabled) {
+        logger?.debug(
+          {
+            runId,
+            prId: pull.id,
+            agent: agent.name,
+            provider: agent.provider,
+            model: agent.model,
+            mode: outcome.mode,
+            sections: promptAssemblySections(outcome.assembly, diff.raw.length),
+          },
+          'review: prompt assembled (debug)',
+        );
+      }
 
       // One row per injected skill — the Stats tab's only source of truth, and
       // the reason it can say "this skill was pulled into 71% of runs" after the
@@ -471,7 +538,14 @@ export class ReviewRunExecutor {
         source: 'local',
       },
       stats: { duration_ms: durationMs, tokens_in: 0, tokens_out: 0, cost_usd: null, findings: 0, grounding },
-      prompt_assembly: { system: agent.systemPrompt, skills: null, memory: null, specs: null, user: '' },
+      prompt_assembly: {
+        system: agent.systemPrompt,
+        skills: null,
+        memory: null,
+        specs: null,
+        intent: null,
+        user: '',
+      },
       tool_calls: [],
       raw_output: '',
       memory_pulled: [],

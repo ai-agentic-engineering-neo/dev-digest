@@ -23,3 +23,6 @@ test-results/
 
 # emdash worktree config (local)
 .emdash.json
+
+# ad-hoc mockups/screenshots dropped in for a planning session — never committed
+working-screenshots/

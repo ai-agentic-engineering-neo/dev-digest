@@ -1,0 +1,1 @@
+ALTER TABLE "repo_index_state" ADD COLUMN "languages" jsonb DEFAULT '[]'::jsonb NOT NULL;

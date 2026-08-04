@@ -11,6 +11,7 @@
  * depend on the graph + token-budget work and should ship as their own
  * migration so T2's pipeline can release independently.
  */
+import { sql } from 'drizzle-orm';
 import {
   pgTable,
   uuid,
@@ -44,6 +45,14 @@ export const repoIndexState = pgTable('repo_index_state', {
   filesIndexed: integer('files_indexed').notNull().default(0),
   filesSkipped: integer('files_skipped').notNull().default(0),
   stats: jsonb('stats').notNull().default({}),
+  /**
+   * Languages actually present in the indexed file set (Phase 5,
+   * docs/go-language-support-plan.md), e.g. `['go', 'typescript']`. A set,
+   * not a scalar — a repo can legitimately mix languages. Informational
+   * only (badge/filtering) — never a gate on how a file is indexed, which
+   * already runs per-file (repo-intel/languages/index.ts).
+   */
+  languages: jsonb('languages').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 

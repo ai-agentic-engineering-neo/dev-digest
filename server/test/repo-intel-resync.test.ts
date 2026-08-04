@@ -61,6 +61,7 @@ function stateAt(sha: string): IndexState {
     durationMs: 1,
     lastIndexedSha: sha,
     indexerVersion: INDEXER_VERSION,
+    languages: [],
     updatedAt: new Date(),
   };
 }

@@ -25,8 +25,8 @@ import {
   DEFAULT_REPO_MAP_TOKEN_BUDGET,
   INDEXER_VERSION,
   MAX_PARSE_MS_PER_FILE,
-  SUPPORTED_EXT,
 } from '../constants.js';
+import { SUPPORTED_EXT, languagesPresent } from '../languages/index.js';
 import type {
   IndexerEdgeRow,
   IndexerFileFactsRow,
@@ -214,8 +214,13 @@ export async function runIncremental(
   // v1 favours simple correctness.
   let graphFailed: string | undefined;
   let edgeRows: IndexerEdgeRow[] = [];
+  // Hoisted above the try so it's still readable at the upsertIndexState call
+  // below even if walkClone/the graph build throws — stays [] in that case,
+  // and the languages computation falls back to the prior persisted value
+  // rather than wrongly blanking out a known-good set on a transient failure.
+  let allFiles: string[] = [];
   try {
-    const allFiles = (await walkClone(repo.clonePath)).files;
+    allFiles = (await walkClone(repo.clonePath)).files;
     const edges = await container.depgraph.buildEdges(repo.clonePath, allFiles);
     edgeRows = edges.map((e) => ({ fromFile: e.from, toFile: e.to }));
     await repository.replaceEdges(repoId, edgeRows);
@@ -260,6 +265,10 @@ export async function runIncremental(
   const newFilesIndexed = state.filesIndexed + filesIndexed;
   const newFilesSkipped = state.filesSkipped + filesSkipped;
 
+  // allFiles is only [] if the T3 walk above never completed (graphFailed) —
+  // in that case keep the previously known set rather than blank it out.
+  const languages = allFiles.length > 0 ? languagesPresent(allFiles) : state.languages;
+
   await repository.upsertIndexState({
     repoId,
     lastIndexedSha: currentSha,
@@ -268,6 +277,7 @@ export async function runIncremental(
     filesIndexed: newFilesIndexed,
     filesSkipped: newFilesSkipped,
     stats,
+    languages,
   });
 
   return {

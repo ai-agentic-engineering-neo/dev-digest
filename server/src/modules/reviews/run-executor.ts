@@ -6,7 +6,7 @@ import * as schema from '../../db/schema.js';
 import type { AgentRow } from '../../db/rows.js';
 import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './repository.js';
 import { REVIEW_STRATEGY } from './constants.js';
-import { taskLine } from './helpers.js';
+import { taskLine, buildStackFraming } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
 
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
@@ -184,12 +184,20 @@ export class ReviewRunExecutor {
 
       const task = taskLine(pull) + rankNote;
 
+      // Phase 4 (docs/go-language-support-plan.md) — the seeded system prompts
+      // are written language-neutral; this appends the actual language(s)
+      // touched in THIS diff, computed at run time rather than baked into the
+      // prompt or read from a repo-wide label, so a Go PR in a TS+Go repo gets
+      // Go framing instead of a wrong static "Node.js" assumption.
+      const stackFraming = buildStackFraming(diff.files.map((f) => f.path));
+      const systemPrompt = stackFraming ? `${agent.systemPrompt}\n\n${stackFraming}` : agent.systemPrompt;
+
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
       // the CI runner). The service owns only I/O: repo-intel context resolution
       // above, and persistence + observability below.
       const outcome = await reviewPullRequest({
-        systemPrompt: agent.systemPrompt,
+        systemPrompt,
         model: agent.model,
         diff,
         llm,

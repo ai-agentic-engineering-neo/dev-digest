@@ -45,9 +45,88 @@ workflow and quality bar.
   (`server/src/modules/pulls/routes.ts:137-145`, mirroring the pre-existing
   `latestReviewByPr` map at `server/src/modules/pulls/routes.ts:119-128`)
 
+- 2026-08-04 — Extending a shared allowlist constant (`SUPPORTED_EXT` →
+  `repo-intel/languages/index.ts`) means auditing every consumer via
+  `pnpm typecheck`, not just `grep`. A pre-refactor grep found 3 documented
+  consumers + 1 already-known 4th; `depgraph/index.ts` was a genuine 5th
+  that only surfaced as a `tsc` import error after the migration. Separately:
+  `dependency-cruiser` (used there to build the TS/JS import graph) has no
+  concept of Go — once the shared registry started admitting `.go` files,
+  this call site needed an explicit `languageIdForFile(f) === 'typescript'`
+  filter before `cruise()`, or Go paths would silently flow into a tool that
+  can't parse them.
+  (`server/src/adapters/depgraph/index.ts:20,55`)
+
+- 2026-08-04 — Adding a second `DepGraph` implementation didn't need a
+  registry or a container-level branch: `UnionDepGraph` composes
+  `[DepCruiseGraph, GoDepGraph]` behind the same `DepGraph` port and the
+  container swaps one `new X()` for `new UnionDepGraph()`
+  (`server/src/platform/container.ts:123`) — both existing pipeline call
+  sites (`pipeline/full.ts:216`, `pipeline/incremental.ts:219`) already
+  passed the full multi-language file list and left filtering to the
+  adapter, so nothing upstream had to change. Worth reusing this
+  compose-behind-the-port shape for the next per-language port (e.g. a
+  future language's own regex fallback or depgraph builder) instead of
+  threading a language switch through call sites.
+  (`server/src/adapters/depgraph/union.ts`)
+
+- 2026-08-04 — The seeded `PERFORMANCE_REVIEWER_PROMPT`
+  (`server/src/db/seed-prompts.ts`) had asserted, as a static fact sent to
+  the LLM on every review, "With max ~10 connections this stalls the whole
+  service" — DevDigest's own DB pool size, stated as if it were true of
+  whatever repo is actually being reviewed. Not a code bug (typechecks,
+  runs fine), but a correctness bug in prompt content — worth grepping
+  seeded prompt strings for other repo-specific facts (pool sizes,
+  concurrency limits, provider names) whenever "review any repo" tooling
+  is extended, since nothing catches a wrong assumption baked into prose.
+  (`server/src/db/seed-prompts.ts` pre-Phase-4; removed in the same change
+  that added per-diff `# Languages in this diff` framing, see
+  `server/src/modules/reviews/helpers.ts:buildStackFraming`)
+
+- 2026-08-04 — `pnpm typecheck` only covers `src/**/*.ts` (per
+  `server/tsconfig.json`'s `include`) — `server/test/**` is NEVER
+  type-checked, only transpiled by vitest's esbuild (which strips types
+  without checking them). Adding a required field to a shared interface
+  (`IndexState.languages`) silently left 3 test fixtures constructing that
+  interface's shape without the new field — `pnpm typecheck` passed clean
+  every time; only running the actual test suite (or manually re-reading
+  every literal typed as that interface) surfaced them. Don't trust
+  `pnpm typecheck` alone as a completeness signal when growing a type that
+  test fixtures also construct.
+  (`server/tsconfig.json:26` `"include": ["src/**/*.ts"]`)
+
 ## Tool & Library Notes
 
+- 2026-08-04 — `server/pnpm-workspace.yaml` is pnpm's own `allowBuilds`
+  build-script-approval file, not a stray tooling artifact (previously
+  assumed so and excluded from commits — it's real and meant to be
+  committed). `pnpm add <pkg-with-a-postinstall>` auto-appends a placeholder
+  line here; `pnpm install`/`pnpm typecheck` hard-fail until it's resolved
+  to `true`/`false`. This is where to approve a new native/build-script dep.
+  (`server/pnpm-workspace.yaml:2`)
+
 ## Recurring Errors & Fixes
+
+- 2026-08-04 — tree-sitter-Go's `pointer_type` node (`*Foo`) has TWO
+  children in order `['*', 'type_identifier']` — taking `children()[0]` to
+  "unwrap the pointer" silently grabs the `*` token, not the type. No
+  crash, no type error: a Go method's receiver-type resolution just always
+  returned `null`, so the `Receiver.Method` dual-emit convention (mirrored
+  from the TS/JS class-method pattern) quietly degraded to bare-name-only
+  until checked against a real parse, not just the grammar's field list.
+  Fix: filter children by `kind() === 'type_identifier'`, never assume
+  position. (`server/src/adapters/astgrep/langs/go.ts:67-72`)
+
+- 2026-08-04 — A literal NUL byte (0x00) was found embedded mid-template-
+  literal in `depgraph/index.ts` (sitting where a space should be, between
+  two `${}` interpolations) — pre-existing, unrelated to any session's
+  edits. It silently broke exact-string-match `Edit` calls against that
+  line (the text looked like a normal space in `Read` output). Diagnosed
+  with `sed -n '<n>p' file | od -c` after repeated no-visible-cause
+  replace failures; fixed by rewriting the file's bytes directly (Python,
+  `bytes.replace(b'\x00', b' ')`) rather than another string-based edit.
+  Worth trying `od -c` early if an `Edit` inexplicably can't find text that
+  `Read` clearly shows.
 
 ## Open Questions
 
@@ -64,3 +143,39 @@ workflow and quality bar.
   explicitly asked whether it had fired. Confirms the skill's own
   "Course arc" note in `references.md`: a description/manual trigger alone
   is not reliable enough without a `Stop` hook forcing it.
+
+- 2026-08-04 — Go language support (Phase 0+1+2 of
+  `docs/go-language-support-plan.md`) landed on `docs/go-language-support-plan`
+  (PR #3, fork). Verified end-to-end against real Go source (not just unit
+  fixtures) before writing formal tests — caught the pointer-receiver bug
+  above that way. Phase 3 (import graph without `dependency-cruiser`),
+  Phase 4 (de-hardcode system prompts), Phase 5 (`languages[]` DB column)
+  remain deferred.
+
+- 2026-08-04 — Phase 3 (Go import graph) also landed same branch/PR:
+  `GoDepGraph` resolves local imports via `go.mod`'s `module` directive +
+  the Phase 1 `parseImports` output, fanning an edge out to every file in
+  the imported package's directory (Go resolves at package granularity,
+  not file granularity — picking a single representative file would have
+  undercounted a package's PageRank fan-in). Phase 4/5 still deferred.
+
+- 2026-08-04 — Phase 4 (de-hardcode system prompts) also landed same
+  branch/PR: rewrote `GENERAL_REVIEWER_PROMPT`/`PERFORMANCE_REVIEWER_PROMPT`
+  neutral (matching `SECURITY_REVIEWER_PROMPT`'s existing style) and added
+  `buildStackFraming()` to inject per-diff language framing at review-run
+  time instead — kept out of `reviewer-core` entirely (it has no
+  `language` concept anywhere in its types) by folding the framing into
+  the plain `systemPrompt` string server-side, before the
+  `reviewPullRequest()` call. Phase 5 (`languages[]` DB column) is the
+  only phase still deferred.
+
+- 2026-08-04 — Phase 5 (repo language detection) also landed same
+  branch/PR, closing out all 6 phases of `docs/go-language-support-plan.md`.
+  `repo_index_state.languages` is derived from the actually-walked/indexed
+  file set (`languagesPresent()` over `walk.files`/`allFiles`) rather than
+  `go.mod`/`package.json` marker files as the plan originally sketched —
+  more accurate for "what did we actually index" and free (both pipelines
+  already compute that file list for other T3 steps). No downstream
+  consumer reads this column yet — confirmed via a repo-wide grep before
+  implementing, so it's genuinely informational/future-use, not dead code
+  masquerading as used.

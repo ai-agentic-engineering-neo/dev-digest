@@ -34,6 +34,7 @@ import {
   INDEXER_VERSION,
   MAX_PARSE_MS_PER_FILE,
 } from '../constants.js';
+import { languagesPresent } from '../languages/index.js';
 import type {
   IndexerEdgeRow,
   IndexerFileFactsRow,
@@ -274,6 +275,7 @@ export async function runFullIndex(
     filesIndexed,
     filesSkipped,
     stats,
+    languages: languagesPresent(walk.files),
   });
 
   return {
@@ -324,6 +326,11 @@ async function safePersist(
       filesIndexed,
       filesSkipped,
       stats,
+      // Both callers of safePersist bail before (or with) an empty walked
+      // file set — no recognized-language files were found, so [] is correct
+      // rather than stale (contrast runIncremental, which falls back to the
+      // PRIOR value on a transient failure since it already had a real one).
+      languages: [],
     });
   } catch {
     // Persistence failure during early-exit path — never throw out of the

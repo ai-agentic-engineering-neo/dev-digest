@@ -50,8 +50,8 @@ import {
   MAX_CALLERS_PER_SYMBOL,
   REFRESH_JOB_KIND,
   RESYNC_JOB_KIND,
-  SUPPORTED_EXT,
 } from './constants.js';
+import { SUPPORTED_EXT } from './languages/index.js';
 import { runFullIndex, type IndexPayload } from './pipeline/full.js';
 import { runIncremental } from './pipeline/incremental.js';
 
@@ -198,6 +198,7 @@ export class RepoIntelService implements RepoIntel {
       reason: 'no_data',
       lastIndexedSha: '',
       indexerVersion: INDEXER_VERSION,
+      languages: [],
       updatedAt: new Date(0),
       degraded: true,
       degradedReason: 'no_data',
@@ -586,7 +587,7 @@ export class RepoIntelService implements RepoIntel {
 
     for (const file of files) {
       const ext = extname(file).toLowerCase();
-      if (!(SUPPORTED_EXT as readonly string[]).includes(ext)) continue;
+      if (!SUPPORTED_EXT.includes(ext)) continue;
 
       const source = await readClone(repo.clonePath, file);
       if (source == null) continue;

@@ -43,6 +43,8 @@ export interface IndexState extends IndexResult {
   repoId: string;
   lastIndexedSha: string;
   indexerVersion: number;
+  /** Languages present in the indexed file set (Phase 5) — informational only. */
+  languages: string[];
   updatedAt: Date;
   /** True when the layer is running on the ripgrep fallback. */
   degraded?: boolean;

@@ -77,6 +77,7 @@ function makeRepoStub(opts: {
       filesIndexed: number;
       filesSkipped: number;
       stats: Record<string, unknown>;
+      languages: string[];
     }) => {
       state = {
         repoId: s.repoId,
@@ -88,6 +89,7 @@ function makeRepoStub(opts: {
         reason: typeof s.stats.reason === 'string' ? (s.stats.reason as string) : undefined,
         lastIndexedSha: s.lastIndexedSha,
         indexerVersion: s.indexerVersion,
+        languages: s.languages,
         updatedAt: new Date(),
       };
     },
@@ -204,6 +206,9 @@ describe('runFullIndex', () => {
     expect(state!.indexerVersion).toBe(INDEXER_VERSION);
     expect(state!.status).toBe('full');
     expect(state!.filesIndexed).toBe(2);
+    // Phase 5 — languages derived from the walked file set (README.md is
+    // filtered out by the language registry, so this stays TS-only).
+    expect(state!.languages).toEqual(['typescript']);
   });
 
   it('returns degraded when the repo has no clonePath (writes a degraded state row)', async () => {
@@ -279,6 +284,7 @@ describe('runIncremental', () => {
       durationMs: 100,
       lastIndexedSha: 'sha-old',
       indexerVersion: INDEXER_VERSION,
+      languages: [],
       updatedAt: new Date(0),
       ...overrides,
     };
@@ -380,6 +386,9 @@ describe('runIncremental', () => {
     // counter is prior (5) + this slice's filesIndexed (1).
     expect(stub.getState()!.filesIndexed).toBe(6);
     expect(stub.getState()!.lastIndexedSha).toBe('sha-new');
+    // Phase 5 — the T3 walk (rebuilt over the full tree) freshly recomputes
+    // languages, overriding the initial state's empty `[]`.
+    expect(stub.getState()!.languages).toEqual(['typescript']);
   });
 
   it('large diff (> threshold) → delegates to runFullIndex', async () => {

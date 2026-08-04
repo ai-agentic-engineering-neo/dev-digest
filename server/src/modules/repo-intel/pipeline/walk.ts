@@ -4,7 +4,7 @@
  * Walks a clone directory and returns the set of files the parse phase should
  * process, applying:
  *   - EXCLUDED_DIRS  (node_modules, dist, build, coverage, .next, out, vendor, .git)
- *   - SUPPORTED_EXT  (.ts, .tsx, .js, .jsx, .mjs, .cjs)
+ *   - SUPPORTED_EXT  (see languages/index.ts — TS/JS + Go)
  *   - MAX_FILE_SIZE  (400 KB) — files larger than this are counted in
  *                    `stats.skippedTooLarge` and left out of the result.
  *   - MAX_INDEXED_FILES (5000) — if exceeded, take the FIRST N (by walk order)
@@ -27,8 +27,8 @@ import {
   EXCLUDED_DIRS,
   MAX_FILE_SIZE,
   MAX_INDEXED_FILES,
-  SUPPORTED_EXT,
 } from '../constants.js';
+import { SUPPORTED_EXT } from '../languages/index.js';
 
 const EXCLUDED_SET: ReadonlySet<string> = new Set(EXCLUDED_DIRS);
 const SUPPORTED_SET: ReadonlySet<string> = new Set(SUPPORTED_EXT);

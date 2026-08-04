@@ -52,6 +52,7 @@ export interface IndexStateUpsert {
   filesIndexed: number;
   filesSkipped: number;
   stats: Record<string, unknown>;
+  languages: string[];
 }
 
 /** Minimal repo shape the facade needs to call CodeIndex on a clone. */
@@ -225,6 +226,7 @@ export class RepoIntelRepository {
         reason,
         lastIndexedSha: row.lastIndexedSha,
         indexerVersion: row.indexerVersion,
+        languages: row.languages,
         updatedAt: row.updatedAt,
         degraded: isDegraded ? true : undefined,
         degradedReason: isDegraded
@@ -303,6 +305,7 @@ export class RepoIntelRepository {
         filesIndexed: state.filesIndexed,
         filesSkipped: state.filesSkipped,
         stats: state.stats,
+        languages: state.languages,
         updatedAt: now,
       })
       .onConflictDoUpdate({
@@ -314,6 +317,7 @@ export class RepoIntelRepository {
           filesIndexed: state.filesIndexed,
           filesSkipped: state.filesSkipped,
           stats: state.stats,
+          languages: state.languages,
           updatedAt: now,
         },
       });

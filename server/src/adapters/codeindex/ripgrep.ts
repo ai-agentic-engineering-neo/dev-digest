@@ -10,6 +10,8 @@ import type {
   GitClient,
 } from '@devdigest/shared';
 import { extractSymbols, extractReferences } from './extract.js';
+import { extractGoSymbols, extractGoReferences } from './extract-go.js';
+import { SUPPORTED_EXT_SET, languageIdForFile } from '../../modules/repo-intel/languages/index.js';
 
 /**
  * CodeIndex — ripgrep search + an ENHANCED regex symbol/reference
@@ -22,7 +24,6 @@ import { extractSymbols, extractReferences } from './extract.js';
  * back to a pure-Node recursive scan so it works with zero native deps (tests).
  */
 
-const CODE_EXT = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']);
 const IGNORE_DIRS = new Set(['.git', 'node_modules', 'dist', 'build', '.next', 'coverage']);
 
 let rgPathCache: string | null | undefined;
@@ -95,30 +96,37 @@ export class RipgrepCodeIndex implements CodeIndex {
     return matches;
   }
 
-  /** Enhanced regex symbol extractor (functions, classes + methods, arrows, types). */
+  /** Enhanced regex symbol extractor, dispatched by language (functions,
+   *  classes/structs + methods, arrows, types/interfaces). */
   async symbols(repo: RepoRef): Promise<CodeSymbol[]> {
     const root = this.root(repo);
     const out: CodeSymbol[] = [];
     for (const file of await this.walk(root)) {
-      if (!CODE_EXT.has(extname(file))) continue;
+      if (!SUPPORTED_EXT_SET.has(extname(file))) continue;
       const content = await readFile(file, 'utf8').catch(() => '');
       const rel = relative(root, file);
-      for (const s of extractSymbols(content)) {
+      const extracted = languageIdForFile(file) === 'go' ? extractGoSymbols(content) : extractSymbols(content);
+      for (const s of extracted) {
         out.push({ path: rel, name: s.name, kind: s.kind, line: s.line });
       }
     }
     return out;
   }
 
-  /** Enhanced reference finder: call sites / `new` / member-calls / JSX usage. */
+  /** Enhanced reference finder, dispatched by language: call sites / `new` /
+   *  member-calls / JSX usage (TS/JS); call sites / selector-calls (Go). */
   async references(repo: RepoRef, symbol: string): Promise<CodeReference[]> {
     const root = this.root(repo);
     const out: CodeReference[] = [];
     for (const file of await this.walk(root)) {
-      if (!CODE_EXT.has(extname(file))) continue;
+      if (!SUPPORTED_EXT_SET.has(extname(file))) continue;
       const content = await readFile(file, 'utf8').catch(() => '');
       const rel = relative(root, file);
-      for (const r of extractReferences(content, symbol)) {
+      const extracted =
+        languageIdForFile(file) === 'go'
+          ? extractGoReferences(content, symbol)
+          : extractReferences(content, symbol);
+      for (const r of extracted) {
         out.push({ fromPath: rel, toSymbol: symbol, line: r.line });
       }
     }

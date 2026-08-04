@@ -10,8 +10,9 @@ export const REFRESH_JOB_KIND = 'repo-intel-refresh';
 export const RESYNC_JOB_KIND = 'repo-intel-resync';
 
 // --- Walk / parse scope -----------------------------------------------------
-/** [T1] Files we parse (diff-scoped in T1; whole walk in T2). */
-export const SUPPORTED_EXT = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'] as const;
+// [T1] Which file extensions we parse now lives in `./languages/index.ts`
+// (SUPPORTED_EXT / SUPPORTED_EXT_SET / languageIdForFile) — the single
+// registry every consumer (walk, incremental, astgrep, ripgrep) reads from.
 
 /** [T1] Directories never walked. `.gitignore` is layered on top in T2 walk. */
 export const EXCLUDED_DIRS = [

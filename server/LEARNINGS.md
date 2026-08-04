@@ -256,6 +256,37 @@ timeout alive for the whole operation (`clearTimeout` moved to run after the
 read loop, not after `fetch()`), so an abort during body-reading now also
 throws the same "Timed out fetching…" `ValidationError`.
 
+### 2026-08-04 — "restore an old version" needs no new persistence logic on top of an archive-then-bump versioning scheme — it's just `update`, sourced from history
+
+Added `POST /skills/:id/restore` (`{ version }` in the body — matching the
+literal route the PR reviewer's comment named, rather than the nested
+`/skills/:id/versions/:version/restore` this first shipped with; both are
+equally valid REST shapes, this repo just didn't have a precedent either way,
+so when a human reviewer names a specific shape, match it over a
+self-justified alternative). Flagged as missing by an
+automated PR review on `feat/L02-page-conversation`; the client's
+`VersionsTab.tsx` and `specs/02` had both explicitly documented "no restore in
+v1" as a deliberate exclusion, not an oversight — an automated reviewer has no
+visibility into that intent, so treat "missing endpoint" findings against a
+documented v1 scope as a prompt to check specs/comments before assuming a gap).
+
+`SkillsService.restoreVersion` (`modules/skills/service.ts`) is three lines:
+look up the archived body via the existing `repo.getVersion`, then call
+`this.update(workspaceId, id, { body: target.body })` — the same
+archive-current/bump-version path a normal body edit already takes. No new
+repository method, no new archive-write logic. Two edge cases fall out for
+free from existing invariants rather than needing special-casing: (1)
+restoring the CURRENT version 404s on its own, because `skill_versions` only
+ever holds superseded bodies (see the `INITIAL_SKILL_VERSION` comment in
+`constants.ts`) — the current version was never archived, so `getVersion`
+correctly can't find it; (2) restoring drops you at a NEW version number
+(v1 while at v2 → v3), never back to v1, because `update` doesn't know or
+care that the body it received came from history instead of an editor —
+history stays append-only with zero extra code to enforce it. When a feature
+request is "let the user undo/revert an already-versioned entity," check
+whether the existing edit path already produces the right append-only
+semantics before reaching for new schema or a soft-delete/rewind concept.
+
 ### 2026-08-03 — findings attribution from `run_skills` is RUN-level, not skill-level, and the UI must say so
 
 `run_skills` records which skills were injected into *a run's* prompt, not

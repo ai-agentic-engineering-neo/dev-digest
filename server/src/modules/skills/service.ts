@@ -167,6 +167,27 @@ export class SkillsService {
   }
 
   /**
+   * Restore an archived body as the new current one. This does NOT rewrite
+   * history — it goes through the same `update` path a manual copy-paste
+   * would (see `VersionsTab`'s original v1 note): the current body is
+   * archived at its own version, `skills.version` bumps, and the restored
+   * body becomes current. History stays append-only; "restore" is really
+   * "update, with the old body as the source."
+   *
+   * `getVersion` only ever finds a PREVIOUS body (the current one is never
+   * archived until superseded — see `skill_versions`'s own comment), so
+   * restoring the already-current version naturally 404s instead of needing
+   * a special case.
+   */
+  async restoreVersion(workspaceId: string, id: string, version: number): Promise<Skill | undefined> {
+    const skill = await this.repo.getById(workspaceId, id);
+    if (!skill) return undefined;
+    const target = await this.repo.getVersion(id, version);
+    if (!target) return undefined;
+    return this.update(workspaceId, id, { body: target.body });
+  }
+
+  /**
    * The Preview tab: EXACTLY the block the run executor will inject, plus its
    * real token cost. `renderSkillBlock` is the one shared renderer — if this
    * ever stops calling it, the tab starts lying about what the model receives.

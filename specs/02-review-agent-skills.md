@@ -588,8 +588,13 @@ zero* are different facts, and a fresh workspace must not look like a failing on
 
 A list from `GET /skills/:id/versions`, newest first: version number, timestamp,
 body size delta. Selecting one shows that body read-only beside the current one.
-No restore action in v1 — copy the old body into the editor and save, which mints
-a new version and keeps the history append-only.
+
+`POST /skills/:id/restore` (`{ version }` in the body; added as a follow-up
+to the initial v1 scope, which shipped without it) does not rewind history —
+it goes through the same archive-then-bump path as a normal body edit, just
+sourced from an old version instead of the editor, so "restore v1" while at
+v2 produces v3. The Versions tab exposes this as a "Restore" button next to
+the selected version's pane.
 
 ### Agent editor Skills tab
 

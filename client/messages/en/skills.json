@@ -167,7 +167,7 @@
   },
   "versions": {
     "title": "Versions",
-    "hint": "Append-only. Saving a changed body archives the previous one here; there is no restore.",
+    "hint": "Append-only. Saving a changed body archives the previous one here. Restoring an old version does not rewind history — it mints a new version with that body.",
     "row": "v{version}",
     "current": "Current (v{version})",
     "selected": "Version v{version}",
@@ -175,7 +175,11 @@
     "noDelta": "first version",
     "empty": "No earlier versions yet. Saving a changed body archives the previous one here.",
     "loadError": "Could not load version history.",
-    "selectPrompt": "Select a version on the left to compare it with the current body."
+    "selectPrompt": "Select a version on the left to compare it with the current body.",
+    "restore": "Restore",
+    "restoreConfirm": "Restore v{version}? This becomes the new current version (the current body is archived first) — history is not rewritten.",
+    "restoreToast": "Restored as v{version}.",
+    "restoreFailed": "Could not restore that version."
   },
   "import": {
     "title": "Import a skill",

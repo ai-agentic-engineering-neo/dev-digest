@@ -260,6 +260,20 @@ Any future mutation hook here that writes its own `setQueryData` result
 just a `staleTime` bump — `staleTime` prevents a *new* refetch from firing,
 it doesn't stop one that's already in flight from resolving late.
 
+### 2026-08-04 — a component under test that calls `useToast()` does not need `<ToastProvider>` in the tree — `vi.spyOn` it like any other hook
+
+`useToast()` (`src/lib/toast.tsx`) throws `"useToast must be used within
+<ToastProvider>"` if the context is missing, which makes it look like any
+component calling it needs the real provider mounted for tests (pulling in
+its portal/state machinery just to assert a mutation's success/error path).
+It doesn't — `VersionsTab.test.tsx` (new `Restore` button, first place this
+came up) does `vi.spyOn(toastLib, "useToast").mockReturnValue({ success:
+vi.fn(), error: vi.fn(), info: vi.fn(), toast: vi.fn() })`, same shape as the
+existing `vi.spyOn(hooks, "useSkillVersions")` query-hook mocking pattern
+already used across this test suite (see `StatsTab.test.tsx`). Reach for this
+before wrapping a test tree in `<ToastProvider>` for any component that only
+needs to prove a toast method was *called*, not that a toast actually renders.
+
 ### 2026-08-03 — a component that unconditionally calls two mutation hooks (one per "mode") breaks an existing test that only mocked one
 
 Added a URL-import tab to `ImportSkillDrawer` alongside the existing file tab.

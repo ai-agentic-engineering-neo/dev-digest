@@ -121,6 +121,30 @@ export function useSkillVersion(id: string | null | undefined, version: number |
   });
 }
 
+/**
+ * Restore an archived body as the new current one. Same server-side path as
+ * a body edit (archive current, bump version) — just sourced from history
+ * instead of the editor — so the cache writes mirror `useUpdateSkill`
+ * exactly, including invalidating `versions` (the restored-from body is now
+ * archived at its own version and needs to show up in the list).
+ */
+export function useRestoreSkillVersion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, version }: { id: string; version: number }) =>
+      api.post<Skill>(`/skills/${id}/restore`, { version }),
+    onSuccess: (data) => {
+      qc.setQueryData(skillKeys.one(data.id), data);
+      qc.setQueryData<SkillWithStats[]>(skillKeys.list(), (rows) =>
+        rows?.map((r) => (r.id === data.id ? { ...r, ...data } : r)),
+      );
+      qc.invalidateQueries({ queryKey: skillKeys.list() });
+      qc.invalidateQueries({ queryKey: skillKeys.preview(data.id) });
+      qc.invalidateQueries({ queryKey: skillKeys.versions(data.id) });
+    },
+  });
+}
+
 /** The exact block the run executor injects, plus its real token cost. */
 export function useSkillPreview(id: string | null | undefined) {
   return useQuery({

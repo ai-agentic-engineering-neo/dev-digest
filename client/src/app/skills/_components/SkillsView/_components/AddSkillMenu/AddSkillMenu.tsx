@@ -1,6 +1,6 @@
-/* AddSkillMenu — "Create" or "Import from file" only. The URL and Community
-   import paths already have copy in skills.json but belong to a later lesson;
-   they are deliberately NOT rendered here. */
+/* AddSkillMenu — "Create", "Import from file", or "Import from URL". The
+   Community import path already has copy in skills.json but belongs to a
+   later lesson; it is deliberately NOT rendered here. */
 "use client";
 
 import React from "react";
@@ -10,9 +10,11 @@ import { Button, Dropdown } from "@devdigest/ui";
 export function AddSkillMenu({
   onCreate,
   onImport,
+  onImportUrl,
 }: {
   onCreate: () => void;
   onImport: () => void;
+  onImportUrl: () => void;
 }) {
   const t = useTranslations("skills");
   return (
@@ -27,6 +29,7 @@ export function AddSkillMenu({
       items={[
         { label: t("page.menu.create"), icon: "Edit", onClick: onCreate },
         { label: t("page.menu.fromFile"), icon: "Upload", onClick: onImport },
+        { label: t("page.menu.fromUrl"), icon: "Link", onClick: onImportUrl },
       ]}
     />
   );

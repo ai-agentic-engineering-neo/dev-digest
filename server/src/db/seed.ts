@@ -7,6 +7,7 @@ import {
   SECURITY_REVIEWER_PROMPT,
   PERFORMANCE_REVIEWER_PROMPT,
   TEST_QUALITY_REVIEWER_PROMPT,
+  API_CONTRACT_REVIEWER_PROMPT,
 } from './seed-prompts.js';
 import { SEED_SKILLS, SEED_AGENT_SKILLS } from './seed-skills.js';
 
@@ -20,9 +21,10 @@ const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
  *
  * Seeds: default workspace + system user + membership, default settings,
  * demo repo (acme/payments-api), PR #482 with files/commits, a sample review
- * with a few findings, the four built-in agents (General + Security +
- * Performance + Test Quality), all on the default openrouter/deepseek-v4-flash
- * provider+model, and the L02 skill catalogue with its agent links.
+ * with a few findings, the five built-in agents (General + Security +
+ * Performance + Test Quality + API Contract), all on the default
+ * openrouter/deepseek-v4-flash provider+model, and the L02/specs-03 skill
+ * catalogue with its agent links.
  *
  * Course lessons populate the remaining tables (conventions, memory, eval, …)
  * once their features are built — they start empty here.
@@ -226,6 +228,18 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       version: 1,
       createdBy: userId,
     },
+    {
+      workspaceId,
+      name: 'API Contract Reviewer',
+      description:
+        'Reviews public API contracts in a PR: breaking route/param/response changes, semver discipline.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: API_CONTRACT_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
   ];
   for (const a of seedAgents) {
     const [existing] = await db
@@ -235,10 +249,10 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
     if (!existing) await db.insert(t.agents).values(a);
   }
 
-  // ---- skill catalogue (L02) ----
-  // Bodies live in ./seed-skills.ts. Deliberately NOT seeded: `api-contract-guard`,
-  // which is imported through the UI's preview-then-confirm flow so the import
-  // path is exercised end to end.
+  // ---- skill catalogue (L02 + specs/03) ----
+  // Bodies live in ./seed-skills.ts. Deliberately NOT seeded: `api-contract-guard`
+  // and `deprecation-policy`, both imported through the UI's preview-then-confirm
+  // flow so the import path is exercised end to end.
   //
   // No run history is fabricated here. A fresh install shows every stats tile as
   // "—" (unmeasured, not zero) and the numbers arrive only once real runs happen

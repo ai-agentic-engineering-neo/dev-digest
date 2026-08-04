@@ -299,3 +299,50 @@ export function parseSkillUpload(
   }
   throw new ValidationError(`Unsupported file type: ${filename} (expected .md or .zip)`);
 }
+
+// -------------------------------------------------------------- import-url --
+//
+// SSRF guard for `POST /skills/import-url`. Pure (no network) so it's
+// unit-testable on its own — the fetch itself lives in the service, this only
+// decides whether a URL is even allowed to be fetched.
+
+const BLOCKED_HOSTNAMES = new Set(['localhost', '0.0.0.0', '::1']);
+
+/** Private/link-local ranges a server-side fetch must never reach — same
+ *  class of target as cloud metadata endpoints (169.254.169.254) and internal
+ *  services on a private network. */
+function isBlockedIp(hostname: string): boolean {
+  if (/^127\./.test(hostname)) return true;
+  if (/^10\./.test(hostname)) return true;
+  if (/^192\.168\./.test(hostname)) return true;
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(hostname)) return true;
+  if (/^169\.254\./.test(hostname)) return true;
+  return false;
+}
+
+/**
+ * Parse and validate a URL for server-side fetch: http(s) only, and not an
+ * obviously local/internal target. Throws `ValidationError` otherwise.
+ *
+ * This is a deny-list, not a sandbox — it stops the obvious cases (localhost,
+ * private ranges, cloud metadata) without resolving DNS. A determined attacker
+ * with control of DNS could still route around it; the import is a manual,
+ * single-user action against a URL the user themselves typed in, not
+ * attacker-supplied input, so this is a reasonable bar for a local-first tool.
+ */
+export function assertPublicHttpUrl(input: string): URL {
+  let url: URL;
+  try {
+    url = new URL(input);
+  } catch {
+    throw new ValidationError('Not a valid URL', { field: 'url' });
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new ValidationError('Only http/https URLs are allowed', { field: 'url' });
+  }
+  const hostname = url.hostname.toLowerCase();
+  if (BLOCKED_HOSTNAMES.has(hostname) || isBlockedIp(hostname)) {
+    throw new ValidationError('This host cannot be fetched', { field: 'url' });
+  }
+  return url;
+}

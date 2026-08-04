@@ -18,13 +18,16 @@ import { SkillsService } from './service.js';
  *   DELETE /skills/:id                    → delete (agent_skills / run_skills cascade)
  *   GET    /skills/:id/versions           → archived bodies, newest first
  *   GET    /skills/:id/versions/:version  → one archived body
+ *   POST   /skills/:id/restore            → { version } — archive the current body, make that one current
  *   GET    /skills/:id/preview            → the block as injected + token count
  *   GET    /skills/:id/stats              → Stats tab payload
  *   POST   /skills/tokens                 → live editor token counter
  *   POST   /skills/import                 → parse a .md/.zip upload; NOT saved
+ *   POST   /skills/import-url             → fetch + parse a URL; NOT saved
  *
- * Static segments (`/skills/tokens`, `/skills/import`) win over the parametric
- * `/skills/:id` in Fastify's router, so no ordering trick is needed here.
+ * Static segments (`/skills/tokens`, `/skills/import`, `/skills/import-url`)
+ * win over the parametric `/skills/:id` in Fastify's router, so no ordering
+ * trick is needed here.
  */
 
 /** `/skills/:id/versions/:version` — id is a uuid, version a positive integer. */
@@ -56,6 +59,8 @@ const UpdateSkillBody = z.object({
 
 const TokensBody = z.object({ body: SkillBody });
 
+const RestoreBody = z.object({ version: z.number().int().positive() });
+
 /**
  * Import takes a JSON body with base64, NOT multipart. Every route in this
  * server declares zod `params`/`body`; a multipart stream cannot be validated
@@ -69,6 +74,8 @@ const ImportBody = z.object({
   // guard (see SkillsService.parseImport), this just bounds the string early.
   content_b64: z.string().min(1).max(Math.ceil(MAX_UPLOAD_BYTES * 1.4)),
 });
+
+const ImportUrlBody = z.object({ url: z.string().min(1).max(2048) });
 
 export default async function skillsRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
@@ -106,6 +113,13 @@ export default async function skillsRoutes(appBase: FastifyInstance) {
     return service.parseImport(workspaceId, req.body.filename, req.body.content_b64);
   });
 
+  /** Parse-only, same contract as /skills/import: fetch a URL server-side,
+   *  parse it, return a preview. The client confirms via POST /skills. */
+  app.post('/skills/import-url', { schema: { body: ImportUrlBody } }, async (req) => {
+    const { workspaceId } = await getContext(app.container, req);
+    return service.parseImportFromUrl(workspaceId, req.body.url);
+  });
+
   app.get('/skills/:id', { schema: { params: IdParams } }, async (req) => {
     const { workspaceId } = await getContext(app.container, req);
     const skill = await service.get(workspaceId, req.params.id);
@@ -140,6 +154,21 @@ export default async function skillsRoutes(appBase: FastifyInstance) {
     if (!version) throw new NotFoundError('Skill version not found');
     return version;
   });
+
+  /** Restore an archived body: same version-bump/archive rule as PUT with a
+   *  body change, just sourced from history instead of the editor. 404s both
+   *  for an unknown skill and for an unknown/current (never-archived) version —
+   *  `service.restoreVersion` can't tell those apart, and callers don't need it to. */
+  app.post(
+    '/skills/:id/restore',
+    { schema: { params: IdParams, body: RestoreBody } },
+    async (req) => {
+      const { workspaceId } = await getContext(app.container, req);
+      const skill = await service.restoreVersion(workspaceId, req.params.id, req.body.version);
+      if (!skill) throw new NotFoundError('Skill version not found');
+      return skill;
+    },
+  );
 
   app.get('/skills/:id/preview', { schema: { params: IdParams } }, async (req) => {
     const { workspaceId } = await getContext(app.container, req);

@@ -172,6 +172,60 @@ d('skills module (Testcontainers pg)', () => {
     await app.close();
   });
 
+  it('restoring an archived version mints a NEW version with the old body, and archives the body it replaced', async () => {
+    const app = await makeApp();
+    const created = await app.inject({
+      method: 'POST',
+      url: '/skills',
+      payload: { ...createBody, name: 'restore-skill' },
+    });
+    const skill = created.json();
+
+    // v1 → v2, archiving v1's original body.
+    const v2 = await app.inject({
+      method: 'PUT',
+      url: `/skills/${skill.id}`,
+      payload: { body: '# Rubric v2\nSomething new.' },
+    });
+    expect(v2.json().version).toBe(2);
+
+    // Restoring v1 does not rewrite history — it mints v3 with v1's body,
+    // and archives v2's body in its place.
+    const restored = await app.inject({
+      method: 'POST',
+      url: `/skills/${skill.id}/restore`,
+      payload: { version: 1 },
+    });
+    expect(restored.statusCode).toBe(200);
+    expect(restored.json().version).toBe(3);
+    expect(restored.json().body).toBe(createBody.body);
+
+    const versions = await app.inject({ method: 'GET', url: `/skills/${skill.id}/versions` });
+    expect(versions.json()).toHaveLength(2);
+    const byVersion = new Map(versions.json().map((v: { version: number; body: string }) => [v.version, v.body]));
+    expect(byVersion.get(1)).toBe(createBody.body);
+    expect(byVersion.get(2)).toBe('# Rubric v2\nSomething new.');
+
+    // The now-current version (v3, restored from v1) was never archived —
+    // it's current, not history — so restoring it again 404s.
+    const restoreCurrent = await app.inject({
+      method: 'POST',
+      url: `/skills/${skill.id}/restore`,
+      payload: { version: 3 },
+    });
+    expect(restoreCurrent.statusCode).toBe(404);
+
+    // An unknown version 404s the same way.
+    const restoreUnknown = await app.inject({
+      method: 'POST',
+      url: `/skills/${skill.id}/restore`,
+      payload: { version: 99 },
+    });
+    expect(restoreUnknown.statusCode).toBe(404);
+
+    await app.close();
+  });
+
   it('delete cascades agent_skills and run_skills — no dangling link, no orphan stats row', async () => {
     const app = await makeApp();
     const created = await app.inject({
@@ -261,6 +315,18 @@ d('skills module (Testcontainers pg)', () => {
       const res = await app.inject({ method: 'GET', url });
       expect(res.statusCode).toBe(404);
     }
+    await app.close();
+  });
+
+  it('POST /skills/:id/restore 404s for an unknown skill', async () => {
+    const app = await makeApp();
+    const missing = '00000000-0000-0000-0000-000000000000';
+    const res = await app.inject({
+      method: 'POST',
+      url: `/skills/${missing}/restore`,
+      payload: { version: 1 },
+    });
+    expect(res.statusCode).toBe(404);
     await app.close();
   });
 });

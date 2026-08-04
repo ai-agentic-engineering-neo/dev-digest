@@ -1,22 +1,26 @@
 /* Versions tab — append-only history, newest first. Selecting a row shows that
    body read-only beside the current one.
 
-   No restore action in v1, deliberately: copying an old body back into the
-   editor and saving mints a NEW version, which keeps the history append-only.
-   A restore button would either rewrite history or need a second concept. */
+   Restore does NOT rewrite history: it goes through the same path as copying
+   an old body back into the editor and saving — the current body is archived
+   at its own version, `skills.version` bumps, and the restored body becomes
+   current. So "restore v1" while at v2 produces v3, not a rewound v1. */
 "use client";
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { EmptyState, ErrorState, Skeleton } from "@devdigest/ui";
+import { Button, EmptyState, ErrorState, Skeleton } from "@devdigest/ui";
 import type { Skill } from "@devdigest/shared";
-import { useSkillVersions } from "@/lib/hooks/skills";
+import { useRestoreSkillVersion, useSkillVersions } from "@/lib/hooks/skills";
+import { useToast } from "@/lib/toast";
 import { deltaSign, formatTimestamp, versionRows } from "./helpers";
 import { s } from "./styles";
 
 export function VersionsTab({ skill }: { skill: Skill }) {
   const t = useTranslations("skills");
+  const toast = useToast();
   const { data, isLoading, isError, refetch } = useSkillVersions(skill.id);
+  const restore = useRestoreSkillVersion();
   const [selected, setSelected] = React.useState<number | null>(null);
 
   // A different skill's history invalidates the selection.
@@ -62,7 +66,30 @@ export function VersionsTab({ skill }: { skill: Skill }) {
       {chosen ? (
         <div style={s.panes}>
           <div style={s.pane}>
-            <div style={s.paneHead}>{t("versions.selected", { version: chosen.version })}</div>
+            <div style={s.paneHeadRow}>
+              <span style={s.paneHeadText}>{t("versions.selected", { version: chosen.version })}</span>
+              <Button
+                kind="secondary"
+                size="sm"
+                icon="History"
+                disabled={restore.isPending}
+                onClick={() => {
+                  if (!window.confirm(t("versions.restoreConfirm", { version: chosen.version }))) return;
+                  restore.mutate(
+                    { id: skill.id, version: chosen.version },
+                    {
+                      onSuccess: (data) => {
+                        setSelected(null);
+                        toast.success(t("versions.restoreToast", { version: data.version }));
+                      },
+                      onError: () => toast.error(t("versions.restoreFailed")),
+                    },
+                  );
+                }}
+              >
+                {t("versions.restore")}
+              </Button>
+            </div>
             <pre className="mono" style={s.paneBody}>
               {chosen.body}
             </pre>

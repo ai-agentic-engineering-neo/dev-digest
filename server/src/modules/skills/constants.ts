@@ -6,6 +6,14 @@ export const MAX_BODY_BYTES = 64 * 1024;
 /** Largest upload accepted by `POST /skills/import` (.md or .zip). */
 export const MAX_UPLOAD_BYTES = 1024 * 1024;
 
+/** `POST /skills/import-url` fetch timeout — a slow/hanging host must not block the request. */
+export const URL_FETCH_TIMEOUT_MS = 8_000;
+
+/** Redirect hops `fetchSkillText` will follow manually, each re-validated
+ *  against the SSRF guard — a plain host redirecting to an internal target
+ *  must not bypass `assertPublicHttpUrl` just because the first hop passed. */
+export const MAX_URL_REDIRECTS = 5;
+
 /** Zip-bomb guard: refuse archives with more entries than this. */
 export const ARCHIVE_ENTRY_LIMIT = 512;
 

@@ -26,6 +26,9 @@ export interface InsertSkill {
   source: SkillSource;
   body: string;
   enabled?: boolean;
+  /** File:line citations backing this skill — populated by the Conventions
+   *  extractor; every other creation path leaves this null. */
+  evidenceFiles?: string[];
 }
 
 export interface UpdateSkill {
@@ -134,6 +137,7 @@ export class SkillsRepository {
           body: values.body,
           enabled: values.enabled ?? true,
           version: INITIAL_SKILL_VERSION,
+          evidenceFiles: values.evidenceFiles ?? null,
         })
         .returning();
       return row!;

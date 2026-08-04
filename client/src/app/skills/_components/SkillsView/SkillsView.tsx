@@ -30,7 +30,7 @@ export function SkillsView({ selectedId }: { selectedId?: string }) {
   const search = useSearchParams();
 
   const [query, setQuery] = React.useState("");
-  const [importing, setImporting] = React.useState(false);
+  const [importMode, setImportMode] = React.useState<"file" | "url" | null>(null);
 
   const { data: skills, isLoading, isError, refetch } = useSkills();
   const { data: skill, isLoading: skillLoading } = useSkill(selectedId);
@@ -75,7 +75,11 @@ export function SkillsView({ selectedId }: { selectedId?: string }) {
           <div style={s.railHead}>
             <div style={s.railTitleRow}>
               <h1 style={s.railTitle}>{t("page.heading")}</h1>
-              <AddSkillMenu onCreate={createAndOpen} onImport={() => setImporting(true)} />
+              <AddSkillMenu
+                onCreate={createAndOpen}
+                onImport={() => setImportMode("file")}
+                onImportUrl={() => setImportMode("url")}
+              />
             </div>
             <div style={s.search}>
               <Icon.Search size={14} style={s.searchIcon} />
@@ -103,7 +107,7 @@ export function SkillsView({ selectedId }: { selectedId?: string }) {
                 title={t("page.empty.title")}
                 body={t("page.empty.body")}
                 cta={t("page.empty.cta")}
-                onCta={() => setImporting(true)}
+                onCta={() => setImportMode("file")}
               />
             )}
             {!isLoading &&
@@ -162,11 +166,12 @@ export function SkillsView({ selectedId }: { selectedId?: string }) {
         )}
       </div>
 
-      {importing && (
+      {importMode && (
         <ImportSkillDrawer
-          onClose={() => setImporting(false)}
+          initialMode={importMode}
+          onClose={() => setImportMode(null)}
           onImported={(id) => {
-            setImporting(false);
+            setImportMode(null);
             router.push(`/skills/${id}?tab=config`);
           }}
         />

@@ -74,6 +74,21 @@
   {
     "type": "dependency",
     "from": "src/modules/settings/feature-models.ts",
+    "to": "src/db/client.ts",
+    "unresolvedTo": "../../db/client.js",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "db-only-in-repositories"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/settings/feature-models.ts",
     "to": "src/db/schema.ts",
     "unresolvedTo": "../../db/schema.js",
     "dependencyTypes": [

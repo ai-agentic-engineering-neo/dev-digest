@@ -11,8 +11,15 @@ import type {
 import type { Tokenizer } from '../../adapters/tokenizer/index.js';
 import { ValidationError } from '../../platform/errors.js';
 import { SkillsRepository, type SkillRow } from './repository.js';
-import { MAX_BODY_BYTES, MAX_UPLOAD_BYTES } from './constants.js';
-import { isBodyChange, parseSkillUpload, renderSkillBlock, toSkillDto } from './helpers.js';
+import { MAX_BODY_BYTES, MAX_UPLOAD_BYTES, MAX_URL_REDIRECTS, URL_FETCH_TIMEOUT_MS } from './constants.js';
+import {
+  assertPublicHttpUrl,
+  isBodyChange,
+  parseSkillMarkdown,
+  parseSkillUpload,
+  renderSkillBlock,
+  toSkillDto,
+} from './helpers.js';
 
 /**
  * Skills application service — CRUD, version bump, preview, import parse, stats.
@@ -39,6 +46,8 @@ export interface CreateSkillInput {
   source?: Skill['source'];
   body: string;
   enabled?: boolean;
+  /** File:line citations — set by the Conventions extractor, left unset otherwise. */
+  evidenceFiles?: string[];
 }
 
 export interface UpdateSkillInput {
@@ -85,6 +94,7 @@ export class SkillsService {
       source: input.source ?? 'manual',
       body: input.body,
       ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
+      ...(input.evidenceFiles !== undefined ? { evidenceFiles: input.evidenceFiles } : {}),
     });
     return toSkillDto(row);
   }
@@ -157,6 +167,27 @@ export class SkillsService {
   }
 
   /**
+   * Restore an archived body as the new current one. This does NOT rewrite
+   * history — it goes through the same `update` path a manual copy-paste
+   * would (see `VersionsTab`'s original v1 note): the current body is
+   * archived at its own version, `skills.version` bumps, and the restored
+   * body becomes current. History stays append-only; "restore" is really
+   * "update, with the old body as the source."
+   *
+   * `getVersion` only ever finds a PREVIOUS body (the current one is never
+   * archived until superseded — see `skill_versions`'s own comment), so
+   * restoring the already-current version naturally 404s instead of needing
+   * a special case.
+   */
+  async restoreVersion(workspaceId: string, id: string, version: number): Promise<Skill | undefined> {
+    const skill = await this.repo.getById(workspaceId, id);
+    if (!skill) return undefined;
+    const target = await this.repo.getVersion(id, version);
+    if (!target) return undefined;
+    return this.update(workspaceId, id, { body: target.body });
+  }
+
+  /**
    * The Preview tab: EXACTLY the block the run executor will inject, plus its
    * real token cost. `renderSkillBlock` is the one shared renderer — if this
    * ever stops calling it, the tab starts lying about what the model receives.
@@ -220,6 +251,84 @@ export class SkillsService {
       candidates: parsed.candidates ?? null,
       collides_with: collision ? collision.name : null,
     };
+  }
+
+  /**
+   * Parse-only, same contract as `parseImport`: fetch a URL server-side,
+   * parse it as a `SKILL.md`, and return a preview. NOTHING is persisted —
+   * the client confirms via `POST /skills`, same as the file-upload path.
+   */
+  async parseImportFromUrl(workspaceId: string, url: string): Promise<SkillImportPreview> {
+    const target = assertPublicHttpUrl(url);
+    const text = await this.fetchSkillText(target);
+    const parsed = parseSkillMarkdown(text, { filename: target.pathname });
+    const collision = await this.repo.getByName(workspaceId, parsed.name);
+    return {
+      name: parsed.name,
+      description: parsed.description,
+      body: parsed.body,
+      source_path: null,
+      ignored_entries: 0,
+      candidates: null,
+      collides_with: collision ? collision.name : null,
+    };
+  }
+
+  private async fetchSkillText(url: URL): Promise<string> {
+    const controller = new AbortController();
+    // Covers the whole operation (connect through body read), not just the
+    // initial fetch() — a slow-drip body must not be able to hold the
+    // request open past this window regardless of MAX_UPLOAD_BYTES.
+    const timeout = setTimeout(() => controller.abort(), URL_FETCH_TIMEOUT_MS);
+    try {
+      // `redirect: 'manual'` + re-validating each hop's target ourselves:
+      // a host that passes assertPublicHttpUrl on its own URL could still
+      // 302 to an internal target (e.g. 169.254.169.254), and 'follow'
+      // would have walked straight past the SSRF guard.
+      let current = url;
+      let res = await fetch(current, { signal: controller.signal, redirect: 'manual' });
+      for (let hop = 0; res.status >= 300 && res.status < 400; hop++) {
+        const location = res.headers.get('location');
+        if (!location) break;
+        if (hop >= MAX_URL_REDIRECTS) {
+          throw new ValidationError(`Too many redirects fetching ${url.href}`, { field: 'url' });
+        }
+        current = assertPublicHttpUrl(new URL(location, current).href);
+        res = await fetch(current, { signal: controller.signal, redirect: 'manual' });
+      }
+      if (!res.ok) {
+        throw new ValidationError(`${current.href} returned ${res.status}`, { field: 'url' });
+      }
+      // Enforce the same size cap as a file upload — a slow-drip response body
+      // must not be read past MAX_UPLOAD_BYTES regardless of Content-Length.
+      const reader = res.body?.getReader();
+      if (!reader) return await res.text();
+      const chunks: Uint8Array[] = [];
+      let total = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += value.byteLength;
+        if (total > MAX_UPLOAD_BYTES) {
+          await reader.cancel();
+          throw new ValidationError(`Response is larger than ${MAX_UPLOAD_BYTES} bytes`, {
+            field: 'url',
+          });
+        }
+        chunks.push(value);
+      }
+      return Buffer.concat(chunks.map((c) => Buffer.from(c))).toString('utf8');
+    } catch (e) {
+      if (e instanceof ValidationError) throw e;
+      throw new ValidationError(
+        e instanceof Error && e.name === 'AbortError'
+          ? `Timed out fetching ${url.href}`
+          : `Could not fetch ${url.href}`,
+        { field: 'url' },
+      );
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   private assertBodyFits(body: string): void {

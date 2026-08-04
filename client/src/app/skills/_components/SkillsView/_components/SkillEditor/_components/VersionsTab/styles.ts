@@ -34,6 +34,20 @@ export const s = {
     fontWeight: 700,
     color: "var(--text-secondary)",
   } satisfies CSSProperties,
+  paneHeadRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    padding: "6px 8px 6px 12px",
+    borderBottom: "1px solid var(--border)",
+    background: "var(--bg-surface)",
+  } satisfies CSSProperties,
+  paneHeadText: {
+    fontSize: 12,
+    fontWeight: 700,
+    color: "var(--text-secondary)",
+  } satisfies CSSProperties,
   paneBody: {
     margin: 0,
     padding: 14,

@@ -186,6 +186,18 @@ boot it (`pnpm dev` + `curl`, or `next build`) before calling the feature
 done — a passing `pnpm typecheck` + `pnpm test` was not sufficient evidence
 here.
 
+**Recurred 2026-08-03** in the conventions feature:
+`ConventionsView/_components/CreateSkillModal/CreateSkillModal.tsx` did
+`import { SKILL_NAME_RE, type ConventionCandidate } from "@devdigest/shared"`
+— identical shape, identical failure (`Can't resolve './contracts/findings.js'`
+in the barrel). Same fix (split the runtime value out to
+`@devdigest/shared/contracts/knowledge`), plus `rm -rf .next` was needed once
+to clear the dev server's cached failing module graph even after the source
+fix landed. This is now a confirmed recurring trap for any new
+`@devdigest/shared` consumer, not a one-off — when reviewing a diff that adds
+an import from the bare `@devdigest/shared` barrel, check whether anything in
+the specifier list is a value (not `type`-only) before it ships.
+
 ### 2026-08-03 — a new route needs FOUR wirings to be reachable, and the sidebar link is the one nothing errors on if you skip it
 
 Shipping `/skills` end to end (page, hooks, i18n) still left it invisible: the
@@ -211,6 +223,70 @@ as far as a user clicking through the sidebar is concerned, no matter how
 complete everything else is. Also update `SHORTCUTS` in the same file with a
 `g <letter>` entry if the section is meant to be keyboard-reachable — that
 list is independent of `NAV` and drifts the same way.
+
+### 2026-08-03 — a repo-scoped feature route (`/repos/:repoId/...`) has its own established pattern; don't reach for the workspace-scoped one
+
+Built `/repos/:repoId/conventions` (specs/03) right after `/skills` existed as
+the nearest example, but `/skills` is workspace-global — the actual template
+for anything scoped to the *active repo* is `repos/[repoId]/pulls`:
+`useParams<{ repoId: string }>()` for the id, `useActiveRepo()` for the repo
+object (`activeRepo?.full_name`, never trust the raw route param as a display
+name), and `useRepoNotFound(repoId)` gating an early `<RepoNotFound />` return
+before anything else renders. `nav.ts` entries route through the same
+`:repoId` token (`resolveHref`) that `useActiveRepo`'s pathname-first
+resolution already expects — no new wiring needed there beyond adding the
+`NavItemDef`.
+
+### 2026-08-04 — a mutation hook writing its own result via `setQueryData` in `onSuccess` can still be overwritten by a GET that was already in flight
+
+`useSetConventionStatus` (`src/lib/hooks/conventions.ts`) calls
+`qc.setQueryData(conventionsKeys.list(repoId), ...)` in `onSuccess` to avoid a
+refetch round-trip. That's not actually safe on its own: `useConventions` has
+no `staleTime`, so if a `GET /conventions` was already in flight when the
+mutation started (e.g. a background refetch, or the query mounting right as
+the user clicks accept/reject), that GET can resolve *after* the mutation's
+`onSuccess` and silently overwrite the just-written status with the
+pre-mutation snapshot — the card flips back to "pending" until the next
+refetch, with no error anywhere. Caught by an automated PR review, not by any
+test (this codebase has no hook-level tests — see `client/CLAUDE.md`'s
+component-test convention — so a race between two query-client operations
+isn't exercised).
+
+Fix: `qc.cancelQueries({ queryKey: conventionsKeys.list(repoId) })` in
+`onMutate`, before the mutation fires — cancelling the in-flight GET makes
+React Query discard its result instead of letting it land and win the race.
+Any future mutation hook here that writes its own `setQueryData` result
+(instead of just `invalidateQueries`) needs the same `onMutate` cancel, not
+just a `staleTime` bump — `staleTime` prevents a *new* refetch from firing,
+it doesn't stop one that's already in flight from resolving late.
+
+### 2026-08-04 — a component under test that calls `useToast()` does not need `<ToastProvider>` in the tree — `vi.spyOn` it like any other hook
+
+`useToast()` (`src/lib/toast.tsx`) throws `"useToast must be used within
+<ToastProvider>"` if the context is missing, which makes it look like any
+component calling it needs the real provider mounted for tests (pulling in
+its portal/state machinery just to assert a mutation's success/error path).
+It doesn't — `VersionsTab.test.tsx` (new `Restore` button, first place this
+came up) does `vi.spyOn(toastLib, "useToast").mockReturnValue({ success:
+vi.fn(), error: vi.fn(), info: vi.fn(), toast: vi.fn() })`, same shape as the
+existing `vi.spyOn(hooks, "useSkillVersions")` query-hook mocking pattern
+already used across this test suite (see `StatsTab.test.tsx`). Reach for this
+before wrapping a test tree in `<ToastProvider>` for any component that only
+needs to prove a toast method was *called*, not that a toast actually renders.
+
+### 2026-08-03 — a component that unconditionally calls two mutation hooks (one per "mode") breaks an existing test that only mocked one
+
+Added a URL-import tab to `ImportSkillDrawer` alongside the existing file tab.
+Both `useImportSkillPreview()` and the new `useImportSkillFromUrlPreview()`
+are called unconditionally at the top of the component (correct per rules of
+hooks — you can't call a hook only in one branch), but the FILE-mode test
+suite only mocked the first one via `vi.spyOn`. The second hook hit the real
+`useMutation` and failed with "No QueryClient set" — a failure with no
+apparent connection to the file-mode test itself, since that test never
+touches the URL tab. Whenever a component grows a second parallel hook call
+for an alternate mode, go back and stub it in every EXISTING test for that
+component, not just the new test for the new mode — the old tests will fail
+for a reason invisible from their own diff.
 
 ## Recurring Errors & Fixes
 

@@ -2,6 +2,17 @@ import type { CSSProperties } from "react";
 
 export const s = {
   footer: { display: "flex", justifyContent: "flex-end", gap: 10 },
+  tabs: { display: "flex", gap: 6, marginBottom: 18 },
+  tab: (active: boolean): CSSProperties => ({
+    padding: "6px 12px",
+    borderRadius: 6,
+    fontSize: 13,
+    fontWeight: 550,
+    cursor: "pointer",
+    border: "1px solid " + (active ? "var(--border-strong)" : "transparent"),
+    background: active ? "var(--bg-hover)" : "transparent",
+    color: active ? "var(--text-primary)" : "var(--text-secondary)",
+  }),
   dropzone: {
     border: "1px dashed var(--border-strong)",
     borderRadius: 8,
@@ -31,4 +42,4 @@ export const s = {
   },
   notice: { fontSize: 12, color: "var(--text-muted)", marginTop: 14, lineHeight: 1.5 },
   collides: { fontSize: 12, color: "var(--warn)", marginTop: 10 },
-} satisfies Record<string, CSSProperties>;
+} satisfies Record<string, CSSProperties | ((...args: never[]) => CSSProperties)>;

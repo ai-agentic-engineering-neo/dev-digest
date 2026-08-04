@@ -11,7 +11,7 @@ import type {
 import type { Tokenizer } from '../../adapters/tokenizer/index.js';
 import { ValidationError } from '../../platform/errors.js';
 import { SkillsRepository, type SkillRow } from './repository.js';
-import { MAX_BODY_BYTES, MAX_UPLOAD_BYTES, URL_FETCH_TIMEOUT_MS } from './constants.js';
+import { MAX_BODY_BYTES, MAX_UPLOAD_BYTES, MAX_URL_REDIRECTS, URL_FETCH_TIMEOUT_MS } from './constants.js';
 import {
   assertPublicHttpUrl,
   isBodyChange,
@@ -255,11 +255,50 @@ export class SkillsService {
 
   private async fetchSkillText(url: URL): Promise<string> {
     const controller = new AbortController();
+    // Covers the whole operation (connect through body read), not just the
+    // initial fetch() — a slow-drip body must not be able to hold the
+    // request open past this window regardless of MAX_UPLOAD_BYTES.
     const timeout = setTimeout(() => controller.abort(), URL_FETCH_TIMEOUT_MS);
-    let res: Response;
     try {
-      res = await fetch(url, { signal: controller.signal, redirect: 'follow' });
+      // `redirect: 'manual'` + re-validating each hop's target ourselves:
+      // a host that passes assertPublicHttpUrl on its own URL could still
+      // 302 to an internal target (e.g. 169.254.169.254), and 'follow'
+      // would have walked straight past the SSRF guard.
+      let current = url;
+      let res = await fetch(current, { signal: controller.signal, redirect: 'manual' });
+      for (let hop = 0; res.status >= 300 && res.status < 400; hop++) {
+        const location = res.headers.get('location');
+        if (!location) break;
+        if (hop >= MAX_URL_REDIRECTS) {
+          throw new ValidationError(`Too many redirects fetching ${url.href}`, { field: 'url' });
+        }
+        current = assertPublicHttpUrl(new URL(location, current).href);
+        res = await fetch(current, { signal: controller.signal, redirect: 'manual' });
+      }
+      if (!res.ok) {
+        throw new ValidationError(`${current.href} returned ${res.status}`, { field: 'url' });
+      }
+      // Enforce the same size cap as a file upload — a slow-drip response body
+      // must not be read past MAX_UPLOAD_BYTES regardless of Content-Length.
+      const reader = res.body?.getReader();
+      if (!reader) return await res.text();
+      const chunks: Uint8Array[] = [];
+      let total = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += value.byteLength;
+        if (total > MAX_UPLOAD_BYTES) {
+          await reader.cancel();
+          throw new ValidationError(`Response is larger than ${MAX_UPLOAD_BYTES} bytes`, {
+            field: 'url',
+          });
+        }
+        chunks.push(value);
+      }
+      return Buffer.concat(chunks.map((c) => Buffer.from(c))).toString('utf8');
     } catch (e) {
+      if (e instanceof ValidationError) throw e;
       throw new ValidationError(
         e instanceof Error && e.name === 'AbortError'
           ? `Timed out fetching ${url.href}`
@@ -269,28 +308,6 @@ export class SkillsService {
     } finally {
       clearTimeout(timeout);
     }
-    if (!res.ok) {
-      throw new ValidationError(`${url.href} returned ${res.status}`, { field: 'url' });
-    }
-    // Enforce the same size cap as a file upload — a slow-drip response body
-    // must not be read past MAX_UPLOAD_BYTES regardless of Content-Length.
-    const reader = res.body?.getReader();
-    if (!reader) return res.text();
-    const chunks: Uint8Array[] = [];
-    let total = 0;
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      total += value.byteLength;
-      if (total > MAX_UPLOAD_BYTES) {
-        await reader.cancel();
-        throw new ValidationError(`Response is larger than ${MAX_UPLOAD_BYTES} bytes`, {
-          field: 'url',
-        });
-      }
-      chunks.push(value);
-    }
-    return Buffer.concat(chunks.map((c) => Buffer.from(c))).toString('utf8');
   }
 
   private assertBodyFits(body: string): void {

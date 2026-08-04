@@ -90,4 +90,65 @@ describe('SkillsService.parseImportFromUrl', () => {
       service().parseImportFromUrl('ws-1', 'https://example.com/missing.md'),
     ).rejects.toBeInstanceOf(ValidationError);
   });
+
+  it('rejects a redirect to a blocked host instead of following it', async () => {
+    // A host that passes the initial SSRF check can still 302 to an internal
+    // target — `redirect: 'manual'` + re-validating each hop is what closes
+    // that bypass; this pins the behavior so it can't regress to `follow`.
+    global.fetch = vi.fn(async () => ({
+      ok: false,
+      status: 302,
+      headers: new Headers({ location: 'http://169.254.169.254/latest/meta-data' }),
+    })) as unknown as typeof fetch;
+
+    await expect(
+      service().parseImportFromUrl('ws-1', 'https://example.com/redirects-to-metadata'),
+    ).rejects.toBeInstanceOf(ValidationError);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('follows a redirect to another public host', async () => {
+    const body = '---\nname: remote-skill\ndescription: A skill fetched from a URL.\n---\n\n# Remote Skill\nBody text.';
+    const okResponse = {
+      ok: true,
+      status: 200,
+      body: {
+        getReader: () => {
+          let sent = false;
+          return {
+            read: async () => {
+              if (sent) return { done: true, value: undefined };
+              sent = true;
+              return { done: false, value: new TextEncoder().encode(body) };
+            },
+            cancel: async () => {},
+          };
+        },
+      },
+    };
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 302,
+        headers: new Headers({ location: 'https://cdn.example.com/skills/remote.md' }),
+      })
+      .mockResolvedValueOnce(okResponse) as unknown as typeof fetch;
+
+    const preview = await service().parseImportFromUrl('ws-1', 'https://example.com/skills/remote.md');
+    expect(preview.name).toBe('remote-skill');
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects a redirect chain longer than the allowed hop count', async () => {
+    global.fetch = vi.fn(async (input: URL | string) => ({
+      ok: false,
+      status: 302,
+      headers: new Headers({ location: `${String(input)}/next` }),
+    })) as unknown as typeof fetch;
+
+    await expect(
+      service().parseImportFromUrl('ws-1', 'https://example.com/loop'),
+    ).rejects.toBeInstanceOf(ValidationError);
+  });
 });

@@ -237,6 +237,29 @@ before anything else renders. `nav.ts` entries route through the same
 resolution already expects — no new wiring needed there beyond adding the
 `NavItemDef`.
 
+### 2026-08-04 — a mutation hook writing its own result via `setQueryData` in `onSuccess` can still be overwritten by a GET that was already in flight
+
+`useSetConventionStatus` (`src/lib/hooks/conventions.ts`) calls
+`qc.setQueryData(conventionsKeys.list(repoId), ...)` in `onSuccess` to avoid a
+refetch round-trip. That's not actually safe on its own: `useConventions` has
+no `staleTime`, so if a `GET /conventions` was already in flight when the
+mutation started (e.g. a background refetch, or the query mounting right as
+the user clicks accept/reject), that GET can resolve *after* the mutation's
+`onSuccess` and silently overwrite the just-written status with the
+pre-mutation snapshot — the card flips back to "pending" until the next
+refetch, with no error anywhere. Caught by an automated PR review, not by any
+test (this codebase has no hook-level tests — see `client/CLAUDE.md`'s
+component-test convention — so a race between two query-client operations
+isn't exercised).
+
+Fix: `qc.cancelQueries({ queryKey: conventionsKeys.list(repoId) })` in
+`onMutate`, before the mutation fires — cancelling the in-flight GET makes
+React Query discard its result instead of letting it land and win the race.
+Any future mutation hook here that writes its own `setQueryData` result
+(instead of just `invalidateQueries`) needs the same `onMutate` cancel, not
+just a `staleTime` bump — `staleTime` prevents a *new* refetch from firing,
+it doesn't stop one that's already in flight from resolving late.
+
 ### 2026-08-03 — a component that unconditionally calls two mutation hooks (one per "mode") breaks an existing test that only mocked one
 
 Added a URL-import tab to `ImportSkillDrawer` alongside the existing file tab.

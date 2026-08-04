@@ -226,6 +226,36 @@ about or omit `Content-Length` — trusting that header alone doesn't cap a
 slow-drip or large-body response. Both guards are pure/testable without a real
 network call (mock `global.fetch` returning a hand-rolled `ReadableStreamDefaultReader`).
 
+### 2026-08-04 — the 2026-08-03 SSRF guard entry above was incomplete: `redirect: 'follow'` walks straight past `assertPublicHttpUrl`, no DNS control needed
+
+`assertPublicHttpUrl` only validates the URL string it's called with — it's
+never re-run against a redirect target. `fetchSkillText`
+(`modules/skills/service.ts`) fetched with `redirect: 'follow'`, so a host
+that passes the check on its own URL (e.g. `https://example.com/skill.md`)
+could 302 to `http://169.254.169.254/latest/meta-data` and the fetch would
+follow it with zero further validation — no DNS rebinding attack needed, just
+one HTTP redirect. Caught by an automated PR review (branch
+`feat/L02-page-conversation`), not by the existing unit tests, because every
+test's mocked `fetch` returned a terminal response directly.
+
+Fix: `redirect: 'manual'` + a loop that reads `res.headers.get('location')`,
+resolves it against the current URL, re-validates it through
+`assertPublicHttpUrl` before the next `fetch`, and bails past
+`MAX_URL_REDIRECTS` hops (`modules/skills/constants.ts`). Any future
+server-side fetch of a user-supplied URL needs the same treatment — passing
+the SSRF guard once at the top is not enough if the fetch call itself is
+allowed to follow redirects.
+
+Same fix pass also closed a second gap in that code path: the `AbortController`
+timeout was cleared in the `finally` right after `fetch()` resolved (i.e. once
+headers arrived), but the response body was then read afterward via a manual
+`getReader()` loop with no active timeout — a slow-drip body (each chunk under
+`MAX_UPLOAD_BYTES` cumulative) could hold the request open indefinitely since
+only the byte cap, not a time cap, applied during the read. Fix: keep the
+timeout alive for the whole operation (`clearTimeout` moved to run after the
+read loop, not after `fetch()`), so an abort during body-reading now also
+throws the same "Timed out fetching…" `ValidationError`.
+
 ### 2026-08-03 — findings attribution from `run_skills` is RUN-level, not skill-level, and the UI must say so
 
 `run_skills` records which skills were injected into *a run's* prompt, not

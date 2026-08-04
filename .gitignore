@@ -27,3 +27,6 @@ test-results/
 # Claude local settings
 .claude/settings.local.json
 .claude/settings.json
+
+# vscode local settings
+.vscode/settings.json

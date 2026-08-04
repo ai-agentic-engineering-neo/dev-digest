@@ -36,6 +36,11 @@ export function useSetConventionStatus(repoId: string | null | undefined) {
   return useMutation({
     mutationFn: ({ id, status }: { id: string; status: "accepted" | "rejected" }) =>
       api.put<ConventionCandidate>(`/repos/${repoId}/conventions/${id}`, { status }),
+    // A GET already in flight when the mutation starts must not be allowed to
+    // land after onSuccess and overwrite the new status with stale data.
+    onMutate: async () => {
+      await qc.cancelQueries({ queryKey: conventionsKeys.list(repoId) });
+    },
     onSuccess: (data) => {
       qc.setQueryData<ConventionsList>(conventionsKeys.list(repoId), (cur) =>
         cur

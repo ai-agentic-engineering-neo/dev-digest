@@ -159,7 +159,7 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
 
   it('runs a review: map-reduce + grounding drops the hallucinated finding, keeps the valid one', async () => {
     const app = await appWith(REVIEW_FIXTURE);
-    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
 
     const agent = (
       await app.inject({
@@ -208,6 +208,24 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(run!.status).toBe('done');
     expect(run!.findingsCount).toBe(1);
     expect(run!.grounding).toBe('1/2 passed');
+
+    // Cost: MockLLMProvider returns costUsd: 0.001 per LLM call, and
+    // reviewer-core sums it across every chunk — so the persisted cost is
+    // exactly 0.001 × the number of chunks this run actually made (derived
+    // from the trace's own tool_calls, one per chunk, rather than hardcoding
+    // a chunk count here).
+    const expectedCost = trace.tool_calls.length * 0.001;
+    expect(review.cost_usd).toBeCloseTo(expectedCost);
+    expect(run!.costUsd).toBeCloseTo(expectedCost);
+    expect(trace.stats.cost_usd).toBeCloseTo(expectedCost);
+
+    // PR-list COST column sums cost across every agent run for the PR, and
+    // also surfaces the single most recent run's cost separately — with only
+    // one run so far, the two are identical.
+    const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const listedPr = pulls.find((p: { id: string }) => p.id === pr.id);
+    expect(listedPr.cost_usd).toBeCloseTo(expectedCost);
+    expect(listedPr.latest_run_cost_usd).toBeCloseTo(expectedCost);
 
     await app.close();
   });

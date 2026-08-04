@@ -22,6 +22,8 @@ export const reviews = pgTable('reviews', {
   summary: text('summary'),
   score: integer('score'),
   model: text('model'),
+  /** USD cost of the run that produced this review; redundant with agent_runs.cost_usd (same precedent as score), null when unknown. */
+  costUsd: doublePrecision('cost_usd'),
   createdAt: now(),
 });
 

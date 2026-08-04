@@ -42,13 +42,45 @@ _None yet._
 
 ## Codebase Patterns
 
-_None yet._
+- **2026-08-04** — Before adding a new hook/endpoint to show "more detail on
+  X" in a component, check whether the detail is already fetched elsewhere on
+  the same page and can be threaded down as a prop instead. `RunHistory` only
+  ever received `RunSummary[]` (denormalized `critical_count`/`warning_count`/
+  `suggestion_count`, no finding detail), but `FindingsTab` — its direct
+  parent — already holds the full `ReviewRecord[]` (each with a `findings:
+  FindingRecord[]` and `run_id`) via `usePrReviews`. Adding a hover preview of
+  a run's findings needed only `new Map(runs.map(r => [r.run_id,
+  r.findings]))` in `FindingsTab` passed down as `findingsByRun`, zero new
+  API/hook. `client/src/app/repos/[repoId]/pulls/[number]/_components/FindingsTab/FindingsTab.tsx:75`
 
 ## Tool & Library Notes
 
-_None yet._
+- **2026-08-04** — This dev environment's seeded Postgres has zero
+  `agent_runs` rows with `findings_count > 0` across all 3 seeded repos
+  (`acme/payments-api`, `myasoid/dev-digest`, `quarkusio/quarkus`) — every
+  seeded review is a clean 0-findings/100-score run. To visually verify any
+  findings-related UI change, either trigger a real (costly) LLM review run,
+  or temporarily `INSERT` rows into `findings` + bump the matching
+  `agent_runs.critical_count`/`warning_count`/`suggestion_count`/
+  `findings_count`, screenshot, then delete/revert immediately after —
+  confirmed safe and fully reversible on the local dev DB
+  (`postgres://devdigest:devdigest@localhost:5432/devdigest`). Separately, no
+  `chromium-cli` or `agent-browser` CLI was present in this sandbox; `npx
+  playwright install chromium` (no `--with-deps`, which needs sudo) downloads
+  a working headless Chromium fine, so a scratch `npm install playwright` +
+  a small driver script is the fallback for one-off browser verification here.
 
 ## Recurring Errors & Fixes
+
+- **2026-08-04** — `fireEvent.mouseEnter` on a component whose hover-open
+  logic uses `setTimeout` (e.g. an open delay to survive a mouse
+  pass-through) needs `vi.useFakeTimers()` **and** the timer advance wrapped
+  in `act()` from `@testing-library/react`:
+  `act(() => { vi.advanceTimersByTime(150); })`. Without the `act()` wrapper,
+  the state update from the timer callback doesn't flush before the
+  assertion runs — `aria-expanded` stays `"false"` and the popover content is
+  never found, even though the component logic is correct.
+  `client/src/app/repos/[repoId]/pulls/[number]/_components/RunHistory/RunHistory.test.tsx`
 
 - **2026-08-01** — A vitest failure whose two sides look identical —
   `expected '9 119 tok' to be '9 119 tok'` — is a look-alike Unicode space, not

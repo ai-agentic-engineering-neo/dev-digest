@@ -51,21 +51,26 @@ import {
   REFRESH_JOB_KIND,
   RESYNC_JOB_KIND,
 } from './constants.js';
-import { SUPPORTED_EXT } from './languages/index.js';
+import { SUPPORTED_EXT, languageIdForFile } from './languages/index.js';
 import { runFullIndex, type IndexPayload } from './pipeline/full.js';
 import { runIncremental } from './pipeline/incremental.js';
 
 /**
- * GLOBALS allowlist — common JS/TS builtins + runtime that appear as bare
+ * GLOBALS allowlist — common builtins + runtime that appear as bare
  * invocations and are NOT phantoms. Tune for PRECISION (false-positive cost
  * > false-negative cost). Anything we miss here can be added
  * later; everything we include here is widely-used baseline.
  *
- * Kept module-scoped (not re-built per call) so the `.has(name)` lookup stays
- * O(1) on the hot path. The list intentionally errs on the inclusive side for
- * standard globals — better to under-flag than to spam reviewers with noise.
+ * Per-language: `parseInvocationHeads` dispatches by language (Phase 1,
+ * docs/go-language-support-plan.md), and each language's builtins are
+ * disjoint from the others' — a single shared set would either miss a
+ * language's builtins entirely or (worse) allow a language-specific name
+ * through for every language. Kept module-scoped (not re-built per call)
+ * so the `.has(name)` lookup stays O(1) on the hot path. Each list
+ * intentionally errs on the inclusive side — better to under-flag than to
+ * spam reviewers with noise.
  */
-const PHANTOM_GLOBALS_ALLOWLIST: ReadonlySet<string> = new Set([
+const TS_PHANTOM_GLOBALS: ReadonlySet<string> = new Set([
   // Console / process / runtime
   'console', 'process', 'globalThis', 'require', 'module', 'exports',
   '__dirname', '__filename',
@@ -96,6 +101,30 @@ const PHANTOM_GLOBALS_ALLOWLIST: ReadonlySet<string> = new Set([
   // Test/runtime affordances (vitest/jest globals; harmless to allow)
   'describe', 'it', 'test', 'expect', 'beforeAll', 'beforeEach',
   'afterAll', 'afterEach', 'vi', 'jest',
+]);
+
+/**
+ * Go predeclared identifiers (https://go.dev/ref/spec#Predeclared_identifiers)
+ * — builtin functions (`len`, `make`, ...) and builtin types used in
+ * conversion-call syntax (`string(b)`, `int32(x)`, ...), both of which are
+ * syntactically indistinguishable from a bare user-defined call in Go's
+ * grammar. Without this list every Go file's ordinary use of `len`/`make`/
+ * `append`/etc. would be flagged as a phantom API.
+ */
+const GO_PHANTOM_GLOBALS: ReadonlySet<string> = new Set([
+  // Builtin functions
+  'append', 'cap', 'clear', 'close', 'complex', 'copy', 'delete', 'imag',
+  'len', 'make', 'max', 'min', 'new', 'panic', 'print', 'println', 'real',
+  'recover',
+  // Builtin types (also used as conversion-call syntax, e.g. `string(b)`)
+  'any', 'bool', 'byte', 'comparable', 'complex64', 'complex128', 'error',
+  'float32', 'float64', 'int', 'int8', 'int16', 'int32', 'int64', 'rune',
+  'string', 'uint', 'uint8', 'uint16', 'uint32', 'uint64', 'uintptr',
+]);
+
+const PHANTOM_GLOBALS_BY_LANGUAGE: ReadonlyMap<string, ReadonlySet<string>> = new Map([
+  ['typescript', TS_PHANTOM_GLOBALS],
+  ['go', GO_PHANTOM_GLOBALS],
 ]);
 
 export class RepoIntelService implements RepoIntel {
@@ -569,9 +598,12 @@ export class RepoIntelService implements RepoIntel {
    *
    * For each changed file: collect bare invocation heads (astgrep
    * parseInvocationHeads). A head is PHANTOM iff it is NOT declared in this
-   * file, NOT imported in this file, NOT a JS/TS keyword, and NOT a known
-   * runtime/builtin global. `declFile` is intentionally `null` in T1 — Tier 1
-   * is ephemeral (no persistent decl_file column; that lands in T2).
+   * file, NOT imported in this file, NOT a keyword-that-parses-as-an-
+   * identifier, and NOT a known runtime/builtin global FOR THAT FILE'S
+   * LANGUAGE (PHANTOM_GLOBALS_BY_LANGUAGE — each language's builtins are
+   * disjoint, e.g. Go's `len`/`make` vs TS's `Math`/`Buffer`). `declFile` is
+   * intentionally `null` in T1 — Tier 1 is ephemeral (no persistent
+   * decl_file column; that lands in T2).
    *
    * Degraded gate: flag off, missing clone, or no parseable files → `[]`.
    * NEVER throws — per-file parse errors are swallowed.
@@ -612,9 +644,11 @@ export class RepoIntelService implements RepoIntel {
       for (const s of declared) knownNames.add(s.name);
       for (const i of imports) knownNames.add(i.name);
 
+      const globals = PHANTOM_GLOBALS_BY_LANGUAGE.get(languageIdForFile(file) ?? '');
+
       for (const head of heads) {
         if (knownNames.has(head.name)) continue;
-        if (PHANTOM_GLOBALS_ALLOWLIST.has(head.name)) continue;
+        if (globals?.has(head.name)) continue;
         out.push({
           refFile: file,
           refLine: head.line,

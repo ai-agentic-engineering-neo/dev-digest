@@ -49,3 +49,7 @@ testcontainers).
 
 - [README.md](README.md) — DI/request flow diagram, API map, env vars
 - [INSIGHTS.md](INSIGHTS.md) — dev log: decisions/gotchas found while working here
+- Adding a new repo-intel language (Rust, C++, ...)? Use the
+  `add-language-support` skill (`.claude/skills/add-language-support/`) —
+  distilled from the Go implementation
+  ([docs/go-language-support-plan.md](../docs/go-language-support-plan.md)).

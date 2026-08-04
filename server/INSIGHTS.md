@@ -107,6 +107,27 @@ workflow and quality bar.
 
 ## Recurring Errors & Fixes
 
+- 2026-08-04 — `getUnresolvedReferences`'s (`service.ts`) phantom-API gate
+  filtered `parseInvocationHeads` output through a single, JS/TS-only
+  `PHANTOM_GLOBALS_ALLOWLIST` — a leftover from before Go existed in this
+  codebase. Since Phase 1 wired `parseInvocationHeads` for Go too (bare
+  calls only, same precision rule as TS/JS), every ordinary Go builtin
+  call (`len`, `make`, `append`, `println`, ...) was an `identifier`-kind
+  bare call indistinguishable from a real phantom — none were in the
+  TS-only list, so every Go file would have them flagged as phantom APIs.
+  Found via a post-completion Phase 6 audit, not during implementation —
+  `getUnresolvedReferences` had zero positive-path tests for either
+  language before this. Fix: split into
+  `PHANTOM_GLOBALS_BY_LANGUAGE` (keyed by `languageIdForFile`), added Go's
+  predeclared functions + builtin-type conversion names. Generalizable
+  lesson (folded into the `add-language-support` skill): a per-language
+  dispatcher being correct says nothing about a consumer one layer above
+  it that has its own hardcoded single-language assumption — grep every
+  consumer of the 4 astgrep functions, not just the dispatcher itself.
+  (`server/src/modules/repo-intel/service.ts` —
+  `PHANTOM_GLOBALS_BY_LANGUAGE`; test:
+  `server/test/repo-intel-phantom-gate.test.ts`)
+
 - 2026-08-04 — tree-sitter-Go's `pointer_type` node (`*Foo`) has TWO
   children in order `['*', 'type_identifier']` — taking `children()[0]` to
   "unwrap the pointer" silently grabs the `*` token, not the type. No
@@ -179,3 +200,16 @@ workflow and quality bar.
   consumer reads this column yet — confirmed via a repo-wide grep before
   implementing, so it's genuinely informational/future-use, not dead code
   masquerading as used.
+
+- 2026-08-04 — User asked to double-check Phase 6 after all 6 phases were
+  marked done. Re-reading the phase's literal scope against what was
+  actually tested (not just re-reading the "done" summary) surfaced a real
+  bug — the phantom-globals allowlist gap above — that every phase's own
+  "Tests:" note had missed, because `parseInvocationHeads` was implemented
+  and dispatcher-wired in Phase 1 but its only real consumer
+  (`getUnresolvedReferences`) was never exercised end-to-end for either
+  language. Distilled into the `add-language-support` skill (new example
+  + a workflow step) so the next language checks this before declaring
+  Phase 6 complete, not after. Also created the skill itself this session
+  (`.claude/skills/add-language-support/`), the first non-course-provided
+  project skill authored from this repo's own findings.

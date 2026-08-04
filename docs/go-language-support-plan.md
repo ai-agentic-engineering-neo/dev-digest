@@ -1,5 +1,13 @@
 # Go language support — analysis + plan
 
+**This plan is the canonical worked example for the `add-language-support`
+skill** (`.claude/skills/add-language-support/`) — the findings below (the
+pointer-type bug, the 5th `SUPPORTED_EXT` consumer, the per-language-module
+design decision, etc.) were distilled into that skill so the next language
+(Rust, C++, ...) starts from a checklist instead of rediscovering the same
+lessons. Read that skill first if you're adding a new language; read this
+doc for the full phase-by-phase reasoning behind it.
+
 ## Context
 
 DevDigest's review pipeline is JS/TS-only today. This doc analyzes exactly
@@ -174,7 +182,8 @@ Postgres). **Phase 3 (import graph) done.** **Phase 4 (de-hardcode system prompt
 done.** **Phase 5 (repo language detection) done.** All 6 phases are now
 complete — Phase 6 (tests) was covered incrementally alongside each phase
 rather than as a separate final pass; see each phase's own "Tests:" note
-above.
+above. **Phase 6 audit (post-completion): one real gap found and fixed —
+see "Implementation notes — Phase 6 audit" below.**
 
 Verified against the actual codebase and the real `@ast-grep/lang-go`
 package before implementing (not trusted from the analysis above as-is):
@@ -415,3 +424,65 @@ slice (the latter proving the T3-walk-recompute path, not just the
 initial-state passthrough). `server/test/repo-intel-go.it.test.ts` asserts
 `languages: ['go']` against a real Postgres row after `runFullIndex` on
 the Go fixture.
+
+## Implementation notes — Phase 6 audit (post-completion)
+
+Requested explicitly ("чи все ми виконали для фази 6?") after all 6 phases
+were marked done. Re-read the original Phase 6 scope literally — "unit
+tests for the Go `parseSymbols`/`parseReferences`/`parseImports` config"
+— and noticed it never named `parseInvocationHeads`, the 4th astgrep
+function (the phantom-API gate's call-head extractor, already flagged as
+an easy-to-miss 4th function back in the Phase 0+1+2 notes above). Checked
+whether it had any test coverage at all, for either language.
+
+**Finding: it had none — and that gap was hiding a real bug.**
+`server/src/modules/repo-intel/service.ts`'s `getUnresolvedReferences`
+(the phantom-API gate) calls `parseInvocationHeads` and filters out
+anything in a hardcoded `PHANTOM_GLOBALS_ALLOWLIST` — a pure JS/TS list
+(`console`, `Math`, `Buffer`, `fetch`, ...). This allowlist lives in
+`service.ts`, one layer above the astgrep dispatcher that Phase 1's
+per-language-module refactor covered — so extending `parseInvocationHeads`
+to Go in Phase 1 correctly returned bare Go call heads, but nothing
+updated this consumer to know Go builtins exist. Verified empirically
+(not just by reading the code) with a throwaway script: parsing
+`s := make([]int, 0); s = append(s, 1); n := len(s)` returned `make`,
+`append`, and `len` as invocation heads, none matched by the TS-only
+allowlist — meaning **every ordinary Go file would have `len`/`make`/
+`append`/etc. flagged as phantom APIs** in the phantom-gate feature. No
+test caught this because `getUnresolvedReferences` itself only had
+degraded-contract tests (flag-off, no-clone) — never a single positive-path
+test with real source, for either language.
+
+**Fix**: split the allowlist by language
+(`TS_PHANTOM_GLOBALS`/`GO_PHANTOM_GLOBALS`/`PHANTOM_GLOBALS_BY_LANGUAGE`,
+keyed by `languageIdForFile`), and added Go's predeclared identifiers —
+both builtin functions (`len`, `make`, `append`, `panic`, `recover`, ...)
+and builtin types used in conversion-call syntax (`string(b)`, `int32(x)`,
+...), which are syntactically indistinguishable from a bare call in Go's
+grammar and would otherwise ALSO false-positive.
+
+**New test**: `server/test/repo-intel-phantom-gate.test.ts` — the first
+positive-path coverage `getUnresolvedReferences` has ever had, for both
+languages: confirms a genuinely undeclared/unimported bare call is still
+flagged (TS and Go), confirms JS globals / Go builtins / locally-declared
+functions are NOT flagged. Verified this test actually catches the bug by
+reverting the `service.ts` fix and re-running it before committing — it
+failed exactly as expected (`make`/`append`/`len` present in the result).
+
+**Lower-severity, not fixed**: `extractEndpoints`/`extractCrons`
+(`adapters/codeindex/extract.ts`) also run unconditionally on every
+indexed file, including Go, via `pipeline/full.ts`/`incremental.ts`/
+`service.ts`. Their regexes are narrow (`app.get(`-style HTTP verb calls,
+`cron.schedule(`-style expressions) and unlikely to match ordinary Go
+syntax, but not provably safe the way the phantom-gate bug was provably
+unsafe — left as an open question rather than a speculative fix with no
+observed false positive to verify against.
+
+**Generalizable lesson, folded into the `add-language-support` skill**: a
+per-language-module refactor at one layer (the astgrep adapter) does not
+guarantee every *consumer* of that layer's output was updated in lockstep
+— a facade sitting above the dispatch (like this allowlist) is exactly the
+kind of cross-cutting piece a phase-by-phase, file-by-file plan can miss,
+because it isn't "a new language file," it's an existing file whose
+implicit language assumption only breaks once a second language actually
+exercises it.

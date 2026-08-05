@@ -1,6 +1,6 @@
 {
-  "id": "7ab1d225-ac0d-4625-b9e1-d53cea001b62",
-  "prevId": "134d06a9-9371-4674-b67d-3538a78e4161",
+  "id": "134d06a9-9371-4674-b67d-3538a78e4161",
+  "prevId": "667acd0f-4495-40c1-a3ca-74ac8c2b12f9",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1096,12 +1096,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
-        },
-        "message": {
-          "name": "message",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -2759,6 +2753,24 @@
         },
         "blockers": {
           "name": "blockers",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "critical_count": {
+          "name": "critical_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "warning_count": {
+          "name": "warning_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "suggestion_count": {
+          "name": "suggestion_count",
           "type": "integer",
           "primaryKey": false,
           "notNull": false

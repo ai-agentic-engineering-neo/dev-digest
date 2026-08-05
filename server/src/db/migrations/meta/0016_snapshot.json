@@ -1,6 +1,6 @@
 {
-  "id": "7ab1d225-ac0d-4625-b9e1-d53cea001b62",
-  "prevId": "134d06a9-9371-4674-b67d-3538a78e4161",
+  "id": "2868f2c9-4041-4917-91a7-7970eb7d2267",
+  "prevId": "7ab1d225-ac0d-4625-b9e1-d53cea001b62",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1574,15 +1574,34 @@
           "primaryKey": false,
           "notNull": false
         },
+        "category": {
+          "name": "category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'general'"
+        },
         "rule": {
           "name": "rule",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
+        "rationale": {
+          "name": "rationale",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "evidence_path": {
           "name": "evidence_path",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "evidence_line": {
+          "name": "evidence_line",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false
         },
@@ -1598,15 +1617,44 @@
           "primaryKey": false,
           "notNull": false
         },
-        "accepted": {
-          "name": "accepted",
-          "type": "boolean",
+        "status": {
+          "name": "status",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": false
+          "default": "'pending'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "conventions_repo_created_idx": {
+          "name": "conventions_repo_created_idx",
+          "columns": [
+            {
+              "expression": "repo_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "conventions_workspace_id_workspaces_id_fk": {
           "name": "conventions_workspace_id_workspaces_id_fk",
@@ -1638,7 +1686,16 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "conventions_status_ck": {
+          "name": "conventions_status_ck",
+          "value": "\"conventions\".\"status\" in ('pending', 'accepted', 'rejected')"
+        },
+        "conventions_category_ck": {
+          "name": "conventions_category_ck",
+          "value": "\"conventions\".\"category\" in ('naming', 'structure', 'errors', 'testing', 'imports', 'typing', 'api', 'general')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.memory": {

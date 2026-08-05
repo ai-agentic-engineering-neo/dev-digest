@@ -1,6 +1,6 @@
 {
-  "id": "055b0962-71d1-4968-a03e-c004120eb333",
-  "prevId": "a55e6060-4f11-4a9b-adb5-feb1b12882dd",
+  "id": "e70ba721-19d4-41df-bcb8-059995c57c98",
+  "prevId": "0e43a299-6567-4757-8638-56b54d3b48dc",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -793,23 +793,7 @@
           "notNull": false
         }
       },
-      "indexes": {
-        "findings_review_idx": {
-          "name": "findings_review_idx",
-          "columns": [
-            {
-              "expression": "review_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
         "findings_review_id_reviews_id_fk": {
           "name": "findings_review_id_reviews_id_fk",
@@ -996,29 +980,7 @@
           "default": "now()"
         }
       },
-      "indexes": {
-        "reviews_pr_created_idx": {
-          "name": "reviews_pr_created_idx",
-          "columns": [
-            {
-              "expression": "pr_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": false,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
         "reviews_workspace_id_workspaces_id_fk": {
           "name": "reviews_workspace_id_workspaces_id_fk",
@@ -2686,31 +2648,27 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": false
+        },
+        "critical_count": {
+          "name": "critical_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "warning_count": {
+          "name": "warning_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "suggestion_count": {
+          "name": "suggestion_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
         }
       },
-      "indexes": {
-        "agent_runs_pr_ran_at_idx": {
-          "name": "agent_runs_pr_ran_at_idx",
-          "columns": [
-            {
-              "expression": "pr_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "ran_at",
-              "isExpression": false,
-              "asc": false,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
         "agent_runs_workspace_id_workspaces_id_fk": {
           "name": "agent_runs_workspace_id_workspaces_id_fk",

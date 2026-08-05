@@ -1,6 +1,6 @@
 {
-  "id": "134d06a9-9371-4674-b67d-3538a78e4161",
-  "prevId": "667acd0f-4495-40c1-a3ca-74ac8c2b12f9",
+  "id": "667acd0f-4495-40c1-a3ca-74ac8c2b12f9",
+  "prevId": "055b0962-71d1-4968-a03e-c004120eb333",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1210,23 +1210,7 @@
           "default": "now()"
         }
       },
-      "indexes": {
-        "skills_workspace_idx": {
-          "name": "skills_workspace_idx",
-          "columns": [
-            {
-              "expression": "workspace_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
         "skills_workspace_id_workspaces_id_fk": {
           "name": "skills_workspace_id_workspaces_id_fk",
@@ -1245,16 +1229,7 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {
-        "skills_type_ck": {
-          "name": "skills_type_ck",
-          "value": "\"skills\".\"type\" in ('rubric', 'convention', 'security', 'custom')"
-        },
-        "skills_source_ck": {
-          "name": "skills_source_ck",
-          "value": "\"skills\".\"source\" in ('manual', 'imported_url', 'extracted', 'community')"
-        }
-      },
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.agent_skills": {
@@ -1279,32 +1254,9 @@
           "primaryKey": false,
           "notNull": true,
           "default": 0
-        },
-        "enabled": {
-          "name": "enabled",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
         }
       },
-      "indexes": {
-        "agent_skills_skill_idx": {
-          "name": "agent_skills_skill_idx",
-          "columns": [
-            {
-              "expression": "skill_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
         "agent_skills_agent_id_agents_id_fk": {
           "name": "agent_skills_agent_id_agents_id_fk",
@@ -2753,6 +2705,24 @@
         },
         "blockers": {
           "name": "blockers",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "critical_count": {
+          "name": "critical_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "warning_count": {
+          "name": "warning_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "suggestion_count": {
+          "name": "suggestion_count",
           "type": "integer",
           "primaryKey": false,
           "notNull": false

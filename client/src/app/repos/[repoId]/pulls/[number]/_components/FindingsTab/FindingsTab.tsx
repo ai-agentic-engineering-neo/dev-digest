@@ -7,7 +7,7 @@ import { RunHistory } from "../RunHistory/RunHistory";
 import { ReviewRunAccordion } from "../ReviewRunAccordion";
 import { s } from "./styles";
 import type { FindingRecord, ReviewRecord, RunSummary, PrCommit } from "@devdigest/shared";
-import type { UseMutationResult } from "@tanstack/react-query";
+import type { useCancelRun } from "../../../../../../../lib/hooks/reviews";
 
 interface FindingsTabProps {
   prId: string | null;
@@ -17,7 +17,8 @@ interface FindingsTabProps {
   runs: ReviewRecord[];
   prRuns: RunSummary[] | undefined;
   prCommits: PrCommit[];
-  cancelMutation: UseMutationResult<any, any, string, any>;
+  /** The `useCancelRun()` mutation, owned by the page and passed down. */
+  cancelMutation: ReturnType<typeof useCancelRun>;
   /** owner/repo + head sha — used to deep-link a finding's file:line to GitHub. */
   repoFullName?: string | null;
   headSha?: string | null;
@@ -170,6 +171,7 @@ export function FindingsTab({
           <ReviewRunAccordion
             key={review.id}
             review={review}
+            run={prRuns?.find((r) => r.run_id === review.run_id) ?? null}
             prId={prId}
             defaultOpen={i === 0}
             repoFullName={repoFullName}

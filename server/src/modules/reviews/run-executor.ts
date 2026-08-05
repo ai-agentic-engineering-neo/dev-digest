@@ -1,6 +1,6 @@
 import type { Container } from '../../platform/container.js';
 import type { Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
-import { reviewPullRequest, countBlockers } from '@devdigest/reviewer-core';
+import { reviewPullRequest, countBlockers, severityCounts } from '@devdigest/reviewer-core';
 import { RunLogger } from '../../platform/run-logger.js';
 import * as schema from '../../db/schema.js';
 import type { AgentRow } from '../../db/rows.js';
@@ -238,6 +238,7 @@ export class ReviewRunExecutor {
       // Deterministic blocker count (severity ≥ the agent's gate) — the signal
       // the timeline colors on, NOT the model's self-reported verdict.
       const blockers = countBlockers(keptFindings, agent.ciFailOn);
+      const counts = severityCounts(keptFindings);
 
       // ---- Observability: agent_runs + ONE run_traces document --------------
       await this.repo.completeAgentRun(runId, {
@@ -250,6 +251,9 @@ export class ReviewRunExecutor {
         grounding,
         score: outcome.review.score,
         blockers,
+        criticalCount: counts.CRITICAL,
+        warningCount: counts.WARNING,
+        suggestionCount: counts.SUGGESTION,
         error: null,
       });
 

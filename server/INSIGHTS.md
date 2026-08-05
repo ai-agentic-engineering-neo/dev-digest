@@ -51,7 +51,28 @@ _None yet._
 
 ## Codebase Patterns
 
-_None yet._
+- **2026-08-04** — `agent_runs` counters (`findings_count`, `blockers`, and now
+  `critical_count`/`warning_count`/`suggestion_count`) are denormalized onto the
+  run row once, at run completion in `run-executor.ts`, and never recomputed —
+  even after a finding is later accepted/dismissed. This is intentional: the
+  timeline shows the deterministic CI-gate snapshot, not a live view. A new
+  per-severity/per-status counter on a run belongs in this same
+  compute-once-at-write-time path (new column + migration), not a read-time
+  `JOIN`/`GROUP BY` over `findings` — the latter would silently diverge from
+  `blockers`' semantics (gate-tripped at run time vs. currently-live findings).
+  `server/src/modules/reviews/run-executor.ts:238` (blockers/counts computed),
+  `server/src/modules/reviews/repository/run.repo.ts:40` (read path, no
+  aggregation query).
+
+- **2026-08-04** — `ReviewRepository` in `repository.ts` re-declares each repo
+  function's params type inline instead of importing it from the
+  `repository/*.repo.ts` module that owns it (e.g. `completeAgentRun`'s
+  `values` shape is written out twice: `repository.ts:153` and
+  `repository/run.repo.ts:148`). Adding a field to one and not the other
+  type-errors immediately at the call site, but only because both call sites
+  happen to be typechecked in the same `tsc` run — it is easy to touch only one
+  copy and get a real but confusing error pointing at the *caller*, not the
+  missing field.
 
 ## Tool & Library Notes
 

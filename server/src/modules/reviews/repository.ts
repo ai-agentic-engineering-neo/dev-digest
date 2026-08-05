@@ -166,6 +166,10 @@ export class ReviewRepository {
       score?: number | null;
       /** Findings that tripped the agent's gate; 0 on failed/cancelled runs. */
       blockers?: number | null;
+      /** Per-severity finding tally; null on failed/cancelled runs. */
+      criticalCount?: number | null;
+      warningCount?: number | null;
+      suggestionCount?: number | null;
       /** Failure reason (status='failed') / cancellation note. Null clears it. */
       error?: string | null;
     },

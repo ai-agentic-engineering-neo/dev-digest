@@ -43,6 +43,16 @@ _None yet._
 
 ## Codebase Patterns
 
+- **2026-08-04** — `server/src/vendor/shared/contracts/*.ts` and
+  `client/src/vendor/shared/contracts/*.ts` are two independent files with no
+  sync script between them — a schema change must be hand-edited in both
+  (server first, per `CLAUDE.md`). Confirmed by a pre-existing comment-only
+  diff between the two `trace.ts` copies before this session touched either.
+  Forgetting the client copy compiles fine locally (client typecheck only sees
+  its own copy) and fails invisibly until the two drift on a real field.
+  `server/src/vendor/shared/contracts/trace.ts` /
+  `client/src/vendor/shared/contracts/trace.ts`
+
 - **2026-08-01** — Per-run LLM cost is already computed end-to-end; the only
   thing ever missing is persistence. Every provider returns `costUsd` on its
   result, and for OpenRouter it is the REAL billed figure — the client asks for

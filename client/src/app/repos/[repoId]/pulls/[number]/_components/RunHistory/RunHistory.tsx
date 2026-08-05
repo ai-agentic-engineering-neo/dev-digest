@@ -2,9 +2,10 @@
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { Badge, Icon, CircularScore, type IconName } from "@devdigest/ui";
-import type { RunSummary, PrCommit } from "@devdigest/shared";
+import { Badge, Icon, CircularScore, SeverityBadge, type IconName } from "@devdigest/ui";
+import type { RunSummary, PrCommit, FindingRecord } from "@devdigest/shared";
 import { RunCostBadge } from "@/components/run-cost-badge";
+import { RunFindingsHoverCard } from "./RunFindingsHoverCard";
 
 /**
  * PR timeline — every agent run interleaved with the PR's commits, newest-first
@@ -85,15 +86,107 @@ function tsOf(s: string | null | undefined): number {
   return Number.isNaN(n) ? 0 : n;
 }
 
+/** Hover open/close delay (ms) — long enough to survive a mouse pass-through,
+ *  short enough to feel responsive. */
+const HOVER_DELAY_MS = 150;
+
+/**
+ * The per-severity chip row for a settled run. When that run's full findings
+ * are available (threaded down from the already-loaded review data — no
+ * extra fetch), hovering or focusing the row previews all of them, combined
+ * across severities, in a `RunFindingsHoverCard`.
+ */
+function SeverityFindings({
+  run,
+  findings,
+  repoFullName,
+  headSha,
+  onGoToReview,
+  blockersLabel,
+}: {
+  run: RunSummary;
+  findings: FindingRecord[] | undefined;
+  repoFullName?: string | null;
+  headSha?: string | null;
+  onGoToReview?: (runId: string) => void;
+  blockersLabel: string | null;
+}) {
+  const t = useTranslations("prReview");
+  const [open, setOpen] = React.useState(false);
+  const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasFindings = !!findings && findings.length > 0;
+
+  const show = () => {
+    if (!hasFindings) return;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setOpen(true), HOVER_DELAY_MS);
+  };
+  const hide = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setOpen(false);
+  };
+  React.useEffect(() => () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+  }, []);
+
+  return (
+    <div
+      style={{ position: "relative", display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-muted)" }}
+      {...(hasFindings
+        ? {
+            tabIndex: 0,
+            role: "button",
+            "aria-expanded": open,
+            "aria-label": t("timeline.findingsHoverTitle", { count: findings!.length }),
+            onMouseEnter: show,
+            onMouseLeave: hide,
+            onFocus: show,
+            onBlur: hide,
+            onKeyDown: (e: React.KeyboardEvent) => {
+              if (e.key === "Escape") hide();
+            },
+          }
+        : {})}
+    >
+      {(["CRITICAL", "WARNING", "SUGGESTION"] as const).map((sev) => {
+        const n = sev === "CRITICAL" ? run.critical_count : sev === "WARNING" ? run.warning_count : run.suggestion_count;
+        return n ? <SeverityBadge key={sev} severity={sev} count={n} compact /> : null;
+      })}
+      {blockersLabel && <span>{blockersLabel}</span>}
+      {hasFindings && open && (
+        <RunFindingsHoverCard
+          findings={findings!}
+          repoFullName={repoFullName}
+          headSha={headSha}
+          onSelect={() => {
+            onGoToReview?.(run.run_id);
+            hide();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
 export function RunHistory({
   runs,
   commits = [],
+  findingsByRun,
+  repoFullName,
+  headSha,
   onOpenTrace,
   onGoToReview,
   onDelete,
 }: {
   runs: RunSummary[];
   commits?: PrCommit[];
+  /** run_id → that run's full findings, already loaded via the reviews query
+   *  (no per-hover fetch). Omitted / no entry → the chips render without the
+   *  hover preview. */
+  findingsByRun?: Map<string, FindingRecord[]>;
+  /** owner/repo + head sha — used to deep-link a previewed finding to GitHub. */
+  repoFullName?: string | null;
+  headSha?: string | null;
   /** Open the trace + log drawer for a run (the logs icon). */
   onOpenTrace: (runId: string) => void;
   /** Jump to this run's inline review accordion below (clicking the agent name). */
@@ -190,10 +283,14 @@ export function RunHistory({
                 </div>
               )}
               {settled && (
-                <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                  {t("runStatus.findings", { count: r.findings_count ?? 0 })}
-                  {(r.blockers ?? 0) > 0 ? t("runStatus.blockers", { count: r.blockers ?? 0 }) : ""}
-                </div>
+                <SeverityFindings
+                  run={r}
+                  findings={findingsByRun?.get(r.run_id)}
+                  repoFullName={repoFullName}
+                  headSha={headSha}
+                  onGoToReview={onGoToReview}
+                  blockersLabel={(r.blockers ?? 0) > 0 ? t("runStatus.blockers", { count: r.blockers ?? 0 }) : null}
+                />
               )}
             </div>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, fontSize: 11, color: "var(--text-muted)", flexShrink: 0 }}>

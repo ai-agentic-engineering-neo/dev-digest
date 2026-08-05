@@ -18,6 +18,10 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 - **2026-07-29** — `zod` is pinned to this package's own `node_modules` by a tsconfig path alias, not left to normal resolution, because the server consumes this package as source and would otherwise supply its own `zod` — two instances break schema identity in ways that surface as confusing runtime validation failures, not import errors. Evidence: `reviewer-core/tsconfig.json:24-25`.
 
+- **2026-08-05** — The `@devdigest/shared` alias lives ONLY in `reviewer-core/vitest.config.ts` (tsconfig paths don't reach vitest), so moving or deleting that file fails every suite that imports a contract with `Failed to load url @devdigest/shared (resolved id: @devdigest/shared) in .../src/review/run.ts` while the contract-free `prompt.test.ts` still passes — a partial green that reads like a code bug, not a config loss. Evidence: reproduced by `npm test` with the config moved to `scripts/vitest.config.ts`; 2 of 3 suites failed.
+
+- **2026-08-05** — `test` runs `vitest run --passWithNoTests`, so a config change that collects zero files exits 0 and the `reviewer-core.yml` workflow reports green having run nothing. Evidence: `reviewer-core/package.json` `"test": "vitest run --passWithNoTests"`.
+
 ## Recurring Errors & Fixes
 
 ## Session Notes

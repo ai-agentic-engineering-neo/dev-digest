@@ -1,6 +1,6 @@
 {
-  "id": "055b0962-71d1-4968-a03e-c004120eb333",
-  "prevId": "a55e6060-4f11-4a9b-adb5-feb1b12882dd",
+  "id": "134d06a9-9371-4674-b67d-3538a78e4161",
+  "prevId": "667acd0f-4495-40c1-a3ca-74ac8c2b12f9",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -828,7 +828,20 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "findings_severity_ck": {
+          "name": "findings_severity_ck",
+          "value": "\"findings\".\"severity\" in ('CRITICAL', 'WARNING', 'SUGGESTION')"
+        },
+        "findings_category_ck": {
+          "name": "findings_category_ck",
+          "value": "\"findings\".\"category\" in ('bug', 'security', 'perf', 'style', 'test')"
+        },
+        "findings_kind_ck": {
+          "name": "findings_kind_ck",
+          "value": "\"findings\".\"kind\" in ('finding', 'secret_leak', 'lethal_trifecta', 'phantom', 'hook')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.pr_brief": {
@@ -1050,7 +1063,16 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "reviews_kind_ck": {
+          "name": "reviews_kind_ck",
+          "value": "\"reviews\".\"kind\" in ('summary', 'review')"
+        },
+        "reviews_verdict_ck": {
+          "name": "reviews_verdict_ck",
+          "value": "\"reviews\".\"verdict\" in ('request_changes', 'approve', 'comment')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.skill_versions": {
@@ -1188,7 +1210,23 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "skills_workspace_idx": {
+          "name": "skills_workspace_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "skills_workspace_id_workspaces_id_fk": {
           "name": "skills_workspace_id_workspaces_id_fk",
@@ -1207,7 +1245,16 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "skills_type_ck": {
+          "name": "skills_type_ck",
+          "value": "\"skills\".\"type\" in ('rubric', 'convention', 'security', 'custom')"
+        },
+        "skills_source_ck": {
+          "name": "skills_source_ck",
+          "value": "\"skills\".\"source\" in ('manual', 'imported_url', 'extracted', 'community')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.agent_skills": {
@@ -1232,9 +1279,32 @@
           "primaryKey": false,
           "notNull": true,
           "default": 0
+        },
+        "enabled": {
+          "name": "enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         }
       },
-      "indexes": {},
+      "indexes": {
+        "agent_skills_skill_idx": {
+          "name": "agent_skills_skill_idx",
+          "columns": [
+            {
+              "expression": "skill_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "agent_skills_agent_id_agents_id_fk": {
           "name": "agent_skills_agent_id_agents_id_fk",
@@ -2755,7 +2825,16 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "agent_runs_status_ck": {
+          "name": "agent_runs_status_ck",
+          "value": "\"agent_runs\".\"status\" in ('running', 'done', 'failed', 'cancelled')"
+        },
+        "agent_runs_source_ck": {
+          "name": "agent_runs_source_ck",
+          "value": "\"agent_runs\".\"source\" in ('local', 'ci')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.multi_agent_runs": {

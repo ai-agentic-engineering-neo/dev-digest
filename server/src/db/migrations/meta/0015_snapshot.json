@@ -1,6 +1,6 @@
 {
-  "id": "055b0962-71d1-4968-a03e-c004120eb333",
-  "prevId": "a55e6060-4f11-4a9b-adb5-feb1b12882dd",
+  "id": "2868f2c9-4041-4917-91a7-7970eb7d2267",
+  "prevId": "7ab1d225-ac0d-4625-b9e1-d53cea001b62",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -828,7 +828,20 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "findings_severity_ck": {
+          "name": "findings_severity_ck",
+          "value": "\"findings\".\"severity\" in ('CRITICAL', 'WARNING', 'SUGGESTION')"
+        },
+        "findings_category_ck": {
+          "name": "findings_category_ck",
+          "value": "\"findings\".\"category\" in ('bug', 'security', 'perf', 'style', 'test')"
+        },
+        "findings_kind_ck": {
+          "name": "findings_kind_ck",
+          "value": "\"findings\".\"kind\" in ('finding', 'secret_leak', 'lethal_trifecta', 'phantom', 'hook')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.pr_brief": {
@@ -1050,7 +1063,16 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "reviews_kind_ck": {
+          "name": "reviews_kind_ck",
+          "value": "\"reviews\".\"kind\" in ('summary', 'review')"
+        },
+        "reviews_verdict_ck": {
+          "name": "reviews_verdict_ck",
+          "value": "\"reviews\".\"verdict\" in ('request_changes', 'approve', 'comment')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.skill_versions": {
@@ -1074,6 +1096,12 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "message": {
+          "name": "message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -1188,7 +1216,23 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "skills_workspace_idx": {
+          "name": "skills_workspace_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "skills_workspace_id_workspaces_id_fk": {
           "name": "skills_workspace_id_workspaces_id_fk",
@@ -1207,7 +1251,16 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "skills_type_ck": {
+          "name": "skills_type_ck",
+          "value": "\"skills\".\"type\" in ('rubric', 'convention', 'security', 'custom')"
+        },
+        "skills_source_ck": {
+          "name": "skills_source_ck",
+          "value": "\"skills\".\"source\" in ('manual', 'imported_url', 'extracted', 'community')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.agent_skills": {
@@ -1232,9 +1285,32 @@
           "primaryKey": false,
           "notNull": true,
           "default": 0
+        },
+        "enabled": {
+          "name": "enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         }
       },
-      "indexes": {},
+      "indexes": {
+        "agent_skills_skill_idx": {
+          "name": "agent_skills_skill_idx",
+          "columns": [
+            {
+              "expression": "skill_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "agent_skills_agent_id_agents_id_fk": {
           "name": "agent_skills_agent_id_agents_id_fk",
@@ -1498,15 +1574,34 @@
           "primaryKey": false,
           "notNull": false
         },
+        "category": {
+          "name": "category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'general'"
+        },
         "rule": {
           "name": "rule",
           "type": "text",
           "primaryKey": false,
           "notNull": true
         },
+        "rationale": {
+          "name": "rationale",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "evidence_path": {
           "name": "evidence_path",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "evidence_line": {
+          "name": "evidence_line",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false
         },
@@ -1522,15 +1617,44 @@
           "primaryKey": false,
           "notNull": false
         },
-        "accepted": {
-          "name": "accepted",
-          "type": "boolean",
+        "status": {
+          "name": "status",
+          "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": false
+          "default": "'pending'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "conventions_repo_created_idx": {
+          "name": "conventions_repo_created_idx",
+          "columns": [
+            {
+              "expression": "repo_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "conventions_workspace_id_workspaces_id_fk": {
           "name": "conventions_workspace_id_workspaces_id_fk",
@@ -1562,7 +1686,16 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "conventions_status_ck": {
+          "name": "conventions_status_ck",
+          "value": "\"conventions\".\"status\" in ('pending', 'accepted', 'rejected')"
+        },
+        "conventions_category_ck": {
+          "name": "conventions_category_ck",
+          "value": "\"conventions\".\"category\" in ('naming', 'structure', 'errors', 'testing', 'imports', 'typing', 'api', 'general')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.memory": {
@@ -2755,7 +2888,16 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "agent_runs_status_ck": {
+          "name": "agent_runs_status_ck",
+          "value": "\"agent_runs\".\"status\" in ('running', 'done', 'failed', 'cancelled')"
+        },
+        "agent_runs_source_ck": {
+          "name": "agent_runs_source_ck",
+          "value": "\"agent_runs\".\"source\" in ('local', 'ci')"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.multi_agent_runs": {

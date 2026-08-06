@@ -94,4 +94,64 @@ describe("SmartDiffViewer", () => {
     fireEvent.click(badge);
     expect(onSelectFinding).toHaveBeenCalledWith("finding-1");
   });
+
+  it("renders nothing when there are no groups", () => {
+    const { container } = renderWithIntl(<SmartDiffViewer files={FILES} groups={[]} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("skips a group's file entry that has no matching entry in files, without crashing", () => {
+    const groupsWithMissingFile: SmartDiffGroup[] = [
+      {
+        role: "core",
+        files: [
+          {
+            path: "src/does-not-exist.ts",
+            pseudocode_summary: null,
+            additions: 1,
+            deletions: 0,
+            finding_lines: [],
+          },
+        ],
+      },
+    ];
+    renderWithIntl(<SmartDiffViewer files={FILES} groups={groupsWithMissingFile} />);
+    expect(screen.queryByText("src/does-not-exist.ts")).not.toBeInTheDocument();
+  });
+
+  it("does not call onSelectFinding when the findings badge is clicked but no findings prop was passed", () => {
+    const onSelectFinding = vi.fn();
+    renderWithIntl(
+      <SmartDiffViewer files={FILES} groups={GROUPS} onSelectFinding={onSelectFinding} />,
+    );
+    const badge = screen.getByText(/finding/i);
+    fireEvent.click(badge);
+    expect(onSelectFinding).not.toHaveBeenCalled();
+  });
+
+  it("renders the wiring group between core and boilerplate", () => {
+    const groupsWithWiring: SmartDiffGroup[] = [
+      GROUPS[0]!,
+      {
+        role: "wiring",
+        files: [
+          {
+            path: "src/index.ts",
+            pseudocode_summary: null,
+            additions: 1,
+            deletions: 0,
+            finding_lines: [],
+          },
+        ],
+      },
+      GROUPS[1]!,
+    ];
+    const filesWithWiring: PrFile[] = [
+      ...FILES,
+      { path: "src/index.ts", additions: 1, deletions: 0, patch: "@@ -1,0 +1,1 @@\n+export {};" },
+    ];
+    renderWithIntl(<SmartDiffViewer files={filesWithWiring} groups={groupsWithWiring} />);
+    const headings = screen.getAllByText(/Core logic|Wiring|Boilerplate/);
+    expect(headings.map((h) => h.textContent)).toEqual(["Core logic", "Wiring", "Boilerplate"]);
+  });
 });

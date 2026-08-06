@@ -31,6 +31,23 @@ describe('classifyFile', () => {
     expect(classifyFile('src/middleware/ratelimit.ts')).toBe('core');
     expect(classifyFile('src/api/public/webhooks.ts')).toBe('core');
   });
+
+  it('classifies WIRING_PATH_PATTERNS matches not covered by basename alone', () => {
+    expect(classifyFile('vite.config.ts')).toBe('wiring');
+    expect(classifyFile('.env')).toBe('wiring');
+    expect(classifyFile('.env.production')).toBe('wiring');
+    expect(classifyFile('docker-compose.yml')).toBe('wiring');
+    expect(classifyFile('Dockerfile')).toBe('wiring');
+  });
+
+  it('classifies a root-level file with no directory by its whole path as basename', () => {
+    expect(classifyFile('index.ts')).toBe('wiring');
+    expect(classifyFile('README.md')).toBe('core');
+  });
+
+  it('checks boilerplate before wiring, so a boilerplate path pattern wins over a wiring basename', () => {
+    expect(classifyFile('dist/index.js')).toBe('boilerplate');
+  });
 });
 
 describe('buildSmartDiff', () => {
@@ -75,7 +92,33 @@ describe('buildSmartDiff', () => {
       [],
     );
     expect(over.split_suggestion.too_big).toBe(true);
-    expect(over.split_suggestion.proposed_splits.length).toBeGreaterThan(0);
+    expect(over.split_suggestion.proposed_splits).toEqual([{ name: 'src', files: ['src/foo.ts'] }]);
+  });
+
+  it('names the split "(root)" for a root-level core file', () => {
+    const result = buildSmartDiff(
+      [{ path: 'foo.ts', additions: SPLIT_SUGGESTION_LINE_THRESHOLD + 1, deletions: 0 }],
+      [],
+    );
+    expect(result.split_suggestion.proposed_splits).toEqual([{ name: '(root)', files: ['foo.ts'] }]);
+  });
+
+  it('groups proposed_splits by top-level directory of core files, excluding wiring/boilerplate', () => {
+    const result = buildSmartDiff(
+      [
+        { path: 'src/api/foo.ts', additions: SPLIT_SUGGESTION_LINE_THRESHOLD, deletions: 0 },
+        { path: 'src/api/bar.ts', additions: 1, deletions: 0 },
+        { path: 'lib/baz.ts', additions: 1, deletions: 0 },
+        { path: 'src/index.ts', additions: 1, deletions: 0 }, // wiring — excluded
+        { path: 'package-lock.json', additions: 1, deletions: 0 }, // boilerplate — excluded
+      ],
+      [],
+    );
+    expect(result.split_suggestion.too_big).toBe(true);
+    expect(result.split_suggestion.proposed_splits).toEqual([
+      { name: 'src', files: ['src/api/foo.ts', 'src/api/bar.ts'] },
+      { name: 'lib', files: ['lib/baz.ts'] },
+    ]);
   });
 
   it('never sets pseudocode_summary (no LLM call)', () => {

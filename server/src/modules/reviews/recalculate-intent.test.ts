@@ -39,12 +39,13 @@ function buildService(overrides?: {
   getPull?: () => Promise<PullRow | undefined>;
   getRepo?: () => Promise<RepoRow | undefined>;
   resolveIntent?: () => Promise<IntentResolveResult>;
+  loadDiff?: () => Promise<UnifiedDiff>;
 }) {
   const repo = {
     getPull: overrides?.getPull ?? (async () => PULL),
     getRepo: overrides?.getRepo ?? (async () => REPO),
   } as unknown as ReviewRepository;
-  const loadDiffPort = vi.fn(async () => DIFF);
+  const loadDiffPort = overrides?.loadDiff ?? vi.fn(async () => DIFF);
   const resolveIntentPort =
     overrides?.resolveIntent ??
     (async () => ({
@@ -103,5 +104,23 @@ describe('ReviewService.recalculateIntent', () => {
   it('throws NotFoundError when the pull\'s repo does not exist', async () => {
     const { service } = buildService({ getRepo: async () => undefined });
     await expect(service.recalculateIntent('ws1', 'pr1')).rejects.toThrow(NotFoundError);
+  });
+
+  it('propagates a rejection from loadDiffPort', async () => {
+    const { service } = buildService({
+      loadDiff: async () => {
+        throw new Error('git clone failed');
+      },
+    });
+    await expect(service.recalculateIntent('ws1', 'pr1')).rejects.toThrow('git clone failed');
+  });
+
+  it('propagates a rejection from resolveIntentPort', async () => {
+    const { service } = buildService({
+      resolveIntent: async () => {
+        throw new Error('LLM provider timed out');
+      },
+    });
+    await expect(service.recalculateIntent('ws1', 'pr1')).rejects.toThrow('LLM provider timed out');
   });
 });

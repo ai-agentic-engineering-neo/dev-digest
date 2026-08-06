@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "devdigest": {
+      "command": "pnpm",
+      "args": ["--dir", "mcp-server", "exec", "tsx", "src/index.ts"],
+      "env": {
+        "DEVDIGEST_API_BASE_URL": "http://localhost:3001"
+      }
+    }
+  }
+}

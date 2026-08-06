@@ -10,9 +10,10 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Badge } from "@devdigest/ui";
 import type { PrFile } from "@/lib/types";
-import type { SmartDiffGroup, SmartDiffRole } from "@devdigest/shared";
+import type { FindingRecord, SmartDiffGroup, SmartDiffRole } from "@devdigest/shared";
 import { FileCard, type DiffCommentApi } from "@/components/diff-viewer";
 import { ROLE_DOT_COLOR, ROLE_ORDER } from "./constants";
+import { firstFindingForFile } from "./helpers";
 
 const ROLE_LABEL_KEY: Record<SmartDiffRole, string> = {
   core: "coreLogic",
@@ -25,23 +26,24 @@ const ROLE_DESC_KEY: Record<SmartDiffRole, string> = {
   boilerplate: "boilerplateDesc",
 };
 
-interface ScrollTarget {
-  path: string;
-  line: number;
-  nonce: number;
-}
-
 export function SmartDiffViewer({
   files,
   groups,
+  findings,
   commenting,
+  onSelectFinding,
 }: {
   files: PrFile[];
   groups: SmartDiffGroup[];
+  /** Findings across all review runs — used only to resolve which finding a
+     file's badge should jump to (by file + earliest start_line). */
+  findings?: FindingRecord[];
   commenting?: DiffCommentApi;
+  /** Findings-badge click switches to the Findings tab and expands/highlights
+     that finding's card there — see PrDetailView's `handleSelectFinding`. */
+  onSelectFinding?: (findingId: string) => void;
 }) {
   const t = useTranslations("shell");
-  const [target, setTarget] = React.useState<ScrollTarget | null>(null);
 
   const filesByPath = React.useMemo(() => {
     const m = new Map<string, PrFile>();
@@ -100,22 +102,14 @@ export function SmartDiffViewer({
                   file={file}
                   commenting={commenting}
                   defaultOpen={group.role === "boilerplate" ? false : undefined}
-                  scrollTarget={
-                    target?.path === sf.path
-                      ? { line: target.line, nonce: target.nonce }
-                      : undefined
-                  }
                   headerExtra={
                     findingsCount > 0 ? (
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setTarget((prev) => ({
-                            path: sf.path,
-                            line: sf.finding_lines[0]!,
-                            nonce: (prev?.nonce ?? 0) + 1,
-                          }));
+                          const finding = firstFindingForFile(findings ?? [], sf.path);
+                          if (finding) onSelectFinding?.(finding.id);
                         }}
                         style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}
                       >

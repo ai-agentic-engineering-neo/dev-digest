@@ -21,6 +21,12 @@ interface FindingsTabProps {
   /** owner/repo + head sha — used to deep-link a finding's file:line to GitHub. */
   repoFullName?: string | null;
   headSha?: string | null;
+  /** Smart Diff → Findings navigation (PrDetailView owns the state): when set,
+   *  the review run containing this finding opens, scrolls into view, and the
+   *  finding's own card expands + highlights. `targetFindingNonce` re-triggers
+   *  the scroll on a repeat click of the same finding. */
+  targetFindingId?: string | null;
+  targetFindingNonce?: number;
   onOpenTrace: (id: string) => void;
   onDelete: (id: string) => void;
   onRunDone: () => void;
@@ -37,6 +43,8 @@ export function FindingsTab({
   cancelMutation,
   repoFullName,
   headSha,
+  targetFindingId = null,
+  targetFindingNonce = 0,
   onOpenTrace,
   onDelete,
   onRunDone,
@@ -77,6 +85,21 @@ export function FindingsTab({
   const handleGoToReview = useCallback((runId: string) => {
     setTarget((p) => ({ runId, n: (p?.n ?? 0) + 1 }));
   }, []);
+
+  // Smart Diff → Findings navigation: same accordion-open/scroll mechanism as
+  // the Timeline above, driven by the finding's own run instead of a clicked
+  // agent name. `targetFindingId`/`targetFindingNonce` additionally reach each
+  // ReviewRunAccordion (below) so the finding's own card expands+highlights.
+  const runIdForTargetFinding = React.useMemo(() => {
+    if (!targetFindingId) return null;
+    return runs.find((r) => r.findings.some((f) => f.id === targetFindingId))?.run_id ?? null;
+  }, [runs, targetFindingId]);
+  React.useEffect(() => {
+    if (runIdForTargetFinding) {
+      setTarget((p) => ({ runId: runIdForTargetFinding, n: (p?.n ?? 0) + 1 }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetFindingId, targetFindingNonce, runIdForTargetFinding]);
 
   return (
     <section>
@@ -173,6 +196,8 @@ export function FindingsTab({
               headSha={headSha}
               targetRunId={target?.runId ?? null}
               targetNonce={target?.n ?? 0}
+              targetFindingId={targetFindingId}
+              targetFindingNonce={targetFindingNonce}
               tokensIn={run?.tokens_in ?? null}
               tokensOut={run?.tokens_out ?? null}
               costUsd={run?.cost_usd ?? null}

@@ -225,6 +225,18 @@ export const PrDetail = PrMeta.extend({
 });
 export type PrDetail = z.infer<typeof PrDetail>;
 
+// L03 — response shape for a standalone intent recalculation (POST
+// /pulls/:id/intent/recalculate), same five fields as PrDetail's cached
+// intent_* columns, returned fresh instead of read from the cache.
+export const IntentDetail = z.object({
+  intent: z.string().nullish(),
+  intent_in_scope: z.array(z.string()).nullish(),
+  intent_out_of_scope: z.array(z.string()).nullish(),
+  intent_context_gaps: z.array(z.string()).nullish(),
+  intent_signals: z.array(z.string()).nullish(),
+});
+export type IntentDetail = z.infer<typeof IntentDetail>;
+
 // ---- PR review (inline) comments ----
 /**
  * A GitHub PR review comment anchored to a diff line. Mirrors the fields the

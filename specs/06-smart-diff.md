@@ -1,8 +1,21 @@
 # Smart Diff
 
-**Status:** v1. Curriculum slot: L03 (`README.md:84` — "L03 | Intent layer ·
+**Status:** v1, tightened by a mentor-review pass (still v1 — additive, not a
+redesign). Curriculum slot: L03 (`README.md:84` — "L03 | Intent layer ·
 Smart Diff"; this spec covers Smart Diff only, Intent layer is
 [05-intent-layer.md](05-intent-layer.md)).
+
+*Mentor-review pass (2026-08-06, on `feat/l03-smart-diff`/PR #6): a findings
+badge's click behavior — "scrolls to the relevant line" below — was the
+feature's main interactive affordance per the original ask, but the
+in-diff-only scroll it shipped with buried the finding back inside the file
+it came from instead of surfacing it where a reviewer actually acts on
+findings (accept/dismiss). Changed to: switch to the Findings tab and
+expand+highlight that finding's own card there. See [UI](#ui) for the
+mechanism (`SmartDiffViewer`'s `onSelectFinding` → `PrDetailView`'s
+cross-tab `findingTarget` state → `FindingsTab`/`ReviewRunAccordion`/
+`FindingsPanel`/`FindingCard`, reusing `ReviewRunAccordion`'s existing
+Timeline-navigation `targetRunId`/`targetNonce` pattern).*
 
 ## Context
 
@@ -43,7 +56,9 @@ the app already has:
 3. Client: a `useSmartDiff(prId)` hook, and a `SmartDiffViewer` component
    (sibling to `DiffTab` under the PR page's `_components/`) that groups
    files by role, keeps boilerplate files collapsed by default, shows a
-   findings-count badge per file, and scrolls to the relevant line on click.
+   findings-count badge per file, and — mentor-review pass — clicking it
+   switches to the Findings tab with that finding's card expanded and
+   highlighted (see [UI](#ui)).
    A "Smart order" / "Original order" toggle on the Files changed tab
    switches between it and the existing flat `DiffViewer`.
 
@@ -82,6 +97,18 @@ for scroll-to-line and forced collapse — both optional, existing callers
 unaffected), a new `_components/SmartDiffViewer/` folder under the PR
 detail route, `_components/DiffTab/DiffTab.tsx` (wires the toggle),
 `messages/en/shell.json` (new i18n keys).
+
+Added by the mentor-review pass (2026-08-06 — badge-click-to-Findings-tab
+rewiring, [UI](#ui)): **server** `package.json` (`verify:l03` script, no code
+change). **client** `_components/SmartDiffViewer/helpers.ts` (new —
+`firstFindingForFile`), `_components/PrDetailView/PrDetailView.tsx` (owns the
+cross-tab `findingTarget` state + `handleSelectFinding`),
+`_components/FindingsTab/FindingsTab.tsx`,
+`_components/ReviewRunAccordion/ReviewRunAccordion.tsx`,
+`_components/FindingsPanel/FindingsPanel.tsx`,
+`_components/FindingCard/FindingCard.tsx` (each threads
+`targetFindingId`/`targetFindingNonce` one level further down — see [UI](#ui)
+for the exact chain).
 
 ## Architectural constraints
 
@@ -152,19 +179,49 @@ non-empty role group (colored dot + label + file count), each file reusing
 the existing `FileCard`/`CodeLine` diff renderer (so patch parsing, and
 existing inline PR commenting, are unchanged) joined against the already-
 fetched `PrFile[]` by path. Boilerplate files default closed regardless of
-size. A file with `finding_lines.length > 0` shows an "N findings" badge;
-clicking it opens that file (if closed) and smooth-scrolls to the first
-finding line, via an anchor id (`diffline-{path}-{line}`) added to each
-rendered diff line.
+size. A file with `finding_lines.length > 0` shows an "N findings" badge.
+
+**Mentor-review pass (2026-08-06) — badge click behavior changed.**
+Originally: clicking opened the file (if closed) and smooth-scrolled to the
+first finding line via an anchor id (`diffline-{path}-{line}`) on each
+rendered diff line — that anchor/`FileCard`'s `scrollTarget` prop still exist
+(generic, harmless to keep) but `SmartDiffViewer` no longer drives them.
+Now: `SmartDiffViewer` takes an additional `findings: FindingRecord[]` prop
+and an `onSelectFinding?: (findingId: string) => void` callback; a click
+resolves the file's earliest (`start_line`) finding via the pure helper
+`firstFindingForFile` (`SmartDiffViewer/helpers.ts`) and calls
+`onSelectFinding` with its id — it does not touch the diff view at all.
+`PrDetailView` owns the cross-tab wiring: `handleSelectFinding` switches
+`tab` to `"findings"` and bumps a local `{ id, n }` `findingTarget` state (not
+URL state, unlike `tab`/`trace` — a repeat click on the same finding must
+still re-trigger the scroll, hence the nonce), threaded into `FindingsTab` as
+`targetFindingId`/`targetFindingNonce`. `FindingsTab` resolves which
+`ReviewRunAccordion` contains that finding and feeds it into the same
+`target`/`setTarget` state that already drives Timeline → Review-runs
+navigation there (so the accordion opens + scrolls exactly like a Timeline
+click does), and passes `targetFindingId`/`targetFindingNonce` straight
+through `ReviewRunAccordion` → `FindingsPanel` → `FindingCard`. `FindingCard`
+expands and `scrollIntoView`s itself when its own `id` matches, and its
+`focused` (highlight) styling is now `!!focused || isTarget`. `FindingsPanel`
+additionally moves its j/k keyboard focus (`focusIdx`) to the target finding,
+so accept/dismiss shortcuts act on it immediately after the jump.
 
 ## Verification
 
-- `pnpm test`/`pnpm typecheck` in `server` (new `smart-diff.test.ts`) and
-  `client` (new `SmartDiffViewer.test.tsx`); `pnpm arch` stays green in
-  `server` (no new cross-module import).
+- `pnpm test`/`pnpm typecheck` in `server` (`smart-diff.test.ts`; also
+  `pnpm run verify:l03` — a `server/package.json` script added in the
+  mentor-review pass that runs just this file, `vitest run
+  src/modules/reviews/smart-diff.test.ts`, as a one-command "is L03's Smart
+  Diff classifier green" check) and `client` (`SmartDiffViewer.test.tsx`,
+  updated in the mentor-review pass to assert `onSelectFinding` is called
+  with the file's earliest finding id, rather than asserting a diff-line
+  anchor renders); `pnpm arch` stays green in `server` (no new cross-module
+  import).
 - Manual, via `./scripts/dev.sh`: open a large PR's Files changed tab — core
   logic first, a lock file collapsed under Boilerplate. Run a review, reopen
-  the tab — findings badges appear, clicking one scrolls to the line. Toggle
-  Original order — the prior flat view (incl. inline commenting) still
-  works. Confirm via server logs that `GET /pulls/:id/smart-diff` makes no
-  LLM/provider call.
+  the tab — findings badges appear; clicking one switches to the Findings tab
+  with that finding's review-run accordion open and its own card expanded +
+  highlighted (mentor-review pass — previously this scrolled within the diff
+  instead). Toggle Original order — the prior flat view (incl. inline
+  commenting) still works. Confirm via server logs that `GET
+  /pulls/:id/smart-diff` makes no LLM/provider call.

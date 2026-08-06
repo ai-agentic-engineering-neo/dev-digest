@@ -146,6 +146,31 @@ whole `Container`) before it can be called from a `service.ts` at all, and
 before `container.ts` can wrap it as a method without creating an import cycle
 (`container.ts → feature-models.ts → container.ts`).
 
+**2026-08-06 addendum — both `no-cross-module` and `db-only-in-repositories`
+fire on `import type`-only edges too (`tsPreCompilationDeps: true` in
+`.dependency-cruiser.cjs`), and the fix for each is slightly different from
+the value-import case above.** Building a standalone `recalculateIntent` on
+`modules/reviews/service.ts` that needed `modules/intent/service.ts`'s
+`ResolveIntentInput`/`IntentResolution` shapes: even `import type { ... } from
+'../intent/service.js'` counts as a `no-cross-module` edge and fails `pnpm
+arch` — the `AgentLookup` local-interface fix above generalizes to types too,
+not just value imports (declare `IntentResolveInput`/`IntentResolveResult`
+structurally in `service.ts` itself; `container.intentService.resolve`
+satisfies it with zero casts, since TS structural typing doesn't care that the
+shapes aren't nominally the same interface). Separately, that method also
+needed a repo row type (`typeof schema.repos.$inferSelect`) that had no
+existing named export — importing `db/schema.js` directly would have been a
+*new* `db-only-in-repositories` violation (the baseline matches exact
+from→to file pairs, see the 2026-08-03 entry below), even though
+`service.ts → db/rows.js` was already baselined for `AgentRow`/`PullRow`. Fix:
+add the missing alias to `db/rows.ts` (`export type RepoRow = typeof
+t.repos.$inferSelect;` — exactly the file's own stated purpose, "cross-cutting
+consumers can reference a row shape without importing another module's data
+layer") and import `RepoRow` from there instead — reuses the already-baselined
+edge, adds zero new violations. Before importing anything from `db/schema.js`
+in a `modules/**` file, check whether the type already has (or should get) an
+alias in `db/rows.ts` first.
+
 ### 2026-08-04 — a spec's "byproduct" claim about existing behavior can be stale; verify against the adapter, not just the route it cites
 
 specs/05-intent-layer.md's Scope item 8 asserted `PrDetail.linked_issue` is

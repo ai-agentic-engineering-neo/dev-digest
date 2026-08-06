@@ -76,6 +76,21 @@ export function PrDetailView() {
   };
   const setTab = (t: string) => setParam("tab", t);
 
+  // Smart Diff → Findings navigation: clicking a file's findings badge on the
+  // Diff tab switches to Findings and expands/highlights that finding's card
+  // there. Cross-tab (not URL state, unlike `tab`/`trace`) so a repeat click
+  // on the same finding still re-triggers the scroll via the nonce, same
+  // pattern as FindingsTab's own Timeline → Review-runs `target`.
+  const [findingTarget, setFindingTarget] = React.useState<{ id: string; n: number } | null>(null);
+  const handleSelectFinding = React.useCallback(
+    (findingId: string) => {
+      setTab("findings");
+      setFindingTarget((prev) => ({ id: findingId, n: (prev?.n ?? 0) + 1 }));
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
   // Reviews come newest-first; each is its own run (grouped into accordions).
   const runs = reviews ?? [];
   const allFindings: FindingRecord[] = React.useMemo(
@@ -143,16 +158,7 @@ export function PrDetailView() {
       />
 
       <div style={s.body}>
-        {tab === "overview" && (
-          <OverviewTab
-            prBody={pr.body}
-            intent={pr.intent}
-            intentInScope={pr.intent_in_scope}
-            intentOutOfScope={pr.intent_out_of_scope}
-            intentContextGaps={pr.intent_context_gaps}
-            intentSignals={pr.intent_signals}
-          />
-        )}
+        {tab === "overview" && <OverviewTab prId={prId} prBody={pr.body} />}
 
         {tab === "findings" && (
           <FindingsTab
@@ -166,6 +172,8 @@ export function PrDetailView() {
             repoFullName={repoFullName}
             headSha={pr.head_sha}
             cancelMutation={cancel}
+            targetFindingId={findingTarget?.id ?? null}
+            targetFindingNonce={findingTarget?.n ?? 0}
             onOpenTrace={(id) => setParam("trace", id)}
             onDelete={(id) => {
               if (window.confirm("Delete this run from history? (its logs are removed too)"))
@@ -185,6 +193,8 @@ export function PrDetailView() {
             filesCount={pr.files_count}
             files={pr.files}
             canComment={pr.status === "open"}
+            findings={allFindings}
+            onSelectFinding={handleSelectFinding}
           />
         )}
       </div>

@@ -5,6 +5,7 @@ export * from "./core";
 export * from "./agents";
 export * from "./skills";
 export * from "./reviews";
+export * from "./intent";
 export * from "./trace";
 export * from "./repo-intel";
 export * from "./conventions";

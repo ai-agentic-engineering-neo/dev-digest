@@ -31,6 +31,8 @@ export function FindingCard({
   pending,
   repoFullName,
   headSha,
+  targetFindingId,
+  targetFindingNonce,
 }: {
   f: FindingRecord;
   focused?: boolean;
@@ -39,9 +41,22 @@ export function FindingCard({
   pending?: boolean;
   repoFullName?: string | null;
   headSha?: string | null;
+  /** Smart Diff → Findings navigation: when this matches `f.id`, the card
+   *  expands and smooth-scrolls into view. `targetFindingNonce` re-triggers
+   *  the scroll on a repeat click of the same finding's badge. */
+  targetFindingId?: string | null;
+  targetFindingNonce?: number;
 }) {
   const t = useTranslations("prReview");
   const [expanded, setExpanded] = React.useState(defaultExpanded ?? false);
+  const rootRef = React.useRef<HTMLDivElement | null>(null);
+  const isTarget = targetFindingId != null && targetFindingId === f.id;
+  React.useEffect(() => {
+    if (!isTarget) return;
+    setExpanded(true);
+    rootRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetFindingId, targetFindingNonce]);
   const sevColor = SEV_COLOR[f.severity] ?? SEV_COLOR_FALLBACK;
   const fileHref =
     repoFullName && headSha
@@ -52,7 +67,7 @@ export function FindingCard({
   const muted = accepted || dismissed;
 
   return (
-    <div data-finding-id={f.id} style={s.card(!!focused, sevColor, muted)}>
+    <div ref={rootRef} data-finding-id={f.id} style={s.card(!!focused || isTarget, sevColor, muted)}>
       <div onClick={() => setExpanded((e) => !e)} style={s.header}>
         <div style={s.badgeWrap}>
           <SeverityBadge severity={f.severity as Severity} compact />

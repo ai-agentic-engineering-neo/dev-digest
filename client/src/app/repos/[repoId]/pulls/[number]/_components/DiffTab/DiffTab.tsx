@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { DiffViewer, type DiffCommentApi } from "@/components/diff-viewer";
 import { usePrComments, useCreatePrComment, useSmartDiff } from "@/lib/hooks/reviews";
 import { notify } from "@/lib/toast";
-import type { PrFile } from "@devdigest/shared";
+import type { FindingRecord, PrFile } from "@devdigest/shared";
 import { SmartDiffViewer } from "../SmartDiffViewer";
 
 interface DiffTabProps {
@@ -15,9 +15,15 @@ interface DiffTabProps {
   files: PrFile[];
   /** Inline commenting is offered only on open PRs (GitHub rejects otherwise). */
   canComment?: boolean;
+  /** Findings across all review runs — threaded into SmartDiffViewer so a
+     file's findings badge can resolve which finding to jump to. */
+  findings?: FindingRecord[];
+  /** Findings-badge click → switch to the Findings tab + expand/highlight
+     that finding's card (PrDetailView owns the tab/target state). */
+  onSelectFinding?: (findingId: string) => void;
 }
 
-export function DiffTab({ prId, filesCount, files, canComment }: DiffTabProps) {
+export function DiffTab({ prId, filesCount, files, canComment, findings, onSelectFinding }: DiffTabProps) {
   const t = useTranslations("shell");
   const { data: comments } = usePrComments(prId);
   const create = useCreatePrComment(prId);
@@ -74,7 +80,13 @@ export function DiffTab({ prId, filesCount, files, canComment }: DiffTabProps) {
         </Chip>
       </div>
       {smartOrder && smartDiff ? (
-        <SmartDiffViewer files={files} groups={smartDiff.groups} commenting={commenting} />
+        <SmartDiffViewer
+          files={files}
+          groups={smartDiff.groups}
+          findings={findings}
+          commenting={commenting}
+          onSelectFinding={onSelectFinding}
+        />
       ) : (
         <DiffViewer files={files} commenting={commenting} />
       )}

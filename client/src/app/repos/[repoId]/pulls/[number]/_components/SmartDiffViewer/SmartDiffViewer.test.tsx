@@ -1,8 +1,8 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { PrFile } from "@/lib/types";
-import type { SmartDiffGroup } from "@devdigest/shared";
+import type { FindingRecord, SmartDiffGroup } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/shell.json";
 import { SmartDiffViewer } from "./SmartDiffViewer";
 
@@ -58,6 +58,15 @@ const GROUPS: SmartDiffGroup[] = [
   },
 ];
 
+const FINDINGS: FindingRecord[] = [
+  {
+    id: "finding-1",
+    file: "src/middleware/ratelimit.ts",
+    start_line: 2,
+    end_line: 2,
+  } as FindingRecord,
+];
+
 describe("SmartDiffViewer", () => {
   it("renders groups in core, wiring, boilerplate order", () => {
     renderWithIntl(<SmartDiffViewer files={FILES} groups={GROUPS} />);
@@ -71,10 +80,18 @@ describe("SmartDiffViewer", () => {
     expect(screen.queryByText("lockfile change")).not.toBeInTheDocument();
   });
 
-  it("opens the file and exposes the target line anchor when a findings badge is clicked", () => {
-    renderWithIntl(<SmartDiffViewer files={FILES} groups={GROUPS} />);
+  it("calls onSelectFinding with the file's earliest finding when a findings badge is clicked", () => {
+    const onSelectFinding = vi.fn();
+    renderWithIntl(
+      <SmartDiffViewer
+        files={FILES}
+        groups={GROUPS}
+        findings={FINDINGS}
+        onSelectFinding={onSelectFinding}
+      />,
+    );
     const badge = screen.getByText(/finding/i);
     fireEvent.click(badge);
-    expect(document.getElementById("diffline-src/middleware/ratelimit.ts-2")).toBeInTheDocument();
+    expect(onSelectFinding).toHaveBeenCalledWith("finding-1");
   });
 });

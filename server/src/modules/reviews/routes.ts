@@ -7,6 +7,7 @@ import { IdParams } from '../_shared/schemas.js';
 import { NotFoundError } from '../../platform/errors.js';
 import { ReviewService } from './service.js';
 import { ReviewRunExecutor } from './run-executor.js';
+import { loadDiff } from './diff-loader.js';
 
 
 /**
@@ -16,6 +17,7 @@ import { ReviewRunExecutor } from './run-executor.js';
  *   GET    /runs/:id/trace                             → the single-document RunTrace
  *   GET    /pulls/:id/reviews                          → persisted reviews + findings for a PR
  *   GET    /pulls/:id/smart-diff                       → files grouped by risk (no LLM call)
+ *   POST   /pulls/:id/intent/recalculate                → manual, on-demand intent recompute
  *   POST   /findings/:id/(accept|dismiss)              → finding actions
  */
 const FINDING_ACTIONS = ['accept', 'dismiss'] as const;
@@ -30,6 +32,8 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
     container.agentsRepo,
     new ReviewRunExecutor(container, container.reviewRepo, container.agentsRepo),
     container.runBus,
+    (workspaceId, pull, repo) => loadDiff(container, container.reviewRepo, workspaceId, pull, repo),
+    (input) => container.intentService.resolve(input),
   );
 
   // ---- Run a review (manual trigger) -------------------------------
@@ -148,6 +152,18 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
     const { workspaceId } = await getContext(container, req);
     return service.smartDiff(workspaceId, req.params.id);
   });
+
+  // ---- L03 — manual, on-demand intent recompute (bypasses waiting for a full
+  // review run). Same LLM cost class as running a review, so rate-limited the
+  // same way `/pulls/:id/review` is above.
+  app.post(
+    '/pulls/:id/intent/recalculate',
+    { schema: { params: IdParams }, config: { rateLimit: { max: 10, timeWindow: '1 minute' } } },
+    async (req) => {
+      const { workspaceId } = await getContext(container, req);
+      return service.recalculateIntent(workspaceId, req.params.id, req.log);
+    },
+  );
 
   // ---- Delete a whole review run (one agent's pass) + its findings --------
   app.delete('/reviews/:id', { schema: { params: IdParams } }, async (req) => {

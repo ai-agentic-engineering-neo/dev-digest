@@ -30,7 +30,6 @@ import { PrDetailHeader } from "../PrDetailHeader";
 import { OverviewTab } from "../OverviewTab";
 import { FindingsTab } from "../FindingsTab";
 import { DiffTab } from "../DiffTab";
-import { BlastRadiusTab } from "../BlastRadiusTab";
 import RunTraceDrawer from "../RunTraceDrawer";
 import { s } from "./styles";
 
@@ -159,7 +158,14 @@ export function PrDetailView() {
       />
 
       <div style={s.body}>
-        {tab === "overview" && <OverviewTab prId={prId} prBody={pr.body} />}
+        {tab === "overview" && (
+          <OverviewTab
+            prId={prId}
+            prBody={pr.body}
+            repoFullName={repoFullName}
+            headSha={pr.head_sha}
+          />
+        )}
 
         {tab === "findings" && (
           <FindingsTab
@@ -197,10 +203,6 @@ export function PrDetailView() {
             findings={allFindings}
             onSelectFinding={handleSelectFinding}
           />
-        )}
-
-        {tab === "blast" && (
-          <BlastRadiusTab prId={prId} repoFullName={repoFullName} headSha={pr.head_sha} />
         )}
       </div>
 

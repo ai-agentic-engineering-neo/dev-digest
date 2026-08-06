@@ -63,9 +63,11 @@ blocked on exactly this work.
    No LLM call, no new repository method beyond what `repo-intel` already owns.
 3. Two small additive fields on the existing `BlastRadius`/`BlastCaller` contracts (both
    `vendor/shared` copies) — see [API](#api).
-4. A "Blast Radius" tab on the PR detail page: changed symbols → their callers → impacted
-   endpoints, with `file:line` links that open the exact line on GitHub, and a distinct
-   non-blocking banner for `partial`/`degraded` index states.
+4. A "Blast Radius" card on the PR detail page's Overview tab (beside `IntentCard`, not a
+   separate top-level tab — corrected against the L04 design mockup after the first pass
+   shipped it as its own tab): changed symbols → their callers → impacted endpoints, with
+   `file:line` links that open the exact line on GitHub, and a distinct non-blocking banner
+   for `partial`/`degraded` index states.
 5. A real `get_blast_radius` implementation in `mcp-server`, replacing the stub, calling the
    new route via `resolveRepo`/`resolvePull` the same way `get_findings` does.
 
@@ -91,10 +93,10 @@ routes.ts` (new), `modules/blast/service.test.ts` (new), `modules/index.ts` (new
 registration).
 
 **client**: `src/vendor/shared/contracts/brief.ts` (edit, mirrors server), `lib/hooks/
-blast-radius.ts` (new), `_components/BlastRadiusTab/{BlastRadiusTab.tsx,styles.ts,
-index.ts,BlastRadiusTab.test.tsx}` (new folder, mirrors `DiffTab`), `_components/
-PrDetailHeader/PrDetailHeader.tsx` (edit — new tab entry), `_components/PrDetailView/
-PrDetailView.tsx` (edit — tab wiring).
+blast-radius.ts` (new), `_components/BlastRadiusCard/{BlastRadiusCard.tsx,styles.ts,
+constants.ts,index.ts,BlastRadiusCard.test.tsx}` (new folder, mirrors `IntentCard` — a card,
+not a tab), `_components/OverviewTab/{OverviewTab.tsx,styles.ts}` (edit — two-column grid
+placing `IntentCard`/`BlastRadiusCard` side by side).
 
 **mcp-server**: `src/tools/get-blast-radius.ts` (edit — replace stub body + description),
 `src/tools/index.ts` (edit — handler signature), `test/tools/get-blast-radius.test.ts`
@@ -172,9 +174,11 @@ to paths → `repoIntel.getBlastRadius(repo.repoId, paths)` + `repoIntel.getInde
 
 ### UI
 
-New `BlastRadiusTab` (mirrors `DiffTab`'s folder shape), added to `PrDetailHeader`'s `tabs`
-array and `PrDetailView`'s tab body, receiving `prId`/`repoFullName`/`headSha` the same way
-`FindingCard`/`DiffTab` already do. Renders:
+New `BlastRadiusCard` (mirrors `IntentCard`'s folder shape — a section on the Overview tab,
+not a top-level tab of its own), rendered by `OverviewTab` in a two-column grid alongside
+`IntentCard`, receiving `prId`/`repoFullName`/`headSha` the same way `FindingCard`/`DiffTab`
+already do. A stats row (symbol/caller/endpoint/cron counts, derived client-side from
+`BlastRadius`) sits under the section header. Renders:
 
 - `status === 'partial' | 'degraded'` → a non-blocking banner above the results with
   distinct copy per state (both still carry real, if incomplete, data — masking
@@ -209,8 +213,9 @@ position/order.
 - `cd client && pnpm typecheck && pnpm test`.
 - `cd mcp-server && pnpm typecheck && pnpm test`.
 - Boot the real stack (`./scripts/dev.sh`), open a demo PR that touches a shared helper
-  function, open the new **Blast Radius** tab: confirm ≥2 real callers and ≥1 HTTP endpoint
-  are shown; click a `file:line` link and confirm it opens the right GitHub line.
+  function, on the **Overview** tab confirm the new **Blast Radius** card renders beside
+  Intent with ≥2 real callers and ≥1 HTTP endpoint shown; click a `file:line` link and
+  confirm it opens the right GitHub line.
 - Run a scenario against a repo with a partial/degraded index and confirm the distinct
   banner (not a blank list); run a scenario where a changed file has no callers and confirm
   the clear empty state (not a silently-empty array indistinguishable from "not checked
@@ -219,4 +224,4 @@ position/order.
   index reads happen, no clone/AST parsing (unless the index is genuinely absent, the one
   documented degraded-fallback exception).
 - Call `get_blast_radius` via MCP Inspector (and/or Claude Code) for the same PR, compare
-  its response against the UI tab.
+  its response against the Overview tab's Blast Radius card.

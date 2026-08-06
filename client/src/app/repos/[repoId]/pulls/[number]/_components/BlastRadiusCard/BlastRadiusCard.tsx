@@ -1,4 +1,6 @@
-/* BlastRadiusTab — specs/07-blast-radius.md. Changed symbols → their resolved
+/* BlastRadiusCard — specs/07-blast-radius.md. Own section on the Overview
+   tab, next to IntentCard (not a separate top-level tab — see the L04 design
+   mockup this was corrected against). Changed symbols → their resolved
    cross-file callers → impacted HTTP endpoints/crons, read entirely off
    repo-intel's persistent index (no LLM call). `file:line` links open the
    exact GitHub line in a new tab — same pattern as FindingCard.tsx.
@@ -13,13 +15,13 @@ import { githubBlobUrl } from "@/lib/github-urls";
 import { STATUS_BANNER } from "./constants";
 import { s } from "./styles";
 
-interface BlastRadiusTabProps {
+interface BlastRadiusCardProps {
   prId: string | null;
   repoFullName?: string | null;
   headSha?: string | null;
 }
 
-export function BlastRadiusTab({ prId, repoFullName, headSha }: BlastRadiusTabProps) {
+export function BlastRadiusCard({ prId, repoFullName, headSha }: BlastRadiusCardProps) {
   const { data: envelope, isLoading } = useBlastRadius(prId);
 
   if (isLoading || !envelope) {
@@ -37,9 +39,34 @@ export function BlastRadiusTab({ prId, repoFullName, headSha }: BlastRadiusTabPr
   const { status, degradedReason, data: blast } = envelope;
   const bannerCopy = STATUS_BANNER[status];
 
+  const callerCount = blast.downstream.reduce((n, g) => n + g.callers.length, 0);
+  const endpointCount = new Set(blast.downstream.flatMap((g) => g.endpoints_affected)).size;
+  const cronCount = new Set(blast.downstream.flatMap((g) => g.crons_affected)).size;
+
   return (
     <section>
       <SectionLabel icon="Target">Blast Radius</SectionLabel>
+
+      {blast.changed_symbols.length > 0 && (
+        <div style={s.statsRow}>
+          <Badge icon="Code">
+            {blast.changed_symbols.length} symbol{blast.changed_symbols.length === 1 ? "" : "s"}
+          </Badge>
+          <Badge icon="CornerDownRight">
+            {callerCount} caller{callerCount === 1 ? "" : "s"}
+          </Badge>
+          {endpointCount > 0 && (
+            <Badge icon="Globe">
+              {endpointCount} endpoint{endpointCount === 1 ? "" : "s"}
+            </Badge>
+          )}
+          {cronCount > 0 && (
+            <Badge icon="Clock">
+              {cronCount} cron{cronCount === 1 ? "" : "s"}
+            </Badge>
+          )}
+        </div>
+      )}
 
       {bannerCopy && (
         <div style={s.banner} role="status">
@@ -77,15 +104,17 @@ export function BlastRadiusTab({ prId, repoFullName, headSha }: BlastRadiusTabPr
               <ul style={s.callerList}>
                 {group.callers.map((c, i) => (
                   <li key={`${c.file}:${c.line}:${i}`} style={s.callerRow}>
-                    <MonoLink
-                      href={
-                        repoFullName && headSha
-                          ? githubBlobUrl(repoFullName, headSha, c.file, c.line, c.line)
-                          : undefined
-                      }
-                    >
-                      {c.file}:{c.line}
-                    </MonoLink>
+                    <span style={s.callerLinkWrap} title={`${c.file}:${c.line}`}>
+                      <MonoLink
+                        href={
+                          repoFullName && headSha
+                            ? githubBlobUrl(repoFullName, headSha, c.file, c.line, c.line)
+                            : undefined
+                        }
+                      >
+                        {c.file}:{c.line}
+                      </MonoLink>
+                    </span>
                     <span style={s.callerSymbol}>{c.name}</span>
                   </li>
                 ))}

@@ -13,7 +13,7 @@
  * raw-SQL probes below MUST swallow `undefined_table` (Postgres 42P01) so the
  * facade keeps returning degraded — never throws.
  */
-import { and, asc, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import { clampIndexedName } from '../../db/schema/context.js';
@@ -499,7 +499,17 @@ export class RepoIntelRepository {
       .where(and(eq(t.symbols.repoId, repoId), inArray(t.symbols.path, paths)));
   }
 
-  /** Resolved cross-file callers of symbols declared in `declFiles`. */
+  /**
+   * Resolved cross-file callers of symbols declared in `declFiles`.
+   *
+   * Joins `symbols` on `(repoId, name = toSymbol, path IN declFiles)` and
+   * excludes `fromPath = symbols.path` — a reference sitting in the SAME file
+   * that declares the symbol it references is not a "cross-file caller", it's
+   * a same-file usage (e.g. a helper calling itself, or another top-level
+   * function in the same module). Excluding it here (rather than "any changed
+   * file") keeps a reference from file B to a symbol declared in file A
+   * correctly counted, even when both A and B are changed files.
+   */
   async getResolvedCallers(
     repoId: string,
     declFiles: string[],
@@ -521,11 +531,20 @@ export class RepoIntelRepository {
           eq(t.fileRank.filePath, t.references.fromPath),
         ),
       )
+      .innerJoin(
+        t.symbols,
+        and(
+          eq(t.symbols.repoId, t.references.repoId),
+          eq(t.symbols.name, t.references.toSymbol),
+          inArray(t.symbols.path, declFiles),
+        ),
+      )
       .where(
         and(
           eq(t.references.repoId, repoId),
           inArray(t.references.declFile, declFiles),
           inArray(t.references.toSymbol, names),
+          ne(t.references.fromPath, t.symbols.path),
         ),
       );
   }

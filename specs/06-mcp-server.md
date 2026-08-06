@@ -399,11 +399,19 @@ const inputSchema = z.object({
 > Takes the same repo/pr arguments the real implementation will use, so no
 > caller needs to change when it ships.
 
-**Backend calls: none.** No HTTP endpoint exposes `RepoIntel.getBlastRadius`
-(only `/index-state` and `/resync` exist on `repo-intel/routes.ts`). This
-tool makes **zero** backend calls and returns the stub immediately — a
-typo'd `repo`/`pr` gets the same answer as a valid one, since the answer
-never depends on them. This trade-off is intentional, not an oversight.
+**Backend calls: none, as of this writing.** No HTTP endpoint exposes
+`RepoIntel.getBlastRadius` (only `/index-state` and `/resync` exist on
+`repo-intel/routes.ts`). This tool makes **zero** backend calls and returns
+the stub immediately — a typo'd `repo`/`pr` gets the same answer as a valid
+one, since the answer never depends on them. This trade-off is intentional,
+not an oversight.
+
+> **Update (specs/07-blast-radius.md):** `GET /pulls/:id/blast` now exists,
+> and `get_blast_radius` has been implemented for real against it — the
+> "no HTTP endpoint exposes `RepoIntel.getBlastRadius`" statement above is no
+> longer true. This section is left otherwise unchanged as a historical
+> record of the stub this lesson originally shipped; see specs/07 for the
+> real tool's description, backend calls, and response shape.
 
 **Response shape:**
 ```json

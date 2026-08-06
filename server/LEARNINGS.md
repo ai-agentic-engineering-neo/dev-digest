@@ -171,6 +171,60 @@ edge, adds zero new violations. Before importing anything from `db/schema.js`
 in a `modules/**` file, check whether the type already has (or should get) an
 alias in `db/rows.ts` first.
 
+**2026-08-06 second addendum — a spec saying a module "may import X directly
+because X is already the cross-module-safe facade" does NOT mean the import
+is exempt from `no-cross-module`; it means the resulting baseline entry is
+expected/sanctioned.** specs/07-blast-radius.md explicitly told `blast/
+service.ts` it could import `RepoIntel`/`IndexStatus`/`DegradedReason` types
+straight from `repo-intel/types.ts`, since `RepoIntel` is the facade every
+feature is meant to read repo intelligence through. `pnpm arch` still failed
+on that edge exactly like the pre-existing `repos/service.ts -> repo-intel/
+constants.ts` baselined violation (2026-08-03 entry above) — `.dependency-
+cruiser.cjs` has no special-case for `repo-intel`, "safe facade" is a design
+position, not a rule exemption. Fix was the same `pnpm arch:baseline` +
+`git diff .dependency-cruiser-known-violations.json` (confirm exactly one new
+edge added) already documented above; don't expect a spec's "X is safe to
+import directly" language to mean `pnpm arch` passes with zero new baseline
+entries.
+
+### 2026-08-06 — repo-intel's `tryPersistentBlast`: an "empty declared-symbols" early return was silently skipping the file-level 2-hop reverse-import fact lookup too
+
+Building specs/07-blast-radius.md's gap #3 fix (`reverseImportImpact`,
+`repo-intel/service.ts`), the pre-existing `tryPersistentBlast` returned
+`{changedSymbols: [], callers: [], impactedEndpoints: [], degraded: false}`
+immediately whenever a changed file declared zero bare-name (function/method/
+class) symbols — e.g. a changed file that's all types/interfaces, or a config
+file. That early return happened BEFORE any file-level reverse-import walk
+could run, even though the walk operates on changed FILES, not changed
+SYMBOLS, and is specifically meant to catch a route file that imports a
+service that imports the changed file, with no direct reference row to any
+specific symbol at all (exactly the scenario a symbol-less changed file
+produces). Left as-is, the whole point of the 2-hop fix would be unreachable
+for that entire class of changed file. Fix: moved `getResolvedCallers` behind
+`nameSet.size > 0` (still skipped correctly — there's nothing to look up
+callers for) but let `reverseImportImpact` + `repo.getFileFacts` run
+unconditionally off `changedFiles`, so `changedSymbols`/`callers` can be `[]`
+while `impactedEndpoints`/`factsByFile` are still populated. Covered by
+`test/repo-intel-blast-persistent.it.test.ts`'s third case (a changed file
+with a 2-hop import chain to an endpoint, and NO declared symbols at all).
+
+Separately, this exposed a real, unresolved design question one ring up:
+`blast/service.ts`'s mapper groups `endpoints_affected`/`crons_affected` onto
+each `DownstreamImpact` ONLY from `factsByFile` entries keyed by that group's
+OWN caller files (per the spec's literal wording, and the pre-existing
+`BlastResult.factsByFile` doc comment: "so consumers can attribute them to
+the changed symbol whose callers live in that file"). A file reached ONLY via
+the 2-hop reverse-import walk — no reference row to the specific symbol at
+all — has no caller-based group to attach to, since the reserved
+`BlastRadius` vendor/shared contract has no file-level/top-level slot for it
+(only additive `rank`/`summary.nullish()` were in scope to add). So that
+class of endpoint impact is now correctly COMPUTED (`repo-intel`'s job, gap
+#3) but not currently SURFACED anywhere in the HTTP response — it's real,
+reachable-in-2-hops data that the current contract shape has no home for.
+Whoever builds the "PR Brief card" lesson (`pr_brief`, which `BlastRadius` is
+reserved for) should decide whether that needs a new field before reusing
+this contract as-is.
+
 ### 2026-08-04 — a spec's "byproduct" claim about existing behavior can be stale; verify against the adapter, not just the route it cites
 
 specs/05-intent-layer.md's Scope item 8 asserted `PrDetail.linked_issue` is

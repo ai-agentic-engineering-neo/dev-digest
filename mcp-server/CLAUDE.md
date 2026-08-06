@@ -35,11 +35,6 @@ high-confidence guidance unless it's obviously stale.
 
 ## Do-not-touch / edit-with-care
 
-- `get_blast_radius` (`src/tools/get-blast-radius.ts`) is an **intentional**
-  stub — zero backend calls, same answer for a valid or nonsense repo/pr. Its
-  test asserts the mocked `fetch` is never invoked; don't "complete" this
-  tool without a spec update (no HTTP endpoint exposes
-  `RepoIntel.getBlastRadius` yet — see `specs/06-mcp-server.md`).
 - `./scripts/dev.sh` must **not** be taught about this package — it's started
   separately, on demand, only when a Claude Code session needs it.
 - Rate-limit (429) detection **must** stay HTTP-status-based

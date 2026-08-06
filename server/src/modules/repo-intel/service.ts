@@ -334,12 +334,15 @@ export class RepoIntelService implements RepoIntel {
       }
       nameSet.add(s.name);
     }
-    if (nameSet.size === 0) {
-      return { changedSymbols, callers: [], impactedEndpoints: [], degraded: false };
-    }
 
-    // Resolved cross-file callers.
-    const callerRows = await this.repo.getResolvedCallers(repoId, changedFiles, [...nameSet]);
+    // Resolved cross-file callers — empty when the changed files declare no
+    // (bare-name) symbols at all, but that alone doesn't mean zero impact:
+    // the reverse-import walk below still runs off the changed FILES, not the
+    // symbols, so file-level (endpoint/cron) impact is still detected.
+    const callerRows =
+      nameSet.size > 0
+        ? await this.repo.getResolvedCallers(repoId, changedFiles, [...nameSet])
+        : [];
     const callerFiles = [...new Set(callerRows.map((c) => c.fromPath))];
 
     // Enclosing caller symbol from the callers' persistent symbol rows.
@@ -369,11 +372,32 @@ export class RepoIntelService implements RepoIntel {
         rank: c.rank,
       });
     }
-    callers.sort((a, b) => b.rank - a.rank);
 
-    // Precomputed facts per caller file (endpoints + crons), so consumers can
+    // Per-symbol caller cap: group by viaSymbol and cap EACH group, instead of
+    // one global rank-sorted slice — otherwise one hot symbol starves every
+    // other changed symbol of caller slots.
+    const byViaSymbol = new Map<string, BlastCallerRow[]>();
+    for (const c of callers) {
+      const arr = byViaSymbol.get(c.viaSymbol);
+      if (arr) arr.push(c);
+      else byViaSymbol.set(c.viaSymbol, [c]);
+    }
+    const cappedCallers: BlastCallerRow[] = [];
+    for (const group of byViaSymbol.values()) {
+      group.sort((a, b) => b.rank - a.rank);
+      cappedCallers.push(...group.slice(0, MAX_CALLERS_PER_SYMBOL));
+    }
+
+    // 2-hop reverse-import-graph impact: files that import (transitively, up
+    // to BFS_DEPTH hops) any changed file — not just the changed files'
+    // direct symbol-callers — so endpoint/cron facts cover the wider blast
+    // radius a route/cron file two imports away from the change can still sit in.
+    const reverseImpact = await this.reverseImportImpact(repoId, changedFiles);
+    const factFiles = [...new Set([...callerFiles, ...reverseImpact])];
+
+    // Precomputed facts per impacted file (endpoints + crons), so consumers can
     // attribute them to the changed symbol whose callers live in that file.
-    const facts = await this.repo.getFileFacts(repoId, callerFiles);
+    const facts = await this.repo.getFileFacts(repoId, factFiles);
     const endpoints = new Set<string>();
     const factsByFile: Record<string, { endpoints: string[]; crons: string[] }> = {};
     for (const f of facts) {
@@ -383,11 +407,51 @@ export class RepoIntelService implements RepoIntel {
 
     return {
       changedSymbols,
-      callers: callers.slice(0, MAX_CALLERS_PER_SYMBOL),
+      callers: cappedCallers,
       impactedEndpoints: [...endpoints],
       factsByFile,
       degraded: false,
     };
+  }
+
+  /**
+   * 2-hop reverse-import-graph walk (T4/blast): builds a `toFile → fromFile[]`
+   * adjacency from `getEdges` — the INVERSE direction of `getCriticalPaths`'s
+   * forward (importer → imported) adjacency — then BFS's the FULL frontier set
+   * (not one greedy best-rank chain) up to `BFS_DEPTH` hops from each changed
+   * file. Returns the union of every file reachable within that walk (changed
+   * files themselves are excluded from the result). Private: `RepoIntel`'s
+   * public interface is unchanged — this stays an implementation detail of
+   * `tryPersistentBlast`.
+   */
+  private async reverseImportImpact(
+    repoId: string,
+    changedFiles: string[],
+  ): Promise<Set<string>> {
+    const edges = await this.repo.getEdges(repoId);
+    const reverseAdj = new Map<string, string[]>();
+    for (const e of edges) {
+      const arr = reverseAdj.get(e.toFile);
+      if (arr) arr.push(e.fromFile);
+      else reverseAdj.set(e.toFile, [e.fromFile]);
+    }
+
+    const changedSet = new Set(changedFiles);
+    const reached = new Set<string>();
+    let frontier = new Set<string>(changedFiles);
+    for (let depth = 0; depth < BFS_DEPTH; depth += 1) {
+      const next = new Set<string>();
+      for (const file of frontier) {
+        for (const importer of reverseAdj.get(file) ?? []) {
+          if (reached.has(importer) || changedSet.has(importer)) continue;
+          reached.add(importer);
+          next.add(importer);
+        }
+      }
+      if (next.size === 0) break;
+      frontier = next;
+    }
+    return reached;
   }
 
   /**

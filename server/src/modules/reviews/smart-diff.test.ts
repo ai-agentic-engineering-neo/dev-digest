@@ -62,6 +62,28 @@ describe('buildSmartDiff', () => {
     expect(result.groups.map((g) => g.role)).toEqual(['core', 'boilerplate']);
   });
 
+  it('assembles a wiring group for a wiring-classified file, alongside core and boilerplate', () => {
+    const result = buildSmartDiff(
+      [
+        { path: 'src/foo.ts', additions: 5, deletions: 1 },
+        { path: 'src/index.ts', additions: 2, deletions: 0 },
+        { path: 'package-lock.json', additions: 20, deletions: 0 },
+      ],
+      [],
+    );
+    expect(result.groups.map((g) => g.role)).toEqual(['core', 'wiring', 'boilerplate']);
+    const wiring = result.groups.find((g) => g.role === 'wiring')!;
+    expect(wiring.files).toEqual([
+      {
+        path: 'src/index.ts',
+        pseudocode_summary: null,
+        additions: 2,
+        deletions: 0,
+        finding_lines: [],
+      },
+    ]);
+  });
+
   it('expands and dedupes finding_lines only for the matching file', () => {
     const result = buildSmartDiff(
       [

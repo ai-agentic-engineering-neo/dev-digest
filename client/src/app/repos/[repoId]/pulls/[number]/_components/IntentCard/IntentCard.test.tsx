@@ -101,6 +101,34 @@ describe("IntentCard (specs/05-intent-layer.md revision 2)", () => {
     expect(screen.queryByText(/Limited context/)).not.toBeInTheDocument();
   });
 
+  it("renders the 'Derived from' line when signals is non-empty, and omits it when empty", () => {
+    mockIntent({
+      summary: "Adds rate limiting to the public API endpoints.",
+      inScope: [],
+      outOfScope: [],
+      contextGaps: [],
+      signals: ["PR title", "commit messages"],
+    });
+    mockRecalculate();
+    const { rerender } = renderWithProviders(<IntentCard prId="pr1" />);
+    expect(screen.getByText("Derived from: PR title, commit messages")).toBeInTheDocument();
+
+    mockIntent({
+      summary: "Adds rate limiting to the public API endpoints.",
+      inScope: [],
+      outOfScope: [],
+      contextGaps: [],
+      signals: [],
+    });
+    const qc = new QueryClient();
+    rerender(
+      <QueryClientProvider client={qc}>
+        <IntentCard prId="pr1" />
+      </QueryClientProvider>,
+    );
+    expect(screen.queryByText(/Derived from/)).not.toBeInTheDocument();
+  });
+
   it("calls useRecalculateIntent's mutate when Recalculate is clicked", () => {
     mockIntent({
       summary: "Adds rate limiting.",

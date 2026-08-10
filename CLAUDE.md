@@ -23,6 +23,7 @@ contracts via tsconfig path aliases, not a real workspace.
 | client | [client/README.md](client/README.md) | [client/CLAUDE.md](client/CLAUDE.md) | 3000 |
 | reviewer-core | [reviewer-core/README.md](reviewer-core/README.md) | [reviewer-core/CLAUDE.md](reviewer-core/CLAUDE.md) | — |
 | e2e | [e2e/README.md](e2e/README.md) | [e2e/CLAUDE.md](e2e/CLAUDE.md) | — |
+| mcp-server | [mcp-server/README.md](mcp-server/README.md) | [mcp-server/CLAUDE.md](mcp-server/CLAUDE.md) | — |
 
 Read when you need the call path through the layers, the review-run lifecycle,
 or where state lands: [docs/architecture.md](docs/architecture.md).

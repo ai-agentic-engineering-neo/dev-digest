@@ -1,11 +1,13 @@
 "use client";
 
 import React from "react";
-import { SectionLabel, Button } from "@devdigest/ui";
+import { SectionLabel, Button, Chip } from "@devdigest/ui";
+import { useTranslations } from "next-intl";
 import { DiffViewer, type DiffCommentApi } from "@/components/diff-viewer";
-import { usePrComments, useCreatePrComment } from "@/lib/hooks/reviews";
+import { usePrComments, useCreatePrComment, useSmartDiff } from "@/lib/hooks/reviews";
 import { notify } from "@/lib/toast";
-import type { PrFile } from "@devdigest/shared";
+import type { FindingRecord, PrFile } from "@devdigest/shared";
+import { SmartDiffViewer } from "../SmartDiffViewer";
 
 interface DiffTabProps {
   prId: string | null;
@@ -13,13 +15,23 @@ interface DiffTabProps {
   files: PrFile[];
   /** Inline commenting is offered only on open PRs (GitHub rejects otherwise). */
   canComment?: boolean;
+  /** Findings across all review runs — threaded into SmartDiffViewer so a
+     file's findings badge can resolve which finding to jump to. */
+  findings?: FindingRecord[];
+  /** Findings-badge click → switch to the Findings tab + expand/highlight
+     that finding's card (PrDetailView owns the tab/target state). */
+  onSelectFinding?: (findingId: string) => void;
 }
 
-export function DiffTab({ prId, filesCount, files, canComment }: DiffTabProps) {
+export function DiffTab({ prId, filesCount, files, canComment, findings, onSelectFinding }: DiffTabProps) {
+  const t = useTranslations("shell");
   const { data: comments } = usePrComments(prId);
   const create = useCreatePrComment(prId);
   // Comments start hidden so the diff is clean by default — toggle to reveal.
   const [showComments, setShowComments] = React.useState(false);
+  // Smart order (files grouped by risk) is the default view.
+  const [smartOrder, setSmartOrder] = React.useState(true);
+  const { data: smartDiff } = useSmartDiff(prId);
 
   const commentCount = comments?.length ?? 0;
 
@@ -59,7 +71,25 @@ export function DiffTab({ prId, filesCount, files, canComment }: DiffTabProps) {
       >
         Files changed · {filesCount} files
       </SectionLabel>
-      <DiffViewer files={files} commenting={commenting} />
+      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+        <Chip active={smartOrder} onClick={() => setSmartOrder(true)}>
+          {t("diffViewer.smartOrder")}
+        </Chip>
+        <Chip active={!smartOrder} onClick={() => setSmartOrder(false)}>
+          {t("diffViewer.originalOrder")}
+        </Chip>
+      </div>
+      {smartOrder && smartDiff ? (
+        <SmartDiffViewer
+          files={files}
+          groups={smartDiff.groups}
+          findings={findings}
+          commenting={commenting}
+          onSelectFinding={onSelectFinding}
+        />
+      ) : (
+        <DiffViewer files={files} commenting={commenting} />
+      )}
     </section>
   );
 }

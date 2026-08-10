@@ -18,11 +18,18 @@ export function FindingsPanel({
   prId,
   repoFullName,
   headSha,
+  targetFindingId = null,
+  targetFindingNonce = 0,
 }: {
   findings: FindingRecord[];
   prId: string;
   repoFullName?: string | null;
   headSha?: string | null;
+  /** Smart Diff → Findings navigation — when set, that finding's card gets
+   *  keyboard focus, expands, and scrolls into view (ReviewRunAccordion's
+   *  own open/scroll already got this panel on-screen). */
+  targetFindingId?: string | null;
+  targetFindingNonce?: number;
 }) {
   const t = useTranslations("prReview");
   const action = useFindingAction();
@@ -38,6 +45,15 @@ export function FindingsPanel({
 
   // A narrower list can't keep the old focus — it may now point past the end.
   React.useEffect(() => setFocusIdx(0), [severity, hideLow]);
+
+  // Smart Diff navigation moves keyboard focus (j/k) to the target finding too,
+  // so accept/dismiss shortcuts act on it right after the jump.
+  React.useEffect(() => {
+    if (!targetFindingId) return;
+    const idx = shown.findIndex((f) => f.id === targetFindingId);
+    if (idx >= 0) setFocusIdx(idx);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetFindingId, targetFindingNonce]);
 
   const toggleSeverity = React.useCallback(
     (sev: string) => setSeverity((cur) => (cur === sev ? null : sev)),
@@ -97,6 +113,8 @@ export function FindingsPanel({
               pending={action.isPending}
               repoFullName={repoFullName}
               headSha={headSha}
+              targetFindingId={targetFindingId}
+              targetFindingNonce={targetFindingNonce}
               onAction={(act) => action.mutate({ findingId: f.id, action: act, prId })}
             />
           ))

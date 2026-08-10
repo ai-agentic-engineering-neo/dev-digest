@@ -83,6 +83,23 @@ by waiting on it.
 
 ## Codebase Patterns
 
+### 2026-08-04 — the seeded `acme/payments-api` PR #482 has non-zero `additions`/`deletions` but empty `patch` text on every `pr_files` row, and `files_count` (9) doesn't match the actual seeded row count (4)
+
+Verified building Smart Diff (specs/06-smart-diff.md) against this PR — it's
+the same PR the course's Smart Diff mockup screenshot uses (`src/middleware/
+ratelimit.ts`, `src/api/public/webhooks.ts`, `src/api/users.ts`,
+`src/config.ts`), so it's a likely target for future demos/screenshots of any
+diff-rendering feature. `GET /pulls/:id` returns real `additions`/`deletions`
+per file but `patch: null` for all four rows, so `DiffViewer`/`FileCard` (and
+now `SmartDiffViewer`) correctly render "No diff text available" for every
+file — this is NOT a bug in the diff renderer or the classifier, it's how the
+seed data was authored. Also `pull_requests.files_count` is seeded as `9`
+while only 4 `pr_files` rows actually exist for this PR — another seed-data
+mismatch, not a bug in whatever reads `files_count` vs. `files.length`. If a
+future session sees "Files changed · 9 files" but only 4 file cards render,
+or an empty diff body on this specific PR, check the seed data before
+suspecting the feature under test.
+
 ### 2026-07-28 — list endpoints denormalize per-PR data with IN-query + JS grouping, not SQL joins
 
 `GET /repos/:id/pulls` (`modules/pulls/routes.ts`) does not join `reviews` or
@@ -128,6 +145,31 @@ its signature narrowed to the one thing it actually reads (here: `Db`, not the
 whole `Container`) before it can be called from a `service.ts` at all, and
 before `container.ts` can wrap it as a method without creating an import cycle
 (`container.ts → feature-models.ts → container.ts`).
+
+**2026-08-06 addendum — both `no-cross-module` and `db-only-in-repositories`
+fire on `import type`-only edges too (`tsPreCompilationDeps: true` in
+`.dependency-cruiser.cjs`), and the fix for each is slightly different from
+the value-import case above.** Building a standalone `recalculateIntent` on
+`modules/reviews/service.ts` that needed `modules/intent/service.ts`'s
+`ResolveIntentInput`/`IntentResolution` shapes: even `import type { ... } from
+'../intent/service.js'` counts as a `no-cross-module` edge and fails `pnpm
+arch` — the `AgentLookup` local-interface fix above generalizes to types too,
+not just value imports (declare `IntentResolveInput`/`IntentResolveResult`
+structurally in `service.ts` itself; `container.intentService.resolve`
+satisfies it with zero casts, since TS structural typing doesn't care that the
+shapes aren't nominally the same interface). Separately, that method also
+needed a repo row type (`typeof schema.repos.$inferSelect`) that had no
+existing named export — importing `db/schema.js` directly would have been a
+*new* `db-only-in-repositories` violation (the baseline matches exact
+from→to file pairs, see the 2026-08-03 entry below), even though
+`service.ts → db/rows.js` was already baselined for `AgentRow`/`PullRow`. Fix:
+add the missing alias to `db/rows.ts` (`export type RepoRow = typeof
+t.repos.$inferSelect;` — exactly the file's own stated purpose, "cross-cutting
+consumers can reference a row shape without importing another module's data
+layer") and import `RepoRow` from there instead — reuses the already-baselined
+edge, adds zero new violations. Before importing anything from `db/schema.js`
+in a `modules/**` file, check whether the type already has (or should get) an
+alias in `db/rows.ts` first.
 
 ### 2026-08-04 — a spec's "byproduct" claim about existing behavior can be stale; verify against the adapter, not just the route it cites
 
@@ -369,6 +411,23 @@ accept/reject or version for a single advisory string. Before wiring into a
 same-named existing table/contract, confirm which `FeatureModelId` / which
 lesson the spec in front of you actually targets — this codebase can reserve
 more than one integration point under the same name for different lessons.
+
+**2026-08-04 second addendum — implementing Smart Diff confirmed `SmartDiff`
+does NOT need `pr_brief` after all, despite the addendum above grouping it
+with `pr_intent` under the same "reserved for PR Brief card" umbrella.**
+specs/06-smart-diff.md built `GET /pulls/:id/smart-diff` as fully
+compute-on-read (`modules/reviews/smart-diff.ts`'s `buildSmartDiff`, called
+from a new `ReviewService.smartDiff`) — no read or write of `pr_brief` at
+all, deliberately, to avoid colliding with whatever the later PR Brief card
+lesson still wants to do with that table. The `SmartDiff` zod contract
+(`vendor/shared/contracts/brief.ts`) was itself the only "reservation" that
+mattered here — it needed zero changes, matched the feature exactly, and
+`ReviewRepository.getPrFiles`/`reviewsForPull` (both pre-existing, used by
+`/pulls/:id/reviews`) were sufficient with no new repository method. Lesson
+for whoever eventually builds the PR Brief card: don't assume `SmartDiff`'s
+groups/`split_suggestion` still need to be composed into `pr_brief.json` just
+because the contract sits in the same file as `PrBrief` — check what shipped
+in specs/06 first.
 
 ### 2026-08-03 — `.dependency-cruiser-known-violations.json` baselines exact from→to edges, not files — narrowing a param type can silently add a new violation next to an already-ignored one
 

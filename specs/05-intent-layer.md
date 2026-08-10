@@ -20,6 +20,25 @@ Migration table was missing three files v1 already touched
 (`reviews/helpers.ts`, `TraceBody.tsx`, `RunTraceDrawer/constants.ts`,
 `messages/en/runs.json`) that this revision also needs to touch — now added.*
 
+*Mentor-review pass (2026-08-06, on `feat/l03-smart-diff`/PR #6): two gaps
+found and fixed in place (still revision 2 — additive, not a redesign): (1)
+this spec previously said intent is compute-on-review-run only, with no
+recompute-from-a-request path; a reviewer wanted a manual "fresh read without
+running a full agent review" affordance, so a standalone
+`POST /pulls/:id/intent/recalculate` was added (see
+[API](#api) and [Call sequence](#call-sequence)) — it reuses
+`IntentService.resolve` exactly as `ReviewRunExecutor.executeRuns` does (same
+diff-load-then-resolve sequence, same best-effort persistence), so the
+"never trust the model's self-report alone" / injection-guard posture is
+unchanged, only the trigger is new; (2) no client hook existed for reading or
+recomputing intent (the UI read `pr.intent*` fields straight off
+`usePullDetail`) — `client/src/lib/hooks/intent.ts` now exports `useIntent`
+(a `select`-narrowed view of the same `usePullDetail` cache entry, so it costs
+no extra request) and `useRecalculateIntent` (the mutation for the new
+endpoint), and the Intent card was pulled out of `OverviewTab` into its own
+`IntentCard` component (`_components/IntentCard/`) that owns this data
+fetching, per [UI](#ui).*
+
 ## Revision note (why this file changed)
 
 Commit `19ee37c` ("add Intent Layer") shipped a **confidence-based** design —
@@ -132,8 +151,7 @@ written:
 - Jira/Linear ticket integration. Unchanged from v1 — GitHub issues only.
 - A PR-list-row scope badge (`PRRow.tsx`). Detail page only for v1/v2 both.
 - Editing/overriding a computed intent by hand. Still recomputed (overwritten)
-  on the next review run.
-- Recompute triggered from a GET. Still compute-on-review-run only.
+  every time it runs — manual or on a review run — never user-edited text.
 - A deterministic mapping from `out_of_scope` bullets to specific diff files/
   lines. The classifier's `out_of_scope` list is free text (e.g.
   "Authentication changes") describing a *category*, not a structured
@@ -148,6 +166,17 @@ Unchanged from v1: **server** (`modules/intent/`, `modules/reviews/run-executor.
 a new migration), **reviewer-core** (`src/prompt.ts`, `src/review/run.ts`),
 **client** (`vendor/shared/contracts/platform.ts`, `lib/feature-models.ts`,
 `lib/types.ts`, `PrDetailHeader`, `OverviewTab`). **e2e** not touched directly.
+
+Added by the mentor-review pass (2026-08-06): **server**
+(`modules/reviews/service.ts` gains `recalculateIntent` + the narrow
+`DiffLoader`/`IntentResolver` ports, `modules/reviews/routes.ts` gains the
+route, `db/rows.ts` gains `RepoRow` — the recompute flow lives in `reviews`,
+not `modules/intent/`, because `intent/service.ts` has no route of its own and
+`modules/reviews` already imports `container.intentService` for the same
+resolve-intent call; `no-cross-module` still holds — `reviews/service.ts`
+declares structural port types, it does not import from `modules/intent/`),
+**client** (`lib/hooks/intent.ts` new, `_components/IntentCard/` new,
+`OverviewTab` reduced to composing `IntentCard` + the Description section).
 
 ## Architectural constraints
 
@@ -383,6 +412,32 @@ export const PrDetail = PrMeta.extend({
 in both branches (GitHub-refreshed and offline-persisted) — pure column read,
 no LLM call, unchanged posture from v1.
 
+**Added by the mentor-review pass (2026-08-06):**
+`POST /pulls/:id/intent/recalculate` (`modules/reviews/routes.ts`, alongside
+`GET /pulls/:id/smart-diff`) → `IntentDetail`, a new contract next to
+`PrDetail` in `platform.ts` (both vendor/shared copies) with the same five
+fields, minus the PR's other detail data:
+
+```ts
+export const IntentDetail = z.object({
+  intent: z.string().nullish(),
+  intent_in_scope: z.array(z.string()).nullish(),
+  intent_out_of_scope: z.array(z.string()).nullish(),
+  intent_context_gaps: z.array(z.string()).nullish(),
+  intent_signals: z.array(z.string()).nullish(),
+});
+```
+
+`ReviewService.recalculateIntent(workspaceId, prId, logger?)` loads the pull +
+repo, loads the diff (the same `loadDiff` helper `run-executor.ts` uses),
+calls `IntentService.resolve` with it — which persists the result itself,
+same as the review-run path — and reshapes the result into `IntentDetail`.
+Rate-limited the same as `POST /pulls/:id/review` (`max: 10, timeWindow: '1
+minute'`), since it costs one LLM call same as that route. This is a genuine
+reversal of this spec's original "Recompute triggered from a GET. Still
+compute-on-review-run only." out-of-scope line — see the mentor-review-pass
+note near the top of this file for why.
+
 `FEATURE_MODELS`'s `review_intent` entry stays at
 `openrouter`/`deepseek/deepseek-v4-flash` — not touched by this revision.
 
@@ -455,17 +510,27 @@ into `promptParts` the same way.
 
 ### UI
 
-- `OverviewTab.tsx`: the Intent card is restructured to match the design
-  screenshot — the summary as a quoted line, then two columns/lists: ✓ **IN
-  SCOPE** (`pr.intent_in_scope`) and ✗ **OUT OF SCOPE** (`pr.intent_out_of_scope`),
-  each item a bullet. When `pr.intent_context_gaps` is non-empty, render a
-  small warning line beneath (e.g. "⚠ Limited context: PR description is
-  empty; referenced spec specs/09-x.md could not be read") — this is what
-  makes context-gap detection visible to a human, same "show your sources"
-  requirement v1's "Derived from: …" line served, now split into "what's
-  missing" instead of "how confident". Empty state (no review run yet)
-  unchanged from v1: "Not yet analyzed — intent is computed on the next
-  review run."
+- **Mentor-review pass (2026-08-06):** the Intent card lives in its own
+  `_components/IntentCard/` component now, not inline in `OverviewTab.tsx` —
+  `OverviewTab` composes `<IntentCard prId={prId} />` plus the Description
+  section and nothing else. `IntentCard` self-fetches via
+  `useIntent(prId)` (`lib/hooks/intent.ts`) rather than taking the five
+  `intent_*` fields as props — `useIntent` shares `usePullDetail`'s query
+  cache entry (same `["pull", prId]` key, a `select` narrows it), so this
+  costs no extra request. A "Recalculate" button (`useRecalculateIntent`,
+  `POST /pulls/:id/intent/recalculate` — see [API](#api)) sits in the card's
+  `SectionLabel` header; on success it invalidates the pull-detail query so
+  every reader of it picks up the fresh value.
+- `IntentCard.tsx` (formerly the Intent section of `OverviewTab.tsx`): shows
+  the summary as a quoted line, then two columns/lists: ✓ **IN SCOPE**
+  and ✗ **OUT OF SCOPE**, each item a bullet. When `context_gaps` is
+  non-empty, render a small warning line beneath (e.g. "⚠ Limited context: PR
+  description is empty; referenced spec specs/09-x.md could not be read") —
+  this is what makes context-gap detection visible to a human, same "show
+  your sources" requirement v1's "Derived from: …" line served, now split
+  into "what's missing" instead of "how confident". Empty state (no review
+  run yet) unchanged from v1: "Not yet analyzed — intent is computed on the
+  next review run."
 - `PrDetailHeader.tsx`: the confidence-colored badge v1 added is **removed** —
   there's no `intent_confidence` value left to color it by, and the design
   screenshot doesn't show a header-level badge either (the Intent card itself
@@ -683,11 +748,18 @@ must be closed alongside it, not deferred further:
   One `*.it.test.ts` confirming the new migration applies cleanly against
   testcontainers Postgres and the three new columns round-trip. `pnpm arch`
   (dependency-cruiser) must stay green.
-- **client**: `pnpm test` — `OverviewTab` render tests for: both lists
-  populated, one list empty, both empty (no intent yet — existing empty
-  state), `intent_context_gaps` present (warning line renders) vs absent.
-  `PrDetailHeader` test confirming no confidence badge renders (regression
-  guard against the removed v1 behavior reappearing). `RunTraceDrawer.test.tsx`
+- **client**: `pnpm test` — `IntentCard` render tests (moved from
+  `OverviewTab` in the mentor-review pass, hooks mocked via
+  `vi.spyOn(hooks, "useIntent"/"useRecalculateIntent")` — this repo's
+  established pattern for hook-driven component tests, see any
+  `StatsTab.test.tsx`-style file, not a real-`fetch` `QueryClientProvider`
+  integration test) for: both lists populated, one list empty, both empty (no
+  intent yet — existing empty state), `context_gaps` present (warning line
+  renders) vs absent, and that clicking "Recalculate" calls the mutation's
+  `mutate`. `OverviewTab`'s own test now only checks it composes `IntentCard`
+  + the Description section. `PrDetailHeader` test confirming no confidence
+  badge renders (regression guard against the removed v1 behavior
+  reappearing). `RunTraceDrawer.test.tsx`
   (or `TraceBody` directly, if it has its own test file) gains a case
   asserting the `intent_scope` `PromptBlock` renders when
   `trace.prompt_assembly.intent_scope` is non-null and is absent when `null`

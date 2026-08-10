@@ -31,6 +31,53 @@ there is the bug the whole format exists to prevent.
 
 ## Codebase Patterns
 
+### 2026-08-04 — `diff-viewer/`'s deliberately narrow public surface had to be widened for a second real consumer; the target+nonce scroll pattern now exists in two places
+
+Building `SmartDiffViewer` (`app/repos/[repoId]/pulls/[number]/_components/
+SmartDiffViewer/`), the existing `src/components/diff-viewer/` module needed
+to render files grouped by risk instead of `DiffViewer`'s flat list — but
+still reuse the same patch parsing and inline-commenting logic, not fork a
+second renderer. `diff-viewer/index.ts` originally exported only `DiffViewer`
++ `DiffCommentApi` on purpose (its own top comment said so); it now also
+exports `FileCard`, the per-file collapsible unit, since a grouped view needs
+to render one `FileCard` per file directly rather than going through
+`DiffViewer`'s flat `files.map`. `FileCard`/`CodeLine` gained three additive,
+backward-compatible optional props: `defaultOpen` (override the size-based
+auto-expand — used to force boilerplate files closed), `scrollTarget: {
+line, nonce } | null` + a matching `id={diffline-{path}-{line}}` on
+`CodeLine`'s row, and `headerExtra: ReactNode` (a findings-count badge
+rendered in the file header, with the caller responsible for
+`stopPropagation` so clicking it doesn't also toggle the card). The
+`scrollTarget`/`nonce` shape is a direct copy of `ReviewRunAccordion.tsx`'s
+`targetRunId`/`targetNonce` pattern — it now exists in two independent
+places. If a third "click X, open + scroll to Y" need shows up, it's worth
+extracting into a shared hook instead of copying a third time.
+
+**2026-08-06 — the third case showed up (mentor feedback on PR #6: Smart Diff's
+findings badge should switch to the Findings tab and highlight the finding's
+card, not just scroll within the diff) and it was NOT extracted into a shared
+hook — copied a third time, deliberately.** The three "target+nonce" instances
+turned out to need different payloads at each level (`FileCard`'s is `{ path,
+line }`+nonce; `ReviewRunAccordion`'s is `{ runId }`+nonce; the new
+`FindingCard`'s is `{ findingId }`+nonce, i.e. just its own `f.id === target`
+check) and different owners: `SmartDiffViewer`'s click doesn't know which
+review run a finding belongs to, so `PrDetailView` (the only component holding
+both `allFindings` and the tab state) owns a NEW `findingTarget` state and a
+`handleSelectFinding` that both switches `tab` to `"findings"` AND bumps the
+nonce; `FindingsTab` then *reuses* its own existing `target`/`setTarget` state
+(the one Timeline-click navigation already drives) to open+scroll the right
+`ReviewRunAccordion`, by resolving `targetFindingId` → containing `run_id` via
+`runs.find(r => r.findings.some(f => f.id === targetFindingId))` — so the
+accordion-level open/scroll got FOLDED into the existing mechanism instead of
+adding a fourth copy, while `targetFindingId`/`targetFindingNonce` themselves
+still thread straight through as new props (`ReviewRunAccordion` →
+`FindingsPanel` → `FindingCard`) for the card-level expand+highlight+scroll
++ keyboard-focus-move, since that's a genuinely different concern (which
+card, not which run). A generic "useTargetScroll(id, nonce)" hook would have
+had to abstract over these three different identity shapes and two different
+state owners — copying stayed cheaper. Revisit extraction only if a FOURTH
+case needs the exact `{ id }`+nonce shape one of these three already has.
+
 ### 2026-08-02 — don't copy `pulls/page.tsx` as a route template; it's the deviation, not the pattern
 
 `client/CLAUDE.md` says pages stay thin, and `agents/page.tsx`,
@@ -325,6 +372,30 @@ header/row cells silently shear apart by one column with no error.
 Testing note: asserting `getByText("—")` on a PR row is ambiguous — the
 Updated cell renders "—" too whenever `updated_at` is null (`relativeTime`).
 Give the fixture a real `updated_at` so the em dash under test is unique.
+
+### 2026-08-06 — a second hook can read a slice of an already-fetched query with zero extra requests, via a matching `queryKey` + `select`
+
+Extracting `IntentCard` out of `OverviewTab` (mentor feedback on PR #6) needed
+its own data-fetching hook rather than taking the five `intent_*` fields as
+props — but `usePullDetail(prId)` (`lib/hooks/core.ts`) already fetches the
+whole `PrDetail` including those fields, and `PrDetailView` mounts `IntentCard`
+only after that fetch has already resolved. `lib/hooks/intent.ts`'s
+`useIntent(prId)` reuses `usePullDetail`'s exact `queryKey: ["pull", prId]`
+and `queryFn`, adding only a `select: toIntent` to narrow the return shape —
+React Query treats identical `queryKey`+`queryFn` calls as the SAME cache
+entry (dedup is by key, not by call site), so this issues zero additional
+network requests and still gets its own render-optimized (via `select`) view
+of the data. Any future "give this leaf component its own hook instead of
+prop-drilling a slice of an already-fetched parent query" need can use this
+shape instead of either prop-drilling or a second real fetch.
+
+Testing it followed this repo's already-established convention (see
+`StatsTab.test.tsx`/`VersionsTab.test.tsx`), confirmed still the only pattern
+in use as of this date: mock the hook module itself
+(`vi.spyOn(hooks, "useIntent").mockReturnValue({ data, ... })`) inside a bare
+`QueryClientProvider` wrapper, never a real `fetch` stub — this codebase has
+no `global.fetch`/`msw` mocking anywhere in `client/src`, confirmed by a
+repo-wide grep while building `IntentCard.test.tsx`.
 
 ## Session Notes
 

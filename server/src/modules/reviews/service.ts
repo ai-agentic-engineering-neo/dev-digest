@@ -10,14 +10,47 @@ export interface AgentLookup {
   listEnabled(workspaceId: string): Promise<AgentRow[]>;
   getById(workspaceId: string, id: string): Promise<AgentRow | null | undefined>;
 }
-import type { FindingActionKind, RunEventKind, RunTrace } from '@devdigest/shared';
+import type { FindingActionKind, IntentDetail, RunEventKind, RunTrace, SmartDiff, UnifiedDiff } from '@devdigest/shared';
 import { AppError, NotFoundError } from '../../platform/errors.js';
-import type { AgentRow } from '../../db/rows.js';
-import { ReviewRepository } from './repository.js';
+import type { AgentRow, RepoRow } from '../../db/rows.js';
+import { ReviewRepository, type PullRow } from './repository.js';
 import { type ReviewDto, type ReviewDtoFinding } from './helpers.js';
 import { ReviewRunExecutor, type Logger } from './run-executor.js';
 import { actOnFinding as actOnFindingImpl } from './findings.js';
 import { reviewToDto } from './helpers.js';
+import { buildSmartDiff } from './smart-diff.js';
+
+/**
+ * Narrow ports for L03's standalone recalculate-intent flow — declared HERE,
+ * by the consumer, same "no container in application services" / "modules
+ * compose in the container, not by importing each other" rules `AgentLookup`
+ * above already follows. `IntentResolveInput`/`IntentResolveResult` are a
+ * structural mirror of `modules/intent/service.ts`'s `ResolveIntentInput`/
+ * `IntentResolution` — NOT imported from there (dependency-cruiser's
+ * `no-cross-module` forbids `modules/reviews` importing `modules/intent`
+ * directly); `container.intentService.resolve` satisfies this shape
+ * structurally, bound in routes.ts (the one ring allowed to know concrete
+ * classes and compose across modules).
+ */
+export type DiffLoader = (workspaceId: string, pull: PullRow, repo: RepoRow) => Promise<UnifiedDiff>;
+export interface IntentResolveInput {
+  workspaceId: string;
+  pull: { id: string; title: string; body: string | null };
+  repo: { owner: string; name: string; clonePath: string | null };
+  diffFiles: {
+    path: string;
+    hunks: { oldStart: number; oldLines: number; newStart: number; newLines: number }[];
+  }[];
+  onSignal?: (msg: string) => void;
+}
+export interface IntentResolveResult {
+  rendered?: string;
+  inScope?: string[];
+  outOfScope?: string[];
+  contextGaps?: string[];
+  signals: string[];
+}
+export type IntentResolver = (input: IntentResolveInput) => Promise<IntentResolveResult>;
 
 // Re-export DTO types + converters for backward-compatible imports from
 // './service.js' (these previously lived here; logic now in ./helpers.ts).
@@ -42,6 +75,8 @@ export class ReviewService {
     private agents: AgentLookup,
     private executor: ReviewRunExecutor,
     private runBus: RunBus,
+    private loadDiffPort: DiffLoader,
+    private resolveIntentPort: IntentResolver,
   ) {}
 
   // ===========================================================================
@@ -178,5 +213,59 @@ export class ReviewService {
 
   async getRunTrace(runId: string): Promise<RunTrace | undefined> {
     return this.repo.getRunTrace(runId);
+  }
+
+  /**
+   * Deterministic file-risk classification + latest-review findings merge —
+   * no LLM call. See `smart-diff.ts` for the pure classifier/assembler.
+   */
+  async smartDiff(workspaceId: string, prId: string): Promise<SmartDiff> {
+    const pull = await this.repo.getPull(workspaceId, prId);
+    if (!pull) throw new NotFoundError('Pull request not found');
+    const files = await this.repo.getPrFiles(prId);
+    const reviews = await this.repo.reviewsForPull(prId);
+    const findings = reviews[0]?.findings ?? []; // newest first
+    return buildSmartDiff(files, findings);
+  }
+
+  /**
+   * Manual, on-demand intent recomputation — outside the normal
+   * compute-on-review-run flow (`ReviewRunExecutor.executeRuns`), for a user
+   * who wants a fresh read (e.g. after editing the PR description) without
+   * running a full agent review. Reuses the same diff-load + `IntentService.resolve`
+   * sequence `executeRuns` runs once per batch; `resolve()` persists the
+   * result itself (best-effort), so this method only re-shapes it into the
+   * same five fields `GET /pulls/:id` already serves.
+   */
+  async recalculateIntent(workspaceId: string, prId: string, logger?: Logger): Promise<IntentDetail> {
+    const pull = await this.repo.getPull(workspaceId, prId);
+    if (!pull) throw new NotFoundError('Pull request not found');
+    const repo = await this.repo.getRepo(pull.repoId);
+    if (!repo) throw new NotFoundError('Repo not found');
+
+    const diff = await this.loadDiffPort(workspaceId, pull, repo);
+    const intent = await this.resolveIntentPort({
+      workspaceId,
+      pull: { id: pull.id, title: pull.title, body: pull.body },
+      repo: { owner: repo.owner, name: repo.name, clonePath: repo.clonePath },
+      diffFiles: diff.files.map((f) => ({
+        path: f.path,
+        hunks: f.hunks.map((h) => ({
+          oldStart: h.oldStart,
+          oldLines: h.oldLines,
+          newStart: h.newStart,
+          newLines: h.newLines,
+        })),
+      })),
+      onSignal: (msg) => logger?.info(msg),
+    });
+
+    return {
+      intent: intent.rendered ?? null,
+      intent_in_scope: intent.inScope ?? null,
+      intent_out_of_scope: intent.outOfScope ?? null,
+      intent_context_gaps: intent.contextGaps ?? null,
+      intent_signals: intent.signals.length > 0 ? intent.signals : null,
+    };
   }
 }

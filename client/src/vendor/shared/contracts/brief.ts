@@ -25,6 +25,8 @@ export const BlastCaller = z.object({
   name: z.string(),
   file: z.string(),
   line: z.number().int(),
+  /** file_rank.rank of the caller file; `0` = no rank data (degraded path). */
+  rank: z.number().int(),
 });
 export type BlastCaller = z.infer<typeof BlastCaller>;
 
@@ -39,7 +41,10 @@ export type DownstreamImpact = z.infer<typeof DownstreamImpact>;
 export const BlastRadius = z.object({
   changed_symbols: z.array(ChangedSymbol),
   downstream: z.array(DownstreamImpact),
-  summary: z.string(),
+  /** Optional one-LLM-call summary paragraph — out of scope for the
+   *  deterministic Blast Radius endpoint (specs/07), so legitimately absent
+   *  on that path. Reserved for the later PR Brief composition. */
+  summary: z.string().nullish(),
 });
 export type BlastRadius = z.infer<typeof BlastRadius>;
 

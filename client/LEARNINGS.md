@@ -373,6 +373,42 @@ Testing note: asserting `getByText("—")` on a PR row is ambiguous — the
 Updated cell renders "—" too whenever `updated_at` is null (`relativeTime`).
 Give the fixture a real `updated_at` so the em dash under test is unique.
 
+### 2026-08-06 — a written spec's UI section can describe the wrong placement; a design mockup screenshot overrides prose
+
+`specs/07-blast-radius.md` said "a Blast Radius **tab** on the PR detail
+page" and the first implementation pass built exactly that — a fourth
+`PrDetailHeader` tab, `BlastRadiusTab`. The actual product design (per a
+mockup screenshot the user supplied afterward) places it as a **card** on the
+Overview tab, side by side with `IntentCard` in a two-column grid — no new
+top-level tab at all. Corrected by deleting `BlastRadiusTab/` and adding
+`BlastRadiusCard/` (mirrors `IntentCard`'s folder shape: `SectionLabel`
+header, no outer `Card` wrapper at the section level), wired into
+`OverviewTab`'s new `s.overviewGrid` (`gridTemplateColumns: "1fr 1fr"`)
+instead of `PrDetailHeader`'s `tabs` array. The prose spec had no cross-check
+against a design mockup — when one exists (or the user later supplies one),
+it is the source of truth for placement/layout, not the spec's word choice.
+`specs/07-blast-radius.md` itself was amended after the fact to describe the
+card, so it stays accurate for the next reader.
+
+### 2026-08-06 — `PrDetailView`'s own `maxWidth: 1080` (not the sitewide `PageShell` 1200) was capping every PR-detail tab narrower than the figma
+
+Reported as "cards look narrower than figma" across all three PR-detail tabs
+(Overview, Agent runs, Files changed) — not just the new `BlastRadiusCard`.
+`PrDetailView/styles.ts`'s `s.body`/`s.loadingStack` had their own
+`maxWidth: 1080; margin: 0 auto`, independent of (and narrower than)
+`page-shell/styles.ts`'s sitewide `maxWidth: 1200` used by list-style pages
+(Pull Requests list, Agents list, etc.). No child component in the PR-detail
+tree (`OverviewTab`, `FindingsTab`, `DiffTab` and everything under them —
+confirmed by a repo-wide grep for `maxWidth` scoped to
+`_components/[repoId]/pulls/[number]`) added its own width cap — this was
+the only constraint. Fixed by dropping the `maxWidth`/`margin: auto` from
+both, keeping only the padding — this page's figma is a full-bleed,
+data-dense layout, unlike the sitewide list-page standard. If a future page
+in this tree wants a narrower reading width for a text-heavy section (e.g.
+a single-column article-style body), scope the constraint to that specific
+child, not `PrDetailView`'s shared body wrapper — that wrapper is now
+intentionally unconstrained for every tab this page contains.
+
 ### 2026-08-06 — a second hook can read a slice of an already-fetched query with zero extra requests, via a matching `queryKey` + `select`
 
 Extracting `IntentCard` out of `OverviewTab` (mentor feedback on PR #6) needed

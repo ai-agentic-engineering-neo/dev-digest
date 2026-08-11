@@ -6,6 +6,7 @@
   "description": "Local stdio MCP server exposing Dev Digest's review/conventions functionality (list_agents, run_agent_on_pr, get_findings, get_conventions, get_blast_radius) to Claude Code. Thin translation layer over the Fastify HTTP+SSE API — no domain logic or persistence of its own.",
   "scripts": {
     "start": "tsx src/index.ts",
+    "review": "tsx src/cli.ts review",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "build": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run --passWithNoTests"

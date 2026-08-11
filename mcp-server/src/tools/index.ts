@@ -53,7 +53,6 @@ export function registerTools(server: McpServer, http: DevDigestHttpClient, apiB
   server.registerTool(
     'get_blast_radius',
     { description: GET_BLAST_RADIUS_DESCRIPTION, inputSchema: getBlastRadiusInputSchema.shape },
-    // Intentional stub — takes no http client; makes zero backend calls.
-    makeGetBlastRadiusHandler(),
+    makeGetBlastRadiusHandler(http, apiBaseUrl),
   );
 }

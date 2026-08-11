@@ -14,6 +14,7 @@ contracts via tsconfig path aliases, not a real workspace.
 - `./scripts/dev.sh` — full local stack from zero (`--no-seed` `--no-client` `--db-only`)
 - `./scripts/e2e.sh` — hermetic e2e stack, isolated ports/DB, never touches your dev DB
 - Per-package: `pnpm dev` / `pnpm test` / `pnpm typecheck` — see each README
+- `pnpm --dir mcp-server exec tsx src/cli.ts review --mode working --agent <id|name>` — review your local working-copy changes before you push (specs/08-pre-push-cli.md)
 
 ## Map
 

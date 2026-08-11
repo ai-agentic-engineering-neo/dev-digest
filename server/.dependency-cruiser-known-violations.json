@@ -304,6 +304,21 @@
   },
   {
     "type": "dependency",
+    "from": "src/modules/blast/service.ts",
+    "to": "src/modules/repo-intel/types.ts",
+    "unresolvedTo": "../repo-intel/types.js",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-cross-module"
+    }
+  },
+  {
+    "type": "dependency",
     "from": "src/modules/repos/service.ts",
     "to": "src/modules/repo-intel/constants.ts",
     "unresolvedTo": "../repo-intel/constants.js",

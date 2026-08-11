@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
+import { z } from 'zod';
 import { RunRequest } from '@devdigest/shared';
 import type { RunEvent } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
@@ -8,7 +9,21 @@ import { NotFoundError } from '../../platform/errors.js';
 import { ReviewService } from './service.js';
 import { ReviewRunExecutor } from './run-executor.js';
 import { loadDiff } from './diff-loader.js';
+import { AdhocReviewService } from './adhoc.js';
 
+/** `POST /reviews/adhoc` request body — local to this route (specs/08-pre-push-cli.md
+ *  Decision "Where does the request/response contract live?"): NOT in
+ *  `vendor/shared/contracts/` — nothing in `client/` consumes it, and this
+ *  mirrors `CreateAgentBody` (`agents/routes.ts:34`). */
+const AdhocReviewBody = z.object({
+  agent_id: z.string().uuid(),
+  diff: z.string().min(1),
+});
+
+/** 5 MB — a working-tree diff can exceed the app-wide 1 MB `bodyLimit`
+ *  (`app.ts`'s `bodyLimit: 1_048_576`); the CLI enforces a matching
+ *  pre-flight cap before it ever sends the request. */
+const ADHOC_REVIEW_BODY_LIMIT_BYTES = 5 * 1024 * 1024;
 
 /**
  * reviews module.
@@ -18,6 +33,11 @@ import { loadDiff } from './diff-loader.js';
  *   GET    /pulls/:id/reviews                          → persisted reviews + findings for a PR
  *   GET    /pulls/:id/smart-diff                       → files grouped by risk (no LLM call)
  *   POST   /pulls/:id/intent/recalculate                → manual, on-demand intent recompute
+ *   POST   /reviews/adhoc                               → SYNCHRONOUS, non-persisting review of
+ *                                                          a raw diff (specs/08-pre-push-cli.md) —
+ *                                                          no run row, no SSE, nothing written to
+ *                                                          the DB. The deliberate opposite of
+ *                                                          `POST /pulls/:id/review`.
  *   POST   /findings/:id/(accept|dismiss)              → finding actions
  */
 const FINDING_ACTIONS = ['accept', 'dismiss'] as const;
@@ -34,6 +54,14 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
     container.runBus,
     (workspaceId, pull, repo) => loadDiff(container, container.reviewRepo, workspaceId, pull, repo),
     (input) => container.intentService.resolve(input),
+  );
+  // AdhocReviewService declares its own narrow `AgentLookup`/`SkillLookup`
+  // ports — `container.agentsRepo` satisfies both structurally (getById +
+  // enabledSkills), so it's passed twice with no adapter class in between.
+  const adhocService = new AdhocReviewService(
+    container.agentsRepo,
+    container.agentsRepo,
+    (provider) => container.llm(provider),
   );
 
   // ---- Run a review (manual trigger) -------------------------------
@@ -162,6 +190,31 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
     async (req) => {
       const { workspaceId } = await getContext(container, req);
       return service.recalculateIntent(workspaceId, req.params.id, req.log);
+    },
+  );
+
+  // ---- specs/08-pre-push-cli.md — ad-hoc (pre-push) review of a raw diff --
+  // SYNCHRONOUS: the finished review comes back in this response body, unlike
+  // `POST /pulls/:id/review` above (fire-and-forget + SSE). Nothing is
+  // persisted — no agent_runs row, no reviews/findings rows, `runBus` is
+  // never touched. Rate-limited the same as `/pulls/:id/review` (also an LLM
+  // call); `bodyLimit` overrides `app.ts`'s app-wide 1 MB cap because a
+  // working-tree diff can exceed that.
+  app.post(
+    '/reviews/adhoc',
+    {
+      schema: { body: AdhocReviewBody },
+      bodyLimit: ADHOC_REVIEW_BODY_LIMIT_BYTES,
+      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+    },
+    async (req) => {
+      const { workspaceId } = await getContext(container, req);
+      const result = await adhocService.review({
+        workspaceId,
+        agentId: req.body.agent_id,
+        diff: req.body.diff,
+      });
+      return result;
     },
   );
 

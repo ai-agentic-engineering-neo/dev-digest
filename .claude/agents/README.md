@@ -11,7 +11,7 @@ README is a map, not a copy.
 | Agent | Responsibility | Tools | Model | Input | Output |
 |---|---|---|---|---|---|
 | [researcher](researcher.md) | Fact-finding backed by evidence — repo history/code or external sources. Never modifies files. | `Read, Grep, Glob, Bash, WebFetch, WebSearch` | sonnet | A concrete question, scoped to repo and/or external sources | A structured report (`Findings / Evidence / References / Could not determine`) — no files written |
-| [spec-creator](spec-creator.md) | Turns a feature idea into a feature-spec — problem, goals/non-goals, user stories, EARS acceptance criteria (`AC-1`, `AC-2`…), edge cases, non-functional needs, input provenance. Works through six clarification categories, asking blocking questions only for the highest-impact gaps and leaving the rest as inline `[NEEDS CLARIFICATION: …]`. Analyzes user-supplied design sources. Never writes a plan or code. | `Read, Grep, Glob, Bash, WebFetch, Skill, Write, mcp__devdigest__get_conventions, mcp__devdigest__get_blast_radius, mcp__devdigest__get_findings` | opus | A feature idea, optionally with design sources (text, screenshots, Figma link, existing code) | `specs/NN-slug.md` (cross-module) or `<module>/specs/NN-slug.md` (single-module), plus a report: path, chosen location and why, Goals/Non-goals summary, open `[NEEDS CLARIFICATION: …]` items |
+| [spec-creator](spec-creator.md) | Turns a feature idea into a feature-spec — problem, goals/non-goals, user stories, EARS acceptance criteria (`AC-1`, `AC-2`…) with story→AC traceability, edge cases, non-functional needs, input provenance. Works through six clarification categories, asking blocking questions only for the highest-impact gaps and leaving the rest as inline `[NEEDS CLARIFICATION: …]`. Loads project skills per category, dispatches `researcher` for lookups this repo can't answer, analyzes user-supplied design sources, self-checks the draft before finishing. Never writes a plan or code. | `Read, Grep, Glob, Bash, WebFetch, Skill, Write, Agent, mcp__devdigest__get_conventions, mcp__devdigest__get_blast_radius, mcp__devdigest__get_findings` | opus | A feature idea, optionally with design sources (text, screenshots, Figma link, existing code) | `specs/NN-slug.md` (cross-module) or `<module>/specs/NN-slug.md` (single-module), plus a report: path, chosen location and why, Goals/Non-goals summary, traceability confirmation, `researcher` dispatches made, open `[NEEDS CLARIFICATION: …]` items |
 | [implementation-planner](implementation-planner.md) | Turns requirements — a `spec-creator` spec, or a small clear request planned directly — into a Development Plan: reads touched modules' `CLAUDE.md`/`LEARNINGS.md`, checks for an overlapping plan, confirms single- vs multi-agent execution, assigns which skills the implementer must load per file/module. Never writes a feature-spec or implementation code. | `Read, Grep, Glob, Bash, Skill, Write` | opus | A `specs/NN-slug.md` path, or a feature request clear enough to plan directly (asks clarifying questions first if it's vague, and recommends routing through `spec-creator` if it isn't) | `plans/NN-slug.md`, plus a short report: file path, requirements planned against, execution mode chosen, Approach summary, open judgment calls |
 | [implementer](implementer.md) | Executes an existing Development Plan across `server/` and `client/`, loading the skills the plan assigns, running the tests/typecheck it specifies, checking only its own diff against the plan. Does not perform architecture or security review. | `Read, Edit, Write, Grep, Glob, Bash, Skill` | sonnet | A `plans/NN-slug.md` path (or the plan text) — stops and asks if none is given | Changed files by module, skills applied and why, test/typecheck results, deviations from the plan flagged explicitly |
 | [test-writer](test-writer.md) | Writes tests for existing code (post-implementer or backfill), routing to `react-testing-library`/`fastify-best-practices`/`drizzle-orm-patterns`/`zod`/`typescript-expert` per path, and runs the suites it writes. Never fixes the implementation under test — a failing test is reported, not patched. | `Read, Edit, Write, Grep, Glob, Bash, Skill` | sonnet | Which files/modules to test, and new-coverage vs backfill | Test files by module, skills loaded and why, commands run with exit codes/banners, coverage decisions, any suspected bug reported not fixed |
@@ -46,10 +46,15 @@ isn't worth writing.
 it's checking the code against them, not producing a third artifact; every
 other agent here takes a single input. `architecture-reviewer` and
 `plan-verifier` are both read-only and produce reports, not commits: neither
-has a `Write` or `Edit` tool, and neither invokes another agent (no agent in
-this pipeline chains automatically — the handoff is always a file on disk,
-invoked by the user). `/security-review` remains a slash command,
-deliberately not an agent here, and stays outside this diagram.
+has a `Write` or `Edit` tool. No agent in this pipeline hands off to the
+*next stage* automatically — that handoff is always a file on disk, invoked
+by the user. `spec-creator` is the one exception to "never invokes another
+agent": it may dispatch `researcher` (only `researcher`, never any other
+agent, never itself) for a fact-finding lookup this repo can't answer —
+that's a tool call *within* its own run, not a stage handoff, so it doesn't
+skip the user's role in deciding when to move to `implementation-planner`.
+`/security-review` remains a slash command, deliberately not an agent here,
+and stays outside this diagram.
 
 No agent performs another's job. `spec-creator` never writes a plan or code
 (no `Edit`) and never states an implementation approach; `implementation-planner`

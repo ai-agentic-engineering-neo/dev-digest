@@ -83,6 +83,42 @@ by waiting on it.
 
 ## Codebase Patterns
 
+### 2026-08-11 — `parseUnifiedDiff` silently drops binary files, pure renames, and deletions from `diff.files` — `diff.raw` still has them
+
+Building specs/08-pre-push-cli.md's `POST /reviews/adhoc` (a NEW consumer of
+`parseUnifiedDiff` that doesn't go through `diffFromPrFiles`/`loadDiff`'s
+PR-file fallback) surfaced this directly: a file entry only survives into
+`UnifiedDiff.files` when a `+++ b/<path>` line set a non-empty `path`
+(`adapters/git/diff-parser.ts:78`, `files.filter(f => f.path)`). Binary diffs
+(`Binary files … differ`) and content-free renames never emit a `+++` line at
+all; deletions emit `+++ /dev/null`, which the parser deliberately never
+assigns to `current.path` (`diff-parser.ts` ~line 42). The raw diff TEXT still
+reaches `diff.raw` (so a downstream LLM prompt can reference/comment on these
+files), but `diff.files` — what `groundFindings`'s citation gate iterates —
+omits them entirely, so any finding the model raises about a binary/rename/
+delete-only file gets silently dropped for "no matching hunk", not flagged as
+an error anywhere. Any new synchronous/one-shot review path built directly on
+`parseUnifiedDiff` must explicitly check `files.length === 0` and reject
+before spending an LLM call — `reviewPullRequest` has no opinion on this and
+will happily run a review that produces zero groundable findings.
+
+### 2026-08-11 — `ConfigError` (`platform/errors.ts`) responds HTTP 500, not a 4xx, even for a client-actionable "add your API key" condition
+
+`container.llm(provider)` throws `ConfigError` (`code: 'config_error'`) when a
+provider's API key isn't configured — conceptually a "you need to do
+something" error, but `ConfigError extends AppError` with `statusCode = 500`
+(`platform/errors.ts:37-41`), so it comes back as a 5xx, not a 4xx. A planning
+document describing this as "endpoint 4xx from ConfigError" (as
+specs/08-pre-push-cli.md's error table did) is simply wrong relative to the
+actual code — verify against `platform/errors.ts` before trusting a spec's
+status-code claim for any `AppError` subclass. Any consumer that wants a
+distinct message for this case (e.g. the CLI's "add the provider's API key in
+Settings, then retry") must branch on the error envelope's `code ===
+'config_error'` field, never on the HTTP status band — the exact same shape
+as the already-documented 429-mislabeled-`internal_error` gotcha
+(`mcp-server/LEARNINGS.md`): this codebase's error `code` field is the
+reliable signal, its HTTP status is not always the one you'd guess.
+
 ### 2026-08-04 — the seeded `acme/payments-api` PR #482 has non-zero `additions`/`deletions` but empty `patch` text on every `pr_files` row, and `files_count` (9) doesn't match the actual seeded row count (4)
 
 Verified building Smart Diff (specs/06-smart-diff.md) against this PR — it's
@@ -186,6 +222,27 @@ position, not a rule exemption. Fix was the same `pnpm arch:baseline` +
 edge added) already documented above; don't expect a spec's "X is safe to
 import directly" language to mean `pnpm arch` passes with zero new baseline
 entries.
+
+**2026-08-11 addendum — the cheapest fix for a NEW module needing only a
+handful of an existing row type's fields is often to not import the row type
+at all, rather than adding a `db/rows.ts` alias.** Building
+`AdhocReviewService` (`modules/reviews/adhoc.ts`, specs/08-pre-push-cli.md) —
+a brand-new file, so importing `AgentRow` from `db/rows.ts` would have been a
+*new*, unbaselined `db-only-in-repositories` edge exactly like the
+`RepoRow`/`db/schema.js` case two addenda up, even though the identical
+`AgentRow` import is already baselined for the sibling `reviews/service.ts`
+(baselines match file PAIRS, not types). Rather than adding another
+`db/rows.ts` alias (that file's fields are already all standard columns, no
+missing export), this service just never imports `AgentRow` — it declares a
+fully local `AgentRecord { id, name, provider, model, systemPrompt, strategy,
+ciFailOn }` interface, and `AgentsRepository.getById`'s real `AgentRow`
+return value satisfies it structurally with zero cast. Net effect: zero new
+`pnpm arch` violations, no `arch:baseline` run needed, and the port ends up
+narrower (and more honest about what the service actually reads) than reusing
+the full row type would have been. When a new module-ring file needs only a
+few fields of an existing DB row type, check whether skipping the import
+entirely (a fully local interface) is cheaper than either extending
+`db/rows.ts` or eating a new baseline entry — it usually is.
 
 ### 2026-08-06 — repo-intel's `tryPersistentBlast`: an "empty declared-symbols" early return was silently skipping the file-level 2-hop reverse-import fact lookup too
 

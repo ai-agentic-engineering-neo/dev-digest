@@ -32,6 +32,19 @@ high-confidence guidance unless it's obviously stale.
   own failures and returns `{ isError: true, content: [{ type: "text", text:
   "<forward-leading message>" }] }` (the SDK's `CallToolResult` shape) —
   never lets an exception propagate out of a registered handler.
+- `src/cli.ts` + `src/cli/*` (specs/08-pre-push-cli.md, `devdigest review`) is
+  a **second, independent entry point** into this package, not a 6th MCP
+  tool — it adds nothing to `src/tools/` or `src/tools/index.ts`. It shares
+  `src/http/client.ts` + `src/http/errors.ts` unchanged (still the only
+  module allowed to call `fetch()`); the CLI just calls them from `runCli`
+  instead of from a tool handler.
+- `src/cli/git.ts` is the **only** module in this package allowed to spawn a
+  child process — same rule shape as `http/client.ts` being the only
+  `fetch()` caller. It uses `spawn('git', args, { shell: false })` with an
+  argument array, never a shell string, so untrusted input (a path with
+  spaces or shell metacharacters) can't be reinterpreted by a shell. Every
+  layer above (`diff-source.ts`, `cli/run.ts`) takes a `GitRunner` as an
+  argument and is tested against a hand-written fake, never a real process.
 
 ## Do-not-touch / edit-with-care
 

@@ -66,7 +66,38 @@ rate-limiting by `response.status === 429` only
 429 with `error.code: "internal_error"` to guard against reintroducing a
 `code`-based check.
 
+**2026-08-11 addendum — the inverse mislabeling also exists: `ConfigError`
+(missing provider API key) responds HTTP 500, not the 4xx its "add your API
+key" message implies.** Built for `POST /reviews/adhoc`'s CLI consumer
+(`src/cli/run.ts`, specs/08-pre-push-cli.md): `container.llm(provider)` on the
+server throws `ConfigError` (`code: 'config_error'`, `server/src/platform/
+errors.ts:37-41`) with `statusCode = 500`. Same lesson as the 429 case above,
+opposite direction — branch on the stable `error.code` field
+(`DevDigestApiError.code === 'config_error'`), never assume a status band
+matches what an error conceptually "should" be. `mapReviewError` in
+`src/cli/run.ts` checks `err.code` for both `'nothing_reviewable'` (422) and
+`'config_error'` (500) before falling back to `commonErrorMessage`'s generic
+status-based branches.
+
 ## Codebase Patterns
+
+### 2026-08-11 — a second, non-MCP entry point (`src/cli.ts` + `src/cli/*`) reuses this package's DI conventions with zero friction, plus one new rule
+
+Building `devdigest review` (specs/08-pre-push-cli.md) alongside the 5
+existing MCP tools confirmed both of this package's core conventions extend
+cleanly to a non-tool entry point: `src/http/client.ts` stays the only
+`fetch()` caller (the CLI takes the same `DevDigestHttpClient` instance a
+tool handler would), and there's still no `@devdigest/shared` alias (the CLI
+declares its own local `Raw*` interfaces in `src/cli/run.ts`, same shape as
+`src/tools/get-blast-radius.ts`'s `RawBlastRadius`). The one genuinely NEW
+rule this added — not previously true for anything in this package, since
+nothing before this needed to spawn a process — is `src/cli/git.ts` being the
+**only** module allowed to call `child_process.spawn`, with the same
+"everything above takes it as an injected argument, tested via a hand-written
+fake `GitRunner`, never a real process" shape the `fetch()` rule already has.
+`main()` in `src/cli.ts` and `main()` in `src/index.ts` (the MCP server) are
+two independent, un-coupled bootstraps of the same underlying `http/*` +
+`config.ts` layer — neither imports the other.
 
 ## Tool & Library Notes
 

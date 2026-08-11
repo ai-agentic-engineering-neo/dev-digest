@@ -25,7 +25,7 @@ coverage (following an `implementer` pass) or a backfill for existing,
 untested code. If the request is vague ("add tests") ask up to 3-4 short
 clarifying questions rather than guessing scope — for example: which
 module/files, new coverage or backfill, is there a related plan
-(`specs/NN-slug.md`) whose Verification section already names what to cover?
+(`plans/NN-slug.md`) whose Verification section already names what to cover?
 
 ## Step 1 — read before writing
 

@@ -30,8 +30,11 @@ Read when you need the call path through the layers, the review-run lifecycle,
 or where state lands: [docs/architecture.md](docs/architecture.md).
 Read when testing/CI questions come up: [TESTING.md](TESTING.md).
 Read when working on agent system prompts: [docs/agent-prompts](docs/agent-prompts/).
-Read when building a feature that has one: [specs/](specs/) — one file per
-feature, written before the code (used from ~L03/L05).
+Read when building a feature that has one: [specs/](specs/) — the *what and
+why* (written by `spec-creator`), one file per cross-module feature at root,
+single-module ones in that module's own `specs/`. The *how* is a separate
+file in [plans/](plans/) (written by `implementation-planner`). Used from
+~L03/L05.
 
 There is no root `LEARNINGS.md` — each module keeps its own (linked in the Map
 above), right next to the code it's about. **Read the `LEARNINGS.md` of the

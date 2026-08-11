@@ -36,8 +36,18 @@ describe('list_agents handler', () => {
     expect(result.isError).toBeUndefined();
     const parsed = JSON.parse((result.content as { type: 'text'; text: string }[])[0]!.text);
     expect(parsed).toEqual({
-      agents: [{ id: 'a1', name: 'Bug Hunter', provider: 'anthropic', model: 'claude-opus', enabled: true }],
+      agents: [{ id: 'a1', name: 'Bug Hunter', model: 'claude-opus', enabled: true }],
     });
+  });
+
+  it('drops provider from the response even though the backend record has it', async () => {
+    const http = clientReturning(200, [
+      { id: 'a1', name: 'Bug Hunter', provider: 'anthropic', model: 'claude-opus', enabled: true },
+    ]);
+    const handler = makeListAgentsHandler(http, 'http://localhost:3001');
+    const result = await handler();
+    const parsed = JSON.parse((result.content as { type: 'text'; text: string }[])[0]!.text);
+    expect(parsed.agents[0]).not.toHaveProperty('provider');
   });
 
   it('includes disabled agents', async () => {

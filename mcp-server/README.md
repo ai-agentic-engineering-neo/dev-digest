@@ -16,11 +16,11 @@ one itself.
 
 | Tool | What it does |
 |---|---|
-| `list_agents` | Lists the workspace's agent configs (id, name, provider/model, enabled). |
+| `list_agents` | Lists the workspace's agent configs (id, name, model, enabled). |
 | `run_agent_on_pr` | Runs one agent on one PR and **blocks** (up to 120s) until it finishes, returning the verdict + findings. |
 | `get_findings` | Reads the most recent completed review by one agent on one PR — a pure read, safe to poll. |
 | `get_conventions` | Reads a repo's already-**accepted** coding conventions from its last scan. |
-| `get_blast_radius` | **Stub** — always returns a structured "not implemented" result; makes zero backend calls. |
+| `get_blast_radius` | Maps which files, callers, and API endpoints/crons are impacted by a PR's changed symbols (specs/07-blast-radius.md). |
 
 Exact schemas + the verbatim tool descriptions actually used at registration
 time live in `src/tools/*.ts`; see [`../specs/06-mcp-server.md`](../specs/06-mcp-server.md)

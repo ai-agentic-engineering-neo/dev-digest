@@ -226,7 +226,7 @@ const inputSchema = z.object({});
 **Description (verbatim):**
 
 > Lists the review-agent configurations available in this local Dev Digest
-> workspace: id, name, provider/model, and whether each is enabled. Use this
+> workspace: id, name, model, and whether each is enabled. Use this
 > whenever you don't already have a valid agent id for run_agent_on_pr or
 > get_findings, or whenever either of those reports an agent id was not
 > found. Includes disabled agents too (they can still be run explicitly by
@@ -239,10 +239,12 @@ resolution needed).
 
 **Response shape:**
 ```json
-{ "agents": [{ "id": "uuid", "name": "string", "provider": "openai|anthropic|openrouter", "model": "string", "enabled": true }] }
+{ "agents": [{ "id": "uuid", "name": "string", "model": "string", "enabled": true }] }
 ```
-Dropped: `description`, `system_prompt`, `output_schema`, `version`,
-`strategy`, `ci_fail_on`, `repo_intel`.
+Dropped: `provider` (the calling LLM has no use for which vendor serves the
+model — it's extra tokens on every call with no decision it informs),
+`description`, `system_prompt`, `output_schema`, `version`, `strategy`,
+`ci_fail_on`, `repo_intel`.
 
 ### 3.2 `run_agent_on_pr`
 
@@ -521,7 +523,8 @@ package from `@anthropic-ai/sdk`, and method names do not carry over.
         "args": ["--dir", "mcp-server", "exec", "tsx", "src/index.ts"],
         "env": {
           "DEVDIGEST_API_BASE_URL": "http://localhost:3001"
-        }
+        },
+        "timeout": 130000
       }
     }
   }
@@ -531,6 +534,14 @@ package from `@anthropic-ai/sdk`, and method names do not carry over.
   avoid relying on the spawning process's cwd. Verify Claude Code resolves
   this correctly when launched from the repo root, as part of implementation
   step 9.
+
+  **`timeout: 130000`** (130s) is required — Claude Code's own default
+  per-call timeout is well under `run_agent_on_pr`'s 120s SSE wait budget
+  (`SSE_WAIT_BUDGET_MS`), so without an explicit override Claude Code would
+  cut the call before the tool's own timeout logic ever gets a chance to
+  return its graceful "still running in background" message. 130000 gives
+  ~10s of margin above the 118s SSE budget + ~2s reserved for the trailing
+  status/review GETs.
 
 - **`./scripts/dev.sh` needs no changes** (confirmed by reading it in full)
   — it has no awareness of `mcp-server/` and must stay that way; the MCP

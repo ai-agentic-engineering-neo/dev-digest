@@ -54,7 +54,11 @@ load before touching those files, and why.
 
 ## Verification
 Tests/typecheck commands to run per touched module, and what a passing
-result looks like.
+result looks like. Prefer commands scoped to the files/tests this plan
+touches over the full suite — both `implementer` and `plan-verifier` run
+this section, and `pr-self-review` re-runs the full suite once more right
+before push regardless. Name the full suite only when the change is broad
+enough that a scoped run wouldn't catch a regression it could cause.
 ```
 
 ## Why here and not per-module

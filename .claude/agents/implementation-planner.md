@@ -132,7 +132,13 @@ load before touching those files, and why. Base this on
 
 ## Verification
 Tests/typecheck commands to run per touched module, and what a passing
-result looks like.
+result looks like. Prefer commands scoped to the files/tests this plan
+actually touches (e.g. a targeted `vitest` run, not a blanket `pnpm test`)
+over the full suite — `implementer` and `plan-verifier` both run this
+section, once each, and the full suite is re-run a third time by
+`pr-self-review` right before push regardless. Name the full suite here only
+when the change is broad enough (e.g. a shared type, a migration) that a
+scoped run wouldn't actually catch a regression it could cause.
 ```
 
 Keep it short enough to read before coding, concrete enough to execute —

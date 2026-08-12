@@ -56,16 +56,34 @@ starting point to improvise from.
 ## Step 4 — run the plan's verification
 
 Run the tests/typecheck the plan's Verification section names, scoped to the
-modules you actually touched:
+modules you actually touched. This is your own correctness self-check, not
+the project's authoritative full-suite gate — that's `pr-self-review`'s job,
+run once, right before push. Prefer the plan's own narrower selection or a
+targeted run over the files/paths you actually changed (e.g.
+`pnpm exec vitest related <changed files>` or a pattern match on the touched
+test files) over a blanket full-suite run:
 
 | Touched | Commands |
 |---|---|
-| `server/**` | `pnpm typecheck`, `pnpm test` (or the plan's narrower selection) |
-| `client/**` | `pnpm typecheck`, `pnpm test` |
+| `server/**` | `pnpm typecheck`, targeted `vitest` run over changed files (fall back to `pnpm test` only if the plan's Verification section calls for the full suite) |
+| `client/**` | `pnpm typecheck`, targeted `pnpm test` run over changed files |
 | `reviewer-core/**` | `npm run typecheck && npm test` |
 
 Use an absolute `cd` with `|| exit 1` and capture the exit code on the same
 line as the command — a silently-wrong-directory run reports a false pass.
+Redirect output to a file rather than letting it stream into your own
+context — a full `vitest` run's raw output is the largest token cost in this
+step for no benefit once you only need the pass/fail signal:
+
+```bash
+cd /absolute/path/to/module && <command> > /tmp/implementer-check.log 2>&1; rc=$?
+grep -m1 '^> @devdigest' /tmp/implementer-check.log
+echo "exit=$rc"
+tail -5 /tmp/implementer-check.log
+```
+
+Quote only the banner line, the exit code, and (on failure) the relevant
+tail — never paste the full raw log into your report.
 
 ## Step 5 — self-check, scoped to your own diff
 

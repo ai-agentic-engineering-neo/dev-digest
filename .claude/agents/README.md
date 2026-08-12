@@ -15,22 +15,66 @@ README is a map, not a copy.
 | [implementation-planner](implementation-planner.md) | Turns requirements — a `spec-creator` spec, or a small clear request planned directly — into a Development Plan: reads touched modules' `CLAUDE.md`/`LEARNINGS.md`, checks for an overlapping plan, confirms single- vs multi-agent execution, assigns which skills the implementer must load per file/module. Never writes a feature-spec or implementation code. | `Read, Grep, Glob, Bash, Skill, Write` | opus | A `specs/NN-slug.md` path, or a feature request clear enough to plan directly (asks clarifying questions first if it's vague, and recommends routing through `spec-creator` if it isn't) | `plans/NN-slug.md`, plus a short report: file path, requirements planned against, execution mode chosen, Approach summary, open judgment calls |
 | [implementer](implementer.md) | Executes an existing Development Plan across `server/` and `client/`, loading the skills the plan assigns, running the tests/typecheck it specifies, checking only its own diff against the plan. Does not perform architecture or security review. | `Read, Edit, Write, Grep, Glob, Bash, Skill` | sonnet | A `plans/NN-slug.md` path (or the plan text) — stops and asks if none is given | Changed files by module, skills applied and why, test/typecheck results, deviations from the plan flagged explicitly |
 | [test-writer](test-writer.md) | Writes tests for existing code (post-implementer or backfill), routing to `react-testing-library`/`fastify-best-practices`/`drizzle-orm-patterns`/`zod`/`typescript-expert` per path, and runs the suites it writes. Never fixes the implementation under test — a failing test is reported, not patched. | `Read, Edit, Write, Grep, Glob, Bash, Skill` | sonnet | Which files/modules to test, and new-coverage vs backfill | Test files by module, skills loaded and why, commands run with exit codes/banners, coverage decisions, any suspected bug reported not fixed |
-| [architecture-reviewer](architecture-reviewer.md) | Reviews a diff against `onion-architecture` (server/src) and `frontend-ui-architecture` (client), running `pnpm arch` as the deterministic gate for backend and treating frontend findings as judgment only. Read-only; distinguishes new violations from the known-violations baseline. | `Read, Grep, Glob, Bash, Skill` | opus | A diff (branch/staged/ref range) | Deterministic gate result, findings with file:line + severity + CONFIRMED/PLAUSIBLE, pre-existing (non-blocking) list, not-reviewed paths |
-| [plan-verifier](plan-verifier.md) | Checks a finished implementation against its `plans/NN-slug.md` plan, item by item, verdicting each `DONE`/`PARTIAL`/`MISSING`/`CONTRADICTED` with file:line evidence — and traces coverage back to the spec's `AC-#` ids where the plan names one. Answers only "was this built as specified" — no code-quality opinion. Read-only. | `Read, Grep, Glob, Bash` | opus | A plan path **and** how to see the implementation — stops and asks if either is missing | A `PASS`/`INCOMPLETE` verdict, a traceability table (plan item + AC-ID), gaps expanded, verification commands run, items that couldn't be mechanically checked |
+| [architecture-reviewer](architecture-reviewer.md) | Reviews a diff against `onion-architecture` (server/src) and `frontend-ui-architecture` (client), running `pnpm arch` as the deterministic gate for backend and treating frontend findings as judgment only. Read-only; distinguishes new violations from the known-violations baseline. | `Read, Grep, Glob, Bash, Skill` | sonnet | A diff (branch/staged/ref range) | Deterministic gate result, findings with file:line + severity + CONFIRMED/PLAUSIBLE, pre-existing (non-blocking) list, not-reviewed paths |
+| [plan-verifier](plan-verifier.md) | Checks a finished implementation against its `plans/NN-slug.md` plan, item by item, verdicting each `DONE`/`PARTIAL`/`MISSING`/`CONTRADICTED` with file:line evidence — and traces coverage back to the spec's `AC-#` ids where the plan names one. Answers only "was this built as specified" — no code-quality opinion. Read-only. | `Read, Grep, Glob, Bash` | sonnet | A plan path **and** how to see the implementation — stops and asks if either is missing | A `PASS`/`INCOMPLETE` verdict, a traceability table (plan item + AC-ID), gaps expanded, verification commands run, items that couldn't be mechanically checked |
 | [doc-writer](doc-writer.md) | Turns a shipped feature or finished plan into documentation, filing it per `docs/README.md`'s table (`docs/`, package README, module `LEARNINGS.md`, or `CLAUDE.md`) and adding Mermaid diagrams only where they earn their place. Writes Markdown only, never source; never touches `docs/agent-prompts/`, `specs/`, or `plans/`. | `Read, Edit, Write, Grep, Glob, Bash, Skill` | sonnet | What shipped or which doc is stale | Files created/updated with the destination rule used, diagrams added and why, pointers updated, anything left undocumented for lack of verification |
+
+`architecture-reviewer` and `plan-verifier` moved from `opus` to `sonnet`
+(2026-08-12) for cost — `opus` is expensive to run per-gate, and both can run
+multiple times per feature via the `implement-plan` skill's fix loop.
+`architecture-reviewer`'s backend check is still backed by the deterministic
+`pnpm arch` command regardless of model, which bounds the downgrade's risk.
+`plan-verifier` has no equivalent deterministic backstop for its own
+judgment (matching plan claims to file:line evidence) — watch its first few
+real `PASS`/`INCOMPLETE` verdicts under `sonnet` before trusting it
+unattended; move it back to `opus` if it starts missing gaps
+`architecture-reviewer`/manual review later catches.
+
+Running `implementer` → `plan-verifier` → `architecture-reviewer` by hand
+means copying file paths between them and manually re-running
+`architecture-reviewer` after every fix. The
+[`implement-plan`](../skills/implement-plan/SKILL.md) skill drives that
+three-agent sequence in one command, starting from an existing
+`plans/NN-slug.md` — same `plan-verifier`-first gate, plus a capped auto-fix
+loop for `architecture-reviewer` findings. `spec-creator` and
+`implementation-planner` are deliberately **not** part of it — run those by
+hand first; `test-writer` is currently skipped by the skill too, for cost,
+and is a separate manual step until that changes. It does not replace
+deciding when to invoke each agent by hand for a partial run; it's the
+default path for "I have a plan, implement and verify it" once a plan
+already exists.
 
 ## How they fit together
 
 ```
 feature idea → spec-creator → specs/NN-slug.md ─┐
                                                  ├→ implementation-planner → plans/NN-slug.md → implementer → code
-   small/clear request ─────────────────────────┘                                                  │            │
-   (skips spec-creator)                                                                             │     test-writer → tests
-                                                                                                      │            │
-                                                                                                      └──→ plan-verifier ←─────────┤
-                                                                                                           architecture-reviewer ←──┤
-                                                                                                           doc-writer ──────────────┴→ docs/
+   small/clear request ─────────────────────────┘                                                                │
+   (skips spec-creator)                                                                                          ▼
+                                                                                                             plan-verifier
+                                                                                                          (gate — run first)
+                                                                                             INCOMPLETE ◄────────┴────────► PASS
+                                                                                                  │                          │
+                                                                                          back to implementer      ┌────────┴────────┐
+                                                                                                                    ▼                 ▼
+                                                                                                       architecture-reviewer     test-writer → tests
+                                                                                                        (independent of each other — run in parallel)
+                                                                                                                    │                 │
+                                                                                                                    └────────┬────────┘
+                                                                                                                             ▼
+                                                                                                                       doc-writer → docs/
 ```
+
+**Recommended order, not just a dependency graph.** Run `plan-verifier` first,
+right after `implementer`, before `architecture-reviewer` or `test-writer`.
+It's the cheapest of the three read-only checks — no `Skill` tool, no
+architecture-skill catalog to load — and its verdict can send you back to
+`implementer` for rework. Running `architecture-reviewer` or `test-writer`
+before that gate risks producing a report or a set of tests against code that
+`plan-verifier` is about to flag `CONTRADICTED` or `MISSING`, both of which
+are wasted runs the moment the underlying diff changes. Once `plan-verifier`
+reports `PASS`, `architecture-reviewer` and `test-writer` are independent of
+each other and safe to run in parallel — neither reads the other's output.
 
 `spec-creator` → `implementation-planner` → `implementer` is a chain of
 producer/consumer pairs, but none of them talk to each other directly — a

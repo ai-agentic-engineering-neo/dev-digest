@@ -172,6 +172,18 @@ export type SkillImportPreview = z.infer<typeof SkillImportPreview>;
 export const SkillPreview = z.object({
   block: z.string(),
   tokens: z.number().int(),
+  /**
+   * specs/09-project-context-folder.md — this skill's own attached documents,
+   * rendered exactly as a run would inject them (AC-13/D1: same heading, same
+   * renderer as the assembled `## Project context` block — a preview that
+   * formats differently would be lying about what the model receives). Null
+   * when the skill has no attached documents, mirroring the run's own
+   * omit-when-empty contract for that section.
+   */
+  project_context_block: z.string().nullable(),
+  /** Token cost of `project_context_block` (0 when null) — the SAME tokenizer
+   *  as `tokens` above, never a separate estimate (AC-6). */
+  project_context_tokens: z.number().int(),
 });
 export type SkillPreview = z.infer<typeof SkillPreview>;
 

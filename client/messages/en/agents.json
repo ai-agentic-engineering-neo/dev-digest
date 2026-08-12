@@ -46,6 +46,7 @@
     "tabs": {
       "config": "Config",
       "skills": "Skills",
+      "context": "Context",
       "evals": "Evals",
       "stats": "Stats",
       "ci": "CI"
@@ -93,6 +94,22 @@
     "filterPlaceholder": "Filter skills…",
     "orderHint": "Order matters — earlier skills appear earlier in the assembled prompt. Drag to reorder.",
     "reorder": "Reorder {name}"
+  },
+  "context": {
+    "title": "Context",
+    "attachedCount": "{attached} of {total} attached",
+    "tokenTotal": "{count, plural, one {# token} other {# tokens}} attached",
+    "filterPlaceholder": "Filter documents…",
+    "orderHint": "Order matters — it's also the drop priority if the attached set is too large for the token budget. Drag to reorder, or move a document with a keyboard.",
+    "reorder": "Reorder {path}",
+    "reorderPositioned": "Reorder {path}, position {position} of {total}",
+    "reorderAnnounce": "Moved {path} to position {position} of {total}",
+    "attachAnnounce": "Attached {path}. {attached} of {total} attached, {tokens, plural, one {# token} other {# tokens}} attached.",
+    "detachAnnounce": "Detached {path}. {attached} of {total} attached, {tokens, plural, one {# token} other {# tokens}} attached.",
+    "missing": "missing",
+    "tokens": "{count, plural, one {# token} other {# tokens}}",
+    "empty": "No documents match this filter.",
+    "noRepo": "No active repo — attach a repo to this workspace to browse its project-context documents."
   },
   "mount": {
     "body": "Mount point for {owner}. The Agent Editor shell + tab routing are wired by A2 — {owner} renders this tab."

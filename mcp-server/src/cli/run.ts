@@ -4,7 +4,7 @@ import { CliError, EXIT } from './exit.js';
 import { parseArgs, HELP_TEXT } from './args.js';
 import { findRepoRoot, type GitRunner } from './git.js';
 import { resolveDiff, REVIEW_MODES, type ReviewMode } from './diff-source.js';
-import { renderReview, type RenderSeverity } from './render.js';
+import { renderReview, type RenderProjectContextDoc, type RenderSeverity } from './render.js';
 
 /** Matches the route's own `bodyLimit` (`server/src/modules/reviews/routes.ts`
  *  — `POST /reviews/adhoc`'s 5 MB override of the app-wide 1 MB cap). Checked
@@ -36,6 +36,23 @@ interface RawFinding {
   suggestion?: string | null;
 }
 
+/**
+ * specs/09-project-context-folder.md (D5/AC-30/AC-31) — subset of the
+ * server's `ProjectContextDoc` (`server/src/modules/reviews/adhoc.ts`), the
+ * shape of one entry in `RawAdhocReviewResponse.project_context.injected` /
+ * `.skipped`. Declared locally — no `@devdigest/shared` alias in this
+ * package (`mcp-server/CLAUDE.md:14-19`).
+ */
+interface RawProjectContextDoc {
+  repo: { id: string; full_name: string };
+  path: string;
+  tokens: number;
+  origin: 'agent' | 'skill';
+  skill: string | null;
+  status: string;
+  reason: string | null;
+}
+
 /** `POST /reviews/adhoc`'s response envelope (server/src/modules/reviews/routes.ts). */
 interface RawAdhocReviewResponse {
   agent: { id: string; name: string; model: string; ci_fail_on: string };
@@ -49,6 +66,9 @@ interface RawAdhocReviewResponse {
   tokens_in: number;
   tokens_out: number;
   cost_usd: number | null;
+  /** Always present (empty arrays when nothing is attached) — see
+   *  `AdhocReviewResult.project_context` server-side. */
+  project_context: { injected: RawProjectContextDoc[]; skipped: RawProjectContextDoc[] };
 }
 
 export interface RunCliDeps {
@@ -144,6 +164,10 @@ export async function runCli(argv: string[], deps: RunCliDeps): Promise<number> 
       blockers: response.blockers,
       ciFailOn: response.agent.ci_fail_on,
       grounding: response.grounding,
+      projectContext: {
+        injected: response.project_context.injected.map(toRenderProjectContextDoc),
+        skipped: response.project_context.skipped.map(toRenderProjectContextDoc),
+      },
     });
     deps.stdout(text);
 
@@ -210,6 +234,10 @@ async function fetchAgentsOrThrow(http: DevDigestHttpClient, apiBaseUrl: string)
 
 function formatAgentList(agents: RawAgent[]): string {
   return agents.map((a) => `${a.id} — ${a.name} (${a.model})`).join(', ');
+}
+
+function toRenderProjectContextDoc(d: RawProjectContextDoc): RenderProjectContextDoc {
+  return { repo: { full_name: d.repo.full_name }, path: d.path, tokens: d.tokens, origin: d.origin, skill: d.skill, reason: d.reason };
 }
 
 /**

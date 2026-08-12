@@ -106,7 +106,7 @@ export function promptAssemblySections(
   const optional: Array<[section: string, source: string, value: string | null | undefined]> = [
     ['skills', 'agent.linked_skills', assembly.skills],
     ['memory', 'memory_retrieval', assembly.memory],
-    ['specs', 'project_specs', assembly.specs],
+    ['specs', 'project_context.documents', assembly.specs],
     ['callers', 'repo_intel.callers_digest', assembly.callers],
     ['repo_map', 'repo_intel.repo_map', assembly.repo_map],
     ['pr_description', 'pr.body', assembly.pr_description],

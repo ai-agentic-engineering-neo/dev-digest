@@ -287,6 +287,99 @@ export const IndexStatus = z.object({
 });
 export type IndexStatus = z.infer<typeof IndexStatus>;
 
+// ---- Project Context Folder (specs/09-project-context-folder.md) ----
+// View-only document browser (D2/D7/N2) over a repo's synced checkout —
+// discovery + token visibility + agent/skill attachment. Distinct from the
+// SpecFile/IndexStatus groundwork above, which is reserved for a later
+// chunking/indexing feature (N3) this slice deliberately does not build.
+
+/** One markdown document discovered under a repo's configured search roots
+ *  (`GET /repos/:id/context/documents`). */
+export const ProjectDocument = z.object({
+  path: z.string(),
+  /** Deterministic label derived from the matched root's last path segment,
+   *  lowercased (Q4) — 'specs'/'docs'/'insights' get the mockup's fixed
+   *  colors client-side; any other label renders with the neutral default. */
+  doc_type: z.string(),
+  /** Same counter as a skill body / per-run skill attribution (AC-6) — never
+   *  a separate estimate. */
+  tokens: z.number().int(),
+  /** Direct-attachment count only (AC-22/D8) — agents that would only
+   *  inherit this document through a skill do not count. */
+  used_by: z.number().int(),
+});
+export type ProjectDocument = z.infer<typeof ProjectDocument>;
+
+/** `GET /repos/:id/context/documents` response. */
+export const DocumentList = z.object({
+  /** The search roots actually used for this scan (repo override or the
+   *  documented default — Q1/Q2). */
+  roots: z.array(z.string()),
+  documents: z.array(ProjectDocument),
+  /** AC-38 — count + summed tokens across ALL discovered documents, not only
+   *  attached ones. `bounded` mirrors `walkClone`'s stats shape: how many
+   *  discovered documents were excluded once MAX_DISCOVERED_DOCS was hit. */
+  summary: z.object({
+    count: z.number().int(),
+    tokens: z.number().int(),
+    bounded: z.number().int(),
+  }),
+});
+export type DocumentList = z.infer<typeof DocumentList>;
+
+/** `GET /repos/:id/context/documents/one?path=…` — read-only content preview
+ *  (AC-4); never a write path (AC-5, AC-35). */
+export const DocumentContent = z.object({
+  path: z.string(),
+  content: z.string(),
+});
+export type DocumentContent = z.infer<typeof DocumentContent>;
+
+/** `PUT /repos/:id/context/config` request body (Q1/Q2, US-8/AC-29). Each
+ *  entry is validated server-side as a relative, `..`-free, non-absolute path
+ *  before it is stored (AC-27's search-root config bullet). */
+export const SetDocRootsRequest = z.object({
+  doc_roots: z.array(z.string()),
+});
+export type SetDocRootsRequest = z.infer<typeof SetDocRootsRequest>;
+
+/**
+ * One document attached to an agent or a skill
+ * (`GET|POST|PUT /agents|skills/:id/documents`). `attached` mirrors
+ * `AgentSkillLink.enabled`'s shape: the row (and its `order`) survives being
+ * switched off, so re-attaching without reordering restores its previous
+ * position (AC-10) instead of appending it to the end.
+ */
+export const AttachedDocument = z.object({
+  repo_id: z.string(),
+  path: z.string(),
+  order: z.number().int(),
+  attached: z.boolean(),
+  tokens: z.number().int(),
+  /** 'missing' when the path no longer resolves under the pinned repo's
+   *  synced checkout since it was attached (AC-26) — the attachment itself
+   *  is retained, never silently dropped. */
+  status: z.enum(['present', 'missing']),
+});
+export type AttachedDocument = z.infer<typeof AttachedDocument>;
+
+/** `POST /agents|skills/:id/documents` — set/reorder the whole attached set
+ *  (AC-9, AC-37). Documents omitted from a later call are detached, not
+ *  deleted — same "keep the row" rule `AttachedDocument.attached` describes. */
+export const SetAttachedDocumentsRequest = z.object({
+  documents: z.array(z.object({ repo_id: z.string(), path: z.string() })),
+});
+export type SetAttachedDocumentsRequest = z.infer<typeof SetAttachedDocumentsRequest>;
+
+/** `PUT /agents|skills/:id/documents` — attach/detach exactly ONE document,
+ *  keeping its position (AC-8, AC-10). */
+export const SetAttachedDocumentRequest = z.object({
+  repo_id: z.string(),
+  path: z.string(),
+  attached: z.boolean(),
+});
+export type SetAttachedDocumentRequest = z.infer<typeof SetAttachedDocumentRequest>;
+
 // ---- Run request (review trigger; owned by A2, contract lives here) ----
 export const RunRequest = z.object({
   agentId: z.string().optional(),

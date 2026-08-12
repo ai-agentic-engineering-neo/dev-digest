@@ -1,4 +1,5 @@
 /** Constants for the Run Trace + Live Log drawer (A5). */
+import type { SpecReadStatus } from "@devdigest/shared";
 
 /** Drawer width (px). */
 export const DRAWER_WIDTH = 720;
@@ -24,3 +25,17 @@ export const PROMPT_COLORS = {
   intentScope: "var(--ok)",
   user: "var(--ok)",
 } as const;
+
+/**
+ * specs/09-project-context-folder.md — one badge color per `SpecRead.status`
+ * (AC-18/AC-32/AC-33/AC-36). Sibling to `PROMPT_COLORS` above, not a reuse of
+ * it: `specs_read` is a Configuration-section list, not a prompt-assembly
+ * block, so it needs its own explicit JSX + color entries per
+ * `client/LEARNINGS.md`'s "TraceBody renders nothing generically" rule.
+ */
+export const SPEC_STATUS_COLORS: Record<SpecReadStatus, { color: string; bg: string }> = {
+  included: { color: "var(--ok)", bg: "var(--ok-bg)" },
+  omitted: { color: "var(--text-muted)", bg: "var(--bg-hover)" },
+  refused: { color: "var(--crit)", bg: "var(--crit-bg)" },
+  dropped: { color: "var(--warn)", bg: "var(--warn-bg)" },
+};

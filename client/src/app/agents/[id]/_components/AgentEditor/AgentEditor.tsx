@@ -9,6 +9,7 @@ import { Tabs } from "@devdigest/ui";
 import type { Agent } from "@devdigest/shared";
 import { ConfigTab } from "./_components/ConfigTab";
 import { SkillsTab } from "./_components/SkillsTab";
+import { ContextTab } from "./_components/ContextTab";
 import { TABS } from "./constants";
 import { s } from "./styles";
 
@@ -22,7 +23,13 @@ export function AgentEditor({ agent, tab, onTab }: { agent: Agent; tab: string; 
       </div>
       <div style={s.body}>
         {/* Unknown/absent ?tab= falls back to Config, as it did before Skills. */}
-        {tab === "skills" ? <SkillsTab agent={agent} /> : <ConfigTab agent={agent} />}
+        {tab === "skills" ? (
+          <SkillsTab agent={agent} />
+        ) : tab === "context" ? (
+          <ContextTab agent={agent} />
+        ) : (
+          <ConfigTab agent={agent} />
+        )}
       </div>
     </div>
   );

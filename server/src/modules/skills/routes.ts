@@ -79,7 +79,11 @@ const ImportUrlBody = z.object({ url: z.string().min(1).max(2048) });
 
 export default async function skillsRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
-  const service = new SkillsService(app.container.skillsRepo, app.container.tokenizer);
+  const service = new SkillsService(
+    app.container.skillsRepo,
+    app.container.tokenizer,
+    app.container.projectContextService,
+  );
 
   app.get('/skills', async (req) => {
     const { workspaceId } = await getContext(app.container, req);

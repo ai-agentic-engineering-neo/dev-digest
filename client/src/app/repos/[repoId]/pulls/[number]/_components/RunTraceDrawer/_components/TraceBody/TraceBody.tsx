@@ -6,7 +6,7 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Badge } from "@devdigest/ui";
 import type { RunTrace, FindingRecord } from "@devdigest/shared";
-import { PROMPT_COLORS } from "../../constants";
+import { PROMPT_COLORS, SPEC_STATUS_COLORS } from "../../constants";
 import { formatSeconds } from "../../helpers";
 import { formatCost, formatTokens } from "@/lib/format";
 import { s } from "../../styles";
@@ -38,13 +38,32 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
           </Row>
           <Row label={t("trace.config.specsRead")}>
             <div style={s.specsWrap}>
+              {/* AC-16 / "traces persisted before this feature": an empty
+                  list must still render cleanly — it always has, and every
+                  trace from before this feature carries specs_read: []. */}
               {trace.specs_read.length === 0 ? (
                 <span style={s.specsNone}>{t("trace.config.none")}</span>
               ) : (
                 trace.specs_read.map((sp, i) => (
-                  <span key={i} className="mono" style={s.spec}>
-                    {sp}
-                  </span>
+                  <div key={i} style={s.specItem}>
+                    <span className="mono" style={s.specPath}>
+                      {sp.path}
+                    </span>
+                    <span style={s.specOrigin}>
+                      {sp.origin === "skill"
+                        ? t("trace.config.specViaSkill", { name: sp.skill ?? "" })
+                        : t("trace.config.specDirect")}
+                    </span>
+                    <Badge color={SPEC_STATUS_COLORS[sp.status].color} bg={SPEC_STATUS_COLORS[sp.status].bg}>
+                      {t(`trace.config.specStatus.${sp.status}`)}
+                    </Badge>
+                    <span className="tnum" style={s.specTokens}>
+                      {t("trace.config.specTokens", { count: sp.tokens })}
+                    </span>
+                    {sp.reason != null && (
+                      <span style={s.specReason}>{t("trace.config.specReason", { reason: sp.reason })}</span>
+                    )}
+                  </div>
                 ))
               )}
             </div>

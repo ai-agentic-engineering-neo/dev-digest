@@ -55,13 +55,16 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
     (workspaceId, pull, repo) => loadDiff(container, container.reviewRepo, workspaceId, pull, repo),
     (input) => container.intentService.resolve(input),
   );
-  // AdhocReviewService declares its own narrow `AgentLookup`/`SkillLookup`
-  // ports — `container.agentsRepo` satisfies both structurally (getById +
-  // enabledSkills), so it's passed twice with no adapter class in between.
+  // AdhocReviewService declares its own narrow `AgentLookup`/`SkillLookup`/
+  // `ProjectContextResolver` ports — `container.agentsRepo` satisfies the
+  // first two structurally (getById + enabledSkills), so it's passed twice
+  // with no adapter class in between; `container.projectContextService`
+  // satisfies `ProjectContextResolver` (specs/09-project-context-folder.md).
   const adhocService = new AdhocReviewService(
     container.agentsRepo,
     container.agentsRepo,
     (provider) => container.llm(provider),
+    container.projectContextService,
   );
 
   // ---- Run a review (manual trigger) -------------------------------

@@ -56,6 +56,38 @@ export interface SkillLookup {
  *  this structurally, bound in `routes.ts`. */
 export type LlmResolver = (provider: Provider) => Promise<LLMProvider>;
 
+/**
+ * specs/09-project-context-folder.md — one document the CLI path's
+ * project-context resolution considered (injected or skipped), WITH its
+ * pinned repo (planner finding 5: the CLI path has no repo binding, so
+ * resolution reads from every pinned repo with no mismatch filter — the CLI
+ * report must therefore print which repo each document came from, unlike
+ * the PR-triggered trace's `SpecRead`, which never needs to since AC-33
+ * already filtered to the run's one repo).
+ */
+export interface ProjectContextDoc {
+  repo: { id: string; full_name: string };
+  path: string;
+  tokens: number;
+  origin: 'agent' | 'skill';
+  skill: string | null;
+  status: 'included' | 'omitted' | 'refused' | 'dropped';
+  reason: string | null;
+}
+
+export interface ProjectContextResolution {
+  documents: { path: string; content: string }[];
+  injected: ProjectContextDoc[];
+  skipped: ProjectContextDoc[];
+}
+
+/** `container.projectContextService.resolveForAdhoc` satisfies this
+ *  structurally — declared locally, same pattern as `AgentLookup`/`SkillLookup`
+ *  above (no import of `modules/project-context/*`). */
+export interface ProjectContextResolver {
+  resolveForAdhoc(workspaceId: string, agentId: string): Promise<ProjectContextResolution>;
+}
+
 export interface AdhocReviewInput {
   workspaceId: string;
   agentId: string;
@@ -78,6 +110,10 @@ export interface AdhocReviewResult {
   tokens_in: number;
   tokens_out: number;
   cost_usd: number | null;
+  /** specs/09 — always present (empty arrays when nothing is attached), so
+   *  the CLI can render the "Project context" section deterministically
+   *  rather than branching on the field's absence. */
+  project_context: { injected: ProjectContextDoc[]; skipped: ProjectContextDoc[] };
 }
 
 /**
@@ -96,6 +132,7 @@ export class AdhocReviewService {
     private agents: AgentLookup,
     private skills: SkillLookup,
     private resolveLlm: LlmResolver,
+    private projectContext: ProjectContextResolver,
   ) {}
 
   async review(input: AdhocReviewInput): Promise<AdhocReviewResult> {
@@ -123,6 +160,12 @@ export class AdhocReviewService {
     const linkedSkills = await this.skills.enabledSkills(agent.id);
     const skillBlocks = linkedSkills.map(renderSkillBlock);
 
+    // specs/09 — D5/G7: the pre-push CLI gets the SAME project context a
+    // PR-triggered run would (same resolution, ordering, budget, read from
+    // the synced default-branch checkout) — no repo filter here (finding 5):
+    // the CLI path has no repo binding at all.
+    const projectContext = await this.projectContext.resolveForAdhoc(input.workspaceId, agent.id);
+
     // ---- Engine: assemble -> single-pass -> grounding ------------------
     // The identical call shape run-executor.ts:283-318 uses, minus the slots
     // that need a persisted PR (callers, repoMap, prDescription, intent).
@@ -133,6 +176,7 @@ export class AdhocReviewService {
       llm,
       strategy: agent.strategy ?? REVIEW_STRATEGY,
       ...(skillBlocks.length > 0 ? { skills: skillBlocks } : {}),
+      ...(projectContext.documents.length > 0 ? { specs: projectContext.documents } : {}),
       task: ADHOC_TASK_LINE,
     });
 
@@ -152,6 +196,7 @@ export class AdhocReviewService {
       tokens_in: outcome.tokensIn,
       tokens_out: outcome.tokensOut,
       cost_usd: outcome.costUsd,
+      project_context: { injected: projectContext.injected, skipped: projectContext.skipped },
     };
   }
 }

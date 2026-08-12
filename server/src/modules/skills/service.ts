@@ -10,6 +10,11 @@ import type {
 } from '@devdigest/shared';
 import type { Tokenizer } from '../../adapters/tokenizer/index.js';
 import { ValidationError } from '../../platform/errors.js';
+// THE one project-context renderer, shared with the run executor/adhoc
+// service — never re-implement this formatting here (specs/09-project-
+// context-folder.md AC-13/D1: a preview that formats differently is lying
+// about what a run actually injects).
+import { renderProjectContextBlock } from '../_shared/project-context-render.js';
 import { SkillsRepository, type SkillRow } from './repository.js';
 import { MAX_BODY_BYTES, MAX_UPLOAD_BYTES, MAX_URL_REDIRECTS, URL_FETCH_TIMEOUT_MS } from './constants.js';
 import {
@@ -58,8 +63,25 @@ export interface UpdateSkillInput {
   enabled?: boolean;
 }
 
+/**
+ * specs/09-project-context-folder.md — the narrow port `preview()` needs to
+ * render a skill's own attached documents (AC-13/D1). Declared locally
+ * (`no-cross-module`) — `container.projectContextService` satisfies this
+ * structurally; wired at the composition root (`platform/container.ts`,
+ * `modules/skills/routes.ts`), never imported directly.
+ */
+export interface ProjectContextLookup {
+  resolveSkillDocuments(
+    skillId: string,
+  ): Promise<{ documents: { path: string; content: string }[] }>;
+}
+
 export class SkillsService {
-  constructor(private repo: SkillsRepository, private tokenizer: Tokenizer) {}
+  constructor(
+    private repo: SkillsRepository,
+    private tokenizer: Tokenizer,
+    private projectContext: ProjectContextLookup,
+  ) {}
 
   /**
    * The rail: every workspace skill plus its footer stats. The stats come from
@@ -196,7 +218,18 @@ export class SkillsService {
     const row = await this.repo.getById(workspaceId, id);
     if (!row) return undefined;
     const block = renderSkillBlock(toRenderable(row));
-    return { block, tokens: this.tokenizer.count(block) };
+    // AC-13/D1 — the skill's own attached documents, rendered by the SAME
+    // renderer + heading a run actually emits (`## Project context`). Null
+    // when the skill has nothing attached, matching the run's own
+    // omit-when-empty contract for that section.
+    const { documents } = await this.projectContext.resolveSkillDocuments(id);
+    const projectContextBlock = renderProjectContextBlock(documents);
+    return {
+      block,
+      tokens: this.tokenizer.count(block),
+      project_context_block: projectContextBlock,
+      project_context_tokens: projectContextBlock ? this.tokenizer.count(projectContextBlock) : 0,
+    };
   }
 
   /** Stats tab payload. Every `null` here means UNMEASURED and renders as "—". */

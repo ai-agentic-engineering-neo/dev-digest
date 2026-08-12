@@ -84,4 +84,31 @@ describe("A5 Run Trace drawer (smoke)", () => {
       TRACE.prompt_assembly.intent_scope = null;
     }
   });
+
+  it("renders each specs_read entry's path, origin, status and reason (specs/09-project-context-folder.md), and still shows 'none' for the pre-feature empty-list traces", () => {
+    // Baseline: TRACE.specs_read is [] by default — the empty-list case every
+    // trace persisted before this feature carries.
+    renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    expect(screen.getByText("none")).toBeInTheDocument();
+    cleanup();
+
+    TRACE.specs_read = [
+      { path: "specs/09-project-context-folder.md", tokens: 240, origin: "agent", skill: null, status: "included", reason: null },
+      { path: "docs/architecture.md", tokens: 90, origin: "skill", skill: "pr-quality-rubric", status: "dropped", reason: "budget_drop" },
+    ];
+    try {
+      renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+      expect(screen.getByText("specs/09-project-context-folder.md")).toBeInTheDocument();
+      expect(screen.getByText("direct")).toBeInTheDocument();
+      expect(screen.getByText("included")).toBeInTheDocument();
+      expect(screen.getByText("240 tok")).toBeInTheDocument();
+
+      expect(screen.getByText("docs/architecture.md")).toBeInTheDocument();
+      expect(screen.getByText("via skill pr-quality-rubric")).toBeInTheDocument();
+      expect(screen.getByText("dropped")).toBeInTheDocument();
+      expect(screen.getByText("(budget_drop)")).toBeInTheDocument();
+    } finally {
+      TRACE.specs_read = [];
+    }
+  });
 });

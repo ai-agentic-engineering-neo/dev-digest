@@ -276,6 +276,35 @@ export class ReviewRunExecutor {
         );
       }
 
+      // specs/09-project-context-folder.md — resolve agent-direct + enabled-
+      // skill-inherited documents, deduped, budgeted, read from the repo's
+      // SYNCED DEFAULT-BRANCH checkout (never the PR branch head — D4/AC-14).
+      // repoId is always known on this (PR-triggered) path, so a document
+      // pinned to a different repo is dropped with `repo_mismatch` (AC-33).
+      const projectContext = await runLog.step(
+        'Loading project context',
+        () => this.container.projectContextService.resolveForRun(workspaceId, agent.id, pull.repoId),
+        { kind: 'tool' },
+      );
+      const specsRead: RunTrace['specs_read'] = projectContext.entries.map((e) => ({
+        path: e.path,
+        tokens: e.tokens,
+        origin: e.origin,
+        skill: e.skill,
+        status: e.status,
+        reason: e.reason,
+      }));
+      const includedTokens = specsRead
+        .filter((e) => e.status === 'included')
+        .reduce((sum, e) => sum + e.tokens, 0);
+      const omittedCount = specsRead.filter((e) => e.status !== 'included').length;
+      if (specsRead.length > 0) {
+        runLog.info(
+          `Project context: ${projectContext.documents.length} document(s), ` +
+            `${includedTokens} token(s); ${omittedCount} omitted`,
+        );
+      }
+
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
       // the CI runner). The service owns only I/O: repo-intel context resolution
@@ -309,6 +338,10 @@ export class ReviewRunExecutor {
         // contract.
         ...(resolvedInScope?.length ? { intentInScope: resolvedInScope } : {}),
         ...(resolvedOutOfScope?.length ? { intentOutOfScope: resolvedOutOfScope } : {}),
+        // specs/09 — resolved project-context documents. Omit-when-empty:
+        // zero attached/inherited documents produces a prompt byte-identical
+        // to the pre-feature baseline (AC-16).
+        ...(projectContext.documents.length > 0 ? { specs: projectContext.documents } : {}),
         task,
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
@@ -426,7 +459,7 @@ export class ReviewRunExecutor {
         })),
         raw_output: outcome.raw,
         memory_pulled: [],
-        specs_read: [],
+        specs_read: specsRead,
         // Persisted log = the run's FULL event buffer (incl. shared pre-work:
         // diff load + intent), not just events recorded inside this method.
         log: runLog.logFor(runId),

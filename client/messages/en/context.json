@@ -1,24 +1,29 @@
 {
-  "title": "Project Context",
-  "chunks": "{count} chunks",
-  "reindex": "Re-index",
-  "indexing": "Indexing…",
-  "resync": "Resync",
-  "resyncing": "Resyncing…",
-  "indexStatus": "Index status: {status}",
-  "loadError": "Couldn’t load specs",
-  "kb": "{kb}kb",
-  "empty": {
-    "title": "No spec files yet",
-    "body": "Drop your PRDs, tech specs, and acceptance criteria under .devdigest/specs/. Every agent and the PR brief read them as grounding context."
+  "page": {
+    "crumb": "Project Context",
+    "repoFallback": "this repo",
+    "title": "Project Context",
+    "loading": "Scanning the repo's synced checkout…",
+    "summary": "{count, plural, one {# document} other {# documents}} · {tokens, plural, one {# token} other {# tokens}}",
+    "refresh": "Refresh",
+    "loadError": "Couldn’t load this repo's documents",
+    "selectPrompt": "Select a document to preview it.",
+    "previewLoadError": "Couldn’t load this document.",
+    "empty": {
+      "title": "No documents found",
+      "body": "No markdown files were found under the searched roots: {roots}. Add PRDs, tech specs, or architecture notes under one of those folders, or change the search roots above."
+    }
   },
-  "mode": {
-    "preview": "preview",
-    "edit": "edit"
+  "roots": {
+    "edit": "Search roots",
+    "label": "Search roots, one per line",
+    "hint": "Repository-relative directory paths, one per line — every markdown file under these directories (recursively) is discovered. Changing this rescans on save.",
+    "placeholder": "specs\ndocs\n.devdigest/specs",
+    "cancel": "Cancel",
+    "save": "Save"
   },
-  "editor": {
-    "loadError": "Couldn’t load spec",
-    "save": "Save",
-    "saving": "Saving…"
+  "list": {
+    "tokens": "{count, plural, one {# token} other {# tokens}}",
+    "usedBy": "{count, plural, =0 {not attached} one {used by # agent} other {used by # agents}}"
   }
 }

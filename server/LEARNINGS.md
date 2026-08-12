@@ -335,6 +335,42 @@ not interchangeable). Also: `..`/absolute-path rejection has to happen BEFORE
 any `resolve()` call, not after — `isRelativeSafePath` runs first and is pure
 (no fs), so a malicious path never even reaches a syscall.
 
+**2026-08-12 addendum (caught by an automated Security Reviewer finding on PR
+#9, 90% confidence) — the containment technique above was applied to
+per-document reads (`paths.ts`) but NOT to `discovery.ts`'s own root-directory
+check, which is a separate code path with the identical gap.**
+`discoverDocuments` (`modules/project-context/discovery.ts`) validated each
+configured search root with only the syntactic `resolve(cloneRoot,
+root).startsWith(cloneRoot)` check, then called `walkMarkdown` on it directly.
+A root itself planted as a symlink (e.g. a repo commit making `specs -> /etc`)
+passes that syntactic check — `resolve()` never touches the filesystem — and
+`readdir()` inside `walkMarkdown` then transparently follows it, enumerating
+(and leaking file names/sizes for) arbitrary paths outside the checkout. The
+per-entry `entry.isSymbolicLink()` skip inside `walkMarkdown`'s recursion
+already prevented a symlink *nested inside* the tree from being followed —
+it just never covered the root itself, which is walked before that check ever
+runs. Fix (`isContainedRoot`, same file): `realpath()` both `cloneRoot` and
+the syntactic root path, re-check containment on the REAL paths, and skip
+the root entirely (same as a genuinely-missing root) if that fails.
+
+Non-obvious follow-up gotcha: passing the REALPATH'd root into `walkMarkdown`
+(instead of just using it for the check) breaks path output whenever
+`cloneRoot` itself sits under a symlink — e.g. macOS's `/tmp -> /private/tmp`,
+which every `mkdtemp(tmpdir())`-based test fixture in this module hits. Once
+the root is realpath'd but `cloneRoot` isn't (or vice versa), `full`
+(descended from the realpath'd root) and `cloneRoot` (still the original,
+symlinked path) are in two different filesystem namespaces, so
+`relative(cloneRoot, full)` produces garbage (leading `../` segments) instead
+of a clean repo-relative path — silently, no thrown error, would only surface
+as mysteriously-wrong `DiscoveredDoc.path` values. Fix: use the realpath'd
+root ONLY for the containment boolean check; walk the ORIGINAL syntactic root
+path (the OS still dereferences it for the actual `readdir`/`stat` I/O — the
+check already proved that's safe). Any future containment check that needs to
+call `realpath()` on a directory it's about to recurse into, but also needs to
+compute paths relative to an ancestor of that directory, should use the same
+split: realpath for the boolean proof, syntactic path for everything that
+touches `relative()`.
+
 Separately: `pnpm db:generate < /dev/null` for this feature's two new tables
 (`agent_context_docs`, `skill_context_docs`) plus one new nullable column
 (`repos.doc_roots`) generated cleanly in one pass with zero prompts — this
@@ -631,6 +667,27 @@ optional-`config` reads above: ANY new required `container.<x>` dependency
 `runOneAgent`/`executeRuns` reads needs the same `grep -rl "as unknown as
 Container" server/test` sweep before the feature is done, and a one-line stub
 per hit is enough (the tests in question aren't exercising that dependency).
+
+### 2026-08-12 — a DevDigest review finding that names specific files as "missing from the diff" can be stale relative to the branch's actual current HEAD
+
+PR #9's Test Quality Reviewer run (12/08/2026, 21:12:00) reported a CRITICAL
+"missing server-side unit tests for the core project-context module," citing
+`test/project-context-{paths,discovery,resolve}.test.ts` and
+`test/project-context.it.test.ts` as absent from the diff, and describing the
+only server test change as an `adhoc.test.ts` that mocks the resolver.
+`git diff main...HEAD --stat` at the time of investigation showed all four
+named files present, substantive (96–364 lines each), covering the plan's own
+test matrix, and passing (36 tests standalone, 71 across the full
+project-context-related file set) — and no `adhoc.test.ts` exists anywhere in
+this repo. The finding was accurate for an EARLIER revision of the branch
+(these test files were evidently pushed after that review run captured its
+snapshot), not the one actually open for review. Before spending effort
+writing tests/code to satisfy a DevDigest finding that cites specific file
+paths as missing or absent, verify with `git diff <base>...HEAD --stat -- <the
+cited paths>` first — a stale review run is indistinguishable from a real gap
+until checked against the actual current diff, and re-running the review
+after every push (not just once before opening the PR) is cheaper than
+re-deriving what it already told you.
 
 ## Session Notes
 

@@ -17,9 +17,13 @@ import { ContextTab as SharedContextTab } from "@/components/context-tab";
  */
 export function ContextTab({ agent }: { agent: Agent }) {
   const { activeRepo } = useActiveRepo();
-  const repoId = activeRepo?.id ?? null;
-
   const { data: attachments } = useEntityDocuments("agent", agent.id);
+  // D3 (specs/09-project-context-folder.md) — an agent's attachments all pin
+  // to the ONE repo they were attached from, independent of whatever repo is
+  // active in the shell right now. Anchor to that repo once the agent has any
+  // attachment; only a never-attached agent falls back to the shell's active
+  // repo, since there's nothing yet to anchor to.
+  const repoId = attachments?.[0]?.repo_id ?? activeRepo?.id ?? null;
   const setAttached = useSetEntityDocumentAttached("agent");
   const setDocuments = useSetEntityDocuments("agent");
 

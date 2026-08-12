@@ -1,10 +1,10 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, cleanup } from "@testing-library/react";
-import type { Agent } from "@devdigest/shared";
+import type { Agent, AttachedDocument } from "@devdigest/shared";
 
 const setAttachedMutate = vi.fn();
 const setDocumentsMutate = vi.fn();
-const useEntityDocuments = vi.fn(() => ({ data: [] }));
+const useEntityDocuments = vi.fn((): { data: AttachedDocument[] } => ({ data: [] }));
 
 vi.mock("@/lib/repo-context", () => ({
   useActiveRepo: () => ({ activeRepo: { id: "repo-1", full_name: "acme/widgets" } }),
@@ -84,5 +84,25 @@ describe("ContextTab (agent editor wrapper)", () => {
     )(documents, { onSettled });
 
     expect(setDocumentsMutate).toHaveBeenCalledWith({ id: "agent-1", documents }, { onSettled });
+  });
+
+  it("D3 — an already-attached agent's repo pins the tab to the attachment's own repo, not whatever repo is active in the shell", () => {
+    useEntityDocuments.mockReturnValueOnce({
+      data: [{ repo_id: "repo-2", path: "specs/a.md", order: 0, attached: true, tokens: 10, status: "present" }],
+    });
+    render(<ContextTab agent={AGENT} />);
+
+    // The shell's active repo is "repo-1" (mocked above), but this agent's
+    // own attachment is pinned to "repo-2" — the tab must resolve/mutate
+    // against "repo-2", never silently target the shell's repo instead.
+    expect(lastProps).toMatchObject({ repoId: "repo-2" });
+
+    (lastProps!.onToggle as (path: string, attached: boolean) => void)("specs/a.md", false);
+    expect(setAttachedMutate).toHaveBeenCalledWith({
+      id: "agent-1",
+      repoId: "repo-2",
+      path: "specs/a.md",
+      attached: false,
+    });
   });
 });

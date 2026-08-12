@@ -75,6 +75,19 @@ describe('discoverDocuments', () => {
     await rm(outside, { recursive: true, force: true });
   });
 
+  it('AC-28 — a configured ROOT that is itself a symlink escaping the checkout is skipped entirely, not walked', async () => {
+    const outside = await mkdtemp(join(tmpdir(), 'project-context-discovery-outside-'));
+    await writeFile(join(outside, 'secret.md'), '# secret');
+    // 'specs' itself is a symlink to a directory outside the checkout — the
+    // syntactic resolve()-based containment check alone cannot see this.
+    await symlink(outside, join(root, 'specs'));
+    await writeFileAt(root, 'docs/real.md', '# real');
+
+    const { documents } = await discoverDocuments(root, ['specs', 'docs']);
+    expect(documents.map((d) => d.path)).toEqual(['docs/real.md']);
+    await rm(outside, { recursive: true, force: true });
+  });
+
   it('AC-28 — excludes a file over MAX_DOC_BYTES and records it in skippedTooLarge', async () => {
     await writeFileAt(root, 'specs/small.md', '# small');
     await writeFileAt(root, 'specs/big.md', 'x'.repeat(MAX_DOC_BYTES + 1));

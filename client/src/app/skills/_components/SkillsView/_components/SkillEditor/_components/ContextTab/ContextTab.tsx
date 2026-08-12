@@ -19,9 +19,13 @@ import { ContextTab as SharedContextTab } from "@/components/context-tab";
  */
 export function ContextTab({ skill }: { skill: Skill }) {
   const { activeRepo } = useActiveRepo();
-  const repoId = activeRepo?.id ?? null;
-
   const { data: attachments } = useEntityDocuments("skill", skill.id);
+  // D3 (specs/09-project-context-folder.md) — a skill's attachments all pin
+  // to the ONE repo they were attached from, independent of whatever repo is
+  // active in the shell right now. Anchor to that repo once the skill has any
+  // attachment; only a never-attached skill falls back to the shell's active
+  // repo, since there's nothing yet to anchor to.
+  const repoId = attachments?.[0]?.repo_id ?? activeRepo?.id ?? null;
   const setAttached = useSetEntityDocumentAttached("skill");
   const setDocuments = useSetEntityDocuments("skill");
 

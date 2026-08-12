@@ -58,6 +58,31 @@ shell-wide "current repo" used by the sidebar/command-palette, not a route
 param. This is a legitimate use of `useActiveRepo()` OUTSIDE a
 `/repos/:repoId/...` route, which every prior consumer of that hook was.
 
+**2026-08-12 correction (caught by an automated API Contract Reviewer finding
+on PR #9, 100% confidence) — "legitimate" above was wrong once the entity
+already has attachments.** `useActiveRepo()` is shell-wide state (URL path >
+`localStorage` > first repo in the list, `repo-context.tsx:47-48`) with zero
+relationship to which repo an agent's/skill's *own* attachments are pinned to
+(spec D3: an attachment records `(repo, path)` and never re-resolves against a
+different repo). Both wrapper components
+(`app/agents/[id]/_components/AgentEditor/_components/ContextTab/ContextTab.tsx`,
+the skill editor's sibling) used `activeRepo?.id` unconditionally for `repoId`
+— so if the user navigated to `/agents/agent-1?tab=context` with a DIFFERENT
+repo active in the sidebar than the one `agent-1`'s attachments actually
+belong to, `onToggle`/`onReorder` would silently write to the wrong repo.
+Worse for `onReorder`: `SharedContextTab.applyOrder` sends ONE `repoId` for
+the WHOLE reordered set (`repo_id: repoId` mapped over every path,
+`ContextTab/ContextTab.tsx:124`), so reordering an already-attached agent's
+documents while the wrong repo was active would silently REWRITE every
+attachment's `repo_id` to that wrong repo — real data corruption, not just a
+failed write. Fix: derive `repoId` from `attachments?.[0]?.repo_id` first,
+falling back to `activeRepo?.id` only when the entity has no attachments yet
+(nothing to anchor to — the very first attach still has to come from
+whatever repo is active). Any future consumer of `useActiveRepo()` outside a
+`/repos/:repoId/...` route that also reads/writes an already-persisted,
+repo-pinned record must anchor to the record's own repo once one exists, not
+trust shell state for anything beyond the "nothing attached yet" case.
+
 ### 2026-08-04 — `diff-viewer/`'s deliberately narrow public surface had to be widened for a second real consumer; the target+nonce scroll pattern now exists in two places
 
 Building `SmartDiffViewer` (`app/repos/[repoId]/pulls/[number]/_components/

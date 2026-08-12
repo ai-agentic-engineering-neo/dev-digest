@@ -1,4 +1,4 @@
-import { readdir, stat } from 'node:fs/promises';
+import { readdir, realpath, stat } from 'node:fs/promises';
 import type { Dirent } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
 import { DOC_EXTENSION, MAX_DISCOVERED_DOCS, MAX_DOC_BYTES, docTypeLabel } from './constants.js';
@@ -58,6 +58,19 @@ export async function discoverDocuments(
     const rootAbs = resolve(cloneRoot, root);
     if (rootAbs !== cloneRoot && !rootAbs.startsWith(cloneRoot + sep)) continue;
 
+    // The syntactic check above only proves the CONFIGURED path stays inside
+    // cloneRoot — it doesn't follow symlinks. A root planted as a symlink
+    // (e.g. `specs -> /etc`) would pass it and then have `walkMarkdown` walk
+    // straight out of the checkout. Re-check containment on the REAL path,
+    // same pattern as `resolveContainedPath` (paths.ts) uses for per-document
+    // reads.
+    if (!(await isContainedRoot(cloneRoot, rootAbs))) continue; // missing, unreadable, or a symlink escape (AC-20 / AC-28)
+
+    // Walk the syntactic path, not its realpath: `cloneRoot` itself may sit
+    // under a symlink (e.g. macOS's /tmp -> /private/tmp), so resolving would
+    // put `full` in a different namespace than `cloneRoot` and break
+    // `relative(cloneRoot, full)` below. The OS still dereferences `rootAbs`
+    // for the actual I/O; the check above already proved that's safe.
     const files = await walkMarkdown(cloneRoot, rootAbs, stats);
     for (const rel of files) {
       if (seen.has(rel)) continue; // first-matching-root wins (AC-11-style earliest-wins, applied to roots)
@@ -78,6 +91,22 @@ export async function discoverDocuments(
 /** The doc-type label for a discovered document (Q4). */
 export function labelFor(doc: DiscoveredDoc): string {
   return docTypeLabel(doc.matchedRoot);
+}
+
+/** True iff `rootAbs`'s real path (symlinks resolved) stays inside
+ *  `cloneRoot`'s own real path — catches a configured root that is itself a
+ *  symlink escaping the checkout, which a purely syntactic `resolve()` check
+ *  cannot see. False when the root doesn't exist, is unreadable, or escapes;
+ *  callers skip it cleanly, same as any other missing root. */
+async function isContainedRoot(cloneRoot: string, rootAbs: string): Promise<boolean> {
+  let realCloneRoot: string;
+  let realRootAbs: string;
+  try {
+    [realCloneRoot, realRootAbs] = await Promise.all([realpath(cloneRoot), realpath(rootAbs)]);
+  } catch {
+    return false;
+  }
+  return realRootAbs === realCloneRoot || realRootAbs.startsWith(realCloneRoot + sep);
 }
 
 async function walkMarkdown(

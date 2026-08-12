@@ -21,6 +21,7 @@ Reusable AI skills that provide specialized knowledge and workflows. Canonical l
 | [pr-self-review](pr-self-review/SKILL.md) | Project | Pre-PR review of the local diff; routes the skills above, gates on deterministic checks |
 | [engineering-insights](engineering-insights/SKILL.md) | Project | Logs non-obvious lessons to the touched module's `LEARNINGS.md` |
 | [implement-plan](implement-plan/SKILL.md) | Project | Runs implementer → plan-verifier (gate) → architecture-reviewer (fix loop) for an existing plan; spec-creator, implementation-planner, test-writer run separately |
+| [workflow-retro](workflow-retro/SKILL.md) | Project | Retrospective on a multi-agent run's orchestration — tokens, agent order, handoffs, recommendations; distinct from engineering-insights, which logs code lessons to LEARNINGS.md |
 
 ## What Are Skills?
 

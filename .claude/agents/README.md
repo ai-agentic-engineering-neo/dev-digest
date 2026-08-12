@@ -42,7 +42,10 @@ hand first; `test-writer` is currently skipped by the skill too, for cost,
 and is a separate manual step until that changes. It does not replace
 deciding when to invoke each agent by hand for a partial run; it's the
 default path for "I have a plan, implement and verify it" once a plan
-already exists.
+already exists. Once a run through this pipeline finishes, the
+[`workflow-retro`](../skills/workflow-retro/SKILL.md) skill can retrospect
+on how the agents themselves coordinated — tokens, order, handoffs — a
+separate, manual-only step, distinct from what any agent above reports.
 
 ## How they fit together
 

@@ -32,6 +32,23 @@ export function PreviewTab({ skill }: { skill: Skill }) {
           {data.block}
         </pre>
       </div>
+      {/* AC-13/D1 — the skill's attached documents, rendered by the SAME
+          `## Project context` renderer a run actually uses; omitted when the
+          skill has no attached documents, matching the run's own
+          omit-when-empty contract for this section. */}
+      {data.project_context_block != null && (
+        <div style={s.panel}>
+          <div style={s.head}>
+            <span style={s.title}>{t("preview.contextTitle")}</span>
+            <span className="tnum" style={s.tokens}>
+              {t("preview.tokens", { count: data.project_context_tokens })}
+            </span>
+          </div>
+          <pre className="mono" style={s.block}>
+            {data.project_context_block}
+          </pre>
+        </div>
+      )}
       <p style={s.hint}>{t("preview.hint")}</p>
     </div>
   );

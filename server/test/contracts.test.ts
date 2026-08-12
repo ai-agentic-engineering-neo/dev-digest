@@ -15,6 +15,10 @@ import {
   Settings,
   Repo,
   PrDetail,
+  SkillPreview,
+  ProjectDocument,
+  DocumentList,
+  AttachedDocument,
 } from '@devdigest/shared';
 
 /**
@@ -162,10 +166,52 @@ describe('AI contracts parse fixtures', () => {
       tool_calls: [{ tool: 'read_file', args: "'src/config.ts'", meta: '1,240 bytes', ms: 120 }],
       raw_output: '{}',
       memory_pulled: [{ pr: 288, text: 'verified via stripe-signature' }],
-      specs_read: ['specs/security-baseline.md'],
+      specs_read: [
+        {
+          path: 'specs/security-baseline.md',
+          tokens: 420,
+          origin: 'agent',
+          skill: null,
+          status: 'included',
+          reason: null,
+        },
+      ],
       log: [{ t: '00.00', kind: 'info', msg: 'started' }],
     });
     expect(trace.tool_calls).toHaveLength(1);
+    expect(trace.specs_read).toHaveLength(1);
+  });
+
+  it('RunTrace — specs_read: [] still parses (pre-specs/09 traces, and every existing prompt/trace test)', () => {
+    const trace = RunTrace.parse({
+      config: { agent: 'Security Reviewer', version: 'v7', model: 'gpt-4.1', pr: 482, source: 'local' },
+      stats: { duration_ms: 100, tokens_in: 10, tokens_out: 10, cost_usd: null, findings: 0, grounding: '0/0 passed' },
+      prompt_assembly: { system: 's', user: 'u' },
+      tool_calls: [],
+      raw_output: '',
+      memory_pulled: [],
+      specs_read: [],
+      log: [],
+    });
+    expect(trace.specs_read).toEqual([]);
+  });
+
+  it('SpecRead — origin/status enums round-trip; skill/reason are nullish', () => {
+    const trace = RunTrace.parse({
+      config: { agent: 'A', model: 'gpt-4.1', source: 'local' },
+      stats: { duration_ms: 1, tokens_in: 1, tokens_out: 1, cost_usd: null, findings: 0, grounding: '0/0 passed' },
+      prompt_assembly: { system: 's', user: 'u' },
+      tool_calls: [],
+      raw_output: '',
+      memory_pulled: [],
+      specs_read: [
+        { path: 'docs/a.md', tokens: 12, origin: 'skill', skill: 'my-skill', status: 'dropped', reason: 'budget_drop' },
+        { path: 'docs/b.md', tokens: 0, origin: 'agent', status: 'refused', reason: 'refused_containment' },
+      ],
+      log: [],
+    });
+    expect(trace.specs_read[0]!.skill).toBe('my-skill');
+    expect(trace.specs_read[1]!.skill).toBeUndefined();
   });
 });
 
@@ -206,5 +252,71 @@ describe('platform DTOs', () => {
         commits: [],
       }),
     ).not.toThrow();
+  });
+});
+
+/**
+ * specs/09-project-context-folder.md — the new Project Context contracts.
+ * `SkillPreview.project_context_block` is `.nullable()`, which (per
+ * server/LEARNINGS.md's `.nullable()` gotcha) makes the KEY required even
+ * though the value may be null — pin both the null-block/zero-tokens shape
+ * (a skill with nothing attached) and the populated shape in one fixture
+ * each, so a future edit that flips `.nullable()` to `.nullish()` (or drops
+ * the key) is caught here instead of as a spray of unrelated TS errors.
+ */
+describe('Project Context contracts (specs/09-project-context-folder.md)', () => {
+  it('SkillPreview — project_context_block null + project_context_tokens 0 (no documents attached)', () => {
+    expect(() =>
+      SkillPreview.parse({
+        block: '### Skill: my-skill (rubric)\nBody',
+        tokens: 12,
+        project_context_block: null,
+        project_context_tokens: 0,
+      }),
+    ).not.toThrow();
+  });
+
+  it('SkillPreview — a populated project_context_block carries its own token count', () => {
+    const preview = SkillPreview.parse({
+      block: '### Skill: my-skill (rubric)\nBody',
+      tokens: 12,
+      project_context_block: '## Project context\n<untrusted source="specs/a.md">\nA\n</untrusted>',
+      project_context_tokens: 8,
+    });
+    expect(preview.project_context_tokens).toBe(8);
+  });
+
+  it('ProjectDocument / DocumentList — round-trips a discovery listing', () => {
+    const list = DocumentList.parse({
+      roots: ['specs', 'docs'],
+      documents: [
+        ProjectDocument.parse({ path: 'specs/a.md', doc_type: 'specs', tokens: 42, used_by: 1 }),
+      ],
+      summary: { count: 1, tokens: 42, bounded: 0 },
+    });
+    expect(list.documents[0]!.doc_type).toBe('specs');
+  });
+
+  it('AttachedDocument — status is constrained to present|missing', () => {
+    expect(() =>
+      AttachedDocument.parse({
+        repo_id: 'repo-1',
+        path: 'specs/a.md',
+        order: 0,
+        attached: true,
+        tokens: 10,
+        status: 'missing',
+      }),
+    ).not.toThrow();
+    expect(() =>
+      AttachedDocument.parse({
+        repo_id: 'repo-1',
+        path: 'specs/a.md',
+        order: 0,
+        attached: true,
+        tokens: 10,
+        status: 'gone', // not a valid enum member
+      }),
+    ).toThrow();
   });
 });

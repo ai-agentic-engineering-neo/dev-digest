@@ -313,6 +313,46 @@ the private one. Lesson: "the behavior already exists" and "the plan's
 de-duplication instruction was carried out" are two separate claims — verify
 both, not just the one that's easier to check by reading the route.
 
+### 2026-08-12 — proving path containment against a symlink escape needs `realpath` on BOTH sides, not just the target, and needs to distinguish "escapes" from "doesn't exist yet"
+
+specs/09-project-context-folder.md's `modules/project-context/paths.ts`
+(`resolveContainedPath`) is the first place in this codebase that actually
+proves containment before a checkout-relative read — `SimpleGitClient.readFile`
+and `modules/conventions/samples.ts` both just `join(cloneRoot, rel)` with no
+check at all (flagged, not fixed, in the plan — other callers, out of scope).
+Two things worth reusing verbatim for the next feature that reads a
+user-supplied path against a directory root: (1) a syntactic check alone
+(`resolve(root, rel).startsWith(root)`) does NOT catch a symlink whose TARGET
+escapes the root — you have to `realpath()` both the root and the resolved
+path and re-check containment on the REAL paths, because `resolve()` never
+follows symlinks but the eventual `readFile()` call does. (2) `realpath()`
+throws `ENOENT` for a path that doesn't exist yet, which is indistinguishable
+from a symlink escape unless you check `err.code === 'ENOENT'` explicitly and
+map it to a DIFFERENT error (this feature's `MissingPathError`) than an actual
+escape (`ContainmentError`) — the two need different downstream handling
+(AC-27 "refused" vs AC-36 "missing" are different reasons in the run trace,
+not interchangeable). Also: `..`/absolute-path rejection has to happen BEFORE
+any `resolve()` call, not after — `isRelativeSafePath` runs first and is pure
+(no fs), so a malicious path never even reaches a syscall.
+
+Separately: `pnpm db:generate < /dev/null` for this feature's two new tables
+(`agent_context_docs`, `skill_context_docs`) plus one new nullable column
+(`repos.doc_roots`) generated cleanly in one pass with zero prompts — this
+migration only ADDS, confirming the 2026-08-03 entry above (drop+add in one
+pass is what hangs; pure-add doesn't). `pnpm arch` also passed with ZERO new
+violations on the first attempt (no `arch:baseline` run needed) — the whole
+module stayed inside the established shape: `project-context/service.ts`
+declares `AgentLookup`/`SkillLookup`/`AgentSkillLookup` ports locally instead
+of importing `modules/agents/repository.ts` or `modules/skills/repository.ts`
+directly, `modules/skills/service.ts` gained a `ProjectContextLookup` port the
+same way instead of importing `modules/project-context/*`, and the one
+genuinely shared piece (`renderProjectContextBlock`, needed by BOTH the skills
+module's preview and the reviews module's run/adhoc paths) went into
+`modules/_shared/project-context-render.ts` exactly like `skill-render.ts`
+already does — composing through `_shared` and `platform/container.ts`
+getters from the start avoided every `no-cross-module` violation this size of
+feature would otherwise produce.
+
 ## Tool & Library Notes
 
 ## Recurring Errors & Fixes
@@ -574,6 +614,53 @@ executor code must optional-chain `config` defensively, or grep
 `as unknown as Container` first to see which mocks would need updating
 instead.
 
+**2026-08-12 addendum — a NEW, non-optional `container.<getter>` read added to
+`run-executor.ts` (not gated behind a debug flag) forces every hand-rolled
+`as unknown as Container` mock to add that getter, not just optional-chain
+it.** specs/09-project-context-folder.md's `resolveForRun` call
+(`container.projectContextService.resolveForRun(...)`) is unconditional —
+project context resolution runs on every agent, same as skills/repo-intel —
+so `grep -rl "as unknown as Container" server/test` (3 hits at the time:
+`test/prompt-skills.test.ts` x2 container literals, `test/skills-preview.test.ts`)
+each needed `projectContextService: { resolveForRun: async () => ({
+documents: [], entries: [] }) }` added, or the test fails with `Cannot read
+properties of undefined (reading 'resolveForRun')` the moment `runOneAgent`
+reaches that line — not a TS error (the cast bypasses the type checker
+entirely), a runtime crash. Confirms the pattern generalizes beyond
+optional-`config` reads above: ANY new required `container.<x>` dependency
+`runOneAgent`/`executeRuns` reads needs the same `grep -rl "as unknown as
+Container" server/test` sweep before the feature is done, and a one-line stub
+per hit is enough (the tests in question aren't exercising that dependency).
+
 ## Session Notes
+
+### 2026-08-12 — test-writer backfill for specs/09: a plan's own Verification test matrix can name rows the implementer never actually covered
+
+Cross-checking plans/09-project-context-folder.md's server test matrix against
+the tests the two `implement-plan` passes actually landed found two real,
+literal gaps despite `plan-verifier` PASS + clean `architecture-reviewer`:
+(1) `ProjectContextService.resolveCandidates`'s `unreadable`/`not_a_file`
+`SkipReason`s (`modules/project-context/service.ts`) had zero test coverage —
+only `missing`/`no_checkout`/`repo_mismatch`/`refused_containment`/
+`budget_drop` were exercised in `test/project-context-resolve.test.ts`, even
+though the matrix row literally lists "deleted/unreadable/no-checkout/
+wrong-repo". (2) The matrix's "token parity: a document and a skill body of
+identical text report identical counts (AC-6)" row had no test that actually
+compared the two — existing tests proved the tokenizer is *injected*, not
+that a document's count equals a skill body's count for the same text through
+the same real tokenizer. Backfilled all three in `project-context-resolve.
+test.ts`. General lesson: `plan-verifier`/`architecture-reviewer` check that
+code matches the plan's *approach*, not that every row of its own Verification
+test matrix has a corresponding assertion — a `test-writer` pass needs to
+re-derive the matrix and grep for each row's AC-id/behavior by name, not trust
+that "tests exist for this module" means "this row is covered".
+
+Reusable technique: testing an `unreadable` (permission-denied) failure path
+needs `chmod(target, 0o000)` PLUS a `process.platform === 'win32' ||
+process.getuid?.() === 0` skip guard — root (common in a Docker-based CI
+runner) and Windows both bypass POSIX read-permission bits, so the test would
+silently prove nothing (not fail, just never hit the code path) without the
+guard. `not_a_file` needs no such guard — attaching a path that resolves to a
+real directory (`mkdir` instead of `writeFile`) is portable and deterministic.
 
 ## Open Questions

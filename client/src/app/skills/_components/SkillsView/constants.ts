@@ -1,7 +1,7 @@
 import type { SkillType } from "@devdigest/shared";
 
 /** Tabs the Skill Editor understands; anything else in ?tab= falls back to the first. */
-export const VALID_TABS = ["config", "preview", "evals", "stats", "versions"] as const;
+export const VALID_TABS = ["config", "preview", "context", "evals", "stats", "versions"] as const;
 export type SkillTab = (typeof VALID_TABS)[number];
 export const DEFAULT_TAB: SkillTab = VALID_TABS[0];
 

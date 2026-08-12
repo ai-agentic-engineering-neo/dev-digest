@@ -83,6 +83,9 @@ async function assembledUserMessage(): Promise<string> {
     runBus: new RunBus(),
     llm: async () => llm,
     tokenizer: { count: (t: string) => t.length },
+    // specs/09 — nothing attached in this harness; the preview-parity
+    // assertions below are about the SKILLS renderer, not project context.
+    projectContextService: { resolveForRun: async () => ({ documents: [], entries: [] }) },
   } as unknown as Container;
   const repo = {
     insertReview: async () => ({ id: 'review-1', score: 95 }),

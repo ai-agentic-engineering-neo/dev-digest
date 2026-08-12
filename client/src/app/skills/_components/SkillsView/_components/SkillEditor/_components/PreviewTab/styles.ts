@@ -1,7 +1,9 @@
 import type { CSSProperties } from "react";
 
 export const s = {
-  wrap: { maxWidth: 860 } satisfies CSSProperties,
+  // flex column: the skill-body panel and the (optional) project-context
+  // panel below it (AC-13) need a gap between them, not just the trailing hint.
+  wrap: { maxWidth: 860, display: "flex", flexDirection: "column", gap: 16 } satisfies CSSProperties,
   panel: {
     border: "1px solid var(--border)",
     borderRadius: 9,

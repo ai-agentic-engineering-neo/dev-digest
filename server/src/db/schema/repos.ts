@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, uniqueIndex, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, uniqueIndex, index, jsonb } from 'drizzle-orm/pg-core';
 import { now } from './_shared';
 import { workspaces, users } from './core';
 
@@ -17,6 +17,11 @@ export const repos = pgTable(
     lastPolledAt: timestamp('last_polled_at', { withTimezone: true }),
     createdBy: uuid('created_by').references(() => users.id),
     createdAt: now(),
+    // specs/09-project-context-folder.md (Q1/Q2) — per-repo override of the
+    // markdown search roots the Project Context page scans. NULL = use the
+    // documented default (`modules/project-context/constants.ts`'s
+    // DEFAULT_DOC_ROOTS) — no backfill, no migration data step needed.
+    docRoots: jsonb('doc_roots').$type<string[]>(),
   },
   (t) => ({
     uq: uniqueIndex('repos_ws_fullname_uq').on(t.workspaceId, t.fullName),

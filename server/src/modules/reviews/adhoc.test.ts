@@ -8,6 +8,8 @@ import {
   AdhocReviewService,
   type AgentLookup,
   type AgentRecord,
+  type ProjectContextResolution,
+  type ProjectContextResolver,
   type SkillLookup,
 } from './adhoc.js';
 import type { RenderableSkill } from '../_shared/skill-render.js';
@@ -70,10 +72,13 @@ const REVIEW_FIXTURE = {
   findings: [WARNING_FINDING],
 };
 
+const EMPTY_PROJECT_CONTEXT: ProjectContextResolution = { documents: [], injected: [], skipped: [] };
+
 interface Overrides {
   agent?: AgentRecord | null | undefined;
   skills?: RenderableSkill[];
   llm?: MockLLMProvider;
+  projectContext?: ProjectContextResolution;
 }
 
 function buildService(overrides: Overrides = {}) {
@@ -86,8 +91,11 @@ function buildService(overrides: Overrides = {}) {
   const llm = overrides.llm ?? new MockLLMProvider('openai', { structured: REVIEW_FIXTURE });
   const resolveLlm = vi.fn(async () => llm);
 
-  const service = new AdhocReviewService(agents, skills, resolveLlm);
-  return { service, getById, enabledSkills, resolveLlm, llm };
+  const resolveForAdhoc = vi.fn(async () => overrides.projectContext ?? EMPTY_PROJECT_CONTEXT);
+  const projectContext: ProjectContextResolver = { resolveForAdhoc };
+
+  const service = new AdhocReviewService(agents, skills, resolveLlm, projectContext);
+  return { service, getById, enabledSkills, resolveLlm, resolveForAdhoc, llm };
 }
 
 describe('AdhocReviewService.review', () => {
@@ -166,17 +174,90 @@ describe('AdhocReviewService.review', () => {
   );
 
   it('returns files_reviewed = the parsed diff file count, and touches no persistence port at all', async () => {
-    const { service, getById, enabledSkills, resolveLlm } = buildService();
+    const { service, getById, enabledSkills, resolveLlm, resolveForAdhoc } = buildService();
 
     const result = await service.review({ workspaceId: 'ws1', agentId: 'agent-1', diff: DIFF_TEXT });
 
     expect(result.files_reviewed).toBe(1);
     expect(result.grounding).toBeTruthy();
     // The only ports this service knows about are read-only lookups — there
-    // is no write method on either fake to call, and each read happened
-    // exactly once (no DB row was inserted, no run was created).
+    // is no write method on any fake to call, and each read happened exactly
+    // once (no DB row was inserted, no run was created).
     expect(getById).toHaveBeenCalledTimes(1);
     expect(enabledSkills).toHaveBeenCalledTimes(1);
     expect(resolveLlm).toHaveBeenCalledTimes(1);
+    expect(resolveForAdhoc).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * specs/09-project-context-folder.md — D5/AC-30/AC-31: the CLI path injects
+ * the SAME project-context documents a PR-triggered run would, via the same
+ * `reviewPullRequest` call, and reports what was injected/skipped for the
+ * CLI (which persists no trace).
+ */
+describe('AdhocReviewService.review — project context (specs/09)', () => {
+  it('injects resolved documents into the prompt under ## Project context, wrapped as untrusted', async () => {
+    const { service, llm } = buildService({
+      projectContext: {
+        documents: [{ path: 'specs/invariants.md', content: 'api/ must not import db/ directly' }],
+        injected: [
+          {
+            repo: { id: 'repo-1', full_name: 'acme/api' },
+            path: 'specs/invariants.md',
+            tokens: 8,
+            origin: 'agent',
+            skill: null,
+            status: 'included',
+            reason: null,
+          },
+        ],
+        skipped: [],
+      },
+    });
+
+    await service.review({ workspaceId: 'ws1', agentId: 'agent-1', diff: DIFF_TEXT });
+
+    const call = llm.calls.find((c) => c.method === 'completeStructured');
+    const userMessage = (call!.req as { messages: { role: string; content: string }[] }).messages.find(
+      (m) => m.role === 'user',
+    )!.content;
+    expect(userMessage).toContain('## Project context');
+    expect(userMessage).toContain('<untrusted source="specs/invariants.md">');
+    expect(userMessage).toContain('api/ must not import db/ directly');
+  });
+
+  it('omits ## Project context when nothing was resolved (AC-16 parity)', async () => {
+    const { service, llm } = buildService();
+    await service.review({ workspaceId: 'ws1', agentId: 'agent-1', diff: DIFF_TEXT });
+    const call = llm.calls.find((c) => c.method === 'completeStructured');
+    const userMessage = (call!.req as { messages: { role: string; content: string }[] }).messages.find(
+      (m) => m.role === 'user',
+    )!.content;
+    expect(userMessage).not.toContain('## Project context');
+  });
+
+  it('returns injected + skipped documents in the response for the CLI report (AC-31)', async () => {
+    const projectContext: ProjectContextResolution = {
+      documents: [],
+      injected: [],
+      skipped: [
+        {
+          repo: { id: 'repo-1', full_name: 'acme/api' },
+          path: 'specs/gone.md',
+          tokens: 0,
+          origin: 'agent',
+          skill: null,
+          status: 'omitted',
+          reason: 'missing',
+        },
+      ],
+    };
+    const { service } = buildService({ projectContext });
+
+    const result = await service.review({ workspaceId: 'ws1', agentId: 'agent-1', diff: DIFF_TEXT });
+
+    expect(result.project_context.injected).toEqual([]);
+    expect(result.project_context.skipped).toEqual(projectContext.skipped);
   });
 });

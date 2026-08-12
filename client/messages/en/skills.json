@@ -102,6 +102,7 @@
     "tabs": {
       "config": "Config",
       "preview": "Preview",
+      "context": "Context",
       "evals": "Evals",
       "stats": "Stats",
       "versions": "Versions"
@@ -140,9 +141,26 @@
     "bodyHint": "Saving a changed body creates a new immutable version.",
     "version": "v{version}",
     "title": "PREVIEW",
+    "contextTitle": "PROJECT CONTEXT",
     "tokens": "{count} tokens",
     "hint": "This is exactly the block the run executor injects into the agent's prompt.",
     "loadError": "Could not load the preview."
+  },
+  "context": {
+    "title": "Context",
+    "attachedCount": "{attached} of {total} attached",
+    "tokenTotal": "{count, plural, one {# token} other {# tokens}} attached",
+    "filterPlaceholder": "Filter documents…",
+    "orderHint": "Every agent with this skill enabled inherits these documents, merged into the same Project context block as that agent's own attachments. Order matters — it's also the drop priority if the attached set is too large for the token budget. Drag to reorder, or move a document with a keyboard.",
+    "reorder": "Reorder {path}",
+    "reorderPositioned": "Reorder {path}, position {position} of {total}",
+    "reorderAnnounce": "Moved {path} to position {position} of {total}",
+    "attachAnnounce": "Attached {path}. {attached} of {total} attached, {tokens, plural, one {# token} other {# tokens}} attached.",
+    "detachAnnounce": "Detached {path}. {attached} of {total} attached, {tokens, plural, one {# token} other {# tokens}} attached.",
+    "missing": "missing",
+    "tokens": "{count, plural, one {# token} other {# tokens}}",
+    "empty": "No documents match this filter.",
+    "noRepo": "No active repo — attach a repo to this workspace to browse its project-context documents."
   },
   "evals": {
     "title": "Evals",

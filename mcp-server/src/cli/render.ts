@@ -19,6 +19,22 @@ export interface RenderFinding {
   suggestion?: string | null;
 }
 
+/**
+ * specs/09-project-context-folder.md (D5/AC-30/AC-31) — one document the
+ * server's project-context resolution considered for this run, WITH its
+ * pinned repo (the CLI path has no single bound repo — see
+ * `mcp-server/src/cli/run.ts`'s `RawProjectContextDoc`).
+ */
+export interface RenderProjectContextDoc {
+  repo: { full_name: string };
+  path: string;
+  tokens: number;
+  origin: 'agent' | 'skill';
+  skill?: string | null;
+  /** Present only on a skipped document — why it isn't in the prompt. */
+  reason?: string | null;
+}
+
 export interface RenderReviewInput {
   /** Only 'working' is reachable today; the map below is future-proofed for
    *  when 'staged'/'branch' render too. */
@@ -33,6 +49,9 @@ export interface RenderReviewInput {
   ciFailOn: string;
   /** e.g. "3/4 passed" — the API's citation-grounding summary, as-is. */
   grounding: string;
+  /** specs/09 — always present (empty arrays when nothing is attached), so
+   *  this renderer never branches on the field's absence. */
+  projectContext: { injected: RenderProjectContextDoc[]; skipped: RenderProjectContextDoc[] };
 }
 
 const MODE_LABELS: Record<string, string> = {
@@ -92,8 +111,38 @@ export function renderReview(input: RenderReviewInput): string {
     );
   }
 
+  lines.push(...renderProjectContextSection(input.projectContext));
+
   lines.push(`Citation grounding: ${input.grounding}`);
-  lines.push('Note: no repo-map, caller or PR-intent context — this is the pre-push pass.');
+  lines.push(
+    'Note: no repo-map, caller or PR-intent context — this is the pre-push pass. Project context ' +
+      "(attached documents) IS included, read from each document's repo's synced default-branch " +
+      'checkout — never your local working-copy edits.',
+  );
 
   return lines.join('\n');
+}
+
+/**
+ * specs/09-project-context-folder.md AC-31 — because the CLI path persists
+ * no run trace, this is the ONLY place a pre-push run's project-context
+ * outcome is surfaced at all. Empty (no lines) when nothing was attached, so
+ * a run with zero attachments renders identically to before this feature.
+ */
+function renderProjectContextSection(projectContext: RenderReviewInput['projectContext']): string[] {
+  const { injected, skipped } = projectContext;
+  if (injected.length === 0 && skipped.length === 0) return [];
+
+  const lines: string[] = ['', 'Project context:'];
+  for (const d of injected) {
+    lines.push(`  + ${d.path} (${d.repo.full_name}) — ${d.tokens} token(s) — ${originLabel(d)}`);
+  }
+  for (const d of skipped) {
+    lines.push(`  - ${d.path} (${d.repo.full_name}) — skipped: ${d.reason ?? 'unknown'} — ${originLabel(d)}`);
+  }
+  return lines;
+}
+
+function originLabel(d: RenderProjectContextDoc): string {
+  return d.origin === 'skill' ? `via skill "${d.skill}"` : 'direct';
 }

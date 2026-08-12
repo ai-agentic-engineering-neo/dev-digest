@@ -150,6 +150,9 @@ async function run(skills: SkillFixture[]): Promise<Harness> {
     // Real-tokenizer stand-in: deterministic, so the assertion is about WHICH
     // block was counted, not about tiktoken's exact number.
     tokenizer: { count: (text: string) => text.length },
+    // specs/09 — nothing attached in this harness; keeps these skills-only
+    // assertions unaffected by the project-context slot.
+    projectContextService: { resolveForRun: async () => ({ documents: [], entries: [] }) },
   } as unknown as Container;
 
   const repo = {
@@ -263,6 +266,7 @@ describe('run executor → skills in the prompt', () => {
       runBus: new RunBus(),
       llm: async () => llm,
       tokenizer: { count: (t: string) => t.length },
+      projectContextService: { resolveForRun: async () => ({ documents: [], entries: [] }) },
     } as unknown as Container;
     const repo = {
       insertReview: async () => ({ id: 'review-1', score: 95 }),

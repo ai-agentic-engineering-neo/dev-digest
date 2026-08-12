@@ -34,7 +34,17 @@
       "memoryPulled": "Memory pulled",
       "specsRead": "Specs read",
       "items": "{count, plural, one {# item} other {# items}}",
-      "none": "none"
+      "none": "none",
+      "specDirect": "direct",
+      "specViaSkill": "via skill {name}",
+      "specTokens": "{count, plural, one {# tok} other {# tok}}",
+      "specReason": "({reason})",
+      "specStatus": {
+        "included": "included",
+        "omitted": "omitted",
+        "refused": "refused",
+        "dropped": "dropped"
+      }
     },
     "stat": {
       "duration": "DURATION",

@@ -31,6 +31,33 @@ there is the bug the whole format exists to prevent.
 
 ## Codebase Patterns
 
+### 2026-08-12 — copying SkillsTab's "catalog + link-state" row model for a non-repo-authoritative catalog needs a union, not a lookup
+
+Building the agent/skill editors' Context tab (specs/09-project-context-folder.md),
+the plan said "copy SkillsTab's proven shape" — and the checkbox/drag/filter
+mechanics do carry over directly. But `SkillsTab/helpers.ts`'s `buildRows`
+assumes the catalog (`useWorkspaceSkills()`) is authoritative: every row comes
+from the catalog, cross-referenced against the link table. That assumption
+breaks for documents, because the "catalog" here (`useRepoDocuments(repoId)`)
+is a live filesystem scan — a document can be deleted/renamed/moved out of the
+search roots *after* it was attached, and AC-26 requires the attachment to
+keep rendering as `missing`, not vanish. `ContextTab/helpers.ts`'s `buildRows`
+therefore builds rows from the **union** of catalog paths and attachment
+paths (`new Set([...catalogByPath.keys(), ...attachedByPath.keys()])`), not a
+map over the catalog alone — a since-deleted attachment gets a row with
+`docType: null` and `missing: true` instead of silently disappearing. Any
+future tab that cross-references a live external catalog (filesystem, remote
+API) against a persisted link table needs the same union, not the SkillsTab
+lookup shape, whenever the catalog can drift independently of the links.
+
+Separately: `ContextTab` (both the agent and skill editor's) is NOT a
+repo-scoped route (`/agents/:id`, `/skills/:id` carry no `:repoId`), but still
+needs one repo's document catalog to attach from. It resolves this via
+`useActiveRepo().activeRepo?.id` from `src/lib/repo-context.tsx` — the same
+shell-wide "current repo" used by the sidebar/command-palette, not a route
+param. This is a legitimate use of `useActiveRepo()` OUTSIDE a
+`/repos/:repoId/...` route, which every prior consumer of that hook was.
+
 ### 2026-08-04 — `diff-viewer/`'s deliberately narrow public surface had to be widened for a second real consumer; the target+nonce scroll pattern now exists in two places
 
 Building `SmartDiffViewer` (`app/repos/[repoId]/pulls/[number]/_components/
@@ -434,6 +461,30 @@ no `global.fetch`/`msw` mocking anywhere in `client/src`, confirmed by a
 repo-wide grep while building `IntentCard.test.tsx`.
 
 ## Session Notes
+
+### 2026-08-12 — test-writer backfill for specs/09: the shared `ContextTab`'s keyboard reorder path and `ProjectContextView`'s empty state had zero coverage
+
+Checking plans/09-project-context-folder.md's client test matrix ("reorder
+(drag+keyboard)" / "the view-only page's empty state") against
+`src/components/context-tab/ContextTab/ContextTab.test.tsx` and
+`.../ProjectContextView/ProjectContextView.test.tsx` found both genuinely
+untested despite the implementer session landing the code: (1) `DocumentRow`'s
+drag handle has an `onKeyDown` that calls `drag.onMove(±1)` on ArrowUp/
+ArrowDown — the existing test suite only exercised mouse drag
+(`fireEvent.dragStart`/`drop`), never `fireEvent.keyDown(handle, { key:
+"ArrowDown" })`, and never asserted the `reorderAnnounce` live-region text
+(`"Moved {path} to position {position} of {total}"`), which is a DIFFERENT
+i18n key from the already-tested `attachAnnounce`/`detachAnnounce`, so
+testing one gave no signal about the other. (2) `ProjectContextView` branches
+on `documents.length === 0` to render `EmptyState` with `t("page.empty.body",
+{ roots })`, but every existing test fixture supplied a non-empty
+`DocumentList` — the empty-state/roots-named branch (AC-20) had never been
+rendered under test at all. Both backfilled. General lesson matching the
+server-side entry of the same date: a `plan-verifier` PASS proves the
+component exists and behaves per the plan's *description*, not that every row
+of the plan's own Verification test matrix has a corresponding test — worth
+re-deriving the matrix's exact wording (not just skimming existing test
+titles) before calling a component's coverage complete.
 
 ## Open Questions
 

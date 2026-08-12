@@ -20,6 +20,7 @@ const REVIEW_RESPONSE = {
   tokens_in: 100,
   tokens_out: 50,
   cost_usd: 0.001,
+  project_context: { injected: [], skipped: [] },
 };
 
 interface Routes {
@@ -226,6 +227,48 @@ describe('runCli — exit-code matrix', () => {
     const { deps } = buildDeps({ routes: { adhoc: { status: 200, body: { ...REVIEW_RESPONSE, blockers: 0 } } } });
     const code = await runCli(['--mode', 'working', '--agent', 'agent-1'], deps);
     expect(code).toBe(EXIT.OK);
+  });
+
+  it('specs/09-project-context-folder.md AC-31 — the report names one injected and one missing document, the missing one marked with its reason', async () => {
+    const { deps, stdout } = buildDeps({
+      routes: {
+        adhoc: {
+          status: 200,
+          body: {
+            ...REVIEW_RESPONSE,
+            project_context: {
+              injected: [
+                {
+                  repo: { id: 'repo-1', full_name: 'acme/api' },
+                  path: 'specs/invariants.md',
+                  tokens: 42,
+                  origin: 'agent',
+                  skill: null,
+                  status: 'included',
+                  reason: null,
+                },
+              ],
+              skipped: [
+                {
+                  repo: { id: 'repo-1', full_name: 'acme/api' },
+                  path: 'specs/gone.md',
+                  tokens: 0,
+                  origin: 'agent',
+                  skill: null,
+                  status: 'omitted',
+                  reason: 'missing',
+                },
+              ],
+            },
+          },
+        },
+      },
+    });
+    const code = await runCli(['--mode', 'working', '--agent', 'agent-1'], deps);
+    expect(code).toBe(EXIT.OK);
+    const out = stdout.join('\n');
+    expect(out).toContain('specs/invariants.md (acme/api)');
+    expect(out).toContain('specs/gone.md (acme/api) — skipped: missing');
   });
 
   it('a 404 from POST /reviews/adhoc exits 4', async () => {

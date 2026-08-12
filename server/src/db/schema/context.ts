@@ -9,9 +9,12 @@ import {
   vector,
   index,
   uniqueIndex,
+  primaryKey,
 } from 'drizzle-orm/pg-core';
 import { workspaces } from './core';
 import { repos } from './repos';
+import { agents } from './agents';
+import { skills } from './skills';
 
 // ============================================================ Context & codebase
 
@@ -124,3 +127,55 @@ export const onboarding = pgTable('onboarding', {
   json: jsonb('json').notNull(),
   generatedAt: timestamp('generated_at', { withTimezone: true }).defaultNow().notNull(),
 });
+
+// ============================================================ Project Context Folder (specs/09)
+
+/**
+ * `agent_context_docs` / `skill_context_docs` — a document ATTACHMENT is a
+ * reference only: (owner, repo, path) plus an `order` and an `attached`
+ * flag. Never the document's text (AC-8) — content is always read fresh from
+ * the repo checkout at run time.
+ *
+ * The `order` + `attached` pair is deliberately the SAME shape as
+ * `agent_skills` (`db/schema/agents.ts`): detaching keeps the row so `order`
+ * survives an off/on cycle (AC-10) — re-attaching without reordering
+ * restores the document's position instead of appending it to the end,
+ * exactly like `agent_skills.enabled` does for a skill link.
+ */
+export const agentContextDocs = pgTable(
+  'agent_context_docs',
+  {
+    agentId: uuid('agent_id')
+      .notNull()
+      .references(() => agents.id, { onDelete: 'cascade' }),
+    repoId: uuid('repo_id')
+      .notNull()
+      .references(() => repos.id, { onDelete: 'cascade' }),
+    path: text('path').notNull(),
+    order: integer('order').notNull().default(0),
+    attached: boolean('attached').notNull().default(true),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.agentId, t.repoId, t.path] }),
+    repoPathIdx: index('agent_context_docs_repo_path_idx').on(t.repoId, t.path),
+  }),
+);
+
+export const skillContextDocs = pgTable(
+  'skill_context_docs',
+  {
+    skillId: uuid('skill_id')
+      .notNull()
+      .references(() => skills.id, { onDelete: 'cascade' }),
+    repoId: uuid('repo_id')
+      .notNull()
+      .references(() => repos.id, { onDelete: 'cascade' }),
+    path: text('path').notNull(),
+    order: integer('order').notNull().default(0),
+    attached: boolean('attached').notNull().default(true),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.skillId, t.repoId, t.path] }),
+    repoPathIdx: index('skill_context_docs_repo_path_idx').on(t.repoId, t.path),
+  }),
+);

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { renderReview, type RenderFinding } from '../../src/cli/render.js';
+import { renderReview, type RenderFinding, type RenderProjectContextDoc } from '../../src/cli/render.js';
+
+/** specs/09-project-context-folder.md — the pre-existing tests below are not
+ *  about project context; keep them unaffected by passing empty arrays. */
+const EMPTY_PROJECT_CONTEXT = { injected: [] as RenderProjectContextDoc[], skipped: [] as RenderProjectContextDoc[] };
 
 const CRITICAL: RenderFinding = {
   severity: 'CRITICAL',
@@ -31,6 +35,7 @@ describe('renderReview', () => {
       blockers: 1,
       ciFailOn: 'critical',
       grounding: '3/4 passed',
+      projectContext: EMPTY_PROJECT_CONTEXT,
     });
 
     expect(text).toBe(
@@ -47,7 +52,9 @@ describe('renderReview', () => {
         '',
         '2 finding(s) · 1 critical · 1 warning · 0 suggestion — 1 blocking (gate: critical)',
         'Citation grounding: 3/4 passed',
-        'Note: no repo-map, caller or PR-intent context — this is the pre-push pass.',
+        'Note: no repo-map, caller or PR-intent context — this is the pre-push pass. Project context ' +
+          "(attached documents) IS included, read from each document's repo's synced default-branch " +
+          'checkout — never your local working-copy edits.',
       ].join('\n'),
     );
   });
@@ -62,6 +69,7 @@ describe('renderReview', () => {
       blockers: 0,
       ciFailOn: 'critical',
       grounding: '3/3 passed',
+      projectContext: EMPTY_PROJECT_CONTEXT,
     });
     const order = [CRITICAL.title, WARNING.title, suggestion.title].filter((t) =>
       text.indexOf(t) >= 0,
@@ -84,6 +92,7 @@ describe('renderReview', () => {
       blockers: 3,
       ciFailOn: 'any',
       grounding: '3/3 passed',
+      projectContext: EMPTY_PROJECT_CONTEXT,
     });
     const iA = text.indexOf('a-file');
     const iBEarly = text.indexOf('b-early');
@@ -101,6 +110,7 @@ describe('renderReview', () => {
       blockers: 0,
       ciFailOn: 'critical',
       grounding: '0/0 passed',
+      projectContext: EMPTY_PROJECT_CONTEXT,
     });
 
     expect(text).toBe(
@@ -109,7 +119,9 @@ describe('renderReview', () => {
         '',
         'No findings. Looks good.',
         'Citation grounding: 0/0 passed',
-        'Note: no repo-map, caller or PR-intent context — this is the pre-push pass.',
+        'Note: no repo-map, caller or PR-intent context — this is the pre-push pass. Project context ' +
+          "(attached documents) IS included, read from each document's repo's synced default-branch " +
+          'checkout — never your local working-copy edits.',
       ].join('\n'),
     );
     expect(text).not.toContain('finding(s)');
@@ -124,8 +136,107 @@ describe('renderReview', () => {
       blockers: 0,
       ciFailOn: 'never',
       grounding: '1/1 passed',
+      projectContext: EMPTY_PROJECT_CONTEXT,
     });
     expect(text).toContain('mcp-server/src/cli/git.ts:31  ');
     expect(text).not.toContain('git.ts:31-31');
+  });
+});
+
+/**
+ * specs/09-project-context-folder.md AC-31 — the CLI report names every
+ * injected document (path · repo · tokens · direct|via skill) and every
+ * skipped one with its reason, because the CLI path persists no run trace.
+ */
+describe('renderReview — Project context section (specs/09)', () => {
+  it('lists one injected (direct) and one missing document, the missing one marked with its reason', () => {
+    const text = renderReview({
+      mode: 'working',
+      filesReviewed: 1,
+      agentName: 'Security Reviewer',
+      findings: [],
+      blockers: 0,
+      ciFailOn: 'critical',
+      grounding: '0/0 passed',
+      projectContext: {
+        injected: [
+          {
+            repo: { full_name: 'acme/api' },
+            path: 'specs/invariants.md',
+            tokens: 42,
+            origin: 'agent',
+            skill: null,
+          },
+        ],
+        skipped: [
+          {
+            repo: { full_name: 'acme/api' },
+            path: 'specs/gone.md',
+            tokens: 0,
+            origin: 'agent',
+            skill: null,
+            reason: 'missing',
+          },
+        ],
+      },
+    });
+
+    expect(text).toContain('Project context:');
+    expect(text).toContain('+ specs/invariants.md (acme/api) — 42 token(s) — direct');
+    expect(text).toContain('- specs/gone.md (acme/api) — skipped: missing — direct');
+  });
+
+  it('labels a skill-inherited document with the skill name, not "direct"', () => {
+    const text = renderReview({
+      mode: 'working',
+      filesReviewed: 1,
+      agentName: 'A',
+      findings: [],
+      blockers: 0,
+      ciFailOn: 'critical',
+      grounding: '0/0 passed',
+      projectContext: {
+        injected: [
+          {
+            repo: { full_name: 'acme/api' },
+            path: 'docs/rules.md',
+            tokens: 10,
+            origin: 'skill',
+            skill: 'security-rubric',
+          },
+        ],
+        skipped: [],
+      },
+    });
+    expect(text).toContain('via skill "security-rubric"');
+    expect(text).not.toContain('docs/rules.md (acme/api) — 10 token(s) — direct');
+  });
+
+  it('omits the "Project context:" section entirely when nothing was attached (AC-16 parity for the CLI report)', () => {
+    const text = renderReview({
+      mode: 'working',
+      filesReviewed: 1,
+      agentName: 'A',
+      findings: [],
+      blockers: 0,
+      ciFailOn: 'critical',
+      grounding: '0/0 passed',
+      projectContext: EMPTY_PROJECT_CONTEXT,
+    });
+    expect(text).not.toContain('Project context:');
+  });
+
+  it('the trailing note no longer claims the pre-push pass lacks project context', () => {
+    const text = renderReview({
+      mode: 'working',
+      filesReviewed: 1,
+      agentName: 'A',
+      findings: [],
+      blockers: 0,
+      ciFailOn: 'critical',
+      grounding: '0/0 passed',
+      projectContext: EMPTY_PROJECT_CONTEXT,
+    });
+    expect(text).toMatch(/Project context.*IS included/);
   });
 });

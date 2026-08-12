@@ -30,6 +30,8 @@ import { SkillsRepository } from '../modules/skills/repository.js';
 import { SkillsService } from '../modules/skills/service.js';
 import { ReviewRepository } from '../modules/reviews/repository.js';
 import { RepoRepository } from '../modules/repos/repository.js';
+import { ProjectContextRepository } from '../modules/project-context/repository.js';
+import { ProjectContextService } from '../modules/project-context/service.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
 import { resolveFeatureModel as resolveFeatureModelForWorkspace } from '../modules/settings/feature-models.js';
@@ -84,6 +86,8 @@ export class Container {
   private _skillsService?: SkillsService;
   private _reviewRepo?: ReviewRepository;
   private _repoRepo?: RepoRepository;
+  private _projectContextRepo?: ProjectContextRepository;
+  private _projectContextService?: ProjectContextService;
   private _repoIntel?: RepoIntel;
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
@@ -120,7 +124,11 @@ export class Container {
    *  (e.g. conventions, merging accepted candidates into a skill) never has to
    *  import `modules/skills/service.ts` directly. */
   get skillsService(): SkillsService {
-    return (this._skillsService ??= new SkillsService(this.skillsRepo, this.tokenizer));
+    return (this._skillsService ??= new SkillsService(
+      this.skillsRepo,
+      this.tokenizer,
+      this.projectContextService,
+    ));
   }
 
   get reviewRepo(): ReviewRepository {
@@ -129,6 +137,29 @@ export class Container {
 
   get repoRepo(): RepoRepository {
     return (this._repoRepo ??= new RepoRepository(this.db));
+  }
+
+  /** specs/09-project-context-folder.md — `agent_context_docs` /
+   *  `skill_context_docs` + the per-repo `doc_roots` override. */
+  get projectContextRepo(): ProjectContextRepository {
+    return (this._projectContextRepo ??= new ProjectContextRepository(this.db));
+  }
+
+  /**
+   * Application service for the Project Context Folder feature — discovery,
+   * attachment CRUD, and run-time resolution (merge → dedupe → budget →
+   * read). Shared getter (same shape as `skillsService`) so `reviews/
+   * run-executor.ts`, `reviews/adhoc.ts` and `skills/service.ts` never import
+   * `modules/project-context/*` directly (`no-cross-module`).
+   */
+  get projectContextService(): ProjectContextService {
+    return (this._projectContextService ??= new ProjectContextService(
+      this.projectContextRepo,
+      this.agentsRepo,
+      this.skillsRepo,
+      this.agentsRepo,
+      this.tokenizer,
+    ));
   }
 
   get intentRepo(): IntentRepository {

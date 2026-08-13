@@ -81,6 +81,32 @@ exits cleanly with no prompt at all. Do this preemptively for any migration
 that both drops and adds columns on the same table — don't discover the hang
 by waiting on it.
 
+### 2026-08-13 — testing a single-flight/in-flight guard with `Promise.all([callA(), callB()])` is NOT deterministic once the guarded method does real fs I/O before the guard check
+
+`OnboardingService.generate` (specs/10-onboarding-generator.md, AC-20) uses the
+standard "has-check + add, no `await` between them" in-flight guard (same
+shape as any future single-flight service method). The mutual-exclusion
+GUARANTEE holds — two calls can never both proceed past the check believing
+the slot is free — but WHICH of two truly-concurrent calls reaches the guard
+first is only deterministic when every step before the guard resolves via
+pure microtask scheduling. A first test written as `const [a, b] =
+await Promise.all([service.generate(id), service.generate(id)])` passed
+`['generated', 'generating']` against a hand-rolled repro using only
+microtask-resolving stubs, but flaked to `['generated', 'generated']` against
+the REAL service — because `assembleFacts` → `detectStack`/
+`collectSetupCandidates` call real `fs.stat`/`fs.readFile` (libuv thread-pool
+I/O, not microtasks) before the guard, so call A can fully finish (guard
+claimed → generation → guard released) before call B's fs-based prework even
+reaches the guard — both then legitimately generate, and the test's
+"first-caller-wins" assumption is simply wrong, not a bug in the guard.
+Fix: don't race two `Promise.all`'d calls with identical fast paths — start
+call A, wrap the SLOW step (here, `completeStructured`) in an artificial
+`setTimeout` delay so its in-flight window is wide, await a short real delay
+(~10ms) to let call A clear its fs-based prework and enter the delayed call,
+THEN start call B and assert it observes `'generating'`. Generalizes to any
+future single-flight/dedup guard test in this codebase whose guarded method
+does fs or DB I/O before the check.
+
 ## Codebase Patterns
 
 ### 2026-08-11 — `parseUnifiedDiff` silently drops binary files, pure renames, and deletions from `diff.files` — `diff.raw` still has them

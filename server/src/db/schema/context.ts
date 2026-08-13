@@ -10,6 +10,7 @@ import {
   index,
   uniqueIndex,
   primaryKey,
+  doublePrecision,
 } from 'drizzle-orm/pg-core';
 import { workspaces } from './core';
 import { repos } from './repos';
@@ -120,12 +121,37 @@ export const references = pgTable(
   }),
 );
 
+/**
+ * One row per repo — the current onboarding tour (specs/10-onboarding-generator.md,
+ * D5: "one repo, one current tour"). A row exists ONLY for a successful
+ * generation (AC-36: a skeleton is never written); a failed generation writes
+ * nothing and leaves the previous row untouched (AC-24, AC-34).
+ *
+ * Redesigned in place from a never-written table (server/LEARNINGS.md's
+ * "reserved-but-unwired" pattern) — no back-compat shim, no data migration.
+ * `NOT NULL` without a default on `indexSha`/`model` is safe only because the
+ * table had zero rows at redesign time.
+ */
 export const onboarding = pgTable('onboarding', {
   repoId: uuid('repo_id')
     .primaryKey()
     .references(() => repos.id, { onDelete: 'cascade' }),
-  json: jsonb('json').notNull(),
+  json: jsonb('json').notNull(), // the grounded Onboarding {sections}
   generatedAt: timestamp('generated_at', { withTimezone: true }).defaultNow().notNull(),
+  // --- AC-21/AC-23 identity + AC-30 provenance, frozen at generation time ---
+  indexSha: text('index_sha').notNull(),
+  indexerVersion: integer('indexer_version').notNull(),
+  indexUpdatedAt: timestamp('index_updated_at', { withTimezone: true }),
+  filesIndexed: integer('files_indexed').notNull().default(0),
+  filesExcluded: integer('files_excluded').notNull().default(0),
+  prsWeighted: integer('prs_weighted').notNull().default(0),
+  // --- AC-21 spend record ---
+  provider: text('provider'),
+  model: text('model').notNull(),
+  attempts: integer('attempts').notNull().default(1),
+  tokensIn: integer('tokens_in').notNull().default(0),
+  tokensOut: integer('tokens_out').notNull().default(0),
+  costUsd: doublePrecision('cost_usd'),
 });
 
 // ============================================================ Project Context Folder (specs/09)

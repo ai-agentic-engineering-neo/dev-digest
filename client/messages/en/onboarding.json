@@ -1,17 +1,65 @@
 {
   "title": "Onboarding Tour",
-  "sections": "Sections",
-  "sectionCount": "{count} sections",
   "regenerate": "Regenerate",
   "regenerating": "Regenerating…",
   "unknownError": "Unknown error",
+  "page": {
+    "crumb": "Onboarding Tour",
+    "repoFallback": "this repo"
+  },
   "generate": {
-    "title": "Generate onboarding tour",
-    "body": "DevDigest indexes the repo and specs, then writes a 5-section guided tour: overview, architecture, key modules, getting started, and conventions & gotchas.",
     "cta": "Generate onboarding tour",
-    "generating": "Generating…"
+    "generating": "Generating…",
+    "body": "A five-section guided tour built from this repo's own index: architecture overview, critical paths, how to run locally, a guided reading path, and first tasks — computed from the repo's import graph and PR history, in one model call."
   },
   "loadError": {
     "title": "Couldn’t load the onboarding tour"
+  },
+  "empty": {
+    "body": "This repository has no checkout and no index yet. Import or sync it first, then reload this page."
+  },
+  "toc": {
+    "label": "On this page"
+  },
+  "section": {
+    "noEntries": "No entries.",
+    "openOnGithub": "Open on GitHub"
+  },
+  "copy": {
+    "label": "Copy"
+  },
+  "status": {
+    "generated": "Generated",
+    "stale": "Stale — the index has moved on since this tour was generated",
+    "skeleton": "No tour yet — showing the detected facts",
+    "degraded": "Index degraded — showing the detected facts",
+    "empty": "No checkout or index for this repo yet",
+    "generating": "Generating your tour…",
+    "failed": "Last generation failed — showing the previous tour",
+    "refused": "Can’t generate a tour yet"
+  },
+  "provenance": {
+    "filesIndexed": "{count, plural, one {# file indexed} other {# files indexed}}",
+    "filesExcluded": "{count, plural, one {# excluded by the index bound} other {# excluded by the index bound}}",
+    "index": "index {status}",
+    "indexWithReason": "index {status} ({reason})",
+    "updated": "updated {when}",
+    "prsWeighted": "{count, plural, one {# PR weighted} other {# PRs weighted}}",
+    "generatedBy": "generated {when} by {model}"
+  },
+  "skeleton": {
+    "stack": "Detected stack",
+    "language": "Language",
+    "runtime": "Runtime",
+    "packageManager": "Package manager",
+    "framework": "Framework",
+    "noStack": "No stack facts detected.",
+    "rankedFiles": "Ranked files",
+    "noRankedFiles": "No ranked files yet.",
+    "weighted": "weighted {value}",
+    "setupSteps": "Setup steps",
+    "noSetupSteps": "No setup steps detected.",
+    "routes": "Detected routes",
+    "noRoutes": "No routes detected."
   }
 }

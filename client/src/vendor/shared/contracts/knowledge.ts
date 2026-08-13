@@ -26,18 +26,50 @@ export const Conformance = z.object({
 export type Conformance = z.infer<typeof Conformance>;
 
 // ---- Onboarding ----
+// specs/10-onboarding-generator.md. `OnboardingSection.kind` is tightened from
+// a free string to the fixed 5-kind enum (AC-16) — free to do, since this
+// contract had zero consumers before this feature. `entries` carries the
+// reading-path / critical-path rows as structured, server-ordered data (AC-26,
+// AC-27, AC-44) rather than as prose inside `body`.
 export const OnboardingLink = z.object({
   label: z.string(),
   path: z.string(),
 });
 export type OnboardingLink = z.infer<typeof OnboardingLink>;
 
+export const OnboardingSectionKind = z.enum([
+  'architecture',
+  'critical_paths',
+  'run_locally',
+  'reading_path',
+  'first_tasks',
+]);
+export type OnboardingSectionKind = z.infer<typeof OnboardingSectionKind>;
+
+/**
+ * One reading-path / critical-path row. `path` is repo-relative and, for a
+ * critical-path entry, the CHAIN ROOT — the only sensible link target
+ * (`githubBlobUrl` takes exactly one path). `chain` carries the remaining
+ * hops (breadcrumb text only, never links); `reason` is the model's one
+ * sentence, omitted when the model didn't supply one for a deterministic
+ * entry (Q4) rather than the entry being dropped.
+ */
+export const OnboardingEntry = z.object({
+  path: z.string(),
+  chain: z.array(z.string()).nullish(),
+  reason: z.string().nullish(),
+});
+export type OnboardingEntry = z.infer<typeof OnboardingEntry>;
+
 export const OnboardingSection = z.object({
-  kind: z.string(),
+  kind: OnboardingSectionKind,
   title: z.string(),
   body: z.string(), // markdown
   diagram: z.string().nullish(), // mermaid
   links: z.array(OnboardingLink),
+  /** Structured rows for `critical_paths` / `reading_path`; absent on the
+   *  other three kinds. */
+  entries: z.array(OnboardingEntry).nullish(),
 });
 export type OnboardingSection = z.infer<typeof OnboardingSection>;
 
@@ -45,6 +77,118 @@ export const Onboarding = z.object({
   sections: z.array(OnboardingSection),
 });
 export type Onboarding = z.infer<typeof Onboarding>;
+
+/** AC-30's provenance line + AC-21's spend record, in one object. Present on
+ *  every tour AND every skeleton — the spend fields (`model` onward) are
+ *  populated only once a generation has actually succeeded. */
+export const OnboardingProvenance = z.object({
+  files_indexed: z.number().int(),
+  files_excluded: z.number().int(),
+  index_status: z.string(),
+  index_reason: z.string().nullish(),
+  index_sha: z.string(),
+  index_updated_at: z.string().nullish(),
+  prs_weighted: z.number().int(),
+  hotness_window_days: z.number().int(),
+  generated_at: z.string().nullish(),
+  model: z.string().nullish(),
+  provider: z.string().nullish(),
+  attempts: z.number().int().nullish(),
+  tokens_in: z.number().int().nullish(),
+  tokens_out: z.number().int().nullish(),
+  cost_usd: z.number().nullish(),
+});
+export type OnboardingProvenance = z.infer<typeof OnboardingProvenance>;
+
+export const OnboardingStatus = z.enum([
+  'generated',
+  'stale',
+  'skeleton',
+  'degraded',
+  'empty',
+  'generating',
+  'failed',
+  'refused',
+]);
+export type OnboardingStatus = z.infer<typeof OnboardingStatus>;
+
+/** One detected/collected fact with the file that evidenced it (AC-2, AC-4). */
+export const OnboardingEvidence = z.object({
+  value: z.string(),
+  evidence_file: z.string().nullish(),
+});
+export type OnboardingEvidence = z.infer<typeof OnboardingEvidence>;
+
+export const OnboardingStackFacts = z.object({
+  language: OnboardingEvidence.nullish(),
+  runtime: OnboardingEvidence.nullish(),
+  package_manager: OnboardingEvidence.nullish(),
+  frameworks: z.array(OnboardingEvidence),
+});
+export type OnboardingStackFacts = z.infer<typeof OnboardingStackFacts>;
+
+export const OnboardingRankedFileFact = z.object({
+  path: z.string(),
+  pagerank: z.number(),
+  hotness: z.number(),
+  weighted: z.number(),
+});
+export type OnboardingRankedFileFact = z.infer<typeof OnboardingRankedFileFact>;
+
+export const OnboardingSetupStepFact = z.object({
+  command: z.string(),
+  kind: z.string(),
+  evidence_file: z.string(),
+});
+export type OnboardingSetupStepFact = z.infer<typeof OnboardingSetupStepFact>;
+
+export const OnboardingRouteFact = z.object({
+  file: z.string(),
+  endpoints: z.array(z.string()),
+  crons: z.array(z.string()),
+});
+export type OnboardingRouteFact = z.infer<typeof OnboardingRouteFact>;
+
+/** AC-35's skeleton facts — the same four groups whether rendered as the
+ *  skeleton (no LLM call) or shown alongside a generated tour. */
+export const OnboardingFacts = z.object({
+  stack: OnboardingStackFacts,
+  ranked_files: z.array(OnboardingRankedFileFact),
+  setup_steps: z.array(OnboardingSetupStepFact),
+  routes: z.array(OnboardingRouteFact),
+});
+export type OnboardingFacts = z.infer<typeof OnboardingFacts>;
+
+/** What grounding dropped on the last generation (AC-27..AC-32) — reported
+ *  alongside a POST response so the client can be honest about it. */
+export const OnboardingDropped = z.object({
+  paths: z.array(z.string()),
+  commands: z.array(z.string()),
+  links: z.array(z.string()),
+  tasks: z.array(z.string()),
+});
+export type OnboardingDropped = z.infer<typeof OnboardingDropped>;
+
+/** GET /repos/:id/tour response shape. */
+export const OnboardingPage = z.object({
+  status: OnboardingStatus,
+  reason: z.string().nullish(),
+  /** True when the index has advanced past the state `tour` was generated
+   *  from (AC-23); always false when `tour` is null. */
+  stale: z.boolean(),
+  provenance: OnboardingProvenance,
+  facts: OnboardingFacts,
+  tour: Onboarding.nullable(),
+});
+export type OnboardingPage = z.infer<typeof OnboardingPage>;
+
+/** POST /repos/:id/tour/generate response shape — the same envelope plus
+ *  what grounding dropped on THIS generation (null when nothing was dropped,
+ *  or the call never reached grounding). */
+export const OnboardingGenerateResult = OnboardingPage.extend({
+  dropped: OnboardingDropped.nullish(),
+});
+export type OnboardingGenerateResult = z.infer<typeof OnboardingGenerateResult>;
 
 // ---- Eval ----
 export const EvalPerTrace = z.object({

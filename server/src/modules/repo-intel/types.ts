@@ -47,6 +47,21 @@ export interface IndexState extends IndexResult {
   /** True when the layer is running on the ripgrep fallback. */
   degraded?: boolean;
   degradedReason?: DegradedReason;
+  /**
+   * Count of indexed-candidate files dropped by MAX_INDEXED_FILES (D1/AC-18).
+   * Optional (not `.nullable()`) so a row persisted before this field existed
+   * still satisfies the type.
+   */
+  filesExcludedByBound?: number;
+  /** How many ingested PRs (within `hotnessWindowDays`) informed `file_rank.hotness`. */
+  hotnessPrs?: number;
+  hotnessWindowDays?: number;
+  /**
+   * Set (to the caught error's message) when this pass's dependency-graph
+   * build failed — `file_rank` fell back to PageRank's uniform floor and
+   * `getCriticalPaths` returns no chains for this index (Q2).
+   */
+  graphFailed?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -121,6 +136,19 @@ export interface FileRankRow {
   percentile: number;
 }
 
+/**
+ * A `file_rank` row plus the read-time weighted score, `pagerank * (1 +
+ * hotness)` (D7). Never persisted — `getWeightedRankedFiles` derives it on
+ * every call from the two values `file_rank` already stores separately.
+ */
+export interface WeightedFileRow {
+  path: string;
+  pagerank: number;
+  hotness: number;
+  weighted: number;
+  percentile: number;
+}
+
 export interface RepoMapResult {
   text: string;
   tokens: number;
@@ -168,5 +196,21 @@ export interface RepoIntel {
     n: number,
     opts?: { exclude?: string[] },
   ): Promise<string[]>;
-  getCriticalPaths(repoId: string): Promise<string[][]>;
+  getCriticalPaths(
+    repoId: string,
+    opts?: { order?: 'rank' | 'weighted'; roots?: number },
+  ): Promise<string[][]>;
+
+  // --- D7: read-time weighted score (pagerank * (1 + hotness)), additive --
+  /** Descending by `weighted`. `[]` when the flag is off or nothing is ranked. */
+  getWeightedRankedFiles(
+    repoId: string,
+    n: number,
+    opts?: { exclude?: string[] },
+  ): Promise<WeightedFileRow[]>;
+  /** Thin passthrough to the repository's per-file endpoint/cron facts. */
+  getFileFacts(
+    repoId: string,
+    paths: string[],
+  ): Promise<Array<{ file: string; endpoints: string[]; crons: string[] }>>;
 }

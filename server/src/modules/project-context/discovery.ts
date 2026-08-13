@@ -2,7 +2,7 @@ import { readdir, realpath, stat } from 'node:fs/promises';
 import type { Dirent } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
 import { DOC_EXTENSION, MAX_DISCOVERED_DOCS, MAX_DOC_BYTES, docTypeLabel } from './constants.js';
-import { isRelativeSafePath } from './paths.js';
+import { isRelativeSafePath } from '../_shared/checkout-paths.js';
 
 /**
  * specs/09-project-context-folder.md — discovery.

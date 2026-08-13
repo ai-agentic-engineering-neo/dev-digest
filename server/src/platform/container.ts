@@ -32,6 +32,8 @@ import { ReviewRepository } from '../modules/reviews/repository.js';
 import { RepoRepository } from '../modules/repos/repository.js';
 import { ProjectContextRepository } from '../modules/project-context/repository.js';
 import { ProjectContextService } from '../modules/project-context/service.js';
+import { OnboardingRepository } from '../modules/onboarding/repository.js';
+import { OnboardingService } from '../modules/onboarding/service.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
 import { resolveFeatureModel as resolveFeatureModelForWorkspace } from '../modules/settings/feature-models.js';
@@ -88,6 +90,8 @@ export class Container {
   private _repoRepo?: RepoRepository;
   private _projectContextRepo?: ProjectContextRepository;
   private _projectContextService?: ProjectContextService;
+  private _onboardingRepo?: OnboardingRepository;
+  private _onboardingService?: OnboardingService;
   private _repoIntel?: RepoIntel;
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
@@ -159,6 +163,36 @@ export class Container {
       this.skillsRepo,
       this.agentsRepo,
       this.tokenizer,
+    ));
+  }
+
+  /** specs/10-onboarding-generator.md — the `onboarding` table (one row per
+   *  repo, the current tour). */
+  get onboardingRepo(): OnboardingRepository {
+    return (this._onboardingRepo ??= new OnboardingRepository(this.db));
+  }
+
+  /**
+   * Application service for the Onboarding Generator — `getPage` (0 LLM
+   * calls) and `generate` (the one structured call per generation). Shared
+   * getter (`projectContextService`'s shape) so `routes.ts` reads
+   * `container.onboardingService` rather than constructing a new instance
+   * per request — the in-flight generation guard (AC-20) only works because
+   * this is a process-wide singleton.
+   */
+  get onboardingService(): OnboardingService {
+    return (this._onboardingService ??= new OnboardingService(
+      this.onboardingRepo,
+      this.repoRepo,
+      this.repoIntel,
+      (workspaceId, id) => this.resolveFeatureModel(workspaceId, id),
+      (id) => this.llm(id),
+      this.tokenizer,
+      (model, tokensIn, tokensOut) => this.priceBook.estimate(model, tokensIn, tokensOut),
+      // No Fastify `app.log` reaches the container (composition-root
+      // boundary) — `console` is pino-compatible enough for the one
+      // structured `.info(obj, msg)` line this service emits per generation.
+      console,
     ));
   }
 

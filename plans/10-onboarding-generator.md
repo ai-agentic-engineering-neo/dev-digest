@@ -21,8 +21,9 @@ This plan covers **every** acceptance criterion in that spec:
 Decisions D1–D12 and non-goals N1–N11 are settled; nothing below reopens them.
 In particular: the shared persisted `file_rank.rank` keeps its structural
 definition (D7/AC-11), generation is never implicit (D3/N7/AC-19), nothing is
-written to a checkout (N4), `reviewer-core` is untouched (D9), and the tour's
-client route contains no `onboarding` segment (D10/AC-39).
+written to a checkout (N4), the tour's client route contains no `onboarding`
+segment (D10/AC-39), and nothing enters the PR-review path (D9 — see the
+`reviewer-core` row in **Modules affected** for the one export-only exception).
 
 ## Clarifications & recommendations
 
@@ -38,7 +39,8 @@ New constants in `server/src/modules/onboarding/constants.ts`:
 |---|---|---|
 | `ONBOARDING_FACTS_TOKEN_BUDGET` | `6000` tokens | Absolute, not a share of a model window — there is still no per-model context-window table in this codebase (`platform/price-book.ts` carries prices only; the same finding as `plans/09-project-context-folder.md` Q3). Scale anchors: the repo-map prompt slot is `1500` (`server/src/modules/repo-intel/constants.ts:51`), project-context documents get `8000` (`server/src/modules/project-context/constants.ts`), and `conventions` sends 12 whole source files with **no** budget at all (`SOURCE_SAMPLE_COUNT = 12`, `server/src/modules/conventions/constants.ts:18`). 6000 tokens ≈ 24 KB of structured fact lines — comfortably fits 40 ranked files + 40 routes + a 40-line directory skeleton + 20 scripts, and stays cheap on the `onboarding` feature's documented default model (`openrouter` / `deepseek/deepseek-v4-flash`, `vendor/shared/contracts/platform.ts:43-50`). Counted with the same `container.tokenizer` port project-context counts with (`platform/container.ts:39`, `:93`) — never a second estimator. |
 | `ONBOARDING_MAX_OUTPUT_TOKENS` | `4000` | Passed as `maxTokens` on the one `StructuredRequest` (`vendor/shared/adapters.ts:55-62`). Five sections + ≤10+10 one-sentence reasons + one Mermaid diagram. |
-| `READING_PATH_MAX` / `CRITICAL_PATHS_MAX` / `SETUP_STEPS_MAX` | `10` / `10` / `10` | AC-25 verbatim. |
+| `READING_PATH_MAX` / `SETUP_STEPS_MAX` | `10` / `10` | AC-25 verbatim. |
+| `CRITICAL_PATHS_MAX` | `10` | AC-25 verbatim — but read the semantics: it bounds the number of **chains** (one chain = one entry), not files within a chain. **It cannot bind today unless the new `roots` option is passed**: `getCriticalPaths` seeds from `CRITICAL_PATH_ROOTS = 5` (`repo-intel/service.ts:769-770`), so the unmodified call yields ≤5 chains. Raising that constant would change the existing method's default output and violate AC-11, so instead onboarding passes `opts.roots = CRITICAL_PATHS_MAX` to the additive option added in §1b; the default stays 5 for every existing caller. Chain length stays `BFS_DEPTH = 2` hops (≤3 files per chain), unchanged. |
 | `FIRST_TASKS_MIN` / `FIRST_TASKS_MAX` | `3` / `5` | AC-25 verbatim. |
 | `FACT_RANKED_FILES` | `40` | The candidate pool named in the payload — 4× the 10 that get shown, so the model has context for the architecture narrative and first tasks without re-ranking anything. Cf. `SOURCE_SAMPLE_COUNT = 12`. |
 | `FACT_DIR_ENTRIES` / `FACT_DIR_DEPTH` | `40` / `2` | Directory skeleton, derived from the indexed path set (AC-3 — never a fresh walk). |
@@ -56,24 +58,44 @@ coverage facts (AC-18), detected stack, the ≤10 reading-path entries, the ≤1
 critical-path chains, the ≤10 setup candidates. Nothing is ever truncated
 mid-entry, and every drop is recorded in the generation log line.
 
-### Q2 — does a `partial` index get a tour, or only the skeleton? (RECOMMENDATION — read this one)
+### Q2 — which index states get a tour, and which get the skeleton (RECOMMENDATION — read this one)
 
 A literal reading of AC-33 ("degraded, **partial**, absent, or still being
-built → skeleton") would make this feature unusable on almost every real repo:
-`full.ts:250-252` downgrades a `full` index to `partial` if **one** file fails
-to parse or the soft budget is hit, and `repo-intel/repository.ts:216-218`
-explicitly documents that "`'partial'` is still a working index — no degraded
-flag". Repo-map and blast-radius already serve from partial indexes.
+built → skeleton") would make this feature unusable: `full.ts:250-253`
+downgrades a `full` index to `partial` if **one** file fails to parse, and
+`repo-intel/repository.ts:216-218` explicitly documents that "`'partial'` is
+still a working index — no degraded flag". Repo-map and blast-radius already
+serve from partial indexes.
 
 **Recommendation:** the skeleton-only / refuse-to-generate condition is
-`status ∈ {degraded, failed}` **or** no clone **or** zero ranked files — not
-`partial`. A `partial` index generates a tour, and the provenance line states
-the status as `partial` with its `reason` (AC-30 already demands exactly that).
-One constant (`GENERATABLE_STATUSES`) holds the rule, so flipping to the
-literal reading is a one-line change if the product owner prefers it.
-AC-33's own verify sentence ("for each degraded reason the index layer can
-report") points the same way: `DegradedReason` is only ever populated for
-`degraded`/`failed` (`repo-intel/repository.ts:219-232`).
+`status ∈ {degraded, failed}` **or** no clone **or** zero ranked files **or**
+`graphFailed` (below) — not `partial` as such. A `partial` index generates a
+tour, and the provenance line states the status as `partial` with its `reason`
+(AC-30 already demands exactly that). One constant (`GENERATABLE_STATUSES`,
+plus the `graphFailed` check) holds the rule, so flipping to the literal
+reading is a one-line change if the product owner prefers it. AC-33's own
+verify sentence ("for each degraded reason the index layer can report") points
+the same way: `DegradedReason` is only ever populated for `degraded`/`failed`
+(`repo-intel/repository.ts:219-232`).
+
+**The `graphFailed` sub-case must be handled explicitly.** `full.ts:211-221`
+catches a dependency-graph build failure into `graphFailed`, persists
+`edgeRows = []` (`:221`), and then **still ranks** — so `computeFileRank`
+takes PageRank's degenerate path (`rank.ts:39-47`), every file gets the uniform
+floor, and all ~5000 files tie. Downstream: `getCriticalPaths` returns `[]`
+(`service.ts:729-730`), and the weighted order collapses to pure churn — or, on
+a repo with no PR history, to arbitrary tie order. The index is stamped
+`partial` with `stats.graphFailed` set (`:263`), so neither the status check nor
+the zero-ranked-files guard catches it, and a provenance line that only said
+"partial" would overstate what the tour is built from — the exact failure mode
+D1/G5 exist to prevent. **Resolution:** project `stats.graphFailed` into
+`IndexState` (§1c) and treat it as a *refusal* reason for generation, with the
+skeleton and a named provenance reason ("no import graph for this index — the
+reading order would be churn-only"). Refusing rather than degrading is the
+honest choice here because G2's "computed reading order" is the feature's
+premise; if the owner would rather ship a churn-only tour, the same
+`IndexState.graphFailed` field lets that be a one-line policy change, with the
+provenance reason kept either way.
 
 ### Q3 — the LLM response schema shape (DECIDED — see Approach §3)
 
@@ -151,42 +173,71 @@ path only.
    file)` is AC-44** — it already percent-encodes each path segment, which is
    what the spec's "path with unusual characters" edge case needs. No new URL
    helper.
+9. **`INJECTION_GUARD` is module-private and unreachable from the server.**
+   `reviewer-core/src/prompt.ts:16` declares it as an unexported `const`, used
+   only inside `assemblePrompt` (`:129`) — which onboarding never calls. The
+   in-server precedent this plan otherwise follows, `conventions/prompts.ts`,
+   ships **no guard text at all**. See §2's `prompts.ts` bullet for the
+   decision (export it). `wrapUntrusted` **is** exported (`:42`) and already
+   sanitizes repository-controlled labels (`:38-40`, added by SPEC-09), so the
+   wrapper itself needs no change.
+10. **`Markdown.tsx` does not constrain link or image targets.**
+    `client/src/vendor/ui/primitives/Markdown.tsx:1-42` sets no `urlTransform`
+    and overrides no `img` component, so a markdown `[x](https://…)` or
+    `![](https://…/beacon.png)` inside a model-authored section **body** renders
+    as a live external link / a loaded remote image. `react-markdown`'s default
+    URL transform blocks `javascript:` but not `https:` externals. AC-32 is
+    therefore **not** closed by validating the structured link/entry fields
+    alone — see §4's body-neutralization rule.
 
 ## Execution mode
 
 **Recommendation: multi-agent, in three implementation phases.**
 
-Reasoning about scope width: this touches **three packages plus a shared
-contract in two drifted copies**, changes the indexer's persisted output
-(`hotness` becomes non-zero on every repo), adds one migration, adds a new
-server module, a new client route, and a sixth MCP tool. It also carries the
-single highest-risk constraint in the epic (D7/AC-11: three shipped features
-must keep byte-identical ordering). One `implementer` run would have to hold
-the ranking pipeline, the grounding logic, the React page and the MCP tool in
-one context — and the Phase A work is what Phase B and C consume.
+Reasoning about scope width: this touches **four packages** (server,
+`reviewer-core` for a one-keyword export, client, mcp-server) plus a shared
+contract in two drifted copies, changes the indexer's persisted output
+(`hotness` becomes non-zero on every repo), adds one migration, a new server
+module, a new client route, and a sixth MCP tool. It also carries the single
+highest-risk constraint in the epic (D7/AC-11: three shipped features must keep
+byte-identical ordering). One `implementer` run would have to hold the ranking
+pipeline, the grounding logic, the React page and the MCP tool in one context —
+and the Phase A work is what Phase B and C consume.
 
 Proposed order:
 
-1. `/implement-plan` **Phase A — ranking + contracts**: `repo-intel` hotness
+1. `/implement-plan` **Phase A — ranking substrate**: `repo-intel` hotness
    (repository read, `computeFileRank`, both pipelines, the stale comments),
-   the additive `RepoIntel` facade methods, the `IndexState` widening, the
-   `onboarding` table migration, and both `vendor/shared` contract copies.
-   (That skill runs `implementer` → `plan-verifier` gate →
-   `architecture-reviewer` fix loop.)
-2. `/implement-plan` **Phase B — the onboarding module**: fact assembly, the
-   one structured call, grounding, rendering, service + routes + container
-   getter, `_shared/checkout-paths.ts` move.
-3. `/implement-plan` **Phase C — client + mcp-server**: the `/repos/[repoId]/tour`
-   page, nav + `activeKeyFor` fix, hooks, i18n rewrite, and the
-   `get_onboarding_tour` MCP tool.
+   the additive `RepoIntel` facade methods, the `IndexState` widening, and the
+   `onboarding` table migration. (That skill runs `implementer` →
+   `plan-verifier` gate → `architecture-reviewer` fix loop.)
+2. `/implement-plan` **Phase B — contracts + the onboarding module**: both
+   `vendor/shared` copies, the `reviewer-core` `INJECTION_GUARD` export and its
+   two re-export shims, then fact assembly, the one structured call, grounding,
+   rendering, service + routes + container getter, and the
+   `_shared/checkout-paths.ts` move.
+3. `/implement-plan` **Phase C — client + mcp-server**: the
+   `/repos/[repoId]/tour` page, nav + `activeKeyFor` fix, hooks, i18n rewrite,
+   and the `get_onboarding_tour` MCP tool.
 4. `test-writer` once, after C, for any row of the **Verification** test matrix
    the three passes did not produce.
 5. `/pr-self-review` immediately before push (it re-runs the full suites anyway).
 
-Phase A must land first — Phase B reads the new facade methods and the widened
-`IndexState`; Phase C consumes the new contracts. A single-agent pass is
-*possible* but is not advised at this width; the AC-11 regression surface alone
-justifies an independent `architecture-reviewer` pass over Phase A.
+**Why the contracts sit in Phase B, not Phase A.** An earlier draft put the
+`vendor/shared` edits in Phase A; that would have shipped
+`OnboardingFacts`/`OnboardingPage`/`OnboardingEntry` shapes before the module
+that produces them exists, and any shape correction found in Phase B would then
+cost a **second** hand-synchronized edit across both drifted copies — the most
+error-prone change in this repo (root `CLAUDE.md` "Do-not-touch"). Phase A
+needs no `vendor/shared` change at all: the `IndexState` widening lives in
+`repo-intel/types.ts`, which is server-internal. So the contracts land in the
+same pass as their only producer, and Phase C consumes them once they are
+proven. Phase A must still land first — Phase B reads the new facade methods
+and the widened `IndexState`.
+
+A single-agent pass is *possible* but is not advised at this width; the AC-11
+regression surface alone justifies an independent `architecture-reviewer` pass
+over Phase A.
 
 **User's confirmed choice: pending.** The planner had no interactive channel in
 this run; treat the above as the recommendation, not a settled decision.
@@ -196,9 +247,9 @@ this run; treat the above as the recommendation, not a settled decision.
 | Module | Why |
 |---|---|
 | **server** | The whole feature's substance: real `hotness` in the repo-intel pipeline, three additive `RepoIntel` facade reads, a widened `IndexState`, a new `onboarding` module (facts, one structured call, grounding, render, service, routes), the `onboarding` table redesign + migration, a container getter, and the `_shared/checkout-paths.ts` move. |
+| **reviewer-core** | **One keyword, no behavior change.** `INJECTION_GUARD` (`src/prompt.ts:16`) becomes `export const`, and is added to the existing export list in `src/index.ts:14-20`. The guard **string stays byte-identical**, `assemblePrompt` is untouched, and no fs/DB/network reaches the package (`reviewer-core/CLAUDE.md:12-14`). D9 puts the *review path* out of scope, not the file: duplicating the guard text into a second module would violate `server/CLAUDE.md:41-43`'s "one shared guard, not denylists" harder than exporting it does. See §2's `prompts.ts` bullet. |
 | **client** | New `/repos/[repoId]/tour` page and its `_components/OnboardingTourView/` tree, the `activeKeyFor` fix + `NAV`/`SHORTCUTS` entries (D10/AC-39), a new hooks file, and the `messages/en/onboarding.json` rewrite. |
 | **mcp-server** | AC-47/AC-48: a sixth, read-only tool `get_onboarding_tour`, appended to the fixed registration order, plus its README row. No CLI change. |
-| **reviewer-core** | **Not affected** — D9. Nothing in this feature enters the review path, and `groundFindings`/`INJECTION_GUARD` are not touched. |
 | **e2e** | **Not affected** — N9 / Q5 above. |
 
 ## Architectural constraints
@@ -236,7 +287,9 @@ code.
   `import type`** (`tsPreCompilationDeps: true`); `_shared` is the only exempt
   folder. `no-container-in-services` (error) forbids `service.ts` importing
   `platform/container.ts`. `db-only-in-repositories` (error) confines
-  `src/db/**` imports to `repository.ts`.
+  `src/db/**` imports to `repository.ts`. (An import of
+  `@devdigest/reviewer-core` resolves outside `^src/`, so no rule fires — but
+  the house style is to go through the `platform/*` re-export shims; see §2.)
 - `server/LEARNINGS.md:161` — a new module needing another module's
   repo/service declares a **narrow local port** and is composed at `routes.ts`;
   the 2026-08-11 addendum: for a brand-new file needing a few fields, a fully
@@ -279,6 +332,17 @@ code.
 - `server/src/platform/container.ts:155-160` (`projectContextService`) — the
   shape a new lazy `onboardingService` getter copies.
 
+### reviewer-core
+
+- `reviewer-core/CLAUDE.md:12-14` — pure engine: **no DB, GitHub, or filesystem
+  access**. The change here adds none of those; it exports an existing string.
+- `reviewer-core/CLAUDE.md:25-30` — `groundFindings` and `INJECTION_GUARD` are
+  do-not-touch. Exporting a const is not a change to the guard's text or
+  premise: the string must stay **byte-identical**, and
+  `reviewer-core/test/prompt.test.ts` must still pass unchanged.
+- `reviewer-core/CLAUDE.md:34-37` — `@devdigest/shared` here resolves to
+  **server's** vendor copy; nothing in this plan edits contracts from this side.
+
 ### client
 
 - `client/CLAUDE.md:13-15` — all data access goes through `src/lib/hooks/*` →
@@ -309,9 +373,11 @@ code.
   `securityLevel: "strict"`, keyword pre-check, `mermaid.parse` before render,
   and **renders nothing** on invalid input. That component *is* AC-42; do not
   add a second diagram path.
-- `client/src/vendor/ui/primitives/Markdown.tsx:1-40` — `react-markdown` +
-  `remark-gfm`, **no `rehype-raw`**, so raw HTML is not markup. That is AC-41;
-  do not add an HTML-enabling plugin.
+- `client/src/vendor/ui/primitives/Markdown.tsx:1-42` — `react-markdown` +
+  `remark-gfm`, **no `rehype-raw`**, so raw HTML is not markup (that is AC-41;
+  do not add an HTML-enabling plugin). It sets **no `urlTransform` and no `img`
+  override**, so link/image targets inside a body are *not* constrained here —
+  AC-32 is enforced server-side (§4), and this primitive stays untouched.
 
 ### mcp-server
 
@@ -397,20 +463,24 @@ available for whoever wants the unweighted structural order. Three additions to
 | New method | Shape | Notes |
 |---|---|---|
 | `getWeightedRankedFiles(repoId, n, opts?: { exclude?: string[] })` | `Promise<WeightedFileRow[]>`, `{ path, pagerank, hotness, weighted, percentile }` desc by `weighted` | Backed by a new `repository.getFileRankRows(repoId, limit)` selecting `path, pagerank, hotness, percentile` for **all** rows (≤ `MAX_INDEXED_FILES` = 5000), sorted in JS by `pagerank * (1 + hotness)`. Fetching all rows is what AC-12 requires: taking a `rank DESC LIMIT 100` prefix and reweighting it would mix weighted and unweighted selection and miss a high-churn, low-pagerank file. Reuses the existing `isJunkPath` filter (`service.ts:794-797`) so a lockfile can't open the reading path (the spec's "single file dominating PR history" edge case). Returns `[]` when the flag is off or nothing is ranked (the array-degraded contract, `types.ts:15-22`). |
-| `getCriticalPaths(repoId, opts?: { order?: 'rank' \| 'weighted' })` | unchanged return `Promise<string[][]>` | **Optional param, default `'rank'` = today's behavior**, exactly what D7 permits. Refactor the existing body (`service.ts:727-766`) to extract a private `chainsFrom(edges, rankOf, roots)` helper and call it with either the existing `rankOf` map or the weighted one — the BFS/adjacency logic is borrowed, not duplicated, and the default output is provably unchanged. |
+| `getCriticalPaths(repoId, opts?: { order?: 'rank' \| 'weighted'; roots?: number })` | unchanged return `Promise<string[][]>` | **Optional params, defaults `'rank'` and `CRITICAL_PATH_ROOTS` = today's behavior**, exactly what D7 permits. Refactor the existing body (`service.ts:727-766`) to extract a private `chainsFrom(edges, rankOf, rootCount)` helper and call it with either the existing `rankOf` map or the weighted one — the BFS/adjacency logic is borrowed, not duplicated, and the default output is provably unchanged. `roots` exists so onboarding can actually reach `CRITICAL_PATHS_MAX = 10` chains without raising the shared `CRITICAL_PATH_ROOTS` constant (Q1). |
 | `getFileFacts(repoId, paths)` | `Promise<Array<{ file: string; endpoints: string[]; crons: string[] }>>` | Thin passthrough to the already-existing `repository.getFileFacts` (`repo-intel/repository.ts:553-566`). Needed for AC-35's "detected routes" in the skeleton; bounded by the ranked pool. |
 
-**1c. Index coverage becomes observable (D1, AC-18, AC-30).**
+**1c. Index coverage becomes observable (D1, AC-18, AC-30, Q2).**
 
-`IndexState` (`repo-intel/types.ts:42-50`) gains three **optional** fields —
+`IndexState` (`repo-intel/types.ts:42-50`) gains four **optional** fields —
 `filesExcludedByBound?: number`, `hotnessPrs?: number`,
-`hotnessWindowDays?: number`. Optional, not `.nullable()`, so no existing
-fixture stops compiling (`server/LEARNINGS.md:396-410`). They are projected out
-of the `stats` jsonb in `tryGetIndexState` (`repo-intel/repository.ts:212-232`)
-exactly the way `durationMs` and `reason` already are — one line each, no
-migration, no pipeline signature change. `IndexResult` is **not** widened (the
-indexer's return value has no reader that needs this). The facade's synthesized
-degraded fallback simply omits them.
+`hotnessWindowDays?: number`, `graphFailed?: string`. Optional, not
+`.nullable()`, so no existing fixture stops compiling
+(`server/LEARNINGS.md:396-410`). All four are projected out of the `stats`
+jsonb in `tryGetIndexState` (`repo-intel/repository.ts:212-232`) exactly the way
+`durationMs` and `reason` already are — one line each, no migration, no
+pipeline signature change. `graphFailed` is already persisted by both pipelines
+(`full.ts:263`) and is what makes Q2's degenerate-graph case detectable;
+without it, an all-tied uniform PageRank is indistinguishable from a real
+ranking. `IndexResult` is **not** widened (the indexer's return value has no
+reader that needs this). The facade's synthesized degraded fallback simply omits
+all four.
 
 ### 2. server — the new `onboarding` module
 
@@ -423,9 +493,9 @@ New folder `server/src/modules/onboarding/`, registered in
 | `ports.ts` | The narrow local interfaces — `RepoIntelPort` (the three new reads + `getIndexState`), `RepoLookup` (copy the shape at `conventions/service.ts:20-25`), `FeatureModelResolver`, `LlmResolver`, `Tokenizer`. **No import from any other module.** |
 | `stack.ts` | AC-2: read `package.json` (containment-checked, ≤ `MAX_MANIFEST_BYTES`), derive language/runtime (`engines`, `type`, presence of `tsconfig.json`), package manager (`packageManager` field, else lockfile **filename** via `stat`), frameworks (dependency-name match against a small fixed table: next, react, fastify, express, nest, vite, drizzle-orm, prisma…). Every value carries `{ value, evidenceFile }`. |
 | `setup.ts` | AC-4: candidate steps from `package.json` `scripts` (≤ `FACT_SCRIPTS_MAX`, each string trimmed to `MAX_SCRIPT_CHARS`), presence of an env-example file, and a compose file's declared **service names only** (a `services:` top-level key scan — no YAML dependency, no value interpolation). Each candidate carries `{ command, kind, evidenceFile }`. |
-| `facts.ts` | AC-1/AC-3/AC-5/AC-18: assemble the fact set from the ports + `stack.ts` + `setup.ts`. Structure comes from the indexed path set (directory prefixes, depth ≤ `FACT_DIR_DEPTH`) — never a fresh walk. Also produces `allIndexedPaths: Set<string>` (used only for grounding, never sent). **Zero LLM calls on this path.** |
+| `facts.ts` | AC-1/AC-3/AC-5/AC-18: assemble the fact set from the ports + `stack.ts` + `setup.ts`. Structure comes from the indexed path set (directory prefixes, depth ≤ `FACT_DIR_DEPTH`) — never a fresh walk. Also produces `allIndexedPaths: Set<string>` (used only for grounding, never sent) and the ordered reading-path entries and critical-path **chains**. **Zero LLM calls on this path.** |
 | `schemas.ts` | The raw LLM-facing zod schema (§3). |
-| `prompts.ts` | The system prompt (a plain exported constant, following `conventions/prompts.ts:1-11`'s established precedent) + the fact-payload renderer with the drop order from Q1. Repository-derived strings (paths, script text, route strings) are **delimiter-wrapped as untrusted data** using the shared wrapper, never interpolated as instructions; no per-field keyword scanning (`server/CLAUDE.md:41-43`). |
+| `prompts.ts` | The system prompt + the fact-payload renderer with the drop order from Q1. **Guard decision:** `INJECTION_GUARD` becomes `export const` in `reviewer-core/src/prompt.ts:16`, is added to that package's export list (`src/index.ts:14-20`) and to the server's existing re-export shim (`src/platform/prompt.ts:6-11`, which already re-exports `wrapUntrusted`); `onboarding/prompts.ts` then imports **both** from `../../platform/prompt.js` and appends the guard to its system prompt, exactly as `assemblePrompt` does at `prompt.ts:129`. This honors `server/CLAUDE.md:41-43`'s "one shared guard, not denylists" literally — the alternative (writing onboarding's own guard paragraph, as `conventions/prompts.ts` implicitly did by writing none) would create a second copy to keep in sync, which is the failure mode that rule exists to prevent. The guard **string is not edited**; the change is one keyword plus two export-list entries (planner finding 9). Every repository-derived string (paths, script text, route strings) goes through `wrapUntrusted(label, content)` — its label sanitizer already handles repo-controlled labels (`prompt.ts:38-40`). No per-field keyword scanning. |
 | `grounding.ts` | Pure `groundTour(raw, facts) → { sections, dropped }` (§4). |
 | `render.ts` | Maps grounded output → the shared `Onboarding` sections, **and** renders the facts-only skeleton (AC-33/AC-35) — one renderer, two entry points, so a skeleton and a tour can never describe different facts (the "a preview must not lie" discipline of `_shared/skill-render.ts`). |
 | `repository.ts` | `getTour(repoId)`, `upsertTour(row)` over the redesigned `onboarding` table. |
@@ -443,31 +513,41 @@ whole of AC-49 — a repo in another workspace 404s before any tour row is read,
 exactly as `conventions/service.ts:108-110` does):
 
 ```
-GET  /repos/:id/tour           → OnboardingPage   (0 LLM calls: AC-19, AC-22, AC-33, AC-37)
+GET  /repos/:id/tour           → OnboardingPage   (0 LLM calls: AC-19, AC-20, AC-22, AC-33, AC-37)
 POST /repos/:id/tour/generate  → OnboardingPage   (AC-13, AC-20, AC-24, AC-34, AC-38)
 ```
 
-`GET` returns `{ status, reason?, provenance, facts, tour | null, stale }`.
-`POST` returns the same envelope with `status ∈ {generated, generating,
-failed, refused}` plus `dropped` (what grounding removed) so the client can be
-honest about it. There is no third route: "Regenerate" is the same `POST`.
+`GET` returns `{ status, reason?, provenance, facts, tour | null, stale }`, and
+**also reports `status: 'generating'` when a generation for that repo is in
+flight** — see step 3 below. `POST` returns the same envelope with
+`status ∈ {generated, generating, failed, refused}` plus `dropped` (what
+grounding removed) so the client can be honest about it. There is no third
+route: "Regenerate" is the same `POST`.
 
 **Generation flow** (`service.generate`):
 
 1. Resolve repo (workspace-scoped) → 404 if absent; no clone at all → AC-37
    empty state, **no** provider call.
-2. `getIndexState`; if the status isn't in `GENERATABLE_STATUSES` or there are
-   zero ranked files → **refuse** with a reason, zero provider calls (AC-38).
+2. `getIndexState`; if the status isn't in `GENERATABLE_STATUSES`, or
+   `graphFailed` is set (Q2), or there are zero ranked files → **refuse** with
+   a named reason, zero provider calls (AC-38).
 3. In-flight guard (AC-20): `private inFlight = new Set<string>()` on the
-   service. The check-and-insert happens **before the first `await` in the
-   generate body**, so Node's single-threaded model makes it atomic; `finally`
-   deletes the key. A second call returns `{ status: 'generating' }`
-   immediately — it does **not** queue and does **not** await the first, which
-   is AC-20's "surface the in-flight state rather than queueing or
-   duplicating". This works only because the service is a **process-wide
-   singleton**: add a lazy `container.onboardingService` getter
-   (`platform/container.ts:155-160`'s shape) and have `routes.ts` read it —
-   do **not** `new OnboardingService(...)` per request.
+   service. **What makes this correct is that the `has` check and the `add` sit
+   in one synchronous statement pair with no `await` between them** — Node's
+   run-to-completion semantics then make the pair atomic no matter where in the
+   method it sits. It deliberately sits *after* steps 1–2, so an unauthorized or
+   unindexed caller can never observe or occupy another workspace's in-flight
+   slot; do **not** "fix" this by hoisting the guard above the workspace-scope
+   check. `finally` deletes the key on every exit path. A second call returns
+   `{ status: 'generating' }` immediately — it does **not** queue and does
+   **not** await the first, which is AC-20's "surface the in-flight state rather
+   than queueing or duplicating". `getPage` consults the same set, so a second
+   viewer (another tab, another user) loading the GET route mid-generation sees
+   `generating` too, instead of a stale skeleton. This works only because the
+   service is a **process-wide singleton**: add a lazy
+   `container.onboardingService` getter (`platform/container.ts:155-160`'s
+   shape) and have `routes.ts` read it — do **not**
+   `new OnboardingService(...)` per request.
 4. Assemble the fact set (`facts.ts`) — no LLM (AC-1).
 5. Resolve the model: `resolveFeatureModel(workspaceId, 'onboarding')` →
    `llm(provider)` → **one** `completeStructured({ model, schema, schemaName,
@@ -486,14 +566,14 @@ honest about it. There is no third route: "Regenerate" is the same `POST`.
    returns `null`, price it with `container.priceBook.estimate`
    (`platform/container.ts:230-240`), the same source the review path uses.
 
-### 3. The LLM response schema (Q3, decided)
+### 3. The LLM response schema (Q3, decided) and the chain→entry mapping
 
 `onboarding/schemas.ts` defines `OnboardingGenerationOutput` — a **separate
 raw-response schema**, not the shared `Onboarding` contract:
 
 ```
 architecture   { title, body, diagram? }
-critical_paths { title, intro?, entries: [{ path, reason }] }
+critical_paths { title, intro?, entries: [{ path, reason }] }   // path = the chain ROOT
 run_locally    { title, intro?, steps:   [{ command, reason? }] }
 reading_path   { title, intro?, entries: [{ path, reason }] }
 first_tasks    { title, intro?, tasks:   [{ title, body, files: string[] }] }
@@ -514,20 +594,38 @@ Reasoning — all three candidate shapes were considered:
   what's computed server-side"). `render.ts` is the one place raw → `Onboarding`
   happens, so what is stored always matches `Onboarding` exactly.
 
-The model is given the reading-path and critical-path entries **as facts** and
-asked only for each one's single-sentence reason (AC-26, AC-27) — it is never
-asked to select or order files. Bounds are encoded in the zod schema itself
-(`.max(READING_PATH_MAX)` etc.) so an over-long response fails validation and
-takes the AC-34 path rather than silently being cut (AC-25 holds regardless of
-repository size because the *input* list is already capped).
+**The chain → entry mapping (decided).** `getCriticalPaths` returns
+`string[][]` — chains of ≤3 files (`CRITICAL_PATH_ROOTS` seeds × `BFS_DEPTH = 2`
+hops, `service.ts:743-764`). AC-26 wants one path + one sentence per entry, and
+AC-44 wants a link that resolves. So:
+
+- **One chain = one entry.** The entry's `path` is the **chain root** — the
+  highest-weighted file that seeded the walk, and the only sensible link target
+  (`githubBlobUrl` takes exactly one path).
+- The remaining hops travel as a separate `chain: string[]` field on the
+  rendered entry and are displayed as breadcrumb text
+  (`src/a.ts → src/b.ts → src/c.ts`), so the chain-walk work is not wasted and
+  the reader sees the dependency direction the spec's Inputs table promises.
+- **The model never sees or writes the chain** — it is keyed by root path and
+  contributes the `reason` only, exactly like the reading path (AC-27's
+  premise). That is why the raw schema above carries only `{ path, reason }`.
+- Entry count is bounded by `CRITICAL_PATHS_MAX = 10` chains, reachable only
+  because onboarding passes `opts.roots` (Q1 / §1b).
 
 **Shared contract changes — apply to BOTH `server/src/vendor/shared/contracts/knowledge.ts:28-47`
-and `client/src/vendor/shared/contracts/knowledge.ts` (byte-identical today):**
+and `client/src/vendor/shared/contracts/knowledge.ts` (byte-identical today),
+in Phase B:**
 
 - Tighten `OnboardingSection.kind` from `z.string()` to
   `OnboardingSectionKind = z.enum(['architecture','critical_paths','run_locally','reading_path','first_tasks'])`
   — free, because the contract has zero consumers today, and it makes AC-16
   type-enforced on both sides.
+- Add `OnboardingEntry = { path: string; chain?: string[]; reason?: string }`
+  and an optional `entries?: OnboardingEntry[]` on `OnboardingSection`. This is
+  what carries the reading-path and critical-path rows as **structured,
+  server-ordered data** rather than as prose inside `body` — without it the
+  client cannot render position, breadcrumb and a per-entry link (AC-26, AC-27,
+  AC-44) or keep the order the server imposed.
 - Add `OnboardingProvenance` (`files_indexed`, `files_excluded`,
   `index_status`, `index_reason?`, `index_sha`, `index_updated_at`,
   `prs_weighted`, `hotness_window_days`, `generated_at?`, `model?`,
@@ -548,7 +646,7 @@ Import runtime values in the client from
 
 `onboarding/grounding.ts`, a **new small pure function**. It is *structurally*
 analogous to `groundFindings` but must not touch, import, or extend it: D9 puts
-`reviewer-core` out of scope, and `reviewer-core/CLAUDE.md`'s "Do-not-touch"
+the review path out of scope, and `reviewer-core/CLAUDE.md`'s "Do-not-touch"
 names `groundFindings` explicitly. Nothing here enters the review path.
 
 ```
@@ -561,7 +659,7 @@ groundTour(raw: OnboardingGenerationOutput, facts: FactSet): {
 Inputs it checks against: `facts.allIndexedPaths` (the **full** indexed path
 set, not just the 40 sent — AC-28 says "not present in the repository's
 index"), `facts.setupCandidates` (exact command strings), and the server's own
-ordered reading-path / critical-path entries.
+ordered reading-path entries and critical-path chains.
 
 Rules, one per AC:
 
@@ -571,15 +669,34 @@ Rules, one per AC:
   order; an entry whose reason is missing renders without one (Q4).
 - **AC-28** — any `path` (in an entry, a first task's `files`, or a link) not
   in `allIndexedPaths` → that entry is dropped and recorded.
+- **AC-28 (chains)** — a critical-path entry is matched to its server-held
+  chain by root path; **every hop** in that chain is checked against
+  `allIndexedPaths`, and the **whole entry is dropped** if any hop is unknown.
+  (A chain comes from `file_edges`, so a bad hop means the index moved under
+  us; showing half a chain would misdescribe the dependency path.)
 - **AC-29** — a `run_locally` step whose trimmed `command` does not exactly
   match a collected candidate is dropped. No fuzzy matching: a command the repo
   never declared is worse than three steps.
 - **AC-31** — the first-tasks section is rendered with a fixed
   "model-suggested" label; a task with no surviving indexed file reference is
   dropped (then Q4 applies).
-- **AC-32** — a link target is accepted only if it is repo-relative
-  (rejects anything matching `/^[a-z][a-z0-9+.\-]*:/i`, a leading `/` or `//`)
-  **and** present in the index. Everything else is dropped, not rewritten.
+- **AC-32 (structured targets)** — a link target is accepted only if it is
+  repo-relative (rejects anything matching `/^[a-z][a-z0-9+.\-]*:/i`, a leading
+  `/` or `//`) **and** present in the index. Everything else is dropped, not
+  rewritten.
+- **AC-32 (inside `body` text)** — **required, and easy to miss**: every
+  section `body` is free model-authored markdown rendered by a primitive that
+  constrains no URL (planner finding 10), so a body-level
+  `[x](https://evil.example)` or `![](https://tracker/beacon.png)` would render
+  live and defeat the rule the structured check just enforced. `groundTour`
+  therefore scans each `body` for markdown link and image targets
+  (`[...](target)` / `![...](target)`, including reference-style definitions)
+  and, for any target that is not an index-present repo-relative path,
+  **removes the link/image construct while keeping its visible text** —
+  drop-don't-rewrite, the same stance as every other rule here, and recorded in
+  `dropped.links`. Doing it here rather than in `Markdown.tsx` keeps the shared
+  UI primitive untouched (it is used by every other feature) and keeps the
+  policy in one server-side place where it is unit-testable without a DOM.
 - **AC-17** — at most one diagram, on the architecture section only; a diagram
   supplied anywhere else is dropped. Validity is the client renderer's job
   (AC-42, `MermaidDiagram.tsx:36-53`) — do not add a server-side Mermaid parser.
@@ -639,15 +756,18 @@ the workspace first (AC-49).
 | Path | Change |
 |---|---|
 | `src/app/repos/[repoId]/tour/page.tsx` | Thin route returning `<OnboardingTourView />`; copy the 7-line shape of `repos/[repoId]/context/page.tsx`, **not** `pulls/page.tsx` (`client/LEARNINGS.md:133-158`). The path segment is `tour` — D10/AC-39: no `onboarding` anywhere in the URL. |
-| `…/tour/_components/OnboardingTourView/` | `"use client"`; `useParams` + `useActiveRepo` + `useRepoNotFound` gate (`client/LEARNINGS.md:348-360`). Children: `TourToc` (AC-40 — a real `<nav><ol>` of exactly the five sections, anchor-linked), `SectionCard` (`Markdown` + optional `MermaidDiagram`), `RankedList` (used by both critical paths and reading path — renders **position**, path, reason, and an "Open" link via `githubBlobUrl(repo.full_name, provenance.index_sha, path)`, AC-44/N6, opening on the repository host), `SetupSteps` (copy-to-clipboard only — the tree must contain **no** control that executes anything, AC-43), `ProvenanceLine` (AC-30: "N files indexed · M excluded by the index bound · index <status>, updated <when> · K PRs weighted · generated <when> by <model>"), `StatusBanner` (`role="status"` + `aria-live="polite"`, AC-45), `SkeletonFacts` (AC-33/AC-35 — stack, ranked files, setup steps, routes, each with its evidence; no prose, no diagram), plus `constants.ts`, `helpers.ts`, `styles.ts`, `index.ts` and `*.test.tsx`. Every action reachable by keyboard (AC-46) — real `<button>`/`<a>`, no div handlers. |
-| `src/lib/hooks/onboarding.ts` (+ barrel entry in `hooks/index.ts`) | `useOnboardingTour(repoId)` (GET) and `useGenerateOnboardingTour(repoId)` (POST). The mutation writes `setQueryData` in `onSuccess`, so it needs `qc.cancelQueries` in `onMutate` (`client/LEARNINGS.md:361-383`). No `fetch` in a component (`client/CLAUDE.md:13-15`). |
+| `…/tour/_components/OnboardingTourView/` | `"use client"`; `useParams` + `useActiveRepo` + `useRepoNotFound` gate (`client/LEARNINGS.md:348-360`). Children: `TourToc` (AC-40 — a real `<nav><ol>` of exactly the five sections, anchor-linked), `SectionCard` (`Markdown` for `body` + optional `MermaidDiagram`), `RankedList` (used by both critical paths and reading path — renders each `OnboardingEntry` as **position** + `entry.path` + one-sentence `reason` + an "Open" link built with `githubBlobUrl(repo.full_name, provenance.index_sha, entry.path)` (AC-44/N6, opens on the repository host); when `entry.chain` is present it renders the remaining hops as inert breadcrumb text `a.ts → b.ts → c.ts`, **not** as links, since only the root is the entry's subject), `SetupSteps` (copy-to-clipboard only — the tree must contain **no** control that executes anything, AC-43), `ProvenanceLine` (AC-30: "N files indexed · M excluded by the index bound · index <status> (<reason>), updated <when> · K PRs weighted · generated <when> by <model>"), `StatusBanner` (`role="status"` + `aria-live="polite"`, AC-45), `SkeletonFacts` (AC-33/AC-35 — stack, ranked files, setup steps, routes, each with its evidence; no prose, no diagram), plus `constants.ts`, `helpers.ts`, `styles.ts`, `index.ts` and `*.test.tsx`. Every action reachable by keyboard (AC-46) — real `<button>`/`<a>`, no div handlers. |
+| `src/lib/hooks/onboarding.ts` (+ barrel entry in `hooks/index.ts`) | `useOnboardingTour(repoId)` (GET) and `useGenerateOnboardingTour(repoId)` (POST). The query sets a short `refetchInterval` (≈3 s) **only while `data.status === 'generating'`**, and `undefined`/`false` otherwise, so a viewer who did not initiate the generation still sees it finish and no other state polls. The mutation writes `setQueryData` in `onSuccess`, so it needs `qc.cancelQueries` in `onMutate` (`client/LEARNINGS.md:361-383`). No `fetch` in a component (`client/CLAUDE.md:13-15`). |
 | `src/components/app-shell/helpers.ts:29` | **The D10 fix, both halves.** Delete the `pathname.includes("/onboarding")` line and add a segment-exact match for the tour: a tiny local `hasSegment(pathname, seg)` (split on `/`, compare) used as `if (hasSegment(pathname, "tour")) return "onboarding-tour";`. Segment-exact rather than another `includes` because the bug being fixed *is* a substring match, and a new `NAV` entry is what makes it live; `/onboarding` (the add-a-repo screen, `src/app/onboarding/page.tsx`) then correctly falls through to `""`. The other rows keep their `includes` form — narrowing them is out of scope, but note the latent class in `client/LEARNINGS.md`. |
 | `src/vendor/ui/nav.ts:21-33` | Add `{ key: "onboarding-tour", label: "Onboarding Tour", icon: <an existing IconName from src/vendor/ui/icons.tsx — do not add one>, href: "/repos/:repoId/tour", gKey: "t" }` to the WORKSPACE group, plus the matching `SHORTCUTS` row at `:75-86` ("g t"). The i18n label `nav.onboarding-tour` already exists (`messages/en/shell.json:19`). |
 | `messages/en/onboarding.json` | **Rewrite** (planner finding 6 / D4): keep `title`, `regenerate`, `generate.cta`; replace `generate.body`'s wrong five sections with the authoritative five (AC-16); add section titles, ToC label, provenance line, status/reason strings for every state (generated, stale, skeleton, degraded, failed, refused, empty, generating), copy-step label, "Open on GitHub", "model-suggested" label (AC-31). |
 
-Rendering safety needs **no new code**: `Markdown.tsx` has no `rehype-raw`, so
-a `<script>` in a section body is visible text (AC-41), and `MermaidDiagram`
-already returns `null` for anything unparseable (AC-42). Reuse both as-is.
+Rendering safety: **raw HTML** needs no new code — `Markdown.tsx` has no
+`rehype-raw`, so a `<script>` in a section body is visible text (AC-41), and
+`MermaidDiagram` already returns `null` for anything unparseable (AC-42). Reuse
+both as-is. **Link and image targets are a different matter** and are handled
+server-side in `groundTour` (§4), because this primitive constrains neither
+(planner finding 10).
 
 ### 7. mcp-server — `get_onboarding_tour` (AC-47, AC-48, AC-49)
 
@@ -682,7 +802,8 @@ Personalized tours (N1), any chat/drill-down (N2), tour editing or pinning
 ranking beyond the indexed set (N8), an e2e flow (N9), non-TS/JS stack support
 (N10), an eval harness (N11). Also **not** built: any change to
 `file_rank.rank`'s definition, to `getFileRank`/`getTopFilesByRank`/
-`getConventionSamples`, or to `reviewer-core`.
+`getConventionSamples`, to `assemblePrompt`/`groundFindings`, or to the
+`INJECTION_GUARD` string itself.
 
 ## Skills for implementer
 
@@ -693,14 +814,15 @@ respect each skill's declared scope.
 
 | Path glob in this plan | Skills to load | Why |
 |---|---|---|
-| `server/src/modules/onboarding/**`, `server/src/modules/_shared/checkout-paths.ts`, `server/src/platform/container.ts` | `onion-architecture`, `fastify-best-practices` | Phase 3 row for `server/src/modules/**`, `platform/**`. The ring rules and the local-port/DI pattern are the difference between this module passing `pnpm arch` with zero new baseline entries and eating one. |
+| `server/src/modules/onboarding/**`, `server/src/modules/_shared/checkout-paths.ts`, `server/src/platform/container.ts`, `server/src/platform/prompt.ts` | `onion-architecture`, `fastify-best-practices` | Phase 3 row for `server/src/modules/**`, `platform/**`. The ring rules and the local-port/DI pattern are the difference between this module passing `pnpm arch` with zero new baseline entries and eating one. |
 | `server/src/modules/repo-intel/**` (service, repository, `pipeline/rank.ts`, `pipeline/full.ts`, `pipeline/incremental.ts`) | `onion-architecture`, `drizzle-orm-patterns` | Same Phase 3 row, plus the new `pr_files`⋈`pull_requests` aggregate read lives in `repository.ts` and must stay a single grouped query, not an N+1. |
 | `server/src/db/schema/context.ts`, `server/src/db/schema/repo-intel.ts` (comments only), `server/src/db/migrations/**` | `drizzle-orm-patterns`, `postgresql-table-design` | Phase 3 row for `server/src/db/**`. Add-only column migration onto an existing PK'd table; `NOT NULL` without default needs the zero-row precondition. |
-| `server/src/vendor/shared/contracts/knowledge.ts`, `client/src/vendor/shared/contracts/knowledge.ts`, `onboarding/schemas.ts`, every route schema in `onboarding/routes.ts` | `zod` | Phase 3 row for `**/contracts/**` and zod schemas. Also the optional-vs-`.nullable()` trap (`server/LEARNINGS.md:396-410`) for the `IndexState` widening. |
+| `server/src/vendor/shared/contracts/knowledge.ts`, `client/src/vendor/shared/contracts/knowledge.ts`, `onboarding/schemas.ts`, every route schema in `onboarding/routes.ts` | `zod` | Phase 3 row for `**/contracts/**` and zod schemas. Also the optional-vs-`.nullable()` trap (`server/LEARNINGS.md:396-410`) for the `IndexState` widening and the new optional `entries?`. |
+| `reviewer-core/src/prompt.ts`, `reviewer-core/src/index.ts` | `typescript-expert` **only** | Phase 3 line 136 excludes `onion-architecture` from `reviewer-core`. The change is one `export` keyword plus one export-list entry — the review bar here is "did the guard string change?" (it must not). |
 | `client/src/app/repos/[repoId]/tour/**`, `client/src/components/app-shell/helpers.ts` | `frontend-ui-architecture`, `next-best-practices`, `react-best-practices` | Phase 3 row for `client/src/app/**` and `client/src/components/**`. Thin route + colocated `_components/`, and the `"use client"` boundary. |
-| `client/src/lib/hooks/onboarding.ts` | `frontend-ui-architecture`, `react-best-practices` | Phase 3 row for `client/src/lib/**`. |
+| `client/src/lib/hooks/onboarding.ts` | `frontend-ui-architecture`, `react-best-practices` | Phase 3 row for `client/src/lib/**`. Also the conditional-`refetchInterval` pattern. |
 | `client/**/*.test.tsx` | `react-testing-library` | Phase 3 row. |
-| `onboarding/stack.ts`, `onboarding/setup.ts`, `onboarding/grounding.ts`, `_shared/checkout-paths.ts`, `onboarding/prompts.ts` | `security` | Phase 3's "any `.ts`/`.tsx`" row, and the sharpest need here: repository-controlled content (scripts, paths, manifests) → a prompt and a browser, plus containment-gated checkout reads and model-supplied link targets (AC-32, AC-41, AC-43). |
+| `onboarding/stack.ts`, `onboarding/setup.ts`, `onboarding/grounding.ts`, `_shared/checkout-paths.ts`, `onboarding/prompts.ts` | `security` | Phase 3's "any `.ts`/`.tsx`" row, and the sharpest need here: repository-controlled content (scripts, paths, manifests) → a prompt and a browser, containment-gated checkout reads, and model-supplied link/image targets both in structured fields and inside markdown bodies (AC-32, AC-41, AC-43). |
 | `mcp-server/src/tools/**` | **Routing gap — no row exists.** | Phase 3's table has no `mcp-server/**` entry; the only row that reaches it is "any `.ts`/`.tsx` → `security`". Planner judgment: load `security` plus `typescript-expert`, and treat `mcp-server/CLAUDE.md`'s own convention list (only `http/client.ts` calls `fetch`, no shared alias, byte-identical descriptions and registration order, handlers never throw) as the governing document. Do **not** substitute `onion-architecture` — its declared scope is `server/src` only. This is the same gap `plans/09-project-context-folder.md` flagged for `mcp-server/src/cli/**`; it is now the second plan to hit it, which is an argument for adding the row to Phase 3. |
 
 Phase 3's "cap at 4" is a *review-pass* budget, not an implementation one.
@@ -709,13 +831,25 @@ Root `CLAUDE.md` "Before you finish": append an `engineering-insights` entry to
 each touched module's `LEARNINGS.md` — at minimum `server/LEARNINGS.md` (what
 turning on `hotness` actually cost, and whether AC-11's identical-output claim
 survived contact), `client/LEARNINGS.md` (the `activeKeyFor` substring class of
-bug) and `mcp-server/LEARNINGS.md` (adding a sixth tool without disturbing the
-cached five).
+bug, and that `Markdown.tsx` constrains no URL), `reviewer-core/LEARNINGS.md`
+(currently empty — the guard's export boundary belongs there) and
+`mcp-server/LEARNINGS.md` (adding a sixth tool without disturbing the cached
+five).
 
 ## Verification
 
 Scoped commands, per module. `pr-self-review` re-runs the full suites before
 push regardless.
+
+### reviewer-core
+
+```
+cd reviewer-core && pnpm typecheck && pnpm test
+```
+The suite is small and hermetic, and this change touches its central file.
+**Pass:** all green with **no test edited** — an export-only change must leave
+every existing prompt assertion byte-identical. `git diff reviewer-core/` should
+show one `export` keyword and one export-list entry, nothing else.
 
 ### server
 
@@ -785,7 +919,7 @@ tools' descriptions and registration order are byte-identical to `main`
 | Fixture checkout with a known manifest + lockfile → expected language/runtime, package manager and frameworks, each naming its evidence file; lockfile is `stat`ed, never read | AC-2 |
 | Structure comes from the indexed path set; no filesystem walk is performed during assembly (spy on the walk helper) | AC-3 |
 | Fixture manifest declaring `dev`/`install` + an env-example + a compose file → exactly those candidate steps, each with an evidence file | AC-4 |
-| Bounded/partial index fixture → coverage facts (indexed count, excluded-by-bound count, status) present in the fact set and in the provenance | AC-18, AC-30 |
+| Bounded/partial index fixture → coverage facts (indexed count, excluded-by-bound count, status, reason) present in the fact set and in the provenance; the excluded count survives an incremental refresh | AC-18, AC-30 |
 | Payload over budget → whole entries dropped in the documented order, nothing truncated mid-entry, budget respected | D12/Q1 |
 | Known pagerank + hotness fixture → tour order equals `pagerank * (1 + hotness)` desc, while stored `file_rank.rank` is unchanged | AC-6, AC-12 |
 | Two fixture repos, identical graphs, different PR histories → different, reproducible orders; most-changed indexed file has `hotness = 1`; single-commit checkout still yields hotness | AC-7, AC-8 |
@@ -796,15 +930,18 @@ tools' descriptions and registration order are byte-identical to `main`
 | Model choice comes from the workspace's `onboarding` feature model, falling back to the documented default | AC-15 |
 | Stored tour's section kinds equal the five, in order; at most one diagram, on architecture only | AC-16, AC-17 |
 | Open the tour page for a repo with no stored tour → skeleton, zero provider calls; repeated loads with a stored tour → zero provider calls | AC-19, AC-22 |
-| Two rapid generate calls → one provider request, second returns the in-flight state | AC-20 |
+| Two rapid generate calls → one provider request, second returns the in-flight state; **a concurrent GET while a generation is in flight also reports `generating`** (and the guard is released on both success and failure) | AC-20 |
 | Successful generation stores index identity, model, attempts, tokens in/out, cost | AC-21 |
 | Index advanced past the stored tour's index state → marked stale, both sides named, no automatic regeneration | AC-23 |
 | Regeneration that fails → previous tour intact and still returned, alongside a failure status; nothing written | AC-24, AC-34, AC-36 |
-| Fixture with thousands of indexed files → ≤10 critical paths, ≤10 reading-path entries, ≤10 setup steps, 3–5 first tasks; each entry is one path + one sentence | AC-25, AC-26 |
+| Fixture with thousands of indexed files → ≤10 critical-path chains, ≤10 reading-path entries, ≤10 setup steps, 3–5 first tasks; each entry is one path + one sentence | AC-25, AC-26 |
+| Critical paths: one chain = one entry, `path` is the chain root and is what the Open link targets; remaining hops render as inert breadcrumb text; an entry whose chain contains an unknown hop is dropped whole | AC-26, AC-28, AC-44 |
 | Shuffled model response → rendered reading path still in weighted order; reasons matched by path | AC-27 |
-| Response citing `src/does-not-exist.ts` → entry dropped; response step `curl … \| sh` not in the facts → step dropped; external/absolute link target → no link rendered | AC-28, AC-29, AC-32 |
+| Response citing `src/does-not-exist.ts` → entry dropped; response step `curl … \| sh` not in the facts → step dropped; external/absolute **structured** link target → no link rendered | AC-28, AC-29, AC-32 |
+| **Body-text targets**: a section body containing `[x](https://evil.example)` and `![](https://tracker/beacon.png)` renders with both constructs neutralized (visible text kept, no live link, no remote image request) and both recorded in `dropped.links`; a body link to an indexed repo-relative path survives | AC-32 |
 | First-tasks section labelled model-suggested; a task with no indexed file reference is dropped | AC-31 |
 | For each degraded reason the index layer can report → skeleton with that reason; skeleton has no prose and no diagram, facts carry evidence | AC-33, AC-35 |
+| `graphFailed` partial index (uniform tied pagerank, empty chains) → generation refused with the named "no import graph" reason, skeleton rendered, zero provider calls | AC-30, AC-33, AC-38, Q2 |
 | No checkout and no index → explanatory empty state naming what's missing; generation on an unindexed repo → zero provider calls and a stated reason | AC-37, AC-38 |
 | Navigating to `/onboarding` leaves the Onboarding Tour nav entry unhighlighted; `/repos/:id/tour` highlights it; the tour URL contains no `onboarding` segment | AC-39 |
 | ToC lists exactly the five sections, each linking to its section | AC-40 |
@@ -827,6 +964,8 @@ and a stubbed provider (`server/CLAUDE.md:47-50`).
   `pr-self-review` Phase 4 rates a one-sided change HIGH).
 - `git status --porcelain server/src/db/migrations` — exactly one new migration
   file, no edit to an existing one (`server/CLAUDE.md:31-32`).
+- `git diff reviewer-core/src/prompt.ts` — one `export` keyword; the
+  `INJECTION_GUARD` string itself unchanged.
 - `git diff mcp-server/src/tools/index.ts` — additions only; the five existing
   `registerTool` calls unmoved and unedited.
 - `grep -rn "onboarding" client/src/app/repos` — the route tree must contain no

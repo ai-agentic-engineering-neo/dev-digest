@@ -120,4 +120,20 @@ describe('buildBriefMessages', () => {
     const { messages } = buildBriefMessages(smallFacts(), tokenizer);
     expect(messages.map((m) => m.role)).toEqual(['system', 'user']);
   });
+
+  it('AC-35: with body, intent, issue and spec ALL absent, the payload states the absences it has a section for — never silently omits them', () => {
+    const facts = smallFacts();
+    facts.pr = { ...facts.pr, body: null };
+    // `smallFacts()` already has intent/issue/spec unavailable — assert the
+    // exact markers `renderPr`/`renderIntent` actually emit (read, not
+    // assumed). The issue/spec sections are unconditionally OMITTED when
+    // unavailable (no "## Linked issue"/"## Referenced spec" header at all)
+    // rather than stated absent — assert that too, so a future silent-vs-
+    // explicit regression in either direction is caught.
+    const { payload } = buildBriefMessages(facts, tokenizer);
+    expect(payload.text).toContain('(no description)');
+    expect(payload.text).toContain('(not available — no cached intent for this PR)');
+    expect(payload.text).not.toContain('## Linked issue');
+    expect(payload.text).not.toContain('## Referenced spec');
+  });
 });

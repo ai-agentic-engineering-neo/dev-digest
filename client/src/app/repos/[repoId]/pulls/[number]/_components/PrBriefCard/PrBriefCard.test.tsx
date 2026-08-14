@@ -4,6 +4,7 @@ import { NextIntlClientProvider } from "next-intl";
 import type { BriefPage } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/brief.json";
 import * as toastLib from "@/lib/toast";
+import { formatCost } from "@/lib/format";
 
 /**
  * specs/11-why-risk-brief.md — PrBriefCard: AC-36 (section order), AC-37
@@ -151,5 +152,76 @@ describe("PrBriefCard", () => {
     // Appears twice — the overall level and this risk's own severity — both
     // are real TEXT nodes, not a colour-only indicator either way.
     expect(screen.getAllByText("HIGH").length).toBeGreaterThan(0);
+  });
+
+  it("AC-41: generating renders a distinct in-flight banner", () => {
+    pageData = { status: "generating", reason: null, brief: null, provenance: null, current_head_sha: "sha1", stale_markers: [] };
+    renderCard();
+    expect(screen.getByRole("status")).toHaveTextContent(/generating/i);
+  });
+
+  it("AC-41/AC-30: possibly_stale names what moved, distinctly from earlier_state's wording", () => {
+    pageData = { ...GENERATED_PAGE, status: "possibly_stale", stale_markers: ["repository index"] };
+    renderCard();
+    const banner = screen.getByRole("status");
+    expect(banner).toHaveTextContent(/out of date/i);
+    expect(banner).toHaveTextContent(/repository index/i);
+  });
+
+  it("AC-41/AC-31: refused names the stated reason and renders no brief content", () => {
+    pageData = {
+      status: "refused",
+      reason: "This pull request has no changed files to analyze.",
+      brief: null,
+      provenance: null,
+      current_head_sha: "sha1",
+      stale_markers: [],
+    };
+    renderCard();
+    expect(screen.getByRole("status")).toHaveTextContent(/no changed files to analyze/i);
+    expect(screen.queryByText(/Adds rate limiting/)).not.toBeInTheDocument();
+  });
+
+  it("AC-41/AC-28/AC-33: failed names its reason, distinctly from refused and generating", () => {
+    pageData = {
+      status: "failed",
+      reason: "Generation failed — the previous brief, if any, is unchanged.",
+      brief: null,
+      provenance: null,
+      current_head_sha: "sha1",
+      stale_markers: [],
+    };
+    renderCard();
+    expect(screen.getByRole("status")).toHaveTextContent(/generation failed/i);
+  });
+
+  it("AC-40: a <script> tag in a risk explanation renders as inert visible text, never a live element", () => {
+    pageData = {
+      ...GENERATED_PAGE,
+      brief: {
+        ...GENERATED_PAGE.brief!,
+        risks: [
+          {
+            ...GENERATED_PAGE.brief!.risks[0]!,
+            explanation: "Touches the auth middleware. <script>alert(1)</script>",
+          },
+        ],
+      },
+    };
+    const { container } = renderCard();
+    fireEvent.click(screen.getByRole("button", { name: /New unauthenticated endpoint/i }));
+
+    expect(container.querySelector("script")).toBeNull();
+    expect(screen.getByText(/<script>alert\(1\)<\/script>/)).toBeInTheDocument();
+  });
+
+  it("AC-43: the provenance line shows generated-at, model and cost", () => {
+    pageData = GENERATED_PAGE;
+    renderCard();
+    const provenance = screen.getByText((content) => content.startsWith("Generated "));
+    expect(provenance).toHaveTextContent("gpt-4.1");
+    expect(provenance).toHaveTextContent(formatCost(GENERATED_PAGE.provenance!.cost_usd));
+    // A real timestamp was rendered, not the "unknown" placeholder.
+    expect(provenance.textContent).not.toContain("Generated — ·");
   });
 });

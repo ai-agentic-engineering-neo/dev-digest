@@ -166,6 +166,39 @@ describe('assembleFacts', () => {
     expect(facts.spec.available).toBe(false);
   });
 
+  it('AC-32: a degraded index still assembles a fact set (no throw); status and reason land on facts.blast', async () => {
+    const facts = await assembleFacts({
+      pull: PULL,
+      repo: REPO,
+      files: FILES,
+      repoIntel: repoIntel(
+        { degraded: true, reason: 'ripgrep fallback — no persistent index' },
+        { status: 'degraded', reason: 'partial index coverage' },
+      ),
+      github: githubResolved(null),
+      readSpec: async () => null,
+    });
+    expect(facts.blast.degraded).toBe(true);
+    expect(facts.blast.indexStatus).toBe('degraded');
+    expect(facts.blast.indexReason).toBe('partial index coverage');
+  });
+
+  it('AC-32: an absent index also assembles a fact set, carrying the absent status through', async () => {
+    const facts = await assembleFacts({
+      pull: PULL,
+      repo: REPO,
+      files: FILES,
+      repoIntel: repoIntel(
+        { changedSymbols: [], callers: [], impactedEndpoints: [], factsByFile: {}, degraded: true, reason: 'no index' },
+        { status: 'absent', reason: 'repository has not been indexed', lastIndexedSha: '', indexerVersion: 0 },
+      ),
+      github: githubResolved(null),
+      readSpec: async () => null,
+    });
+    expect(facts.blast.indexStatus).toBe('absent');
+    expect(facts.blast.indexReason).toBe('repository has not been indexed');
+  });
+
   it('a resolvable linked issue reaches the fact set', async () => {
     const facts = await assembleFacts({
       pull: PULL,

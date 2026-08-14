@@ -1,8 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import type { z } from 'zod';
 import { BriefService } from '../src/modules/brief/service.js';
 import type { BriefRepository, BriefRow, UpsertBriefInput, BriefPullRow, BriefPrFileRow, BriefRepoRow } from '../src/modules/brief/repository.js';
 import type { RepoIntelIndexState, RepoIntelPort } from '../src/modules/brief/ports.js';
 import { MockLLMProvider } from '../src/adapters/mocks.js';
+import { defaultFeatureModel } from '../src/modules/settings/feature-models.js';
 import type { LLMProvider, StructuredRequest, StructuredResult } from '@devdigest/shared';
 
 /**
@@ -116,6 +118,38 @@ class DelayedLLM implements LLMProvider {
   }
 }
 
+/** AC-11: a provider whose `completeStructured` represents a repair-reprompt
+ *  RESULT — `attempts > 1` with tokens already SUMMED across those attempts —
+ *  from a single call. The adapters (not this module) own the repair loop;
+ *  `BriefService` only has to record what one such call reports. */
+class RepairLLM implements LLMProvider {
+  readonly id = 'openai' as const;
+  calls: { method: string }[] = [];
+  async listModels() {
+    return [];
+  }
+  async complete(): Promise<never> {
+    throw new Error('not used');
+  }
+  async completeStructured<T>(req: StructuredRequest<T>): Promise<StructuredResult<T>> {
+    this.calls.push({ method: 'completeStructured' });
+    const parsed = (req.schema as z.ZodType<T>).safeParse(VALID_OUTPUT);
+    if (!parsed.success) throw new Error(`fixture failed schema: ${parsed.error.message}`);
+    return {
+      data: parsed.data,
+      model: req.model,
+      tokensIn: 300, // summed across the provider's repair reprompts
+      tokensOut: 150,
+      costUsd: 0.005,
+      raw: JSON.stringify(VALID_OUTPUT),
+      attempts: 3,
+    };
+  }
+  async embed(): Promise<never> {
+    throw new Error('not used');
+  }
+}
+
 class ThrowingLLM implements LLMProvider {
   readonly id = 'openai' as const;
   async listModels() {
@@ -159,6 +193,128 @@ describe('BriefService.generate', () => {
     expect(result.status).toBe('generated');
     expect(mock.calls.filter((c) => c.method === 'completeStructured')).toHaveLength(1);
     expect(mock.calls.filter((c) => c.method === 'complete' || c.method === 'embed')).toHaveLength(0);
+  });
+
+  it('AC-11: a provider-side repair reprompt is recorded as attempts>1 with summed tokens, from ONE completeStructured call', async () => {
+    const repair = new RepairLLM();
+    const { service, repo } = buildService({ llm: repair });
+    const result = await service.generate('ws-1', 'pr-1', false);
+
+    expect(result.status).toBe('generated');
+    // Exactly one completeStructured call total — the repair loop is the
+    // provider's concern, not a second generation this module triggers.
+    expect(repair.calls).toHaveLength(1);
+    expect(result.provenance?.attempts).toBe(3);
+    expect(result.provenance?.tokens_in).toBe(300);
+    expect(result.provenance?.tokens_out).toBe(150);
+    expect(repo.upsertCalls[0]?.attempts).toBe(3);
+    expect(repo.upsertCalls[0]?.tokensIn).toBe(300);
+    expect(repo.upsertCalls[0]?.tokensOut).toBe(150);
+  });
+
+  it('AC-12: resolves the model via (workspaceId, "risk_brief") — no second feature-model identity', async () => {
+    const repo = new FakeBriefRepository();
+    const resolveModel = vi.fn(async () => ({ provider: 'openai' as const, model: 'gpt-x' }));
+    const service = new BriefService(
+      repo as unknown as BriefRepository,
+      new FakeRepoIntel(),
+      resolveModel,
+      async () => new MockLLMProvider('openai', { structured: VALID_OUTPUT }),
+      async () => {
+        throw new Error('no github client configured');
+      },
+      async () => null,
+      { count: (s: string) => Math.ceil(s.length / 4) },
+      () => null,
+      { info: () => {} },
+    );
+
+    await service.generate('ws-1', 'pr-1', false);
+    expect(resolveModel).toHaveBeenCalledWith('ws-1', 'risk_brief');
+  });
+
+  it('AC-12: with no workspace override, the registry default falls back to openai/gpt-4.1', () => {
+    // The real `resolveFeatureModel` (wired at `container.ts`) reads a
+    // workspace override, falling back to this registry default when unset —
+    // hermetic, no DB, since `defaultFeatureModel` never reads one.
+    expect(defaultFeatureModel('risk_brief')).toEqual({ provider: 'openai', model: 'gpt-4.1' });
+  });
+
+  it('AC-32: a degraded index still generates (no refusal); index status/reason land on the fact set and the rendered provenance', async () => {
+    const repo = new FakeBriefRepository();
+    const { service } = buildService({
+      repo,
+      state: {
+        status: 'degraded',
+        reason: 'partial index coverage',
+        lastIndexedSha: 'idx-partial',
+        indexerVersion: 2,
+        updatedAt: new Date('2026-01-01'),
+      },
+    });
+
+    const result = await service.generate('ws-1', 'pr-1', false);
+
+    expect(result.status).toBe('generated'); // no refusal (AC-32, unlike AC-31's empty-files refusal)
+    expect(result.provenance?.index_status).toBe('degraded');
+    expect(result.provenance?.index_reason).toBe('partial index coverage');
+    // `index_reason` isn't a persisted column (only index_status is) — see
+    // `provenanceFromRow`'s comment in service.ts — so only assert what's
+    // actually written to the row.
+    expect(repo.upsertCalls[0]?.indexStatus).toBe('degraded');
+    expect(repo.upsertCalls[0]?.indexSha).toBe('idx-partial');
+  });
+
+  it('AC-32: an absent index also still generates, with the absent status carried through', async () => {
+    const repo = new FakeBriefRepository();
+    const { service } = buildService({
+      repo,
+      state: {
+        status: 'absent',
+        reason: 'repository has not been indexed',
+        lastIndexedSha: '',
+        indexerVersion: 0,
+        updatedAt: new Date('2026-01-01'),
+      },
+    });
+
+    const result = await service.generate('ws-1', 'pr-1', false);
+
+    expect(result.status).toBe('generated');
+    expect(result.provenance?.index_status).toBe('absent');
+    expect(result.provenance?.index_reason).toBe('repository has not been indexed');
+  });
+
+  it('AC-29: a successful generation persists the full documented provenance set in one assertion', async () => {
+    const repo = new FakeBriefRepository();
+    const { service } = buildService({ repo });
+
+    const result = await service.generate('ws-1', 'pr-1', false);
+
+    expect(result.status).toBe('generated');
+    expect(repo.upsertCalls).toHaveLength(1);
+    const persisted = repo.upsertCalls[0]!;
+    expect(persisted).toMatchObject({
+      prId: 'pr-1',
+      headSha: 'sha-head', // the state key (D9)
+      indexSha: FULL_STATE.lastIndexedSha,
+      indexStatus: FULL_STATE.status,
+      indexerVersion: FULL_STATE.indexerVersion,
+      intentResolvedAt: null,
+      provider: 'openai',
+      model: 'gpt-x',
+      attempts: 1,
+      tokensIn: 100,
+      tokensOut: 50,
+      droppedInputs: 0,
+    });
+    expect(typeof persisted.costUsd).toBe('number');
+
+    // generated_at/timestamp presence — not part of UpsertBriefInput (the
+    // repository stamps it at write time), but round-tripped onto the
+    // rendered provenance the caller sees.
+    expect(result.provenance?.generated_at).toBeTruthy();
+    expect(Number.isNaN(new Date(result.provenance!.generated_at).getTime())).toBe(false);
   });
 
   it('AC-31: an empty pr_files list refuses, zero provider calls', async () => {

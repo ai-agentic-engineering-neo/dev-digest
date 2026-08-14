@@ -1,6 +1,9 @@
 import type { CSSProperties } from "react";
 
 export const s = {
+  briefSection: {
+    marginBottom: 24,
+  } satisfies CSSProperties,
   overviewGrid: {
     display: "grid",
     // minmax(0, 1fr), not 1fr: a bare `1fr` track still floors at its item's

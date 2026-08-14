@@ -308,6 +308,26 @@ Whoever builds the "PR Brief card" lesson (`pr_brief`, which `BlastRadius` is
 reserved for) should decide whether that needs a new field before reusing
 this contract as-is.
 
+**2026-08-14 addendum — resolved by specs/11-why-risk-brief.md (plans/11 Q1):
+the shared `BlastRadius`/`DownstreamImpact` contract was NOT widened; the
+brief reads `RepoIntel.getBlastRadius`'s raw `BlastResult` directly instead of
+going through `blast/service.ts`'s `toBlastRadius` mapper.** `BlastResult`
+(`repo-intel/types.ts:89-102`) already carries the 2-hop-only impact via its
+flat `impactedEndpoints: string[]` union and `factsByFile` map keyed by every
+impacted file (including 2-hop-only ones) — the loss described above happens
+strictly ONE ring up, in `toBlastRadius`'s per-caller-group regrouping, which
+`modules/brief/facts.ts` never calls. `modules/brief/ports.ts` declares its
+own local `RepoIntelBlastResult`/`RepoIntelPort` (shapes copied from
+`repo-intel/types.ts`, never imported — the established local-port rule) and
+`modules/brief/service.ts` wires the real `container.repoIntel` in at
+`container.ts`'s `briefService` getter. Net effect: zero change to
+`BlastRadius`/`DownstreamImpact`, zero change to how the Blast Radius CARD
+renders (N11 held), and the previously-uncapturable 2-hop endpoint now reaches
+a brief's fact set and grounding's `knownEndpoints` set. Any FUTURE feature
+that needs this same class of impact should read `BlastResult` directly
+through a local port, not `BlastRadius`/`blast/service.ts` — the latter is
+lossy by design for its own (caller-grouped) UI, not a general-purpose feed.
+
 ### 2026-08-04 — a spec's "byproduct" claim about existing behavior can be stale; verify against the adapter, not just the route it cites
 
 specs/05-intent-layer.md's Scope item 8 asserted `PrDetail.linked_issue` is
@@ -747,3 +767,35 @@ guard. `not_a_file` needs no such guard — attaching a path that resolves to a
 real directory (`mkdir` instead of `writeFile`) is portable and deterministic.
 
 ## Open Questions
+
+### 2026-08-14 — three underspecified judgment calls in `modules/brief/` (specs/11-why-risk-brief.md), left documented rather than blocking implementation
+
+AC-18 ("IF a brief names an endpoint, cron or symbol that is not present in
+the fact set's blast-radius facts, THEN drop that citation") has no
+structured field to enforce against — the raw schema (`brief/schemas.ts`) only
+has `file_refs`, not a separate endpoint/cron/symbol list. `brief/
+grounding.ts`'s `scanCitations` implements this as a text-pattern heuristic:
+a bare `METHOD /path` mention is redacted to `METHOD an endpoint` when absent
+from `knownEndpoints`; a backtick-quoted token matching a bare identifier or a
+5-field cron shape is checked against `knownSymbols`/`knownCrons` and the
+backticks stripped (visible text kept) when absent. This can both false-
+positive (an English word that happens to look like a cron expression) and
+false-negative (a citation phrased without backticks/METHOD prefix) — it is
+NOT exhaustive text understanding, by design. If this proves too noisy in
+practice, the fix is a structured citations field on the raw schema (model
+explicitly lists endpoints/crons/symbols it's asserting), not a smarter regex.
+
+`groundBrief(raw, facts)` grounds against the FULL `BriefFactSet` (same object
+`prompts.ts` rendered from), not a reduced "what actually survived this
+generation's budget drop" subset — deliberately mirroring `onboarding/
+grounding.ts`'s `groundTour(result.data, facts)`, which does the same. A
+citation to something real but dropped from the rendered payload for budget
+reasons (e.g. caller #21, past the top-20 cutoff) is NOT rejected — it's
+statistically unlikely (the model wasn't shown it) but not impossible if it
+guesses right, and is not treated as a bug.
+
+`pr_brief.dropped_inputs` (AC-8) counts DROP CATEGORIES applied (0-6, one per
+`prompts.ts` `DROP_STEPS` entry), not individual dropped items (not "14
+callers omitted"). `buildBriefMessages`'s `RenderedBriefPayload.droppedCount`
+is the source of this number — read that if a future UI wants a more granular
+count; the column would need a shape change (int → object) to carry it.

@@ -130,6 +130,26 @@ had to abstract over these three different identity shapes and two different
 state owners — copying stayed cheaper. Revisit extraction only if a FOURTH
 case needs the exact `{ id }`+nonce shape one of these three already has.
 
+**2026-08-14 — the fourth case arrived (specs/11-why-risk-brief.md AC-39, Q7:
+PR Brief review-focus click → Files tab, open+scroll that file/line) and it
+was STILL not extracted — it reused `FileCard`'s existing `{ path, line }`+
+nonce shape exactly, the "supplying an existing prop from a new owner" case
+Q7 called out in advance, not a new copy.** `PrDetailView` gained a
+`focusTarget: { file, line: number | null, n } | null` state + a
+`handleFocusFile` that mirrors `handleSelectFinding` line-for-line — same
+component, same reasoning (it already owns both the tab state and every other
+cross-tab target). The one genuinely NEW widening: `FileCard`'s `scrollTarget.
+line` became `number | null` (previously always `number`) — `line: null` now
+scrolls to a new `id={difffile-{path}}` on the card's own root (exported as
+`fileAnchorId`) instead of a `diffline-{path}-{line}` row, additive and
+backward-compatible (no existing caller ever passed `line: null`, both
+existing consumers — `DiffViewer`, `SmartDiffViewer` — still resolve a normal
+numeric line unchanged). This is the real fifth-case decision point: the next
+"click X, open+scroll Y" need that ALSO wants a file-only (no-line) target can
+reuse `fileAnchorId`/the widened `scrollTarget` shape directly; a need for a
+genuinely different identity (not `{path, line}`) still doesn't justify
+extracting a shared hook by this file's own three-copies-first precedent.
+
 ### 2026-08-02 — don't copy `pulls/page.tsx` as a route template; it's the deviation, not the pattern
 
 `client/CLAUDE.md` says pages stay thin, and `agents/page.tsx`,

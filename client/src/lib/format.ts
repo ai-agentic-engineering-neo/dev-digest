@@ -25,3 +25,22 @@ export function formatTokens(tokensIn: number, tokensOut: number): string {
   const k = (n: number) => `${(n / 1000).toFixed(1)}K`;
   return `${k(tokensIn)}→${k(tokensOut)}`;
 }
+
+/**
+ * Coarse relative-time label ("now" / "3m" / "2h" / "5d"). Promoted here from
+ * two near-identical colocated copies (`pulls/helpers.ts`,
+ * `tour/_components/OnboardingTourView/helpers.ts`) once a third real
+ * consumer (`PrBriefCard`'s provenance line) arrived — see
+ * `client/LEARNINGS.md`'s "colocate, promote on the second/third use".
+ */
+export function relativeTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const then = Date.parse(iso);
+  if (Number.isNaN(then)) return "—";
+  const m = Math.max(0, Math.round((Date.now() - then) / 60_000));
+  if (m < 1) return "now";
+  if (m < 60) return `${m}m`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h}h`;
+  return `${Math.round(h / 24)}d`;
+}

@@ -88,8 +88,11 @@ describe('AI contracts parse fixtures', () => {
       }),
     ).not.toThrow();
     expect(() =>
+      // specs/11-why-risk-brief.md Q4 — `kind` is now the closed RiskKind
+      // vocabulary in the shared/stored contract (unrecognised strings are
+      // normalised to `other` by grounding before they ever reach here).
       Risks.parse({
-        risks: [{ kind: 'security', title: 't', explanation: 'e', severity: 'high', file_refs: [] }],
+        risks: [{ kind: 'auth_surface', title: 't', explanation: 'e', severity: 'high', file_refs: [] }],
       }),
     ).not.toThrow();
     expect(() =>

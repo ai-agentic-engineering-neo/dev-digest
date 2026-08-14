@@ -32,6 +32,7 @@ export function SmartDiffViewer({
   findings,
   commenting,
   onSelectFinding,
+  focusTarget,
 }: {
   files: PrFile[];
   groups: SmartDiffGroup[];
@@ -42,6 +43,8 @@ export function SmartDiffViewer({
   /** Findings-badge click switches to the Findings tab and expands/highlights
      that finding's card there — see PrDetailView's `handleSelectFinding`. */
   onSelectFinding?: (findingId: string) => void;
+  /** specs/11-why-risk-brief.md AC-39/Q7 — see `DiffViewer`'s identical prop. */
+  focusTarget?: { file: string; line: number | null; n: number } | null;
 }) {
   const t = useTranslations("shell");
 
@@ -102,6 +105,11 @@ export function SmartDiffViewer({
                   file={file}
                   commenting={commenting}
                   defaultOpen={group.role === "boilerplate" ? false : undefined}
+                  scrollTarget={
+                    focusTarget && focusTarget.file === sf.path
+                      ? { line: focusTarget.line, nonce: focusTarget.n }
+                      : undefined
+                  }
                   headerExtra={
                     findingsCount > 0 ? (
                       <button

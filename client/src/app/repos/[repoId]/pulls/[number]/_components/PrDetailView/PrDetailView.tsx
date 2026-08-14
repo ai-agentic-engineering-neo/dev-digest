@@ -91,6 +91,23 @@ export function PrDetailView() {
     [],
   );
 
+  // PR Brief → Files navigation (specs/11-why-risk-brief.md AC-39, Q7): a
+  // review-focus click switches to the Diff tab and opens/scrolls that file
+  // (and line, when one survived) — line-for-line analogue of
+  // `handleSelectFinding` above, in the same component that already holds
+  // both the tab state and every other cross-tab target.
+  const [focusTarget, setFocusTarget] = React.useState<{ file: string; line: number | null; n: number } | null>(
+    null,
+  );
+  const handleFocusFile = React.useCallback(
+    (file: string, line: number | null) => {
+      setTab("diff");
+      setFocusTarget((prev) => ({ file, line, n: (prev?.n ?? 0) + 1 }));
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
   // Reviews come newest-first; each is its own run (grouped into accordions).
   const runs = reviews ?? [];
   const allFindings: FindingRecord[] = React.useMemo(
@@ -164,6 +181,7 @@ export function PrDetailView() {
             prBody={pr.body}
             repoFullName={repoFullName}
             headSha={pr.head_sha}
+            onFocusFile={handleFocusFile}
           />
         )}
 
@@ -202,6 +220,7 @@ export function PrDetailView() {
             canComment={pr.status === "open"}
             findings={allFindings}
             onSelectFinding={handleSelectFinding}
+            focusTarget={focusTarget}
           />
         )}
       </div>

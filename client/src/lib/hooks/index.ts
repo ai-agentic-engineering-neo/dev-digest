@@ -12,3 +12,4 @@ export * from "./conventions";
 export * from "./blast-radius";
 export * from "./project-context";
 export * from "./onboarding";
+export * from "./brief";

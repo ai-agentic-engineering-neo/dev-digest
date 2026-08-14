@@ -34,6 +34,9 @@ import { ProjectContextRepository } from '../modules/project-context/repository.
 import { ProjectContextService } from '../modules/project-context/service.js';
 import { OnboardingRepository } from '../modules/onboarding/repository.js';
 import { OnboardingService } from '../modules/onboarding/service.js';
+import { BriefRepository } from '../modules/brief/repository.js';
+import { BriefService } from '../modules/brief/service.js';
+import { readSpecFile } from '../modules/brief/clone.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
 import { resolveFeatureModel as resolveFeatureModelForWorkspace } from '../modules/settings/feature-models.js';
@@ -92,6 +95,8 @@ export class Container {
   private _projectContextService?: ProjectContextService;
   private _onboardingRepo?: OnboardingRepository;
   private _onboardingService?: OnboardingService;
+  private _briefRepo?: BriefRepository;
+  private _briefService?: BriefService;
   private _repoIntel?: RepoIntel;
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
@@ -192,6 +197,34 @@ export class Container {
       // No Fastify `app.log` reaches the container (composition-root
       // boundary) — `console` is pino-compatible enough for the one
       // structured `.info(obj, msg)` line this service emits per generation.
+      console,
+    ));
+  }
+
+  /** specs/11-why-risk-brief.md — the `pr_brief` table (one row per PR, the
+   *  current stored brief). */
+  get briefRepo(): BriefRepository {
+    return (this._briefRepo ??= new BriefRepository(this.db));
+  }
+
+  /**
+   * Application service for the PR Why + Risk Brief — `getPage` (0 LLM
+   * calls) and `generate` (the one structured call per generation). Shared
+   * getter (`onboardingService`'s shape) so `routes.ts` reads
+   * `container.briefService` rather than constructing a new instance per
+   * request — the in-flight generation guard (AC-27) only works because this
+   * is a process-wide singleton.
+   */
+  get briefService(): BriefService {
+    return (this._briefService ??= new BriefService(
+      this.briefRepo,
+      this.repoIntel,
+      (workspaceId, id) => this.resolveFeatureModel(workspaceId, id),
+      (id) => this.llm(id),
+      () => this.github(),
+      readSpecFile,
+      this.tokenizer,
+      (model, tokensIn, tokensOut) => this.priceBook.estimate(model, tokensIn, tokensOut),
       console,
     ));
   }

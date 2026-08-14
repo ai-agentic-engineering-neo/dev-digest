@@ -21,9 +21,13 @@ interface DiffTabProps {
   /** Findings-badge click → switch to the Findings tab + expand/highlight
      that finding's card (PrDetailView owns the tab/target state). */
   onSelectFinding?: (findingId: string) => void;
+  /** PR Brief review-focus click target (specs/11-why-risk-brief.md AC-39,
+     Q7) — PrDetailView owns this state; threaded to whichever diff view
+     (original or smart order) is currently active. */
+  focusTarget?: { file: string; line: number | null; n: number } | null;
 }
 
-export function DiffTab({ prId, filesCount, files, canComment, findings, onSelectFinding }: DiffTabProps) {
+export function DiffTab({ prId, filesCount, files, canComment, findings, onSelectFinding, focusTarget }: DiffTabProps) {
   const t = useTranslations("shell");
   const { data: comments } = usePrComments(prId);
   const create = useCreatePrComment(prId);
@@ -86,9 +90,10 @@ export function DiffTab({ prId, filesCount, files, canComment, findings, onSelec
           findings={findings}
           commenting={commenting}
           onSelectFinding={onSelectFinding}
+          focusTarget={focusTarget}
         />
       ) : (
-        <DiffViewer files={files} commenting={commenting} />
+        <DiffViewer files={files} commenting={commenting} focusTarget={focusTarget} />
       )}
     </section>
   );

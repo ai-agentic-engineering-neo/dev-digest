@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import type { Db } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
 import type { RunSummary, RunTrace } from '@devdigest/shared';
@@ -112,6 +112,23 @@ export async function reapStaleRunningRuns(db: Db): Promise<number> {
     .where(eq(t.agentRuns.status, 'running'))
     .returning({ id: t.agentRuns.id });
   return rows.length;
+}
+
+/**
+ * Completed runs for a batch of PRs, newest-first — the PR list's cost badge.
+ * Only `status='done'` counts: a failed run has no meaningful spend to surface.
+ * "Latest per PR" is pure grouping and belongs to the caller.
+ */
+export async function doneRunCostsForPulls(
+  db: Db,
+  prIds: string[],
+): Promise<{ prId: string | null; costUsd: number | null }[]> {
+  if (prIds.length === 0) return [];
+  return db
+    .select({ prId: t.agentRuns.prId, costUsd: t.agentRuns.costUsd })
+    .from(t.agentRuns)
+    .where(and(inArray(t.agentRuns.prId, prIds), eq(t.agentRuns.status, 'done')))
+    .orderBy(desc(t.agentRuns.ranAt));
 }
 
 // ---- observability: agent_runs + run_traces -------------------------------

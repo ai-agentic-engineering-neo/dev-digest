@@ -6,10 +6,11 @@ Reusable AI skills that provide specialized knowledge and workflows. Canonical l
 
 | Skill | Scope | Description |
 |-------|-------|-------------|
-| [engineering-insights](engineering-insights/SKILL.md) | Project | Read `<module>/INSIGHTS.md` before a task, record what was learned after |
+| [onion-architecture](onion-architecture/SKILL.md) | Backend | Layering & dependency direction: module anatomy, ports/adapters, persistence & transaction boundaries, DI, jobs/streams, config & secrets placement |
 | [fastify-best-practices](fastify-best-practices/SKILL.md) | Backend | Fastify routes, plugins, JSON-schema validation, error handling |
 | [drizzle-orm-patterns](drizzle-orm-patterns/SKILL.md) | Backend | Drizzle schema, queries, relations, transactions, migrations |
 | [postgresql-table-design](postgresql-table-design/SKILL.md) | Backend | Postgres schema design, data types, indexing, constraints |
+| [frontend-ui-architecture](frontend-ui-architecture/SKILL.md) | Frontend | Code organization & layering: file placement, component splitting, business-logic/constants/utils placement, App Router architecture |
 | [next-best-practices](next-best-practices/SKILL.md) | Frontend | Next.js App Router, RSC boundaries, data fetching, optimization |
 | [react-best-practices](react-best-practices/SKILL.md) | Frontend | React anti-patterns, state management, hooks rules |
 | [react-testing-library](react-testing-library/SKILL.md) | Frontend | General-purpose React Testing Library guide with Vitest |
@@ -17,6 +18,8 @@ Reusable AI skills that provide specialized knowledge and workflows. Canonical l
 | [typescript-expert](typescript-expert/SKILL.md) | Full-stack | Type-level programming, performance, tooling, migrations |
 | [security](security/SKILL.md) | Full-stack | OWASP Top 10:2025, auth, injection, uploads, secrets |
 | [mermaid-diagram](mermaid-diagram/SKILL.md) | Shared | Mermaid diagrams in markdown (flowcharts, sequence, ERD, …) |
+| [engineering-insights](engineering-insights/SKILL.md) | Workflow | Captures non-obvious findings into the touched module's `INSIGHTS.md`; append-only |
+| [pr-self-review](pr-self-review/SKILL.md) | Workflow | Gates the local diff before a PR: deterministic gates, repo invariants, skill routing → `PASS`/`WARN`/`BLOCKED` |
 
 ## What Are Skills?
 

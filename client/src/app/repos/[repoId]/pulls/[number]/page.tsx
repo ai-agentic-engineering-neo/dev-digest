@@ -69,10 +69,10 @@ export default function PRDetailPage() {
 
   // Reviews come newest-first; each is its own run (grouped into accordions).
   const runs = reviews ?? [];
-  const allFindings: FindingRecord[] = React.useMemo(
-    () => runs.flatMap((r) => r.findings),
-    [reviews],
-  );
+  // Derived during render, not memoized: a flatMap over a handful of reviews is
+  // cheaper than the memo bookkeeping, and the previous useMemo listed `reviews`
+  // as its dependency while reading `runs`.
+  const allFindings: FindingRecord[] = runs.flatMap((r) => r.findings);
   const lethalTrifecta = allFindings.filter((f) => f.kind === "lethal_trifecta");
   const findingsCount = allFindings.length;
 

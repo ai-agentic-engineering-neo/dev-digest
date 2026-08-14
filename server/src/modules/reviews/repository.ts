@@ -1,5 +1,5 @@
 import type { Db } from '../../db/client.js';
-import * as t from '../../db/schema.js';
+import type * as t from '../../db/schema.js';
 import type { Finding, Intent, RunSummary, RunTrace } from '@devdigest/shared';
 
 /**
@@ -66,6 +66,27 @@ export class ReviewRepository {
 
   getReview(reviewId: string): Promise<ReviewRow | undefined> {
     return reviewRepo.getReview(this.db, reviewId);
+  }
+
+  // ---- PR-list rollups (consumed by the pulls module via container.reviewRepo)
+
+  /** Review rows for a batch of PRs, newest-first — the list's score + findings. */
+  reviewSummariesForPulls(
+    prIds: string[],
+  ): Promise<{ id: string; prId: string; agentId: string | null; score: number | null }[]> {
+    return reviewRepo.reviewSummariesForPulls(this.db, prIds);
+  }
+
+  /** Finding severities under a set of reviews — the list's severity chips. */
+  findingSeveritiesForReviews(
+    reviewIds: string[],
+  ): Promise<{ reviewId: string; severity: string }[]> {
+    return reviewRepo.findingSeveritiesForReviews(this.db, reviewIds);
+  }
+
+  /** Completed runs for a batch of PRs, newest-first — the list's cost badge. */
+  doneRunCostsForPulls(prIds: string[]): Promise<{ prId: string | null; costUsd: number | null }[]> {
+    return runRepo.doneRunCostsForPulls(this.db, prIds);
   }
 
   /** In-flight runs for a PR (status='running') — the server-side source of

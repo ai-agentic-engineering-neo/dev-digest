@@ -41,6 +41,20 @@ export const s = {
   sizeBadgeBorder: (color: string): CSSProperties => ({ border: `1px solid ${color}` }),
   scoreCell: { display: "flex", alignItems: "center" } satisfies CSSProperties,
   costCell: { fontSize: 12, color: "var(--text-secondary)" } satisfies CSSProperties,
+  findingsCell: {
+    position: "relative",
+    display: "flex",
+    alignItems: "center",
+    gap: 4,
+    flexWrap: "wrap",
+  } satisfies CSSProperties,
+  findingChipButton: {
+    display: "inline-flex",
+    padding: 0,
+    border: "none",
+    background: "none",
+    cursor: "pointer",
+  } satisfies CSSProperties,
   updatedCell: {
     fontSize: 12,
     color: "var(--text-muted)",

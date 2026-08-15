@@ -288,6 +288,15 @@ describe("OnboardingTourView", () => {
     expect(screen.getByRole("button", { name: /generating/i })).toBeDisabled();
   });
 
+  it("2026-08-15 test-quality WARNING (75% confidence): a regeneration in flight over a PREVIOUS tour still renders that tour (not the skeleton), and the header button reads 'Regenerating', distinctly from the no-tour-yet case above", () => {
+    pageData = { ...GENERATED_PAGE, status: "generating" };
+    renderView();
+    expect(screen.getByRole("status").textContent).toContain("Generating your tour…");
+    expect(screen.getByRole("button", { name: /regenerating/i })).toBeDisabled();
+    expect(screen.getByRole("navigation", { name: "On this page" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Architecture Overview" })).toBeInTheDocument();
+  });
+
   it("degraded status announces the fallback and renders the detected facts, not a ToC (AC-45)", () => {
     pageData = DEGRADED_PAGE;
     renderView();

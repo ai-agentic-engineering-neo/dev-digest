@@ -111,6 +111,26 @@ describe("PrBriefCard", () => {
     expect(mutate).toHaveBeenCalledWith({ regenerate: true }, expect.anything());
   });
 
+  it("2026-08-15 test-quality WARNING (80% confidence): AC-36 section order is DOM order, not just presence — risk level, What, Why, Risk areas and Review focus appear in that document order", () => {
+    pageData = GENERATED_PAGE;
+    renderCard();
+
+    const FOLLOWING = Node.DOCUMENT_POSITION_FOLLOWING;
+    // The overall risk-level badge is the FIRST "HIGH" in document order —
+    // the risk's own severity badge (the second "HIGH") renders later, inside
+    // the Risk areas section below.
+    const [levelLabel] = screen.getAllByText("HIGH");
+    const whatLabel = screen.getByText("What");
+    const whyLabel = screen.getByText("Why");
+    const risksLabel = screen.getByText("Risk areas");
+    const focusLabel = screen.getByText("Review focus");
+
+    expect(levelLabel!.compareDocumentPosition(whatLabel) & FOLLOWING).toBeTruthy();
+    expect(whatLabel.compareDocumentPosition(whyLabel) & FOLLOWING).toBeTruthy();
+    expect(whyLabel.compareDocumentPosition(risksLabel) & FOLLOWING).toBeTruthy();
+    expect(risksLabel.compareDocumentPosition(focusLabel) & FOLLOWING).toBeTruthy();
+  });
+
   it("AC-37: expanding a risk reveals its explanation and file references, with a real host link", () => {
     pageData = GENERATED_PAGE;
     renderCard();
@@ -195,6 +215,20 @@ describe("PrBriefCard", () => {
     };
     renderCard();
     expect(screen.getByRole("status")).toHaveTextContent(/generation failed/i);
+  });
+
+  it("2026-08-15 test-quality WARNING (80% confidence): failed status with a PREVIOUS brief still renders that brief's content alongside the failure banner", () => {
+    pageData = {
+      ...GENERATED_PAGE,
+      status: "failed",
+      reason: "The model call timed out.",
+    };
+    renderCard();
+    const banner = screen.getByRole("status");
+    expect(banner).toHaveTextContent(/generation failed/i);
+    expect(banner).toHaveTextContent(/the model call timed out/i);
+    expect(screen.getByText("Adds rate limiting to the public API.")).toBeInTheDocument();
+    expect(screen.getByText("New unauthenticated endpoint")).toBeInTheDocument();
   });
 
   it("AC-40: a <script> tag in a risk explanation renders as inert visible text, never a live element", () => {

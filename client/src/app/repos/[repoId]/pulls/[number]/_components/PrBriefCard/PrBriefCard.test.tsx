@@ -15,9 +15,10 @@ import { formatCost } from "@/lib/format";
 const mutate = vi.fn();
 let pageData: BriefPage | undefined;
 let mutationPending = false;
+let briefLoading = false;
 
 vi.mock("@/lib/hooks/brief", () => ({
-  useBrief: () => ({ data: pageData, isLoading: false }),
+  useBrief: () => ({ data: pageData, isLoading: briefLoading }),
   useGenerateBrief: () => ({ mutate, isPending: mutationPending }),
 }));
 
@@ -33,6 +34,7 @@ afterEach(() => {
   vi.clearAllMocks();
   pageData = undefined;
   mutationPending = false;
+  briefLoading = false;
 });
 
 function renderCard(props: { onFocusFile?: (file: string, line: number | null) => void } = {}) {
@@ -213,6 +215,17 @@ describe("PrBriefCard", () => {
 
     expect(container.querySelector("script")).toBeNull();
     expect(screen.getByText(/<script>alert\(1\)<\/script>/)).toBeInTheDocument();
+  });
+
+  it("renders a skeleton while the brief page is loading, with no status banner or generate action yet", () => {
+    briefLoading = true;
+    pageData = undefined;
+    const { container } = renderCard();
+
+    expect(screen.getByText("Why + Risk Brief")).toBeInTheDocument();
+    expect(container.querySelectorAll(".skeleton")).toHaveLength(3);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /generate brief|regenerate/i })).not.toBeInTheDocument();
   });
 
   it("AC-43: the provenance line shows generated-at, model and cost", () => {

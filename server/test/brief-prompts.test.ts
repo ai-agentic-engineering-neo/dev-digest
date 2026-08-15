@@ -121,6 +121,75 @@ describe('buildBriefMessages', () => {
     expect(messages.map((m) => m.role)).toEqual(['system', 'user']);
   });
 
+  it('AC-8/D12: the caller-trim step keeps the highest-ranked callers and drops the lowest-ranked ones', () => {
+    // Only the callers list is large enough to force the FIRST drop step;
+    // everything else stays tiny so no later step ever fires. `prompts.ts`
+    // trusts `facts.blast.callers` to ALREADY be rank-sorted descending —
+    // that invariant is `facts.ts`'s `deriveBlastFact` job, not this
+    // module's — so the fixture supplies it pre-sorted, exactly as
+    // `assembleFacts` would.
+    const callers = Array.from({ length: 300 }, (_, i) => ({
+      file: `src/caller-rank-${299 - i}.ts`,
+      symbol: `fn${299 - i}`,
+      viaSymbol: 'handler',
+      line: 1,
+      rank: 299 - i, // 299..0, descending — rank 299 is the single highest
+    }));
+    const facts: BriefFactSet = {
+      ...smallFacts(),
+      blast: {
+        changedSymbols: [],
+        callers,
+        impactedEndpoints: [],
+        crons: [],
+        degraded: false,
+        indexStatus: 'full',
+        indexSha: 'idx',
+        indexerVersion: 1,
+      },
+      blastFiles: new Set(callers.map((c) => c.file)),
+    };
+
+    const { payload } = buildBriefMessages(facts, tokenizer);
+    expect(payload.tokens).toBeLessThanOrEqual(BRIEF_INPUT_TOKEN_BUDGET);
+    expect(payload.droppedCount).toBe(1); // only the caller-trim category fired
+    // Top-20-by-rank (280..299) survive; a low-rank caller (rank 0) does not.
+    expect(payload.text).toContain('src/caller-rank-299.ts');
+    expect(payload.text).toContain('src/caller-rank-280.ts');
+    expect(payload.text).not.toContain('src/caller-rank-0.ts:');
+    expect(payload.text).toContain('top 20 of 300');
+  });
+
+  it('AC-8: drop steps stop as soon as the payload fits — a fixture needing only the cron-drop step leaves callers/endpoints/files untouched', () => {
+    // Callers/endpoints/files all stay small (well within their own limits),
+    // so step 1 (caller trim) is a structural no-op; only the crons list is
+    // oversized, so step 2 should be the ONLY category that fires.
+    const facts: BriefFactSet = {
+      ...smallFacts(),
+      blast: {
+        changedSymbols: [],
+        callers: [{ file: 'src/only-caller.ts', symbol: 'fn', viaSymbol: 'handler', line: 1, rank: 1 }],
+        impactedEndpoints: ['GET /api/kept'],
+        crons: Array.from({ length: 500 }, (_, i) => `cron-entry-number-${i}-padded-out-long`),
+        degraded: false,
+        indexStatus: 'full',
+        indexSha: 'idx',
+        indexerVersion: 1,
+      },
+      blastFiles: new Set(['src/only-caller.ts']),
+      knownEndpoints: new Set(['GET /api/kept']),
+    };
+
+    const { payload } = buildBriefMessages(facts, tokenizer);
+    expect(payload.tokens).toBeLessThanOrEqual(BRIEF_INPUT_TOKEN_BUDGET);
+    expect(payload.droppedCount).toBe(1); // only the cron category fired
+    expect(payload.text).not.toContain('### Impacted crons');
+    // Callers and endpoints, both small, survive untouched — proving the
+    // loop didn't over-apply later steps once the fixture already fit.
+    expect(payload.text).toContain('src/only-caller.ts');
+    expect(payload.text).toContain('GET /api/kept');
+  });
+
   it('AC-35: with body, intent, issue and spec ALL absent, the payload states the absences it has a section for — never silently omits them', () => {
     const facts = smallFacts();
     facts.pr = { ...facts.pr, body: null };

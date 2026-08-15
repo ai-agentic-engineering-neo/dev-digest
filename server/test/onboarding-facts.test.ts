@@ -174,4 +174,33 @@ describe('assembleFacts', () => {
     expect(facts.stack).toEqual({ frameworks: [] });
     expect(facts.setupCandidates).toEqual([]);
   });
+
+  // ---------------------------------------------------------------------
+  // 2026-08-14 test-quality WARNING (80% confidence): "allIndexedPaths
+  // (facts.ts:~155-160) is junk-filtered in a way that may cause valid
+  // citations to be dropped." `assembleFacts` never filters anything itself
+  // — `allIndexedPaths` is `new Set(allPathsRows.map(r => r.path))` over
+  // whatever `RepoIntelPort.getWeightedRankedFiles` returns, verbatim. The
+  // WARNING traced back to an over-broad `isJunkPath` one layer up in
+  // `repo-intel/service.ts` (bare substring match on 'eslint', 'prettier',
+  // 'jest.', etc. anywhere in the path, not path-segment/basename-anchored)
+  // — confirmed real and fixed there (2026-08-15); see
+  // repo-intel-weighted-service.test.ts for the regression coverage. The
+  // test below establishes that facts.ts itself adds no filtering on top of
+  // whatever the (now-fixed) port hands it.
+  // ---------------------------------------------------------------------
+  it('applies NO filtering of its own — a legitimately-indexed path is preserved verbatim in allIndexedPaths whatever the port returns', async () => {
+    const dir = await withClone({ 'package.json': '{}' });
+    // A real application source file for an eslint-plugin PACKAGE's own
+    // implementation (not a lint config) — its repo-relative path merely
+    // CONTAINS the substring "eslint".
+    const weighted = [weightedRow('src/eslint-plugin-custom/index.ts', 0.8), weightedRow('src/a.ts', 0.5)];
+    const repoIntel = new FakeRepoIntel({ state: STATE, weighted, chains: [] });
+    const facts = await assembleFacts({ repoId: 'repo-1', clonePath: dir, repoIntel });
+
+    // Whatever the port returns survives into allIndexedPaths unmodified —
+    // proving facts.ts is not where the WARNING's over-filtering happened.
+    expect(facts.allIndexedPaths.has('src/eslint-plugin-custom/index.ts')).toBe(true);
+    expect(facts.rankedFiles.map((r) => r.path)).toContain('src/eslint-plugin-custom/index.ts');
+  });
 });

@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { NotFoundError } from '../src/platform/errors.js';
 import { OnboardingService } from '../src/modules/onboarding/service.js';
 import type { RepoIntelIndexState, RepoIntelPort, RepoIntelWeightedFile } from '../src/modules/onboarding/ports.js';
 import type { OnboardingRepository, OnboardingTourRow, UpsertOnboardingTourInput } from '../src/modules/onboarding/repository.js';
@@ -228,6 +229,37 @@ describe('OnboardingService.generate', () => {
     expect(result.tour).toEqual(previousTour.json);
     expect(repo.upsertCalls).toHaveLength(0); // AC-36: nothing written
   });
+
+  it('AC-38/Q2: refuses when the index is generatable but has zero ranked files — distinct from the AC-37 empty-state branch, which additionally requires no checkout at all', async () => {
+    // `weighted: []` alone (clonePath still set, FULL_STATE.filesIndexed > 0)
+    // must NOT fall into the "empty" branch (that needs `!clonePath` too) —
+    // it should reach `refusalReason`'s own zero-ranked-files check.
+    const { service, llm } = buildService({ weighted: [] });
+    const mock = llm as MockLLMProvider;
+    const result = await service.generate('ws-1', 'repo-1');
+    expect(result.status).toBe('refused');
+    expect(result.reason).toContain('No ranked files');
+    expect(mock.calls).toHaveLength(0);
+  });
+
+  it('AC-49: generate() 404s for a repo outside the workspace before any provider call (workspace scope is checked first)', async () => {
+    const repoLookupMissing = { getById: async () => undefined };
+    const repo = new FakeOnboardingRepository();
+    const repoIntel = new FakeRepoIntel(FULL_STATE, WEIGHTED, []);
+    const llm = new MockLLMProvider('openai', { structured: VALID_OUTPUT });
+    const service = new OnboardingService(
+      repo as unknown as OnboardingRepository,
+      repoLookupMissing,
+      repoIntel,
+      async () => ({ provider: 'openai' as const, model: 'gpt-x' }),
+      async () => llm,
+      { count: (s: string) => Math.ceil(s.length / 4) },
+      () => null,
+      { info: () => {} },
+    );
+    await expect(service.generate('ws-other', 'repo-1')).rejects.toThrow(NotFoundError);
+    expect(llm.calls).toHaveLength(0);
+  });
 });
 
 describe('OnboardingService.getPage', () => {
@@ -279,5 +311,42 @@ describe('OnboardingService.getPage', () => {
     const page = await service.getPage('ws-1', 'repo-1');
     expect(page?.status).toBe('stale');
     expect(page?.stale).toBe(true);
+  });
+
+  it('AC-23: a tour whose indexerVersion no longer matches the current index is marked stale, even with the sha unchanged', async () => {
+    const repo = new FakeOnboardingRepository();
+    repo.rows.set('repo-1', {
+      repoId: 'repo-1',
+      json: { sections: [] },
+      generatedAt: new Date(),
+      indexSha: FULL_STATE.lastIndexedSha, // unchanged
+      indexerVersion: 1, // FULL_STATE below is indexerVersion 2 — the ONLY mismatch
+      indexUpdatedAt: new Date('2025-01-01'),
+      filesIndexed: 5,
+      filesExcluded: 0,
+      prsWeighted: 1,
+      provider: 'openai',
+      model: 'gpt-old',
+      attempts: 1,
+      tokensIn: 10,
+      tokensOut: 10,
+      costUsd: 0.001,
+    });
+    const { service } = buildService({ repo, state: FULL_STATE });
+    const page = await service.getPage('ws-1', 'repo-1');
+    expect(page?.status).toBe('stale');
+  });
+
+  it('AC-20: a concurrent GET also reports generating while a generation is in flight (service.ts\'s own comment on this branch)', async () => {
+    const inner = new MockLLMProvider('openai', { structured: VALID_OUTPUT });
+    const delayed = new DelayedLLM(inner, 30);
+    const { service } = buildService({ llm: delayed });
+
+    const genPromise = service.generate('ws-1', 'repo-1');
+    await new Promise((r) => setTimeout(r, 10));
+    const page = await service.getPage('ws-1', 'repo-1');
+    await genPromise;
+
+    expect(page?.status).toBe('generating');
   });
 });

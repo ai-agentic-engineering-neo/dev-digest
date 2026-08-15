@@ -522,11 +522,13 @@ export class RepoIntelRepository {
 
   /**
    * All `file_rank` rows for a repo — `{path, pagerank, hotness, percentile}`,
-   * unordered, up to `limit`. Deliberately NOT `ORDER BY rank DESC LIMIT n`:
-   * the caller (`RepoIntelService.getWeightedRankedFiles`) sorts by the
-   * read-time weighted score itself, and taking a rank-ordered prefix first
-   * would silently exclude a high-churn/low-pagerank file from ever being
-   * weighted (AC-12).
+   * not rank-ordered, up to `limit`. Deliberately NOT `ORDER BY rank DESC
+   * LIMIT n`: the caller (`RepoIntelService.getWeightedRankedFiles`) sorts by
+   * the read-time weighted score itself, and taking a rank-ordered prefix
+   * first would silently exclude a high-churn/low-pagerank file from ever
+   * being weighted (AC-12). Ordered by path instead, purely so `LIMIT` picks
+   * a deterministic row set — Postgres makes no ordering guarantee for an
+   * unordered `LIMIT` query.
    */
   async getFileRankRows(repoId: string, limit: number): Promise<FileRankFullRow[]> {
     return this.db
@@ -538,6 +540,7 @@ export class RepoIntelRepository {
       })
       .from(t.fileRank)
       .where(eq(t.fileRank.repoId, repoId))
+      .orderBy(asc(t.fileRank.filePath))
       .limit(limit);
   }
 

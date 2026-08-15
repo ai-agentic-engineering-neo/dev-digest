@@ -858,30 +858,36 @@ function chainsFrom(
 const CRITICAL_PATH_ROOTS = 5;
 
 /**
- * Path kinds excluded from rank-driven file samples (conventions/onboarding):
- * tests, configs, declaration files, migrations, generated dirs. Substring
- * match on the repo-relative path (kept deliberately simple + deterministic).
+ * Directory kinds excluded from rank-driven file samples: tests, migrations,
+ * fixtures. Substring match on the repo-relative path — safe because every
+ * pattern here is slash-delimited, so it can't match inside an unrelated
+ * filename or directory name.
  */
-const JUNK_PATH_PATTERNS = [
-  '.test.',
-  '.spec.',
-  '.d.ts',
-  '__tests__/',
-  '__mocks__/',
-  '/test/',
-  '/tests/',
-  '/migrations/',
-  '/__fixtures__/',
-  '.config.',
-  'vitest.',
-  'jest.',
-  'eslint',
-  'prettier',
+const JUNK_DIR_PATTERNS = ['__tests__/', '__mocks__/', '/test/', '/tests/', '/migrations/', '/__fixtures__/'] as const;
+
+/**
+ * File kinds excluded from rank-driven file samples: tests, tool configs,
+ * declaration files. Matched against the basename only (not the full path)
+ * so a real source file merely living under/next to a tool-named directory
+ * or file — e.g. `src/eslint-plugin-custom/index.ts`, `src/jest.utils.ts` —
+ * isn't misclassified as junk.
+ */
+const JUNK_BASENAME_PATTERNS = [
+  /\.test\./,
+  /\.spec\./,
+  /\.d\.ts$/,
+  /\.config\./,
+  /^\.?eslint(rc)?(\.|$)/,
+  /^\.?prettier(rc)?(\.|$)/,
+  /^jest\.(config|setup)\./,
+  /^vitest\.(config|setup)\./,
 ] as const;
 
 function isJunkPath(path: string): boolean {
   const lower = path.toLowerCase();
-  return JUNK_PATH_PATTERNS.some((p) => lower.includes(p));
+  if (JUNK_DIR_PATTERNS.some((p) => lower.includes(p))) return true;
+  const basename = lower.slice(lower.lastIndexOf('/') + 1);
+  return JUNK_BASENAME_PATTERNS.some((re) => re.test(basename));
 }
 
 /** Enclosing top-level (bare-name) symbol for a line, from persistent rows. */

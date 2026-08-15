@@ -40,6 +40,47 @@ describe('hunkRangesFor', () => {
     expect(ranges).toEqual([{ start: 1, end: 2 }]);
     expect(JSON.stringify(ranges)).not.toContain(sentinel);
   });
+
+  it('an empty string patch → zero ranges (same falsy path as null)', () => {
+    expect(hunkRangesFor('')).toEqual([]);
+  });
+
+  it('a header line at the very start of the patch, with no preceding text, still parses', () => {
+    const patch = '@@ -1,1 +1,1 @@\n-a\n+b';
+    expect(hunkRangesFor(patch)).toEqual([{ start: 1, end: 1 }]);
+  });
+
+  it('a header line as the last line of the patch, with no trailing newline, still parses', () => {
+    const patch = 'diff --git a/x b/x\n@@ -5,2 +7,2 @@';
+    expect(hunkRangesFor(patch)).toEqual([{ start: 7, end: 8 }]);
+  });
+
+  describe('malformed headers — none of these match, so they contribute zero ranges', () => {
+    it('missing the "+" (new-file) half entirely', () => {
+      expect(hunkRangesFor('@@ -1,2 @@\n context')).toEqual([]);
+    });
+
+    it('missing both count numbers and the leading "@@"', () => {
+      expect(hunkRangesFor('-1,2 +1,2 @@\n context')).toEqual([]);
+    });
+
+    it('missing the closing "@@"', () => {
+      expect(hunkRangesFor('@@ -1,2 +1,2\n context')).toEqual([]);
+    });
+
+    it('a "@@" that appears mid-line, not at line start, is not a header', () => {
+      expect(hunkRangesFor('some text @@ -1,2 +1,2 @@ trailing')).toEqual([]);
+    });
+
+    it('non-numeric counts', () => {
+      expect(hunkRangesFor('@@ -a,b +c,d @@\n context')).toEqual([]);
+    });
+
+    it('a well-formed header elsewhere in the same malformed patch is still found', () => {
+      const patch = ['@@ -1,2 @@', ' junk', '@@ -10,1 +12,1 @@', '+real'].join('\n');
+      expect(hunkRangesFor(patch)).toEqual([{ start: 12, end: 12 }]);
+    });
+  });
 });
 
 describe('lineInRanges', () => {

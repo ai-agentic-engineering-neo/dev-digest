@@ -4,14 +4,17 @@ import { NextIntlClientProvider } from "next-intl";
 import type { OnboardingFacts, OnboardingPage, OnboardingProvenance } from "@devdigest/shared";
 import messages from "../../../../../../../messages/en/onboarding.json";
 import * as toastLib from "@/lib/toast";
+import { ApiError } from "@/lib/api";
 
 vi.mock("next/navigation", () => ({
   useParams: () => ({ repoId: "repo-1" }),
 }));
 
+let repoNotFoundValue = false;
+
 vi.mock("@/lib/repo-context", () => ({
   useActiveRepo: () => ({ activeRepo: { id: "repo-1", full_name: "acme/widgets" } }),
-  useRepoNotFound: () => false,
+  useRepoNotFound: () => repoNotFoundValue,
 }));
 
 // AppShell pulls in the sidebar/command-palette/shell-context machinery, none
@@ -19,6 +22,12 @@ vi.mock("@/lib/repo-context", () => ({
 // so the test exercises OnboardingTourView itself, not AppShell's internals.
 vi.mock("@/components/app-shell", () => ({
   AppShell: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}));
+
+// Same reasoning as PrDetailView.test.tsx: RepoNotFound pulls in "common"
+// i18n + routing that this view's own behaviour doesn't depend on.
+vi.mock("@/components/repo-not-found", () => ({
+  RepoNotFound: () => <div>repo not found</div>,
 }));
 
 const PROVENANCE: OnboardingProvenance = {
@@ -114,17 +123,50 @@ const EMPTY_PAGE: OnboardingPage = {
   tour: null,
 };
 
+const DEGRADED_PAGE: OnboardingPage = {
+  status: "degraded",
+  reason: "The repository index is degraded — falling back to detected facts.",
+  stale: false,
+  provenance: PROVENANCE,
+  facts: FACTS,
+  tour: null,
+};
+
+const FAILED_PAGE: OnboardingPage = {
+  ...GENERATED_PAGE,
+  status: "failed",
+  reason: "The model call timed out.",
+};
+
+const REFUSED_PAGE: OnboardingPage = {
+  status: "refused",
+  reason: "The repository has too little indexed content to generate a tour.",
+  stale: false,
+  provenance: { ...PROVENANCE, generated_at: null, model: null },
+  facts: FACTS,
+  tour: null,
+};
+
+const STALE_PAGE: OnboardingPage = {
+  ...GENERATED_PAGE,
+  status: "stale",
+  stale: true,
+};
+
 const refetch = vi.fn();
 const mutate = vi.fn();
 let pageData: OnboardingPage = SKELETON_PAGE;
 let mutationPending = false;
+let tourLoading = false;
+let tourIsError = false;
+let tourError: unknown = null;
 
 vi.mock("@/lib/hooks/onboarding", () => ({
   useOnboardingTour: () => ({
     data: pageData,
-    isLoading: false,
-    isError: false,
-    error: null,
+    isLoading: tourLoading,
+    isError: tourIsError,
+    error: tourError,
     refetch,
   }),
   useGenerateOnboardingTour: () => ({ mutate, isPending: mutationPending }),
@@ -135,6 +177,10 @@ afterEach(() => {
   vi.clearAllMocks();
   pageData = SKELETON_PAGE;
   mutationPending = false;
+  tourLoading = false;
+  tourIsError = false;
+  tourError = null;
+  repoNotFoundValue = false;
 });
 
 function renderView() {
@@ -240,5 +286,70 @@ describe("OnboardingTourView", () => {
     renderView();
     expect(screen.getByRole("status").textContent).toContain("Generating your tour…");
     expect(screen.getByRole("button", { name: /generating/i })).toBeDisabled();
+  });
+
+  it("degraded status announces the fallback and renders the detected facts, not a ToC (AC-45)", () => {
+    pageData = DEGRADED_PAGE;
+    renderView();
+    const banner = screen.getByRole("status");
+    expect(banner.textContent).toContain("Index degraded — showing the detected facts");
+    expect(banner.textContent).toContain("The repository index is degraded — falling back to detected facts.");
+    expect(screen.getByText("TypeScript")).toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "On this page" })).not.toBeInTheDocument();
+  });
+
+  it("failed status announces the failure and still renders the previous tour (AC-45)", () => {
+    pageData = FAILED_PAGE;
+    renderView();
+    const banner = screen.getByRole("status");
+    expect(banner.textContent).toContain("Last generation failed — showing the previous tour");
+    expect(banner.textContent).toContain("The model call timed out.");
+    expect(screen.getByRole("navigation", { name: "On this page" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Architecture Overview" })).toBeInTheDocument();
+  });
+
+  it("refused status announces the stated reason and renders no tour content", () => {
+    pageData = REFUSED_PAGE;
+    renderView();
+    const banner = screen.getByRole("status");
+    expect(banner.textContent).toContain("Can’t generate a tour yet");
+    expect(banner.textContent).toContain("The repository has too little indexed content to generate a tour.");
+    expect(screen.queryByRole("navigation", { name: "On this page" })).not.toBeInTheDocument();
+  });
+
+  it("stale status announces that the index has moved on while still rendering the previous tour", () => {
+    pageData = STALE_PAGE;
+    renderView();
+    const banner = screen.getByRole("status");
+    expect(banner.textContent).toContain("Stale — the index has moved on since this tour was generated");
+    expect(screen.getByRole("navigation", { name: "On this page" })).toBeInTheDocument();
+  });
+
+  it("loading renders a skeleton, with no status banner and no generate action yet", () => {
+    tourLoading = true;
+    pageData = undefined as unknown as OnboardingPage;
+    const { container } = renderView();
+    expect(screen.getByText("Onboarding Tour")).toBeInTheDocument();
+    expect(container.querySelectorAll(".skeleton")).toHaveLength(3);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /generate|regenerate/i })).not.toBeInTheDocument();
+  });
+
+  it("a load error renders an ErrorState with the API message and a working retry", () => {
+    tourIsError = true;
+    tourError = new ApiError("The repository index is unreachable.", 502);
+    pageData = undefined as unknown as OnboardingPage;
+    renderView();
+    expect(screen.getByText("The repository index is unreachable.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+    expect(refetch).toHaveBeenCalled();
+  });
+
+  it("an unknown :repoId renders the friendly repo-not-found state instead of the tour page", () => {
+    repoNotFoundValue = true;
+    renderView();
+    expect(screen.getByText("repo not found")).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.queryByText("Onboarding Tour")).not.toBeInTheDocument();
   });
 });

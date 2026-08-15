@@ -185,6 +185,43 @@ describe('groundBrief', () => {
     expect(brief.risks[0]!.explanation).toContain('GET /api/orders');
   });
 
+  it('AC-18: a backtick-quoted symbol absent from the blast facts is dropped as a citation, visible word kept', () => {
+    const raw = rawOutput({ why: 'This changes `notARealSymbol` directly.' });
+    const { brief, dropped } = groundBrief(raw, baseFacts());
+    expect(brief.why).toContain('notARealSymbol'); // visible word kept
+    expect(brief.why).not.toContain('`notARealSymbol`'); // "verified symbol" framing (backticks) dropped
+    expect(dropped.citations).toContain('notARealSymbol');
+  });
+
+  it('AC-18: a backtick-quoted symbol present in the known-symbols set survives untouched, backticks included', () => {
+    const raw = rawOutput({ why: 'This changes `handler` directly.' });
+    const { brief, dropped } = groundBrief(raw, baseFacts());
+    expect(brief.why).toContain('`handler`');
+    expect(dropped.citations).toEqual([]);
+  });
+
+  it('AC-18: a backtick-quoted 5-field cron shape absent from the known-crons set is dropped as a citation', () => {
+    const raw = rawOutput({ why: 'Runs on schedule `0 3 * * *` after this change.' });
+    const { brief, dropped } = groundBrief(raw, baseFacts());
+    expect(brief.why).toContain('0 3 * * *'); // visible text kept
+    expect(brief.why).not.toContain('`0 3 * * *`');
+    expect(dropped.citations).toContain('0 3 * * *');
+  });
+
+  it('AC-18: a backtick-quoted cron shape present in the known-crons set survives untouched', () => {
+    const raw = rawOutput({ why: 'Runs on schedule `nightly-sync` after this change.' });
+    const { brief, dropped } = groundBrief(raw, baseFacts());
+    expect(brief.why).toContain('`nightly-sync`');
+    expect(dropped.citations).toEqual([]);
+  });
+
+  it('AC-18: a backtick-quoted token matching a known/blast file is left untouched — governed by file grounding, not the citation scanner', () => {
+    const raw = rawOutput({ why: 'See `src/caller.ts` for the downstream caller.' });
+    const { brief, dropped } = groundBrief(raw, baseFacts());
+    expect(brief.why).toContain('`src/caller.ts`');
+    expect(dropped.citations).toEqual([]);
+  });
+
   it('Q6: risk_level passes through untouched, even when every risk is dropped', () => {
     const raw = rawOutput({
       risk_level: 'high',

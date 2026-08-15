@@ -154,6 +154,32 @@ describe('groundTour', () => {
     expect(dropped.tasks).toEqual(['Ghost task']);
   });
 
+  it('a critical-path chain whose hop is absent from allIndexedPaths loses the WHOLE entry, not just the bad hop', () => {
+    // `getCriticalPaths`'s weighted order reads `file_rank` UNFILTERED
+    // (repo-intel/service.ts's `getWeightedRankRows` doc comment: "no
+    // junk-path drop"), while `allIndexedPaths` is built from
+    // `getWeightedRankedFiles`. A 2026-08-14 test-quality WARNING (80%
+    // confidence) traced a scenario where a genuinely-indexed hop could be
+    // absent from `allIndexedPaths` due to `isJunkPath`'s bare-substring
+    // matching (e.g. a real source file merely mentioning a tool name) —
+    // confirmed and fixed in repo-intel/service.ts on 2026-08-15 (see
+    // repo-intel-weighted-service.test.ts). This test documents groundTour's
+    // own whole-entry-drop semantics directly, independent of how a hop
+    // might end up missing from the fact set: any hop absent from
+    // allIndexedPaths — real or not — is indistinguishable from a
+    // hallucinated one, and takes the whole chain entry with it.
+    const facts = baseFacts({
+      criticalPaths: [{ root: 'src/a.ts', chain: ['src/a.ts', 'src/eslint-plugin-custom/index.ts'] }],
+      // The hop is absent from allIndexedPaths here to exercise groundTour's
+      // drop path directly, regardless of upstream cause.
+      allIndexedPaths: new Set(['src/a.ts', 'src/b.ts']),
+    });
+    const { sections, dropped } = groundTour(rawOutput(), facts);
+    const criticalPaths = sections.find((s) => s.kind === 'critical_paths')!;
+    expect(criticalPaths.entries).toEqual([]); // the whole entry is lost, not just the hop
+    expect(dropped.paths).toEqual(['src/a.ts']);
+  });
+
   it('AC-32 (body text): an external link/image target is neutralized (visible text kept, no live link); an indexed-path target survives', () => {
     const raw = rawOutput({
       architecture: {

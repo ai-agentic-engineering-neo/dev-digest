@@ -15,8 +15,10 @@
  * The handler can't catch its own outer timeout, so we self-monitor
  * `INDEX_SOFT_BUDGET_MS ≈ 110s` and finish 'partial' BEFORE the hard cap.
  *
- * Option B: rank = PageRank only, hotness=0 (clone is shallow). The T3
- * block is skipped when the soft budget trips, leaving status 'partial'.
+ * `rank = PageRank` always (D7 — see pipeline/rank.ts); `hotness` is real,
+ * sourced from already-ingested PR-file history within `HOTNESS_WINDOW_DAYS`
+ * (D6), 0 when there's none. The T3 block (graph/rank/repo-map/facts) is
+ * skipped entirely when the soft budget trips, leaving status 'partial'.
  */
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
@@ -30,6 +32,7 @@ import { parseSymbols, parseReferences, langForFile } from '../../../adapters/as
 import { extractEndpoints, extractCrons } from '../../../adapters/codeindex/extract.js';
 import {
   DEFAULT_REPO_MAP_TOKEN_BUDGET,
+  HOTNESS_WINDOW_DAYS,
   INDEX_SOFT_BUDGET_MS,
   INDEXER_VERSION,
   MAX_PARSE_MS_PER_FILE,
@@ -211,6 +214,7 @@ export async function runFullIndex(
   let graphFailed: string | undefined;
   let edgeRows: IndexerEdgeRow[] = [];
   let rankCount = 0;
+  let hotnessPrs = 0;
   if (!softBudgetReached) {
     try {
       const edges = await container.depgraph.buildEdges(repo.clonePath, walk.files);
@@ -224,8 +228,17 @@ export async function runFullIndex(
     // rows with NULL decl_file, so no reset is needed (step 5).
     await repository.resolveReferences(repoId, { reset: false });
 
-    // Rank (PageRank only; hotness=0 — Option B).
-    const rankRows = computeFileRank(walk.files, edgeRows);
+    // Hotness (D6): raw PR-file churn within the recency window, from
+    // already-ingested PR history — never git log (clock stays in the
+    // caller so pipeline/rank.ts's purity contract holds). Fetched even on a
+    // graphFailed pass — hotness is independent of the import graph.
+    const since = new Date(Date.now() - HOTNESS_WINDOW_DAYS * 86_400_000);
+    const churn = await repository.getPrChurn(repoId, since);
+    hotnessPrs = churn.prsConsidered;
+    const churnMap = new Map(churn.counts.map((c) => [c.path, c.prs]));
+
+    // Rank: pagerank + real hotness (D6/D7 — rank itself stays = pagerank).
+    const rankRows = computeFileRank(walk.files, edgeRows, churnMap);
     rankCount = rankRows.length;
     await repository.replaceFileRank(repoId, rankRows);
 
@@ -259,7 +272,9 @@ export async function runFullIndex(
     edgesWritten: edgeRows.length,
     ranked: rankCount,
     factsWritten: factsBuf.length,
-    hotnessAvailable: false, // Option B — rank = pagerank only
+    hotnessPrs,
+    hotnessWindowDays: HOTNESS_WINDOW_DAYS,
+    hotnessAvailable: hotnessPrs > 0,
     ...(graphFailed ? { graphFailed } : {}),
     softBudgetReached,
     parseDegraded,

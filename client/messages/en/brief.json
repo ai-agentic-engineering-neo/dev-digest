@@ -1,15 +1,51 @@
 {
-  "block": {
-    "intent": "Intent",
-    "blast": "Blast radius",
-    "risks": "Risks",
-    "history": "PR history"
+  "section": {
+    "title": "Why + Risk Brief",
+    "what": "What",
+    "why": "Why",
+    "risks": "Risk areas",
+    "focus": "Review focus",
+    "noRisks": "No specific risks identified.",
+    "emptyTitle": "No brief yet",
+    "emptyBody": "Generate a short why + risk summary for this pull request."
   },
-  "noRisks": "No notable risks flagged.",
-  "noHistory": "No prior PRs overlap these files.",
-  "overlap": "{count} overlap",
-  "unavailable": "Brief not available yet.",
-  "unavailableHint": "Run a review or open the PR to compute it.",
+  "status": {
+    "none": "No brief yet for this pull request.",
+    "generating": "Generating the brief…",
+    "generated": "Brief up to date.",
+    "earlier_state": "This brief describes an earlier version of this pull request.",
+    "possibly_stale": "This brief may be out of date — {markers} changed since it was generated.",
+    "refused": "Couldn't generate a brief.",
+    "failed": "Generation failed — showing the previous brief, if any."
+  },
+  "risk": {
+    "level": {
+      "high": "HIGH",
+      "medium": "MEDIUM",
+      "low": "LOW"
+    },
+    "kind": {
+      "auth_surface": "Auth surface",
+      "dependency": "Dependency",
+      "performance": "Performance",
+      "data_migration": "Data migration",
+      "api_contract": "API contract",
+      "config_secrets": "Config & secrets",
+      "test_coverage": "Test coverage",
+      "other": "Other"
+    }
+  },
+  "focus": {
+    "empty": "No review-focus entries."
+  },
+  "provenance": {
+    "generatedBy": "Generated {when} · {model} · {cost}"
+  },
+  "generate": {
+    "generate": "Generate brief",
+    "regenerate": "Regenerate",
+    "generating": "Generating…"
+  },
   "why": {
     "title": "git-why",
     "blame": "blame",

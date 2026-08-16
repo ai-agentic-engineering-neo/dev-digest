@@ -99,6 +99,23 @@ fake `GitRunner`, never a real process" shape the `fetch()` rule already has.
 two independent, un-coupled bootstraps of the same underlying `http/*` +
 `config.ts` layer — neither imports the other.
 
+### 2026-08-13 — appending a 6th tool (`get_onboarding_tour`) confirmed the registration-order/description-text byte-identity rule is cheap to honor: append-only, never touch the array
+
+Adding `get_onboarding_tour` (specs/10-onboarding-generator.md AC-47/AC-48)
+alongside the existing 5 tools: `src/tools/index.ts`'s `registerTools` only
+needed one new `import` block and one new `server.registerTool(...)` call
+appended AFTER the existing 5 — no edit to any of their `registerTool` calls,
+descriptions, or relative order. The repo-scoped, no-PR shape
+(`get_conventions.ts`: `resolveRepo` → one `http.get`) was the closer template
+than `get-blast-radius.ts` (which also needs `resolvePull`) — pick the
+template by whether the tool takes a `pr` argument, not by recency. Verified
+byte-identity the cheap way: `git diff mcp-server/src/tools/index.ts` shows
+only additions plus the "5 tools" → "6 tools" doc-comment count (a comment,
+not a `registerTool` call) — the actual registration calls for the first 5
+tools are untouched in the diff. The doc-comment count in `src/index.ts`
+("register the N tools") also needs updating to match — easy to miss since
+it's a different file from `tools/index.ts`.
+
 ## Tool & Library Notes
 
 ### 2026-08-11 — `.mcp.json`'s server entry needs an explicit `"timeout"` above `run_agent_on_pr`'s SSE budget, or Claude Code cuts the call first

@@ -19,6 +19,13 @@ import { s, chevronFor } from "../styles";
 import { CodeLine } from "../CodeLine";
 import { OutdatedComments } from "../OutdatedComments";
 
+/** Anchor id for the file's own header — the `line == null` scroll target
+ *  (a file-only citation, e.g. a PR Brief review-focus/risk entry whose line
+ *  didn't survive grounding). */
+export function fileAnchorId(path: string): string {
+  return `difffile-${path}`;
+}
+
 /** Threads anchored to a given parsed line (RIGHT=new, LEFT=old). */
 function threadsForLine(ln: Line, matched: Map<string, CommentThread[]>): CommentThread[] {
   if (matched.size === 0) return [];
@@ -43,10 +50,14 @@ export function FileCard({
    *  boilerplate files closed regardless of how small the diff is). */
   defaultOpen?: boolean;
   /** When set, opens this file and smooth-scrolls to `line` (anchor id
-   *  `diffline-{path}-{line}`, set by CodeLine). `nonce` forces a re-scroll
-   *  even when `line` is unchanged — same pattern as ReviewRunAccordion's
+   *  `diffline-{path}-{line}`, set by CodeLine). `line: null` scrolls to the
+   *  file's own header instead (anchor id `difffile-{path}`, set on this
+   *  card's root) — a file-only citation with no surviving line (e.g. a PR
+   *  Brief review-focus entry AC-20 discarded the line for, or a risk citing
+   *  a file with no line at all). `nonce` forces a re-scroll even when
+   *  `line` is unchanged — same pattern as ReviewRunAccordion's
    *  targetRunId/targetNonce. */
-  scrollTarget?: { line: number; nonce: number } | null;
+  scrollTarget?: { line: number | null; nonce: number } | null;
   /** Extra content rendered at the end of the header row (e.g. a findings
    *  count badge). Caller is responsible for stopping click propagation if
    *  it renders something clickable, so it doesn't also toggle the card. */
@@ -61,7 +72,7 @@ export function FileCard({
   React.useEffect(() => {
     if (!scrollTarget) return;
     setOpen(true);
-    const id = `diffline-${file.path}-${scrollTarget.line}`;
+    const id = scrollTarget.line != null ? `diffline-${file.path}-${scrollTarget.line}` : fileAnchorId(file.path);
     requestAnimationFrame(() => {
       document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "center" });
     });
@@ -84,7 +95,7 @@ export function FileCard({
     : 0;
 
   return (
-    <div style={s.fileCard}>
+    <div id={fileAnchorId(file.path)} style={s.fileCard}>
       <div onClick={() => setOpen((o) => !o)} style={s.fileHeader}>
         <Icon.ChevronRight size={13} style={chevronFor(open)} />
         <Icon.FileText size={14} style={s.fileIcon} />

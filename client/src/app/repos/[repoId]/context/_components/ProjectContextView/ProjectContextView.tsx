@@ -10,13 +10,14 @@
 import React from "react";
 import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Button, EmptyState, ErrorState, Markdown, Skeleton } from "@devdigest/ui";
+import { Button, EmptyState, ErrorState, Markdown, Skeleton, TextInput } from "@devdigest/ui";
 import { AppShell } from "@/components/app-shell";
 import { RepoNotFound } from "@/components/repo-not-found";
 import { useActiveRepo, useRepoNotFound } from "@/lib/repo-context";
 import { useDocument, useRepoDocuments, useSetDocRoots } from "@/lib/hooks/project-context";
 import { ApiError } from "@/lib/api";
 import { DocumentRow } from "./DocumentRow";
+import { matchesFilter } from "./helpers";
 import { RootsEditor } from "./RootsEditor";
 import { s } from "./styles";
 
@@ -31,6 +32,7 @@ export function ProjectContextView() {
 
   const [selectedPath, setSelectedPath] = React.useState<string | null>(null);
   const [rootsOpen, setRootsOpen] = React.useState(false);
+  const [filter, setFilter] = React.useState("");
 
   const preview = useDocument(repoId, selectedPath);
 
@@ -48,6 +50,7 @@ export function ProjectContextView() {
 
   const documents = data?.documents ?? [];
   const roots = data?.roots ?? [];
+  const visibleDocuments = documents.filter((doc) => matchesFilter(doc.path, filter));
 
   return (
     <AppShell crumb={crumb}>
@@ -99,15 +102,24 @@ export function ProjectContextView() {
         />
       ) : (
         <div style={s.split}>
-          <div style={s.list}>
-            {documents.map((doc) => (
-              <DocumentRow
-                key={doc.path}
-                doc={doc}
-                active={doc.path === selectedPath}
-                onSelect={() => setSelectedPath(doc.path)}
-              />
-            ))}
+          <div style={s.listColumn}>
+            <div style={s.filterBox}>
+              <TextInput value={filter} onChange={setFilter} placeholder={t("page.filterPlaceholder")} />
+            </div>
+            <div style={s.list}>
+              {visibleDocuments.length === 0 ? (
+                <p style={s.noMatch}>{t("list.noMatch")}</p>
+              ) : (
+                visibleDocuments.map((doc) => (
+                  <DocumentRow
+                    key={doc.path}
+                    doc={doc}
+                    active={doc.path === selectedPath}
+                    onSelect={() => setSelectedPath(doc.path)}
+                  />
+                ))
+              )}
+            </div>
           </div>
           <div style={s.previewPane}>
             {!selectedPath ? (

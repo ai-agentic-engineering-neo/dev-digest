@@ -43,16 +43,24 @@ export const s = {
   loadingStack: { display: "flex", flexDirection: "column", gap: 12, margin: "14px 32px 44px" } satisfies CSSProperties,
 
   split: { display: "flex", gap: 0, margin: "14px 32px 44px", minHeight: 480 } satisfies CSSProperties,
-  list: {
+  listColumn: {
     width: 340,
     flexShrink: 0,
     borderRight: "1px solid var(--border)",
     display: "flex",
     flexDirection: "column",
-    gap: 6,
+    gap: 10,
     paddingRight: 16,
+    minHeight: 0,
+  } satisfies CSSProperties,
+  filterBox: { flexShrink: 0 } satisfies CSSProperties,
+  list: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
     overflow: "auto",
   } satisfies CSSProperties,
+  noMatch: { fontSize: 13, color: "var(--text-muted)", padding: "16px 0" } satisfies CSSProperties,
   row: (active: boolean): CSSProperties => ({
     display: "flex",
     flexDirection: "column",

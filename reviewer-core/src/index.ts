@@ -15,6 +15,7 @@
 export {
   assemblePrompt,
   wrapUntrusted,
+  INJECTION_GUARD,
   type PromptParts,
   type AssembledPrompt,
 } from './prompt.js';

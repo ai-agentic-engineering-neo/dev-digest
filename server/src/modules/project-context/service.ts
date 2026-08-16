@@ -4,7 +4,12 @@ import type { Tokenizer } from '../../adapters/tokenizer/index.js';
 import { NotFoundError, ValidationError } from '../../platform/errors.js';
 import { DEFAULT_DOC_ROOTS, MAX_DOC_BYTES, PROJECT_CONTEXT_TOKEN_BUDGET } from './constants.js';
 import { discoverDocuments, labelFor } from './discovery.js';
-import { ContainmentError, MissingPathError, isRelativeSafePath, resolveContainedPath } from './paths.js';
+import {
+  ContainmentError,
+  MissingPathError,
+  isRelativeSafePath,
+  resolveContainedPath,
+} from '../_shared/checkout-paths.js';
 import { ProjectContextRepository, type ContextDocRow } from './repository.js';
 
 /**

@@ -6,7 +6,7 @@ import { DevDigestHttpClient } from './http/client.js';
 import { registerTools } from './tools/index.js';
 
 /**
- * Entry point: build the McpServer, register the 5 tools (fixed order — see
+ * Entry point: build the McpServer, register the 6 tools (fixed order — see
  * `tools/index.ts`), connect a `StdioServerTransport`. Launched on demand by
  * Claude Code via the project-scoped `.mcp.json` at the repo root — never by
  * `./scripts/dev.sh`.

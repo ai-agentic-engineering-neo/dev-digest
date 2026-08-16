@@ -2,9 +2,9 @@
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { TextInput } from "@devdigest/ui";
+import { ErrorState, Markdown, Skeleton, TextInput } from "@devdigest/ui";
 import type { AttachedDocument } from "@devdigest/shared";
-import { useRepoDocuments } from "@/lib/hooks/project-context";
+import { useDocument, useRepoDocuments } from "@/lib/hooks/project-context";
 import {
   attachedPathsInOrder,
   attachedPosition,
@@ -33,6 +33,12 @@ export type { ContextTabNamespace };
  * attached set regardless of the filter (AC-7 — detaching moves this number,
  * narrowing the list must not), and a `missing` badge for an attachment whose
  * file no longer resolves (AC-26).
+ *
+ * Each row whose path still resolves in the discovery catalog also gets a
+ * view-only preview toggle (`DocumentRow`'s eye button) — reuses the same
+ * `useDocument` read the Project Context page's own preview pane uses
+ * (AC-35), so a document's content can be checked before attaching it
+ * without leaving the editor. At most one row's preview is open at a time.
  *
  * For a skill, every agent with that skill enabled inherits its attached
  * documents, merged into the SAME `## Project context` block the agent's own
@@ -78,6 +84,11 @@ export function ContextTab({ namespace, repoId, attachments, onToggle, onReorder
   const [filter, setFilter] = React.useState("");
   const [dragId, setDragId] = React.useState<string | null>(null);
   const [pendingOrder, setPendingOrder] = React.useState<string[] | null>(null);
+  // View-only content preview (AC-35's page has one; this lets a document be
+  // checked before attaching it, without leaving the editor). At most one row
+  // open at a time — `useDocument` only fetches once a path is set.
+  const [previewPath, setPreviewPath] = React.useState<string | null>(null);
+  const preview = useDocument(repoId, previewPath);
   // Screen-reader-only status line — announces the reordered document's new
   // position (order is drop priority, AC-21, so a keyboard user needs more
   // than "it moved").
@@ -173,25 +184,46 @@ export function ContextTab({ namespace, repoId, attachments, onToggle, onReorder
         <div style={s.list}>
           {visible.map((row) => {
             const { index, total } = attachedPosition(rows, row.path);
+            const previewOpen = previewPath === row.path;
             return (
-              <DocumentRow
-                key={row.path}
-                namespace={namespace}
-                row={row}
-                onToggle={(next) => toggle(row.path, next)}
-                drag={{
-                  active: dragId === row.path,
-                  position: index,
-                  total,
-                  onStart: () => setDragId(row.path),
-                  onEnd: () => setDragId(null),
-                  onDrop: () => {
-                    if (dragId && dragId !== row.path) applyOrder(moveOnto(rows, dragId, row.path));
-                    setDragId(null);
-                  },
-                  onMove: (delta) => move(row.path, delta),
-                }}
-              />
+              <React.Fragment key={row.path}>
+                <DocumentRow
+                  namespace={namespace}
+                  row={row}
+                  onToggle={(next) => toggle(row.path, next)}
+                  previewOpen={previewOpen}
+                  onPreviewToggle={
+                    row.docType == null
+                      ? undefined
+                      : () => setPreviewPath((p) => (p === row.path ? null : row.path))
+                  }
+                  drag={{
+                    active: dragId === row.path,
+                    position: index,
+                    total,
+                    onStart: () => setDragId(row.path),
+                    onEnd: () => setDragId(null),
+                    onDrop: () => {
+                      if (dragId && dragId !== row.path) applyOrder(moveOnto(rows, dragId, row.path));
+                      setDragId(null);
+                    },
+                    onMove: (delta) => move(row.path, delta),
+                  }}
+                />
+                {previewOpen && (
+                  <div style={s.previewPanel}>
+                    {preview.isLoading ? (
+                      <Skeleton height={100} />
+                    ) : preview.isError || !preview.data ? (
+                      <ErrorState body={t("context.previewLoadError")} onRetry={() => preview.refetch()} />
+                    ) : (
+                      <div style={s.previewContent}>
+                        <Markdown>{preview.data.content}</Markdown>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </React.Fragment>
             );
           })}
         </div>

@@ -21,6 +21,7 @@ one itself.
 | `get_findings` | Reads the most recent completed review by one agent on one PR — a pure read, safe to poll. |
 | `get_conventions` | Reads a repo's already-**accepted** coding conventions from its last scan. |
 | `get_blast_radius` | Maps which files, callers, and API endpoints/crons are impacted by a PR's changed symbols (specs/07-blast-radius.md). |
+| `get_onboarding_tour` | Reads a repo's current Onboarding Tour — the stored 5-section tour, or the deterministic skeleton with status/reason if none exists yet (specs/10-onboarding-generator.md). Never generates one. |
 
 Exact schemas + the verbatim tool descriptions actually used at registration
 time live in `src/tools/*.ts`; see [`../specs/06-mcp-server.md`](../specs/06-mcp-server.md)
@@ -119,7 +120,7 @@ process) + a fake `fetchImpl` (no real network) drive `src/cli/run.ts`'s
 `runCli` through the full exit-code matrix (0/1/2/3/4), including that an
 empty diff and an oversize diff both short-circuit **before** any HTTP call.
 
-A real dev-stack smoke test (all 5 tools via `npx @modelcontextprotocol/inspector`
+A real dev-stack smoke test (all 6 tools via `npx @modelcontextprotocol/inspector`
 or Claude Code itself, including one real `run_agent_on_pr`) is **not** part
 of `pnpm test` — see [`../specs/06-mcp-server.md`](../specs/06-mcp-server.md)
 "Verification".

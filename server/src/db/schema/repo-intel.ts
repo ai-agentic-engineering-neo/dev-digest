@@ -92,10 +92,14 @@ export const fileFacts = pgTable(
 // `file_rank` and `repo_map_cache` land in their own migration (0005) — they
 // depend on the dependency-cruiser graph + PageRank + token-budget work.
 //
-// DECISION (Option B): rank = pagerank,
-// hotness is always 0 in v1 (the clone is shallow; no churn window). The
-// `hotness` column stays so hotness can be switched on later WITHOUT a schema
-// change — `rank` would then become `pagerank * (1 + hotness)`.
+// `hotness` is real and persisted (specs/10-onboarding-generator.md, D6):
+// derived from already-ingested PR-file history within a recency window,
+// normalized to [0, 1] per repo, 0 when there's no such history. `rank` stays
+// `= pagerank` deliberately (D7) — three already-shipped features read it
+// (repo-map rendering, blast-radius caller ordering, conventions sampling),
+// so this column is NOT redefined as `pagerank * (1 + hotness)`. That weighted
+// product is derived at READ TIME, by the onboarding module only, from the
+// `pagerank`/`hotness` values below — never written back to this table.
 
 /**
  * Per-file importance rank. PK = (repoId, filePath). Written by pipeline/rank.ts
@@ -110,8 +114,8 @@ export const fileRank = pgTable(
       .references(() => repos.id, { onDelete: 'cascade' }),
     filePath: text('file_path').notNull(),
     pagerank: doublePrecision('pagerank').notNull(),
-    hotness: doublePrecision('hotness').notNull(), // always 0 under Option B
-    rank: doublePrecision('rank').notNull(), // = pagerank under Option B
+    hotness: doublePrecision('hotness').notNull(), // real churn signal (D6); 0 with no PR history in-window
+    rank: doublePrecision('rank').notNull(), // deliberately = pagerank always (D7) — see the T3 header comment above
     percentile: smallint('percentile').notNull(),
   },
   (t) => ({

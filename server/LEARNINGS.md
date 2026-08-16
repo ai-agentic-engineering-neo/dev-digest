@@ -81,6 +81,32 @@ exits cleanly with no prompt at all. Do this preemptively for any migration
 that both drops and adds columns on the same table — don't discover the hang
 by waiting on it.
 
+### 2026-08-13 — testing a single-flight/in-flight guard with `Promise.all([callA(), callB()])` is NOT deterministic once the guarded method does real fs I/O before the guard check
+
+`OnboardingService.generate` (specs/10-onboarding-generator.md, AC-20) uses the
+standard "has-check + add, no `await` between them" in-flight guard (same
+shape as any future single-flight service method). The mutual-exclusion
+GUARANTEE holds — two calls can never both proceed past the check believing
+the slot is free — but WHICH of two truly-concurrent calls reaches the guard
+first is only deterministic when every step before the guard resolves via
+pure microtask scheduling. A first test written as `const [a, b] =
+await Promise.all([service.generate(id), service.generate(id)])` passed
+`['generated', 'generating']` against a hand-rolled repro using only
+microtask-resolving stubs, but flaked to `['generated', 'generated']` against
+the REAL service — because `assembleFacts` → `detectStack`/
+`collectSetupCandidates` call real `fs.stat`/`fs.readFile` (libuv thread-pool
+I/O, not microtasks) before the guard, so call A can fully finish (guard
+claimed → generation → guard released) before call B's fs-based prework even
+reaches the guard — both then legitimately generate, and the test's
+"first-caller-wins" assumption is simply wrong, not a bug in the guard.
+Fix: don't race two `Promise.all`'d calls with identical fast paths — start
+call A, wrap the SLOW step (here, `completeStructured`) in an artificial
+`setTimeout` delay so its in-flight window is wide, await a short real delay
+(~10ms) to let call A clear its fs-based prework and enter the delayed call,
+THEN start call B and assert it observes `'generating'`. Generalizes to any
+future single-flight/dedup guard test in this codebase whose guarded method
+does fs or DB I/O before the check.
+
 ## Codebase Patterns
 
 ### 2026-08-11 — `parseUnifiedDiff` silently drops binary files, pure renames, and deletions from `diff.files` — `diff.raw` still has them
@@ -281,6 +307,26 @@ reachable-in-2-hops data that the current contract shape has no home for.
 Whoever builds the "PR Brief card" lesson (`pr_brief`, which `BlastRadius` is
 reserved for) should decide whether that needs a new field before reusing
 this contract as-is.
+
+**2026-08-14 addendum — resolved by specs/11-why-risk-brief.md (plans/11 Q1):
+the shared `BlastRadius`/`DownstreamImpact` contract was NOT widened; the
+brief reads `RepoIntel.getBlastRadius`'s raw `BlastResult` directly instead of
+going through `blast/service.ts`'s `toBlastRadius` mapper.** `BlastResult`
+(`repo-intel/types.ts:89-102`) already carries the 2-hop-only impact via its
+flat `impactedEndpoints: string[]` union and `factsByFile` map keyed by every
+impacted file (including 2-hop-only ones) — the loss described above happens
+strictly ONE ring up, in `toBlastRadius`'s per-caller-group regrouping, which
+`modules/brief/facts.ts` never calls. `modules/brief/ports.ts` declares its
+own local `RepoIntelBlastResult`/`RepoIntelPort` (shapes copied from
+`repo-intel/types.ts`, never imported — the established local-port rule) and
+`modules/brief/service.ts` wires the real `container.repoIntel` in at
+`container.ts`'s `briefService` getter. Net effect: zero change to
+`BlastRadius`/`DownstreamImpact`, zero change to how the Blast Radius CARD
+renders (N11 held), and the previously-uncapturable 2-hop endpoint now reaches
+a brief's fact set and grounding's `knownEndpoints` set. Any FUTURE feature
+that needs this same class of impact should read `BlastResult` directly
+through a local port, not `BlastRadius`/`blast/service.ts` — the latter is
+lossy by design for its own (caller-grouped) UI, not a general-purpose feed.
 
 ### 2026-08-04 — a spec's "byproduct" claim about existing behavior can be stale; verify against the adapter, not just the route it cites
 
@@ -689,7 +735,141 @@ until checked against the actual current diff, and re-running the review
 after every push (not just once before opening the PR) is cheaper than
 re-deriving what it already told you.
 
+### 2026-08-15 — `repo-intel/service.ts`'s `isJunkPath` bare-substring-matched a tool name anywhere in the full path, silently dropping real source files from `getWeightedRankedFiles`
+
+`isJunkPath` (used by `getWeightedRankedFiles` and, unfiltered, NOT by
+`getCriticalPaths`'s weighted-order root selection — see the Open Questions
+entry below) checked `JUNK_PATH_PATTERNS.some(p => path.toLowerCase()
+.includes(p))` against the FULL path, with several patterns (`'eslint'`,
+`'prettier'`, `'jest.'`, `'vitest.'`) having no directory/dot boundary at all.
+A real, non-config, non-test source file like `src/eslint-plugin-custom/
+index.ts` (an eslint-plugin package's own implementation) or `src/jest.
+utils.ts` matched purely because the substring appeared in a directory name
+or filename — misclassified as junk and silently excluded from
+`allIndexedPaths`/`getWeightedRankedFiles`, with no error anywhere (a
+test-quality-reviewer WARNING, 80% confidence, traced this from the onboarding
+side — see `onboarding/facts.ts`'s `allIndexedPaths` comment). Confirmed by
+writing the actual reviewer-suggested paths through the real function before
+fixing anything.
+
+Fix: split `JUNK_PATH_PATTERNS` into `JUNK_DIR_PATTERNS` (slash-delimited,
+still full-path `.includes()` — safe, since a leading/trailing `/` can't match
+inside an unrelated name) and `JUNK_BASENAME_PATTERNS` (checked only against
+`path.slice(path.lastIndexOf('/') + 1)`), with the tool-name patterns
+rewritten as anchored regexes matching known config-file shapes
+(`^\.?eslint(rc)?(\.|$)`, `^jest\.(config|setup)\.`, etc.) instead of bare
+substrings. `webpack.config.js`/`.eslintrc.js`/`jest.config.ts` still match;
+`src/eslint-plugin-custom/index.ts`/`src/jest.utils.ts` no longer do. Lesson
+for any future path-classification heuristic in this codebase: a
+tool/framework name used as a bare substring pattern WILL eventually match a
+real file that merely mentions the tool in its own name — anchor to the
+basename (or a real extension/dot boundary) from the start, not after a
+review catches it.
+
+### 2026-08-15 — `getFileRankRows` had NO `ORDER BY` at all, not even a tiebreaker — an unordered `LIMIT` gives Postgres no obligation to return the same row SET twice, let alone the same order
+
+The method's own doc comment correctly explains why it must NOT be `ORDER BY
+rank DESC LIMIT n` (would bias `getWeightedRankedFiles`'s later re-sort by
+excluding low-pagerank/high-churn files before they're ever weighted, AC-12)
+— but the fix that shipped was to drop `ORDER BY` entirely rather than order
+by something rank-independent. A test-quality-reviewer WARNING (80%
+confidence) flagged this as "non-deterministic for ties"; the actual exposure
+is broader than ties — without ANY `ORDER BY`, Postgres doesn't guarantee
+which rows a `LIMIT` returns across repeated calls, not just their order (in
+practice this can look stable for a while, since a heap-scan tends to return
+rows in physical order absent a `VACUUM`/concurrent write — don't trust that
+apparent stability). Fix: `.orderBy(asc(t.fileRank.filePath))` — alphabetical
+by path is rank-independent (doesn't reintroduce the AC-12 bias) while making
+the `LIMIT`'d row set and tie order deterministic. Generalizes: any query that
+intentionally omits `ORDER BY` to avoid biasing a limit/sample should still
+pick SOME deterministic tiebreaker column, never truly no order at all.
+
 ## Session Notes
+
+### 2026-08-15 — a second round of test-writer passes (this time for `modules/onboarding/` and `modules/repo-intel/`) found the SAME stale-CRITICAL-premise pattern as the 2026-08-14 `modules/brief/` entry below, from the same DevDigest review run
+
+Both a `test-writer` pass for `modules/onboarding/*` and one for
+`modules/repo-intel/*` (dispatched together off the same Test Quality
+Reviewer run that flagged brief/onboarding/repo-intel as three separate
+CRITICAL "zero tests" blockers) found that onboarding, like brief the day
+before, already had 44 unit tests + 4 integration tests committed in `3fee883`
+before the pass started — only `repo-intel`'s NEW functions
+(`getPrChurn`/`getFileRankRows`/`getFileFacts`, modified
+`getCriticalPaths`/`computeFileRank`/pipelines) were genuinely untested, as
+claimed. Net: of three CRITICAL findings from one review run, two were stale
+and one was real — reinforces the 2026-08-12 entry's advice to verify each
+cited file individually (`git log --oneline -- <path>`) rather than trusting
+or dismissing an entire multi-file review finding as a unit.
+
+Two WARNING findings from the same run were investigated with real
+reproductions rather than taken on faith, and BOTH turned out real — see the
+two 2026-08-15 Recurring Errors & Fixes entries above (`isJunkPath` basename
+anchoring, `getFileRankRows` missing `ORDER BY`) — while a third WARNING
+(`getCriticalPaths`'s weighted-root selection reading unfiltered `file_rank`
+rows) reproduced but was left as-is: it's pre-existing (present in the
+default `rank` ordering too, not introduced by this branch) and already
+self-documented in `getWeightedRankRows`'s own doc comment as deliberate,
+so it's a product/triage question, not a bug. General lesson: when a batch of
+review findings arrives together, triage each one on its own evidence
+(re-run the actual code with the reviewer's example) rather than applying one
+verdict (stale / real / not-a-bug) to the whole batch.
+
+### 2026-08-14 — test-writer pass for `modules/brief/` (specs/11): the task brief's own premise ("zero tests, CRITICAL blocker") was stale, same class of staleness as the 2026-08-12 entry below but from a task description this time, not a DevDigest run
+
+Invoked to add unit tests for `server/src/modules/brief/*` on the claim that
+the implementation "landed with ZERO tests". `git log --oneline -- <path>`
+against each `brief-*.test.ts` file showed they were already committed in
+`cd0dfb0` (the implementer's own commit) and extended in `7da9338` (a prior
+backfill pass) — 74 passing unit tests across hunks/facts/prompts/grounding/
+service plus a full `brief.it.test.ts` integration suite (real Postgres via
+testcontainers, `MockLLMProvider`), covering nearly every row of
+`plans/11-why-risk-brief.md`'s Verification test matrix. Running the existing
+suite before writing anything new (`pnpm exec vitest run test/brief-*.test.ts
+test/contracts.test.ts`) confirmed all green. Lesson: a task brief naming
+specific files as "untested" is exactly as capable of being stale as the
+DevDigest-review-finding case already documented below — verify with
+`git log -- <path>` and a real test run before trusting the premise, not just
+for automated review findings.
+
+Real, narrower gaps found and filled by diffing the actual test files against
+`plans/11`'s Verification matrix row-by-row (all additions, zero production
+edits): (1) `hunks.ts`'s malformed-header shapes (missing the `+`/new-file
+half, missing the closing `@@`, an `@@` appearing mid-line rather than at line
+start) had no test — added to `test/brief-hunks.test.ts`, all correctly yield
+zero ranges. (2) `grounding.ts`'s `scanCitations` (AC-18) only had a test for
+its endpoint-mention branch; the backtick-quoted symbol and 5-field-cron-shape
+branches, and the "a backtick token matching a known file is left untouched"
+case, were completely untested — added to `test/brief-grounding.test.ts`.
+(3) `clone.ts`'s `readSpecFile` had **zero direct tests** — it was only ever
+exercised indirectly through `facts.ts` tests injecting a stub `readSpec`
+callback, so its own containment/oversized-file/directory/missing-file
+branches were unverified. New `test/brief-clone.test.ts`, modeled on
+`test/project-context-paths.test.ts`'s real-tmpdir-fixture style (mkdtemp +
+symlink-escape), covers all five failure modes degrading to `null` per AC-7.
+(4) `schemas.ts`'s Q4 design decision (`plans/11-why-risk-brief.md`'s
+`risk.kind: z.string()`, deliberately NOT the shared `RiskKind` enum, so an
+invented kind normalises in `grounding.ts` rather than failing schema
+validation and burning a repair attempt) had no test proving that specific
+parse behavior — new `test/brief-schemas.test.ts`.
+
+Reusable gotcha surfaced while writing a "top-ranked callers survive the
+budget drop" test for `prompts.ts`: `renderBlast`'s caller-trim
+(`b.callers.slice(0, flags.callersLimit)`, `prompts.ts`) does **not** itself
+sort by rank — it trusts that `facts.ts`'s `deriveBlastFact` already sorted
+`blast.callers` descending by rank before `buildBriefMessages` ever sees the
+`BriefFactSet`. A fixture built directly (bypassing `assembleFacts`, the
+pattern every existing `brief-prompts.test.ts` fixture already uses) with
+callers in ascending rank order failed the assertion — not a product bug,
+just the fixture violating an invariant that only `facts.ts`'s doc comment
+states and nothing in `prompts.ts`'s own types enforces. Fix: pre-sort the
+fixture descending by rank, matching what `deriveBlastFact` actually
+produces. Any future `prompts.ts` test that hand-builds a `BriefFactSet`
+(rather than calling `assembleFacts`) must pre-sort `blast.callers` itself or
+a "top-N survives" assertion will fail for the wrong reason.
+
+Full unit lane (`pnpm exec vitest run --exclude '**/*.it.test.ts'`): 49 files
+/ 407 tests green. `test/brief.it.test.ts` (Docker was available): 4/4 green.
+`pnpm typecheck` and `pnpm arch`: both clean, zero new violations.
 
 ### 2026-08-12 — test-writer backfill for specs/09: a plan's own Verification test matrix can name rows the implementer never actually covered
 
@@ -721,3 +901,35 @@ guard. `not_a_file` needs no such guard — attaching a path that resolves to a
 real directory (`mkdir` instead of `writeFile`) is portable and deterministic.
 
 ## Open Questions
+
+### 2026-08-14 — three underspecified judgment calls in `modules/brief/` (specs/11-why-risk-brief.md), left documented rather than blocking implementation
+
+AC-18 ("IF a brief names an endpoint, cron or symbol that is not present in
+the fact set's blast-radius facts, THEN drop that citation") has no
+structured field to enforce against — the raw schema (`brief/schemas.ts`) only
+has `file_refs`, not a separate endpoint/cron/symbol list. `brief/
+grounding.ts`'s `scanCitations` implements this as a text-pattern heuristic:
+a bare `METHOD /path` mention is redacted to `METHOD an endpoint` when absent
+from `knownEndpoints`; a backtick-quoted token matching a bare identifier or a
+5-field cron shape is checked against `knownSymbols`/`knownCrons` and the
+backticks stripped (visible text kept) when absent. This can both false-
+positive (an English word that happens to look like a cron expression) and
+false-negative (a citation phrased without backticks/METHOD prefix) — it is
+NOT exhaustive text understanding, by design. If this proves too noisy in
+practice, the fix is a structured citations field on the raw schema (model
+explicitly lists endpoints/crons/symbols it's asserting), not a smarter regex.
+
+`groundBrief(raw, facts)` grounds against the FULL `BriefFactSet` (same object
+`prompts.ts` rendered from), not a reduced "what actually survived this
+generation's budget drop" subset — deliberately mirroring `onboarding/
+grounding.ts`'s `groundTour(result.data, facts)`, which does the same. A
+citation to something real but dropped from the rendered payload for budget
+reasons (e.g. caller #21, past the top-20 cutoff) is NOT rejected — it's
+statistically unlikely (the model wasn't shown it) but not impossible if it
+guesses right, and is not treated as a bug.
+
+`pr_brief.dropped_inputs` (AC-8) counts DROP CATEGORIES applied (0-6, one per
+`prompts.ts` `DROP_STEPS` entry), not individual dropped items (not "14
+callers omitted"). `buildBriefMessages`'s `RenderedBriefPayload.droppedCount`
+is the source of this number — read that if a future UI wants a more granular
+count; the column would need a shape change (int → object) to carry it.

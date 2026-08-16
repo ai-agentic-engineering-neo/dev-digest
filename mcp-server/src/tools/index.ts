@@ -17,13 +17,20 @@ import {
   GET_BLAST_RADIUS_DESCRIPTION,
   makeGetBlastRadiusHandler,
 } from './get-blast-radius.js';
+import {
+  getOnboardingTourInputSchema,
+  GET_ONBOARDING_TOUR_DESCRIPTION,
+  makeGetOnboardingTourHandler,
+} from './get-onboarding-tour.js';
 
 /**
- * Registers all 5 tools on `server`, in a FIXED order, with static
+ * Registers all 6 tools on `server`, in a FIXED order, with static
  * description strings and schemas. Registration order and description text
  * must stay byte-identical across calls within a session — reordering or
  * varying either invalidates the Anthropic-side prompt cache for `tools`
  * (specs/06-mcp-server.md "Caching implications"). Don't reorder this list.
+ * `get_onboarding_tour` (specs/10-onboarding-generator.md) is APPENDED last,
+ * deliberately — the five above it are unchanged and unreordered.
  */
 export function registerTools(server: McpServer, http: DevDigestHttpClient, apiBaseUrl: string): void {
   server.registerTool(
@@ -54,5 +61,11 @@ export function registerTools(server: McpServer, http: DevDigestHttpClient, apiB
     'get_blast_radius',
     { description: GET_BLAST_RADIUS_DESCRIPTION, inputSchema: getBlastRadiusInputSchema.shape },
     makeGetBlastRadiusHandler(http, apiBaseUrl),
+  );
+
+  server.registerTool(
+    'get_onboarding_tour',
+    { description: GET_ONBOARDING_TOUR_DESCRIPTION, inputSchema: getOnboardingTourInputSchema.shape },
+    makeGetOnboardingTourHandler(http, apiBaseUrl),
   );
 }

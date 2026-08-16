@@ -13,7 +13,7 @@
  * raw-SQL probes below MUST swallow `undefined_table` (Postgres 42P01) so the
  * facade keeps returning degraded — never throws.
  */
-import { and, asc, desc, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNotNull, ne, sql } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import { clampIndexedName } from '../../db/schema/context.js';
@@ -100,6 +100,21 @@ export interface IndexerFileFactsRow {
   filePath: string;
   endpoints: string[];
   crons: string[];
+}
+
+/** Per-path PR-file churn within a window — the raw counts `computeFileRank`
+ * normalizes into `hotness`. */
+export interface PrChurnResult {
+  counts: Array<{ path: string; prs: number }>;
+  prsConsidered: number;
+}
+
+/** `file_rank` row (path + the three per-file scores), unordered. */
+export interface FileRankFullRow {
+  path: string;
+  pagerank: number;
+  hotness: number;
+  percentile: number;
 }
 
 /** Candidate row for the repo-map renderer (symbols × file_rank). */
@@ -212,6 +227,14 @@ export class RepoIntelRepository {
       const stats = (row.stats ?? {}) as Record<string, unknown>;
       const durationMs = typeof stats.durationMs === 'number' ? stats.durationMs : 0;
       const reason = typeof stats.reason === 'string' ? stats.reason : undefined;
+      // Coverage/hotness/graph facts (D1/AC-18, Q2) — projected the same
+      // one-line way as durationMs/reason above. All four are optional: a row
+      // written before this change simply has none of them.
+      const filesExcludedByBound = typeof stats.bounded === 'number' ? stats.bounded : undefined;
+      const hotnessPrs = typeof stats.hotnessPrs === 'number' ? stats.hotnessPrs : undefined;
+      const hotnessWindowDays =
+        typeof stats.hotnessWindowDays === 'number' ? stats.hotnessWindowDays : undefined;
+      const graphFailed = typeof stats.graphFailed === 'string' ? stats.graphFailed : undefined;
       // A persisted row is the "real" index state. We only mark it `degraded`
       // when the indexer itself stamped status='degraded'|'failed' (e.g. the
       // graph fell over). 'partial' is still a working index — no degraded flag.
@@ -230,6 +253,10 @@ export class RepoIntelRepository {
         degradedReason: isDegraded
           ? ((stats.degradedReason as DegradedReason | undefined) ?? 'index_failed')
           : undefined,
+        filesExcludedByBound,
+        hotnessPrs,
+        hotnessWindowDays,
+        graphFailed,
       };
     } catch {
       // Table missing / schema drift / connection blip — degrade silently. The
@@ -443,6 +470,78 @@ export class RepoIntelRepository {
       .select({ path: t.fileRank.filePath, percentile: t.fileRank.percentile })
       .from(t.fileRank)
       .where(and(eq(t.fileRank.repoId, repoId), inArray(t.fileRank.filePath, paths)));
+  }
+
+  /**
+   * Per-path PR-file churn within `[since, now]` — the raw material for
+   * `file_rank.hotness` (D6: sourced from already-ingested PR history, never
+   * `git log`, since the clone is shallow). Joins `pr_files` → `pull_requests`
+   * on `pr_id`, scoped to this repo and to `pull_requests.opened_at >= since`.
+   *
+   * Rows with a NULL `opened_at` (the column is nullable — a PR imported
+   * without GitHub's opened timestamp) cannot be placed in the recency window
+   * and are excluded from both the per-path counts and `prsConsidered`, rather
+   * than counted as "always in every window".
+   *
+   * One grouped query for the per-path counts (never N+1 — no per-path
+   * follow-up query), plus one scalar query for `prsConsidered` (Postgres
+   * doesn't support `count(DISTINCT …)` as a window function, so the two
+   * aggregates can't be folded into a single `SELECT`).
+   */
+  async getPrChurn(repoId: string, since: Date): Promise<PrChurnResult> {
+    const counts = await this.db
+      .select({
+        path: t.prFiles.path,
+        prs: sql<number>`count(distinct ${t.prFiles.prId})`.mapWith(Number),
+      })
+      .from(t.prFiles)
+      .innerJoin(t.pullRequests, eq(t.pullRequests.id, t.prFiles.prId))
+      .where(
+        and(
+          eq(t.pullRequests.repoId, repoId),
+          isNotNull(t.pullRequests.openedAt),
+          gte(t.pullRequests.openedAt, since),
+        ),
+      )
+      .groupBy(t.prFiles.path);
+
+    const [totalRow] = await this.db
+      .select({ prs: sql<number>`count(distinct ${t.pullRequests.id})`.mapWith(Number) })
+      .from(t.prFiles)
+      .innerJoin(t.pullRequests, eq(t.pullRequests.id, t.prFiles.prId))
+      .where(
+        and(
+          eq(t.pullRequests.repoId, repoId),
+          isNotNull(t.pullRequests.openedAt),
+          gte(t.pullRequests.openedAt, since),
+        ),
+      );
+
+    return { counts, prsConsidered: totalRow?.prs ?? 0 };
+  }
+
+  /**
+   * All `file_rank` rows for a repo — `{path, pagerank, hotness, percentile}`,
+   * not rank-ordered, up to `limit`. Deliberately NOT `ORDER BY rank DESC
+   * LIMIT n`: the caller (`RepoIntelService.getWeightedRankedFiles`) sorts by
+   * the read-time weighted score itself, and taking a rank-ordered prefix
+   * first would silently exclude a high-churn/low-pagerank file from ever
+   * being weighted (AC-12). Ordered by path instead, purely so `LIMIT` picks
+   * a deterministic row set — Postgres makes no ordering guarantee for an
+   * unordered `LIMIT` query.
+   */
+  async getFileRankRows(repoId: string, limit: number): Promise<FileRankFullRow[]> {
+    return this.db
+      .select({
+        path: t.fileRank.filePath,
+        pagerank: t.fileRank.pagerank,
+        hotness: t.fileRank.hotness,
+        percentile: t.fileRank.percentile,
+      })
+      .from(t.fileRank)
+      .where(eq(t.fileRank.repoId, repoId))
+      .orderBy(asc(t.fileRank.filePath))
+      .limit(limit);
   }
 
   /** Top `limit` paths by rank DESC (caller filters tests/configs in JS). */

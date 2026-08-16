@@ -14,3 +14,11 @@ export function parseRootsInput(text: string): string[] {
 export function rootsToInput(roots: string[]): string {
   return roots.join("\n");
 }
+
+/** Path substring match for the list's filter box — client-side only, never
+ *  changes what discovery found or what's attached (AC-35's view-only rule). */
+export function matchesFilter(path: string, query: string): boolean {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return true;
+  return path.toLowerCase().includes(needle);
+}

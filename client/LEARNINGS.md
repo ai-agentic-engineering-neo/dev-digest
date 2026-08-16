@@ -130,6 +130,26 @@ had to abstract over these three different identity shapes and two different
 state owners — copying stayed cheaper. Revisit extraction only if a FOURTH
 case needs the exact `{ id }`+nonce shape one of these three already has.
 
+**2026-08-14 — the fourth case arrived (specs/11-why-risk-brief.md AC-39, Q7:
+PR Brief review-focus click → Files tab, open+scroll that file/line) and it
+was STILL not extracted — it reused `FileCard`'s existing `{ path, line }`+
+nonce shape exactly, the "supplying an existing prop from a new owner" case
+Q7 called out in advance, not a new copy.** `PrDetailView` gained a
+`focusTarget: { file, line: number | null, n } | null` state + a
+`handleFocusFile` that mirrors `handleSelectFinding` line-for-line — same
+component, same reasoning (it already owns both the tab state and every other
+cross-tab target). The one genuinely NEW widening: `FileCard`'s `scrollTarget.
+line` became `number | null` (previously always `number`) — `line: null` now
+scrolls to a new `id={difffile-{path}}` on the card's own root (exported as
+`fileAnchorId`) instead of a `diffline-{path}-{line}` row, additive and
+backward-compatible (no existing caller ever passed `line: null`, both
+existing consumers — `DiffViewer`, `SmartDiffViewer` — still resolve a normal
+numeric line unchanged). This is the real fifth-case decision point: the next
+"click X, open+scroll Y" need that ALSO wants a file-only (no-line) target can
+reuse `fileAnchorId`/the widened `scrollTarget` shape directly; a need for a
+genuinely different identity (not `{path, line}`) still doesn't justify
+extracting a shared hook by this file's own three-copies-first precedent.
+
 ### 2026-08-02 — don't copy `pulls/page.tsx` as a route template; it's the deviation, not the pattern
 
 `client/CLAUDE.md` says pages stay thin, and `agents/page.tsx`,
@@ -220,6 +240,26 @@ spec's "renders generically, no new code" claim about this component without
 checking `TraceBody.tsx` directly.
 
 ## Tool & Library Notes
+
+### 2026-08-13 — `src/vendor/ui/primitives/Markdown.tsx` sets no `urlTransform` and no `img` override — it does not constrain link/image targets
+
+Confirmed while building the Onboarding Tour page
+(specs/10-onboarding-generator.md AC-32/AC-41): `Markdown.tsx` is
+`react-markdown` + `remark-gfm` with no `rehype-raw` — that already blocks raw
+HTML from rendering as markup (a `<script>` tag in a body renders as inert
+text, AC-41), but it does NOT touch link (`a`) or image (`img`) targets.
+`react-markdown`'s own default `urlTransform` only blocks `javascript:`, not
+an arbitrary `https://` external — so a model-authored `[x](https://evil
+.example)` or `![](https://tracker/beacon.png)` inside a markdown `body`
+would render as a live link / a loading remote image if nothing upstream
+stripped it first. This component is shared by every feature that renders
+markdown, so it was deliberately left untouched rather than hardening it here
+— the Onboarding module's `grounding.ts` (`neutralizeBody`) scans and
+strips disallowed link/image targets from `body` text server-side instead,
+before the client ever sees them. Any FUTURE feature that renders
+model-authored or otherwise untrusted markdown through this primitive must do
+the same (validate/strip targets before they reach `Markdown.tsx`, not after)
+— this primitive will not save you.
 
 ### 2026-07-29 — `borderColor` is a shorthand too, and clashes with `borderLeftColor`
 
@@ -410,6 +450,24 @@ component, not just the new test for the new mode — the old tests will fail
 for a reason invisible from their own diff.
 
 ## Recurring Errors & Fixes
+
+### 2026-08-13 — `activeKeyFor`'s `pathname.includes(...)` checks are a substring-match bug class, not just the one `/onboarding` case
+
+`components/app-shell/helpers.ts`'s `activeKeyFor` matched the Onboarding Tour
+nav key via `pathname.includes("/onboarding")` — but `/onboarding` is also the
+real route for the unrelated add-a-repo screen (`src/app/onboarding/page.tsx`),
+so visiting that screen wrongly highlighted "Onboarding Tour" in the sidebar
+(specs/10-onboarding-generator.md D10/AC-39; the tour route itself is
+`/repos/:repoId/tour`, chosen specifically to share no segment with
+`/onboarding`). Fixed with a local `hasSegment(pathname, seg)` helper
+(`pathname.split("/").includes(seg)`) instead of `.includes()` on the raw
+string. The other rows in `activeKeyFor` (`/context`, `/conventions`,
+`/pulls`, `/multi-agent`) still use `.includes()` and carry the same latent
+risk — e.g. a future `/pulls-archive` or `/context-help` route would
+misfire the same way. Don't add a new route whose slug is a substring of an
+existing one without checking `activeKeyFor` first; prefer `hasSegment` for
+any NEW entry, and consider migrating the existing `.includes()` rows the
+next time one of them causes a real collision.
 
 ### 2026-07-28 — PR-list columns live in three places that must stay in sync
 

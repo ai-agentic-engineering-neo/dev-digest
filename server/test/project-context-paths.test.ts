@@ -15,7 +15,7 @@ import {
   MissingPathError,
   isRelativeSafePath,
   resolveContainedPath,
-} from '../src/modules/project-context/paths.js';
+} from '../src/modules/_shared/checkout-paths.js';
 
 describe('isRelativeSafePath', () => {
   it('accepts ordinary repository-relative paths', () => {

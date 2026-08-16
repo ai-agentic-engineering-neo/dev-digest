@@ -30,6 +30,15 @@ export const NAV: NavGroup[] = [
         href: "/repos/:repoId/context",
         gKey: "x",
       },
+      {
+        // specs/10-onboarding-generator.md — D10/AC-39: the route is
+        // /repos/:repoId/tour, no "onboarding" URL segment anywhere.
+        key: "onboarding-tour",
+        label: "Onboarding Tour",
+        icon: "Workflow",
+        href: "/repos/:repoId/tour",
+        gKey: "t",
+      },
     ],
   },
   {
@@ -77,6 +86,7 @@ export const SHORTCUTS: ShortcutDef[] = [
   { keys: "?", label: "Show keyboard shortcuts", group: "Global" },
   { keys: "g p", label: "Go to Pull Requests", group: "Navigation" },
   { keys: "g x", label: "Go to Project Context", group: "Navigation" },
+  { keys: "g t", label: "Go to Onboarding Tour", group: "Navigation" },
   { keys: "g s", label: "Go to Skills", group: "Navigation" },
   { keys: "g a", label: "Go to Agents", group: "Navigation" },
   { keys: "g c", label: "Go to Conventions", group: "Navigation" },

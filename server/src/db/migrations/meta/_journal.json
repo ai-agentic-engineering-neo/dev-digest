@@ -127,6 +127,20 @@
       "when": 1786538806941,
       "tag": "0017_famous_tomorrow_man",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1786616194373,
+      "tag": "0018_cloudy_gateway",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1786663797428,
+      "tag": "0019_nice_wild_child",
+      "breakpoints": true
     }
   ]
 }

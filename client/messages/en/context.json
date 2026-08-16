@@ -9,6 +9,7 @@
     "loadError": "Couldn’t load this repo's documents",
     "selectPrompt": "Select a document to preview it.",
     "previewLoadError": "Couldn’t load this document.",
+    "filterPlaceholder": "Filter documents…",
     "empty": {
       "title": "No documents found",
       "body": "No markdown files were found under the searched roots: {roots}. Add PRDs, tech specs, or architecture notes under one of those folders, or change the search roots above."
@@ -24,6 +25,7 @@
   },
   "list": {
     "tokens": "{count, plural, one {# token} other {# tokens}}",
-    "usedBy": "{count, plural, =0 {not attached} one {used by # agent} other {used by # agents}}"
+    "usedBy": "{count, plural, =0 {not attached} one {used by # agent} other {used by # agents}}",
+    "noMatch": "No documents match this filter."
   }
 }

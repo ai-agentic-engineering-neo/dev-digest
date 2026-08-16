@@ -56,6 +56,27 @@ anything other than a hardcoded string constant must sanitize it the same
 way; the function itself now does this for every caller, so no caller-side
 fix was needed beyond this one change.
 
+### 2026-08-13 — `INJECTION_GUARD` was module-private for a whole feature (specs/09) before anything outside `assemblePrompt` needed it
+
+specs/10-onboarding-generator.md's onboarding module makes its own one-off
+structured LLM call (server-side, outside the PR-review path — D9) that
+handles the SAME class of untrusted repo-controlled input `assemblePrompt`
+does (paths, script strings, route strings). Rather than writing a second
+guard paragraph (which `server/CLAUDE.md`'s "one shared guard, not denylists"
+rule exists to prevent), the fix was exporting the existing
+`const INJECTION_GUARD` in `prompt.ts` (`export const`) and adding it to this
+package's `index.ts` export list — the guard STRING itself is byte-identical,
+`assemblePrompt` is untouched, and `test/prompt.test.ts` needed zero edits.
+Consumed from the server via the existing `platform/prompt.ts` re-export shim
+(which already re-exported `wrapUntrusted`), so the server module never
+imports `reviewer-core/src/prompt.ts` directly. Lesson for the next
+server-side feature that makes its own structured call outside the review
+path but handles equally-untrusted repo content: check whether
+`INJECTION_GUARD` (now exported) already covers it before writing new guard
+text — duplicating the paragraph is the failure mode "one shared guard" is
+meant to prevent, and the export makes reuse a one-line append (`+
+INJECTION_GUARD` on the system prompt), not a new file.
+
 ## Tool & Library Notes
 
 ## Recurring Errors & Fixes

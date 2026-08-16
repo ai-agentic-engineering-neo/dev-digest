@@ -109,7 +109,9 @@
     "missing": "missing",
     "tokens": "{count, plural, one {# token} other {# tokens}}",
     "empty": "No documents match this filter.",
-    "noRepo": "No active repo — attach a repo to this workspace to browse its project-context documents."
+    "noRepo": "No active repo — attach a repo to this workspace to browse its project-context documents.",
+    "preview": "Preview {path}",
+    "previewLoadError": "Could not load this document."
   },
   "mount": {
     "body": "Mount point for {owner}. The Agent Editor shell + tab routing are wired by A2 — {owner} renders this tab."

@@ -1,12 +1,21 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
-import type { AttachedDocument, DocumentList } from "@devdigest/shared";
+import type { AttachedDocument, DocumentContent, DocumentList } from "@devdigest/shared";
 import agentsMessages from "../../../../messages/en/agents.json";
 import skillsMessages from "../../../../messages/en/skills.json";
 
+const CONTENT: DocumentContent = { path: "specs/a.md", content: "# A\n\nBody text." };
+const documentRefetch = vi.fn();
+
 vi.mock("@/lib/hooks/project-context", () => ({
   useRepoDocuments: () => ({ data: CATALOG }),
+  useDocument: (_repoId: string | null, path: string | null) => ({
+    data: path === "specs/a.md" ? CONTENT : undefined,
+    isLoading: false,
+    isError: path === "docs/b.md",
+    refetch: documentRefetch,
+  }),
 }));
 
 import { ContextTab } from "./ContextTab";
@@ -79,6 +88,37 @@ describe("ContextTab (shared — used by both the agent editor and the skill edi
     expect(screen.getByText("1 of 2 attached")).toBeInTheDocument();
     // The token total is over the WHOLE attached set, not the filtered view.
     expect(screen.getByText("100 tokens attached")).toBeInTheDocument();
+  });
+
+  it("clicking a row's preview toggle shows its content, view-only, and clicking again hides it", () => {
+    renderWithIntl(
+      <ContextTab namespace="agents" repoId="repo-1" attachments={ATTACHMENTS} onToggle={vi.fn()} onReorder={vi.fn()} />,
+    );
+
+    expect(screen.queryByText("Body text.")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Preview specs/a.md" }));
+    expect(screen.getByText("Body text.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Preview specs/a.md" }));
+    expect(screen.queryByText("Body text.")).not.toBeInTheDocument();
+  });
+
+  it("shows an error state with retry when a previewed document fails to load", () => {
+    renderWithIntl(
+      <ContextTab namespace="agents" repoId="repo-1" attachments={ATTACHMENTS} onToggle={vi.fn()} onReorder={vi.fn()} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Preview docs/b.md" }));
+    expect(screen.getByText("Could not load this document.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+    expect(documentRefetch).toHaveBeenCalled();
+  });
+
+  it("offers no preview toggle for a since-deleted attachment (AC-26 — nothing left to preview)", () => {
+    renderWithIntl(
+      <ContextTab namespace="agents" repoId="repo-1" attachments={ATTACHMENTS} onToggle={vi.fn()} onReorder={vi.fn()} />,
+    );
+    expect(screen.queryByRole("button", { name: "Preview old/removed.md" })).not.toBeInTheDocument();
   });
 
   it("announces the new attached-count and token-total when a row is toggled", () => {

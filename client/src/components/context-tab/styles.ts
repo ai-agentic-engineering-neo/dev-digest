@@ -40,6 +40,22 @@ export const s = {
   path: { fontSize: 13, color: "var(--text-primary)" } satisfies CSSProperties,
   right: { marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 } satisfies CSSProperties,
   tokens: { fontSize: 12, color: "var(--text-muted)" } satisfies CSSProperties,
+  previewButton: {
+    display: "inline-flex",
+    alignItems: "center",
+    color: "var(--text-muted)",
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    padding: 2,
+  } satisfies CSSProperties,
+  previewPanel: {
+    padding: 12,
+    borderRadius: 7,
+    border: "1px solid var(--border)",
+    background: "var(--bg-elevated)",
+  } satisfies CSSProperties,
+  previewContent: { fontSize: 13, maxHeight: 320, overflow: "auto" } satisfies CSSProperties,
   srOnly: {
     position: "absolute",
     width: 1,

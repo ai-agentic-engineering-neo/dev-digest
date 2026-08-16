@@ -23,10 +23,13 @@ export interface RowDrag {
 
 /**
  * One document row: drag handle, checkbox (attach/detach), mono path,
- * doc-type chip, token count, and a "missing" badge when the attachment's
- * file no longer resolves (AC-26) — the row is never removed for that, only
- * marked. Dragging is hand-rolled HTML5 drag, matching SkillRow; ArrowUp/
- * ArrowDown on the handle is the keyboard equivalent.
+ * doc-type chip, token count, a "missing" badge when the attachment's file no
+ * longer resolves (AC-26), and — when the path still resolves in the
+ * discovery catalog (`row.docType != null`) — a view-only preview toggle so a
+ * document's content can be checked before attaching it, without leaving the
+ * editor. The row is never removed for `missing`, only marked. Dragging is
+ * hand-rolled HTML5 drag, matching SkillRow; ArrowUp/ArrowDown on the handle
+ * is the keyboard equivalent.
  *
  * Entity-agnostic aside from `namespace`, which the shared `ContextTab`
  * passes through so `context.*` strings resolve against the right i18n
@@ -37,17 +40,26 @@ export function DocumentRow({
   row,
   drag,
   onToggle,
+  previewOpen,
+  onPreviewToggle,
 }: {
   namespace: ContextTabNamespace;
   row: DocumentRowModel;
   drag: RowDrag;
   onToggle: (next: boolean) => void;
+  /** Whether this row's preview panel is currently expanded. Ignored when
+   *  `onPreviewToggle` is undefined (nothing to preview). */
+  previewOpen?: boolean;
+  /** Undefined when `row.docType` is null — a since-deleted/moved attachment
+   *  has no file left to preview (AC-26), so no toggle is offered for it. */
+  onPreviewToggle?: () => void;
 }) {
   const t = useTranslations(namespace);
   const reorderLabel =
     drag.position > 0
       ? t("context.reorderPositioned", { path: row.path, position: drag.position, total: drag.total })
       : t("context.reorder", { path: row.path });
+  const previewLabel = t("context.preview", { path: row.path });
 
   return (
     <div
@@ -93,6 +105,18 @@ export function DocumentRow({
         <span className="tnum" style={s.tokens}>
           {t("context.tokens", { count: row.tokens })}
         </span>
+        {onPreviewToggle && (
+          <button
+            type="button"
+            onClick={onPreviewToggle}
+            aria-expanded={previewOpen ?? false}
+            aria-label={previewLabel}
+            title={previewLabel}
+            style={s.previewButton}
+          >
+            <Icon.Eye size={14} />
+          </button>
+        )}
       </span>
     </div>
   );

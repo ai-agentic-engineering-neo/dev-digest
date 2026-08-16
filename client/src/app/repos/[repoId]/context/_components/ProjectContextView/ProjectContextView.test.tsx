@@ -102,6 +102,21 @@ describe("ProjectContextView", () => {
     expect(screen.queryByText(/coverage/i)).not.toBeInTheDocument();
   });
 
+  it("filters the list by path substring, client-side, without touching what was discovered", () => {
+    renderView();
+    fireEvent.change(screen.getByPlaceholderText("Filter documents…"), { target: { value: "docs/" } });
+    expect(screen.getByText("docs/architecture.md")).toBeInTheDocument();
+    expect(screen.queryByText("specs/09-project-context-folder.md")).not.toBeInTheDocument();
+    // The summary line reflects the full discovery count, not the filtered view.
+    expect(screen.getByText("2 documents · 520 tokens")).toBeInTheDocument();
+  });
+
+  it("shows a no-match message, not an empty state, when the filter matches nothing", () => {
+    renderView();
+    fireEvent.change(screen.getByPlaceholderText("Filter documents…"), { target: { value: "nonexistent" } });
+    expect(screen.getByText("No documents match this filter.")).toBeInTheDocument();
+  });
+
   it("AC-20 — zero discovered documents renders an empty state naming the searched roots, not an error", () => {
     listData = EMPTY_LIST;
     renderView();

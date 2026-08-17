@@ -44,3 +44,45 @@ Each skill has:
 - `SKILL.md` — Main skill file with rules and conventions (required)
 - `examples.md` — Code examples showing good/bad patterns (recommended)
 - `references.md` — Sources and rationale (optional)
+
+## Testing a Skill (skill-creator evals)
+
+When a skill is tested with skill-creator's with/without or old/new comparison
+harness:
+
+- **Fixtures and eval definitions are committed**, inside the skill's own
+  folder — `<skill-name>/evals/{evals.json,fixtures/}` — so they ship and are
+  deliverable with the skill, and are usable from CI later.
+- **Run output is disposable and never committed.** It goes in a sibling
+  directory named `<skill-name>-v-N/` (snapshots, per-run `outputs/`,
+  `grading.json`, `benchmark.json`) — not `<skill-name>-workspace/`, an
+  earlier naming this repo no longer uses.
+
+### The `-v-N` number is per skill, not global
+
+Each skill keeps its **own** count, independent of every other skill's:
+
+- A skill's first comparison round is `<skill-name>-v-2`.
+- If that same skill later gets a second round (a new rule added, a new
+  fixture, another old-vs-new comparison), that round is `<skill-name>-v-3`
+  — then `v-4`, and so on, for that skill specifically.
+- A different skill getting its first-ever comparison round always starts
+  at its own `v-2`, regardless of what number any other skill is on.
+  `onion-architecture` being on `v-2` says nothing about what number
+  `repo-conventions-reviewer` (or any other skill) starts at — each starts
+  at `v-2` independently.
+
+Current state: `onion-architecture-v-2` (1st round),
+`repo-conventions-reviewer-v-2` (1st round) — both `v-2` at once is correct,
+because they're two different skills' first rounds, not competing for one
+shared number.
+
+`.gitignore` covers the whole convention with one glob —
+`.claude/skills/*-v-*/` — so a skill's first `-v-2` needs no `.gitignore`
+edit, and neither does a later `-v-3` for the same skill.
+
+Examples: [repo-conventions-reviewer/evals/](repo-conventions-reviewer/evals/)
+(fixtures, committed) alongside `repo-conventions-reviewer-v-2/` (run output,
+gitignored); `onion-architecture-v-2/` (run output only — this skill's
+comparisons so far have used ad hoc fixtures in `server/src`, not a
+committed `evals/` dir).

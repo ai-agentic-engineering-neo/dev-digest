@@ -30,3 +30,6 @@ test-results/
 
 # vscode local settings
 .vscode/settings.json
+
+# skill-creator eval run output (disposable — evals.json/fixtures are committed, run artifacts are not)
+.claude/skills/repo-conventions-reviewer-workspace/

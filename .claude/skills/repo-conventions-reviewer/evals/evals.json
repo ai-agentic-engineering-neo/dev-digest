@@ -1,0 +1,67 @@
+{
+  "skill_name": "repo-conventions-reviewer",
+  "evals": [
+    {
+      "id": 1,
+      "name": "billing-result-pattern",
+      "prompt": "You are reviewing a pull request against the billing-service repo. evals/fixtures/eval-1-billing-result-pattern/conventions.md lists this repo's already-accepted coding conventions, each backed by a file:line citation into evals/fixtures/eval-1-billing-result-pattern/repo/. evals/fixtures/eval-1-billing-result-pattern/diff/src/services/refundService.ts is the complete diff for this PR — it is the one new file being added; nothing else in the repo changed. Check this diff against the accepted conventions and report every violation you find, each with the exact file:line in the diff and which convention it breaks. Do not comment on conventions the diff doesn't touch, and do not flag anything that isn't actually a violation.",
+      "expected_output": "A list of violations, each citing the correct convention name (error-handling, domain-modeling, or immutability) and the correct line in refundService.ts, with no false positive on the naming convention.",
+      "files": [
+        "evals/fixtures/eval-1-billing-result-pattern/conventions.md",
+        "evals/fixtures/eval-1-billing-result-pattern/repo/src/lib/result.ts",
+        "evals/fixtures/eval-1-billing-result-pattern/repo/src/services/orderService.ts",
+        "evals/fixtures/eval-1-billing-result-pattern/repo/src/services/paymentService.ts",
+        "evals/fixtures/eval-1-billing-result-pattern/diff/src/services/refundService.ts"
+      ],
+      "expectations": [
+        "Output flags a violation in refundOrder around the throw statement (line 11), citing the error-handling convention (should return err(...) instead of throwing)",
+        "Output flags a violation where order.status is mutated directly (line 14) instead of returning a new object, citing the immutability convention",
+        "Output flags a violation in calculateRefundFee (line 20) for using dollar amounts instead of integer cents, citing the domain-modeling convention",
+        "Output does NOT flag any violation of the naming convention (calculate/compute prefix) — that convention isn't broken in this diff"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "react-component-conventions",
+      "prompt": "You are reviewing a pull request against the dashboard-ui repo. evals/fixtures/eval-2-react-component-conventions/conventions.md lists this repo's already-accepted coding conventions, each backed by a file:line citation into evals/fixtures/eval-2-react-component-conventions/repo/. evals/fixtures/eval-2-react-component-conventions/diff/src/components/OrderCard.tsx is the complete diff for this PR — it is the one new file being added; nothing else in the repo changed. Check this diff against the accepted conventions and report every violation you find, each with the exact file:line in the diff and which convention it breaks. Do not comment on conventions the diff doesn't touch, and do not flag anything that isn't actually a violation.",
+      "expected_output": "A list of violations, each citing the correct convention name (types, data-fetching, or naming) and the correct line in OrderCard.tsx, with no false positive on the styling convention.",
+      "files": [
+        "evals/fixtures/eval-2-react-component-conventions/conventions.md",
+        "evals/fixtures/eval-2-react-component-conventions/repo/src/lib/cn.ts",
+        "evals/fixtures/eval-2-react-component-conventions/repo/src/hooks/useOrders.ts",
+        "evals/fixtures/eval-2-react-component-conventions/repo/src/components/Button.tsx",
+        "evals/fixtures/eval-2-react-component-conventions/repo/src/components/Card.tsx",
+        "evals/fixtures/eval-2-react-component-conventions/repo/src/types/order.ts",
+        "evals/fixtures/eval-2-react-component-conventions/diff/src/components/OrderCard.tsx"
+      ],
+      "expectations": [
+        "Output flags a violation on line 4 (inline prop type instead of a named interface OrderCardProps), citing the types convention",
+        "Output flags a violation on line 8 (fetch() called directly inside the component's useEffect), citing the data-fetching convention",
+        "Output flags a violation on line 13 (handler named selectClicked instead of handleSelect), citing the naming convention",
+        "Output does NOT flag any violation of the styling convention — OrderCard doesn't accept a className prop, so there's nothing to merge via cn()"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "validation-lib-contracts",
+      "prompt": "You are reviewing a pull request against the validation-lib repo. evals/fixtures/eval-3-validation-lib-contracts/conventions.md lists this repo's already-accepted coding conventions, each backed by a file:line citation into evals/fixtures/eval-3-validation-lib-contracts/repo/. evals/fixtures/eval-3-validation-lib-contracts/diff/src/validation/postalCodeValidator.ts is the complete diff for this PR — it is the one new file being added; nothing else in the repo changed (in particular, check whether a matching test file was or wasn't added). Check this diff against the accepted conventions and report every violation you find, each with the exact file:line in the diff (or a note that a file is missing) and which convention it breaks. Do not comment on conventions the diff doesn't touch, and do not flag anything that isn't actually a violation.",
+      "expected_output": "A list of violations, each citing the correct convention name (contract, config-access, or testing) with no false positive on the exports convention.",
+      "files": [
+        "evals/fixtures/eval-3-validation-lib-contracts/conventions.md",
+        "evals/fixtures/eval-3-validation-lib-contracts/repo/src/validation/emailValidator.ts",
+        "evals/fixtures/eval-3-validation-lib-contracts/repo/src/validation/emailValidator.test.ts",
+        "evals/fixtures/eval-3-validation-lib-contracts/repo/src/validation/phoneValidator.ts",
+        "evals/fixtures/eval-3-validation-lib-contracts/repo/src/validation/phoneValidator.test.ts",
+        "evals/fixtures/eval-3-validation-lib-contracts/repo/src/validation/index.ts",
+        "evals/fixtures/eval-3-validation-lib-contracts/repo/src/config/env.ts",
+        "evals/fixtures/eval-3-validation-lib-contracts/diff/src/validation/postalCodeValidator.ts"
+      ],
+      "expectations": [
+        "Output flags a violation on line 1 (validatePostalCode returns a bare boolean instead of { valid, errors }), citing the contract convention",
+        "Output flags a violation on line 2 (process.env.DEFAULT_COUNTRY accessed directly), citing the config-access convention",
+        "Output flags the absence of a co-located postalCodeValidator.test.ts, citing the testing convention",
+        "Output does NOT flag any violation of the exports convention — src/validation/index.ts wasn't touched by this diff"
+      ]
+    }
+  ]
+}

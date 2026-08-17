@@ -19,7 +19,7 @@ Reusable AI skills that provide specialized knowledge and workflows. Canonical l
 | [security](security/SKILL.md) | Full-stack | OWASP Top 10:2025, auth, injection, uploads, secrets |
 | [mermaid-diagram](mermaid-diagram/SKILL.md) | Shared | Mermaid diagrams in markdown (flowcharts, sequence, ERD, …) |
 | [pr-self-review](pr-self-review/SKILL.md) | Project | Pre-PR review of the local diff; routes the skills above, gates on deterministic checks |
-| [repo-conventions-reviewer](repo-conventions-reviewer/SKILL.md) | Project | Extracts a repo's unwritten conventions with file:line evidence, or checks a diff against an accepted list; `evals/` holds its skill-creator eval fixtures |
+| [repo-conventions-reviewer](repo-conventions-reviewer/SKILL.md) | Project | Extracts a repo's unwritten conventions with file:line evidence, or checks a diff against an accepted list; its skill-creator eval fixtures live in [skill-evals/repo-conventions-reviewer/](../../skill-evals/repo-conventions-reviewer/) |
 | [engineering-insights](engineering-insights/SKILL.md) | Project | Logs non-obvious lessons to the touched module's `LEARNINGS.md` |
 | [implement-plan](implement-plan/SKILL.md) | Project | Runs implementer → plan-verifier (gate) → architecture-reviewer (fix loop) for an existing plan; spec-creator, implementation-planner, test-writer run separately |
 | [workflow-retro](workflow-retro/SKILL.md) | Project | Retrospective on a multi-agent run's orchestration — tokens, agent order, handoffs, recommendations; distinct from engineering-insights, which logs code lessons to LEARNINGS.md |
@@ -47,42 +47,8 @@ Each skill has:
 
 ## Testing a Skill (skill-creator evals)
 
-When a skill is tested with skill-creator's with/without or old/new comparison
-harness:
-
-- **Fixtures and eval definitions are committed**, inside the skill's own
-  folder — `<skill-name>/evals/{evals.json,fixtures/}` — so they ship and are
-  deliverable with the skill, and are usable from CI later.
-- **Run output is disposable and never committed.** It goes in a sibling
-  directory named `<skill-name>-v-N/` (snapshots, per-run `outputs/`,
-  `grading.json`, `benchmark.json`) — not `<skill-name>-workspace/`, an
-  earlier naming this repo no longer uses.
-
-### The `-v-N` number is per skill, not global
-
-Each skill keeps its **own** count, independent of every other skill's:
-
-- A skill's first comparison round is `<skill-name>-v-2`.
-- If that same skill later gets a second round (a new rule added, a new
-  fixture, another old-vs-new comparison), that round is `<skill-name>-v-3`
-  — then `v-4`, and so on, for that skill specifically.
-- A different skill getting its first-ever comparison round always starts
-  at its own `v-2`, regardless of what number any other skill is on.
-  `onion-architecture` being on `v-2` says nothing about what number
-  `repo-conventions-reviewer` (or any other skill) starts at — each starts
-  at `v-2` independently.
-
-Current state: `onion-architecture-v-2` (1st round),
-`repo-conventions-reviewer-v-2` (1st round) — both `v-2` at once is correct,
-because they're two different skills' first rounds, not competing for one
-shared number.
-
-`.gitignore` covers the whole convention with one glob —
-`.claude/skills/*-v-*/` — so a skill's first `-v-2` needs no `.gitignore`
-edit, and neither does a later `-v-3` for the same skill.
-
-Examples: [repo-conventions-reviewer/evals/](repo-conventions-reviewer/evals/)
-(fixtures, committed) alongside `repo-conventions-reviewer-v-2/` (run output,
-gitignored); `onion-architecture-v-2/` (run output only — this skill's
-comparisons so far have used ad hoc fixtures in `server/src`, not a
-committed `evals/` dir).
+Eval fixtures and run output for skill-creator's with/without or old/new
+comparison harness live in the top-level [skill-evals/](../../skill-evals/)
+directory (parallel to `client/`, `server/`, `e2e/`), not inside each skill's
+own folder — see [skill-evals/README.md](../../skill-evals/README.md) for the
+full convention (layout, `-v-N` round numbering, gitignore rules).

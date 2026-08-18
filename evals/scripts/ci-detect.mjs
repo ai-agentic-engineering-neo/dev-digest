@@ -20,7 +20,6 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const EVALS_DIR = join(dirname(fileURLToPath(import.meta.url)), "..");
-const REPO_ROOT = join(EVALS_DIR, "..");
 
 const changed = (process.env.CHANGED_FILES ?? "")
   .split("\n")
@@ -32,6 +31,14 @@ function hasEvals(tier, name) {
   const dir = join(EVALS_DIR, tier, name);
   if (!existsSync(dir)) return false;
   return readdirSync(dir).some((f) => f.endsWith(".eval.ts"));
+}
+
+function allEvalNames(tier) {
+  const root = join(EVALS_DIR, tier);
+  if (!existsSync(root)) return [];
+  return readdirSync(root)
+    .filter((name) => hasEvals(tier, name))
+    .sort();
 }
 
 /** Collect distinct artifact names touched under a `.claude` and/or `evals` prefix. */
@@ -53,9 +60,10 @@ const agentNames = touched(
   /^evals\/agents\/([^/]+)\//,
 );
 
-const skills = skillNames.filter((n) => hasEvals("skills", n));
+const recalibrateAll = changed.some((f) => /^evals\/src\//.test(f));
+const skills = (recalibrateAll ? allEvalNames("skills") : skillNames).filter((n) => hasEvals("skills", n));
 const skippedSkills = skillNames.filter((n) => !hasEvals("skills", n));
-const agents = agentNames.filter((n) => hasEvals("agents", n));
+const agents = (recalibrateAll ? allEvalNames("agents") : agentNames).filter((n) => hasEvals("agents", n));
 const skippedAgents = agentNames.filter((n) => !hasEvals("agents", n));
 
 // The workflow tier measures the LIVE harness, so anything that changes it re-triggers it:
@@ -75,6 +83,7 @@ const write = (k, v) => (out ? appendFileSync(out, `${k}=${v}\n`) : console.log(
 write("skills", JSON.stringify(skills));
 write("agents", JSON.stringify(agents));
 write("run_workflow", String(runWorkflow));
+write("recalibrate_all", String(recalibrateAll));
 write("skipped_skills", skippedSkills.join(" "));
 write("skipped_agents", skippedAgents.join(" "));
 
@@ -84,5 +93,6 @@ console.error(`changed files : ${changed.length}`);
 console.error(`skills → run  : ${skills.join(", ") || "(none)"}`);
 console.error(`agents → run  : ${agents.join(", ") || "(none)"}`);
 console.error(`workflow tier : ${runWorkflow ? "run" : "skip"}`);
+if (recalibrateAll) console.error("recalibration: run every written skill/agent benchmark");
 if (skippedSkills.length) console.error(`SKIP skills (no evals): ${skippedSkills.join(", ")}`);
 if (skippedAgents.length) console.error(`SKIP agents (no evals): ${skippedAgents.join(", ")}`);

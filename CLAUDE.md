@@ -16,6 +16,25 @@ contracts via tsconfig path aliases, not a real workspace.
 - Per-package: `pnpm dev` / `pnpm test` / `pnpm typecheck` — see each README
 - `pnpm --dir mcp-server exec tsx src/cli.ts review --mode working --agent <id|name>` — review your local working-copy changes before you push (specs/08-pre-push-cli.md)
 
+## Eval Self-Check
+
+- `cd evals && pnpm eval:quality` — static quality gate for eval prompts/graders; this is the blocking CI gate.
+- `cd evals && pnpm eval:skills`
+- `cd evals && pnpm eval:agents`
+- `cd evals && pnpm eval:workflow`
+- `cd evals && pnpm eval:benchmark <vitest-pattern> -n 2` — candidate vs baseline lift check for a changed skill/agent eval.
+
+Minimum eval routing after a change:
+
+| Change | Minimum verification |
+|---|---|
+| `.claude/skills/**` | `eval:quality` + the corresponding skill eval |
+| `.claude/agents/**` | the corresponding agent eval + the relevant workflow case |
+| `CLAUDE.md` / routing rules | `eval:workflow` |
+| `eval case` or `grader` | recalibrate the baseline before trusting deltas again |
+
+When you change eval cases or grading logic, treat earlier candidate-vs-baseline comparisons as stale. Re-run the affected benchmark to re-establish the baseline before drawing conclusions from lift/regression numbers.
+
 ## Map
 
 | Module | README | CLAUDE.md | Port |

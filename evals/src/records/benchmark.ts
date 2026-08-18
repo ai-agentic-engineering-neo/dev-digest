@@ -10,7 +10,7 @@
  * its own control-vs-treatment design; workflow patterns are refused.
  */
 
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync, existsSync, statSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { GREEN, RED, YELLOW, DIM, RESET } from "../ansi.js";
 import { countTests, runVitestOnce } from "../run-vitest.js";
@@ -69,6 +69,29 @@ function summarize(records: EvalRecord[]) {
 const pct = (r: number) => `${Math.round(r * 100)}%`;
 const cell = (s: Stats) => `${s.mean.toFixed(0)} ± ${s.stddev.toFixed(0)} [${s.min}–${s.max}] (n=${s.n})`;
 
+function resolveEvalPatterns(args: string[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a.startsWith("-")) {
+      out.push(a);
+      if (a === "-t" || a === "--testNamePattern") out.push(args[++i]);
+      continue;
+    }
+    if (existsSync(a) && statSync(a).isDirectory()) {
+      const evals = readdirSync(a)
+        .filter((f) => f.endsWith(".eval.ts"))
+        .map((f) => join(a, f));
+      if (evals.length) {
+        out.push(...evals);
+        continue;
+      }
+    }
+    out.push(a);
+  }
+  return out;
+}
+
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   let times = 5;
@@ -84,6 +107,7 @@ async function main(): Promise<void> {
     console.error("usage: pnpm eval:benchmark <vitest pattern> [-n runs] [--label name]");
     process.exit(1);
   }
+  vitestArgs.splice(0, vitestArgs.length, ...resolveEvalPatterns(vitestArgs));
   if (vitestArgs.some((a) => a.includes("workflow"))) {
     console.error(
       "benchmark does not apply to the workflow tier: a 'no artifact' baseline is meaningless\n" +

@@ -41,6 +41,7 @@ jobs:
       agents: ${{ steps.detect.outputs.agents }}
       run_workflow: ${{ steps.detect.outputs.run_workflow }}
       recalibrate_all: ${{ steps.detect.outputs.recalibrate_all }}
+      has_openrouter_key: ${{ steps.secret_check.outputs.has_openrouter_key }}
       skipped_skills: ${{ steps.detect.outputs.skipped_skills }}
       skipped_agents: ${{ steps.detect.outputs.skipped_agents }}
     steps:
@@ -63,6 +64,15 @@ jobs:
           export CHANGED_FILES
           node evals/scripts/ci-detect.mjs
 
+      - id: secret_check
+        name: Check Model Eval Secret Availability
+        run: |
+          if [ -n "${{ secrets.OPENROUTER_API_KEY }}" ]; then
+            echo "has_openrouter_key=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_openrouter_key=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish Detection Summary
         run: |
           {
@@ -72,11 +82,15 @@ jobs:
             echo "- agents: `${{ steps.detect.outputs.agents }}`"
             echo "- workflow: `${{ steps.detect.outputs.run_workflow }}`"
             echo "- recalibrate all benchmarks: `${{ steps.detect.outputs.recalibrate_all }}`"
+            echo "- OpenRouter key available: `${{ steps.secret_check.outputs.has_openrouter_key }}`"
             if [ -n "${{ steps.detect.outputs.skipped_skills }}" ]; then
               echo "- skipped skills (no evals): `${{ steps.detect.outputs.skipped_skills }}`"
             fi
             if [ -n "${{ steps.detect.outputs.skipped_agents }}" ]; then
               echo "- skipped agents (no evals): `${{ steps.detect.outputs.skipped_agents }}`"
+            fi
+            if [ "${{ steps.secret_check.outputs.has_openrouter_key }}" != "true" ]; then
+              echo "- model-based eval jobs will be skipped because the OpenRouter secret is unavailable in this run"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -110,7 +124,7 @@ jobs:
   skill-benchmark:
     name: Skill Benchmark (${{ matrix.skill }})
     needs: [detect, quality]
-    if: needs.detect.outputs.skills != '[]'
+    if: needs.detect.outputs.skills != '[]' && needs.detect.outputs.has_openrouter_key == 'true'
     runs-on: ubuntu-latest
     continue-on-error: true
     timeout-minutes: 25
@@ -139,7 +153,7 @@ jobs:
 
       - run: pnpm typecheck
 
-      - run: docker compose -f proxy/docker-compose.yml up -d
+      - run: pnpm proxy:up
 
       - run: pnpm proxy:wait
 
@@ -174,12 +188,12 @@ jobs:
           if-no-files-found: ignore
 
       - if: always()
-        run: docker compose -f proxy/docker-compose.yml down
+        run: pnpm proxy:down
 
   agent-benchmark:
     name: Agent Benchmark (${{ matrix.agent }})
     needs: [detect, quality]
-    if: needs.detect.outputs.agents != '[]'
+    if: needs.detect.outputs.agents != '[]' && needs.detect.outputs.has_openrouter_key == 'true'
     runs-on: ubuntu-latest
     continue-on-error: true
     timeout-minutes: 25
@@ -208,7 +222,7 @@ jobs:
 
       - run: pnpm typecheck
 
-      - run: docker compose -f proxy/docker-compose.yml up -d
+      - run: pnpm proxy:up
 
       - run: pnpm proxy:wait
 
@@ -243,12 +257,12 @@ jobs:
           if-no-files-found: ignore
 
       - if: always()
-        run: docker compose -f proxy/docker-compose.yml down
+        run: pnpm proxy:down
 
   workflow:
     name: Workflow Evals
     needs: [detect, quality]
-    if: needs.detect.outputs.run_workflow == 'true'
+    if: needs.detect.outputs.run_workflow == 'true' && needs.detect.outputs.has_openrouter_key == 'true'
     runs-on: ubuntu-latest
     continue-on-error: true
     timeout-minutes: 20
@@ -272,7 +286,7 @@ jobs:
 
       - run: pnpm typecheck
 
-      - run: docker compose -f proxy/docker-compose.yml up -d
+      - run: pnpm proxy:up
 
       - run: pnpm proxy:wait
 
@@ -302,4 +316,4 @@ jobs:
           if-no-files-found: ignore
 
       - if: always()
-        run: docker compose -f proxy/docker-compose.yml down
+        run: pnpm proxy:down

@@ -5,7 +5,7 @@
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { SKILLS_DIR, AGENTS_DIR } from "./paths.js";
+import { SKILLS_DIR, AGENTS_DIR, EVALS_DIR } from "./paths.js";
 
 function stripFrontmatter(md: string): string {
   if (md.startsWith("---")) {
@@ -15,11 +15,22 @@ function stripFrontmatter(md: string): string {
   return md;
 }
 
-/** SKILL.md plus every references/*.md — the full payload the harness would assemble. */
+/**
+ * SKILL.md plus every references/*.md — the full payload the harness would assemble.
+ *
+ * Looks under `.claude/skills/<name>/` first (the production location Claude Code
+ * auto-discovers). Falls back to `evals/skills/<name>/` for a skill that's still being
+ * developed/measured under evals and hasn't been promoted into the production catalog yet —
+ * so a skill can be benchmarked before it's live, with no duplicate file to keep in sync.
+ */
 export function skillContent(skillName: string): string {
-  const dir = join(SKILLS_DIR, skillName);
+  const prodDir = join(SKILLS_DIR, skillName);
+  const evalDir = join(EVALS_DIR, "skills", skillName);
+  const dir = existsSync(join(prodDir, "SKILL.md")) ? prodDir : evalDir;
   const skillMd = join(dir, "SKILL.md");
-  if (!existsSync(skillMd)) throw new Error(`SKILL.md not found: ${skillMd}`);
+  if (!existsSync(skillMd)) {
+    throw new Error(`SKILL.md not found in either ${prodDir} or ${evalDir}`);
+  }
   const parts = [readFileSync(skillMd, "utf8")];
   const refs = join(dir, "references");
   if (existsSync(refs)) {
@@ -30,11 +41,24 @@ export function skillContent(skillName: string): string {
   return parts.join("\n");
 }
 
-/** An agent definition with its frontmatter stripped (the behavioral prompt only). */
+/**
+ * An agent definition with its frontmatter stripped (the behavioral prompt only).
+ *
+ * Looks under `.claude/agents/<name>.md` first (the production location Claude Code
+ * auto-discovers). Falls back to `evals/agents/<name>/<name>.md` for an ablation/experimental
+ * variant (e.g. a "-lite" A/B counterpart) that's deliberately not promoted into the production
+ * catalog — same rationale as skillContent's fallback.
+ */
+function resolveAgentFile(agentName: string): string {
+  const prodFile = join(AGENTS_DIR, `${agentName}.md`);
+  if (existsSync(prodFile)) return prodFile;
+  const evalFile = join(EVALS_DIR, "agents", agentName, `${agentName}.md`);
+  if (existsSync(evalFile)) return evalFile;
+  throw new Error(`agent not found in either ${prodFile} or ${evalFile}`);
+}
+
 export function agentContent(agentName: string): string {
-  const f = join(AGENTS_DIR, `${agentName}.md`);
-  if (!existsSync(f)) throw new Error(`agent not found: ${f}`);
-  return stripFrontmatter(readFileSync(f, "utf8"));
+  return stripFrontmatter(readFileSync(resolveAgentFile(agentName), "utf8"));
 }
 
 // Tools the eval refuses to hand a subagent: evals run with bypassPermissions against the LIVE
@@ -51,9 +75,7 @@ const READONLY_FALLBACK = ["Read", "Grep", "Glob"];
  * grant collapses to the read-only fallback rather than handing over Write/Bash on the live repo.
  */
 export function agentTools(agentName: string): string[] {
-  const f = join(AGENTS_DIR, `${agentName}.md`);
-  if (!existsSync(f)) throw new Error(`agent not found: ${f}`);
-  const md = readFileSync(f, "utf8");
+  const md = readFileSync(resolveAgentFile(agentName), "utf8");
   const fmEnd = md.startsWith("---") ? md.indexOf("\n---", 3) : -1;
   const frontmatter = fmEnd !== -1 ? md.slice(0, fmEnd) : "";
   const line = frontmatter.match(/^tools:\s*(.+)$/m);

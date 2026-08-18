@@ -7,13 +7,28 @@ const REVIEW_PROMPT = `Audit this diff against DevDigest's documented structural
 
 ${fx("checkout-service.diff")}`;
 
-// A second real diff whose violations map onto DevDigest-SPECIFIC rule names
-// (`reviewer-core-zero-io`, `reviewer-core-ground-findings-gate`) that a competent model will
-// describe in prose but will not spontaneously name unless the agent forces a citation. This is
-// the discriminating case for the strict-vs-lite A/B: both variants should FIND both problems,
-// but only the strict variant (which keeps the "cite the exact documented rule per finding" hard
-// rule) should reliably emit the identifier. The checkout diff's textbook violations don't
-// discriminate — the model volunteers `inward-only-dependencies`/`di-discipline` either way.
+// A second real diff whose violations map onto DevDigest-SPECIFIC documented constraints —
+// reviewer-core's zero-I/O rule and its mandatory groundFindings() citation gate, both spelled out
+// in prose in reviewer-core/CLAUDE.md ("Non-default conventions" / "Do-not-touch") — that a
+// competent model will describe loosely but will not reliably tie to the exact source unless the
+// agent forces a citation. This is the discriminating case for the strict-vs-lite A/B: both
+// variants should FIND both problems, but only the strict variant (which keeps the "cite the exact
+// documented rule per finding" hard rule) should reliably name the source. The checkout diff's
+// textbook violations don't discriminate — the model volunteers the matching dependency-cruiser
+// rule names (`domain-depends-on-nothing`, `no-container-in-services`, from
+// server/.dependency-cruiser.cjs) either way.
+//
+// NOTE (fixed after a real eval run surfaced it): the identifiers this file checks for must be
+// ones that actually exist somewhere the agent can read — `inward-only-dependencies`,
+// `di-discipline`, `reviewer-core-zero-io`, and `reviewer-core-ground-findings-gate` were
+// originally invented names with zero grounding anywhere in the repo (verified: `grep -rl` across
+// *.md/*.json/*.ts found them nowhere but this file). A strict agent that reads the real files
+// cannot "cite" a name that was never written down — it can only fabricate one, which is the
+// opposite of what "cites the documented rule" is meant to reward. Replaced below with the real,
+// discoverable identifiers/phrases: `domain-depends-on-nothing` and `no-container-in-services`
+// (both literal rule `name:` fields in server/.dependency-cruiser.cjs), and reviewer-core's own
+// prose wording for its two constraints (CLAUDE.md has no slug-style names for these, so the bar is
+// citing the actual documented language, not inventing a slug for it either).
 const REVIEWER_CORE_PROMPT = `Audit this diff against DevDigest's documented structural contracts.
 
 ${fx("reviewer-core-gate.diff")}`;
@@ -38,7 +53,7 @@ export const cases: AgentCase[] = [
     practices: [
       "flags the domain file (checkout.ts) importing a type from 'fastify' as a violation of the inward-only dependency rule between Domain and Presentation layers",
       "flags the `new PgCheckoutRepository()` call inside service.ts as a violation of DI discipline (concrete adapters/repositories must be constructed only in the composition root / container)",
-      "names the specific documented rule identifier for EVERY finding (e.g. `inward-only-dependencies`, `di-discipline`) rather than describing the problem only in prose",
+      "names the specific documented rule identifier for EVERY finding — `domain-depends-on-nothing` (or an equivalent explicit reference to that named rule/its inward-dependency wording) for the fastify-import violation, and `no-container-in-services` (or the 'services depend on interfaces, not adapters' rule from docs/architecture.md) for the direct-repository-instantiation violation — rather than describing the problem only in prose",
       "assigns a severity (critical/high/medium/low/info) to each finding",
       "quotes the offending line verbatim as evidence for each finding, not a paraphrase",
       "ends with an explicit PASS/FAIL gate verdict based on whether any critical or high findings exist",
@@ -51,21 +66,21 @@ export const cases: AgentCase[] = [
     kind: "quality",
     prompt: REVIEW_PROMPT,
     practices: [
-      "does not invent an architecture-contract violation for the optional `reply?: FastifyReply` parameter beyond the inward-only-dependencies import issue itself (no runtime bug/security finding fabricated as an architecture rule)",
+      "does not invent an architecture-contract violation for the optional `reply?: FastifyReply` parameter beyond the domain-depends-on-nothing import issue itself (no runtime bug/security finding fabricated as an architecture rule)",
       "stays scoped to structural/layering/DI findings and does not comment on naming, style, or test coverage",
     ],
     threshold: 1.0,
     maxTurns: 25,
   },
   {
-    name: "cites the DevDigest-specific rule identifier for reviewer-core violations",
+    name: "cites the DevDigest-specific documented constraint for reviewer-core violations",
     kind: "quality",
     prompt: REVIEWER_CORE_PROMPT,
     practices: [
       "flags the `import { readFileSync } from 'node:fs'` added to reviewer-core/src/pipeline/run.ts as a violation (reviewer-core must do no I/O except the injected LLMProvider)",
       "flags that runPipeline now returns `deduped` directly, skipping the mandatory `groundFindings()` gate before emitting findings",
-      "names the exact documented rule identifier `reviewer-core-zero-io` for the fs-import finding rather than only describing it in prose",
-      "names the exact documented rule identifier `reviewer-core-ground-findings-gate` for the skipped-gate finding rather than only describing it in prose",
+      "names the specific documented source for the fs-import finding — reviewer-core's zero-I/O rule ('no DB, GitHub, or filesystem access... the only side effect allowed is an LLM call through the injected LLMProvider', reviewer-core/CLAUDE.md 'Non-default conventions') — rather than only describing it in prose",
+      "names the specific documented source for the skipped-gate finding — reviewer-core's mandatory `groundFindings()` citation gate (reviewer-core/CLAUDE.md 'Do-not-touch': 'a finding without a real diff-line citation must be dropped') — rather than only describing it in prose",
       "quotes the offending line verbatim as evidence for each finding, not a paraphrase",
       "ends with an explicit PASS/FAIL gate verdict based on whether any critical or high findings exist",
     ],

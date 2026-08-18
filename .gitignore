@@ -30,3 +30,11 @@ test-results/
 
 # vscode local settings
 .vscode/settings.json
+
+# skill-creator eval run output (disposable — skill-evals/<skill>/evals.json and fixtures/ are
+# committed, run artifacts are not). Convention: run output for a project skill's with/without or
+# old/new comparison goes in skill-evals/<skill>/outputs/<skill-name>-v-N/ — never
+# <skill-name>-workspace/. N is per-skill, starting at 2 for that skill's first comparison round;
+# a second round for the SAME skill later takes v-3, a third v-4, etc. Different skills each start
+# their own count at v-2 independently.
+skill-evals/*/outputs/

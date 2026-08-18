@@ -309,7 +309,52 @@ Parsing happens in the adapter. What reaches the domain is already a domain type
 
 ---
 
-## 7. Enforcement
+## 7. Environment config: one read chokepoint
+
+### GOOD — the existing convention in `platform/config.ts`
+
+```ts
+// platform/config.ts — the one place regular config is read
+export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
+  const parsed = EnvSchema.parse(env);
+  return { databaseUrl: parsed.DATABASE_URL, /* … */ };
+}
+```
+
+```ts
+// adapters/secrets/local.ts — the one place secrets are read
+export class LocalSecretsProvider implements SecretsProvider {
+  constructor(
+    private readonly path: string,
+    private readonly env: NodeJS.ProcessEnv = process.env,
+  ) {}
+}
+```
+
+Everything downstream receives `AppConfig` or `SecretsProvider` through
+constructor injection — never `process.env` itself.
+
+### BAD — a new adapter reaching for `process.env` directly
+
+```ts
+// adapters/notifications/slack.ts
+export class SlackNotifier {
+  async send(message: string) {
+    const webhookUrl = process.env.SLACK_WEBHOOK_URL;   // ← bypasses AppConfig
+    if (!webhookUrl) return;
+    await fetch(webhookUrl, { method: 'POST', body: JSON.stringify({ text: message }) });
+  }
+}
+```
+
+Same failure shape as re-validating inside a service (§6): a second,
+untracked place now decides what a config value defaults to and whether
+it's required, instead of trusting `AppConfig`. Add `SLACK_WEBHOOK_URL` to
+`EnvSchema` / `AppConfig` in `platform/config.ts` and inject it instead.
+
+---
+
+## 8. Enforcement
 
 The config lives at [`server/.dependency-cruiser.cjs`](../../../server/.dependency-cruiser.cjs)
 — read it there rather than from a copy here, which would drift. Six rules:

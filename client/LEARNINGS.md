@@ -385,6 +385,22 @@ complete everything else is. Also update `SHORTCUTS` in the same file with a
 `g <letter>` entry if the section is meant to be keyboard-reachable — that
 list is independent of `NAV` and drifts the same way.
 
+**2026-08-19 — a second confirmed instance (specs/12-eval-pipeline.md, the
+`/eval` dashboard): THREE of the four wirings were pre-reserved, only
+`nav.ts` was missing.** `messages/en/eval.json` (a full ~60-key namespace),
+`messages/en/shell.json`'s `nav.eval: "Eval Dashboard"`, and
+`components/app-shell/helpers.ts:46`'s `if (pathname.startsWith("/eval"))
+return "eval";` all existed and were correctly wired — `grep -rn
+'useTranslations("eval")' client/src` found zero hits before this session,
+which is the tell: reserved i18n + a working active-key branch with **no**
+route behind them looks *more* done than it is, not less (same "worse than
+having none" point the first instance made). The missing piece was, again,
+exactly one `NavItemDef` in `NAV`'s array — also note lucide-react's
+`BarChart3` had to be added to `vendor/ui/icons.tsx`'s registry (only the
+unrelated `BarChart` was there) before the nav entry's `icon: "BarChart3"`
+would even typecheck. Grepping `nav.ts` for the route key before trusting any
+other "looks wired" signal remains the right first move.
+
 ### 2026-08-03 — a repo-scoped feature route (`/repos/:repoId/...`) has its own established pattern; don't reach for the workspace-scoped one
 
 Built `/repos/:repoId/conventions` (specs/03) right after `/skills` existed as
@@ -448,6 +464,22 @@ touches the URL tab. Whenever a component grows a second parallel hook call
 for an alternate mode, go back and stub it in every EXISTING test for that
 component, not just the new test for the new mode — the old tests will fail
 for a reason invisible from their own diff.
+
+**2026-08-19 — same trap, not "per mode" this time but "per action type"
+(specs/12-eval-pipeline.md's FindingCard "turn into eval case" action).**
+`FindingsPanel.tsx` already called `useFindingAction()` unconditionally;
+adding the eval-case action meant a SECOND unconditional call,
+`useCreateEvalCaseFromFinding()` (plus `useToast()`, itself unconditional and
+throwing outside a `<ToastProvider>` — see the `useToast()` entry above),
+purely to branch on the action id inside one `onAction` handler. Every
+pre-existing `FindingsPanel.test.tsx` case broke the same way ("No
+QueryClient set") until `../../../../../../../lib/hooks/eval` and
+`../../../../../../../lib/toast` were ALSO `vi.mock`'d there, even though
+none of those tests exercise the new action. Generalizing the lesson: this
+isn't specific to "alternate mode" tabs — ANY new unconditional hook call
+added to an already-tested component needs the same test-file update, found
+only by actually running that component's existing suite, not by reading the
+diff.
 
 ## Recurring Errors & Fixes
 
@@ -542,6 +574,22 @@ in use as of this date: mock the hook module itself
 `QueryClientProvider` wrapper, never a real `fetch` stub — this codebase has
 no `global.fetch`/`msw` mocking anywhere in `client/src`, confirmed by a
 repo-wide grep while building `IntentCard.test.tsx`.
+
+### 2026-08-19 — `api.ts`'s `post`/`patch`/etc. discard the HTTP status; an idempotent-create route needs a status-aware variant to tell "created" from "already existed"
+
+`POST /findings/:id/eval-case` (specs/12-eval-pipeline.md D17/AC-1) returns
+201 on a genuine create and 200 when a case for that finding already exists
+— the BODY shape is identical either way (`EvalCase`), so the only signal a
+caller has is the status code, and `api.post` (`src/lib/api.ts`) discarded it
+before this session. Rather than have `useCreateEvalCaseFromFinding`
+re-derive "was this just created" from timestamps (fragile, and wrong at
+whole-second resolution), `apiFetch` was split into an internal
+`apiFetchWithStatus` returning `{ data, status }`, with `apiFetch` staying
+the status-discarding convenience every other hook keeps using, plus one new
+additive `api.postWithStatus`. Any future idempotent-POST route that needs to
+distinguish "created" from "returned existing" client-side should use
+`api.postWithStatus`, not thread a `created` flag through the response body
+just to work around `api.post`'s discarded status.
 
 ## Session Notes
 

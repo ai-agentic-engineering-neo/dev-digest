@@ -45,7 +45,7 @@ export const NAV: NavGroup[] = [
     // Skills (L02) are reusable, and Agents are what link and order them —
     // grouped together so the relationship reads directly off the sidebar.
     // Conventions turns detected repo patterns into skills; Eval Dashboard
-    // joins this section once its route ships.
+    // (L06) is workspace-scoped like Skills/Agents, not repo-scoped.
     section: "SKILLS LAB",
     items: [
       { key: "skills", label: "Skills", icon: "Sparkles", href: "/skills", gKey: "s" },
@@ -57,6 +57,7 @@ export const NAV: NavGroup[] = [
         href: "/repos/:repoId/conventions",
         gKey: "c",
       },
+      { key: "eval", label: "Eval Dashboard", icon: "BarChart3", href: "/eval", gKey: "e" },
     ],
   },
 ];
@@ -90,6 +91,7 @@ export const SHORTCUTS: ShortcutDef[] = [
   { keys: "g s", label: "Go to Skills", group: "Navigation" },
   { keys: "g a", label: "Go to Agents", group: "Navigation" },
   { keys: "g c", label: "Go to Conventions", group: "Navigation" },
+  { keys: "g e", label: "Go to Eval Dashboard", group: "Navigation" },
   { keys: "j / k", label: "Next / previous finding", group: "Findings" },
   { keys: "a", label: "Accept finding", group: "Findings" },
   { keys: "d", label: "Dismiss finding", group: "Findings" },

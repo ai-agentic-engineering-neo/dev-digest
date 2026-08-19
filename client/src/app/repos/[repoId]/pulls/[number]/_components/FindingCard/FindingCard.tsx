@@ -23,6 +23,17 @@ import { lineLabel } from "./helpers";
 import { githubBlobUrl } from "../../../../../../../lib/github-urls";
 import { s } from "./styles";
 
+/**
+ * specs/12-eval-pipeline.md AC-2 — "turn into eval case" is a THIRD action,
+ * threaded through the same `onAction` prop chain accept/dismiss already use
+ * rather than a new bespoke callback. It is deliberately NOT part of the
+ * shared `FindingActionKind` contract (that enum backs `POST
+ * /findings/:id/:action`, a different route than the eval-case one) — the
+ * caller (`FindingsPanel`) branches on this value and calls a different
+ * mutation for it.
+ */
+export type FindingCardAction = FindingActionKind | "turnIntoEvalCase";
+
 export function FindingCard({
   f,
   focused,
@@ -37,7 +48,7 @@ export function FindingCard({
   f: FindingRecord;
   focused?: boolean;
   defaultExpanded?: boolean;
-  onAction?: (action: FindingActionKind, reply?: string) => void;
+  onAction?: (action: FindingCardAction, reply?: string) => void;
   pending?: boolean;
   repoFullName?: string | null;
   headSha?: string | null;
@@ -124,6 +135,20 @@ export function FindingCard({
             >
               {t("finding.dismiss")}
             </Button>
+            {/* AC-2: only once this finding has been triaged — the server
+                refuses the untriaged case too, but hiding it here saves the
+                round trip and the confusing 422. */}
+            {muted && (
+              <Button
+                kind="ghost"
+                size="sm"
+                icon="ListChecks"
+                disabled={pending}
+                onClick={() => onAction?.("turnIntoEvalCase")}
+              >
+                {t("finding.turnIntoEvalCase")}
+              </Button>
+            )}
           </div>
         </div>
       )}

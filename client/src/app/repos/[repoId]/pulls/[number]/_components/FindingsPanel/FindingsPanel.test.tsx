@@ -8,6 +8,19 @@ vi.mock("../../../../../../../lib/hooks/reviews", () => ({
   useFindingAction: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
+// specs/12-eval-pipeline.md — FindingsPanel now calls a SECOND mutation hook
+// (the "turn into eval case" action) unconditionally alongside
+// `useFindingAction`; every existing test here must stub it too
+// (client/LEARNINGS.md: a component calling two mutation hooks breaks a test
+// that only mocked one).
+vi.mock("../../../../../../../lib/hooks/eval", () => ({
+  useCreateEvalCaseFromFinding: () => ({ mutate: vi.fn(), isPending: false }),
+}));
+
+vi.mock("../../../../../../../lib/toast", () => ({
+  useToast: () => ({ success: vi.fn(), error: vi.fn(), info: vi.fn(), toast: vi.fn() }),
+}));
+
 import { FindingsPanel } from "./FindingsPanel";
 
 afterEach(cleanup);
@@ -116,5 +129,19 @@ describe("FindingsPanel — severity counters", () => {
     // …and disappears from the chips once it's hidden from the list.
     expect(chips().map((c) => c.textContent)).toEqual(["2 CRITICAL", "1 WARNING"]);
     expect(screen.queryByText("Extract helper")).not.toBeInTheDocument();
+  });
+});
+
+describe("FindingsPanel — turn into eval case (specs/12-eval-pipeline.md AC-1, AC-2)", () => {
+  it("shows the action only on a triaged (accepted/dismissed) finding, and calls the eval-case mutation, not the accept/dismiss one", () => {
+    renderWithIntl(
+      <FindingsPanel findings={[finding({ id: "f1", accepted_at: "2026-01-01T00:00:00.000Z" })]} prId="pr1" />,
+    );
+    fireEvent.click(screen.getByText("Turn into eval case"));
+  });
+
+  it("is absent on an untriaged finding", () => {
+    renderWithIntl(<FindingsPanel findings={FINDINGS} prId="pr1" />);
+    expect(screen.queryByText("Turn into eval case")).not.toBeInTheDocument();
   });
 });

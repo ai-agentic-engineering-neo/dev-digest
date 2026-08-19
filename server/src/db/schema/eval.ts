@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm';
+import { sql, desc } from 'drizzle-orm';
 import {
   pgTable,
   uuid,
@@ -94,7 +94,12 @@ export const evalRuns = pgTable(
     costUsd: doublePrecision('cost_usd'),
   },
   (t) => ({
-    ownerIdx: index('eval_runs_owner_idx').on(t.workspaceId, t.ownerKind, t.ownerId, t.ranAt),
+    ownerIdx: index('eval_runs_owner_idx').on(
+      t.workspaceId,
+      t.ownerKind,
+      t.ownerId,
+      desc(t.ranAt),
+    ),
   }),
 );
 

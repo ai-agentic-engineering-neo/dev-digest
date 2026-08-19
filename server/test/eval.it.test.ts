@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { randomUUID } from 'node:crypto';
 import { eq, and } from 'drizzle-orm';
 import { startPg, dockerAvailable, type PgFixture } from './helpers/pg.js';
 import { buildApp } from '../src/app.js';
@@ -7,6 +8,7 @@ import { seed } from '../src/db/seed.js';
 import * as t from '../src/db/schema.js';
 import { MockGitClient, MockGitHubClient, MockLLMProvider } from '../src/adapters/mocks.js';
 import { EVAL_FIXTURE_CASES } from '../src/db/seed-eval-cases.js';
+import { RUN_RATE_LIMIT } from '../src/modules/eval/constants.js';
 
 const hasDocker = await dockerAvailable();
 const d = hasDocker ? describe : describe.skip;
@@ -62,6 +64,44 @@ d('eval module (DB-backed)', () => {
       .from(t.agents)
       .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, 'Security Reviewer')));
     return row!.id;
+  }
+
+  /** AC-27 — a SEPARATE app instance, built with a non-`test` `NODE_ENV`, so
+   *  `@fastify/rate-limit` is actually registered (`app.ts`: "Disabled under
+   *  test so integration suites can hammer endpoints via inject()"). The
+   *  per-route `config.rateLimit` on `/agents/:id/eval/runs` is otherwise
+   *  inert plugin metadata with no hook to enforce it. */
+  function makeRateLimitedApp() {
+    const config = loadConfig({
+      ...process.env,
+      NODE_ENV: 'production',
+      LOG_LEVEL: 'silent',
+    } as NodeJS.ProcessEnv);
+    return buildApp({
+      config,
+      db: pg.handle.db,
+      overrides: {
+        git: new MockGitClient(),
+        github: new MockGitHubClient(),
+        llm: {
+          openrouter: new MockLLMProvider('openai', {
+            structured: { verdict: 'comment', summary: 'ok', score: 90, findings: [] },
+          }),
+        },
+      },
+    });
+  }
+
+  async function waitForRunCompletion(
+    app: Awaited<ReturnType<typeof buildApp>>,
+    runId: string,
+  ): Promise<{ status: string; [k: string]: unknown }> {
+    let final: { status: string; [k: string]: unknown } = { status: 'running' };
+    for (let i = 0; i < 50 && final.status === 'running'; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      final = (await app.inject({ method: 'GET', url: `/eval/runs/${runId}` })).json();
+    }
+    return final;
   }
 
   it('D22 — the seed produced exactly 7 fixture cases, both expectation types present', async () => {
@@ -206,5 +246,110 @@ d('eval module (DB-backed)', () => {
       .where(and(eq(t.evalCases.ownerKind, 'agent'), eq(t.evalCases.ownerId, agent!.id)));
     expect(remaining).toHaveLength(0);
     await app.close();
+  });
+
+  it('AC-27 — repeated run triggers on one agent hit the rate limit rather than starting unbounded executions', async () => {
+    const app = await makeRateLimitedApp();
+    const agentId = await securityReviewerId();
+
+    // Sequential (not Promise.all) so ordering through the rate limiter's
+    // window is deterministic: the first RUN_RATE_LIMIT.max requests must
+    // clear the limiter (whatever their own business-logic status — 202 for
+    // a fresh start, 409 for AC-15's in-flight guard); only the request past
+    // that budget is refused by the limiter itself, before the handler runs.
+    const statuses: number[] = [];
+    for (let i = 0; i < RUN_RATE_LIMIT.max + 1; i++) {
+      const res = await app.inject({ method: 'POST', url: `/agents/${agentId}/eval/runs` });
+      statuses.push(res.statusCode);
+    }
+
+    expect(statuses.slice(0, RUN_RATE_LIMIT.max)).not.toContain(429);
+    expect(statuses[RUN_RATE_LIMIT.max]).toBe(429);
+
+    // Let any run(s) started above finish before the next test reuses this
+    // agent, so its own in-flight guard doesn't collide with these.
+    await new Promise((r) => setTimeout(r, 500));
+    await app.close();
+  }, 20_000);
+
+  it('AC-26/AC-28 — a completed run displays cost and duration; every read route makes zero provider calls', async () => {
+    const app = await makeApp();
+    const agentId = await securityReviewerId();
+
+    // Two completed runs of the same agent, so the sweep below can also
+    // exercise GET /eval/compare.
+    const first = (await app.inject({ method: 'POST', url: `/agents/${agentId}/eval/runs` })).json();
+    const firstFinal = await waitForRunCompletion(app, first.run_id);
+    expect(firstFinal.status).toBe('completed');
+
+    const second = (await app.inject({ method: 'POST', url: `/agents/${agentId}/eval/runs` })).json();
+    const secondFinal = await waitForRunCompletion(app, second.run_id);
+    expect(secondFinal.status).toBe('completed');
+    await app.close();
+
+    // AC-26 — cost and duration are stated on the completed run, both at the
+    // record level and inside its metrics object, never left absent.
+    const metrics = secondFinal.metrics as { duration_ms: number; cost_usd: number | null };
+    expect(secondFinal.duration_ms).toEqual(expect.any(Number));
+    expect(secondFinal.cost_usd).not.toBeNull();
+    expect(metrics.duration_ms).toEqual(expect.any(Number));
+    expect(metrics.cost_usd).not.toBeNull();
+
+    // AC-28 — repeated loads of every eval surface against a FRESH, isolated
+    // provider make zero calls to it. A fresh instance (rather than reusing
+    // the one that ran the two suites above) means any call here is
+    // unambiguously caused by a read route, not leftover from the runs.
+    const spyLlm = new MockLLMProvider('openai', {
+      structured: { verdict: 'comment', summary: 'ok', score: 90, findings: [] },
+    });
+    const readApp = await buildApp({
+      config: loadConfig({ ...process.env, NODE_ENV: 'test' } as NodeJS.ProcessEnv),
+      db: pg.handle.db,
+      overrides: {
+        git: new MockGitClient(),
+        github: new MockGitHubClient(),
+        llm: { openrouter: spyLlm },
+      },
+    });
+
+    const responses = await Promise.all([
+      readApp.inject({ method: 'GET', url: '/eval/dashboard' }),
+      readApp.inject({ method: 'GET', url: `/eval/agents/${agentId}` }),
+      readApp.inject({ method: 'GET', url: `/agents/${agentId}/eval/cases` }),
+      readApp.inject({ method: 'GET', url: `/agents/${agentId}/eval/runs` }),
+      readApp.inject({ method: 'GET', url: `/eval/runs/${first.run_id}` }),
+      readApp.inject({ method: 'GET', url: `/eval/compare?a=${first.run_id}&b=${second.run_id}` }),
+    ]);
+    for (const res of responses) expect(res.statusCode).toBe(200);
+    expect(spyLlm.calls).toHaveLength(0);
+
+    await readApp.close();
+  }, 30_000);
+
+  it('D17 — the eval_cases_source_finding_uq DB constraint refuses a second row for the same finding', async () => {
+    const { db } = pg.handle;
+    const agentId = await securityReviewerId();
+    const findingId = randomUUID();
+
+    const caseValues = (name: string) => ({
+      workspaceId,
+      ownerKind: 'agent' as const,
+      ownerId: agentId,
+      name,
+      inputDiff: '@@ -1,1 +1,1 @@\n-x\n+y',
+      inputFiles: ['f.ts'],
+      inputMeta: { pr_number: null, title: 't', body: null },
+      expectedOutput: { type: 'must_find' as const, file: 'f.ts', start_line: 1, end_line: 1 },
+      sourceFindingId: findingId,
+    });
+
+    try {
+      await db.insert(t.evalCases).values(caseValues('first'));
+      await expect(db.insert(t.evalCases).values(caseValues('second'))).rejects.toMatchObject({
+        code: '23505',
+      });
+    } finally {
+      await db.delete(t.evalCases).where(eq(t.evalCases.sourceFindingId, findingId));
+    }
   });
 });

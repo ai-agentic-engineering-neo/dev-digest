@@ -518,6 +518,322 @@ describe('EvalService run lifecycle — AC-15, AC-49', () => {
   });
 });
 
+describe('EvalService — AC-23 full run persistence', () => {
+  it('a completed run stores metrics, per-case outcomes, agent version, case ids, duration, errored count and cost', async () => {
+    const repo = new FakeEvalRepository();
+    const c1 = await repo.insertCase({
+      workspaceId: 'ws1',
+      ownerKind: 'agent',
+      ownerId: 'agent-1',
+      name: 'must-find-case',
+      inputDiff: 'd1',
+      inputFiles: ['f'],
+      inputMeta: { pr_number: 1, title: 't', body: null },
+      expectation: { type: 'must_find', file: 'f', start_line: 1, end_line: 1 },
+    });
+    const c2 = await repo.insertCase({
+      workspaceId: 'ws1',
+      ownerKind: 'agent',
+      ownerId: 'agent-1',
+      name: 'must-not-flag-case',
+      inputDiff: 'd2',
+      inputFiles: ['g'],
+      inputMeta: { pr_number: 1, title: 't', body: null },
+      expectation: { type: 'must_not_flag', file: 'g', start_line: 5, end_line: 5 },
+    });
+
+    let call = 0;
+    const service = makeService(repo, {
+      getById: async (_ws: string, id: string) => (id === 'agent-1' ? makeAgent({ version: 7 }) : undefined),
+      runCase: async () => {
+        call++;
+        if (call === 1) {
+          return {
+            findings: [{ file: 'f', start_line: 1, end_line: 1, severity: 'CRITICAL', category: 'security', title: 't' }],
+            groundingKept: 1,
+            groundingTotal: 1,
+            tokensIn: 10,
+            tokensOut: 5,
+            costUsd: 0.002,
+            durationMs: 20,
+            assembly: {} as never,
+          };
+        }
+        return {
+          findings: [],
+          groundingKept: 0,
+          groundingTotal: 0,
+          tokensIn: 5,
+          tokensOut: 2,
+          costUsd: 0.001,
+          durationMs: 15,
+          assembly: {} as never,
+        };
+      },
+    });
+
+    const started = await service.startRun('ws1', 'agent-1');
+    await new Promise((r) => setTimeout(r, 20));
+
+    const row = await repo.getRun('ws1', started.run_id);
+    expect(row!.status).toBe('completed');
+    expect(row!.agentVersion).toBe(7);
+    expect(row!.caseIds.slice().sort()).toEqual([c1.id, c2.id].sort());
+    expect(row!.casesErrored).toBe(0);
+    expect(row!.tracesPassed).toBe(2);
+    expect(row!.tracesTotal).toBe(2);
+    expect(row!.recall).toBe(1);
+    expect(row!.precision).toBe(1);
+    expect(row!.citationAccuracy).toBe(1);
+    expect(row!.durationMs).toBeGreaterThanOrEqual(0);
+    expect(row!.costUsd).toBeCloseTo(0.003, 5);
+    expect(row!.perCase).toHaveLength(2);
+    expect(row!.perCase.map((o) => o.case_id).sort()).toEqual([c1.id, c2.id].sort());
+    expect(row!.finishedAt).not.toBeNull();
+  });
+});
+
+describe('EvalService.compare — AC-32 … AC-34, D20', () => {
+  function completedOutcome(overrides: Partial<{
+    case_id: string;
+    name: string;
+    expectation_type: 'must_find' | 'must_not_flag';
+    pass: boolean;
+    findings_total: number;
+    findings_matched: number;
+    grounding_kept: number;
+    grounding_total: number;
+  }>) {
+    return {
+      case_id: 'case',
+      name: 'case',
+      expectation_type: 'must_find' as const,
+      status: 'scored' as const,
+      pass: true,
+      error_reason: null,
+      findings_total: 0,
+      findings_matched: 0,
+      grounding_kept: 0,
+      grounding_total: 0,
+      duration_ms: 1,
+      cost_usd: 0,
+      actual: [],
+      ...overrides,
+    };
+  }
+
+  it('AC-32 — rejects comparing a run against itself, runs of different agents, or a missing run', async () => {
+    const repo = new FakeEvalRepository();
+    const runA = await repo.insertRun({
+      workspaceId: 'ws1',
+      ownerKind: 'agent',
+      ownerId: 'agent-1',
+      agentVersion: 1,
+      caseIds: [],
+    });
+    await repo.completeRun(runA.id, {
+      status: 'completed',
+      perCase: [],
+      casesErrored: 0,
+      tracesPassed: 0,
+      tracesTotal: 0,
+      recall: null,
+      precision: null,
+      citationAccuracy: null,
+      durationMs: 1,
+      costUsd: 0,
+    });
+    const runOtherAgent = await repo.insertRun({
+      workspaceId: 'ws1',
+      ownerKind: 'agent',
+      ownerId: 'agent-2',
+      agentVersion: 1,
+      caseIds: [],
+    });
+    await repo.completeRun(runOtherAgent.id, {
+      status: 'completed',
+      perCase: [],
+      casesErrored: 0,
+      tracesPassed: 0,
+      tracesTotal: 0,
+      recall: null,
+      precision: null,
+      citationAccuracy: null,
+      durationMs: 1,
+      costUsd: 0,
+    });
+
+    const service = makeService(repo);
+    await expect(service.compare('ws1', runA.id, runA.id)).rejects.toThrow(/distinct/i);
+    await expect(service.compare('ws1', runA.id, runOtherAgent.id)).rejects.toThrow(/same agent/i);
+    await expect(service.compare('ws1', runA.id, 'ghost-run')).rejects.toThrow(NotFoundError);
+  });
+
+  it('AC-33/D20 — states the case-set difference and computes deltas over the intersection, even when the older run has an errored case', async () => {
+    const repo = new FakeEvalRepository();
+    const c1 = await repo.insertCase({
+      workspaceId: 'ws1',
+      ownerKind: 'agent',
+      ownerId: 'agent-1',
+      name: 'c1',
+      inputDiff: 'd',
+      inputFiles: ['f'],
+      inputMeta: { pr_number: 1, title: 't', body: null },
+      expectation: { type: 'must_find', file: 'f', start_line: 1, end_line: 1 },
+    });
+    const c2 = await repo.insertCase({
+      workspaceId: 'ws1',
+      ownerKind: 'agent',
+      ownerId: 'agent-1',
+      name: 'c2',
+      inputDiff: 'd',
+      inputFiles: ['g'],
+      inputMeta: { pr_number: 1, title: 't', body: null },
+      expectation: { type: 'must_not_flag', file: 'g', start_line: 5, end_line: 5 },
+    });
+
+    // Older run: taken BEFORE c3 existed. D20 — one case (c1) is errored;
+    // the run as a whole is still `completed` and must stay compare-eligible.
+    const older = await repo.insertRun({
+      workspaceId: 'ws1',
+      ownerKind: 'agent',
+      ownerId: 'agent-1',
+      agentVersion: 1,
+      caseIds: [c1.id, c2.id],
+    });
+    await repo.completeRun(older.id, {
+      status: 'completed',
+      perCase: [
+        {
+          ...completedOutcome({
+            case_id: c1.id,
+            name: 'c1',
+            expectation_type: 'must_find',
+            pass: null as unknown as boolean,
+            findings_total: 0,
+          }),
+          status: 'errored',
+          error_reason: 'provider timeout',
+        },
+        completedOutcome({
+          case_id: c2.id,
+          name: 'c2',
+          expectation_type: 'must_not_flag',
+          pass: true,
+          findings_total: 1,
+          findings_matched: 0,
+          grounding_kept: 1,
+          grounding_total: 1,
+        }),
+      ],
+      casesErrored: 1,
+      tracesPassed: 1,
+      tracesTotal: 2,
+      recall: null,
+      precision: 1,
+      citationAccuracy: 1,
+      durationMs: 10,
+      costUsd: 0.01,
+    });
+    repo.runs.set(older.id, { ...repo.runs.get(older.id)!, ranAt: new Date('2026-01-01T00:00:00Z') });
+
+    // A case created AFTER the older run.
+    const c3 = await repo.insertCase({
+      workspaceId: 'ws1',
+      ownerKind: 'agent',
+      ownerId: 'agent-1',
+      name: 'c3',
+      inputDiff: 'd',
+      inputFiles: ['h'],
+      inputMeta: { pr_number: 1, title: 't', body: null },
+      expectation: { type: 'must_find', file: 'h', start_line: 1, end_line: 1 },
+    });
+
+    const newer = await repo.insertRun({
+      workspaceId: 'ws1',
+      ownerKind: 'agent',
+      ownerId: 'agent-1',
+      agentVersion: 2,
+      caseIds: [c1.id, c2.id, c3.id],
+    });
+    await repo.completeRun(newer.id, {
+      status: 'completed',
+      perCase: [
+        completedOutcome({
+          case_id: c1.id,
+          name: 'c1',
+          expectation_type: 'must_find',
+          pass: false,
+          findings_total: 1,
+          findings_matched: 0,
+          grounding_kept: 1,
+          grounding_total: 1,
+        }),
+        completedOutcome({
+          case_id: c2.id,
+          name: 'c2',
+          expectation_type: 'must_not_flag',
+          pass: true,
+          findings_total: 2,
+          findings_matched: 0,
+          grounding_kept: 2,
+          grounding_total: 2,
+        }),
+        completedOutcome({
+          case_id: c3.id,
+          name: 'c3',
+          expectation_type: 'must_find',
+          pass: true,
+          findings_total: 1,
+          findings_matched: 1,
+          grounding_kept: 1,
+          grounding_total: 1,
+        }),
+      ],
+      casesErrored: 0,
+      tracesPassed: 2,
+      tracesTotal: 3,
+      recall: 0.5,
+      precision: 1,
+      citationAccuracy: 1,
+      durationMs: 12,
+      costUsd: 0.02,
+    });
+    repo.runs.set(newer.id, { ...repo.runs.get(newer.id)!, ranAt: new Date('2026-01-02T00:00:00Z') });
+
+    repo.agentVersionPrompts.set('agent-1:1', 'You are a reviewer.\nBe lenient.');
+    repo.agentVersionPrompts.set('agent-1:2', 'You are a reviewer.\nBe strict.');
+
+    const service = makeService(repo);
+    // Argument order must not matter — compare sorts by ranAt internally.
+    const result = await service.compare('ws1', newer.id, older.id);
+
+    expect(result.old.id).toBe(older.id);
+    expect(result.new.id).toBe(newer.id);
+    // D20 — the errored-case run participated fully; its metrics are still exposed.
+    expect(result.old.metrics?.cases_errored).toBe(1);
+
+    expect(result.common_case_ids.slice().sort()).toEqual([c1.id, c2.id].sort());
+    expect(result.only_in_old).toEqual([]);
+    expect(result.only_in_new).toEqual([c3.id]);
+
+    // Deltas recomputed over the COMMON set only (c1, c2) — c3 must not leak
+    // in. older/common: c1's outcome is `errored` (AC-11 — excluded from
+    // every numerator/denominator), leaving zero SCORED must_find cases in
+    // the older side, so recall is `null` (AC-20's "not applicable"), not 0
+    // or 1. newer/common: c1 is scored (not errored) and fails → recall 0/1.
+    // nullableDelta(null, 0) is `null` — one side being not-applicable makes
+    // the delta itself not-applicable, never a fabricated number.
+    expect(result.deltas.recall).toBeNull();
+    expect(result.deltas.precision).toBe(0);
+    expect(result.deltas.citation_accuracy).toBe(0);
+
+    expect(result.prompt_diff).toContainEqual({ kind: 'context', text: 'You are a reviewer.' });
+    expect(result.prompt_diff).toContainEqual({ kind: 'removed', text: 'Be lenient.' });
+    expect(result.prompt_diff).toContainEqual({ kind: 'added', text: 'Be strict.' });
+  });
+});
+
 describe('EvalService.updateCase / deleteCase — AC-12 … AC-14', () => {
   it('AC-14 — editing a case leaves a stored run byte-identical', async () => {
     const repo = new FakeEvalRepository();

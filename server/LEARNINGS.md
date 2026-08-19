@@ -81,6 +81,25 @@ exits cleanly with no prompt at all. Do this preemptively for any migration
 that both drops and adds columns on the same table — don't discover the hang
 by waiting on it.
 
+**2026-08-19 addendum (specs/12-eval-pipeline.md, `eval_cases`/`eval_runs`
+reshaped in the same pass) — confirms the trigger is "add+drop on the SAME
+table in one pass", not "any migration touching two tables at once".**
+`eval_cases` gained six new columns (`source_finding_id`, `created_at`,
+`updated_at`, plus three `SET NOT NULL` tightenings on already-existing
+columns) with `pnpm db:generate < /dev/null` completing cleanly in ONE pass —
+tightening nullability is not a rename candidate, only add+drop is. `eval_runs`
+needed the two-pass split (twelve adds, three drops: `case_id`,
+`actual_output`, `pass`) — pass 1 kept the three doomed columns in
+`schema/eval.ts` (with a `// ---- PASS 1 of the two-pass migration ----`
+comment block marking them for deletion) alongside the twelve new ones, pass 2
+deleted that block and regenerated. Both passes produced zero interactive
+prompts and the exact SQL expected (`ALTER ... ADD COLUMN` only in pass 1,
+`ALTER ... DROP COLUMN`/`DROP CONSTRAINT` only in pass 2) — verify the
+generated `.sql` file's statements match that shape before running
+`db:migrate`, since a misjudged split would only be caught by reading the SQL,
+not by the generate command itself (which exits 0 either way once it's past
+the hang).
+
 ### 2026-08-13 — testing a single-flight/in-flight guard with `Promise.all([callA(), callB()])` is NOT deterministic once the guarded method does real fs I/O before the guard check
 
 `OnboardingService.generate` (specs/10-onboarding-generator.md, AC-20) uses the
@@ -434,6 +453,28 @@ module's preview and the reviews module's run/adhoc paths) went into
 already does — composing through `_shared` and `platform/container.ts`
 getters from the start avoided every `no-cross-module` violation this size of
 feature would otherwise produce.
+
+### 2026-08-19 — a bare `pr_files.patch` becomes a parseable unified diff by prepending three lines; the frozen result round-trips `parseUnifiedDiff` deterministically
+
+specs/12-eval-pipeline.md's eval-case creation freezes one file's diff at
+capture time (D8/D16), but `pr_files.patch` (GitHub's per-file patch, as
+stored by this app) is hunks only — no `diff --git a/<path> b/<path>`, `---
+a/<path>`, or `+++ b/<path>` header — and `parseUnifiedDiff`
+(`adapters/git/diff-parser.ts`) keys a file's path off the `+++ b/<path>`
+line, so handing it a bare patch parses to zero files (see the 2026-08-11
+entry above for the sibling gotcha about binary/rename/delete-only files).
+Fix (`modules/eval/frozen-input.ts`'s `synthesizeFrozenDiff(path, patch)`):
+literally concatenate `diff --git a/<path> b/<path>\n--- a/<path>\n+++
+a/<path>\n` in front of the stored patch text. This is now the SECOND place
+in the codebase constructing a self-contained diff from patch-only text (the
+first being any future caller of a bare `pr_files.patch` outside the
+PR-review path) — any new consumer of `pr_files.patch` that isn't going
+through `diffFromPrFiles`/`loadDiff`'s existing PR-file assembly should reuse
+this helper rather than re-deriving the three-line header. Verified this
+round-trips to exactly one `UnifiedDiff.files` entry with the expected path
+and correct new-side line numbers by running the parser directly against
+seeded fixture patches before wiring them into `seed-eval-cases.ts` — cheaper
+than debugging a silently-empty `diff.files` after the fact.
 
 ## Tool & Library Notes
 

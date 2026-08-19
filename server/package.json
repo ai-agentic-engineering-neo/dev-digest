@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "verify:l03": "vitest run src/modules/reviews/smart-diff.test.ts",
+    "verify:l06": "vitest run src/modules/eval/scoring.test.ts src/modules/eval/frozen-input.test.ts test/eval-contract-parity.test.ts test/contracts.test.ts test/eval.it.test.ts",
     "arch": "depcruise src --ignore-known",
     "arch:all": "depcruise src",
     "arch:baseline": "depcruise src --output-type baseline -f .dependency-cruiser-known-violations.json",

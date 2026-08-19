@@ -83,7 +83,11 @@ const UpdateSkillLinkBody = z.object({
 
 export default async function agentsRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
-  const service = new AgentsService(app.container.agentsRepo, (id) => app.container.llm(id));
+  const service = new AgentsService(
+    app.container.agentsRepo,
+    (id) => app.container.llm(id),
+    app.container.evalRepo,
+  );
 
   app.get('/agents', async (req) => {
     const { workspaceId } = await getContext(app.container, req);

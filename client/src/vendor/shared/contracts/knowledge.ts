@@ -191,28 +191,40 @@ export const OnboardingGenerateResult = OnboardingPage.extend({
 export type OnboardingGenerateResult = z.infer<typeof OnboardingGenerateResult>;
 
 // ---- Eval ----
-export const EvalPerTrace = z.object({
-  name: z.string(),
-  pass: z.boolean(),
-  expected: z.unknown(),
-  actual: z.unknown(),
-});
-export type EvalPerTrace = z.infer<typeof EvalPerTrace>;
-
-export const EvalRun = z.object({
-  recall: z.number().min(0).max(1),
-  precision: z.number().min(0).max(1),
-  citation_accuracy: z.number().min(0).max(1),
-  traces_passed: z.number().int(),
-  traces_total: z.number().int(),
-  duration_ms: z.number().int(),
-  cost_usd: z.number().nullable(),
-  per_trace: z.array(EvalPerTrace),
-});
-export type EvalRun = z.infer<typeof EvalRun>;
-
+// specs/12-eval-pipeline.md (L06) — reshaped in place (D1/D3): the base case
+// and set-level metrics shape live here; the API-facing request/response
+// shapes (create/edit payload, persisted suite-run record, dashboard) live in
+// `eval-ci.ts`.
 export const EvalOwnerKind = z.enum(['skill', 'agent']);
 export type EvalOwnerKind = z.infer<typeof EvalOwnerKind>;
+
+/** D3 — a case's expectation type is explicit and closed-vocabulary, never
+ *  inferred from the shape of a JSON blob. Only 'agent'-owned cases are ever
+ *  written this slice (N3); 'skill' stays reserved. */
+export const EvalExpectationType = z.enum(['must_find', 'must_not_flag']);
+export type EvalExpectationType = z.infer<typeof EvalExpectationType>;
+
+/** `severity`/`category`/`title` are carried from the source finding (AC-38's
+ *  tags) — display metadata, not part of the matching predicate itself. */
+export const EvalExpectation = z.object({
+  type: EvalExpectationType,
+  file: z.string().min(1),
+  start_line: z.number().int(),
+  end_line: z.number().int(),
+  severity: z.string().nullish(),
+  category: z.string().nullish(),
+  title: z.string().nullish(),
+});
+export type EvalExpectation = z.infer<typeof EvalExpectation>;
+
+/** D16 — the trimmed, frozen PR metadata a case's frozen input carries.
+ *  Never a repo id, never a live pointer (D8). */
+export const EvalCaseMeta = z.object({
+  pr_number: z.number().int().nullable(),
+  title: z.string(),
+  body: z.string().nullable(),
+});
+export type EvalCaseMeta = z.infer<typeof EvalCaseMeta>;
 
 export const EvalCase = z.object({
   id: z.string(),
@@ -220,12 +232,67 @@ export const EvalCase = z.object({
   owner_id: z.string(),
   name: z.string(),
   input_diff: z.string(),
-  input_files: z.unknown(),
-  input_meta: z.unknown(),
-  expected_output: z.unknown(),
+  input_files: z.array(z.string()),
+  input_meta: EvalCaseMeta,
+  expectation: EvalExpectation,
+  /** The finding this case was created from — null for a hand-authored /
+   *  fixture case (D17's idempotency key when present). */
+  source_finding_id: z.string().nullable(),
   notes: z.string().nullish(),
+  created_at: z.string(),
+  updated_at: z.string(),
 });
 export type EvalCase = z.infer<typeof EvalCase>;
+
+/** A display slice of a finding produced during an eval run — declared here
+ *  (not imported from `findings.ts`) so this file gains no new import edge. */
+export const EvalActualFinding = z.object({
+  file: z.string(),
+  start_line: z.number().int(),
+  end_line: z.number().int(),
+  severity: z.string(),
+  category: z.string(),
+  title: z.string(),
+  matched: z.boolean(),
+});
+export type EvalActualFinding = z.infer<typeof EvalActualFinding>;
+
+/** Q1 — one case's outcome within a suite run (the reserved `EvalPerTrace`
+ *  reshaped: renamed, and widened from `{name,pass,expected,actual}` into a
+ *  structured, deterministic outcome). `pass` is null exactly when
+ *  `status === 'errored'` (AC-11). */
+export const EvalCaseOutcome = z.object({
+  case_id: z.string(),
+  name: z.string(),
+  expectation_type: EvalExpectationType,
+  status: z.enum(['scored', 'errored']),
+  pass: z.boolean().nullable(),
+  error_reason: z.string().nullable(),
+  findings_total: z.number().int(),
+  findings_matched: z.number().int(),
+  grounding_kept: z.number().int(),
+  grounding_total: z.number().int(),
+  duration_ms: z.number().int(),
+  cost_usd: z.number().nullable(),
+  actual: z.array(EvalActualFinding),
+});
+export type EvalCaseOutcome = z.infer<typeof EvalCaseOutcome>;
+
+/** Q1 — the SET-LEVEL metrics object for one suite run (kept as-is; this
+ *  reserved shape already matched the feature). The three ratios are
+ *  nullable — AC-20's "not applicable" must be stated, never a fake 0/1. */
+export const EvalRun = z.object({
+  recall: z.number().min(0).max(1).nullable(),
+  precision: z.number().min(0).max(1).nullable(),
+  citation_accuracy: z.number().min(0).max(1).nullable(),
+  traces_passed: z.number().int(),
+  traces_total: z.number().int(),
+  cases_errored: z.number().int(),
+  duration_ms: z.number().int(),
+  cost_usd: z.number().nullable(),
+  per_case: z.array(EvalCaseOutcome),
+});
+export type EvalRun = z.infer<typeof EvalRun>;
 
 // ---- Memory ----
 export const MemoryScope = z.enum(['repo', 'global', 'team']);

@@ -52,8 +52,23 @@ export interface UpdateAgentInput {
  *  the composition root; the container supplies its own `llm` method. */
 export type LlmResolver = (id: ProviderId) => Promise<LLMProvider>;
 
+/**
+ * D18 (specs/12-eval-pipeline.md) — declared HERE, by the consumer, not
+ * imported from `modules/eval/*` (`no-cross-module`). `container.evalRepo`
+ * satisfies this structurally; wired at `modules/agents/routes.ts`. Optional
+ * so the existing two-argument `new AgentsService(repo, llm)` constructions
+ * in tests keep compiling.
+ */
+export interface EvalCleanup {
+  deleteForOwner(workspaceId: string, ownerKind: 'skill' | 'agent', ownerId: string): Promise<void>;
+}
+
 export class AgentsService {
-  constructor(private repo: AgentsRepository, private llm: LlmResolver) {}
+  constructor(
+    private repo: AgentsRepository,
+    private llm: LlmResolver,
+    private evalCleanup?: EvalCleanup,
+  ) {}
 
   async list(workspaceId: string): Promise<Agent[]> {
     const rows = await this.repo.list(workspaceId);
@@ -65,8 +80,14 @@ export class AgentsService {
     return row ? toAgentDto(row) : undefined;
   }
 
-  /** Delete an agent (and its versions/skill-links, via cascade). */
+  /**
+   * Delete an agent (and its versions/skill-links, via DB cascade). D18 —
+   * its eval cases (and their runs) are deleted FIRST, application-side:
+   * `eval_cases.owner_id` is polymorphic with no FK to `agents`, so nothing
+   * cascades at the database level for that table.
+   */
   async delete(workspaceId: string, id: string): Promise<boolean> {
+    await this.evalCleanup?.deleteForOwner(workspaceId, 'agent', id);
     return this.repo.deleteById(workspaceId, id);
   }
 

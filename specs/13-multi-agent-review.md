@@ -436,6 +436,29 @@ gaps and over-reaches in them are resolved here rather than left open.
   existing action changes behaviour — so it does not violate N2, but it is a
   visible change to a surface this feature does not otherwise touch, and is
   recorded here rather than discovered in review.
+- **D26 — A pull request's existing run must be reachable again from every
+  entrance, and the configure surface offers it rather than redirecting to it.**
+  A prior build of this feature shipped a genuine navigation dead-end: once a
+  run had been started and the user navigated away, re-entering the multi-agent
+  section from the sidebar always landed on a fresh agent-picker, with no route
+  back to the run they had already paid for. The run existed and was readable by
+  the server; the UI simply offered no way to ask for it. Three entrances need
+  fixing — the configure surface (AC-66), the results surface (AC-67) and the
+  pull-request page (AC-68).
+  **Offer, not auto-redirect.** Automatically bouncing the configure surface to
+  the results surface whenever the selected pull request has a run is tempting
+  and was considered, but it replaces one dead-end with its mirror image: a
+  route the user can navigate to directly, which then instantly redirects away,
+  is a browser-Back trap — leaving results sends you to configure, which
+  immediately returns you to results, and the section becomes impossible to
+  leave backwards. It also makes one sidebar item behave as two different
+  screens depending on invisible state. So the configure surface *leads with* a
+  prominent affordance into the existing run while keeping "configure a new one"
+  available, and never navigates on its own.
+  **This is per-pull-request resume, not a history browser.** It answers "take
+  me back to the run I already started on *this* PR", using the latest-run read
+  this spec already requires (AC-25). It does not list runs across a repository
+  and does not reopen N6, which stands unchanged.
 
 ## Shared contracts (stable surface the sibling feature depends on)
 
@@ -562,6 +585,11 @@ not own.
   remember it, I hit Learn and the finding is recorded as a durable lesson for
   this repository — and the product does not overstate what that will do.
   *(AC-63, AC-64, AC-65)*
+- **US-23** — As a reviewer who started a multi-agent run and then went
+  somewhere else, I can get back to that run from wherever I re-enter — the
+  sidebar, the pull request, or the results themselves — without re-running the
+  agents and without being trapped on a screen I can't navigate back out of.
+  *(AC-66, AC-67, AC-68)*
 - **US-8** — As a reviewer, I see exactly where the agents disagree — a location
   one flagged and another didn't, or one they graded differently — and I can
   filter the view down to just those spots, from either layout.
@@ -882,11 +910,28 @@ participating agents' stances diverge (AC-37).
   as failed with that reason and shall present that one shared reason rather
   than N identical per-agent errors.
 
-### Empty states and reachability
+### Empty states, resume and reachability
 
 - **AC-51** — WHERE the selected pull request has no multi-agent run, the
   results surface shall state that no run exists yet and shall offer a route
   back to the configure surface to start one.
+- **AC-66** — WHERE the pull request selected on the configure surface already
+  has a multi-agent run, the configure surface shall present that run's results
+  as a prominent, primary affordance ahead of the option to configure a new run,
+  and shall not navigate away from itself automatically.
+  *Verify: selecting a pull request that already has a run keeps the user on the
+  configure surface, with a visible route into the existing results; the browser
+  Back button still leaves the section.*
+- **AC-67** — The results surface shall offer an explicit start-new-review
+  action leading to the configure surface for the same pull request, with the
+  agent selection open for editing.
+  *Verify: from a results view, one action returns the user to the agent picker
+  for that same pull request.*
+- **AC-68** — WHERE a pull request already has a multi-agent run, its
+  pull-request detail page shall offer a direct affordance to that run's
+  results, and activating it shall start no agent run.
+  *Verify: activating the affordance navigates to the existing results and
+  creates no new run record.*
 - **AC-52** — The multi-agent surfaces shall be reachable from the primary
   sidebar navigation using the existing navigation label, and the existing
   active-key detection shall resolve their route to the multi-agent section.
@@ -994,6 +1039,16 @@ participating agents' stances diverge (AC-37).
   and no aggregate. A user who selects four agents there gets the same bill with
   less warning than the configure surface would have given — which is precisely
   why AC-62 requires a route to the fuller surface.
+- **Re-entering the section from the sidebar after starting a run.** This is the
+  dead-end D26 exists to prevent. Landing on a fresh picker with no route back
+  to the in-flight or completed run is a defect, not an empty state (AC-66).
+- **A pull request whose only multi-agent run failed entirely.** It still counts
+  as having a run for resume purposes — the user must be able to get back to it
+  and read why every agent failed (AC-49), rather than being silently offered a
+  fresh picker as though nothing had happened.
+- **A run that is still in flight when the user returns.** Resume must lead to
+  the live run with its per-agent progress (AC-48), not to a "no run yet" state
+  and not to a second trigger.
 - **A multi-agent run already in flight when the PR-page picker is used.** The
   in-flight guard is per pull request (AC-12) and applies regardless of which
   entry point triggered it; the picker must surface that rather than appear to
@@ -1183,6 +1238,12 @@ sequenceDiagram
     Note over U,C: 1b — OR the lighter entry point, from the PR page itself
     U->>C: PR page · "Run Review ▾" · check agents · Run (N)
     Note right of C: same request shape, same run,<br/>same results surface (AC-61);<br/>"Configure agents…" leads here
+
+    Note over U,R: 1c — resume: every entrance can reach an existing run (D26)
+    U->>C: re-enter configure · PR already has a run
+    C-->>U: prominent "view existing results" + "configure a new run"<br/>(offered, never auto-redirected — AC-66)
+    U->>R: PR page · "view multi-agent results" (starts nothing — AC-68)
+    U->>C: Results · "Start new review" (AC-67)
 
     Note over C,DB: 2 — trigger
     C->>API: start run · PR id + explicit agent id list

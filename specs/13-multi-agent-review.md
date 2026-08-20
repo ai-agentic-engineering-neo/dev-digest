@@ -109,7 +109,10 @@ Read before drafting, and adopted rather than duplicated (D1). This is the same
 
 **The missing wiring is `client/src/vendor/ui/nav.ts`.** Its `NAV` array has
 entries for `pulls`, `context`, `onboarding-tour`, `skills`, `agents`,
-`conventions`, `eval` and `memory` — and **none** for `multi-agent`.
+`conventions` and `eval` — and **none** for `multi-agent`. (It has none for
+`memory` either: Memory is a *separate* reserved-but-unwired feature — an
+active-key branch and a `nav.memory` label, but no nav item, no route, and no
+backend at all, as D24 establishes. Do not mistake it for shipped.)
 `client/LEARNINGS.md`'s 2026-08-03 entry (twice confirmed, most recently for
 SPEC-12's `/eval`) records exactly this failure mode: route + active-key + i18n
 label all present makes a section *look* wired while it is silently unreachable
@@ -131,7 +134,8 @@ resolved explicitly below rather than silently.
 - **G3** — Present the result as one column per selected agent — verdict, score,
   summary, model, cost, duration, findings — side by side.
 - **G4** — Offer the same run as per-agent tabs, where the active agent's
-  findings render in full detail with their existing triage actions.
+  findings render in full detail and can be triaged in place — accepted,
+  dismissed, learned from, or turned into an eval case.
 - **G5** — Compute and present **where the agents disagree**: a location at
   least one agent flagged and another (that also ran successfully) did not, or
   that two agents flagged at divergent severities.
@@ -145,6 +149,9 @@ resolved explicitly below rather than silently.
   whole-run failure.
 - **G9** — Make the seven already-reserved surfaces load-bearing, adopting each
   in place rather than building a parallel set beside it.
+- **G10** — Let a reviewer already looking at a pull request fan out several
+  agents without leaving the page, from the Run Review control that is already
+  there.
 
 ### Non-goals (explicitly out of scope for this slice)
 
@@ -168,15 +175,16 @@ resolved explicitly below rather than silently.
   `modules/reviews/smart-diff.ts`'s `buildSmartDiff` / `classifyFile` — groups
   *files* by risk role, not *findings* by similarity, and is not a fit. A
   location-overlap heuristic ships instead (D7, AC-36).
-- **N5 — The "Learn" and "Reply to author" finding actions.** Screen D's mockup
-  shows five actions on a finding card; only three exist in the product today.
-  `FindingActionKind` (`vendor/shared/contracts/findings.ts:82`) does enumerate
-  `'learn'` and `'reply'`, and `messages/en/prReview.json:8-11` reserves their
-  copy — but `FINDING_ACTIONS` (`modules/reviews/routes.ts:43`) is
-  `['accept', 'dismiss']`, there is no route, no service method and no rendered
-  button for either. Building them means a memory-write path and a
-  comment-to-GitHub path, and would change the PR review page's behaviour too
-  (N2's spirit). Out of scope here; see clarification 1 (D19).
+- **N5 — The "Reply to author" finding action.** *(Revised: "Learn" was
+  previously scoped out alongside it and is now back **in** scope — see D24 and
+  AC-63 – AC-65. The authoritative requirements name the tab action set as
+  Accept, Dismiss, Learn and Turn into eval case; Reply to author is never
+  mentioned and stays out.)* Reply is the more expensive of the two: it posts a
+  comment to GitHub, which is an outbound side effect on a third-party system,
+  needs its own auth/permission and failure story, and is a pull-request-page
+  concern rather than a multi-agent one. `FindingActionKind`
+  (`vendor/shared/contracts/findings.ts:82`) reserves `'reply'` and
+  `messages/en/prReview.json:9-11` reserves its copy; both stay unwired here.
 - **N6 — A multi-agent run history browser.** Rows persist (AC-21), but the
   results surface shows the latest run for the selected PR only (D11).
 - **N7 — An MCP tool** exposing multi-agent runs or conflicts.
@@ -379,6 +387,55 @@ gaps and over-reaches in them are resolved here rather than left open.
   which already carry `duration_ms` and `cost_usd`. An agent that has never
   completed a run has no basis for an estimate, and must say so rather than
   render a fabricated or zero figure (AC-5).
+- **D23 — A second, lighter entry point on the pull-request page, reusing the
+  Run Review control that is already there.** Screen E shows the PR detail
+  page's existing "Run Review ▾" button opening a picker: a "PICK AGENTS TO RUN"
+  header with a Clear affordance, a checkbox row per agent with a small duration
+  estimate, a count-labelled run button, and a "Configure agents…" row leading
+  to the full configure surface. This is **not** a second trigger flow: it
+  submits the same request shape, creates the same multi-agent run, and lands on
+  the same results surface (AC-60 – AC-62). No new backend surface at all. The
+  component exists — `RunReviewDropdown`
+  (`client/src/app/repos/[repoId]/pulls/[number]/_components/RunReviewDropdown/`)
+  already renders "Run all", a per-agent list, and a "Configure agents…" row
+  (`runReview.configureAgents`, today routing to the agents surface). Two honest
+  caveats, stated so they are not discovered mid-implementation: (a) the
+  existing dropdown deliberately lists *every* agent, not just enabled ones
+  ("a specific agent can be run regardless of its enabled flag"), whereas the
+  mockup shows enabled agents — the multi-select rows follow the mockup and
+  offer only agents that can actually be selected for a run; and (b)
+  `DropdownItemDef` (`client/src/vendor/ui/kit/types.ts:5`) has no selected or
+  checked concept and its rows dismiss on activation, so multi-select rows are
+  an **additive extension of a shared UI primitive**, not merely one more entry
+  in an options array — see §Shared contracts.
+- **D24 — "Learn" writes into the existing `memory` table, and that write path
+  does not exist yet. This is the one genuinely new backend surface this spec
+  adds beyond multi-agent orchestration.** Checked before scoping, not assumed:
+  the `memory` table is fully provisioned (`server/src/db/schema/knowledge.ts:18-38`
+  — `workspace_id`, `repo_id`, `scope` ∈ {repo, global, team}, `kind` ∈
+  {decision, convention, preference, fact, learning}, `content`, a nullable
+  1536-dim `embedding`, `confidence`, `sources`, timestamps), but there is **no
+  `modules/memory/`, no route, no service and no repository** anywhere in
+  `server/src`, and no client surface — every other `memory` hit in the server
+  is unrelated (the in-memory run bus, the trace's reserved `memory_pulled`
+  slot). So Memory is reserved-but-unwired in the same way this feature's own
+  surfaces were. The scope taken here is the narrowest useful one: activating
+  Learn records **one** memory row derived deterministically from the finding
+  (AC-63), reusing the existing `kind: 'learning'` and `scope: 'repo'` enum
+  values rather than adding any. Deliberately excluded: no embedding is
+  generated (the column is nullable, and generating one means an embedding
+  pipeline that does not exist), no deduplication, no curation, no retrieval.
+  The route itself is nearly free — `FINDING_ACTIONS`
+  (`modules/reviews/routes.ts:43`) is a `['accept', 'dismiss']` constant driving
+  a loop that already mounts `POST /findings/:id/:action`, and
+  `FindingActionKind` already admits `'learn'`.
+- **D25 — Adding Learn to the shared finding card makes it appear on the
+  pull-request review page too, and that is intended.** `FindingCard` is one
+  component with one action row (D19); a Learn action added for the tabs layout
+  necessarily shows up wherever that card renders. This is additive — no
+  existing action changes behaviour — so it does not violate N2, but it is a
+  visible change to a surface this feature does not otherwise touch, and is
+  recorded here rather than discovered in review.
 
 ## Shared contracts (stable surface the sibling feature depends on)
 
@@ -429,6 +486,20 @@ meaning and their consumers.
 
 **Contract file this feature must not touch:**
 `vendor/shared/contracts/eval-ci.ts` (Export-to-CI's, N11).
+
+**New backend surface this feature adds (the only one beyond orchestration):**
+the Learn finding action and its write into the existing, currently-unwritten
+`memory` table (D24, AC-63 – AC-65). It reuses the table's existing `kind` and
+`scope` vocabularies and adds no column, no embedding, and no retrieval path.
+Whoever later builds the Memory feature proper inherits these rows; they must be
+able to treat them as ordinary `kind: 'learning'` entries with no
+multi-agent-specific shape.
+
+**Shared UI primitive extended:** `Dropdown` / `DropdownItemDef`
+(`client/src/vendor/ui/kit/`) gains multi-select rows — a checked state and
+activation that does not dismiss the menu (D23). This primitive is shared with
+`RepoSwitcher` and every other dropdown in the product, so the extension must be
+additive and leave single-select rows behaving exactly as they do today.
 
 **Deliberately-touched core file:** `server/src/modules/reviews/run-executor.ts`,
 concurrency of the job loop only (D16). This is an approved, named exception
@@ -483,6 +554,14 @@ not own.
   findings in full detail — rationale, suggested fix, confidence — and triage
   them right there, with the same actions I already use on the PR page.
   *(AC-33, AC-34)*
+- **US-21** — As a reviewer already reading a pull request, I fan out several
+  agents straight from the Run Review button on that page, without first
+  navigating to a separate configure screen — and I can still get to that screen
+  when I want the fuller picture. *(AC-60, AC-61, AC-62)*
+- **US-22** — As a reviewer who agrees with a finding and wants the product to
+  remember it, I hit Learn and the finding is recorded as a durable lesson for
+  this repository — and the product does not overstate what that will do.
+  *(AC-63, AC-64, AC-65)*
 - **US-8** — As a reviewer, I see exactly where the agents disagree — a location
   one flagged and another didn't, or one they graded differently — and I can
   filter the view down to just those spots, from either layout.
@@ -602,6 +681,23 @@ participating agents' stances diverge (AC-37).
 - **AC-15** — The system shall rate-limit multi-agent run triggering per
   workspace, since one activation fans out to one LLM execution per selected
   agent.
+- **AC-60** — The system shall offer a second entry point to the multi-agent
+  trigger from the pull-request detail page's existing Run Review control,
+  presenting a selectable list of that workspace's agents with a per-agent
+  duration estimate, an affordance that clears the selection, and a run action
+  stating the number selected.
+  *Verify: the pull-request page's Run Review control offers multi-agent
+  selection alongside its existing single-agent and run-all options.*
+- **AC-61** — WHEN a multi-agent run is triggered from the pull-request page,
+  the system shall submit the same request shape, create the same multi-agent
+  run, and present its results on the same results surface as a run triggered
+  from the configure surface.
+  *Verify: runs started from either entry point are indistinguishable once
+  created.*
+- **AC-62** — The pull-request page's agent picker shall offer a route to the
+  full configure surface for the selected pull request, and the existing
+  single-agent and run-all options of that control shall continue to behave as
+  they do today.
 
 ### Concurrent execution (scoped core exception)
 
@@ -695,10 +791,27 @@ participating agents' stances diverge (AC-37).
   open its run logs.
 - **AC-34** — In the tab layout, the system shall render the active agent's
   findings through the same finding-detail component the pull-request review
-  page already uses, with that component's existing action set, and shall not
-  introduce a multi-agent-specific finding card.
-  *Verify: the tab layout's findings expose the same triage actions, with the
-  same behaviour, as the pull-request review page's findings.*
+  page already uses, offering the accept, dismiss, learn and turn-into-eval-case
+  actions, and shall not introduce a multi-agent-specific finding card.
+  *Verify: the tab layout's findings expose the same four triage actions, with
+  the same behaviour, as the pull-request review page's findings.*
+- **AC-63** — WHEN a user activates the learn action on a finding, the system
+  shall record one durable memory entry for that finding's repository,
+  classified as a learning, whose content is derived deterministically from that
+  finding's title, file and line range, and rationale.
+  *Verify: activating learn on a finding produces exactly one stored memory
+  entry scoped to that repository, containing the finding's file and line
+  range.*
+- **AC-64** — WHEN the system records a memory entry from a finding, it shall
+  record which finding it came from, and shall generate no embedding and make no
+  LLM call.
+  *Verify: activating learn against a stubbed provider produces zero provider
+  calls and leaves the entry's embedding unset.*
+- **AC-65** — The learn action shall not state or imply that the recorded entry
+  will influence future reviews, since no retrieval path consumes these entries
+  yet.
+  *Verify: the learn action's copy claims that the finding was recorded, not
+  that the agent has learned from it.*
 
 ### Conflicts
 
@@ -868,6 +981,23 @@ participating agents' stances diverge (AC-37).
   intersection by `reviewer-core/src/grounding.ts:16`). Under a pure
   line-overlap rule such a finding can intersect nearly every other finding in
   that file and flood the disagreement section. *See clarification 2.*
+- **Learn activated twice on the same finding.** Nothing deduplicates memory
+  entries — there is no curation path (D24) — so a double-click writes two
+  near-identical rows into a store that has no cleanup. Worth guarding at the
+  action, since the cost of a duplicate is permanent.
+- **Learn activated on a finding whose run's agent has since been deleted.** The
+  memory entry is scoped to the repository, not the agent, so it survives; but
+  the recorded provenance may point at a run whose `agent_id` is now null
+  (`schema/runs.ts:24`).
+- **The pull-request page's picker and the configure surface disagreeing.** Both
+  submit the same shape (AC-61), but the PR-page picker shows no cost estimate
+  and no aggregate. A user who selects four agents there gets the same bill with
+  less warning than the configure surface would have given — which is precisely
+  why AC-62 requires a route to the fuller surface.
+- **A multi-agent run already in flight when the PR-page picker is used.** The
+  in-flight guard is per pull request (AC-12) and applies regardless of which
+  entry point triggered it; the picker must surface that rather than appear to
+  start a second run.
 - **Triaging a finding from the tabs layout.** The reused finding card writes
   through the existing finding-action route, so a finding accepted here is
   accepted everywhere, including on the PR review page. That is the correct
@@ -990,6 +1120,8 @@ participating agents' stances diverge (AC-37).
 | Per-agent duration, tokens and cost (actual) | `[reused: the existing per-run token accounting and cost estimation persisted on agent_runs]` |
 | Finding → agent → run attribution | `[deterministic: the existing findings.review_id → reviews.agent_id/run_id → agent_runs.id path — no new column, no new computation]` |
 | Conflicts and agreements between agents | `[deterministic: code-only file equality plus line-range intersection over persisted findings, computed on read — never model-authored]` |
+| The selected agent set submitted from the pull-request page | `[deterministic: the user's explicit choice in the existing Run Review control, validated against the caller's workspace exactly as the configure surface's selection is]` |
+| A memory entry recorded by the learn action | `[deterministic: assembled in code from the finding's own persisted title, file, line range and rationale — no LLM call, no embedding, no summarisation]` |
 | Multi-agent run agent count, wall-clock duration, total cost | `[deterministic: aggregated in code over the grouped agent runs]` |
 
 ## Untrusted inputs
@@ -1015,6 +1147,14 @@ participating agents' stances diverge (AC-37).
   Model-authored, already filtered by the citation-grounding gate, but still
   data to be compared — never a path to open, resolve, or interpolate into a
   query.
+- **Finding text copied into a memory entry by the learn action.** This is
+  model-authored text over attacker-influenceable input being promoted into a
+  durable, repository-scoped store that a future retrieval path is expected to
+  feed back into prompts. It is the longest-lived untrusted payload this feature
+  creates: a single Learn on a poisoned finding outlives the run, the pull
+  request and the review it came from. It must be stored as data, must be
+  rendered sanitised wherever it is later displayed, and must never be treated
+  as trusted merely because a human pressed Learn on it.
 - **Agent names and descriptions.** Workspace-authored configuration rendered as
   selection rows, column headers, tab labels and conflict personas. Untrusted
   for rendering; must render as text, never as markup.
@@ -1039,6 +1179,10 @@ sequenceDiagram
     U->>C: check/uncheck agents (or Select all)
     C->>C: aggregate = MAX(durations), SUM(costs)
     U->>C: Run multi-agent review (N)
+
+    Note over U,C: 1b — OR the lighter entry point, from the PR page itself
+    U->>C: PR page · "Run Review ▾" · check agents · Run (N)
+    Note right of C: same request shape, same run,<br/>same results surface (AC-61);<br/>"Configure agents…" leads here
 
     Note over C,DB: 2 — trigger
     C->>API: start run · PR id + explicit agent id list
@@ -1077,21 +1221,17 @@ sequenceDiagram
 
 ## [NEEDS CLARIFICATION: …]
 
-1. **Screen D shows five finding actions; the product has three.** The mockup's
-   action row is Accept · Dismiss · Learn · Turn into eval case · Reply to
-   author. Accept, Dismiss and Turn-into-eval-case exist today on `FindingCard`
-   and are reused as-is (D19). **Learn and Reply to author do not exist anywhere
-   in the product** — `FindingActionKind` (`contracts/findings.ts:82`)
-   enumerates them and `messages/en/prReview.json:8-11` reserves their copy, but
-   `FINDING_ACTIONS` (`modules/reviews/routes.ts:43`) is `['accept','dismiss']`,
-   with no route, no service method and no rendered button. Building them means
-   a memory-write path and a comment-to-GitHub path, and would change the PR
-   review page too. This spec treats them as out of scope (N5) on the grounds
-   that they are a product-wide gap rather than a multi-agent one. **Confirm
-   that's the intended reading** — if those two actions are actually expected to
-   ship with this feature, it is a materially larger slice and AC-34 changes
-   from "reuse as-is" to "extend the shared component", with knock-on effects on
-   the PR review page.
+1. **Learn writes memory entries that nothing reads yet.** Resolved as far as
+   *this* spec goes — Learn is in scope, scoped to the narrowest useful write
+   (D24, AC-63 – AC-65) — but the consequence should be acknowledged rather than
+   buried: there is no retrieval path anywhere in the product, so these rows
+   accumulate without affecting a single review until the Memory feature ships.
+   AC-65 keeps the copy honest about that. The open question is whether that is
+   acceptable as a shipped user-facing action, or whether Learn should stay
+   hidden behind the same triaged-only gate that Turn-into-eval-case uses
+   (`FindingCard` shows that action only once a finding is accepted or
+   dismissed) until retrieval exists. Recommend the latter if the ambiguity
+   bothers anyone; this spec does not currently require it.
 2. **Full-file and whole-file-range findings in conflict computation.** Under a
    pure line-overlap rule (AC-36), a finding whose range covers most of a file —
    including the full-file kinds `secret_leak`, `lethal_trifecta`, `phantom` and

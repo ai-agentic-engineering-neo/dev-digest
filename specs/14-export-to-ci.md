@@ -1,8 +1,15 @@
 # Spec: Export to CI   |   Spec ID: SPEC-14   |   Status: draft
 
-Lesson L07 lab. **Affected modules:** `server`, `client`, a new top-level `ci/`
-package, and the pulled-in `agent-runner/` package. Cross-module, hence a root
-spec. `reviewer-core` is a consumer-only dependency and is deliberately
+Lesson L07 lab. **Affected modules:** `server`, `client`, a new CI-generation
+unit, and the pulled-in `agent-runner/` package. Cross-module, hence a root
+spec.
+
+> **Where the generation code lives is a planning decision, not a spec one.**
+> The brief called for a new top-level `ci/` package; the pulled-in runner's own
+> docstrings instead reference `server/src/modules/ci/constants.ts` and
+> `workflow.ts` (`agent-runner/src/index.ts:5`, `src/context.ts:9`). Both
+> satisfy every AC below. `implementation-planner` picks one — but whichever it
+> picks, the runner's docstrings should end up pointing at the real path. `reviewer-core` is a consumer-only dependency and is deliberately
 unchanged (D9). `mcp-server` and `e2e` are non-goals for this slice (N8, N9).
 
 > **Numbering.** `SPEC-13` is reserved for the sibling *Multi-Agent Review*
@@ -114,14 +121,17 @@ the repo and both load-bearing:
   local and CI runs, so a user can answer "is this agent worth what it costs?"
 - **G8** — Treat everything crossing back from CI as untrusted input, validated
   at the boundary against its existing shared contract.
+- **G9** — Generate a workflow that **actually runs on first use** — a real,
+  resolvable invocation of the in-repo runner, with least-privilege permissions
+  and SHA-pinned actions, safe to land in a repository DevDigest does not own.
 
 ### Non-goals (explicitly out of scope for this slice)
 
-- **N1 — CircleCI, Jenkins and Generic CLI generation.** The wizard shows all
-  four target cards because the design does and because `CiTarget` already
-  admits all four, but **only `gha` has generation logic**. The other three are
-  inert placeholders (AC-2). No config generation, no ingestion, no runner
-  invocation for them.
+- **N1 — CircleCI, Jenkins and Generic CLI, in every respect including their
+  wizard cards.** `CiTarget` admits all four, but only `gha` has a generator, and
+  **a target with no generator is not rendered at all** — not as a disabled card,
+  not as "coming soon" (D13, AC-2). Offering a target the product cannot deliver
+  is a promise the wizard cannot keep.
 - **N2 — A GitHub App, an OAuth install flow, or a required status check
   configured by DevDigest.** The existing fine-grained PAT
   (`SecretsProvider`, `GITHUB_TOKEN`) is the only credential. Making the check
@@ -137,8 +147,10 @@ the repo and both load-bearing:
   (`agent-runner/src/artifact.ts` on `upstream/lesson-7-lab/agent-runner`). A CI
   run therefore contributes counts and cost, never triaged findings (D7, and see
   AC-46).
-- **N5 — Writing `agent-runner` itself.** It is pulled in from a lesson branch
-  as a precondition (AC-52), not authored here.
+- **N5 — Writing or modifying `agent-runner` itself.** It is pulled in from a
+  lesson branch as a precondition (AC-52), not authored here. This bounds D15:
+  the exported memory file is *produced* by this feature but cannot be *consumed*
+  until the runner gains a reader, which is a change this slice does not make.
 - **N6 — Changing `reviewer-core`.** The runner already consumes it unmodified;
   its DB/GitHub/FS-free purity is what makes CI execution possible at all
   (`reviewer-core/src/index.ts:5`, `reviewer-core/CLAUDE.md` §Non-default).
@@ -158,6 +170,17 @@ the repo and both load-bearing:
   exactly one agent to exactly one repository (D2).
 - **N13 — Cost budgets, quotas or alerts on CI spend.** Cost is *displayed*
   (G7), never enforced.
+- **N14 — Reviewing pull requests opened from forks.** The generated workflow
+  must not schedule the job for them at all (D17, AC-60). Not a limitation to
+  work around later with `pull_request_target` — that combination is the
+  vulnerability, not the fix.
+- **N15 — Exporting `global`- or `team`-scoped memory.** Only repo-scoped rows
+  for the target repository are exported (D16). The bundle lands in a repository
+  DevDigest does not own; workspace-wide memory would leak one repository's
+  learnings into another party's git history.
+- **N16 — Semantic retrieval over memory.** The exported file is a plain
+  serialisation of matching rows; no embedding, no ranking, no similarity
+  search. The `embedding` column is never read (D16).
 
 ### Decisions
 
@@ -171,13 +194,16 @@ the repo and both load-bearing:
   `ci_installations` as it stands (`agent_id`, `repo`, `target_type`). Deploying
   the same agent to a second repository is a second installation, which is
   exactly what the mockup's "Add repository" affordance produces.
-- **D3 — Install means "DevDigest opens a pull request in the target repo".**
-  Not a manual copy-paste, and not an automated push to `main`. `commitFiles` +
-  `openPullRequest` + `findOpenPr` already exist, already handle the
-  create-or-fast-forward branch case idempotently, and the reserved
-  `CiExportInput.action` already enumerates `'open_pr' | 'files'`. The
-  copy-the-YAML path survives as the **fallback** for a repository the
-  configured token cannot write to (AC-10), not as the primary flow.
+- **D3 — Install offers two peer options: open a pull request, or download the
+  bundle as an archive.** Not a manual copy-paste of YAML, and never an automated
+  push to `main`. Opening a PR is the *recommended default* (and the mockup badges
+  it as such), but the archive is **always** available and is not gated behind a
+  write-access check — a user may simply prefer to land the files through their
+  own review process. `commitFiles` + `openPullRequest` + `findOpenPr` already
+  exist and already handle create-or-fast-forward idempotently; the reserved
+  `CiExportInput.action` already enumerates `'open_pr' | 'files'`, which is
+  exactly these two peers. Write-access failure degrades the PR option only, and
+  the archive option remains (AC-10).
 - **D4 — The wizard's four steps are Target → Preview → Configure → Install, in
   that order, because `ExportWizardSteps` and `ci.json` already fix those
   labels** — even though generating a preview logically needs the configure
@@ -235,14 +261,87 @@ the repo and both load-bearing:
 - **D12 — The Agent Performance date range is a fixed preset set.** 7 / 30 / 90
   days, defaulting to 30 (the mockup's label). No custom picker.
 
+- **D13 — Only targets with a real generator are rendered.** The Target step
+  reads a registry of implemented targets and renders one option per entry.
+  Adding CircleCI later means registering its generator, not rewriting the step.
+  Deliberately minimal: a list of implemented targets, not a plugin system (N1).
+- **D14 — The generated workflow invokes the in-repo runner directly; there is
+  no published marketplace action.** The Preview mockup shows
+  `uses: devdigest/review-action@v1`. **No such action exists, and this lab does
+  not need one** — the runner ships inside the bundle. Emitting that line
+  literally would make every generated workflow fail to resolve on its very
+  first run. It is illustrative shorthand for "run the DevDigest reviewer here",
+  and the generator must emit a real invocation instead (AC-11). Grounded in the
+  runner's actual entrypoint rather than guessed: `agent-runner/src/index.ts`
+  documents that it is invoked as `node .devdigest/runner/index.js`, is an `ncc`
+  bundle with **no runtime dependency on `node_modules`** (so no install step is
+  needed), reads `OPENROUTER_API_KEY`, `GITHUB_TOKEN`, `GITHUB_REPOSITORY` and
+  `PR_NUMBER` from the environment, honours optional `DEVDIGEST_DIR`,
+  `DEVDIGEST_RESULT_PATH` and `DEVDIGEST_POST_AS`, and writes
+  `devdigest-result.json` into the working directory.
+- **D15 — The bundle is five files, one of which the runner cannot yet read.**
+  The mockup's Preview panel and the Install copy both say five: the workflow,
+  the agent manifest, the skill bodies, the runner bundle, and
+  `.devdigest/memory.jsonl`. The memory file is generated and shipped (AC-58).
+  **But the pulled-in runner reads only `.devdigest/agents/<slug>.yaml` and
+  `.devdigest/skills/<slug>.md`** — verified by inspection of
+  `agent-runner/src/manifest.ts:25` and `src/skills.ts:18`; there is no memory
+  reader anywhere in `agent-runner/src`. So in this slice the file is *present
+  and correct but inert*: it ships so the bundle is complete and so the runner
+  can start consuming it without a re-export, and consuming it is a runner change
+  this slice does not make (N5). Recorded rather than quietly shipped as if it
+  worked. See clarification 7.
+- **D16 — Exported memory is repo-scoped, content-only.** `memory`
+  (`server/src/db/schema/knowledge.ts:18-38`) is scoped by `workspace_id` +
+  nullable `repo_id` + `scope ∈ {repo, global, team}` and **has no agent column**
+  — so "memory for this agent" is not expressible, and the brief's assumption of
+  agent scoping does not hold. The export selects rows in the caller's workspace
+  with `scope = 'repo'` whose `repo_id` is the imported repository matching the
+  export target, and nothing else (N15). Each exported record carries the row's
+  `kind` and `content` only — never `embedding` (large and useless to the
+  runner, N16) and never `sources`, which holds internal finding identifiers
+  (worktree A matches on `sources->>'finding_id'`). The narrow choice is a
+  privacy decision, not a laziness one: this file is committed into a repository
+  DevDigest does not own.
+- **D17 — Fork pull requests are excluded by the generated workflow, and that is
+  the workflow's job, not the runner's.** The runner is explicit about the
+  division: its `PrContext.isFork` is "informational only; the workflow itself is
+  responsible for never scheduling this job for fork PRs"
+  (`agent-runner/src/context.ts:30-32`), and `src/run.ts` contains **no fork
+  handling at all**. So if the generated workflow does not guard, nothing does.
+  The workflow therefore triggers on `pull_request` — never
+  `pull_request_target` — and additionally skips fork-headed pull requests
+  (AC-60). On a `pull_request` trigger a fork PR gets no secrets and a read-only
+  token, so it would fail confusingly rather than dangerously; the guard turns
+  that into a clean skip.
+- **D18 — One installation per repository, enforced upstream by the runner.**
+  `findManifestPath` throws when it finds zero *or more than one* manifest under
+  `.devdigest/agents/` (`agent-runner/src/manifest.ts:37-44`). Exporting a second
+  agent into a repository that already has one would therefore **break the first
+  one's workflow**, not add a second review. This is the concrete mechanism
+  behind N12, and it is a hard constraint the export flow must respect (AC-59).
+
 ### Sibling feature and merge order
 
 - This feature owns and may change `contracts/eval-ci.ts` (and its client
   counterpart) and `contracts/productionize.ts`'s `AgentPerf*` block.
 - This feature **must not touch** `contracts/observability.ts` — `AgentColumn`,
   `Conflict`, `MultiAgentRun` belong to `specs/13-multi-agent-review.md`.
+- **There are two dependencies on SPEC-13, not one.** The first is
+  findings attribution (D8). The second is the `memory` table: SPEC-13 introduces
+  the first-ever write path into it (a `POST /findings/:id/learn` action and a
+  `modules/memory/` repository reachable as `container.memoryRepo`), and this
+  feature exports what that writes (D15, D16, AC-58).
+- **Assumption, stated because it was verified rather than assumed:** worktree
+  A's `MemoryRepository` exposes `findByFindingId` and `insertLearning` and
+  **no list-by-repository read** (`plans/13-multi-agent-review.md` §B2). This
+  feature therefore owns a minimal read query of its own. If worktree A's
+  repository has gained a suitable read method by implementation time, reuse it
+  rather than adding a second one.
 - **Merge order is fixed: `feat/multi-agent-review` merges to `main` FIRST,
-  `feat/export-to-ci` SECOND**, because of the attribution dependency in D8.
+  `feat/export-to-ci` SECOND**, because of both dependencies above. Both are
+  satisfiable at merge time; both degrade rather than block if they are not
+  (AC-23, AC-58).
 - The app-shell sidebar (`client/src/vendor/ui/nav.ts`) is touched by **both**
   features. This spec deliberately does not pre-resolve nav-item ordering; it
   requires only that this feature's entries are added without deleting or
@@ -253,16 +352,23 @@ the repo and both load-bearing:
 
 - **US-1** — As an agent owner, I open my tuned agent, pick a target repository
   and a CI system, and see exactly which files DevDigest would add before it
-  adds anything. *(AC-1, AC-2, AC-3, AC-48)*
-- **US-2** — As an agent owner, I set when the review should fail the build and
-  how results get posted, and the preview updates to match. *(AC-4, AC-35)*
+  adds anything — and I am only offered CI systems that actually work.
+  *(AC-1, AC-2, AC-2a, AC-3, AC-48)*
+- **US-2** — As an agent owner, I choose which pull-request events trigger the
+  review and how results get posted, see which secrets the target repo still
+  needs, and the preview updates to match. *(AC-4, AC-4a, AC-4c, AC-35, AC-64)*
+- **US-2a** — As an agent owner who assumed "Fail CI on" blocks merges by
+  itself, the wizard tells me plainly that it does not without a required status
+  check, before I ship a gate I think is enforcing something. *(AC-4b)*
 - **US-3** — As an agent owner, I finish the wizard and DevDigest opens a pull
-  request in my target repository containing the workflow and the agent's
-  config, and tells me which secret I still have to add myself.
-  *(AC-5, AC-6, AC-8, AC-9, AC-11, AC-12, AC-13, AC-14)*
-- **US-4** — As an agent owner whose token cannot write to the target
-  repository, I am told so and handed the same files to add myself, instead of
-  hitting an opaque failure. *(AC-10)*
+  request in my target repository containing the workflow, the agent's config
+  and its accumulated memory, and tells me which secret I still have to add
+  myself — and the workflow it adds actually runs the first time.
+  *(AC-5, AC-6, AC-8, AC-9, AC-11, AC-11a, AC-11b, AC-12, AC-13, AC-14, AC-58)*
+- **US-4** — As an agent owner, I can take the generated bundle away as an
+  archive and land it through my own process instead of letting DevDigest open a
+  pull request — and if my token cannot write to the repository, I am told which
+  reason applies and that option still works. *(AC-10, AC-10a)*
 - **US-5** — As an agent owner who changed the gate policy or the system prompt,
   I press "Update CI config" and the same deployment is republished — one
   installation, one pull request, a new commit. *(AC-7, AC-37)*
@@ -286,16 +392,22 @@ the repo and both load-bearing:
   rate cannot include them. *(AC-45, AC-46)*
 - **US-12** — As someone whose CI job failed before it produced anything, or
   produced something malformed, I see a failed run with a reason instead of a
-  silently missing row or a corrupt one. *(AC-18, AC-21, AC-22, AC-23)*
+  silently missing row or a corrupt one. *(AC-18, AC-21, AC-22, AC-23, AC-63)*
 - **US-13** — As a security-conscious owner, a hostile agent name, repository
-  name, system prompt or skill body cannot become executable content in the
-  workflow DevDigest writes into my repository, and nothing coming back from CI
-  can inject markup into my browser. *(AC-15, AC-16, AC-54, AC-55)*
+  name, system prompt, skill body or memory entry cannot become executable
+  content in the workflow DevDigest writes into my repository; that workflow
+  cannot be turned against me by a fork, cannot be handed privileges it does not
+  need, and cannot be silently swapped under me by a moved tag; and nothing
+  coming back from CI can inject markup into my browser.
+  *(AC-15, AC-16, AC-54, AC-55, AC-60, AC-61, AC-62)*
 - **US-14** — As a workspace member, I can never export, read or ingest CI data
   belonging to another workspace's agent. *(AC-24)*
-- **US-15** — As a user with nothing deployed yet, every new surface tells me
-  what is missing and what to do, instead of showing me zeroes.
-  *(AC-31, AC-39, AC-47)*
+- **US-15** — As a user with nothing deployed yet — and no accumulated memory —
+  every new surface tells me what is missing and what to do, instead of showing
+  me zeroes or failing the export. *(AC-31, AC-39, AC-47, AC-58a)*
+- **US-15a** — As an agent owner who already deployed one agent to a repository,
+  I am stopped from exporting a second one into it rather than silently breaking
+  the first. *(AC-59)*
 - **US-16** — As a keyboard or screen-reader user, I can complete the wizard,
   read run statuses and read performance figures without a mouse and without
   relying on colour. *(AC-56, AC-57)*
@@ -313,29 +425,56 @@ executing inside the target repository's CI. A **result artifact** is the
 `CiResultArtifact`. **Ingestion** is the studio reading completed CI runs and
 their result artifacts back into `ci_runs` / `agent_runs`.
 
+*Numbering.* Criteria added after the first draft are given letter suffixes
+(`AC-4a`) or continue the sequence (`AC-58`), never renumbering an existing id —
+the SPEC-12 precedent, so that references already made against this spec stay
+valid.
+
 ### Export wizard — target and preview
 
 - **AC-1** — WHEN a user opens the export flow from an agent, the system shall
-  present a four-step flow labelled Target, Preview, Configure, Install, with
-  the current step indicated, and shall present four CI-system options: GitHub
-  Actions (marked recommended), CircleCI, Jenkins and Generic CLI.
-  *Verify: the wizard renders four step labels and four target cards, with
-  GitHub Actions carrying the recommended marker.*
-- **AC-2** — IF a user selects CircleCI, Jenkins or Generic CLI, THEN the system
-  shall state that the target is not yet available, shall not advance to the
-  next step, and shall generate no files.
-  *Verify: selecting each of the three non-GitHub targets leaves the wizard on
-  the Target step and produces no generated file set.*
-- **AC-3** — WHEN a user has chosen GitHub Actions and supplied a target
-  repository in `owner/name` form, the system shall present, before anything is
-  committed, the complete list of files that would be created, each with its
-  path and its full contents, and shall mark which of them are editable.
-  *Verify: the Preview step lists every path in the generated bundle with
-  non-empty contents.*
-- **AC-4** — WHEN a user changes the gate policy, the trigger events, or how
-  results are posted on the Configure step, the system shall regenerate the
-  previewed bundle so that the previewed contents match the chosen settings, and
-  shall make no LLM call to do so.
+  present a four-step flow labelled Target, Preview, Configure, Install, with the
+  current step indicated.
+  *Verify: the wizard renders the four step labels with the first one active.*
+- **AC-2** — The Target step shall present exactly one option per CI target that
+  has an implemented generator, and shall present no option for a target that
+  does not — neither enabled, nor disabled, nor labelled as forthcoming. In this
+  slice that is GitHub Actions alone.
+  *Verify: the Target step renders exactly one target option; no element
+  referencing CircleCI, Jenkins or Generic CLI is present in the step at all.*
+- **AC-2a** — WHERE a further target generator is added, it shall become
+  selectable by being registered alongside the existing one, without the Target
+  step needing to change.
+  *Verify: registering a second stub generator makes a second option appear with
+  no edit to the Target step itself.*
+- **AC-3** — WHEN a user has chosen a target and supplied a target repository in
+  `owner/name` form, the system shall present, before anything is committed, the
+  complete list of files that would be created — the workflow, the agent
+  manifest, one body file per linked skill, the runner bundle and the exported
+  memory file — each with its path and its full contents, and shall mark which of
+  them are editable.
+  *Verify: the Preview step lists every path in the generated bundle, including
+  the memory file, each with contents.*
+- **AC-4** — The Configure step shall offer independently selectable trigger
+  events for pull requests being opened, updated and reopened, with opened and
+  updated selected by default and reopened unselected by default.
+  *Verify: on first entry to the Configure step exactly the opened and updated
+  triggers are selected, and the generated workflow's trigger list matches the
+  selection.*
+- **AC-4a** — The Configure step shall offer a choice of how results are
+  published — as a review, as a pull-request comment, or not at all with only the
+  exit status — with publishing as a review presented as the recommended choice.
+- **AC-4b** — The Configure step shall state that setting the gate policy alone
+  makes the run exit non-zero but does **not** block merges, and that blocking
+  merges additionally requires a required status check configured in the target
+  repository's branch protection, and shall state that no GitHub App is needed
+  for either.
+  *Verify: the Configure step carries that guidance as visible text, not only in
+  a tooltip.*
+- **AC-4c** — WHEN a user changes the gate policy, the trigger events, or how
+  results are published, the system shall regenerate the previewed bundle so that
+  the previewed contents match the chosen settings, and shall make no LLM call to
+  do so.
   *Verify: switching the gate policy changes the generated manifest's
   `ci_fail_on` value in the preview, with zero provider calls.*
 - **AC-5** — WHEN a user completes the Install step for a repository the
@@ -363,20 +502,55 @@ their result artifacts back into `ci_runs` / `agent_runs`.
   agent configuration, making no LLM call at any step of the wizard.
   *Verify: generating the same bundle twice for an unchanged agent yields
   byte-identical contents, against a stubbed provider with zero calls.*
-- **AC-10** — IF no credential is configured, or the configured credential
+- **AC-10** — The Install step shall offer both opening a pull request and
+  downloading the bundle as an archive as concurrently available choices, with
+  opening a pull request marked as recommended; the archive option shall not be
+  conditioned on the credential's write access to the target repository.
+  *Verify: both options are selectable on the Install step for a repository the
+  credential can write to.*
+- **AC-10a** — IF no credential is configured, or the configured credential
   cannot write to the target repository, THEN the system shall state which of
-  those applies, shall create no installation record, and shall still offer the
-  generated file contents for the user to add manually.
+  those applies, shall create no installation record, and shall leave the archive
+  option available and functional.
   *Verify: with a credential lacking write access, the flow reports the reason,
-  leaves zero installation rows, and still renders the file contents.*
+  leaves zero installation rows, and still produces a downloadable bundle.*
+- **AC-59** — IF a user attempts to export an agent to a repository that already
+  has an installation for a **different** agent, THEN the system shall refuse and
+  state that the repository already hosts another agent, because the runner
+  requires exactly one agent manifest and a second one would break the existing
+  deployment rather than add to it.
+  *Verify: exporting a second, different agent to a repository with an existing
+  installation is refused, and the first installation and its bundle are
+  unchanged.*
+- **AC-64** — The Configure step shall show, for each secret the generated
+  workflow depends on, its **name** and whether it is already configured in the
+  target repository, and shall indicate that the CI-provided repository token
+  needs no action; the system shall never read, request, store or display the
+  value of any repository secret.
+  *Verify: the step reports a configured-or-not state per secret name, and no
+  request the system makes returns a secret value.*
 
 ### Generated bundle — correctness and safety
 
-- **AC-11** — The generated workflow shall run on pull-request events, limited to
-  the trigger events selected on the Configure step, and shall invoke the runner
-  against the pull request under review.
-  *Verify: the generated workflow's trigger list equals the selected events and
-  no others.*
+- **AC-11** — The generated workflow shall trigger on pull-request events limited
+  to those selected on the Configure step, and shall invoke the runner shipped in
+  the bundle by checking out the target repository, providing a Node runtime, and
+  executing the bundle's runner entrypoint directly; it shall reference no
+  external, published DevDigest action.
+  *Verify: the generated workflow contains no `uses:` reference to a DevDigest
+  action, and its run step executes the same runner path that AC-14 requires the
+  bundle to contain.*
+- **AC-11a** — The generated workflow shall supply the runner exactly the
+  environment it requires — the LLM credential from repository secrets, the
+  CI-provided repository token, the repository identifier and the pull-request
+  number — and shall pass the chosen publishing mode.
+  *Verify: a generated workflow's run step defines each variable the runner reads,
+  and omits none of them.*
+- **AC-11b** — The generated workflow shall publish the runner's result document
+  as a retrievable CI artifact, so that ingestion has something to retrieve, and
+  shall do so even when the runner's gate caused a non-zero exit.
+  *Verify: the generated workflow's publish step is not skipped on a failing
+  gate.*
 - **AC-12** — The generated agent manifest shall validate against the shared
   `AgentManifest` contract, and shall carry the agent's name, provider, model,
   system prompt, linked skill slugs, strategy and gate policy as stored in the
@@ -398,26 +572,70 @@ their result artifacts back into `ci_runs` / `agent_runs`.
   secret.
   *Verify: no generated file's contents match any value held by the secrets
   provider, and the workflow references the credential by secret name only.*
-- **AC-16** — The system shall never interpolate agent-authored or
-  user-supplied text — agent name, repository name, system prompt, skill body,
-  branch name — into a shell command inside the generated workflow; such text
-  shall reach the runner only as file content or as a validated structured
-  value.
+- **AC-16** — The system shall never interpolate agent-authored or user-supplied
+  text — agent name, repository name, system prompt, skill body, memory content,
+  branch name, pull-request title or body — into a shell command inside the
+  generated workflow; such text shall reach the runner only as file content or as
+  a validated structured value.
   *Verify: a generated workflow for an agent whose name contains shell
   metacharacters and a newline contains no command step carrying that text, and
   the manifest still round-trips the name intact.*
+- **AC-58** — The generated bundle shall include a memory file serialising the
+  caller's workspace memory rows that are scoped to the target repository, one
+  record per row carrying that row's kind and content and no other field.
+  *Verify: with three repo-scoped rows for the target repository and rows for
+  another repository present, the exported file contains exactly the three, and
+  no record carries an embedding or a source reference.*
+- **AC-58a** — WHERE no memory row matches the target repository — including
+  where the memory write path does not exist yet, or the target repository is not
+  imported into the studio — the system shall still include the memory file in
+  the bundle as a valid empty document, and shall neither omit it nor fail the
+  export.
+  *Verify: exporting for a repository with zero matching rows produces a bundle
+  that still contains the memory file, and the file parses as an empty record
+  set.*
+- **AC-60** — The generated workflow shall trigger only on the pull-request event
+  that runs in the context of the base repository without exposing secrets to
+  contributed code, shall never use the variant that runs contributed code with
+  base-repository privileges, and shall additionally skip any pull request whose
+  head is a fork.
+  *Verify: the generated workflow declares no `pull_request_target` trigger, and
+  its job does not execute for a fork-headed pull request.*
+- **AC-61** — The generated workflow shall declare an explicit, minimal
+  permissions block rather than inheriting the repository's default, granting
+  only what the selected publishing mode requires — read access to repository
+  contents always, and write access to pull requests only where results are
+  published to the pull request.
+  *Verify: a workflow generated for exit-code-only publishing grants no
+  pull-request write permission, while one generated for review publishing does.*
+- **AC-62** — Every external action the generated workflow references shall be
+  pinned to a full commit identifier rather than a moving tag or branch.
+  *Verify: no `uses:` reference in a generated workflow resolves to a tag or
+  branch.*
 
 ### Ingestion — CI results back into the studio
 
 - **AC-17** — WHEN a user triggers a refresh of CI runs, the system shall query
   the CI provider for completed runs of the installed workflow and shall ingest
   each one it has not already ingested.
-- **AC-18** — The system shall validate every result artifact against the shared
-  `CiResultArtifact` contract before storing anything from it; IF validation
-  fails, THEN the system shall record the run as failed with a stated reason and
-  shall store no field from the invalid document.
-  *Verify: an artifact with a non-integer findings count produces a failed run
-  row carrying a reason, and no counts.*
+- **AC-18** — The system shall accept a result artifact only after **all four**
+  of the following independently pass: the ingest request is authenticated as a
+  workspace member; the document conforms to the shared `CiResultArtifact`
+  contract; the commit the run reviewed matches the commit the CI run was built
+  from; and the repository the artifact came from matches the repository of the
+  installation it is being ingested against. IF any check fails, THEN the system
+  shall record the run as failed with which check failed, and shall store no
+  field from the document.
+  *Verify: four separate cases — unauthenticated request, non-integer findings
+  count, mismatched commit, mismatched repository — each produce a failed run row
+  naming the failed check and store no counts.*
+- **AC-63** — The system shall reject a result artifact that contains a value
+  matching a credential-shaped pattern, recording the run as failed with that
+  reason, and shall never persist, log or render such a value — as defence in
+  depth, independently of the runner's own guarantee not to emit one.
+  *Verify: an otherwise-valid artifact carrying a credential-shaped string in any
+  field is rejected, and the value appears in no row, log line or rendered
+  surface.*
 - **AC-19** — The system shall ingest each CI run at most once, so that repeated
   refreshes of the same provider run update the existing record rather than
   creating a duplicate.
@@ -626,6 +844,21 @@ their result artifacts back into `ci_runs` / `agent_runs`.
   reason, no installation row, files still offered (AC-10). This is the most
   likely first-run failure, because the local-mode credential is a
   fine-grained PAT scoped to the user's own repositories.
+- **A second, different agent exported into a repository that already has one.**
+  Refused (AC-59). The runner throws when it finds more than one manifest under
+  `.devdigest/agents/` (`agent-runner/src/manifest.ts:37-44`), so permitting it
+  would not produce two reviews — it would break the review already running there.
+- **A pull request opened from a fork.** Skipped by the generated workflow
+  (AC-60, D17). Nothing in the runner guards this — `run.ts` has no fork handling
+  and `context.ts:30-32` explicitly assigns the responsibility to the workflow —
+  so an unguarded workflow is the whole exposure, not a partial one.
+- **A target repository with no memory rows.** The overwhelmingly common case,
+  since the only writer is a brand-new Learn action landing in the sibling
+  worktree. Produces a valid empty memory file, never an omitted file and never a
+  failed export (AC-58a).
+- **A target repository that is not imported into the studio, at export time.**
+  No repository row to match memory against, so the memory file is empty by the
+  same rule (AC-58a). The export itself still succeeds.
 - **Export run twice — the "Add repository" and "Update CI config" collision.**
   Same agent, same repo ⇒ one installation, new commit on the existing branch,
   existing PR reused (AC-7). Same agent, *different* repo ⇒ a second
@@ -668,6 +901,15 @@ their result artifacts back into `ci_runs` / `agent_runs`.
   `agents` with `set null` too. The surfaces must render an orphaned CI run
   without crashing. Note that deleting the agent does **not** remove the
   workflow file from the target repository — that file is now theirs.
+- **A memory row whose content is hostile or was model-authored.** Memory is
+  written from model-authored finding text by the sibling feature, then committed
+  into a third party's repository and (once a reader exists) fed to a model. It
+  is untrusted on both counts: never a command fragment (AC-16), and carried as
+  content only, never with its internal source identifiers (D16).
+- **An official action's tag is moved to point at different code.** Prevented by
+  commit pinning (AC-62). Lower risk than a third-party action — and this bundle
+  needs no third-party action at all (D14) — but the generated file lives in
+  someone else's repository indefinitely, so the pin is cheap insurance.
 - **A hostile agent name, skill body or system prompt.** The generated files land
   in *someone else's* CI, where their secrets are in scope. AC-16 is the guard,
   and it is the highest-severity requirement here: the failure mode is not "bad
@@ -702,14 +944,38 @@ their result artifacts back into `ci_runs` / `agent_runs`.
   network. It is schema-validated at the boundary before any field is stored
   (AC-18) and rendered sanitised (AC-54). Being ingestible is not the same as
   being trustworthy.
-- **Security — least privilege.** Export uses the existing credential only to
-  create a branch, commit files and open a pull request in the named repository.
-  Nothing in this feature pushes to a default branch, modifies repository
-  settings, or configures a required status check (N2).
+- **Security — least privilege, in both directions.** *Outbound:* export uses
+  the existing credential only to create a branch, commit files and open a pull
+  request in the named repository; nothing pushes to a default branch, modifies
+  repository settings, or configures a required status check (N2). *Inbound:* the
+  workflow DevDigest writes declares its own explicit minimal permission set
+  rather than inheriting the target repository's default, which is frequently
+  broader than a reviewer needs (AC-61).
+- **Security — the fork boundary.** The single highest-severity mistake available
+  in this design is combining a trigger that runs with base-repository privileges
+  with a checkout of contributed code; it hands an attacker who opens a fork pull
+  request the repository's secrets. The generated workflow uses the
+  secret-less trigger and additionally skips fork-headed pull requests (AC-60,
+  D17, N14). The runner explicitly does **not** guard this — it documents the
+  responsibility as the workflow's — so there is no second line of defence.
+- **Security — supply chain of the generated file.** The workflow lands in
+  someone else's repository and stays there. It references no third-party action
+  at all (D14), and pins even official ones to a commit (AC-62), so what it runs
+  cannot change under the repository's owners without a visible commit.
+- **Security — secrets are named, never read.** The wizard reports whether a
+  repository secret is configured by its **name**; the system never reads,
+  requests, stores or renders a secret value, in the wizard, the manifest, the
+  artifact, a log line or a trace (AC-15, AC-55, AC-64, AC-63).
 - **Security — access control.** `ci_installations` carries no workspace column;
   it reaches a workspace only transitively through its agent, and `ci_runs`
   reaches one only through its installation. Every export, read, refresh and
   ingest must resolve the caller's workspace before touching a row (AC-24).
+- **Privacy — memory leaves the system.** Exported memory is committed into a
+  repository DevDigest does not own and cannot retract. That is why the selection
+  is the narrowest defensible one (repo-scoped rows for that repository only,
+  content and kind only — D16, N15, N16) rather than "whatever the workspace
+  knows". Widening it later is a product decision with a privacy consequence, not
+  a convenience tweak.
 - **Privacy of logs.** Export and ingest logging records repository names, run
   identifiers, counts, model, cost and status — never credential values, never
   system-prompt or skill-body contents, never diff content (AC-55).
@@ -752,6 +1018,9 @@ their result artifacts back into `ci_runs` / `agent_runs`.
 | Linked skill slugs and skill bodies written into the bundle | `[reused: the existing agent↔skill links and stored skill bodies (SPEC-02)]` |
 | Target repository, base branch, trigger events, post-as mode | `[deterministic: user input in the wizard, validated against the existing export-input contract]` |
 | Generated workflow YAML, manifest YAML, skill files | `[deterministic: template assembly from the two rows above — no LLM call (AC-9)]` |
+| Exported memory records (kind + content, repo-scoped) | `[reused: rows in the existing `memory` table, written by the sibling feature's Learn action — this feature only reads them (D16)]` |
+| Whether each expected repository secret is configured | `[deterministic: read from the CI provider as secret NAMES only; values are never requested (AC-64)]` |
+| Pinned commit identifiers for the official actions the workflow references | `[deterministic: resolved once and embedded; not looked up per export (AC-62)]` |
 | The runner executable placed in the bundle | `[reused: the pre-built artifact of the pulled-in agent-runner package (AC-52)]` |
 | Branch creation, commit, pull-request open, existing-PR lookup | `[reused: the already-implemented GitHub adapter capabilities, currently unconsumed]` |
 | Completed CI run metadata (time, status, duration, provider URL, PR number) | `[reused: read from the CI provider's API — no new judgement, no LLM]` |
@@ -781,9 +1050,20 @@ their result artifacts back into `ci_runs` / `agent_runs`.
   which the runner is required to preserve. Not re-guarded here — restated so
   that nothing in this feature is built on the assumption that CI content is
   safer than studio content.
+- **Exported memory content.** Model-authored text promoted into a durable store
+  by the sibling feature, then committed into a third party's repository and
+  destined to reach a model as context. Untrusted twice over: never a command
+  fragment (AC-16), never rendered as markup (AC-54), and carried without its
+  internal source identifiers (D16).
+- **The pull-request event payload the runner reads in CI** — title, body, fork
+  flag. Author-controlled, and explicitly documented as untrusted by the runner
+  itself (`agent-runner/src/context.ts:26-32`). It reaches the model under
+  `reviewer-core`'s shared `INJECTION_GUARD`, which the runner is required to
+  preserve; nothing in the generated workflow may treat it as a command or as a
+  grant of privilege (AC-16, AC-60).
 - **The generated file contents rendered in the wizard preview.** Assembled from
-  agent-authored text and displayed in a browser. Untrusted for rendering
-  (AC-54).
+  agent-authored and memory-authored text and displayed in a browser. Untrusted
+  for rendering (AC-54).
 
 ## Flow
 
@@ -799,17 +1079,19 @@ sequenceDiagram
     Note over U,GH: 1 — export (spends nothing)
     U->>W: pick agent · target = GitHub Actions · owner/name
     W->>API: request generated bundle
-    API->>CI: assemble manifest + skills + workflow + runner
-    CI-->>W: file set (paths + contents), previewed
+    API->>CI: assemble manifest + skills + memory.jsonl + workflow + runner
+    CI-->>W: 5 files (paths + contents), previewed
     U->>W: set gate policy · triggers · post-as
+    API->>GH: list secret NAMES (never values) → badge states
     W->>API: regenerate preview
-    U->>W: Install
+    U->>W: Install → open PR  ·OR·  download archive
     API->>GH: commit bundle to branch, open (or reuse) PR
     GH-->>API: pull-request URL
     API->>API: record installation (agent, repo, target)
 
     Note over GH,R: 2 — CI runs it, outside DevDigest entirely
-    GH->>R: pull_request event → run workflow
+    GH->>GH: pull_request (never pull_request_target) · skip if fork · minimal permissions
+    GH->>R: checkout (SHA-pinned) → node .devdigest/runner/index.js
     R->>R: read manifest + skills · fetch diff · reviewer-core + grounding gate
     R->>GH: post review/comment · publish devdigest-result.json · exit per gate
 
@@ -854,5 +1136,24 @@ sequenceDiagram
    that case, but the noise is real if a user presses the button habitually.
 6. **Does the wizard need to verify that the named target repository actually
    exists and is writable *before* the Install step**, rather than failing at
-   Install (AC-10)? Earlier validation is friendlier but costs a provider call
+   Install (AC-10a)? Earlier validation is friendlier but costs a provider call
    per keystroke-settled input. Left to planning.
+7. **The exported memory file has no reader — should it still ship in this
+   slice?** This spec says yes (D15, AC-58) because the mockups, the Install
+   copy and the authoritative requirements all specify five files, and because
+   shipping it now means a future runner can consume it without anyone
+   re-exporting. But verified by inspection: the pulled-in runner reads only
+   `.devdigest/agents/<slug>.yaml` and `.devdigest/skills/<slug>.md`
+   (`agent-runner/src/manifest.ts:25`, `src/skills.ts:18`) — **nothing in
+   `agent-runner/src` reads a memory file**. So it is inert on arrival, and
+   making it live is a runner change this slice excludes (N5). Flagging in case
+   the product owner would rather defer the file than ship a placeholder.
+8. **Which secret names should the Configure panel check for?** The LLM
+   credential is certain. Whether the panel should also check anything else
+   depends on the publishing mode, and the repository token is auto-provided so
+   it is always "ready" without a lookup (AC-64). Not blocking.
+9. **Should exported memory be re-exported when it changes?** Memory grows every
+   time someone uses the Learn action, but the committed file only updates on an
+   explicit "Update CI config" (AC-37). A deployment's memory therefore drifts
+   stale silently. Out of scope to solve here; flagged so the staleness is known
+   rather than surprising.

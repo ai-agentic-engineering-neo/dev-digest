@@ -38,7 +38,17 @@ _None yet._
 
 ## What Doesn't Work
 
-_None yet._
+- **2026-08-21** — `runs.flatMap((r) => r.findings)` on the PR detail page
+  (`page.tsx`) aggregates findings across EVERY historical review run for
+  the PR, not just the latest — and `FindingRecord.dismissed_at` was not
+  filtered before deriving `lethalTrifecta` from it. Result: dismissing a
+  confirmed-false-positive `lethal_trifecta` finding on one run left the
+  "Lethal Trifecta detected" banner showing on every later (clean) run for
+  the rest of the PR's life — dismissal looked like it did nothing. Any new
+  aggregate derived from `allFindings` on this page (there's also
+  `findingsCount` and the `DiffTab` findings prop, both still unfiltered)
+  needs the same `dismissed_at === null` check considered explicitly, not
+  assumed. `client/src/app/repos/[repoId]/pulls/[number]/page.tsx:94-98`
 
 ## Codebase Patterns
 

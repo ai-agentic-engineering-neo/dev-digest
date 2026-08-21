@@ -11,6 +11,8 @@ import type {
   OpenPrPayload,
   CommitFilesPayload,
   IssueMeta,
+  WorkflowRun,
+  RunArtifact,
 } from '@devdigest/shared';
 import { withRetry, withTimeout } from '../../platform/resilience.js';
 import { resolveLinkedIssue } from '../../modules/_shared/linked-issue.js';
@@ -358,5 +360,109 @@ export class OctokitGitHubClient implements GitHubClient {
       withTimeout(this.octokit.rest.users.getAuthenticated(), TIMEOUT),
     );
     return res.data.login;
+  }
+
+  async listWorkflowRuns(
+    repo: RepoRef,
+    opts: { workflowPath: string; perPage?: number },
+  ): Promise<WorkflowRun[]> {
+    return withRetry(() =>
+      withTimeout(
+        (async () => {
+          const res = await this.octokit.rest.actions.listWorkflowRuns({
+            owner: repo.owner,
+            repo: repo.name,
+            workflow_id: opts.workflowPath,
+            per_page: opts.perPage ?? 30,
+          });
+          return res.data.workflow_runs.map((r) => ({
+            id: r.id,
+            status: r.status ?? 'unknown',
+            conclusion: r.conclusion,
+            head_sha: r.head_sha,
+            html_url: r.html_url,
+            display_title: r.display_title ?? r.name ?? '',
+            created_at: r.created_at,
+            updated_at: r.updated_at,
+            run_started_at: r.run_started_at ?? null,
+            pull_requests: (r.pull_requests ?? []).map((pr) => pr.number),
+          }));
+        })(),
+        TIMEOUT,
+      ),
+    );
+  }
+
+  async listRunArtifacts(repo: RepoRef, runId: number): Promise<RunArtifact[]> {
+    return withRetry(() =>
+      withTimeout(
+        (async () => {
+          const res = await this.octokit.rest.actions.listWorkflowRunArtifacts({
+            owner: repo.owner,
+            repo: repo.name,
+            run_id: runId,
+            per_page: 100,
+          });
+          return res.data.artifacts.map((a) => ({
+            id: a.id,
+            name: a.name,
+            size_in_bytes: a.size_in_bytes,
+            expired: a.expired,
+          }));
+        })(),
+        TIMEOUT,
+      ),
+    );
+  }
+
+  async downloadArtifact(repo: RepoRef, artifactId: number): Promise<Uint8Array> {
+    return withRetry(() =>
+      withTimeout(
+        (async () => {
+          const res = await this.octokit.rest.actions.downloadArtifact({
+            owner: repo.owner,
+            repo: repo.name,
+            artifact_id: artifactId,
+            archive_format: 'zip',
+          });
+          // Octokit follows the redirect and returns the raw zip bytes as an
+          // ArrayBuffer in `.data` for this endpoint.
+          return new Uint8Array(res.data as ArrayBuffer);
+        })(),
+        TIMEOUT,
+      ),
+    );
+  }
+
+  /** NAMES only — this endpoint (GitHub Actions repo secrets) never returns
+   *  a secret's value; there is no method on this client that could.
+   *
+   *  A 403 here (the common case for a fine-grained local-mode PAT that
+   *  lacks the `Secrets: read` permission) is distinguished from "confirmed
+   *  no such secret" — this returns `null`, never an empty array, so the
+   *  caller (`CiService.secretStatus`, P-7) can render "unknown" rather than
+   *  wrongly telling the user to add a secret they may already have. */
+  async listRepoSecretNames(repo: RepoRef): Promise<string[] | null> {
+    try {
+      return await withRetry(() =>
+        withTimeout(
+          (async () => {
+            const res = await this.octokit.rest.actions.listRepoSecrets({
+              owner: repo.owner,
+              repo: repo.name,
+              per_page: 100,
+            });
+            return res.data.secrets.map((s) => s.name);
+          })(),
+          TIMEOUT,
+        ),
+      );
+    } catch (err) {
+      const status =
+        (err as { status?: number })?.status ??
+        (err as { response?: { status?: number } })?.response?.status;
+      if (status === 403) return null;
+      throw err;
+    }
   }
 }

@@ -11,6 +11,7 @@
     "test": "vitest run",
     "verify:l03": "vitest run src/modules/reviews/smart-diff.test.ts",
     "verify:l06": "vitest run src/modules/eval/scoring.test.ts src/modules/eval/frozen-input.test.ts test/eval-contract-parity.test.ts test/contracts.test.ts test/eval.it.test.ts",
+    "verify:l07": "vitest run test/ci-ingest.it.test.ts",
     "arch": "depcruise src --ignore-known",
     "arch:all": "depcruise src",
     "arch:baseline": "depcruise src --output-type baseline -f .dependency-cruiser-known-violations.json",
@@ -42,6 +43,7 @@
     "p-queue": "^8.0.1",
     "postgres": "^3.4.5",
     "simple-git": "^3.27.0",
+    "yaml": "^2.6.1",
     "zod": "^3.24.1"
   },
   "devDependencies": {

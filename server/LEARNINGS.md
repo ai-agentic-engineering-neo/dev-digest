@@ -825,6 +825,44 @@ the `LIMIT`'d row set and tie order deterministic. Generalizes: any query that
 intentionally omits `ORDER BY` to avoid biasing a limit/sample should still
 pick SOME deterministic tiebreaker column, never truly no order at all.
 
+### 2026-08-21 — testing a workspace-scoped route with NO resource-id path param needs an `auth` override, not just DB rows in a second workspace
+
+Building `test/ci-ingest.it.test.ts` (specs/14-export-to-ci.md, Phase D):
+`getContext` (every route) resolves `workspaceId` via
+`container.auth.currentWorkspace(req)` — **never** from a request param or
+from whatever rows a test happens to insert. The default `LocalNoAuthProvider`
+always resolves the ONE seeded workspace by name, cached per container
+instance, regardless of what a test writes directly to `t.workspaces`. This is
+invisible for routes keyed by a resource id (e.g. `brief.it.test.ts`'s AC-44
+test creates a second workspace + PR and asserts `GET /pulls/:id/brief` 404s
+for it — that works because the PR id alone, not the auth workspace, decides
+which row is read) but breaks completely for a workspace-wide route with no
+id at all (`POST /ci/refresh`, `GET /ci/runs`, `GET /agents/performance`): the
+route will ALWAYS operate against the default seeded workspace no matter which
+workspace the test's fixtures actually live in. Fix:
+`overrides: { auth: new MockAuthProvider(undefined, { id: workspaceId, name: '...' }) }`
+per `buildApp()` call, pointed at whichever workspace that test created.
+Generalizes to any future test of a global/workspace-wide route (list,
+refresh, aggregate) — check whether the route reads an id from the URL before
+assuming "insert a second workspace + assert it's excluded" is enough on its
+own.
+
+Separately, `MockGitHubClient.listWorkflowRuns`/`listRunArtifacts`/
+`downloadArtifact` (`src/adapters/mocks.ts`) ignore the `repo`/`RepoRef`
+argument entirely — they return whatever fixture the test scripted regardless
+of which installation is being queried. Since `CiService.refresh` iterates
+EVERY `ci_installations` row in a workspace per call, two installations
+sharing one workspace (or one workspace reused across several `it()` blocks in
+the same file) get "refreshed" against the SAME mocked GitHub fixture on every
+call — including the SAME provider `run.id` — which collides on `ci_runs`'
+`(workspace_id, provider_run_id)` unique index and silently overwrites one
+test's row with another's (`ciInstallationId` flips to whichever installation
+processed last in that refresh's loop; `refresh()`'s `ingested` count also
+inflates because it counts once per installation processed, not once per
+resulting row). Fix: give every CI-ingest test its own freshly-created
+workspace (`createWorkspace()` + a fresh agent + a fresh installation), never
+share the seeded workspace or reuse one across cases in the same file.
+
 ## Session Notes
 
 ### 2026-08-15 — a second round of test-writer passes (this time for `modules/onboarding/` and `modules/repo-intel/`) found the SAME stale-CRITICAL-premise pattern as the 2026-08-14 `modules/brief/` entry below, from the same DevDigest review run

@@ -261,6 +261,26 @@ model-authored or otherwise untrusted markdown through this primitive must do
 the same (validate/strip targets before they reach `Markdown.tsx`, not after)
 — this primitive will not save you.
 
+### 2026-08-21 — `pnpm exec vitest run "src/app/repos/[repoId]/.../**"` silently matches ZERO files; a dynamic-route path segment is a glob character class to vitest's CLI filter
+
+Running plans/13-multi-agent-review.md's own Phase B1 verification command
+(`vitest run "src/vendor/ui/kit/**" "src/lib/hooks/**"
+"src/app/repos/[repoId]/pulls/[number]/_components/FindingCard/**" ...`)
+printed `No test files found, exiting with code 1` — not an error naming the
+bad pattern, just a blanket "nothing matched" for the WHOLE command, even
+though `Dropdown.test.tsx`, `FindingCard.test.tsx` and `FindingsPanel.test.tsx`
+all genuinely exist. Vitest's CLI positional args are glob patterns, and
+`[repoId]`/`[number]` — real directory names in this App Router tree — parse
+as glob character classes (`[...]`), not literal brackets, so they match
+nothing. Quoting the argument does not help (that only stops the *shell* from
+glob-expanding it; vitest's own glob engine still sees the brackets). Fix:
+either pass the exact `*.test.tsx` file path(s) instead of a directory-glob
+suffix, or escape each bracket with a backslash (`\[repoId\]`) if a directory
+prefix is genuinely needed. `src/lib/hooks/**` matching zero files in the same
+run is NOT this bug — this repo has no hook-level tests at all (see the
+`useToast()` entry below), so that filter finding nothing is expected, not a
+silent failure.
+
 ### 2026-07-29 — `borderColor` is a shorthand too, and clashes with `borderLeftColor`
 
 `FindingCard/styles.ts` carried a comment warning "never mix `border`
@@ -400,6 +420,38 @@ exactly one `NavItemDef` in `NAV`'s array — also note lucide-react's
 unrelated `BarChart` was there) before the nav entry's `icon: "BarChart3"`
 would even typecheck. Grepping `nav.ts` for the route key before trusting any
 other "looks wired" signal remains the right first move.
+
+**2026-08-21 — a THIRD confirmed instance (specs/13-multi-agent-review.md,
+`/repos/:repoId/multi-agent`), and this time ALL FOUR of the other wirings
+were already pre-reserved.** `messages/en/shell.json`'s `nav["multi-agent"]:
+"Multi-Agent Review"` and `components/app-shell/helpers.ts:35`'s `if
+(pathname.includes("/multi-agent")) return "multi-agent";` (already correctly
+sitting *above* the `/pulls` check) both existed, and `Users` was already
+registered in `vendor/ui/icons.tsx` — the ONLY missing piece was, again, one
+`NavItemDef` in `NAV` plus one `ShortcutDef` in `SHORTCUTS`. Three-for-three
+now: whenever a spec pre-reserves a nav label/active-key/icon ahead of the
+route's implementation, assume `nav.ts` is the piece that got skipped and
+check it first, not last.
+
+### 2026-08-21 — additively widening a shared `vendor/ui/kit` primitive: add fields as optional, gate all new behavior on their presence, and the "old" call sites need zero changes or test updates
+
+`DropdownItemDef` (`vendor/ui/kit/types.ts`) needed multi-select rows for
+specs/13-multi-agent-review.md's agent picker (a `checked` state +
+`keepOpen`-on-activation), and `RepoSwitcher` plus every other existing
+`Dropdown` consumer in the product depend on the current single-select,
+close-on-click behavior. The safe shape: both new fields are optional with no
+default-changing side effect — `keepOpen` gates `onClose()` (`if
+(!it.keepOpen) onClose()` replacing the unconditional call), and `checked`
+(checked via `!== undefined`, not truthiness, so `checked: false` still opts a
+row into the checkbox-indicator rendering) gates only an ADDED checkbox
+indicator + `role="menuitemcheckbox"`/`aria-checked` — a row supplying
+neither field renders and behaves byte-for-byte as before. No existing
+`Dropdown` consumer or test needed a single line changed; the new coverage is
+one new `Dropdown.test.tsx` (none existed before) asserting both the
+unchanged default and the new opt-in behavior. This is the general recipe for
+widening any shared, no-second-owner `vendor/ui` primitive: new fields
+optional, new behavior gated strictly on the new field's presence (not a
+value that could coincide with "unset"), zero changes to the default path.
 
 ### 2026-08-03 — a repo-scoped feature route (`/repos/:repoId/...`) has its own established pattern; don't reach for the workspace-scoped one
 

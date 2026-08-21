@@ -135,6 +135,20 @@ export function FindingCard({
             >
               {t("finding.dismiss")}
             </Button>
+            {/* specs/13-multi-agent-review.md D25 — Learn is deliberately NOT
+                gated behind triage state (unlike "turn into eval case" below):
+                it records a repo-scoped note from the finding as-is, so it
+                appears on every finding here and on the multi-agent results
+                tab alike. */}
+            <Button
+              kind="ghost"
+              size="sm"
+              icon="Brain"
+              disabled={pending}
+              onClick={() => onAction?.("learn")}
+            >
+              {t("finding.learn")}
+            </Button>
             {/* AC-2: only once this finding has been triaged — the server
                 refuses the untriaged case too, but hiding it here saves the
                 round trip and the confusing 422. */}

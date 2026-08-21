@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { Verdict, Finding } from './findings.js';
-import { EvalRun, EvalOwnerKind, Conformance } from './knowledge.js';
+import { EvalRun, EvalOwnerKind, EvalExpectation, EvalCaseMeta, Conformance } from './knowledge.js';
 
 /**
  * A4 — Eval / CI / Compose / Conformance API contracts (L06).
@@ -13,80 +13,177 @@ import { EvalRun, EvalOwnerKind, Conformance } from './knowledge.js';
  */
 
 // ===========================================================================
-// Eval — case input + persisted run record + dashboard
+// Eval — case input + persisted SUITE run record + dashboard (L06)
 // ===========================================================================
 
-/** Create/update payload for an eval case (id + owner resolved by the route). */
+/** Create/update payload for an eval case (D16's frozen-input shape; owner
+ *  is resolved by the route, never taken from the body — AC-54). */
 export const EvalCaseInput = z.object({
-  owner_kind: EvalOwnerKind,
-  owner_id: z.string(),
   name: z.string().min(1),
-  input_diff: z.string().default(''),
-  input_files: z.unknown().nullish(),
-  input_meta: z.unknown().nullish(),
-  expected_output: z.unknown(),
   notes: z.string().nullish(),
+  input_diff: z.string().min(1),
+  input_files: z.array(z.string()),
+  input_meta: EvalCaseMeta,
+  expectation: EvalExpectation,
 });
 export type EvalCaseInput = z.infer<typeof EvalCaseInput>;
 
-/** A persisted eval run row (one execution of a case), returned by the API. */
+/** POST /findings/:id/eval-case request body — the finding id is already the
+ *  route param, so nothing is duplicated here besides the confirmation shape
+ *  the route needs; kept as a named contract for parity with the others. */
+export const EvalCaseFromFindingInput = z.object({
+  finding_id: z.string().uuid(),
+});
+export type EvalCaseFromFindingInput = z.infer<typeof EvalCaseFromFindingInput>;
+
+export const EvalRunStatus = z.enum(['running', 'completed', 'errored']);
+export type EvalRunStatus = z.infer<typeof EvalRunStatus>;
+
+/**
+ * Q1 — a persisted eval SUITE run: one agent against its whole case set
+ * (D2). Reshaped from the reserved per-CASE-execution row: `case_id`,
+ * `actual_output` and `pass` are gone; `case_ids`/`agent_version`/`metrics`
+ * are new. `metrics` is null while `status === 'running'`.
+ */
 export const EvalRunRecord = z.object({
   id: z.string(),
-  case_id: z.string(),
-  case_name: z.string().nullish(),
-  ran_at: z.string(),
-  actual_output: z.unknown(),
-  pass: z.boolean().nullable(),
-  recall: z.number().nullable(),
-  precision: z.number().nullable(),
-  citation_accuracy: z.number().nullable(),
+  owner_kind: EvalOwnerKind,
+  owner_id: z.string(),
+  agent_name: z.string().nullish(),
+  status: EvalRunStatus,
+  started_at: z.string(),
+  finished_at: z.string().nullable(),
+  agent_version: z.number().int().nullable(),
+  case_ids: z.array(z.string()),
+  metrics: EvalRun.nullable(),
   duration_ms: z.number().int().nullable(),
   cost_usd: z.number().nullable(),
+  error_reason: z.string().nullable(),
 });
 export type EvalRunRecord = z.infer<typeof EvalRunRecord>;
 
-/** Result of running a single case: the metrics (EvalRun) + the persisted row id. */
+/** AC-24/AC-25 — stated before any execution starts. */
+export const EvalRunEstimate = z.object({
+  agents_total: z.number().int(),
+  cases_total: z.number().int(),
+  executions_total: z.number().int(),
+});
+export type EvalRunEstimate = z.infer<typeof EvalRunEstimate>;
+
+/** Response of `POST /agents/:id/eval/runs` — the start response (Q3: the
+ *  client polls `GET /eval/runs/:id` for completion, no SSE). */
 export const EvalRunResult = z.object({
   run_id: z.string(),
-  case_id: z.string(),
-  result: EvalRun,
+  status: EvalRunStatus,
+  estimate: EvalRunEstimate,
 });
 export type EvalRunResult = z.infer<typeof EvalRunResult>;
 
-/** One point on the dashboard trend (per run, chronological). */
+/** Response of `POST /eval/runs/all` — AC-25/AC-42: per-agent success or
+ *  failure, never one combined verdict. */
+export const EvalRunAllResult = z.object({
+  estimate: EvalRunEstimate,
+  started: z.array(
+    z.object({
+      agent_id: z.string(),
+      agent_name: z.string(),
+      run_id: z.string().nullable(),
+      refused_reason: z.string().nullable(),
+    }),
+  ),
+});
+export type EvalRunAllResult = z.infer<typeof EvalRunAllResult>;
+
+/** One point on an agent's trend (per completed run, chronological). */
 export const EvalTrendPoint = z.object({
+  run_id: z.string(),
   ran_at: z.string(),
-  recall: z.number(),
-  precision: z.number(),
-  citation_accuracy: z.number(),
+  agent_version: z.number().int().nullable(),
+  recall: z.number().nullable(),
+  precision: z.number().nullable(),
+  citation_accuracy: z.number().nullable(),
   pass_rate: z.number(),
   cost_usd: z.number().nullable(),
 });
 export type EvalTrendPoint = z.infer<typeof EvalTrendPoint>;
 
-/** Aggregate dashboard for an owner (agent/skill) or the whole workspace. */
-export const EvalDashboard = z.object({
-  owner_kind: EvalOwnerKind.nullable(),
-  owner_id: z.string().nullable(),
+/**
+ * D12/AC-45 — the dashboard/detail callout. STRUCTURED, not a sentence: the
+ * client renders it from `messages/en/eval.json`, which is what keeps it
+ * non-model-authored (N1) and makes "no causal clause when `case_transitions`
+ * is empty" a rendering invariant rather than a string-building one.
+ */
+export const EvalCallout = z.object({
+  metric: z.enum(['recall', 'precision', 'citation_accuracy']),
+  direction: z.enum(['up', 'down']),
+  magnitude: z.number(),
+  agent_version: z.number().int().nullable(),
+  case_transitions: z.array(
+    z.object({ case_id: z.string(), name: z.string(), from: z.boolean(), to: z.boolean() }),
+  ),
+});
+export type EvalCallout = z.infer<typeof EvalCallout>;
+
+/** GET /eval/dashboard — one row per agent that has eval cases (AC-40). */
+export const EvalAgentSummary = z.object({
+  agent_id: z.string(),
+  agent_name: z.string(),
   cases_total: z.number().int(),
-  current: z.object({
-    recall: z.number(),
-    precision: z.number(),
-    citation_accuracy: z.number(),
-    traces_passed: z.number().int(),
-    traces_total: z.number().int(),
-    cost_usd: z.number().nullable(),
-  }),
-  delta: z.object({
-    recall: z.number(),
-    precision: z.number(),
-    citation_accuracy: z.number(),
-  }),
+  latest: EvalRunRecord.nullable(),
   trend: z.array(EvalTrendPoint),
+});
+export type EvalAgentSummary = z.infer<typeof EvalAgentSummary>;
+
+/** GET /eval/dashboard — workspace-level (AC-40, AC-41); NOT repo-scoped. */
+export const EvalDashboard = z.object({
+  agents: z.array(EvalAgentSummary),
   recent_runs: z.array(EvalRunRecord),
-  alert: z.string().nullable(),
 });
 export type EvalDashboard = z.infer<typeof EvalDashboard>;
+
+/**
+ * GET /eval/agents/:id — one agent's eval detail (AC-44/AC-45/AC-48).
+ * `delta`/`callout` are null when fewer than two completed runs exist —
+ * that IS AC-48's "no deltas, no comparison affordance" expressed in the
+ * contract, not a UI-side branch on a count.
+ */
+export const EvalAgentDetail = z.object({
+  agent_id: z.string(),
+  agent_name: z.string(),
+  cases_total: z.number().int(),
+  runs: z.array(EvalRunRecord),
+  current: EvalRun.nullable(),
+  delta: z
+    .object({
+      recall: z.number().nullable(),
+      precision: z.number().nullable(),
+      citation_accuracy: z.number().nullable(),
+    })
+    .nullable(),
+  trend: z.array(EvalTrendPoint),
+  callout: EvalCallout.nullable(),
+});
+export type EvalAgentDetail = z.infer<typeof EvalAgentDetail>;
+
+/** GET /eval/compare?a=&b= — exactly two runs of ONE agent (AC-32/33/34). */
+export const EvalCompare = z.object({
+  old: EvalRunRecord,
+  new: EvalRunRecord,
+  common_case_ids: z.array(z.string()),
+  only_in_old: z.array(z.string()),
+  only_in_new: z.array(z.string()),
+  deltas: z.object({
+    recall: z.number().nullable(),
+    precision: z.number().nullable(),
+    citation_accuracy: z.number().nullable(),
+  }),
+  /** Line-oriented system-prompt diff (AC-34) — added/removed/context, never
+   *  a unified-diff string the client would have to parse. */
+  prompt_diff: z.array(
+    z.object({ kind: z.enum(['added', 'removed', 'context']), text: z.string() }),
+  ),
+});
+export type EvalCompare = z.infer<typeof EvalCompare>;
 
 // ===========================================================================
 // Compose Review

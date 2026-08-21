@@ -10,6 +10,9 @@ import {
   API_CONTRACT_REVIEWER_PROMPT,
 } from './seed-prompts.js';
 import { SEED_SKILLS, SEED_AGENT_SKILLS } from './seed-skills.js';
+import { EVAL_FIXTURE_PR, EVAL_FIXTURE_CASES } from './seed-eval-cases.js';
+import { synthesizeFrozenDiff } from '../modules/eval/frozen-input.js';
+import type { EvalCaseMeta, EvalExpectation } from '@devdigest/shared';
 
 /** Default provider/model for the built-in reviewer agents. */
 const DEFAULT_PROVIDER = 'openrouter' as const;
@@ -180,6 +183,46 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
     ]);
   }
 
+  // ---- fixture PR #491 (specs/12-eval-pipeline.md D22/Q4) ----
+  // A second PR on the SAME demo repo, with REAL `pr_files.patch` text
+  // (unlike PR #482, whose patch is null on every row) — the prerequisite
+  // for the seven fixture eval cases below, each of which needs a real hunk
+  // to ground its expectation against (AC-6).
+  let [evalPr] = await db
+    .select()
+    .from(t.pullRequests)
+    .where(and(eq(t.pullRequests.repoId, repoId), eq(t.pullRequests.number, EVAL_FIXTURE_PR.number)));
+  if (!evalPr) {
+    [evalPr] = await db
+      .insert(t.pullRequests)
+      .values({
+        workspaceId,
+        repoId,
+        number: EVAL_FIXTURE_PR.number,
+        title: EVAL_FIXTURE_PR.title,
+        author: EVAL_FIXTURE_PR.author,
+        branch: EVAL_FIXTURE_PR.branch,
+        base: EVAL_FIXTURE_PR.base,
+        headSha: EVAL_FIXTURE_PR.headSha,
+        additions: EVAL_FIXTURE_PR.files.reduce((n, f) => n + f.additions, 0),
+        deletions: EVAL_FIXTURE_PR.files.reduce((n, f) => n + f.deletions, 0),
+        filesCount: EVAL_FIXTURE_PR.files.length,
+        status: 'needs_review',
+        body: EVAL_FIXTURE_PR.body,
+      })
+      .returning();
+
+    await db.insert(t.prFiles).values(
+      EVAL_FIXTURE_PR.files.map((f) => ({
+        prId: evalPr!.id,
+        path: f.path,
+        additions: f.additions,
+        deletions: f.deletions,
+        patch: f.patch,
+      })),
+    );
+  }
+
   // ---- built-in agents (the three starter presets) ----
   // Prompt bodies live in ./seed-prompts.ts (mirrored in docs/agent-prompts/*.md).
   const seedAgents: Array<typeof t.agents.$inferInsert> = [
@@ -296,6 +339,64 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
         .insert(t.agentSkills)
         .values({ agentId: agent.id, skillId, order, enabled: true })
         .onConflictDoNothing();
+    }
+  }
+
+  // ---- eval cases (specs/12-eval-pipeline.md D22/Q4) ----
+  // Seven fixture cases for the Security Reviewer, both expectation types
+  // represented. `source_finding_id` is null — these are fixtures, not
+  // derived from a triaged finding, which leaves the LIVE 8th case free to
+  // be created on camera during the AC-1…AC-7 demonstration. No `eval_runs`
+  // are seeded, consistent with this file's "no run history is fabricated
+  // here" posture above (AC-47's empty state).
+  const [securityReviewer] = await db
+    .select()
+    .from(t.agents)
+    .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, 'Security Reviewer')));
+  if (securityReviewer) {
+    const existingCases = await db
+      .select({ id: t.evalCases.id })
+      .from(t.evalCases)
+      .where(
+        and(
+          eq(t.evalCases.workspaceId, workspaceId),
+          eq(t.evalCases.ownerKind, 'agent'),
+          eq(t.evalCases.ownerId, securityReviewer.id),
+        ),
+      );
+    if (existingCases.length === 0) {
+      const patchByPath = new Map(EVAL_FIXTURE_PR.files.map((f) => [f.path, f.patch]));
+      await db.insert(t.evalCases).values(
+        EVAL_FIXTURE_CASES.map((c) => {
+          const patch = patchByPath.get(c.file)!;
+          const expectation: EvalExpectation = {
+            type: c.type,
+            file: c.file,
+            start_line: c.start_line,
+            end_line: c.end_line,
+            severity: c.severity,
+            category: c.category,
+            title: c.title,
+          };
+          const inputMeta: EvalCaseMeta = {
+            pr_number: EVAL_FIXTURE_PR.number,
+            title: EVAL_FIXTURE_PR.title,
+            body: EVAL_FIXTURE_PR.body,
+          };
+          return {
+            workspaceId,
+            ownerKind: 'agent' as const,
+            ownerId: securityReviewer.id,
+            name: c.name,
+            inputDiff: synthesizeFrozenDiff(c.file, patch),
+            inputFiles: [c.file],
+            inputMeta,
+            expectedOutput: expectation,
+            notes: null,
+            sourceFindingId: null,
+          };
+        }),
+      );
     }
   }
 

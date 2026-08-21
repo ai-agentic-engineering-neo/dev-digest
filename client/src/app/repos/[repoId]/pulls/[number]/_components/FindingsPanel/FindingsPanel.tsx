@@ -7,8 +7,12 @@ import { useTranslations } from "next-intl";
 import { Toggle, EmptyState } from "@devdigest/ui";
 import type { FindingRecord } from "@devdigest/shared";
 import { FindingCard } from "../FindingCard";
+import type { FindingCardAction } from "../FindingCard";
 import { SEV_COLOR, SEV_COLOR_FALLBACK } from "../FindingCard/constants";
 import { useFindingAction } from "../../../../../../../lib/hooks/reviews";
+import { useCreateEvalCaseFromFinding } from "../../../../../../../lib/hooks/eval";
+import { useToast } from "../../../../../../../lib/toast";
+import { ApiError } from "../../../../../../../lib/api";
 import { KEY_TO_ACTION } from "./constants";
 import { visibleFindings, countBySeverity, bySeverity } from "./helpers";
 import { s } from "./styles";
@@ -33,6 +37,8 @@ export function FindingsPanel({
 }) {
   const t = useTranslations("prReview");
   const action = useFindingAction();
+  const createEvalCase = useCreateEvalCaseFromFinding();
+  const toast = useToast();
   const [hideLow, setHideLow] = React.useState(false);
   const [severity, setSeverity] = React.useState<string | null>(null);
   const [focusIdx, setFocusIdx] = React.useState(0);
@@ -58,6 +64,29 @@ export function FindingsPanel({
   const toggleSeverity = React.useCallback(
     (sev: string) => setSeverity((cur) => (cur === sev ? null : sev)),
     [],
+  );
+
+  // AC-2/AC-1 — "turn into eval case" is a DIFFERENT endpoint than
+  // accept/dismiss/learn/reply, so it branches here rather than joining
+  // `useFindingAction`'s `FindingActionKind` mutation. The idempotent path
+  // (D17 — a case already exists for this finding) gets its own toast
+  // copy, never "created".
+  const handleAction = React.useCallback(
+    (findingId: string, act: FindingCardAction) => {
+      if (act === "turnIntoEvalCase") {
+        createEvalCase.mutate(findingId, {
+          onSuccess: ({ created }) => {
+            toast.success(created ? t("finding.turnIntoEvalCaseCreated") : t("finding.turnIntoEvalCaseExists"));
+          },
+          onError: (err) => {
+            toast.error(err instanceof ApiError ? err.message : t("finding.turnIntoEvalCaseError"));
+          },
+        });
+        return;
+      }
+      action.mutate({ findingId, action: act, prId });
+    },
+    [action, createEvalCase, prId, t, toast],
   );
 
   // j/k navigation + a/d shortcuts on the focused finding (keyboard).
@@ -115,7 +144,7 @@ export function FindingsPanel({
               headSha={headSha}
               targetFindingId={targetFindingId}
               targetFindingNonce={targetFindingNonce}
-              onAction={(act) => action.mutate({ findingId: f.id, action: act, prId })}
+              onAction={(act) => handleAction(f.id, act)}
             />
           ))
         )}

@@ -139,15 +139,45 @@ describe('AI contracts parse fixtures', () => {
       }),
     ).not.toThrow();
     expect(() =>
+      // specs/12-eval-pipeline.md Q1 — `EvalRun` reshaped from a per-trace
+      // fixture (`per_trace`) into the SET-LEVEL suite-run shape
+      // (`per_case`, `cases_errored`, nullable ratios).
       EvalRun.parse({
         recall: 0.82,
         precision: 0.91,
         citation_accuracy: 0.95,
         traces_passed: 17,
         traces_total: 20,
+        cases_errored: 0,
         duration_ms: 12000,
         cost_usd: 0.23,
-        per_trace: [{ name: 't01', pass: true, expected: 'x', actual: 'x' }],
+        per_case: [
+          {
+            case_id: 'c01',
+            name: 't01',
+            expectation_type: 'must_find',
+            status: 'scored',
+            pass: true,
+            error_reason: null,
+            findings_total: 1,
+            findings_matched: 1,
+            grounding_kept: 1,
+            grounding_total: 1,
+            duration_ms: 600,
+            cost_usd: 0.01,
+            actual: [
+              {
+                file: 'src/a.ts',
+                start_line: 10,
+                end_line: 10,
+                severity: 'WARNING',
+                category: 'security',
+                title: 'x',
+                matched: true,
+              },
+            ],
+          },
+        ],
       }),
     ).not.toThrow();
     expect(() =>

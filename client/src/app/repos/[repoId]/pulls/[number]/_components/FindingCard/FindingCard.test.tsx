@@ -58,3 +58,24 @@ describe("FindingCard (smoke, both themes)", () => {
     expect(onAction).toHaveBeenCalledWith("dismiss");
   });
 });
+
+describe("FindingCard — turn into eval case (specs/12-eval-pipeline.md AC-2)", () => {
+  it("is absent on an untriaged finding", () => {
+    renderWithIntl(<FindingCard f={FINDING} defaultExpanded onAction={() => {}} />);
+    expect(screen.queryByText("Turn into eval case")).not.toBeInTheDocument();
+  });
+
+  it("renders once accepted, and fires the action through the same onAction prop", () => {
+    const onAction = vi.fn();
+    const accepted = { ...FINDING, accepted_at: "2026-01-01T00:00:00.000Z" };
+    renderWithIntl(<FindingCard f={accepted} defaultExpanded onAction={onAction} />);
+    fireEvent.click(screen.getByText("Turn into eval case"));
+    expect(onAction).toHaveBeenCalledWith("turnIntoEvalCase");
+  });
+
+  it("renders once dismissed too", () => {
+    const dismissed = { ...FINDING, dismissed_at: "2026-01-01T00:00:00.000Z" };
+    renderWithIntl(<FindingCard f={dismissed} defaultExpanded onAction={() => {}} />);
+    expect(screen.getByText("Turn into eval case")).toBeInTheDocument();
+  });
+});

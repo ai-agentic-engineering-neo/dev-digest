@@ -37,6 +37,8 @@ import { OnboardingService } from '../modules/onboarding/service.js';
 import { BriefRepository } from '../modules/brief/repository.js';
 import { BriefService } from '../modules/brief/service.js';
 import { readSpecFile } from '../modules/brief/clone.js';
+import { EvalRepository } from '../modules/eval/repository.js';
+import { EvalService } from '../modules/eval/service.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
 import { resolveFeatureModel as resolveFeatureModelForWorkspace } from '../modules/settings/feature-models.js';
@@ -97,6 +99,8 @@ export class Container {
   private _onboardingService?: OnboardingService;
   private _briefRepo?: BriefRepository;
   private _briefService?: BriefService;
+  private _evalRepo?: EvalRepository;
+  private _evalService?: EvalService;
   private _repoIntel?: RepoIntel;
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
@@ -224,6 +228,34 @@ export class Container {
       () => this.github(),
       readSpecFile,
       this.tokenizer,
+      (model, tokensIn, tokensOut) => this.priceBook.estimate(model, tokensIn, tokensOut),
+      console,
+    ));
+  }
+
+  /** specs/12-eval-pipeline.md (L06) — the `eval_cases`/`eval_runs` tables,
+   *  reshaped in place (D1). Also satisfies D18's cascade port structurally
+   *  (`deleteForOwner`) — wired directly into `AgentsService` at
+   *  `modules/agents/routes.ts`, no `evalService` involved. */
+  get evalRepo(): EvalRepository {
+    return (this._evalRepo ??= new EvalRepository(this.db));
+  }
+
+  /**
+   * Application service for the Eval Pipeline — case CRUD, run lifecycle,
+   * dashboard/detail/compare assembly, stale-run reconciliation. Shared
+   * getter (`briefService`'s shape) so `routes.ts` reads
+   * `container.evalService` rather than constructing a new instance per
+   * request, and `server.ts`'s boot-time reconcile call
+   * (`evalService.reconcileStaleRuns()`) hits the same repository the
+   * routes use.
+   */
+  get evalService(): EvalService {
+    return (this._evalService ??= new EvalService(
+      this.evalRepo,
+      this.agentsRepo,
+      this.agentsRepo,
+      (id) => this.llm(id),
       (model, tokensIn, tokensOut) => this.priceBook.estimate(model, tokensIn, tokensOut),
       console,
     ));

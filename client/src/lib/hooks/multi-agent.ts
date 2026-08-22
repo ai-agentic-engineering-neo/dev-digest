@@ -25,6 +25,12 @@ export function useMultiAgentRun(prId: string | null | undefined) {
     enabled: !!prId,
     refetchInterval: (query) =>
       (query.state.data?.columns ?? []).some((c) => c.status === "running") ? 4000 : false,
+    // A 404 ("no multi-agent run for this PR yet") is an expected, common
+    // outcome (AC-51) — not a transient failure to retry, matching
+    // `useRunTrace`'s (hooks/trace.ts) same "genuinely missing" precedent.
+    // Without this, react-query's default 3-retry backoff delays the empty
+    // state by several seconds on every PR that has never had a run.
+    retry: false,
   });
 }
 

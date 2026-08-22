@@ -13,6 +13,10 @@ vi.mock("../../../../../../../lib/hooks/agents", () => ({
 vi.mock("../../../../../../../lib/hooks/reviews", () => ({
   useRunReview: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
+vi.mock("../../../../../../../lib/hooks/multi-agent", () => ({
+  useAgentRunEstimates: () => ({ data: [] }),
+  useStartMultiAgentRun: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}));
 
 import { PrDetailHeader } from "./PrDetailHeader";
 
@@ -52,6 +56,7 @@ describe("PrDetailHeader — no confidence badge (specs/05-intent-layer.md revis
       <PrDetailHeader
         pr={{ ...BASE_PR, intent: "Adds rate limiting to the public API endpoints." } as PrDetail}
         prId="pr-1"
+        repoId="repo-1"
         tab="overview"
         findingsCount={0}
         onSetTab={() => {}}
@@ -72,6 +77,7 @@ describe("PrDetailHeader — no confidence badge (specs/05-intent-layer.md revis
       <PrDetailHeader
         pr={BASE_PR}
         prId="pr-1"
+        repoId="repo-1"
         tab="overview"
         findingsCount={0}
         onSetTab={() => {}}
@@ -80,5 +86,44 @@ describe("PrDetailHeader — no confidence badge (specs/05-intent-layer.md revis
       />,
     );
     expect(screen.queryByText(/Intent:/)).not.toBeInTheDocument();
+  });
+});
+
+describe("PrDetailHeader — AC-68 resume affordance", () => {
+  it("shows no multi-agent-results affordance when the PR has no multi-agent run", () => {
+    renderWithIntl(
+      <PrDetailHeader
+        pr={BASE_PR}
+        prId="pr-1"
+        repoId="repo-1"
+        tab="overview"
+        findingsCount={0}
+        onSetTab={() => {}}
+        onRunStart={() => {}}
+        onRunsStarted={() => {}}
+      />,
+    );
+    expect(screen.queryByText("Multi-agent results")).not.toBeInTheDocument();
+  });
+
+  it("shows a direct, navigation-only affordance when this PR already has a multi-agent run", () => {
+    const onOpenMultiAgent = vi.fn();
+    renderWithIntl(
+      <PrDetailHeader
+        pr={BASE_PR}
+        prId="pr-1"
+        repoId="repo-1"
+        tab="overview"
+        findingsCount={0}
+        onSetTab={() => {}}
+        onRunStart={() => {}}
+        onRunsStarted={() => {}}
+        hasMultiAgentRun
+        onOpenMultiAgent={onOpenMultiAgent}
+      />,
+    );
+    const button = screen.getByText("Multi-agent results");
+    button.click();
+    expect(onOpenMultiAgent).toHaveBeenCalledTimes(1);
   });
 });

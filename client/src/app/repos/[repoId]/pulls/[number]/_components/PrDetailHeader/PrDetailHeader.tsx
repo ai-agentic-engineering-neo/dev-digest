@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback } from "react";
+import { useTranslations } from "next-intl";
 import { Icon, Avatar, Badge, Button, Tabs } from "@devdigest/ui";
 import { RunReviewDropdown } from "../RunReviewDropdown";
 import { s } from "./styles";
@@ -9,6 +10,9 @@ import type { PrDetail } from "@/lib/types";
 interface PrDetailHeaderProps {
   pr: PrDetail;
   prId: string | null;
+  /** specs/13-multi-agent-review.md D23/AC-68 — repo-scoped routes (the
+   *  multi-agent configure/results surfaces) need the active repo id. */
+  repoId: string;
   tab: string;
   findingsCount: number;
   /** github.com PR URL; null when the repo's full_name isn't known yet. */
@@ -16,18 +20,26 @@ interface PrDetailHeaderProps {
   onSetTab: (tab: string) => void;
   onRunStart: () => void;
   onRunsStarted: () => void;
+  /** AC-68 — true only when this PR already has a multi-agent run; shows a
+   *  direct affordance to the results surface. Navigation only — starts no run. */
+  hasMultiAgentRun?: boolean;
+  onOpenMultiAgent?: () => void;
 }
 
 export function PrDetailHeader({
   pr,
   prId,
+  repoId,
   tab,
   findingsCount,
   githubUrl,
   onSetTab,
   onRunStart,
   onRunsStarted,
+  hasMultiAgentRun = false,
+  onOpenMultiAgent,
 }: PrDetailHeaderProps) {
+  const t = useTranslations("prReview");
   const handleRunStart = useCallback(() => {
     onRunStart();
   }, [onRunStart]);
@@ -89,9 +101,15 @@ export function PrDetailHeader({
           >
             View on GitHub
           </Button>
+          {hasMultiAgentRun && (
+            <Button kind="ghost" size="sm" icon="Users" onClick={onOpenMultiAgent}>
+              {t("runReview.viewMultiAgentResults")}
+            </Button>
+          )}
           {prId && (
             <RunReviewDropdown
               prId={prId}
+              repoId={repoId}
               warnMerged={pr.status === "merged" || pr.status === "closed"}
               onRunStart={handleRunStart}
               onRunsStarted={handleRunsStarted}

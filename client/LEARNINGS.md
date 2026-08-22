@@ -31,6 +31,41 @@ there is the bug the whole format exists to prevent.
 
 ## Codebase Patterns
 
+### 2026-08-22 — D21's derived agent identity {color, icon} was NOT wired into `RunReviewDropdown`'s multi-select rows beyond the icon — the Dropdown extension's scope was already closed
+
+Building Phase B2 (plans/13-multi-agent-review.md), `agentIdentity()`
+(`multi-agent/[prId]/_components/MultiAgentResultsView/helpers.ts`) is reused
+with its real color in the configure surface's checkbox rows, but
+`RunReviewDropdown`'s new multi-select rows only take the `icon` half —
+`DropdownItemDef`/`Dropdown.tsx`'s additive extension (specs/13 §8, landed in
+Phase B1) added exactly `checked`/`keepOpen` and nothing else; there is no
+per-item color field to carry a swatch. Re-opening that extension to add one
+was out of this phase's scope (it's a shared primitive every dropdown in the
+product depends on, already shipped and tested). If a future session wants
+full color parity for agent identity in the PR-page picker, the seam is an
+additive `color?: string` on `DropdownItemDef` (rendered as a small swatch
+next to the checkbox indicator in `Dropdown.tsx`) — not a parallel dropdown
+or a fork.
+
+### 2026-08-22 — the multi-agent "conflicts-only" filter (AC-41) restricts by FILE, not by exact finding — the `Conflict` contract carries no finding id
+
+`ConflictsSection`'s "show only conflicts" toggle (specs/13-multi-agent-review.md
+AC-41) filters each layout's rendered findings down to
+`findings.filter(f => conflictFiles.has(f.file))`, where `conflictFiles` is
+just `new Set(conflicts.map(c => c.file))`. This is coarser than "the exact
+findings that anchor a conflict" — `Conflict`/`ConflictTake`
+(`contracts/observability.ts`) carry `file`+`line`+`title`+per-agent
+`verdict`/`note`, but no finding id, so a finding can't be matched to "is this
+specific finding part of a conflict" without re-deriving the server's own
+D-P1 (file-scoped-vs-line-scoped classification) and D-P3 (interval-merge)
+matching logic client-side — which the plan deliberately keeps server-only
+(D6/N13, "conflicts computed on read, never stored"). File-level filtering
+was the chosen, defensible approximation given the contract as shipped. A
+future session should not assume finer-grained (finding-level) filtering
+already exists here; delivering it would need either a contract change
+(finding ids on `ConflictTake`) or a dedicated detail endpoint, not a
+client-side reimplementation of the conflict-matching algorithm.
+
 ### 2026-08-12 — copying SkillsTab's "catalog + link-state" row model for a non-repo-authoritative catalog needs a union, not a lookup
 
 Building the agent/skill editors' Context tab (specs/09-project-context-folder.md),
@@ -280,6 +315,20 @@ prefix is genuinely needed. `src/lib/hooks/**` matching zero files in the same
 run is NOT this bug — this repo has no hook-level tests at all (see the
 `useToast()` entry below), so that filter finding nothing is expected, not a
 silent failure.
+
+**2026-08-22 — the bug is scoped ENTIRELY to vitest's own CLI positional-arg
+glob filter, never to the module graph itself.** Confirmed while building
+Phase B2 (plans/13-multi-agent-review.md): a literal bracket directory name
+inside a real `import ... from "..."` specifier — e.g. `MultiAgentConfigureView`
+and `RunReviewDropdown` both importing D21's identity helper from
+`@/app/repos/[repoId]/multi-agent/[prId]/_components/MultiAgentResultsView/helpers`
+— resolves cleanly under both `pnpm typecheck` (tsc path-alias resolution) and
+`pnpm build` (webpack's static import resolution). Neither ever glob-evaluates
+a module specifier; only vitest's CLI arg parser does. A cross-route-tree
+import that crosses two or three `[param]` folders is safe to write as-is and
+needs no escaping — only a vitest invocation that later tries to *target*
+that file by a bracket-containing path needs the file-path-not-glob
+workaround above.
 
 ### 2026-07-29 — `borderColor` is a shorthand too, and clashes with `borderLeftColor`
 

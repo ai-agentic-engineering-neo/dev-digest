@@ -1,0 +1,1 @@
+export { ConflictsSection } from "./ConflictsSection";

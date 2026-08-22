@@ -22,6 +22,7 @@ import {
   usePrRuns,
   useDeleteRun,
 } from "@/lib/hooks/reviews";
+import { useMultiAgentRun } from "@/lib/hooks/multi-agent";
 import { useActiveRepo, useRepoNotFound } from "@/lib/repo-context";
 import { ApiError } from "@/lib/api";
 import { githubPrUrl } from "@/lib/github-urls";
@@ -54,6 +55,10 @@ export function PrDetailView() {
   const { data: activeRuns } = usePrActiveRuns(prId);
   const { data: prRuns } = usePrRuns(prId);
   const deleteRun = useDeleteRun(prId);
+  // AC-68 — a direct affordance to the multi-agent results surface, shown
+  // only when this PR already has a multi-agent run. Navigation only; never
+  // starts a run (a 404, the common case, just means "none yet").
+  const { data: multiAgentRun } = useMultiAgentRun(prId);
   const liveRunIds = (activeRuns ?? []).map((r) => r.run_id);
   const reviewRunning = liveRunIds.length > 0;
   const cancel = useCancelRun();
@@ -166,12 +171,15 @@ export function PrDetailView() {
       <PrDetailHeader
         pr={pr}
         prId={prId}
+        repoId={repoId}
         tab={tab}
         findingsCount={findingsCount}
         githubUrl={repoFullName ? githubPrUrl(repoFullName, pr.number) : null}
         onSetTab={setTab}
         onRunStart={() => setTab("findings")}
         onRunsStarted={() => invalidateActiveRuns()}
+        hasMultiAgentRun={!!multiAgentRun}
+        onOpenMultiAgent={() => router.push(`/repos/${repoId}/multi-agent/${prId}`)}
       />
 
       <div style={s.body}>

@@ -239,6 +239,28 @@ added the three pieces for `intent` but deliberately left the pre-existing
 spec's "renders generically, no new code" claim about this component without
 checking `TraceBody.tsx` directly.
 
+### 2026-08-22 — `CiRun` (specs/14-export-to-ci.md, `contracts/eval-ci.ts`) carries no `agent_run_id`, so a CI run's row cannot open the shared `RunTraceDrawer` with real data
+
+`RunTraceDrawer` fetches a persisted trace via `useRunTrace(runId)` →
+`GET /runs/:id/trace`, keyed on an `agent_runs.id`. The already-committed
+`CiRun` API contract exposes `id` (the `ci_runs` row's own id),
+`provider_run_id` (the CI PROVIDER's run id) and `agent`/`agent_name` (the
+display name) — but never the `agent_runs.id` the ingest path itself creates
+(`server/src/modules/ci/service.ts persistRun()` writes it as
+`ci_runs.agent_run_id`, then never maps it onto the `CiRun` the API sends,
+confirmed via `toContractRun()` in the same file). Passing any of the ids the
+client DOES have to `useRunTrace` doesn't error — `RunTraceDrawer.tsx` already
+renders "No trace available yet" for an unresolvable id — which is exactly
+what makes this a silent trap: a CI run that DID capture a real trace would
+render identically to one that never captured one, with no signal anything
+is wrong. Built `/ci-runs` (`app/ci-runs/_components/CiRunsView/`) to link
+each row to its CI-provider URL (`github_url`) instead of wiring a
+guaranteed-degenerate trace-drawer button. Closing this needs a server change
+(`CiRun.agent_run_id: z.string().nullable()` + populating it in
+`toContractRun()`), which was out of this pass's scope (Phase E/client-only,
+Phase D already committed) — flag it explicitly rather than re-discovering it
+silently if `/ci-runs` grows a "View trace" affordance later.
+
 ## Tool & Library Notes
 
 ### 2026-08-13 — `src/vendor/ui/primitives/Markdown.tsx` sets no `urlTransform` and no `img` override — it does not constrain link/image targets
@@ -400,6 +422,23 @@ exactly one `NavItemDef` in `NAV`'s array — also note lucide-react's
 unrelated `BarChart` was there) before the nav entry's `icon: "BarChart3"`
 would even typecheck. Grepping `nav.ts` for the route key before trusting any
 other "looks wired" signal remains the right first move.
+
+**2026-08-22 — a third instance (specs/14-export-to-ci.md, `/ci-runs` +
+`/agent-performance`), and this time the OPPOSITE surprise from plan 12's
+`BarChart3`: both icons (`Play`/`Gauge`) were already in `vendor/ui/icons.tsx`'s
+registry, so zero icon work was needed.** By the time this Phase E pass
+started, an earlier pass in the same effort had already wired all four
+things for both routes — `nav.ts`'s `NAV` **and** `SHORTCUTS` entries
+(`g i` / `g f`), `messages/en/shell.json`'s `nav["ci-runs"]`/`nav["agent-
+performance"]`, and `components/app-shell/helpers.ts`'s `startsWith` branches
+for both paths. The only thing still missing was the fifth, unstated
+prerequisite this pattern's first two instances didn't have to name because
+it was trivially true for them: **the route itself** — `app/ci-runs/page.tsx`
+and `app/agent-performance/page.tsx` did not exist, so both nav entries
+pointed at 404s despite every wiring signal reading "done". Generalizing:
+"all four wirings present" is necessary but not sufficient — always confirm
+the route file (`app/<path>/page.tsx`) actually exists on disk before trusting
+`nav.ts` + i18n + `helpers.ts` as proof a feature is reachable.
 
 ### 2026-08-03 — a repo-scoped feature route (`/repos/:repoId/...`) has its own established pattern; don't reach for the workspace-scoped one
 

@@ -9,11 +9,14 @@
     "refreshing": "Refreshing…",
     "filters": {
       "last7Days": "Last 7 days",
+      "allTime": "All time",
       "allAgents": "All agents",
       "allRepos": "All repos",
-      "allStatuses": "All statuses"
+      "allStatuses": "All statuses",
+      "allSources": "All sources"
     },
     "table": {
+      "agent": "Agent",
       "timestamp": "Timestamp",
       "pullRequest": "Pull request",
       "source": "Source",
@@ -22,6 +25,8 @@
       "status": "Status"
     },
     "view": "View",
+    "viewProvider": "View on CI provider",
+    "noMatches": "No CI runs match these filters.",
     "status": {
       "succeeded": "Succeeded",
       "noFindings": "No findings",
@@ -60,7 +65,13 @@
     "filesToCreate": "FILES TO CREATE",
     "generating": "Generating…",
     "editable": "editable",
+    "contentsUnavailable": "Not shown inline (binary runner bundle file) — see path and byte size above.",
     "triggerLabel": "Trigger",
+    "triggers": {
+      "opened": "Opened",
+      "synchronize": "Updated (new commits)",
+      "reopened": "Reopened"
+    },
     "postResultsLabel": "Post results as",
     "postAs": {
       "githubReview": "GitHub review",
@@ -69,19 +80,46 @@
     },
     "blockMergeTitle": "Block merge on findings",
     "blockMergeDesc": "Requires a GitHub App — not available with PAT in local mode",
+    "secretsHeading": "Repository secrets",
+    "secretConfigured": "Configured",
+    "secretMissing": "Missing — add it before the workflow runs",
+    "secretUnknown": "Unknown — the connected credential can't check Actions secrets",
+    "secretProvidedByCi": "Provided automatically by CI",
     "installCardTitle": "Open a PR with these files",
     "installCardBody": "DevDigest opens a PR in {repo} titled “Add DevDigest CI review” with the {count} generated files.",
+    "archiveCardTitle": "Download as a zip archive",
+    "archiveCardBody": "Get the same files as a zip to add to the repository yourself — no write access needed.",
+    "downloadArchive": "Download archive",
+    "archiveError": "Could not generate the archive. Try again.",
+    "githubTokenAuto": "GITHUB_TOKEN is provided automatically by CI — nothing to add for it.",
+    "viewPr": "View pull request",
+    "exportError": "Could not open the pull request. Try again.",
     "ownerRepo": "owner/repo",
     "secretNote": "Add {key} to the repo's Actions secrets before the workflow runs."
   },
   "ciTab": {
     "heading": "Continuous Integration",
     "subtitle": "Run this agent automatically on pull requests in a target repo.",
+    "deployedCount": "Deployed to {count, plural, =0 {no repositories} one {# repository} other {# repositories}}",
     "exportToCi": "Export to CI",
+    "addRepo": "Add repository",
     "publish": "Publish to CI",
-    "update": "Update CI",
+    "update": "Update CI config",
+    "updateSuccess": "CI config updated.",
+    "updateError": "Could not update CI config. Try again.",
     "noRepo": "Connect a repository first",
-    "empty": "Not deployed to CI yet. Use “Publish to CI” to open a PR that adds the workflow + agent config.",
+    "gateHeading": "Merge gate",
+    "gateExplain": "Which findings should block a PR when this agent runs in CI.",
+    "gateError": "Could not update the gate policy. Try again.",
+    "gate": {
+      "critical": "Critical",
+      "warning": "Warning+",
+      "never": "Never"
+    },
+    "installationsHeading": "Deployed repositories",
+    "neverRan": "Never run",
+    "emptyTitle": "Not deployed to CI yet",
+    "empty": "Not deployed to CI yet. Use “Export to CI” to open a PR that adds the workflow + agent config.",
     "installed": "installed {date}"
   },
   "publishDialog": {

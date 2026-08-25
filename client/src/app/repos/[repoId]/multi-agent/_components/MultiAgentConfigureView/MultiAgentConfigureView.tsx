@@ -20,7 +20,9 @@ import { formatCost } from "@/lib/format";
 import { ApiError } from "@/lib/api";
 // D21 — the SAME derived-identity helper the results surface uses (no
 // per-agent colour/icon schema field, N14); do not duplicate the palette.
-import { agentIdentity } from "@/app/repos/[repoId]/multi-agent/[prId]/_components/MultiAgentResultsView/helpers";
+// Promoted to `@/lib/agent-identity` on its second consumer (this view) —
+// never reach into another route's private `_components` internals.
+import { agentIdentity } from "@/lib/agent-identity";
 import { aggregateEstimate } from "./helpers";
 import { s } from "./styles";
 

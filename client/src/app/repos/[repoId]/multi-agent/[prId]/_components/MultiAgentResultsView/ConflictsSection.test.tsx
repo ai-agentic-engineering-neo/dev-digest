@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { Conflict } from "@devdigest/shared/contracts/observability";
-import messages from "../../../../../../../../../../messages/en/runs.json";
+import messages from "../../../../../../../../messages/en/runs.json";
 import { ConflictsSection } from "./ConflictsSection";
 
 afterEach(cleanup);

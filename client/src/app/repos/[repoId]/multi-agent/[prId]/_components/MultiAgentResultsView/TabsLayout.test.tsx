@@ -3,7 +3,7 @@ import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { AgentColumn } from "@devdigest/shared/contracts/observability";
 import type { ReviewRecord } from "@devdigest/shared";
-import messages from "../../../../../../../../../../messages/en/runs.json";
+import messages from "../../../../../../../../messages/en/runs.json";
 
 // specs/13-multi-agent-review.md AC-34/D19 — TabsLayout reuses the EXISTING
 // FindingsPanel (which itself renders FindingCard with its full action set);

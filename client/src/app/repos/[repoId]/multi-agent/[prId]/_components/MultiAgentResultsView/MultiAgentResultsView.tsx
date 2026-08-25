@@ -19,9 +19,9 @@ import { formatCost } from "@/lib/format";
 // Cross route-tree reuse (AC-43..46/D13): the SAME RunTraceDrawer the PR
 // detail page mounts — no second drawer, no fork, no copy.
 import RunTraceDrawer from "@/app/repos/[repoId]/pulls/[number]/_components/RunTraceDrawer";
-import { ColumnsLayout } from "./_components/ColumnsLayout";
-import { TabsLayout } from "./_components/TabsLayout";
-import { ConflictsSection } from "./_components/ConflictsSection";
+import { ColumnsLayout } from "./ColumnsLayout";
+import { TabsLayout } from "./TabsLayout";
+import { ConflictsSection } from "./ConflictsSection";
 import { participatingCount, allFailed, sharedFailureReason } from "./helpers";
 import { s } from "./styles";
 

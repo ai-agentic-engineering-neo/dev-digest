@@ -36,13 +36,13 @@ vi.mock("@/lib/hooks/core", () => ({
 vi.mock("@/app/repos/[repoId]/pulls/[number]/_components/RunTraceDrawer", () => ({
   default: () => <div>trace-drawer</div>,
 }));
-vi.mock("./_components/ColumnsLayout", () => ({
+vi.mock("./ColumnsLayout", () => ({
   ColumnsLayout: () => <div>columns-layout</div>,
 }));
-vi.mock("./_components/TabsLayout", () => ({
+vi.mock("./TabsLayout", () => ({
   TabsLayout: () => <div>tabs-layout</div>,
 }));
-vi.mock("./_components/ConflictsSection", () => ({
+vi.mock("./ConflictsSection", () => ({
   ConflictsSection: () => <div>conflicts-section</div>,
 }));
 

@@ -8,6 +8,7 @@
 "use client";
 
 import React from "react";
+import type { CSSProperties } from "react";
 import { useTranslations } from "next-intl";
 import { Tabs, Button } from "@devdigest/ui";
 import type { AgentColumn } from "@devdigest/shared/contracts/observability";
@@ -15,9 +16,41 @@ import type { ReviewRecord } from "@devdigest/shared";
 // Cross route-tree reuse (D19/AC-34): the multi-agent tab's findings render
 // through the SAME FindingsPanel the PR review page uses, not a copy.
 import { FindingsPanel } from "@/app/repos/[repoId]/pulls/[number]/_components/FindingsPanel";
-import { agentIdentity, formatSeconds } from "../../helpers";
+import { agentIdentity } from "@/lib/agent-identity";
+import { formatSeconds } from "./helpers";
 import { formatCost } from "@/lib/format";
-import { s } from "./styles";
+
+const s = {
+  root: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 14,
+  } satisfies CSSProperties,
+  tabBody: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 12,
+  } satisfies CSSProperties,
+  tabMeta: {
+    display: "flex",
+    alignItems: "center",
+    gap: 14,
+    fontSize: 13,
+    color: "var(--text-muted)",
+  } satisfies CSSProperties,
+  summary: {
+    fontSize: 14,
+    color: "var(--text-secondary)",
+    lineHeight: 1.5,
+  } satisfies CSSProperties,
+  errorBox: {
+    padding: "10px 12px",
+    borderRadius: 6,
+    background: "var(--crit-bg)",
+    color: "var(--crit)",
+    fontSize: 13,
+  } satisfies CSSProperties,
+};
 
 export function TabsLayout({
   columns,

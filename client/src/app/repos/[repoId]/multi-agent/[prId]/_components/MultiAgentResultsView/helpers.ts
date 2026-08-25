@@ -1,40 +1,10 @@
 import type { IconName } from "@devdigest/ui";
 import type { AgentColumn } from "@devdigest/shared/contracts/observability";
 
-/**
- * specs/13-multi-agent-review.md D21 — derived visual identity: a PURE hash
- * from an agent id into a fixed {color, icon} pair. No schema field, no
- * stored value (N14) — the same agent renders identically on every surface
- * (configure, results columns/tabs, and the PR-page picker) and across
- * reloads, because the input (`agent_id`) never changes. Exported so
- * `MultiAgentConfigureView` can reuse the exact same palette — do not
- * duplicate it.
- */
-const IDENTITY_PALETTE: ReadonlyArray<{ color: string; icon: IconName }> = [
-  { color: "#3b82f6", icon: "Cpu" },
-  { color: "#10b981", icon: "Zap" },
-  { color: "#f59e0b", icon: "Bug" },
-  { color: "#8b5cf6", icon: "Shield" },
-  { color: "#ec4899", icon: "Target" },
-  { color: "#14b8a6", icon: "Gauge" },
-  { color: "#f43f5e", icon: "Boxes" },
-  { color: "#6366f1", icon: "Activity" },
-];
-
-function hashString(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return h;
-}
-
-export interface AgentIdentity {
-  color: string;
-  icon: IconName;
-}
-
-export function agentIdentity(agentId: string): AgentIdentity {
-  return IDENTITY_PALETTE[hashString(agentId) % IDENTITY_PALETTE.length]!;
-}
+// D21's derived visual identity ({color, icon} from an agent id) now lives in
+// `@/lib/agent-identity` — promoted out of this route-private module once
+// `MultiAgentConfigureView` (a sibling route) became its second consumer.
+// Import `agentIdentity`/`AgentIdentity` from there, not from here.
 
 /** Seconds-formatted duration, e.g. "8.2s". Deliberately NOT imported from
  *  `RunTraceDrawer/helpers.ts` (that file is colocated to a different

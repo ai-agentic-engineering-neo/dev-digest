@@ -490,6 +490,52 @@ than debugging a silently-empty `diff.files` after the fact.
 
 ## Tool & Library Notes
 
+### 2026-08-25 — specs/13-multi-agent-review.md Phase A1: the concurrent per-agent loop held AC-19/AC-20 by construction, with zero changes to `RunLogger`/`RunBus` — confirmed by a new test, not just re-asserted
+
+`run-executor.ts`'s per-agent job loop (`executeRuns`) went from a sequential
+`for…of` to `await Promise.allSettled(jobs.map(...))` over the byte-identical
+body (D16). The plan's own planner finding 3 predicted this stays safe purely
+because `RunLogger.forRun` returns a NEW instance (never mutates the parent)
+and `RunBus` keys emitters/buffers/seq/completed/cancelled by `runId`
+throughout — `run-executor.concurrency.test.ts` (new, colocated) now proves
+this against the REAL executor rather than trusting the prediction: four
+succeeding + one deliberately-throwing fake-LLM agents run concurrently, and
+each run's own `RunBus.buffer(runId)` contains only that run's own per-agent
+log lines (agent name, its failure text) alongside the shared pre-work lines
+("Diff ready…", fanned out before the loop) — no cross-run leakage in either
+direction. Same file also pins AC-16 (N agents at delay T complete in ~T, not
+~N×T, using a local `DelayedLLMProvider` since `src/adapters/mocks.ts`'s
+`MockLLMProvider` has no delay knob — built one locally rather than widening
+the shared mock for one timing-sensitive test), AC-17 (every other agent still
+persists its own review/findings when one agent's provider throws — the
+failing run never reaches `insertReview`, the succeeding ones do), and AC-18
+(the diff loads exactly once for the whole batch, asserted via a
+`container.git.diff` call counter, not per-agent).
+
+**New provider-load exposure this concurrency change creates, to be watched
+rather than rediscovered as an incident:** N agents now hit their configured
+LLM provider(s) SIMULTANEOUSLY instead of one at a time. A provider that
+throttles under concurrent load (e.g. per-key rate limits, concurrent-request
+caps) can now see a burst it never saw under the old sequential loop, even
+though the SAME total request volume crosses it either way. The plan
+deliberately ships no concurrency cap/queue for this slice (AC-59's copy is
+explicit that nothing here uses `p-queue` — introducing one now would be the
+exact regression that copy is written to prevent) — a throttled agent still
+fails in isolation (AC-17/AC-47), it just does so under a load pattern this
+codebase hasn't exercised before. If real usage shows provider throttling
+correlating with multi-agent batch size, the fix is a concurrency cap on the
+`jobs.map(...)` batch (e.g. a small worker-pool limiter), not reverting to the
+sequential loop.
+
+**The add-only migration behaved exactly as finding 5 predicted, no
+surprises.** `0023_flimsy_nick_fury.sql` (`agent_runs.multi_agent_run_id`, a
+nullable FK to `multi_agent_runs.id` with `ON DELETE set null`, plus its
+index) is a single `pnpm db:generate < /dev/null` pass containing only `ALTER
+TABLE ... ADD COLUMN`, one `ADD CONSTRAINT`, and one `CREATE INDEX` — no
+interactive rename prompt, confirming (again) that the 2026-08-03 hang below
+is specifically an add+drop-on-one-table trigger, not a general multi-statement
+one.
+
 ## Recurring Errors & Fixes
 
 ### 2026-07-28 — `.nullable()` on a shared contract breaks every fixture that builds it

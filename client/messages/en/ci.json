@@ -94,6 +94,8 @@
     "githubTokenAuto": "GITHUB_TOKEN is provided automatically by CI — nothing to add for it.",
     "viewPr": "View pull request",
     "exportError": "Could not open the pull request. Try again.",
+    "installSuccessNew": "Opened a new pull request with the DevDigest CI workflow.",
+    "installSuccessReused": "Pushed a new commit to the existing DevDigest CI pull request.",
     "ownerRepo": "owner/repo",
     "secretNote": "Add {key} to the repo's Actions secrets before the workflow runs."
   },

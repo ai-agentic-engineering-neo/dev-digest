@@ -15,11 +15,12 @@ import { api, apiFetch, API_BASE } from "../api";
 import type {
   CiExport,
   CiExportInputBody,
-  CiFile,
   CiInstallation,
-  CiRun,
+  CiPreview,
+  CiRefreshResult,
+  CiRunsPage,
   CiSecretStatus,
-  CiTarget,
+  CiTargetOption,
 } from "@devdigest/shared/contracts/eval-ci";
 
 /** `GET /agents/:id/ci/installations` — CI tab list row (AC-36). Not a
@@ -54,15 +55,18 @@ export const ciKeys = {
 export function useCiTargets() {
   return useQuery({
     queryKey: ciKeys.targets(),
-    queryFn: () => api.get<CiTarget[]>("/ci/targets"),
+    queryFn: () => api.get<CiTargetOption[]>("/ci/targets"),
     staleTime: Infinity,
   });
 }
 
-/** AC-3/AC-4c — regenerated on every input change, zero LLM call. Modeled as
- *  a query (not a mutation) so changing any Configure-step input naturally
- *  refetches via the query key, matching D4's "Configure regenerates the
- *  preview" requirement without a manual trigger. */
+/** AC-3/AC-4c/AC-64 — regenerated on every input change, zero LLM call.
+ *  Modeled as a query (not a mutation) so changing any Configure-step input
+ *  naturally refetches via the query key, matching D4's "Configure
+ *  regenerates the preview" requirement without a manual trigger. Returns
+ *  the `CiPreview` envelope (files + secret states + warnings) so the
+ *  Configure step reads secret state off THIS response instead of a second
+ *  round-trip. */
 export function useCiPreview(
   agentId: string | null | undefined,
   input: CiExportInputBody,
@@ -70,7 +74,7 @@ export function useCiPreview(
 ) {
   return useQuery({
     queryKey: ciKeys.preview(agentId, input),
-    queryFn: () => api.post<CiFile[]>(`/agents/${agentId}/ci/preview`, input),
+    queryFn: () => api.post<CiPreview>(`/agents/${agentId}/ci/preview`, input),
     enabled: enabled && !!agentId,
   });
 }
@@ -95,11 +99,17 @@ export function useCiSecretStatus(agentId: string | null | undefined, repo: stri
 }
 
 /** AC-5…AC-10a/AC-59 — the Install step's "Open a pull request" / "files"
- *  action. */
+ *  action. Uses `api.postWithStatus` (not `api.post`) because AC-7's
+ *  first-install-vs-republish distinction is carried ONLY by the HTTP status
+ *  — 201 on a genuine first install, 200 when an existing installation was
+ *  reused and republished — with an otherwise identical `CiExport` body
+ *  (finding 5, matching `useCreateEvalCaseFromFinding`'s established
+ *  201-vs-200 pattern in this same file's sibling module). */
 export function useExportCi(agentId: string | null | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: CiExportInputBody) => api.post<CiExport>(`/agents/${agentId}/export-ci`, input),
+    mutationFn: (input: CiExportInputBody) =>
+      api.postWithStatus<CiExport>(`/agents/${agentId}/export-ci`, input),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ciKeys.installations(agentId) });
     },
@@ -134,7 +144,10 @@ export function useRepublishCi(agentId: string | null | undefined) {
   });
 }
 
-/** AC-26…AC-28 — the CI Runs page's own list read (stored rows only). */
+/** AC-26…AC-28 — the CI Runs page's own list read (stored rows only).
+ *  Returns the `CiRunsPage` envelope (runs + the agent/repo filter
+ *  vocabularies computed from this SAME read) so the view never derives
+ *  those option lists from the — possibly filtered — row set it renders. */
 export function useCiRuns(filters: CiRunFiltersInput) {
   const params = new URLSearchParams();
   for (const [k, v] of Object.entries(filters)) {
@@ -143,7 +156,7 @@ export function useCiRuns(filters: CiRunFiltersInput) {
   const qs = params.toString();
   return useQuery({
     queryKey: ciKeys.runs(filters),
-    queryFn: () => apiFetch<CiRun[]>(`/ci/runs${qs ? `?${qs}` : ""}`),
+    queryFn: () => apiFetch<CiRunsPage>(`/ci/runs${qs ? `?${qs}` : ""}`),
     // AC-29 — react-query's own `refetchIntervalInBackground: false` default
     // suspends this while the page/tab is hidden; no manual listener needed.
     refetchInterval: 30_000,
@@ -155,8 +168,7 @@ export function useCiRuns(filters: CiRunFiltersInput) {
 export function useRefreshCiRuns() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (force: boolean) =>
-      api.post<{ ingested: number; degraded: boolean }>("/ci/refresh", { force }),
+    mutationFn: (force: boolean) => api.post<CiRefreshResult>("/ci/refresh", { force }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["ci-runs"] });
     },

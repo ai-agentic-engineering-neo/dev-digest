@@ -478,6 +478,26 @@ than debugging a silently-empty `diff.files` after the fact.
 
 ## Tool & Library Notes
 
+### 2026-08-25 — most of `server/src/modules/ci/` was never `git add`ed despite four "committed phases" on this branch, and a plain `git stash` (no `-u`) silently reverts only the tracked half
+
+`git ls-files server/src/modules/ci/` returns exactly three files
+(`bundle.ts`, `constants.ts`, `service.ts`) even though the branch's four
+phase commits (`bcf781d`..`8594b7d`, specs/14-export-to-ci.md) describe a
+13-file module — `ingest.ts`, `manifest.ts`, `memory-export.ts`, `ports.ts`,
+`redact.ts`, `refresh.ts`, `repository.ts`, `routes.ts`, `targets.ts`,
+`workflow.ts` and `workflow.test.ts` are all real, working, imported-by-the-app
+code (the app doesn't build without them) that simply never got staged into
+any of those commits. Running a plain `git stash` (not `git stash -u`) mid-session
+to get a "before" typecheck baseline stashed only the tracked files, leaving
+the untracked majority of the module in place — the resulting typecheck ran
+against a HALF-reverted tree and produced a misleading error set (stale
+`repo`-column errors that were actually caused by the untracked files' current
+state, not by the stashed edit). Before using `git stash` as a quick "what did
+I just break" check in this module (or any module where `git status` shows a
+mix of `M` and `??` inside the same directory), use `git stash -u` or just
+diff the specific files you changed instead of trusting a plain stash to
+represent "before my edit".
+
 ### 2026-08-25 — `yaml`'s `Document`/`stringify` needs two non-obvious opt-ins to fully replace a hand-rolled `lines.join('\n')` workflow builder: `lineWidth: 0`, and the comment API for a trailing `# vX.Y.Z` annotation
 
 Rewriting `modules/ci/workflow.ts` (plan-verifier CONTRADICTED finding — it had
@@ -761,6 +781,26 @@ for whoever eventually builds the PR Brief card: don't assume `SmartDiff`'s
 groups/`split_suggestion` still need to be composed into `pr_brief.json` just
 because the contract sits in the same file as `PrBrief` — check what shipped
 in specs/06 first.
+
+**2026-08-25 addendum — the same pattern, but the whole response-envelope
+contract was defined and never called anywhere, not one column.**
+specs/14-export-to-ci.md's `CiPreview`/`CiTargetOption`/`CiRunsPage`/
+`CiRefreshResult` (`vendor/shared/contracts/eval-ci.ts`) were fully specced,
+identical in both `vendor/shared` copies, and had **zero** non-definition
+references anywhere in `server/src` or `client/src` — every real route/hook
+(`GET /ci/targets`, `POST /agents/:id/ci/preview`, `GET /ci/runs`,
+`POST /ci/refresh`) was still returning/consuming a raw `CiTarget[]`/
+`CiFile[]`/`CiRun[]`/ad hoc `{ingested, degraded}` shape instead of the named
+contract sitting right next to it in the same file. A `plan-verifier` pass
+caught this; grepping a contract's name for non-definition references (not
+just confirming both copies match each other) is the check that would have
+caught it earlier — "the two vendor/shared copies agree" only proves the
+contract is well-formed, not that anything actually returns it. Fixed by
+reshaping `CiService.listTargets/preview/listRuns/refresh` to build and
+return the real envelope (`targets.ts` gained `listTargetOptions()`,
+`bundle.ts` gained `toPreviewFiles()` for P-4's null-out-runner-bundle-
+contents-in-preview behavior, `service.listRuns` now computes the
+agent/repo filter vocabularies from the same read per AC-28).
 
 ### 2026-08-03 — `.dependency-cruiser-known-violations.json` baselines exact from→to edges, not files — narrowing a param type can silently add a new violation next to an already-ignored one
 

@@ -7,8 +7,19 @@ import ciMessages from "../../../../../messages/en/ci.json";
 let RUNS: CiRun[] = [];
 const refreshMutate = vi.fn();
 
+// CiRunsPage bundles the agent/repo filter vocabularies alongside the runs
+// (AC-28) — derive them from RUNS here the same way the server does, so
+// these tests exercise the real shape `useCiRuns` now returns.
+function page() {
+  const agents = Array.from(new Set(RUNS.map((r) => r.agent_name).filter((v): v is string => !!v))).map(
+    (name) => ({ id: name, name })
+  );
+  const repos = Array.from(new Set(RUNS.map((r) => r.repo).filter((v): v is string => !!v)));
+  return { runs: RUNS, agents, repos };
+}
+
 vi.mock("@/lib/hooks/ci", () => ({
-  useCiRuns: () => ({ data: RUNS, isLoading: false, isError: false, refetch: vi.fn() }),
+  useCiRuns: () => ({ data: page(), isLoading: false, isError: false, refetch: vi.fn() }),
   useRefreshCiRuns: () => ({ mutate: refreshMutate, isPending: false }),
 }));
 

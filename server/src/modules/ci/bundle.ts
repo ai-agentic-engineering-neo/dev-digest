@@ -171,3 +171,19 @@ export function buildBundle(input: BuildBundleInput): CiFile[] {
 
   return files;
 }
+
+/**
+ * P-4 — shapes a generated bundle into a PREVIEW response: the runner
+ * bundle's own files (path under `RUNNER_DIR/`) get `contents: null`,
+ * keeping `bytes`/`sha256`; every other file keeps its full generated
+ * contents. `buildBundle` itself never does this (see its own comment
+ * above) — a literal reading of AC-3 would otherwise push the ~1.6 MB
+ * minified runner bundle into the browser on every Configure-step change
+ * (AC-4c regenerates the preview on every toggle). The export/archive paths
+ * call `buildBundle` directly and never pass through this function, so
+ * every file that is actually committed or zipped always carries real
+ * contents.
+ */
+export function toPreviewFiles(files: CiFile[]): CiFile[] {
+  return files.map((f) => (f.path.startsWith(`${RUNNER_DIR}/`) ? { ...f, contents: null } : f));
+}

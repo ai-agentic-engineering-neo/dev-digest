@@ -6,10 +6,14 @@ import type {
   CiExportInput,
   CiFile,
   CiInstallation,
+  CiPreview,
+  CiRefreshResult,
   CiRun,
   CiRunSummary,
+  CiRunsPage,
   CiSecretStatus,
   CiTarget,
+  CiTargetOption,
   GitHubClient,
   RepoRef,
   RunTrace,
@@ -19,8 +23,8 @@ import { NotFoundError, ValidationError, ExternalServiceError } from '../../plat
 import { buildRunTrace } from '../../platform/trace-builder.js';
 import { CiRepository, type CiInstallationRow, type CiRunFilters, type CiRunRow } from './repository.js';
 import type { AgentLookup, MemoryReader, RepoLookup, SkillLookup } from './ports.js';
-import { buildBundle } from './bundle.js';
-import { listRegisteredTargets } from './targets.js';
+import { buildBundle, toPreviewFiles } from './bundle.js';
+import { listTargetOptions } from './targets.js';
 import { CI_BRANCH, OPENROUTER_SECRET_NAME, WORKFLOW_PATH } from './constants.js';
 import { checkIngestArtifact } from './ingest.js';
 import { RefreshDebounce } from './refresh.js';
@@ -105,15 +109,18 @@ function toContractInstallation(
   };
 }
 
-/** AC-27 — `repo` is joined in from the installation (not stored on the run
- *  row itself); every other field maps straight across. `duration_s` mirrors
- *  `duration_ms` for the pre-existing column's back-compat shape. */
-function toContractRun(row: CiRunRow, installation: CiInstallationRow | undefined): CiRun {
+/** AC-27/D-P3 — `repo` is read directly off the run row's own denormalised
+ *  column (`ci_runs.repo`, Phase A2), never joined through the installation:
+ *  an orphaned run (installation cascaded away, `ci_installation_id` null)
+ *  must still render its repository. Every other field maps straight
+ *  across. `duration_s` mirrors `duration_ms` for the pre-existing column's
+ *  back-compat shape. */
+function toContractRun(row: CiRunRow): CiRun {
   return {
     id: row.id,
     ci_installation_id: row.ciInstallationId,
     provider_run_id: row.providerRunId,
-    repo: installation?.repo ?? null,
+    repo: row.repo,
     commit_sha: row.commitSha,
     pr_number: row.prNumber,
     pr_title: row.prTitle,
@@ -151,15 +158,31 @@ export class CiService {
     private runnerBundleDir: string,
   ) {}
 
-  listTargets(): CiTarget[] {
+  listTargets(): CiTargetOption[] {
     // D13/AC-2a — exactly what's registered in `targets.ts`; adding a
     // second target is one entry there, no change here.
-    return listRegisteredTargets();
+    return listTargetOptions();
   }
 
-  /** AC-3/AC-9/AC-25 — regenerated on every call, no cache, no LLM call. */
-  async preview(workspaceId: string, agentId: string, opts: CiExportOptions): Promise<CiFile[]> {
-    return this.generateFiles(workspaceId, agentId, opts);
+  /** AC-3/AC-4c/AC-9/AC-64 — regenerated on every call, no cache, no LLM
+   *  call. Bundles the secret-name lookup and any non-fatal warnings into
+   *  the SAME response (`CiPreview`) so the Configure step never needs a
+   *  second round-trip for secret state, and nulls the runner bundle's own
+   *  files' `contents` (P-4) so the ~1.6 MB minified bundle isn't re-sent to
+   *  the browser on every Configure-step change. */
+  async preview(workspaceId: string, agentId: string, opts: CiExportOptions): Promise<CiPreview> {
+    const files = await this.generateFiles(workspaceId, agentId, opts);
+    const warnings: string[] = [];
+    let secrets: CiSecretStatus[] = [];
+    try {
+      secrets = await this.secretStatus(workspaceId, opts.repo);
+    } catch (err) {
+      // A secret-status lookup failure is non-fatal to the preview itself
+      // (the bundle still generated with zero LLM/provider calls) — surface
+      // it as a warning rather than failing the whole preview request.
+      warnings.push(err instanceof Error ? err.message : String(err));
+    }
+    return { files: toPreviewFiles(files), secrets, warnings };
   }
 
   private async generateFiles(
@@ -411,14 +434,32 @@ export class CiService {
   // P4 — Ingestion (AC-17…AC-25) + read surfaces (AC-26…AC-46)
   // ===========================================================================
 
-  /** AC-25 — stored rows only, zero GitHub calls, zero LLM calls. */
-  async listRuns(workspaceId: string, filters: CiRunFilters): Promise<CiRun[]> {
-    const [runs, installations] = await Promise.all([
+  /** AC-25/AC-28 — stored rows only, zero GitHub calls, zero LLM calls.
+   *  Bundles the agent/repo filter vocabularies alongside the runs
+   *  (`CiRunsPage`), computed from this SAME read, so the client never has
+   *  to re-derive them from the (possibly already-filtered) rows it renders. */
+  async listRuns(workspaceId: string, filters: CiRunFilters): Promise<CiRunsPage> {
+    const [runs, installations, agentRoster] = await Promise.all([
       this.repo.listRuns(workspaceId, filters),
       this.repo.listInstallationsForWorkspace(workspaceId),
+      this.agentLookup.list ? this.agentLookup.list(workspaceId) : Promise.resolve([]),
     ]);
-    const byId = new Map(installations.map((i) => [i.id, i] as const));
-    return runs.map((r) => toContractRun(r, r.ciInstallationId ? byId.get(r.ciInstallationId) : undefined));
+    const installationById = new Map(installations.map((i) => [i.id, i] as const));
+    const contractRuns = runs.map((r) => toContractRun(r));
+
+    const agentById = new Map(agentRoster.map((a) => [a.id, a] as const));
+    const agentIdsInRuns = new Set(
+      runs
+        .map((r) => (r.ciInstallationId ? installationById.get(r.ciInstallationId)?.agentId : undefined))
+        .filter((id): id is string => !!id),
+    );
+    const agents = [...agentIdsInRuns]
+      .map((id) => ({ id, name: agentById.get(id)?.name ?? 'Unknown agent' }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    const repos = [...new Set(contractRuns.map((r) => r.repo).filter((v): v is string => !!v))].sort();
+
+    return { runs: contractRuns, agents, repos };
   }
 
   /**
@@ -428,22 +469,40 @@ export class CiService {
    * installation's cycle rather than failing the whole refresh or emptying
    * the list (spec's Edge cases, AC-29).
    */
-  async refresh(workspaceId: string, force: boolean): Promise<{ ingested: number; degraded: boolean }> {
+  async refresh(workspaceId: string, force: boolean): Promise<CiRefreshResult> {
     const installations = await this.repo.listInstallationsForWorkspace(workspaceId);
+    let checked = 0;
     let ingested = 0;
-    let degraded = false;
+    let failed = 0;
+    let skippedDebounced = 0;
+    let reason: string | null = null;
     let github: GitHubClient | null = null;
     for (const installation of installations) {
-      if (!this.refreshGate.shouldQuery(installation.id, force)) continue;
+      if (!this.refreshGate.shouldQuery(installation.id, force)) {
+        skippedDebounced += 1;
+        continue;
+      }
       this.refreshGate.markQueried(installation.id);
+      checked += 1;
       try {
         github ??= await this.githubClient();
         ingested += await this.ingestInstallation(workspaceId, installation, github);
-      } catch {
-        degraded = true;
+      } catch (err) {
+        // A provider error for ONE installation degrades that
+        // installation's cycle rather than failing the whole refresh or
+        // emptying the list (spec's Edge cases, AC-29).
+        failed += 1;
+        reason ??= err instanceof Error ? err.message : String(err);
       }
     }
-    return { ingested, degraded };
+    return {
+      checked,
+      ingested,
+      failed,
+      skipped_debounced: skippedDebounced,
+      degraded: failed > 0,
+      reason,
+    };
   }
 
   private async ingestInstallation(
@@ -651,6 +710,10 @@ export class CiService {
     await this.repo.upsertRun({
       workspaceId,
       ciInstallationId: installation.id,
+      // D-P3 — written directly from the installation at ingest time, not
+      // re-derived later; this is what keeps an orphaned run's repo readable
+      // after the installation is gone (`ciInstallationId` -> null).
+      repo: installation.repo,
       providerRunId: values.providerRunId,
       prNumber: values.prNumber,
       prTitle: values.prTitle,

@@ -46,7 +46,7 @@ export function ExportWizard({ agent, onClose }: { agent: Agent; onClose: () => 
     base: "main",
   };
 
-  const { data: files, isLoading: previewLoading } = useCiPreview(agent.id, input, repoValid && step >= 1);
+  const { data: preview, isLoading: previewLoading } = useCiPreview(agent.id, input, repoValid && step >= 1);
   const exportCi = useExportCi(agent.id);
 
   const stepLabels = STEP_KEYS.map((k) => t(`exportWizard.steps.${k}`));
@@ -55,9 +55,19 @@ export function ExportWizard({ agent, onClose }: { agent: Agent; onClose: () => 
 
   const handleOpenPr = () => {
     exportCi.mutate(input, {
-      onSuccess: (data) => {
+      // AC-7 — the HTTP status is the ONLY honest signal for "opened a new
+      // PR" (201, first install) vs "pushed a new commit to the existing PR"
+      // (200, a republish reusing the same installation) — the `CiExport`
+      // body is otherwise identical either way (finding 5).
+      onSuccess: ({ data, status }) => {
         setResult(data);
-        if (data.refused_reason) toast.error(data.refused_reason);
+        if (data.refused_reason) {
+          toast.error(data.refused_reason);
+        } else {
+          toast.success(
+            status === 201 ? t("exportWizard.installSuccessNew") : t("exportWizard.installSuccessReused")
+          );
+        }
       },
       onError: () => toast.error(t("exportWizard.exportError")),
     });
@@ -70,11 +80,10 @@ export function ExportWizard({ agent, onClose }: { agent: Agent; onClose: () => 
       </div>
       <div style={s.body}>
         {step === 0 && <TargetStep target={target} onTarget={setTarget} repo={repo} onRepo={setRepo} />}
-        {step === 1 && <PreviewStep files={files} isLoading={previewLoading} />}
+        {step === 1 && <PreviewStep files={preview?.files} isLoading={previewLoading} />}
         {step === 2 && (
           <ConfigureStep
-            agentId={agent.id}
-            repo={repo.trim()}
+            secrets={preview?.secrets}
             triggers={triggers}
             onTriggers={setTriggers}
             postAs={postAs}

@@ -25,7 +25,7 @@ import { Button, Chip, EmptyState, ErrorState, SelectInput, Skeleton } from "@de
 import { AppShell } from "@/components/app-shell";
 import { useCiRuns, useRefreshCiRuns } from "@/lib/hooks/ci";
 import { AUTO_REFRESH_MS, DEFAULT_FILTERS, STATUS_ORDER, statusLabelKey, type CiRunsFilterState } from "./constants";
-import { applyFilters, countByStatus, countBySource, uniqueAgentNames, uniqueRepos, uniqueSources } from "./helpers";
+import { applyFilters, countByStatus, countBySource, uniqueSources } from "./helpers";
 import { CiRunsTable } from "./CiRunsTable";
 import { s } from "./styles";
 
@@ -36,7 +36,7 @@ export function CiRunsView() {
   // AC-25 — the page's own read is stored rows only; no filter is sent to
   // the server (client-side filtering below), so this fires zero provider
   // calls on load.
-  const { data: runs, isLoading, isError, refetch } = useCiRuns({});
+  const { data: page, isLoading, isError, refetch } = useCiRuns({});
   const refresh = useRefreshCiRuns();
 
   // AC-29 — re-query the provider at most once per installation per
@@ -50,12 +50,14 @@ export function CiRunsView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const all = runs ?? [];
+  const all = page?.runs ?? [];
   const filtered = applyFilters(all, filters);
   const statusCounts = countByStatus(all, filters);
   const sourceCounts = countBySource(all, filters);
-  const agentOptions = uniqueAgentNames(all);
-  const repoOptions = uniqueRepos(all);
+  // AC-28 — the agent/repo vocabularies come from the SAME `CiRunsPage` read
+  // (`CiRunsPage.agents`/`.repos`), never re-derived from `all` client-side.
+  const agentOptions = (page?.agents ?? []).map((a) => a.name);
+  const repoOptions = page?.repos ?? [];
   const sourceOptions = uniqueSources(all);
 
   const setField = <K extends keyof CiRunsFilterState>(key: K, value: CiRunsFilterState[K]) =>

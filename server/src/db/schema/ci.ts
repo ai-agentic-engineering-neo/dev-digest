@@ -84,6 +84,12 @@ export const ciRuns = pgTable(
     ciInstallationId: uuid('ci_installation_id').references(() => ciInstallations.id, {
       onDelete: 'set null',
     }),
+    // Plan 14 Phase A2 — denormalised from the installation so an ORPHANED
+    // run (installation cascaded away, `ciInstallationId` gone null) still
+    // renders with a real repository name instead of a blank cell (spec's
+    // own named edge case). Populated at ingest time from
+    // `installation.repo`, never re-derived via a join.
+    repo: text('repo').notNull(),
     // The CI provider's own run id (GitHub Actions `run.id`) — what AC-19's
     // idempotent upsert is keyed on, backed by the unique index below.
     providerRunId: text('provider_run_id').notNull(),
@@ -93,10 +99,14 @@ export const ciRuns = pgTable(
     commitSha: text('commit_sha'),
     agentName: text('agent_name'),
     ranAt: timestamp('ran_at', { withTimezone: true }),
-    // CiRunStatus values ('succeeded'|'failed'|'no_findings'|'running'); kept
-    // as free text at the DB level (validated by the service against the
-    // shared contract before write, same posture as the pre-existing column).
-    status: text('status'),
+    // Plan 14 Phase A2 — tightened from a nullable free-text column to a
+    // NOT NULL enum matching the shared `CiRunStatus` contract exactly
+    // (`succeeded`/`failed`/`no_findings`/`running` — grep of `status:`
+    // assignments across ingest.ts/service.ts/refresh.ts confirms these are
+    // the only four values ever written; `ingestOneRun`/`persistRun` never
+    // leave this null). Every write path already sets one of these four
+    // values before the row reaches the DB.
+    status: text('status', { enum: ['succeeded', 'failed', 'no_findings', 'running'] }).notNull(),
     findingsCount: integer('findings_count'),
     critical: integer('critical'),
     warning: integer('warning'),

@@ -25,14 +25,11 @@ function uniqueSorted(values: (string | null | undefined)[]): string[] {
   return Array.from(new Set(values.filter((v): v is string => !!v))).sort();
 }
 
-/** AC-28 — the filter vocabularies come from the same read the table shows,
- *  never a second request. */
-export function uniqueAgentNames(runs: CiRun[]): string[] {
-  return uniqueSorted(runs.map((r) => r.agent_name));
-}
-export function uniqueRepos(runs: CiRun[]): string[] {
-  return uniqueSorted(runs.map((r) => r.repo));
-}
+// AC-28 — agent/repo vocabularies now come from the server's `CiRunsPage`
+// (`.agents`/`.repos`, computed from the same read as the runs themselves —
+// see `CiRunsView.tsx`), not derived client-side from `runs` any more.
+// `source` has no server-provided vocabulary in `CiRunsPage`, so it's still
+// derived here.
 export function uniqueSources(runs: CiRun[]): string[] {
   return uniqueSorted(runs.map((r) => r.source));
 }

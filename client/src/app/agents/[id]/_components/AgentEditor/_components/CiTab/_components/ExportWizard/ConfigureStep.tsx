@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { Badge, Checkbox } from "@devdigest/ui";
-import { useCiSecretStatus } from "@/lib/hooks/ci";
+import type { CiSecretStatus } from "@devdigest/shared/contracts/eval-ci";
 import { ALL_TRIGGERS, type CiTriggerEvent } from "./constants";
 import { s } from "./styles";
 
@@ -14,24 +14,25 @@ export type PostAsMode = "github_review" | "pr_comment" | "none";
  * tooltip), and per-secret configured state. Every change here flows back
  * into the shared wizard state, which is what makes the Preview step
  * regenerate (AC-4c) — this component owns no preview logic itself.
+ *
+ * `secrets` comes from the wizard's own `useCiPreview` (`CiPreview.secrets`)
+ * rather than a second `useCiSecretStatus` round-trip — the preview response
+ * already carries it alongside the file list (P-3/CiPreview).
  */
 export function ConfigureStep({
-  agentId,
-  repo,
+  secrets,
   triggers,
   onTriggers,
   postAs,
   onPostAs,
 }: {
-  agentId: string;
-  repo: string;
+  secrets: CiSecretStatus[] | undefined;
   triggers: CiTriggerEvent[];
   onTriggers: (t: CiTriggerEvent[]) => void;
   postAs: PostAsMode;
   onPostAs: (p: PostAsMode) => void;
 }) {
   const t = useTranslations("ci");
-  const { data: secrets } = useCiSecretStatus(agentId, repo);
 
   const toggleTrigger = (trig: CiTriggerEvent) => {
     onTriggers(triggers.includes(trig) ? triggers.filter((x) => x !== trig) : [...triggers, trig]);

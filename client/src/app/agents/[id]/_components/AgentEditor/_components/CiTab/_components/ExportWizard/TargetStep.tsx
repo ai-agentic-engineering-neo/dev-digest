@@ -37,18 +37,18 @@ export function TargetStep({
         <label style={s.label}>{t("exportWizard.steps.target")}</label>
         {isLoading ? null : (
           <div style={s.targetGrid} role="radiogroup" aria-label={t("exportWizard.steps.target")}>
-            {(targets ?? []).map((tgt) => (
+            {(targets ?? []).map((opt) => (
               <button
-                key={tgt}
+                key={opt.target}
                 role="radio"
-                aria-checked={target === tgt}
-                style={s.targetCard(target === tgt)}
-                onClick={() => onTarget(tgt)}
+                aria-checked={target === opt.target}
+                style={s.targetCard(target === opt.target)}
+                onClick={() => onTarget(opt.target)}
               >
                 <Icon.GitBranch size={16} />
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: 13.5 }}>{t(`exportWizard.targets.${tgt}`)}</div>
-                  <div style={s.hint}>{t(`exportWizard.targets.${tgt}Desc`)}</div>
+                  <div style={{ fontWeight: 600, fontSize: 13.5 }}>{t(opt.label_key)}</div>
+                  <div style={s.hint}>{t(`${opt.label_key}Desc`)}</div>
                 </div>
               </button>
             ))}

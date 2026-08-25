@@ -95,7 +95,7 @@ export function CiTab({ agent }: { agent: Agent }) {
         {isLoading ? (
           <Skeleton height={64} />
         ) : !installations || installations.length === 0 ? (
-          <EmptyState icon="Play" title={t("ciTab.emptyTitle")} body={t("ciTab.empty")} />
+          <EmptyState icon="Zap" title={t("ciTab.emptyTitle")} body={t("ciTab.empty")} />
         ) : (
           <div style={s.list}>
             {installations.map((inst) => (

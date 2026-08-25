@@ -44,6 +44,7 @@ When you change eval cases or grading logic, treat earlier candidate-vs-baseline
 | reviewer-core | [reviewer-core/README.md](reviewer-core/README.md) | [reviewer-core/CLAUDE.md](reviewer-core/CLAUDE.md) | — |
 | e2e | [e2e/README.md](e2e/README.md) | [e2e/CLAUDE.md](e2e/CLAUDE.md) | — |
 | mcp-server | [mcp-server/README.md](mcp-server/README.md) | [mcp-server/CLAUDE.md](mcp-server/CLAUDE.md) | — |
+| agent-runner | [agent-runner/README.md](agent-runner/README.md) | [agent-runner/CLAUDE.md](agent-runner/CLAUDE.md) | — |
 
 Read when you need the call path through the layers, the review-run lifecycle,
 or where state lands: [docs/architecture.md](docs/architecture.md).

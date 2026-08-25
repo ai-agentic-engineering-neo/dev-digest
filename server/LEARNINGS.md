@@ -478,6 +478,65 @@ than debugging a silently-empty `diff.files` after the fact.
 
 ## Tool & Library Notes
 
+### 2026-08-25 — `yaml`'s `Document`/`stringify` needs two non-obvious opt-ins to fully replace a hand-rolled `lines.join('\n')` workflow builder: `lineWidth: 0`, and the comment API for a trailing `# vX.Y.Z` annotation
+
+Rewriting `modules/ci/workflow.ts` (plan-verifier CONTRADICTED finding — it had
+been built with `Array.prototype.join('\n')` over hand-quoted strings despite
+plans/14-export-to-ci.md's explicit P-9 decision to use `yaml`'s `stringify`
+throughout, same as `manifest.ts` already does) surfaced two gaps a naive
+`yaml.stringify(plainObject)` call doesn't cover:
+
+1. **Long single-line string values get auto-folded across multiple lines by
+   default** (`lineWidth: 80`). The "Write run metadata" step's `run:` value
+   (a ~200-char `node -e "..."` one-liner) got silently reflowed onto a second
+   indented line — re-parses to the same string (plain-scalar folding collapses
+   the inserted newline+indent back to a single space), so it's not a
+   correctness bug, but it's a needless behavior-preserving risk to accept for
+   zero benefit. Fix: `doc.toString({ lineWidth: 0 })` disables folding
+   entirely — every scalar renders on one line, matching what the previous
+   hand-rolled implementation produced.
+
+2. **A genuine trailing YAML comment (e.g. `uses: actions/checkout@<sha> #
+   v4.4.0`, where `# v4.4.0` must stay a real comment, ignored by any YAML
+   parser, and never become part of the `uses:` string value itself) requires
+   the `Document`/`Scalar` node API, not a plain-object `stringify` call** —
+   there is no way to attach a per-field comment to a plain JS object before
+   handing it to `stringify`. Fix: build the object as normal, wrap it in
+   `new Document(obj)`, then `doc.getIn(path, true)` (the `true` — "keep
+   scalar" — argument is required; without it you get the unwrapped JS value,
+   not the `Scalar` node) to get the actual `Scalar`/`Pair` node and set
+   `.comment = ' v4.4.0'` on it directly. Checking `'comment' in node` to guard
+   this is a trap — it's `false` for a fresh `Scalar` even though assigning to
+   it works fine (the property isn't declared until you set it); test
+   `node instanceof Scalar` instead. The document-level leading `# Generated
+   by...` header comment is simpler — `doc.commentBefore = '...'` — but note
+   it always inserts one blank line between the comment block and the first
+   real key, a formatting difference from the original hand-rolled output that
+   has no semantic effect (confirmed by parsing old vs. new output and
+   deep-equal-comparing the two, across four `{triggers, postAs}`
+   combinations plus one adversarial trigger-list case with embedded `"; key:
+   value\n` — all four normal cases matched exactly once the multi-line
+   `path: |...|` block's trailing-newline chomping mode was also matched, by
+   ensuring the JS string itself ends in `\n` so `yaml` picks clip (`|`) over
+   strip (`|-`) chomping).
+
+Separately, `OctokitGitHubClient.downloadArtifact` (defence-in-depth per the
+same plan-verifier pass) now calls `octokit.rest.actions.getArtifact({owner,
+repo, artifact_id})` — a real, cheap metadata-only endpoint distinct from
+`actions.downloadArtifact` — to read `size_in_bytes` and reject (a thrown
+`ValidationError`, matching this file's now-established "typed error, never a
+silent null/throw of a bare `Error`" convention) BEFORE the redirect-following
+download call ever buffers the artifact body into memory. This re-fetches the
+same field `listRunArtifacts` already returned earlier in `CiService`'s ingest
+flow, deliberately: the check holds even if some future caller obtains an
+artifact id a different way and skips the `listRunArtifacts` step entirely.
+The chosen cap (16 MiB) is a copy-by-value constant local to `octokit.ts`, not
+an import of `modules/ci/ingest.ts`'s `ARCHIVE_ENTRY_LIMIT`/`MAX_ENTRY_BYTES`
+(64 × 256 KiB) — an adapter importing a specific feature module's internal
+caps would be a backwards dependency (adapters are outer-ring; a module-
+specific constant isn't a port), so the two stay independently declared with a
+comment cross-referencing each other for consistency instead.
+
 ## Recurring Errors & Fixes
 
 ### 2026-07-28 — `.nullable()` on a shared contract breaks every fixture that builds it

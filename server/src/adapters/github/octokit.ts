@@ -16,8 +16,30 @@ import type {
 } from '@devdigest/shared';
 import { withRetry, withTimeout } from '../../platform/resilience.js';
 import { resolveLinkedIssue } from '../../modules/_shared/linked-issue.js';
+import { ValidationError } from '../../platform/errors.js';
 
 const TIMEOUT = 30_000;
+
+/**
+ * specs/14-export-to-ci.md (P4, security-critical), defence in depth —
+ * `downloadArtifact` buffers a whole artifact response into memory
+ * (`Uint8Array`) before its caller ever gets to inspect it.
+ * `modules/ci/ingest.ts` already caps the UNZIPPED contents it trusts
+ * (`ARCHIVE_ENTRY_LIMIT` entries, `MAX_ENTRY_BYTES` per entry — at most
+ * 64 * 256 KiB = 16 MiB of usable unzipped content), but that check runs
+ * only AFTER this method has already downloaded and buffered the whole
+ * COMPRESSED archive. This cap is deliberately kept in the same order of
+ * magnitude as that unzipped ceiling (a well-formed artifact from our own
+ * runner is two small JSON files; compression ratio for JSON keeps the
+ * compressed size at or below the uncompressed one) — generous enough for
+ * any legitimate artifact, small enough to bound the memory a single
+ * download can consume regardless of what a compromised or malicious CI
+ * workflow publishes under the same artifact name. This is a general
+ * adapter-level guard, not a `modules/ci` business rule, so the cap lives
+ * here rather than importing `modules/ci/constants.ts` (adapters stay
+ * self-contained; see onion-architecture's ports-belong-to-the-inside rule).
+ */
+const MAX_ARTIFACT_COMPRESSED_BYTES = 16 * 1024 * 1024;
 
 function mapStatus(state: string, merged: boolean | undefined): PrStatus {
   if (merged) return 'merged';
@@ -419,6 +441,25 @@ export class OctokitGitHubClient implements GitHubClient {
     return withRetry(() =>
       withTimeout(
         (async () => {
+          // Defence in depth: check the PROVIDER-REPORTED compressed size
+          // before ever buffering the artifact body. `listRunArtifacts`
+          // already surfaces this same `size_in_bytes` field to callers
+          // earlier in the same ingest flow — re-fetching it here (rather
+          // than trusting a value threaded through from that earlier call)
+          // means this check holds even if a caller skips or races that
+          // step, and keeps this method's own contract self-sufficient.
+          const meta = await this.octokit.rest.actions.getArtifact({
+            owner: repo.owner,
+            repo: repo.name,
+            artifact_id: artifactId,
+          });
+          if (meta.data.size_in_bytes > MAX_ARTIFACT_COMPRESSED_BYTES) {
+            throw new ValidationError(
+              `Artifact ${artifactId} is ${meta.data.size_in_bytes} bytes, exceeding the ` +
+                `${MAX_ARTIFACT_COMPRESSED_BYTES}-byte cap; refusing to download it`,
+            );
+          }
+
           const res = await this.octokit.rest.actions.downloadArtifact({
             owner: repo.owner,
             repo: repo.name,

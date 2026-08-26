@@ -93,7 +93,7 @@ vi.mock("../DiffTab", () => ({
   },
 }));
 
-vi.mock("../RunTraceDrawer", () => ({
+vi.mock("@/components/run-trace-drawer/RunTraceDrawer", () => ({
   default: () => null,
 }));
 

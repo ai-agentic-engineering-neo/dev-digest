@@ -26,6 +26,17 @@ export interface RunTraceDrawerProps {
   /** When true, the drawer defaults to the live log and streams SSE. */
   running?: boolean;
   onClose: () => void;
+  /**
+   * specs/14-export-to-ci.md (D-P7/AC-30) — a CI run's ingested trace has no
+   * prompt-assembly, tool-call, raw-output or live-log data. When set, the
+   * drawer states plainly which sections CI did not produce instead of
+   * rendering them as empty (never silently blank).
+   */
+  unavailableSections?: string[];
+  /** A link to the run's log on the CI provider (AC-30) — shown alongside
+   *  `unavailableSections` so the user has somewhere to go for the parts
+   *  this drawer cannot show. */
+  providerUrl?: string | null;
 }
 
 /**
@@ -40,6 +51,8 @@ export default function RunTraceDrawer({
   findings = [],
   running = false,
   onClose,
+  unavailableSections,
+  providerUrl,
 }: RunTraceDrawerProps) {
   const t = useTranslations("runs");
   const [tab, setTab] = React.useState<string>(running ? "log" : "trace");
@@ -86,6 +99,19 @@ export default function RunTraceDrawer({
         </div>
       }
     >
+      {unavailableSections && unavailableSections.length > 0 && (
+        <div style={s.emptyNote} role="status">
+          {t("drawer.unavailableForCi", { sections: unavailableSections.join(", ") })}
+          {providerUrl && (
+            <>
+              {" "}
+              <a href={providerUrl} target="_blank" rel="noreferrer">
+                {t("drawer.viewOnProvider")}
+              </a>
+            </>
+          )}
+        </div>
+      )}
       <Tabs tabs={[...TABS]} value={tab} onChange={setTab} pad="0" />
       <div style={s.tabBody}>
         {tab === "trace" ? (

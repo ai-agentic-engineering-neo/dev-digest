@@ -1,6 +1,6 @@
 {
-  "id": "9f0a24b2-f878-4241-80aa-b1cfae2d953d",
-  "prevId": "4702551e-7156-4773-bd94-9b5164859bf0",
+  "id": "ec6473e4-5320-4303-95f3-7dc6bf8fad89",
+  "prevId": "9f0a24b2-f878-4241-80aa-b1cfae2d953d",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -3349,6 +3349,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "repo": {
+          "name": "repo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "provider_run_id": {
           "name": "provider_run_id",
           "type": "text",
@@ -3395,7 +3401,7 @@
           "name": "status",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "findings_count": {
           "name": "findings_count",

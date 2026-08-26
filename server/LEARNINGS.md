@@ -964,6 +964,26 @@ share the seeded workspace or reuse one across cases in the same file.
 
 ## Session Notes
 
+### 2026-08-26 — resuming `.worktrees/devdigest-ci` (`feat/export-to-ci`) after a context reset found the branch's last commit (`bfcc4dc`) unbuildable from a fresh checkout: several load-bearing files were still untracked
+
+`git status --porcelain` looked routine — a handful of modified files, some
+untracked ones — but the untracked set included `modules/ci/{ingest,manifest,
+memory-export,ports,redact,refresh,routes}.ts` and `modules/memory/
+repository.ts`, which `platform/container.ts` and `modules/index.ts` (both
+already committed) import directly. So the tip commit was broken for anyone
+who didn't happen to have these specific files sitting on disk from the prior
+session — locally everything looked fine only because nothing had been
+`git clean`ed. Confirmed the code itself was finished and correct (server +
+client `pnpm typecheck` clean, `pnpm run arch` zero new violations, full
+server suite 76 files/584 tests green, full client suite 43/230 green, plus
+`verify:l07`'s dedicated ci-ingest integration test) before committing it as
+`bcb3f4d`. Generalizes: after a context reset, or when picking up any
+worktree from a prior session, don't judge "is this done" from `git status`
+alone — grep the untracked filenames against already-committed source
+(`grep -rl '<untracked-basename>' src`) to check whether tracked code already
+depends on them. A clean-looking `git log` on its own is not evidence the
+branch builds from a fresh clone.
+
 ### 2026-08-15 — a second round of test-writer passes (this time for `modules/onboarding/` and `modules/repo-intel/`) found the SAME stale-CRITICAL-premise pattern as the 2026-08-14 `modules/brief/` entry below, from the same DevDigest review run
 
 Both a `test-writer` pass for `modules/onboarding/*` and one for

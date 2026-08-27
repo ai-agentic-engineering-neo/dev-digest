@@ -96,9 +96,12 @@ export async function runCi(deps: RunCiDeps): Promise<RunCiResult> {
     // 2. Resolve CI context (PR number/title/body/repo) from env + event payload.
     const ctx = resolvePrContext(deps.env, readFile);
 
+    // Required unconditionally: the diff fetch below always authenticates,
+    // even when postAs is 'none' — an empty token still sends a malformed
+    // `Authorization: Bearer` header, which GitHub rejects with a 401.
     const githubToken = deps.env.GITHUB_TOKEN;
-    if (deps.postAs !== 'none' && !githubToken) {
-      throw new RunnerError(`GITHUB_TOKEN is required to post as '${deps.postAs}'`);
+    if (!githubToken) {
+      throw new RunnerError('GITHUB_TOKEN is required to fetch the PR diff');
     }
 
     // 3. Assemble the diff from the CI context. Strip DevDigest's own exported

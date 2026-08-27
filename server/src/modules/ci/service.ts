@@ -191,6 +191,27 @@ export class CiService {
     return { files: toPreviewFiles(files), secrets, warnings };
   }
 
+  /** P-4 — the on-demand companion to `preview()`: the main preview response
+   *  nulls the runner-bundle files' `contents` (they're a ~1.6 MB minified,
+   *  never-editable, never-configuration-dependent build artifact), so the
+   *  wizard fetches one file's real bytes here, by exact path match against
+   *  the SAME deterministic generation `preview()` uses — never a second
+   *  bundle-assembly path, never a filesystem read keyed on caller input.
+   *  `path` is matched by exact string equality against the bundle's own
+   *  generated file list, so there is no traversal surface: an unrecognised
+   *  path is a 404, not a filesystem lookup. */
+  async previewFile(
+    workspaceId: string,
+    agentId: string,
+    opts: CiExportOptions,
+    path: string,
+  ): Promise<CiFile> {
+    const files = await this.generateFiles(workspaceId, agentId, opts);
+    const file = files.find((f) => f.path === path);
+    if (!file) throw new NotFoundError(`No bundle file at "${path}" for this export configuration`);
+    return file;
+  }
+
   private async generateFiles(
     workspaceId: string,
     agentId: string,

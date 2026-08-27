@@ -88,7 +88,9 @@ export function ExportWizard({ agent, onClose }: { agent: Agent; onClose: () => 
       </div>
       <div style={s.body}>
         {step === 0 && <TargetStep target={target} onTarget={setTarget} repo={repo} onRepo={setRepo} />}
-        {step === 1 && <PreviewStep files={preview?.files} isLoading={previewLoading} />}
+        {step === 1 && (
+          <PreviewStep agentId={agent.id} input={input} files={preview?.files} isLoading={previewLoading} />
+        )}
         {step === 2 && (
           <ConfigureStep
             secrets={preview?.secrets}

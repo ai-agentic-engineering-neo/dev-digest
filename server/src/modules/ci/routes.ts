@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { CiExportInput } from '@devdigest/shared';
+import { CiExportInput, CiTarget } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 
@@ -21,6 +21,17 @@ const RunsQuery = z.object({
   repo: z.string().optional(),
   status: z.string().optional(),
   source: z.string().optional(),
+});
+// P-4 — the same generation inputs `CiExportInput` carries, flattened onto a
+// querystring (GET, so the preview step's file click can be a simple fetch);
+// `triggers` arrives comma-joined since Fastify's querystring parsing here
+// doesn't repeat-key an array by default.
+const PreviewFileQuery = z.object({
+  repo: z.string().min(1),
+  target: CiTarget.default('gha'),
+  post_as: z.enum(['github_review', 'pr_comment', 'none']).default('github_review'),
+  triggers: z.string().default('opened,synchronize'),
+  path: z.string().min(1),
 });
 const PerfQuery = z.object({
   range_days: z.coerce.number().int().refine((v) => [7, 30, 90].includes(v), {
@@ -43,6 +54,24 @@ export default async function ciRoutes(appBase: FastifyInstance) {
     async (req) => {
       const { workspaceId } = await getContext(container, req);
       return service.preview(workspaceId, req.params.id, req.body);
+    },
+  );
+
+  // P-4 — one bundle file's real contents, on demand (the main preview
+  // response nulls the runner-bundle files' contents to avoid re-sending a
+  // ~1.6 MB build artifact on every Configure-step change).
+  app.get(
+    '/agents/:id/ci/preview/file',
+    { schema: { params: IdParams, querystring: PreviewFileQuery } },
+    async (req) => {
+      const { workspaceId } = await getContext(container, req);
+      const { path, triggers, ...rest } = req.query;
+      return service.previewFile(
+        workspaceId,
+        req.params.id,
+        { ...rest, action: 'files', base: 'main', triggers: triggers.split(',').filter(Boolean) },
+        path,
+      );
     },
   );
 

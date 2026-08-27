@@ -15,6 +15,7 @@ import { api, apiFetch, API_BASE } from "../api";
 import type {
   CiExport,
   CiExportInputBody,
+  CiFile,
   CiInstallation,
   CiPreview,
   CiRefreshResult,
@@ -76,6 +77,35 @@ export function useCiPreview(
     queryKey: ciKeys.preview(agentId, input),
     queryFn: () => api.post<CiPreview>(`/agents/${agentId}/ci/preview`, input),
     enabled: enabled && !!agentId,
+  });
+}
+
+/** P-4 — one bundle file's real contents, fetched only when the caller
+ *  actually asks for it (a file the user expanded in the Preview step),
+ *  never eagerly for every runner-bundle file `useCiPreview` nulled out.
+ *  `enabled` should gate on both a path being picked AND the surrounding
+ *  Preview step having loaded (so this never races ahead of the export
+ *  inputs it depends on). */
+export function useCiPreviewFile(
+  agentId: string | null | undefined,
+  input: CiExportInputBody,
+  path: string | null,
+  enabled: boolean
+) {
+  return useQuery({
+    queryKey: ["ci-preview-file", agentId, input, path],
+    queryFn: () => {
+      const params = new URLSearchParams({
+        repo: input.repo ?? "",
+        target: input.target ?? "gha",
+        post_as: input.post_as ?? "github_review",
+        triggers: (input.triggers ?? ["opened", "synchronize"]).join(","),
+        path: path ?? "",
+      });
+      return api.get<CiFile>(`/agents/${agentId}/ci/preview/file?${params.toString()}`);
+    },
+    enabled: enabled && !!agentId && !!path,
+    staleTime: Infinity, // AC-9 — deterministic for an unchanged agent/input; no reason to refetch.
   });
 }
 

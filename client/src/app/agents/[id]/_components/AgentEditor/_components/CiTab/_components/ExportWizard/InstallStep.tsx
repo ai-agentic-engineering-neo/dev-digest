@@ -20,12 +20,18 @@ export function InstallStep({
   onOpenPr,
   isExporting,
   result,
+  fileCount,
 }: {
   agentId: string;
   input: CiExportInputBody;
   onOpenPr: () => void;
   isExporting: boolean;
   result: CiExport | null;
+  /** P-2 — the real generated-bundle file count from the Preview step's
+   *  `CiPreview.files`, never hardcoded. `undefined` only in the rare race
+   *  where a user reaches Install before the preview query (started at
+   *  step 1) has resolved. */
+  fileCount: number | undefined;
 }) {
   const t = useTranslations("ci");
   const [archiveState, setArchiveState] = React.useState<"idle" | "loading" | "done" | "error">("idle");
@@ -59,7 +65,11 @@ export function InstallStep({
             <strong>{t("exportWizard.installCardTitle")}</strong>
             <Badge>{t("exportWizard.recommended")}</Badge>
           </div>
-          <p style={s.hint}>{t("exportWizard.installCardBody", { repo: input.repo ?? "", count: 5 })}</p>
+          <p style={s.hint}>
+            {fileCount != null
+              ? t("exportWizard.installCardBody", { repo: input.repo ?? "", count: fileCount })
+              : t("exportWizard.installCardBodyLoading", { repo: input.repo ?? "" })}
+          </p>
           <Button kind="primary" onClick={onOpenPr} loading={isExporting}>
             {isExporting ? t("exportWizard.installing") : t("exportWizard.install")}
           </Button>

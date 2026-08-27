@@ -87,6 +87,7 @@
     "secretProvidedByCi": "Provided automatically by CI",
     "installCardTitle": "Open a PR with these files",
     "installCardBody": "DevDigest opens a PR in {repo} titled “Add DevDigest CI review” with the {count} generated files.",
+    "installCardBodyLoading": "DevDigest opens a PR in {repo} titled “Add DevDigest CI review” with the generated files.",
     "archiveCardTitle": "Download as a zip archive",
     "archiveCardBody": "Get the same files as a zip to add to the repository yourself — no write access needed.",
     "downloadArchive": "Download archive",

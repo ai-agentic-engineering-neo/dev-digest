@@ -26,11 +26,10 @@ import type {
 
 /** `GET /agents/:id/ci/installations` — CI tab list row (AC-36). Not a
  *  separately named shared contract; mirrors `CiService.listInstallationsForAgent`'s
- *  response shape 1:1. */
-export interface CiInstallationListItem extends CiInstallation {
-  last_run_status: string | null;
-  last_run_at: string | null;
-}
+ *  response shape 1:1 — which is just `CiInstallation` itself: the service
+ *  already nests this under the contract's own `last_run` field rather than
+ *  flat sibling fields (see `server/src/modules/ci/service.ts:75`). */
+export type CiInstallationListItem = CiInstallation;
 
 export interface CiRunFiltersInput {
   from?: string;

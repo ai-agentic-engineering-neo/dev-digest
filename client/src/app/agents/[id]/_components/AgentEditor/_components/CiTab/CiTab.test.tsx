@@ -101,8 +101,11 @@ describe("CiTab", () => {
         agent_id: "agent-1",
         repo: "acme/payments-api",
         target_type: "gha",
-        last_run_status: "succeeded",
-        last_run_at: new Date().toISOString(),
+        last_run: {
+          status: "succeeded",
+          ran_at: new Date().toISOString(),
+          findings_count: 0,
+        },
       },
     ]);
     mockRepublish();

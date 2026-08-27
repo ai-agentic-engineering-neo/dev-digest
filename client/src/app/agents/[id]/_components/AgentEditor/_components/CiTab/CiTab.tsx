@@ -112,18 +112,18 @@ export function CiTab({ agent }: { agent: Agent }) {
                     <span>{t(`exportWizard.targets.${inst.target_type}`)}</span>
                     <span>·</span>
                     <Badge
-                      icon={inst.last_run_status === "failed" ? "AlertTriangle" : inst.last_run_status ? "Check" : "Dot"}
+                      icon={inst.last_run?.status === "failed" ? "AlertTriangle" : inst.last_run ? "Check" : "Dot"}
                       color={
-                        inst.last_run_status === "failed"
+                        inst.last_run?.status === "failed"
                           ? "var(--danger)"
-                          : inst.last_run_status
+                          : inst.last_run
                             ? "var(--ok)"
                             : "var(--text-muted)"
                       }
                     >
-                      {inst.last_run_status ? t(`runs.status.${statusKey(inst.last_run_status)}`) : t("ciTab.neverRan")}
+                      {inst.last_run ? t(`runs.status.${statusKey(inst.last_run.status)}`) : t("ciTab.neverRan")}
                     </Badge>
-                    {inst.last_run_at && <span>{new Date(inst.last_run_at).toLocaleString()}</span>}
+                    {inst.last_run && <span>{new Date(inst.last_run.ran_at).toLocaleString()}</span>}
                   </div>
                 </div>
                 <div style={s.rowActions}>

@@ -238,10 +238,17 @@ export type ComposeReviewPreview = z.infer<typeof ComposeReviewPreview>;
 export const CiTarget = z.enum(['gha', 'circle', 'jenkins', 'cli']);
 export type CiTarget = z.infer<typeof CiTarget>;
 
-/** One generated file in the CI bundle (path + editable contents). */
+/** One generated file in the CI bundle. `contents` is `null` for the
+ *  runner-bundle's own files in a PREVIEW response (P-4) — the bundle is
+ *  never editable and never varies with configuration, so the client fetches
+ *  its bytes on demand (`GET /agents/:id/ci/preview/file`) instead of every
+ *  file's full text reaching the browser on every Configure change. `bytes`/
+ *  `sha256` are always populated, even when `contents` is inlined. */
 export const CiFile = z.object({
   path: z.string(),
-  contents: z.string(),
+  contents: z.string().nullable(),
+  bytes: z.number().int(),
+  sha256: z.string(),
   editable: z.boolean().default(true),
 });
 export type CiFile = z.infer<typeof CiFile>;
@@ -282,12 +289,26 @@ export const CiExportInput = z.object({
   /** "open_pr" opens a PR with the files; "files" just returns/persists them. */
   action: z.enum(['open_pr', 'files']).default('open_pr'),
   post_as: z.enum(['github_review', 'pr_comment', 'none']).default('github_review'),
-  triggers: z.array(z.string()).default(['opened', 'synchronize', 'reopened']),
+  // AC-4 — "reopened" is unselected by default; only "opened"/"synchronize"
+  // are pre-checked on the Configure step (specs/14-export-to-ci.md R-B).
+  triggers: z.array(z.string()).default(['opened', 'synchronize']),
   base: z.string().default('main'),
 });
 export type CiExportInput = z.infer<typeof CiExportInput>;
 /** Caller-facing input type — `.default()` fields stay optional (web hooks). */
 export type CiExportInputBody = z.input<typeof CiExportInput>;
+
+export const CiRunStatus = z.enum(['succeeded', 'failed', 'no_findings', 'running']);
+export type CiRunStatus = z.infer<typeof CiRunStatus>;
+
+/** AC-36 — the CI tab list's per-installation "last run" glance, without a
+ *  second round-trip to `/ci/runs`. */
+export const CiRunSummary = z.object({
+  status: CiRunStatus,
+  ran_at: z.string(),
+  findings_count: z.number().int().nullable(),
+});
+export type CiRunSummary = z.infer<typeof CiRunSummary>;
 
 /** A persisted CI installation (mirrors `ci_installations`). */
 export const CiInstallation = z.object({
@@ -295,40 +316,87 @@ export const CiInstallation = z.object({
   agent_id: z.string(),
   repo: z.string(),
   target_type: CiTarget,
+  branch: z.string(),
+  base: z.string(),
+  post_as: z.enum(['github_review', 'pr_comment', 'none']),
+  triggers: z.array(z.string()),
+  workflow_path: z.string(),
+  pr_url: z.string().nullable(),
+  last_export_at: z.string(),
+  // AC-29 — the per-installation refresh debounce's own bookkeeping; `null`
+  // before the first refresh ever runs.
+  last_refreshed_at: z.string().nullable(),
+  last_run: CiRunSummary.nullable(),
   installed_at: z.string(),
 });
 export type CiInstallation = z.infer<typeof CiInstallation>;
 
 /** Response of `POST /agents/:id/export-ci`. */
 export const CiExport = z.object({
-  installation: CiInstallation,
+  // `null` when the export was refused (AC-59) or when the GitHub side of
+  // the flow didn't run/succeed (`action: 'files'`, AC-10a) — no
+  // installation row is written in either case.
+  installation: CiInstallation.nullable(),
   files: z.array(CiFile),
   pr_url: z.string().nullable(),
+  // AC-7/AC-37 — true when an already-open PR for this installation's branch
+  // was found and reused rather than opened fresh. The HTTP status (200 vs
+  // 201) carries "first install vs republish"; this carries "PR reused vs new".
+  reused_pr: z.boolean(),
+  // Non-fatal, surfaced-to-the-user notes (e.g. an unreachable secret-status
+  // lookup) — never a reason the export itself failed.
+  warnings: z.array(z.string()),
+  // AC-59's refusal reason, or AC-10a's "no credential" / "cannot write"
+  // reason. Null on a normal, unrefused export.
+  refused_reason: z.string().nullish(),
 });
 export type CiExport = z.infer<typeof CiExport>;
 
-export const CiRunStatus = z.enum(['succeeded', 'failed', 'no_findings', 'running']);
-export type CiRunStatus = z.infer<typeof CiRunStatus>;
-
-/** A CI run row (mirrors `ci_runs`) — ingested from GitHub Actions artifacts. */
+/** A CI run row (mirrors `ci_runs`) — ingested from GitHub Actions artifacts.
+ *  All new fields are additive/nullish (AC-49) — a row ingested before a
+ *  given field existed still parses. */
 export const CiRun = z.object({
   id: z.string(),
   ci_installation_id: z.string().nullable(),
+  /** The CI provider's own run id (e.g. GitHub Actions `run.id`) — what
+   *  AC-19's idempotent upsert is keyed on. */
+  provider_run_id: z.string().nullish(),
+  repo: z.string().nullish(),
+  commit_sha: z.string().nullish(),
   pr_number: z.number().int().nullable(),
+  pr_title: z.string().nullish(),
+  pr_url: z.string().nullish(),
   ran_at: z.string().nullable(),
-  status: z.string().nullable(),
+  status: CiRunStatus.nullable(),
   findings_count: z.number().int().nullable(),
+  critical: z.number().int().nullish(),
+  warning: z.number().int().nullish(),
+  suggestion: z.number().int().nullish(),
   cost_usd: z.number().nullable(),
   github_url: z.string().nullable(),
   source: z.string().nullable(),
   agent: z.string().nullish(),
+  agent_name: z.string().nullish(),
   duration_s: z.number().nullish(),
+  /** Clarification 2 (plans/14) — the runner's own review duration from the
+   *  artifact, falling back to the provider's job wall-clock when no
+   *  artifact exists. `duration_source` says which one this value is. */
+  duration_ms: z.number().int().nullish(),
+  duration_source: z.enum(['artifact', 'provider']).nullish(),
+  /** Set only when `status === 'failed'` — names which check failed
+   *  (AC-18) or why the run has no artifact (AC-21). */
+  failure_reason: z.string().nullish(),
 });
 export type CiRun = z.infer<typeof CiRun>;
 
 /**
  * The artifact shape uploaded by the CI action (`devdigest-result.json`).
  * Ingested back on refresh to populate `ci_runs` (L06).
+ *
+ * NOT modified by specs/14-export-to-ci.md (D-P2): it is compiled into the
+ * `agent-runner` bundle through this same file, so changing it would
+ * silently change the runner (N5). It carries no commit sha and no
+ * repository — `CiRunMeta` below is the sidecar that supplies both.
  */
 export const CiResultArtifact = z.object({
   findings_count: z.number().int(),
@@ -342,6 +410,76 @@ export const CiResultArtifact = z.object({
   pr_number: z.number().int().nullish(),
 });
 export type CiResultArtifact = z.infer<typeof CiResultArtifact>;
+
+/**
+ * D-P2 sidecar — written by the GENERATED WORKFLOW (never the runner) as
+ * `devdigest-run.json`, alongside `devdigest-result.json`, from GitHub
+ * Actions context passed through a step-level `env:` block. Gives the
+ * ingest boundary (AC-18) something to authenticate the artifact against:
+ * `CiResultArtifact` alone carries no commit sha and no repository, so the
+ * "commit matches" / "repository matches" checks would otherwise be vacuous.
+ */
+export const CiRunMeta = z.object({
+  commit_sha: z.string().min(1),
+  repository: z.string().min(1),
+  pr_number: z.number().int(),
+});
+export type CiRunMeta = z.infer<typeof CiRunMeta>;
+
+/** AC-64/P-7 — three states, not two: a 403 on the secrets-read endpoint
+ *  (the common case for a local-mode credential without `Secrets: read`)
+ *  must render as `'unknown'`, never `'missing'` (which would wrongly tell
+ *  the user to add a secret they may already have) and never block the
+ *  wizard. Never carries a secret value. */
+export const CiSecretStatus = z.object({
+  name: z.string(),
+  required: z.boolean(),
+  state: z.enum(['configured', 'missing', 'unknown']),
+  provided_by_ci: z.boolean(),
+});
+export type CiSecretStatus = z.infer<typeof CiSecretStatus>;
+
+/** `POST /agents/:id/ci/preview` response — the bundle plus everything the
+ *  Configure/Install steps need without a second round-trip (AC-3/AC-4c/AC-9/
+ *  AC-64). */
+export const CiPreview = z.object({
+  files: z.array(CiFile),
+  secrets: z.array(CiSecretStatus),
+  warnings: z.array(z.string()),
+});
+export type CiPreview = z.infer<typeof CiPreview>;
+
+/** `GET /ci/targets` — the generator registry's own projection (AC-2/AC-2a):
+ *  registering a second generator makes a second option appear with zero
+ *  change to this contract or the Target step. */
+export const CiTargetOption = z.object({
+  target: CiTarget,
+  label_key: z.string(),
+});
+export type CiTargetOption = z.infer<typeof CiTargetOption>;
+
+/** `GET /ci/runs` — the list plus the filter vocabularies the same read
+ *  already has on hand (AC-28), so the client never derives them from the
+ *  (possibly filtered) row set it's showing. */
+export const CiRunsPage = z.object({
+  runs: z.array(CiRun),
+  agents: z.array(z.object({ id: z.string(), name: z.string() })),
+  repos: z.array(z.string()),
+});
+export type CiRunsPage = z.infer<typeof CiRunsPage>;
+
+/** `POST /ci/refresh` response (AC-29). `degraded: true` means "could not
+ *  refresh from the provider, showing stored data" — the list is never
+ *  emptied because a refresh failed. */
+export const CiRefreshResult = z.object({
+  checked: z.number().int(),
+  ingested: z.number().int(),
+  failed: z.number().int(),
+  skipped_debounced: z.number().int(),
+  degraded: z.boolean(),
+  reason: z.string().nullable(),
+});
+export type CiRefreshResult = z.infer<typeof CiRefreshResult>;
 
 // ===========================================================================
 // Conformance (PRD ↔ PR) — API record (the analysis shape is `Conformance`)

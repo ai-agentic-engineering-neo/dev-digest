@@ -69,6 +69,22 @@ export const NAV: NavGroup[] = [
       { key: "eval", label: "Eval Dashboard", icon: "BarChart3", href: "/eval", gKey: "e" },
     ],
   },
+  {
+    // specs/14-export-to-ci.md AC-51 — both new pages are workspace-level,
+    // not repo-scoped, so a third section (not folded into an existing one)
+    // keeps that scope visible in the sidebar's own grouping.
+    section: "CI",
+    items: [
+      { key: "ci-runs", label: "CI Runs", icon: "Zap", href: "/ci-runs", gKey: "i" },
+      {
+        key: "agent-performance",
+        label: "Agent Performance",
+        icon: "Gauge",
+        href: "/agent-performance",
+        gKey: "f",
+      },
+    ],
+  },
 ];
 
 export const SETTINGS_ITEM: NavItemDef = {
@@ -102,6 +118,8 @@ export const SHORTCUTS: ShortcutDef[] = [
   { keys: "g a", label: "Go to Agents", group: "Navigation" },
   { keys: "g c", label: "Go to Conventions", group: "Navigation" },
   { keys: "g e", label: "Go to Eval Dashboard", group: "Navigation" },
+  { keys: "g i", label: "Go to CI Runs", group: "Navigation" },
+  { keys: "g f", label: "Go to Agent Performance", group: "Navigation" },
   { keys: "j / k", label: "Next / previous finding", group: "Findings" },
   { keys: "a", label: "Accept finding", group: "Findings" },
   { keys: "d", label: "Dismiss finding", group: "Findings" },

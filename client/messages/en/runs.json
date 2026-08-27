@@ -27,6 +27,7 @@
     "toolCalls": "Tool calls",
     "rawOutput": "Raw output",
     "noToolCalls": "No tool calls recorded.",
+    "notAvailableForCi": "Not available for CI runs.",
     "findings": "Findings",
     "noFindings": "No findings for this run.",
     "suggestedFix": "Suggested fix:",
@@ -88,7 +89,9 @@
   "copied": "Copied!",
     "tracePending": "Trace is written when the run completes — see the Live log tab.",
     "loadingTrace": "Loading trace…",
-    "noTrace": "No trace available yet."
+    "noTrace": "No trace available yet.",
+    "unavailableForCi": "Not available for CI runs: {sections}.",
+    "viewOnProvider": "View on CI provider"
   },
   "stats": {
     "na": "n/a",

@@ -19,6 +19,14 @@ import { Row, Stat } from "../atoms";
 export function TraceBody({ trace, findings }: { trace: RunTrace; findings: FindingRecord[] }) {
   const t = useTranslations("runs");
   const stats = trace.stats;
+  // specs/14-export-to-ci.md AC-30/finding 6 — a CI-ingested run's trace
+  // carries real config/stats but empty-string prompt fields and empty
+  // tool_calls/raw_output arrays (D-P3's sidecar has no prompt/tool data to
+  // give it). Each of those three sections needs its OWN explicit branch
+  // here (this component does not render `PromptAssembly` generically —
+  // `client/LEARNINGS.md:220-241`), so a CI trace states unavailability
+  // instead of rendering as silently blank.
+  const isCi = trace.config.source === "ci";
   return (
     <>
       <TraceSection icon="Settings" title={t("trace.configuration")}>
@@ -91,33 +99,39 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
       <FindingsSection findings={findings} />
 
       <TraceSection icon="FileText" title={t("trace.promptAssembly")} defaultOpen={false}>
-        <PromptBlock label={t("trace.prompt.system")} text={trace.prompt_assembly.system} color={PROMPT_COLORS.system} />
-        {trace.prompt_assembly.skills != null && (
-          <PromptBlock label={t("trace.prompt.skills")} text={trace.prompt_assembly.skills} color={PROMPT_COLORS.skills} />
+        {isCi ? (
+          <span style={s.noToolCalls}>{t("trace.notAvailableForCi")}</span>
+        ) : (
+          <>
+            <PromptBlock label={t("trace.prompt.system")} text={trace.prompt_assembly.system} color={PROMPT_COLORS.system} />
+            {trace.prompt_assembly.skills != null && (
+              <PromptBlock label={t("trace.prompt.skills")} text={trace.prompt_assembly.skills} color={PROMPT_COLORS.skills} />
+            )}
+            {trace.prompt_assembly.memory != null && (
+              <PromptBlock label={t("trace.prompt.memory")} text={trace.prompt_assembly.memory} color={PROMPT_COLORS.memory} />
+            )}
+            {trace.prompt_assembly.repo_map != null && (
+              <PromptBlock label={t("trace.prompt.repoMap")} text={trace.prompt_assembly.repo_map} color={PROMPT_COLORS.repoMap} />
+            )}
+            {trace.prompt_assembly.specs != null && (
+              <PromptBlock label={t("trace.prompt.specs")} text={trace.prompt_assembly.specs} color={PROMPT_COLORS.specs} />
+            )}
+            {trace.prompt_assembly.callers != null && (
+              <PromptBlock label={t("trace.prompt.callers")} text={trace.prompt_assembly.callers} color={PROMPT_COLORS.callers} />
+            )}
+            {trace.prompt_assembly.intent != null && (
+              <PromptBlock label={t("trace.prompt.intent")} text={trace.prompt_assembly.intent} color={PROMPT_COLORS.intent} />
+            )}
+            {trace.prompt_assembly.intent_scope != null && (
+              <PromptBlock
+                label={t("trace.prompt.intentScope")}
+                text={trace.prompt_assembly.intent_scope}
+                color={PROMPT_COLORS.intentScope}
+              />
+            )}
+            <PromptBlock label={t("trace.prompt.user")} text={trace.prompt_assembly.user} color={PROMPT_COLORS.user} />
+          </>
         )}
-        {trace.prompt_assembly.memory != null && (
-          <PromptBlock label={t("trace.prompt.memory")} text={trace.prompt_assembly.memory} color={PROMPT_COLORS.memory} />
-        )}
-        {trace.prompt_assembly.repo_map != null && (
-          <PromptBlock label={t("trace.prompt.repoMap")} text={trace.prompt_assembly.repo_map} color={PROMPT_COLORS.repoMap} />
-        )}
-        {trace.prompt_assembly.specs != null && (
-          <PromptBlock label={t("trace.prompt.specs")} text={trace.prompt_assembly.specs} color={PROMPT_COLORS.specs} />
-        )}
-        {trace.prompt_assembly.callers != null && (
-          <PromptBlock label={t("trace.prompt.callers")} text={trace.prompt_assembly.callers} color={PROMPT_COLORS.callers} />
-        )}
-        {trace.prompt_assembly.intent != null && (
-          <PromptBlock label={t("trace.prompt.intent")} text={trace.prompt_assembly.intent} color={PROMPT_COLORS.intent} />
-        )}
-        {trace.prompt_assembly.intent_scope != null && (
-          <PromptBlock
-            label={t("trace.prompt.intentScope")}
-            text={trace.prompt_assembly.intent_scope}
-            color={PROMPT_COLORS.intentScope}
-          />
-        )}
-        <PromptBlock label={t("trace.prompt.user")} text={trace.prompt_assembly.user} color={PROMPT_COLORS.user} />
       </TraceSection>
 
       <TraceSection
@@ -125,7 +139,9 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
         title={t("trace.toolCalls")}
         right={<Badge color="var(--text-muted)">{trace.tool_calls.length}</Badge>}
       >
-        {trace.tool_calls.length === 0 ? (
+        {isCi ? (
+          <span style={s.noToolCalls}>{t("trace.notAvailableForCi")}</span>
+        ) : trace.tool_calls.length === 0 ? (
           <span style={s.noToolCalls}>{t("trace.noToolCalls")}</span>
         ) : (
           trace.tool_calls.map((tc, i) => <ToolCallRow key={i} tc={tc} />)
@@ -134,7 +150,7 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
 
       <TraceSection icon="Code" title={t("trace.rawOutput")} defaultOpen={false}>
         <pre className="mono" style={s.rawPre}>
-          {trace.raw_output || "—"}
+          {isCi ? t("trace.notAvailableForCi") : trace.raw_output || "—"}
         </pre>
       </TraceSection>
     </>

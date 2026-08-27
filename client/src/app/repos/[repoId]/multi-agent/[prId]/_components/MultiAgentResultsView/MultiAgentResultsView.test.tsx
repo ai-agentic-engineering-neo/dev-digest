@@ -33,7 +33,7 @@ vi.mock("@/lib/hooks/core", () => ({
   usePullDetail: () => ({ data: { head_sha: "sha1" } }),
 }));
 
-vi.mock("@/app/repos/[repoId]/pulls/[number]/_components/RunTraceDrawer", () => ({
+vi.mock("@/components/run-trace-drawer/RunTraceDrawer", () => ({
   default: () => <div>trace-drawer</div>,
 }));
 vi.mock("./ColumnsLayout", () => ({

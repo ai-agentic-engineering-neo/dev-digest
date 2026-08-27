@@ -47,6 +47,9 @@ import { type Tokenizer, TiktokenTokenizer } from '../adapters/tokenizer/index.j
 import { IntentRepository } from '../modules/intent/repository.js';
 import { IntentService } from '../modules/intent/service.js';
 import { readClone } from '../modules/intent/clone.js';
+import { MemoryRepository } from '../modules/memory/repository.js';
+import { CiRepository } from '../modules/ci/repository.js';
+import { CiService } from '../modules/ci/service.js';
 
 /**
  * DI container. One per app instance. Holds config, db, the JobRunner,
@@ -107,6 +110,9 @@ export class Container {
   private _priceBook?: PriceBook;
   private _intentRepo?: IntentRepository;
   private _intentService?: IntentService;
+  private _memoryRepo?: MemoryRepository;
+  private _ciRepo?: CiRepository;
+  private _ciService?: CiService;
 
   constructor(config: AppConfig, db: Db, private overrides: ContainerOverrides = {}) {
     this.config = config;
@@ -287,6 +293,45 @@ export class Container {
    *  `feature-models.ts` directly. */
   resolveFeatureModel(workspaceId: string, id: FeatureModelId): Promise<FeatureModelChoice> {
     return resolveFeatureModelForWorkspace(this.db, workspaceId, id);
+  }
+
+  /** specs/14-export-to-ci.md (D-P4) — the `memory` table's read side, ahead
+   *  of the sibling `feat/multi-agent-review`'s write side merging first.
+   *  Registers no route of its own (see `modules/memory/repository.ts`). */
+  get memoryRepo(): MemoryRepository {
+    return (this._memoryRepo ??= new MemoryRepository(this.db));
+  }
+
+  /** specs/14-export-to-ci.md — `ci_installations`/`ci_runs` + the CI-sourced
+   *  `agent_runs`/`run_traces` writes (D7) + Agent Performance aggregation. */
+  get ciRepo(): CiRepository {
+    return (this._ciRepo ??= new CiRepository(this.db));
+  }
+
+  /**
+   * Application service for Export to CI — bundle generation/export/ingest
+   * orchestration. Ports are wired here, at the composition root: `agentsRepo`
+   * satisfies `AgentLookup` structurally; `enabledSkills` is adapted from
+   * `{id,name,type,body}[]` to `{slug,body}[]` (a skill's `name` column IS
+   * its slug) since the port's field name differs from the row's; `memoryRepo`
+   * satisfies `MemoryReader` and `repoRepo` satisfies `RepoLookup` directly.
+   */
+  get ciService(): CiService {
+    return (this._ciService ??= new CiService(
+      this.ciRepo,
+      this.agentsRepo,
+      {
+        enabledSkills: (agentId: string) =>
+          this.agentsRepo.enabledSkills(agentId).then((rows) =>
+            rows.map((r) => ({ slug: r.name, body: r.body })),
+          ),
+      },
+      this.memoryRepo,
+      this.repoRepo,
+      () => this.github(),
+      this.config.ciRunnerBundleDir,
+      this.secrets,
+    ));
   }
 
   get codeIndex(): CodeIndex {

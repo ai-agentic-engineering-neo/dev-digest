@@ -11,11 +11,35 @@ import type {
   OpenPrPayload,
   CommitFilesPayload,
   IssueMeta,
+  WorkflowRun,
+  RunArtifact,
 } from '@devdigest/shared';
 import { withRetry, withTimeout } from '../../platform/resilience.js';
 import { resolveLinkedIssue } from '../../modules/_shared/linked-issue.js';
+import { ValidationError } from '../../platform/errors.js';
 
 const TIMEOUT = 30_000;
+
+/**
+ * specs/14-export-to-ci.md (P4, security-critical), defence in depth —
+ * `downloadArtifact` buffers a whole artifact response into memory
+ * (`Uint8Array`) before its caller ever gets to inspect it.
+ * `modules/ci/ingest.ts` already caps the UNZIPPED contents it trusts
+ * (`ARCHIVE_ENTRY_LIMIT` entries, `MAX_ENTRY_BYTES` per entry — at most
+ * 64 * 256 KiB = 16 MiB of usable unzipped content), but that check runs
+ * only AFTER this method has already downloaded and buffered the whole
+ * COMPRESSED archive. This cap is deliberately kept in the same order of
+ * magnitude as that unzipped ceiling (a well-formed artifact from our own
+ * runner is two small JSON files; compression ratio for JSON keeps the
+ * compressed size at or below the uncompressed one) — generous enough for
+ * any legitimate artifact, small enough to bound the memory a single
+ * download can consume regardless of what a compromised or malicious CI
+ * workflow publishes under the same artifact name. This is a general
+ * adapter-level guard, not a `modules/ci` business rule, so the cap lives
+ * here rather than importing `modules/ci/constants.ts` (adapters stay
+ * self-contained; see onion-architecture's ports-belong-to-the-inside rule).
+ */
+const MAX_ARTIFACT_COMPRESSED_BYTES = 16 * 1024 * 1024;
 
 function mapStatus(state: string, merged: boolean | undefined): PrStatus {
   if (merged) return 'merged';
@@ -358,5 +382,128 @@ export class OctokitGitHubClient implements GitHubClient {
       withTimeout(this.octokit.rest.users.getAuthenticated(), TIMEOUT),
     );
     return res.data.login;
+  }
+
+  async listWorkflowRuns(
+    repo: RepoRef,
+    opts: { workflowPath: string; perPage?: number },
+  ): Promise<WorkflowRun[]> {
+    return withRetry(() =>
+      withTimeout(
+        (async () => {
+          const res = await this.octokit.rest.actions.listWorkflowRuns({
+            owner: repo.owner,
+            repo: repo.name,
+            workflow_id: opts.workflowPath,
+            per_page: opts.perPage ?? 30,
+          });
+          return res.data.workflow_runs.map((r) => ({
+            id: r.id,
+            status: r.status ?? 'unknown',
+            conclusion: r.conclusion,
+            head_sha: r.head_sha,
+            html_url: r.html_url,
+            display_title: r.display_title ?? r.name ?? '',
+            created_at: r.created_at,
+            updated_at: r.updated_at,
+            run_started_at: r.run_started_at ?? null,
+            pull_requests: (r.pull_requests ?? []).map((pr) => pr.number),
+          }));
+        })(),
+        TIMEOUT,
+      ),
+    );
+  }
+
+  async listRunArtifacts(repo: RepoRef, runId: number): Promise<RunArtifact[]> {
+    return withRetry(() =>
+      withTimeout(
+        (async () => {
+          const res = await this.octokit.rest.actions.listWorkflowRunArtifacts({
+            owner: repo.owner,
+            repo: repo.name,
+            run_id: runId,
+            per_page: 100,
+          });
+          return res.data.artifacts.map((a) => ({
+            id: a.id,
+            name: a.name,
+            size_in_bytes: a.size_in_bytes,
+            expired: a.expired,
+          }));
+        })(),
+        TIMEOUT,
+      ),
+    );
+  }
+
+  async downloadArtifact(repo: RepoRef, artifactId: number): Promise<Uint8Array> {
+    return withRetry(() =>
+      withTimeout(
+        (async () => {
+          // Defence in depth: check the PROVIDER-REPORTED compressed size
+          // before ever buffering the artifact body. `listRunArtifacts`
+          // already surfaces this same `size_in_bytes` field to callers
+          // earlier in the same ingest flow — re-fetching it here (rather
+          // than trusting a value threaded through from that earlier call)
+          // means this check holds even if a caller skips or races that
+          // step, and keeps this method's own contract self-sufficient.
+          const meta = await this.octokit.rest.actions.getArtifact({
+            owner: repo.owner,
+            repo: repo.name,
+            artifact_id: artifactId,
+          });
+          if (meta.data.size_in_bytes > MAX_ARTIFACT_COMPRESSED_BYTES) {
+            throw new ValidationError(
+              `Artifact ${artifactId} is ${meta.data.size_in_bytes} bytes, exceeding the ` +
+                `${MAX_ARTIFACT_COMPRESSED_BYTES}-byte cap; refusing to download it`,
+            );
+          }
+
+          const res = await this.octokit.rest.actions.downloadArtifact({
+            owner: repo.owner,
+            repo: repo.name,
+            artifact_id: artifactId,
+            archive_format: 'zip',
+          });
+          // Octokit follows the redirect and returns the raw zip bytes as an
+          // ArrayBuffer in `.data` for this endpoint.
+          return new Uint8Array(res.data as ArrayBuffer);
+        })(),
+        TIMEOUT,
+      ),
+    );
+  }
+
+  /** NAMES only — this endpoint (GitHub Actions repo secrets) never returns
+   *  a secret's value; there is no method on this client that could.
+   *
+   *  A 403 here (the common case for a fine-grained local-mode PAT that
+   *  lacks the `Secrets: read` permission) is distinguished from "confirmed
+   *  no such secret" — this returns `null`, never an empty array, so the
+   *  caller (`CiService.secretStatus`, P-7) can render "unknown" rather than
+   *  wrongly telling the user to add a secret they may already have. */
+  async listRepoSecretNames(repo: RepoRef): Promise<string[] | null> {
+    try {
+      return await withRetry(() =>
+        withTimeout(
+          (async () => {
+            const res = await this.octokit.rest.actions.listRepoSecrets({
+              owner: repo.owner,
+              repo: repo.name,
+              per_page: 100,
+            });
+            return res.data.secrets.map((s) => s.name);
+          })(),
+          TIMEOUT,
+        ),
+      );
+    } catch (err) {
+      const status =
+        (err as { status?: number })?.status ??
+        (err as { response?: { status?: number } })?.response?.status;
+      if (status === 403) return null;
+      throw err;
+    }
   }
 }

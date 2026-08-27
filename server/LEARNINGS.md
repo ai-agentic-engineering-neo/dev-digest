@@ -536,6 +536,85 @@ interactive rename prompt, confirming (again) that the 2026-08-03 hang below
 is specifically an add+drop-on-one-table trigger, not a general multi-statement
 one.
 
+### 2026-08-25 — most of `server/src/modules/ci/` was never `git add`ed despite four "committed phases" on this branch, and a plain `git stash` (no `-u`) silently reverts only the tracked half
+
+`git ls-files server/src/modules/ci/` returns exactly three files
+(`bundle.ts`, `constants.ts`, `service.ts`) even though the branch's four
+phase commits (`bcf781d`..`8594b7d`, specs/14-export-to-ci.md) describe a
+13-file module — `ingest.ts`, `manifest.ts`, `memory-export.ts`, `ports.ts`,
+`redact.ts`, `refresh.ts`, `repository.ts`, `routes.ts`, `targets.ts`,
+`workflow.ts` and `workflow.test.ts` are all real, working, imported-by-the-app
+code (the app doesn't build without them) that simply never got staged into
+any of those commits. Running a plain `git stash` (not `git stash -u`) mid-session
+to get a "before" typecheck baseline stashed only the tracked files, leaving
+the untracked majority of the module in place — the resulting typecheck ran
+against a HALF-reverted tree and produced a misleading error set (stale
+`repo`-column errors that were actually caused by the untracked files' current
+state, not by the stashed edit). Before using `git stash` as a quick "what did
+I just break" check in this module (or any module where `git status` shows a
+mix of `M` and `??` inside the same directory), use `git stash -u` or just
+diff the specific files you changed instead of trusting a plain stash to
+represent "before my edit".
+
+### 2026-08-25 — `yaml`'s `Document`/`stringify` needs two non-obvious opt-ins to fully replace a hand-rolled `lines.join('\n')` workflow builder: `lineWidth: 0`, and the comment API for a trailing `# vX.Y.Z` annotation
+
+Rewriting `modules/ci/workflow.ts` (plan-verifier CONTRADICTED finding — it had
+been built with `Array.prototype.join('\n')` over hand-quoted strings despite
+plans/14-export-to-ci.md's explicit P-9 decision to use `yaml`'s `stringify`
+throughout, same as `manifest.ts` already does) surfaced two gaps a naive
+`yaml.stringify(plainObject)` call doesn't cover:
+
+1. **Long single-line string values get auto-folded across multiple lines by
+   default** (`lineWidth: 80`). The "Write run metadata" step's `run:` value
+   (a ~200-char `node -e "..."` one-liner) got silently reflowed onto a second
+   indented line — re-parses to the same string (plain-scalar folding collapses
+   the inserted newline+indent back to a single space), so it's not a
+   correctness bug, but it's a needless behavior-preserving risk to accept for
+   zero benefit. Fix: `doc.toString({ lineWidth: 0 })` disables folding
+   entirely — every scalar renders on one line, matching what the previous
+   hand-rolled implementation produced.
+
+2. **A genuine trailing YAML comment (e.g. `uses: actions/checkout@<sha> #
+   v4.4.0`, where `# v4.4.0` must stay a real comment, ignored by any YAML
+   parser, and never become part of the `uses:` string value itself) requires
+   the `Document`/`Scalar` node API, not a plain-object `stringify` call** —
+   there is no way to attach a per-field comment to a plain JS object before
+   handing it to `stringify`. Fix: build the object as normal, wrap it in
+   `new Document(obj)`, then `doc.getIn(path, true)` (the `true` — "keep
+   scalar" — argument is required; without it you get the unwrapped JS value,
+   not the `Scalar` node) to get the actual `Scalar`/`Pair` node and set
+   `.comment = ' v4.4.0'` on it directly. Checking `'comment' in node` to guard
+   this is a trap — it's `false` for a fresh `Scalar` even though assigning to
+   it works fine (the property isn't declared until you set it); test
+   `node instanceof Scalar` instead. The document-level leading `# Generated
+   by...` header comment is simpler — `doc.commentBefore = '...'` — but note
+   it always inserts one blank line between the comment block and the first
+   real key, a formatting difference from the original hand-rolled output that
+   has no semantic effect (confirmed by parsing old vs. new output and
+   deep-equal-comparing the two, across four `{triggers, postAs}`
+   combinations plus one adversarial trigger-list case with embedded `"; key:
+   value\n` — all four normal cases matched exactly once the multi-line
+   `path: |...|` block's trailing-newline chomping mode was also matched, by
+   ensuring the JS string itself ends in `\n` so `yaml` picks clip (`|`) over
+   strip (`|-`) chomping).
+
+Separately, `OctokitGitHubClient.downloadArtifact` (defence-in-depth per the
+same plan-verifier pass) now calls `octokit.rest.actions.getArtifact({owner,
+repo, artifact_id})` — a real, cheap metadata-only endpoint distinct from
+`actions.downloadArtifact` — to read `size_in_bytes` and reject (a thrown
+`ValidationError`, matching this file's now-established "typed error, never a
+silent null/throw of a bare `Error`" convention) BEFORE the redirect-following
+download call ever buffers the artifact body into memory. This re-fetches the
+same field `listRunArtifacts` already returned earlier in `CiService`'s ingest
+flow, deliberately: the check holds even if some future caller obtains an
+artifact id a different way and skips the `listRunArtifacts` step entirely.
+The chosen cap (16 MiB) is a copy-by-value constant local to `octokit.ts`, not
+an import of `modules/ci/ingest.ts`'s `ARCHIVE_ENTRY_LIMIT`/`MAX_ENTRY_BYTES`
+(64 × 256 KiB) — an adapter importing a specific feature module's internal
+caps would be a backwards dependency (adapters are outer-ring; a module-
+specific constant isn't a port), so the two stay independently declared with a
+comment cross-referencing each other for consistency instead.
+
 ## Recurring Errors & Fixes
 
 ### 2026-07-28 — `.nullable()` on a shared contract breaks every fixture that builds it
@@ -761,6 +840,26 @@ groups/`split_suggestion` still need to be composed into `pr_brief.json` just
 because the contract sits in the same file as `PrBrief` — check what shipped
 in specs/06 first.
 
+**2026-08-25 addendum — the same pattern, but the whole response-envelope
+contract was defined and never called anywhere, not one column.**
+specs/14-export-to-ci.md's `CiPreview`/`CiTargetOption`/`CiRunsPage`/
+`CiRefreshResult` (`vendor/shared/contracts/eval-ci.ts`) were fully specced,
+identical in both `vendor/shared` copies, and had **zero** non-definition
+references anywhere in `server/src` or `client/src` — every real route/hook
+(`GET /ci/targets`, `POST /agents/:id/ci/preview`, `GET /ci/runs`,
+`POST /ci/refresh`) was still returning/consuming a raw `CiTarget[]`/
+`CiFile[]`/`CiRun[]`/ad hoc `{ingested, degraded}` shape instead of the named
+contract sitting right next to it in the same file. A `plan-verifier` pass
+caught this; grepping a contract's name for non-definition references (not
+just confirming both copies match each other) is the check that would have
+caught it earlier — "the two vendor/shared copies agree" only proves the
+contract is well-formed, not that anything actually returns it. Fixed by
+reshaping `CiService.listTargets/preview/listRuns/refresh` to build and
+return the real envelope (`targets.ts` gained `listTargetOptions()`,
+`bundle.ts` gained `toPreviewFiles()` for P-4's null-out-runner-bundle-
+contents-in-preview behavior, `service.listRuns` now computes the
+agent/repo filter vocabularies from the same read per AC-28).
+
 ### 2026-08-03 — `.dependency-cruiser-known-violations.json` baselines exact from→to edges, not files — narrowing a param type can silently add a new violation next to an already-ignored one
 
 Changing `getFeatureModelOverride`/`resolveFeatureModel`
@@ -883,7 +982,65 @@ the `LIMIT`'d row set and tie order deterministic. Generalizes: any query that
 intentionally omits `ORDER BY` to avoid biasing a limit/sample should still
 pick SOME deterministic tiebreaker column, never truly no order at all.
 
+### 2026-08-21 — testing a workspace-scoped route with NO resource-id path param needs an `auth` override, not just DB rows in a second workspace
+
+Building `test/ci-ingest.it.test.ts` (specs/14-export-to-ci.md, Phase D):
+`getContext` (every route) resolves `workspaceId` via
+`container.auth.currentWorkspace(req)` — **never** from a request param or
+from whatever rows a test happens to insert. The default `LocalNoAuthProvider`
+always resolves the ONE seeded workspace by name, cached per container
+instance, regardless of what a test writes directly to `t.workspaces`. This is
+invisible for routes keyed by a resource id (e.g. `brief.it.test.ts`'s AC-44
+test creates a second workspace + PR and asserts `GET /pulls/:id/brief` 404s
+for it — that works because the PR id alone, not the auth workspace, decides
+which row is read) but breaks completely for a workspace-wide route with no
+id at all (`POST /ci/refresh`, `GET /ci/runs`, `GET /agents/performance`): the
+route will ALWAYS operate against the default seeded workspace no matter which
+workspace the test's fixtures actually live in. Fix:
+`overrides: { auth: new MockAuthProvider(undefined, { id: workspaceId, name: '...' }) }`
+per `buildApp()` call, pointed at whichever workspace that test created.
+Generalizes to any future test of a global/workspace-wide route (list,
+refresh, aggregate) — check whether the route reads an id from the URL before
+assuming "insert a second workspace + assert it's excluded" is enough on its
+own.
+
+Separately, `MockGitHubClient.listWorkflowRuns`/`listRunArtifacts`/
+`downloadArtifact` (`src/adapters/mocks.ts`) ignore the `repo`/`RepoRef`
+argument entirely — they return whatever fixture the test scripted regardless
+of which installation is being queried. Since `CiService.refresh` iterates
+EVERY `ci_installations` row in a workspace per call, two installations
+sharing one workspace (or one workspace reused across several `it()` blocks in
+the same file) get "refreshed" against the SAME mocked GitHub fixture on every
+call — including the SAME provider `run.id` — which collides on `ci_runs`'
+`(workspace_id, provider_run_id)` unique index and silently overwrites one
+test's row with another's (`ciInstallationId` flips to whichever installation
+processed last in that refresh's loop; `refresh()`'s `ingested` count also
+inflates because it counts once per installation processed, not once per
+resulting row). Fix: give every CI-ingest test its own freshly-created
+workspace (`createWorkspace()` + a fresh agent + a fresh installation), never
+share the seeded workspace or reuse one across cases in the same file.
+
 ## Session Notes
+
+### 2026-08-26 — resuming `.worktrees/devdigest-ci` (`feat/export-to-ci`) after a context reset found the branch's last commit (`bfcc4dc`) unbuildable from a fresh checkout: several load-bearing files were still untracked
+
+`git status --porcelain` looked routine — a handful of modified files, some
+untracked ones — but the untracked set included `modules/ci/{ingest,manifest,
+memory-export,ports,redact,refresh,routes}.ts` and `modules/memory/
+repository.ts`, which `platform/container.ts` and `modules/index.ts` (both
+already committed) import directly. So the tip commit was broken for anyone
+who didn't happen to have these specific files sitting on disk from the prior
+session — locally everything looked fine only because nothing had been
+`git clean`ed. Confirmed the code itself was finished and correct (server +
+client `pnpm typecheck` clean, `pnpm run arch` zero new violations, full
+server suite 76 files/584 tests green, full client suite 43/230 green, plus
+`verify:l07`'s dedicated ci-ingest integration test) before committing it as
+`bcb3f4d`. Generalizes: after a context reset, or when picking up any
+worktree from a prior session, don't judge "is this done" from `git status`
+alone — grep the untracked filenames against already-committed source
+(`grep -rl '<untracked-basename>' src`) to check whether tracked code already
+depends on them. A clean-looking `git log` on its own is not evidence the
+branch builds from a fresh clone.
 
 ### 2026-08-15 — a second round of test-writer passes (this time for `modules/onboarding/` and `modules/repo-intel/`) found the SAME stale-CRITICAL-premise pattern as the 2026-08-14 `modules/brief/` entry below, from the same DevDigest review run
 

@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { RunTrace } from "@devdigest/shared";
-import messages from "../../../../../../../../messages/en/runs.json"; // apps/web/messages/en/runs.json
+import messages from "../../../../messages/en/runs.json"; // apps/web/messages/en/runs.json
 
 // Mock the trace hooks so the drawer renders without a query client / SSE.
 const TRACE: RunTrace = {
@@ -19,10 +19,10 @@ const TRACE: RunTrace = {
   ],
 };
 
-vi.mock("../../../../../../../lib/hooks/trace", () => ({
+vi.mock("../../../lib/hooks/trace", () => ({
   useRunTrace: () => ({ data: TRACE, isLoading: false }),
 }));
-vi.mock("../../../../../../../lib/hooks/reviews", () => ({
+vi.mock("../../../lib/hooks/reviews", () => ({
   useRunEvents: () => ({ events: [], running: false }),
 }));
 
@@ -109,6 +109,31 @@ describe("A5 Run Trace drawer (smoke)", () => {
       expect(screen.getByText("(budget_drop)")).toBeInTheDocument();
     } finally {
       TRACE.specs_read = [];
+    }
+  });
+
+  it("states unavailability for prompt assembly, tool calls and raw output on a CI-sourced trace (specs/14-export-to-ci.md AC-30)", () => {
+    const original = { ...TRACE.config };
+    TRACE.config = { ...TRACE.config, source: "ci" };
+    try {
+      renderWithIntl(
+        <RunTraceDrawer
+          runId="r1"
+          agentName="Security"
+          prNumber={482}
+          onClose={() => {}}
+          providerUrl="https://github.com/acme/payments-api/actions/runs/1001"
+        />,
+      );
+      fireEvent.click(screen.getByText("Prompt assembly"));
+      expect(screen.getAllByText("Not available for CI runs.").length).toBeGreaterThanOrEqual(2);
+      // The real (local-only) prompt content must NOT render for a CI trace.
+      expect(screen.queryByText("You are a reviewer.")).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByText("Raw output"));
+      expect(screen.getAllByText("Not available for CI runs.").length).toBeGreaterThanOrEqual(3);
+    } finally {
+      TRACE.config = original;
     }
   });
 });

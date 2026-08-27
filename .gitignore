@@ -24,6 +24,9 @@ test-results/
 # emdash worktree config (local)
 .emdash.json
 
+# nested git worktrees for parallel feature branches (local)
+.worktrees/
+
 # Claude local settings
 .claude/settings.local.json
 .claude/settings.json

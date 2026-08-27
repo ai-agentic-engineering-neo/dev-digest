@@ -5,13 +5,17 @@
   },
   "column": {
     "noFindings": "No findings.",
-    "findingsCount": "{count, plural, one {# finding} other {# findings}}"
+    "findingsCount": "{count, plural, one {# finding} other {# findings}}",
+    "failed": "Failed",
+    "cancelled": "Cancelled",
+    "running": "Running…"
   },
   "conflicts": {
     "title": "Where agents disagree",
     "onlyConflicts": "Show only conflicts",
     "empty": "No conflicts — the agents agree on every flagged location.",
-    "didNotFlag": "did not flag"
+    "didNotFlag": "did not flag",
+    "needTwoAgents": "Comparing stances needs at least two successful agent runs."
   },
   "tabs": {
     "noSummary": "No summary."
@@ -124,26 +128,41 @@
   },
   "page": {
     "title": "Multi-Agent Review",
-    "subtitle": "this PR through every enabled agent in parallel",
+    "subtitle": "Pick the agents to run on this PR and compare their reviews side by side.",
     "selectPr": "Select PR",
     "prItem": "#{number} · {title}",
     "view": {
       "columns": "columns",
       "tabs": "tabs"
     },
-    "runAll": "Run all agents",
     "running": "Running…",
-    "meta": "{count} agents · fan-out via p-queue · {duration}s total · {cost}",
+    "meta": "{count} agents · {duration}s total · {cost}",
+    "pickPrFirst": "Select a pull request to choose agents.",
+    "configureRun": "Configure a run",
+    "selectAll": "Select all",
+    "selectedCount": "{count} of {total} selected",
+    "runSelected": "Run {count} agent(s)",
+    "scoreLegend": "Higher score is better.",
+    "viewExistingResults": "View existing results",
+    "startNewReview": "Start new review",
+    "partial": "Partial results — not every agent completed.",
+    "allFailed": "Every agent failed to complete this run.",
+    "sharedFailure": "Every agent failed for the same reason: {reason}",
+    "estimate": {
+      "perAgent": "~{duration}s · {cost}",
+      "aggregate": "Est. total: ~{duration}s · {cost}",
+      "unavailable": "No estimate available"
+    },
     "noAgents": {
       "title": "Enable agents to run reviews",
-      "body": "Multi-agent review runs the PR through every enabled agent in parallel. You have no agents enabled yet.",
+      "body": "Multi-agent review runs the PR through the agents you select. You have no agents enabled yet.",
       "cta": "Go to Agents"
     },
     "noRun": {
       "title": "No multi-agent run yet",
-      "bodyReady": "Run all enabled agents on this PR to see N columns + conflicts.",
+      "bodyReady": "Select agents and run a review on this PR to see columns + conflicts.",
       "bodySelect": "Select a PR to begin.",
-      "cta": "Run all agents"
+      "cta": "Configure a run"
     },
     "crumb": "Multi-Agent Review"
   }

@@ -24,6 +24,15 @@ export const NAV: NavGroup[] = [
     items: [
       { key: "pulls", label: "Pull Requests", icon: "GitPullRequest", href: "/repos/:repoId/pulls", gKey: "p" },
       {
+        // specs/13-multi-agent-review.md D14/AC-52 — PR-oriented and
+        // repo-scoped, so it sits in WORKSPACE beside `pulls`, not SKILLS LAB.
+        key: "multi-agent",
+        label: "Multi-Agent Review",
+        icon: "Users",
+        href: "/repos/:repoId/multi-agent",
+        gKey: "m",
+      },
+      {
         key: "context",
         label: "Project Context",
         icon: "FileText",
@@ -102,6 +111,7 @@ export const SHORTCUTS: ShortcutDef[] = [
   { keys: "⌘K", label: "Open command palette", group: "Global" },
   { keys: "?", label: "Show keyboard shortcuts", group: "Global" },
   { keys: "g p", label: "Go to Pull Requests", group: "Navigation" },
+  { keys: "g m", label: "Go to Multi-Agent Review", group: "Navigation" },
   { keys: "g x", label: "Go to Project Context", group: "Navigation" },
   { keys: "g t", label: "Go to Onboarding Tour", group: "Navigation" },
   { keys: "g s", label: "Go to Skills", group: "Navigation" },

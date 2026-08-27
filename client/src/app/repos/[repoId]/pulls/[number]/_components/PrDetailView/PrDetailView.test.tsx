@@ -71,6 +71,10 @@ vi.mock("@/lib/hooks/reviews", () => ({
   useDeleteRun: () => ({ mutate: vi.fn() }),
 }));
 
+vi.mock("@/lib/hooks/multi-agent", () => ({
+  useMultiAgentRun: () => ({ data: undefined }),
+}));
+
 vi.mock("../PrDetailHeader", () => ({
   PrDetailHeader: () => <div>header</div>,
 }));

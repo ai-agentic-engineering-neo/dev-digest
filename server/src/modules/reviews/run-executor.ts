@@ -158,46 +158,57 @@ export class ReviewRunExecutor {
       runLog.info(`intent: resolution failed — ${(err as Error).message}`);
     }
 
-    for (const { agent, runId } of jobs) {
-      const agentStart = Date.now();
-      logger?.info(
-        { runId, agent: agent.name, provider: agent.provider, model: agent.model, prId: pull.id },
-        `review: agent "${agent.name}" started (${agent.provider}/${agent.model})`,
-      );
-      try {
-        const outcome = await this.runOneAgent(
-          workspaceId,
-          pull,
-          repo,
-          diff,
-          agent,
-          runId,
-          runLog,
-          resolvedIntent,
-          resolvedInScope,
-          resolvedOutOfScope,
-          logger,
-        );
+    // specs/13-multi-agent-review.md (D16) — the per-agent job loop runs
+    // concurrently rather than sequentially. `Promise.allSettled`, not
+    // `Promise.all`: the body already swallows its own errors (try/catch
+    // below), so nothing should reject — but `allSettled` makes "one job
+    // cannot abort the batch" (AC-17) structural rather than dependent on
+    // that. Everything inside one iteration is unchanged and reads only
+    // values computed before this loop and never mutated by it; nothing in
+    // one iteration reads another's outcome. See server/LEARNINGS.md for the
+    // provider-throttling note this change entails.
+    await Promise.allSettled(
+      jobs.map(async ({ agent, runId }) => {
+        const agentStart = Date.now();
         logger?.info(
-          {
+          { runId, agent: agent.name, provider: agent.provider, model: agent.model, prId: pull.id },
+          `review: agent "${agent.name}" started (${agent.provider}/${agent.model})`,
+        );
+        try {
+          const outcome = await this.runOneAgent(
+            workspaceId,
+            pull,
+            repo,
+            diff,
+            agent,
             runId,
-            agent: agent.name,
-            findings: outcome.findings.length,
-            grounding: outcome.grounding,
-            durationMs: Date.now() - agentStart,
-          },
-          `review: agent "${agent.name}" done — ${outcome.findings.length} finding(s)`,
-        );
-      } catch (err) {
-        // runOneAgent already persisted the failure/cancel (status + error +
-        // trace) and completed the bus; here we only log at the run level.
-        const cancelled = err instanceof RunCancelledError;
-        logger?.[cancelled ? 'info' : 'error'](
-          { runId, agent: agent.name, err: (err as Error).message, durationMs: Date.now() - agentStart },
-          `review: agent "${agent.name}" ${cancelled ? 'cancelled' : 'failed'}`,
-        );
-      }
-    }
+            runLog,
+            resolvedIntent,
+            resolvedInScope,
+            resolvedOutOfScope,
+            logger,
+          );
+          logger?.info(
+            {
+              runId,
+              agent: agent.name,
+              findings: outcome.findings.length,
+              grounding: outcome.grounding,
+              durationMs: Date.now() - agentStart,
+            },
+            `review: agent "${agent.name}" done — ${outcome.findings.length} finding(s)`,
+          );
+        } catch (err) {
+          // runOneAgent already persisted the failure/cancel (status + error +
+          // trace) and completed the bus; here we only log at the run level.
+          const cancelled = err instanceof RunCancelledError;
+          logger?.[cancelled ? 'info' : 'error'](
+            { runId, agent: agent.name, err: (err as Error).message, durationMs: Date.now() - agentStart },
+            `review: agent "${agent.name}" ${cancelled ? 'cancelled' : 'failed'}`,
+          );
+        }
+      }),
+    );
   }
 
   /** Execute a single agent's review against a PR, streaming progress. */

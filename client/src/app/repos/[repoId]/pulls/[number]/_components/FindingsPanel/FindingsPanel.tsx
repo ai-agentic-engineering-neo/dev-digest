@@ -84,6 +84,20 @@ export function FindingsPanel({
         });
         return;
       }
+      // specs/13-multi-agent-review.md AC-63..65 — Learn has no visible
+      // triage-state change on the card (unlike accept/dismiss), so it needs
+      // its own toast to confirm the write happened at all. Copy must say the
+      // finding was RECORDED as a note, never that an agent "learned" from it.
+      if (act === "learn") {
+        action.mutate(
+          { findingId, action: "learn", prId },
+          {
+            onSuccess: () => toast.success(t("finding.learnRecorded")),
+            onError: (err) => toast.error(err instanceof ApiError ? err.message : t("finding.learnError")),
+          },
+        );
+        return;
+      }
       action.mutate({ findingId, action: act, prId });
     },
     [action, createEvalCase, prId, t, toast],

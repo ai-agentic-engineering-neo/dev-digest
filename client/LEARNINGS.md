@@ -31,6 +31,41 @@ there is the bug the whole format exists to prevent.
 
 ## Codebase Patterns
 
+### 2026-08-22 — D21's derived agent identity {color, icon} was NOT wired into `RunReviewDropdown`'s multi-select rows beyond the icon — the Dropdown extension's scope was already closed
+
+Building Phase B2 (plans/13-multi-agent-review.md), `agentIdentity()`
+(`multi-agent/[prId]/_components/MultiAgentResultsView/helpers.ts`) is reused
+with its real color in the configure surface's checkbox rows, but
+`RunReviewDropdown`'s new multi-select rows only take the `icon` half —
+`DropdownItemDef`/`Dropdown.tsx`'s additive extension (specs/13 §8, landed in
+Phase B1) added exactly `checked`/`keepOpen` and nothing else; there is no
+per-item color field to carry a swatch. Re-opening that extension to add one
+was out of this phase's scope (it's a shared primitive every dropdown in the
+product depends on, already shipped and tested). If a future session wants
+full color parity for agent identity in the PR-page picker, the seam is an
+additive `color?: string` on `DropdownItemDef` (rendered as a small swatch
+next to the checkbox indicator in `Dropdown.tsx`) — not a parallel dropdown
+or a fork.
+
+### 2026-08-22 — the multi-agent "conflicts-only" filter (AC-41) restricts by FILE, not by exact finding — the `Conflict` contract carries no finding id
+
+`ConflictsSection`'s "show only conflicts" toggle (specs/13-multi-agent-review.md
+AC-41) filters each layout's rendered findings down to
+`findings.filter(f => conflictFiles.has(f.file))`, where `conflictFiles` is
+just `new Set(conflicts.map(c => c.file))`. This is coarser than "the exact
+findings that anchor a conflict" — `Conflict`/`ConflictTake`
+(`contracts/observability.ts`) carry `file`+`line`+`title`+per-agent
+`verdict`/`note`, but no finding id, so a finding can't be matched to "is this
+specific finding part of a conflict" without re-deriving the server's own
+D-P1 (file-scoped-vs-line-scoped classification) and D-P3 (interval-merge)
+matching logic client-side — which the plan deliberately keeps server-only
+(D6/N13, "conflicts computed on read, never stored"). File-level filtering
+was the chosen, defensible approximation given the contract as shipped. A
+future session should not assume finer-grained (finding-level) filtering
+already exists here; delivering it would need either a contract change
+(finding ids on `ConflictTake`) or a dedicated detail endpoint, not a
+client-side reimplementation of the conflict-matching algorithm.
+
 ### 2026-08-12 — copying SkillsTab's "catalog + link-state" row model for a non-repo-authoritative catalog needs a union, not a lookup
 
 Building the agent/skill editors' Context tab (specs/09-project-context-folder.md),
@@ -283,6 +318,40 @@ model-authored or otherwise untrusted markdown through this primitive must do
 the same (validate/strip targets before they reach `Markdown.tsx`, not after)
 — this primitive will not save you.
 
+### 2026-08-21 — `pnpm exec vitest run "src/app/repos/[repoId]/.../**"` silently matches ZERO files; a dynamic-route path segment is a glob character class to vitest's CLI filter
+
+Running plans/13-multi-agent-review.md's own Phase B1 verification command
+(`vitest run "src/vendor/ui/kit/**" "src/lib/hooks/**"
+"src/app/repos/[repoId]/pulls/[number]/_components/FindingCard/**" ...`)
+printed `No test files found, exiting with code 1` — not an error naming the
+bad pattern, just a blanket "nothing matched" for the WHOLE command, even
+though `Dropdown.test.tsx`, `FindingCard.test.tsx` and `FindingsPanel.test.tsx`
+all genuinely exist. Vitest's CLI positional args are glob patterns, and
+`[repoId]`/`[number]` — real directory names in this App Router tree — parse
+as glob character classes (`[...]`), not literal brackets, so they match
+nothing. Quoting the argument does not help (that only stops the *shell* from
+glob-expanding it; vitest's own glob engine still sees the brackets). Fix:
+either pass the exact `*.test.tsx` file path(s) instead of a directory-glob
+suffix, or escape each bracket with a backslash (`\[repoId\]`) if a directory
+prefix is genuinely needed. `src/lib/hooks/**` matching zero files in the same
+run is NOT this bug — this repo has no hook-level tests at all (see the
+`useToast()` entry below), so that filter finding nothing is expected, not a
+silent failure.
+
+**2026-08-22 — the bug is scoped ENTIRELY to vitest's own CLI positional-arg
+glob filter, never to the module graph itself.** Confirmed while building
+Phase B2 (plans/13-multi-agent-review.md): a literal bracket directory name
+inside a real `import ... from "..."` specifier — e.g. `MultiAgentConfigureView`
+and `RunReviewDropdown` both importing D21's identity helper from
+`@/app/repos/[repoId]/multi-agent/[prId]/_components/MultiAgentResultsView/helpers`
+— resolves cleanly under both `pnpm typecheck` (tsc path-alias resolution) and
+`pnpm build` (webpack's static import resolution). Neither ever glob-evaluates
+a module specifier; only vitest's CLI arg parser does. A cross-route-tree
+import that crosses two or three `[param]` folders is safe to write as-is and
+needs no escaping — only a vitest invocation that later tries to *target*
+that file by a bracket-containing path needs the file-path-not-glob
+workaround above.
+
 ### 2026-07-29 — `borderColor` is a shorthand too, and clashes with `borderLeftColor`
 
 `FindingCard/styles.ts` carried a comment warning "never mix `border`
@@ -423,7 +492,39 @@ unrelated `BarChart` was there) before the nav entry's `icon: "BarChart3"`
 would even typecheck. Grepping `nav.ts` for the route key before trusting any
 other "looks wired" signal remains the right first move.
 
-**2026-08-22 — a third instance (specs/14-export-to-ci.md, `/ci-runs` +
+**2026-08-21 — a THIRD confirmed instance (specs/13-multi-agent-review.md,
+`/repos/:repoId/multi-agent`), and this time ALL FOUR of the other wirings
+were already pre-reserved.** `messages/en/shell.json`'s `nav["multi-agent"]:
+"Multi-Agent Review"` and `components/app-shell/helpers.ts:35`'s `if
+(pathname.includes("/multi-agent")) return "multi-agent";` (already correctly
+sitting *above* the `/pulls` check) both existed, and `Users` was already
+registered in `vendor/ui/icons.tsx` — the ONLY missing piece was, again, one
+`NavItemDef` in `NAV` plus one `ShortcutDef` in `SHORTCUTS`. Three-for-three
+now: whenever a spec pre-reserves a nav label/active-key/icon ahead of the
+route's implementation, assume `nav.ts` is the piece that got skipped and
+check it first, not last.
+
+### 2026-08-21 — additively widening a shared `vendor/ui/kit` primitive: add fields as optional, gate all new behavior on their presence, and the "old" call sites need zero changes or test updates
+
+`DropdownItemDef` (`vendor/ui/kit/types.ts`) needed multi-select rows for
+specs/13-multi-agent-review.md's agent picker (a `checked` state +
+`keepOpen`-on-activation), and `RepoSwitcher` plus every other existing
+`Dropdown` consumer in the product depend on the current single-select,
+close-on-click behavior. The safe shape: both new fields are optional with no
+default-changing side effect — `keepOpen` gates `onClose()` (`if
+(!it.keepOpen) onClose()` replacing the unconditional call), and `checked`
+(checked via `!== undefined`, not truthiness, so `checked: false` still opts a
+row into the checkbox-indicator rendering) gates only an ADDED checkbox
+indicator + `role="menuitemcheckbox"`/`aria-checked` — a row supplying
+neither field renders and behaves byte-for-byte as before. No existing
+`Dropdown` consumer or test needed a single line changed; the new coverage is
+one new `Dropdown.test.tsx` (none existed before) asserting both the
+unchanged default and the new opt-in behavior. This is the general recipe for
+widening any shared, no-second-owner `vendor/ui` primitive: new fields
+optional, new behavior gated strictly on the new field's presence (not a
+value that could coincide with "unset"), zero changes to the default path.
+
+**2026-08-22 — a fourth instance (specs/14-export-to-ci.md, `/ci-runs` +
 `/agent-performance`), and this time the OPPOSITE surprise from plan 12's
 `BarChart3`: both icons (`Play`/`Gauge`) were already in `vendor/ui/icons.tsx`'s
 registry, so zero icon work was needed.** By the time this Phase E pass

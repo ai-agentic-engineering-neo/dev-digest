@@ -59,6 +59,21 @@ describe("FindingCard (smoke, both themes)", () => {
   });
 });
 
+describe("FindingCard — Learn (specs/13-multi-agent-review.md D25, AC-63..65)", () => {
+  it("is present on an untriaged finding (unlike 'turn into eval case') and fires the same onAction prop", () => {
+    const onAction = vi.fn();
+    renderWithIntl(<FindingCard f={FINDING} defaultExpanded onAction={onAction} />);
+    fireEvent.click(screen.getByText("Learn"));
+    expect(onAction).toHaveBeenCalledWith("learn");
+  });
+
+  it("stays present once accepted/dismissed too (D25 — not gated by triage)", () => {
+    const accepted = { ...FINDING, accepted_at: "2026-01-01T00:00:00.000Z" };
+    renderWithIntl(<FindingCard f={accepted} defaultExpanded onAction={() => {}} />);
+    expect(screen.getByText("Learn")).toBeInTheDocument();
+  });
+});
+
 describe("FindingCard — turn into eval case (specs/12-eval-pipeline.md AC-2)", () => {
   it("is absent on an untriaged finding", () => {
     renderWithIntl(<FindingCard f={FINDING} defaultExpanded onAction={() => {}} />);

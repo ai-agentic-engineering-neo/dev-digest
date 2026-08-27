@@ -187,7 +187,7 @@ export class ReviewService {
     workspaceId: string,
     findingId: string,
     action: FindingActionKind,
-  ): Promise<{ finding: ReviewDtoFinding }> {
+  ): Promise<{ finding: ReviewDtoFinding; memoryId?: string }> {
     return actOnFindingImpl(this.repo, workspaceId, findingId, action);
   }
 

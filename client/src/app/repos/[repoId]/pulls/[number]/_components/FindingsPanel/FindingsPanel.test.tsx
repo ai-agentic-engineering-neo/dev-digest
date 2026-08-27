@@ -4,8 +4,12 @@ import { NextIntlClientProvider } from "next-intl";
 import type { FindingRecord } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/prReview.json";
 
+const mockFindingActionMutate = vi.fn(
+  (_vars: unknown, opts?: { onSuccess?: () => void; onError?: (e: unknown) => void }) =>
+    opts?.onSuccess?.(),
+);
 vi.mock("../../../../../../../lib/hooks/reviews", () => ({
-  useFindingAction: () => ({ mutate: vi.fn(), isPending: false }),
+  useFindingAction: () => ({ mutate: mockFindingActionMutate, isPending: false }),
 }));
 
 // specs/12-eval-pipeline.md — FindingsPanel now calls a SECOND mutation hook
@@ -17,8 +21,10 @@ vi.mock("../../../../../../../lib/hooks/eval", () => ({
   useCreateEvalCaseFromFinding: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
+const mockToastSuccess = vi.fn();
+const mockToastError = vi.fn();
 vi.mock("../../../../../../../lib/toast", () => ({
-  useToast: () => ({ success: vi.fn(), error: vi.fn(), info: vi.fn(), toast: vi.fn() }),
+  useToast: () => ({ success: mockToastSuccess, error: mockToastError, info: vi.fn(), toast: vi.fn() }),
 }));
 
 import { FindingsPanel } from "./FindingsPanel";
@@ -143,5 +149,17 @@ describe("FindingsPanel — turn into eval case (specs/12-eval-pipeline.md AC-1,
   it("is absent on an untriaged finding", () => {
     renderWithIntl(<FindingsPanel findings={FINDINGS} prId="pr1" />);
     expect(screen.queryByText("Turn into eval case")).not.toBeInTheDocument();
+  });
+});
+
+describe("FindingsPanel — Learn (specs/13-multi-agent-review.md AC-63..65)", () => {
+  it("calls the shared finding-action mutation with 'learn' and toasts the recorded copy", () => {
+    renderWithIntl(<FindingsPanel findings={FINDINGS} prId="pr1" />);
+    fireEvent.click(screen.getByText("Learn"));
+    expect(mockFindingActionMutate).toHaveBeenCalledWith(
+      { findingId: "f1", action: "learn", prId: "pr1" },
+      expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
+    );
+    expect(mockToastSuccess).toHaveBeenCalledWith("This finding was recorded as a note for this repository.");
   });
 });

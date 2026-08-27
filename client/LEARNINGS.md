@@ -632,6 +632,31 @@ just to work around `api.post`'s discarded status.
 
 ## Session Notes
 
+### 2026-08-27 — test-writer backfill for specs/14: `CiTab.tsx` reads `inst.last_run_status`/`inst.last_run_at`, fields the real API response never sends
+
+Writing `CiTab.test.tsx` surfaced a real bug, not fixed here (test-writer role
+— reported, not patched). `GET /agents/:id/ci/installations`
+(`CiService.listInstallationsForAgent` → `toContractInstallation`, `server/
+src/modules/ci/service.ts`) returns the `CiInstallation` contract shape,
+which nests last-run data under `last_run: {status, ran_at, findings_count} |
+null` (`vendor/shared/contracts/eval-ci.ts`). `CiTab.tsx` (lines ~115-126)
+instead reads `inst.last_run_status` and `inst.last_run_at` directly — flat
+fields that exist only on `hooks/ci.ts`'s `CiInstallationListItem` TYPE
+(lines ~30-32), a type assertion at the API boundary with no actual reshaping
+code behind it. Confirmed via `grep -rn "last_run_status\|last_run_at"
+server/src client/src`: the server writes only the nested `last_run` object,
+never flat sibling fields, for this route. Net effect: the CI tab's
+per-installation badge always falls back to "Never run" (`inst.last_run_
+status` is `undefined`) and the timestamp never renders, regardless of actual
+CI run history — silently, no error, no failing existing test (nothing
+asserted on this rendering path before this session). `CiTab.test.tsx`
+deliberately does not assert on the badge text for this reason — asserting
+against the flat shape would encode the bug as correct behavior. Fix needs
+either `toContractInstallation` to also emit flat `last_run_status`/`last_
+run_at` siblings, or (cleaner) `CiTab.tsx` to read `inst.last_run?.status`/
+`inst.last_run?.ran_at` and drop `CiInstallationListItem`'s flat fields
+entirely.
+
 ### 2026-08-12 — test-writer backfill for specs/09: the shared `ContextTab`'s keyboard reorder path and `ProjectContextView`'s empty state had zero coverage
 
 Checking plans/09-project-context-folder.md's client test matrix ("reorder

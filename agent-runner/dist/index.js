@@ -19632,92 +19632,33 @@ const OnboardingGenerateResult = OnboardingPage.extend({
     dropped: OnboardingDropped.nullish(),
 });
 // ---- Eval ----
-// specs/12-eval-pipeline.md (L06) — reshaped in place (D1/D3): the base case
-// and set-level metrics shape live here; the API-facing request/response
-// shapes (create/edit payload, persisted suite-run record, dashboard) live in
-// `eval-ci.ts`.
+const EvalPerTrace = objectType({
+    name: stringType(),
+    pass: booleanType(),
+    expected: unknownType(),
+    actual: unknownType(),
+});
+const EvalRun = objectType({
+    recall: numberType().min(0).max(1),
+    precision: numberType().min(0).max(1),
+    citation_accuracy: numberType().min(0).max(1),
+    traces_passed: numberType().int(),
+    traces_total: numberType().int(),
+    duration_ms: numberType().int(),
+    cost_usd: numberType().nullable(),
+    per_trace: arrayType(EvalPerTrace),
+});
 const EvalOwnerKind = enumType(['skill', 'agent']);
-/** D3 — a case's expectation type is explicit and closed-vocabulary, never
- *  inferred from the shape of a JSON blob. Only 'agent'-owned cases are ever
- *  written this slice (N3); 'skill' stays reserved. */
-const EvalExpectationType = enumType(['must_find', 'must_not_flag']);
-/** `severity`/`category`/`title` are carried from the source finding (AC-38's
- *  tags) — display metadata, not part of the matching predicate itself. */
-const EvalExpectation = objectType({
-    type: EvalExpectationType,
-    file: stringType().min(1),
-    start_line: numberType().int(),
-    end_line: numberType().int(),
-    severity: stringType().nullish(),
-    category: stringType().nullish(),
-    title: stringType().nullish(),
-});
-/** D16 — the trimmed, frozen PR metadata a case's frozen input carries.
- *  Never a repo id, never a live pointer (D8). */
-const EvalCaseMeta = objectType({
-    pr_number: numberType().int().nullable(),
-    title: stringType(),
-    body: stringType().nullable(),
-});
 const EvalCase = objectType({
     id: stringType(),
     owner_kind: EvalOwnerKind,
     owner_id: stringType(),
     name: stringType(),
     input_diff: stringType(),
-    input_files: arrayType(stringType()),
-    input_meta: EvalCaseMeta,
-    expectation: EvalExpectation,
-    /** The finding this case was created from — null for a hand-authored /
-     *  fixture case (D17's idempotency key when present). */
-    source_finding_id: stringType().nullable(),
+    input_files: unknownType(),
+    input_meta: unknownType(),
+    expected_output: unknownType(),
     notes: stringType().nullish(),
-    created_at: stringType(),
-    updated_at: stringType(),
-});
-/** A display slice of a finding produced during an eval run — declared here
- *  (not imported from `findings.ts`) so this file gains no new import edge. */
-const EvalActualFinding = objectType({
-    file: stringType(),
-    start_line: numberType().int(),
-    end_line: numberType().int(),
-    severity: stringType(),
-    category: stringType(),
-    title: stringType(),
-    matched: booleanType(),
-});
-/** Q1 — one case's outcome within a suite run (the reserved `EvalPerTrace`
- *  reshaped: renamed, and widened from `{name,pass,expected,actual}` into a
- *  structured, deterministic outcome). `pass` is null exactly when
- *  `status === 'errored'` (AC-11). */
-const EvalCaseOutcome = objectType({
-    case_id: stringType(),
-    name: stringType(),
-    expectation_type: EvalExpectationType,
-    status: enumType(['scored', 'errored']),
-    pass: booleanType().nullable(),
-    error_reason: stringType().nullable(),
-    findings_total: numberType().int(),
-    findings_matched: numberType().int(),
-    grounding_kept: numberType().int(),
-    grounding_total: numberType().int(),
-    duration_ms: numberType().int(),
-    cost_usd: numberType().nullable(),
-    actual: arrayType(EvalActualFinding),
-});
-/** Q1 — the SET-LEVEL metrics object for one suite run (kept as-is; this
- *  reserved shape already matched the feature). The three ratios are
- *  nullable — AC-20's "not applicable" must be stated, never a fake 0/1. */
-const EvalRun = objectType({
-    recall: numberType().min(0).max(1).nullable(),
-    precision: numberType().min(0).max(1).nullable(),
-    citation_accuracy: numberType().min(0).max(1).nullable(),
-    traces_passed: numberType().int(),
-    traces_total: numberType().int(),
-    cases_errored: numberType().int(),
-    duration_ms: numberType().int(),
-    cost_usd: numberType().nullable(),
-    per_case: arrayType(EvalCaseOutcome),
 });
 // ---- Memory ----
 const MemoryScope = enumType(['repo', 'global', 'team']);
@@ -20449,143 +20390,69 @@ const WhyTimeline = objectType({
  * `conformance_checks`) plus the eval-dashboard aggregate.
  */
 // ===========================================================================
-// Eval — case input + persisted SUITE run record + dashboard (L06)
+// Eval — case input + persisted run record + dashboard
 // ===========================================================================
-/** Create/update payload for an eval case (D16's frozen-input shape; owner
- *  is resolved by the route, never taken from the body — AC-54). */
+/** Create/update payload for an eval case (id + owner resolved by the route). */
 const EvalCaseInput = objectType({
-    name: stringType().min(1),
-    notes: stringType().nullish(),
-    input_diff: stringType().min(1),
-    input_files: arrayType(stringType()),
-    input_meta: EvalCaseMeta,
-    expectation: EvalExpectation,
-});
-/** POST /findings/:id/eval-case request body — the finding id is already the
- *  route param, so nothing is duplicated here besides the confirmation shape
- *  the route needs; kept as a named contract for parity with the others. */
-const EvalCaseFromFindingInput = objectType({
-    finding_id: stringType().uuid(),
-});
-const EvalRunStatus = enumType(['running', 'completed', 'errored']);
-/**
- * Q1 — a persisted eval SUITE run: one agent against its whole case set
- * (D2). Reshaped from the reserved per-CASE-execution row: `case_id`,
- * `actual_output` and `pass` are gone; `case_ids`/`agent_version`/`metrics`
- * are new. `metrics` is null while `status === 'running'`.
- */
-const EvalRunRecord = objectType({
-    id: stringType(),
     owner_kind: EvalOwnerKind,
     owner_id: stringType(),
-    agent_name: stringType().nullish(),
-    status: EvalRunStatus,
-    started_at: stringType(),
-    finished_at: stringType().nullable(),
-    agent_version: numberType().int().nullable(),
-    case_ids: arrayType(stringType()),
-    metrics: EvalRun.nullable(),
-    duration_ms: numberType().int().nullable(),
-    cost_usd: numberType().nullable(),
-    error_reason: stringType().nullable(),
+    name: stringType().min(1),
+    input_diff: stringType().default(''),
+    input_files: unknownType().nullish(),
+    input_meta: unknownType().nullish(),
+    expected_output: unknownType(),
+    notes: stringType().nullish(),
 });
-/** AC-24/AC-25 — stated before any execution starts. */
-const EvalRunEstimate = objectType({
-    agents_total: numberType().int(),
-    cases_total: numberType().int(),
-    executions_total: numberType().int(),
-});
-/** Response of `POST /agents/:id/eval/runs` — the start response (Q3: the
- *  client polls `GET /eval/runs/:id` for completion, no SSE). */
-const EvalRunResult = objectType({
-    run_id: stringType(),
-    status: EvalRunStatus,
-    estimate: EvalRunEstimate,
-});
-/** Response of `POST /eval/runs/all` — AC-25/AC-42: per-agent success or
- *  failure, never one combined verdict. */
-const EvalRunAllResult = objectType({
-    estimate: EvalRunEstimate,
-    started: arrayType(objectType({
-        agent_id: stringType(),
-        agent_name: stringType(),
-        run_id: stringType().nullable(),
-        refused_reason: stringType().nullable(),
-    })),
-});
-/** One point on an agent's trend (per completed run, chronological). */
-const EvalTrendPoint = objectType({
-    run_id: stringType(),
+/** A persisted eval run row (one execution of a case), returned by the API. */
+const EvalRunRecord = objectType({
+    id: stringType(),
+    case_id: stringType(),
+    case_name: stringType().nullish(),
     ran_at: stringType(),
-    agent_version: numberType().int().nullable(),
+    actual_output: unknownType(),
+    pass: booleanType().nullable(),
     recall: numberType().nullable(),
     precision: numberType().nullable(),
     citation_accuracy: numberType().nullable(),
+    duration_ms: numberType().int().nullable(),
+    cost_usd: numberType().nullable(),
+});
+/** Result of running a single case: the metrics (EvalRun) + the persisted row id. */
+const EvalRunResult = objectType({
+    run_id: stringType(),
+    case_id: stringType(),
+    result: EvalRun,
+});
+/** One point on the dashboard trend (per run, chronological). */
+const EvalTrendPoint = objectType({
+    ran_at: stringType(),
+    recall: numberType(),
+    precision: numberType(),
+    citation_accuracy: numberType(),
     pass_rate: numberType(),
     cost_usd: numberType().nullable(),
 });
-/**
- * D12/AC-45 — the dashboard/detail callout. STRUCTURED, not a sentence: the
- * client renders it from `messages/en/eval.json`, which is what keeps it
- * non-model-authored (N1) and makes "no causal clause when `case_transitions`
- * is empty" a rendering invariant rather than a string-building one.
- */
-const EvalCallout = objectType({
-    metric: enumType(['recall', 'precision', 'citation_accuracy']),
-    direction: enumType(['up', 'down']),
-    magnitude: numberType(),
-    agent_version: numberType().int().nullable(),
-    case_transitions: arrayType(objectType({ case_id: stringType(), name: stringType(), from: booleanType(), to: booleanType() })),
-});
-/** GET /eval/dashboard — one row per agent that has eval cases (AC-40). */
-const EvalAgentSummary = objectType({
-    agent_id: stringType(),
-    agent_name: stringType(),
-    cases_total: numberType().int(),
-    latest: EvalRunRecord.nullable(),
-    trend: arrayType(EvalTrendPoint),
-});
-/** GET /eval/dashboard — workspace-level (AC-40, AC-41); NOT repo-scoped. */
+/** Aggregate dashboard for an owner (agent/skill) or the whole workspace. */
 const EvalDashboard = objectType({
-    agents: arrayType(EvalAgentSummary),
-    recent_runs: arrayType(EvalRunRecord),
-});
-/**
- * GET /eval/agents/:id — one agent's eval detail (AC-44/AC-45/AC-48).
- * `delta`/`callout` are null when fewer than two completed runs exist —
- * that IS AC-48's "no deltas, no comparison affordance" expressed in the
- * contract, not a UI-side branch on a count.
- */
-const EvalAgentDetail = objectType({
-    agent_id: stringType(),
-    agent_name: stringType(),
+    owner_kind: EvalOwnerKind.nullable(),
+    owner_id: stringType().nullable(),
     cases_total: numberType().int(),
-    runs: arrayType(EvalRunRecord),
-    current: EvalRun.nullable(),
-    delta: objectType({
-        recall: numberType().nullable(),
-        precision: numberType().nullable(),
-        citation_accuracy: numberType().nullable(),
-    })
-        .nullable(),
-    trend: arrayType(EvalTrendPoint),
-    callout: EvalCallout.nullable(),
-});
-/** GET /eval/compare?a=&b= — exactly two runs of ONE agent (AC-32/33/34). */
-const EvalCompare = objectType({
-    old: EvalRunRecord,
-    new: EvalRunRecord,
-    common_case_ids: arrayType(stringType()),
-    only_in_old: arrayType(stringType()),
-    only_in_new: arrayType(stringType()),
-    deltas: objectType({
-        recall: numberType().nullable(),
-        precision: numberType().nullable(),
-        citation_accuracy: numberType().nullable(),
+    current: objectType({
+        recall: numberType(),
+        precision: numberType(),
+        citation_accuracy: numberType(),
+        traces_passed: numberType().int(),
+        traces_total: numberType().int(),
+        cost_usd: numberType().nullable(),
     }),
-    /** Line-oriented system-prompt diff (AC-34) — added/removed/context, never
-     *  a unified-diff string the client would have to parse. */
-    prompt_diff: arrayType(objectType({ kind: enumType(['added', 'removed', 'context']), text: stringType() })),
+    delta: objectType({
+        recall: numberType(),
+        precision: numberType(),
+        citation_accuracy: numberType(),
+    }),
+    trend: arrayType(EvalTrendPoint),
+    recent_runs: arrayType(EvalRunRecord),
+    alert: stringType().nullable(),
 });
 // ===========================================================================
 // Compose Review
@@ -20655,9 +20522,7 @@ const CiExportInput = objectType({
     /** "open_pr" opens a PR with the files; "files" just returns/persists them. */
     action: enumType(['open_pr', 'files']).default('open_pr'),
     post_as: enumType(['github_review', 'pr_comment', 'none']).default('github_review'),
-    // AC-4 — "reopened" is unselected by default; only "opened"/"synchronize"
-    // are pre-checked on the Configure step (specs/14-export-to-ci.md R-B).
-    triggers: arrayType(stringType()).default(['opened', 'synchronize']),
+    triggers: arrayType(stringType()).default(['opened', 'synchronize', 'reopened']),
     base: stringType().default('main'),
 });
 /** A persisted CI installation (mirrors `ci_installations`). */
@@ -20675,49 +20540,23 @@ const CiExport = objectType({
     pr_url: stringType().nullable(),
 });
 const CiRunStatus = enumType(['succeeded', 'failed', 'no_findings', 'running']);
-/** A CI run row (mirrors `ci_runs`) — ingested from GitHub Actions artifacts.
- *  All new fields are additive/nullish (AC-49) — a row ingested before a
- *  given field existed still parses. */
+/** A CI run row (mirrors `ci_runs`) — ingested from GitHub Actions artifacts. */
 const CiRun = objectType({
     id: stringType(),
     ci_installation_id: stringType().nullable(),
-    /** The CI provider's own run id (e.g. GitHub Actions `run.id`) — what
-     *  AC-19's idempotent upsert is keyed on. */
-    provider_run_id: stringType().nullish(),
-    repo: stringType().nullish(),
-    commit_sha: stringType().nullish(),
     pr_number: numberType().int().nullable(),
-    pr_title: stringType().nullish(),
-    pr_url: stringType().nullish(),
     ran_at: stringType().nullable(),
-    status: CiRunStatus.nullable(),
+    status: stringType().nullable(),
     findings_count: numberType().int().nullable(),
-    critical: numberType().int().nullish(),
-    warning: numberType().int().nullish(),
-    suggestion: numberType().int().nullish(),
     cost_usd: numberType().nullable(),
     github_url: stringType().nullable(),
     source: stringType().nullable(),
     agent: stringType().nullish(),
-    agent_name: stringType().nullish(),
     duration_s: numberType().nullish(),
-    /** Clarification 2 (plans/14) — the runner's own review duration from the
-     *  artifact, falling back to the provider's job wall-clock when no
-     *  artifact exists. `duration_source` says which one this value is. */
-    duration_ms: numberType().int().nullish(),
-    duration_source: enumType(['artifact', 'provider']).nullish(),
-    /** Set only when `status === 'failed'` — names which check failed
-     *  (AC-18) or why the run has no artifact (AC-21). */
-    failure_reason: stringType().nullish(),
 });
 /**
  * The artifact shape uploaded by the CI action (`devdigest-result.json`).
  * Ingested back on refresh to populate `ci_runs` (L06).
- *
- * NOT modified by specs/14-export-to-ci.md (D-P2): it is compiled into the
- * `agent-runner` bundle through this same file, so changing it would
- * silently change the runner (N5). It carries no commit sha and no
- * repository — `CiRunMeta` below is the sidecar that supplies both.
  */
 const CiResultArtifact = objectType({
     findings_count: numberType().int(),
@@ -20729,25 +20568,6 @@ const CiResultArtifact = objectType({
     agent: stringType(),
     version: stringType().nullish(),
     pr_number: numberType().int().nullish(),
-});
-/**
- * D-P2 sidecar — written by the GENERATED WORKFLOW (never the runner) as
- * `devdigest-run.json`, alongside `devdigest-result.json`, from GitHub
- * Actions context passed through a step-level `env:` block. Gives the
- * ingest boundary (AC-18) something to authenticate the artifact against:
- * `CiResultArtifact` alone carries no commit sha and no repository, so the
- * "commit matches" / "repository matches" checks would otherwise be vacuous.
- */
-const CiRunMeta = objectType({
-    commit_sha: stringType().min(1),
-    repository: stringType().min(1),
-    pr_number: numberType().int(),
-});
-/** AC-64 — per-secret configured/not state. Never carries a secret value. */
-const CiSecretStatus = objectType({
-    name: stringType(),
-    configured: booleanType(),
-    provided_by_ci: booleanType(),
 });
 // ===========================================================================
 // Conformance (PRD ↔ PR) — API record (the analysis shape is `Conformance`)
@@ -21017,11 +20837,6 @@ const AgentPerfRow = objectType({
     provider: stringType().nullable(),
     model: stringType().nullable(),
     runs: numberType().int(),
-    /** specs/14-export-to-ci.md AC-45/AC-46 — `runs` splits by source so a
-     *  CI-only agent's "accept rate: N/A" (never computed from CI runs, which
-     *  contribute no triaged findings) is explainable rather than a bare null. */
-    runs_local: numberType().int(),
-    runs_ci: numberType().int(),
     findings_total: numberType().int(),
     accepted: numberType().int(),
     dismissed: numberType().int(),
@@ -21053,9 +20868,6 @@ const AgentPerf = objectType({
         total_cost_usd: numberType().nullable(),
         avg_accept_rate: numberType().nullable(),
         most_active_agent: stringType().nullable(),
-        /** D12/AC-43 — the selected preset (7/30/90) every figure on the page
-         *  was computed over. */
-        range_days: numberType().int(),
     }),
     agents: arrayType(AgentPerfRow),
     /** cost split by agent and by model (for the two cost-breakdown donuts). */
@@ -35586,9 +35398,12 @@ async function runCi(deps) {
         const skills = loadSkillBodies(deps.devdigestDir, manifest.skills, readFile);
         // 2. Resolve CI context (PR number/title/body/repo) from env + event payload.
         const ctx = resolvePrContext(deps.env, readFile);
+        // Required unconditionally: the diff fetch below always authenticates,
+        // even when postAs is 'none' — an empty token still sends a malformed
+        // `Authorization: Bearer` header, which GitHub rejects with a 401.
         const githubToken = deps.env.GITHUB_TOKEN;
-        if (deps.postAs !== 'none' && !githubToken) {
-            throw new RunnerError(`GITHUB_TOKEN is required to post as '${deps.postAs}'`);
+        if (!githubToken) {
+            throw new RunnerError('GITHUB_TOKEN is required to fetch the PR diff');
         }
         // 3. Assemble the diff from the CI context. Strip DevDigest's own exported
         //    artifacts (`.devdigest/**`, the generated workflow) BEFORE parse: the

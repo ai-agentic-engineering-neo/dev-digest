@@ -6,6 +6,9 @@
     "accept": "Accept",
     "dismiss": "Dismiss",
     "learn": "Learn",
+    "learnRecorded": "This finding was recorded as a note for this repository.",
+    "learnAlreadyRecorded": "This finding was already recorded as a note for this repository.",
+    "learnError": "Could not record this finding as a note.",
     "replyToAuthor": "Reply to author",
     "replyPlaceholder": "Reply to the author about this finding…",
     "sendReply": "Send reply",
@@ -43,7 +46,11 @@
     "running": "Running…",
     "runReview": "Run Review",
     "mergedWarning": "Already merged — review is informational",
-    "mergedTooltip": "This PR is already merged; running a review won’t affect the merged code."
+    "mergedTooltip": "This PR is already merged; running a review won’t affect the merged code.",
+    "pickAgents": "Pick agents to run",
+    "clearSelection": "Clear",
+    "runSelected": "Run {count} agent(s)",
+    "viewMultiAgentResults": "Multi-agent results"
   },
   "runStatus": {
     "elapsed": "Running · {count} agent(s)",

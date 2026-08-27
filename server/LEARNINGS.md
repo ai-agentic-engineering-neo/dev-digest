@@ -55,11 +55,19 @@ before assuming the same is safe elsewhere.
 
 ## What Doesn't Work
 
+### 2026-08-21 — parallel git worktrees on this repo share ONE Postgres instance; running `pnpm db:migrate` in one worktree silently mutates schema another worktree's `db:generate` will collide with
+
+`.worktrees/devdigest-review` (branch `feat/multi-agent-review`) and `.worktrees/devdigest-ci` (branch `feat/export-to-ci`) are separate git worktrees (root `CLAUDE.md`'s "parallel lab branches"), but all point at the SAME `docker compose` Postgres container as the main checkout — there is one `agent_runs`/`multi_agent_runs`/etc. table set, not one per worktree. Implementing specs/13's Phase A2 in the main checkout, `pnpm db:generate` produced the exact expected add-only migration (`agent_runs.multi_agent_run_id`), but `pnpm db:migrate` failed with `column "multi_agent_run_id" of relation "agent_runs" already exists` — the sibling `devdigest-review` worktree's OWN independently-generated migration (`0023_thick_hellion.sql`, a different file, different hash, same underlying `ALTER TABLE` for the same feature) had already been applied to the shared DB in an earlier session, recording its hash in `drizzle.__drizzle_migrations` under an id this checkout's `_journal.json` never listed. `pnpm db:migrate`'s failure surfaces as a live-DB error, not a git conflict, so `git status` being clean is not evidence the DB matches this checkout.
+
+Fix: diagnosed via `git worktree list` + reading the sibling worktree's own `migrations/meta/_journal.json` and its `.sql` file to confirm exactly what it added and that it was schema-equivalent (same column/FK, only the index name differed) before touching anything. Rolled back ONLY the specific phantom drift this checkout's own migration would collide with — `ALTER TABLE agent_runs DROP CONSTRAINT/DROP COLUMN`, `DROP INDEX`, and `DELETE FROM drizzle.__drizzle_migrations WHERE id = <that specific row>` — then re-ran `pnpm db:migrate` cleanly. Deliberately left the UNRELATED sibling `devdigest-ci` worktree's own phantom migration row alone (a different id, touching `ci_installations`/`ci_runs`, nothing this pass touches) — it's expected to self-resolve harmlessly once `feat/export-to-ci` actually merges and its real migration file lands in this checkout's history with a matching hash. **Generalizes:** before trusting `pnpm db:generate < /dev/null`'s "one clean pass" as proof nothing is wrong, and before assuming a `db:migrate` failure means YOUR migration is malformed, run `git worktree list` and check whether any sibling worktree could have touched the same shared dev DB — the failure is otherwise indistinguishable from a genuine schema-authoring mistake.
+
 ### 2026-08-04 — `reviews.it.test.ts`'s "runs a review" test intermittently times out because `intentService.resolve()` makes a REAL OpenRouter network call on a dev machine with real secrets configured
 
 `test/reviews.it.test.ts`'s `appWith()` helper only overrides `llm: { [provider]: mockLLM }` for `openai`/`anthropic` — never `openrouter`. `review_intent`'s `FEATURE_MODELS` default is `openrouter`/`deepseek-v4-flash` (unchanged since L03 v1), so every `executeRuns` batch's intent-resolution step calls the REAL, un-mocked `container.llm('openrouter')` → a genuine network call to OpenRouter, IF `~/.devdigest/secrets.json` has a real `OPENROUTER_API_KEY` (as it does on a dev machine that's used the app for real). Without that key it fails fast with a `ConfigError` (no network attempt) and the flake doesn't happen — this is why it may not reproduce in a clean CI sandbox.
 
 Measured with temporary timing instrumentation: the intent-resolution block took anywhere from ~500ms to 3.4s+ across repeated runs of the same test, depending on network conditions and how many other testcontainers/`.it.test.ts` files were running in parallel. `test/helpers/runs.ts`'s `waitForPrRuns` has only a 10s default timeout — under load (e.g. the full `pnpm test` run, 30+ files, several spinning up their own Postgres testcontainer), the review run can genuinely take longer than 10s end-to-end and `waitForPrRuns` gives up early, so the test reads back zero persisted reviews (`expect(reviews).toHaveLength(1)` fails with `+0`, or a later test in the same file reads `reviews[0]` as `undefined`). Confirmed NOT a functional regression: re-running the same test file in isolation, or the full suite at a quieter moment, passes cleanly every time (verified twice, including a full 34-file/216-test green run) — this is a pre-existing timing race between a live network call and a fixed local timeout, present since L03 v1 shipped `intentService.resolve()` with this same provider default, not something introduced by the revision-2 (scope-based) rewrite. If this test starts failing, check whether it's this race before suspecting the diff — rerunning it alone, or bumping `waitForPrRuns`'s `timeoutMs`, is the fix, not touching `run-executor.ts`/`intent/service.ts`.
+
+**2026-08-21 addendum (specs/13-multi-agent-review.md, `test/multi-agent.it.test.ts`) — the flake reproduced in a brand-new `.it.test.ts` file for the same reason, and the durable fix for a NEW file is to mock `openrouter` too, not just tolerate the race.** A first pass of this new test (also exercising `executeRuns` via `POST /pulls/:id/multi-agent-run`) hit the identical failure mode — one test hung well past even a bumped 25s `waitForPrRuns` timeout and cascaded into the next test's `Cannot read properties of undefined` — confirming the flake isn't specific to `reviews.it.test.ts`'s fixtures, it's inherent to any `.it.test.ts` that exercises the review-run path without overriding `openrouter`. Fix that actually eliminated it (rather than papering over it with a longer timeout): add `openrouter: new MockLLMProvider('openai', { structuredBySchema: { IntentExtraction: {...} } })` to the test's `appWith()`'s `llm` overrides — `intentService.resolve()`'s `completeStructured` call names `schemaName: 'IntentExtraction'` (`modules/intent/service.ts`), so `structuredBySchema` (not `structured`, which would fail the wrong schema's validation) is the field to use. Once mocked, the whole 5-test suite dropped from minutes (with real network calls) to ~10s, deterministically. `reviews.it.test.ts` itself is left as-is (out of scope to fix here, and D16/N2 forbid touching it in this plan) — but any FUTURE `.it.test.ts` that triggers a real review run should mock `openrouter` from the start rather than inheriting this flake.
 
 ### 2026-08-03 — `drizzle-kit generate` hangs (spins CPU, never prompts, never exits) under piped/non-TTY stdin when it needs a rename-ambiguity answer
 
@@ -194,6 +202,10 @@ Non-obvious part: the newest `agent_runs` row for a PR is frequently *not*
 the map, otherwise the list shows a half-finished run's zeroed tokens — or
 worse, silently falls through to an older run's numbers as if they were
 current.
+
+### 2026-08-21 — a "reserved" wire contract can be a deliberate DISPLAY subset that a same-feature ALGORITHM still needs the full shape for — don't force the algorithm's signature to match the contract
+
+specs/13-multi-agent-review.md's `AgentColumnFinding` (`vendor/shared/contracts/observability.ts`) has `start_line` but deliberately NO `end_line` (D13: "a deliberate compact subset for AC-32's column display"). But `computeConflicts`'s D-P1/D-P3 matching (file-scoped-vs-line-scoped classification, interval-merge) genuinely needs the finding's full `[start_line, end_line]` span — the plan's own pseudocode signature `computeConflicts(columns: AgentColumn[])` is literally unsatisfiable as written, since `AgentColumn.findings` only carries the display subset. Fix: `conflicts.ts` declares its OWN local `ConflictFinding`/`ConflictColumn` types (a superset of the wire shape, plus `end_line` and the raw `rationale`), and `MultiAgentService.assemble` builds this richer shape directly from the persisted `FindingRow`s — separately from (but alongside) the compact `AgentColumnFinding[]` it builds for the actual HTTP response. Generalizes: when a plan's pseudocode signature references a "reserved" or already-shipped contract type, verify that type's fields against what the ALGORITHM actually needs before implementing to that literal signature — a display contract being narrower than an internal computation's needs is a legitimate design (not a bug to "fix" by widening the wire contract), and the right move is a separate internal type, not a schema change.
 
 ### 2026-07-28 — `vendor/shared` copies have already drifted
 
@@ -477,6 +489,52 @@ seeded fixture patches before wiring them into `seed-eval-cases.ts` — cheaper
 than debugging a silently-empty `diff.files` after the fact.
 
 ## Tool & Library Notes
+
+### 2026-08-25 — specs/13-multi-agent-review.md Phase A1: the concurrent per-agent loop held AC-19/AC-20 by construction, with zero changes to `RunLogger`/`RunBus` — confirmed by a new test, not just re-asserted
+
+`run-executor.ts`'s per-agent job loop (`executeRuns`) went from a sequential
+`for…of` to `await Promise.allSettled(jobs.map(...))` over the byte-identical
+body (D16). The plan's own planner finding 3 predicted this stays safe purely
+because `RunLogger.forRun` returns a NEW instance (never mutates the parent)
+and `RunBus` keys emitters/buffers/seq/completed/cancelled by `runId`
+throughout — `run-executor.concurrency.test.ts` (new, colocated) now proves
+this against the REAL executor rather than trusting the prediction: four
+succeeding + one deliberately-throwing fake-LLM agents run concurrently, and
+each run's own `RunBus.buffer(runId)` contains only that run's own per-agent
+log lines (agent name, its failure text) alongside the shared pre-work lines
+("Diff ready…", fanned out before the loop) — no cross-run leakage in either
+direction. Same file also pins AC-16 (N agents at delay T complete in ~T, not
+~N×T, using a local `DelayedLLMProvider` since `src/adapters/mocks.ts`'s
+`MockLLMProvider` has no delay knob — built one locally rather than widening
+the shared mock for one timing-sensitive test), AC-17 (every other agent still
+persists its own review/findings when one agent's provider throws — the
+failing run never reaches `insertReview`, the succeeding ones do), and AC-18
+(the diff loads exactly once for the whole batch, asserted via a
+`container.git.diff` call counter, not per-agent).
+
+**New provider-load exposure this concurrency change creates, to be watched
+rather than rediscovered as an incident:** N agents now hit their configured
+LLM provider(s) SIMULTANEOUSLY instead of one at a time. A provider that
+throttles under concurrent load (e.g. per-key rate limits, concurrent-request
+caps) can now see a burst it never saw under the old sequential loop, even
+though the SAME total request volume crosses it either way. The plan
+deliberately ships no concurrency cap/queue for this slice (AC-59's copy is
+explicit that nothing here uses `p-queue` — introducing one now would be the
+exact regression that copy is written to prevent) — a throttled agent still
+fails in isolation (AC-17/AC-47), it just does so under a load pattern this
+codebase hasn't exercised before. If real usage shows provider throttling
+correlating with multi-agent batch size, the fix is a concurrency cap on the
+`jobs.map(...)` batch (e.g. a small worker-pool limiter), not reverting to the
+sequential loop.
+
+**The add-only migration behaved exactly as finding 5 predicted, no
+surprises.** `0023_flimsy_nick_fury.sql` (`agent_runs.multi_agent_run_id`, a
+nullable FK to `multi_agent_runs.id` with `ON DELETE set null`, plus its
+index) is a single `pnpm db:generate < /dev/null` pass containing only `ALTER
+TABLE ... ADD COLUMN`, one `ADD CONSTRAINT`, and one `CREATE INDEX` — no
+interactive rename prompt, confirming (again) that the 2026-08-03 hang below
+is specifically an add+drop-on-one-table trigger, not a general multi-statement
+one.
 
 ## Recurring Errors & Fixes
 

@@ -384,6 +384,9 @@ export type SetAttachedDocumentRequest = z.infer<typeof SetAttachedDocumentReque
 export const RunRequest = z.object({
   agentId: z.string().optional(),
   all: z.boolean().optional(),
+  /** specs/13 (D3) — an explicit set of agent ids, additive: `agentId` and
+   *  `all` keep their existing meaning and consumers unchanged. */
+  agentIds: z.array(z.string().uuid()).min(1).optional(),
 });
 export type RunRequest = z.infer<typeof RunRequest>;
 

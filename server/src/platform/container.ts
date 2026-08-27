@@ -330,6 +330,7 @@ export class Container {
       this.repoRepo,
       () => this.github(),
       this.config.ciRunnerBundleDir,
+      this.secrets,
     ));
   }
 

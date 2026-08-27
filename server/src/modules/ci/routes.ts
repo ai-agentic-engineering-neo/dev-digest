@@ -49,9 +49,13 @@ export default async function ciRoutes(appBase: FastifyInstance) {
   app.post(
     '/agents/:id/export-ci',
     { schema: { params: IdParams, body: CiExportInput } },
-    async (req) => {
+    async (req, reply) => {
       const { workspaceId } = await getContext(container, req);
-      return service.export(workspaceId, req.params.id, req.body);
+      // AC-7 — 201 for a genuinely new installation, 200 for a republish;
+      // the body shape is identical, only the status differs.
+      const { result, status } = await service.exportWithStatus(workspaceId, req.params.id, req.body);
+      reply.code(status);
+      return result;
     },
   );
 

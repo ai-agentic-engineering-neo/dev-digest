@@ -7,6 +7,7 @@ import type { Agent } from "@devdigest/shared";
 import type { CiFailOn } from "@devdigest/shared/contracts/knowledge";
 import { useCiInstallations, useRepublishCi } from "@/lib/hooks/ci";
 import { useUpdateAgent } from "@/lib/hooks/agents";
+import { ApiError } from "@/lib/api";
 import { useToast } from "@/lib/toast";
 import { ExportWizard } from "./_components/ExportWizard";
 import { s } from "./styles";
@@ -43,10 +44,15 @@ export function CiTab({ agent }: { agent: Agent }) {
   const handleUpdate = (installationId: string) => {
     republish.mutate(installationId, {
       onSuccess: (result) => {
+        // AC-59's wrong-agent refusal is the only remaining `refused_reason`
+        // case reachable here; AC-10a's credential/write-access failures now
+        // throw (422, handled below) rather than returning this field.
         if (result.refused_reason) toast.error(result.refused_reason);
         else toast.success(t("ciTab.updateSuccess"));
       },
-      onError: () => toast.error(t("ciTab.updateError")),
+      onError: (err) => {
+        toast.error(err instanceof ApiError && err.status === 422 ? err.message : t("ciTab.updateError"));
+      },
     });
   };
 

@@ -17,6 +17,7 @@ import type {
   GitHubClient,
   RepoRef,
   RunTrace,
+  SecretsProvider,
   WorkflowRun,
 } from '@devdigest/shared';
 import { NotFoundError, ValidationError, ExternalServiceError } from '../../platform/errors.js';
@@ -156,6 +157,11 @@ export class CiService {
     // P-2 — the pulled-in agent-runner's committed bundle DIRECTORY
     // (`AppConfig.ciRunnerBundleDir`), copied wholesale into every export.
     private runnerBundleDir: string,
+    // AC-15/AC-55 — defence-in-depth known-secret-value scan (`bundle.ts`'s
+    // `containsKnownSecretValue`) needs the WORKSPACE'S OWN currently
+    // configured secret values to check generated files against; read here,
+    // passed straight through per-export, never logged or persisted.
+    private secrets: SecretsProvider,
   ) {}
 
   listTargets(): CiTargetOption[] {
@@ -200,6 +206,17 @@ export class CiService {
     // memory file (buildBundle/buildMemoryJsonl handle the empty case).
     const memoryRows = repoRow ? await this.memoryReader.listRepoScoped(workspaceId, repoRow.id) : [];
 
+    // AC-15/AC-55 — the actual configured values, not just their names, so
+    // `buildBundle`'s known-secret-value scan (`redact.ts`'s
+    // `containsKnownSecretValue`) has something real to check against
+    // beyond the shape-based scan alone. `SecretsProvider.get` returns
+    // `undefined` when unset, which `containsKnownSecretValue` already
+    // filters out — never a fabricated empty string.
+    const [openrouterKey, githubToken] = await Promise.all([
+      this.secrets.get('OPENROUTER_API_KEY'),
+      this.secrets.get('GITHUB_TOKEN'),
+    ]);
+
     return buildBundle({
       target: opts.target,
       agent: {
@@ -215,6 +232,7 @@ export class CiService {
       triggers: opts.triggers,
       postAs: opts.post_as,
       runnerBundleDir: this.runnerBundleDir,
+      knownSecretValues: [openrouterKey, githubToken],
     });
   }
 
@@ -258,8 +276,24 @@ export class CiService {
     return zipSync(zipInput, { level: 6 });
   }
 
-  /** AC-5…AC-10a/AC-59 — the full export flow. */
+  /** AC-5…AC-10a/AC-59 — the full export flow. Thin wrapper over
+   *  `exportWithStatus` for callers (`republish`) that only need the body. */
   async export(workspaceId: string, agentId: string, input: CiExportInput): Promise<CiExport> {
+    return (await this.exportWithStatus(workspaceId, agentId, input)).result;
+  }
+
+  /** AC-7 — the HTTP status (200 reuse vs 201 new installation) is the only
+   *  honest signal for "opened a new PR" vs "pushed a commit to the existing
+   *  PR"; the route reads `status` off this and the body is unchanged either
+   *  way. AC-10a — no-credential / cannot-write-access refusals are NOT part
+   *  of this return value: they throw `ValidationError` (422) instead, per
+   *  `server/LEARNINGS.md:150-166` (a bare `ConfigError` here would silently
+   *  respond 500, the exact trap that entry documents). */
+  async exportWithStatus(
+    workspaceId: string,
+    agentId: string,
+    input: CiExportInput,
+  ): Promise<{ result: CiExport; status: 200 | 201 }> {
     const agent = await this.agentLookup.getById(workspaceId, agentId);
     if (!agent) throw new NotFoundError('Agent not found');
 
@@ -277,15 +311,18 @@ export class CiService {
     const existingForRepo = await this.repo.getInstallationByRepo(workspaceId, input.repo);
     if (existingForRepo && existingForRepo.agentId !== agentId) {
       return {
-        installation: null,
-        files: [],
-        pr_url: null,
-        reused_pr: false,
-        warnings: [],
-        refused_reason:
-          'This repository already has a DevDigest CI installation for a different agent. ' +
-          'The runner supports exactly one agent manifest per repository, so a second export ' +
-          'would break the existing deployment rather than add to it.',
+        status: 200,
+        result: {
+          installation: null,
+          files: [],
+          pr_url: null,
+          reused_pr: false,
+          warnings: [],
+          refused_reason:
+            'This repository already has a DevDigest CI installation for a different agent. ' +
+            'The runner supports exactly one agent manifest per repository, so a second export ' +
+            'would break the existing deployment rather than add to it.',
+        },
       };
     }
 
@@ -294,7 +331,10 @@ export class CiService {
     if (input.action === 'files') {
       // AC-10a's other half: this branch never touches GitHub and never
       // writes an installation row.
-      return { installation: null, files, pr_url: null, reused_pr: false, warnings: [], refused_reason: null };
+      return {
+        status: 200,
+        result: { installation: null, files, pr_url: null, reused_pr: false, warnings: [], refused_reason: null },
+      };
     }
 
     // AC-7 — reuse the existing (agent, repo, target) installation's branch.
@@ -305,15 +345,12 @@ export class CiService {
     try {
       github = await this.githubClient();
     } catch (err) {
+      // AC-10a — resolved BEFORE any installation row is written. A bare
+      // `ConfigError` here would respond 500 (`server/LEARNINGS.md:150-166`),
+      // so it's translated into a `ValidationError` (422) naming what's
+      // missing, never swallowed into a 200 body.
       const message = err instanceof Error ? err.message : String(err);
-      return {
-        installation: null,
-        files,
-        pr_url: null,
-        reused_pr: false,
-        warnings: [],
-        refused_reason: `No GitHub credential is configured: ${message}`,
-      };
+      throw new ValidationError(`No GitHub credential is configured: ${message}`);
     }
 
     const ref = splitRepo(input.repo);
@@ -353,17 +390,11 @@ export class CiService {
       }
     } catch (err) {
       // AC-10a — the credential exists but cannot write to this repository
-      // (or the repository doesn't exist). Stated reason, zero installation
-      // rows, the archive/preview path is unaffected.
+      // (or the repository doesn't exist). Stated reason as a 422, zero
+      // installation rows written above this point; the archive/preview
+      // path (action: 'files') is unaffected since it returns earlier.
       const message = err instanceof Error ? err.message : String(err);
-      return {
-        installation: null,
-        files,
-        pr_url: null,
-        reused_pr: false,
-        warnings: [],
-        refused_reason: `The configured credential could not write to ${input.repo}: ${message}`,
-      };
+      throw new ValidationError(`The configured credential could not write to ${input.repo}: ${message}`);
     }
 
     let installationId: string;
@@ -396,12 +427,18 @@ export class CiService {
     const finalRow = (await this.repo.getInstallationById(workspaceId, installationId))!;
 
     return {
-      installation: toContractInstallation(finalRow),
-      files,
-      pr_url: prUrl,
-      reused_pr: reusedPr,
-      warnings: [],
-      refused_reason: null,
+      // AC-7 — 201 only for a genuinely new installation; a republish onto
+      // an existing (agent, repo) tuple is 200. The body is identical either
+      // way — only the route's status code differs.
+      status: existingTuple ? 200 : 201,
+      result: {
+        installation: toContractInstallation(finalRow),
+        files,
+        pr_url: prUrl,
+        reused_pr: reusedPr,
+        warnings: [],
+        refused_reason: null,
+      },
     };
   }
 

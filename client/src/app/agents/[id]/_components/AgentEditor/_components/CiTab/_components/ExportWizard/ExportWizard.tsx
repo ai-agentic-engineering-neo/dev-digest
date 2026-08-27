@@ -6,6 +6,7 @@ import { Modal, Button, ExportWizardSteps } from "@devdigest/ui";
 import type { Agent } from "@devdigest/shared";
 import type { CiExport, CiExportInputBody, CiTarget } from "@devdigest/shared/contracts/eval-ci";
 import { useCiPreview, useExportCi } from "@/lib/hooks/ci";
+import { ApiError } from "@/lib/api";
 import { useToast } from "@/lib/toast";
 import { TargetStep } from "./TargetStep";
 import { PreviewStep } from "./PreviewStep";
@@ -69,7 +70,14 @@ export function ExportWizard({ agent, onClose }: { agent: Agent; onClose: () => 
           );
         }
       },
-      onError: () => toast.error(t("exportWizard.exportError")),
+      // AC-10a — "no credential" / "cannot write" now come back as a 422
+      // (`ApiError`), not a 200 body field; surface the server's stated
+      // reason directly rather than the generic export-error copy. The
+      // archive/zip option (rendered unconditionally by InstallStep) stays
+      // available regardless — this mutation only ever drives the PR path.
+      onError: (err) => {
+        toast.error(err instanceof ApiError && err.status === 422 ? err.message : t("exportWizard.exportError"));
+      },
     });
   };
 
@@ -97,6 +105,7 @@ export function ExportWizard({ agent, onClose }: { agent: Agent; onClose: () => 
             onOpenPr={handleOpenPr}
             isExporting={exportCi.isPending}
             result={result}
+            fileCount={preview?.files.length}
           />
         )}
       </div>

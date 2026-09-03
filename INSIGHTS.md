@@ -126,6 +126,38 @@ input but left responses unchecked, so contract drift surfaced in the browser.
 
   Every gap is OpenRouter- or CI-runner-related, so the client cannot currently express an OpenRouter-backed agent even though the API accepts one.
 
+- **2026-08-21** — Map-reduce review (per-file chunks, `mapWithConcurrency` in
+  `reviewer-core/src/review/run.ts`) has a structural cross-file blind spot: a
+  chunk reviewing file A cannot see a compensating change in file B, so a
+  signature/contract change and its implementation landing in different files
+  of the SAME diff reads as "change without evidence of implementation" no
+  matter how capable the model is. Seen live on PR #6 with
+  `anthropic/claude-haiku-4.5`: General Reviewer flagged
+  `server/src/modules/reviews/run-executor.ts`'s new `tx` argument on
+  `insertReview`/`insertFindings` as unimplemented — `repository.ts`, a
+  sibling file in the same diff, already had it, the reviewing chunk just
+  never saw both halves in one pass. This is not a model-quality problem and
+  will recur with any model; verify "no evidence of X" findings across the
+  WHOLE diff (`grep` the other changed files) before trusting them, especially
+  for type/signature-propagation changes that necessarily span files.
+  **Resolved 2026-08-21: map-reduce chunking was removed** (see
+  `reviewer-core/INSIGHTS.md`'s "Removed map-reduce chunking" decision) —
+  every review is single-pass now, so there is no chunk boundary left to
+  create this blind spot. Kept here as a reminder of WHY it was removed.
+
+- **2026-08-21** — A "race condition" finding on `Promise.all()`-parallelized
+  Node code needs verification against the single-threaded execution model,
+  not multi-threaded-language pattern-matching. Seen on PR #6
+  (`anthropic/claude-haiku-4.5`, General Reviewer): flagged concurrent agents
+  in `run-executor.ts` racing on the shared `RunBus` (`server/src/platform/sse.ts`)
+  as thread-unsafe. False — `RunBus.publish()` has no `await` inside it, so
+  the whole read-seq/increment/push/emit sequence runs to completion
+  atomically before the next scheduled microtask; two "concurrent" async
+  tasks can never interleave mid-`publish()`. `Promise.all()` in JS means
+  concurrent I/O, not concurrent execution — a real race needs an `await`
+  splitting a read from its matching write on shared mutable state. Check for
+  that specific pattern before accepting a JS/Node race-condition finding.
+
 - **2026-07-29** — `.claude/skills/README.md` documents a `.cursor/skills → ../.claude/skills` symlink that does not exist, so Cursor gets no skills here. Evidence: `ls .cursor` → no such directory.
 
 - **2026-08-05** — No package in this repo has ESLint — no config file, no `eslint` dependency, no `lint` script, no lint step in any of the five workflows — so the `// eslint-disable-next-line react-hooks/exhaustive-deps` comments in `client/src` suppress a rule that has never run, and nothing mechanically enforces import direction or hook deps. Evidence: `client/src/lib/hooks/reviews.ts:212`, `client/src/app/agents/[id]/_components/AgentEditor/_components/ConfigTab/ConfigTab.tsx:39`, `client/src/app/repos/[repoId]/pulls/[number]/_components/ReviewRunAccordion/ReviewRunAccordion.tsx:56`.

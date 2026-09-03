@@ -5,10 +5,6 @@
 import type { Finding } from '@devdigest/shared';
 import type { FindingRow, PullRow, ReviewRow } from './repository.js';
 
-// reduceReviews + sliceDiff live in @devdigest/reviewer-core (pure engine logic
-// shared with the CI runner); re-exported here for backward-compatible imports.
-export { reduceReviews, sliceDiff } from '@devdigest/reviewer-core';
-
 /**
  * Render one linked skill as a block of the prompt's `## Skills / rules`
  * section. The `### name` header is added here rather than in `reviewer-core`
@@ -56,7 +52,7 @@ export function findingRowToDto(row: FindingRow): ReviewDtoFinding {
     confidence: row.confidence,
     kind: (row.kind as Finding['kind']) ?? 'finding',
     trifecta_components: (row.trifectaComponents as Finding['trifecta_components']) ?? null,
-    evidence: null,
+    evidence: (row.evidence as Finding['evidence']) ?? null,
     review_id: row.reviewId,
     accepted_at: row.acceptedAt?.toISOString() ?? null,
     dismissed_at: row.dismissedAt?.toISOString() ?? null,

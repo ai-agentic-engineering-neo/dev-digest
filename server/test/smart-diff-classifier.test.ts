@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { classifyFile, buildSplitSuggestion } from '../src/modules/reviews/smart-diff-classifier.js';
-import { SMART_DIFF_TOO_BIG_LINE_THRESHOLD } from '../src/modules/reviews/smart-diff-constants.js';
+import {
+  SMART_DIFF_TOO_BIG_LINE_THRESHOLD,
+  SMART_DIFF_MIN_SPLIT_GROUP_LINES,
+  SMART_DIFF_MAX_PROPOSED_SPLITS,
+} from '../src/modules/reviews/smart-diff-constants.js';
 
 describe('classifyFile', () => {
   it('classifies lockfiles as boilerplate regardless of directory', () => {
@@ -82,5 +86,43 @@ describe('buildSplitSuggestion', () => {
     ]);
     expect(result.too_big).toBe(false);
     expect(result.total_lines).toBe(4);
+  });
+
+  it('is too_big but proposes no splits when every group falls below the min-group-lines threshold', () => {
+    // Grouping is by the path's first 2 segments, so `mod{i}/sub/file.ts`
+    // gives each i its own group ('mod0/sub', 'mod1/sub', ...). Many small,
+    // scattered groups: the total exceeds the too_big threshold, but no
+    // single group reaches SMART_DIFF_MIN_SPLIT_GROUP_LINES on its own, so
+    // none qualifies as a proposed split.
+    const perGroupLines = SMART_DIFF_MIN_SPLIT_GROUP_LINES - 1;
+    const groupCount = Math.ceil((SMART_DIFF_TOO_BIG_LINE_THRESHOLD + 1) / perGroupLines);
+    const files = Array.from({ length: groupCount }, (_, i) => ({
+      path: `mod${i}/sub/file.ts`,
+      additions: perGroupLines,
+      deletions: 0,
+      role: 'core' as const,
+    }));
+    const result = buildSplitSuggestion(files);
+    expect(result.too_big).toBe(true);
+    expect(result.proposed_splits).toEqual([]);
+  });
+
+  it('caps proposed splits at SMART_DIFF_MAX_PROPOSED_SPLITS, largest groups first', () => {
+    // More distinct groups than the cap allows, each above the min-group-
+    // lines threshold and each a different size — only the largest
+    // SMART_DIFF_MAX_PROPOSED_SPLITS are proposed, sorted descending.
+    const groupCount = SMART_DIFF_MAX_PROPOSED_SPLITS + 2;
+    const files = Array.from({ length: groupCount }, (_, i) => ({
+      path: `mod${i}/sub/file.ts`,
+      // Distinct sizes (largest = mod0) so sort order is unambiguous.
+      additions: SMART_DIFF_MIN_SPLIT_GROUP_LINES + (groupCount - i) * 10,
+      deletions: 0,
+      role: 'core' as const,
+    }));
+    const result = buildSplitSuggestion(files);
+    expect(result.too_big).toBe(true);
+    expect(result.proposed_splits).toHaveLength(SMART_DIFF_MAX_PROPOSED_SPLITS);
+    expect(result.proposed_splits[0]!.name).toBe('mod0/sub');
+    expect(result.proposed_splits.at(-1)!.name).toBe(`mod${SMART_DIFF_MAX_PROPOSED_SPLITS - 1}/sub`);
   });
 });

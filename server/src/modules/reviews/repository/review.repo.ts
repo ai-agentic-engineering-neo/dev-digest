@@ -1,5 +1,5 @@
 import { and, desc, eq, inArray } from 'drizzle-orm';
-import type { Db } from '../../../db/client.js';
+import type { Db, DbOrTx } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
 import type { Finding } from '@devdigest/shared';
 import type { FindingRow, PullRow } from '../../../db/rows.js';
@@ -9,7 +9,7 @@ export type ReviewRow = typeof t.reviews.$inferSelect;
 // ---- reviews + findings ---------------------------------------------------
 
 export async function insertReview(
-  db: Db,
+  db: DbOrTx,
   values: {
     workspaceId: string;
     prId: string;
@@ -27,7 +27,7 @@ export async function insertReview(
 }
 
 export async function insertFindings(
-  db: Db,
+  db: DbOrTx,
   reviewId: string,
   findings: Finding[],
 ): Promise<FindingRow[]> {
@@ -48,6 +48,7 @@ export async function insertFindings(
         confidence: f.confidence,
         kind: f.kind ?? 'finding',
         trifectaComponents: f.trifecta_components ?? null,
+        evidence: f.evidence ?? null,
       })),
     )
     .returning();

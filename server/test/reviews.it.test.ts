@@ -23,7 +23,7 @@ const DIFF = `diff --git a/src/config.ts b/src/config.ts
 +++ b/src/config.ts
 @@ -10,3 +10,4 @@
    port: 3000,
-+  stripeKey: "sk_live_xxx",
++  stripeKey: "FAKE_SECRET_FOR_TESTING_ONLY",
    redisUrl: x,`;
 
 /** A Review fixture: one valid finding (line 11), one hallucinated (line 999). */
@@ -91,7 +91,7 @@ async function setupRepoAndPr(db: PgFixture['handle']['db'], workspaceId: string
     path: 'src/config.ts',
     additions: 1,
     deletions: 0,
-    patch: '@@ -10,3 +10,4 @@\n   port: 3000,\n+  stripeKey: "sk_live_xxx",\n   redisUrl: x,',
+    patch: '@@ -10,3 +10,4 @@\n   port: 3000,\n+  stripeKey: "FAKE_SECRET_FOR_TESTING_ONLY",\n   redisUrl: x,',
   });
   return { repo: repo!, pr: pr! };
 }

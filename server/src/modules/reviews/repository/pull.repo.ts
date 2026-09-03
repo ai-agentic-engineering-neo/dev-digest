@@ -1,5 +1,5 @@
 import { and, eq } from 'drizzle-orm';
-import type { Db } from '../../../db/client.js';
+import type { Db, DbOrTx } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
 import type { Intent } from '@devdigest/shared';
 import type { PullRow } from '../../../db/rows.js';
@@ -37,7 +37,7 @@ export async function getPrFiles(
  * Record the commit a review just ran against, so the PR list can derive
  * `reviewed` vs `needs_review` (head moved since the last review) vs `stale`.
  */
-export async function markReviewed(db: Db, prId: string, sha: string): Promise<void> {
+export async function markReviewed(db: DbOrTx, prId: string, sha: string): Promise<void> {
   await db
     .update(t.pullRequests)
     .set({ lastReviewedSha: sha })

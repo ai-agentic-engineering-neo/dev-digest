@@ -1,6 +1,6 @@
 import type { Container } from '../../platform/container.js';
 import { Intent } from '@devdigest/shared';
-import { wrapUntrusted } from '@devdigest/reviewer-core';
+import { wrapUntrusted, INJECTION_GUARD } from '@devdigest/reviewer-core';
 import { NotFoundError } from '../../platform/errors.js';
 import { resolveFeatureModel } from '../settings/feature-models.js';
 import { renderPrompt } from '../../platform/prompts.js';
@@ -55,7 +55,10 @@ export class IntentClassifier {
     );
     const llm = await this.container.llm(provider);
 
-    const system = await renderPrompt('intent.system.md', {});
+    // Built manually (not via assemblePrompt), so the shared injection guard
+    // must be appended explicitly here — same as assemblePrompt does for the
+    // main review path — instead of a second, drift-prone copy in the prompt file.
+    const system = `${await renderPrompt('intent.system.md', {})}\n\n${INJECTION_GUARD}`;
     const userSections = [
       `## PR title\n${wrapUntrusted('pr_title', pull.title)}`,
       `## PR body\n${wrapUntrusted('pr_body', pull.body ?? '')}`,

@@ -26,13 +26,16 @@ flowchart LR
 The grounding step is the mandatory gate: a finding that doesn't cite a real line
 in the diff is dropped, so the engine can't hallucinate locations. The score is
 recomputed deterministically from the **surviving** findings, not trusted from the
-model. `review/run.ts` orchestrates the run (single-pass by default).
+model. `review/run.ts` orchestrates the run — always single-pass, one LLM call
+over the whole diff (see the module doc comment there for why map-reduce
+chunking was removed: reviewing one file per call meant a change and its
+compensating change in a sibling file each looked incomplete in isolation).
 
 The engine also accepts optional prompt slots the **course lessons** start
 feeding it — `skills` (L02), `memory` (L07), `specs` (L05), `callers` — plus a
-`reduce()`/map-reduce path and a `toReview()` CI payload helper used from L06.
-In the starter the server passes only the diff, system prompt, and repo map; the
-extra slots are omitted, so `assemblePrompt` simply leaves those sections out.
+`toReview()` CI payload helper used from L06. In the starter the server passes
+only the diff, system prompt, and repo map; the extra slots are omitted, so
+`assemblePrompt` simply leaves those sections out.
 
 > Agent-facing map: [`CLAUDE.md`](CLAUDE.md) (this README stays the source of
 > truth for the pipeline diagram above; `CLAUDE.md` just links to it). Feature
@@ -43,8 +46,8 @@ extra slots are omitted, so `assemblePrompt` simply leaves those sections out.
 
 Exported from `src/index.ts`: `assemblePrompt` / `wrapUntrusted` (prompt),
 `groundFindings` / `groundingSummary` (grounding), `toJsonSchema` / `extractJson`
-/ `parseWithRepair` (structured output), plus the `run` entrypoint and
-`reduce`. Contracts (`Review`, `Finding`, `Verdict`, …) come from
+/ `parseWithRepair` (structured output), plus `reviewPullRequest` (the run
+entrypoint). Contracts (`Review`, `Finding`, `Verdict`, …) come from
 `@devdigest/shared`.
 
 ## Testing

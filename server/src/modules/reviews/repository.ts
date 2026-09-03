@@ -1,4 +1,4 @@
-import type { Db } from '../../db/client.js';
+import type { Db, DbOrTx } from '../../db/client.js';
 import type * as t from '../../db/schema.js';
 import type { AgentRunSummary, Finding, Intent, RunSummary, RunTrace } from '@devdigest/shared';
 
@@ -46,22 +46,30 @@ export class ReviewRepository {
 
   // ---- reviews + findings -------------------------------------------------
 
-  insertReview(values: {
-    workspaceId: string;
-    prId: string;
-    agentId: string | null;
-    runId: string | null;
-    kind: 'summary' | 'review';
-    verdict: string | null;
-    summary: string | null;
-    score: number | null;
-    model: string | null;
-  }): Promise<ReviewRow> {
-    return reviewRepo.insertReview(this.db, values);
+  /**
+   * `tx` lets a caller (e.g. `run-executor.ts`'s `insertReview` →
+   * `insertFindings` → `markReviewed` unit of work) run this inside its own
+   * transaction; omitted, it uses the shared pooled `Db` as before.
+   */
+  insertReview(
+    values: {
+      workspaceId: string;
+      prId: string;
+      agentId: string | null;
+      runId: string | null;
+      kind: 'summary' | 'review';
+      verdict: string | null;
+      summary: string | null;
+      score: number | null;
+      model: string | null;
+    },
+    tx?: DbOrTx,
+  ): Promise<ReviewRow> {
+    return reviewRepo.insertReview(tx ?? this.db, values);
   }
 
-  insertFindings(reviewId: string, findings: Finding[]): Promise<FindingRow[]> {
-    return reviewRepo.insertFindings(this.db, reviewId, findings);
+  insertFindings(reviewId: string, findings: Finding[], tx?: DbOrTx): Promise<FindingRow[]> {
+    return reviewRepo.insertFindings(tx ?? this.db, reviewId, findings);
   }
 
   /** Reviews for a PR (newest first), each with its findings. */
@@ -246,8 +254,8 @@ export class ReviewRepository {
   }
 
   /** Record the head SHA a review ran against (PR-list freshness derivation). */
-  markReviewed(prId: string, sha: string): Promise<void> {
-    return pullRepo.markReviewed(this.db, prId, sha);
+  markReviewed(prId: string, sha: string, tx?: DbOrTx): Promise<void> {
+    return pullRepo.markReviewed(tx ?? this.db, prId, sha);
   }
 
   /** Persist the WHOLE run log as ONE document. PK = runId → agent_runs. */

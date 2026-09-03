@@ -15,9 +15,49 @@ import type { Finding, UnifiedDiff } from '@devdigest/shared';
 
 const FULL_FILE_KINDS = new Set(['secret_leak', 'lethal_trifecta', 'phantom', 'hook']);
 
+/**
+ * Findings below this self-reported confidence are dropped outright. Every
+ * reviewer system prompt already tells the model "if you would dismiss your
+ * own finding as a likely false positive, do not report it" — this is the
+ * mechanical backstop for when the model reports one anyway (seen live: a
+ * CRITICAL "secret committed" finding shipped at confidence 0.1, with the
+ * model's own rationale concluding it probably isn't one).
+ */
+const CONFIDENCE_FLOOR = 0.3;
+
 export interface GroundingResult {
   kept: Finding[];
   dropped: { finding: Finding; reason: string }[];
+}
+
+/**
+ * A `lethal_trifecta` finding's own system prompt requires it to name all
+ * three components (untrusted_input, private_data_access, exfil_path) with a
+ * concrete file:line EACH before it may be reported — "only set kind to
+ * lethal_trifecta when you can name all three components with a concrete
+ * file:line for each." Enforce that mechanically instead of trusting the
+ * model's self-report: a trifecta claim is dropped as ungrounded, not merely
+ * downgraded, unless EVERY declared component has an evidence entry whose
+ * file:line is a REAL citation — present in the diff, same bar as an
+ * ordinary finding's own location. A model can satisfy "provide an entry per
+ * component" with fabricated file:line pairs just as easily as it can invent
+ * a location for a normal finding; checking presence alone would not have
+ * caught that, so each entry is citation-checked exactly like a diff-finding.
+ */
+function hasCompleteTrifectaEvidence(
+  finding: Finding,
+  filesInDiff: Set<string>,
+  lineIndex: Map<string, Set<number>>,
+): boolean {
+  const components = finding.trifecta_components ?? [];
+  if (components.length === 0) return false;
+  const evidence = finding.evidence ?? [];
+  const verifiedComponents = new Set(
+    evidence
+      .filter((e) => filesInDiff.has(e.file) && (lineIndex.get(e.file) ?? new Set()).has(e.line))
+      .map((e) => e.component),
+  );
+  return components.every((c) => verifiedComponents.has(c));
 }
 
 /** Build a quick lookup of file → set of new-side line numbers covered by hunks. */
@@ -58,8 +98,27 @@ export function groundFindings(findings: Finding[], diff: UnifiedDiff): Groundin
   for (const finding of findings) {
     const isFullFile = finding.kind ? FULL_FILE_KINDS.has(finding.kind) : false;
 
+    if (finding.confidence < CONFIDENCE_FLOOR) {
+      dropped.push({
+        finding,
+        reason: `confidence ${finding.confidence} below floor ${CONFIDENCE_FLOOR}`,
+      });
+      continue;
+    }
+
     if (!filesInDiff.has(finding.file)) {
       dropped.push({ finding, reason: `file '${finding.file}' not present in diff` });
+      continue;
+    }
+
+    if (
+      finding.kind === 'lethal_trifecta' &&
+      !hasCompleteTrifectaEvidence(finding, filesInDiff, lineIndex)
+    ) {
+      dropped.push({
+        finding,
+        reason: 'lethal_trifecta claim missing file:line evidence for a declared component',
+      });
       continue;
     }
 

@@ -9,7 +9,7 @@ import type {
 import { Review as ReviewSchema } from '@devdigest/shared';
 import { assemblePrompt } from '../prompt.js';
 import { groundFindings, groundingSummary } from '../grounding.js';
-import { reduceReviews, scoreFromFindings, sliceDiff } from './reduce.js';
+import { scoreFromFindings } from './reduce.js';
 
 /**
  * reviewPullRequest — the review engine entry point.
@@ -17,22 +17,27 @@ import { reduceReviews, scoreFromFindings, sliceDiff } from './reduce.js';
  * given (diff + resolved agent inputs + injected LLM) → grounded Review.
  *
  * This is the pure core lifted out of the server's `ReviewService.runOneAgent`:
- * assemble prompt → single-pass OR map-reduce per file → reduce → SHARED
+ * assemble prompt → one structured-output call over the WHOLE diff → SHARED
  * citation-grounding gate. It performs NO I/O beyond the injected LLM provider
  * (no DB, GitHub, fs, memory retrieval, intent, or persistence) — those stay in
  * the caller (server persists + streams SSE; runner posts + writes an artifact).
  *
  * Skill bodies / memory / specs are RESOLVED strings here: the caller turns
  * AgentManifest skill slugs into bodies (DB in the studio, fs in the runner).
+ *
+ * Always single-pass: the whole diff goes to the model in one call. Map-reduce
+ * chunking (one call per file) was removed — it reviewed each file in
+ * isolation, so a change and its compensating change in a sibling file (e.g. a
+ * type signature broadened in one file, its call sites updated in another)
+ * each looked incomplete on their own, producing a steady stream of false
+ * "unimplemented" / "unverified" findings that no amount of prompt tuning
+ * fixed, because the chunk genuinely never saw the other file. Large diffs are
+ * accepted as a known risk (context-window overflow, or structured-output
+ * truncating before the JSON closes) rather than chunked around.
  */
 
-/** Default map-reduce threshold (matches the server's FILE_MAP_THRESHOLD_LINES). */
-export const DEFAULT_MAP_THRESHOLD_LINES = 400;
 /** Default structured-output reprompt retries (matches REVIEW_MAX_RETRIES). */
 export const DEFAULT_REVIEW_MAX_RETRIES = 2;
-
-export type ReviewStrategy = 'auto' | 'single-pass' | 'map-reduce';
-export type ReviewMode = 'single-pass' | 'map-reduce';
 
 /** Progress event emitted during a review (server → SSE bus, runner → log). */
 export interface ReviewEvent {
@@ -50,8 +55,6 @@ export interface ReviewInput {
   diff: UnifiedDiff;
   /** Injected LLM provider (OpenRouter in CI, OpenAI/Anthropic in the studio). */
   llm: LLMProvider;
-  /** 'auto' (default) picks single-pass unless the diff is large + multi-file. */
-  strategy?: ReviewStrategy;
   /** Resolved skill bodies (NOT slugs). */
   skills?: string[];
   /** Curated memory items. */
@@ -81,100 +84,43 @@ export interface ReviewInput {
   task?: string;
   /** Override the structured-output retry budget. */
   maxRetries?: number;
-  /** Override the map-reduce line threshold. */
-  mapThresholdLines?: number;
   /**
-   * The target model's context window in tokens, when known (from the
-   * provider's model catalog). When supplied, a diff that would clearly not
-   * fit in one prompt forces map-reduce even for an agent configured
-   * `strategy: 'single-pass'` — otherwise that agent always sends the whole
-   * diff in one call and fails outright on a large diff against a small-
-   * context model, regardless of which model is picked. Unknown/omitted →
-   * the configured strategy is respected exactly (pre-existing behaviour).
-   */
-  modelContextLength?: number;
-  /**
-   * OpenRouter session id — forwarded on every LLM call so all chunks of this
-   * review group into one session in the OpenRouter dashboard.
+   * OpenRouter session id — forwarded on the LLM call so it shows up grouped
+   * in the OpenRouter dashboard.
    */
   sessionId?: string;
   /** Progress sink. */
   onEvent?: (e: ReviewEvent) => void;
   /**
-   * Cancellation checkpoint, called before each (expensive) chunk LLM call.
-   * Supply a function that THROWS to abort mid-run (the caller owns the error
-   * type, e.g. the server's RunCancelledError); the engine stays agnostic.
+   * Cancellation checkpoint, called before the (expensive) LLM call. Supply a
+   * function that THROWS to abort mid-run (the caller owns the error type,
+   * e.g. the server's RunCancelledError); the engine stays agnostic.
    */
   checkCancelled?: () => void;
 }
 
 export interface ReviewOutcome {
-  /** The reduced, GROUNDED review (findings that survived the citation gate). */
+  /** The grounded review (findings that survived the citation gate). */
   review: Review;
   /** Human-readable grounding summary, e.g. "3/4 passed". */
   grounding: string;
   /** Findings dropped by grounding, with reasons (for logs / "never go silent"). */
   dropped: { finding: Finding; reason: string }[];
-  /** Which path ran. */
-  mode: ReviewMode;
-  /** Prompt assembly (for the run trace). Single-pass: the one call; map-reduce: the whole-diff assembly. */
+  /** Prompt assembly (for the run trace). */
   assembly: PromptAssembly;
-  /** Per-chunk labels (for the run trace's tool_calls). */
-  chunks: { label: string }[];
   tokensIn: number;
   tokensOut: number;
   costUsd: number | null;
-  /** Joined raw model outputs (for the run trace). */
+  /** Raw model output (for the run trace). */
   raw: string;
 }
 
-/**
- * Reserved for everything a single-pass prompt sends besides the diff itself
- * (system prompt, skills, repo map, task framing) plus the model's output —
- * conservative on purpose: better to chunk a little earlier than to still
- * blow the context window after "fitting" by this estimate.
- */
-export const CONTEXT_SAFETY_MARGIN_TOKENS = 4000;
-
-/** Conservative (over-)estimate: ~3 chars/token rather than the typical ~4. */
-function estimateTokens(text: string): number {
-  return Math.ceil(text.length / 3);
-}
-
-/** Would the whole diff, in one prompt, clearly not fit this model's context? */
-function tooBigForModel(diff: UnifiedDiff, modelContextLength: number | undefined): boolean {
-  if (!modelContextLength || diff.files.length <= 1) return false;
-  return estimateTokens(diff.raw) + CONTEXT_SAFETY_MARGIN_TOKENS > modelContextLength;
-}
-
-function selectMode(
-  strategy: ReviewStrategy,
-  diff: UnifiedDiff,
-  threshold: number,
-  modelContextLength: number | undefined,
-): ReviewMode {
-  if (strategy === 'single-pass') {
-    // A configured single-pass agent still can't out-argue physics: a diff
-    // that clearly won't fit the model's context window falls back to
-    // map-reduce rather than failing outright on every large PR.
-    return tooBigForModel(diff, modelContextLength) ? 'map-reduce' : 'single-pass';
-  }
-  if (strategy === 'map-reduce') return diff.files.length > 1 ? 'map-reduce' : 'single-pass';
-  // auto: map-reduce when the diff is large + multi-file, or wouldn't fit the model.
-  const totalLines = diff.files.reduce((n, f) => n + f.additions + f.deletions, 0);
-  const large = totalLines > threshold && diff.files.length > 1;
-  return large || tooBigForModel(diff, modelContextLength) ? 'map-reduce' : 'single-pass';
-}
-
 export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutcome> {
-  const threshold = input.mapThresholdLines ?? DEFAULT_MAP_THRESHOLD_LINES;
   const maxRetries = input.maxRetries ?? DEFAULT_REVIEW_MAX_RETRIES;
-  const mode = selectMode(input.strategy ?? 'auto', input.diff, threshold, input.modelContextLength);
-  const forcedByContext = mode === 'map-reduce' && tooBigForModel(input.diff, input.modelContextLength);
   const emit = (kind: RunEventKind, msg: string, data?: unknown) =>
     input.onEvent?.({ kind, msg, data });
 
-  const promptParts = {
+  const { assembly, messages } = assemblePrompt({
     system: input.systemPrompt,
     skills: input.skills,
     memory: input.memory,
@@ -184,67 +130,27 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
     prDescription: input.prDescription,
     intent: input.intent,
     task: input.task,
-  };
+    diff: input.diff.raw,
+  });
 
-  // Whole-diff assembly is the trace default; overwritten below for single-pass.
-  let assembly: PromptAssembly = assemblePrompt({ ...promptParts, diff: input.diff.raw }).assembly;
+  emit('info', `Reviewing ${input.diff.files.length} changed file(s) in one pass`);
 
-  const chunks =
-    mode === 'map-reduce'
-      ? input.diff.files.map((f) => ({ label: f.path, diffText: sliceDiff(input.diff, f.path) }))
-      : [{ label: 'all files', diffText: input.diff.raw }];
+  // Cancellation checkpoint — stop before the (expensive) LLM call.
+  input.checkCancelled?.();
+  emit('tool', 'Reviewing all files in one pass', { file: 'all files' });
 
-  emit(
-    'info',
-    mode === 'map-reduce'
-      ? forcedByContext
-        ? `Diff too large for ${input.model}'s context window → falling back to map-reduce over ${input.diff.files.length} files`
-        : `Large diff → map-reduce over ${input.diff.files.length} files`
-      : `Reviewing ${input.diff.files.length} changed file(s) in one pass`,
-  );
+  const res = await input.llm.completeStructured<Review>({
+    model: input.model,
+    schema: ReviewSchema,
+    schemaName: 'Review',
+    messages,
+    maxRetries,
+    ...(input.sessionId ? { sessionId: input.sessionId } : {}),
+  });
+  emit('result', `all files: ${res.data.findings.length} candidate finding(s)`);
 
-  const partials: Review[] = [];
-  let tokensIn = 0;
-  let tokensOut = 0;
-  let costUsd: number | null = 0;
-  const raws: string[] = [];
-
-  for (const chunk of chunks) {
-    // Cancellation checkpoint — stop before the next (expensive) LLM call.
-    input.checkCancelled?.();
-    // 'map:' prefix only for the map-reduce path (one call per file). In
-    // single-pass there is exactly one chunk (the whole diff) — don't mislabel it.
-    emit(
-      'tool',
-      mode === 'map-reduce' ? `map: reviewing ${chunk.label}` : `Reviewing ${chunk.label} in one pass`,
-      { file: chunk.label },
-    );
-    const a = assemblePrompt({ ...promptParts, diff: chunk.diffText });
-    if (mode === 'single-pass') assembly = a.assembly;
-    const res = await input.llm.completeStructured<Review>({
-      model: input.model,
-      schema: ReviewSchema,
-      schemaName: 'Review',
-      messages: a.messages,
-      maxRetries,
-      ...(input.sessionId ? { sessionId: input.sessionId } : {}),
-    });
-    tokensIn += res.tokensIn;
-    tokensOut += res.tokensOut;
-    costUsd = costUsd == null || res.costUsd == null ? null : costUsd + res.costUsd;
-    raws.push(res.raw);
-    partials.push(res.data);
-    emit('result', `${chunk.label}: ${res.data.findings.length} candidate finding(s)`);
-  }
-
-  const merged = reduceReviews(partials);
-  emit(
-    'result',
-    `Reduced to ${merged.findings.length} finding(s); verdict=${merged.verdict}, score=${merged.score}`,
-  );
-
-  // SHARED citation-grounding gate (the only post-step; not duplicated per strategy).
-  const ground = groundFindings(merged.findings, input.diff);
+  // SHARED citation-grounding gate (the only post-step).
+  const ground = groundFindings(res.data.findings, input.diff);
   const grounding = groundingSummary(ground);
   for (const d of ground.dropped) {
     emit('info', `grounding dropped "${d.finding.title}": ${d.reason}`);
@@ -255,15 +161,13 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
   // self-reported number, and not the pre-grounding set) so the score, the
   // findings list, and the deterministic event always agree.
   return {
-    review: { ...merged, findings: ground.kept, score: scoreFromFindings(ground.kept) },
+    review: { ...res.data, findings: ground.kept, score: scoreFromFindings(ground.kept) },
     grounding,
     dropped: ground.dropped,
-    mode,
     assembly,
-    chunks: chunks.map((c) => ({ label: c.label })),
-    tokensIn,
-    tokensOut,
-    costUsd,
-    raw: raws.join('\n---\n'),
+    tokensIn: res.tokensIn,
+    tokensOut: res.tokensOut,
+    costUsd: res.costUsd,
+    raw: res.raw,
   };
 }

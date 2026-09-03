@@ -15,6 +15,7 @@
 export {
   assemblePrompt,
   wrapUntrusted,
+  INJECTION_GUARD,
   type PromptParts,
   type AssembledPrompt,
 } from './prompt.js';
@@ -31,19 +32,13 @@ export {
   type ParseResult,
 } from './llm/structured.js';
 
-// Map-reduce helpers (reduce partials, slice a file's diff).
-export { reduceReviews, sliceDiff } from './review/reduce.js';
-
 // The engine entry point: given (diff + resolved agent inputs + LLM) → grounded Review.
 export {
   reviewPullRequest,
-  DEFAULT_MAP_THRESHOLD_LINES,
   DEFAULT_REVIEW_MAX_RETRIES,
   type ReviewInput,
   type ReviewOutcome,
   type ReviewEvent,
-  type ReviewStrategy,
-  type ReviewMode,
 } from './review/run.js';
 
 // Output: grounded Review → GitHubReviewPayload (body + inline comments + event).

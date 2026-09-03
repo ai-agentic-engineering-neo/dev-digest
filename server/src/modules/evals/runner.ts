@@ -1,10 +1,9 @@
 import type { Container } from '../../platform/container.js';
-import type { Provider, ReviewStrategy } from '@devdigest/shared';
+import type { Provider } from '@devdigest/shared';
 import { reviewPullRequest } from '@devdigest/reviewer-core';
 import { parseUnifiedDiff } from '../../adapters/git/diff-parser.js';
 import type { AgentRow, EvalCaseRow, SkillRow } from '../../db/rows.js';
 import { resolveEnabledSkills } from '../agents/helpers.js';
-import { REVIEW_STRATEGY } from '../reviews/constants.js';
 import { HARNESS_MODEL, HARNESS_PROVIDER, HARNESS_SYSTEM_PROMPT } from './constants.js';
 import { gradeEvalCase, type FindingDescriptor, type GradingResult } from './grading.js';
 
@@ -17,7 +16,6 @@ interface ReviewConfig {
   systemPrompt: string;
   model: string;
   provider: Provider;
-  strategy?: ReviewStrategy;
   skills: string[];
 }
 
@@ -42,7 +40,6 @@ async function executeAndGrade(
     model: config.model,
     diff,
     llm,
-    strategy: config.strategy ?? REVIEW_STRATEGY,
     ...(config.skills.length > 0 ? { skills: config.skills } : {}),
     task: `Eval case: ${evalCase.name}`,
   });
@@ -81,7 +78,6 @@ export async function runEvalCase(
       systemPrompt: agent.systemPrompt,
       model: agent.model,
       provider: agent.provider as Provider,
-      strategy: (agent.strategy as ReviewStrategy) ?? undefined,
       skills: skills.map((s) => s.body),
     },
     evalCase,

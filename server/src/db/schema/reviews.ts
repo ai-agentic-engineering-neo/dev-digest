@@ -61,6 +61,10 @@ export const findings = pgTable(
     confidence: doublePrecision('confidence').notNull(),
     kind: text('kind').notNull().default('finding'),
     trifectaComponents: jsonb('trifecta_components').$type<string[]>(),
+    /** Per-component {component, file, line} backing a lethal_trifecta claim
+     *  (see Finding.evidence / TrifectaEvidence) — the grounding gate requires
+     *  this before keeping such a finding, so it must survive persistence. */
+    evidence: jsonb('evidence').$type<{ component: string; file: string; line: number }[]>(),
     acceptedAt: timestamp('accepted_at', { withTimezone: true }),
     dismissedAt: timestamp('dismissed_at', { withTimezone: true }),
   },

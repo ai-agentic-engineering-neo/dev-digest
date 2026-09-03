@@ -8,7 +8,7 @@ const DIFF = `diff --git a/src/config.ts b/src/config.ts
 +++ b/src/config.ts
 @@ -10,3 +10,4 @@
    port: 3000,
-+  stripeKey: "sk_live_xxx",
++  stripeKey: "FAKE_SECRET_FOR_TESTING_ONLY",
    redisUrl: x,
 diff --git a/src/api/users.ts b/src/api/users.ts
 --- a/src/api/users.ts

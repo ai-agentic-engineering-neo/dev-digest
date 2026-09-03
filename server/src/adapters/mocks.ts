@@ -174,7 +174,7 @@ export class MockGitHubClient implements GitHubClient {
           path: 'src/config.ts',
           additions: 4,
           deletions: 0,
-          patch: '@@ -10,3 +10,4 @@\n   port: 3000,\n+  stripeKey: "sk_live_xxx",\n   redisUrl: x,',
+          patch: '@@ -10,3 +10,4 @@\n   port: 3000,\n+  stripeKey: "FAKE_SECRET_FOR_TESTING_ONLY",\n   redisUrl: x,',
         },
       ],
       commits: [
@@ -297,7 +297,7 @@ export class MockGitClient implements GitClient {
   async diff(): Promise<UnifiedDiff> {
     const raw =
       this.opts.diff ??
-      'diff --git a/src/config.ts b/src/config.ts\n--- a/src/config.ts\n+++ b/src/config.ts\n@@ -10,3 +10,4 @@\n   port: 3000,\n+  stripeKey: "sk_live_xxx",\n   redisUrl: x,';
+      'diff --git a/src/config.ts b/src/config.ts\n--- a/src/config.ts\n+++ b/src/config.ts\n@@ -10,3 +10,4 @@\n   port: 3000,\n+  stripeKey: "FAKE_SECRET_FOR_TESTING_ONLY",\n   redisUrl: x,';
     return parseUnifiedDiff(raw);
   }
   async blame(): Promise<BlameLine[]> {

@@ -87,9 +87,48 @@ export async function postGithubReview(
   }
 
   if (!res.ok) {
-    throw new RunnerError(
-      `GitHub API error posting review (${url}): ${res.status} ${await res.text().catch(() => '')}`,
-    );
+    // A 5xx from this endpoint is frequently a TIMEOUT ON THE RESPONSE, not a
+    // failed write: GitHub answers 504 while having created the review anyway
+    // (observed on a large multi-agent review — 17 KB body + 26 inline
+    // comments). Treating that as a failure fails the whole CI check for a
+    // review the PR already carries, and a job re-run would then post a second
+    // copy of it. So: ask whether the review actually landed before deciding.
+    const status = res.status;
+    const detail = await res.text().catch(() => '');
+    if (status >= 500 && (await reviewAlreadyPosted(ctx, token, payload.body, fetchImpl))) {
+      return;
+    }
+    throw new RunnerError(`GitHub API error posting review (${url}): ${status} ${detail}`);
+  }
+}
+
+/**
+ * Is a review with exactly this body already on the PR?
+ *
+ * Matched on the body verbatim, which needs no knowledge of the runner's own
+ * identity (the token's bot login is not something this process is told). The
+ * match is deliberately exact: a near-match would risk swallowing a genuine
+ * posting failure. Note this only rescues the "the write succeeded, the
+ * response didn't" case within ONE run — a re-run regenerates the review from
+ * the model and its body may differ, which this cannot and does not dedupe.
+ *
+ * A failure to check is itself not fatal to the check: it returns false and
+ * the caller reports the original error, which is the safe direction.
+ */
+async function reviewAlreadyPosted(
+  ctx: Pick<PrContext, 'owner' | 'repo' | 'prNumber'>,
+  token: string,
+  body: string,
+  fetchImpl: FetchLike,
+): Promise<boolean> {
+  const url = `${GITHUB_API_BASE}/repos/${ctx.owner}/${ctx.repo}/pulls/${ctx.prNumber}/reviews?per_page=100`;
+  try {
+    const res = await fetchImpl(url, { headers: authHeaders(token, 'application/vnd.github+json') });
+    if (!res.ok) return false;
+    const reviews = (await res.json()) as { body?: string }[];
+    return Array.isArray(reviews) && reviews.some((r) => r.body === body);
+  } catch {
+    return false;
   }
 }
 

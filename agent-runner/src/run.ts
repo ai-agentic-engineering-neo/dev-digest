@@ -7,7 +7,7 @@ import { resolvePrContext, type CiEnv } from './context.js';
 import { parseUnifiedDiff, stripIgnoredFiles } from './diff.js';
 import { fetchPrDiff, postGithubReview, postPrComment, type FetchLike } from './github.js';
 import { buildResultArtifact, type AgentResultInput } from './artifact.js';
-import { mergeAgentReviews, type AgentPayload } from './merge.js';
+import { mergeAgentReviews, type AgentPayload, type SeverityCounts } from './merge.js';
 import { RunnerError } from './errors.js';
 
 /**
@@ -89,6 +89,19 @@ export interface RunCiFailure {
 
 export type RunCiResult = RunCiSuccess | RunCiFailure;
 
+/** Severity tally over GROUNDED findings — the same shape `artifact.ts`
+ *  computes for the result document, kept local rather than shared because
+ *  the two consumers must stay free to diverge (one is a wire contract). */
+function severityCounts(findings: readonly { severity: string }[]): SeverityCounts {
+  const counts: SeverityCounts = { critical: 0, warning: 0, suggestion: 0 };
+  for (const f of findings) {
+    if (f.severity === 'CRITICAL') counts.critical++;
+    else if (f.severity === 'WARNING') counts.warning++;
+    else counts.suggestion++;
+  }
+  return counts;
+}
+
 export async function runCi(deps: RunCiDeps): Promise<RunCiResult> {
   const readFile = deps.readFile ?? readFileSync;
   const readDir = deps.readDir ?? readdirSync;
@@ -159,7 +172,15 @@ export async function runCi(deps: RunCiDeps): Promise<RunCiResult> {
       const blockers = countBlockers(outcome.review.findings, manifest.ci_fail_on);
       const triggered = gateTriggered(outcome.review.findings, manifest.ci_fail_on);
 
-      agentPayloads.push({ agent: manifest.name, payload, gateTriggered: triggered, blockers });
+      const counts = severityCounts(outcome.review.findings);
+      agentPayloads.push({
+        agent: manifest.name,
+        payload,
+        gateTriggered: triggered,
+        blockers,
+        findingsCount: outcome.review.findings.length,
+        counts,
+      });
       agentResults.push({
         agent: manifest.name,
         findings: outcome.review.findings,

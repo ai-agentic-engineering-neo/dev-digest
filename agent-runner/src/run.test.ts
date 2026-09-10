@@ -366,7 +366,14 @@ describe('runCi (T8 agent-runner orchestrator)', () => {
     // one-element case of that, never a separate code path.
     expect(result.posted!.payload).toEqual(
       mergeAgentReviews([
-        { agent: 'Security Reviewer', payload: directPayload, gateTriggered: true, blockers: 1 },
+        {
+          agent: 'Security Reviewer',
+          payload: directPayload,
+          gateTriggered: true,
+          blockers: 1,
+          findingsCount: 1,
+          counts: { critical: 1, warning: 0, suggestion: 0 },
+        },
       ]).payload,
     );
     // The engine's own body survives the wrap verbatim.

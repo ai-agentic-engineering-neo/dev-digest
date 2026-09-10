@@ -20963,6 +20963,11 @@ const CiPreview = objectType({
     files: arrayType(CiFile),
     secrets: arrayType(CiSecretStatus),
     warnings: arrayType(stringType()),
+    /** The OTHER reviewers already installed in the target repository — the
+     *  agents this export will join rather than replace. Empty for a
+     *  first install. Names only: the wizard states who else will review,
+     *  and never needs to address them by id. */
+    existing_agents: arrayType(stringType()).default([]),
 });
 /** `GET /ci/targets` — the generator registry's own projection (AC-2/AC-2a):
  *  registering a second generator makes a second option appear with zero
@@ -35772,7 +35777,44 @@ async function postGithubReview(ctx, token, payload, fetchImpl = fetch) {
         res = await post(base);
     }
     if (!res.ok) {
-        throw new RunnerError(`GitHub API error posting review (${url}): ${res.status} ${await res.text().catch(() => '')}`);
+        // A 5xx from this endpoint is frequently a TIMEOUT ON THE RESPONSE, not a
+        // failed write: GitHub answers 504 while having created the review anyway
+        // (observed on a large multi-agent review — 17 KB body + 26 inline
+        // comments). Treating that as a failure fails the whole CI check for a
+        // review the PR already carries, and a job re-run would then post a second
+        // copy of it. So: ask whether the review actually landed before deciding.
+        const status = res.status;
+        const detail = await res.text().catch(() => '');
+        if (status >= 500 && (await reviewAlreadyPosted(ctx, token, payload.body, fetchImpl))) {
+            return;
+        }
+        throw new RunnerError(`GitHub API error posting review (${url}): ${status} ${detail}`);
+    }
+}
+/**
+ * Is a review with exactly this body already on the PR?
+ *
+ * Matched on the body verbatim, which needs no knowledge of the runner's own
+ * identity (the token's bot login is not something this process is told). The
+ * match is deliberately exact: a near-match would risk swallowing a genuine
+ * posting failure. Note this only rescues the "the write succeeded, the
+ * response didn't" case within ONE run — a re-run regenerates the review from
+ * the model and its body may differ, which this cannot and does not dedupe.
+ *
+ * A failure to check is itself not fatal to the check: it returns false and
+ * the caller reports the original error, which is the safe direction.
+ */
+async function reviewAlreadyPosted(ctx, token, body, fetchImpl) {
+    const url = `${GITHUB_API_BASE}/repos/${ctx.owner}/${ctx.repo}/pulls/${ctx.prNumber}/reviews?per_page=100`;
+    try {
+        const res = await fetchImpl(url, { headers: authHeaders(token, 'application/vnd.github+json') });
+        if (!res.ok)
+            return false;
+        const reviews = (await res.json());
+        return Array.isArray(reviews) && reviews.some((r) => r.body === body);
+    }
+    catch {
+        return false;
     }
 }
 /** Post a plain issue comment (no review event) — `post_as: 'pr_comment'`. */
@@ -35893,16 +35935,48 @@ function mergedEvent(results) {
  *  from never having run. */
 function rosterLine(results) {
     const parts = results.map((r) => {
-        const mark = r.gateTriggered ? '🔴' : r.payload.event === 'APPROVE' ? '✅' : '🟡';
+        const mark = statusMark(r);
         return `${mark} ${r.agent}`;
     });
     return parts.join(' · ');
 }
+function statusMark(r) {
+    return r.gateTriggered ? '🔴' : r.payload.event === 'APPROVE' ? '✅' : '🟡';
+}
+function countsLine(findingsCount, c) {
+    return `**${findingsCount} finding${findingsCount === 1 ? '' : 's'}** · ${c.critical} critical · ${c.warning} warning · ${c.suggestion} suggestion`;
+}
+function totals(results) {
+    return {
+        findingsCount: results.reduce((n, r) => n + r.findingsCount, 0),
+        counts: {
+            critical: results.reduce((n, r) => n + r.counts.critical, 0),
+            warning: results.reduce((n, r) => n + r.counts.warning, 0),
+            suggestion: results.reduce((n, r) => n + r.counts.suggestion, 0),
+        },
+    };
+}
 /**
- * Compose the posted review. A single agent is NOT special-cased into a
- * different shape by accident: with one entry the body is that agent's own
- * body plus a one-line roster header, so the single-agent output stays the
- * familiar one.
+ * Each agent's findings, COLLAPSED behind a `<details>` summary.
+ *
+ * The full list is kept rather than replaced by a summary, because it is not
+ * redundant with the inline comments: a finding whose line the diff cannot
+ * anchor is dropped from the inline set by `toReviewPayload` and survives
+ * ONLY here. Collapsing keeps it reachable without making the top of the PR a
+ * page of text that repeats what is already annotated on the lines.
+ *
+ * The blank lines around the body are load-bearing: GitHub does not render
+ * markdown inside `<details>` without them.
+ */
+function collapsedSection(r) {
+    const summary = `${statusMark(r)} <strong>${r.agent}</strong> — ${r.findingsCount} finding${r.findingsCount === 1 ? '' : 's'} · ${r.counts.critical} critical · ${r.counts.warning} warning · ${r.counts.suggestion} suggestion`;
+    return `<details>\n<summary>${summary}</summary>\n\n${r.payload.body}\n\n</details>`;
+}
+/**
+ * Compose the posted review: a short, always-visible header (who ran, what
+ * the totals are, where the detail lives), then one collapsed section per
+ * agent. A single agent is NOT a separate shape — it is the one-element case
+ * of the same layout.
  */
 function mergeAgentReviews(results) {
     if (results.length === 0) {
@@ -35910,10 +35984,19 @@ function mergeAgentReviews(results) {
     }
     const event = mergedEvent(results);
     const blockers = results.reduce((n, r) => n + r.blockers, 0);
-    const header = results.length === 1
-        ? `_DevDigest — ${rosterLine(results)}_`
-        : `## DevDigest — ${results.length} reviewers\n\n${rosterLine(results)}`;
-    const body = [header, ...results.map((r) => r.payload.body)].join('\n\n---\n\n');
+    const { findingsCount, counts } = totals(results);
+    const title = results.length === 1
+        ? `## DevDigest — ${results[0].agent}`
+        : `## DevDigest — ${results.length} reviewers`;
+    const header = [
+        title,
+        rosterLine(results),
+        countsLine(findingsCount, counts),
+        findingsCount > 0
+            ? '_Findings are posted as inline comments on the lines they refer to. Expand a reviewer below for its full list._'
+            : '_No findings. Looks good._',
+    ].join('\n\n');
+    const body = [header, ...results.map(collapsedSection)].join('\n\n');
     // Inline comments carry the agent's name because a merged review shows
     // several reviewers' comments side by side on the same lines; without the
     // attribution a reader cannot tell which reviewer to argue with.
@@ -35936,6 +36019,21 @@ function mergeAgentReviews(results) {
 
 
 
+/** Severity tally over GROUNDED findings — the same shape `artifact.ts`
+ *  computes for the result document, kept local rather than shared because
+ *  the two consumers must stay free to diverge (one is a wire contract). */
+function run_severityCounts(findings) {
+    const counts = { critical: 0, warning: 0, suggestion: 0 };
+    for (const f of findings) {
+        if (f.severity === 'CRITICAL')
+            counts.critical++;
+        else if (f.severity === 'WARNING')
+            counts.warning++;
+        else
+            counts.suggestion++;
+    }
+    return counts;
+}
 async function runCi(deps) {
     const readFile = deps.readFile ?? external_node_fs_namespaceObject.readFileSync;
     const readDir = deps.readDir ?? external_node_fs_namespaceObject.readdirSync;
@@ -35998,7 +36096,15 @@ async function runCi(deps) {
             });
             const blockers = countBlockers(outcome.review.findings, manifest.ci_fail_on);
             const triggered = gateTriggered(outcome.review.findings, manifest.ci_fail_on);
-            agentPayloads.push({ agent: manifest.name, payload, gateTriggered: triggered, blockers });
+            const counts = run_severityCounts(outcome.review.findings);
+            agentPayloads.push({
+                agent: manifest.name,
+                payload,
+                gateTriggered: triggered,
+                blockers,
+                findingsCount: outcome.review.findings.length,
+                counts,
+            });
             agentResults.push({
                 agent: manifest.name,
                 findings: outcome.review.findings,

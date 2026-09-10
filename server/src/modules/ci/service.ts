@@ -26,7 +26,7 @@ import { CiRepository, type CiInstallationRow, type CiRunFilters, type CiRunRow 
 import type { AgentLookup, MemoryReader, RepoLookup, SkillLookup } from './ports.js';
 import { buildBundle, toPreviewFiles } from './bundle.js';
 import { listTargetOptions } from './targets.js';
-import { CI_BRANCH, OPENROUTER_SECRET_NAME, WORKFLOW_PATH } from './constants.js';
+import { CI_BRANCH, DEVDIGEST_DIR, OPENROUTER_SECRET_NAME, WORKFLOW_PATH } from './constants.js';
 import { checkIngestArtifact } from './ingest.js';
 import { RefreshDebounce } from './refresh.js';
 
@@ -194,6 +194,18 @@ export class CiService {
       warnings,
       existing_agents: await this.otherInstalledAgentNames(workspaceId, agentId, opts.repo),
     };
+  }
+
+  /** Every reviewer the next bundle for `repo` will contain — the existing
+   *  roster plus `agentId` — in generation order. */
+  private async installedReviewerNames(
+    workspaceId: string,
+    agentId: string,
+    repo: string,
+  ): Promise<string[]> {
+    const ids = await this.resolveRosterAgentIds(workspaceId, agentId, repo);
+    const agents = await Promise.all(ids.map((id) => this.agentLookup.getById(workspaceId, id)));
+    return agents.flatMap((a) => (a ? [a.name] : []));
   }
 
   /** The names of reviewers ALREADY installed in `repo`, excluding `agentId`
@@ -396,6 +408,15 @@ export class CiService {
 
     const files = await this.generateFiles(workspaceId, agentId, opts);
 
+    // Every reviewer this bundle installs, for the PR body below. Derived from
+    // the manifests actually generated, so it can never disagree with the
+    // files the PR ships.
+    const reviewerNames = await this.installedReviewerNames(workspaceId, agentId, input.repo);
+    const reviewerLabel =
+      reviewerNames.length === 1
+        ? `agent: ${reviewerNames[0]}`
+        : `agents: ${reviewerNames.join(', ')}`;
+
     if (input.action === 'files') {
       // AC-10a's other half: this branch never touches GitHub and never
       // writes an installation row.
@@ -439,6 +460,13 @@ export class CiService {
           ? 'Update DevDigest CI configuration'
           : 'Add DevDigest CI review workflow',
         files: files.map((f) => ({ path: f.path, contents: requireContents(f) })),
+        // The generated bundle is the COMPLETE contents of `.devdigest/`, so
+        // anything else under it on the branch is a leftover from an earlier
+        // export whose paths differed. It must go: the runner reads every
+        // `.devdigest/agents/*.yaml` as an installed reviewer, so a stale
+        // manifest silently re-runs an agent (twice the findings, twice the
+        // cost) even after that agent's real manifest was renamed.
+        pruneDirs: [DEVDIGEST_DIR],
       });
       // AC-7's edge case — the previous PR may have been closed/merged;
       // reuse an OPEN one if it exists, otherwise open a new one rather
@@ -452,8 +480,12 @@ export class CiService {
           title: 'Add DevDigest CI review',
           head: CI_BRANCH,
           base: input.base,
+          // Name every reviewer the bundle installs, not just the agent that
+          // happened to trigger this export — the PR ships all of their
+          // manifests, and a reader diffing the files should not have to
+          // reconcile them against a body that mentions one.
           body:
-            `This PR adds DevDigest's automated review (agent: ${agent.name}) as a GitHub ` +
+            `This PR adds DevDigest's automated review (${reviewerLabel}) as a GitHub ` +
             `Actions workflow. Add the \`${OPENROUTER_SECRET_NAME}\` repository secret before ` +
             `merging so the workflow can run.`,
         });

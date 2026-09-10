@@ -17,6 +17,7 @@ import type {
 import { withRetry, withTimeout } from '../../platform/resilience.js';
 import { resolveLinkedIssue } from '../../modules/_shared/linked-issue.js';
 import { ValidationError } from '../../platform/errors.js';
+import { stalePathsToPrune } from './tree-prune.js';
 
 const TIMEOUT = 30_000;
 
@@ -300,16 +301,51 @@ export class OctokitGitHubClient implements GitHubClient {
 
           // New tree layered on the parent's tree (so unrelated files are kept).
           const parentCommit = await g.getCommit({ owner, repo: name, commit_sha: parentSha });
+
+          const entries: {
+            path: string;
+            mode: '100644';
+            type: 'blob';
+            content?: string;
+            sha?: null;
+          }[] = payload.files.map((f) => ({
+            path: f.path,
+            mode: '100644',
+            type: 'blob',
+            content: f.contents,
+          }));
+
+          // Prune: a layered tree only ADDS and overwrites, so a generated file
+          // whose path changed between exports stays behind forever. Inside the
+          // prefixes this commit owns, anything not being written now is
+          // deleted — `sha: null` on a tree entry is git's own delete.
+          const pruneDirs = payload.pruneDirs ?? [];
+          if (branchExists && pruneDirs.length > 0) {
+            const existing = await g.getTree({
+              owner,
+              repo: name,
+              tree_sha: parentCommit.data.tree.sha,
+              recursive: 'true',
+            });
+            const existingBlobs = existing.data.tree
+              .filter((node) => node.type === 'blob' && node.path)
+              .map((node) => node.path as string);
+            for (const path of stalePathsToPrune(
+              existingBlobs,
+              payload.files.map((f) => f.path),
+              pruneDirs,
+            )) {
+              entries.push({ path, mode: '100644', type: 'blob', sha: null });
+            }
+          }
+
           const tree = await g.createTree({
             owner,
             repo: name,
             base_tree: parentCommit.data.tree.sha,
-            tree: payload.files.map((f) => ({
-              path: f.path,
-              mode: '100644',
-              type: 'blob',
-              content: f.contents,
-            })),
+            // `sha: null` on an entry is git's delete marker — octokit types
+            // it as `string | null`, so no cast is needed here.
+            tree: entries,
           });
 
           const commit = await g.createCommit({

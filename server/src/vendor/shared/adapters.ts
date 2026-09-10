@@ -138,6 +138,17 @@ export interface CommitFilesPayload {
   base: string;
   message: string;
   files: CommitFile[];
+  /**
+   * Directory prefixes the commit OWNS: any file already on `branch` under one
+   * of them that is not in `files` is deleted by this commit.
+   *
+   * A commit is otherwise purely additive (the new tree is layered on the
+   * parent's), which silently orphans a generated file whose path changed —
+   * a renamed agent manifest stays behind and gets read as a SECOND, stale
+   * reviewer. Prefixes are matched as `path === prefix || path.startsWith(prefix + '/')`,
+   * never as a bare substring, and files outside them are never touched.
+   */
+  pruneDirs?: string[];
 }
 
 /** specs/14-export-to-ci.md — one GitHub Actions workflow run, as returned by

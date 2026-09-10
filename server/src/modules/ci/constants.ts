@@ -17,11 +17,22 @@ export const WORKFLOW_PATH = '.github/workflows/devdigest.yml';
 // or is absent) — never an enumerated allow-list. `bundle.ts` copies
 // whatever `agent-runner/dist/` actually contains, wholesale, so a chunk-set
 // change on a future `agent-runner` rebuild is picked up automatically.
-export const RUNNER_DIR = '.devdigest/runner';
+/**
+ * The directory DevDigest OWNS in a target repository. Every generated file
+ * except the workflow lives under it, and an export prunes anything here that
+ * it did not just write (`CommitFilesPayload.pruneDirs`) — a commit is
+ * otherwise purely additive, so a generated file whose path changed between
+ * exports (a renamed agent manifest, a renumbered runner chunk) would stay
+ * behind and be read as real input: the runner treats EVERY
+ * `.devdigest/agents/*.yaml` it finds as an installed reviewer.
+ */
+export const DEVDIGEST_DIR = '.devdigest';
+
+export const RUNNER_DIR = `${DEVDIGEST_DIR}/runner`;
 export const RUNNER_ENTRYPOINT_FILE = 'index.js';
 // The path the generated workflow's `run:` step executes.
 export const RUNNER_BUNDLE_PATH = `${RUNNER_DIR}/${RUNNER_ENTRYPOINT_FILE}`;
-export const MEMORY_PATH = '.devdigest/memory.jsonl';
+export const MEMORY_PATH = `${DEVDIGEST_DIR}/memory.jsonl`;
 
 // D18/AC-16 — a repository may install SEVERAL reviewers; the runner reads
 // every `.devdigest/agents/*.yaml` it finds (`agent-runner/src/manifest.ts`).
@@ -56,7 +67,7 @@ export function agentSlug(name: string, agentId: string): string {
 }
 
 export function agentManifestPath(slug: string): string {
-  return `.devdigest/agents/${slug}.yaml`;
+  return `${DEVDIGEST_DIR}/agents/${slug}.yaml`;
 }
 
 /**
@@ -65,7 +76,7 @@ export function agentManifestPath(slug: string): string {
  * (`server/src/db/schema/skills.ts`) — safe to use as a path segment as-is.
  */
 export function skillFilePath(slug: string): string {
-  return `.devdigest/skills/${slug}.md`;
+  return `${DEVDIGEST_DIR}/skills/${slug}.md`;
 }
 
 /** The dedicated branch DevDigest publishes the bundle to (D3/AC-7) —

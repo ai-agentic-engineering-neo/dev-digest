@@ -5,8 +5,9 @@ import { AgentManifest } from '@devdigest/shared';
 import { RunnerError } from './errors.js';
 
 /**
- * Loads and VALIDATES the checked-in `.devdigest/agents/<slug>.yaml` manifest
- * (AC-20). The manifest is written by the studio's export flow
+ * Loads and VALIDATES the checked-in `.devdigest/agents/<slug>.yaml` manifests
+ * (AC-20) — one per reviewer installed in the repository. Each manifest is
+ * written by the studio's export flow
  * (`server/src/modules/ci/manifest.ts`) and is otherwise untrusted on-disk
  * content by the time it reaches CI — it is schema-validated with the same
  * `AgentManifest` Zod contract before any of its fields (system prompt, model,
@@ -21,8 +22,15 @@ export interface FsDeps {
   readDir?: typeof readdirSync;
 }
 
-/** Find the single agent manifest file under `<devdigestDir>/agents/`. */
-export function findManifestPath(devdigestDir: string, deps: FsDeps = {}): string {
+/**
+ * Every agent manifest under `<devdigestDir>/agents/`, in a STABLE sorted
+ * order — the order agents are reviewed in and rendered in, which must not
+ * depend on the filesystem's directory-listing order.
+ *
+ * A repository may install several reviewers into one workflow (one job, one
+ * posted review). Zero manifests is still an error; more than one is not.
+ */
+export function findManifestPaths(devdigestDir: string, deps: FsDeps = {}): string[] {
   const readDir = deps.readDir ?? readdirSync;
   const agentsDir = path.join(devdigestDir, 'agents');
   let entries: string[];
@@ -33,16 +41,17 @@ export function findManifestPath(devdigestDir: string, deps: FsDeps = {}): strin
       `Agent manifest directory not found: ${agentsDir} (${(err as Error).message})`,
     );
   }
-  const yamlFiles = entries.filter((f) => f.endsWith('.yaml') || f.endsWith('.yml'));
+  const yamlFiles = entries.filter((f) => f.endsWith('.yaml') || f.endsWith('.yml')).sort();
   if (yamlFiles.length === 0) {
     throw new RunnerError(`No agent manifest (*.yaml) found in ${agentsDir}`);
   }
-  if (yamlFiles.length > 1) {
-    throw new RunnerError(
-      `Expected exactly one agent manifest in ${agentsDir}, found ${yamlFiles.length}: ${yamlFiles.join(', ')}`,
-    );
-  }
-  return path.join(agentsDir, yamlFiles[0]!);
+  return yamlFiles.map((f) => path.join(agentsDir, f));
+}
+
+/** The first agent manifest file. Kept for callers that genuinely want one
+ *  (and for the single-agent case); prefer `findManifestPaths`. */
+export function findManifestPath(devdigestDir: string, deps: FsDeps = {}): string {
+  return findManifestPaths(devdigestDir, deps)[0]!;
 }
 
 /** Read, parse, and Zod-validate the manifest at `manifestPath` (AC-20). */
@@ -76,8 +85,18 @@ export function loadAgentManifest(manifestPath: string, deps: FsDeps = {}): Agen
   return result.data;
 }
 
-/** Convenience: locate + load + validate in one call. */
+/** Convenience: locate + load + validate the FIRST manifest. */
 export function loadManifest(devdigestDir: string, deps: FsDeps = {}): AgentManifest {
-  const manifestPath = findManifestPath(devdigestDir, deps);
-  return loadAgentManifest(manifestPath, deps);
+  return loadManifests(devdigestDir, deps)[0]!;
+}
+
+/**
+ * Locate + load + validate EVERY manifest, in `findManifestPaths` order.
+ *
+ * Fails on the first invalid manifest rather than reviewing with the agents
+ * that happened to parse: a partial review posted under the roster's name
+ * would look like a complete one.
+ */
+export function loadManifests(devdigestDir: string, deps: FsDeps = {}): AgentManifest[] {
+  return findManifestPaths(devdigestDir, deps).map((p) => loadAgentManifest(p, deps));
 }

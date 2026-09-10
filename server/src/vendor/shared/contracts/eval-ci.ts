@@ -546,6 +546,24 @@ export type CiRun = z.infer<typeof CiRun>;
  * silently change the runner (N5). It carries no commit sha and no
  * repository — `CiRunMeta` below is the sidecar that supplies both.
  */
+/** One agent's own slice of a multi-agent CI run. The top-level counts on
+ *  `CiResultArtifact` stay the ROLLUP across every entry here, so an ingest
+ *  path that never learns about this field still records the right totals. */
+export const CiAgentResult = z.object({
+  agent: z.string(),
+  findings_count: z.number().int(),
+  critical: z.number().int().nullish(),
+  warning: z.number().int().nullish(),
+  suggestion: z.number().int().nullish(),
+  cost_usd: z.number().nullable(),
+  duration_ms: z.number().int().nullish(),
+  /** Findings that trip THIS agent's own `ci_fail_on` — the gate is a strict
+   *  OR across agents, so each keeps its own policy and its own count. */
+  blockers: z.number().int().nullish(),
+  gate_triggered: z.boolean().nullish(),
+});
+export type CiAgentResult = z.infer<typeof CiAgentResult>;
+
 export const CiResultArtifact = z.object({
   findings_count: z.number().int(),
   critical: z.number().int().nullish(),
@@ -556,6 +574,12 @@ export const CiResultArtifact = z.object({
   agent: z.string(),
   version: z.string().nullish(),
   pr_number: z.number().int().nullish(),
+  /** Per-agent breakdown for a repo running several reviewers in one job.
+   *  Nullish on purpose (AC-49's additive rule): an artifact produced by a
+   *  single-agent runner — including one already checked into a repo that
+   *  hasn't re-exported — still parses, and `agent` above then carries the
+   *  only agent's name. When present, `agent` is a comma-joined roster. */
+  agents: z.array(CiAgentResult).nullish(),
 });
 export type CiResultArtifact = z.infer<typeof CiResultArtifact>;
 

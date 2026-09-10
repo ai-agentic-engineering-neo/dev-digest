@@ -1,12 +1,13 @@
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import type { LLMProvider, GitHubReviewPayload, CiResultArtifact } from '@devdigest/shared';
 import { reviewPullRequest, toReviewPayload, gateTriggered, countBlockers } from '@devdigest/reviewer-core';
-import { loadManifest } from './manifest.js';
+import { loadManifests } from './manifest.js';
 import { loadSkillBodies } from './skills.js';
 import { resolvePrContext, type CiEnv } from './context.js';
 import { parseUnifiedDiff, stripIgnoredFiles } from './diff.js';
 import { fetchPrDiff, postGithubReview, postPrComment, type FetchLike } from './github.js';
-import { buildResultArtifact } from './artifact.js';
+import { buildResultArtifact, type AgentResultInput } from './artifact.js';
+import { mergeAgentReviews, type AgentPayload } from './merge.js';
 import { RunnerError } from './errors.js';
 
 /**
@@ -18,15 +19,23 @@ import { RunnerError } from './errors.js';
  * skills, diff, PR context) and hands them to the SAME reviewer-core engine
  * the studio calls, then turns the grounded result into GitHub side effects.
  *
- * Deterministic gate (AC-23): the GitHub review event + blocker count are
- * computed from `countBlockers`/`gateTriggered` + the manifest's `ci_fail_on`
- * against the GROUNDED findings — never from `review.verdict` (the model's
- * self-report), which is discarded here on purpose.
+ * Several reviewers may be installed in one repository: every manifest under
+ * `.devdigest/agents/` is reviewed, in manifest order, against the SAME diff,
+ * and `merge.ts` folds the per-agent payloads into the one review this job
+ * posts. One agent is the degenerate case of that loop, not a separate path.
+ *
+ * Deterministic gate (AC-23): each agent's review event + blocker count are
+ * computed from `countBlockers`/`gateTriggered` + THAT agent's own
+ * `ci_fail_on` against the GROUNDED findings — never from `review.verdict`
+ * (the model's self-report), which is discarded here on purpose. The job's
+ * own gate is a strict OR across agents (`mergeAgentReviews`).
  *
  * Hard-fail (Q5): a single try/catch wraps the ENTIRE pipeline. Any failure —
  * invalid manifest (AC-20), missing skill file, unresolvable CI context,
  * diff-fetch failure, or an LLM/model-call error inside `reviewPullRequest` —
- * short-circuits to `{ exitCode: 1, artifact: null, posted: null }` before any
+ * short-circuits to `{ exitCode: 1, artifact: null, posted: null }` — including
+ * a failure in the SECOND of two agents, which discards the first one's
+ * completed review rather than posting half a roster's verdict — before any
  * GitHub post or artifact write. Do not add per-stage catches that post partial
  * state; the whole point is that a failure anywhere upstream of "we have a
  * grounded review" produces NOTHING (no synthetic review skeleton).
@@ -89,9 +98,11 @@ export async function runCi(deps: RunCiDeps): Promise<RunCiResult> {
   const fetchDiffImpl = deps.fetchDiff ?? fetchPrDiff;
 
   try {
-    // 1. Load + validate the manifest BEFORE it is used for anything (AC-20).
-    const manifest = loadManifest(deps.devdigestDir, { readFile, readDir });
-    const skills = loadSkillBodies(deps.devdigestDir, manifest.skills, readFile);
+    // 1. Load + validate EVERY manifest BEFORE any of them is used (AC-20).
+    //    A repo may install several reviewers into this one job; an invalid
+    //    manifest anywhere fails the whole run rather than silently reviewing
+    //    with the subset that happened to parse.
+    const manifests = loadManifests(deps.devdigestDir, { readFile, readDir });
 
     // 2. Resolve CI context (PR number/title/body/repo) from env + event payload.
     const ctx = resolvePrContext(deps.env, readFile);
@@ -104,51 +115,70 @@ export async function runCi(deps: RunCiDeps): Promise<RunCiResult> {
       throw new RunnerError('GITHUB_TOKEN is required to fetch the PR diff');
     }
 
-    // 3. Assemble the diff from the CI context. Strip DevDigest's own exported
+    // 3. Assemble the diff ONCE for every agent. Strip DevDigest's own exported
     //    artifacts (`.devdigest/**`, the generated workflow) BEFORE parse: the
     //    minified runner bundle would otherwise fail the whole review with a
     //    GitHub 422 "diff too large", and reviewing our own config is noise.
     const rawDiff = await fetchDiffImpl(ctx, githubToken ?? '', fetchImpl);
     const diff = parseUnifiedDiff(stripIgnoredFiles(rawDiff));
 
-    // 4. Run the SAME engine the studio uses. `reviewPullRequest` internally
-    //    calls `assemblePrompt`/`wrapUntrusted` (diff → `<untrusted
-    //    source="diff">`, prDescription → `<untrusted source="pr-description">`,
-    //    AC-21) and the mandatory `groundFindings()` gate (AC-22: an all-dropped
-    //    result is a valid zero-finding review, not an error — it flows through
-    //    normally below).
-    const start = now();
-    const outcome = await reviewPullRequest({
-      systemPrompt: manifest.system_prompt,
-      model: manifest.model,
-      diff,
-      llm: deps.llm,
-      strategy: manifest.strategy,
-      skills,
-      prDescription: ctx.body,
-      task: `Review PR #${ctx.prNumber}: ${ctx.title}`,
-    });
-    const durationMs = now() - start;
+    // 4. Run the SAME engine the studio uses, once per agent, in manifest
+    //    order. Sequential on purpose: the agents share one OpenRouter key and
+    //    one rate limit, and a CI job has no deadline pressure that would
+    //    justify hammering it with N concurrent completions.
+    //    `reviewPullRequest` internally calls `assemblePrompt`/`wrapUntrusted`
+    //    (diff → `<untrusted source="diff">`, prDescription → `<untrusted
+    //    source="pr-description">`, AC-21) and the mandatory `groundFindings()`
+    //    gate (AC-22: an all-dropped result is a valid zero-finding review, not
+    //    an error — it flows through normally below).
+    const agentPayloads: AgentPayload[] = [];
+    const agentResults: AgentResultInput[] = [];
 
-    // 5. Deterministic verdict/gate from GROUNDED findings + `ci_fail_on`
-    //    (AC-23) — never `outcome.review.verdict`.
-    const payload = toReviewPayload(outcome.review, {
-      failOn: manifest.ci_fail_on,
-      diff,
-      title: manifest.name,
-    });
-    const blockers = countBlockers(outcome.review.findings, manifest.ci_fail_on);
-    const triggered = gateTriggered(outcome.review.findings, manifest.ci_fail_on);
+    for (const manifest of manifests) {
+      const start = now();
+      const outcome = await reviewPullRequest({
+        systemPrompt: manifest.system_prompt,
+        model: manifest.model,
+        diff,
+        llm: deps.llm,
+        strategy: manifest.strategy,
+        skills: loadSkillBodies(deps.devdigestDir, manifest.skills, readFile),
+        prDescription: ctx.body,
+        task: `Review PR #${ctx.prNumber}: ${ctx.title}`,
+      });
+      const durationMs = now() - start;
 
-    // 6. Build + write the artifact before posting, so a GitHub-side posting
-    //    failure never loses the already-computed, already-grounded result.
-    const artifact = buildResultArtifact({
-      findings: outcome.review.findings,
-      costUsd: outcome.costUsd,
-      durationMs,
-      agent: manifest.name,
-      prNumber: ctx.prNumber,
-    });
+      // 5. Deterministic verdict/gate from GROUNDED findings + THIS agent's
+      //    own `ci_fail_on` (AC-23) — never `outcome.review.verdict`, and
+      //    never a policy blended across agents.
+      const payload = toReviewPayload(outcome.review, {
+        failOn: manifest.ci_fail_on,
+        diff,
+        title: manifest.name,
+      });
+      const blockers = countBlockers(outcome.review.findings, manifest.ci_fail_on);
+      const triggered = gateTriggered(outcome.review.findings, manifest.ci_fail_on);
+
+      agentPayloads.push({ agent: manifest.name, payload, gateTriggered: triggered, blockers });
+      agentResults.push({
+        agent: manifest.name,
+        findings: outcome.review.findings,
+        costUsd: outcome.costUsd,
+        durationMs,
+        blockers,
+        gateTriggered: triggered,
+      });
+    }
+
+    // 6. Merge into the ONE review this job posts, and build + write the
+    //    artifact before posting, so a GitHub-side posting failure never loses
+    //    the already-computed, already-grounded results.
+    const merged = mergeAgentReviews(agentPayloads);
+    const payload = merged.payload;
+    const blockers = merged.blockers;
+    const triggered = merged.gateTriggered;
+
+    const artifact = buildResultArtifact({ agents: agentResults, prNumber: ctx.prNumber });
     writeFile(deps.resultPath, `${JSON.stringify(artifact, null, 2)}\n`);
 
     // 7. Post per `post_as` (AC-24).

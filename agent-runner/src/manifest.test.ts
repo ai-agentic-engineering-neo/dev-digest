@@ -2,7 +2,13 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { loadManifest, findManifestPath, loadAgentManifest } from './manifest.js';
+import {
+  loadManifest,
+  loadManifests,
+  findManifestPath,
+  findManifestPaths,
+  loadAgentManifest,
+} from './manifest.js';
 import { RunnerError } from './errors.js';
 
 const VALID_MANIFEST_YAML = `
@@ -63,10 +69,25 @@ ci_fail_on: "sometimes"
     expect(() => findManifestPath(dir)).toThrow(/not found/i);
   });
 
-  it('fails clearly when more than one manifest file exists', () => {
-    writeFileSync(path.join(dir, 'agents', 'a.yaml'), VALID_MANIFEST_YAML);
-    writeFileSync(path.join(dir, 'agents', 'b.yaml'), VALID_MANIFEST_YAML);
-    expect(() => findManifestPath(dir)).toThrow(/exactly one/i);
+  it('loads EVERY manifest when a repository installs several reviewers', () => {
+    writeFileSync(path.join(dir, 'agents', 'b-perf.yaml'), VALID_MANIFEST_YAML.replace('Security Reviewer', 'Performance Reviewer'));
+    writeFileSync(path.join(dir, 'agents', 'a-security.yaml'), VALID_MANIFEST_YAML);
+
+    const manifests = loadManifests(dir);
+
+    // Sorted by filename, NOT directory-listing order — the review order and
+    // the order they are rendered in must not vary between filesystems.
+    expect(manifests.map((m) => m.name)).toEqual(['Security Reviewer', 'Performance Reviewer']);
+    expect(findManifestPaths(dir).map((p) => path.basename(p))).toEqual([
+      'a-security.yaml',
+      'b-perf.yaml',
+    ]);
+  });
+
+  it('fails the whole load when ANY manifest is invalid, never reviewing with the subset that parsed', () => {
+    writeFileSync(path.join(dir, 'agents', 'a-good.yaml'), VALID_MANIFEST_YAML);
+    writeFileSync(path.join(dir, 'agents', 'b-bad.yaml'), 'name: "No model or prompt"\n');
+    expect(() => loadManifests(dir)).toThrow(RunnerError);
   });
 
   it('fails clearly on malformed YAML', () => {

@@ -6,6 +6,7 @@ import type { LLMProvider, StructuredResult, Review, CiResultArtifact } from '@d
 import { CiResultArtifact as CiResultArtifactSchema } from '@devdigest/shared';
 import { reviewPullRequest, toReviewPayload } from '@devdigest/reviewer-core';
 import { runCi, type RunCiDeps } from './run.js';
+import { mergeAgentReviews } from './merge.js';
 import type { FetchLike } from './github.js';
 import { parseUnifiedDiff } from './diff.js';
 
@@ -359,6 +360,81 @@ describe('runCi (T8 agent-runner orchestrator)', () => {
       title: 'Security Reviewer',
     });
 
-    expect(result.posted!.payload).toEqual(directPayload);
+    // Parity is asserted on the PER-AGENT payload, which is what the engine
+    // produces and what must not drift. The runner then wraps it through the
+    // same merge step every run goes through — a single agent is the
+    // one-element case of that, never a separate code path.
+    expect(result.posted!.payload).toEqual(
+      mergeAgentReviews([
+        { agent: 'Security Reviewer', payload: directPayload, gateTriggered: true, blockers: 1 },
+      ]).payload,
+    );
+    // The engine's own body survives the wrap verbatim.
+    expect(result.posted!.payload!.body).toContain(directPayload.body);
+    expect(result.posted!.payload!.event).toBe(directPayload.event);
+  });
+
+  it('reviews EVERY installed agent against one diff and posts a single merged review', async () => {
+    writeFileSync(
+      path.join(dir, 'agents', 'style-reviewer.yaml'),
+      `
+name: "Style Reviewer"
+provider: "openrouter"
+model: "deepseek/deepseek-v4-flash"
+system_prompt: "Review this PR for style."
+skills: []
+strategy: "single-pass"
+ci_fail_on: "never"
+`,
+    );
+    const stub = makeStubLlm(GROUNDED_PLUS_HALLUCINATED_REVIEW);
+    const { fetchImpl, calls } = makeFetchRecorder();
+    const result = await runCi(
+      baseDeps({ llm: stub.llm, fetchDiff: async () => FIXTURE_DIFF_RAW, fetchImpl }),
+    );
+
+    expect(result.error).toBeUndefined();
+    // One model call per agent, one posted review for the job.
+    expect(stub.capturedMessages).toHaveLength(2);
+    expect(calls.filter((c) => c.method === 'POST')).toHaveLength(1);
+
+    // Both reviewers named in the body; both sets of inline comments attributed.
+    expect(result.posted!.payload!.body).toContain('Security Reviewer');
+    expect(result.posted!.payload!.body).toContain('Style Reviewer');
+    expect(result.posted!.payload!.comments).toHaveLength(2);
+
+    // The artifact rolls the run up and keeps the per-agent breakdown.
+    const artifact = result.artifact!;
+    expect(artifact.findings_count).toBe(2);
+    expect(artifact.agents?.map((a) => a.agent)).toEqual(['Security Reviewer', 'Style Reviewer']);
+    expect(artifact.cost_usd).toBeCloseTo(0.002);
+  });
+
+  it('fails the job when ONE agent\'s gate trips, even though the other agent never blocks', async () => {
+    // `ci_fail_on: never` cannot soften the strict reviewer: the gate is an OR.
+    writeFileSync(
+      path.join(dir, 'agents', 'lenient.yaml'),
+      `
+name: "Lenient Reviewer"
+provider: "openrouter"
+model: "deepseek/deepseek-v4-flash"
+system_prompt: "Be nice."
+skills: []
+strategy: "single-pass"
+ci_fail_on: "never"
+`,
+    );
+    const result = await runCi(
+      baseDeps({
+        llm: makeStubLlm(GROUNDED_PLUS_HALLUCINATED_REVIEW).llm,
+        fetchDiff: async () => FIXTURE_DIFF_RAW,
+      }),
+    );
+
+    expect(result.gateTriggered).toBe(true);
+    expect(result.exitCode).toBe(1);
+    expect(result.posted!.payload!.event).toBe('REQUEST_CHANGES');
+    // Only the strict agent's finding counts as a blocker.
+    expect(result.blockers).toBe(1);
   });
 });

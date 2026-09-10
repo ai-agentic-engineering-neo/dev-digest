@@ -18,6 +18,7 @@ import { withRetry, withTimeout } from '../../platform/resilience.js';
 import { resolveLinkedIssue } from '../../modules/_shared/linked-issue.js';
 import { ValidationError } from '../../platform/errors.js';
 import { stalePathsToPrune } from './tree-prune.js';
+import { chooseCommitParent } from './commit-parent.js';
 
 const TIMEOUT = 30_000;
 
@@ -287,17 +288,39 @@ export class OctokitGitHubClient implements GitHubClient {
           const name = repo.name;
           const g = this.octokit.rest.git;
 
-          // Parent commit: the target branch if it already exists, else the base.
-          let parentSha: string;
-          let branchExists = false;
+          // Parent commit: the branch tip normally, but BASE whenever base has
+          // moved ahead — otherwise a branch whose PR was merged and not
+          // deleted stays forked from its old pre-merge point forever, and
+          // every later PR re-renders the whole bundle as new (see
+          // `commit-parent.ts`).
+          let branchSha: string | null = null;
           try {
             const ref = await g.getRef({ owner, repo: name, ref: `heads/${payload.branch}` });
-            parentSha = ref.data.object.sha;
-            branchExists = true;
+            branchSha = ref.data.object.sha;
           } catch {
-            const baseRef = await g.getRef({ owner, repo: name, ref: `heads/${payload.base}` });
-            parentSha = baseRef.data.object.sha;
+            branchSha = null;
           }
+          const branchExists = branchSha !== null;
+
+          const baseRef = await g.getRef({ owner, repo: name, ref: `heads/${payload.base}` });
+          const baseSha = baseRef.data.object.sha;
+
+          let baseAheadBy = 0;
+          if (branchSha !== null && branchSha !== baseSha) {
+            // `basehead: branch...base` — `ahead_by` counts commits reachable
+            // from BASE that the branch lacks. A comparison failure must not
+            // fail the export: 0 keeps the previous (branch-tip) behaviour.
+            const cmp = await this.octokit.rest.repos
+              .compareCommitsWithBasehead({
+                owner,
+                repo: name,
+                basehead: `${branchSha}...${baseSha}`,
+              })
+              .catch(() => null);
+            baseAheadBy = cmp?.data.ahead_by ?? 0;
+          }
+
+          const { parentSha } = chooseCommitParent({ branchSha, baseSha, baseAheadBy });
 
           // New tree layered on the parent's tree (so unrelated files are kept).
           const parentCommit = await g.getCommit({ owner, repo: name, commit_sha: parentSha });

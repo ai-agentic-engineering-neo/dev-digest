@@ -8,7 +8,6 @@ import {
   type ManifestSourceAgent,
 } from './manifest.js';
 import { ValidationError } from '../../platform/errors.js';
-import { agentManifestPath } from './constants.js';
 
 /**
  * specs/14-export-to-ci.md (P2, security-critical) — `buildAgentManifest`
@@ -20,6 +19,7 @@ import { agentManifestPath } from './constants.js';
 
 function baseAgent(overrides: Partial<ManifestSourceAgent> = {}): ManifestSourceAgent {
   return {
+    id: '11111111-1111-4111-8111-111111111111',
     name: 'Security Reviewer',
     provider: 'openai',
     model: 'gpt-4.1',
@@ -102,11 +102,34 @@ describe('buildAgentManifest', () => {
 });
 
 describe('agentManifestFile', () => {
-  it('writes the manifest to the fixed, non-agent-authored slug path — never derived from the agent name', () => {
+  it('derives the manifest path through a closed character set — a hostile name never reaches the filesystem', () => {
     const file = agentManifestFile(baseAgent({ name: '"; rm -rf / #' }));
-    expect(file.path).toBe(agentManifestPath());
-    expect(file.path).not.toContain('rm -rf');
+
+    // A path segment of [a-z0-9-] only: no quotes, no slashes, no traversal,
+    // no shell metacharacters, whatever the name was.
+    expect(file.path).toMatch(/^\.devdigest\/agents\/[a-z0-9-]+\.yaml$/);
+    // Surviving LETTERS are harmless ("rm-rf-<hash>.yaml" is just a name);
+    // what must not survive is anything with meaning to a shell or a path.
+    expect(file.path).not.toMatch(/["';#$`|&<>()\s]/);
+    expect(file.path).not.toContain('..');
     // The hostile name still reaches the FILE CONTENTS intact (AC-12).
     expect(file.contents).toContain('rm -rf');
+  });
+
+  it('gives two agents whose names normalize identically DIFFERENT paths', () => {
+    // Same normalized name; only the id differs. Colliding here would drop a
+    // reviewer the user believes is installed.
+    const a = agentManifestFile(baseAgent({ id: 'aaaaaaaa-1111-4111-8111-111111111111', name: 'API Review' }));
+    const b = agentManifestFile(baseAgent({ id: 'bbbbbbbb-2222-4222-8222-222222222222', name: 'api-review' }));
+    expect(a.path).not.toBe(b.path);
+  });
+
+  it('is stable for the same agent, so a republish updates the manifest in place', () => {
+    expect(agentManifestFile(baseAgent()).path).toBe(agentManifestFile(baseAgent()).path);
+  });
+
+  it('falls back to a usable slug when the name normalizes to nothing at all', () => {
+    const file = agentManifestFile(baseAgent({ name: '——— ***' }));
+    expect(file.path).toMatch(/^\.devdigest\/agents\/agent-[0-9a-f]{8}\.yaml$/);
   });
 });

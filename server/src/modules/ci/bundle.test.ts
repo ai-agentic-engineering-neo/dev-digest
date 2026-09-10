@@ -2,7 +2,14 @@ import { describe, it, expect } from 'vitest';
 import { createHash } from 'node:crypto';
 import { buildBundle, toPreviewFiles, type BuildBundleInput, type BundleSkill } from './bundle.js';
 import { ValidationError } from '../../platform/errors.js';
-import { RUNNER_DIR, MEMORY_PATH, skillFilePath, agentManifestPath, WORKFLOW_PATH } from './constants.js';
+import {
+  RUNNER_DIR,
+  MEMORY_PATH,
+  skillFilePath,
+  agentManifestPath,
+  agentSlug,
+  WORKFLOW_PATH,
+} from './constants.js';
 
 /**
  * specs/14-export-to-ci.md (P2, security-critical) — `buildBundle` is the
@@ -32,24 +39,40 @@ function fakeRunnerDir(files: Record<string, string> = FAKE_RUNNER_FILES) {
   };
 }
 
-function baseInput(overrides: Partial<BuildBundleInput> = {}): BuildBundleInput {
+const AGENT_ID = '11111111-1111-4111-8111-111111111111';
+const AGENT_NAME = 'Security Reviewer';
+/** The manifest path the default single-agent input generates. */
+const MANIFEST_PATH = agentManifestPath(agentSlug(AGENT_NAME, AGENT_ID));
+
+/** `skills` is accepted as a top-level convenience for the common
+ *  single-agent case and folded onto that agent; `agents` overrides it
+ *  outright for the multi-reviewer cases. */
+function baseInput(
+  overrides: Partial<BuildBundleInput> & { skills?: BundleSkill[] } = {},
+): BuildBundleInput {
+  const { skills = [], ...rest } = overrides;
   return {
     target: 'gha',
-    agent: {
-      name: 'Security Reviewer',
-      provider: 'openai',
-      model: 'gpt-4.1',
-      systemPrompt: 'Review the diff for security issues.',
-      strategy: 'auto',
-      ciFailOn: 'critical',
-    },
-    skills: [],
+    agents: [
+      {
+        agent: {
+          id: AGENT_ID,
+          name: AGENT_NAME,
+          provider: 'openai',
+          model: 'gpt-4.1',
+          systemPrompt: 'Review the diff for security issues.',
+          strategy: 'auto',
+          ciFailOn: 'critical',
+        },
+        skills,
+      },
+    ],
     memory: [],
     triggers: ['opened', 'synchronize'],
     postAs: 'github_review',
     runnerBundleDir: '/fake/runner/dir',
     ...fakeRunnerDir(),
-    ...overrides,
+    ...rest,
   };
 }
 
@@ -61,7 +84,7 @@ describe('buildBundle', () => {
     ];
     const input = baseInput({ skills });
     const first = buildBundle(input);
-    const second = buildBundle({ ...input, skills: [...skills] });
+    const second = buildBundle({ ...input, agents: input.agents.map((a) => ({ ...a, skills: [...a.skills] })) });
     expect(second).toEqual(first);
   });
 
@@ -74,7 +97,7 @@ describe('buildBundle', () => {
 
     const paths = files.map((f) => f.path);
     expect(paths).toContain(WORKFLOW_PATH);
-    expect(paths).toContain(agentManifestPath());
+    expect(paths).toContain(MANIFEST_PATH);
     expect(paths).toContain(MEMORY_PATH);
     expect(paths).toContain(skillFilePath('alpha-skill'));
     expect(paths).toContain(skillFilePath('zeta-skill'));
@@ -91,7 +114,7 @@ describe('buildBundle', () => {
 
   it('the manifest file contents parse as YAML carrying the agent name', () => {
     const files = buildBundle(baseInput());
-    const manifestFile = files.find((f) => f.path === agentManifestPath())!;
+    const manifestFile = files.find((f) => f.path === MANIFEST_PATH)!;
     expect(manifestFile.contents).toContain('Security Reviewer');
     expect(manifestFile.editable).toBe(true);
   });
@@ -179,6 +202,60 @@ describe('buildBundle', () => {
         skills: [{ slug: 'oops', body: 'sk-ABCDEFGHIJKLMNOPQRSTUVWXYZ012345' }],
       });
       expect(() => buildBundle(input)).toThrow(ValidationError);
+    });
+  });
+
+  describe('several reviewers in one repository', () => {
+    const SECOND = {
+      agent: {
+        id: '22222222-2222-4222-8222-222222222222',
+        name: 'Performance Reviewer',
+        provider: 'openai' as const,
+        model: 'gpt-4.1',
+        systemPrompt: 'Review the diff for performance issues.',
+        strategy: 'auto' as const,
+        ciFailOn: 'warning' as const,
+      },
+      skills: [{ slug: 'n-plus-one', body: 'Watch for N+1 queries.' }],
+    };
+
+    it('emits one manifest per agent, each carrying that agent\'s own config', () => {
+      const files = buildBundle(baseInput({ agents: [...baseInput().agents, SECOND] }));
+      const manifests = files.filter((f) => f.path.startsWith('.devdigest/agents/'));
+
+      expect(manifests).toHaveLength(2);
+      expect(manifests.map((m) => m.contents).join('\n')).toContain('Security Reviewer');
+      expect(manifests.map((m) => m.contents).join('\n')).toContain('Performance Reviewer');
+      // Each agent keeps its own gate policy — never a blended one.
+      const perf = files.find((f) => f.path === agentManifestPath(agentSlug(SECOND.agent.name, SECOND.agent.id)))!;
+      expect(perf.contents).toContain('ci_fail_on: warning');
+    });
+
+    it('ships the UNION of the agents\' skills, one file per slug even when both use it', () => {
+      const shared: BundleSkill = { slug: 'no-secrets', body: 'Do not leak API keys.' };
+      const files = buildBundle(
+        baseInput({
+          agents: [
+            { ...baseInput().agents[0]!, skills: [shared] },
+            { ...SECOND, skills: [shared, ...SECOND.skills] },
+          ],
+        }),
+      );
+      const skillFiles = files.filter((f) => f.path.startsWith('.devdigest/skills/'));
+      expect(skillFiles.map((f) => f.path)).toEqual([
+        skillFilePath('n-plus-one'),
+        skillFilePath('no-secrets'),
+      ]);
+    });
+
+    it('AC-9 — file order does not depend on the order agents were added', () => {
+      const first = buildBundle(baseInput({ agents: [...baseInput().agents, SECOND] }));
+      const reversed = buildBundle(baseInput({ agents: [SECOND, ...baseInput().agents] }));
+      expect(reversed.map((f) => f.path)).toEqual(first.map((f) => f.path));
+    });
+
+    it('refuses a bundle with no agents at all rather than emitting one that uninstalls every reviewer', () => {
+      expect(() => buildBundle(baseInput({ agents: [] }))).toThrow(ValidationError);
     });
   });
 

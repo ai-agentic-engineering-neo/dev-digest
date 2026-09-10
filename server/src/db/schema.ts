@@ -42,7 +42,7 @@ import {
   skillContextDocs,
 } from './schema/context';
 import { evalCases, evalRuns, conformanceChecks, composedReviews } from './schema/eval';
-import { ciInstallations, ciRuns } from './schema/ci';
+import { ciInstallations, ciInstallationAgents, ciRuns } from './schema/ci';
 import { agentRuns, runSkills, runTraces, multiAgentRuns } from './schema/runs';
 import { jobs, installedPlugins, digests } from './schema/ops';
 import {
@@ -85,6 +85,7 @@ export const schema = {
   conformanceChecks,
   composedReviews,
   ciInstallations,
+  ciInstallationAgents,
   ciRuns,
   agentRuns,
   runSkills,

@@ -174,11 +174,58 @@ export class CiRepository {
     return row;
   }
 
+  /** Every installation this agent REVIEWS IN — membership in the roster, not
+   *  ownership of the installation. An agent added to a repository someone
+   *  else installed must see that repository on its own CI tab. */
   async listInstallationsForAgent(workspaceId: string, agentId: string): Promise<CiInstallationRow[]> {
-    return this.db
-      .select()
+    const rows = await this.db
+      .select({ installation: t.ciInstallations })
       .from(t.ciInstallations)
-      .where(and(eq(t.ciInstallations.workspaceId, workspaceId), eq(t.ciInstallations.agentId, agentId)));
+      .innerJoin(
+        t.ciInstallationAgents,
+        eq(t.ciInstallationAgents.ciInstallationId, t.ciInstallations.id),
+      )
+      .where(
+        and(
+          eq(t.ciInstallations.workspaceId, workspaceId),
+          eq(t.ciInstallationAgents.agentId, agentId),
+        ),
+      );
+    return rows.map((r) => r.installation);
+  }
+
+  // ---- ci_installation_agents (the reviewer roster) -----------------------
+
+  /** Agent ids on one installation, in the order they were added — which is
+   *  the order their manifests are generated and reviewed in. */
+  async listRosterAgentIds(installationId: string): Promise<string[]> {
+    const rows = await this.db
+      .select({ agentId: t.ciInstallationAgents.agentId })
+      .from(t.ciInstallationAgents)
+      .where(eq(t.ciInstallationAgents.ciInstallationId, installationId))
+      .orderBy(t.ciInstallationAgents.addedAt, t.ciInstallationAgents.agentId);
+    return rows.map((r) => r.agentId);
+  }
+
+  /** Idempotent: adding an agent already on the roster changes nothing and
+   *  is not an error — the user's intent ("this agent reviews this repo") is
+   *  already satisfied. */
+  async addRosterAgent(installationId: string, agentId: string): Promise<void> {
+    await this.db
+      .insert(t.ciInstallationAgents)
+      .values({ ciInstallationId: installationId, agentId })
+      .onConflictDoNothing();
+  }
+
+  async removeRosterAgent(installationId: string, agentId: string): Promise<void> {
+    await this.db
+      .delete(t.ciInstallationAgents)
+      .where(
+        and(
+          eq(t.ciInstallationAgents.ciInstallationId, installationId),
+          eq(t.ciInstallationAgents.agentId, agentId),
+        ),
+      );
   }
 
   async listInstallationsForWorkspace(workspaceId: string): Promise<CiInstallationRow[]> {

@@ -24,11 +24,20 @@ export interface BundleSkill {
   body: string;
 }
 
-export interface BuildBundleInput {
-  target: CiTarget;
+/** One reviewer installed in the target repository, with the skills it
+ *  resolves. Several may share one bundle: the runner reviews every manifest
+ *  it finds under `.devdigest/agents/` in a single job. */
+export interface BundleAgent {
   /** `skillSlugs` is derived from `skills` below, never taken from here. */
   agent: Omit<ManifestSourceAgent, 'skillSlugs'>;
   skills: BundleSkill[];
+}
+
+export interface BuildBundleInput {
+  target: CiTarget;
+  /** At least one; rendered in the caller's order, which the service fixes
+   *  to a stable one (installation order). */
+  agents: BundleAgent[];
   memory: MemoryExportRow[];
   triggers: readonly string[];
   postAs: PostAsMode;
@@ -72,7 +81,7 @@ function defaultListDir(dir: string): string[] {
 
 /**
  * P-2 — read agent-runner's ENTIRE built bundle directory (today: `index.js`,
- * the lazily-`import()`ed `310.index.js` chunk, and `package.json`) and copy
+ * the lazily-`import()`ed numbered chunk, and `package.json`) and copy
  * every file under `.devdigest/runner/` wholesale. AC-14's "the path the
  * workflow executes exists in the bundle" is necessary but not sufficient —
  * every file `agent-runner/dist/` actually contains must be present, or the
@@ -114,10 +123,12 @@ function readRunnerBundleDir(
   });
 }
 
-/** Assemble the whole bundle for one target — workflow, manifest, one file
- *  per skill, the ENTIRE runner-bundle directory (P-2, not a single file),
- *  and the memory export. Byte-identical output for an unchanged agent
- *  (AC-9) — nothing here reads a clock or randomness. */
+/** Assemble the whole bundle for one target — workflow, one manifest per
+ *  installed agent, one file per skill across all of them, the ENTIRE
+ *  runner-bundle directory (P-2, not a single file), and the memory export.
+ *  Byte-identical output for an unchanged installation (AC-9) — nothing here
+ *  reads a clock or randomness, and every list is sorted before it is
+ *  emitted. */
 export function buildBundle(input: BuildBundleInput): CiFile[] {
   const generator: CiTargetGenerator | undefined = getTargetGenerator(input.target);
   if (!generator) {
@@ -127,20 +138,45 @@ export function buildBundle(input: BuildBundleInput): CiFile[] {
   const readFile = input.readFile ?? ((p: string) => readFileSync(p, 'utf8'));
   const listDir = input.listRunnerBundleFiles ?? defaultListDir;
 
+  if (input.agents.length === 0) {
+    throw new ValidationError('A CI bundle needs at least one agent');
+  }
+
   const workflowYaml = generator.buildWorkflow({ triggers: input.triggers, postAs: input.postAs });
-  const manifest = agentManifestFile({
-    ...input.agent,
-    skillSlugs: input.skills.map((s) => s.slug),
-  });
-  const skillFiles = [...input.skills]
+
+  // One manifest per agent. Two agents cannot land on the same path —
+  // `agentSlug` disambiguates by agent id — but assert it rather than trust
+  // it: a collision would silently drop a reviewer the user believes is
+  // installed, which is exactly the failure this feature must not have.
+  const manifestFiles = input.agents.map((a) =>
+    agentManifestFile({ ...a.agent, skillSlugs: a.skills.map((s) => s.slug) }),
+  );
+  const manifestPaths = new Set(manifestFiles.map((m) => m.path));
+  if (manifestPaths.size !== manifestFiles.length) {
+    throw new ValidationError('Two agents generated the same manifest path; refusing to emit a bundle that would drop one');
+  }
+
+  // The UNION of every agent's skills, deduplicated by slug — a skill is one
+  // row per workspace, so two agents referencing it must not produce two
+  // copies of the same file (and never two DIFFERENT bodies at one path).
+  const skillsBySlug = new Map<string, BundleSkill>();
+  for (const a of input.agents) {
+    for (const skill of a.skills) skillsBySlug.set(skill.slug, skill);
+  }
+  const skillFiles = [...skillsBySlug.values()]
     .sort((a, b) => a.slug.localeCompare(b.slug))
     .map((s) => toCiFile(skillFilePath(s.slug), s.body, true));
+
   const runnerFiles = readRunnerBundleDir(input.runnerBundleDir, listDir, readFile);
   const memoryJsonl = buildMemoryJsonl(input.memory);
 
   const files: CiFile[] = [
     toCiFile(generator.workflowPath, workflowYaml, true),
-    toCiFile(manifest.path, manifest.contents, true),
+    // Sorted by path so the bundle's file order never depends on the order
+    // agents were added to the installation (AC-9).
+    ...[...manifestFiles]
+      .sort((a, b) => a.path.localeCompare(b.path))
+      .map((m) => toCiFile(m.path, m.contents, true)),
     ...skillFiles,
     // P-2 — the whole runner-bundle directory, not one enumerated file.
     ...runnerFiles,

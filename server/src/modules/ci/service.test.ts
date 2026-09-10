@@ -57,6 +57,20 @@ class FakeRepoLookup implements RepoLookup {
   }
 }
 
+/** `generateFiles` now asks the repository which reviewers are installed in
+ *  the target repo before it builds anything. This fake answers "none", i.e.
+ *  the first-install case, which is what every preview test below is about. */
+function noInstallationsRepo(): CiRepository {
+  return {
+    async getInstallationByRepo() {
+      return undefined;
+    },
+    async listRosterAgentIds() {
+      return [];
+    },
+  } as unknown as CiRepository;
+}
+
 function neverCalledGithubClient(): () => Promise<GitHubClient> {
   return () => Promise.reject(new Error('previewFile must never resolve a GitHub client'));
 }
@@ -76,7 +90,7 @@ describe('CiService.previewFile', () => {
 
   function makeService(): CiService {
     return new CiService(
-      {} as CiRepository, // never called by generateFiles/previewFile
+      noInstallationsRepo(),
       new FakeAgentLookup(),
       new FakeSkillLookup(),
       new FakeMemoryReader(),

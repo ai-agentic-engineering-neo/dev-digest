@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 /**
  * specs/14-export-to-ci.md (P2, security-critical) — paths, branch name,
  * pinned action commits and the one secret name the generated bundle
@@ -21,15 +23,40 @@ export const RUNNER_ENTRYPOINT_FILE = 'index.js';
 export const RUNNER_BUNDLE_PATH = `${RUNNER_DIR}/${RUNNER_ENTRYPOINT_FILE}`;
 export const MEMORY_PATH = '.devdigest/memory.jsonl';
 
-// D18/AC-16 — the runner throws when it finds zero OR more than one manifest
-// under `.devdigest/agents/` (`agent-runner/src/manifest.ts:37-44`), and one
-// installation is always exactly one agent (D2). The manifest's FILE PATH is
-// therefore a fixed, non-agent-authored slug — never the agent's own
-// (possibly hostile) name — while the file's CONTENTS carry the real name
-// intact (AC-12).
+// D18/AC-16 — a repository may install SEVERAL reviewers; the runner reads
+// every `.devdigest/agents/*.yaml` it finds (`agent-runner/src/manifest.ts`).
+// Each manifest's FILE PATH is therefore derived, never taken from the
+// agent's own (possibly hostile) name: `agentSlug` below filters the name
+// down to a safe path segment and disambiguates with a hash of the agent's
+// id, while the file's CONTENTS carry the real name intact (AC-12).
 export const AGENT_SLUG = 'agent';
-export function agentManifestPath(): string {
-  return `.devdigest/agents/${AGENT_SLUG}.yaml`;
+
+/** Characters allowed in a generated manifest filename — everything else is
+ *  dropped, never escaped, so no input can widen this set. */
+const SLUG_ALLOWED_RE = /[^a-z0-9]+/g;
+
+/** A short, stable, hex-only discriminator from the agent's id. Two agents
+ *  whose names normalize identically ("API Review" / "api-review") must not
+ *  collide onto one manifest path — the second would silently overwrite the
+ *  first and the repo would review with one agent while showing two. */
+function idDiscriminator(agentId: string): string {
+  return createHash('sha256').update(agentId, 'utf8').digest('hex').slice(0, 8);
+}
+
+/**
+ * The manifest filename slug for one agent: `<normalized-name>-<hash8>`, or
+ * `agent-<hash8>` when the name normalizes to nothing at all (a name that is
+ * entirely punctuation or non-Latin script). Deterministic — the same agent
+ * always regenerates to the same path, so a republish updates its manifest
+ * in place instead of leaving an orphan behind (AC-9).
+ */
+export function agentSlug(name: string, agentId: string): string {
+  const base = name.toLowerCase().replace(SLUG_ALLOWED_RE, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+  return `${base || AGENT_SLUG}-${idDiscriminator(agentId)}`;
+}
+
+export function agentManifestPath(slug: string): string {
+  return `.devdigest/agents/${slug}.yaml`;
 }
 
 /**

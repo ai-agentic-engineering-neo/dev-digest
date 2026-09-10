@@ -1,7 +1,7 @@
 import { stringify as toYaml } from 'yaml';
 import { AgentManifest, type AgentManifestInput } from '@devdigest/shared';
 import { ValidationError } from '../../platform/errors.js';
-import { agentManifestPath } from './constants.js';
+import { agentManifestPath, agentSlug } from './constants.js';
 
 /**
  * specs/14-export-to-ci.md (P2, security-critical) — agent row → validated
@@ -12,6 +12,9 @@ import { agentManifestPath } from './constants.js';
  *  fully locally (not `db/rows.ts`'s `AgentRow`) so this file — which lives
  *  outside `repository.ts` — never imports `src/db/**` (`db-only-in-repositories`). */
 export interface ManifestSourceAgent {
+  /** The agent's own id — never written into the manifest, only used to
+   *  derive a collision-free filename (`agentSlug`). */
+  id: string;
   name: string;
   provider: AgentManifestInput['provider'];
   model: string;
@@ -58,8 +61,12 @@ export function renderAgentManifestYaml(manifest: AgentManifest): string {
   return toYaml(manifest);
 }
 
-/** Build the one `.devdigest/agents/<slug>.yaml` bundle file. */
+/** Build one `.devdigest/agents/<slug>.yaml` bundle file. The path is
+ *  derived (`agentSlug`), never the agent's raw name — see `constants.ts`. */
 export function agentManifestFile(agent: ManifestSourceAgent): { path: string; contents: string } {
   const manifest = buildAgentManifest(agent);
-  return { path: agentManifestPath(), contents: renderAgentManifestYaml(manifest) };
+  return {
+    path: agentManifestPath(agentSlug(agent.name, agent.id)),
+    contents: renderAgentManifestYaml(manifest),
+  };
 }

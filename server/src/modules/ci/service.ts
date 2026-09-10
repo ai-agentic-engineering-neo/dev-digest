@@ -212,15 +212,62 @@ export class CiService {
     return file;
   }
 
+  /**
+   * The reviewers a generated bundle must contain: everyone already on the
+   * target repository's installation, plus `agentId` itself.
+   *
+   * Reading the roster (rather than just `agentId`) is what makes a preview
+   * or a republish for ONE agent regenerate the WHOLE repository's bundle.
+   * A bundle carrying one manifest is not a partial update — the runner
+   * reviews whatever manifests are on disk, so it would uninstall every
+   * other reviewer.
+   *
+   * `agentId` goes last when it is new to the repo, so an existing roster's
+   * order — and with it the order reviews are rendered in — stays stable.
+   */
+  private async resolveRosterAgentIds(
+    workspaceId: string,
+    agentId: string,
+    repo: string,
+  ): Promise<string[]> {
+    const installation = await this.repo.getInstallationByRepo(workspaceId, repo);
+    if (!installation) return [agentId];
+    const roster = await this.repo.listRosterAgentIds(installation.id);
+    return roster.includes(agentId) ? roster : [...roster, agentId];
+  }
+
   private async generateFiles(
     workspaceId: string,
     agentId: string,
     opts: CiExportOptions,
   ): Promise<CiFile[]> {
-    const agent = await this.agentLookup.getById(workspaceId, agentId);
-    if (!agent) throw new NotFoundError('Agent not found');
+    const agentIds = await this.resolveRosterAgentIds(workspaceId, agentId, opts.repo);
+    const resolved = await Promise.all(
+      agentIds.map(async (id) => {
+        const agent = await this.agentLookup.getById(workspaceId, id);
+        // The agent being exported must exist. A roster member that no longer
+        // does is skipped rather than failing the whole export — its row is on
+        // its way out through the FK cascade anyway.
+        if (!agent) {
+          if (id === agentId) throw new NotFoundError('Agent not found');
+          return null;
+        }
+        return {
+          agent: {
+            id: agent.id,
+            name: agent.name,
+            provider: agent.provider,
+            model: agent.model,
+            systemPrompt: agent.systemPrompt,
+            strategy: agent.strategy,
+            ciFailOn: agent.ciFailOn,
+          },
+          skills: await this.skillLookup.enabledSkills(agent.id),
+        };
+      }),
+    );
+    const bundleAgents = resolved.filter((a): a is NonNullable<typeof a> => a !== null);
 
-    const skillRows = await this.skillLookup.enabledSkills(agentId);
     const repoRow = await this.repoLookup.findByFullName(workspaceId, opts.repo);
     // AC-58a — a repository not (yet) imported into the studio has no repo
     // id to match memory against; the bundle still gets a valid empty
@@ -240,15 +287,7 @@ export class CiService {
 
     return buildBundle({
       target: opts.target,
-      agent: {
-        name: agent.name,
-        provider: agent.provider,
-        model: agent.model,
-        systemPrompt: agent.systemPrompt,
-        strategy: agent.strategy,
-        ciFailOn: agent.ciFailOn,
-      },
-      skills: skillRows,
+      agents: bundleAgents,
       memory: memoryRows,
       triggers: opts.triggers,
       postAs: opts.post_as,
@@ -327,25 +366,13 @@ export class CiService {
       base: input.base,
     };
 
-    // AC-59 — a DIFFERENT agent already installed in this repo: refuse,
-    // change nothing.
+    // A different agent already installed in this repo is no longer a refusal
+    // (the old AC-59). The runner reviews EVERY manifest under
+    // `.devdigest/agents/`, so this export ADDS the agent to that
+    // repository's existing installation: `generateFiles` regenerates the
+    // whole roster's bundle, and the roster row is written below, after the
+    // files are actually committed.
     const existingForRepo = await this.repo.getInstallationByRepo(workspaceId, input.repo);
-    if (existingForRepo && existingForRepo.agentId !== agentId) {
-      return {
-        status: 200,
-        result: {
-          installation: null,
-          files: [],
-          pr_url: null,
-          reused_pr: false,
-          warnings: [],
-          refused_reason:
-            'This repository already has a DevDigest CI installation for a different agent. ' +
-            'The runner supports exactly one agent manifest per repository, so a second export ' +
-            'would break the existing deployment rather than add to it.',
-        },
-      };
-    }
 
     const files = await this.generateFiles(workspaceId, agentId, opts);
 
@@ -358,9 +385,12 @@ export class CiService {
       };
     }
 
-    // AC-7 — reuse the existing (agent, repo, target) installation's branch.
-    const existingTuple =
-      existingForRepo && existingForRepo.agentId === agentId ? existingForRepo : undefined;
+    // AC-7 — reuse the repository's existing installation and its branch,
+    // whichever agent first opened it. There is one installation per repo
+    // (`ci_installations_repo_uq`) and one bundle on that branch, so "add a
+    // second reviewer" is an update of this row plus a roster insert, never
+    // a second installation.
+    const existingTuple = existingForRepo;
 
     let github: GitHubClient;
     try {
@@ -444,6 +474,12 @@ export class CiService {
       await this.repo.updateInstallationAfterExport(inserted.id, { prUrl, lastExportAt: new Date() });
       installationId = inserted.id;
     }
+
+    // The roster is written only AFTER the bundle is committed: recording an
+    // agent as installed when the PR failed to open would leave the studio
+    // claiming a reviewer the repository has never seen. Idempotent — a
+    // republish by an agent already on the roster changes nothing.
+    await this.repo.addRosterAgent(installationId, agentId);
 
     const finalRow = (await this.repo.getInstallationById(workspaceId, installationId))!;
 

@@ -172,8 +172,8 @@ d('CI export (Testcontainers pg)', () => {
     });
   });
 
-  describe('AC-59 — exporting a second, different agent into an already-installed repo is refused', () => {
-    it('refuses with a stated reason, changes nothing, and leaves the original installation intact', async () => {
+  describe('a second agent exported into an already-installed repo JOINS it', () => {
+    it('reuses the one installation, adds the agent to its roster, and ships both manifests', async () => {
       const workspaceId = await createWorkspace();
       const agentOne = await createAgent(workspaceId, 'ci-export-agent-one');
       const agentTwo = await createAgent(workspaceId, 'ci-export-agent-two');
@@ -192,18 +192,35 @@ d('CI export (Testcontainers pg)', () => {
         url: `/agents/${agentTwo}/export-ci`,
         payload: exportBody(repo),
       });
+      // 200, not 201: the repository's installation already existed — this
+      // export updated it rather than creating a second one.
       expect(second.statusCode).toBe(200);
       const body = second.json();
-      expect(body.installation).toBeNull();
-      expect(body.refused_reason).toMatch(/already has a DevDigest CI installation/i);
+      expect(body.refused_reason).toBeFalsy();
+      expect(body.installation).not.toBeNull();
 
+      // Still exactly ONE installation, still owned by the first agent.
       const rows = await pg.handle.db
         .select()
         .from(t.ciInstallations)
         .where(eq(t.ciInstallations.workspaceId, workspaceId));
       expect(rows).toHaveLength(1);
-      // Still owned by the FIRST agent — the refusal changed nothing.
       expect(rows[0]!.agentId).toBe(agentOne);
+
+      // Both agents are on the roster the bundle generator reads.
+      const roster = await pg.handle.db
+        .select()
+        .from(t.ciInstallationAgents)
+        .where(eq(t.ciInstallationAgents.ciInstallationId, rows[0]!.id));
+      expect(roster.map((r) => r.agentId).sort()).toEqual([agentOne, agentTwo].sort());
+
+      // And the committed bundle carries a manifest for each of them — a
+      // bundle with only the second agent's manifest would have uninstalled
+      // the first.
+      const manifests = (body.files as { path: string }[]).filter((f) =>
+        f.path.startsWith('.devdigest/agents/'),
+      );
+      expect(manifests).toHaveLength(2);
 
       await app.close();
     });

@@ -30,6 +30,12 @@ export const ciInstallations = pgTable(
     workspaceId: uuid('workspace_id')
       .notNull()
       .references(() => workspaces.id, { onDelete: 'cascade' }),
+    // The agent that OWNS this installation — the one that first exported it.
+    // It is also a member of `ci_installation_agents`; that table, never this
+    // column, is what the bundle generator reads. Kept because a run
+    // ingested for the installation still needs one agent to attribute the
+    // `agent_runs` row to, and because the cascade below is what removes the
+    // installation when its owner is deleted.
     agentId: uuid('agent_id')
       .notNull()
       .references(() => agents.id, { onDelete: 'cascade' }),
@@ -61,13 +67,43 @@ export const ciInstallations = pgTable(
       t.repo,
       t.targetType,
     ),
-    // AC-59/D18 — one agent per repository, enforced as a real unique index:
-    // the runner throws when it finds more than one manifest under
-    // `.devdigest/agents/`, so a second installation for the same repo
-    // (even a different agent) would break the first one's workflow.
+    // AC-59/D18 — one INSTALLATION per repository, enforced as a real unique
+    // index. This no longer means one agent: several reviewers share a single
+    // installation through `ci_installation_agents` below, because the runner
+    // reviews every manifest under `.devdigest/agents/` in one job. What must
+    // stay unique is the deployment itself — a second installation would
+    // generate a second workflow over the same files and clobber the first.
     repoUq: uniqueIndex('ci_installations_repo_uq').on(t.workspaceId, t.repo),
     // The CI tab's own list read: every installation for one agent.
     agentIdx: index('ci_installations_ws_agent_idx').on(t.workspaceId, t.agentId),
+  }),
+);
+
+/**
+ * The reviewers installed in one repository — the roster the bundle generator
+ * turns into `.devdigest/agents/*.yaml`, one manifest each.
+ *
+ * A row per (installation, agent). The installation's owner is always a row
+ * here too, so the generator never has to union this table with
+ * `ci_installations.agent_id` and can never miss the owner.
+ */
+export const ciInstallationAgents = pgTable(
+  'ci_installation_agents',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ciInstallationId: uuid('ci_installation_id')
+      .notNull()
+      .references(() => ciInstallations.id, { onDelete: 'cascade' }),
+    agentId: uuid('agent_id')
+      .notNull()
+      .references(() => agents.id, { onDelete: 'cascade' }),
+    addedAt: timestamp('added_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    // Adding the same agent twice is a no-op, not two manifests.
+    memberUq: uniqueIndex('ci_installation_agents_uq').on(t.ciInstallationId, t.agentId),
+    // "Which repositories is this agent reviewing?" — the CI tab's own read.
+    agentIdx: index('ci_installation_agents_agent_idx').on(t.agentId),
   }),
 );
 

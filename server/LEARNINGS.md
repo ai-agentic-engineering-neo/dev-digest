@@ -140,6 +140,46 @@ does fs or DB I/O before the check.
 
 ## Codebase Patterns
 
+### 2026-09-10 — the CI bundle is a whole-repository artifact, so ANY single-agent regeneration must rebuild the entire reviewer roster
+
+`modules/ci` used to generate `.devdigest/agents/agent.yaml` from the one
+agent being exported. Once a repository can host several reviewers
+(`ci_installation_agents`), that shape is actively dangerous: the runner
+(`agent-runner/src/manifest.ts`) reviews **whatever manifests are on disk**,
+so committing a bundle built from one agent is not a partial update — it
+silently uninstalls every other reviewer on that repo. `CiService.generateFiles`
+therefore resolves the full roster (`resolveRosterAgentIds`) for *every* call
+path — preview, `previewFile`, archive, export, `republish` — not just export.
+`buildBundle` refuses an empty `agents` array for the same reason. Any future
+per-agent CI operation must ask the same question: "does this write a file the
+whole repository shares?"
+
+Two details that are easy to get wrong here:
+- The roster row is written **after** `commitFiles`/`openPullRequest` succeed
+  (`service.ts`, `addRosterAgent`), never before — recording an agent as
+  installed when the PR failed leaves the studio claiming a reviewer the
+  repository has never seen.
+- Migration `0027` backfills `ci_installation_agents` from
+  `ci_installations.agent_id`. Without that INSERT, the first republish of an
+  already-installed repo generates a bundle with zero manifests.
+
+### 2026-09-10 — a generated path derived from user text needs a closed character set AND an id discriminator, not just sanitisation
+
+`ci/constants.ts`'s `agentSlug(name, agentId)` replaced the fixed
+`AGENT_SLUG = 'agent'` filename once one repo could hold several manifests.
+Filtering the name through `[^a-z0-9]+` is only half of it: two agents named
+`API Review` and `api-review` normalize to the same slug, and the second
+manifest would overwrite the first — the repo would then review with one agent
+while the studio's CI tab shows two. The fix is an 8-hex-char `sha256(agentId)`
+suffix, which also keeps the path *stable* per agent so a republish updates the
+manifest in place instead of orphaning the old one. `buildBundle` still asserts
+the generated paths are unique rather than trusting that.
+
+Related, and worth stating because a test got it wrong first: surviving
+*letters* from a hostile name are harmless (`"; rm -rf / #` → `rm-rf-<hash>.yaml`
+is just a filename). Assert on the absence of characters with meaning to a
+shell or a path (`["';#$\`|&<>()\s]`, `..`), not on the absence of scary words.
+
 ### 2026-08-11 — `parseUnifiedDiff` silently drops binary files, pure renames, and deletions from `diff.files` — `diff.raw` still has them
 
 Building specs/08-pre-push-cli.md's `POST /reviews/adhoc` (a NEW consumer of

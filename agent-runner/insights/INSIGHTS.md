@@ -15,9 +15,13 @@ See also: `insights/gotchas.md` for known quirks at project start.
 
 ## Codebase Patterns
 
+2026-09-10 — the runner now reviews EVERY `.devdigest/agents/*.yaml` (`loadManifests`, sorted by filename so review/render order never depends on the filesystem) and merges the per-agent payloads in `merge.ts`. The reviewer-core invariants stay per agent, not per job: `toReviewPayload`/`countBlockers`/`gateTriggered` are each called with THAT agent's own `ci_fail_on`, and the job's gate is a strict OR over the results — never a blended policy re-derived from the concatenated finding list, which would let a `ci_fail_on: never` reviewer soften a strict one. Two consequences worth remembering: the diff is fetched once and shared, and a failure in the second agent discards the first agent's completed review (the single top-level try/catch, Q5), because posting half a roster's verdict under the roster's name is worse than posting nothing. ref: agent-runner/src/run.ts
+
 2026-07-08 — `agent-runner/tsconfig.json` intentionally mirrors `server/tsconfig.json`'s compiler options and path-alias block verbatim (aliasing `@devdigest/reviewer-core` → `../reviewer-core/src/index.ts` and `@devdigest/shared` → `../server/src/vendor/shared/index.ts`), so both consumers resolve the exact same source files. `agent-runner/vitest.config.ts` re-declares the same two aliases (vitest/vite doesn't read `tsconfig.json` paths automatically) — matches the pattern already used in `reviewer-core/vitest.config.ts`. ref: agent-runner/tsconfig.json:21
 
 ## Tool & Library Notes
+
+2026-09-10 — `pnpm build` (ncc) type-checks the WHOLE package including `*.test.ts`, so it fails on test-only type errors that `pnpm test` (vitest, transpile-only) happily runs past — e.g. `result.posted!.payload.body` where `posted.payload` is optional (`RunCiSuccess`). Run `pnpm build`, not just `pnpm test`, before considering a runner change done. Also: ncc's lazily-`import()`ed chunk is named by a webpack module id (`310.index.js` → `300.index.js` after this change), and it does NOT clean `dist/` — the stale chunk from the previous build stays behind and, because `server/src/modules/ci/bundle.ts` copies the entire `dist/` directory wholesale (P-2), would ship to every target repo. Delete orphaned chunks after a rebuild and confirm the surviving id is the one `dist/index.js` actually references. ref: agent-runner/package.json:9
 
 2026-07-08 — `@vercel/ncc` versions jump from `0.38.4` straight to `0.43.0`/`0.44.x` on npm (no `0.39`–`0.42` releases). A `^0.38.3` semver range resolves to `0.38.4`, not the newer `0.44.x` line — pin explicitly if the newer major-minor is desired. ref: agent-runner/package.json:15
 

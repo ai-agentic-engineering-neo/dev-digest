@@ -1,5 +1,5 @@
 import type { FeatureModelChoice, GitHubClient, LLMProvider, Provider as ProviderId } from '@devdigest/shared';
-import { parseIssueNumber, parseSpecRef } from '../_shared/linked-issue.js';
+import { collectSpecCandidates, mentionsSpecWithoutPath, parseIssueNumber } from '../_shared/linked-issue.js';
 import { detectContextGaps, renderIntentText } from './helpers.js';
 import { buildIntentPrompt } from './prompts.js';
 import type { IntentRepository } from './repository.js';
@@ -97,7 +97,20 @@ export class IntentService {
       const refText = `${title}\n${body}`;
 
       const issueNumber = parseIssueNumber(refText);
-      const specPath = parseSpecRef(refText);
+
+      // Spec discovery: candidates come from BOTH the PR's free text and the
+      // PR's own changed files — a spec added or edited by the PR almost
+      // always governs it, and that second source was previously never
+      // consulted. Ranking is deterministic (text-referenced first); the
+      // model's role is to confirm, not to pick blind, because the chosen
+      // document's CONTENT has to be in the prompt of the very call that
+      // produces scope — one call, not two.
+      const specCandidates = collectSpecCandidates(
+        refText,
+        input.diffFiles.map((f) => f.path),
+      );
+      const specPath = specCandidates[0] ?? null;
+      const unusedSpecCandidates = specCandidates.slice(1);
 
       const [issue, specContent, commitMessages] = await Promise.all([
         this.tryResolveIssue(issueNumber, input.repo),
@@ -109,6 +122,10 @@ export class IntentService {
       else if (issueNumber != null) emit(`referenced issue #${issueNumber} not found`);
       if (specContent && specPath) emit(`spec ${specPath} read`);
       else if (specPath) emit(`referenced spec ${specPath} not found`);
+      else if (mentionsSpecWithoutPath(refText)) emit('spec referenced but no document identified');
+      if (unusedSpecCandidates.length > 0) {
+        emit(`${unusedSpecCandidates.length} other spec candidate(s) not used`);
+      }
 
       const signals: string[] = [];
       if (body.trim().length > 0) signals.push('PR description');
@@ -126,6 +143,8 @@ export class IntentService {
         hasResolvedIssue: issue != null,
         specPathParsed: specPath,
         hasResolvedSpec: specContent != null,
+        mentionsSpecWithoutPath: mentionsSpecWithoutPath(refText),
+        unusedSpecCandidates,
       });
       for (const gap of contextGaps) emit(gap);
 

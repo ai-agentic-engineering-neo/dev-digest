@@ -37,6 +37,8 @@ describe("InstallStep", () => {
     renderWithIntl(
       <InstallStep
         agentId="agent-1"
+        agentName="Security Reviewer"
+        existingAgents={undefined}
         input={INPUT}
         onOpenPr={vi.fn()}
         isExporting={false}
@@ -56,6 +58,8 @@ describe("InstallStep", () => {
     renderWithIntl(
       <InstallStep
         agentId="agent-1"
+        agentName="Security Reviewer"
+        existingAgents={undefined}
         input={INPUT}
         onOpenPr={onOpenPr}
         isExporting={false}
@@ -71,6 +75,8 @@ describe("InstallStep", () => {
     renderWithIntl(
       <InstallStep
         agentId="agent-1"
+        agentName="Security Reviewer"
+        existingAgents={undefined}
         input={INPUT}
         onOpenPr={vi.fn()}
         isExporting={false}
@@ -92,6 +98,8 @@ describe("InstallStep", () => {
     renderWithIntl(
       <InstallStep
         agentId="agent-1"
+        agentName="Security Reviewer"
+        existingAgents={undefined}
         input={INPUT}
         onOpenPr={vi.fn()}
         isExporting={false}
@@ -114,6 +122,8 @@ describe("InstallStep", () => {
     renderWithIntl(
       <InstallStep
         agentId="agent-1"
+        agentName="Security Reviewer"
+        existingAgents={undefined}
         input={INPUT}
         onOpenPr={vi.fn()}
         isExporting={false}
@@ -132,6 +142,8 @@ describe("InstallStep", () => {
     const { rerender } = renderWithIntl(
       <InstallStep
         agentId="agent-1"
+        agentName="Security Reviewer"
+        existingAgents={undefined}
         input={INPUT}
         onOpenPr={vi.fn()}
         isExporting={false}
@@ -141,19 +153,21 @@ describe("InstallStep", () => {
           pr_url: null,
           reused_pr: false,
           warnings: [],
-          refused_reason: "This repository already has a DevDigest CI installation for a different agent.",
+          refused_reason: "The configured credential cannot open a pull request in this repository.",
         }}
         fileCount={7}
       />,
     );
     expect(
-      screen.getByText("This repository already has a DevDigest CI installation for a different agent."),
+      screen.getByText("The configured credential cannot open a pull request in this repository."),
     ).toBeInTheDocument();
 
     rerender(
       <NextIntlClientProvider locale="en" messages={{ ci: ciMessages }}>
         <InstallStep
           agentId="agent-1"
+          agentName="Security Reviewer"
+          existingAgents={undefined}
           input={INPUT}
           onOpenPr={vi.fn()}
           isExporting={false}

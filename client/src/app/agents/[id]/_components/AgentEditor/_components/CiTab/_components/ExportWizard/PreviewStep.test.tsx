@@ -58,7 +58,7 @@ describe("PreviewStep", () => {
   it("lists every generated file's path, showing an editable file's contents immediately with no fetch", () => {
     const spy = mockPreviewFile();
     renderWithIntl(
-      <PreviewStep agentId="agent-1" input={INPUT} files={[EDITABLE_FILE, RUNNER_FILE]} isLoading={false} />,
+      <PreviewStep agentName="Security Reviewer" existingAgents={undefined} agentId="agent-1" input={INPUT} files={[EDITABLE_FILE, RUNNER_FILE]} isLoading={false} />,
     );
 
     expect(screen.getByText(EDITABLE_FILE.path)).toBeInTheDocument();
@@ -74,7 +74,7 @@ describe("PreviewStep", () => {
   it("expanding a collapsed runner-bundle file triggers the on-demand fetch, not eager loading", () => {
     const spy = mockPreviewFile({ data: { ...RUNNER_FILE, contents: "console.log('runner');" } });
     renderWithIntl(
-      <PreviewStep agentId="agent-1" input={INPUT} files={[EDITABLE_FILE, RUNNER_FILE]} isLoading={false} />,
+      <PreviewStep agentName="Security Reviewer" existingAgents={undefined} agentId="agent-1" input={INPUT} files={[EDITABLE_FILE, RUNNER_FILE]} isLoading={false} />,
     );
 
     // Not fetched while collapsed.
@@ -89,7 +89,7 @@ describe("PreviewStep", () => {
 
   it("shows a loading placeholder, never a file list, before the preview has loaded", () => {
     mockPreviewFile();
-    renderWithIntl(<PreviewStep agentId="agent-1" input={INPUT} files={undefined} isLoading={true} />);
+    renderWithIntl(<PreviewStep agentName="Security Reviewer" existingAgents={undefined} agentId="agent-1" input={INPUT} files={undefined} isLoading={true} />);
     expect(screen.queryByText(EDITABLE_FILE.path)).not.toBeInTheDocument();
   });
 });

@@ -166,8 +166,13 @@ the repo and both load-bearing:
   event bus for work happening on someone else's runner (D6).
 - **N11 — Scheduling, retrying or cancelling a CI run from the studio.** The
   target repository's CI owns its own runs.
-- **N12 — Multi-agent CI deployment in one workflow.** One installation deploys
-  exactly one agent to exactly one repository (D2).
+- ~~**N12 — Multi-agent CI deployment in one workflow.**~~ **Superseded
+  (2026-09-10).** One installation now deploys one or more agents to one
+  repository: the runner reviews every manifest under `.devdigest/agents/` in a
+  single job and posts one merged review, with each agent keeping its own
+  `ci_fail_on` and the job's gate a strict OR across them. The roster lives in
+  `ci_installation_agents`; what stays unique per repository is the
+  installation, not the agent.
 - **N13 — Cost budgets, quotas or alerts on CI spend.** Cost is *displayed*
   (G7), never enforced.
 - **N14 — Reviewing pull requests opened from forks.** The generated workflow
@@ -514,14 +519,13 @@ valid.
   option available and functional.
   *Verify: with a credential lacking write access, the flow reports the reason,
   leaves zero installation rows, and still produces a downloadable bundle.*
-- **AC-59** — IF a user attempts to export an agent to a repository that already
-  has an installation for a **different** agent, THEN the system shall refuse and
-  state that the repository already hosts another agent, because the runner
-  requires exactly one agent manifest and a second one would break the existing
-  deployment rather than add to it.
+- ~~**AC-59**~~ **Superseded (2026-09-10)** by the reviewer roster (see N12).
+  WHEN a user exports an agent to a repository that already has an
+  installation, THEN the system shall add that agent to the existing
+  installation and regenerate the whole roster's bundle, rather than refuse.
   *Verify: exporting a second, different agent to a repository with an existing
-  installation is refused, and the first installation and its bundle are
-  unchanged.*
+  installation reuses the one installation row, adds the agent to its roster,
+  and produces a bundle carrying a manifest for every reviewer on it.*
 - **AC-64** — The Configure step shall show, for each secret the generated
   workflow depends on, its **name** and whether it is already configured in the
   target repository, and shall indicate that the CI-provided repository token

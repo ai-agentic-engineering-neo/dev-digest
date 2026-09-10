@@ -188,7 +188,27 @@ export class CiService {
       // it as a warning rather than failing the whole preview request.
       warnings.push(err instanceof Error ? err.message : String(err));
     }
-    return { files: toPreviewFiles(files), secrets, warnings };
+    return {
+      files: toPreviewFiles(files),
+      secrets,
+      warnings,
+      existing_agents: await this.otherInstalledAgentNames(workspaceId, agentId, opts.repo),
+    };
+  }
+
+  /** The names of reviewers ALREADY installed in `repo`, excluding `agentId`
+   *  itself — what the wizard states before the user installs, so joining an
+   *  existing deployment is never a surprise discovered after the PR opens. */
+  private async otherInstalledAgentNames(
+    workspaceId: string,
+    agentId: string,
+    repo: string,
+  ): Promise<string[]> {
+    const installation = await this.repo.getInstallationByRepo(workspaceId, repo);
+    if (!installation) return [];
+    const ids = (await this.repo.listRosterAgentIds(installation.id)).filter((id) => id !== agentId);
+    const agents = await Promise.all(ids.map((id) => this.agentLookup.getById(workspaceId, id)));
+    return agents.flatMap((a) => (a ? [a.name] : []));
   }
 
   /** P-4 — the on-demand companion to `preview()`: the main preview response

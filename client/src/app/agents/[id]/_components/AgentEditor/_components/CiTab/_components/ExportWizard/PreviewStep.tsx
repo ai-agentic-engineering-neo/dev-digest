@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { Skeleton, Badge } from "@devdigest/ui";
 import type { CiFile, CiExportInputBody } from "@devdigest/shared/contracts/eval-ci";
 import { useCiPreviewFile } from "@/lib/hooks/ci";
+import { JoiningNotice } from "./JoiningNotice";
 import { s } from "./styles";
 
 /**
@@ -18,13 +19,19 @@ import { s } from "./styles";
  */
 export function PreviewStep({
   agentId,
+  agentName,
   input,
   files,
+  existingAgents,
   isLoading,
 }: {
   agentId: string;
+  agentName: string;
   input: CiExportInputBody;
   files: CiFile[] | undefined;
+  /** Reviewers already installed in the target repo — the file list below
+   *  carries their manifests too, which is otherwise unexplained. */
+  existingAgents: string[] | undefined;
   isLoading: boolean;
 }) {
   const t = useTranslations("ci");
@@ -42,6 +49,7 @@ export function PreviewStep({
 
   return (
     <div style={s.fieldGroup}>
+      <JoiningNotice repo={input.repo ?? ""} agentName={agentName} existingAgents={existingAgents} />
       <label style={s.label}>{t("exportWizard.filesToCreate")}</label>
       <div style={s.fileList}>
         {files.map((f) => {

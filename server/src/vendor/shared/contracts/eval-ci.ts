@@ -618,6 +618,11 @@ export const CiPreview = z.object({
   files: z.array(CiFile),
   secrets: z.array(CiSecretStatus),
   warnings: z.array(z.string()),
+  /** The OTHER reviewers already installed in the target repository — the
+   *  agents this export will join rather than replace. Empty for a
+   *  first install. Names only: the wizard states who else will review,
+   *  and never needs to address them by id. */
+  existing_agents: z.array(z.string()).default([]),
 });
 export type CiPreview = z.infer<typeof CiPreview>;
 

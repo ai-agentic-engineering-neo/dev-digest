@@ -44,9 +44,11 @@ export function CiTab({ agent }: { agent: Agent }) {
   const handleUpdate = (installationId: string) => {
     republish.mutate(installationId, {
       onSuccess: (result) => {
-        // AC-59's wrong-agent refusal is the only remaining `refused_reason`
-        // case reachable here; AC-10a's credential/write-access failures now
-        // throw (422, handled below) rather than returning this field.
+        // No refusal case is reachable here any more: a repo already having
+        // another agent now JOINS that installation instead of being refused,
+        // and AC-10a's credential/write-access failures throw (422, handled
+        // below). Kept as a defensive surface — a reason the server does
+        // state must never be swallowed into a success toast.
         if (result.refused_reason) toast.error(result.refused_reason);
         else toast.success(t("ciTab.updateSuccess"));
       },

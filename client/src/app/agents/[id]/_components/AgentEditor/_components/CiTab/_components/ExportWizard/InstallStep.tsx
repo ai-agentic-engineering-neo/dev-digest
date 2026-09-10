@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { Button, Badge } from "@devdigest/ui";
 import type { CiExport, CiExportInputBody } from "@devdigest/shared/contracts/eval-ci";
 import { exportCiArchive } from "@/lib/hooks/ci";
+import { JoiningNotice } from "./JoiningNotice";
 import { s } from "./styles";
 
 const OPENROUTER_SECRET_NAME = "OPENROUTER_API_KEY";
@@ -16,14 +17,20 @@ const OPENROUTER_SECRET_NAME = "OPENROUTER_API_KEY";
  */
 export function InstallStep({
   agentId,
+  agentName,
   input,
   onOpenPr,
   isExporting,
   result,
   fileCount,
+  existingAgents,
 }: {
   agentId: string;
+  agentName: string;
   input: CiExportInputBody;
+  /** Reviewers already installed in the target repo; this install joins
+   *  them rather than replacing them. */
+  existingAgents: string[] | undefined;
   onOpenPr: () => void;
   isExporting: boolean;
   result: CiExport | null;
@@ -54,6 +61,7 @@ export function InstallStep({
 
   return (
     <>
+      <JoiningNotice repo={input.repo ?? ""} agentName={agentName} existingAgents={existingAgents} />
       <div style={s.fieldGroup}>
         <label style={s.label}>{t("exportWizard.secretNote", { key: OPENROUTER_SECRET_NAME })}</label>
         <p style={s.hint}>{t("exportWizard.githubTokenAuto")}</p>

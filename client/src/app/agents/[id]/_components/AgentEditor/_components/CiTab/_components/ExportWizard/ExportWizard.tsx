@@ -89,7 +89,14 @@ export function ExportWizard({ agent, onClose }: { agent: Agent; onClose: () => 
       <div style={s.body}>
         {step === 0 && <TargetStep target={target} onTarget={setTarget} repo={repo} onRepo={setRepo} />}
         {step === 1 && (
-          <PreviewStep agentId={agent.id} input={input} files={preview?.files} isLoading={previewLoading} />
+          <PreviewStep
+            agentId={agent.id}
+            agentName={agent.name}
+            input={input}
+            files={preview?.files}
+            existingAgents={preview?.existing_agents}
+            isLoading={previewLoading}
+          />
         )}
         {step === 2 && (
           <ConfigureStep
@@ -108,6 +115,8 @@ export function ExportWizard({ agent, onClose }: { agent: Agent; onClose: () => 
             isExporting={exportCi.isPending}
             result={result}
             fileCount={preview?.files.length}
+            agentName={agent.name}
+            existingAgents={preview?.existing_agents}
           />
         )}
       </div>

@@ -74,6 +74,20 @@ export const s = {
     background: "var(--bg-elevated)",
   } satisfies CSSProperties,
   installRow: { display: "flex", gap: 12 } satisfies CSSProperties,
+  /* The "you are joining an existing setup" banner — the same surface as
+     resultBox, with an accent edge so it reads as context, not an error. */
+  noticeBox: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+    padding: "12px 14px",
+    borderRadius: 7,
+    border: "1px solid var(--border)",
+    borderLeft: "3px solid var(--accent)",
+    background: "var(--bg-elevated)",
+    fontSize: 13,
+    marginBottom: 12,
+  } satisfies CSSProperties,
   resultBox: {
     padding: "12px 14px",
     borderRadius: 7,

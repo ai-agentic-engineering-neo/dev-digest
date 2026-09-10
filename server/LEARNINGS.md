@@ -140,6 +140,37 @@ does fs or DB I/O before the check.
 
 ## Codebase Patterns
 
+### 2026-09-10 — `commitFiles` was additive AND fork-point-blind; a long-lived generated branch needs both fixed, and the symptoms look like two different bugs
+
+`adapters/github/octokit.ts`'s `commitFiles` builds a tree with `base_tree` and
+parented on the branch tip. Two consequences, both invisible until generated
+paths started changing:
+
+1. **Additive-only.** The commit never deletes, so a generated file whose path
+   changed (`.devdigest/agents/agent.yaml` → `<name>-<hash8>.yaml`, ncc's
+   `310.index.js` → `300.index.js`) survives on the branch forever. For agent
+   manifests that is not cosmetic — the runner reads EVERY
+   `.devdigest/agents/*.yaml` as an installed reviewer, so the orphan re-runs
+   an agent at full cost. Fixed with `CommitFilesPayload.pruneDirs` +
+   `tree-prune.ts` (`sha: null` tree entries).
+2. **Fork-point-blind.** Base was consulted ONLY when the branch didn't exist.
+   Once `devdigest/ci`'s PR was merged into `main` and the branch was left
+   undeleted, the branch stayed forked from its pre-merge commit; every later
+   export layered onto that stale tip. GitHub computes a PR's diff against the
+   MERGE BASE, so the entire 36k-line bundle rendered as `ADDED` on every new
+   PR even though `main` already held byte-identical files. Fixed with
+   `commit-parent.ts`: when base is ahead, build on base instead.
+
+Diagnosis that gets there fast, before touching code:
+`gh api repos/O/R/compare/main...devdigest/ci --jq '.ahead_by, .behind_by, .merge_base_commit.sha'`,
+then check whether the merge base actually contains the directory
+(`gh api "repos/O/R/contents/.devdigest?ref=<merge_base>"` → 404 means the diff
+is measured from before the merge). "Why so many additions" is a merge-base
+question, not a generator question — the generator's output was correct the
+whole time. Note also that `findOpenPr` reuses only an **open** PR, so a
+closed-then-re-exported PR legitimately gets a new number; that is not the bug
+it looks like.
+
 ### 2026-09-10 — the CI bundle is a whole-repository artifact, so ANY single-agent regeneration must rebuild the entire reviewer roster
 
 `modules/ci` used to generate `.devdigest/agents/agent.yaml` from the one

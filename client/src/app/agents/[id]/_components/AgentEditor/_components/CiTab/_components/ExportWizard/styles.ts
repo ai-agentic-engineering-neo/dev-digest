@@ -22,7 +22,15 @@ export const s = {
     textAlign: "left",
   }),
   fileList: { display: "flex", flexDirection: "column", gap: 8, maxHeight: 360, overflowY: "auto" } satisfies CSSProperties,
-  fileCard: { border: "1px solid var(--border)", borderRadius: 7, overflow: "hidden" } satisfies CSSProperties,
+  /* `flexShrink: 0` is load-bearing: fileList is a flex column with a
+     maxHeight, so without it every card is squashed to a sliver of a line
+     once the set overflows, instead of the list scrolling. */
+  fileCard: {
+    border: "1px solid var(--border)",
+    borderRadius: 7,
+    overflow: "hidden",
+    flexShrink: 0,
+  } satisfies CSSProperties,
   fileHead: {
     display: "flex",
     alignItems: "center",

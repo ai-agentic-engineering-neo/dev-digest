@@ -61,6 +61,7 @@
     "recommended": "recommended",
     "repoLabel": "Target repository",
     "repoHint": "owner/name — the repo to add the workflow to",
+    "repoSelectHint": "Pick one of your imported repositories — the repo to add the workflow to",
     "repoPlaceholder": "acme/payments-api",
     "filesToCreate": "FILES TO CREATE",
     "generating": "Generating…",

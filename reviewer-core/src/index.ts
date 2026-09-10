@@ -20,8 +20,18 @@ export {
   type AssembledPrompt,
 } from './prompt.js';
 
+// Diff rendering for the prompt — per-line numbering (paired with the gate below).
+export { numberDiffLines } from './diff-format.js';
+
 // Citation grounding — the mandatory mechanical gate for diff findings.
-export { groundFindings, groundingSummary, type GroundingResult } from './grounding.js';
+export {
+  groundFindings,
+  groundingSummary,
+  // Exported so a consumer can assert the numbers `numberDiffLines` prints are the
+  // ones this gate will accept — see agent-runner's `diff.test.ts`.
+  buildLineIndex,
+  type GroundingResult,
+} from './grounding.js';
 
 // Structured-output helpers (Zod → JSON Schema + parse-with-repair).
 export {

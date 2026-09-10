@@ -1,4 +1,5 @@
 import type { ChatMessage, PromptAssembly } from '@devdigest/shared';
+import { numberDiffLines } from './diff-format.js';
 
 /**
  * Prompt assembly + prompt-injection hardening.
@@ -109,7 +110,11 @@ export interface PromptParts {
   /** Declared out-of-scope items — see `intentInScope`. A soft filter for the
    *  review agent, never a hard descope (INJECTION_GUARD still applies). */
   intentOutOfScope?: string[];
-  /** The unified diff / user task (untrusted content). */
+  /**
+   * The unified diff / user task (untrusted content). A diff is rendered with
+   * per-line numbers (`numberDiffLines`) before wrapping; text with no hunk
+   * headers passes through untouched.
+   */
   diff: string;
   /** Optional task framing line, e.g. "Review PR #482 '…'". */
   task?: string;
@@ -184,7 +189,21 @@ export function assemblePrompt(parts: PromptParts): AssembledPrompt {
       `## Callers of changed symbols\n${wrapUntrusted('callers', parts.callers)}`,
     );
   }
-  userSections.push(`## Diff to review\n${wrapUntrusted('diff', parts.diff)}`);
+  // Line-numbered so the model READS a citation instead of counting to it — see
+  // `diff-format.ts` for why, and for the invariant tying these numbers to the
+  // grounding gate. The reading instruction is TRUSTED text and therefore sits
+  // outside the `<untrusted>` wrapper, like every other instruction here.
+  // A `diff` slot carrying a plain task (no hunk headers) comes back unchanged;
+  // the instruction is then omitted rather than describing numbers that aren't there.
+  const numberedDiff = numberDiffLines(parts.diff);
+  const diffGuide =
+    numberedDiff === parts.diff
+      ? ''
+      : 'Each line below is prefixed with its line number in the NEW version of the ' +
+        'file; removed lines have no number. Take `start_line` / `end_line` from those ' +
+        'prefixes — read the number off the line you are citing, never estimate it by ' +
+        'counting lines.\n';
+  userSections.push(`## Diff to review\n${diffGuide}${wrapUntrusted('diff', numberedDiff)}`);
 
   const user = userSections.join('\n\n');
 

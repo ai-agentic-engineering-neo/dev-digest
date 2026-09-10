@@ -14,6 +14,63 @@ as truth; a bad entry is worse than a missing one.
 
 ## What Doesn't Work
 
+### 2026-09-10 — feeding `assemblePrompt` a RAW unified diff makes every `start_line` a guess, and `groundFindings` cannot catch it on a whole-file addition
+
+Until this date `assemblePrompt` pushed `parts.diff` (= `input.diff.raw`, straight
+from GitHub's diff media type) into the prompt verbatim. A unified diff carries
+exactly one coordinate — the `@@ … +newStart,newLines @@` header — so a model asked
+for `Finding.start_line` has to COUNT from that header to the line it wants. It
+drifts. Measured on burnjohn/quick-blog PR #31 (`f9d44c3`), file
+`server/src/controllers/analyticsController.js`, 726 lines added as ONE hunk: the
+Spec Conformance agent's citations were low by 28 lines near the top of the file and
+by 211 near the bottom, monotonically — an accumulating undercount, not noise. Real
+line 708 (`console.log('[analytics] auth header:' …)`) was cited as 497; 696 as 490;
+577 as 448. In small files the same agent was accurate to ±2, which is the tell:
+the error scales with the length of the count, not with the file.
+Two amplifiers made it invisible:
+1. `groundFindings` (`grounding.ts`) only checks that `[start_line, end_line]`
+   intersects SOME hunk of that file. A file added whole is one hunk covering every
+   line, so any number in `1..726` passes — for new files the gate degrades to
+   "the file is in the diff" and proves nothing about the line.
+2. `resolveCommentLine` (`output/to-review.ts`) then snaps the citation to the
+   nearest anchorable diff line, so the wrong number posts successfully as an inline
+   comment instead of failing loudly (it exists to prevent GitHub 422 on the whole
+   review — correct, but it also launders a bad citation).
+Same root cause as the older `:1` symptom: an agent prompt that did NOT demand a
+real line got `line: null` / `:1` everywhere (the model declining to count), and one
+that DID demand it got confident wrong numbers (the model counting and drifting).
+Fixed by `numberDiffLines` (`diff-format.ts`), applied inside `assemblePrompt`:
+each new-side line is prefixed with the number it will have to cite, so reading
+replaces counting; removed lines get blank padding; text with no hunk header (the
+slot also accepts a plain task) passes through untouched, and the accompanying
+"read the number, never estimate it" sentence is then omitted too. Verified against
+the real PR #31 diff — all six previously-wrong citations render at their true line.
+Cost: +9.3 % characters on the diff block (~4–5k tokens on that PR).
+
+### 2026-09-10 — the prompt's line numbers and the grounding gate's line index are derived by two parsers that cannot import each other; only a test keeps them honest
+
+`numberDiffLines` (reviewer-core) and `buildLineIndex` (reviewer-core, fed by
+`parseUnifiedDiff`) must agree on which diff lines consume a new-side number, or the
+prompt advertises citations the gate then drops. They cannot share code: the parsers
+live in `agent-runner/src/diff.ts` and `server/src/adapters/git/diff-parser.ts` —
+reviewer-core is a pure engine and imports neither, and agent-runner's ncc bundle must
+stay self-contained. So `numberDiffLines` mirrors their classification by hand
+(`+` but not `+++` → added; `-` but not `---` → removed, unnumbered; anything else
+inside a hunk → context) INCLUDING the trailing-`''`-from-`split('\n')` pop, and the
+invariant is pinned from the agent-runner side in `diff.test.ts`
+("numberDiffLines ↔ buildLineIndex"). It holds in ONE direction only: every number
+rendered is one the gate accepts, but not every line the gate accepts gets rendered —
+`buildLineIndex` expands a hunk with no new-side lines (a deletion-only hunk, e.g.
+`@@ -5,3 +4,0 @@`) to its declared range, covering a position where no line exists, and
+the renderer has nothing to print there. Asserting the symmetric version looks right and
+is wrong; it passes only until someone adds a deletion-only fixture. The honest second
+assertion compares the rendered set against the parser's own `newLineNumbers`, not
+against the index. `buildLineIndex` had to
+be added to `reviewer-core/src/index.ts`'s exports for that test — agent-runner's
+vitest alias maps the bare package name only, so a subpath import
+(`@devdigest/reviewer-core/grounding.js`) does NOT resolve there. If you change line
+classification in any of the three places, that test is what fails.
+
 ## Codebase Patterns
 
 ### 2026-08-12 — activating a long-reserved optional prompt slot (`specs`) needs a grep of consumers OUTSIDE this package too, not just `reviewer-core/src` + `reviewer-core/test`

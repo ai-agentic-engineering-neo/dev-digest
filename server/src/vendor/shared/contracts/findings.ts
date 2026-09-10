@@ -50,8 +50,18 @@ export const Finding = z.object({
   category: FindingCategory,
   title: z.string(),
   file: z.string(),
-  start_line: z.number().int(),
-  end_line: z.number().int(),
+  start_line: z
+    .number()
+    .int()
+    .describe(
+      'First line of the cited code, numbered as in the NEW version of the file — copy it from the line-number prefix the diff shows for that line. Never estimate it by counting lines.',
+    ),
+  end_line: z
+    .number()
+    .int()
+    .describe(
+      'Last line of the cited code, numbered as in the NEW version of the file (same as `start_line` for a single-line finding). A removed line has no new-side number and cannot be cited.',
+    ),
   rationale: z.string(), // markdown
   suggestion: z.string().nullish(), // markdown
   confidence: z.number().min(0).max(1),

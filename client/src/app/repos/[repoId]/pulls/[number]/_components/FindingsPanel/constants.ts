@@ -1,4 +1,4 @@
-import type { FindingActionKind } from "@devdigest/shared";
+import type { FindingActionKind, Severity } from "@devdigest/shared";
 
 /** Sort weight per severity (lower = shown first). */
 export const SEVERITY_ORDER: Record<string, number> = {
@@ -7,6 +7,9 @@ export const SEVERITY_ORDER: Record<string, number> = {
   SUGGESTION: 2,
   INFO: 3,
 };
+
+/** Severities shown (and clickable to filter by) in the counter bar, in display order. */
+export const FILTERABLE_SEVERITIES: Severity[] = ["CRITICAL", "WARNING", "SUGGESTION"];
 
 /** Confidence below this is hidden when "hide low confidence" is on. */
 export const LOW_CONFIDENCE_THRESHOLD = 0.65;

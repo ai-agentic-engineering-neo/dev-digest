@@ -65,13 +65,10 @@ export interface ToReviewOptions {
   diff?: UnifiedDiff;
 }
 
-/** Tally of findings per severity — the deterministic per-severity counter
- *  surfaced on the run row/timeline, alongside `countBlockers`'s single gate
- *  total. */
-export function severityCounts(findings: Finding[]): Record<'CRITICAL' | 'WARNING' | 'SUGGESTION', number> {
-  const c = { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 };
-  for (const f of findings) c[f.severity as keyof typeof c] = (c[f.severity as keyof typeof c] ?? 0) + 1;
-  return c;
+function severityCounts(findings: Finding[]): string {
+  const c: Record<string, number> = { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 };
+  for (const f of findings) c[f.severity] = (c[f.severity] ?? 0) + 1;
+  return `${c.CRITICAL} critical · ${c.WARNING} warning · ${c.SUGGESTION} suggestion`;
 }
 
 function composeBody(
@@ -95,8 +92,7 @@ function composeBody(
     return `- ${emoji} **${f.title}** (${f.severity.toLowerCase()}, ${f.category}) — ${loc}\n  - ${f.rationale}${sugg}`;
   });
 
-  const c = severityCounts(findings);
-  const summary = `**${findings.length} finding${findings.length === 1 ? '' : 's'}** · ${c.CRITICAL} critical · ${c.WARNING} warning · ${c.SUGGESTION} suggestion`;
+  const summary = `**${findings.length} finding${findings.length === 1 ? '' : 's'}** · ${severityCounts(findings)}`;
   return `${header}\n\n${summary}\n\n${lines.join('\n')}\n\n_Posted via DevDigest._`;
 }
 

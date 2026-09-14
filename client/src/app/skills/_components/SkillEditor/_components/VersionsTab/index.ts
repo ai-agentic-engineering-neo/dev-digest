@@ -1,1 +1,0 @@
-export { VersionsTab } from "./VersionsTab";

@@ -1,8 +1,5 @@
 {
   "viewTrace": "View trace",
-  "cost": {
-    "tokens": "{tokens} tok"
-  },
   "finding": {
     "trifecta": "trifecta"
   },
@@ -42,7 +39,6 @@
     "stat": {
       "duration": "DURATION",
       "tokens": "TOKENS",
-      "cost": "COST",
       "findings": "FINDINGS"
     },
     "prompt": {

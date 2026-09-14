@@ -4,6 +4,9 @@ Read before starting work here; append before finishing — see [`engineering-in
 
 ## Pattern
 
+### 2026-09-14 — Timeline finding counts reuse `FindingsPanel`'s `severityCounts` helper, keyed by matching `run_id`
+`RunSummary` (`client/src/vendor/shared/contracts/trace.ts:95-117`) only carries flat `findings_count`/`blockers` — no per-severity breakdown — so `RunHistory.tsx`'s per-run row can't compute CRITICAL/WARNING/SUGGESTION chips from that alone. Fix: `FindingsTab.tsx` already holds `runs: ReviewRecord[]` (each with a `.findings` array and a `run_id`) alongside `prRuns: RunSummary[]`; build a `run_id → FindingRecord[]` map there and pass it into `RunHistory` as `findingsByRunId`, then call the existing `severityCounts()` (`FindingsPanel/helpers.ts`) per row and render `SeverityBadge` `compact` chips (same as the FindingsPanel filter bar). No backend change needed — the data already exists client-side, just under a different prop than the one the row was reading from.
+
 ### 2026-09-14 — one shared cost formatter across all 3 cost surfaces
 `client/src/components/run-cost-badge/RunCostBadge.tsx` (`formatRunCost`/`formatTokens`, three `variant`s: `compact`/`detail`/`timeline`) is the single place cost gets formatted — used in the PR list (`PRRow.tsx`), the PR-detail timeline (`RunHistory.tsx`) and verdict banner (`VerdictBanner.tsx`), AND reused (not reimplemented) for the 4th Stat tile in `RunTraceDrawer/_components/TraceBody/TraceBody.tsx`. A prior, since-reverted implementation (commit `d45ab0d2`'s parent) had `TraceBody` using its own flat `formatCost` (`usd.toFixed(2)`, "n/a" for null) instead — that reads as "$0.00" for any sub-cent run and diverges from the badge's significant-digit formatting used everywhere else. Reuse `formatRunCost` for any new cost display rather than writing a local formatter.
 
@@ -15,8 +18,14 @@ Same finding as `server/INSIGHTS.md`'s entry of the same title — this repo had
 
 ## Mistake
 
+### 2026-09-14 — `borderColor`/`borderWidth` are themselves shorthands; mixing either with `borderLeftColor`/`borderLeftWidth` still warns
+`FindingCard/styles.ts`'s `card()` had a comment claiming it used "all-longhand" props to avoid React's dev-mode "conflicting style property" warning, but it set `borderColor` + `borderLeftColor` (and `borderWidth` + `borderLeftWidth`) together — `borderColor`/`borderWidth` are physical shorthands covering all four sides internally, so React still flags the conflict on rerender (confirmed via the console error naming `FindingCard.tsx:57`). The actual fix is per-side-only props: `borderTopColor`/`borderRightColor`/`borderBottomColor`/`borderLeftColor` (and the `*Width` equivalents) — never the bare `border{Color,Width}` property when any single-side override is also set.
+
 ## Decision
 
 ## Context
+
+### 2026-09-14 — `client/src/vendor/shared` is a PARTIAL mirror of `server/src/vendor/shared`, not a byte-identical copy
+`client/src/vendor/shared/contracts/platform.ts` is kept byte-identical to the server copy (confirmed via `diff`, and via `git log` showing both edited in the same commits, e.g. `b407ba1`, `97b6edc`). But `client/src/vendor/shared/adapters.ts` is NOT — it's missing several server-only types (`CommitFilesPayload`, `GitClient.sync`/`diffNameOnly`, the `openrouter` LLM id, etc.) because nothing in `client/src` actually imports them (confirmed via `grep -rn "GitHubClient\|RepoRef" client/src`). When adding a new shared type: check whether client code actually consumes it before assuming you must mirror the whole file — mirror only what's referenced, matching the existing (already-diverged) state, not a hypothetical full sync.
 
 ## Open Questions

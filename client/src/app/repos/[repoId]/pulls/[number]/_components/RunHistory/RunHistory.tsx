@@ -2,9 +2,11 @@
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { Badge, Icon, CircularScore, type IconName } from "@devdigest/ui";
+import { Badge, Icon, CircularScore, SeverityBadge, type IconName, type Severity as UiSeverity } from "@devdigest/ui";
 import { RunCostBadge } from "@/components/run-cost-badge";
-import type { RunSummary, PrCommit } from "@devdigest/shared";
+import type { RunSummary, PrCommit, FindingRecord } from "@devdigest/shared";
+import { severityCounts } from "../FindingsPanel/helpers";
+import { FILTERABLE_SEVERITIES } from "../FindingsPanel/constants";
 
 /**
  * PR timeline — every agent run interleaved with the PR's commits, newest-first
@@ -88,12 +90,17 @@ function tsOf(s: string | null | undefined): number {
 export function RunHistory({
   runs,
   commits = [],
+  findingsByRunId,
   onOpenTrace,
   onGoToReview,
   onDelete,
 }: {
   runs: RunSummary[];
   commits?: PrCommit[];
+  /** This run's findings, keyed by run_id — drives the per-severity count
+   *  chips (CRITICAL/WARNING/SUGGESTION) on each settled run row. Falls back
+   *  to the plain "N finding(s)" text when a run has no matching entry. */
+  findingsByRunId?: Record<string, FindingRecord[]>;
   /** Open the trace + log drawer for a run (the logs icon). */
   onOpenTrace: (runId: string) => void;
   /** Jump to this run's inline review accordion below (clicking the agent name). */
@@ -150,6 +157,9 @@ export function RunHistory({
         const r = item.run;
         const o = outcomeOf(r);
         const settled = r.status === "done";
+        const runFindings = findingsByRunId?.[r.run_id];
+        const counts = runFindings ? severityCounts(runFindings) : null;
+        const blockers = r.blockers ?? 0;
         return (
           <div key={`run:${r.run_id}`} style={rowStyle}>
             <Badge color={o.color} bg={o.bg} icon={o.icon}>
@@ -190,9 +200,15 @@ export function RunHistory({
                 </div>
               )}
               {settled && (
-                <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                  {t("runStatus.findings", { count: r.findings_count ?? 0 })}
-                  {(r.blockers ?? 0) > 0 ? t("runStatus.blockers", { count: r.blockers ?? 0 }) : ""}
+                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-muted)" }}>
+                  {counts ? (
+                    FILTERABLE_SEVERITIES.filter((sev) => counts[sev] > 0).map((sev) => (
+                      <SeverityBadge key={sev} severity={sev as UiSeverity} count={counts[sev]} compact />
+                    ))
+                  ) : (
+                    <span>{t("runStatus.findings", { count: r.findings_count ?? 0 })}</span>
+                  )}
+                  {blockers > 0 && <span>{t("runStatus.blockers", { count: blockers })}</span>}
                 </div>
               )}
             </div>

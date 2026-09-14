@@ -65,6 +65,16 @@ export function FindingsTab({
     [onDelete],
   );
 
+  // Timeline rows show per-severity count chips sourced from each run's own
+  // findings (matched by run_id) rather than the run row's flat totals.
+  const findingsByRunId = React.useMemo(() => {
+    const map: Record<string, FindingRecord[]> = {};
+    for (const review of runs) {
+      if (review.run_id) map[review.run_id] = review.findings;
+    }
+    return map;
+  }, [runs]);
+
   // Timeline → Review-runs navigation: clicking an agent name in the timeline
   // opens + scrolls to that run's accordion below. The nonce re-triggers the
   // scroll even when the same run is clicked twice.
@@ -133,6 +143,7 @@ export function FindingsTab({
           <RunHistory
             runs={prRuns ?? []}
             commits={prCommits}
+            findingsByRunId={findingsByRunId}
             onOpenTrace={handleOpenTrace}
             onGoToReview={handleGoToReview}
             onDelete={handleDelete}

@@ -1,0 +1,227 @@
+# Smart Diff
+
+**Status:** v1, tightened by a mentor-review pass (still v1 — additive, not a
+redesign). Curriculum slot: L03 (`README.md:84` — "L03 | Intent layer ·
+Smart Diff"; this spec covers Smart Diff only, Intent layer is
+[05-intent-layer.md](05-intent-layer.md)).
+
+*Mentor-review pass (2026-08-06, on `feat/l03-smart-diff`/PR #6): a findings
+badge's click behavior — "scrolls to the relevant line" below — was the
+feature's main interactive affordance per the original ask, but the
+in-diff-only scroll it shipped with buried the finding back inside the file
+it came from instead of surfacing it where a reviewer actually acts on
+findings (accept/dismiss). Changed to: switch to the Findings tab and
+expand+highlight that finding's own card there. See [UI](#ui) for the
+mechanism (`SmartDiffViewer`'s `onSelectFinding` → `PrDetailView`'s
+cross-tab `findingTarget` state → `FindingsTab`/`ReviewRunAccordion`/
+`FindingsPanel`/`FindingCard`, reusing `ReviewRunAccordion`'s existing
+Timeline-navigation `targetRunId`/`targetNonce` pattern).*
+
+## Context
+
+A PR's "Files changed" list today (`DiffTab` → `DiffViewer`) is a flat,
+GitHub-order list of `PrFile`s — a one-line `package-lock.json` diff sits
+next to a security-relevant middleware change with no visual distinction.
+Smart Diff groups files by risk — **core** (business logic), **wiring**
+(config/bootstrap/index files), **boilerplate** (lock files, build output,
+snapshots) — so a reviewer's attention goes to core logic first and generated/
+mechanical files stay out of the way, collapsed.
+
+This is not a new LLM feature. It's a deterministic reorganization of data
+the app already has:
+
+- `GET /pulls/:id` already returns every changed file (`path`, `additions`,
+  `deletions`, `patch`) — enough to classify a file by its path alone.
+- `GET /pulls/:id/reviews` already returns the latest review's findings
+  (`file`, `start_line`, `end_line`, `severity`) — enough to badge a file
+  with "N findings" and know which lines to jump to.
+- `SmartDiff`/`SmartDiffRole`/`SmartDiffFile`/`SmartDiffGroup` already exist,
+  fully defined, in both `vendor/shared/contracts/brief.ts` copies (server
+  and client, byte-identical) — reserved but never implemented. This spec is
+  what fills that reservation in.
+
+## Scope
+
+**In:**
+
+1. A pure path/pattern classifier, `classifyFile(path): SmartDiffRole`, and
+   an assembler, `buildSmartDiff(files, findings): SmartDiff`, in
+   `server/src/modules/reviews/smart-diff.ts`. Patterns and thresholds live
+   in a sibling constants file, `smart-diff-constants.ts` — see
+   [Classifier rules](#classifier-rules).
+2. `GET /pulls/:id/smart-diff` on the existing `reviews` module (alongside
+   `/pulls/:id/reviews`, which already owns the read side of this domain).
+   Reuses `ReviewRepository.getPull`/`getPrFiles`/`reviewsForPull` — no new
+   repository method.
+3. Client: a `useSmartDiff(prId)` hook, and a `SmartDiffViewer` component
+   (sibling to `DiffTab` under the PR page's `_components/`) that groups
+   files by role, keeps boilerplate files collapsed by default, shows a
+   findings-count badge per file, and — mentor-review pass — clicking it
+   switches to the Findings tab with that finding's card expanded and
+   highlighted (see [UI](#ui)).
+   A "Smart order" / "Original order" toggle on the Files changed tab
+   switches between it and the existing flat `DiffViewer`.
+
+**Out of scope (explicitly):**
+
+- Any new LLM call. `pseudocode_summary` (the contract's optional
+  "What this does" field) stays `null` in this pass — a future lesson may
+  populate it; `assemblePrompt`/agents are untouched.
+- Persisting the computed `SmartDiff` anywhere. `pr_brief` (the table that
+  would naturally hold a cached composite) is reserved for a later "PR Brief
+  card" lesson (`server/LEARNINGS.md`'s 2026-08-03/08-04 entries document
+  this reservation) — writing into it here would collide with that future
+  feature. Classification is cheap and recomputed per request instead.
+- A UI for `split_suggestion` (part of the `SmartDiff` contract, computed
+  for contract completeness — see [Split suggestion](#split-suggestion) —
+  but not rendered anywhere in this pass).
+- Fixing `pulls/routes.ts`'s existing onion-architecture violation (direct
+  Drizzle access, no service/repository layer) — unrelated to this feature,
+  which lives in the already-layered `reviews` module instead.
+- Diff-content-aware classification (e.g. "this CRUD handler is mechanical
+  enough to be boilerplate"). Classification is path/pattern-only, per the
+  original feature ask — no diff parsing beyond the additions/deletions
+  counts already on `PrFile`.
+
+## Modules affected
+
+**server**: `modules/reviews/smart-diff.ts` (new), `modules/reviews/
+smart-diff-constants.ts` (new), `modules/reviews/smart-diff.test.ts` (new),
+`modules/reviews/service.ts` (new method), `modules/reviews/routes.ts` (new
+route). No schema/migration changes, no contract changes (the `SmartDiff`
+contract already matches this spec exactly).
+
+**client**: `lib/hooks/reviews.ts` (new hook), `components/diff-viewer/
+CodeLine/CodeLine.tsx` and `.../FileCard/FileCard.tsx` (small additive props
+for scroll-to-line and forced collapse — both optional, existing callers
+unaffected), a new `_components/SmartDiffViewer/` folder under the PR
+detail route, `_components/DiffTab/DiffTab.tsx` (wires the toggle),
+`messages/en/shell.json` (new i18n keys).
+
+Added by the mentor-review pass (2026-08-06 — badge-click-to-Findings-tab
+rewiring, [UI](#ui)): **server** `package.json` (`verify:l03` script, no code
+change). **client** `_components/SmartDiffViewer/helpers.ts` (new —
+`firstFindingForFile`), `_components/PrDetailView/PrDetailView.tsx` (owns the
+cross-tab `findingTarget` state + `handleSelectFinding`),
+`_components/FindingsTab/FindingsTab.tsx`,
+`_components/ReviewRunAccordion/ReviewRunAccordion.tsx`,
+`_components/FindingsPanel/FindingsPanel.tsx`,
+`_components/FindingCard/FindingCard.tsx` (each threads
+`targetFindingId`/`targetFindingNonce` one level further down — see [UI](#ui)
+for the exact chain).
+
+## Architectural constraints
+
+- `reviewer-core/CLAUDE.md`: "Pure engine: no DB, GitHub, or filesystem
+  access… the only side effect allowed is an LLM call." Since Smart Diff
+  makes no LLM call and needs no reviewer-core involvement at all, the
+  classifier lives in `server/src/modules/reviews/`, not `reviewer-core` —
+  mirroring `pulls/status.ts`'s existing "pure helpers, no DB/`this`" shape.
+- `server/CLAUDE.md` / `onion-architecture`: routes are adapters (parse →
+  call one service method → return); the route must not touch Drizzle
+  directly. `smart-diff.ts`'s functions are pure (files/findings in,
+  `SmartDiff` out) — all I/O stays in `ReviewService.smartDiff`, which
+  composes existing `ReviewRepository` reads.
+- Root `CLAUDE.md` Do-not-touch: `server/src/vendor/shared` and
+  `client/src/vendor/shared` are independent, unsynced copies. Not relevant
+  here in practice — `SmartDiff` already matches on both sides (confirmed
+  byte-identical `brief.ts`/`review-api.ts` diff), so no contract edits are
+  needed on either side for this feature.
+
+## Approach
+
+### Classifier rules
+
+Checked in order, most-specific-first — `boilerplate` before `wiring` before
+the `core` fallback:
+
+| Role | Matches |
+|---|---|
+| `boilerplate` | Lock files (`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `Cargo.lock`, `poetry.lock`, `Gemfile.lock`, `composer.lock`, `go.sum`), `package.json`, build/output dirs (`dist/`, `build/`, `out/`, `coverage/`, `.next/`), snapshot files (`__snapshots__/`, `*.snap`), minified/sourcemap files (`*.min.js`, `*.min.css`, `*.map`) |
+| `wiring` | Basename matches a bootstrap/config/index name (`index.*`, `server.*`, `config.*`, `container.*`, `app.*`, `bootstrap.*`, `main.*`, `setup.*`), or path matches a config-file convention (`*.config.*`, `tsconfig*.json`, `.github/workflows/**`, `docker-compose*.yml`, `Dockerfile*`, `.env*`) |
+| `core` | Everything else — the default |
+
+All patterns and the split-suggestion threshold live in
+`smart-diff-constants.ts` so tuning them never touches the classification
+logic itself.
+
+### API
+
+`GET /pulls/:id/smart-diff` → `SmartDiff` (the existing contract, unchanged):
+
+```ts
+{
+  groups: [{ role: 'core' | 'wiring' | 'boilerplate', files: SmartDiffFile[] }],
+  split_suggestion: { too_big: boolean, total_lines: number, proposed_splits: [...] },
+}
+```
+
+Empty groups are omitted; the array is always given in `core, wiring,
+boilerplate` order. Each `SmartDiffFile.finding_lines` is the union of
+`start_line..end_line` from the latest review's findings for that file
+(newest review = `reviewsForPull(prId)[0]`, since that repo method already
+orders newest-first); `pseudocode_summary` is always `null` (see
+[Scope](#scope)).
+
+#### Split suggestion
+
+`split_suggestion.total_lines` sums `additions+deletions` across every file;
+`too_big` is true above `SPLIT_SUGGESTION_LINE_THRESHOLD` (400). When
+`too_big`, `proposed_splits` groups `core`-role files by top-level directory
+(one proposed split per distinct directory) — a simple, honest, deterministic
+computation for contract completeness. No client UI reads this field yet.
+
+### UI
+
+`DiffTab` gains a two-state toggle ("Smart order" — default — / "Original
+order"). Smart order renders the new `SmartDiffViewer`: one section per
+non-empty role group (colored dot + label + file count), each file reusing
+the existing `FileCard`/`CodeLine` diff renderer (so patch parsing, and
+existing inline PR commenting, are unchanged) joined against the already-
+fetched `PrFile[]` by path. Boilerplate files default closed regardless of
+size. A file with `finding_lines.length > 0` shows an "N findings" badge.
+
+**Mentor-review pass (2026-08-06) — badge click behavior changed.**
+Originally: clicking opened the file (if closed) and smooth-scrolled to the
+first finding line via an anchor id (`diffline-{path}-{line}`) on each
+rendered diff line — that anchor/`FileCard`'s `scrollTarget` prop still exist
+(generic, harmless to keep) but `SmartDiffViewer` no longer drives them.
+Now: `SmartDiffViewer` takes an additional `findings: FindingRecord[]` prop
+and an `onSelectFinding?: (findingId: string) => void` callback; a click
+resolves the file's earliest (`start_line`) finding via the pure helper
+`firstFindingForFile` (`SmartDiffViewer/helpers.ts`) and calls
+`onSelectFinding` with its id — it does not touch the diff view at all.
+`PrDetailView` owns the cross-tab wiring: `handleSelectFinding` switches
+`tab` to `"findings"` and bumps a local `{ id, n }` `findingTarget` state (not
+URL state, unlike `tab`/`trace` — a repeat click on the same finding must
+still re-trigger the scroll, hence the nonce), threaded into `FindingsTab` as
+`targetFindingId`/`targetFindingNonce`. `FindingsTab` resolves which
+`ReviewRunAccordion` contains that finding and feeds it into the same
+`target`/`setTarget` state that already drives Timeline → Review-runs
+navigation there (so the accordion opens + scrolls exactly like a Timeline
+click does), and passes `targetFindingId`/`targetFindingNonce` straight
+through `ReviewRunAccordion` → `FindingsPanel` → `FindingCard`. `FindingCard`
+expands and `scrollIntoView`s itself when its own `id` matches, and its
+`focused` (highlight) styling is now `!!focused || isTarget`. `FindingsPanel`
+additionally moves its j/k keyboard focus (`focusIdx`) to the target finding,
+so accept/dismiss shortcuts act on it immediately after the jump.
+
+## Verification
+
+- `pnpm test`/`pnpm typecheck` in `server` (`smart-diff.test.ts`; also
+  `pnpm run verify:l03` — a `server/package.json` script added in the
+  mentor-review pass that runs just this file, `vitest run
+  src/modules/reviews/smart-diff.test.ts`, as a one-command "is L03's Smart
+  Diff classifier green" check) and `client` (`SmartDiffViewer.test.tsx`,
+  updated in the mentor-review pass to assert `onSelectFinding` is called
+  with the file's earliest finding id, rather than asserting a diff-line
+  anchor renders); `pnpm arch` stays green in `server` (no new cross-module
+  import).
+- Manual, via `./scripts/dev.sh`: open a large PR's Files changed tab — core
+  logic first, a lock file collapsed under Boilerplate. Run a review, reopen
+  the tab — findings badges appear; clicking one switches to the Findings tab
+  with that finding's review-run accordion open and its own card expanded +
+  highlighted (mentor-review pass — previously this scrolled within the diff
+  instead). Toggle Original order — the prior flat view (incl. inline
+  commenting) still works. Confirm via server logs that `GET
+  /pulls/:id/smart-diff` makes no LLM/provider call.

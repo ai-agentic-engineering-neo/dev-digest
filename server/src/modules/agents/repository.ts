@@ -1,7 +1,7 @@
 import { and, asc, desc, eq } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
-import type { CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
+import type { CiFailOn, Provider, ReviewStrategy, SkillType } from '@devdigest/shared';
 import { DEFAULT_AGENT_DESCRIPTION, INITIAL_AGENT_VERSION } from './constants.js';
 import { isConfigChange } from './helpers.js';
 
@@ -46,6 +46,20 @@ export interface UpdateAgent {
 export interface LinkedSkillRow {
   skill: typeof t.skills.$inferSelect;
   order: number;
+  /** Per-agent gate (`agent_skills.enabled`) — NOT the workspace gate. */
+  enabled: boolean;
+}
+
+/**
+ * The subset of a skill the prompt needs. Deliberately narrow: the run executor
+ * renders `{ name, type, body }` through `renderSkillBlock` and nothing else,
+ * so widening this would invite a second, drifting renderer.
+ */
+export interface PromptSkillRow {
+  id: string;
+  name: string;
+  type: SkillType;
+  body: string;
 }
 
 export class AgentsRepository {
@@ -188,15 +202,50 @@ export class AgentsRepository {
 
   // ---- agent_skills link table (A2 owns the agent side) -------------------
 
-  /** Skills linked to an agent, in `order` ascending. */
+  /** Skills linked to an agent, in `order` ascending (enabled or not). */
   async linkedSkills(agentId: string): Promise<LinkedSkillRow[]> {
     const rows = await this.db
-      .select({ skill: t.skills, order: t.agentSkills.order })
+      .select({
+        skill: t.skills,
+        order: t.agentSkills.order,
+        enabled: t.agentSkills.enabled,
+      })
       .from(t.agentSkills)
       .innerJoin(t.skills, eq(t.agentSkills.skillId, t.skills.id))
       .where(eq(t.agentSkills.agentId, agentId))
       .orderBy(asc(t.agentSkills.order));
-    return rows.map((r) => ({ skill: r.skill, order: r.order }));
+    return rows.map((r) => ({ skill: r.skill, order: r.order, enabled: r.enabled }));
+  }
+
+  /**
+   * Skills that will actually reach the prompt: linked AND enabled on BOTH
+   * gates, in `order` ascending.
+   *
+   * `skills.enabled` is the workspace/vetting gate (an imported skill lands
+   * false until a human reads it); `agent_skills.enabled` is the per-agent
+   * gate. They are independent on purpose — switching a skill off workspace-wide
+   * removes it from every prompt while leaving each agent's checkbox (and each
+   * link's `order`) untouched.
+   */
+  async enabledSkills(agentId: string): Promise<PromptSkillRow[]> {
+    const rows = await this.db
+      .select({
+        id: t.skills.id,
+        name: t.skills.name,
+        type: t.skills.type,
+        body: t.skills.body,
+      })
+      .from(t.agentSkills)
+      .innerJoin(t.skills, eq(t.agentSkills.skillId, t.skills.id))
+      .where(
+        and(
+          eq(t.agentSkills.agentId, agentId),
+          eq(t.agentSkills.enabled, true),
+          eq(t.skills.enabled, true),
+        ),
+      )
+      .orderBy(asc(t.agentSkills.order));
+    return rows;
   }
 
   async skillIdsForAgent(agentId: string): Promise<string[]> {
@@ -204,15 +253,66 @@ export class AgentsRepository {
     return links.map((l) => l.skill.id);
   }
 
-  /** Link a skill to an agent at a given order (idempotent: upserts order). */
-  async linkSkill(agentId: string, skillId: string, order: number): Promise<void> {
+  /**
+   * Link a skill to an agent at a given order (idempotent: upserts order).
+   * Only `order` is upserted — an existing link's `enabled` flag survives a
+   * re-link, so reordering in the editor never silently switches a skill back on.
+   */
+  async linkSkill(
+    agentId: string,
+    skillId: string,
+    order: number,
+    enabled?: boolean,
+  ): Promise<void> {
     await this.db
       .insert(t.agentSkills)
-      .values({ agentId, skillId, order })
+      .values({ agentId, skillId, order, ...(enabled !== undefined ? { enabled } : {}) })
       .onConflictDoUpdate({
         target: [t.agentSkills.agentId, t.agentSkills.skillId],
-        set: { order },
+        set: { order, ...(enabled !== undefined ? { enabled } : {}) },
       });
+  }
+
+  /**
+   * Flip the per-agent gate (and optionally the order) WITHOUT deleting the
+   * link — that is the whole point of the `enabled` column: `order` survives an
+   * off/on cycle, so re-enabling restores the skill's place in the prompt
+   * instead of appending it to the end.
+   *
+   * If no link row exists yet, one is inserted (the agent editor's Skills tab
+   * lists every workspace skill, so the first check on a never-linked row lands
+   * here). The inserted order is `order ?? (count of existing links)` — appended.
+   */
+  async setSkillEnabled(
+    agentId: string,
+    skillId: string,
+    patch: { enabled?: boolean; order?: number },
+  ): Promise<void> {
+    const [existing] = await this.db
+      .select({ order: t.agentSkills.order })
+      .from(t.agentSkills)
+      .where(and(eq(t.agentSkills.agentId, agentId), eq(t.agentSkills.skillId, skillId)));
+
+    if (existing) {
+      // No-op guard: an empty patch must not clobber the row.
+      if (patch.enabled === undefined && patch.order === undefined) return;
+      await this.db
+        .update(t.agentSkills)
+        .set({
+          ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
+          ...(patch.order !== undefined ? { order: patch.order } : {}),
+        })
+        .where(and(eq(t.agentSkills.agentId, agentId), eq(t.agentSkills.skillId, skillId)));
+      return;
+    }
+
+    const links = await this.linkedSkills(agentId);
+    await this.db.insert(t.agentSkills).values({
+      agentId,
+      skillId,
+      order: patch.order ?? links.length,
+      ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
+    });
   }
 
   async unlinkSkill(agentId: string, skillId: string): Promise<void> {
@@ -225,12 +325,25 @@ export class AgentsRepository {
    * Replace the full set of linked skills for an agent with `skillIds`, assigning
    * order = index. Used by the "Skills" editor tab (attach/reorder). Skills not in
    * the list are unlinked.
+   *
+   * The per-agent `enabled` flag of a link that SURVIVES the replace is carried
+   * over — a drag-to-reorder posts the whole ordered set, and it must not
+   * silently switch every unchecked skill back on. Newly-added ids default to
+   * enabled (checking a row in the editor is what attaches it).
    */
   async setSkills(agentId: string, skillIds: string[]): Promise<void> {
+    const previous = new Map(
+      (await this.linkedSkills(agentId)).map((l) => [l.skill.id, l.enabled]),
+    );
     await this.db.delete(t.agentSkills).where(eq(t.agentSkills.agentId, agentId));
     if (skillIds.length === 0) return;
-    await this.db
-      .insert(t.agentSkills)
-      .values(skillIds.map((skillId, i) => ({ agentId, skillId, order: i })));
+    await this.db.insert(t.agentSkills).values(
+      skillIds.map((skillId, i) => ({
+        agentId,
+        skillId,
+        order: i,
+        enabled: previous.get(skillId) ?? true,
+      })),
+    );
   }
 }

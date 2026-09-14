@@ -72,6 +72,38 @@ d('Testcontainers: pg + pgvector', () => {
     const ws = await pg.handle.db.select().from(t.workspaces);
     expect(ws.filter((w) => w.name === 'default')).toHaveLength(1);
   });
+
+  it('seeds the API Contract Reviewer agent with its 3 skills linked+enabled, and leaves the 4th for live import', async () => {
+    const { db } = pg.handle;
+    const { workspaceId } = await seed(db);
+
+    const [agent] = await db
+      .select()
+      .from(t.agents)
+      .where(eq(t.agents.name, 'API Contract Reviewer'));
+    expect(agent).toBeDefined();
+    expect(agent!.workspaceId).toBe(workspaceId);
+    expect(agent!.enabled).toBe(true);
+
+    const links = await db
+      .select({ name: t.skills.name, order: t.agentSkills.order, enabled: t.agentSkills.enabled })
+      .from(t.agentSkills)
+      .innerJoin(t.skills, eq(t.skills.id, t.agentSkills.skillId))
+      .where(eq(t.agentSkills.agentId, agent!.id))
+      .orderBy(t.agentSkills.order);
+    expect(links).toEqual([
+      { name: 'breaking-change', order: 0, enabled: true },
+      { name: 'response-schema', order: 1, enabled: true },
+      { name: 'semver-discipline', order: 2, enabled: true },
+    ]);
+
+    // deprecation-policy is imported live in the UI, never seeded directly.
+    const deprecationSkill = await db
+      .select()
+      .from(t.skills)
+      .where(eq(t.skills.name, 'deprecation-policy'));
+    expect(deprecationSkill).toHaveLength(0);
+  });
 });
 
 d('Testcontainers: DB-backed routes via app.inject', () => {

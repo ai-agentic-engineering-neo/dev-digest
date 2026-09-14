@@ -8,7 +8,7 @@ import * as t from '../src/db/schema.js';
 import { MockGitClient, MockGitHubClient } from '../src/adapters/mocks.js';
 import { AgentsService } from '../src/modules/agents/service.js';
 import { AgentsRepository } from '../src/modules/agents/repository.js';
-import type { Container } from '../src/platform/container.js';
+import { AgentsRepository } from '../src/modules/agents/repository.js';
 
 const hasDocker = await dockerAvailable();
 const d = hasDocker ? describe : describe.skip;
@@ -164,7 +164,11 @@ d('GET /agents/:id/versions', () => {
       systemPrompt: 'x',
     });
 
-    const service = new AgentsService({ db } as unknown as Container);
+    // Explicit deps — no container, no cast. listVersions/getVersion never
+    // touch the LLM resolver, so it throws if this test ever starts using it.
+    const service = new AgentsService(new AgentsRepository(db), () => {
+      throw new Error('LLM resolver not expected in this test');
+    });
     const [{ id: defaultWs }] = await db
       .select({ id: t.workspaces.id })
       .from(t.workspaces)

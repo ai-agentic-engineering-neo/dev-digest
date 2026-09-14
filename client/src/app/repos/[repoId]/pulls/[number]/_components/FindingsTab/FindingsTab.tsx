@@ -21,6 +21,12 @@ interface FindingsTabProps {
   /** owner/repo + head sha — used to deep-link a finding's file:line to GitHub. */
   repoFullName?: string | null;
   headSha?: string | null;
+  /** Smart Diff → Findings navigation (PrDetailView owns the state): when set,
+   *  the review run containing this finding opens, scrolls into view, and the
+   *  finding's own card expands + highlights. `targetFindingNonce` re-triggers
+   *  the scroll on a repeat click of the same finding. */
+  targetFindingId?: string | null;
+  targetFindingNonce?: number;
   onOpenTrace: (id: string) => void;
   onDelete: (id: string) => void;
   onRunDone: () => void;
@@ -37,6 +43,8 @@ export function FindingsTab({
   cancelMutation,
   repoFullName,
   headSha,
+  targetFindingId = null,
+  targetFindingNonce = 0,
   onOpenTrace,
   onDelete,
   onRunDone,
@@ -63,6 +71,13 @@ export function FindingsTab({
     [onDelete],
   );
 
+  // The Timeline already has every run's usage; reuse it to put cost on each
+  // run's verdict banner rather than re-joining agent_runs onto ReviewRecord.
+  const runsById = React.useMemo(
+    () => new Map((prRuns ?? []).map((r) => [r.run_id, r])),
+    [prRuns],
+  );
+
   // Timeline → Review-runs navigation: clicking an agent name in the timeline
   // opens + scrolls to that run's accordion below. The nonce re-triggers the
   // scroll even when the same run is clicked twice.
@@ -70,6 +85,21 @@ export function FindingsTab({
   const handleGoToReview = useCallback((runId: string) => {
     setTarget((p) => ({ runId, n: (p?.n ?? 0) + 1 }));
   }, []);
+
+  // Smart Diff → Findings navigation: same accordion-open/scroll mechanism as
+  // the Timeline above, driven by the finding's own run instead of a clicked
+  // agent name. `targetFindingId`/`targetFindingNonce` additionally reach each
+  // ReviewRunAccordion (below) so the finding's own card expands+highlights.
+  const runIdForTargetFinding = React.useMemo(() => {
+    if (!targetFindingId) return null;
+    return runs.find((r) => r.findings.some((f) => f.id === targetFindingId))?.run_id ?? null;
+  }, [runs, targetFindingId]);
+  React.useEffect(() => {
+    if (runIdForTargetFinding) {
+      setTarget((p) => ({ runId: runIdForTargetFinding, n: (p?.n ?? 0) + 1 }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetFindingId, targetFindingNonce, runIdForTargetFinding]);
 
   return (
     <section>
@@ -154,18 +184,27 @@ export function FindingsTab({
         )
       ) : (
         prId &&
-        runs.map((review, i) => (
-          <ReviewRunAccordion
-            key={review.id}
-            review={review}
-            prId={prId}
-            defaultOpen={i === 0}
-            repoFullName={repoFullName}
-            headSha={headSha}
-            targetRunId={target?.runId ?? null}
-            targetNonce={target?.n ?? 0}
-          />
-        ))
+        runs.map((review, i) => {
+          const run = review.run_id ? runsById.get(review.run_id) : undefined;
+          return (
+            <ReviewRunAccordion
+              key={review.id}
+              review={review}
+              prId={prId}
+              defaultOpen={i === 0}
+              repoFullName={repoFullName}
+              headSha={headSha}
+              targetRunId={target?.runId ?? null}
+              targetNonce={target?.n ?? 0}
+              targetFindingId={targetFindingId}
+              targetFindingNonce={targetFindingNonce}
+              tokensIn={run?.tokens_in ?? null}
+              tokensOut={run?.tokens_out ?? null}
+              costUsd={run?.cost_usd ?? null}
+              runSettled={run?.status === "done"}
+            />
+          );
+        })
       )}
     </section>
   );

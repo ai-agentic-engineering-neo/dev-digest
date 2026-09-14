@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { LLMProvider, StructuredResult } from '@devdigest/shared';
+import type { LLMProvider, StructuredResult, UnifiedDiff } from '@devdigest/shared';
 import { MockLLMProvider, MockGitClient } from '../../server/src/adapters/mocks.js';
 import { reviewPullRequest } from '../src/index.js';
 
@@ -102,6 +102,102 @@ describe('reviewPullRequest (engine)', () => {
         },
       }),
     ).rejects.toThrow('cancelled');
+  });
+
+  it('threads intentInScope/intentOutOfScope into the prompt (single-pass)', async () => {
+    const seenMessages: string[] = [];
+    const recorder: LLMProvider = {
+      id: 'openrouter',
+      async completeStructured<T>(req): Promise<StructuredResult<T>> {
+        seenMessages.push(req.messages[1]!.content);
+        return {
+          data: fixture as unknown as T,
+          model: req.model,
+          tokensIn: 0,
+          tokensOut: 0,
+          costUsd: 0,
+          raw: '',
+          attempts: 1,
+        };
+      },
+      async listModels() {
+        return [];
+      },
+      async complete() {
+        throw new Error('not used');
+      },
+      async embed() {
+        return [];
+      },
+    };
+    const diff = await new MockGitClient().diff();
+    const outcome = await reviewPullRequest({
+      systemPrompt: 's',
+      model: 'm',
+      diff,
+      llm: recorder,
+      strategy: 'single-pass',
+      intentInScope: ['Rate limiter middleware'],
+      intentOutOfScope: ['Authentication changes'],
+    });
+    expect(outcome.mode).toBe('single-pass');
+    expect(seenMessages).toHaveLength(1);
+    expect(seenMessages[0]).toContain('## Declared PR scope');
+    expect(seenMessages[0]).toContain('Rate limiter middleware');
+    expect(seenMessages[0]).toContain('Authentication changes');
+    expect(outcome.assembly.intent_scope).toContain('Rate limiter middleware');
+  });
+
+  it('threads intentInScope/intentOutOfScope into every chunk (map-reduce)', async () => {
+    const seenMessages: string[] = [];
+    const recorder: LLMProvider = {
+      id: 'openrouter',
+      async completeStructured<T>(req): Promise<StructuredResult<T>> {
+        seenMessages.push(req.messages[1]!.content);
+        return {
+          data: { verdict: 'approve', summary: 'ok', score: 100, findings: [] } as unknown as T,
+          model: req.model,
+          tokensIn: 0,
+          tokensOut: 0,
+          costUsd: 0,
+          raw: '',
+          attempts: 1,
+        };
+      },
+      async listModels() {
+        return [];
+      },
+      async complete() {
+        throw new Error('not used');
+      },
+      async embed() {
+        return [];
+      },
+    };
+    // selectMode only picks map-reduce for multi-file diffs — build one
+    // directly (MockGitClient's default diff has a single file).
+    const diff: UnifiedDiff = {
+      raw: '',
+      files: [
+        { path: 'a.ts', additions: 1, deletions: 0, hunks: [] },
+        { path: 'b.ts', additions: 1, deletions: 0, hunks: [] },
+      ],
+    };
+    const outcome = await reviewPullRequest({
+      systemPrompt: 's',
+      model: 'm',
+      diff,
+      llm: recorder,
+      strategy: 'map-reduce',
+      intentInScope: ['Rate limiter middleware'],
+      intentOutOfScope: [],
+    });
+    expect(outcome.mode).toBe('map-reduce');
+    expect(seenMessages).toHaveLength(2);
+    for (const msg of seenMessages) {
+      expect(msg).toContain('## Declared PR scope');
+      expect(msg).toContain('Rate limiter middleware');
+    }
   });
 
   it('forwards sessionId to every LLM call (OpenRouter session grouping)', async () => {

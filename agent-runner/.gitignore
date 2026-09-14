@@ -1,0 +1,7 @@
+node_modules/
+# dist/ is intentionally NOT ignored here — the root .gitignore un-ignores
+# agent-runner/dist/** on purpose (it ships as a committed ncc bundle, see
+# root CLAUDE.md's Do-not-touch section and agent-runner/CLAUDE.md). A local
+# bare `dist/` line here would shadow that root un-ignore and silently make
+# `git add agent-runner/dist/index.js` a no-op.
+*.log

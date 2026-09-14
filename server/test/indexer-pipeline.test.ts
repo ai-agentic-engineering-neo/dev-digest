@@ -106,6 +106,9 @@ function makeRepoStub(opts: {
     getRepoMapCandidates: async () => [],
     deleteRepoMapCache: async () => {},
     putRepoMapCache: async () => {},
+    // Hotness (D6): no PR history in this in-memory fixture — every pipeline
+    // run should behave exactly like the pre-hotness pure-PageRank path.
+    getPrChurn: async () => ({ counts: [], prsConsidered: 0 }),
   };
 
   // The pipeline calls these via the typed repository; the stub satisfies the

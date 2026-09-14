@@ -1,0 +1,41 @@
+{
+  "name": "Skills page, skill editor, and the agent's Skills tab render the seeded catalogue",
+  "description": "Loads /skills and confirms the L02 seeded catalogue renders in the rail, then opens pr-quality-rubric and walks its editor tabs. The Preview tab assertion is the important one: it matches the literal '### Skill:' heading, which is what renderSkillBlock emits into the review prompt — so this flow fails if the Preview tab ever drifts from what the run executor actually injects. Finally opens Test Quality Reviewer's Skills tab and confirms its three seeded links. Read-only seeded data (no model call, no review run). Assumes a freshly-seeded DB — run via the hermetic stack (./scripts/e2e.sh), see e2e/README.md.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/skills"], "label": "load the Skills page" },
+    { "cmd": ["wait", "--url", "/skills"], "label": "skills route reached" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "skills fetch settles" },
+    { "cmd": ["wait", "--text", "pr-quality-rubric"], "label": "seeded rubric skill is in the rail" },
+    { "cmd": ["wait", "--text", "test-coverage-nudge"], "label": "seeded test-quality skill is in the rail" },
+    { "cmd": ["wait", "--text", "phantom-api-gate"], "label": "the imported, not-yet-vetted skill is listed too" },
+
+    { "cmd": ["find", "placeholder", "Search skills…", "fill", "pr-quality-rubric"], "label": "filter the rail to the target skill (it sorts below the fold otherwise — agent-browser's click doesn't scroll a nested overflow container into view)" },
+    { "cmd": ["find", "role", "button", "click", "--name", "pr-quality-rubric"], "label": "select the skill in the rail (role locator, not text — the filtered search box's own value is now an exact-text match too and a plain 'text' locator clicks the textbox instead of the card)" },
+    { "cmd": ["wait", "--url", "/skills/"], "label": "editor route reached for the selected skill" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "skill detail settles" },
+    { "cmd": ["wait", "--text", "Configuration"], "label": "Config tab renders" },
+
+    { "cmd": ["find", "role", "button", "click", "--name", "Preview"], "label": "switch to the Preview tab" },
+    { "cmd": ["wait", "--url", "tab=preview"], "label": "preview tab is active in the URL" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "preview fetch settles" },
+    { "cmd": ["wait", "--text", "### Skill: pr-quality-rubric"], "label": "preview shows the exact block the executor injects" },
+
+    { "cmd": ["find", "role", "button", "click", "--name", "Stats"], "label": "switch to the Stats tab" },
+    { "cmd": ["wait", "--url", "tab=stats"], "label": "stats tab is active in the URL" },
+    { "cmd": ["wait", "--text", "USED BY"], "label": "the usage tiles render" },
+
+    { "cmd": ["find", "role", "button", "click", "--name", "Versions"], "label": "switch to the Versions tab" },
+    { "cmd": ["wait", "--url", "tab=versions"], "label": "versions tab is active in the URL" },
+
+    { "cmd": ["open", "{BASE}/agents"], "label": "load the Agents page" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "agents fetch settles" },
+    { "cmd": ["find", "text", "Test Quality Reviewer", "click"], "label": "open the L02 agent" },
+    { "cmd": ["wait", "--url", "/agents/"], "label": "agent editor route reached" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Skills"], "label": "switch to the agent's Skills tab" },
+    { "cmd": ["wait", "--url", "tab=skills"], "label": "skills tab is active in the URL" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "skill links settle" },
+    { "cmd": ["wait", "--text", "test-coverage-nudge"], "label": "first seeded link is listed" },
+    { "cmd": ["wait", "--text", "corner-case-checklist"], "label": "second seeded link is listed" },
+    { "cmd": ["wait", "--text", "mock-discipline"], "label": "third seeded link is listed" }
+  ]
+}

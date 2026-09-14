@@ -31,6 +31,12 @@ export function ReviewRunAccordion({
   headSha,
   targetRunId = null,
   targetNonce = 0,
+  targetFindingId = null,
+  targetFindingNonce = 0,
+  tokensIn,
+  tokensOut,
+  costUsd,
+  runSettled,
 }: {
   review: ReviewRecord;
   prId: string;
@@ -38,9 +44,23 @@ export function ReviewRunAccordion({
   repoFullName?: string | null;
   headSha?: string | null;
   /** When this matches review.run_id, the accordion opens and scrolls into view
-   *  (driven from the Timeline: clicking an agent name navigates here). */
+   *  (driven from the Timeline: clicking an agent name navigates here, or from
+   *  Smart Diff's findings badge — FindingsTab resolves either to the same
+   *  targetRunId/targetNonce pair). */
   targetRunId?: string | null;
   targetNonce?: number;
+  /** Smart Diff → Findings navigation — passed straight through to
+   *  FindingsPanel/FindingCard so the specific finding's card expands and
+   *  highlights (this accordion's own open/scroll already runs off
+   *  targetRunId/targetNonce above). */
+  targetFindingId?: string | null;
+  targetFindingNonce?: number;
+  /** Usage from the agent_runs row matching review.run_id (looked up by the
+   *  parent, which already holds the run list for the Timeline). */
+  tokensIn?: number | null;
+  tokensOut?: number | null;
+  costUsd?: number | null;
+  runSettled?: boolean;
 }) {
   const [open, setOpen] = React.useState(defaultOpen);
   const rootRef = React.useRef<HTMLDivElement | null>(null);
@@ -144,6 +164,10 @@ export function ReviewRunAccordion({
                 findingsCount={findings.length}
                 blockers={blockers}
                 agentName={review.agent_name}
+                tokensIn={tokensIn}
+                tokensOut={tokensOut}
+                costUsd={costUsd}
+                runSettled={runSettled}
               />
             </div>
           )}
@@ -152,6 +176,8 @@ export function ReviewRunAccordion({
             prId={prId}
             repoFullName={repoFullName}
             headSha={headSha}
+            targetFindingId={targetFindingId}
+            targetFindingNonce={targetFindingNonce}
           />
         </div>
       )}

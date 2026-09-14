@@ -1,0 +1,30 @@
+{
+  "fixture": "eval-2-react-component-conventions",
+  "diff_file": "diff/src/components/OrderCard.tsx",
+  "planted_violations": [
+    {
+      "id": "v1",
+      "line": 4,
+      "convention": "types",
+      "description": "props typed inline as { order: Order; onSelect: () => void } instead of a named interface OrderCardProps"
+    },
+    {
+      "id": "v2",
+      "line": 8,
+      "convention": "data-fetching",
+      "description": "fetch(`/api/orders/${order.id}`) called directly inside the component's useEffect instead of via a hook"
+    },
+    {
+      "id": "v3",
+      "line": 13,
+      "convention": "naming",
+      "description": "handler function named selectClicked instead of handleSelect, breaking the handleX <-> onX pairing (wired to the onSelect prop)"
+    }
+  ],
+  "control_conventions_not_violated": [
+    {
+      "convention": "styling",
+      "reason": "OrderCard doesn't accept a className prop at all, so there's nothing to merge via cn() — should not be flagged as a violation"
+    }
+  ]
+}

@@ -62,6 +62,17 @@ jobs:
           done
           [ "$(docker inspect -f '{{.State.Health.Status}}' devdigest-postgres)" = "healthy" ]
 
+      # The server's src (including db/seed.ts, which resolves each seeded eval
+      # case's grounding via reviewer-core's groundFindings) and the API at
+      # runtime both import @devdigest/reviewer-core's RAW source (tsx resolves
+      # the tsconfig alias to ../reviewer-core/src), and that source imports
+      # `openai`/`zod`. Without reviewer-core's deps installed FIRST, `pnpm
+      # db:seed` itself crashes with ERR_MODULE_NOT_FOUND before the API ever
+      # starts. reviewer-core uses npm (see reviewer-core.yml).
+      - name: Install reviewer-core deps
+        working-directory: reviewer-core
+        run: npm ci
+
       # --- API: install, migrate, seed, then start in the background ---
       - name: Install + migrate + seed (server)
         working-directory: server
@@ -69,15 +80,6 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm db:migrate
           pnpm db:seed
-
-      # The API imports @devdigest/reviewer-core's RAW source at runtime (tsx
-      # resolves the tsconfig alias to ../reviewer-core/src), and that source
-      # imports `openai`/`zod`. Without reviewer-core's deps the API crashes at
-      # boot with ERR_MODULE_NOT_FOUND and never becomes healthy. reviewer-core
-      # uses npm (see reviewer-core.yml).
-      - name: Install reviewer-core deps
-        working-directory: reviewer-core
-        run: npm ci
 
       - name: Start API (:3001)
         working-directory: server

@@ -40,6 +40,19 @@
     "reply": "Reply",
     "viewOnGitHub": "View on GitHub",
     "postedToGitHub": "Posts to GitHub immediately",
-    "outdatedTitle": "{count} comment(s) on older revisions"
+    "outdatedTitle": "{count} comment(s) on older revisions",
+    "smartOrder": "Smart order",
+    "originalOrder": "Original order",
+    "coreLogic": "Core logic",
+    "coreLogicDesc": "The substance of the change — review closely",
+    "wiring": "Wiring",
+    "wiringDesc": "Hooks the core into the app",
+    "tests": "Tests",
+    "testsDesc": "Verifies the change — check coverage matches the core",
+    "docs": "Docs & specs",
+    "docsDesc": "Specifications and documentation — check they match the code",
+    "boilerplate": "Boilerplate",
+    "boilerplateDesc": "Generated / mechanical — skim",
+    "findingsBadge": "{count} finding(s)"
   }
 }

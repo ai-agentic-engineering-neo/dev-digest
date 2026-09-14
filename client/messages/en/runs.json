@@ -5,13 +5,17 @@
   },
   "column": {
     "noFindings": "No findings.",
-    "findingsCount": "{count, plural, one {# finding} other {# findings}}"
+    "findingsCount": "{count, plural, one {# finding} other {# findings}}",
+    "failed": "Failed",
+    "cancelled": "Cancelled",
+    "running": "Running…"
   },
   "conflicts": {
     "title": "Where agents disagree",
     "onlyConflicts": "Show only conflicts",
     "empty": "No conflicts — the agents agree on every flagged location.",
-    "didNotFlag": "did not flag"
+    "didNotFlag": "did not flag",
+    "needTwoAgents": "Comparing stances needs at least two successful agent runs."
   },
   "tabs": {
     "noSummary": "No summary."
@@ -23,6 +27,7 @@
     "toolCalls": "Tool calls",
     "rawOutput": "Raw output",
     "noToolCalls": "No tool calls recorded.",
+    "notAvailableForCi": "Not available for CI runs.",
     "findings": "Findings",
     "noFindings": "No findings for this run.",
     "suggestedFix": "Suggested fix:",
@@ -34,11 +39,22 @@
       "memoryPulled": "Memory pulled",
       "specsRead": "Specs read",
       "items": "{count, plural, one {# item} other {# items}}",
-      "none": "none"
+      "none": "none",
+      "specDirect": "direct",
+      "specViaSkill": "via skill {name}",
+      "specTokens": "{count, plural, one {# tok} other {# tok}}",
+      "specReason": "({reason})",
+      "specStatus": {
+        "included": "included",
+        "omitted": "omitted",
+        "refused": "refused",
+        "dropped": "dropped"
+      }
     },
     "stat": {
       "duration": "DURATION",
       "tokens": "TOKENS",
+      "cost": "COST",
       "findings": "FINDINGS"
     },
     "prompt": {
@@ -48,9 +64,12 @@
       "repoMap": "Repo skeleton — repo-intel (dynamic)",
       "specs": "Project context (dynamic)",
       "callers": "Callers of changed symbols — repo-intel (dynamic)",
+      "intent": "Derived PR intent (dynamic)",
+      "intentScope": "Declared PR scope (dynamic)",
       "user": "User / diff (dynamic)",
       "copy": "Copy",
       "fullscreen": "Open fullscreen",
+      "tokens": "~{count} tok",
       "search": "Search in this block…",
       "noMatches": "No matches for “{q}”."
     },
@@ -70,7 +89,9 @@
   "copied": "Copied!",
     "tracePending": "Trace is written when the run completes — see the Live log tab.",
     "loadingTrace": "Loading trace…",
-    "noTrace": "No trace available yet."
+    "noTrace": "No trace available yet.",
+    "unavailableForCi": "Not available for CI runs: {sections}.",
+    "viewOnProvider": "View on CI provider"
   },
   "stats": {
     "na": "n/a",
@@ -107,26 +128,41 @@
   },
   "page": {
     "title": "Multi-Agent Review",
-    "subtitle": "this PR through every enabled agent in parallel",
+    "subtitle": "Pick the agents to run on this PR and compare their reviews side by side.",
     "selectPr": "Select PR",
     "prItem": "#{number} · {title}",
     "view": {
       "columns": "columns",
       "tabs": "tabs"
     },
-    "runAll": "Run all agents",
     "running": "Running…",
-    "meta": "{count} agents · fan-out via p-queue · {duration}s total · {cost}",
+    "meta": "{count} agents · {duration}s total · {cost}",
+    "pickPrFirst": "Select a pull request to choose agents.",
+    "configureRun": "Configure a run",
+    "selectAll": "Select all",
+    "selectedCount": "{count} of {total} selected",
+    "runSelected": "Run {count} agent(s)",
+    "scoreLegend": "Higher score is better.",
+    "viewExistingResults": "View existing results",
+    "startNewReview": "Start new review",
+    "partial": "Partial results — not every agent completed.",
+    "allFailed": "Every agent failed to complete this run.",
+    "sharedFailure": "Every agent failed for the same reason: {reason}",
+    "estimate": {
+      "perAgent": "~{duration}s · {cost}",
+      "aggregate": "Est. total: ~{duration}s · {cost}",
+      "unavailable": "No estimate available"
+    },
     "noAgents": {
       "title": "Enable agents to run reviews",
-      "body": "Multi-agent review runs the PR through every enabled agent in parallel. You have no agents enabled yet.",
+      "body": "Multi-agent review runs the PR through the agents you select. You have no agents enabled yet.",
       "cta": "Go to Agents"
     },
     "noRun": {
       "title": "No multi-agent run yet",
-      "bodyReady": "Run all enabled agents on this PR to see N columns + conflicts.",
+      "bodyReady": "Select agents and run a review on this PR to see columns + conflicts.",
       "bodySelect": "Select a PR to begin.",
-      "cta": "Run all agents"
+      "cta": "Configure a run"
     },
     "crumb": "Multi-Agent Review"
   }

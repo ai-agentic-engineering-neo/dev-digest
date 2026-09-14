@@ -38,9 +38,14 @@ export const ReviewRecord = z.object({
 export type ReviewRecord = z.infer<typeof ReviewRecord>;
 
 /**
- * Response of `POST /pulls/:id/review`. Each requested agent produces a run that
- * streams over SSE at `/runs/:runId/events`; clients subscribe per run. The
- * persisted reviews are also returned once the (synchronous) run completes.
+ * Response of `POST /pulls/:id/review`. This endpoint is fire-and-forget:
+ * it returns immediately with a `run_id` per requested agent while the run
+ * executes in the background (`ReviewService.runReview` fires-and-forgets
+ * `executor.executeRuns(...)`) — `reviews` below is ALWAYS an empty array,
+ * never populated by this response. Each run streams over SSE at
+ * `/runs/:runId/events`; clients subscribe per run and its closing is the
+ * signal the run has finished. Persisted results must be fetched afterward
+ * via `GET /pulls/:id/reviews`.
  */
 export const ReviewRunTarget = z.object({
   run_id: z.string(),

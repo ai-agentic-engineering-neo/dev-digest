@@ -58,6 +58,11 @@ export const agentSkills = pgTable(
       .notNull()
       .references(() => skills.id, { onDelete: 'cascade' }),
     order: integer('order').notNull().default(0),
+    // Per-agent gate. The row exists (keeping `order`) even when the agent has
+    // the skill switched OFF, so re-enabling restores its place in the prompt
+    // instead of appending it to the end. A skill reaches the prompt only when
+    // BOTH this and `skills.enabled` (the workspace/vetting gate) are true.
+    enabled: boolean('enabled').notNull().default(true),
   },
   (t) => ({ pk: primaryKey({ columns: [t.agentId, t.skillId] }) }),
 );

@@ -14,9 +14,14 @@ import { FileCard } from "../FileCard";
 export function DiffViewer({
   files,
   commenting,
+  focusTarget,
 }: {
   files: PrFile[];
   commenting?: DiffCommentApi;
+  /** specs/11-why-risk-brief.md AC-39/Q7 — the file matching `focusTarget.file`
+   *  opens and scrolls to `line` (or its own header when `line` is null);
+   *  every other file gets no scroll target. */
+  focusTarget?: { file: string; line: number | null; n: number } | null;
 }) {
   const t = useTranslations("shell");
   if (!files || files.length === 0) {
@@ -25,7 +30,14 @@ export function DiffViewer({
   return (
     <div style={s.list}>
       {files.map((f, i) => (
-        <FileCard key={i} file={f} commenting={commenting} />
+        <FileCard
+          key={i}
+          file={f}
+          commenting={commenting}
+          scrollTarget={
+            focusTarget && focusTarget.file === f.path ? { line: focusTarget.line, nonce: focusTarget.n } : undefined
+          }
+        />
       ))}
     </div>
   );

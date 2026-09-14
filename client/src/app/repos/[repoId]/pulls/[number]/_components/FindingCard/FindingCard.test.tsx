@@ -57,4 +57,39 @@ describe("FindingCard (smoke, both themes)", () => {
     fireEvent.click(screen.getByText("Dismiss"));
     expect(onAction).toHaveBeenCalledWith("dismiss");
   });
+
+  it("links the file:line to a GitHub blob by default", () => {
+    renderWithIntl(
+      <FindingCard
+        f={FINDING}
+        defaultExpanded
+        onAction={() => {}}
+        repoFullName="acme/payments-api"
+        headSha="abc123"
+      />,
+    );
+    const link = screen.getByText("src/config.ts:11").closest("a");
+    expect(link).toHaveAttribute(
+      "href",
+      "https://github.com/acme/payments-api/blob/abc123/src/config.ts#L11",
+    );
+  });
+
+  it("links the file:line to a GitLab blob when the repo's provider is gitlab", () => {
+    renderWithIntl(
+      <FindingCard
+        f={FINDING}
+        defaultExpanded
+        onAction={() => {}}
+        repoFullName="acme/payments-api"
+        repoProvider="gitlab"
+        headSha="abc123"
+      />,
+    );
+    const link = screen.getByText("src/config.ts:11").closest("a");
+    expect(link).toHaveAttribute(
+      "href",
+      "https://gitlab.com/acme/payments-api/-/blob/abc123/src/config.ts#L11",
+    );
+  });
 });

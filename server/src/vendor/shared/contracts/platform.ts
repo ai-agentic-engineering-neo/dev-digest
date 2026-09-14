@@ -103,7 +103,7 @@ export const SettingsUpdate = Settings.partial();
 export type SettingsUpdate = z.infer<typeof SettingsUpdate>;
 
 // ---- Connection test ----
-export const ConnTestProvider = z.enum(['openai', 'anthropic', 'openrouter', 'github']);
+export const ConnTestProvider = z.enum(['openai', 'anthropic', 'openrouter', 'github', 'gitlab']);
 export type ConnTestProvider = z.infer<typeof ConnTestProvider>;
 
 export const ConnTestRequest = z.object({
@@ -128,10 +128,15 @@ export const SecretsStatus = z.object({
   anthropic: z.boolean(),
   openrouter: z.boolean(),
   github: z.boolean(),
+  gitlab: z.boolean(),
 });
 export type SecretsStatus = z.infer<typeof SecretsStatus>;
 
 // ---- Repos ----
+/** Code-host provider a repo lives on. First version: github.com or gitlab.com only. */
+export const RepoProvider = z.enum(['github', 'gitlab']);
+export type RepoProvider = z.infer<typeof RepoProvider>;
+
 export const RepoInput = z.object({
   url: z.string().url(),
 });
@@ -140,6 +145,7 @@ export type RepoInput = z.infer<typeof RepoInput>;
 export const Repo = z.object({
   id: z.string(),
   workspace_id: z.string(),
+  provider: RepoProvider,
   owner: z.string(),
   name: z.string(),
   full_name: z.string(),

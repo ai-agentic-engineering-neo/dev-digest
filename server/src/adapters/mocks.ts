@@ -7,7 +7,7 @@ import type {
   StructuredRequest,
   StructuredResult,
   Embedder,
-  GitHubClient,
+  CodeHostClient,
   RepoRef,
   PrMeta,
   PrDetail,
@@ -127,7 +127,7 @@ export interface MockGitHubOptions {
   comments?: PrReviewComment[];
 }
 
-export class MockGitHubClient implements GitHubClient {
+export class MockGitHubClient implements CodeHostClient {
   public posted: { n: number; review: GitHubReviewPayload }[] = [];
   public openedPrs: OpenPrPayload[] = [];
   public committed: CommitFilesPayload[] = [];

@@ -94,7 +94,7 @@ export interface Embedder {
   readonly dims: number;
 }
 
-// ---------- GitHub (Octokit REST, thin) ----------
+// ---------- Code host (GitHub Octokit REST / GitLab REST v4, thin) ----------
 export interface RepoRef {
   owner: string;
   name: string;
@@ -140,7 +140,12 @@ export interface CommitFilesPayload {
   files: CommitFile[];
 }
 
-export interface GitHubClient {
+/**
+ * Provider-neutral code-host port. `OctokitGitHubClient` and `GitLabClient`
+ * both implement this against their respective APIs; every consumer depends
+ * on this interface only — no provider branching outside `src/adapters/*`.
+ */
+export interface CodeHostClient {
   listPullRequests(repo: RepoRef): Promise<PrMeta[]>;
   getPullRequest(repo: RepoRef, n: number): Promise<PrDetail>;
   postReview(repo: RepoRef, n: number, review: GitHubReviewPayload): Promise<{ id: string }>;
@@ -275,6 +280,7 @@ export type SecretKey =
   | 'OPENAI_API_KEY'
   | 'ANTHROPIC_API_KEY'
   | 'GITHUB_TOKEN'
+  | 'GITLAB_TOKEN'
   | 'DATABASE_URL'
   | (string & {});
 

@@ -78,6 +78,13 @@
       "when": 1789409462293,
       "tag": "0010_hesitant_champions",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1789412133039,
+      "tag": "0011_silky_lockheed",
+      "breakpoints": true
     }
   ]
 }

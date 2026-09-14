@@ -5,7 +5,7 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Toggle, EmptyState, SeverityBadge, type Severity as UiSeverity } from "@devdigest/ui";
-import type { FindingRecord, Severity } from "@devdigest/shared";
+import type { FindingRecord, Severity, RepoProvider } from "@devdigest/shared";
 import { FindingCard } from "../FindingCard";
 import { useFindingAction } from "../../../../../../../lib/hooks/reviews";
 import { FILTERABLE_SEVERITIES, KEY_TO_ACTION } from "./constants";
@@ -16,11 +16,13 @@ export function FindingsPanel({
   findings,
   prId,
   repoFullName,
+  repoProvider,
   headSha,
 }: {
   findings: FindingRecord[];
   prId: string;
   repoFullName?: string | null;
+  repoProvider?: RepoProvider;
   headSha?: string | null;
 }) {
   const t = useTranslations("prReview");
@@ -95,6 +97,7 @@ export function FindingsPanel({
               defaultExpanded={i === 0}
               pending={action.isPending}
               repoFullName={repoFullName}
+              repoProvider={repoProvider}
               headSha={headSha}
               onAction={(act) => action.mutate({ findingId: f.id, action: act, prId })}
             />

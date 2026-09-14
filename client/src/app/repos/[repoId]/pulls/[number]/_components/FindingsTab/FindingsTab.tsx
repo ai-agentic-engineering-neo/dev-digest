@@ -6,7 +6,7 @@ import { RunStatus } from "../RunStatus";
 import { RunHistory } from "../RunHistory/RunHistory";
 import { ReviewRunAccordion } from "../ReviewRunAccordion";
 import { s } from "./styles";
-import type { FindingRecord, ReviewRecord, RunSummary, PrCommit } from "@devdigest/shared";
+import type { FindingRecord, ReviewRecord, RunSummary, PrCommit, RepoProvider } from "@devdigest/shared";
 import type { UseMutationResult } from "@tanstack/react-query";
 
 interface FindingsTabProps {
@@ -18,8 +18,9 @@ interface FindingsTabProps {
   prRuns: RunSummary[] | undefined;
   prCommits: PrCommit[];
   cancelMutation: UseMutationResult<any, any, string, any>;
-  /** owner/repo + head sha — used to deep-link a finding's file:line to GitHub. */
+  /** owner/repo + head sha — used to deep-link a finding's file:line to the code host. */
   repoFullName?: string | null;
+  repoProvider?: RepoProvider;
   headSha?: string | null;
   onOpenTrace: (id: string) => void;
   onDelete: (id: string) => void;
@@ -36,6 +37,7 @@ export function FindingsTab({
   prCommits,
   cancelMutation,
   repoFullName,
+  repoProvider,
   headSha,
   onOpenTrace,
   onDelete,
@@ -162,6 +164,7 @@ export function FindingsTab({
             prId={prId}
             defaultOpen={i === 0}
             repoFullName={repoFullName}
+            repoProvider={repoProvider}
             headSha={headSha}
             targetRunId={target?.runId ?? null}
             targetNonce={target?.n ?? 0}

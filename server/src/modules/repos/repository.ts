@@ -11,6 +11,7 @@ export type RepoRow = typeof t.repos.$inferSelect;
 
 export interface InsertRepo {
   workspaceId: string;
+  provider: string;
   owner: string;
   name: string;
   fullName: string;
@@ -46,6 +47,7 @@ export class RepoRepository {
       .insert(t.repos)
       .values({
         workspaceId: values.workspaceId,
+        provider: values.provider,
         owner: values.owner,
         name: values.name,
         fullName: values.fullName,

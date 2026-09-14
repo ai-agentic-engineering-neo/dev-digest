@@ -13,4 +13,5 @@ export const KEY_ROWS: readonly KeyRowSpec[] = [
   { provider: "anthropic", labelKey: "apiKeys.anthropicLabel", hintKey: "apiKeys.anthropicHint" },
   { provider: "openrouter", labelKey: "apiKeys.openrouterLabel", hintKey: "apiKeys.openrouterHint" },
   { provider: "github", labelKey: "apiKeys.githubLabel", hintKey: "apiKeys.githubHint" },
+  { provider: "gitlab", labelKey: "apiKeys.gitlabLabel", hintKey: "apiKeys.gitlabHint" },
 ];

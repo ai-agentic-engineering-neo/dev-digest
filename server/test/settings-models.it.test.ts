@@ -68,7 +68,7 @@ d('Settings: feature models + secrets status (Testcontainers pg)', () => {
     const res = await app.inject({ method: 'GET', url: '/settings/secrets-status' });
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body).toEqual({ openai: false, anthropic: false, openrouter: true, github: false });
+    expect(body).toEqual({ openai: false, anthropic: false, openrouter: true, github: false, gitlab: false });
     // The actual secret must never appear in the response.
     expect(res.payload).not.toContain('sk-or-secret-value');
 

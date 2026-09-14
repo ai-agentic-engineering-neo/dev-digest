@@ -7,7 +7,7 @@
 
 import React from "react";
 import { Icon, Badge } from "@devdigest/ui";
-import type { ReviewRecord, RunSummary, Verdict } from "@devdigest/shared";
+import type { ReviewRecord, RunSummary, Verdict, RepoProvider } from "@devdigest/shared";
 import { FindingsPanel } from "../FindingsPanel";
 import { VerdictBanner } from "../VerdictBanner";
 import { useDeleteReview } from "../../../../../../../lib/hooks/reviews";
@@ -29,6 +29,7 @@ export function ReviewRunAccordion({
   prId,
   defaultOpen = false,
   repoFullName,
+  repoProvider,
   headSha,
   targetRunId = null,
   targetNonce = 0,
@@ -40,6 +41,7 @@ export function ReviewRunAccordion({
   prId: string;
   defaultOpen?: boolean;
   repoFullName?: string | null;
+  repoProvider?: RepoProvider;
   headSha?: string | null;
   /** When this matches review.run_id, the accordion opens and scrolls into view
    *  (driven from the Timeline: clicking an agent name navigates here). */
@@ -160,6 +162,7 @@ export function ReviewRunAccordion({
             findings={findings}
             prId={prId}
             repoFullName={repoFullName}
+            repoProvider={repoProvider}
             headSha={headSha}
           />
         </div>

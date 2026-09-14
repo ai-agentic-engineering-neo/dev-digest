@@ -17,10 +17,10 @@ import {
   type Severity,
   type Category,
 } from "@devdigest/ui";
-import type { FindingRecord, FindingActionKind } from "@devdigest/shared";
+import type { FindingRecord, FindingActionKind, RepoProvider } from "@devdigest/shared";
 import { SEV_COLOR, SEV_COLOR_FALLBACK } from "./constants";
 import { lineLabel } from "./helpers";
-import { githubBlobUrl } from "../../../../../../../lib/github-urls";
+import { repoBlobUrl } from "../../../../../../../lib/repo-urls";
 import { s } from "./styles";
 
 export function FindingCard({
@@ -30,6 +30,7 @@ export function FindingCard({
   onAction,
   pending,
   repoFullName,
+  repoProvider,
   headSha,
 }: {
   f: FindingRecord;
@@ -38,6 +39,7 @@ export function FindingCard({
   onAction?: (action: FindingActionKind, reply?: string) => void;
   pending?: boolean;
   repoFullName?: string | null;
+  repoProvider?: RepoProvider;
   headSha?: string | null;
 }) {
   const t = useTranslations("prReview");
@@ -45,7 +47,7 @@ export function FindingCard({
   const sevColor = SEV_COLOR[f.severity] ?? SEV_COLOR_FALLBACK;
   const fileHref =
     repoFullName && headSha
-      ? githubBlobUrl(repoFullName, headSha, f.file, f.start_line, f.end_line)
+      ? repoBlobUrl(repoProvider ?? "github", repoFullName, headSha, f.file, f.start_line, f.end_line)
       : undefined;
   const accepted = !!f.accepted_at;
   const dismissed = !!f.dismissed_at;

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { and, desc, eq, inArray } from 'drizzle-orm';
-import type { PrMeta, PrDetail, GitHubClient, PrReviewComment } from '@devdigest/shared';
+import type { PrMeta, PrDetail, CodeHostClient, PrReviewComment, RepoProvider } from '@devdigest/shared';
 import { PrCommentInput } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
 import { getContext } from '../_shared/context.js';
@@ -32,15 +32,15 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       .where(and(eq(t.repos.workspaceId, workspaceId), eq(t.repos.id, req.params.id)));
     if (!repo) throw new NotFoundError('Repo not found');
 
-    let gh: GitHubClient | null = null;
+    let gh: CodeHostClient | null = null;
     try {
-      gh = await container.github();
+      gh = await container.codeHost(repo.provider as RepoProvider);
     } catch (err) {
-      app.log.warn({ err }, 'GitHub client unavailable (no token / offline); serving persisted PRs');
+      app.log.warn({ err }, 'Code-host client unavailable (no token / offline); serving persisted PRs');
     }
 
-    // Local-first: sync from GitHub when a token is configured, but never
-    // fail the read — already-imported/seeded PRs stay viewable offline.
+    // Local-first: sync from the code host when a token is configured, but
+    // never fail the read — already-imported/seeded PRs stay viewable offline.
     if (gh) {
       try {
         const pulls = await gh.listPullRequests({ owner: repo.owner, name: repo.name });
@@ -198,7 +198,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
     // otherwise serve the persisted files/commits/body (seeded or previously
     // imported) so PR detail works offline.
     try {
-      const gh = await container.github();
+      const gh = await container.codeHost(repo.provider as RepoProvider);
       const detail = await gh.getPullRequest({ owner: repo.owner, name: repo.name }, pr.number);
 
       await container.db.delete(t.prFiles).where(eq(t.prFiles.prId, pr.id));
@@ -294,17 +294,17 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
     async (req): Promise<PrReviewComment[]> => {
       const { workspaceId } = await getContext(container, req);
       const { pr, repo } = await resolvePrAndRepo(req.params.id, workspaceId);
-      let gh: GitHubClient;
+      let gh: CodeHostClient;
       try {
-        gh = await container.github();
+        gh = await container.codeHost(repo.provider as RepoProvider);
       } catch (err) {
-        app.log.warn({ err }, 'GitHub client unavailable; serving no PR comments');
+        app.log.warn({ err }, 'Code-host client unavailable; serving no PR comments');
         return [];
       }
       try {
         return await gh.listReviewComments({ owner: repo.owner, name: repo.name }, pr.number);
       } catch (err) {
-        app.log.warn({ err }, 'GitHub review-comments fetch skipped (offline / error)');
+        app.log.warn({ err }, 'Code-host review-comments fetch skipped (offline / error)');
         return [];
       }
     },
@@ -317,13 +317,13 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       const { workspaceId } = await getContext(container, req);
       const { pr, repo } = await resolvePrAndRepo(req.params.id, workspaceId);
       const input = req.body;
-      let gh: GitHubClient;
+      let gh: CodeHostClient;
       try {
-        gh = await container.github();
+        gh = await container.codeHost(repo.provider as RepoProvider);
       } catch {
         throw new AppError(
-          'github_unavailable',
-          'Connect a GitHub token to post comments.',
+          'code_host_unavailable',
+          `Connect a ${repo.provider === 'gitlab' ? 'GitLab' : 'GitHub'} token to post comments.`,
           400,
         );
       }
@@ -337,9 +337,9 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
           ...(input.in_reply_to != null ? { inReplyTo: input.in_reply_to } : {}),
         });
       } catch (err) {
-        // GitHub rejects comments on lines outside the diff / on closed PRs (422).
-        const msg = err instanceof Error ? err.message : 'Failed to post the comment to GitHub.';
-        throw new AppError('github_comment_failed', msg, 400, { cause: String(err) });
+        // The code host rejects comments on lines outside the diff / on closed PRs.
+        const msg = err instanceof Error ? err.message : 'Failed to post the comment.';
+        throw new AppError('code_host_comment_failed', msg, 400, { cause: String(err) });
       }
     },
   );

@@ -9,6 +9,8 @@ export const repos = pgTable(
     workspaceId: uuid('workspace_id')
       .notNull()
       .references(() => workspaces.id, { onDelete: 'cascade' }),
+    /** Code-host: 'github' or 'gitlab' (gitlab.com only). Existing rows backfill as 'github'. */
+    provider: text('provider').notNull().default('github'),
     owner: text('owner').notNull(),
     name: text('name').notNull(),
     fullName: text('full_name').notNull(),

@@ -1,7 +1,8 @@
 import type {
   AuthProvider,
   SecretsProvider,
-  GitHubClient,
+  CodeHostClient,
+  RepoProvider,
   GitClient,
   CodeIndex,
   Embedder,
@@ -14,6 +15,7 @@ import { runBus, type RunBus } from './sse.js';
 import { LocalSecretsProvider } from '../adapters/secrets/local.js';
 import { LocalNoAuthProvider } from '../adapters/auth/local.js';
 import { OctokitGitHubClient } from '../adapters/github/octokit.js';
+import { GitLabClient } from '../adapters/gitlab/rest.js';
 import { SimpleGitClient } from '../adapters/git/simple-git.js';
 import { RipgrepCodeIndex } from '../adapters/codeindex/ripgrep.js';
 import { OpenAIProvider } from '../adapters/llm/openai.js';
@@ -40,7 +42,8 @@ import { type Tokenizer, TiktokenTokenizer } from '../adapters/tokenizer/index.j
 export interface ContainerOverrides {
   secrets?: SecretsProvider;
   auth?: AuthProvider;
-  github?: GitHubClient;
+  github?: CodeHostClient;
+  gitlab?: CodeHostClient;
   git?: GitClient;
   codeIndex?: CodeIndex;
   embedder?: Embedder;
@@ -62,7 +65,8 @@ export class Container {
   readonly runBus: RunBus;
 
   private _git?: GitClient;
-  private _github?: GitHubClient;
+  private _github?: CodeHostClient;
+  private _gitlab?: CodeHostClient;
   private _codeIndex?: CodeIndex;
   private _embedder?: Embedder;
   private llmCache = new Map<string, LLMProvider>();
@@ -150,13 +154,29 @@ export class Container {
     return this._priceBook;
   }
 
-  async github(): Promise<GitHubClient> {
+  async github(): Promise<CodeHostClient> {
     if (this.overrides.github) return this.overrides.github;
     if (this._github) return this._github;
     const token = await this.secrets.get('GITHUB_TOKEN');
     if (!token) throw new ConfigError('GITHUB_TOKEN is not configured');
     this._github = new OctokitGitHubClient(token);
     return this._github;
+  }
+
+  async gitlab(): Promise<CodeHostClient> {
+    if (this.overrides.gitlab) return this.overrides.gitlab;
+    if (this._gitlab) return this._gitlab;
+    const token = await this.secrets.get('GITLAB_TOKEN');
+    if (!token) throw new ConfigError('GITLAB_TOKEN is not configured');
+    this._gitlab = new GitLabClient(token);
+    return this._gitlab;
+  }
+
+  /** Resolve the code-host client for a repo's provider — the single lookup
+   *  every provider-aware module (repos/pulls/polling) should use instead of
+   *  calling `github()`/`gitlab()` directly. */
+  async codeHost(provider: RepoProvider): Promise<CodeHostClient> {
+    return provider === 'gitlab' ? this.gitlab() : this.github();
   }
 
   /** Resolve an LLM provider by id; constructs from the secret key, cached. */
@@ -214,6 +234,7 @@ export class Container {
   invalidateSecretCaches(): void {
     this.llmCache.clear();
     this._github = undefined;
+    this._gitlab = undefined;
     this._embedder = undefined;
   }
 }

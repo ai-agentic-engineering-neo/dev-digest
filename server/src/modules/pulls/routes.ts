@@ -8,6 +8,7 @@ import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { AppError, NotFoundError } from '../../platform/errors.js';
 import { deriveReviewStatus } from './status.js';
+import { latestBatchCostByPr } from './latest-batch-cost.js';
 
 /**
  * F1 — pulls module. PR import via Octokit (list + per-PR detail).
@@ -129,6 +130,26 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
+    // COST per PR = sum of the latest review BATCH's completed run costs (the
+    // set of agent_runs launched together by one "Run Review" click) — a
+    // failed agent in that batch contributes nothing but doesn't null out its
+    // siblings' spend. See latest-batch-cost.ts.
+    const costByPr = new Map<string, number | null>();
+    if (prIds.length > 0) {
+      const runRows = await container.db
+        .select({
+          prId: t.agentRuns.prId,
+          id: t.agentRuns.id,
+          batchId: t.agentRuns.batchId,
+          status: t.agentRuns.status,
+          costUsd: t.agentRuns.costUsd,
+        })
+        .from(t.agentRuns)
+        .where(inArray(t.agentRuns.prId, prIds))
+        .orderBy(desc(t.agentRuns.ranAt));
+      for (const [prId, cost] of latestBatchCostByPr(runRows)) costByPr.set(prId, cost);
+    }
+
     const now = Date.now();
     return rows.map((r) => {
       const review = latestReviewByPr.get(r.id);
@@ -153,6 +174,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
+        cost_usd: costByPr.get(r.id) ?? null,
       };
     });
   });

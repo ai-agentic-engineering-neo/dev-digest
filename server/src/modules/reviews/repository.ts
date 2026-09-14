@@ -144,6 +144,9 @@ export class ReviewRepository {
     prId: string;
     provider: string | null;
     model: string | null;
+    /** Groups the runs created by one runReview() call (one click can target
+        several agents). See agent_runs.batch_id. */
+    batchId: string;
   }): Promise<string> {
     return runRepo.createAgentRun(this.db, values);
   }
@@ -155,6 +158,8 @@ export class ReviewRepository {
       durationMs: number;
       tokensIn: number;
       tokensOut: number;
+      /** USD spent (usage × pricing); null when unknown. */
+      costUsd?: number | null;
       findingsCount: number;
       grounding: string;
       /** Review score (0-100); null on failed/cancelled runs. */

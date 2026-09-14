@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, integer, jsonb, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, integer, jsonb, timestamp, doublePrecision } from 'drizzle-orm/pg-core';
 import { workspaces } from './core';
 import { agents } from './agents';
 import { pullRequests } from './pulls';
@@ -18,6 +18,13 @@ export const agentRuns = pgTable('agent_runs', {
   durationMs: integer('duration_ms'),
   tokensIn: integer('tokens_in'),
   tokensOut: integer('tokens_out'),
+  /** USD spent on this run (usage × pricing, or the provider-reported cost);
+      null when the provider returned no usage/pricing — the UI shows "—". */
+  costUsd: doublePrecision('cost_usd'),
+  /** Groups the agent_runs created by one runReview() call (one "Run Review"
+      click can target several agents at once). No FK — same denormalized-
+      linking convention as reviews.runId. Null for older/singleton runs. */
+  batchId: uuid('batch_id'),
   status: text('status'),
   /** Failure reason when status='failed' (LLM/API error, timeout, quota, …). */
   error: text('error'),

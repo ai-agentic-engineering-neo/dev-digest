@@ -5,6 +5,7 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Badge } from "@devdigest/ui";
+import { formatRunCost } from "@/components/run-cost-badge";
 import type { RunTrace, FindingRecord } from "@devdigest/shared";
 import { PROMPT_COLORS } from "../../constants";
 import { formatSeconds, formatTokens } from "../../helpers";
@@ -63,6 +64,10 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
         <div style={s.statsRow}>
           <Stat label={t("trace.stat.duration")} val={formatSeconds(stats.duration_ms)} />
           <Stat label={t("trace.stat.tokens")} val={formatTokens(stats.tokens_in, stats.tokens_out)} />
+          <Stat
+            label={t("trace.stat.cost")}
+            val={stats.cost_usd == null ? "—" : formatRunCost(stats.cost_usd)}
+          />
           <Stat label={t("trace.stat.findings")} val={stats.findings} />
         </div>
       </TraceSection>

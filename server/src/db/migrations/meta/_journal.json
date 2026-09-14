@@ -71,6 +71,13 @@
       "when": 1781464392464,
       "tag": "0009_complex_runaways",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1789409462293,
+      "tag": "0010_hesitant_champions",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,7 @@
 {
   "name": "@devdigest/e2e",
   "version": "0.0.0",
+  "license": "MIT",
   "private": true,
   "type": "module",
   "description": "Deterministic browser e2e for the DevDigest web app, driven by Vercel agent-browser (CDP, no LLM).",

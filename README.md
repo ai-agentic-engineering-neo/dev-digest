@@ -159,3 +159,8 @@ Postgres); everything else is hermetic. The browser e2e flows live in
   make sure migrations ran against the Dockerized DB, not a different one.
 - **Reset everything** — `docker compose down -v` drops the volume, then re-run
   `./scripts/dev.sh`.
+
+## License
+
+[MIT](LICENSE) — fork it, extend it, run it inside your own company. The only
+requirement is that the copyright notice travels with the copy.

@@ -37,9 +37,14 @@ Fastify 5.2 · Drizzle ORM 0.38 (Postgres/pgvector) · Zod 3.24 (`fastify-type-p
 
 - `src/vendor/` — synced from elsewhere; local edits get overwritten
 
+## Session Protocol
+
+- **Start:** before working here, read [INSIGHTS.md](./INSIGHTS.md) and note anything relevant to the task.
+- **End:** before finishing, invoke `engineering-insights` — write a new entry only if something substantial and not already recorded came up.
+
 ## Docs
 
 - [README.md](./README.md) — API map, deeper diagrams
 - [docs/](./docs/) — reference material too detailed for this file
 - [docs/specs/](./docs/specs/) — feature specs (SDD)
-- [Insights.md](./Insights.md) — running log of decisions/gotchas
+- [INSIGHTS.md](./INSIGHTS.md) — running log of decisions/gotchas

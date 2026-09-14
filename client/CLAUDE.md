@@ -35,9 +35,14 @@ Next.js 15 (App Router) · React 19 · TanStack Query 5.62 · next-intl 3.26 · 
 
 - `src/vendor/ui`, `src/vendor/shared` — vendored/synced, not owned here
 
+## Session Protocol
+
+- **Start:** before working here, read [INSIGHTS.md](./INSIGHTS.md) and note anything relevant to the task.
+- **End:** before finishing, invoke `engineering-insights` — write a new entry only if something substantial and not already recorded came up.
+
 ## Docs
 
 - [README.md](./README.md) — UI route map, deeper diagrams
 - [docs/](./docs/) — reference material too detailed for this file
 - [docs/specs/](./docs/specs/) — feature specs (SDD)
-- [Insights.md](./Insights.md) — running log of decisions/gotchas
+- [INSIGHTS.md](./INSIGHTS.md) — running log of decisions/gotchas

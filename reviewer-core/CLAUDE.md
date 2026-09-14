@@ -31,9 +31,14 @@ TypeScript 5.7 · Vitest 2.1 · Zod 3.24 · `openai` SDK 4.77 (used to talk to a
 
 - A finding without a real diff-line citation is silently dropped by `groundFindings` — if a review looks "thin," check grounding before touching the prompt
 
+## Session Protocol
+
+- **Start:** before working here, read [INSIGHTS.md](./INSIGHTS.md) and note anything relevant to the task.
+- **End:** before finishing, invoke `engineering-insights` — write a new entry only if something substantial and not already recorded came up.
+
 ## Docs
 
 - [README.md](./README.md) — pipeline diagram, public API
 - [docs/](./docs/) — reference material too detailed for this file
 - [docs/specs/](./docs/specs/) — feature specs (SDD)
-- [Insights.md](./Insights.md) — running log of decisions/gotchas
+- [INSIGHTS.md](./INSIGHTS.md) — running log of decisions/gotchas

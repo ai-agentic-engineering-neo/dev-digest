@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { LLMProvider, StructuredResult } from '@devdigest/shared';
 import { MockLLMProvider, MockGitClient } from '../../server/src/adapters/mocks.js';
+import { parseUnifiedDiff } from '../../server/src/adapters/git/diff-parser.js';
 import { reviewPullRequest } from '../src/index.js';
 
 /**
@@ -102,6 +103,64 @@ describe('reviewPullRequest (engine)', () => {
         },
       }),
     ).rejects.toThrow('cancelled');
+  });
+
+  it('map-reduce sums usage across chunks; one unpriced chunk makes the run cost unknown', async () => {
+    const twoFiles = parseUnifiedDiff(
+      [
+        'diff --git a/a.ts b/a.ts',
+        '--- a/a.ts',
+        '+++ b/a.ts',
+        '@@ -1,1 +1,2 @@',
+        ' x',
+        '+y',
+        'diff --git a/b.ts b/b.ts',
+        '--- a/b.ts',
+        '+++ b/b.ts',
+        '@@ -1,1 +1,2 @@',
+        ' x',
+        '+z',
+      ].join('\n'),
+    );
+    const clean = { verdict: 'approve', summary: 'ok', score: 100, findings: [] };
+    const scripted = (costs: (number | null)[]): LLMProvider => {
+      let i = 0;
+      return {
+        id: 'openrouter',
+        async completeStructured<T>(req): Promise<StructuredResult<T>> {
+          return {
+            data: clean as unknown as T,
+            model: req.model,
+            tokensIn: 1000,
+            tokensOut: 100,
+            costUsd: costs[i++] ?? null,
+            raw: '',
+            attempts: 1,
+          };
+        },
+        async listModels() {
+          return [];
+        },
+        async complete() {
+          throw new Error('not used');
+        },
+        async embed() {
+          return [];
+        },
+      };
+    };
+    const run = (costs: (number | null)[]) =>
+      reviewPullRequest({ systemPrompt: 's', model: 'm', diff: twoFiles, llm: scripted(costs), strategy: 'map-reduce' });
+
+    const priced = await run([0.001, 0.0025]);
+    expect(priced.mode).toBe('map-reduce');
+    expect(priced.tokensIn).toBe(2000);
+    expect(priced.tokensOut).toBe(200);
+    expect(priced.costUsd).toBeCloseTo(0.0035);
+
+    const partlyUnpriced = await run([0.001, null]);
+    expect(partlyUnpriced.tokensIn).toBe(2000);
+    expect(partlyUnpriced.costUsd).toBeNull();
   });
 
   it('forwards sessionId to every LLM call (OpenRouter session grouping)', async () => {

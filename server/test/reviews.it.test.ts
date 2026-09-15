@@ -4,7 +4,7 @@ import { waitForPrRuns } from './helpers/runs.js';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/platform/config.js';
 import { seed } from '../src/db/seed.js';
-import { MockLLMProvider, MockEmbedder, MockGitClient } from '../src/adapters/mocks.js';
+import { MockLLMProvider, MockEmbedder, MockGitClient, MockGitHubClient } from '../src/adapters/mocks.js';
 import * as t from '../src/db/schema.js';
 import { eq } from 'drizzle-orm';
 import type { Review } from '@devdigest/shared';
@@ -210,6 +210,70 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(run!.grounding).toBe('1/2 passed');
 
     await app.close();
+  });
+
+  it('records run cost + tokens and exposes them on runs, reviews, trace and the PR list', async () => {
+    // MockLLMProvider reports tokensIn=100, tokensOut=50, costUsd=0.001 per call;
+    // the one-file diff is reviewed in a single call.
+    const overrides = { embedder: new MockEmbedder(), git: new MockGitClient({ diff: DIFF }), github: new MockGitHubClient() };
+    const app = await buildApp({
+      config: config(),
+      db: pg.handle.db,
+      overrides: { ...overrides, llm: { openai: new MockLLMProvider('openai', { structured: REVIEW_FIXTURE }) } },
+    });
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'Cost', provider: 'openai', model: 'gpt-4.1', system_prompt: 'sec' },
+      })
+    ).json();
+
+    const runId = (
+      await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } })
+    ).json().runs[0].run_id;
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+
+    const [row] = await pg.handle.db.select().from(t.agentRuns).where(eq(t.agentRuns.id, runId));
+    expect(row!.costUsd).toBeCloseTo(0.001);
+
+    const runs = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(runs[0]).toMatchObject({ run_id: runId, tokens_in: 100, tokens_out: 50 });
+    expect(runs[0].cost_usd).toBeCloseTo(0.001);
+
+    const reviews = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/reviews` })).json();
+    expect(reviews[0]).toMatchObject({ run_id: runId, tokens_in: 100, tokens_out: 50 });
+    expect(reviews[0].cost_usd).toBeCloseTo(0.001);
+
+    const trace = (await app.inject({ method: 'GET', url: `/runs/${runId}/trace` })).json();
+    expect(trace.stats.cost_usd).toBeCloseTo(0.001);
+
+    // Second successful run → the PR list sums both.
+    await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } });
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 2 });
+    await app.close();
+
+    // A failed run (fixture fails the Review schema) records no cost and does
+    // not change the PR total.
+    const failing = await buildApp({
+      config: config(),
+      db: pg.handle.db,
+      overrides: { ...overrides, llm: { openai: new MockLLMProvider('openai', { structured: {} }) } },
+    });
+    const failedRunId = (
+      await failing.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } })
+    ).json().runs[0].run_id;
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 3 });
+    const failedRuns = (await failing.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    const failed = failedRuns.find((r: { run_id: string }) => r.run_id === failedRunId);
+    expect(failed.status).toBe('failed');
+    expect(failed.cost_usd).toBeNull();
+
+    const pulls = (await failing.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const listed = pulls.find((p: { id: string }) => p.id === pr.id);
+    expect(listed.cost_usd).toBeCloseTo(0.002);
+    await failing.close();
   });
 
   it('dual-provider structured output: anthropic provider returns the same Review shape', async () => {

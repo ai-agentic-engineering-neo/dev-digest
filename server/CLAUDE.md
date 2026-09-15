@@ -42,8 +42,8 @@ pnpm db:seed                                # idempotent demo data
 ## Read when
 
 - Read `specs/`, `docs/`, and `INSIGHTS.md` first for what's already
-  intended, documented, or tried here. Add to `INSIGHTS.md` if you learn
-  something non-obvious.
+  intended, documented, or tried here. Record non-obvious findings with the
+  `engineering-insights` skill.
 - Read `README.md` for the API map and the request/DI flow diagram.
 - Read `src/modules/repo-intel/README.md` when touching indexing or the repo
   map.

@@ -38,8 +38,8 @@ pnpm test         # vitest + jsdom, fetch mocked — no API needed
 ## Read when
 
 - Read `specs/`, `docs/`, and `INSIGHTS.md` first for what's already
-  intended, documented, or tried here. Add to `INSIGHTS.md` if you learn
-  something non-obvious.
+  intended, documented, or tried here. Record non-obvious findings with the
+  `engineering-insights` skill.
 - Read `README.md` for the UI route map and which endpoints each page leans
   on.
 - Read `../server/README.md` when you need the exact shape of an endpoint.

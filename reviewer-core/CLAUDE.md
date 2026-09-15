@@ -37,8 +37,8 @@ npm run typecheck  # tsc --noEmit — this IS the build; the package emits no JS
 ## Read when
 
 - Read `specs/`, `docs/`, and `INSIGHTS.md` first for what's already
-  intended, documented, or tried here. Add to `INSIGHTS.md` if you learn
-  something non-obvious.
+  intended, documented, or tried here. Record non-obvious findings with the
+  `engineering-insights` skill.
 - Read `README.md` for the pipeline diagram and the full public API.
 - Read `../docs/agent-prompts/` when the task concerns a built-in agent's
   system prompt or model choice.

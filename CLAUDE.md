@@ -7,13 +7,19 @@ Before answering a question or starting a task, search the relevant package's
 `<package>/specs/` (what we intend to build) → `<package>/docs/` (how it
 works) → `<package>/INSIGHTS.md` (what we already tried and rejected) →
 source. If a curated file answers the question, cite it instead of
-re-deriving from code.
+re-deriving from code. For repo-wide work (`scripts/`, docker, CI) read the
+root `INSIGHTS.md` too. If an INSIGHTS entry applies to the task, name it in
+one line before acting.
 
-## After finishing
+## While working and after finishing
 
-If a non-trivial task surfaced something non-obvious, add one entry to the
-touched package's `INSIGHTS.md` (check a similar entry isn't already there).
-Routine changes don't need an entry — noise costs more than silence.
+Use the `engineering-insights` skill. Capture a finding the moment it is
+verified and non-obvious: a surprising root cause, an abandoned approach, a
+tool quirk, a trade-off decision, or a correction from the user. When a
+non-trivial task is done, sweep for anything you missed. The skill routes
+each entry to the right package's `INSIGHTS.md` (or the root one for
+repo-wide lessons). Routine changes don't need an entry — noise costs more
+than silence.
 
 ## Stack
 

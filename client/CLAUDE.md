@@ -35,6 +35,8 @@ Port 3000. All data flows `src/lib/hooks/*` → `src/lib/api.ts` → Fastify API
 
 - Adding a screen or hook → read [`README.md`](README.md) (UI route map, which
   API endpoints each route leans on).
-- Debugging something non-obvious here → read [`INSIGHTS.md`](INSIGHTS.md) first.
+- Working here → read [`INSIGHTS.md`](INSIGHTS.md) first — always before a
+  task, especially when debugging something non-obvious; at the end of a
+  substantial session, capture learnings per the engineering-insights skill.
 - Changing behavior covered by a decision → check [`specs/`](specs/) and update
   the spec in the same PR; how-tos live in [`docs/`](docs/README.md).

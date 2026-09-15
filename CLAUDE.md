@@ -36,6 +36,9 @@ sync when contracts change.
 - Docs convention: every module keeps `README.md` + `docs/` + `specs/` +
   `INSIGHTS.md`; CLAUDE.md links to them and never duplicates their content.
   In `e2e/`, `specs/` is the executable agent-browser flows (JSON).
+- End of a substantial session → apply the
+  [engineering-insights](.claude/skills/engineering-insights/SKILL.md) skill:
+  capture new non-obvious insights into the touched modules' `INSIGHTS.md`.
 - Review findings are grounded mechanically and the score is recomputed from
   surviving findings — the model's self-reported score is never trusted.
 
@@ -50,6 +53,7 @@ sync when contracts change.
   (route map, hooks ↔ API surface).
 - Writing or debugging browser flows → read [`e2e/README.md`](e2e/README.md)
   (flow format, hermetic runner).
-- Debugging inside a module → read that module's `INSIGHTS.md` first.
+- Starting work in a module → read that module's `INSIGHTS.md` first — always
+  before a task, especially when debugging something non-obvious.
 - Designing or changing a feature → check the module's `specs/` for an existing
   behavior spec; if one exists, update it in the same PR.

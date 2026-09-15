@@ -51,6 +51,8 @@ Adapters sit behind a DI container so tests swap them for mocks.
 - Wiring a route/service/adapter, or changing env vars → read [`README.md`](README.md)
   (request & DI flow, API map, environment table).
 - Test strategy details → read [`../TESTING.md`](../TESTING.md).
-- Debugging something non-obvious here → read [`INSIGHTS.md`](INSIGHTS.md) first.
+- Working here → read [`INSIGHTS.md`](INSIGHTS.md) first — always before a
+  task, especially when debugging something non-obvious; at the end of a
+  substantial session, capture learnings per the engineering-insights skill.
 - Changing behavior covered by a decision → check [`specs/`](specs/) and update
   the spec in the same PR; how-tos live in [`docs/`](docs/README.md).

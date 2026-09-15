@@ -37,6 +37,8 @@ path alias; the package never emits JS.
 
 - Touching the pipeline or public API → read [`README.md`](README.md) (pipeline
   diagram, exported surface).
-- Debugging something non-obvious here → read [`INSIGHTS.md`](INSIGHTS.md) first.
+- Working here → read [`INSIGHTS.md`](INSIGHTS.md) first — always before a
+  task, especially when debugging something non-obvious; at the end of a
+  substantial session, capture learnings per the engineering-insights skill.
 - Changing behavior covered by a decision → check [`specs/`](specs/) and update
   the spec in the same PR; how-tos live in [`docs/`](docs/README.md).

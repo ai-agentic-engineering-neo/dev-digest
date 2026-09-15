@@ -42,5 +42,6 @@ your dev DB.
 
 - Writing a flow, or changing the runner → read [`README.md`](README.md) (flow
   format, env knobs, coverage table).
-- Debugging something non-obvious here → read [`INSIGHTS.md`](INSIGHTS.md) first;
-  how-tos live in [`docs/`](docs/README.md).
+- Working here → read [`INSIGHTS.md`](INSIGHTS.md) first, especially when
+  debugging something non-obvious; how-tos live in [`docs/`](docs/README.md);
+  capture session learnings per the engineering-insights skill.

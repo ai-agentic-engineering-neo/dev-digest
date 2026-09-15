@@ -48,3 +48,8 @@ Exported from `src/index.ts`: `assemblePrompt` / `wrapUntrusted` (prompt),
 assembly, the grounding gate, `toReview` selection, and a full `run`. No keys,
 no network. `npm run typecheck` doubles as the build. See
 [`../TESTING.md`](../TESTING.md).
+
+---
+
+Agent-facing map, conventions, and do-not-touch zones: [`CLAUDE.md`](./CLAUDE.md) ·
+deeper notes: [`docs/`](./docs/) · [`specs/`](./specs/) · [`INSIGHTS.md`](./INSIGHTS.md)

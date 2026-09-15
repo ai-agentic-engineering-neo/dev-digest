@@ -147,3 +147,8 @@ hermetic:
 
 A DB-backed test (one that imports `test/helpers/pg.ts`) **must** use the
 `*.it.test.ts` suffix so the split stays correct. See [`../TESTING.md`](../TESTING.md).
+
+---
+
+Agent-facing map, conventions, and do-not-touch zones: [`CLAUDE.md`](./CLAUDE.md) ·
+deeper notes: [`docs/`](./docs/) · [`specs/`](./specs/) · [`INSIGHTS.md`](./INSIGHTS.md)

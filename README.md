@@ -159,3 +159,8 @@ Postgres); everything else is hermetic. The browser e2e flows live in
   make sure migrations ran against the Dockerized DB, not a different one.
 - **Reset everything** — `docker compose down -v` drops the volume, then re-run
   `./scripts/dev.sh`.
+
+---
+
+Agent-facing map, conventions, and do-not-touch zones: [`CLAUDE.md`](./CLAUDE.md) ·
+deeper notes: [`docs/`](./docs/) · [`specs/`](./specs/) · [`INSIGHTS.md`](./INSIGHTS.md)

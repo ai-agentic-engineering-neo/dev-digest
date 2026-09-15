@@ -92,7 +92,12 @@ export default function PRDetailPage() {
   // cheaper than the memo bookkeeping, and the previous useMemo listed `reviews`
   // as its dependency while reading `runs`.
   const allFindings: FindingRecord[] = runs.flatMap((r) => r.findings);
-  const lethalTrifecta = allFindings.filter((f) => f.kind === "lethal_trifecta");
+  // Dismissed excluded: a dismissed lethal_trifecta finding is a confirmed
+  // false positive, not an active threat — it must not keep the banner up
+  // across every later (clean) run for the life of the PR.
+  const lethalTrifecta = allFindings.filter(
+    (f) => f.kind === "lethal_trifecta" && f.dismissed_at === null,
+  );
   const findingsCount = allFindings.length;
 
   const repoName = activeRepo?.full_name ?? repoId;

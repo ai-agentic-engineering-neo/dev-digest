@@ -170,6 +170,16 @@ input but left responses unchecked, so contract drift surfaced in the browser.
 
 ## Codebase Patterns
 
+- **2026-08-22** — `ReviewRunResponse`'s doc comment ("the persisted reviews
+  are also returned once the (synchronous) run completes") is stale.
+  `ReviewService.runReview` is fire-and-forget — `void
+  this.executor.executeRuns(...).catch(...)` — and `POST /pulls/:id/review`
+  always returns `reviews: []`; only `runs[].run_id` is immediately useful.
+  A new consumer must poll `GET /pulls/:id/runs` until `status !== 'running'`
+  and then read `GET /pulls/:id/reviews`, not trust the POST response to
+  carry findings. `server/src/vendor/shared/contracts/review-api.ts:43`,
+  `server/src/modules/reviews/service.ts:137`
+
 - **2026-08-13** — A `@devdigest/shared` contract scaffolded ahead of its
   consumer (e.g. `PrIntentRecord = Intent.extend({ pr_id: z.string() })`,
   added for a not-yet-built "PR Brief" lesson) can silently stop matching

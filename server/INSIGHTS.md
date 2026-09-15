@@ -136,6 +136,17 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 ## Recurring Errors & Fixes
 
+- **2026-08-22** — A non-uuid string as `agentId` in `POST /pulls/:id/review`
+  does **not** produce `ReviewService.resolveTargets`' clean 404
+  `not_found` — it fails earlier at the Drizzle query (`agents.getById`)
+  with a raw Postgres `invalid input syntax for type uuid`, surfaced as a
+  generic 500 `internal_error`. Only a syntactically-valid-but-nonexistent
+  uuid reaches the `NotFoundError` path. A caller that wants to rewrite
+  "not found" into an actionable message (e.g. "call list_agents") must
+  validate the id looks like a uuid itself first — catching only `code ===
+  'not_found'` silently misses the malformed-id case.
+  `server/src/modules/reviews/service.ts:50-61`
+
 - **2026-08-13** — `pnpm db:migrate` failing with `relation "X" already exists`
   on a local dev DB (not a fresh one) means the migration-tracking table is out
   of sync with `src/db/migrations/*.sql`, most likely because a merge

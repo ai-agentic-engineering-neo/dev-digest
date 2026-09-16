@@ -155,6 +155,8 @@ export class ReviewRepository {
       durationMs: number;
       tokensIn: number;
       tokensOut: number;
+      /** USD cost of this run's LLM calls; null when unknown. */
+      costUsd: number | null;
       findingsCount: number;
       grounding: string;
       /** Review score (0-100); null on failed/cancelled runs. */
@@ -166,6 +168,11 @@ export class ReviewRepository {
     },
   ): Promise<void> {
     return runRepo.completeAgentRun(this.db, runId, values);
+  }
+
+  /** Batched `cost_usd` lookup for a set of run ids. */
+  costsForRuns(runIds: string[]): Promise<Map<string, number | null>> {
+    return runRepo.costsForRuns(this.db, runIds);
   }
 
   /** Record the head SHA a review ran against (PR-list freshness derivation). */

@@ -19,6 +19,14 @@ import type { RunSummary, PrCommit } from "@devdigest/shared";
 
 type Outcome = { key: string; color: string; bg: string; icon: IconName };
 
+/** Compact USD cost (e.g. "$0.0013"); "—" when unknown (no data yet, or a failed run). */
+function formatCost(usd: number | null | undefined): string {
+  if (usd == null) return "—";
+  if (usd === 0) return "$0.00";
+  const rounded = Number(usd.toPrecision(2));
+  return `$${rounded >= 1 ? rounded.toFixed(2) : String(rounded)}`;
+}
+
 function outcomeOf(run: RunSummary): Outcome {
   const status = run.status ?? "";
   if (status === "running")
@@ -197,6 +205,7 @@ export function RunHistory({
             </div>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, fontSize: 11, color: "var(--text-muted)", flexShrink: 0 }}>
               {r.ran_at && <span>{new Date(r.ran_at).toLocaleTimeString()}</span>}
+              {settled && <span className="mono">{formatCost(r.cost_usd)}</span>}
             </div>
             <button
               type="button"

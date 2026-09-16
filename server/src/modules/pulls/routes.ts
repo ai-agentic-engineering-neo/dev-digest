@@ -129,9 +129,31 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
+    // Total cost across every SUCCESSFUL (status='done') agent run for the PR —
+    // a lifetime spend, not just the latest round. A PR with no done runs, or
+    // where none of them captured cost (pre-migration data), stays null → "—";
+    // never $0.00 for "we don't know".
+    const costByPr = new Map<string, { sum: number; hasCost: boolean }>();
+    if (prIds.length > 0) {
+      const runRows = await container.db
+        .select({ prId: t.agentRuns.prId, costUsd: t.agentRuns.costUsd })
+        .from(t.agentRuns)
+        .where(and(inArray(t.agentRuns.prId, prIds), eq(t.agentRuns.status, 'done')));
+      for (const rr of runRows) {
+        if (!rr.prId) continue;
+        const entry = costByPr.get(rr.prId) ?? { sum: 0, hasCost: false };
+        if (rr.costUsd != null) {
+          entry.sum += rr.costUsd;
+          entry.hasCost = true;
+        }
+        costByPr.set(rr.prId, entry);
+      }
+    }
+
     const now = Date.now();
     return rows.map((r) => {
       const review = latestReviewByPr.get(r.id);
+      const cost = costByPr.get(r.id);
       return {
         id: r.id,
         number: r.number,
@@ -153,6 +175,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
+        cost_usd: cost?.hasCost ? cost.sum : null,
       };
     });
   });

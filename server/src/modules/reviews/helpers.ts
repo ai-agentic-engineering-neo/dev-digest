@@ -29,6 +29,8 @@ export interface ReviewDto {
   grounding?: string | null;
   created_at: string;
   findings: ReviewDtoFinding[];
+  /** USD cost of the run that produced this review; null when unknown. */
+  cost_usd?: number | null;
 }
 
 export function findingRowToDto(row: FindingRow): ReviewDtoFinding {
@@ -56,6 +58,7 @@ export function reviewToDto(
   review: ReviewRow,
   findings: FindingRow[],
   agentName?: string | null,
+  costUsd?: number | null,
 ): ReviewDto {
   return {
     id: review.id,
@@ -70,6 +73,7 @@ export function reviewToDto(
     model: review.model,
     created_at: review.createdAt.toISOString(),
     findings: findings.map(findingRowToDto),
+    cost_usd: costUsd ?? null,
   };
 }
 

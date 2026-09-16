@@ -23,6 +23,14 @@ function formatWhen(iso: string): string {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
 }
 
+/** Compact USD cost (e.g. "$0.0013"); "—" when unknown (no data yet, or a failed run). */
+function formatCost(usd: number | null | undefined): string {
+  if (usd == null) return "—";
+  if (usd === 0) return "$0.00";
+  const rounded = Number(usd.toPrecision(2));
+  return `$${rounded >= 1 ? rounded.toFixed(2) : String(rounded)}`;
+}
+
 export function ReviewRunAccordion({
   review,
   prId,
@@ -103,6 +111,9 @@ export function ReviewRunAccordion({
             {review.score}
           </Badge>
         )}
+        <span className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>
+          {formatCost(review.cost_usd)}
+        </span>
         <span className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>
           {formatWhen(review.created_at)}
         </span>

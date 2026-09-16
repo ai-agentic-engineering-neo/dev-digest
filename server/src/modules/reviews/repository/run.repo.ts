@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import type { Db } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
 import type { RunSummary, RunTrace } from '@devdigest/shared';
@@ -59,12 +59,26 @@ export async function listRunsForPull(
     duration_ms: run.durationMs,
     tokens_in: run.tokensIn,
     tokens_out: run.tokensOut,
+    cost_usd: run.costUsd,
     findings_count: run.findingsCount,
     grounding: run.grounding,
     ran_at: run.ranAt ? run.ranAt.toISOString() : null,
     score: run.score,
     blockers: run.blockers,
   }));
+}
+
+/** Batched `cost_usd` lookup for a set of run ids — reused wherever a run-shaped
+ *  record (e.g. a review) needs to surface the cost of the run that produced it. */
+export async function costsForRuns(db: Db, runIds: string[]): Promise<Map<string, number | null>> {
+  const map = new Map<string, number | null>();
+  if (runIds.length === 0) return map;
+  const rows = await db
+    .select({ id: t.agentRuns.id, costUsd: t.agentRuns.costUsd })
+    .from(t.agentRuns)
+    .where(inArray(t.agentRuns.id, runIds));
+  for (const r of rows) map.set(r.id, r.costUsd);
+  return map;
 }
 
 /**
@@ -146,6 +160,8 @@ export async function completeAgentRun(
     durationMs: number;
     tokensIn: number;
     tokensOut: number;
+    /** USD cost of this run's LLM calls; null when unknown (e.g. failed before any call billed). */
+    costUsd: number | null;
     findingsCount: number;
     grounding: string;
     /** Review score (0-100); null on failed/cancelled runs. */
@@ -163,6 +179,7 @@ export async function completeAgentRun(
       durationMs: values.durationMs,
       tokensIn: values.tokensIn,
       tokensOut: values.tokensOut,
+      costUsd: values.costUsd,
       findingsCount: values.findingsCount,
       grounding: values.grounding,
       score: values.score ?? null,

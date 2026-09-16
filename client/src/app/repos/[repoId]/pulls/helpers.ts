@@ -7,6 +7,14 @@ export function sizeOf(pr: PrMeta): SizeInfo {
   return { size, lines };
 }
 
+/** Compact USD cost for the list's COST column (e.g. "$0.014"); "—" when unknown. */
+export function formatCost(usd: number | null | undefined): string {
+  if (usd == null) return "—";
+  if (usd === 0) return "$0.00";
+  const rounded = Number(usd.toPrecision(2));
+  return `$${rounded >= 1 ? rounded.toFixed(2) : String(rounded)}`;
+}
+
 /** Compact relative time for the list's UPDATED column (e.g. "3h", "2d"). */
 export function relativeTime(iso: string | null | undefined): string {
   if (!iso) return "—";

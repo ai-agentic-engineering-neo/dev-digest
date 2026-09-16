@@ -9,7 +9,7 @@ import type { FindingRecord, Severity } from "@devdigest/shared";
 import { FindingCard } from "../FindingCard";
 import { useFindingAction } from "../../../../../../../lib/hooks/reviews";
 import { KEY_TO_ACTION } from "./constants";
-import { visibleFindings, countBySeverity } from "./helpers";
+import { visibleFindings, countBySeverity, hideLowConfidence } from "./helpers";
 import { SeverityFilterPills } from "./SeverityFilterPills";
 import { s } from "./styles";
 
@@ -30,10 +30,13 @@ export function FindingsPanel({
   const [severityFilter, setSeverityFilter] = React.useState<Severity | null>(null);
   const [focusIdx, setFocusIdx] = React.useState(0);
 
-  // Pill totals are the RAW per-severity counts (dismissed included — they
-  // still render as muted cards below), independent of hideLow/severityFilter
+  // Pill totals count the same hideLow-filtered set the cards render from
+  // (dismissed still included — they still render as muted cards below), so
+  // a pill's number always equals the number of matching cards on screen,
+  // "hide low confidence" on or off. They stay independent of severityFilter
   // so the pills themselves never disappear once a filter narrows the list.
-  const severityCounts = React.useMemo(() => countBySeverity(findings), [findings]);
+  const countable = React.useMemo(() => hideLowConfidence(findings, hideLow), [findings, hideLow]);
+  const severityCounts = React.useMemo(() => countBySeverity(countable), [countable]);
   const shown = React.useMemo(
     () => visibleFindings(findings, hideLow, severityFilter),
     [findings, hideLow, severityFilter],

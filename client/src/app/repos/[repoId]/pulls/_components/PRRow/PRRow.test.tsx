@@ -130,11 +130,11 @@ describe("PRRow — Findings cell", () => {
     expect(pushMock).not.toHaveBeenCalled();
   });
 
-  it("hovering the counter opens a read-only popover titled with the total count", () => {
+  it("hovering the counter opens a read-only popover titled '3 FINDINGS IN THIS RUN'", () => {
     renderRow(pr({ findings_summary: findingsSummary() }));
     fireEvent.mouseEnter(screen.getByRole("button"));
     const dialog = screen.getByRole("dialog");
-    expect(dialog).toHaveTextContent("3 FINDINGS");
+    expect(dialog).toHaveTextContent("3 FINDINGS IN THIS RUN");
     // Every item shows up, in severity order.
     expect(within(dialog).getByText("Hardcoded Stripe secret key in commit")).toBeInTheDocument();
     expect(within(dialog).getByText("Extract magic number 3600")).toBeInTheDocument();

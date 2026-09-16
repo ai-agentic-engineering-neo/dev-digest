@@ -50,6 +50,7 @@ hook at the API.
 
 - `src/vendor/shared/` — mirrored by hand from `server/src/vendor/shared`; see root [CLAUDE.md](../CLAUDE.md).
 - `src/vendor/ui/` — vendored design-system primitives; prefer composing them over patching internals.
+- `pnpm-lock.yaml` — never hand-edit; regenerate via `pnpm install` after a `package.json` change.
 
 ## Read When
 

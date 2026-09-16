@@ -61,7 +61,7 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
           <FindingsCounter
             counts={pr.findings_summary.counts}
             items={pr.findings_summary.items}
-            popoverTitle={t("findings.popoverTitle", { count: totalCount(pr.findings_summary.counts) })}
+            popoverTitle={t("findings.popoverTitleRun", { count: totalCount(pr.findings_summary.counts) })}
           />
         )}
       </div>

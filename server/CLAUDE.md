@@ -66,6 +66,7 @@ pnpm exec vitest run .it.test                       # integration (real Postgres
 - `adapters/mocks.ts` — shared test doubles; changes ripple into every unit test.
 - `db/migrations/*.sql` — never edit an existing migration, always `db:generate` a new one.
 - `vendor/shared/` — mirrored by hand in `client/src/vendor/shared`; see root [CLAUDE.md](../CLAUDE.md).
+- `pnpm-lock.yaml` — never hand-edit; regenerate via `pnpm install` after a `package.json` change.
 
 ## Read When
 

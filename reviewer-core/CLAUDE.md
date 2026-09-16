@@ -50,6 +50,7 @@ npm test            # vitest, hermetic, LLM stubbed — no keys, no network
 
 - `prompt.ts`'s `INJECTION_GUARD` — the only defense against prompt injection
   from untrusted PR content; it's a shared rule, not per-call text parsing. See [specs/grounding-spec.md](specs/grounding-spec.md).
+- `package-lock.json` — never hand-edit; regenerate via `npm install` after a `package.json` change.
 
 ## Read When
 

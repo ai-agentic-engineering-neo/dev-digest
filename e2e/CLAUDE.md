@@ -43,6 +43,10 @@ npm run typecheck
   `devdigest_pgdata` volume, i.e. every real imported repo/review, not just test data.
 - Failure screenshots land in `e2e/test-results/` (git-ignored, uploaded as a CI artifact).
 
+## Do-not-touch without reading first
+
+- `package-lock.json` — never hand-edit; regenerate via `npm install` after a `package.json` change.
+
 ## Read When
 
 - **Writing/debugging a flow, or the agent-browser command set** → [docs/flows.md](docs/flows.md)

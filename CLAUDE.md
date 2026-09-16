@@ -31,6 +31,29 @@ run on the host, not in a container).
 Per-package `dev` / `test` / `typecheck` — see that package's own `CLAUDE.md`
 for the exact command (pnpm vs npm differs).
 
+## Naming conventions
+
+- DB columns: `snake_case`, declared explicitly in the Drizzle schema next to
+  a `camelCase` TS field name (`costUsd: doublePrecision('cost_usd')`).
+- `@devdigest/shared` contract/DTO fields (the wire format): `snake_case`
+  (`cost_usd`, `created_at`, `start_line`, `findings_summary`) — matches the
+  DB/JSON shape, not the surrounding TS convention.
+- Everything else in TS/JS — variables, params, local identifiers:
+  `camelCase`.
+- Zod schema consts and their inferred types share one `PascalCase` name:
+  `export const Severity = z.enum([...]); export type Severity = z.infer<typeof Severity>;`.
+- Zod enum values: `UPPER_CASE` for severity-like states (`CRITICAL`,
+  `WARNING`, `SUGGESTION`), `lower_snake_case` for everything else (`bug`,
+  `secret_leak`, `request_changes`).
+- React components: `PascalCase`, one component per file, colocated under
+  `_components/<Name>/<Name>.tsx` (+ `<Name>.test.tsx` beside it) — see each
+  package's own `CLAUDE.md` for that package's component layout.
+- Route segments under `client/src/app/**`: lowercase folder names, dynamic
+  segments in `[brackets]` (`repos/[repoId]/pulls/[number]`).
+- Migration files (`server/src/db/migrations/*.sql`): auto-named by
+  `drizzle-kit generate` (`NNNN_adjective_noun.sql`) — never hand-name or
+  rename one.
+
 ## Non-default conventions
 
 - `@devdigest/shared` (Zod contracts) is **not a package** — it's hand-copied
@@ -49,6 +72,9 @@ for the exact command (pnpm vs npm differs).
 - `docker compose down -v` — deletes the `devdigest_pgdata` volume, i.e.
   every imported repo and review. Use `docker compose down` (no `-v`) to stop
   Postgres without losing data.
+- Lock files (`pnpm-lock.yaml` in `server/`/`client/`, `package-lock.json` in
+  `reviewer-core/`/`e2e/`) — never hand-edit; let the package manager
+  regenerate them (`pnpm install` / `npm install`) when `package.json` changes.
 
 ## Read When
 

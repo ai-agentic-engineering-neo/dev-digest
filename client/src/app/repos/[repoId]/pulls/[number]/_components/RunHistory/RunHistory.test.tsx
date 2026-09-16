@@ -175,7 +175,7 @@ describe("RunHistory — findings counter", () => {
     expect(screen.getByText("1")).toBeInTheDocument();
   });
 
-  it("hovering the counter opens a read-only popover titled '... FINDINGS IN THIS RUN'", () => {
+  it("hovering the counter opens a read-only popover titled '... FINDINGS'", () => {
     const { container } = renderRuns(
       [run({ run_id: "run-1" })],
       [
@@ -189,7 +189,8 @@ describe("RunHistory — findings counter", () => {
     expect(trigger).not.toBeNull();
     fireEvent.mouseEnter(trigger!);
     const dialog = screen.getByRole("dialog");
-    expect(dialog).toHaveTextContent("1 FINDINGS IN THIS RUN");
+    expect(dialog).toHaveTextContent("1 FINDINGS");
+    expect(dialog).not.toHaveTextContent("IN THIS RUN");
     expect(within(dialog).queryAllByRole("button")).toHaveLength(0);
   });
 });

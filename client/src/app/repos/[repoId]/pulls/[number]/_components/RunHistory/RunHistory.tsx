@@ -225,7 +225,7 @@ export function RunHistory({
                     <FindingsCounter
                       counts={summaryByRunId.get(r.run_id)!.counts}
                       items={summaryByRunId.get(r.run_id)!.items}
-                      popoverTitle={t("findings.popoverTitleRun", {
+                      popoverTitle={t("findings.popoverTitle", {
                         count: totalCount(summaryByRunId.get(r.run_id)!.counts),
                       })}
                     />

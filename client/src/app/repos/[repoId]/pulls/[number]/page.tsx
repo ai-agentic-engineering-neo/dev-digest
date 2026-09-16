@@ -70,7 +70,7 @@ export default function PRDetailPage() {
   // Reviews come newest-first; each is its own run (grouped into accordions).
   const runs = reviews ?? [];
   const allFindings: FindingRecord[] = React.useMemo(
-    () => runs.flatMap((r) => r.findings),
+    () => (reviews ?? []).flatMap((r) => r.findings),
     [reviews],
   );
   const lethalTrifecta = allFindings.filter((f) => f.kind === "lethal_trifecta");
@@ -128,7 +128,8 @@ export default function PRDetailPage() {
         prId={prId}
         tab={tab}
         findingsCount={findingsCount}
-        githubUrl={repoFullName ? repoPrUrl(repoProvider, repoFullName, pr.number) : null}
+        prUrl={repoFullName ? repoPrUrl(repoProvider, repoFullName, pr.number) : null}
+        provider={repoProvider}
         onSetTab={setTab}
         onRunStart={() => setTab("findings")}
         onRunsStarted={() => invalidateActiveRuns()}
@@ -169,6 +170,7 @@ export default function PRDetailPage() {
             filesCount={pr.files_count}
             files={pr.files}
             canComment={pr.status === "open"}
+            provider={repoProvider}
           />
         )}
       </div>

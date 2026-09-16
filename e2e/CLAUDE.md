@@ -11,6 +11,7 @@ TypeScript 5.7 · `tsx` 4.19 (runner) · `agent-browser` CLI (external binary, i
 - `npm test` → `tsx run.ts` — runs flows against whatever stack is already up
 - `npm run e2e:hermetic` (or `./scripts/e2e.sh` from repo root) — isolated stack (Postgres `:5433`, API `:3101`, web `:3100`), freshly seeded, torn down after
 - `npm run typecheck`
+- `npm run lint`
 
 ## Map
 
@@ -30,6 +31,10 @@ TypeScript 5.7 · `tsx` 4.19 (runner) · `agent-browser` CLI (external binary, i
 
 - Flows assume a freshly-seeded DB with only the demo repo `acme/payments-api` as PR #482 — running `npm test` against your normal dev DB (which likely has other imported repos) breaks flows `02`/`04`/`05`. Use the hermetic runner instead.
 - Never `docker compose down -v` to "reset" your dev DB — it deletes the `devdigest_pgdata` volume along with every real repo/review you've imported
+
+## Do-not-touch
+
+- `package-lock.json` — this package uses npm (not pnpm, unlike `server`/`client`); regenerate via `npm install`, never hand-edit
 
 ## Session Protocol
 

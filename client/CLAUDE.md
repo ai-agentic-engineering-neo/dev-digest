@@ -8,7 +8,7 @@ Next.js 15 (App Router) · React 19 · TanStack Query 5.62 · next-intl 3.26 · 
 
 ## Commands
 
-- `pnpm dev` (`:3000`) · `pnpm build` · `pnpm start` · `pnpm typecheck`
+- `pnpm dev` (`:3000`) · `pnpm build` · `pnpm start` · `pnpm typecheck` · `pnpm lint`
 - `pnpm test` — vitest + jsdom, `fetch` mocked; no API or browser needed (real journeys live in [`../e2e`](../e2e/README.md))
 
 ## Map
@@ -34,6 +34,7 @@ Next.js 15 (App Router) · React 19 · TanStack Query 5.62 · next-intl 3.26 · 
 ## Do-not-touch
 
 - `src/vendor/ui`, `src/vendor/shared` — vendored/synced, not owned here
+- `pnpm-lock.yaml` — regenerate via `pnpm install`, never hand-edit
 
 ## Session Protocol
 

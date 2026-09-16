@@ -8,6 +8,7 @@ import { type ShellContext } from "@devdigest/ui";
 import { useTheme } from "../../../lib/theme";
 import { useActiveRepo } from "../../../lib/repo-context";
 import { usePulls, useDeleteRepo } from "../../../lib/hooks";
+import { platformLabel } from "../../../lib/repo-urls";
 import { activeKeyFor, toShellRepo } from "../helpers";
 
 interface ShellContextOptions {
@@ -42,7 +43,10 @@ export function useShellContext({ onOpenCommandPalette }: ShellContextOptions): 
     (id: string) => {
       const target = repos.find((r) => r.id === id);
       const ok = window.confirm(
-        t("removeRepo.confirm", { name: target?.full_name ?? t("removeRepo.fallbackName") }),
+        t("removeRepo.confirm", {
+          name: target?.full_name ?? t("removeRepo.fallbackName"),
+          platform: platformLabel(target?.provider ?? "github"),
+        }),
       );
       if (!ok) return;
       deleteRepo.mutate(id, {

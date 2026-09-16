@@ -8,7 +8,7 @@ Fastify 5.2 · Drizzle ORM 0.38 (Postgres/pgvector) · Zod 3.24 (`fastify-type-p
 
 ## Commands
 
-- `pnpm dev` · `pnpm build` · `pnpm typecheck`
+- `pnpm dev` · `pnpm build` · `pnpm typecheck` · `pnpm lint`
 - `pnpm db:migrate` (**not** run on boot — must run manually) · `pnpm db:seed` · `pnpm db:generate`
 - Tests split by filename: `pnpm exec vitest run --exclude '**/*.it.test.ts'` (hermetic) vs `.it.test` (real Postgres, testcontainers)
 
@@ -36,6 +36,8 @@ Fastify 5.2 · Drizzle ORM 0.38 (Postgres/pgvector) · Zod 3.24 (`fastify-type-p
 ## Do-not-touch
 
 - `src/vendor/` — synced from elsewhere; local edits get overwritten
+- `src/db/migrations/` — already-applied migrations are immutable history; new schema changes go through `pnpm db:generate`, never a hand edit of an existing file
+- `pnpm-lock.yaml` — regenerate via `pnpm install`, never hand-edit
 
 ## Session Protocol
 

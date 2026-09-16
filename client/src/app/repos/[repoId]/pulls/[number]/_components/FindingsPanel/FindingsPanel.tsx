@@ -63,7 +63,7 @@ export function FindingsPanel({
     <div>
       <div style={s.toolbar}>
         <div style={s.severityBar} role="group" aria-label={t("panel.severityFilterLabel")}>
-          {FILTERABLE_SEVERITIES.map((sev) => (
+          {FILTERABLE_SEVERITIES.filter((sev) => counts[sev] > 0 || sev === severityFilter).map((sev) => (
             <button
               key={sev}
               type="button"

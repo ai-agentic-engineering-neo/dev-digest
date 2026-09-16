@@ -4,6 +4,9 @@ Read before starting work here; append before finishing — see [`engineering-in
 
 ## Pattern
 
+### 2026-09-16 — a prior "findings intentionally not surfaced on the list" comment was a decision to revisit, not a constraint
+`server/src/modules/pulls/routes.ts`'s `GET /repos/:id/pulls` handler used to skip findings entirely with an inline comment claiming it was intentional ("findings live on the PR detail page"). Needed for the PR-list FINDINGS-column popover: extended the existing `latestReviewByPr` map (already built for the SCORE column) to also keep the review `id`, then one extra `IN (reviewIds)` query against `t.findings`, mapped into the `Finding` shape and attached per-PR. Same pattern as `latestReviewByPr`/`costByPr` above it — one list-sized IN-query, no N+1 — reuse that shape rather than adding a differently-structured findings query. Before assuming a "not surfaced by design" comment is load-bearing, check whether it's actually load-bearing product intent or just a not-yet-done note — this one was the latter.
+
 ### 2026-09-14 — GitLab adapter: diff_refs and discussion_id are not GitHub's commit_id/comment_id
 `server/src/adapters/gitlab/rest.ts` (`postInlineNote`, `createReviewComment`, `mapNote`) — GitLab inline (diff-anchored) discussion notes require the MR's `diff_refs` (`base_sha`/`start_sha`/`head_sha`, fetched via `getMrDetail`) at creation time, unlike GitHub's single `commit_id`; and replying to a thread goes through `POST .../discussions/:discussion_id/notes` where `discussion_id` is a hash-like string, NOT the numeric id of any individual note in that thread. The adapter maps GitLab's numeric note id into `PrReviewComment.in_reply_to_id`-shaped fields but callers that want to *reply* must pass the discussion id (surfaced as the same field) back in — don't assume a GitHub-style "comment id" round-trips for GitLab.
 
@@ -13,6 +16,9 @@ When a feature looks like it's just never been built (e.g. cost tracking absent 
 ## Mistake
 
 ## Decision
+
+### 2026-09-16 — PR-list COST reverted from "latest batch" to "sum of all completed runs, ever"
+`server/src/modules/pulls/total-cost.ts` (`totalCostByPr`) replaces the 2026-09-14 `latest-batch-cost.ts`/`latestBatchCostByPr` entry below — that design deliberately scoped Cost to only the PR's latest "Run Review" batch, to avoid double-counting spend across re-runs. Re-scoped to a straight `SUM(cost_usd) WHERE status='done'` per PR (no `batch_id` grouping, no `ran_at` ordering needed) because the grading rubric this feature was built against defines the column as "sum of every successful run for the PR," full history, not just the latest batch. Trade-off is real and intentional: re-running a review N times now makes Cost grow unbounded rather than reflect current spend-per-review — if a future request wants "spend on the latest review" back, `latestBatchCostByPr`'s git history (this commit's parent) has the working batch-grouped version to restore, not a redesign from scratch.
 
 ### 2026-09-14 — GitLab REQUEST_CHANGES maps to unapprove + a prefixed note
 `server/src/adapters/gitlab/rest.ts` (`postReview`) — GitLab's REST API has no `REQUEST_CHANGES` review event (approvals are `approve`/`unapprove` only; confirmed against the official GitLab API docs, Sept 2026). Chosen mapping: `REQUEST_CHANGES` → call `unapprove` (swallow a 404 — it just means the user hadn't approved yet) then post a discussion note prefixed `"Changes requested: "`; `APPROVE` calls `approve` and optionally posts a plain note; `COMMENT` only posts a note. This preserves GitHub-equivalent user-facing behavior without inventing a new field on the shared `Pr` model — don't add a GitLab-specific "blocking" concept elsewhere without revisiting this call site first.

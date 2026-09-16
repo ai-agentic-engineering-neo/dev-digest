@@ -10,6 +10,7 @@ TypeScript 5.7 · Vitest 2.1 · Zod 3.24 · `openai` SDK 4.77 (used to talk to a
 
 - `npm test` — vitest, hermetic, stubbed `LLMProvider`; no keys, no network
 - `npm run typecheck` — doubles as the build; the package never emits JS (consumed as TS source via a tsconfig path alias from `server`)
+- `npm run lint`
 
 ## Map
 
@@ -30,6 +31,10 @@ TypeScript 5.7 · Vitest 2.1 · Zod 3.24 · `openai` SDK 4.77 (used to talk to a
 ## Gotchas
 
 - A finding without a real diff-line citation is silently dropped by `groundFindings` — if a review looks "thin," check grounding before touching the prompt
+
+## Do-not-touch
+
+- `package-lock.json` — regenerate via `npm install`, never hand-edit
 
 ## Session Protocol
 

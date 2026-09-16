@@ -88,7 +88,9 @@ export function FileCard({ file, commenting }: { file: PrFile; commenting?: Diff
               />
             ))
           )}
-          {commenting && commenting.showComments && <OutdatedComments threads={outdated} />}
+          {commenting && commenting.showComments && (
+            <OutdatedComments threads={outdated} provider={commenting.provider} />
+          )}
         </div>
       )}
     </div>

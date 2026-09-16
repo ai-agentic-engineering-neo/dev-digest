@@ -94,6 +94,7 @@
       "size": "Size",
       "score": "Score",
       "status": "Status",
+      "findings": "Findings",
       "cost": "Cost",
       "updated": "Updated"
     },
@@ -101,8 +102,11 @@
     "errorTitle": "Couldn’t load pull requests",
     "errorBody": "The engine returned an error.",
     "emptyTitle": "No pull requests",
-    "emptyAllBody": "No open PRs found for this repo yet. Refresh to sync from GitHub.",
-    "emptyStatusBody": "No PRs with status “{status}”."
+    "emptyAllBody": "No open PRs found for this repo yet. Refresh to sync from {platform}.",
+    "emptyStatusBody": "No PRs with status “{status}”.",
+    "findingsPopover": {
+      "title": "{count, plural, one {# FINDING IN THIS RUN} other {# FINDINGS IN THIS RUN}}"
+    }
   },
   "timeline": {
     "goToReview": "Jump to this run’s findings below",

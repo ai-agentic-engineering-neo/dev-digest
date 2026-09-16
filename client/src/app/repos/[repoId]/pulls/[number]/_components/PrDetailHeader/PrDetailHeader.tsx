@@ -4,15 +4,18 @@ import React, { useCallback } from "react";
 import { Icon, Avatar, Badge, Button, Tabs } from "@devdigest/ui";
 import { RunReviewDropdown } from "../RunReviewDropdown";
 import { s } from "./styles";
-import type { PrDetail } from "@/lib/types";
+import type { PrDetail, RepoProvider } from "@/lib/types";
+import { platformLabel } from "@/lib/repo-urls";
 
 interface PrDetailHeaderProps {
   pr: PrDetail;
   prId: string | null;
   tab: string;
   findingsCount: number;
-  /** github.com PR URL; null when the repo's full_name isn't known yet. */
-  githubUrl?: string | null;
+  /** Host PR/MR URL; null when the repo's full_name isn't known yet. */
+  prUrl?: string | null;
+  /** Which code host `prUrl` points at — drives the "View on {platform}" label. */
+  provider?: RepoProvider;
   onSetTab: (tab: string) => void;
   onRunStart: () => void;
   onRunsStarted: () => void;
@@ -23,7 +26,8 @@ export function PrDetailHeader({
   prId,
   tab,
   findingsCount,
-  githubUrl,
+  prUrl,
+  provider = "github",
   onSetTab,
   onRunStart,
   onRunsStarted,
@@ -82,12 +86,12 @@ export function PrDetailHeader({
             kind="ghost"
             size="sm"
             icon="ExternalLink"
-            disabled={!githubUrl}
+            disabled={!prUrl}
             onClick={() =>
-              githubUrl && window.open(githubUrl, "_blank", "noopener,noreferrer")
+              prUrl && window.open(prUrl, "_blank", "noopener,noreferrer")
             }
           >
-            View on GitHub
+            View on {platformLabel(provider)}
           </Button>
           {prId && (
             <RunReviewDropdown
@@ -103,7 +107,7 @@ export function PrDetailHeader({
         <div style={s.staleBanner}>
           <Icon.AlertTriangle size={13} style={{ color: "var(--warn)", flexShrink: 0 }} />
           <span>
-            This PR is already {pr.status} — running a review is informational and won't affect the
+            This PR is already {pr.status} — running a review is informational and won&apos;t affect the
             merged code.
           </span>
         </div>

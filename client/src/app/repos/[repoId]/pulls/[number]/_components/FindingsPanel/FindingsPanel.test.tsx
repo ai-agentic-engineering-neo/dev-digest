@@ -70,6 +70,15 @@ describe("FindingsPanel (smoke)", () => {
     expect(within(bar).getByText("2")).toBeInTheDocument(); // WARNING
   });
 
+  it("only renders pills for severities that actually have findings", () => {
+    const criticalOnly = [finding({ id: "f1", severity: "CRITICAL" })];
+    renderWithIntl(<FindingsPanel findings={criticalOnly} prId="pr1" />);
+    const bar = screen.getByRole("group", { name: "Filter by severity" });
+    expect(within(bar).getByText("Critical")).toBeInTheDocument();
+    expect(within(bar).queryByText("Warning")).not.toBeInTheDocument();
+    expect(within(bar).queryByText("Suggestion")).not.toBeInTheDocument();
+  });
+
   it("filters to only the clicked severity, and clears on a second click", () => {
     renderWithIntl(<FindingsPanel findings={MIXED_FINDINGS} prId="pr1" />);
     const bar = screen.getByRole("group", { name: "Filter by severity" });

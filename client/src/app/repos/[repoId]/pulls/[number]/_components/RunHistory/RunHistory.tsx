@@ -5,8 +5,7 @@ import { useTranslations } from "next-intl";
 import { Badge, Icon, CircularScore, SeverityBadge, type IconName, type Severity as UiSeverity } from "@devdigest/ui";
 import { RunCostBadge } from "@/components/run-cost-badge";
 import type { RunSummary, PrCommit, FindingRecord } from "@devdigest/shared";
-import { severityCounts } from "../FindingsPanel/helpers";
-import { FILTERABLE_SEVERITIES } from "../FindingsPanel/constants";
+import { severityCounts, FILTERABLE_SEVERITIES } from "@/lib/findings";
 
 /**
  * PR timeline — every agent run interleaved with the PR's commits, newest-first

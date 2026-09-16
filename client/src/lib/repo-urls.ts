@@ -9,6 +9,16 @@ const HOST: Record<RepoProvider, string> = {
   gitlab: "https://gitlab.com",
 };
 
+const PLATFORM_LABEL: Record<RepoProvider, string> = {
+  github: "GitHub",
+  gitlab: "GitLab",
+};
+
+/** Human-readable code-host name for a repo's provider (button/copy text). */
+export function platformLabel(provider: RepoProvider): string {
+  return PLATFORM_LABEL[provider];
+}
+
 /** Encode a repo-relative path for a URL while keeping "/" separators. */
 function encPath(file: string): string {
   return file

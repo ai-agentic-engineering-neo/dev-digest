@@ -1,10 +1,11 @@
 /* InlineComposer — shared inline comment composer (new comment or reply to a
-   thread). Posts live to GitHub via the DiffCommentApi. */
+   thread). Posts live to the repo's host (GitHub/GitLab) via the DiffCommentApi. */
 "use client";
 
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Textarea, Button } from "@devdigest/ui";
+import { platformLabel } from "@/lib/repo-urls";
 import { cs, type DiffCommentApi } from "../comments";
 
 export function InlineComposer({
@@ -69,7 +70,9 @@ export function InlineComposer({
         <Button kind="ghost" size="sm" onClick={onClose} disabled={commenting.posting}>
           {t("diffViewer.cancel")}
         </Button>
-        <span style={cs.hint}>{t("diffViewer.postedToGitHub")}</span>
+        <span style={cs.hint}>
+          {t("diffViewer.postedToPlatform", { platform: platformLabel(commenting.provider) })}
+        </span>
       </div>
     </div>
   );

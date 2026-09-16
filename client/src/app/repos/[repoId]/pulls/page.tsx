@@ -16,6 +16,7 @@ import { RepoNotFound } from "@/components/repo-not-found";
 import { usePulls, useRefreshRepo } from "@/lib/hooks";
 import { useActiveRepo, useRepoNotFound } from "@/lib/repo-context";
 import { ApiError } from "@/lib/api";
+import { platformLabel } from "@/lib/repo-urls";
 import { COLUMN_KEYS, SKELETON_ROWS } from "./constants";
 import { s } from "./styles";
 import { PRRow } from "./_components/PRRow";
@@ -122,7 +123,7 @@ export default function PullsPage() {
             title={t("list.emptyTitle")}
             body={
               status === "all"
-                ? t("list.emptyAllBody")
+                ? t("list.emptyAllBody", { platform: platformLabel(activeRepo?.provider ?? "github") })
                 : t("list.emptyStatusBody", { status })
             }
           />

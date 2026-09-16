@@ -5,17 +5,19 @@ import { SectionLabel, Button } from "@devdigest/ui";
 import { DiffViewer, type DiffCommentApi } from "@/components/diff-viewer";
 import { usePrComments, useCreatePrComment } from "@/lib/hooks/reviews";
 import { notify } from "@/lib/toast";
-import type { PrFile } from "@devdigest/shared";
+import { platformLabel } from "@/lib/repo-urls";
+import type { PrFile, RepoProvider } from "@devdigest/shared";
 
 interface DiffTabProps {
   prId: string | null;
   filesCount: number;
   files: PrFile[];
-  /** Inline commenting is offered only on open PRs (GitHub rejects otherwise). */
+  /** Inline commenting is offered only on open PRs (the host rejects otherwise). */
   canComment?: boolean;
+  provider?: RepoProvider;
 }
 
-export function DiffTab({ prId, filesCount, files, canComment }: DiffTabProps) {
+export function DiffTab({ prId, filesCount, files, canComment, provider = "github" }: DiffTabProps) {
   const { data: comments } = usePrComments(prId);
   const create = useCreatePrComment(prId);
   // Comments start hidden so the diff is clean by default — toggle to reveal.
@@ -26,6 +28,7 @@ export function DiffTab({ prId, filesCount, files, canComment }: DiffTabProps) {
   const commenting: DiffCommentApi = {
     comments: comments ?? [],
     canComment: !!canComment && !!prId,
+    provider,
     showComments,
     posting: create.isPending,
     onSubmit: async (input) => {
@@ -34,7 +37,9 @@ export function DiffTab({ prId, filesCount, files, canComment }: DiffTabProps) {
         setShowComments(true); // a just-posted comment shouldn't stay hidden
         return res;
       } catch (err) {
-        notify.error(err instanceof Error ? err.message : "Couldn't post the comment to GitHub.");
+        notify.error(
+          err instanceof Error ? err.message : `Couldn't post the comment to ${platformLabel(provider)}.`,
+        );
         throw err;
       }
     },

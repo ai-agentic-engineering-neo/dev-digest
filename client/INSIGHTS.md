@@ -26,6 +26,7 @@ Contract:
 
 <!-- newest on top -->
 
+- 2026-09-16 — Fixed-decimal cost formatting rounds REAL OpenRouter costs to "$0.000" (haiku-class runs on small diffs cost $0.0001–0.0004, below 3-decimal resolution) — `formatCost` therefore keeps 2 significant digits with 2–6 decimals ($0.060 / $0.0013 / $0.000038), superseding the earlier fixed 3/4-decimal rule. (src/lib/cost.ts)
 - 2026-09-16 — USD cost renders null as an em-dash, never `$0.00` — an unpriced model or a run that failed before billing is unknown, not free; formatting lives in `src/lib/cost.ts` (3 decimals under $1 for badges/stats, 4 for the per-run timeline meta). (src/lib/cost.ts)
 
 ## Tool & Library Notes

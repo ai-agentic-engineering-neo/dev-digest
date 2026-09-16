@@ -4,7 +4,7 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Badge, Icon, CircularScore, MonoLink, type IconName } from "@devdigest/ui";
 import type { RunSummary, PrCommit } from "@devdigest/shared";
-import { formatCostPrecise } from "@/lib/cost";
+import { formatCost } from "@/lib/cost";
 
 /**
  * PR timeline — every agent run interleaved with the PR's commits, newest-first
@@ -189,7 +189,7 @@ export function RunHistory({
                 <span className="mono tnum">
                   {t("timeline.runMeta", {
                     tokens: r.tokens_in.toLocaleString(),
-                    cost: formatCostPrecise(r.cost_usd),
+                    cost: formatCost(r.cost_usd),
                   })}
                 </span>
               )}

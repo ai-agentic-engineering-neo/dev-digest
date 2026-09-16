@@ -1,15 +1,14 @@
 /* cost.ts — USD formatting for review-run costs, shared by the PR list, the
-   run timeline, and the trace stats row. Per-run costs are fractions of a
-   cent, so sub-dollar values keep an extra decimal; a null cost (unknown
-   model price, failed before billing) renders as an em-dash, never $0.00. */
+   run timeline, and the trace stats row. Real per-run costs are often
+   fractions of a cent (cheap models, small diffs), so fixed decimals would
+   round them to "$0.000" — instead keep 2 significant digits (2–6 decimals):
+   $1.25 · $0.060 · $0.0013 · $0.000038. A null cost (unknown model price,
+   failed before billing) renders as an em-dash, never $0.00. */
 
-/** Badge-style cost: `$0.014` under $1, `$1.25` above; `—` when null. */
+/** Cost with 2 significant digits (2–6 decimals); `—` when null. */
 export function formatCost(usd?: number | null): string {
   if (usd == null) return "—";
-  return usd < 1 ? `$${usd.toFixed(3)}` : `$${usd.toFixed(2)}`;
-}
-
-/** Precise cost for the per-run timeline meta line: always 4 decimals. */
-export function formatCostPrecise(usd?: number | null): string {
-  return usd == null ? "—" : `$${usd.toFixed(4)}`;
+  if (usd <= 0) return "$0.00";
+  const decimals = Math.min(6, Math.max(2, 1 - Math.floor(Math.log10(usd))));
+  return `$${usd.toFixed(decimals)}`;
 }

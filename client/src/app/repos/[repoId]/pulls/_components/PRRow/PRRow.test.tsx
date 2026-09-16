@@ -57,6 +57,11 @@ describe("PRRow — cost cell", () => {
     expect(screen.getByText("$1.26")).toBeInTheDocument();
   });
 
+  it("keeps sub-cent costs visible instead of rounding to $0.000", () => {
+    renderRow(pr({ cost_usd: 0.0000379 }));
+    expect(screen.getByText("$0.000038")).toBeInTheDocument();
+  });
+
   it("shows an em-dash when the PR has no priced round (never reviewed / unpriced)", () => {
     renderRow(pr({ cost_usd: null }));
     expect(screen.getByText("—")).toBeInTheDocument();

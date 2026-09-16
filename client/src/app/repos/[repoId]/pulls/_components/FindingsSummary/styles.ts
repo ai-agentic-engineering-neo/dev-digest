@@ -2,7 +2,6 @@ import type { CSSProperties } from "react";
 
 /** Co-located styles for the PR-list FINDINGS column + hover popover. */
 export const s = {
-  wrap: { position: "relative", display: "inline-flex" } satisfies CSSProperties,
   trigger: {
     display: "inline-flex",
     alignItems: "center",
@@ -10,10 +9,10 @@ export const s = {
     cursor: "default",
   } satisfies CSSProperties,
   muted: { color: "var(--text-muted)" } satisfies CSSProperties,
+  // Positioned as a fixed-position portal (see FindingsSummary.tsx) so it can
+  // escape ancestors with `overflow: hidden` (e.g. the PR-list table card) —
+  // `top`/`left` are computed at hover time from the trigger's bounding rect.
   popover: {
-    position: "absolute",
-    top: "calc(100% + 8px)",
-    left: 0,
     width: 340,
     maxHeight: 360,
     overflowY: "auto",

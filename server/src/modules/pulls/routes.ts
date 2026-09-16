@@ -9,6 +9,7 @@ import { IdParams } from '../_shared/schemas.js';
 import { AppError, NotFoundError } from '../../platform/errors.js';
 import { deriveReviewStatus } from './status.js';
 import { totalCostByPr } from './total-cost.js';
+import { latestBatchReviewsByPr as latestBatchReviewsByPrFn, worstScore } from './latest-batch-reviews.js';
 
 /**
  * F1 — pulls module. PR import via Octokit (list + per-PR detail).
@@ -112,33 +113,38 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
-    // Latest-review SCORE (+ id, to look up its findings below) per PR for the
-    // list's score ring. Computed on read from reviews (no FK denorm); the
-    // list is small, so one IN-query + JS grouping is cheap.
+    // Latest review BATCH per PR (+ ids, to look up findings below) — powers
+    // the list's SCORE ring and FINDINGS column. See latest-batch-reviews.ts
+    // for why this is a batch, not just the single newest review row.
     const prIds = rows.map((r) => r.id);
-    const latestReviewByPr = new Map<string, { id: string; score: number | null }>();
+    let latestBatchReviewsByPr = new Map<string, { id: string; score: number | null }[]>();
     if (prIds.length > 0) {
       const reviewRows = await container.db
-        .select({ id: t.reviews.id, prId: t.reviews.prId, score: t.reviews.score })
+        .select({
+          id: t.reviews.id,
+          prId: t.reviews.prId,
+          score: t.reviews.score,
+          runId: t.reviews.runId,
+          batchId: t.agentRuns.batchId,
+        })
         .from(t.reviews)
+        .leftJoin(t.agentRuns, eq(t.reviews.runId, t.agentRuns.id))
         .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review')))
         .orderBy(desc(t.reviews.createdAt));
-      // Rows are newest-first → first seen per PR is the latest review.
-      for (const rv of reviewRows) {
-        if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { id: rv.id, score: rv.score });
-      }
+      latestBatchReviewsByPr = latestBatchReviewsByPrFn(reviewRows);
     }
 
-    // Findings of each PR's latest review — powers the list's FINDINGS column
-    // hover popover ("N FINDINGS IN THIS RUN"). One IN-query keyed by the
-    // latest review ids just resolved above.
+    // Findings across every review in each PR's latest batch — powers the
+    // list's FINDINGS column hover popover ("N FINDINGS IN THIS RUN").
     const findingsByReviewId = new Map<string, Finding[]>();
-    const latestReviewIds = [...latestReviewByPr.values()].map((r) => r.id);
-    if (latestReviewIds.length > 0) {
+    const latestBatchReviewIds = [...latestBatchReviewsByPr.values()].flatMap((list) =>
+      list.map((rv) => rv.id),
+    );
+    if (latestBatchReviewIds.length > 0) {
       const findingRows = await container.db
         .select()
         .from(t.findings)
-        .where(inArray(t.findings.reviewId, latestReviewIds));
+        .where(inArray(t.findings.reviewId, latestBatchReviewIds));
       for (const f of findingRows) {
         const list = findingsByReviewId.get(f.reviewId) ?? [];
         list.push({
@@ -177,7 +183,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
 
     const now = Date.now();
     return rows.map((r) => {
-      const review = latestReviewByPr.get(r.id);
+      const batchReviews = latestBatchReviewsByPr.get(r.id) ?? [];
       return {
         id: r.id,
         number: r.number,
@@ -198,9 +204,9 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         }),
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
-        score: review ? review.score : null,
+        score: worstScore(batchReviews.map((rv) => rv.score)),
         cost_usd: costByPr.get(r.id) ?? null,
-        findings: review ? findingsByReviewId.get(review.id) ?? [] : [],
+        findings: batchReviews.flatMap((rv) => findingsByReviewId.get(rv.id) ?? []),
       };
     });
   });

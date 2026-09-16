@@ -2,7 +2,7 @@
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { Badge, Icon, CircularScore, type IconName } from "@devdigest/ui";
+import { Badge, Icon, CircularScore, MonoLink, type IconName } from "@devdigest/ui";
 import type { RunSummary, PrCommit } from "@devdigest/shared";
 import { formatCostPrecise } from "@/lib/cost";
 
@@ -46,19 +46,6 @@ const rowStyle: React.CSSProperties = {
   border: "1px solid var(--border)",
   background: "var(--bg-elevated)",
   textAlign: "left",
-};
-
-const iconBtnStyle: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: 4,
-  borderRadius: 5,
-  border: "1px solid var(--border)",
-  background: "var(--bg-surface)",
-  color: "var(--text-muted)",
-  cursor: "pointer",
-  flexShrink: 0,
 };
 
 // Commits are markers, not actions — lighter (dashed, transparent) so they read
@@ -207,15 +194,11 @@ export function RunHistory({
                 </span>
               )}
             </div>
-            <button
-              type="button"
-              title={t("timeline.openTrace")}
-              aria-label={t("timeline.openTrace")}
+            <MonoLink
               onClick={() => onOpenTrace(r.run_id)}
-              style={iconBtnStyle}
             >
-              <Icon.FileText size={13} />
-            </button>
+              {t("timeline.trace")}
+            </MonoLink>
             {onDelete && r.status !== "running" && (
               <span
                 role="button"

@@ -76,9 +76,10 @@ describe("RunHistory — outcome badge", () => {
 });
 
 describe("RunHistory — run meta line (tokens + cost)", () => {
-  it("a settled run shows 'N tok · $x.xxxx' under its timestamp", () => {
+  it("a settled run shows 'N tok · $x.xxxx' under its timestamp and a Trace link", () => {
     renderRuns([run({ tokens_in: 12011, cost_usd: 0.0013 })]);
     expect(screen.getByText("12,011 tok · $0.0013")).toBeInTheDocument();
+    expect(screen.getByText("Trace")).toBeInTheDocument();
   });
 
   it("an unpriced settled run shows the meta line with an em-dash cost", () => {

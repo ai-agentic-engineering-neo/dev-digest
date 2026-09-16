@@ -106,7 +106,8 @@
   "timeline": {
     "goToReview": "Jump to this run’s findings below",
     "openTrace": "Open run trace & logs",
-    "deleteRun": "Delete run",
-    "runMeta": "{tokens} tok · {cost}"
+    "trace": "Trace",
+    "runMeta": "{tokens} tok · {cost}",
+    "deleteRun": "Delete run"
   }
 }

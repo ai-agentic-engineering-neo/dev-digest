@@ -116,17 +116,60 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
     // grouping is cheap. (The per-severity FINDINGS breakdown is intentionally
     // not surfaced on the list — findings live on the PR detail page.)
     const prIds = rows.map((r) => r.id);
-    const latestReviewByPr = new Map<string, { score: number | null }>();
+    const latestReviewByPr = new Map<string, { score: number | null; runId: string | null }>();
     if (prIds.length > 0) {
       const reviewRows = await container.db
-        .select({ prId: t.reviews.prId, score: t.reviews.score })
+        .select({ prId: t.reviews.prId, score: t.reviews.score, runId: t.reviews.runId })
         .from(t.reviews)
         .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review')))
         .orderBy(desc(t.reviews.createdAt));
       // Rows are newest-first → first seen per PR is the latest review.
       for (const rv of reviewRows) {
-        if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { score: rv.score });
+        if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { score: rv.score, runId: rv.runId });
       }
+    }
+
+    // Cost of each PR's latest REVIEW BATCH for the list's cost badge — every
+    // agent_runs row created by the SAME "Run Review"/"Review all" click that
+    // produced the CURRENTLY SHOWN score (score's own doc: "consistent with
+    // the fact that SCORE is also the last review"). `runReview()` in
+    // service.ts creates every agent_runs row for one click up front, in a
+    // single synchronous loop, before any LLM work starts — so true
+    // batch-mates share a `ran_at` within a couple seconds of each other at
+    // most (there's no persisted batch id, so this tight window is the
+    // reconstruction; it must stay tight, or it risks merging two separate,
+    // later "Run Review" clicks into one inflated total). Anchor on the run
+    // behind the current score; if the PR has no review yet (nothing
+    // succeeded), anchor on the single most recent run instead. Runs with no
+    // cost data are skipped, not summed as $0 — the total is null only when
+    // every run in the window lacks cost data. A PR with zero runs at all has
+    // no entry in `runsByPr`, so `cost_usd` is left `undefined` below
+    // (omitted from the response) — the client shows no badge, not a "—"
+    // (acceptance criterion: "no runs — no badge"). A "—" is still correct
+    // once at least one run exists but its cost is unknown.
+    const BATCH_WINDOW_MS = 5_000;
+    const runsByPr = new Map<string, { id: string; ranAt: number; costUsd: number | null }[]>();
+    if (prIds.length > 0) {
+      const runRows = await container.db
+        .select({ id: t.agentRuns.id, prId: t.agentRuns.prId, ranAt: t.agentRuns.ranAt, costUsd: t.agentRuns.costUsd })
+        .from(t.agentRuns)
+        .where(and(eq(t.agentRuns.workspaceId, workspaceId), inArray(t.agentRuns.prId, prIds)));
+      for (const rr of runRows) {
+        if (!rr.prId) continue;
+        const list = runsByPr.get(rr.prId) ?? [];
+        list.push({ id: rr.id, ranAt: rr.ranAt.getTime(), costUsd: rr.costUsd });
+        runsByPr.set(rr.prId, list);
+      }
+    }
+    const batchCostByPr = new Map<string, number | null>();
+    for (const [prId, runs] of runsByPr) {
+      const scoreRunId = latestReviewByPr.get(prId)?.runId;
+      const anchor =
+        (scoreRunId ? runs.find((r) => r.id === scoreRunId) : undefined) ??
+        runs.reduce((a, b) => (b.ranAt > a.ranAt ? b : a));
+      const inBatch = runs.filter((r) => Math.abs(r.ranAt - anchor.ranAt) <= BATCH_WINDOW_MS);
+      const costs = inBatch.map((r) => r.costUsd).filter((c): c is number => c != null);
+      batchCostByPr.set(prId, costs.length > 0 ? costs.reduce((a, b) => a + b, 0) : null);
     }
 
     const now = Date.now();
@@ -153,6 +196,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
+        cost_usd: runsByPr.has(r.id) ? (batchCostByPr.get(r.id) ?? null) : undefined,
       };
     });
   });

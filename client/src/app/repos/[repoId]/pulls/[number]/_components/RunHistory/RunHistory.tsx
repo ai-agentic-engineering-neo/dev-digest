@@ -4,6 +4,7 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Badge, Icon, CircularScore, type IconName } from "@devdigest/ui";
 import type { RunSummary, PrCommit } from "@devdigest/shared";
+import { RunCostBadge } from "@/components/run-cost-badge";
 
 /**
  * PR timeline — every agent run interleaved with the PR's commits, newest-first
@@ -82,6 +83,12 @@ function tsOf(s: string | null | undefined): number {
   if (!s) return 0;
   const n = Date.parse(s);
   return Number.isNaN(n) ? 0 : n;
+}
+
+/** Combined token count for the timeline row, e.g. "9,119 tok". */
+function formatRunTokens(tokensIn: number | null, tokensOut: number | null): string {
+  const total = (tokensIn ?? 0) + (tokensOut ?? 0);
+  return `${total.toLocaleString()} tok`;
 }
 
 export function RunHistory({
@@ -197,6 +204,11 @@ export function RunHistory({
             </div>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, fontSize: 11, color: "var(--text-muted)", flexShrink: 0 }}>
               {r.ran_at && <span>{new Date(r.ran_at).toLocaleTimeString()}</span>}
+              {settled && (
+                <span>
+                  {formatRunTokens(r.tokens_in, r.tokens_out)} · <RunCostBadge costUsd={r.cost_usd} />
+                </span>
+              )}
             </div>
             <button
               type="button"

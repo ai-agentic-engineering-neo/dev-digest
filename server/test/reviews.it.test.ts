@@ -159,7 +159,13 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
 
   it('runs a review: map-reduce + grounding drops the hallucinated finding, keeps the valid one', async () => {
     const app = await appWith(REVIEW_FIXTURE);
-    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+
+    // Before any run exists, the PR list omits cost_usd entirely (no badge),
+    // not null (which would mean "a run exists, cost unknown").
+    const beforeRun = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const prBeforeRun = beforeRun.find((p: { id: string }) => p.id === pr.id);
+    expect('cost_usd' in prBeforeRun).toBe(false);
 
     const agent = (
       await app.inject({
@@ -201,6 +207,7 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     const trace = (await app.inject({ method: 'GET', url: `/runs/${runId}/trace` })).json();
     expect(trace.config.model).toBe('gpt-4.1');
     expect(trace.stats.grounding).toBe('1/2 passed');
+    expect(trace.stats.cost_usd).toBe(0.001);
     expect(trace.log.length).toBeGreaterThan(0);
 
     // agent_runs row populated for A5 to aggregate
@@ -208,6 +215,13 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(run!.status).toBe('done');
     expect(run!.findingsCount).toBe(1);
     expect(run!.grounding).toBe('1/2 passed');
+    expect(run!.costUsd).toBe(0.001);
+
+    // PR-list COST column: sum of the last review-batch's run costs (a
+    // single-run batch here, so it's just this run's cost).
+    const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const listedPr = pulls.find((p: { id: string }) => p.id === pr.id);
+    expect(listedPr.cost_usd).toBe(0.001);
 
     await app.close();
   });
@@ -297,6 +311,43 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     ).json();
     // seed has 2 enabled agents; we may have created more above in this PR's ws.
     expect(body.runs.length).toBeGreaterThanOrEqual(2);
+    await app.close();
+  });
+
+  it('PR-list COST sums every run from the same review batch, not just one', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+
+    // Disable every agent left enabled by earlier tests in this file (agents
+    // are workspace-scoped, not PR-scoped) so `all: true` below targets
+    // EXACTLY the two we create next.
+    await pg.handle.db.update(t.agents).set({ enabled: false }).where(eq(t.agents.workspaceId, workspaceId));
+
+    await app.inject({
+      method: 'POST',
+      url: '/agents',
+      payload: { name: 'BatchA', provider: 'openai', model: 'gpt-4.1', system_prompt: 'a' },
+    });
+    await app.inject({
+      method: 'POST',
+      url: '/agents',
+      payload: { name: 'BatchB', provider: 'openai', model: 'gpt-4.1', system_prompt: 'b' },
+    });
+
+    // ONE "Review all" click — service.runReview() creates every agent_runs
+    // row for the whole batch up front, in a single synchronous loop, before
+    // any LLM work starts (unlike two separate POSTs, which are two distinct
+    // clicks and wouldn't exercise the batch-reconstruction window at all).
+    const body = (
+      await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { all: true } })
+    ).json();
+    expect(body.runs).toHaveLength(2);
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 2 });
+
+    const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const listedPr = pulls.find((p: { id: string }) => p.id === pr.id);
+    expect(listedPr.cost_usd).toBeCloseTo(0.002, 6);
+
     await app.close();
   });
 });

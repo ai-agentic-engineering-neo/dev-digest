@@ -5,8 +5,11 @@ each course lesson adds one feature back (see `README.md`).
 
 ## Before answering
 
-Search the relevant package's `docs/`, `specs/`, and `INSIGHTS.md` for what's
-asked FIRST — curated, may already answer it — then read code.
+Search FIRST — curated, may already answer it — then read code:
+
+- Root-level or cross-package question → root `docs/`, `specs/`, `INSIGHTS.md`.
+- Package-specific question → that package's `docs/`, `specs/`, `INSIGHTS.md`.
+- Unsure which, or it could be either → check both root and the package's.
 
 ## Conventions (not obvious from code)
 
@@ -20,8 +23,10 @@ asked FIRST — curated, may already answer it — then read code.
 
 ## Do-not-touch
 
-- `server/src/vendor/**`, `client/src/vendor/**` — synced copies; edit the
-  source package and re-vendor.
+- `server/src/vendor/**`, `client/src/vendor/**` — meant to be synced copies
+  of a source package, but no such source package or re-vendor tooling
+  exists in this checkout: hand-edit both copies identically and `diff` them
+  to confirm they still match.
 - `server/src/db/migrations/`, `server/src/db/schema/*` — never hand-edit an
   applied migration; add new tables via a new domain file, don't restructure.
 - `skills-lock.json` / `.claude/skills/` — hash-pinned vendored Claude Code

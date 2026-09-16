@@ -1,7 +1,15 @@
 # server insights
 
-## Gotchas
+## What Works
 
-## Decisions
+## What Doesn't Work
 
-## Lessons learned
+## Codebase Patterns
+
+## Tool & Library Notes
+
+## Recurring Errors & Fixes
+
+## Session Notes
+
+## Open Questions

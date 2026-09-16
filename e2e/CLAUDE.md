@@ -19,7 +19,7 @@ TypeScript + `tsx` only — no runtime deps beyond that; drives the external
 - `../TESTING.md` — this module's suite (`e2e-web.yml`).
 - `docs/` — design notes/ADRs for this module.
 - `specs/*.flow.json` — this module's Specs: deterministic browser-flow definitions (not planning docs — the flow JSON *is* the spec here).
-- `INSIGHTS.md` — accumulated gotchas/decisions for this module.
+- `INSIGHTS.md` — accumulated engineering insights for this module; read before starting work and treat as high-confidence guidance unless it's clearly stale.
 
 ## Naming conventions
 
@@ -34,3 +34,7 @@ TypeScript + `tsx` only — no runtime deps beyond that; drives the external
 ## Do not touch
 
 - `package-lock.json` — regenerate via `npm install`, never hand-edit.
+
+## Before you finish
+
+Found a non-obvious gotcha, pattern, fix, or decision this session? Append it to `INSIGHTS.md` under the right heading — don't skip this step.

@@ -20,7 +20,7 @@ is a type-check. Test: vitest.
 - `../TESTING.md` — this module's suite (`reviewer-core.yml`).
 - `docs/` — design notes/ADRs for this module.
 - `specs/` — feature/behavior specs for this module.
-- `INSIGHTS.md` — accumulated gotchas/decisions for this module.
+- `INSIGHTS.md` — accumulated engineering insights for this module; read before starting work and treat as high-confidence guidance unless it's clearly stale.
 
 ## Naming conventions
 
@@ -36,3 +36,7 @@ is a type-check. Test: vitest.
 ## Do not touch
 
 - `package-lock.json` — regenerate via `npm install`, never hand-edit.
+
+## Before you finish
+
+Found a non-obvious gotcha, pattern, fix, or decision this session? Append it to `INSIGHTS.md` under the right heading — don't skip this step.

@@ -23,7 +23,7 @@ Unit/integration split: `pnpm exec vitest run --exclude '**/*.it.test.ts'` (unit
 - `../TESTING.md` — unit vs `.it.test.ts` integration split, what each covers.
 - `docs/` — design notes/ADRs for this module.
 - `specs/` — feature/behavior specs for this module.
-- `INSIGHTS.md` — accumulated gotchas/decisions for this module.
+- `INSIGHTS.md` — accumulated engineering insights for this module; read before starting work and treat as high-confidence guidance unless it's clearly stale.
 
 ## Naming conventions
 
@@ -44,3 +44,7 @@ Unit/integration split: `pnpm exec vitest run --exclude '**/*.it.test.ts'` (unit
 - `src/vendor/shared` — vendored, shared across packages.
 - `clones/**` — git-ignored runtime data.
 - `pnpm-lock.yaml` — regenerate via `pnpm install`, never hand-edit.
+
+## Before you finish
+
+Found a non-obvious gotcha, pattern, fix, or decision this session? Append it to `INSIGHTS.md` under the right heading — don't skip this step.

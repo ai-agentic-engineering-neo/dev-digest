@@ -18,7 +18,7 @@ Zod 3.24 · Tailwind 4 · TypeScript. UI primitives vendored under `src/vendor/u
 - `../TESTING.md` — this module's suite (`client.yml`) and what it does/doesn't cover.
 - `docs/` — design notes/ADRs for this module.
 - `specs/` — feature/behavior specs for this module.
-- `INSIGHTS.md` — accumulated gotchas/decisions for this module.
+- `INSIGHTS.md` — accumulated engineering insights for this module; read before starting work and treat as high-confidence guidance unless it's clearly stale.
 
 ## Naming conventions
 
@@ -36,3 +36,7 @@ Zod 3.24 · Tailwind 4 · TypeScript. UI primitives vendored under `src/vendor/u
 
 - `src/vendor/ui`, `src/vendor/shared` — see Gotchas above.
 - `pnpm-lock.yaml` — regenerate via `pnpm install`, never hand-edit.
+
+## Before you finish
+
+Found a non-obvious gotcha, pattern, fix, or decision this session? Append it to `INSIGHTS.md` under the right heading — don't skip this step.

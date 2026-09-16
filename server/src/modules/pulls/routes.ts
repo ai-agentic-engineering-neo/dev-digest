@@ -129,6 +129,46 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
+    // Latest-round COST per PR for the list's Cost column. A round = all
+    // agent_runs sharing one multi_run_id (one "Run Review" trigger); the
+    // newest run decides which round is latest. Runs with a null multi_run_id
+    // (pre-grouping rows) fall back to being their own round. Unpriced runs
+    // (cost null) contribute nothing; null when the whole round is unpriced.
+    const costByPr = new Map<string, number | null>();
+    if (prIds.length > 0) {
+      const runRows = await container.db
+        .select({
+          id: t.agentRuns.id,
+          prId: t.agentRuns.prId,
+          multiRunId: t.agentRuns.multiRunId,
+          costUsd: t.agentRuns.costUsd,
+        })
+        .from(t.agentRuns)
+        .where(inArray(t.agentRuns.prId, prIds))
+        .orderBy(desc(t.agentRuns.ranAt));
+      // Sum every round first (rows arrive newest-first, so a round's rows
+      // keep arriving after its newest run was seen).
+      const roundCost = new Map<string, number | null>();
+      const addCost = (key: string, cost: number | null) => {
+        const acc = roundCost.get(key);
+        roundCost.set(key, acc == null ? cost : cost == null ? acc : acc + cost);
+      };
+      for (const run of runRows) {
+        if (run.prId == null) continue;
+        addCost(run.multiRunId ?? `run:${run.id}`, run.costUsd);
+      }
+      // Rows are newest-first → the first run seen per PR carries its latest round.
+      const latestRoundByPr = new Map<string, string>();
+      for (const run of runRows) {
+        if (run.prId != null && !latestRoundByPr.has(run.prId)) {
+          latestRoundByPr.set(run.prId, run.multiRunId ?? `run:${run.id}`);
+        }
+      }
+      for (const [prId, roundKey] of latestRoundByPr) {
+        costByPr.set(prId, roundCost.get(roundKey) ?? null);
+      }
+    }
+
     const now = Date.now();
     return rows.map((r) => {
       const review = latestReviewByPr.get(r.id);
@@ -153,6 +193,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
+        cost_usd: r.id ? (costByPr.get(r.id) ?? null) : null,
       };
     });
   });

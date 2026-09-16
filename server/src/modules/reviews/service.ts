@@ -113,7 +113,10 @@ export class ReviewService {
 
     // Create the agent_run rows up front so a runId is available IMMEDIATELY —
     // the client persists these in global state and subscribes to the SSE
-    // stream. The actual (slow) review runs in the background below.
+    // stream. The actual (slow) review runs in the background below. All runs
+    // of this trigger share one multi_agent_runs row (the "round") so their
+    // costs can be summed as the cost of this review.
+    const multiRunId = await this.repo.createMultiAgentRun({ workspaceId, prId });
     const runs: { run_id: string; agent_id: string; agent_name: string }[] = [];
     const jobs: { agent: AgentRow; runId: string }[] = [];
     for (const agent of targets) {
@@ -123,6 +126,7 @@ export class ReviewService {
         prId,
         provider: agent.provider,
         model: agent.model,
+        multiRunId,
       });
       runs.push({ run_id: runId, agent_id: agent.id, agent_name: agent.name });
       jobs.push({ agent, runId });

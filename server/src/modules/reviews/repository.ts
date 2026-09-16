@@ -137,6 +137,12 @@ export class ReviewRepository {
 
   // ---- observability: agent_runs + run_traces ----------------------------
 
+  /** Create one multi_agent_runs row — the round that groups every agent run
+   *  a single "Run Review" trigger creates. Returns its id. */
+  createMultiAgentRun(values: { workspaceId: string; prId: string }): Promise<string> {
+    return runRepo.createMultiAgentRun(this.db, values);
+  }
+
   /** Create an agent_runs row in `running` state; returns its id (= the runId). */
   createAgentRun(values: {
     workspaceId: string;
@@ -144,6 +150,8 @@ export class ReviewRepository {
     prId: string;
     provider: string | null;
     model: string | null;
+    /** Round key: the multi_agent_runs row of the trigger creating this run. */
+    multiRunId: string | null;
   }): Promise<string> {
     return runRepo.createAgentRun(this.db, values);
   }
@@ -155,6 +163,8 @@ export class ReviewRepository {
       durationMs: number;
       tokensIn: number;
       tokensOut: number;
+      /** USD cost of the run; null when unpriced or nothing was billed. */
+      costUsd: number | null;
       findingsCount: number;
       grounding: string;
       /** Review score (0-100); null on failed/cancelled runs. */

@@ -299,4 +299,86 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(body.runs.length).toBeGreaterThanOrEqual(2);
     await app.close();
   });
+
+  it('persists per-run cost and sums the latest round for the PR list', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'CostAgent', provider: 'openai', model: 'gpt-4.1', system_prompt: 's' },
+      })
+    ).json();
+
+    // Round 1: a single-agent trigger.
+    const r1 = (
+      await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } })
+    ).json();
+    const [run1] = await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+    // MockLLMProvider reports costUsd 0.001 per structured call (tiny diff → 1 chunk).
+    expect(run1!.costUsd).toBe(0.001);
+    expect(run1!.multiRunId).not.toBeNull();
+
+    // Cost flows through the run summary and the persisted trace stats.
+    const runs = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(runs[0].cost_usd).toBe(0.001);
+    const trace = (await app.inject({ method: 'GET', url: `/runs/${r1.runs[0].run_id}/trace` })).json();
+    expect(trace.stats.cost_usd).toBe(0.001);
+
+    // Round 2 (latest): two agents in ONE trigger share one multi_agent_runs row,
+    // so the PR-list cost is their SUM (2 × 0.001 = 0.002), not round 1's.
+    const agent2 = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'CostAgent2', provider: 'openai', model: 'gpt-4.1', system_prompt: 's' },
+      })
+    ).json();
+    // `all:true` fans out to every enabled agent in the workspace — earlier
+    // tests created several, so disable all but our two to keep the round
+    // exactly two runs.
+    const allAgents = (await app.inject({ method: 'GET', url: '/agents' })).json();
+    for (const a of allAgents) {
+      if (a.id !== agent.id && a.id !== agent2.id) {
+        await app.inject({ method: 'PUT', url: `/agents/${a.id}`, payload: { enabled: false } });
+      }
+    }
+    await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { all: true } });
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 3 });
+    const round2 = (
+      await pg.handle.db.select().from(t.agentRuns).where(eq(t.agentRuns.prId, pr.id))
+    ).filter((r) => r.multiRunId !== run1!.multiRunId);
+    expect(round2.length).toBe(2);
+    expect(new Set(round2.map((r) => r.multiRunId)).size).toBe(1);
+
+    const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const prMeta = pulls.find((p: { number: number }) => p.number === 482);
+    expect(prMeta.cost_usd).toBeCloseTo(0.002, 6);
+
+    // Legacy rows (pre-grouping, multi_run_id null) degrade to their own round:
+    // on a fresh PR the newest un-grouped run's cost IS the PR's cost.
+    const { repo: repo2, pr: pr2 } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    await pg.handle.db.insert(t.agentRuns).values({
+      workspaceId,
+      agentId: agent.id,
+      prId: pr2.id,
+      provider: 'openai',
+      model: 'gpt-4.1',
+      multiRunId: null,
+      status: 'done',
+      durationMs: 1000,
+      tokensIn: 100,
+      tokensOut: 50,
+      costUsd: 0.05,
+      findingsCount: 0,
+      grounding: '0/0 passed',
+      score: 80,
+      blockers: 0,
+    });
+    const pulls2 = (await app.inject({ method: 'GET', url: `/repos/${repo2.id}/pulls` })).json();
+    expect(pulls2[0].cost_usd).toBe(0.05);
+
+    await app.close();
+  });
 });

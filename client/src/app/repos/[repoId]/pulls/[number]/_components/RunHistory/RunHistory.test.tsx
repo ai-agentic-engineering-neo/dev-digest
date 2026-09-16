@@ -25,6 +25,7 @@ function run(o: Partial<RunSummary>): RunSummary {
     duration_ms: 1000,
     tokens_in: 100,
     tokens_out: 50,
+    cost_usd: 0.0013,
     findings_count: 0,
     grounding: "0/0 passed",
     ran_at: "2026-06-11T18:44:34.000Z",
@@ -71,5 +72,22 @@ describe("RunHistory — outcome badge", () => {
   it("a running run reads 'running'", () => {
     renderRuns([run({ status: "running", score: null, blockers: null })]);
     expect(screen.getByText("running")).toBeInTheDocument();
+  });
+});
+
+describe("RunHistory — run meta line (tokens + cost)", () => {
+  it("a settled run shows 'N tok · $x.xxxx' under its timestamp", () => {
+    renderRuns([run({ tokens_in: 12011, cost_usd: 0.0013 })]);
+    expect(screen.getByText("12,011 tok · $0.0013")).toBeInTheDocument();
+  });
+
+  it("an unpriced settled run shows the meta line with an em-dash cost", () => {
+    renderRuns([run({ cost_usd: null })]);
+    expect(screen.getByText("100 tok · —")).toBeInTheDocument();
+  });
+
+  it("a failed run shows no meta line", () => {
+    renderRuns([run({ status: "failed", error: "boom", cost_usd: null })]);
+    expect(screen.queryByText(/tok ·/)).not.toBeInTheDocument();
   });
 });

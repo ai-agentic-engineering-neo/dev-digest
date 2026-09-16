@@ -26,7 +26,7 @@ Contract:
 
 <!-- newest on top -->
 
-- _none yet_
+- 2026-09-16 — USD cost renders null as an em-dash, never `$0.00` — an unpriced model or a run that failed before billing is unknown, not free; formatting lives in `src/lib/cost.ts` (3 decimals under $1 for badges/stats, 4 for the per-run timeline meta). (src/lib/cost.ts)
 
 ## Tool & Library Notes
 
@@ -38,7 +38,7 @@ Contract:
 
 <!-- newest on top -->
 
-- _none yet_
+- 2026-09-16 — `getByText("—")` in PRRow tests matches multiple cells (cost, null `updated_at` via `relativeTime`, null score) — give fixtures non-null `updated_at`/`score` before asserting on the em-dash, or scope the query to the cost cell. (pulls/_components/PRRow/PRRow.test.tsx)
 
 ## Session Notes
 

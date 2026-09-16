@@ -3,7 +3,13 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Badge, Icon, CircularScore, type IconName } from "@devdigest/ui";
-import type { RunSummary, PrCommit } from "@devdigest/shared";
+import type { RunSummary, PrCommit, ReviewRecord } from "@devdigest/shared";
+import {
+  FindingsCounter,
+  summarizeFindings,
+  totalCount,
+  type FindingsSummaryView,
+} from "../../../_components/FindingsSummary";
 
 /**
  * PR timeline — every agent run interleaved with the PR's commits, newest-first
@@ -95,12 +101,18 @@ function tsOf(s: string | null | undefined): number {
 export function RunHistory({
   runs,
   commits = [],
+  reviews,
   onOpenTrace,
   onGoToReview,
   onDelete,
 }: {
   runs: RunSummary[];
   commits?: PrCommit[];
+  /** The PR's persisted reviews (each carries its findings + run_id) — used to
+   *  compute the per-run severity counter without any extra request. Optional
+   *  so RunHistory keeps working (falling back to the plain findings count)
+   *  wherever a caller hasn't wired reviews through yet. */
+  reviews?: ReviewRecord[];
   /** Open the trace + log drawer for a run (the logs icon). */
   onOpenTrace: (runId: string) => void;
   /** Jump to this run's inline review accordion below (clicking the agent name). */
@@ -109,6 +121,17 @@ export function RunHistory({
 }) {
   const t = useTranslations("prReview");
   if (runs.length === 0 && commits.length === 0) return null;
+
+  // One review per run_id (a run can be linked to at most one review) — used
+  // to show the severity breakdown without a new request; grouping is a plain
+  // COUNT/filter over findings already loaded by usePrReviews.
+  const summaryByRunId = React.useMemo(() => {
+    const map = new Map<string, FindingsSummaryView>();
+    for (const review of reviews ?? []) {
+      if (review.run_id) map.set(review.run_id, summarizeFindings(review.findings));
+    }
+    return map;
+  }, [reviews]);
 
   const items: TimelineItem[] = [
     ...runs.map((run) => ({ kind: "run" as const, ts: tsOf(run.ran_at), run })),
@@ -197,8 +220,18 @@ export function RunHistory({
                 </div>
               )}
               {settled && (
-                <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                  {t("runStatus.findings", { count: r.findings_count ?? 0 })}
+                <div style={{ fontSize: 12, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 4 }}>
+                  {summaryByRunId.has(r.run_id) ? (
+                    <FindingsCounter
+                      counts={summaryByRunId.get(r.run_id)!.counts}
+                      items={summaryByRunId.get(r.run_id)!.items}
+                      popoverTitle={t("findings.popoverTitleRun", {
+                        count: totalCount(summaryByRunId.get(r.run_id)!.counts),
+                      })}
+                    />
+                  ) : (
+                    t("runStatus.findings", { count: r.findings_count ?? 0 })
+                  )}
                   {(r.blockers ?? 0) > 0 ? t("runStatus.blockers", { count: r.blockers ?? 0 }) : ""}
                 </div>
               )}

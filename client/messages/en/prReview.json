@@ -91,6 +91,7 @@
       "author": "Author",
       "size": "Size",
       "score": "Score",
+      "findings": "Findings",
       "status": "Status",
       "cost": "Cost",
       "updated": "Updated"
@@ -106,5 +107,9 @@
     "goToReview": "Jump to this run’s findings below",
     "openTrace": "Open run trace & logs",
     "deleteRun": "Delete run"
+  },
+  "findings": {
+    "popoverTitle": "{count} FINDINGS",
+    "popoverTitleRun": "{count} FINDINGS IN THIS RUN"
   }
 }

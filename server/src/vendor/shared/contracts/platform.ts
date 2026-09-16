@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Provider } from './knowledge.js';
+import { FindingsSummary } from './findings.js';
 
 /**
  * Platform / scaffolding DTOs owned by F1:
@@ -174,6 +175,10 @@ export const PrMeta = z.object({
   // PR; null/absent when there are no successful runs, or none captured cost
   // (pre-migration data).
   cost_usd: z.number().nullish(),
+  // Severity breakdown + read-only preview of the latest 'review'-kind
+  // review's findings (dismissed excluded); null/absent when the PR has no
+  // review yet. Computed by grouping stored findings — no LLM call.
+  findings_summary: FindingsSummary.nullish(),
 });
 export type PrMeta = z.infer<typeof PrMeta>;
 

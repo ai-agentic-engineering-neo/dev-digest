@@ -5,11 +5,12 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Toggle, EmptyState } from "@devdigest/ui";
-import type { FindingRecord } from "@devdigest/shared";
+import type { FindingRecord, Severity } from "@devdigest/shared";
 import { FindingCard } from "../FindingCard";
 import { useFindingAction } from "../../../../../../../lib/hooks/reviews";
 import { KEY_TO_ACTION } from "./constants";
-import { visibleFindings } from "./helpers";
+import { visibleFindings, countBySeverity } from "./helpers";
+import { SeverityFilterPills } from "./SeverityFilterPills";
 import { s } from "./styles";
 
 export function FindingsPanel({
@@ -26,9 +27,17 @@ export function FindingsPanel({
   const t = useTranslations("prReview");
   const action = useFindingAction();
   const [hideLow, setHideLow] = React.useState(false);
+  const [severityFilter, setSeverityFilter] = React.useState<Severity | null>(null);
   const [focusIdx, setFocusIdx] = React.useState(0);
 
-  const shown = React.useMemo(() => visibleFindings(findings, hideLow), [findings, hideLow]);
+  // Pill totals are the RAW per-severity counts (dismissed included — they
+  // still render as muted cards below), independent of hideLow/severityFilter
+  // so the pills themselves never disappear once a filter narrows the list.
+  const severityCounts = React.useMemo(() => countBySeverity(findings), [findings]);
+  const shown = React.useMemo(
+    () => visibleFindings(findings, hideLow, severityFilter),
+    [findings, hideLow, severityFilter],
+  );
 
   // j/k navigation + a/d shortcuts on the focused finding (keyboard).
   React.useEffect(() => {
@@ -48,6 +57,12 @@ export function FindingsPanel({
   return (
     <div>
       <div style={s.toolbar}>
+        <SeverityFilterPills
+          counts={severityCounts}
+          active={severityFilter}
+          onToggle={(sev) => setSeverityFilter((prev) => (prev === sev ? null : sev))}
+        />
+        {Object.values(severityCounts).some((n) => n > 0) && <div style={s.divider} />}
         <div style={s.toggleGroup}>
           {t("panel.hideLowConfidence")}
           <Toggle on={hideLow} onChange={setHideLow} size={16} />

@@ -96,6 +96,54 @@ async function setupRepoAndPr(db: PgFixture['handle']['db'], workspaceId: string
   return { repo: repo!, pr: pr! };
 }
 
+/**
+ * Directly seed one "agent run + its review + one finding" — bypassing the
+ * LLM/executor pipeline (MockLLMProvider returns one fixture per app/provider,
+ * so it can't produce two DIFFERENT agents' findings within one round). Lets
+ * a test pin `ranAt` precisely to simulate two agents finishing at different
+ * times within (or outside) the same "review all" round.
+ */
+async function seedRoundReview(
+  db: PgFixture['handle']['db'],
+  opts: {
+    workspaceId: string;
+    prId: string;
+    ranAt: Date;
+    severity: 'CRITICAL' | 'WARNING' | 'SUGGESTION';
+    title: string;
+  },
+) {
+  const [run] = await db
+    .insert(t.agentRuns)
+    .values({ workspaceId: opts.workspaceId, prId: opts.prId, ranAt: opts.ranAt, status: 'done' })
+    .returning();
+  const [review] = await db
+    .insert(t.reviews)
+    .values({
+      workspaceId: opts.workspaceId,
+      prId: opts.prId,
+      runId: run!.id,
+      kind: 'review',
+      verdict: 'comment',
+      summary: 'seeded',
+      score: 80,
+      model: 'seed',
+    })
+    .returning();
+  await db.insert(t.findings).values({
+    reviewId: review!.id,
+    file: 'src/config.ts',
+    startLine: 1,
+    endLine: 1,
+    severity: opts.severity,
+    category: 'bug',
+    title: opts.title,
+    rationale: 'seeded finding',
+    confidence: 0.9,
+  });
+  return { run: run!, review: review! };
+}
+
 d('A2 reviews + agents (Testcontainers pg)', () => {
   let pg: PgFixture;
   let workspaceId: string;
@@ -416,6 +464,137 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     ).json();
     // seed has 2 enabled agents; we may have created more above in this PR's ws.
     expect(body.runs.length).toBeGreaterThanOrEqual(2);
+    await app.close();
+  });
+
+  it('PR list findings_summary is null when the PR has no review yet', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+
+    const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const listed = pulls.find((p: { id: string }) => p.id === pr.id);
+    expect(listed.findings_summary).toBeNull();
+
+    await app.close();
+  });
+
+  it('PR list findings_summary groups the latest review\'s grounded findings by severity, no LLM call involved', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'SummaryAgent', provider: 'openai', model: 'gpt-4.1', system_prompt: 's' },
+      })
+    ).json();
+
+    await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } });
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+
+    // Two fetches of the list must be stable (pure grouping, not another LLM call).
+    for (let i = 0; i < 2; i++) {
+      const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+      const listed = pulls.find((p: { id: string }) => p.id === pr.id);
+      // Grounding drops the line-999 WARNING, keeping only the line-11 CRITICAL.
+      expect(listed.findings_summary.counts).toEqual({ CRITICAL: 1, WARNING: 0, SUGGESTION: 0 });
+      expect(listed.findings_summary.items).toHaveLength(1);
+      expect(listed.findings_summary.items[0].severity).toBe('CRITICAL');
+      expect(listed.findings_summary.items[0].file).toBe('src/config.ts');
+    }
+
+    await app.close();
+  });
+
+  it('PR list findings_summary excludes a dismissed finding from counts and items', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'DismissAgent', provider: 'openai', model: 'gpt-4.1', system_prompt: 's' },
+      })
+    ).json();
+    await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } });
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+    const reviews = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/reviews` })).json();
+    const findingId = reviews[0].findings[0].id;
+
+    await app.inject({ method: 'POST', url: `/findings/${findingId}/dismiss` });
+
+    const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const listed = pulls.find((p: { id: string }) => p.id === pr.id);
+    expect(listed.findings_summary.counts).toEqual({ CRITICAL: 0, WARNING: 0, SUGGESTION: 0 });
+    expect(listed.findings_summary.items).toHaveLength(0);
+
+    await app.close();
+  });
+
+  it('PR list findings_summary SUMS every agent from the latest round (a "review all" click), not just one review', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+
+    // Two agents "run together": their agent_runs.ranAt land seconds apart
+    // (well inside ROUND_WINDOW_MS), exactly like two agents from one
+    // "review all" click finishing their (independently slow) LLM calls at
+    // different times.
+    const now = new Date();
+    await seedRoundReview(pg.handle.db, {
+      workspaceId,
+      prId: pr.id,
+      ranAt: now,
+      severity: 'CRITICAL',
+      title: 'Security agent: hardcoded secret',
+    });
+    await seedRoundReview(pg.handle.db, {
+      workspaceId,
+      prId: pr.id,
+      ranAt: new Date(now.getTime() + 3_000),
+      severity: 'WARNING',
+      title: 'Performance agent: N+1 query',
+    });
+
+    const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const listed = pulls.find((p: { id: string }) => p.id === pr.id);
+    expect(listed.findings_summary.counts).toEqual({ CRITICAL: 1, WARNING: 1, SUGGESTION: 0 });
+    expect(listed.findings_summary.items).toHaveLength(2);
+    expect(listed.findings_summary.items.map((f: { title: string }) => f.title)).toEqual([
+      'Security agent: hardcoded secret',
+      'Performance agent: N+1 query',
+    ]);
+
+    await app.close();
+  });
+
+  it('PR list findings_summary excludes an OLDER, separate round outside the round window', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+
+    const now = new Date();
+    // An earlier "review all" click, well outside ROUND_WINDOW_MS (10s).
+    await seedRoundReview(pg.handle.db, {
+      workspaceId,
+      prId: pr.id,
+      ranAt: new Date(now.getTime() - 60_000),
+      severity: 'CRITICAL',
+      title: 'Old round: hardcoded secret',
+    });
+    // The latest, separate click — the only one that should count.
+    await seedRoundReview(pg.handle.db, {
+      workspaceId,
+      prId: pr.id,
+      ranAt: now,
+      severity: 'WARNING',
+      title: 'Latest round: N+1 query',
+    });
+
+    const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const listed = pulls.find((p: { id: string }) => p.id === pr.id);
+    expect(listed.findings_summary.counts).toEqual({ CRITICAL: 0, WARNING: 1, SUGGESTION: 0 });
+    expect(listed.findings_summary.items).toHaveLength(1);
+    expect(listed.findings_summary.items[0].title).toBe('Latest round: N+1 query');
+
     await app.close();
   });
 });

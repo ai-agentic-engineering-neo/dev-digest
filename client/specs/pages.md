@@ -16,12 +16,25 @@ Lists the repo's imported PRs. Each row shows PR number/title and, once
 `repo-intel` finishes, the **Indexed** badge — must not block on indexing to
 render the list itself.
 
+The **Findings** column shows the latest review's severity breakdown
+(`! CRITICAL · ⚠ WARNING · 💡 SUGGESTION`), or `—` when the PR has no review
+yet. See [`findings-counters.md`](findings-counters.md) for the counter/popover
+contract shared with the PR detail Timeline.
+
 ## `/pulls/:number`
 
 Three views over one PR: overview, diff (`Files changed`), findings
 (`Agent runs`). Must render even if no review has run yet (empty findings
 state, not an error). Running a review must be triggerable from here and
 must reflect live progress (SSE), not just a final state after refresh.
+
+The Agent-runs Timeline shows a per-run severity counter under the reviewer's
+name for any settled run with a matching review — see
+[`findings-counters.md`](findings-counters.md). Within the "Review runs"
+section, expanding a run card shows a clickable `N CRITICAL · N WARNING ·
+N SUGGESTION` pill row under its verdict/PR SCORE; clicking a pill filters
+that card's finding list to one severity (click again to clear) — see
+[`findings-counters.md`](findings-counters.md#filter-pills-review-runs).
 
 ## `/agents`
 

@@ -87,3 +87,39 @@ export const FindingAction = z.object({
   reply: z.string().optional(),
 });
 export type FindingAction = z.infer<typeof FindingAction>;
+
+/**
+ * Per-severity finding counts, computed by grouping already-loaded findings
+ * (no LLM call). Always all three keys, 0 when there are none of that severity.
+ */
+export const SeverityCounts = z.object({
+  CRITICAL: z.number().int().min(0),
+  WARNING: z.number().int().min(0),
+  SUGGESTION: z.number().int().min(0),
+});
+export type SeverityCounts = z.infer<typeof SeverityCounts>;
+
+/** Read-only finding preview for hover popovers — no accept/dismiss affordance. */
+export const FindingPreview = Finding.pick({
+  id: true,
+  severity: true,
+  category: true,
+  title: true,
+  file: true,
+  start_line: true,
+  end_line: true,
+  confidence: true,
+  rationale: true,
+});
+export type FindingPreview = z.infer<typeof FindingPreview>;
+
+/**
+ * Severity breakdown + preview list for one review's findings, with dismissed
+ * findings already excluded. `items` covers every counted finding (no
+ * server-side truncation — the client scrolls a capped-height popover).
+ */
+export const FindingsSummary = z.object({
+  counts: SeverityCounts,
+  items: z.array(FindingPreview),
+});
+export type FindingsSummary = z.infer<typeof FindingsSummary>;

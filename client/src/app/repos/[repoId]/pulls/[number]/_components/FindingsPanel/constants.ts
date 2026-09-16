@@ -16,3 +16,6 @@ export const KEY_TO_ACTION: Record<string, FindingActionKind> = {
   a: "accept",
   d: "dismiss",
 };
+
+/** Severities shown as filter pills above the findings list, in display order. */
+export const SEVERITIES = ["CRITICAL", "WARNING", "SUGGESTION"] as const;

@@ -1,13 +1,14 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { and, desc, eq, inArray } from 'drizzle-orm';
-import type { PrMeta, PrDetail, GitHubClient, PrReviewComment } from '@devdigest/shared';
+import type { PrMeta, PrDetail, GitHubClient, PrReviewComment, FindingsSummary } from '@devdigest/shared';
 import { PrCommentInput } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { AppError, NotFoundError } from '../../platform/errors.js';
 import { deriveReviewStatus } from './status.js';
+import { summarizeFindings, latestRoundRunIds } from '../reviews/helpers.js';
 
 /**
  * F1 — pulls module. PR import via Octokit (list + per-PR detail).
@@ -111,21 +112,87 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
-    // Latest-review SCORE per PR for the list's score ring. Computed on read
-    // from reviews (no FK denorm); the list is small, so one IN-query + JS
-    // grouping is cheap. (The per-severity FINDINGS breakdown is intentionally
-    // not surfaced on the list — findings live on the PR detail page.)
+    // Latest-review SCORE + FINDINGS breakdown per PR for the list. Computed
+    // on read from reviews/findings (no FK denorm); the list is small, so a
+    // couple of IN-queries + JS grouping is cheap. The severity counts are a
+    // plain COUNT/filter over already-stored findings — no LLM call.
     const prIds = rows.map((r) => r.id);
-    const latestReviewByPr = new Map<string, { score: number | null }>();
+    const latestReviewByPr = new Map<string, { id: string; score: number | null }>();
     if (prIds.length > 0) {
       const reviewRows = await container.db
-        .select({ prId: t.reviews.prId, score: t.reviews.score })
+        .select({ id: t.reviews.id, prId: t.reviews.prId, score: t.reviews.score })
         .from(t.reviews)
         .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review')))
         .orderBy(desc(t.reviews.createdAt));
       // Rows are newest-first → first seen per PR is the latest review.
       for (const rv of reviewRows) {
-        if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { score: rv.score });
+        if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { id: rv.id, score: rv.score });
+      }
+    }
+
+    // Findings breakdown per PR — summed across every agent's review from the
+    // most recent ROUND (e.g. every agent from one "Review all" click), not
+    // just whichever single review happens to have the newest `created_at`.
+    // Agents in the same round finish at different times, so picking "the one
+    // latest review" (like `score` above) can silently drop another agent's
+    // findings from the very same click. A PR with no `agent_runs` at all
+    // (e.g. only a hand-seeded review, never actually run through the app)
+    // falls back to the single latest review, same as `score`.
+    const findingsSummaryByPr = new Map<string, FindingsSummary>();
+    if (prIds.length > 0) {
+      const runRowsForFindings = await container.db
+        .select({ id: t.agentRuns.id, prId: t.agentRuns.prId, ranAt: t.agentRuns.ranAt })
+        .from(t.agentRuns)
+        .where(inArray(t.agentRuns.prId, prIds));
+      const runsByPr = new Map<string, { id: string; ranAt: Date }[]>();
+      for (const r of runRowsForFindings) {
+        if (!r.prId) continue;
+        const list = runsByPr.get(r.prId) ?? [];
+        list.push({ id: r.id, ranAt: r.ranAt });
+        runsByPr.set(r.prId, list);
+      }
+
+      const reviewRowsForFindings = await container.db
+        .select({ id: t.reviews.id, prId: t.reviews.prId, runId: t.reviews.runId, createdAt: t.reviews.createdAt })
+        .from(t.reviews)
+        .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review')));
+
+      // For each PR, resolve which review id(s) count toward its findings
+      // summary: every review from the latest round when the PR has runs,
+      // else the single latest review (mirrors `score`'s fallback).
+      const reviewIdsByPr = new Map<string, string[]>();
+      for (const prId of prIds) {
+        const runs = runsByPr.get(prId);
+        if (runs && runs.length > 0) {
+          const roundIds = latestRoundRunIds(runs);
+          const matched = reviewRowsForFindings.filter(
+            (rv) => rv.prId === prId && rv.runId != null && roundIds.has(rv.runId),
+          );
+          if (matched.length > 0) reviewIdsByPr.set(prId, matched.map((rv) => rv.id));
+        } else {
+          const prReviews = reviewRowsForFindings
+            .filter((rv) => rv.prId === prId)
+            .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+          if (prReviews[0]) reviewIdsByPr.set(prId, [prReviews[0].id]);
+        }
+      }
+
+      const allReviewIds = [...reviewIdsByPr.values()].flat();
+      if (allReviewIds.length > 0) {
+        const findingRows = await container.db
+          .select()
+          .from(t.findings)
+          .where(inArray(t.findings.reviewId, allReviewIds));
+        const byReviewId = new Map<string, typeof findingRows>();
+        for (const f of findingRows) {
+          const list = byReviewId.get(f.reviewId) ?? [];
+          list.push(f);
+          byReviewId.set(f.reviewId, list);
+        }
+        for (const [prId, reviewIds] of reviewIdsByPr) {
+          const combined = reviewIds.flatMap((id) => byReviewId.get(id) ?? []);
+          findingsSummaryByPr.set(prId, summarizeFindings(combined));
+        }
       }
     }
 
@@ -176,6 +243,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
         cost_usd: cost?.hasCost ? cost.sum : null,
+        findings_summary: findingsSummaryByPr.get(r.id) ?? null,
       };
     });
   });

@@ -11,7 +11,7 @@ full page-level contract — not everything specified there is exercised here.
 | Flow | Guarantees |
 |---|---|
 | `01-app-boot` | Cold start renders; root redirects to the seeded repo's PR list; the seeded PR is visible |
-| `02-repo-pulls-detail` | PR list → PR detail route navigation works end to end |
+| `02-repo-pulls-detail` | The PR list's Findings column header renders; PR list → PR detail route navigation works end to end |
 | `03-agents` | The agents list renders both seeded built-in reviewer agents |
 | `04-pr-findings` | A seeded run's verdict + findings render in the Agent runs tab; a finding expands into a `FindingCard` |
 | `05-pr-diff` | The Files changed tab renders a seeded file in the diff viewer |
@@ -20,6 +20,20 @@ full page-level contract — not everything specified there is exercised here.
 
 ## Explicitly NOT covered
 
+- **The findings-counter hover popover** (PR list Findings column, PR detail
+  Timeline) — agent-browser's locator set here is deterministic
+  click/text/role only (see [`../CLAUDE.md`](../CLAUDE.md)); there's no
+  hover primitive to drive it. Covered instead by client unit tests
+  (`FindingsSummary/helpers.test.ts`, `PRRow.test.tsx`, `RunHistory.test.tsx`).
+- **The Review-runs severity filter pills** (click a pill to narrow the
+  finding list to one severity) — `wait`/`find` here only assert that text
+  *is* present, with no "assert absence" primitive to confirm a filtered-out
+  finding disappeared after a click. Covered instead by client unit tests
+  (`FindingsPanel.test.tsx`'s "severity filter pills" suite).
+- **The Timeline's per-run severity counter** — the seeded PR #482 review
+  predates run-linking (no `run_id`), so its Timeline has no run row to carry
+  a counter. `04-pr-findings` still exercises the same counts at the
+  "Review runs" accordion level ("2 findings").
 - **Triggering a real review run** — every flow uses pre-seeded run/finding
   data; none clicks "Review" and waits for an LLM call (would need a key and
   break determinism).

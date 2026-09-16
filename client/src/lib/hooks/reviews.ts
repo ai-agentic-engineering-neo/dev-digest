@@ -156,6 +156,10 @@ export function useFindingAction() {
       ),
     onSuccess: (_d, { prId }) => {
       if (prId) qc.invalidateQueries({ queryKey: ["reviews", prId] });
+      // The PR list's Findings column reads its own server-computed summary
+      // (GET /repos/:id/pulls), which excludes dismissed findings — refetch it
+      // so accept/dismiss here doesn't leave the list's counters stale.
+      qc.invalidateQueries({ queryKey: ["pulls"] });
     },
   });
 }

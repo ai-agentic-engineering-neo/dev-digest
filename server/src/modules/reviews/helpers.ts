@@ -2,7 +2,7 @@
  * Pure helpers for the review service (side-effect free; operate purely on
  * their arguments — no DB / network / `this`).
  */
-import type { Finding } from '@devdigest/shared';
+import type { Finding, FindingsSummary, SeverityCounts } from '@devdigest/shared';
 import type { FindingRow, PullRow, ReviewRow } from './repository.js';
 
 // reduceReviews + sliceDiff live in @devdigest/reviewer-core (pure engine logic
@@ -75,6 +75,78 @@ export function reviewToDto(
     findings: findings.map(findingRowToDto),
     cost_usd: costUsd ?? null,
   };
+}
+
+const SEVERITY_ORDER: Finding['severity'][] = ['CRITICAL', 'WARNING', 'SUGGESTION'];
+
+/** Preview rationale is truncated — the list/timeline popover is a glance,
+ *  not the full read; the PR detail page has the untruncated text. */
+const PREVIEW_RATIONALE_MAX = 280;
+
+function truncate(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
+}
+
+/**
+ * Group a review's already-loaded findings by severity — a plain COUNT/filter,
+ * no LLM call. Dismissed findings are excluded from both the counts and the
+ * preview list, matching how blockers are computed for review-run cards.
+ */
+export function summarizeFindings(findings: FindingRow[]): FindingsSummary {
+  const counts: SeverityCounts = { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 };
+  const kept = findings.filter((f) => f.dismissedAt == null);
+  for (const f of kept) {
+    const severity = f.severity as Finding['severity'];
+    if (severity in counts) counts[severity as keyof SeverityCounts] += 1;
+  }
+  const items = kept
+    .slice()
+    .sort((a, b) => {
+      const bySeverity =
+        SEVERITY_ORDER.indexOf(a.severity as Finding['severity']) -
+        SEVERITY_ORDER.indexOf(b.severity as Finding['severity']);
+      return bySeverity !== 0 ? bySeverity : b.confidence - a.confidence;
+    })
+    .map((f) => ({
+      id: f.id,
+      severity: f.severity as Finding['severity'],
+      category: f.category as Finding['category'],
+      title: f.title,
+      file: f.file,
+      start_line: f.startLine,
+      end_line: f.endLine,
+      confidence: f.confidence,
+      rationale: truncate(f.rationale, PREVIEW_RATIONALE_MAX),
+    }));
+  return { counts, items };
+}
+
+/**
+ * A "review all" click creates one `agent_runs` row per target agent, all in
+ * one tight synchronous loop (`ReviewService.runReview`) BEFORE any agent's
+ * (slow) LLM call starts — so their `ranAt` timestamps land within
+ * milliseconds of each other, while a separate, later click lands seconds or
+ * minutes away. `ROUND_WINDOW_MS` is deliberately generous relative to that
+ * gap so one click's runs always cluster together without also merging two
+ * genuinely separate clicks.
+ */
+export const ROUND_WINDOW_MS = 10_000;
+
+/**
+ * Pick out the run ids that belong to the most recent "round" (batch) among
+ * a PR's agent runs — every agent triggered together, not just whichever
+ * single one happens to have the newest `ranAt`. Two agents in the same
+ * "review all" click can finish (and so create their `reviews` row) minutes
+ * apart depending on LLM latency, so grouping by `ranAt` (set once, at
+ * creation) rather than the review's `createdAt` (set on completion) is what
+ * keeps them together as one round.
+ */
+export function latestRoundRunIds(runs: { id: string; ranAt: Date }[]): Set<string> {
+  if (runs.length === 0) return new Set();
+  const latestMs = Math.max(...runs.map((r) => r.ranAt.getTime()));
+  return new Set(
+    runs.filter((r) => latestMs - r.ranAt.getTime() <= ROUND_WINDOW_MS).map((r) => r.id),
+  );
 }
 
 /**

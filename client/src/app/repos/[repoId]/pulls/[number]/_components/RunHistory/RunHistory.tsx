@@ -3,6 +3,7 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Badge, Icon, CircularScore, type IconName } from "@devdigest/ui";
+import { RunCostBadge } from "@/components/run-cost-badge";
 import type { RunSummary, PrCommit } from "@devdigest/shared";
 
 /**
@@ -196,6 +197,14 @@ export function RunHistory({
               )}
             </div>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, fontSize: 11, color: "var(--text-muted)", flexShrink: 0 }}>
+              {settled && (
+                <RunCostBadge
+                  variant="withTokens"
+                  usd={r.cost_usd}
+                  tokensIn={r.tokens_in ?? 0}
+                  tokensOut={r.tokens_out ?? 0}
+                />
+              )}
               {r.ran_at && <span>{new Date(r.ran_at).toLocaleTimeString()}</span>}
             </div>
             <button

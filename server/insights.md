@@ -14,6 +14,8 @@ references the old one. Check this file before deep-diving in this module.
 
 ## Recurring Errors & Fixes
 
+- **2026-09-15** — `pnpm db:migrate` fails with `column "X" of relation "Y" already exists` even on a freshly `git reset` starter tree: the local Postgres volume (`devdigest_pgdata`) is never wiped by a git revert, so it can still carry schema/data from previously-merged-then-reverted branches (e.g. `agent_runs.cost_usd` and unrelated leftover columns `critical_count`/`warning_count`/`suggestion_count` were already physically present before this session's migration re-added `cost_usd`). Before running `db:migrate` after picking up schema work, check the live DB first: `docker exec devdigest-postgres psql -U devdigest -d devdigest -c '\d <table>'` and `select * from drizzle.__drizzle_migrations`. If a column already exists and matches the intended schema, don't re-run the ALTER — baseline the generated migration as applied instead: `sha256` the migration `.sql` file (matches `drizzle-orm/postgres-js/migrator`'s `readMigrationFiles`, which hashes the raw file content) and `INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('<sha256>', <journal "when" ms>)` — no data touched, journal reconciled with physical reality (`server/src/db/migrations/0010_superb_abomination.sql`).
+
 ## Codebase Patterns & Tool Notes
 
 ## Open Questions

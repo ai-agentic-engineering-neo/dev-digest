@@ -3,10 +3,16 @@
  * decides each PR's review STATUS and tallies its FINDINGS for the list. The DB
  * `status` column holds GitHub's merge state; the review status
  * (needs_review / reviewed / stale) is derived here from head vs lastReviewedSha
- * + age, so it gets unit coverage independent of the route's queries.
+ * + age, so it gets unit coverage independent of the route's queries. The COST
+ * column's total (sum of the PR's completed runs) is derived here too.
  */
 import { describe, it, expect } from 'vitest';
-import { deriveReviewStatus, rollupSeverities, STALE_DAYS } from '../src/modules/pulls/status.js';
+import {
+  deriveReviewStatus,
+  rollupSeverities,
+  STALE_DAYS,
+  sumRunCosts,
+} from '../src/modules/pulls/status.js';
 
 const DAY = 86_400_000;
 const now = Date.UTC(2026, 5, 11);
@@ -64,5 +70,24 @@ describe('rollupSeverities', () => {
 
   it('is all-zero for no findings', () => {
     expect(rollupSeverities([])).toEqual({ critical: 0, warning: 0, suggestion: 0 });
+  });
+});
+
+describe('sumRunCosts', () => {
+  it('adds up every run, not just the newest one', () => {
+    expect(sumRunCosts([{ costUsd: 0.01 }, { costUsd: 0.002 }, { costUsd: 0.5 }])).toBeCloseTo(0.512);
+  });
+
+  it('skips unpriced runs but still sums the priced ones', () => {
+    expect(sumRunCosts([{ costUsd: null }, { costUsd: 0.01 }, { costUsd: null }])).toBeCloseTo(0.01);
+  });
+
+  it('is null — not 0 — when nothing was priced, so the UI renders "—"', () => {
+    expect(sumRunCosts([])).toBeNull();
+    expect(sumRunCosts([{ costUsd: null }, { costUsd: null }])).toBeNull();
+  });
+
+  it('keeps a real zero cost as 0', () => {
+    expect(sumRunCosts([{ costUsd: 0 }, { costUsd: null }])).toBe(0);
   });
 });

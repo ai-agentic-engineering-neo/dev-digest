@@ -30,7 +30,12 @@ Entry format: `.claude/skills/engineering-insights/reference/entry-format.md`.
   unit-tested (`test/pulls-status.test.ts:52`), called by nothing, and with a
   module docblock describing that exact breakdown. Before writing a new
   aggregation, grep the module for an unused pure helper: the starter ships
-  them ahead of the lesson that wires them up.
+  them ahead of the lesson that wires them up. **2026-09-17, same file:** the
+  cost block's comment asserted "latest completed run" as if it were the spec —
+  it was the starter's guess, and the user wanted the SUM of every done run.
+  Treat a rollup comment in `pulls/routes.ts` as a description of the code, not
+  as a product decision: the list's aggregation WINDOW (latest vs all) is never
+  written down anywhere, so confirm it before extending a column.
 
 - **2026-09-16** — `completeAgentRun`'s value type is declared TWICE and the two
   copies are not linked: the `ReviewRepository` facade re-types the whole object
@@ -57,6 +62,10 @@ Entry format: `.claude/skills/engineering-insights/reference/entry-format.md`.
   price table, so costs still render.
 
 ## Session Notes
+
+- **2026-09-17** — PR-list COST switched from the latest done run to the sum of
+  all done runs (`sumRunCosts` in `modules/pulls/status.ts`); contract comment
+  updated in BOTH vendor copies of `contracts/platform.ts`.
 
 - **2026-09-17** — Diagnosed a failing agent run down to an invalid
   `OPENROUTER_API_KEY`; no code change.

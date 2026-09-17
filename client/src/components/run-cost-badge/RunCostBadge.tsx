@@ -1,7 +1,8 @@
-/* RunCostBadge — cost + token usage of one review run.
+/* RunCostBadge — a USD cost, optionally with token usage.
    Two kinds:
-     compact  — "$0.014"              (COST column in the PR list)
-     timeline — "9,119 tok · $0.0013" (run row in the PR detail timeline)
+     compact  — "$0.014"              (COST column in the PR list: the TOTAL of
+                                       the PR's completed runs, not the latest)
+     timeline — "9,119 tok · $0.0013" (one run row in the PR detail timeline)
    A run with no data renders "—", never "$0.00": a null cost means the provider
    reported no usage/pricing, not that the run was free. Pure display — every
    number comes off the run row, so this costs zero extra model calls. */

@@ -4,7 +4,7 @@ import type { PrStatus } from '@devdigest/shared';
  * PR-list rollup helpers (pure — no DB / `this`, so they unit-test cleanly).
  *
  * The Pull Requests list shows, per PR: the latest review's SCORE, a FINDINGS
- * severity breakdown, and a review STATUS. The DB `status` column holds
+ * severity breakdown, a review STATUS, and the total COST of its runs. The DB `status` column holds
  * GitHub's merge state (open/merged/closed); the review status
  * (needs_review / reviewed / stale) is DERIVED here for OPEN PRs from the
  * commit a review last ran against (`lastReviewedSha`) vs the PR head, plus age.
@@ -65,4 +65,22 @@ export function deriveReviewStatus(args: {
   const staleMs = (args.staleDays ?? STALE_DAYS) * 86_400_000;
   if (updatedAt && now - updatedAt.getTime() > staleMs) return 'stale';
   return 'reviewed';
+}
+
+/**
+ * Total spend of a PR's completed runs for the list's COST column: the SUM of
+ * every done run's cost, not just the newest one — re-running a review costs
+ * more money, and the column answers "what has this PR cost so far".
+ *
+ * `null` in, `null` out: a run whose provider reported no usage/pricing is
+ * skipped rather than counted as $0. With no priced run at all the result is
+ * `null`, so the UI keeps rendering "—" instead of a misleading "$0.00".
+ */
+export function sumRunCosts(rows: { costUsd: number | null }[]): number | null {
+  let total: number | null = null;
+  for (const r of rows) {
+    if (r.costUsd == null) continue;
+    total = (total ?? 0) + r.costUsd;
+  }
+  return total;
 }

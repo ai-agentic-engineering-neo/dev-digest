@@ -21,9 +21,15 @@ belongs here.
 
 - **2026-09-16** — `docker compose down -v` to "reset" the database deletes the named volume, not just the container, taking every imported repo and stored review with it; use `scripts/e2e.sh`, which runs its own volume-less Postgres. Evidence: `docker-compose.yml:22-24`.
 
+- **2026-09-16** — `skills-lock.json` is not an inventory of `.claude/skills/`: it still pins `architecture-patterns` and `github-workflow-automation`, neither of which has a folder on disk, while `mermaid-diagram`, `react-best-practices`, `react-testing-library`, and `security` exist but are unpinned — read the directory, never the lock, to learn which skills are actually installed. Evidence: `skills-lock.json:4`, `skills-lock.json:22` vs `.claude/skills/README.md:9-19`.
+
+- **2026-09-16** — The `.cursor/skills/ → ../.claude/skills` symlink that the skills README documents does not exist in the repo, so skills resolve in Claude Code only; a Cursor user who trusts that line gets no skills and no error to explain why. Evidence: `.claude/skills/README.md:3`.
+
 ## Codebase Patterns
 
 - **2026-09-16** — `reviewer-core`'s raw source is imported by the API at runtime, so its `node_modules` must be installed separately or the API crashes on boot even though nothing references the package directly in `server/package.json`. Evidence: `scripts/dev.sh:78-80`.
+
+- **2026-09-16** — Insight capture is instructed, never hooked, and the absent `.claude/settings.json` is the deliberate state: `Stop` fires at the end of every assistant turn rather than at session end, and `SessionEnd` can run a command but cannot feed anything back to Claude, so no honest "always at session end" trigger exists — the `Session Protocol` in `CLAUDE.md` carries it until L06 introduces the hook. Evidence: `CLAUDE.md:21-26`, `.claude/skills/engineering-insights/SKILL.md:14-21`.
 
 ## Tool & Library Notes
 

@@ -14,9 +14,16 @@ Prose overview → [README.md](README.md) · system detail → [docs/architectur
 | `e2e/` | `@devdigest/e2e` | Deterministic browser flows (agent-browser) | — |
 | `server/src/vendor/shared` | `@devdigest/shared` | Zod contracts used by every package | — |
 | `docs/agent-prompts/` | — | Built-in reviewer system prompts, model guidance | — |
-| `.claude/skills/` | — | Vendored AI skills, pinned by hash in `skills-lock.json` | — |
+| `.claude/skills/` | — | Vendored AI skills (pinned by hash in `skills-lock.json`) + the repo's own `engineering-insights` | — |
 
 Every package has its own `CLAUDE.md` + `docs/` + `specs/`. Read the package one before working inside it.
+
+## Session Protocol
+
+- **Before touching code** — read the root [INSIGHTS.md](INSIGHTS.md) and the one in every package you'll edit. They hold what's true but not visible in the code.
+- **While working** — when something surprises you, costs a second attempt, or settles a design question, run the `engineering-insights` skill and record it then, not later.
+- **Before finishing** — run `engineering-insights` as a wrap-up for any session that involved a problem, a decision, or a discovery. It appends; it never rewrites.
+- Insights are a draft under review — spot-check what it wrote before committing.
 
 ## Stack
 

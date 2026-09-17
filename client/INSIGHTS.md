@@ -39,6 +39,12 @@ _No entries yet._
 
 **Rule:** grep for the existing test convention (`grep -rl fireEvent src`) before writing a new interaction test here — don't assume `userEvent` is available just because it's the RTL-recommended default elsewhere. (`client/src/app/repos/[repoId]/pulls/[number]/_components/FindingCard/FindingCard.test.tsx`, `client/package.json`)
 
+### A long-running `next dev` can go stale mid-session and serve unstyled pages (2026-09-18)
+
+A `next dev` process left running from before this session (many file adds/edits happened under `src/app/` and `src/components/` while it stayed up) started 404-ing on `_next/static/css/app/layout.css` and several JS chunks — the page still rendered (200 on `/`) but with zero CSS, so it looked like the whole design system had vanished (plain serif text, no dark theme, no colors). Not a code regression: `pnpm typecheck`/`pnpm build`/tests were all green at the time.
+
+**Rule:** if the running app suddenly looks unstyled after a session with many new files, check Network for 404s on `_next/static/css/...` before suspecting the CSS/Tailwind setup itself. Fix: kill the stale dev process, `rm -rf client/.next`, restart `pnpm dev`. (symptom reproduced via `mcp__Claude_Browser__read_network_requests`, fixed by clearing `client/.next`)
+
 ## Recurring Errors & Fixes
 
 _No entries yet._

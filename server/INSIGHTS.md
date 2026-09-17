@@ -23,6 +23,26 @@ Entry format: `.claude/skills/engineering-insights/reference/entry-format.md`.
 
 ## Codebase Patterns
 
+- **2026-09-17** — `CLAUDE.md`'s "Every table still carries `workspace_id`" is
+  not literally true. On the review path only `reviews`, `pull_requests`,
+  `agent_runs` and `multi_agent_runs` have the column; `findings`, `pr_intent`,
+  `pr_brief`, `pr_files`, `pr_commits` and `run_traces` have none
+  (`src/db/schema/reviews.ts:28`, `pulls.ts:35`, `pulls.ts:47`, `runs.ts`).
+  They are tenant-scoped only through their parent FK
+  (`findings.review_id -> reviews.workspace_id`), so a
+  `select().from(t.findings)` with no join to `reviews` reads every workspace
+  even though the handler called `getContext()`.
+
+- **2026-09-17** — There is no `score` column on `pull_requests`
+  (`src/db/schema/pulls.ts:8-28`, `migrations/0000_init.sql:241-259`). A PR's
+  score lives on `reviews.score` (`schema/reviews.ts:23`) and `agent_runs.score`
+  (`runs.ts:31`) and has to be joined in. The mistake is invisible to the
+  compiler when the query goes through `db.execute(sql.raw(...))`:
+  `pnpm typecheck` stays green and Postgres fails at runtime with `42703 column
+  does not exist`. The only raw SQL in `src/` is
+  `modules/repo-intel/repository.ts:402-406`, and it is parameterised — a new
+  raw query needs an `*.it.test.ts` to prove its columns exist.
+
 - **2026-09-17** — A "deliberately not implemented" comment in a route can be
   stale scaffolding, not a decision. `pulls/routes.ts` said the per-severity
   FINDINGS breakdown was "intentionally not surfaced on the list", while
@@ -62,6 +82,9 @@ Entry format: `.claude/skills/engineering-insights/reference/entry-format.md`.
   price table, so costs still render.
 
 ## Session Notes
+
+- **2026-09-17** — Ran the PR-review prompt against PR #4 (the
+  `test/reviewer-bait` fixture); review only, no code change.
 
 - **2026-09-17** — PR-list COST switched from the latest done run to the sum of
   all done runs (`sumRunCosts` in `modules/pulls/status.ts`); contract comment

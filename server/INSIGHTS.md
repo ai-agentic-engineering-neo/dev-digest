@@ -23,6 +23,15 @@ Entry format: `.claude/skills/engineering-insights/reference/entry-format.md`.
 
 ## Codebase Patterns
 
+- **2026-09-17** — A "deliberately not implemented" comment in a route can be
+  stale scaffolding, not a decision. `pulls/routes.ts` said the per-severity
+  FINDINGS breakdown was "intentionally not surfaced on the list", while
+  `rollupSeverities` sat 40 lines away in `pulls/status.ts:23` — exported,
+  unit-tested (`test/pulls-status.test.ts:52`), called by nothing, and with a
+  module docblock describing that exact breakdown. Before writing a new
+  aggregation, grep the module for an unused pure helper: the starter ships
+  them ahead of the lesson that wires them up.
+
 - **2026-09-16** — `completeAgentRun`'s value type is declared TWICE and the two
   copies are not linked: the `ReviewRepository` facade re-types the whole object
   literal (`src/modules/reviews/repository.ts:151`) around the real

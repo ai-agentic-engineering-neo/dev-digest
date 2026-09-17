@@ -38,3 +38,13 @@ relearn it. Package-local findings go in `<package>/INSIGHTS.md` instead.
   fallible as any other implementation attempt — verify claims about "the
   right way to build X" against the actual lesson slides/checklist, not just
   whichever commit `git log` happens to surface first.
+- **2026-09-17** — Adding a new skill under `.claude/skills/<name>/SKILL.md`
+  does not get it discovered unless it's also added as a row in
+  `.claude/skills/README.md`'s Catalog table — nothing enforces this
+  automatically. Two locally-authored skills (`engineering-insights`,
+  `esbuild-arch-mismatch`) were committed without a catalog row and stayed
+  invisible until manually caught; vendored skills are also tracked in
+  `skills-lock.json`, but locally-authored ones have no such backstop, so the
+  catalog row is their only discoverability path. `.claude/skills/README.md`
+  now documents the "catalog row in the same commit as SKILL.md" rule.
+  Evidence: `.claude/skills/README.md`.

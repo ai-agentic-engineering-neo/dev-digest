@@ -27,6 +27,46 @@ sync when contracts change.
 - `./scripts/e2e.sh` — hermetic e2e stack (isolated ports, fresh seed, auto-teardown).
 - Only Postgres runs in Docker; the API and web app run on the host.
 
+### Checks (per package — run inside the package dir)
+
+| Package    | Tests                                            | Typecheck         | Lint |
+|------------|--------------------------------------------------|-------------------|------|
+| `server/`  | `pnpm test` (or `pnpm exec vitest run --exclude '**/*.it.test.ts'` for unit-only; `.it.test` needs Docker) | `pnpm typecheck` | — (no linter configured) |
+| `client/`  | `pnpm test` (vitest + jsdom, fetch mocked)       | `pnpm typecheck`  | — (no linter configured) |
+| `reviewer-core/` | `npm test`                                 | `npm run typecheck` | — |
+| `e2e/`     | `npm test` (needs `./scripts/e2e.sh` stack)      | `npm run typecheck` | — |
+
+### Do not touch
+
+- **Applied DB migrations** (`server/src/db/migrations/`) — never edit or
+  re-generate an applied migration; add a new one (`pnpm db:generate` in
+  `server/`). Migrations are append-only history.
+- **Lockfiles** (`server/pnpm-lock.yaml`, `client/pnpm-lock.yaml`,
+  `reviewer-core/package-lock.json`, `e2e/package-lock.json`) — never edit by
+  hand or regenerate casually; they're the reproducible-install contract.
+  Dependency changes go through the package manager (`pnpm install <pkg>` /
+  `npm install <pkg>`), never manual lockfile edits.
+
+## Naming conventions
+
+- **Components** — `PascalCase.tsx` matching the default export
+  (`ReviewRunAccordion.tsx` exports `ReviewRunAccordion`); colocated folder per
+  feature component (`_components/<Name>/`) with `index.ts` barrel.
+- **Files** — `kebab-case.ts` for non-component modules (`repo-intel`,
+  `price-book`); colocated `styles.ts` / `constants.ts` / `helpers.ts` export
+  an `s` / constants / pure functions respectively.
+- **Tests** — colocated next to the unit: `<Name>.test.tsx` (client/server
+  unit); DB-backed server tests MUST end in `*.it.test.ts`; e2e flows are
+  `specs/NN-name.flow.json`.
+- **API routes** — kebab or `:param` paths as declared in each module's
+  `routes.ts`; Zod schemas for params/body live in `src/modules/_shared/schemas.ts`.
+- **DB (Drizzle)** — snake_case columns, camelCase TS fields; tables plural
+  (`agent_runs`, `pull_requests`); never rename an existing column.
+- **Contracts** — `@devdigest/shared` Zod schemas in `vendor/shared/contracts/`,
+  types derived via `z.infer`, vendored identically into `server/` and `client/`.
+- **Git commits** — Conventional Commits (`feat:`, `fix:`, `refactor:` …),
+  scope in parens when it helps (`feat(reviews): …`).
+
 ## Golden rules
 
 - Don't propose a monorepo/workspace toolchain — standalone packages are deliberate.

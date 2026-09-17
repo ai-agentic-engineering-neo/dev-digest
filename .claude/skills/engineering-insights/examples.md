@@ -3,7 +3,7 @@
 What a good entry looks like (and what gets rejected), per section. Every ✅
 entry follows the contract format:
 
-`- YYYY-MM-DD — one actionable sentence. (file-or-PR ref)`
+`- YYYY-MM-DD — one actionable sentence. (<file>:<line> or dir/PR ref)`
 
 The ❌ entries are real failure modes: vague, no action, no context.
 
@@ -17,7 +17,7 @@ The ❌ entries are real failure modes: vague, no action, no context.
 ### What Doesn't Work
 
 - ❌ `- 2026-09-16 — JSON parsing can be flaky. (reviewer-core)` — no cause, no alternative.
-- ✅ `- 2026-09-16 — parseWithRepair can't recover when max_tokens truncates JSON mid-finding — raise the token budget first, don't blame the Zod schema. (reviewer-core/src/llm/structured.ts)`
+- ✅ `- 2026-09-16 — parseWithRepair can't recover when max_tokens truncates JSON mid-finding — raise the token budget first, don't blame the Zod schema. (reviewer-core/src/llm/structured.ts:54)`
 
 ### Codebase Patterns
 
@@ -32,7 +32,7 @@ The ❌ entries are real failure modes: vague, no action, no context.
 ### Recurring Errors & Fixes
 
 - ❌ `- 2026-09-16 — pnpm can cause problems. (client)` — the error message and the fix are the whole point; both are missing.
-- ✅ `- 2026-09-16 — pnpm ≥10 silently blocks esbuild's postinstall; the "command not found" error looks like a client bug but the fix is approving the build in client/pnpm-workspace.yaml allowBuilds. (client/pnpm-workspace.yaml)`
+- ✅ `- 2026-09-16 — pnpm ≥10 silently blocks esbuild's postinstall; the "command not found" error looks like a client bug but the fix is approving the build in client/pnpm-workspace.yaml allowBuilds. (client/pnpm-workspace.yaml:1)`
 
 ### Session Notes
 

@@ -7,7 +7,7 @@ Contract:
 
 - Append only — never rewrite, reword, or prune existing entries.
 - One dated bullet per insight, newest on top of its section:
-  `- YYYY-MM-DD — one actionable sentence. (file-or-PR ref)`
+  `- YYYY-MM-DD — one actionable sentence. (<file>:<line> or dir/PR ref)`
 - If it belongs in the README, `docs/`, or a `specs/` file instead — put it there.
 
 ## What Works

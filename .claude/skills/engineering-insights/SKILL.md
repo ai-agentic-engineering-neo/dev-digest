@@ -42,7 +42,7 @@ Two triggers:
 ## Entry format
 
 ```
-- YYYY-MM-DD — <one actionable sentence>. (<file-or-PR ref>)
+- YYYY-MM-DD — <one actionable sentence>. (<file>:<line> or dir/PR ref)
 ```
 
 Place at the top of the chosen section, directly under its
@@ -68,7 +68,7 @@ it.** An entry must be actionable cold: a reader who missed the session knows
 what to do or avoid.
 
 - ❌ `- 2026-09-16 — Promises can be tricky. (server)` — vague; no action, no context.
-- ✅ `- 2026-09-16 — pnpm ≥10 silently blocked esbuild's postinstall; the "command not found" looks like a client bug but the fix is approving the build in client/pnpm-workspace.yaml allowBuilds. (client/pnpm-workspace.yaml)`
+- ✅ `- 2026-09-16 — pnpm ≥10 silently blocked esbuild's postinstall; the "command not found" looks like a client bug but the fix is approving the build in client/pnpm-workspace.yaml allowBuilds. (client/pnpm-workspace.yaml:1)`
 
 Nothing substantial learned → write nothing. Signal over volume.
 

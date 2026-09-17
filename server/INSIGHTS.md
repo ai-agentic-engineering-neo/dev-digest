@@ -35,7 +35,22 @@ Entry format: `.claude/skills/engineering-insights/reference/entry-format.md`.
 
 ## Recurring Errors & Fixes
 
+- **2026-09-17** — `Run failed: 401 User not found.` mid-agent-run is OpenRouter
+  rejecting the key, not a bug in the run pipeline. `container.buildLlm` only
+  checks that the secret is a non-empty string
+  (`src/platform/container.ts:183`), so `Resolving openrouter provider done
+  (0ms)` proves nothing — the first real auth happens in
+  `chat.completions.create`. Confirm in one call before reading any code:
+  `curl -H "Authorization: Bearer $KEY" https://openrouter.ai/api/v1/key`.
+  A valid key is `sk-or-v1-` + 64 lowercase hex (73 chars); anything longer or
+  mixed-case came from another service. Side effect of a bad key: `PriceBook`
+  swallows the 401 (`container.ts:143`) and silently falls back to the static
+  price table, so costs still render.
+
 ## Session Notes
+
+- **2026-09-17** — Diagnosed a failing agent run down to an invalid
+  `OPENROUTER_API_KEY`; no code change.
 
 - **2026-09-16** — Run Cost: `agent_runs.cost_usd` re-added (migration 0010),
   threaded through the run executor, repository and the PR-list route.

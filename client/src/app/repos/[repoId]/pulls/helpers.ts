@@ -1,4 +1,26 @@
+import type { FindingRecord, ReviewRecord } from "@devdigest/shared";
+import { sortBySeverity } from "@/components/severity-counts";
 import { SIZE_MEDIUM_MAX, SIZE_SMALL_MAX, type PrMeta, type SizeInfo } from "./constants";
+
+/**
+ * Findings from each agent's LATEST review, minus dismissed ones, sorted by
+ * severity. This mirrors the rule the API applies when it builds a row's
+ * `findings_counts`, so the hover preview can never contradict the chips.
+ */
+export function latestFindingsPerAgent(reviews: ReviewRecord[]): FindingRecord[] {
+  const newestFirst = [...reviews]
+    .filter((rv) => rv.kind === "review")
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const seenAgents = new Set<string>();
+  const findings: FindingRecord[] = [];
+  for (const rv of newestFirst) {
+    const agentKey = rv.agent_id ?? "none";
+    if (seenAgents.has(agentKey)) continue;
+    seenAgents.add(agentKey);
+    findings.push(...rv.findings.filter((f) => !f.dismissed_at));
+  }
+  return sortBySeverity(findings);
+}
 
 /** Bucket a PR into S/M/L by total changed lines. */
 export function sizeOf(pr: PrMeta): SizeInfo {

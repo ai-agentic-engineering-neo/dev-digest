@@ -31,6 +31,19 @@ export function rollupSeverities(rows: { severity: string }[]): SeverityCounts {
 }
 
 /**
+ * `rollupSeverities` in the shape `PrMeta.findings_counts` serves: uppercase
+ * keys, so the UI can index the tally straight by severity name.
+ */
+export function toFindingsCounts(rows: { severity: string }[]): {
+  CRITICAL: number;
+  WARNING: number;
+  SUGGESTION: number;
+} {
+  const c = rollupSeverities(rows);
+  return { CRITICAL: c.critical, WARNING: c.warning, SUGGESTION: c.suggestion };
+}
+
+/**
  * Review-freshness status for the PR list. Merged/closed PRs keep their GitHub
  * merge state; open PRs map to:
  *  - `needs_review` — never reviewed, OR head moved since the last review

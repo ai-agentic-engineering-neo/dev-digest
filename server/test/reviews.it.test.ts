@@ -220,6 +220,47 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     await app.close();
   });
 
+  it('PR list rolls findings up by severity, and dismissing one drops its count', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+
+    // Before any review the row has no counts at all — the UI renders "—".
+    const before = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    expect(before.find((r: { id: string }) => r.id === pr.id).findings_counts).toBeNull();
+
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'Sec', provider: 'openai', model: 'gpt-4.1', system_prompt: 'sec' },
+      })
+    ).json();
+    await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } });
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+
+    // Grounding keeps exactly one CRITICAL (src/config.ts:11).
+    const after = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    expect(after.find((r: { id: string }) => r.id === pr.id).findings_counts).toEqual({
+      CRITICAL: 1,
+      WARNING: 0,
+      SUGGESTION: 0,
+    });
+
+    // Dismissing is the one action that suppresses a finding from the counts.
+    const reviews = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/reviews` })).json();
+    const findingId = reviews[0].findings[0].id;
+    await app.inject({ method: 'POST', url: `/findings/${findingId}/dismiss` });
+
+    const dismissed = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    expect(dismissed.find((r: { id: string }) => r.id === pr.id).findings_counts).toEqual({
+      CRITICAL: 0,
+      WARNING: 0,
+      SUGGESTION: 0,
+    });
+
+    await app.close();
+  });
+
   it('dual-provider structured output: anthropic provider returns the same Review shape', async () => {
     const app = await appWith(REVIEW_FIXTURE, 'anthropic');
     const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);

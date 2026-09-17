@@ -1,13 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import type { PrMeta, PrDetail, GitHubClient, PrReviewComment } from '@devdigest/shared';
 import { PrCommentInput } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { AppError, NotFoundError } from '../../platform/errors.js';
-import { deriveReviewStatus } from './status.js';
+import { deriveReviewStatus, toFindingsCounts } from './status.js';
 
 /**
  * F1 — pulls module. PR import via Octokit (list + per-PR detail).
@@ -111,21 +111,57 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
-    // Latest-review SCORE per PR for the list's score ring. Computed on read
-    // from reviews (no FK denorm); the list is small, so one IN-query + JS
-    // grouping is cheap. (The per-severity FINDINGS breakdown is intentionally
-    // not surfaced on the list — findings live on the PR detail page.)
+    // Latest-review SCORE + per-severity FINDINGS counts per PR for the list.
+    // Computed on read from reviews (no FK denorm); the list is small, so one
+    // IN-query + JS grouping is cheap.
     const prIds = rows.map((r) => r.id);
     const latestReviewByPr = new Map<string, { score: number | null }>();
+    // The FINDINGS breakdown covers each AGENT's latest review, so a PR reviewed
+    // by several agents shows the union of their current findings rather than
+    // only the newest agent's. Maps that review id back to its PR.
+    const countedReviewToPr = new Map<string, string>();
     if (prIds.length > 0) {
       const reviewRows = await container.db
-        .select({ prId: t.reviews.prId, score: t.reviews.score })
+        .select({
+          id: t.reviews.id,
+          prId: t.reviews.prId,
+          agentId: t.reviews.agentId,
+          score: t.reviews.score,
+        })
         .from(t.reviews)
         .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review')))
         .orderBy(desc(t.reviews.createdAt));
-      // Rows are newest-first → first seen per PR is the latest review.
+      // Rows are newest-first → first seen per PR (resp. per PR+agent) wins.
+      const seenPrAgent = new Set<string>();
       for (const rv of reviewRows) {
         if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { score: rv.score });
+        const agentKey = `${rv.prId}|${rv.agentId ?? 'none'}`;
+        if (!seenPrAgent.has(agentKey)) {
+          seenPrAgent.add(agentKey);
+          countedReviewToPr.set(rv.id, rv.prId);
+        }
+      }
+    }
+
+    // Severities of those reviews' findings, tallied per PR. DISMISSED findings
+    // are excluded: the counter answers "what still needs attention", the same
+    // rule the detail page applies to its blockers count.
+    const findingCountsByPr = new Map<string, { severity: string }[]>();
+    if (countedReviewToPr.size > 0) {
+      const findingRows = await container.db
+        .select({ reviewId: t.findings.reviewId, severity: t.findings.severity })
+        .from(t.findings)
+        .where(
+          and(
+            inArray(t.findings.reviewId, [...countedReviewToPr.keys()]),
+            isNull(t.findings.dismissedAt),
+          ),
+        );
+      for (const f of findingRows) {
+        const prId = countedReviewToPr.get(f.reviewId)!;
+        const bucket = findingCountsByPr.get(prId);
+        if (bucket) bucket.push(f);
+        else findingCountsByPr.set(prId, [f]);
       }
     }
 
@@ -172,6 +208,8 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
         cost_usd: latestRunCostByPr.get(r.id) ?? null,
+        // null = never reviewed (the UI renders "—"); a reviewed-clean PR gets zeros.
+        findings_counts: review ? toFindingsCounts(findingCountsByPr.get(r.id) ?? []) : null,
       };
     });
   });

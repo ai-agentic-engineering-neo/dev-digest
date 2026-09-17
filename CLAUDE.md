@@ -13,6 +13,15 @@ No root package.json — 4 standalone packages, each own lockfile. Cross-package
 - need cross-module architecture → `docs/architecture.md`
 - need agent-prompt tuning → `docs/agent-prompts/README.md`
 
+## Session protocol
+
+- **Before any work:** read the touched module's `INSIGHTS.md` and name the 1-3 entries
+  that bear on this task. Treat them as high-confidence guidance unless told otherwise.
+- **When wrapping up:** run `/engineering-insights` to capture what the session learned.
+  If nothing non-obvious came up it writes nothing — that is the expected outcome, not a
+  skipped step.
+- Which file: `.claude/skills/engineering-insights/scripts/detect-module.sh`.
+
 ## Do not touch
 
 - `server/src/db/migrations/` journal — never overwrite wholesale (merge conflicts must append, not replace history). See `server/INSIGHTS.md`.

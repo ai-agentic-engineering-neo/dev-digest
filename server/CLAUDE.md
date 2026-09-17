@@ -8,7 +8,7 @@ Fastify 5, Drizzle ORM 0.38 + `postgres` (pgvector), TS 5.7. Layout: `src/platfo
 
 - changing DB schema → `docs/README.md`, then check `specs/` for feature spec
 - adding a route → `docs/README.md` for routing pattern
-- hit repeated bug/gotcha → `INSIGHTS.md` first
+- **before any work → `INSIGHTS.md` (read first, always)**
 
 ## Do not touch
 

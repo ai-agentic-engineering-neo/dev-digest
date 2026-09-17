@@ -9,7 +9,7 @@ Custom runner (`run.ts`, not Playwright/Cypress) driving Vercel agent-browser ov
 - adding/changing a flow test → `specs/` holds the `.flow.json` files themselves
 - writing/checking the product spec behind a flow → `specs-docs/`
 - changing runner internals → `docs/README.md`
-- hit repeated bug/gotcha → `INSIGHTS.md` first
+- **before any work → `INSIGHTS.md` (read first, always)**
 
 ## Do not touch
 

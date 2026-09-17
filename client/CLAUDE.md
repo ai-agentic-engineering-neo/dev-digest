@@ -8,7 +8,7 @@ Next.js 15 (App Router, `src/app/`), React 19, TS 5.7, `@tanstack/react-query`, 
 
 - changing routing/layout → `docs/README.md`
 - adding a feature → check `specs/` for its spec first
-- hit repeated bug/gotcha → `INSIGHTS.md` first
+- **before any work → `INSIGHTS.md` (read first, always)**
 
 ## Do not touch
 

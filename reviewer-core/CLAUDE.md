@@ -8,7 +8,7 @@ Pure TS lib (no HTTP/DB), zod + OpenAI SDK. Layout: `src/review` (pipeline), `sr
 
 - changing review-engine logic → `docs/README.md`
 - adding a feature → check `specs/` for its spec first
-- hit repeated bug/gotcha → `INSIGHTS.md` first
+- **before any work → `INSIGHTS.md` (read first, always)**
 
 ## Do not touch
 

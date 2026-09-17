@@ -15,7 +15,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo \"{\\\"systemMessage\\\":\\\"engineering-insights: if this session hit a surprising bug, dead end, or decision worth keeping, run /engineering-insights before finishing.\\\",\\\"hookSpecificOutput\\\":{\\\"hookEventName\\\":\\\"Stop\\\",\\\"additionalContext\\\":\\\"engineering-insights: before finishing, consider whether this session learned something worth an INSIGHTS.md entry (surprising bug, dead end, library quirk, convention discovered the hard way). If so, invoke the engineering-insights skill now.\\\"}}\" 2>/dev/null || true"
+            "command": "echo \"{\\\"systemMessage\\\":\\\"engineering-insights: if this session hit a surprising bug, dead end, or decision worth keeping, run /engineering-insights before finishing.\\\",\\\"hookSpecificOutput\\\":{\\\"hookEventName\\\":\\\"Stop\\\",\\\"additionalContext\\\":\\\"engineering-insights: before finishing, consider whether this session learned something worth an INSIGHTS.md entry (surprising bug, dead end, library quirk, convention discovered the hard way). If so, invoke the engineering-insights skill now.\\\"}}\" 2>/dev/null || true",
+            "once": true
           }
         ]
       }

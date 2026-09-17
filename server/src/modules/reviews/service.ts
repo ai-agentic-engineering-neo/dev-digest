@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { Container } from '../../platform/container.js';
 import type { FindingActionKind, RunEventKind, RunTrace } from '@devdigest/shared';
 import { AppError, NotFoundError } from '../../platform/errors.js';
@@ -114,6 +115,9 @@ export class ReviewService {
     // Create the agent_run rows up front so a runId is available IMMEDIATELY —
     // the client persists these in global state and subscribes to the SSE
     // stream. The actual (slow) review runs in the background below.
+    // One batchId per "Review all" invocation, shared by every targeted agent —
+    // groups their runs for the PR-list latest-batch cost sum.
+    const batchId = randomUUID();
     const runs: { run_id: string; agent_id: string; agent_name: string }[] = [];
     const jobs: { agent: AgentRow; runId: string }[] = [];
     for (const agent of targets) {
@@ -121,6 +125,7 @@ export class ReviewService {
         workspaceId,
         agentId: agent.id,
         prId,
+        batchId,
         provider: agent.provider,
         model: agent.model,
       });

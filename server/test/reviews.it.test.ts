@@ -208,6 +208,9 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(run!.status).toBe('done');
     expect(run!.findingsCount).toBe(1);
     expect(run!.grounding).toBe('1/2 passed');
+    // cost is no longer discarded before persistence (run-cost feature)
+    expect(run!.costUsd).toBe(0.001);
+    expect(trace.stats.cost_usd).toBe(0.001);
 
     await app.close();
   });
@@ -297,6 +300,18 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     ).json();
     // seed has 2 enabled agents; we may have created more above in this PR's ws.
     expect(body.runs.length).toBeGreaterThanOrEqual(2);
+
+    // every run of one "Review all" invocation shares a single batch_id
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: body.runs.length });
+    const runIds: string[] = body.runs.map((r: { run_id: string }) => r.run_id);
+    const rows = await pg.handle.db
+      .select({ id: t.agentRuns.id, batchId: t.agentRuns.batchId })
+      .from(t.agentRuns)
+      .where(eq(t.agentRuns.prId, pr.id));
+    const batchIds = new Set(rows.filter((r) => runIds.includes(r.id)).map((r) => r.batchId));
+    expect(batchIds.size).toBe(1);
+    expect([...batchIds][0]).not.toBeNull();
+
     await app.close();
   });
 });

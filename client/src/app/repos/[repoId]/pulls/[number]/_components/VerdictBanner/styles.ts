@@ -35,6 +35,11 @@ export const s = {
     color: "var(--text-secondary)",
     marginTop: 8,
   } satisfies CSSProperties,
+  costRow: {
+    fontSize: 12,
+    color: "var(--text-muted)",
+    marginTop: 8,
+  } satisfies CSSProperties,
   scoreCol: {
     display: "flex",
     flexDirection: "column",

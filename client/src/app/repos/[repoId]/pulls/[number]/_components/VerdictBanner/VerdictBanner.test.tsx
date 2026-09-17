@@ -30,4 +30,27 @@ describe("VerdictBanner (smoke)", () => {
     expect(screen.getByText("42")).toBeInTheDocument();
     expect(screen.getByText(/1 findings · 1 blockers/)).toBeInTheDocument();
   });
+
+  it("shows the cost/tokens row only when costUsd is known", () => {
+    const { rerender } = renderWithIntl(
+      <VerdictBanner
+        verdict="approve"
+        summary="Looks good."
+        score={91}
+        findingsCount={0}
+        blockers={0}
+        costUsd={0.014}
+        tokensIn={8200}
+        tokensOut={1300}
+      />,
+    );
+    expect(screen.getByText("$0.014 · 8k→1.3k")).toBeInTheDocument();
+
+    rerender(
+      <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
+        <VerdictBanner verdict="approve" summary="Looks good." score={91} findingsCount={0} blockers={0} />
+      </NextIntlClientProvider>,
+    );
+    expect(screen.queryByText(/\$0/)).not.toBeInTheDocument();
+  });
 });

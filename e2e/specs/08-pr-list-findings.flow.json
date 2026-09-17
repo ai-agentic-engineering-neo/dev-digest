@@ -1,0 +1,13 @@
+{
+  "name": "PR list FINDINGS column previews the latest round's findings on hover",
+  "description": "On the PR list, the FINDINGS column shows compact severity pills per row; hovering the cell opens a read-only popover titled 'N FINDINGS IN THIS RUN' listing the latest review round's findings (severity icon, title, category, file:line, % confidence, clamped rationale — no buttons). Uses the seeded PR #482 (2 findings: 1 CRITICAL + 1 WARNING, latest-round previews shipped by GET /repos/:id/pulls). Locator notes: the cell is a role=group carrying the aria-label '2 findings', and `wait --text` matches the CSS-uppercased accessible text ('FINDINGS', 'FINDINGS IN THIS RUN'). Read-only seeded data (no model call). Assumes a freshly-seeded DB — run via the hermetic stack (see e2e/README.md).",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "land on the PR list" },
+    { "cmd": ["wait", "--text", "FINDINGS"], "label": "FINDINGS column header renders" },
+    { "cmd": ["find", "role", "group", "hover", "--name", "2 findings"], "label": "hover the seeded row's FINDINGS cell (role=group, aria-label carries the total)" },
+    { "cmd": ["wait", "--text", "FINDINGS IN THIS RUN"], "label": "popover header appears — wait --text sees the CSS-uppercased name" },
+    { "cmd": ["wait", "--text", "Hardcoded Stripe secret key in commit"], "label": "read-only preview lists the seeded critical finding" },
+    { "cmd": ["wait", "--text", "src/config.ts:12"], "label": "preview anchors the finding at its file:line" }
+  ]
+}

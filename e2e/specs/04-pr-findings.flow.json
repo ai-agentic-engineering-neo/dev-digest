@@ -1,6 +1,6 @@
 {
   "name": "PR detail shows the seeded review run, verdict, and findings",
-  "description": "From PR #482, open the Agent runs tab and confirm the seeded review run renders (verdict 'request changes', 2 findings) in its accordion header. The newest run's accordion is open by default (FindingsTab passes defaultOpen to the first run), so the VerdictBanner and the seeded FindingCard ('Hardcoded Stripe secret key in commit') are revealed without an extra click. Exercises the refactored ReviewRunAccordion / VerdictBanner / FindingsPanel / FindingCard. Read-only seeded data (no model call). Assumes a freshly-seeded DB where acme/payments-api (PR #482) is the first repo — guaranteed by e2e-web.yml; run locally via the hermetic stack (see e2e/README.md).",
+  "description": "From PR #482, open the Agent runs tab and confirm the seeded review run renders (verdict 'request changes', 2 findings) in its accordion header. The newest run's accordion is open by default (FindingsTab passes defaultOpen to the first run), so the VerdictBanner and the seeded FindingCard ('Hardcoded Stripe secret key in commit') are revealed without an extra click. Then exercise the severity pill row: click the CRITICAL pill (single-select filter), confirm the critical finding stays, click it again (filter cleared) and confirm the WARNING finding returns. Clicking the timeline's agent name scrolls the run's accordion into view first — agent-browser clicks dispatch at element coordinates, which miss below the 577px fold. Locator notes: accessible names concatenate child spans WITHOUT spaces ('Critical1'), and `wait --text` matches the CSS-uppercased accessible text. Exercises ReviewRunAccordion / VerdictBanner / FindingsPanel / FindingCard. Read-only seeded data (no model call). Assumes a freshly-seeded DB — run via the hermetic stack (see e2e/README.md).",
   "steps": [
     { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
     { "cmd": ["wait", "--url", "/pulls"], "label": "land on the PR list" },
@@ -11,6 +11,12 @@
     { "cmd": ["wait", "--url", "tab=findings"], "label": "findings tab is active in the URL" },
     { "cmd": ["wait", "--text", "request changes"], "label": "seeded run accordion shows its verdict" },
     { "cmd": ["wait", "--text", "2 findings"], "label": "accordion header shows the seeded finding count" },
-    { "cmd": ["wait", "--text", "Hardcoded Stripe secret key in commit"], "label": "seeded FindingCard is visible (newest run is open by default)" }
+    { "cmd": ["wait", "--text", "Hardcoded Stripe secret key in commit"], "label": "seeded FindingCard is visible (newest run is open by default)" },
+    { "cmd": ["find", "text", "Security Reviewer", "click"], "label": "click the timeline agent name — scrolls the run accordion into view" },
+    { "cmd": ["wait", "--text", "CRITICAL"], "label": "severity pill row renders under the verdict (1 CRITICAL · 1 WARNING)" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Critical1"], "label": "click the CRITICAL pill — only its findings remain" },
+    { "cmd": ["wait", "--text", "Hardcoded Stripe secret key in commit"], "label": "the critical finding stays visible under the filter" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Critical1"], "label": "click the same pill again — filter cleared" },
+    { "cmd": ["wait", "--text", "N+1 query in user list endpoint"], "label": "full findings list restored (the warning finding is back)" }
   ]
 }

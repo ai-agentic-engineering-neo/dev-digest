@@ -45,7 +45,7 @@ export function FindingsTooltip({
       // Clicking inside the preview must not trigger the host row's navigation.
       onClick={(e) => e.stopPropagation()}
     >
-      <div style={s.tooltipHeader}>{t("findingsSummary.title", { count: items.length })}</div>
+      <div style={s.tooltipHeader}>{t("findingsSummary.header", { count: items.length })}</div>
       {items.map((f) => (
         <div key={f.id} style={s.item}>
           <div style={s.itemTop}>

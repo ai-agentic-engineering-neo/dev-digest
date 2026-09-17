@@ -47,6 +47,7 @@ describe("FindingsBadges", () => {
 
     fireEvent.mouseEnter(trigger);
     const tooltip = screen.getByRole("tooltip");
+    expect(tooltip).toHaveTextContent("3 findings in this run");
     expect(tooltip).toHaveTextContent("Hardcoded secret");
     expect(tooltip).toHaveTextContent("src/config.ts:11");
     expect(tooltip).toHaveTextContent("src/a.ts:4-6");

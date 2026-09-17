@@ -1,4 +1,4 @@
-import type { PrMeta } from "../../../../lib/types";
+import type { PrMeta, Severity } from "../../../../lib/types";
 
 /** Constants for the PR list page (/repos/:repoId/pulls). */
 
@@ -24,7 +24,7 @@ export const SIZE_COLOR: Record<string, string> = {
 };
 
 /** Grid template for both the header row and PR rows. */
-export const GRID = "1fr 132px 92px 60px 118px 86px 78px";
+export const GRID = "1fr 132px 92px 60px 108px 118px 86px 78px";
 
 /** Line-count thresholds for the S/M/L size bucket. */
 export const SIZE_SMALL_MAX = 100;
@@ -44,10 +44,14 @@ export const COLUMN_KEYS: string[] = [
   "author",
   "size",
   "score",
+  "findings",
   "status",
   "cost",
   "updated",
 ];
+
+/** FINDINGS column + popover pill order: CRITICAL → WARNING → SUGGESTION. */
+export const FINDINGS_SEVERITIES: readonly Severity[] = ["CRITICAL", "WARNING", "SUGGESTION"];
 
 /** Number of skeleton rows shown while loading. */
 export const SKELETON_ROWS = 4;

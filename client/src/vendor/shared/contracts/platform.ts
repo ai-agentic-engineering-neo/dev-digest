@@ -170,9 +170,20 @@ export const PrMeta = z.object({
   updated_at: z.string().nullish(),
   // Latest-review score (list endpoint only; null/absent until reviewed).
   score: z.number().int().nullish(),
-  // Latest-batch run cost — list endpoint only; sums the newest DONE batch's
-  // priced runs, null when unpriced/absent, undefined until reviewed.
+  // Total run cost — list endpoint only; sums every DONE run's priced cost
+  // for the PR (not just the newest batch), null when unpriced, absent when
+  // never run.
   cost_usd: z.number().nullish(),
+  // Per-severity findings breakdown — list endpoint only; each agent's
+  // latest review counted once (mirrors the `score` field's "latest review"
+  // rule). Absent until reviewed; omits severities with zero findings.
+  findings_counts: z
+    .object({
+      CRITICAL: z.number().int().optional(),
+      WARNING: z.number().int().optional(),
+      SUGGESTION: z.number().int().optional(),
+    })
+    .nullish(),
 });
 export type PrMeta = z.infer<typeof PrMeta>;
 

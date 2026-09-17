@@ -57,11 +57,15 @@ drops hallucinated line references), and persists structured findings with a
 severity and score. All local; the only outbound calls are to GitHub (PR data)
 and the LLM (via OpenRouter).
 
-Each package has its own README with deeper diagrams:
+System-level detail lives in [`docs/architecture.md`](docs/architecture.md), and
+the invariants every change must preserve in
+[`specs/review-flow.md`](specs/review-flow.md).
+
+Each package has a short map (`CLAUDE.md`) plus its own `docs/` and `specs/`:
 [`client`](client/README.md) (UI route map) ·
-[`server`](server/README.md) (API map) ·
+[`server`](server/README.md) (API map, configuration) ·
 [`reviewer-core`](reviewer-core/README.md) (review pipeline) ·
-[`e2e`](e2e/README.md).
+[`e2e`](e2e/README.md) (browser flows).
 
 ## What works on day 1
 

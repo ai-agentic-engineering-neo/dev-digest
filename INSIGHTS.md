@@ -15,6 +15,8 @@ belongs here.
 
 - **2026-09-16** — Consuming `reviewer-core` and `@devdigest/shared` as TypeScript source through tsconfig `paths` keeps one Zod definition serving as request validator, response serializer, client type, and LLM JSON Schema, with no build step between packages. Evidence: `server/tsconfig.json` `paths`, `client/tsconfig.json:22`.
 
+- **2026-09-17** — Cost attribution for an LLM call is centralized behind `reviewer-core`'s `ReviewOutcome.costUsd` (summed per call across a map-reduce run, forced to `null` the moment any one call's model is unpriced) — every adapter (OpenAI, Anthropic, and reviewer-core's own OpenRouter provider via the injected `PriceBook`/`estimateCost`) already fills this in per call, so a new consumer of run cost only needs to read `costUsd` off the outcome and never re-derive pricing itself. Evidence: `reviewer-core/src/review/run.ts:110,184,216`, `server/src/adapters/llm/openai.ts:84`, `server/src/platform/price-book.ts:34-39`.
+
 ## What Doesn't Work
 
 - **2026-09-16** — `@devdigest/shared` is vendored twice and the copies have already diverged, so editing `client/src/vendor/shared/` alone desyncs it from the API — change the server copy first, then mirror. Evidence: `server/src/vendor/shared/adapters.ts:83` declares `'openai' | 'anthropic' | 'openrouter'` where `client/src/vendor/shared/adapters.ts:77` still has `'openai' | 'anthropic'`.

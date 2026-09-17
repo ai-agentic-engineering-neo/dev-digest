@@ -159,7 +159,7 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
 
   it('runs a review: map-reduce + grounding drops the hallucinated finding, keeps the valid one', async () => {
     const app = await appWith(REVIEW_FIXTURE);
-    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
 
     const agent = (
       await app.inject({
@@ -201,6 +201,7 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     const trace = (await app.inject({ method: 'GET', url: `/runs/${runId}/trace` })).json();
     expect(trace.config.model).toBe('gpt-4.1');
     expect(trace.stats.grounding).toBe('1/2 passed');
+    expect(trace.stats.cost_usd).toBeCloseTo(0.001, 5);
     expect(trace.log.length).toBeGreaterThan(0);
 
     // agent_runs row populated for A5 to aggregate
@@ -208,6 +209,22 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(run!.status).toBe('done');
     expect(run!.findingsCount).toBe(1);
     expect(run!.grounding).toBe('1/2 passed');
+    // MockLLMProvider reports costUsd: 0.001 per call; a single-file diff is
+    // single-pass (one call), so the run's cost is exactly that.
+    expect(run!.costUsd).toBeCloseTo(0.001, 5);
+
+    // The same cost surfaces on GET /pulls/:id/runs (RunSummary — PR-detail's
+    // Timeline/verdict-panel data source) ...
+    const runs = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(runs).toHaveLength(1);
+    expect(runs[0].cost_usd).toBeCloseTo(0.001, 5);
+
+    // ... and on GET /repos/:id/pulls (PrMeta — the PR-list COST column),
+    // where it's the LATEST review's run, same as `score`.
+    const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const listed = pulls.find((p: { id: string }) => p.id === pr.id);
+    expect(listed.score).toBe(65);
+    expect(listed.cost_usd).toBeCloseTo(0.001, 5);
 
     await app.close();
   });

@@ -20,6 +20,8 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 - **2026-09-16** — Routes are keyed by PR *number* while every PR API is keyed by the row uuid, so the detail page resolves number → id through the cached pulls list before fetching anything; a component that fetches straight from the route param will 404. Evidence: `client/src/app/repos/[repoId]/pulls/[number]/page.tsx:32-36`.
 
+- **2026-09-17** — `VerdictBanner` is not a page-level PR summary — it's rendered once per run, inside `ReviewRunAccordion` (one per `ReviewRecord`), so what reads as a single "PR brief" panel is just the newest (`defaultOpen`) accordion's banner. A per-run datum `VerdictBanner` needs beyond what `ReviewRecord` already carries must be resolved by the caller and threaded down through `ReviewRunAccordion` — e.g. `FindingsTab` builds a `run_id → RunSummary` map from the `prRuns` it already has, rather than either component fetching anything itself. Evidence: `client/src/app/repos/[repoId]/pulls/[number]/_components/ReviewRunAccordion/ReviewRunAccordion.tsx:140-149`, `client/src/app/repos/[repoId]/pulls/[number]/_components/FindingsTab/FindingsTab.tsx:66-71`.
+
 ## Tool & Library Notes
 
 - **2026-09-16** — Path aliases are declared twice and neither file reads the other: adding one to `tsconfig.json` without also adding it to `vitest.config.ts` type-checks and builds fine but fails at test time with an unresolved import. Evidence: `client/vitest.config.ts:8-12` vs `client/tsconfig.json:22`.

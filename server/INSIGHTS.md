@@ -26,6 +26,10 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 - **2026-09-16** — Review enrichment is best-effort by contract: a `repoIntel` failure becomes a Live Log line and the prompt section is omitted, so a broken index degrades review quality without failing a run or showing an error. Evidence: `server/src/modules/reviews/run-executor.ts:338`.
 
+- **2026-09-17** — `GET /repos/:id/pulls` derives every PR-list field beyond the raw `pull_requests` row (both `score` and `cost_usd`) from the SAME latest `reviews` row — one query on `reviews` (kind='review', newest `createdAt` wins per PR) left-joined to `agent_runs` by `runId`. A future "latest run's X" field belongs in that same join/map, not a separate query, or it can silently disagree with `score` on which run counts as "latest". Evidence: `server/src/modules/pulls/routes.ts:114-134`.
+
+- **2026-09-17** — On a failed/cancelled run, `ReviewRunExecutor` persists `tokensIn: 0, tokensOut: 0` but `costUsd: null` — not `0` — even though neither reflects any real partial usage from a cancelled map-reduce run. This asymmetry is deliberate: the client's "no cost data" rule keys off `costUsd == null`, so zeroing it to match tokens would make a failed run render a real `$0.00` badge instead of a dash. Evidence: `server/src/modules/reviews/run-executor.ts:78-87,300-309`.
+
 ## Tool & Library Notes
 
 - **2026-09-16** — `TiktokenTokenizer` latches to a `length / 4` heuristic for the rest of the process after a single BPE load failure, so repo-map token budgets can be wrong with nothing in the log saying so. Evidence: `server/src/adapters/tokenizer/index.ts:33-36`.

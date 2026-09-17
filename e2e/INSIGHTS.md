@@ -24,6 +24,8 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 - **2026-09-16** — Each step is bounded by `E2E_STEP_TIMEOUT` (default 60 s) and 32 MB of stdout; exceeding either surfaces as an exec error on the step rather than as an assertion message, which reads like a browser failure but is not one. Evidence: `e2e/run.ts:45-49`.
 
+- **2026-09-17** — Invoking the `agent-browser` binary directly from a shell (outside `run.ts`'s own flow loop) can take several minutes to return on its FIRST command on a cold machine, since that call has to launch a persistent daemon + Chrome behind the scenes; every later command against that same daemon responds in under a second. `E2E_STEP_TIMEOUT`'s 60s default (`e2e/run.ts:41`) is tuned for those later, warm calls — a manual first invocation hitting it looks like a hang, not slowness. Evidence: `e2e/run.ts:40-41`.
+
 ## Recurring Errors & Fixes
 
 ## Session Notes

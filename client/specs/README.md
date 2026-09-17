@@ -8,4 +8,4 @@ A spec is updated in the same PR that changes the behavior it describes.
 
 | Spec | Topic |
 |------|-------|
-| —    | _none yet_ |
+| [01](01-pr-findings-severity-ui.md) | PR findings severity UI — pills, click-to-filter, timeline icons, list popover |

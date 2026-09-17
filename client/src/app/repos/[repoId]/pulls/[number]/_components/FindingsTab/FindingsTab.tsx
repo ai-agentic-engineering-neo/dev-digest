@@ -8,6 +8,7 @@ import { ReviewRunAccordion } from "../ReviewRunAccordion";
 import { s } from "./styles";
 import type { FindingRecord, ReviewRecord, RunSummary, PrCommit } from "@devdigest/shared";
 import type { UseMutationResult } from "@tanstack/react-query";
+import { countBySeverity, type SeverityCounts } from "../../../../../../../lib/severity";
 
 interface FindingsTabProps {
   prId: string | null;
@@ -70,6 +71,18 @@ export function FindingsTab({
   const handleGoToReview = useCallback((runId: string) => {
     setTarget((p) => ({ runId, n: (p?.n ?? 0) + 1 }));
   }, []);
+
+  // Per-run severity tallies for the timeline tiles, grouped client-side from
+  // the reviews already fetched for the Review-runs section (run summaries
+  // carry counts only). Reviews without a run (e.g. legacy rows) are skipped.
+  const severityByRun = React.useMemo(() => {
+    const byRun: Record<string, SeverityCounts> = {};
+    for (const review of runs) {
+      if (!review.run_id) continue;
+      byRun[review.run_id] = countBySeverity(review.findings);
+    }
+    return byRun;
+  }, [runs]);
 
   return (
     <section>
@@ -134,6 +147,7 @@ export function FindingsTab({
             onOpenTrace={handleOpenTrace}
             onGoToReview={handleGoToReview}
             onDelete={handleDelete}
+            severityByRun={severityByRun}
           />
         </div>
       )}

@@ -157,6 +157,9 @@ export default function PRDetailPage() {
               invalidateActiveRuns();
               invalidateRunHistory();
               refetchReviews();
+              // New findings/cost change the PR list row too — don't wait for
+              // the list's 60s refetch to pick them up.
+              qc.invalidateQueries({ queryKey: ["pulls", repoId] });
             }}
           />
         )}

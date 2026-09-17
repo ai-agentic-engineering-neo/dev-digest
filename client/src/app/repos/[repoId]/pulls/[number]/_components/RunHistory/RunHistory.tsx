@@ -2,9 +2,10 @@
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { Badge, Icon, CircularScore, MonoLink, type IconName } from "@devdigest/ui";
+import { Badge, Icon, CircularScore, MonoLink, SeverityBadge, type IconName } from "@devdigest/ui";
 import type { RunSummary, PrCommit } from "@devdigest/shared";
 import { formatCost } from "@/lib/cost";
+import { SEVERITY_KEYS, type SeverityCounts } from "@/lib/severity";
 
 /**
  * PR timeline — every agent run interleaved with the PR's commits, newest-first
@@ -78,6 +79,7 @@ export function RunHistory({
   onOpenTrace,
   onGoToReview,
   onDelete,
+  severityByRun,
 }: {
   runs: RunSummary[];
   commits?: PrCommit[];
@@ -86,6 +88,9 @@ export function RunHistory({
   /** Jump to this run's inline review accordion below (clicking the agent name). */
   onGoToReview?: (runId: string) => void;
   onDelete?: (runId: string) => void;
+  /** Per-run severity tallies (derived client-side from the PR's reviews).
+   *  Display-only — the tiles themselves stay non-clickable. */
+  severityByRun?: Record<string, SeverityCounts>;
 }) {
   const t = useTranslations("prReview");
   if (runs.length === 0 && commits.length === 0) return null;
@@ -137,6 +142,7 @@ export function RunHistory({
         const r = item.run;
         const o = outcomeOf(r);
         const settled = r.status === "done";
+        const sevCounts = severityByRun?.[r.run_id];
         return (
           <div key={`run:${r.run_id}`} style={rowStyle}>
             <Badge color={o.color} bg={o.bg} icon={o.icon}>
@@ -177,9 +183,15 @@ export function RunHistory({
                 </div>
               )}
               {settled && (
-                <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                  {t("runStatus.findings", { count: r.findings_count ?? 0 })}
-                  {(r.blockers ?? 0) > 0 ? t("runStatus.blockers", { count: r.blockers ?? 0 }) : ""}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                    {t("runStatus.findings", { count: r.findings_count ?? 0 })}
+                    {(r.blockers ?? 0) > 0 ? t("runStatus.blockers", { count: r.blockers ?? 0 }) : ""}
+                  </span>
+                  {sevCounts &&
+                    SEVERITY_KEYS.filter((k) => sevCounts[k] > 0).map((k) => (
+                      <SeverityBadge key={k} severity={k} count={sevCounts[k]} compact />
+                    ))}
                 </div>
               )}
             </div>

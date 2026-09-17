@@ -23,3 +23,6 @@ test-results/
 
 # emdash worktree config (local)
 .emdash.json
+
+# local working notes, never pushed
+WORKFLOW.md

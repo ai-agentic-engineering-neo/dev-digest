@@ -47,7 +47,11 @@ A `next dev` process left running from before this session (many file adds/edits
 
 ## Recurring Errors & Fixes
 
-_No entries yet._
+### React dev warning: `borderColor` + `borderLeftColor` still "conflict" even without the `border` shorthand (2026-09-18)
+
+`FindingCard/styles.ts`'s `card()` already avoided the classic mistake (mixing the `border` shorthand with `borderLeft*`) — its own comment says so — but still paired `borderColor` with `borderLeftColor` and hit React's "Updating a style property during rerender (borderColor) when a conflicting property is set (borderLeftColor)" warning on every focus-state rerender. `borderColor` in React's `CSSProperties` maps to CSS `border-color`, which is itself a shorthand for all four sides — so it still overlaps `borderLeftColor` on the left edge. Being "already longhand" isn't enough; it has to be longhand on the *same axis* as the property you're overriding.
+
+**Rule:** when one side of a border needs an independent color from the rest, never use `borderColor` (all-sides shorthand) — split it into `borderTopColor`/`borderRightColor`/`borderBottomColor` explicitly, alongside the one-side longhand (`borderLeftColor` here). Verify by clicking/rerendering the focused state and checking DevTools console, not just by not-seeing red text on first paint. (`client/src/app/repos/[repoId]/pulls/[number]/_components/FindingCard/styles.ts:5-19`)
 
 ## Session Notes
 

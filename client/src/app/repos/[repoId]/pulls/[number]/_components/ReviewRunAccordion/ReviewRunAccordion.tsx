@@ -7,7 +7,7 @@
 
 import React from "react";
 import { Icon, Badge } from "@devdigest/ui";
-import type { ReviewRecord, Verdict } from "@devdigest/shared";
+import type { ReviewRecord, Verdict, Severity } from "@devdigest/shared";
 import { FindingsPanel } from "../FindingsPanel";
 import { VerdictBanner } from "../VerdictBanner";
 import { useDeleteReview } from "../../../../../../../lib/hooks/reviews";
@@ -29,6 +29,7 @@ export function ReviewRunAccordion({
   defaultOpen = false,
   repoFullName,
   headSha,
+  severityFilter = null,
   targetRunId = null,
   targetNonce = 0,
 }: {
@@ -37,6 +38,9 @@ export function ReviewRunAccordion({
   defaultOpen?: boolean;
   repoFullName?: string | null;
   headSha?: string | null;
+  /** When set, only this run's findings at this severity are shown (counts and
+   *  the FindingsPanel list below both reflect the filtered set). */
+  severityFilter?: Severity | null;
   /** When this matches review.run_id, the accordion opens and scrolls into view
    *  (driven from the Timeline: clicking an agent name navigates here). */
   targetRunId?: string | null;
@@ -52,7 +56,9 @@ export function ReviewRunAccordion({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targetRunId, targetNonce, review.run_id]);
   const del = useDeleteReview(prId);
-  const findings = review.findings;
+  const findings = severityFilter
+    ? review.findings.filter((f) => f.severity === severityFilter)
+    : review.findings;
   const blockers = findings.filter((f) => f.severity === "CRITICAL" && !f.dismissed_at).length;
   const verdictColor = review.verdict ? VERDICT_COLOR[review.verdict] ?? "var(--text-muted)" : "var(--text-muted)";
 

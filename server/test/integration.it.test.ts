@@ -131,6 +131,110 @@ d('Testcontainers: DB-backed routes via app.inject', () => {
     await app.close();
   });
 
+  it('GET /repos/:id/pulls surfaces findings_by_severity from the latest review only', async () => {
+    const config = loadConfig({ ...process.env, NODE_ENV: 'test' } as NodeJS.ProcessEnv);
+    const app = await buildApp({
+      config,
+      db: pg.handle.db,
+      overrides: { git: new MockGitClient(), github: new MockGitHubClient() },
+    });
+    const { workspaceId } = await seed(pg.handle.db);
+    const [repo] = await pg.handle.db
+      .insert(t.repos)
+      .values({ workspaceId, owner: 'acme', name: 'findings-list', fullName: 'acme/findings-list' })
+      .returning();
+    const [pr] = await pg.handle.db
+      .insert(t.pullRequests)
+      .values({
+        workspaceId,
+        repoId: repo!.id,
+        number: 1,
+        title: 'Test PR',
+        author: 'octocat',
+        branch: 'feat',
+        base: 'main',
+        headSha: 'abc123',
+        status: 'open',
+      })
+      .returning();
+
+    // Older review: should NOT be reflected (only the latest review counts).
+    const [oldReview] = await pg.handle.db
+      .insert(t.reviews)
+      .values({
+        workspaceId,
+        prId: pr!.id,
+        kind: 'review',
+        score: 50,
+        createdAt: new Date('2026-01-01T00:00:00Z'),
+      })
+      .returning();
+    await pg.handle.db.insert(t.findings).values({
+      reviewId: oldReview!.id,
+      file: 'a.ts',
+      startLine: 1,
+      endLine: 1,
+      severity: 'CRITICAL',
+      category: 'bug',
+      title: 'old finding',
+      rationale: 'old',
+      confidence: 0.9,
+    });
+
+    // Latest review: this is what findings_by_severity should reflect.
+    const [latestReview] = await pg.handle.db
+      .insert(t.reviews)
+      .values({
+        workspaceId,
+        prId: pr!.id,
+        kind: 'review',
+        score: 80,
+        createdAt: new Date('2026-02-01T00:00:00Z'),
+      })
+      .returning();
+    await pg.handle.db.insert(t.findings).values([
+      {
+        reviewId: latestReview!.id,
+        file: 'b.ts',
+        startLine: 1,
+        endLine: 1,
+        severity: 'WARNING',
+        category: 'perf',
+        title: 'new finding 1',
+        rationale: 'new',
+        confidence: 0.8,
+      },
+      {
+        reviewId: latestReview!.id,
+        file: 'c.ts',
+        startLine: 2,
+        endLine: 2,
+        severity: 'WARNING',
+        category: 'perf',
+        title: 'new finding 2',
+        rationale: 'new',
+        confidence: 0.7,
+      },
+      {
+        reviewId: latestReview!.id,
+        file: 'd.ts',
+        startLine: 3,
+        endLine: 3,
+        severity: 'SUGGESTION',
+        category: 'style',
+        title: 'new finding 3',
+        rationale: 'new',
+        confidence: 0.6,
+      },
+    ]);
+
+    const list = await app.inject({ method: 'GET', url: `/repos/${repo!.id}/pulls` });
+    expect(list.statusCode).toBe(200);
+    const row = list.json().find((p: { number: number }) => p.number === 1);
+    expect(row.findings_by_severity).toEqual({ CRITICAL: 0, WARNING: 2, SUGGESTION: 1 });
+    await app.close();
+  });
+
   it('POST /repos/:id/poll syncs PR list and does NOT trigger a review', async () => {
     const config = loadConfig({ ...process.env, NODE_ENV: 'test' } as NodeJS.ProcessEnv);
     const app = await buildApp({

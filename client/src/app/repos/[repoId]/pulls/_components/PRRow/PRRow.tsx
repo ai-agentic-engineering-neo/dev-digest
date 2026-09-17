@@ -10,8 +10,17 @@ import type { PrMeta } from "@/lib/types";
 import { SIZE_COLOR, STATUS_META } from "../../constants";
 import { relativeTime, sizeOf } from "../../helpers";
 import { s } from "../../styles";
+import { FindingsCell } from "../FindingsCell";
 
-export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
+export function PRRow({
+  pr,
+  repoId,
+  repoFullName,
+}: {
+  pr: PrMeta;
+  repoId: string;
+  repoFullName: string | null;
+}) {
   const t = useTranslations("prReview");
   const router = useRouter();
   const [h, setH] = React.useState(false);
@@ -54,6 +63,7 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
           <span style={s.muted}>—</span>
         )}
       </div>
+      <FindingsCell pr={pr} repoId={repoId} repoFullName={repoFullName} />
       <div>
         <Badge dot color={st.c} bg="transparent">
           {t(`list.status.${st.labelKey}`)}

@@ -21,7 +21,9 @@ import { usePrReviews, useCancelRun, usePrActiveRuns, usePrRuns, useDeleteRun } 
 import { useActiveRepo, useRepoNotFound } from "../../../../../lib/repo-context";
 import { ApiError } from "../../../../../lib/api";
 import { githubPrUrl } from "../../../../../lib/github-urls";
-import type { FindingRecord } from "@devdigest/shared";
+import type { FindingRecord, Severity } from "@devdigest/shared";
+
+const SEVERITY_LEVELS: Severity[] = ["CRITICAL", "WARNING", "SUGGESTION"];
 
 export default function PRDetailPage() {
   const params = useParams<{ repoId: string; number: string }>();
@@ -59,6 +61,8 @@ export default function PRDetailPage() {
 
   const tab = search.get("tab") ?? "overview";
   const traceRunId = search.get("trace");
+  const rawSeverity = search.get("severity");
+  const severityFilter = SEVERITY_LEVELS.includes(rawSeverity as Severity) ? (rawSeverity as Severity) : null;
   const setParam = (key: string, val: string | null) => {
     const sp = new URLSearchParams(search.toString());
     if (val == null) sp.delete(key);
@@ -142,6 +146,9 @@ export default function PRDetailPage() {
             liveRunIds={liveRunIds}
             reviewRunning={reviewRunning}
             lethalTrifecta={lethalTrifecta}
+            allFindings={allFindings}
+            severityFilter={severityFilter}
+            onSeverityChange={(sev) => setParam("severity", sev)}
             runs={runs}
             prRuns={prRuns}
             prCommits={pr.commits}

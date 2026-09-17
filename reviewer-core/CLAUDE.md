@@ -2,7 +2,7 @@
 
 Setup/run → see [README.md](README.md), не дублюй тут.
 
-Pure TS lib (no HTTP/DB), zod + OpenAI SDK. Layout: `src/review` (pipeline), `src/llm`, `src/output`, `src/prompt.ts`, `src/grounding.ts`. Public surface: `src/index.ts`. Consumed by `server` via tsconfig path alias `@devdigest/reviewer-core` (not a published npm package). Build: `pnpm build` (typecheck only, no bundle). Test: `pnpm test`.
+Pure TS lib (no HTTP/DB), zod + OpenAI SDK. Layout: `src/review` (pipeline), `src/llm`, `src/output`, `src/prompt.ts`, `src/grounding.ts`. Public surface: `src/index.ts`. Consumed by `server` via tsconfig path alias `@devdigest/reviewer-core` (not a published npm package) — there is no standalone "run"; it only executes inside `server`'s process or its own tests. Build: `pnpm build` (typecheck only, no bundle). Test: `pnpm test`. Typecheck: `pnpm typecheck`. Lint: not configured.
 
 ## Read when
 
@@ -10,6 +10,10 @@ Pure TS lib (no HTTP/DB), zod + OpenAI SDK. Layout: `src/review` (pipeline), `sr
 - adding a feature → check `specs/` for its spec first
 - **before any work → `INSIGHTS.md` (read first, always)**
 
+## Naming
+
+`src/<stage>.ts` per pipeline stage (`prompt.ts`, `grounding.ts`, …), each a small set of named exports re-surfaced from `src/index.ts` — no default exports, no `utils.ts` grab-bag. See root `CLAUDE.md` § Naming for the full convention.
+
 ## Do not touch
 
-**PENDING:** none identified yet.
+- `package-lock.json` — never hand-edit; regenerate via `npm install` after a `package.json` change.

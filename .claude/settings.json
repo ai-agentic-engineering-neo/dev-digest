@@ -1,0 +1,24 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"{\\\"hookSpecificOutput\\\":{\\\"hookEventName\\\":\\\"SessionStart\\\",\\\"additionalContext\\\":\\\"engineering-insights: before doing other work, read the INSIGHTS.md of the module you are about to touch (client/server/reviewer-core/e2e), or run .claude/skills/engineering-insights/scripts/detect-module.sh to find it. See .claude/skills/engineering-insights/SKILL.md.\\\"}}\" 2>/dev/null || true"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"{\\\"systemMessage\\\":\\\"engineering-insights: if this session hit a surprising bug, dead end, or decision worth keeping, run /engineering-insights before finishing.\\\",\\\"hookSpecificOutput\\\":{\\\"hookEventName\\\":\\\"Stop\\\",\\\"additionalContext\\\":\\\"engineering-insights: before finishing, consider whether this session learned something worth an INSIGHTS.md entry (surprising bug, dead end, library quirk, convention discovered the hard way). If so, invoke the engineering-insights skill now.\\\"}}\" 2>/dev/null || true"
+          }
+        ]
+      }
+    ]
+  }
+}

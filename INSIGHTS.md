@@ -11,7 +11,11 @@ _No entries yet._
 
 ## What Doesn't Work
 
-_No entries yet._
+### A hook's `"once": true` did not suppress repeat firing in the Claude Desktop app harness (2026-09-18)
+
+Added a `Stop` hook to `.claude/settings.json` with `"once": true` (per the documented schema: "hook runs once and is removed after execution") to nudge `/engineering-insights` at session wrap-up without nagging every turn. It still fired its `additionalContext` after every single assistant turn — across a session restart too, not just within one live process — so `once` bought nothing observable here. Root cause unconfirmed (no access to the harness's hook-execution internals from inside the session); could be host-specific (Claude Desktop's Code tab) rather than a general Claude Code bug.
+
+**Rule:** don't rely on `"once": true` to make a `Stop` hook non-repetitive when running inside Claude Desktop. If a Stop-hook reminder must fire, prefer `SessionStart` (confirmed to fire exactly once per session here) over `Stop`, or skip the Stop hook if a `SessionStart` nudge already covers the "fires automatically" requirement — don't add both banking on `once` to keep Stop quiet. Removed the Stop hook entirely in this repo's `.claude/settings.json` after ~10 repeat firings in one session; `SessionStart` alone remains.
 
 ## Codebase Patterns
 

@@ -20,5 +20,8 @@
   },
   "runCost": {
     "title": "Cost of this review"
+  },
+  "findingsSummary": {
+    "title": "{count, plural, one {# finding} other {# findings}}"
   }
 }

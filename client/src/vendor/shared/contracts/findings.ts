@@ -62,6 +62,36 @@ export const Finding = z.object({
 });
 export type Finding = z.infer<typeof Finding>;
 
+/** Per-severity finding counts (PR list column + timeline badges). */
+export const SeverityCounts = z.object({
+  CRITICAL: z.number().int(),
+  WARNING: z.number().int(),
+  SUGGESTION: z.number().int(),
+});
+export type SeverityCounts = z.infer<typeof SeverityCounts>;
+
+/** Trimmed finding for hover previews — no suggestion/evidence markdown, and
+ *  `rationale` is a server-truncated snippet. */
+export const FindingPreview = Finding.pick({
+  id: true,
+  severity: true,
+  category: true,
+  title: true,
+  file: true,
+  start_line: true,
+  end_line: true,
+  confidence: true,
+  rationale: true,
+});
+export type FindingPreview = z.infer<typeof FindingPreview>;
+
+/** Severity breakdown + preview list of a review's non-dismissed findings. */
+export const FindingsSummary = z.object({
+  counts: SeverityCounts,
+  items: z.array(FindingPreview),
+});
+export type FindingsSummary = z.infer<typeof FindingsSummary>;
+
 /** Review — the consolidated structured output of a single agent run. */
 export const Review = z.object({
   verdict: Verdict,

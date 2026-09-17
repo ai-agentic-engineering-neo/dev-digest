@@ -327,6 +327,62 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     await app.close();
   });
 
+  it('findings breakdown on runs + PR list: latest review, dismissed excluded', async () => {
+    const app = await buildApp({
+      config: config(),
+      db: pg.handle.db,
+      overrides: {
+        embedder: new MockEmbedder(),
+        git: new MockGitClient({ diff: DIFF }),
+        github: new MockGitHubClient(),
+        llm: { openai: new MockLLMProvider('openai', { structured: REVIEW_FIXTURE }) },
+      },
+    });
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'Labels', provider: 'openai', model: 'gpt-4.1', system_prompt: 's' },
+      })
+    ).json();
+    const runId = (
+      await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } })
+    ).json().runs[0].run_id;
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+
+    // Grounding keeps only the CRITICAL finding (the WARNING is off-diff).
+    const expected = { CRITICAL: 1, WARNING: 0, SUGGESTION: 0 };
+    const runs = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    const run = runs.find((r: { run_id: string }) => r.run_id === runId);
+    expect(run.findings.counts).toEqual(expected);
+    expect(run.findings.items[0]).toMatchObject({
+      severity: 'CRITICAL',
+      category: 'security',
+      title: 'Hardcoded Stripe secret key',
+      file: 'src/config.ts',
+      start_line: 11,
+    });
+    expect(run.findings.items[0].suggestion).toBeUndefined();
+
+    const listed = () =>
+      app
+        .inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })
+        .then((res) => res.json().find((p: { id: string }) => p.id === pr.id));
+    expect((await listed()).findings.counts).toEqual(expected);
+
+    // Dismissing the only finding empties both surfaces (but keeps them non-null:
+    // the PR was reviewed).
+    const findingId = run.findings.items[0].id;
+    await app.inject({ method: 'POST', url: `/findings/${findingId}/dismiss` });
+    const empty = { counts: { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 }, items: [] };
+    const after = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(after.find((r: { run_id: string }) => r.run_id === runId).findings).toEqual(empty);
+    expect((await listed()).findings).toEqual(empty);
+
+    await app.close();
+  });
+
   it('SSE: /runs/:id/events streams events and completes', async () => {
     const app = await appWith(REVIEW_FIXTURE);
     const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);

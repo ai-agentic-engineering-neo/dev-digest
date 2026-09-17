@@ -1,0 +1,81 @@
+import type { CSSProperties } from "react";
+
+/** Co-located styles for FindingsBadges / FindingsTooltip (ported from the
+ *  design's FindingsCell / RunFindings / FindingsTooltip). */
+export const TOOLTIP_WIDTH = 380;
+
+export const s = {
+  trigger: (interactive: boolean): CSSProperties => ({
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 4,
+    flexWrap: "wrap",
+    cursor: interactive ? "help" : "default",
+    borderRadius: 5,
+    outlineOffset: 2,
+  }),
+  empty: { fontSize: 12, color: "var(--text-muted)" } satisfies CSSProperties,
+  tooltip: (top: number, left: number, above: boolean): CSSProperties => ({
+    position: "fixed",
+    top,
+    left,
+    transform: above ? "translateY(-100%)" : undefined,
+    zIndex: 60,
+    width: TOOLTIP_WIDTH,
+    maxHeight: 360,
+    overflowY: "auto",
+    padding: "10px 0",
+    borderRadius: 10,
+    border: "1px solid var(--border)",
+    background: "var(--bg-elevated)",
+    boxShadow: "var(--shadow-modal)",
+    cursor: "default",
+    textAlign: "left",
+  }),
+  tooltipHeader: {
+    padding: "0 14px 8px",
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: "0.06em",
+    textTransform: "uppercase",
+    color: "var(--text-muted)",
+    borderBottom: "1px solid var(--border)",
+  } satisfies CSSProperties,
+  item: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+    padding: "8px 14px",
+    borderBottom: "1px solid var(--border)",
+  } satisfies CSSProperties,
+  itemTop: { display: "flex", alignItems: "center", gap: 8, minWidth: 0 } satisfies CSSProperties,
+  itemTitle: {
+    fontSize: 13,
+    fontWeight: 600,
+    color: "var(--text-primary)",
+    flex: 1,
+    minWidth: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  } satisfies CSSProperties,
+  itemMeta: { display: "flex", alignItems: "center", gap: 10, minWidth: 0 } satisfies CSSProperties,
+  itemLocation: {
+    fontSize: 11.5,
+    color: "var(--text-secondary)",
+    flex: 1,
+    minWidth: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  } satisfies CSSProperties,
+  itemRationale: {
+    fontSize: 12,
+    lineHeight: 1.45,
+    color: "var(--text-secondary)",
+    display: "-webkit-box",
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: "vertical",
+    overflow: "hidden",
+  } satisfies CSSProperties,
+} as const;

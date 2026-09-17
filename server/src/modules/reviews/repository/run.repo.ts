@@ -1,7 +1,12 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import type { Db } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
 import type { RunSummary, RunTrace } from '@devdigest/shared';
+import {
+  emptyFindingsSummary,
+  findingSummaryColumns,
+  summarizeFindings,
+} from '../findings-summary.js';
 
 // ---- in-flight / history --------------------------------------------------
 
@@ -48,6 +53,21 @@ export async function listRunsForPull(
     .leftJoin(t.agents, eq(t.agents.id, t.agentRuns.agentId))
     .where(and(eq(t.agentRuns.workspaceId, workspaceId), eq(t.agentRuns.prId, prId)))
     .orderBy(desc(t.agentRuns.ranAt));
+
+  // Timeline severity badges: the run's review findings (dismissed excluded),
+  // joined on read via reviews.run_id — one IN-query, folded per run.
+  const runIds = rows.map(({ run }) => run.id);
+  const findingsByRun =
+    runIds.length > 0
+      ? summarizeFindings(
+          await db
+            .select({ key: t.reviews.runId, ...findingSummaryColumns })
+            .from(t.findings)
+            .innerJoin(t.reviews, eq(t.reviews.id, t.findings.reviewId))
+            .where(and(inArray(t.reviews.runId, runIds), eq(t.reviews.kind, 'review'))),
+        )
+      : new Map();
+
   return rows.map(({ run, agentName }) => ({
     run_id: run.id,
     agent_id: run.agentId,
@@ -65,6 +85,8 @@ export async function listRunsForPull(
     ran_at: run.ranAt ? run.ranAt.toISOString() : null,
     score: run.score,
     blockers: run.blockers,
+    findings:
+      findingsByRun.get(run.id) ?? (run.status === 'done' ? emptyFindingsSummary() : null),
   }));
 }
 

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { FindingsSummary } from './findings.js';
 
 /**
  * Run trace. The ENTIRE trace of one run is persisted as a SINGLE
@@ -113,5 +114,8 @@ export const RunSummary = z.object({
   // findings that trip the agent's gate. Null on failed/cancelled runs.
   score: z.number().int().nullable(),
   blockers: z.number().int().nullable(),
+  // Non-dismissed findings of the run's review (read-time join). Null when the
+  // run produced no review (running/failed/cancelled).
+  findings: FindingsSummary.nullable(),
 });
 export type RunSummary = z.infer<typeof RunSummary>;

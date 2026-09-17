@@ -131,6 +131,38 @@ d('Testcontainers: DB-backed routes via app.inject', () => {
     await app.close();
   });
 
+  it('GET /repos/:id/pulls ships latest-round finding previews for the seeded PR', async () => {
+    const config = loadConfig({ ...process.env, NODE_ENV: 'test' } as NodeJS.ProcessEnv);
+    const app = await buildApp({
+      config,
+      db: pg.handle.db,
+      overrides: { git: new MockGitClient(), github: new MockGitHubClient() },
+    });
+    const repos = await app.inject({ method: 'GET', url: '/repos' });
+    const repo = repos
+      .json()
+      .find((r: { full_name: string }) => r.full_name === 'acme/payments-api');
+
+    const pulls = await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` });
+    expect(pulls.statusCode).toBe(200);
+    const pr482 = pulls.json().find((p: { number: number }) => p.number === 482);
+    // The seeded review (2 findings, one CRITICAL + one WARNING) is linked to
+    // a seeded agent_run → it IS the latest round and its findings ship.
+    expect(pr482.findings).toHaveLength(2);
+    expect(pr482.findings.map((f: { severity: string }) => f.severity).sort()).toEqual([
+      'CRITICAL',
+      'WARNING',
+    ]);
+    // Previews only — no full-record fields leak onto the list.
+    expect(pr482.findings[0].rationale).toBeTruthy();
+    expect(pr482.findings[0].suggestion).toBeUndefined();
+    expect(pr482.findings[0].dismissed_at).toBeUndefined();
+    // The seeded run is status='done' but deliberately UNPRICED (cost null),
+    // so the whole round is unpriced → cost_usd null (renders "—", not $0.00).
+    expect(pr482.cost_usd).toBeNull();
+    await app.close();
+  });
+
   it('POST /repos/:id/poll syncs PR list and does NOT trigger a review', async () => {
     const config = loadConfig({ ...process.env, NODE_ENV: 'test' } as NodeJS.ProcessEnv);
     const app = await buildApp({

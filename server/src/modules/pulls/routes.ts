@@ -1,7 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { and, desc, eq, inArray } from 'drizzle-orm';
-import type { PrMeta, PrDetail, GitHubClient, PrReviewComment } from '@devdigest/shared';
+import type {
+  PrMeta,
+  PrDetail,
+  GitHubClient,
+  PrReviewComment,
+  FindingPreview,
+} from '@devdigest/shared';
 import { PrCommentInput } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
 import { getContext } from '../_shared/context.js';
@@ -113,8 +119,8 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
 
     // Latest-review SCORE per PR for the list's score ring. Computed on read
     // from reviews (no FK denorm); the list is small, so one IN-query + JS
-    // grouping is cheap. (The per-severity FINDINGS breakdown is intentionally
-    // not surfaced on the list — findings live on the PR detail page.)
+    // grouping is cheap. (The per-severity tally is done client-side from the
+    // `findings` previews below — the server ships records, not counts.)
     const prIds = rows.map((r) => r.id);
     const latestReviewByPr = new Map<string, { score: number | null }>();
     if (prIds.length > 0) {
@@ -129,12 +135,16 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
-    // Latest-round COST per PR for the list's Cost column. A round = all
-    // agent_runs sharing one multi_run_id (one "Run Review" trigger); the
-    // newest run decides which round is latest. Runs with a null multi_run_id
-    // (pre-grouping rows) fall back to being their own round. Unpriced runs
-    // (cost null) contribute nothing; null when the whole round is unpriced.
+    // Latest-round COST + FINDINGS per PR for the list's Cost / Findings
+    // columns. A round = all agent_runs sharing one multi_run_id (one "Run
+    // Review" trigger); the newest SUCCESSFUL run (status='done') decides
+    // which round is latest — failed/cancelled runs are excluded up front, so
+    // the sums and findings only ever reflect successful runs. Runs with a
+    // null multi_run_id (pre-grouping rows) fall back to being their own
+    // round. Unpriced runs (cost null) contribute nothing; null when the
+    // whole round is unpriced.
     const costByPr = new Map<string, number | null>();
+    const findingsByPr = new Map<string, FindingPreview[]>();
     if (prIds.length > 0) {
       const runRows = await container.db
         .select({
@@ -144,7 +154,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
           costUsd: t.agentRuns.costUsd,
         })
         .from(t.agentRuns)
-        .where(inArray(t.agentRuns.prId, prIds))
+        .where(and(inArray(t.agentRuns.prId, prIds), eq(t.agentRuns.status, 'done')))
         .orderBy(desc(t.agentRuns.ranAt));
       // Sum every round first (rows arrive newest-first, so a round's rows
       // keep arriving after its newest run was seen).
@@ -166,6 +176,69 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
       for (const [prId, roundKey] of latestRoundByPr) {
         costByPr.set(prId, roundCost.get(roundKey) ?? null);
+      }
+
+      // Findings ride the SAME round semantics as the cost: the runs of the
+      // PR's latest round → their reviews → those reviews' findings. All
+      // findings are included (accepted/dismissed too), matching the detail
+      // page; the client does the per-severity tally. Two bounded IN-queries.
+      const runsByRound = new Map<string, string[]>();
+      for (const run of runRows) {
+        const key = run.multiRunId ?? `run:${run.id}`;
+        const ids = runsByRound.get(key);
+        if (ids) ids.push(run.id);
+        else runsByRound.set(key, [run.id]);
+      }
+      const runIdToPr = new Map<string, string>();
+      for (const [prId, roundKey] of latestRoundByPr) {
+        for (const runId of runsByRound.get(roundKey) ?? []) runIdToPr.set(runId, prId);
+      }
+      const reviewRows = runIdToPr.size
+        ? await container.db
+            .select({ id: t.reviews.id, runId: t.reviews.runId })
+            .from(t.reviews)
+            .where(inArray(t.reviews.runId, [...runIdToPr.keys()]))
+        : [];
+      const prOfReview = new Map<string, string>();
+      for (const rv of reviewRows) {
+        if (rv.runId != null) {
+          const prId = runIdToPr.get(rv.runId);
+          if (prId != null) prOfReview.set(rv.id, prId);
+        }
+      }
+      const findingRows = prOfReview.size
+        ? await container.db
+            .select({
+              reviewId: t.findings.reviewId,
+              id: t.findings.id,
+              severity: t.findings.severity,
+              category: t.findings.category,
+              title: t.findings.title,
+              file: t.findings.file,
+              startLine: t.findings.startLine,
+              endLine: t.findings.endLine,
+              confidence: t.findings.confidence,
+              rationale: t.findings.rationale,
+            })
+            .from(t.findings)
+            .where(inArray(t.findings.reviewId, [...prOfReview.keys()]))
+        : [];
+      for (const f of findingRows) {
+        const prId = prOfReview.get(f.reviewId);
+        if (prId == null) continue;
+        const list = findingsByPr.get(prId) ?? [];
+        list.push({
+          id: f.id,
+          severity: f.severity as FindingPreview['severity'],
+          category: f.category as FindingPreview['category'],
+          title: f.title,
+          file: f.file,
+          start_line: f.startLine,
+          end_line: f.endLine,
+          confidence: f.confidence,
+          rationale: f.rationale,
+        });
+        findingsByPr.set(prId, list);
       }
     }
 
@@ -194,6 +267,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
         cost_usd: r.id ? (costByPr.get(r.id) ?? null) : null,
+        findings: r.id ? (findingsByPr.get(r.id) ?? []) : [],
       };
     });
   });

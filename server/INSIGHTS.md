@@ -7,7 +7,7 @@ Contract:
 
 - Append only — never rewrite, reword, or prune existing entries.
 - One dated bullet per insight, newest on top of its section:
-  `- YYYY-MM-DD — one actionable sentence. (file-or-PR ref)`
+  `- YYYY-MM-DD — one actionable sentence. (<file>:<line> or dir/PR ref)`
 - If it belongs in the README, `docs/`, or a `specs/` file instead — put it there.
 
 ## What Works
@@ -26,6 +26,8 @@ Contract:
 
 <!-- newest on top -->
 
+- 2026-09-17 — PR-list latest-round cost/findings resolve from status='done' runs ONLY — the runRows select filters `eq(t.agentRuns.status, 'done')` up front, so "successful-only" is query-enforced (not emergent from the executor nulling cost on failure) and a newer failed/cancelled round can no longer mask an older successful round's cost/findings. (src/modules/pulls/routes.ts:157)
+- 2026-09-17 — The seeded review historically had `run_id` NULL and NO `agent_runs` row — any feature that resolves reviews through runs (PR-list latest-round findings, timeline severity pills) silently shows nothing in seeded/e2e environments; `seed.ts` now back-fills one `agent_runs` + `multi_agent_runs` round and links the review (idempotent, fires only while `runId` is null), so re-seeding an older dev DB repairs it too. (src/db/seed.ts:241)
 - 2026-09-16 — PR-list cost is the SUM of the latest review round, keyed by `agent_runs.multi_run_id` (one `multi_agent_runs` row per "Run Review" trigger, created in `runReview`); rows with a null `multi_run_id` (pre-grouping) are their own round, and the per-PR round must be picked only AFTER all rounds are summed — rows come newest-first, so a round's rows keep arriving after its newest run was seen, and picking early yields a partial sum. (src/modules/pulls/routes.ts, src/modules/reviews/service.ts)
 
 ## Tool & Library Notes

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Provider } from './knowledge.js';
+import { FindingPreview } from './findings.js';
 
 /**
  * Platform / scaffolding DTOs owned by F1:
@@ -170,9 +171,14 @@ export const PrMeta = z.object({
   updated_at: z.string().nullish(),
   // Latest-review score (list endpoint only; null/absent until reviewed).
   score: z.number().int().nullish(),
-  // Summed USD cost of the latest review round — all agent runs sharing one
-  // "Run Review" trigger (list endpoint only; null/absent until reviewed).
+  // Summed USD cost of the latest SUCCESSFUL review round — all status='done'
+  // agent runs sharing one "Run Review" trigger (list endpoint only;
+  // null/absent until reviewed).
   cost_usd: z.number().nullish(),
+  // Read-only previews of the LATEST review round's findings (same round
+  // semantics as cost_usd) for the FINDINGS column popover; the client does
+  // the per-severity tally. Absent/empty until reviewed (list endpoint only).
+  findings: z.array(FindingPreview).nullish(),
 });
 export type PrMeta = z.infer<typeof PrMeta>;
 

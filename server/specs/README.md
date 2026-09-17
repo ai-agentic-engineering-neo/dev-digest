@@ -8,4 +8,4 @@ A spec is updated in the same PR that changes the behavior it describes.
 
 | Spec | Topic |
 |------|-------|
-| —    | _none yet_ |
+| [01](01-pr-list-findings-field.md) | PR list findings field — `PrMeta.findings` latest-round previews |

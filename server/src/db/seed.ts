@@ -220,6 +220,48 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
     if (!existing) await db.insert(t.agents).values(a);
   }
 
+  // ---- link the seeded review to an agent_run ----
+  // The seeded review originally had no run row, which left the PR timeline
+  // empty and the PR list's Findings column (latest-round previews) blank in
+  // every seeded/e2e environment. Give it one agent_run so the seeded data
+  // exercises the same round pipeline real "Run Review" triggers do.
+  // Idempotent: only fires while the review still has no run.
+  const [seedReview] = await db
+    .select()
+    .from(t.reviews)
+    .where(and(eq(t.reviews.workspaceId, workspaceId), eq(t.reviews.model, 'seed')));
+  if (seedReview && seedReview.runId == null && pr) {
+    const [securityAgent] = await db
+      .select()
+      .from(t.agents)
+      .where(
+        and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, 'Security Reviewer')),
+      );
+    const [multiRun] = await db
+      .insert(t.multiAgentRuns)
+      .values({ workspaceId, prId: pr.id, ranAt: seedReview.createdAt })
+      .returning();
+    const [run] = await db
+      .insert(t.agentRuns)
+      .values({
+        workspaceId,
+        agentId: securityAgent?.id ?? null,
+        prId: pr.id,
+        multiRunId: multiRun!.id,
+        provider: 'seed',
+        model: 'seed',
+        status: 'done',
+        // Mirrors the seeded review: 2 findings, 1 blocker (the CRITICAL one).
+        findingsCount: 2,
+        blockers: 1,
+        score: 61,
+        // Unpriced on purpose — the Cost column keeps showing "—" like before.
+        costUsd: null,
+      })
+      .returning();
+    await db.update(t.reviews).set({ runId: run!.id }).where(eq(t.reviews.id, seedReview.id));
+  }
+
   return { workspaceId, userId };
 }
 

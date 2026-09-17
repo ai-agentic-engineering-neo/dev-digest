@@ -62,6 +62,25 @@ export const Finding = z.object({
 });
 export type Finding = z.infer<typeof Finding>;
 
+/**
+ * FindingPreview — the read-only subset of a Finding carried on PR-list rows
+ * (`PrMeta.findings`) to render the FINDINGS column popover. Slim on purpose:
+ * no suggestion/evidence/action timestamps — the full record lives on the
+ * PR detail page.
+ */
+export const FindingPreview = z.object({
+  id: z.string(),
+  severity: Severity,
+  category: FindingCategory,
+  title: z.string(),
+  file: z.string(),
+  start_line: z.number().int(),
+  end_line: z.number().int(),
+  confidence: z.number().min(0).max(1),
+  rationale: z.string(),
+});
+export type FindingPreview = z.infer<typeof FindingPreview>;
+
 /** Review — the consolidated structured output of a single agent run. */
 export const Review = z.object({
   verdict: Verdict,

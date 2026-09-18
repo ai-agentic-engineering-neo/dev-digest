@@ -75,9 +75,46 @@ the decision stays visible and reversible — and it is why `severityCounts()`
 
 ## Tool & Library Notes
 
+- **2026-09-18** — Vitest 2's `--exclude` does **not** replace the built-in
+  excludes, contrary to a claim that surfaces when reading its docs. Verified:
+  `cd server && pnpm exec vitest list --exclude '**/*.it.test.ts'` lists 105
+  tests, zero of them under `node_modules/`, and no `.it.test.ts`. So the line
+  `server-unit.yml` inlines is correct as written and needs no file
+  enumeration. `.github/workflows/server-unit.yml`
+
+- **2026-09-18** — `while IFS=$'\t' read -r a b c` silently mis-assigns fields
+  when a middle field is empty: tab is IFS *whitespace*, so two consecutive tabs
+  collapse into one delimiter and everything after the gap shifts left. `jq
+  @tsv` emits exactly that for a null column. Emit a placeholder and translate
+  it back — `((.log // "") | if . == "" then "-" else . end)` — rather than
+  trusting `read` to preserve empties.
+  `.claude/skills/pr-self-review/scripts/run-gates.sh`
+
+- **2026-09-18** — `awk -v re="$pat"` processes escape sequences in the value, so
+  a regex like `sql\.raw\(` arrives as `sql.raw(` and awk then dies with
+  `illegal primary in regular expression`. Pass patterns through the environment
+  instead: `PAT="$pat" awk 'BEGIN{p=ENVIRON["PAT"]} $0 ~ p'`.
+  `.claude/skills/pr-self-review/scripts/hard-rules.sh`
+
 ## Recurring Errors & Fixes
 
+- **2026-09-18** — A tool that writes its output *inside* the repo and also
+  reads `git ls-files --others --exclude-standard` will consume its own output:
+  the first run's artefact is untracked, so the second run folds it into the
+  diff and the byte count grows every time. Symptom here was a change set
+  reporting 19 216 diff lines for a 43-file change, tripping a size threshold.
+  Add the output directory to `.gitignore` **before** the first run. Note the
+  matching gitignore trap: a negation cannot re-include a file inside an
+  excluded *directory* — use `dir/*` plus `!dir/keep.json`, not `dir/` plus the
+  negation. `.gitignore:25-26`
+
 ## Session Notes
+
+- **2026-09-18** — `pr-self-review` skill: routes the open diff onto the repo's
+  own skills, runs the matching gates, blocks `gh pr create` on any CRITICAL via
+  a `PreToolUse` hook in a new `.claude/settings.json`. Deterministic rules live
+  in `scripts/hard-rules.sh`, judgement in the per-bucket subagents; the
+  dividing line is whether the diff alone settles it.
 
 - **2026-09-18** — Sprint 1 of the improvement plan: `pnpm lint` + `pnpm arch`
   now exist in BOTH `server/` and `client/` and run in `server-unit.yml` /

@@ -1,0 +1,75 @@
+{
+  "_comment": "Machine-readable routing table. THIS is the source of truth; reference/routing.md renders it for humans. First matching rule wins, top to bottom. Patterns are ERE, matched against the repo-relative path.",
+  "rules": [
+    { "re": "^(server|client)/src/vendor/shared/contracts/", "bucket": "contracts" },
+    { "re": "^(server|client)/src/vendor/",                  "bucket": "vendor" },
+    { "re": "^server/src/db/migrations/|^server/drizzle\\.config\\.ts$", "bucket": "db-migrations" },
+    { "re": "^server/src/db/",                               "bucket": "db-schema" },
+    { "re": "^server/(src|test)/",                           "bucket": "backend" },
+    { "re": "^client/src/(app|components|lib|i18n|test)/",   "bucket": "frontend" },
+    { "re": "^client/messages/",                             "bucket": "frontend" },
+    { "re": "^reviewer-core/src/",                           "bucket": "engine" },
+    { "re": "^e2e/",                                         "bucket": "workflow" },
+    { "re": "^\\.github/",                                   "bucket": "workflow" },
+    { "re": "^scripts/|^docker-compose\\.yml$|\\.sh$",       "bucket": "workflow" },
+    { "re": "(^|/)(pnpm-lock\\.yaml|package-lock\\.json|package\\.json)$", "bucket": "deps" },
+    { "re": "^\\.claude/|^skills-lock\\.json$",              "bucket": "meta" },
+    { "re": "(^|/)INSIGHTS\\.md$",                           "bucket": "docs" },
+    { "re": "\\.md$|^docs/|^specs/",                         "bucket": "docs" },
+    { "re": "\\.(cjs|mjs)$|(^|/)tsconfig[^/]*\\.json$|\\.config\\.(js|ts|mjs|cjs)$|^\\.gitignore$", "bucket": "config" },
+    { "re": ".*",                                            "bucket": "unrouted" }
+  ],
+
+  "buckets": {
+    "contracts":     { "agent": "contracts",     "skills": ["zod", "typescript-expert"],
+                       "gates": ["server:typecheck", "client:typecheck", "core:typecheck"] },
+    "vendor":        { "agent": null,            "skills": [],
+                       "gates": ["server:typecheck", "client:typecheck"] },
+    "db-migrations": { "agent": "database",      "skills": ["drizzle-orm-patterns", "postgresql-table-design"],
+                       "gates": ["server:typecheck"] },
+    "db-schema":     { "agent": "database",      "skills": ["drizzle-orm-patterns", "postgresql-table-design", "onion-architecture"],
+                       "gates": ["server:typecheck", "server:arch", "server:test-unit"] },
+    "backend":       { "agent": "backend",       "skills": ["onion-architecture", "fastify-best-practices", "zod", "security", "typescript-expert"],
+                       "gates": ["server:typecheck", "server:lint", "server:arch", "server:test-unit"] },
+    "frontend":      { "agent": "frontend",      "skills": ["frontend-ui-architecture", "next-best-practices", "react-best-practices", "security", "typescript-expert"],
+                       "gates": ["client:typecheck", "client:lint", "client:arch", "client:test"] },
+    "engine":        { "agent": "engine",        "skills": ["typescript-expert", "zod", "security"],
+                       "gates": ["core:typecheck", "core:test"] },
+    "workflow":      { "agent": "workflow-docs", "skills": ["security"],
+                       "gates": ["sh:syntax"] },
+    "deps":          { "agent": "workflow-docs", "skills": ["security"],
+                       "gates": [] },
+    "meta":          { "agent": "workflow-docs", "skills": [],
+                       "gates": [] },
+    "docs":          { "agent": "workflow-docs", "skills": ["engineering-insights", "mermaid-diagram"],
+                       "gates": [] },
+    "config":        { "agent": "workflow-docs", "skills": ["typescript-expert"],
+                       "gates": [] },
+    "unrouted":      { "agent": "workflow-docs", "skills": ["typescript-expert", "security"],
+                       "gates": [] }
+  },
+
+  "conditional_skills": [
+    { "bucket": "backend",  "when_re": "repository|/db/",      "add": ["drizzle-orm-patterns"] },
+    { "bucket": "frontend", "when_re": "\\.test\\.tsx$",       "add": ["react-testing-library"] },
+    { "bucket": "workflow", "when_re": "^e2e/",                "add": ["typescript-expert"] }
+  ],
+
+  "conditional_gates": [
+    { "when_re": "^e2e/",           "add": ["e2e:typecheck"] },
+    { "when_re": "^\\.github/",     "add": ["yaml:parse"] },
+    { "when_re": "^(server|client)/package\\.json$", "add": ["server:typecheck", "client:typecheck"] }
+  ],
+
+  "limits": {
+    "max_agents": 5,
+    "max_files_per_bucket": 40,
+    "degraded_files": 150,
+    "degraded_diff_lines": 15000,
+    "truncate_patch_lines": 2000,
+    "max_findings_per_bucket": 10,
+    "min_confidence": 0.6,
+    "agent_critical_confidence": 0.85,
+    "report_ttl_seconds": 28800
+  }
+}

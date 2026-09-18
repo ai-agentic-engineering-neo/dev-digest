@@ -53,10 +53,29 @@ cd server && pnpm db:seed     # idempotent; without it the API fails "No system 
 pnpm test / pnpm typecheck    # per package
 pnpm lint                     # eslint — server/ and client/
 pnpm arch                     # import boundaries (dependency-cruiser) — server/ and client/
+/pr-self-review               # pre-PR gate — run before gh pr create
 ./scripts/e2e.sh              # browser flows
 ```
 
 Server tests split by filename: `*.it.test.ts` need Docker, everything else is hermetic.
+
+## Before opening a PR
+
+Run `/pr-self-review`. It routes every open change — committed, staged, unstaged
+and untracked — to the skills that own those files, runs only the gates those
+files need, and writes `.claude/pr-self-review/report.md`.
+
+One or more CRITICAL findings is a hard stop: a `PreToolUse` hook in
+`.claude/settings.json` denies `gh pr create` / `gh pr merge` / `git push` until
+a fresh passing report exists. Fresh means the recorded `HEAD` and diff hash
+still match, so any edit invalidates it. **A blocked command means
+`.claude/pr-self-review/report.md` has CRITICAL findings — read it.**
+
+Deliberate override: append `# psr-skip` to the command. It is recorded in
+`overrides.log` and printed in the generated PR body, so it is never silent.
+
+The hook only sees commands this session runs. A PR opened from your own
+terminal is not gated.
 
 ## Naming
 

@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-09-18T21:00:22Z",
+  "recorded_at_sha": "b6bab55fbff2f387e5ea41d5c3ed70beaf1e6080",
+  "note": "Violations already present at recorded_at_sha. A finding whose fingerprint is listed here is reported but never blocks. Regenerate with /pr-self-review --update-baseline, in its own commit.",
+  "fingerprints": []
+}

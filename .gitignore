@@ -21,5 +21,9 @@ clones/
 playwright-report/
 test-results/
 
+# pr-self-review working files (baseline.json IS committed, see the skill)
+.claude/pr-self-review/*
+!.claude/pr-self-review/baseline.json
+
 # emdash worktree config (local)
 .emdash.json

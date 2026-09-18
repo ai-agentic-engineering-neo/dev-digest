@@ -1,6 +1,6 @@
 ---
 name: engineering-insights
-description: Captures durable engineering lessons — gotchas, dead ends, and hard-won decisions — into each module's INSIGHTS.md. Proactively use when hitting a non-obvious bug, finding a dead end, making a non-default architectural decision, resolving a recurring error, or wrapping up a work session. Covers server/, client/, reviewer-core/, and e2e/.
+description: Captures durable engineering lessons — gotchas, dead ends, and hard-won decisions — into each module's INSIGHTS.md, so the next session doesn't rediscover them. MUST be invoked before treating any coding task as finished, even if not explicitly asked to: immediately after completing an implementation/fix/feature, and always before ending a session that edited server/, client/, reviewer-core/, or e2e/. Also invoke it immediately (capture-as-you-go, don't wait for session-end) the moment you hit a non-obvious bug, dead end, a non-default architectural/design decision, or a recurring error. Covers server/, client/, reviewer-core/, and e2e/.
 ---
 
 # Engineering Insights

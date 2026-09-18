@@ -1,7 +1,9 @@
 import type { Container } from '../../platform/container.js';
-import type { Skill, SkillType, SkillVersion } from '@devdigest/shared';
+import type { Skill, SkillImportPreview, SkillType, SkillVersion } from '@devdigest/shared';
+import { ValidationError } from '../../platform/errors.js';
 import { SkillsRepository } from './repository.js';
 import { toSkillDto, toSkillVersionDto } from './helpers.js';
+import { parseImportedSkill } from './import.js';
 
 export { toSkillDto, toSkillVersionDto } from './helpers.js';
 
@@ -58,6 +60,29 @@ export class SkillsService {
       body: input.body,
       enabled: input.enabled,
       note: input.note,
+    });
+    return toSkillDto(row);
+  }
+
+  previewImport(filename: string, bytes: Uint8Array): SkillImportPreview {
+    return parseImportedSkill(filename, bytes);
+  }
+
+  async confirmImport(
+    workspaceId: string,
+    input: { name: string; description: string; type: SkillType; body: string },
+  ): Promise<Skill> {
+    if (!input.name.trim() || !input.description.trim() || !input.body.trim()) {
+      throw new ValidationError('Imported skill requires name, description, and body');
+    }
+    const row = await this.repo.insert({
+      workspaceId,
+      name: input.name.trim(),
+      description: input.description.trim(),
+      type: input.type,
+      source: 'imported',
+      body: input.body.trim(),
+      enabled: false,
     });
     return toSkillDto(row);
   }

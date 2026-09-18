@@ -27,6 +27,15 @@
     "deleteConfirm": "Delete skill \"{name}\"? This cannot be undone.",
     "deleteTitle": "Delete skill"
   },
+  "importModal": {
+    "title": "Import skill",
+    "subtitle": "Preview the extracted SKILL.md. Nothing is saved until you confirm.",
+    "warning": "Once enabled and attached to an agent, this imported text becomes instructions in the review prompt — not inert data. Only confirm skills you trust.",
+    "pickFile": "Choose a .md, .zip, or .skill file",
+    "confirm": "Confirm import",
+    "confirming": "Saving…",
+    "cancel": "Cancel"
+  },
   "create": {
     "title": "Create skill",
     "subtitle": "A skill is markdown configuration only — name, interface, type, and body.",
@@ -145,6 +154,7 @@
       "manual": "Manual",
       "extracted": "Extracted",
       "community": "Community",
+      "imported": "Imported file",
       "imported_url": "Imported"
     }
   },

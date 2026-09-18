@@ -10,6 +10,7 @@ import { AppShell } from "../../../../components/app-shell";
 import { useSkills } from "../../../../lib/hooks/skills";
 import { SkillCard } from "../SkillCard";
 import { CreateSkillModal } from "./_components/CreateSkillModal";
+import { ImportSkillModal } from "./_components/ImportSkillModal";
 import { filterSkills } from "./helpers";
 import { s } from "./styles";
 
@@ -18,6 +19,7 @@ export function SkillsListView() {
   const router = useRouter();
   const { data: skills, isLoading, isError, refetch } = useSkills();
   const [creating, setCreating] = React.useState(false);
+  const [importing, setImporting] = React.useState(false);
   const [search, setSearch] = React.useState("");
 
   const list = filterSkills(skills ?? [], search);
@@ -25,6 +27,7 @@ export function SkillsListView() {
   return (
     <AppShell crumb={[{ label: t("page.crumbLab") }, { label: t("page.crumbSkills") }]}>
       {creating && <CreateSkillModal onClose={() => setCreating(false)} />}
+      {importing && <ImportSkillModal onClose={() => setImporting(false)} />}
       <div style={s.page}>
         <div style={s.header}>
           <div style={s.headerText}>
@@ -48,7 +51,10 @@ export function SkillsListView() {
                 {t("page.addSkill")}
               </Button>
             }
-            items={[{ label: t("page.create"), icon: "Edit", onClick: () => setCreating(true) }]}
+            items={[
+              { label: t("page.create"), icon: "Edit", onClick: () => setCreating(true) },
+              { label: t("page.menu.fromFile"), icon: "Upload", onClick: () => setImporting(true) },
+            ]}
           />
         </div>
 

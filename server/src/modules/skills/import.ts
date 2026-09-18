@@ -1,3 +1,4 @@
+import type { SkillImportPreview } from '@devdigest/shared';
 import { unzipSync, strFromU8 } from 'fflate';
 import {
   IMPORT_EXTENSIONS,
@@ -5,7 +6,7 @@ import {
   MAX_SKILL_MD_BYTES,
 } from './constants.js';
 
-export type SkillImportPreview = { name: string; description: string; body: string };
+export type { SkillImportPreview };
 
 /** HTTP 400 — zip-slip, oversize, bad type, or missing SKILL.md. Not ValidationError (422). */
 export class SkillImportError extends Error {

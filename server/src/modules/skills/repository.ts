@@ -13,7 +13,7 @@ export interface InsertSkill {
   name: string;
   description: string;
   type: SkillType;
-  source: 'manual' | 'imported_url' | 'extracted' | 'community';
+  source: 'manual' | 'imported' | 'imported_url' | 'extracted' | 'community';
   body: string;
   enabled?: boolean;
   note?: string | null;
@@ -57,21 +57,28 @@ export class SkillsRepository {
 
   /** Insert a skill AND record version 1 in skill_versions. */
   async insert(values: InsertSkill): Promise<SkillRow> {
-    const [row] = await this.db
-      .insert(t.skills)
-      .values({
-        workspaceId: values.workspaceId,
-        name: values.name,
-        description: values.description,
-        type: values.type,
-        source: values.source,
-        body: values.body,
-        enabled: values.enabled ?? true,
+    return this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(t.skills)
+        .values({
+          workspaceId: values.workspaceId,
+          name: values.name,
+          description: values.description,
+          type: values.type,
+          source: values.source,
+          body: values.body,
+          enabled: values.enabled ?? true,
+          version: INITIAL_SKILL_VERSION,
+        })
+        .returning();
+      await tx.insert(t.skillVersions).values({
+        skillId: row!.id,
         version: INITIAL_SKILL_VERSION,
-      })
-      .returning();
-    await this.snapshotVersion(row!, INITIAL_SKILL_VERSION, values.note);
-    return row!;
+        body: row!.body,
+        note: values.note ?? null,
+      });
+      return row!;
+    });
   }
 
   /**
@@ -134,13 +141,22 @@ export class SkillsRepository {
     if (!snap) return undefined;
 
     const nextVersion = existing.version + 1;
-    const [row] = await this.db
-      .update(t.skills)
-      .set({ body: snap.body, version: nextVersion })
-      .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.id, id)))
-      .returning();
-    if (row) await this.snapshotVersion(row, nextVersion, `restored-from-v${version}`);
-    return row;
+    return this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(t.skills)
+        .set({ body: snap.body, version: nextVersion })
+        .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.id, id)))
+        .returning();
+      if (row) {
+        await tx.insert(t.skillVersions).values({
+          skillId: row.id,
+          version: nextVersion,
+          body: row.body,
+          note: `restored-from-v${version}`,
+        });
+      }
+      return row;
+    });
   }
 
   private async snapshotVersion(

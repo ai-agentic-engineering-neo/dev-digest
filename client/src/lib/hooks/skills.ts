@@ -3,7 +3,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
-import type { Skill, SkillType, SkillVersion } from "@devdigest/shared";
+import type { Skill, SkillImportPreview, SkillType, SkillVersion } from "@devdigest/shared";
 
 export function useSkills() {
   return useQuery({
@@ -82,5 +82,21 @@ export function useRestoreSkillVersion() {
       qc.setQueryData(["skill", data.id], data);
       qc.invalidateQueries({ queryKey: ["skill-versions", data.id] });
     },
+  });
+}
+
+export function usePreviewSkillImport() {
+  return useMutation({
+    mutationFn: (input: { filename: string; content_base64: string }) =>
+      api.post<SkillImportPreview>("/skills/import/preview", input),
+  });
+}
+
+export function useConfirmSkillImport() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { name: string; description: string; type: SkillType; body: string }) =>
+      api.post<Skill>("/skills/import", input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["skills"] }),
   });
 }

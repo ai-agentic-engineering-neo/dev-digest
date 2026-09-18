@@ -66,6 +66,8 @@ vi.mock("../../../../lib/hooks/skills", () => ({
   useUpdateSkill: () => ({ mutate: vi.fn(), isPending: false }),
   useDeleteSkill: () => ({ mutate: vi.fn(), isPending: false }),
   useCreateSkill: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  usePreviewSkillImport: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useConfirmSkillImport: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
 import { SkillsListView } from "./SkillsListView";
@@ -97,11 +99,12 @@ describe("SkillsListView", () => {
     expect(screen.getByText(SKILL_B.name)).toBeInTheDocument();
   });
 
-  it("Add Skill menu shows Create and no Import item", () => {
+  it("Add Skill menu shows Create and Import from file, not URL or Community", () => {
     renderList();
     fireEvent.click(screen.getByText("Add Skill"));
     expect(screen.getByText("Create")).toBeInTheDocument();
-    expect(screen.queryByText("Import from file")).not.toBeInTheDocument();
+    expect(screen.getByText("Import from file")).toBeInTheDocument();
     expect(screen.queryByText("Import from URL")).not.toBeInTheDocument();
+    expect(screen.queryByText("Search community skills…")).not.toBeInTheDocument();
   });
 });

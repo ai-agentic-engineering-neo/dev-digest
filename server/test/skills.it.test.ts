@@ -276,3 +276,78 @@ d('skills CRUD', () => {
     await app.close();
   });
 });
+
+d('skills import', () => {
+  let pg: PgFixture;
+
+  beforeAll(async () => {
+    pg = await startPg();
+    await seed(pg.handle.db);
+  });
+  afterAll(async () => {
+    await pg?.stop();
+  });
+
+  function makeApp() {
+    const config = loadConfig({ ...process.env, NODE_ENV: 'test' } as NodeJS.ProcessEnv);
+    return buildApp({
+      config,
+      db: pg.handle.db,
+      overrides: { git: new MockGitClient(), github: new MockGitHubClient() },
+    });
+  }
+
+  const mdPath = new URL('../../docs/skill-fixtures/flaky-tests/SKILL.md', import.meta.url);
+
+  it('preview does not persist; confirm creates a disabled imported skill', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { zipSync, strToU8 } = await import('fflate');
+    const md = readFileSync(mdPath, 'utf8');
+    const app = await makeApp();
+
+    const before = (await app.inject({ method: 'GET', url: '/skills' })).json() as { id: string }[];
+    const preview = await app.inject({
+      method: 'POST',
+      url: '/skills/import/preview',
+      payload: { filename: 'flaky-tests.md', content_base64: Buffer.from(md, 'utf8').toString('base64') },
+    });
+    expect(preview.statusCode).toBe(200);
+    expect(preview.json()).toMatchObject({ name: 'flaky-tests' });
+    const afterPreview = (await app.inject({ method: 'GET', url: '/skills' })).json() as { id: string }[];
+    expect(afterPreview.map((s) => s.id).sort()).toEqual(before.map((s) => s.id).sort());
+
+    const confirmed = await app.inject({
+      method: 'POST',
+      url: '/skills/import',
+      payload: {
+        name: preview.json().name,
+        description: preview.json().description,
+        type: 'custom',
+        body: preview.json().body,
+      },
+    });
+    expect(confirmed.statusCode).toBe(201);
+    expect(confirmed.json()).toMatchObject({
+      name: 'flaky-tests',
+      source: 'imported',
+      enabled: false,
+      body: preview.json().body,
+    });
+
+    const zipPreview = await app.inject({
+      method: 'POST',
+      url: '/skills/import/preview',
+      payload: {
+        filename: 'evil.zip',
+        content_base64: Buffer.from(
+          zipSync({ '../etc/passwd': strToU8('root:x'), 'SKILL.md': strToU8(md) }),
+        ).toString('base64'),
+      },
+    });
+    expect(zipPreview.statusCode).toBe(400);
+
+    const manual = await app.inject({ method: 'POST', url: '/skills', payload: createBody });
+    expect(manual.json().source).toBe('manual');
+    await app.close();
+  });
+});

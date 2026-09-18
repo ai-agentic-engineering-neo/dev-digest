@@ -16,6 +16,8 @@ import {
   Repo,
   PrDetail,
   AgentSkillLink,
+  Skill,
+  SkillSource,
 } from '@devdigest/shared';
 
 /**
@@ -174,6 +176,25 @@ describe('AI contracts parse fixtures', () => {
       log: [{ t: '00.00', kind: 'info', msg: 'started' }],
     });
     expect(trace.tool_calls).toHaveLength(1);
+  });
+});
+
+describe('SkillSource', () => {
+  it('accepts imported as distinct from imported_url', () => {
+    expect(SkillSource.parse('imported')).toBe('imported');
+    expect(SkillSource.parse('imported_url')).toBe('imported_url');
+    expect(
+      Skill.parse({
+        id: 's1',
+        name: 'flaky-tests',
+        description: 'Flag tests that depend on time, order, or unseeded randomness.',
+        type: 'custom',
+        source: 'imported',
+        body: '# Flaky tests',
+        enabled: false,
+        version: 1,
+      }).source,
+    ).toBe('imported');
   });
 });
 

@@ -33,8 +33,12 @@ export async function runMigrations(databaseUrl: string): Promise<void> {
   }
 }
 
-// CLI entrypoint
-if (import.meta.url === `file://${process.argv[1]}`) {
+// CLI entrypoint. Compares real filesystem paths (not raw URL strings) so
+// this also works on Windows, where `file://${process.argv[1]}` (backslashes,
+// no extra slash after the scheme) never equals `import.meta.url` (forward
+// slashes, `file:///C:/...`) — that mismatch used to make this guard silently
+// false on Windows, skipping migrations with no error.
+if (fileURLToPath(import.meta.url) === process.argv[1]) {
   const url = process.env.DATABASE_URL;
   if (!url) {
     console.error('DATABASE_URL is required');

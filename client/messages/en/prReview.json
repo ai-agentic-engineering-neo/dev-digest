@@ -29,7 +29,9 @@
   "panel": {
     "hideLowConfidence": "Hide low confidence",
     "noMatchTitle": "No findings match",
-    "noMatchBody": "Adjust the filters above, or run a review to generate findings."
+    "noMatchBody": "Adjust the filters above, or run a review to generate findings.",
+    "severityFilterLabel": "Filter by severity",
+    "severityFilterHint": "Click to show only this severity, click again to clear"
   },
   "runReview": {
     "runAll": "Run all enabled agents",
@@ -92,14 +94,19 @@
       "size": "Size",
       "score": "Score",
       "status": "Status",
+      "findings": "Findings",
+      "cost": "Cost",
       "updated": "Updated"
     },
     "filesCount": "{count} files",
     "errorTitle": "Couldn’t load pull requests",
     "errorBody": "The engine returned an error.",
     "emptyTitle": "No pull requests",
-    "emptyAllBody": "No open PRs found for this repo yet. Refresh to sync from GitHub.",
-    "emptyStatusBody": "No PRs with status “{status}”."
+    "emptyAllBody": "No open PRs found for this repo yet. Refresh to sync from {platform}.",
+    "emptyStatusBody": "No PRs with status “{status}”.",
+    "findingsPopover": {
+      "title": "{count, plural, one {# FINDING IN THIS RUN} other {# FINDINGS IN THIS RUN}}"
+    }
   },
   "timeline": {
     "goToReview": "Jump to this run’s findings below",

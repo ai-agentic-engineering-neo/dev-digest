@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { and, eq } from 'drizzle-orm';
+import type { RepoProvider } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
@@ -25,7 +26,7 @@ export default async function pollingRoutes(appBase: FastifyInstance) {
       .where(and(eq(t.repos.workspaceId, workspaceId), eq(t.repos.id, req.params.id)));
     if (!repo) throw new NotFoundError('Repo not found');
 
-    const gh = await container.github();
+    const gh = await container.codeHost(repo.provider as RepoProvider);
     const pulls = await gh.listPullRequests({ owner: repo.owner, name: repo.name });
     let synced = 0;
     for (const pr of pulls) {

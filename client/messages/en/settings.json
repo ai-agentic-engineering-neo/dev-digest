@@ -13,6 +13,8 @@
     "openrouterHint": "One key, many cheap models (DeepSeek/GLM/MiniMax). Used by CI reviewers + openrouter agents.",
     "githubLabel": "GitHub PAT (fine-grained)",
     "githubHint": "Contents (read), Pull requests (read+write), Metadata (read), Actions (read).",
+    "gitlabLabel": "GitLab PAT (gitlab.com)",
+    "gitlabHint": "api scope — read/write merge requests, notes, and repository content.",
     "placeholder": "•••• stored via SecretsProvider (.env)",
     "testConnection": "Test connection",
     "testing": "Testing…",

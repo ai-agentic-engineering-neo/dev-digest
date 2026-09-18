@@ -1,10 +1,11 @@
 {
   "name": "Onboarding add-repository screen renders",
-  "description": "Loads /onboarding and confirms the add-repository form renders (heading + Repository URL field). Exercises the onboarding route and its extracted AddRepoView. Read-only: does not submit (no real clone/import, no backend mutation).",
+  "description": "Loads /onboarding and confirms the add-repository form renders (heading + Repository URL field) and is provider-aware (mentions both GitHub and GitLab — provider is auto-detected from the pasted URL, server-side). Exercises the onboarding route and its extracted AddRepoView. Read-only: does not submit (no real clone/import, no backend mutation) — a live GitLab import is out of this project's e2e scope (no fixture GitLab repo, no live GitLab network calls).",
   "steps": [
     { "cmd": ["open", "{BASE}/onboarding"], "label": "load the onboarding screen" },
     { "cmd": ["wait", "--url", "/onboarding"], "label": "onboarding route reached" },
     { "cmd": ["wait", "--text", "Add a repository"], "label": "the add-repository heading renders" },
-    { "cmd": ["wait", "--text", "Repository URL"], "label": "the repository URL field renders" }
+    { "cmd": ["wait", "--text", "Repository URL"], "label": "the repository URL field renders" },
+    { "cmd": ["wait", "--text", "GitHub or GitLab"], "label": "the form is provider-aware (GitHub + GitLab)" }
   ]
 }

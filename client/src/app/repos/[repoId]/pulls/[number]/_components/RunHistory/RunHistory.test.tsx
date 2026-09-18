@@ -7,7 +7,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
-import type { RunSummary } from "@devdigest/shared";
+import type { RunSummary, FindingRecord } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/prReview.json";
 import { RunHistory } from "./RunHistory";
 
@@ -25,6 +25,7 @@ function run(o: Partial<RunSummary>): RunSummary {
     duration_ms: 1000,
     tokens_in: 100,
     tokens_out: 50,
+    cost_usd: null,
     findings_count: 0,
     grounding: "0/0 passed",
     ran_at: "2026-06-11T18:44:34.000Z",
@@ -34,10 +35,35 @@ function run(o: Partial<RunSummary>): RunSummary {
   };
 }
 
-function renderRuns(runs: RunSummary[]) {
+function finding(o: Partial<FindingRecord>): FindingRecord {
+  return {
+    id: "f1",
+    review_id: "rev-1",
+    severity: "WARNING",
+    category: "bug",
+    title: "issue",
+    file: "src/x.ts",
+    start_line: 1,
+    end_line: 1,
+    rationale: "why",
+    suggestion: null,
+    confidence: 0.9,
+    kind: "finding",
+    trifecta_components: null,
+    evidence: null,
+    accepted_at: null,
+    dismissed_at: null,
+    ...o,
+  };
+}
+
+function renderRuns(
+  runs: RunSummary[],
+  findingsByRunId?: Record<string, FindingRecord[]>,
+) {
   return render(
     <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
-      <RunHistory runs={runs} onOpenTrace={() => {}} />
+      <RunHistory runs={runs} findingsByRunId={findingsByRunId} onOpenTrace={() => {}} />
     </NextIntlClientProvider>,
   );
 }
@@ -71,5 +97,43 @@ describe("RunHistory — outcome badge", () => {
   it("a running run reads 'running'", () => {
     renderRuns([run({ status: "running", score: null, blockers: null })]);
     expect(screen.getByText("running")).toBeInTheDocument();
+  });
+});
+
+describe("RunHistory — per-severity finding counts", () => {
+  it("renders a compact severity badge with count per severity present, instead of plain text", () => {
+    renderRuns(
+      [run({ status: "done", findings_count: 3, blockers: 2, score: 38 })],
+      { "run-1": [finding({ severity: "CRITICAL" }), finding({ severity: "CRITICAL" }), finding({ severity: "WARNING" })] },
+    );
+    expect(screen.getByText("2")).toBeInTheDocument(); // CRITICAL count
+    expect(screen.getByText("1")).toBeInTheDocument(); // WARNING count
+    expect(screen.queryByText(/^3 finding/)).not.toBeInTheDocument();
+    expect(screen.getByText(/2 blockers/)).toBeInTheDocument();
+  });
+
+  it("falls back to the plain finding count when no findings are matched for the run", () => {
+    renderRuns([run({ status: "done", findings_count: 3, blockers: 0, score: 72 })]);
+    expect(screen.getByText(/3 finding/)).toBeInTheDocument();
+  });
+});
+
+describe("RunHistory — run cost badge", () => {
+  it("a settled run shows total tokens · cost", () => {
+    renderRuns([run({ status: "done", tokens_in: 9000, tokens_out: 119, cost_usd: 0.0013 })]);
+    expect(screen.getByText("9,119 tok · $0.0013")).toBeInTheDocument();
+  });
+
+  it("a settled run without cost still shows tokens", () => {
+    renderRuns([run({ status: "done", tokens_in: 100, tokens_out: 50, cost_usd: null })]);
+    expect(screen.getByText("150 tok")).toBeInTheDocument();
+  });
+
+  it("a failed run shows no cost line at all", () => {
+    renderRuns([
+      run({ status: "failed", error: "boom", tokens_in: 0, tokens_out: 0, cost_usd: null }),
+    ]);
+    expect(screen.queryByText(/tok/)).not.toBeInTheDocument();
+    expect(screen.queryByText("—")).not.toBeInTheDocument();
   });
 });

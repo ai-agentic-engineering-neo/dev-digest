@@ -1,14 +1,16 @@
 /* Inline-comment support for the DiffViewer (Files changed tab).
    Pure helpers + the API shape the viewer needs; React bits live in
-   DiffComments.tsx. Comments are GitHub PR review comments, proxied live. */
+   DiffComments.tsx. Comments are host PR/MR review comments, proxied live. */
 import type { CSSProperties } from "react";
-import type { PrReviewComment } from "../../lib/types";
+import type { PrReviewComment, RepoProvider } from "../../lib/types";
 import type { Line } from "./helpers";
 
 /** What the viewer needs to read + write inline comments. */
 export interface DiffCommentApi {
   comments: PrReviewComment[];
   canComment: boolean;
+  /** Which code host these comments live on — drives "View on {platform}" copy. */
+  provider: RepoProvider;
   /** When false, existing comment threads are hidden (the "+" still works). */
   showComments: boolean;
   posting: boolean;

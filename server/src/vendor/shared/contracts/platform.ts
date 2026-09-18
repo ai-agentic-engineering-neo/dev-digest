@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Provider } from './knowledge.js';
+import { Finding } from './findings.js';
 
 /**
  * Platform / scaffolding DTOs owned by F1:
@@ -103,7 +104,7 @@ export const SettingsUpdate = Settings.partial();
 export type SettingsUpdate = z.infer<typeof SettingsUpdate>;
 
 // ---- Connection test ----
-export const ConnTestProvider = z.enum(['openai', 'anthropic', 'openrouter', 'github']);
+export const ConnTestProvider = z.enum(['openai', 'anthropic', 'openrouter', 'github', 'gitlab']);
 export type ConnTestProvider = z.infer<typeof ConnTestProvider>;
 
 export const ConnTestRequest = z.object({
@@ -128,10 +129,15 @@ export const SecretsStatus = z.object({
   anthropic: z.boolean(),
   openrouter: z.boolean(),
   github: z.boolean(),
+  gitlab: z.boolean(),
 });
 export type SecretsStatus = z.infer<typeof SecretsStatus>;
 
 // ---- Repos ----
+/** Code-host provider a repo lives on. First version: github.com or gitlab.com only. */
+export const RepoProvider = z.enum(['github', 'gitlab']);
+export type RepoProvider = z.infer<typeof RepoProvider>;
+
 export const RepoInput = z.object({
   url: z.string().url(),
 });
@@ -140,6 +146,7 @@ export type RepoInput = z.infer<typeof RepoInput>;
 export const Repo = z.object({
   id: z.string(),
   workspace_id: z.string(),
+  provider: RepoProvider,
   owner: z.string(),
   name: z.string(),
   full_name: z.string(),
@@ -170,6 +177,13 @@ export const PrMeta = z.object({
   updated_at: z.string().nullish(),
   // Latest-review score (list endpoint only; null/absent until reviewed).
   score: z.number().int().nullish(),
+  // Sum of every completed run's cost across the PR's whole review history
+  // (list endpoint only); null when the PR has no completed run.
+  cost_usd: z.number().nullish(),
+  // Findings of the latest review (list endpoint only; the same review that
+  // `score` is derived from) — powers the FINDINGS column's hover popover.
+  // Empty/absent until the PR has been reviewed.
+  findings: z.array(Finding).nullish(),
 });
 export type PrMeta = z.infer<typeof PrMeta>;
 

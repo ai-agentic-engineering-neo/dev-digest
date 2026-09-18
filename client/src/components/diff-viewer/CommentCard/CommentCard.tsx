@@ -5,7 +5,8 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Icon, Card, Avatar, Markdown } from "@devdigest/ui";
-import type { PrReviewComment } from "@/lib/types";
+import type { PrReviewComment, RepoProvider } from "@/lib/types";
+import { platformLabel } from "@/lib/repo-urls";
 import { cs } from "../comments";
 
 function formatWhen(iso: string): string {
@@ -13,7 +14,7 @@ function formatWhen(iso: string): string {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
 }
 
-export function CommentCard({ c }: { c: PrReviewComment }) {
+export function CommentCard({ c, provider }: { c: PrReviewComment; provider: RepoProvider }) {
   const t = useTranslations("shell");
   return (
     <Card>
@@ -24,7 +25,7 @@ export function CommentCard({ c }: { c: PrReviewComment }) {
         <span style={{ flex: 1 }} />
         <a href={c.html_url} target="_blank" rel="noopener noreferrer" style={cs.ghLink}>
           <Icon.ExternalLink size={12} />
-          {t("diffViewer.viewOnGitHub")}
+          {t("diffViewer.viewOnPlatform", { platform: platformLabel(provider) })}
         </a>
       </div>
       <div style={cs.mdBody}>

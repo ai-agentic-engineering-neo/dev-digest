@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import {
   SettingsUpdate,
   ConnTestRequest,
@@ -9,7 +9,7 @@ import {
 } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
 import { getContext } from '../_shared/context.js';
-import { GITHUB_PROVIDER, SECRET_KEY_BY_PROVIDER } from './constants.js';
+import { GITHUB_PROVIDER, GITLAB_PROVIDER, SECRET_KEY_BY_PROVIDER } from './constants.js';
 import { rowsToSettings } from './helpers.js';
 
 /**
@@ -86,6 +86,11 @@ export default async function settingsRoutes(appBase: FastifyInstance) {
       if (provider === GITHUB_PROVIDER) {
         const gh = await container.github();
         const login = await gh.currentLogin();
+        return { provider, ok: true, message: `Connected as @${login}` };
+      }
+      if (provider === GITLAB_PROVIDER) {
+        const gl = await container.gitlab();
+        const login = await gl.currentLogin();
         return { provider, ok: true, message: `Connected as @${login}` };
       }
       const llm = await container.llm(provider);

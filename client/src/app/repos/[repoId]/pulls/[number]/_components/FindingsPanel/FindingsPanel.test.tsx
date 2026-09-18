@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { FindingRecord } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/prReview.json";
@@ -12,8 +12,8 @@ import { FindingsPanel } from "./FindingsPanel";
 
 afterEach(cleanup);
 
-const FINDINGS: FindingRecord[] = [
-  {
+function finding(overrides: Partial<FindingRecord>): FindingRecord {
+  return {
     id: "f1",
     severity: "CRITICAL",
     category: "security",
@@ -30,7 +30,17 @@ const FINDINGS: FindingRecord[] = [
     review_id: "r1",
     accepted_at: null,
     dismissed_at: null,
-  },
+    ...overrides,
+  };
+}
+
+const FINDINGS: FindingRecord[] = [finding({})];
+
+const MIXED_FINDINGS: FindingRecord[] = [
+  finding({ id: "f1", severity: "CRITICAL", title: "Hardcoded secret" }),
+  finding({ id: "f2", severity: "WARNING", title: "Unbounded query", category: "perf" }),
+  finding({ id: "f3", severity: "WARNING", title: "Missing input validation", category: "bug" }),
+  finding({ id: "f4", severity: "SUGGESTION", title: "Rename variable", category: "style" }),
 ];
 
 function renderWithIntl(ui: React.ReactElement) {
@@ -51,5 +61,39 @@ describe("FindingsPanel (smoke)", () => {
   it("shows the empty state when nothing matches", () => {
     renderWithIntl(<FindingsPanel findings={[]} prId="pr1" />);
     expect(screen.getByText("No findings match")).toBeInTheDocument();
+  });
+
+  it("shows a count per severity", () => {
+    renderWithIntl(<FindingsPanel findings={MIXED_FINDINGS} prId="pr1" />);
+    const bar = screen.getByRole("group", { name: "Filter by severity" });
+    expect(within(bar).getAllByText("1")).toHaveLength(2); // CRITICAL + SUGGESTION
+    expect(within(bar).getByText("2")).toBeInTheDocument(); // WARNING
+  });
+
+  it("only renders pills for severities that actually have findings", () => {
+    const criticalOnly = [finding({ id: "f1", severity: "CRITICAL" })];
+    renderWithIntl(<FindingsPanel findings={criticalOnly} prId="pr1" />);
+    const bar = screen.getByRole("group", { name: "Filter by severity" });
+    expect(within(bar).getByText("Critical")).toBeInTheDocument();
+    expect(within(bar).queryByText("Warning")).not.toBeInTheDocument();
+    expect(within(bar).queryByText("Suggestion")).not.toBeInTheDocument();
+  });
+
+  it("filters to only the clicked severity, and clears on a second click", () => {
+    renderWithIntl(<FindingsPanel findings={MIXED_FINDINGS} prId="pr1" />);
+    const bar = screen.getByRole("group", { name: "Filter by severity" });
+    const warningButton = within(bar).getByText("Warning").closest("button")!;
+
+    fireEvent.click(warningButton);
+    expect(screen.getByText("Unbounded query")).toBeInTheDocument();
+    expect(screen.getByText("Missing input validation")).toBeInTheDocument();
+    expect(screen.queryByText("Hardcoded secret")).not.toBeInTheDocument();
+    expect(screen.queryByText("Rename variable")).not.toBeInTheDocument();
+    expect(warningButton).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.click(warningButton);
+    expect(screen.getByText("Hardcoded secret")).toBeInTheDocument();
+    expect(screen.getByText("Rename variable")).toBeInTheDocument();
+    expect(warningButton).toHaveAttribute("aria-pressed", "false");
   });
 });

@@ -11,6 +11,10 @@ but you don't write it. Course lessons build features _on top_ of its facade —
 Blast Radius (L04), Conventions samples (L02), Onboarding reading-path (L05),
 the Phantom-API gate (L06) — by calling `repoIntel.*`, not by re-indexing.
 
+> Notes and gotchas for this module live in the parent
+> [`server/INSIGHTS.md`](../../../INSIGHTS.md) — `repo-intel` doesn't keep a
+> separate file.
+
 ## Pipeline
 
 ```mermaid

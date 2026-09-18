@@ -1,13 +1,15 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { and, desc, eq, inArray } from 'drizzle-orm';
-import type { PrMeta, PrDetail, GitHubClient, PrReviewComment } from '@devdigest/shared';
+import type { PrMeta, PrDetail, CodeHostClient, PrReviewComment, RepoProvider, Finding } from '@devdigest/shared';
 import { PrCommentInput } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { AppError, NotFoundError } from '../../platform/errors.js';
 import { deriveReviewStatus } from './status.js';
+import { totalCostByPr } from './total-cost.js';
+import { latestBatchReviewsByPr as latestBatchReviewsByPrFn, worstScore } from './latest-batch-reviews.js';
 
 /**
  * F1 — pulls module. PR import via Octokit (list + per-PR detail).
@@ -31,15 +33,15 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       .where(and(eq(t.repos.workspaceId, workspaceId), eq(t.repos.id, req.params.id)));
     if (!repo) throw new NotFoundError('Repo not found');
 
-    let gh: GitHubClient | null = null;
+    let gh: CodeHostClient | null = null;
     try {
-      gh = await container.github();
+      gh = await container.codeHost(repo.provider as RepoProvider);
     } catch (err) {
-      app.log.warn({ err }, 'GitHub client unavailable (no token / offline); serving persisted PRs');
+      app.log.warn({ err }, 'Code-host client unavailable (no token / offline); serving persisted PRs');
     }
 
-    // Local-first: sync from GitHub when a token is configured, but never
-    // fail the read — already-imported/seeded PRs stay viewable offline.
+    // Local-first: sync from the code host when a token is configured, but
+    // never fail the read — already-imported/seeded PRs stay viewable offline.
     if (gh) {
       try {
         const pulls = await gh.listPullRequests({ owner: repo.owner, name: repo.name });
@@ -111,27 +113,77 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
-    // Latest-review SCORE per PR for the list's score ring. Computed on read
-    // from reviews (no FK denorm); the list is small, so one IN-query + JS
-    // grouping is cheap. (The per-severity FINDINGS breakdown is intentionally
-    // not surfaced on the list — findings live on the PR detail page.)
+    // Latest review BATCH per PR (+ ids, to look up findings below) — powers
+    // the list's SCORE ring and FINDINGS column. See latest-batch-reviews.ts
+    // for why this is a batch, not just the single newest review row.
     const prIds = rows.map((r) => r.id);
-    const latestReviewByPr = new Map<string, { score: number | null }>();
+    let latestBatchReviewsByPr = new Map<string, { id: string; score: number | null }[]>();
     if (prIds.length > 0) {
       const reviewRows = await container.db
-        .select({ prId: t.reviews.prId, score: t.reviews.score })
+        .select({
+          id: t.reviews.id,
+          prId: t.reviews.prId,
+          score: t.reviews.score,
+          runId: t.reviews.runId,
+          batchId: t.agentRuns.batchId,
+        })
         .from(t.reviews)
+        .leftJoin(t.agentRuns, eq(t.reviews.runId, t.agentRuns.id))
         .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review')))
         .orderBy(desc(t.reviews.createdAt));
-      // Rows are newest-first → first seen per PR is the latest review.
-      for (const rv of reviewRows) {
-        if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { score: rv.score });
+      latestBatchReviewsByPr = latestBatchReviewsByPrFn(reviewRows);
+    }
+
+    // Findings across every review in each PR's latest batch — powers the
+    // list's FINDINGS column hover popover ("N FINDINGS IN THIS RUN").
+    const findingsByReviewId = new Map<string, Finding[]>();
+    const latestBatchReviewIds = [...latestBatchReviewsByPr.values()].flatMap((list) =>
+      list.map((rv) => rv.id),
+    );
+    if (latestBatchReviewIds.length > 0) {
+      const findingRows = await container.db
+        .select()
+        .from(t.findings)
+        .where(inArray(t.findings.reviewId, latestBatchReviewIds));
+      for (const f of findingRows) {
+        const list = findingsByReviewId.get(f.reviewId) ?? [];
+        list.push({
+          id: f.id,
+          severity: f.severity as Finding['severity'],
+          category: f.category as Finding['category'],
+          title: f.title,
+          file: f.file,
+          start_line: f.startLine,
+          end_line: f.endLine,
+          rationale: f.rationale,
+          suggestion: f.suggestion,
+          confidence: f.confidence,
+          kind: f.kind as Finding['kind'],
+          trifecta_components: f.trifectaComponents as Finding['trifecta_components'],
+        });
+        findingsByReviewId.set(f.reviewId, list);
       }
+    }
+
+    // COST per PR = sum of every completed (`status='done'`) run's cost ever
+    // executed against the PR — total spend across its whole review history.
+    // See total-cost.ts.
+    const costByPr = new Map<string, number | null>();
+    if (prIds.length > 0) {
+      const runRows = await container.db
+        .select({
+          prId: t.agentRuns.prId,
+          status: t.agentRuns.status,
+          costUsd: t.agentRuns.costUsd,
+        })
+        .from(t.agentRuns)
+        .where(inArray(t.agentRuns.prId, prIds));
+      for (const [prId, cost] of totalCostByPr(runRows)) costByPr.set(prId, cost);
     }
 
     const now = Date.now();
     return rows.map((r) => {
-      const review = latestReviewByPr.get(r.id);
+      const batchReviews = latestBatchReviewsByPr.get(r.id) ?? [];
       return {
         id: r.id,
         number: r.number,
@@ -152,7 +204,9 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         }),
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
-        score: review ? review.score : null,
+        score: worstScore(batchReviews.map((rv) => rv.score)),
+        cost_usd: costByPr.get(r.id) ?? null,
+        findings: batchReviews.flatMap((rv) => findingsByReviewId.get(rv.id) ?? []),
       };
     });
   });
@@ -176,7 +230,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
     // otherwise serve the persisted files/commits/body (seeded or previously
     // imported) so PR detail works offline.
     try {
-      const gh = await container.github();
+      const gh = await container.codeHost(repo.provider as RepoProvider);
       const detail = await gh.getPullRequest({ owner: repo.owner, name: repo.name }, pr.number);
 
       await container.db.delete(t.prFiles).where(eq(t.prFiles.prId, pr.id));
@@ -272,17 +326,17 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
     async (req): Promise<PrReviewComment[]> => {
       const { workspaceId } = await getContext(container, req);
       const { pr, repo } = await resolvePrAndRepo(req.params.id, workspaceId);
-      let gh: GitHubClient;
+      let gh: CodeHostClient;
       try {
-        gh = await container.github();
+        gh = await container.codeHost(repo.provider as RepoProvider);
       } catch (err) {
-        app.log.warn({ err }, 'GitHub client unavailable; serving no PR comments');
+        app.log.warn({ err }, 'Code-host client unavailable; serving no PR comments');
         return [];
       }
       try {
         return await gh.listReviewComments({ owner: repo.owner, name: repo.name }, pr.number);
       } catch (err) {
-        app.log.warn({ err }, 'GitHub review-comments fetch skipped (offline / error)');
+        app.log.warn({ err }, 'Code-host review-comments fetch skipped (offline / error)');
         return [];
       }
     },
@@ -295,13 +349,13 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       const { workspaceId } = await getContext(container, req);
       const { pr, repo } = await resolvePrAndRepo(req.params.id, workspaceId);
       const input = req.body;
-      let gh: GitHubClient;
+      let gh: CodeHostClient;
       try {
-        gh = await container.github();
+        gh = await container.codeHost(repo.provider as RepoProvider);
       } catch {
         throw new AppError(
-          'github_unavailable',
-          'Connect a GitHub token to post comments.',
+          'code_host_unavailable',
+          `Connect a ${repo.provider === 'gitlab' ? 'GitLab' : 'GitHub'} token to post comments.`,
           400,
         );
       }
@@ -315,9 +369,9 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
           ...(input.in_reply_to != null ? { inReplyTo: input.in_reply_to } : {}),
         });
       } catch (err) {
-        // GitHub rejects comments on lines outside the diff / on closed PRs (422).
-        const msg = err instanceof Error ? err.message : 'Failed to post the comment to GitHub.';
-        throw new AppError('github_comment_failed', msg, 400, { cause: String(err) });
+        // The code host rejects comments on lines outside the diff / on closed PRs.
+        const msg = err instanceof Error ? err.message : 'Failed to post the comment.';
+        throw new AppError('code_host_comment_failed', msg, 400, { cause: String(err) });
       }
     },
   );

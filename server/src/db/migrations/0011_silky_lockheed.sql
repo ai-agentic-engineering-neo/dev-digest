@@ -1,0 +1,1 @@
+ALTER TABLE "repos" ADD COLUMN "provider" text DEFAULT 'github' NOT NULL;

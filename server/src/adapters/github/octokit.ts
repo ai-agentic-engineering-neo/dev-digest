@@ -1,6 +1,6 @@
 import { Octokit } from 'octokit';
 import type {
-  GitHubClient,
+  CodeHostClient,
   RepoRef,
   PrMeta,
   PrDetail,
@@ -23,10 +23,10 @@ function mapStatus(state: string, merged: boolean | undefined): PrStatus {
 }
 
 /**
- * GitHubClient over Octokit REST — thin. PAT auth (fine-grained).
+ * CodeHostClient over Octokit REST — thin. PAT auth (fine-grained).
  * Reads PR list/detail/files/commits/issue; posts reviews; opens PRs.
  */
-export class OctokitGitHubClient implements GitHubClient {
+export class OctokitGitHubClient implements CodeHostClient {
   private octokit: Octokit;
 
   constructor(token: string) {

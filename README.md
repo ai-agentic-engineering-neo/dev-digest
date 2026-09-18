@@ -50,12 +50,12 @@ flowchart LR
 ```
 
 The review flow end to end: **add a repo** → server clones it and `repo-intel`
-indexes it (the **Indexed** badge) → **import PRs** from GitHub → open a PR and
-**Review** → `reviewer-core` assembles a prompt from the diff + the repo map,
-calls the LLM, validates every finding against the diff (the **grounding gate**
-drops hallucinated line references), and persists structured findings with a
-severity and score. All local; the only outbound calls are to GitHub (PR data)
-and the LLM (via OpenRouter).
+indexes it (the **Indexed** badge) → **import PRs/MRs** from GitHub or
+GitLab.com → open a PR and **Review** → `reviewer-core` assembles a prompt from
+the diff + the repo map, calls the LLM, validates every finding against the
+diff (the **grounding gate** drops hallucinated line references), and persists
+structured findings with a severity and score. All local; the only outbound
+calls are to the code host (PR/MR data) and the LLM (via OpenRouter).
 
 Each package has its own README with deeper diagrams:
 [`client`](client/README.md) (UI route map) ·
@@ -66,8 +66,8 @@ Each package has its own README with deeper diagrams:
 ## What works on day 1
 
 - **Local launch** — one command brings up Postgres (Docker) + API + web.
-- **Settings** — store your LLM API key (OpenAI / Anthropic) and GitHub token.
-- **Add repository** — paste a repo URL; the server clones and indexes it.
+- **Settings** — store your LLM API key (OpenAI / Anthropic) and a GitHub and/or GitLab token.
+- **Add repository** — paste a github.com or gitlab.com repo URL (provider is auto-detected); the server clones and indexes it.
 - **Import pull requests** — pull open PRs and their diff, commits, body, and linked issue.
 - **View diff** — GitHub-like diff in the browser.
 - **Agents** — two built-in reviewers (General + Security); create/edit your own (model + system prompt).

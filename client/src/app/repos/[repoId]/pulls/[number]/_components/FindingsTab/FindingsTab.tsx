@@ -6,7 +6,7 @@ import { RunStatus } from "../RunStatus";
 import { RunHistory } from "../RunHistory/RunHistory";
 import { ReviewRunAccordion } from "../ReviewRunAccordion";
 import { s } from "./styles";
-import type { FindingRecord, ReviewRecord, RunSummary, PrCommit } from "@devdigest/shared";
+import type { FindingRecord, ReviewRecord, RunSummary, PrCommit, RepoProvider } from "@devdigest/shared";
 import type { UseMutationResult } from "@tanstack/react-query";
 
 interface FindingsTabProps {
@@ -17,9 +17,10 @@ interface FindingsTabProps {
   runs: ReviewRecord[];
   prRuns: RunSummary[] | undefined;
   prCommits: PrCommit[];
-  cancelMutation: UseMutationResult<any, any, string, any>;
-  /** owner/repo + head sha — used to deep-link a finding's file:line to GitHub. */
+  cancelMutation: UseMutationResult<{ ok: boolean }, Error, string, unknown>;
+  /** owner/repo + head sha — used to deep-link a finding's file:line to the code host. */
   repoFullName?: string | null;
+  repoProvider?: RepoProvider;
   headSha?: string | null;
   onOpenTrace: (id: string) => void;
   onDelete: (id: string) => void;
@@ -36,6 +37,7 @@ export function FindingsTab({
   prCommits,
   cancelMutation,
   repoFullName,
+  repoProvider,
   headSha,
   onOpenTrace,
   onDelete,
@@ -62,6 +64,16 @@ export function FindingsTab({
     },
     [onDelete],
   );
+
+  // Timeline rows show per-severity count chips sourced from each run's own
+  // findings (matched by run_id) rather than the run row's flat totals.
+  const findingsByRunId = React.useMemo(() => {
+    const map: Record<string, FindingRecord[]> = {};
+    for (const review of runs) {
+      if (review.run_id) map[review.run_id] = review.findings;
+    }
+    return map;
+  }, [runs]);
 
   // Timeline → Review-runs navigation: clicking an agent name in the timeline
   // opens + scrolls to that run's accordion below. The nonce re-triggers the
@@ -131,6 +143,7 @@ export function FindingsTab({
           <RunHistory
             runs={prRuns ?? []}
             commits={prCommits}
+            findingsByRunId={findingsByRunId}
             onOpenTrace={handleOpenTrace}
             onGoToReview={handleGoToReview}
             onDelete={handleDelete}
@@ -158,9 +171,11 @@ export function FindingsTab({
           <ReviewRunAccordion
             key={review.id}
             review={review}
+            run={prRuns?.find((r) => r.run_id === review.run_id) ?? null}
             prId={prId}
             defaultOpen={i === 0}
             repoFullName={repoFullName}
+            repoProvider={repoProvider}
             headSha={headSha}
             targetRunId={target?.runId ?? null}
             targetNonce={target?.n ?? 0}

@@ -3,7 +3,7 @@
 The DevDigest backend: imports repos and pull requests, indexes a repo with
 `repo-intel`, stores agents, and runs the reviewer (diff → `reviewer-core` →
 grounded structured findings). Fastify 5 + Drizzle ORM over Postgres (pgvector).
-Adapters (LLM, GitHub, git, ast-grep, …) sit behind a DI container so they can be
+Adapters (LLM, GitHub/GitLab, git, ast-grep, …) sit behind a DI container so they can be
 swapped for mocks in tests.
 
 > This is the **starter** module set. Later course lessons add their own modules
@@ -26,7 +26,8 @@ swapped for mocks in tests.
   `0600`, written when you enter a key in Settings) with `process.env` as a
   fallback — never in git or the database. The one read chokepoint is
   `LocalSecretsProvider` (`src/adapters/secrets/local.ts`); `GITHUB_TOKEN` is
-  canonical and `GITHUB_PAT` is accepted as a fallback.
+  canonical and `GITHUB_PAT` is accepted as a fallback. `GITLAB_TOKEN`
+  (gitlab.com only) works the same way.
 
 ## Request & DI flow
 
@@ -37,8 +38,8 @@ flowchart LR
   VAL --> MOD["feature module plugin<br/>modules/&lt;name&gt;/routes.ts"]
   MOD --> SVC["service<br/>(e.g. ReviewService)"]
   SVC --> DI{"DI container<br/>platform/container.ts"}
-  DI --> ADP["adapters (ports)<br/>llm · github · git · astgrep · tokenizer · secrets"]
-  ADP -->|"prod"| EXT["LLM (OpenAI/Anthropic) · GitHub · git · pgvector"]
+  DI --> ADP["adapters (ports)<br/>llm · codeHost (github/gitlab) · git · astgrep · tokenizer · secrets"]
+  ADP -->|"prod"| EXT["LLM (OpenAI/Anthropic) · GitHub/GitLab · git · pgvector"]
   ADP -->|"tests"| MOCK["src/adapters/mocks.ts<br/>MockLLMProvider · MockGitClient · …"]
   SVC --> DB[("Drizzle → Postgres")]
   SVC -. "run traces" .-> SSE["SSE stream → client"]

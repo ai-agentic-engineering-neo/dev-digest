@@ -1,0 +1,1 @@
+export { FindingsSummary } from "./FindingsSummary";

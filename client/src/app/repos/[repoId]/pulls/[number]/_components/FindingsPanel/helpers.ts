@@ -1,5 +1,8 @@
 import type { FindingRecord } from "@devdigest/shared";
-import { LOW_CONFIDENCE_THRESHOLD, SEVERITY_ORDER } from "./constants";
+import { SEVERITY_ORDER } from "@/lib/findings";
+import { LOW_CONFIDENCE_THRESHOLD } from "./constants";
+
+export { severityCounts } from "@/lib/findings";
 
 /** Optionally drop low-confidence findings and sort by severity. */
 export function visibleFindings(findings: FindingRecord[], hideLow: boolean): FindingRecord[] {

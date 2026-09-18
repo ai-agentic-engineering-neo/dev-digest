@@ -7,7 +7,7 @@
 
 import React from "react";
 import { Icon, Badge } from "@devdigest/ui";
-import type { ReviewRecord, Verdict } from "@devdigest/shared";
+import type { ReviewRecord, RunSummary, Verdict, RepoProvider } from "@devdigest/shared";
 import { FindingsPanel } from "../FindingsPanel";
 import { VerdictBanner } from "../VerdictBanner";
 import { useDeleteReview } from "../../../../../../../lib/hooks/reviews";
@@ -25,17 +25,23 @@ function formatWhen(iso: string): string {
 
 export function ReviewRunAccordion({
   review,
+  run = null,
   prId,
   defaultOpen = false,
   repoFullName,
+  repoProvider,
   headSha,
   targetRunId = null,
   targetNonce = 0,
 }: {
   review: ReviewRecord;
+  /** The agent_runs row behind this review (matched by run_id) — feeds the
+   *  cost/token line in the VerdictBanner. Null when no run row is known. */
+  run?: RunSummary | null;
   prId: string;
   defaultOpen?: boolean;
   repoFullName?: string | null;
+  repoProvider?: RepoProvider;
   headSha?: string | null;
   /** When this matches review.run_id, the accordion opens and scrolls into view
    *  (driven from the Timeline: clicking an agent name navigates here). */
@@ -49,7 +55,6 @@ export function ReviewRunAccordion({
       setOpen(true);
       rootRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targetRunId, targetNonce, review.run_id]);
   const del = useDeleteReview(prId);
   const findings = review.findings;
@@ -144,6 +149,11 @@ export function ReviewRunAccordion({
                 findingsCount={findings.length}
                 blockers={blockers}
                 agentName={review.agent_name}
+                run={
+                  run
+                    ? { cost_usd: run.cost_usd, tokens_in: run.tokens_in, tokens_out: run.tokens_out }
+                    : null
+                }
               />
             </div>
           )}
@@ -151,6 +161,7 @@ export function ReviewRunAccordion({
             findings={findings}
             prId={prId}
             repoFullName={repoFullName}
+            repoProvider={repoProvider}
             headSha={headSha}
           />
         </div>

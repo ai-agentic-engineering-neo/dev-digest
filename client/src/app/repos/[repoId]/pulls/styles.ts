@@ -40,6 +40,15 @@ export const s = {
   } satisfies CSSProperties,
   sizeBadgeBorder: (color: string): CSSProperties => ({ border: `1px solid ${color}` }),
   scoreCell: { display: "flex", alignItems: "center" } satisfies CSSProperties,
+  // `help` (question-mark) cursor only when there is something to preview — an
+  // empty "—" cell must not promise a popover that will never open.
+  findingsCell: (hasFindings: boolean): CSSProperties => ({
+    display: "flex",
+    alignItems: "center",
+    gap: 4,
+    minWidth: 0,
+    cursor: hasFindings ? "help" : "inherit",
+  }),
   updatedCell: {
     fontSize: 12,
     color: "var(--text-muted)",

@@ -21,6 +21,13 @@ Entry format: `.claude/skills/engineering-insights/reference/entry-format.md`.
 
 ## What Doesn't Work
 
+- **2026-09-17** — `<SeverityBadge compact>` renders an icon plus the count and
+  nothing else — `Badge.tsx:80` drops the label in compact mode. So a compact
+  chip has no accessible name, no tooltip, and no text for RTL to query: tests
+  that `getByText("Warning")` fail, and a screen reader hears only a number.
+  Any compact cluster must supply its own `title`/`aria-label`; ours does it in
+  `components/severity-counts/SeverityCounts.tsx`.
+
 ## Codebase Patterns
 
 ## Tool & Library Notes

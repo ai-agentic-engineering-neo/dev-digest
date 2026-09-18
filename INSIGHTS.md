@@ -20,6 +20,27 @@ Entry format: `.claude/skills/engineering-insights/reference/entry-format.md`.
 
 ## Decisions
 
+### 2026-09-17 — Severity counters exclude dismissed findings
+
+**What:** every per-severity count — the PR list's `findings_counts`, the
+findings panel's chips, the timeline's run chips — skips findings with a
+`dismissed_at`. Accepted findings still count.
+
+**Why:** a counter answers "what still needs attention", and the repo had
+already settled that question elsewhere: `ReviewRunAccordion.tsx:56` computes
+its blockers as `severity === "CRITICAL" && !f.dismissed_at`. A second, looser
+rule next to it would have made two numbers on the same screen disagree.
+
+**Rejected:** counting everything the model produced. Simpler to aggregate (one
+`IN`-query, no `isNull`) and it keeps the list row stable, but it contradicts
+the blockers count sitting two lines below it on the detail page.
+
+**Consequence worth knowing:** the panel still LISTS a dismissed finding, struck
+through, while the counter above it excludes it. That asymmetry is deliberate —
+the decision stays visible and reversible — and it is why `severityCounts()`
+(`client/src/components/severity-counts/helpers.ts`) filters but
+`visibleFindings()` does not.
+
 ## What Works
 
 - **2026-09-16** — `main` is trimmed, but the lessons' code is still in git.
@@ -48,6 +69,10 @@ Entry format: `.claude/skills/engineering-insights/reference/entry-format.md`.
 ## Recurring Errors & Fixes
 
 ## Session Notes
+
+- **2026-09-17** — Findings-by-severity (PR list column + panel filter +
+  timeline chips). Written fresh, but `git log -S severityCounts --all` still
+  paid off: `7641b48`/`97b6edc`/`0953fdc` served as the design spec.
 
 - **2026-09-16** — Run Cost (server + client + shared contracts): recovered the
   reverted implementation from git history, re-threaded `costUsd` end to end.

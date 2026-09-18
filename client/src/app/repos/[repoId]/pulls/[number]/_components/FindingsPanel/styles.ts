@@ -15,6 +15,12 @@ export const s = {
     background: "var(--border)",
     margin: "0 2px",
   } satisfies CSSProperties,
+  counterGroup: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    flexWrap: "wrap",
+  } satisfies CSSProperties,
   toggleGroup: {
     marginLeft: "auto",
     display: "flex",

@@ -1,11 +1,8 @@
 # Insights — reviewer-core
 
-Non-obvious, file-grounded findings. **Append-only**: never edit or delete an entry — add a dated
-correction below it.
-
-Entry format: `**YYYY-MM-DD** — the finding. Evidence: path:line.`
-
-Before writing, ask: *would anyone reading the code see this anyway?* If yes — do not write it.
+Non-obvious, file-grounded findings that reading the code does not reveal.
+Written and maintained through the `engineering-insights` skill, which carries the format,
+the section rules and the quality bar.
 
 ## What Works
 

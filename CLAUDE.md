@@ -23,7 +23,8 @@ published modules.
 - `server/src/modules/<name>/` — feature modules, one Fastify plugin each
 - `server/src/modules/repo-intel/` — codebase indexer; reach it only through `container.repoIntel.*`
 - `docs/agent-prompts/` — canonical reviewer system prompts (the DB is the source of truth at run time)
-- `.claude/skills/` — per-stack skills; the catalog is `.claude/skills/README.md`
+- `.claude/skills/` — per-stack skills plus this repo's own `engineering-insights`; the catalog is `.claude/skills/README.md`
+- `INSIGHTS.md` — one per area: the four packages, plus `.claude/INSIGHTS.md` for the agent setup itself
 
 ## Commands
 
@@ -50,6 +51,8 @@ unit/integration split) are in that package's `CLAUDE.md`.
   hand-write, edit or rename a migration; `meta/_journal.json` tracks them.
 - `pnpm-lock.yaml`, `package-lock.json` — change only through the package manager. CI installs with
   `--frozen-lockfile`, so a hand-edited lockfile fails there and not locally.
+- `.claude/INSIGHTS.md` — do not move, rename or delete. The `engineering-insights` skill loads it
+  by name, and a path that does not resolve stops the skill loading at all, in every session.
 
 ## Gotchas
 
@@ -64,10 +67,16 @@ unit/integration split) are in that package's `CLAUDE.md`.
 
 ## Session protocol
 
-- **Start:** before working in a package, read its `INSIGHTS.md` and state the top 3 points relevant
-  to the task.
-- **End:** append to that package's `INSIGHTS.md` only file-grounded, dated, non-duplicate findings.
-  Never overwrite. If nothing substantial came up, write nothing — but do not skip the check.
+The `engineering-insights` skill owns this loop — it carries the format, the sections, the quality
+bar and the rules. This section only says when the loop runs.
+
+- **Start:** entering a package.
+- **During:** the moment something behaves unexpectedly — not at the end, while the evidence is
+  still in front of you.
+- **End:** wrapping up a task that involved a problem, a decision or a discovery.
+
+The skill is expected to load on its own at the first of those. When it does not, invoke
+`/engineering-insights` by hand rather than working from memory of what it says.
 
 ## Use when
 

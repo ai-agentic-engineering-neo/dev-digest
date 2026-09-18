@@ -8,7 +8,8 @@ Fastify API and host of the review engine. The root `CLAUDE.md` applies; this ad
 - Touching the indexer, repo map, callers or blast radius → read `src/modules/repo-intel/README.md`
 - Changing what the model actually sees in a review → read `README.md` § *Review context*, then `../docs/agent-prompts/README.md`
 - Implementing a feature → read its spec in `specs/`; write one first if it is missing
-- Something surprised you, or a fix was not obvious → check `INSIGHTS.md` first, append if new
+- Something surprised you, or a fix was not obvious → `INSIGHTS.md`, through the
+  `engineering-insights` skill, which carries the format and the rules
 - Need depth the README does not give → `docs/`
 
 ## Rules not visible from any single file
@@ -26,9 +27,9 @@ Fastify API and host of the review engine. The root `CLAUDE.md` applies; this ad
 
 ## Naming (server-only)
 
-- **`*.it.test.ts` = DB-backed test.** Anything importing `test/helpers/pg.ts` MUST use this suffix,
-  or the unit/integration split silently breaks — the file lands in the wrong suite and CI runs it
-  in the lane without Docker.
+- **`*.it.test.ts` = DB-backed test.** A file importing `test/helpers/pg.ts` needs this suffix:
+  without it the unit/integration split breaks silently — the file lands in the wrong suite, and CI
+  runs it in the lane that has no Docker.
 - Relative imports carry `.js`: `import { buildApp } from './app.js'`. `moduleResolution` is
   `Bundler`, so typecheck does **not** enforce this — it is a house rule, kept because the API runs
   as real ESM under tsx.

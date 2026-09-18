@@ -7,7 +7,8 @@ Deterministic browser flows driven by Vercel agent-browser. The root `CLAUDE.md`
 - Adding or fixing a flow → read `README.md` (flow format, locators, hermetic runner)
 - A flow fails locally but passes in CI → read `README.md` § *Precondition*: your dev DB has repos
   beyond the seeded one
-- Something surprised you, or a fix was not obvious → check `INSIGHTS.md` first, append if new
+- Something surprised you, or a fix was not obvious → `INSIGHTS.md`, through the
+  `engineering-insights` skill, which carries the format and the rules
 - Need depth the README does not give → `docs/`
 
 ## Rules not visible from any single file

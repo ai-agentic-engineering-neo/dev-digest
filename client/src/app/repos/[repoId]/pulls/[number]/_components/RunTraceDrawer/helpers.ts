@@ -26,3 +26,8 @@ export function formatSeconds(ms: number): string {
 export function formatTokens(tokensIn: number, tokensOut: number): string {
   return `${(tokensIn / 1000).toFixed(0)}k→${(tokensOut / 1000).toFixed(1)}k`;
 }
+
+/** Display-only heuristic — same as server `approxTokens` (`ceil(chars/4)`). Not billing. */
+export function approxTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}

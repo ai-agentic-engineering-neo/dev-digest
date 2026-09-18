@@ -26,6 +26,16 @@ export function toAgentDto(row: AgentRow): Agent {
   };
 }
 
+/** Dual-gate: inject only when both the library skill and the per-agent link are on. */
+export function enabledSkillBodies(
+  links: Array<{ order: number; enabled: boolean; skill: { enabled: boolean; body: string } }>,
+): string[] {
+  return [...links]
+    .filter((row) => row.skill.enabled && row.enabled)
+    .sort((a, b) => a.order - b.order)
+    .map((row) => row.skill.body);
+}
+
 /** Map a joined agent_skills row to the public GET DTO. Body is never exposed. */
 export function toAgentSkillLink(
   agentId: string,

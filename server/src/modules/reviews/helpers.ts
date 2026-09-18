@@ -79,6 +79,11 @@ export function reviewToDto(
  * The TRUSTED part (ours) states the task and the non-negotiable rule: review
  * the whole diff and never withhold a security/correctness finding.
  */
+/** Spread onto `reviewPullRequest` so an empty list cannot become `skills: []`. */
+export function skillsPromptArg(bodies: string[]): { skills: string[] } | Record<string, never> {
+  return bodies.length > 0 ? { skills: bodies } : {};
+}
+
 export function taskLine(pull: PullRow): string {
   return (
     `Review pull request #${pull.number} "${pull.title}" by ${pull.author}. ` +

@@ -4,7 +4,10 @@ import { NextIntlClientProvider } from "next-intl";
 import type { RunTrace } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/runs.json"; // apps/web/messages/en/runs.json
 
-// Mock the trace hooks so the drawer renders without a query client / SSE.
+const harness = vi.hoisted(() => ({
+  skills: "### skill" as string | null,
+}));
+
 const TRACE: RunTrace = {
   config: { agent: "Security", version: "1", provider: "openai", model: "gpt-4.1", pr: 482, source: "local" },
   stats: { duration_ms: 8200, tokens_in: 12000, tokens_out: 1500, cost_usd: 0.06, findings: 2, grounding: "2/2 passed" },
@@ -20,7 +23,13 @@ const TRACE: RunTrace = {
 };
 
 vi.mock("../../../../../../../lib/hooks/trace", () => ({
-  useRunTrace: () => ({ data: TRACE, isLoading: false }),
+  useRunTrace: () => ({
+    data: {
+      ...TRACE,
+      prompt_assembly: { ...TRACE.prompt_assembly, skills: harness.skills },
+    },
+    isLoading: false,
+  }),
 }));
 vi.mock("../../../../../../../lib/hooks/reviews", () => ({
   useRunEvents: () => ({ events: [], running: false }),
@@ -28,7 +37,10 @@ vi.mock("../../../../../../../lib/hooks/reviews", () => ({
 
 import RunTraceDrawer from "./RunTraceDrawer";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  harness.skills = "### skill";
+});
 
 function renderWithIntl(ui: React.ReactElement) {
   return render(
@@ -53,5 +65,21 @@ describe("A5 Run Trace drawer (smoke)", () => {
     fireEvent.click(screen.getByText("log"));
     // LiveLogStream renders its filter input
     expect(screen.getByPlaceholderText("Filter log…")).toBeInTheDocument();
+  });
+
+  it("shows a non-zero skills token figure when assembly.skills is set", () => {
+    renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    fireEvent.click(screen.getByText("Prompt assembly"));
+    expect(screen.getByText("Skills (dynamic)")).toBeInTheDocument();
+    expect(screen.getByText("~3 tok")).toBeInTheDocument();
+    expect(screen.getByText("12k→1.5k")).toBeInTheDocument();
+  });
+
+  it("hides the skills block when assembly.skills is null", () => {
+    harness.skills = null;
+    renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    fireEvent.click(screen.getByText("Prompt assembly"));
+    expect(screen.queryByText("Skills (dynamic)")).not.toBeInTheDocument();
+    expect(screen.getByText("12k→1.5k")).toBeInTheDocument();
   });
 });

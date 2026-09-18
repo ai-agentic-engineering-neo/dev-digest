@@ -27,6 +27,31 @@ describe('prompt assembly + injection hardening', () => {
     expect(messages[1]!.content).toContain('## Diff to review');
     expect(messages[1]!.content).toContain('<untrusted source="diff">');
   });
+
+  it('joins skill bodies under Skills / rules without wrapping them in untrusted', () => {
+    const { messages, assembly } = assemblePrompt({
+      system: 'You are a reviewer.',
+      skills: ['body-a', 'body-b'],
+      diff: '@@ -1 +1 @@\n+ x',
+    });
+    expect(assembly.skills).toContain('body-a');
+    expect(assembly.skills).toContain('body-b');
+    expect(messages[1]!.content).toContain('## Skills / rules');
+    expect(assembly.skills).not.toContain('<untrusted');
+    const skillsSection = messages[1]!.content.split('## Diff to review')[0]!;
+    expect(skillsSection).toContain('body-a');
+    expect(skillsSection).not.toContain('<untrusted');
+  });
+
+  it('omits skills when missing, empty, or whitespace-only', () => {
+    const none = assemblePrompt({ system: 's', diff: 'd' });
+    const empty = assemblePrompt({ system: 's', skills: [], diff: 'd' });
+    const ws = assemblePrompt({ system: 's', skills: ['   ', '\n\t'], diff: 'd' });
+    expect(none.assembly.skills).toBeNull();
+    expect(empty.assembly.skills).toBeNull();
+    expect(ws.assembly.skills).toBeNull();
+    expect(none.messages[1]!.content).not.toContain('## Skills / rules');
+  });
 });
 
 describe('structured-output helpers', () => {

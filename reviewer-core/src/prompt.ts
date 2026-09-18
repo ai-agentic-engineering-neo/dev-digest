@@ -85,8 +85,8 @@ export interface AssembledPrompt {
 export function assemblePrompt(parts: PromptParts): AssembledPrompt {
   const system = `${parts.system}\n\n${INJECTION_GUARD}`;
 
-  const skillsBlock =
-    parts.skills && parts.skills.length > 0 ? parts.skills.join('\n\n') : undefined;
+  const skillTexts = (parts.skills ?? []).filter((s) => s.trim().length > 0);
+  const skillsBlock = skillTexts.length > 0 ? skillTexts.join('\n\n') : undefined;
   const memoryBlock =
     parts.memory && parts.memory.length > 0
       ? parts.memory.map((m) => `- ${m}`).join('\n')

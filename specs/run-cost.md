@@ -5,6 +5,15 @@ verdict-panel line. 2026-09-17: PR-detail Timeline row added to scope and implem
 2026-09-17: Agent-run trace drawer's Stats box added to scope and implemented — this was
 the last item under [Out of scope](#out-of-scope); that section is now empty by design.)
 
+> **Superseded for surface #1 (2026-09-18).** The PR-list COST column no longer shows "the
+> latest review's run cost". A multi-agent review writes one review+run per agent seconds
+> apart, so "latest" was whichever agent finished last — a race, the same one that made the
+> FINDINGS column read empty on a PR with five outstanding findings. The column now shows the
+> **sum** of the runs behind each agent's latest review, i.e. what reviewing that PR cost.
+> §3.3 and §5's "PR never reviewed" row still hold; §1's and §4.2's "same run as `score`"
+> framing does not. Surfaces #2–#4 are per-run and unchanged. See
+> [findings-severity.md](findings-severity.md) §5.
+
 ## 1. What this adds
 
 Four read-only display surfaces. The list and verdict-panel surfaces are sourced from

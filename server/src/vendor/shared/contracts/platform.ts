@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Provider } from './knowledge.js';
+import { SeverityCounts } from './findings.js';
 
 /**
  * Platform / scaffolding DTOs owned by F1:
@@ -168,11 +169,23 @@ export const PrMeta = z.object({
   status: PrStatus,
   opened_at: z.string().nullish(),
   updated_at: z.string().nullish(),
-  // Latest-review score (list endpoint only; null/absent until reviewed).
+  // The three fields below are list-endpoint only and all describe the SAME
+  // set: each agent's latest review for this PR, unioned. Not "the newest
+  // review" — a multi-agent review persists one row per agent seconds apart,
+  // so the newest is whichever agent finished last. Null until reviewed.
+  //
+  // Score is RECOMPUTED from `findings` with the engine's penalty table
+  // (`scoreFromSeverityCounts`), not read off a review row: no stored score
+  // describes the union. For a single-agent PR it equals that review's stored
+  // score, since S1/S2 already derive it the same way.
   score: z.number().int().nullish(),
-  // Latest-review's run cost in USD (list endpoint only; null/absent until
-  // reviewed, or when that run's model is unpriced).
+  // Sum of the run costs behind those same reviews — what reviewing this PR
+  // cost. Null when no run is attached or every model was unpriced.
   cost_usd: z.number().nullish(),
+  // Per-severity tally over those reviews, EXCLUDING dismissed findings, so it
+  // counts outstanding work. All-zero for a reviewed PR with nothing left.
+  // Because `score` is derived from this, dismissing a finding moves both.
+  findings: SeverityCounts.nullish(),
 });
 export type PrMeta = z.infer<typeof PrMeta>;
 

@@ -33,6 +33,8 @@ belongs here.
 
 - **2026-09-16** — Insight capture is instructed, never hooked, and the absent `.claude/settings.json` is the deliberate state: `Stop` fires at the end of every assistant turn rather than at session end, and `SessionEnd` can run a command but cannot feed anything back to Claude, so no honest "always at session end" trigger exists — the `Session Protocol` in `CLAUDE.md` carries it until L06 introduces the hook. Evidence: `CLAUDE.md:21-26`, `.claude/skills/engineering-insights/SKILL.md:14-21`.
 
+- **2026-09-17** — Severity is keyed UPPERCASE everywhere it crosses a package boundary — the `Severity` Zod enum, the `AgentStats.findings_by_severity` contract, and the client's pre-declared `PrRowView.findings` — with exactly one exception: `rollupSeverities` returns `{critical, warning, suggestion}`. A new severity-tallying contract must use the uppercase keys and convert at that one helper rather than propagating its casing; and the lowercase severity strings a grep does turn up belong to `CiFailOn`, an unrelated gate-policy enum, so matching them is not evidence that lowercase is the convention. Evidence: `server/src/vendor/shared/contracts/findings.ts:11`, `server/src/vendor/shared/contracts/observability.ts:111-115`, `client/src/lib/types.ts:45`, `server/src/modules/pulls/status.ts:16-31`.
+
 ## Tool & Library Notes
 
 - **2026-09-16** — A DB-backed server test not named `*.it.test.ts` runs in the unit lane and fails there without Docker; the split is by filename, not by content. Evidence: `TESTING.md:79`.

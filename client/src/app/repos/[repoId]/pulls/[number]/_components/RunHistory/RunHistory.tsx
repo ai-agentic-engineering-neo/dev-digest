@@ -2,9 +2,15 @@
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { Badge, Icon, CircularScore, type IconName } from "@devdigest/ui";
-import type { RunSummary, PrCommit } from "@devdigest/shared";
+import { Badge, Icon, CircularScore, Popover, type IconName } from "@devdigest/ui";
+import type { RunSummary, PrCommit, FindingRecord } from "@devdigest/shared";
 import { RunCostBadge } from "@/components/run-cost-badge";
+import {
+  FindingsList,
+  SeverityCountBadges,
+  panelFindings,
+  tallySeverities,
+} from "@/components/findings-list";
 
 /**
  * PR timeline — every agent run interleaved with the PR's commits, newest-first
@@ -74,6 +80,38 @@ const commitRowStyle: React.CSSProperties = {
   background: "transparent",
 };
 
+/**
+ * One run's severity breakdown, opening that run's findings on click.
+ *
+ * Counts are derived from the findings themselves (dismissed ones excluded), so
+ * after triage this can read lower than the run's own `findings_count`, which is
+ * frozen at completion. The live number is the right one to show here.
+ *
+ * Falls back to the frozen count when the caller has no findings for this run —
+ * a review deleted independently of its run row, or a run that never produced
+ * one — so the row never silently loses its findings line.
+ */
+function RunFindings({ findings, run }: { findings?: FindingRecord[]; run: RunSummary }) {
+  const t = useTranslations("prReview");
+  if (!findings) {
+    return <span>{t("runStatus.findings", { count: run.findings_count ?? 0 })}</span>;
+  }
+  const outstanding = panelFindings(findings);
+  const counts = tallySeverities(outstanding);
+  const total = outstanding.length;
+  if (total === 0) return <span>{t("runStatus.findings", { count: 0 })}</span>;
+
+  return (
+    <Popover
+      label={t("findings.open", { count: total })}
+      trigger={<SeverityCountBadges counts={counts} />}
+      width={480}
+    >
+      <FindingsList findings={outstanding} scope="run" />
+    </Popover>
+  );
+}
+
 type TimelineItem =
   | { kind: "run"; ts: number; run: RunSummary }
   | { kind: "commit"; ts: number; commit: PrCommit };
@@ -88,12 +126,15 @@ function tsOf(s: string | null | undefined): number {
 export function RunHistory({
   runs,
   commits = [],
+  findingsByRun,
   onOpenTrace,
   onGoToReview,
   onDelete,
 }: {
   runs: RunSummary[];
   commits?: PrCommit[];
+  /** run_id → that run's findings, resolved by the caller (see FindingsTab). */
+  findingsByRun?: Map<string, FindingRecord[]>;
   /** Open the trace + log drawer for a run (the logs icon). */
   onOpenTrace: (runId: string) => void;
   /** Jump to this run's inline review accordion below (clicking the agent name). */
@@ -190,9 +231,19 @@ export function RunHistory({
                 </div>
               )}
               {settled && (
-                <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                  {t("runStatus.findings", { count: r.findings_count ?? 0 })}
-                  {(r.blockers ?? 0) > 0 ? t("runStatus.blockers", { count: r.blockers ?? 0 }) : ""}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    fontSize: 12,
+                    color: "var(--text-muted)",
+                  }}
+                >
+                  <RunFindings findings={findingsByRun?.get(r.run_id)} run={r} />
+                  {(r.blockers ?? 0) > 0 ? (
+                    <span>{t("runStatus.blockers", { count: r.blockers ?? 0 })}</span>
+                  ) : null}
                 </div>
               )}
             </div>

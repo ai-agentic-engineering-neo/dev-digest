@@ -1,4 +1,4 @@
-import type { Finding, Review, UnifiedDiff } from '@devdigest/shared';
+import type { Finding, Review, SeverityCounts, UnifiedDiff } from '@devdigest/shared';
 
 /**
  * Reduce + slice helpers for map-reduce reviews. Pure (no DB / `this`), so they
@@ -26,6 +26,23 @@ const SEVERITY_PENALTY: Record<Finding['severity'], number> = {
  */
 export function scoreFromFindings(findings: Finding[]): number {
   const penalty = findings.reduce((sum, f) => sum + (SEVERITY_PENALTY[f.severity] ?? 0), 0);
+  return Math.max(0, Math.min(100, 100 - penalty));
+}
+
+/**
+ * Same score, from a per-severity tally instead of the findings themselves.
+ *
+ * Exists so a caller that only has counts — the PR list aggregates them in SQL
+ * across every agent's latest review rather than loading each finding — scores
+ * them with THIS penalty table instead of copying the numbers. `SEVERITY_PENALTY`
+ * stays private; `specs/review-flow.md` S2 pins these values, so one definition
+ * is the point.
+ */
+export function scoreFromSeverityCounts(counts: SeverityCounts): number {
+  const penalty =
+    counts.CRITICAL * SEVERITY_PENALTY.CRITICAL +
+    counts.WARNING * SEVERITY_PENALTY.WARNING +
+    counts.SUGGESTION * SEVERITY_PENALTY.SUGGESTION;
   return Math.max(0, Math.min(100, 100 - penalty));
 }
 

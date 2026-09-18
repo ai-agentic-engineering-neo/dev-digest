@@ -70,6 +70,18 @@ export function FindingsTab({
     [prRuns],
   );
 
+  // The inverse: run_id → that run's findings, so each Timeline row renders its
+  // OWN severity breakdown and popover. `runs` is the already-loaded reviews
+  // list and every ReviewRecord carries its full findings[], so this needs no
+  // fetch and no `findings_by_severity` field on RunSummary.
+  const findingsByRun = React.useMemo(() => {
+    const m = new Map<string, FindingRecord[]>();
+    for (const review of runs) {
+      if (review.run_id) m.set(review.run_id, review.findings);
+    }
+    return m;
+  }, [runs]);
+
   // Timeline → Review-runs navigation: clicking an agent name in the timeline
   // opens + scrolls to that run's accordion below. The nonce re-triggers the
   // scroll even when the same run is clicked twice.
@@ -138,6 +150,7 @@ export function FindingsTab({
           <RunHistory
             runs={prRuns ?? []}
             commits={prCommits}
+            findingsByRun={findingsByRun}
             onOpenTrace={handleOpenTrace}
             onGoToReview={handleGoToReview}
             onDelete={handleDelete}

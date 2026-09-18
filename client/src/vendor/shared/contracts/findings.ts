@@ -14,6 +14,19 @@ export type Severity = z.infer<typeof Severity>;
 export const FindingCategory = z.enum(['bug', 'security', 'perf', 'style', 'test']);
 export type FindingCategory = z.infer<typeof FindingCategory>;
 
+/**
+ * Per-severity finding tally. Keys match the `Severity` enum (UPPERCASE) — the
+ * lowercase severities elsewhere in the codebase belong to `CiFailOn`, an
+ * unrelated gate-policy enum. All three keys are always present so consumers
+ * never need a per-key fallback.
+ */
+export const SeverityCounts = z.object({
+  CRITICAL: z.number().int(),
+  WARNING: z.number().int(),
+  SUGGESTION: z.number().int(),
+});
+export type SeverityCounts = z.infer<typeof SeverityCounts>;
+
 export const FindingKind = z.enum([
   'finding',
   'secret_leak',

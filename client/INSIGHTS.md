@@ -16,6 +16,11 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 - **2026-09-16** — Sending `content-type: application/json` on a body-less POST/PUT makes Fastify reject the request with "Body cannot be empty when content-type is application/json", which is why `apiFetch` sets the header only when a body is actually present — adding it unconditionally breaks every no-body mutation (refresh, resync, cancel). Evidence: `client/src/lib/api.ts:27-30`.
 
+- **2026-09-17** — All seven cells in `PRRow` are inert, so nothing in the file demonstrates the constraint that the entire row carries an `onClick` routing to the PR detail page: the first interactive control added to any PR-list cell must `stopPropagation` on both its trigger and any panel it opens, or clicking it navigates away instead of acting. Evidence: `client/src/app/repos/[repoId]/pulls/_components/PRRow/PRRow.tsx:25`.
+  - **2026-09-18** — Confirmed: the FINDINGS cell's popover was the first such control and needed exactly this. Portalling the panel adds a second, less obvious reason rather than removing the first — React portals propagate events through the component tree, not the DOM tree, so a panel rendered into `document.body` still bubbles into the row's handler exactly as an inline child would. Evidence: `client/src/vendor/ui/kit/Popover.tsx:154`.
+
+- **2026-09-18** — An anchored panel opened from a PR-list row cannot use `Dropdown`'s absolute-positioning pattern: the card wrapping the rows sets `overflow: hidden` to clip its own rounded corners, so an absolutely-positioned panel inside a row is cut off at the card's edge rather than overflowing it. Such a panel has to be portalled to `document.body` with `position: fixed` and placed from the trigger's `getBoundingClientRect()`, which is also what makes a flip above the trigger and a viewport-bounded `maxHeight` possible. Evidence: `client/src/app/repos/[repoId]/pulls/styles.ts:91-97`, `client/src/vendor/ui/kit/Popover.tsx:149-156`.
+
 ## Codebase Patterns
 
 - **2026-09-16** — Routes are keyed by PR *number* while every PR API is keyed by the row uuid, so the detail page resolves number → id through the cached pulls list before fetching anything; a component that fetches straight from the route param will 404. Evidence: `client/src/app/repos/[repoId]/pulls/[number]/page.tsx:32-36`.
@@ -29,6 +34,8 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 - **2026-09-16** — Vitest only collects `src/**/*.test.{ts,tsx}`, so a test file placed outside `src/` is silently never run rather than reported as missing. Evidence: `client/vitest.config.ts:18`.
 
 - **2026-09-16** — `SeverityBadge` renders its label as `Critical`/`Warning`/`Suggestion` and only uppercases via CSS `textTransform`, so an RTL assertion on text content such as `getByText("CRITICAL")` fails even though the UI shows "CRITICAL". Evidence: `client/src/vendor/ui/primitives/tokens.ts:10-12`, `client/src/vendor/ui/primitives/Badge.tsx:75`.
+
+- **2026-09-18** — There is no `@testing-library/user-event` dependency here (only `react` and `jest-dom`), so interaction tests drive `fireEvent` directly — and `fireEvent.click` will never dismiss anything whose outside-click handler listens on `mousedown`, which is what both `Dropdown` and `Popover` do; a "closes on outside click" test written with `click` asserts a close that cannot happen and has to use `fireEvent.mouseDown`. Evidence: `client/package.json:27-28`, `client/src/vendor/ui/kit/Popover.tsx:111`.
 
 ## Recurring Errors & Fixes
 

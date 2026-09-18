@@ -26,6 +26,8 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 - **2026-09-16** — The OpenAI SDK's `models.list` strips OpenRouter's `pricing` field, so model pricing has to be fetched with a raw `fetch` against `/models` rather than through the SDK. Evidence: `reviewer-core/src/llm/openrouter.ts:119-121`.
 
+- **2026-09-18** — `pnpm test` / `pnpm typecheck` can fail here before running anything, with `ERR_PNPM_PACKAGE_MANAGER_SYMLINK_FAILED` on `node_modules/openai` (`Access is denied, os error 5`) — a Windows symlink-permission failure in pnpm's pre-script install step, not a broken package. `node_modules` is already populated, so `./node_modules/.bin/tsc --noEmit -p tsconfig.json` and `./node_modules/.bin/vitest run` both work directly and are the way to verify a change to the engine on such a machine. Evidence: `reviewer-core/package.json`.
+
 ## Recurring Errors & Fixes
 
 ## Session Notes

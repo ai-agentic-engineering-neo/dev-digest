@@ -6,7 +6,12 @@
  * + age, so it gets unit coverage independent of the route's queries.
  */
 import { describe, it, expect } from 'vitest';
-import { deriveReviewStatus, rollupSeverities, STALE_DAYS } from '../src/modules/pulls/status.js';
+import {
+  deriveReviewStatus,
+  tallySeverityGroups,
+  STALE_DAYS,
+  ZERO_SEVERITY_COUNTS,
+} from '../src/modules/pulls/status.js';
 
 const DAY = 86_400_000;
 const now = Date.UTC(2026, 5, 11);
@@ -49,20 +54,29 @@ describe('deriveReviewStatus', () => {
   });
 });
 
-describe('rollupSeverities', () => {
-  it('tallies findings into critical / warning / suggestion buckets (ignores unknown)', () => {
+describe('tallySeverityGroups', () => {
+  it('sums the per-severity GROUP BY counts into the uppercase contract shape', () => {
     expect(
-      rollupSeverities([
-        { severity: 'CRITICAL' },
-        { severity: 'CRITICAL' },
-        { severity: 'WARNING' },
-        { severity: 'SUGGESTION' },
-        { severity: 'WEIRD' },
+      tallySeverityGroups([
+        { severity: 'CRITICAL', n: 2 },
+        { severity: 'WARNING', n: 1 },
+        { severity: 'SUGGESTION', n: 4 },
       ]),
-    ).toEqual({ critical: 2, warning: 1, suggestion: 1 });
+    ).toEqual({ CRITICAL: 2, WARNING: 1, SUGGESTION: 4 });
   });
 
-  it('is all-zero for no findings', () => {
-    expect(rollupSeverities([])).toEqual({ critical: 0, warning: 0, suggestion: 0 });
+  it('ignores unknown severities — the column is plain text with no CHECK', () => {
+    expect(
+      tallySeverityGroups([
+        { severity: 'CRITICAL', n: 1 },
+        { severity: 'WEIRD', n: 9 },
+      ]),
+    ).toEqual({ CRITICAL: 1, WARNING: 0, SUGGESTION: 0 });
+  });
+
+  it('is all-zero for no findings, and does not alias the frozen zero constant', () => {
+    const tallied = tallySeverityGroups([]);
+    expect(tallied).toEqual({ CRITICAL: 0, WARNING: 0, SUGGESTION: 0 });
+    expect(tallied).not.toBe(ZERO_SEVERITY_COUNTS);
   });
 });

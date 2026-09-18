@@ -1,4 +1,4 @@
-import type { PrStatus } from '@devdigest/shared';
+import type { PrStatus, SeverityCounts } from '@devdigest/shared';
 
 /**
  * PR-list rollup helpers (pure — no DB / `this`, so they unit-test cleanly).
@@ -13,19 +13,33 @@ import type { PrStatus } from '@devdigest/shared';
 /** Open PRs whose current head was reviewed but untouched this long read "stale". */
 export const STALE_DAYS = 7;
 
-export interface SeverityCounts {
-  critical: number;
-  warning: number;
-  suggestion: number;
-}
+/**
+ * Map key for a review with no `agent_id` (the demo seed writes one). Such
+ * reviews get their own bucket rather than being folded into any agent's, so a
+ * seeded review still contributes to the PR row.
+ */
+export const NO_AGENT_KEY = '__no_agent__';
 
-/** Tally finding severities (CRITICAL / WARNING / SUGGESTION) for one review. */
-export function rollupSeverities(rows: { severity: string }[]): SeverityCounts {
-  const c: SeverityCounts = { critical: 0, warning: 0, suggestion: 0 };
+/** A review with no outstanding findings. Spread it — never share the object. */
+export const ZERO_SEVERITY_COUNTS: Readonly<SeverityCounts> = Object.freeze({
+  CRITICAL: 0,
+  WARNING: 0,
+  SUGGESTION: 0,
+});
+
+/**
+ * Tally finding severities for one review into the shared `SeverityCounts`
+ * shape. Input is the SQL `GROUP BY severity` result (a count per severity),
+ * not one row per finding, so the route never materializes every finding just
+ * to count it. Unknown severity strings are ignored — the column is plain
+ * `text` with no CHECK constraint, so a stray value must not throw.
+ */
+export function tallySeverityGroups(rows: { severity: string; n: number }[]): SeverityCounts {
+  const c: SeverityCounts = { ...ZERO_SEVERITY_COUNTS };
   for (const r of rows) {
-    if (r.severity === 'CRITICAL') c.critical += 1;
-    else if (r.severity === 'WARNING') c.warning += 1;
-    else if (r.severity === 'SUGGESTION') c.suggestion += 1;
+    if (r.severity === 'CRITICAL') c.CRITICAL += r.n;
+    else if (r.severity === 'WARNING') c.WARNING += r.n;
+    else if (r.severity === 'SUGGESTION') c.SUGGESTION += r.n;
   }
   return c;
 }

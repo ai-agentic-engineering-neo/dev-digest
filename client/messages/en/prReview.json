@@ -31,6 +31,12 @@
     "noMatchTitle": "No findings match",
     "noMatchBody": "Adjust the filters above, or run a review to generate findings."
   },
+  "findings": {
+    "heading": "{count} findings",
+    "headingInRun": "{count} findings in this run",
+    "open": "Show {count} findings",
+    "none": "No findings."
+  },
   "runReview": {
     "runAll": "Run all enabled agents",
     "configureAgents": "Configure agents…",
@@ -48,7 +54,7 @@
     "cancelled": "cancelled",
     "running": "running",
     "findings": "{count} finding(s)",
-    "blockers": " · {count} blockers"
+    "blockers": "· {count} blockers"
   },
   "smartDiff": {
     "coreLabel": "Core",
@@ -91,6 +97,7 @@
       "author": "Author",
       "size": "Size",
       "score": "Score",
+      "findings": "Findings",
       "status": "Status",
       "cost": "Cost",
       "updated": "Updated"

@@ -1,0 +1,16 @@
+{
+  "name": "PR list FINDINGS column opens the findings popover",
+  "description": "On the seeded repo's PR list, PR #482's FINDINGS cell shows a per-severity breakdown of its latest review (seed: 1 CRITICAL + 1 WARNING, so two badges and no SUGGESTION badge). Clicking a badge must open the findings popover — headed '2 findings' and listing the seeded finding — WITHOUT navigating to the PR detail route, which the whole row's onClick would otherwise do. That non-navigation is the point of the flow: the popover panel is portalled out of the table card (which sets overflow:hidden), so this also proves the panel is not clipped. Read-only seeded data, no model call. Assumes a freshly-seeded DB where acme/payments-api (PR #482) is the first repo — run via ../scripts/e2e.sh.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "land on the PR list" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "PR list data settles" },
+    { "cmd": ["wait", "--text", "Findings"], "label": "the FINDINGS column header is present" },
+    { "cmd": ["wait", "--text", "Add rate limiting to public API endpoints"], "label": "seeded PR row is visible" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Show 2 findings"], "label": "click the severity breakdown" },
+    { "cmd": ["wait", "--text", "2 findings"], "label": "popover heading shows the total" },
+    { "cmd": ["wait", "--text", "Hardcoded Stripe secret key in commit"], "label": "the seeded finding is listed in the popover" },
+    { "cmd": ["wait", "--text", "src/config.ts:12"], "label": "the finding's file:line is shown" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "still on the PR list — the badge click did NOT navigate to /pulls/482" }
+  ]
+}

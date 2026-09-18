@@ -29,6 +29,7 @@ import {
   Modal,
   Tabs,
   Dropdown,
+  Popover,
   FormField,
   TextInput,
   SelectInput,
@@ -191,6 +192,16 @@ export function Gallery() {
             { label: "Configure…", icon: "Settings", muted: true },
           ]}
         />
+        <Popover
+          label="Example popover"
+          width={280}
+          trigger={<SeverityBadge severity="WARNING" count={2} compact />}
+        >
+          <p style={s.drawerBody}>
+            Portal-rendered panel — escapes an <code>overflow: hidden</code> ancestor and flips
+            above the trigger near the viewport bottom.
+          </p>
+        </Popover>
         <Button kind="ghost" onClick={() => setDrawer(true)}>
           Open Drawer
         </Button>

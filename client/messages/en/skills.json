@@ -75,6 +75,13 @@
     "title": "Preview",
     "label": "As the reviewing agent receives it"
   },
+  "versions": {
+    "title": "Versions",
+    "current": "Current",
+    "diff": "Diff",
+    "restore": "Restore",
+    "restoreConfirm": "Restore v{version}? This copies that body forward as a new version."
+  },
   "detail": {
     "crumbSkill": "Skill",
     "back": "← All skills",

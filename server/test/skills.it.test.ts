@@ -192,4 +192,87 @@ d('skills CRUD', () => {
     expect(leftover).toHaveLength(0);
     await app.close();
   });
+
+  it('GET /skills/:id/versions is newest-first; unknown version is 404', async () => {
+    const app = await makeApp();
+    const id = (
+      await app.inject({
+        method: 'POST',
+        url: '/skills',
+        payload: { ...createBody, name: 'versioned' },
+      })
+    ).json().id as string;
+
+    await app.inject({
+      method: 'PUT',
+      url: `/skills/${id}`,
+      payload: { body: '# Uncovered branches\nSecond save.' },
+    });
+
+    const listed = await app.inject({ method: 'GET', url: `/skills/${id}/versions` });
+    expect(listed.statusCode).toBe(200);
+    const versions = listed.json() as { version: number; body: string }[];
+    expect(versions.length).toBeGreaterThanOrEqual(2);
+    expect(versions.map((v) => v.version)).toEqual([...versions.map((v) => v.version)].sort((a, b) => b - a));
+
+    const v1 = await app.inject({ method: 'GET', url: `/skills/${id}/versions/1` });
+    expect(v1.statusCode).toBe(200);
+    expect(v1.json().body).toBe(createBody.body);
+
+    expect((await app.inject({ method: 'GET', url: `/skills/${id}/versions/99` })).statusCode).toBe(
+      404,
+    );
+    await app.close();
+  });
+
+  it('POST restore copies v1 body forward and leaves the v1 row in place', async () => {
+    const app = await makeApp();
+    const created = await app.inject({
+      method: 'POST',
+      url: '/skills',
+      payload: { ...createBody, name: 'restore-me' },
+    });
+    const id = created.json().id as string;
+    const v1Body = createBody.body;
+
+    await app.inject({
+      method: 'PUT',
+      url: `/skills/${id}`,
+      payload: { body: '# Uncovered branches\nChanged.' },
+    });
+
+    const restored = await app.inject({
+      method: 'POST',
+      url: `/skills/${id}/versions/1/restore`,
+    });
+    expect(restored.statusCode).toBe(200);
+    expect(restored.json().body).toBe(v1Body);
+    expect(restored.json().version).toBeGreaterThan(2);
+
+    const versions = (
+      await app.inject({ method: 'GET', url: `/skills/${id}/versions` })
+    ).json() as { version: number; body: string; note: string | null }[];
+    expect(versions.some((v) => v.version === 1 && v.body === v1Body)).toBe(true);
+    expect(versions[0]?.body).toBe(v1Body);
+    expect(versions[0]?.note).toBe('restored-from-v1');
+
+    expect(
+      (await app.inject({ method: 'POST', url: `/skills/${id}/versions/99/restore` })).statusCode,
+    ).toBe(404);
+
+    const [otherWs] = await pg.handle.db.insert(t.workspaces).values({ name: 'skills-restore-other' }).returning();
+    const foreign = await new SkillsRepository(pg.handle.db).insert({
+      workspaceId: otherWs!.id,
+      name: 'foreign-restore',
+      description: 'Not in the default workspace.',
+      type: 'custom',
+      source: 'manual',
+      body: '# Foreign\nStay out.',
+    });
+    expect(
+      (await app.inject({ method: 'POST', url: `/skills/${foreign.id}/versions/1/restore` }))
+        .statusCode,
+    ).toBe(404);
+    await app.close();
+  });
 });

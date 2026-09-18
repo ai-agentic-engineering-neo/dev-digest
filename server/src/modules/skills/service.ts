@@ -1,9 +1,9 @@
 import type { Container } from '../../platform/container.js';
-import type { Skill, SkillType } from '@devdigest/shared';
+import type { Skill, SkillType, SkillVersion } from '@devdigest/shared';
 import { SkillsRepository } from './repository.js';
-import { toSkillDto } from './helpers.js';
+import { toSkillDto, toSkillVersionDto } from './helpers.js';
 
-export { toSkillDto } from './helpers.js';
+export { toSkillDto, toSkillVersionDto } from './helpers.js';
 
 export interface CreateSkillInput {
   name: string;
@@ -75,6 +75,36 @@ export class SkillsService {
       ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
       ...(patch.note !== undefined ? { note: patch.note } : {}),
     });
+    return row ? toSkillDto(row) : undefined;
+  }
+
+  async listVersions(
+    workspaceId: string,
+    skillId: string,
+  ): Promise<SkillVersion[] | undefined> {
+    const skill = await this.repo.getById(workspaceId, skillId);
+    if (!skill) return undefined;
+    const rows = await this.repo.listVersions(skillId);
+    return rows.map(toSkillVersionDto);
+  }
+
+  async getVersion(
+    workspaceId: string,
+    skillId: string,
+    version: number,
+  ): Promise<SkillVersion | undefined> {
+    const skill = await this.repo.getById(workspaceId, skillId);
+    if (!skill) return undefined;
+    const row = await this.repo.getVersion(skillId, version);
+    return row ? toSkillVersionDto(row) : undefined;
+  }
+
+  async restore(
+    workspaceId: string,
+    skillId: string,
+    version: number,
+  ): Promise<Skill | undefined> {
+    const row = await this.repo.restore(workspaceId, skillId, version);
     return row ? toSkillDto(row) : undefined;
   }
 }

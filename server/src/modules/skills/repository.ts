@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import type { SkillType } from '@devdigest/shared';
@@ -102,11 +102,45 @@ export class SkillsRepository {
     return row;
   }
 
+  /** Snapshots for a skill, newest version first. */
   async listVersions(skillId: string): Promise<SkillVersionRow[]> {
     return this.db
       .select()
       .from(t.skillVersions)
-      .where(eq(t.skillVersions.skillId, skillId));
+      .where(eq(t.skillVersions.skillId, skillId))
+      .orderBy(desc(t.skillVersions.version));
+  }
+
+  async getVersion(skillId: string, version: number): Promise<SkillVersionRow | undefined> {
+    const [row] = await this.db
+      .select()
+      .from(t.skillVersions)
+      .where(and(eq(t.skillVersions.skillId, skillId), eq(t.skillVersions.version, version)));
+    return row;
+  }
+
+  /**
+   * Copy a snapshot body onto the live skill, always bump version, and append a
+   * new snapshot. Old rows stay (append-only).
+   */
+  async restore(
+    workspaceId: string,
+    id: string,
+    version: number,
+  ): Promise<SkillRow | undefined> {
+    const existing = await this.getById(workspaceId, id);
+    if (!existing) return undefined;
+    const snap = await this.getVersion(id, version);
+    if (!snap) return undefined;
+
+    const nextVersion = existing.version + 1;
+    const [row] = await this.db
+      .update(t.skills)
+      .set({ body: snap.body, version: nextVersion })
+      .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.id, id)))
+      .returning();
+    if (row) await this.snapshotVersion(row, nextVersion, `restored-from-v${version}`);
+    return row;
   }
 
   private async snapshotVersion(

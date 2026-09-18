@@ -18,6 +18,9 @@ When a feature looks like it's just never been built (e.g. cost tracking absent 
 
 ## Mistake
 
+### 2026-09-18 — `skills.insert` writes the row then snapshots `skill_versions` outside a transaction
+`server/src/modules/skills/repository.ts` `insert` (`this.db.insert(t.skills)` then `snapshotVersion`) is two statements. If the snapshot fails — hit locally when `skill_versions.note` was missing until `pnpm db:migrate` applied `0014` — the skill row remains and Versions shows only later saves (no v1). Wrap insert+snapshot (and restore's update+snapshot) in `this.db.transaction` like `pulls/repository.ts` `refreshDetail` before relying on v1 existing after every create.
+
 ## Decision
 
 ### 2026-09-16 — PR-list COST reverted from "latest batch" to "sum of all completed runs, ever"

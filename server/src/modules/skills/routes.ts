@@ -14,6 +14,9 @@ import { SkillsService } from './service.js';
  *   POST   /skills       → create (source = manual)
  *   PUT    /skills/:id   → update / toggle enabled (versions body on config change)
  *   DELETE /skills/:id   → delete (versions + agent_skills cascade)
+ *   GET    /skills/:id/versions          → snapshots (newest first)
+ *   GET    /skills/:id/versions/:version → one snapshot
+ *   POST   /skills/:id/versions/:version/restore → copy body forward as a new version
  */
 
 const CreateSkillBody = z.object({
@@ -23,6 +26,12 @@ const CreateSkillBody = z.object({
   body: z.string().min(1),
   enabled: z.boolean().optional(),
   note: z.string().min(1).nullish(),
+});
+
+/** `/skills/:id/versions/:version` — id is a uuid, version a positive integer. */
+const VersionParams = z.object({
+  id: z.string().uuid(),
+  version: z.coerce.number().int().positive(),
 });
 
 const UpdateSkillBody = z.object({
@@ -74,4 +83,33 @@ export default async function skillsRoutes(appBase: FastifyInstance) {
     if (!ok) throw new NotFoundError('Skill not found');
     return { ok: true };
   });
+
+  app.get('/skills/:id/versions', { schema: { params: IdParams } }, async (req) => {
+    const { workspaceId } = await getContext(app.container, req);
+    const versions = await service.listVersions(workspaceId, req.params.id);
+    if (!versions) throw new NotFoundError('Skill not found');
+    return versions;
+  });
+
+  app.get(
+    '/skills/:id/versions/:version',
+    { schema: { params: VersionParams } },
+    async (req) => {
+      const { workspaceId } = await getContext(app.container, req);
+      const version = await service.getVersion(workspaceId, req.params.id, req.params.version);
+      if (!version) throw new NotFoundError('Skill version not found');
+      return version;
+    },
+  );
+
+  app.post(
+    '/skills/:id/versions/:version/restore',
+    { schema: { params: VersionParams } },
+    async (req) => {
+      const { workspaceId } = await getContext(app.container, req);
+      const skill = await service.restore(workspaceId, req.params.id, req.params.version);
+      if (!skill) throw new NotFoundError('Skill version not found');
+      return skill;
+    },
+  );
 }

@@ -116,7 +116,7 @@ Workspace-scoped Fastify module over the existing `skills` / `skill_versions` ta
 - [x] 2.7 `ConfigTab`: name, description + caption, type select (`rubric|convention|security|custom`), markdown body, enabled, unsaved badge, Save → `PUT`. `PreviewTab`: label “as the reviewing agent receives it”; render **body** with `Markdown` from `@devdigest/ui`; do not inject description or fake prompt chrome.
 - [x] 2.8 Write the RTL tests named in 2.0 Proof Artifacts (mock hooks like `AgentEditor.test.tsx`). `cd client && pnpm test` green for the new files.
 
-### [ ] 3.0 Versions tab (history, Diff, Restore)
+### [x] 3.0 Versions tab (history, Diff, Restore)
 
 Append-only body snapshots. Restore copies an old body forward as a new version. Diff is readable text. Current row has no Restore.
 
@@ -126,8 +126,8 @@ Append-only body snapshots. Restore copies an old body forward as a new version.
 - Browser: skill with ≥2 versions; Diff shows a text difference vs current; Restore v1 then Config/Preview show the restored body.
 
 #### 3.0 Tasks
-- [ ] 3.1 Extend skills repository/service with `listVersions` (newest first), `getVersion`, `restore(version)` (copy snapshot body onto live skill, bump version, insert new snapshot; optional note e.g. restored-from-vN). No deletes of old `skill_versions` rows.
-- [ ] 3.2 Add routes: `GET /skills/:id/versions`, `GET /skills/:id/versions/:version`, `POST /skills/:id/versions/:version/restore`. Reuse a `VersionParams` shape like agents. Workspace 404 via `getContext` + agent-style lookup. Add the cases in 3.0 Proof Artifacts to `skills.it.test.ts`.
-- [ ] 3.3 Add `useSkillVersions` / `useRestoreSkillVersion` in `hooks/skills.ts`. Mount `VersionsTab` on `SkillEditor` (`?tab=versions`). List vN, date, optional note, Current badge; Restore + confirm on older rows only.
-- [ ] 3.4 Add a colocated pure `diffBodies(a, b)` helper (no new dependency) that yields a readable line-level difference. Diff UI uses it between current `body` and the selected snapshot. Cover `diffBodies` in a sibling `helpers.test.ts`.
-- [ ] 3.5 Write `VersionsTab.test.tsx` as specified in 3.0 Proof Artifacts (mock hooks). Confirm Current has no Restore button.
+- [x] 3.1 Extend skills repository/service with `listVersions` (newest first), `getVersion`, `restore(version)` (copy snapshot body onto live skill, bump version, insert new snapshot; optional note e.g. restored-from-vN). No deletes of old `skill_versions` rows.
+- [x] 3.2 Add routes: `GET /skills/:id/versions`, `GET /skills/:id/versions/:version`, `POST /skills/:id/versions/:version/restore`. Reuse a `VersionParams` shape like agents. Workspace 404 via `getContext` + agent-style lookup. Add the cases in 3.0 Proof Artifacts to `skills.it.test.ts`.
+- [x] 3.3 Add `useSkillVersions` / `useRestoreSkillVersion` in `hooks/skills.ts`. Mount `VersionsTab` on `SkillEditor` (`?tab=versions`). List vN, date, optional note, Current badge; Restore + confirm on older rows only.
+- [x] 3.4 Add a colocated pure `diffBodies(a, b)` helper (no new dependency) that yields a readable line-level difference. Diff UI uses it between current `body` and the selected snapshot. Cover `diffBodies` in a sibling `helpers.test.ts`.
+- [x] 3.5 Write `VersionsTab.test.tsx` as specified in 3.0 Proof Artifacts (mock hooks). Confirm Current has no Restore button.

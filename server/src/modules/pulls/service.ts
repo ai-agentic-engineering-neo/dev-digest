@@ -13,7 +13,7 @@ import { BACKFILL_LIMIT } from './constants.js';
 import {
   countSeveritiesByPr,
   pickCountedReviews,
-  pickLatestCostByPr,
+  sumCostByPr,
   pickLatestReviewByPr,
   toPrDetail,
   toPrMeta,
@@ -133,7 +133,7 @@ export class PullsService {
     const findingRows = await this.reviews.findingSeveritiesForReviews([...countedReviews.keys()]);
     const countsByPr = countSeveritiesByPr(findingRows, countedReviews);
 
-    const costByPr = pickLatestCostByPr(await this.reviews.doneRunCostsForPulls(prIds));
+    const costByPr = sumCostByPr(await this.reviews.doneRunCostsForPulls(prIds));
 
     const now = Date.now();
     return rows.map((row) =>

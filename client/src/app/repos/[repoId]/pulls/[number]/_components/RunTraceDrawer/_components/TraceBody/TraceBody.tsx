@@ -102,7 +102,9 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
         {trace.tool_calls.length === 0 ? (
           <span style={s.noToolCalls}>{t("trace.noToolCalls")}</span>
         ) : (
-          trace.tool_calls.map((tc, i) => <ToolCallRow key={i} tc={tc} />)
+          // ToolCall has no unique id (tool/args/meta can repeat across calls in
+          // one run); index+tool name is the best available stable-ish key.
+          trace.tool_calls.map((tc, i) => <ToolCallRow key={`${i}-${tc.tool}`} tc={tc} />)
         )}
       </TraceSection>
 

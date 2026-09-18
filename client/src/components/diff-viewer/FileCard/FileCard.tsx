@@ -78,9 +78,9 @@ export function FileCard({ file, commenting }: { file: PrFile; commenting?: Diff
           {lines.length === 0 ? (
             <div style={s.noDiff}>{t("diffViewer.noDiffText")}</div>
           ) : (
-            lines.map((ln, i) => (
+            lines.map((ln) => (
               <CodeLine
-                key={i}
+                key={`${ln.kind}-${ln.oldNo ?? ""}-${ln.newNo ?? ""}-${ln.text}`}
                 ln={ln}
                 path={file.path}
                 threads={threadsForLine(ln, matched)}

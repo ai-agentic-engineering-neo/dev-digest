@@ -11,6 +11,7 @@ import type { ReviewRecord, RunSummary, Verdict, RepoProvider } from "@devdigest
 import { FindingsPanel } from "../FindingsPanel";
 import { VerdictBanner } from "../VerdictBanner";
 import { useDeleteReview } from "../../../../../../../lib/hooks/reviews";
+import { s, deleteButtonStyle, spinningIconStyle, chevronStyle } from "./styles";
 
 const VERDICT_COLOR: Record<string, string> = {
   request_changes: "var(--crit)",
@@ -62,18 +63,7 @@ export function ReviewRunAccordion({
   const verdictColor = review.verdict ? VERDICT_COLOR[review.verdict] ?? "var(--text-muted)" : "var(--text-muted)";
 
   return (
-    <div
-      ref={rootRef}
-      id={review.run_id ? `review-run-${review.run_id}` : undefined}
-      style={{
-        border: "1px solid var(--border)",
-        borderRadius: 10,
-        background: "var(--bg-surface)",
-        marginBottom: 14,
-        overflow: "hidden",
-        scrollMarginTop: 16,
-      }}
-    >
+    <div ref={rootRef} id={review.run_id ? `review-run-${review.run_id}` : undefined} style={s.root}>
       <div
         role="button"
         tabIndex={0}
@@ -81,34 +71,26 @@ export function ReviewRunAccordion({
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") setOpen((o) => !o);
         }}
-        style={{
-          width: "100%",
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          padding: "13px 16px",
-          cursor: "pointer",
-          color: "var(--text-primary)",
-        }}
+        style={s.header}
       >
-        <Icon.Cpu size={15} style={{ color: "var(--text-muted)" }} />
-        <span style={{ fontWeight: 600, fontSize: 14 }}>{review.agent_name ?? "Agent"}</span>
+        <Icon.Cpu size={15} style={s.headerIcon} />
+        <span style={s.agentName}>{review.agent_name ?? "Agent"}</span>
         {review.verdict && (
           <Badge color={verdictColor} bg="transparent">
             {review.verdict.replace("_", " ")}
           </Badge>
         )}
-        <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
+        <span style={s.countsText}>
           {findings.length} finding{findings.length === 1 ? "" : "s"}
           {blockers > 0 ? ` · ${blockers} blocker${blockers === 1 ? "" : "s"}` : ""}
         </span>
-        <span style={{ flex: 1 }} />
+        <span style={s.spacer} />
         {review.score != null && (
           <Badge mono color="var(--text-secondary)">
             {review.score}
           </Badge>
         )}
-        <span className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>
+        <span className="mono" style={s.when}>
           {formatWhen(review.created_at)}
         </span>
         <button
@@ -121,27 +103,17 @@ export function ReviewRunAccordion({
           disabled={del.isPending}
           title="Delete this review run"
           aria-label="Delete this review run"
-          style={{
-            background: "none",
-            border: "none",
-            cursor: del.isPending ? "not-allowed" : "pointer",
-            color: "var(--text-muted)",
-            display: "inline-flex",
-            padding: 4,
-          }}
+          style={deleteButtonStyle(del.isPending)}
         >
-          <Icon.Trash size={14} style={del.isPending ? { animation: "ddspin 1s linear infinite" } : undefined} />
+          <Icon.Trash size={14} style={del.isPending ? spinningIconStyle : undefined} />
         </button>
-        <Icon.ChevronDown
-          size={16}
-          style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .15s", color: "var(--text-muted)" }}
-        />
+        <Icon.ChevronDown size={16} style={chevronStyle(open)} />
       </div>
 
       {open && (
-        <div style={{ padding: "0 16px 16px" }}>
+        <div style={s.body}>
           {review.verdict && (
-            <div style={{ marginBottom: 16 }}>
+            <div style={s.verdictWrap}>
               <VerdictBanner
                 verdict={review.verdict as Verdict}
                 summary={review.summary}

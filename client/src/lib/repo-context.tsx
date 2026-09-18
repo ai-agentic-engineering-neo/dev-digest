@@ -21,6 +21,10 @@ function repoIdFromPath(pathname: string | null): string | null {
   return m ? decodeURIComponent(m[1]!) : null;
 }
 
+// Stable reference (not `repos ?? []`) so `list` doesn't change identity on
+// every render while repos are still loading — see the useMemo below.
+const EMPTY_REPOS: Repo[] = [];
+
 export function RepoProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { data: repos, isSuccess: reposLoaded } = useRepos();
@@ -43,16 +47,21 @@ export function RepoProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const list = repos ?? [];
+  const list = repos ?? EMPTY_REPOS;
   const fromPath = repoIdFromPath(pathname);
   const repoId = fromPath ?? stored ?? list[0]?.id ?? null;
   const activeRepo = list.find((r) => r.id === repoId) ?? null;
 
-  return (
-    <RepoCtx.Provider value={{ repoId, setRepoId, repos: list, activeRepo, reposLoaded }}>
-      {children}
-    </RepoCtx.Provider>
+  // RepoProvider sits near the root of the provider stack and re-renders on
+  // every navigation (usePathname) — memoize the context value so consumers
+  // (useActiveRepo, every repo-scoped page) don't re-render when repoId/repos/
+  // activeRepo/reposLoaded are all referentially unchanged.
+  const value = React.useMemo(
+    () => ({ repoId, setRepoId, repos: list, activeRepo, reposLoaded }),
+    [repoId, setRepoId, list, activeRepo, reposLoaded],
   );
+
+  return <RepoCtx.Provider value={value}>{children}</RepoCtx.Provider>;
 }
 
 export function useActiveRepo() {

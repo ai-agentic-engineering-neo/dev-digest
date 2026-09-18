@@ -16,7 +16,7 @@ import { RepoNotFound } from "@/components/repo-not-found";
 import { usePulls, useRefreshRepo } from "@/lib/hooks";
 import { useActiveRepo, useRepoNotFound } from "@/lib/repo-context";
 import { ApiError } from "@/lib/api";
-import { COLUMN_KEYS, SKELETON_ROWS } from "./constants";
+import { COLUMN_KEYS, RIGHT_ALIGNED_COLUMNS, SKELETON_ROWS, STATUS_FILTERS } from "./constants";
 import { s } from "./styles";
 import { PRRow } from "./_components/PRRow";
 import { FilterBar } from "./_components/FilterBar";
@@ -95,10 +95,16 @@ export default function PullsPage() {
           onSort={setSort}
           onRefresh={() => refresh.mutate(repoId)}
           refreshing={refresh.isPending}
+          /* Bumped synchronously by the server's RepoService.refresh(), so the
+             ["repos"] invalidation that fires on success reads a fresh value
+             rather than the pre-clone one. */
+          lastSyncedAt={activeRepo?.last_polled_at}
         />
         <div style={s.headRow}>
-          {COLUMN_KEYS.map((key, i) => (
-            <div key={key} style={s.headCell(i === COLUMN_KEYS.length - 1 || key === "cost")}>
+          {/* Alignment is keyed by NAME, not position: the reorder moved `cost`
+              off the tail and put `actions` after it. */}
+          {COLUMN_KEYS.map((key) => (
+            <div key={key} style={s.headCell(RIGHT_ALIGNED_COLUMNS.has(key))}>
               {t(`list.columns.${key}`)}
             </div>
           ))}
@@ -123,7 +129,11 @@ export default function PullsPage() {
             body={
               status === "all"
                 ? t("list.emptyAllBody")
-                : t("list.emptyStatusBody", { status })
+                : t("list.emptyStatusBody", {
+                    status: STATUS_FILTERS.some((f) => f.key === status)
+                      ? t(`list.filter.${status}`)
+                      : status,
+                  })
             }
           />
         ) : (

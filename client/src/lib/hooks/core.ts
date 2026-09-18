@@ -111,6 +111,26 @@ export function usePulls(repoId: string | null | undefined) {
   });
 }
 
+// ---- Workspace (F1: GET /workspace — cloneDir, cloned repos, GitHub identity) ----
+export interface WorkspaceInfo {
+  workspaceId: string;
+  cloneDir: string;
+  repos: { id: string; full_name: string; clone_path: string | null; last_polled_at: string | null; cloned: boolean }[];
+  /** The connected GitHub account, for the app's own top-right avatar — null
+   *  when no token is configured (single local user, not per-PR authorship). */
+  github_user: { login: string; avatar_url: string | null } | null;
+}
+
+export function useWorkspace() {
+  return useQuery({
+    queryKey: ["workspace"],
+    queryFn: () => api.get<WorkspaceInfo>("/workspace"),
+    // Server calls GitHub /user on every request; the identity doesn't change mid-session.
+    staleTime: Infinity,
+    retry: false,
+  });
+}
+
 export function usePullDetail(prId: string | number | null | undefined) {
   return useQuery({
     queryKey: ["pull", prId],

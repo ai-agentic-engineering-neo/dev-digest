@@ -49,7 +49,9 @@ export function VerdictBanner({
       </div>
       {score != null && (
         <div style={s.scoreCol}>
-          <CircularScore score={score} size={52} stroke={5} />
+          {/* The ring follows the VERDICT, not an independent numeric
+              threshold — an "approve" at 62 must not read amber. */}
+          <CircularScore score={score} size={52} stroke={5} colorOverride={m.c} />
           <span style={s.scoreLabel}>{t("verdict.prScore")}</span>
         </div>
       )}

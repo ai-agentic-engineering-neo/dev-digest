@@ -5,6 +5,7 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Chip, Button, TextInput, SelectInput } from "@devdigest/ui";
 import { STATUS_FILTERS } from "../../constants";
+import { relativeTime } from "../../helpers";
 import { s } from "../../styles";
 
 export function FilterBar({
@@ -16,6 +17,7 @@ export function FilterBar({
   onSort,
   onRefresh,
   refreshing,
+  lastSyncedAt,
 }: {
   active: string;
   onActive: (k: string) => void;
@@ -25,8 +27,16 @@ export function FilterBar({
   onSort: (v: string) => void;
   onRefresh: () => void;
   refreshing: boolean;
+  /** `repos.last_polled_at`; null/undefined ⇒ never synced, render nothing. */
+  lastSyncedAt?: string | null;
 }) {
   const t = useTranslations("prReview");
+  // relativeTime() is shared with the Updated column and yields bare
+  // "now"/"12m"/"3h"/"2d" (no "ago"). The wording lives HERE rather than in the
+  // helper, so PRRow's column keeps its terse form.
+  const rel = lastSyncedAt ? relativeTime(lastSyncedAt) : null;
+  const lastSyncedLabel =
+    rel == null || rel === "—" ? null : rel === "now" ? "Last synced just now" : `Last synced ${rel} ago`;
   const sortOptions = [
     { value: "newest", label: t("list.sort.newest") },
     { value: "oldest", label: t("list.sort.oldest") },
@@ -45,6 +55,7 @@ export function FilterBar({
       </div>
       <div style={s.filterActions}>
         <SelectInput value={sort} onChange={onSort} options={sortOptions} mono={false} />
+        {lastSyncedLabel && <span style={s.lastSynced}>{lastSyncedLabel}</span>}
         <Button
           kind="secondary"
           size="sm"

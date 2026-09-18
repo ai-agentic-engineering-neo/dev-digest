@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useCallback } from "react";
+import { useTranslations } from "next-intl";
 import { Icon, Avatar, Badge, Button, Tabs } from "@devdigest/ui";
-import { RunReviewDropdown } from "../RunReviewDropdown";
+import { RunReviewDropdown } from "@/components/run-review-dropdown";
+import { STATUS_META } from "../../../constants";
 import { s } from "./styles";
 import type { PrDetail } from "@/lib/types";
 
@@ -36,12 +38,10 @@ export function PrDetailHeader({
     onRunsStarted();
   }, [onRunsStarted]);
 
-  const statusColor =
-    pr.status === "merged"
-      ? "var(--ok)"
-      : pr.status === "closed"
-        ? "var(--stale)"
-        : "var(--warn)";
+  const t = useTranslations("prReview");
+  const statusMeta = STATUS_META[pr.status];
+  const statusColor = statusMeta?.c ?? "var(--warn)";
+  const statusLabel = statusMeta ? t(`list.status.${statusMeta.labelKey}`) : pr.status;
 
   return (
     <div style={s.root}>
@@ -73,7 +73,7 @@ export function PrDetailHeader({
               <span style={{ color: "var(--code-del-text)" }}>−{pr.deletions}</span>
             </span>
             <Badge dot bg="transparent" color={statusColor}>
-              {pr.status}
+              {statusLabel}
             </Badge>
           </div>
         </div>
@@ -103,8 +103,8 @@ export function PrDetailHeader({
         <div style={s.staleBanner}>
           <Icon.AlertTriangle size={13} style={{ color: "var(--warn)", flexShrink: 0 }} />
           <span>
-            This PR is already {pr.status} — running a review is informational and won't affect the
-            merged code.
+            This PR is already {pr.status} — running a review is informational and won&apos;t affect
+            the merged code.
           </span>
         </div>
       )}

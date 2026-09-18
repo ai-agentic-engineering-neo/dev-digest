@@ -17,11 +17,21 @@ import { DiffTab } from "./_components/DiffTab";
 import RunTraceDrawer from "./_components/RunTraceDrawer";
 import { usePullDetail, usePulls } from "../../../../../lib/hooks";
 import { useQueryClient } from "@tanstack/react-query";
-import { usePrReviews, useCancelRun, usePrActiveRuns, usePrRuns, useDeleteRun } from "../../../../../lib/hooks/reviews";
+import {
+  usePrReviews,
+  useCancelRun,
+  usePrActiveRuns,
+  usePrRuns,
+  useDeleteRun,
+  useRefreshWhenRunsSettle,
+} from "../../../../../lib/hooks/reviews";
 import { useActiveRepo, useRepoNotFound } from "../../../../../lib/repo-context";
 import { ApiError } from "../../../../../lib/api";
 import { githubPrUrl } from "../../../../../lib/github-urls";
-import type { FindingRecord } from "@devdigest/shared";
+import type { FindingRecord, Severity } from "@devdigest/shared";
+
+/** Accepted `?severity=` values — anything else is ignored rather than trusted. */
+const SEVERITIES: Severity[] = ["CRITICAL", "WARNING", "SUGGESTION"];
 
 export default function PRDetailPage() {
   const params = useParams<{ repoId: string; number: string }>();
@@ -45,7 +55,8 @@ export default function PRDetailPage() {
   const { data: activeRuns } = usePrActiveRuns(prId);
   const { data: prRuns } = usePrRuns(prId);
   const deleteRun = useDeleteRun(prId);
-  const liveRunIds = (activeRuns ?? []).map((r) => r.run_id);
+  const liveRunIds = React.useMemo(() => (activeRuns ?? []).map((r) => r.run_id), [activeRuns]);
+  useRefreshWhenRunsSettle(prId, activeRuns ? liveRunIds : undefined);
   const reviewRunning = liveRunIds.length > 0;
   const cancel = useCancelRun();
   const invalidateActiveRuns = () => {
@@ -59,19 +70,43 @@ export default function PRDetailPage() {
 
   const tab = search.get("tab") ?? "overview";
   const traceRunId = search.get("trace");
-  const setParam = (key: string, val: string | null) => {
+  const agentRunId = search.get("agent");
+  const severityParam = search.get("severity");
+  const initialSeverity = SEVERITIES.includes(severityParam as Severity)
+    ? (severityParam as Severity)
+    : null;
+  // Multiple params in ONE replace: two separate single-key writes in the same
+  // tick would both read the same stale `search` and the second would clobber
+  // the first. `scroll: false` because App Router otherwise jumps to the top on
+  // every write — which now happens on every accordion open / severity click,
+  // and would fight ReviewRunAccordion's own smooth scrollIntoView.
+  const setParams = (entries: [string, string | null][]) => {
     const sp = new URLSearchParams(search.toString());
-    if (val == null) sp.delete(key);
-    else sp.set(key, val);
-    router.replace(`/repos/${repoId}/pulls/${number}${sp.toString() ? `?${sp.toString()}` : ""}`);
+    for (const [key, val] of entries) {
+      if (val == null) sp.delete(key);
+      else sp.set(key, val);
+    }
+    router.replace(
+      `/repos/${repoId}/pulls/${number}${sp.toString() ? `?${sp.toString()}` : ""}`,
+      { scroll: false },
+    );
   };
+  const setParam = (key: string, val: string | null) => setParams([[key, val]]);
   const setTab = (t: string) => setParam("tab", t);
 
   // Reviews come newest-first; each is its own run (grouped into accordions).
-  const runs = reviews ?? [];
+  const runs = React.useMemo(() => reviews ?? [], [reviews]);
   const allFindings: FindingRecord[] = React.useMemo(
     () => runs.flatMap((r) => r.findings),
-    [reviews],
+    [runs],
+  );
+  // One lookup for both of the trace drawer's props, with the same defensive
+  // `kind === "review"` guard PRRow/RunHistory/FindingsTab apply: a
+  // "summary"-kind record sharing this run_id must never be resolved as the
+  // run's review.
+  const tracedReview = React.useMemo(
+    () => (traceRunId ? runs.find((r) => r.kind === "review" && r.run_id === traceRunId) : undefined),
+    [runs, traceRunId],
   );
   const lethalTrifecta = allFindings.filter((f) => f.kind === "lethal_trifecta");
   const findingsCount = allFindings.length;
@@ -130,7 +165,11 @@ export default function PRDetailPage() {
         githubUrl={repoFullName ? githubPrUrl(repoFullName, pr.number) : null}
         onSetTab={setTab}
         onRunStart={() => setTab("findings")}
-        onRunsStarted={() => invalidateActiveRuns()}
+        onRunsStarted={() => {
+          invalidateActiveRuns();
+          // The Timeline's history only polls while it has SEEN a running row.
+          invalidateRunHistory();
+        }}
       />
 
       <div style={{ padding: "24px 32px 44px", display: "flex", flexDirection: "column", gap: 24, maxWidth: 1080, margin: "0 auto" }}>
@@ -147,7 +186,12 @@ export default function PRDetailPage() {
             prCommits={pr.commits}
             repoFullName={repoFullName}
             headSha={pr.head_sha}
+            repoId={repoId}
+            prNumber={pr.number}
+            initialAgentRunId={agentRunId}
+            initialSeverity={initialSeverity}
             cancelMutation={cancel}
+            onTargetChange={(runId, sev) => setParams([["agent", runId], ["severity", sev]])}
             onOpenTrace={(id) => setParam("trace", id)}
             onDelete={(id) => {
               if (window.confirm("Delete this run from history? (its logs are removed too)"))
@@ -175,8 +219,9 @@ export default function PRDetailPage() {
         <RunTraceDrawer
           runId={traceRunId}
           prNumber={pr.number}
-          findings={runs.find((r) => r.run_id === traceRunId)?.findings ?? []}
-          agentName={runs.find((r) => r.run_id === traceRunId)?.agent_name ?? null}
+          findings={tracedReview?.findings ?? []}
+          agentName={tracedReview?.agent_name ?? null}
+          running={liveRunIds.includes(traceRunId)}
           onClose={() => setParam("trace", null)}
         />
       )}

@@ -1,0 +1,23 @@
+{
+  "name": "Severity pills in the Review-runs accordion filter findings by severity",
+  "description": "From PR #482's Agent runs tab, the seeded review's accordion (open by default) shows a severity-pill row under the verdict/score with the two seeded findings' severities (1 CRITICAL 'Hardcoded Stripe secret key in commit', 1 WARNING 'N+1 query in user list endpoint'). Clicking the CRITICAL pill narrows the finding-card list to just that severity (proven by a card-count drop, not just a text match); clicking it again restores both. Read-only seeded data (no model call). Assumes a freshly-seeded DB (hermetic stack).",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "land on the PR list" },
+    { "cmd": ["wait", "--text", "Add rate limiting to public API endpoints"], "label": "seeded PR title row is visible" },
+    { "cmd": ["find", "text", "Add rate limiting to public API endpoints", "click"], "label": "open the PR row" },
+    { "cmd": ["wait", "--url", "/pulls/482"], "label": "navigate to the PR detail route" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "PR detail data settles" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Agent runs"], "label": "switch to the Agent runs tab" },
+    { "cmd": ["wait", "--url", "tab=findings"], "label": "findings tab is active in the URL" },
+    { "cmd": ["wait", "--text", "CRITICAL"], "label": "severity pill row is visible under the verdict" },
+    { "cmd": ["wait", "--text", "WARNING"], "label": "both seeded severities have a pill" },
+    { "cmd": ["get", "count", "[data-finding-id]"], "label": "both seeded findings render before filtering", "assert": { "stdoutIncludes": "2" } },
+    { "cmd": ["find", "text", "CRITICAL", "click"], "label": "click the CRITICAL pill" },
+    { "cmd": ["get", "count", "[data-finding-id]"], "label": "only the CRITICAL finding renders after filtering", "assert": { "stdoutIncludes": "1" } },
+    { "cmd": ["wait", "--text", "Hardcoded Stripe secret key in commit"], "label": "the CRITICAL finding is still visible" },
+    { "cmd": ["find", "text", "CRITICAL", "click"], "label": "click the CRITICAL pill again to clear the filter" },
+    { "cmd": ["get", "count", "[data-finding-id]"], "label": "both findings render again once the filter clears", "assert": { "stdoutIncludes": "2" } },
+    { "cmd": ["wait", "--text", "N+1 query in user list endpoint"], "label": "the WARNING finding is visible again" }
+  ]
+}

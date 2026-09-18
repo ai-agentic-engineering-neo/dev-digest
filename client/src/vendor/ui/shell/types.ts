@@ -34,6 +34,9 @@ export interface ShellContext {
   onRemoveRepo?: (id: string) => void;
   onRefresh?: () => void;
   prCount?: number;
+  /** The connected GitHub account, for the top-right avatar. Null when no
+   *  token is configured (single local user, not per-PR authorship). */
+  githubUser?: { login: string; avatarUrl: string | null } | null;
 }
 
 export interface Crumb {

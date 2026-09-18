@@ -154,6 +154,15 @@ export type Repo = z.infer<typeof Repo>;
 export const PrStatus = z.enum(['needs_review', 'reviewed', 'stale', 'open', 'closed', 'merged']);
 export type PrStatus = z.infer<typeof PrStatus>;
 
+/** Active (non-dismissed) finding counts per severity, on the PR's LATEST
+ *  review only (not aggregated across every historical review). */
+export const FindingsBySeverity = z.object({
+  CRITICAL: z.number().int(),
+  WARNING: z.number().int(),
+  SUGGESTION: z.number().int(),
+});
+export type FindingsBySeverity = z.infer<typeof FindingsBySeverity>;
+
 export const PrMeta = z.object({
   id: z.string().nullish(),
   number: z.number().int(),
@@ -170,12 +179,15 @@ export const PrMeta = z.object({
   updated_at: z.string().nullish(),
   // Latest-review score (list endpoint only; null/absent until reviewed).
   score: z.number().int().nullish(),
-  // Sum of every run in the latest REVIEW BATCH — every agent triggered by
-  // the same "Run Review"/"Review all" click that produced the score above
-  // (not a single run, and not an all-time sum). Null until reviewed, or if
-  // every run in that batch predates cost tracking. Absent entirely (never
+  // Sum of every SUCCESSFUL run ever recorded for this PR (all-time, not
+  // scoped to a single batch or review). Null once at least one run exists
+  // but none of the successful ones have known cost. Absent entirely (never
   // just null) when the PR has had zero runs at all.
   cost_usd: z.number().nullish(),
+  // Active (non-dismissed) findings on the PR's latest review, grouped by
+  // severity. Absent until a review exists; all-zero once one exists but
+  // found nothing (a known state, distinct from "no review yet").
+  findings_by_severity: FindingsBySeverity.nullish(),
 });
 export type PrMeta = z.infer<typeof PrMeta>;
 

@@ -4,14 +4,19 @@ export function CircularScore({
   score,
   size = 44,
   stroke = 4,
+  colorOverride,
 }: {
   score: number;
   size?: number;
   stroke?: number;
+  /** Force the ring colour (e.g. to match a verdict / run-outcome badge) instead
+   *  of deriving it from the numeric thresholds. Purely additive: omit it and
+   *  the score-threshold colouring is unchanged. */
+  colorOverride?: string;
 }) {
   const r = (size - stroke) / 2;
   const circ = 2 * Math.PI * r;
-  const c = score >= 75 ? "var(--ok)" : score >= 50 ? "var(--warn)" : "var(--crit)";
+  const c = colorOverride ?? (score >= 75 ? "var(--ok)" : score >= 50 ? "var(--warn)" : "var(--crit)");
   return (
     <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
       <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>

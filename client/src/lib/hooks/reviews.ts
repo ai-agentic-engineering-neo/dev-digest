@@ -34,6 +34,37 @@ export function usePrActiveRuns(prId: string | null | undefined) {
   });
 }
 
+/** Refresh everything a FINISHED run changes — its review + findings (Review
+ *  runs section), the PR's derived status/score (detail header, PR list) and
+ *  its run history — the moment a run leaves the server's active set.
+ *
+ *  Keyed off DATA (the polled active-run ids shrinking), deliberately NOT off
+ *  RunStatus's SSE `onDone`: RunStatus only renders while this same active set
+ *  is non-empty, so when the 4s poll empties it first, RunStatus unmounts
+ *  before its stream reports "done" and the reviews were never refetched —
+ *  the Timeline (which polls on its own) updated while Review runs stayed stale
+ *  until a reload. The server persists the review BEFORE marking the run done
+ *  (run-executor: insertReview → completeAgentRun), so a refetch here always
+ *  sees it. */
+export function useRefreshWhenRunsSettle(
+  prId: string | null | undefined,
+  activeRunIds: string[] | undefined,
+) {
+  const qc = useQueryClient();
+  const prev = React.useRef<Set<string>>(new Set());
+  React.useEffect(() => {
+    if (!prId || !activeRunIds) return;
+    const now = new Set(activeRunIds);
+    const settled = [...prev.current].some((id) => !now.has(id));
+    prev.current = now;
+    if (!settled) return;
+    qc.invalidateQueries({ queryKey: ["reviews", prId] });
+    qc.invalidateQueries({ queryKey: ["pr-runs", prId] });
+    qc.invalidateQueries({ queryKey: ["pull", prId] });
+    qc.invalidateQueries({ queryKey: ["pulls"] });
+  }, [prId, activeRunIds, qc]);
+}
+
 // ---- Full run history for a PR (every agent_runs row, any status) ----
 /** All runs for a PR — done, failed (with error), cancelled, running. Survives
    reload (DB-backed). Polls while anything is running so it self-updates. */
@@ -48,11 +79,11 @@ export function usePrRuns(prId: string | null | undefined) {
 }
 
 // ---- Persisted reviews + findings for a PR ----
-export function usePrReviews(prId: string | null | undefined) {
+export function usePrReviews(prId: string | null | undefined, opts?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ["reviews", prId],
     queryFn: () => api.get<ReviewRecord[]>(`/pulls/${prId}/reviews`),
-    enabled: !!prId,
+    enabled: !!prId && (opts?.enabled ?? true),
   });
 }
 

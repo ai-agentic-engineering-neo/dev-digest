@@ -7,7 +7,7 @@ import { useTranslations } from "next-intl";
 import { type ShellContext } from "@devdigest/ui";
 import { useTheme } from "../../../lib/theme";
 import { useActiveRepo } from "../../../lib/repo-context";
-import { usePulls, useDeleteRepo } from "../../../lib/hooks";
+import { usePulls, useDeleteRepo, useWorkspace } from "../../../lib/hooks";
 import { activeKeyFor, toShellRepo } from "../helpers";
 
 interface ShellContextOptions {
@@ -26,6 +26,7 @@ export function useShellContext({ onOpenCommandPalette }: ShellContextOptions): 
   const { theme, toggle } = useTheme();
   const { repoId, repos, activeRepo, setRepoId } = useActiveRepo();
   const { data: pulls } = usePulls(repoId);
+  const { data: workspace } = useWorkspace();
   const deleteRepo = useDeleteRepo();
 
   const onSelectRepo = React.useCallback(
@@ -73,6 +74,9 @@ export function useShellContext({ onOpenCommandPalette }: ShellContextOptions): 
       // Sidebar badge = PRs that still NEED review, not the total PR count.
       // 0 → undefined so the badge hides entirely when nothing needs review.
       prCount: pulls?.filter((p) => p.status === "needs_review").length || undefined,
+      githubUser: workspace?.github_user
+        ? { login: workspace.github_user.login, avatarUrl: workspace.github_user.avatar_url }
+        : null,
     }),
     [
       pathname,
@@ -86,6 +90,7 @@ export function useShellContext({ onOpenCommandPalette }: ShellContextOptions): 
       onAddRepo,
       onRemoveRepo,
       pulls,
+      workspace,
     ],
   );
 }

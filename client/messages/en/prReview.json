@@ -91,8 +91,10 @@
       "author": "Author",
       "size": "Size",
       "score": "Score",
-      "cost": "Cost",
+      "findings": "Findings",
       "status": "Status",
+      "cost": "Cost",
+      "actions": "",
       "updated": "Updated"
     },
     "filesCount": "{count} files",
@@ -104,6 +106,7 @@
   },
   "timeline": {
     "goToReview": "Jump to this run’s findings below",
+    "copyLink": "Copy a shareable link to this run",
     "openTrace": "Open run trace & logs",
     "deleteRun": "Delete run"
   }

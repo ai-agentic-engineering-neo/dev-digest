@@ -1,18 +1,16 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { sql } from 'drizzle-orm';
-import { eq } from 'drizzle-orm';
 import { startPg, dockerAvailable, type PgFixture } from './helpers/pg.js';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/platform/config.js';
 import { seed } from '../src/db/seed.js';
 import * as t from '../src/db/schema.js';
+import { eq } from 'drizzle-orm';
 import { MockGitClient, MockGitHubClient } from '../src/adapters/mocks.js';
 
 const hasDocker = await dockerAvailable();
 const d = hasDocker ? describe : describe.skip;
 
 if (!hasDocker) {
-  // eslint-disable-next-line no-console
   console.warn(
     '[integration] Docker not available — skipping Testcontainers integration tests.',
   );
@@ -128,6 +126,43 @@ d('Testcontainers: DB-backed routes via app.inject', () => {
     // import again → still idempotent (unique repo_id+number)
     const second = await app.inject({ method: 'GET', url: `/repos/${repoId}/pulls` });
     expect(second.json().length).toBe(first.json().length);
+    await app.close();
+  });
+
+  /**
+   * The PR list's "Last synced" label reads `repos.last_polled_at` right after
+   * the client invalidates ["repos"] on the refresh mutation's onSuccess. That
+   * happens the moment the request resolves, so a bump that only landed when
+   * the async clone job finished would always be read back stale.
+   */
+  it('POST /repos/:id/refresh bumps last_polled_at SYNCHRONOUSLY, before the clone job runs', async () => {
+    const config = loadConfig({ ...process.env, NODE_ENV: 'test' } as NodeJS.ProcessEnv);
+    const app = await buildApp({
+      config,
+      db: pg.handle.db,
+      overrides: { git: new MockGitClient(), github: new MockGitHubClient() },
+    });
+    const repoId = (await app.inject({ method: 'GET', url: '/repos' })).json()[0]!.id;
+
+    // Park last_polled_at in the past so any bump is unambiguous.
+    const past = new Date(Date.now() - 86_400_000);
+    await pg.handle.db.update(t.repos).set({ lastPolledAt: past }).where(eq(t.repos.id, repoId));
+
+    const before = Date.now();
+    const res = await app.inject({ method: 'POST', url: `/repos/${repoId}/refresh` });
+    expect(res.json().status).toBe('refreshing');
+
+    // Read it back WITHOUT awaiting the job queue — this is exactly what the
+    // client's immediate refetch sees.
+    const [row] = await pg.handle.db.select().from(t.repos).where(eq(t.repos.id, repoId));
+    expect(row!.lastPolledAt!.getTime()).toBeGreaterThanOrEqual(before - 1000);
+    expect(row!.lastPolledAt!.getTime()).toBeGreaterThan(past.getTime());
+
+    // The post-clone bump still happens too (it is additional, not a swap).
+    await app.container.jobs.onIdle();
+    const [after] = await pg.handle.db.select().from(t.repos).where(eq(t.repos.id, repoId));
+    expect(after!.lastPolledAt!.getTime()).toBeGreaterThanOrEqual(row!.lastPolledAt!.getTime());
+
     await app.close();
   });
 

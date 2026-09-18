@@ -237,6 +237,10 @@ export class MockGitHubClient implements GitHubClient {
   async currentLogin(): Promise<string> {
     return this.opts.login ?? 'mock-user';
   }
+
+  async getAuthenticatedUser(): Promise<{ login: string; avatarUrl: string | null }> {
+    return { login: this.opts.login ?? 'mock-user', avatarUrl: null };
+  }
 }
 
 // ---------- Mock Git ----------

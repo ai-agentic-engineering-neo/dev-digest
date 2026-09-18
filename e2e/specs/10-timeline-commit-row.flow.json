@@ -1,0 +1,19 @@
+{
+  "name": "PR Timeline renders the seeded commit row in accent blue",
+  "description": "From PR #482's Agent runs tab, the Timeline interleaves agent runs with the PR's commits. The seeded commit (a1b2c3d4e5f6 'Add token-bucket rate limiter') must render as a commit row: git-commit icon + short sha, with the sha carrying the accent (blue) colour token that distinguishes commits from run rows. The colour is asserted as the TOKEN on the inline style attribute (color:var(--accent)) rather than a computed rgb: the computed value differs per theme (#3b82f6 dark / #2563eb light), so a computed-colour assertion would silently pin this flow to whichever theme the browser profile happens to carry. NOTE — the Timeline's copy-shareable-link button is deliberately NOT covered here: seed.ts writes no agent_runs rows (the seeded review carries no run_id), so PR #482's Timeline has commit rows only and no run row exists to copy a link from. Creating one would require an actual review run, i.e. a live model call, which every flow here is forbidden from doing; that button's click → icon swap is covered by RunHistory.test.tsx instead. Read-only seeded data. Assumes a freshly-seeded DB (hermetic stack).",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "land on the PR list" },
+    { "cmd": ["wait", "--text", "Add rate limiting to public API endpoints"], "label": "seeded PR title row is visible" },
+    { "cmd": ["find", "text", "Add rate limiting to public API endpoints", "click"], "label": "open the PR row" },
+    { "cmd": ["wait", "--url", "/pulls/482"], "label": "navigate to the PR detail route" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "PR detail data settles" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Agent runs"], "label": "switch to the Agent runs tab" },
+    { "cmd": ["wait", "--url", "tab=findings"], "label": "findings tab is active in the URL" },
+    { "cmd": ["wait", "--text", "TIMELINE"], "label": "the Timeline section renders (its label is CSS-uppercased, and --text matches RENDERED text)" },
+    { "cmd": ["wait", "--text", "Add token-bucket rate limiter"], "label": "the seeded commit's message is on the timeline" },
+    { "cmd": ["get", "count", "svg[class*='lucide-git-commit']"], "label": "exactly one commit row (the seed's single commit)", "assert": { "stdoutIncludes": "1" } },
+    { "cmd": ["get", "text", "svg[class*='lucide-git-commit'] + span"], "label": "the commit row shows the 7-char short sha", "assert": { "stdoutIncludes": "a1b2c3d" } },
+    { "cmd": ["get", "attr", "svg[class*='lucide-git-commit'] + span", "style"], "label": "the short sha is painted with the accent (blue) token", "assert": { "stdoutIncludes": "var(--accent)" } }
+  ]
+}

@@ -13,5 +13,9 @@ export const VERDICT_META: Record<
     labelKey: "requestChanges",
   },
   approve: { c: "var(--ok)", bg: "var(--ok-bg)", icon: "CheckCircle", labelKey: "approve" },
-  comment: { c: "var(--info)", bg: "var(--info-bg)", icon: "MessageSquare", labelKey: "comment" },
+  // Amber, not gray: "comment" is the warning-only outcome (findings exist, but
+  // none of them block). This is also VerdictBanner's fallback for an
+  // unrecognized verdict, so that neutral fallback reads amber too — deliberate.
+  // Both `c` AND `bg` move, otherwise an amber icon sits in a gray-tinted box.
+  comment: { c: "var(--warn)", bg: "var(--warn-bg)", icon: "MessageSquare", labelKey: "comment" },
 };

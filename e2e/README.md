@@ -100,6 +100,9 @@ a CI artifact by `.github/workflows/e2e-web.yml`).
 | `05-pr-diff` | PR #482 → Files changed tab → seeded file renders in the diff viewer |
 | `06-onboarding` | `/onboarding` → add-repository form renders (no submit) |
 | `07-settings` | `/settings/api-keys` + `/settings/models` → section titles render |
+| `08-severity-pills` | PR #482 → Agent runs tab → seeded run's severity pills (1 CRITICAL, 1 WARNING) filter the finding-card list on click, restore on re-click |
+| `09-pr-list-actions` | PR list → the Actions column's labelled Run Review (ghost) trigger opens its body-portaled menu without navigating the row; "Configure agents…" leaves for `/agents` |
+| `10-timeline-commit-row` | PR #482 → Agent runs tab → Timeline renders the seeded commit row (git-commit icon + short sha) painted with the accent token |
 
 ---
 

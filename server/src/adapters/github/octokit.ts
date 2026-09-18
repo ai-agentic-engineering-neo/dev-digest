@@ -369,4 +369,11 @@ export class OctokitGitHubClient implements GitHubClient {
     );
     return res.data.login;
   }
+
+  async getAuthenticatedUser(): Promise<{ login: string; avatarUrl: string | null }> {
+    const res = await withRetry(() =>
+      withTimeout(this.octokit.rest.users.getAuthenticated(), TIMEOUT),
+    );
+    return { login: res.data.login, avatarUrl: res.data.avatar_url ?? null };
+  }
 }

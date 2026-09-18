@@ -55,4 +55,30 @@ describe("A5 Run Trace drawer (smoke)", () => {
     // LiveLogStream renders its filter input
     expect(screen.getByPlaceholderText("Filter log…")).toBeInTheDocument();
   });
+
+  it("renders the run's actual findings, not just cost/stats (criterion 23)", () => {
+    const findings = [
+      {
+        id: "f1",
+        severity: "CRITICAL" as const,
+        category: "security" as const,
+        title: "Hardcoded Stripe secret key in commit",
+        file: "src/config.ts",
+        start_line: 12,
+        end_line: 12,
+        rationale: "Line 12 contains a literal secret key.",
+        suggestion: null,
+        confidence: 0.98,
+        review_id: "rv1",
+        accepted_at: null,
+        dismissed_at: null,
+      },
+    ];
+    renderWithIntl(
+      <RunTraceDrawer runId="r1" agentName="Security" prNumber={482} findings={findings} onClose={() => {}} />,
+    );
+    expect(screen.getByText("Hardcoded Stripe secret key in commit")).toBeInTheDocument();
+    expect(screen.getByText("CRITICAL")).toBeInTheDocument();
+    expect(screen.getByText(/src\/config\.ts:12/)).toBeInTheDocument();
+  });
 });

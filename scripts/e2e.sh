@@ -40,6 +40,10 @@ WEB_PORT="${E2E_WEB_PORT:-3100}"
 export DATABASE_URL="postgres://${PG_USER}:${PG_PASS}@127.0.0.1:${PG_PORT}/${PG_DB}"
 export API_PORT WEB_PORT
 export NEXT_PUBLIC_API_BASE="http://localhost:${API_PORT}"
+# Separate Next build dir: NEXT_PUBLIC_API_BASE is inlined into compiled
+# chunks, so sharing client/.next with a running `pnpm dev` (:3000 → :3001)
+# would bake :3101 into ITS pages and break them once this stack exits.
+export NEXT_DIST_DIR=".next-e2e"
 export E2E_BASE_URL="http://localhost:${WEB_PORT}"
 
 log()  { printf '\033[1;36m▸ %s\033[0m\n' "$*"; }

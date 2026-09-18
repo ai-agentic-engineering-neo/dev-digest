@@ -59,10 +59,8 @@ export function FindingCard({
         </div>
         <div style={s.headerMain}>
           <div style={s.titleRow}>
-            <span style={s.title(muted, dismissed)}>{f.title}</span>
+            <span style={s.title(muted, accepted)}>{f.title}</span>
             <CategoryTag category={f.category as Category} />
-            {accepted && <span style={s.acceptedTag}>{t("finding.accepted")}</span>}
-            {dismissed && <span style={s.dismissedTag}>{t("finding.dismissed")}</span>}
           </div>
           <div style={s.metaRow}>
             <MonoLink href={fileHref}>
@@ -71,6 +69,18 @@ export function FindingCard({
             <ConfidenceNum value={f.confidence} />
           </div>
         </div>
+        {accepted && (
+          <span style={s.acceptedTag}>
+            <Icon.Check size={12} />
+            {t("finding.accepted")}
+          </span>
+        )}
+        {dismissed && (
+          <span style={s.dismissedTag}>
+            <Icon.X size={12} />
+            {t("finding.dismissed")}
+          </span>
+        )}
         <Icon.ChevronDown size={16} style={s.chevron(expanded)} />
       </div>
 
@@ -93,8 +103,8 @@ export function FindingCard({
               kind="secondary"
               size="sm"
               icon="Check"
-              disabled={pending}
-              active={accepted}
+              disabled={pending || accepted}
+              style={accepted ? s.pressedBorder : undefined}
               onClick={() => onAction?.("accept")}
             >
               {t("finding.accept")}
@@ -103,8 +113,8 @@ export function FindingCard({
               kind="ghost"
               size="sm"
               icon="X"
-              disabled={pending}
-              active={dismissed}
+              disabled={pending || dismissed}
+              style={dismissed ? s.pressedBorder : undefined}
               onClick={() => onAction?.("dismiss")}
             >
               {t("finding.dismiss")}

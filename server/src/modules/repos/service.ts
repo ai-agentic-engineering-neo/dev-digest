@@ -114,6 +114,11 @@ export class RepoService {
   async refresh(workspaceId: string, id: string): Promise<{ status: 'refreshing' }> {
     const repo = await this.repo.getById(workspaceId, id);
     if (!repo) throw new NotFoundError('Repo not found');
+    // Bump "last synced" NOW, in addition to (never instead of) the post-clone
+    // bump in `updateClonePath`. The client invalidates its ["repos"] cache the
+    // moment this request resolves, so a bump that only landed when the async
+    // clone job finished would always be read back stale.
+    await this.repo.touchLastPolled(workspaceId, repo.id);
     await this.container.jobs.enqueue(workspaceId, CLONE_JOB_KIND, {
       repoId: repo.id,
       owner: repo.owner,

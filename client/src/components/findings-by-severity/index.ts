@@ -1,0 +1,1 @@
+export { FindingsBySeverityBadge } from "./FindingsBySeverityBadge";

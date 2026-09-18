@@ -69,6 +69,20 @@ export class RepoRepository {
     return row?.workspaceId ?? null;
   }
 
+  /**
+   * Bump `last_polled_at` to now, without touching the clone path. Called
+   * SYNCHRONOUSLY from `RepoService.refresh()` so the "Last synced" label the
+   * client re-reads on its `["repos"]` invalidation is already fresh — the
+   * post-clone bump in `updateClonePath` lands much later, after the enqueued
+   * clone job completes.
+   */
+  async touchLastPolled(workspaceId: string, repoId: string): Promise<void> {
+    await this.db
+      .update(t.repos)
+      .set({ lastPolledAt: new Date() })
+      .where(and(eq(t.repos.workspaceId, workspaceId), eq(t.repos.id, repoId)));
+  }
+
   /** Persist the clone path and bump `last_polled_at` once a clone job completes. */
   async updateClonePath(repoId: string, clonePath: string): Promise<void> {
     await this.db

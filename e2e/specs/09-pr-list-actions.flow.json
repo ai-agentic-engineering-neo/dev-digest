@@ -1,0 +1,105 @@
+{
+  "name": "PR list Actions column: the Run Review dropdown opens without navigating the row",
+  "description": "The PR list's new ACTIONS column holds a labelled 'Run Review ⌄' ghost-style trigger (highlights on hover) whose menu is portaled to document.body (the table card is overflow: hidden, which would otherwise clip it). Opening the menu must NOT fire the row's own navigation, and 'Configure agents…' must leave for /agents. Read-only: the flow only opens the menu and follows the Configure link — it never picks 'Run all enabled agents' or a specific agent, so no model call happens. NOTE: the 'Last synced' label next to Refresh is deliberately NOT asserted here — seed.ts leaves repos.last_polled_at NULL, so it only appears after a real Refresh, which would enqueue a live clone and break this flow's read-only contract (it is covered by FilterBar.test.tsx instead).",
+  "steps": [
+    {
+      "cmd": [
+        "open",
+        "{BASE}/"
+      ],
+      "label": "load the app root"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "/pulls"
+      ],
+      "label": "land on the PR list"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Add rate limiting to public API endpoints"
+      ],
+      "label": "seeded PR title row is visible"
+    },
+    {
+      "cmd": [
+        "get",
+        "count",
+        "[data-testid='actions-cell'] button"
+      ],
+      "label": "the Actions cell holds exactly one trigger",
+      "assert": {
+        "stdoutIncludes": "1"
+      }
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Run Review"
+      ],
+      "label": "open the Run Review dropdown"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Run all enabled agents"
+      ],
+      "label": "the portaled menu rendered"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "/pulls"
+      ],
+      "label": "opening the menu did NOT navigate into the PR detail route"
+    },
+    {
+      "cmd": [
+        "get",
+        "count",
+        "body > [data-testid='dropdown-menu']"
+      ],
+      "label": "the menu is portaled to document.body, escaping the card's overflow: hidden",
+      "assert": {
+        "stdoutIncludes": "1"
+      }
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Configure agents…"
+      ],
+      "label": "pick the read-only 'Configure agents…' item"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "/agents"
+      ],
+      "label": "it navigates to the agents screen"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Security Reviewer"
+      ],
+      "label": "the agents screen loaded"
+    }
+  ]
+}

@@ -32,6 +32,23 @@ describe('assemblePrompt — shared injection guard (server + CI)', () => {
   });
 });
 
+describe('assemblePrompt — output language is pinned to English', () => {
+  const sys = systemOf({ system: 'AGENT-SYS', diff: 'DIFF' });
+
+  it('tells the model to write summary/titles/rationale/suggestions in English', () => {
+    // A real DeepSeek run on an English PR came back entirely in Chinese.
+    expect(sys).toMatch(/OUTPUT LANGUAGE/);
+    expect(sys).toMatch(/in English, regardless of the language/);
+    expect(sys).toMatch(/summary, finding titles, rationales and suggested fixes/);
+  });
+
+  it('keeps code/identifiers verbatim and comes after the injection guard', () => {
+    expect(sys).toMatch(/Keep code, identifiers, file paths/);
+    expect(sys.indexOf('SECURITY')).toBeLessThan(sys.indexOf('OUTPUT LANGUAGE'));
+    expect(sys.startsWith('AGENT-SYS')).toBe(true);
+  });
+});
+
 describe('assemblePrompt — ## PR description', () => {
   it('renders the section (untrusted-wrapped) before the diff when present', () => {
     const { messages, assembly } = assemblePrompt({

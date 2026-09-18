@@ -45,6 +45,15 @@ export const s = {
     color: "var(--text-secondary)",
     textAlign: "right",
   } satisfies CSSProperties,
+  findingsCell: {
+    display: "flex",
+    alignItems: "center",
+  } satisfies CSSProperties,
+  actionsCell: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  } satisfies CSSProperties,
   updatedCell: {
     fontSize: 12,
     color: "var(--text-muted)",
@@ -60,6 +69,7 @@ export const s = {
     flexWrap: "wrap",
   } satisfies CSSProperties,
   filterChips: { display: "flex", gap: 8 } satisfies CSSProperties,
+  lastSynced: { fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" } satisfies CSSProperties,
   filterActions: {
     marginLeft: "auto",
     display: "flex",

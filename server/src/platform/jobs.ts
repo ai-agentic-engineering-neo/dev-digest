@@ -96,6 +96,11 @@ export class JobRunner {
         throw err;
       }
     }) as Promise<void>;
+    // Callers only await enqueue() itself (fire-and-forget job execution), not
+    // `done` — an unobserved rejection here would otherwise crash the process.
+    // Attaching a catch marks it handled without affecting callers that do
+    // inspect `done`.
+    done.catch(() => {});
 
     return { id: jobId, done };
   }

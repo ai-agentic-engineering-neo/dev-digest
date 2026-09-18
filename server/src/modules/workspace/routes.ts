@@ -19,6 +19,19 @@ export default async function workspaceRoutes(app: FastifyInstance) {
       .select()
       .from(t.repos)
       .where(eq(t.repos.workspaceId, workspaceId));
+
+    // The connected GitHub identity, for the app's own top-right avatar —
+    // null (not a thrown error) when no token is configured / offline, same
+    // graceful-degradation pattern as the pulls list's GitHub sync.
+    let githubUser: { login: string; avatar_url: string | null } | null = null;
+    try {
+      const gh = await container.github();
+      const user = await gh.getAuthenticatedUser();
+      githubUser = { login: user.login, avatar_url: user.avatarUrl };
+    } catch (err) {
+      app.log.warn({ err }, 'GitHub user lookup skipped (no token / offline)');
+    }
+
     return {
       workspaceId,
       cloneDir: container.config.cloneDir,
@@ -29,6 +42,7 @@ export default async function workspaceRoutes(app: FastifyInstance) {
         last_polled_at: r.lastPolledAt?.toISOString() ?? null,
         cloned: Boolean(r.clonePath),
       })),
+      github_user: githubUser,
     };
   });
 }

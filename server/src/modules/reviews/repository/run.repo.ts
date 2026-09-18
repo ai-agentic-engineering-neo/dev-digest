@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import type { Db } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
 import type { RunSummary, RunTrace } from '@devdigest/shared';
@@ -42,13 +42,22 @@ export async function listRunsForPull(
   workspaceId: string,
   prId: string,
 ): Promise<RunSummary[]> {
+  // `run_traces.run_id` is that table's PRIMARY KEY (1:1 with agent_runs), so
+  // this LEFT JOIN can never fan out rows. Select only the EXISTENCE flag —
+  // never `runTraces.trace`, whose jsonb holds the entire run log and would
+  // turn this list endpoint into a multi-megabyte payload.
   const rows = await db
-    .select({ run: t.agentRuns, agentName: t.agents.name })
+    .select({
+      run: t.agentRuns,
+      agentName: t.agents.name,
+      hasTrace: sql<boolean>`${t.runTraces.runId} IS NOT NULL`,
+    })
     .from(t.agentRuns)
     .leftJoin(t.agents, eq(t.agents.id, t.agentRuns.agentId))
+    .leftJoin(t.runTraces, eq(t.runTraces.runId, t.agentRuns.id))
     .where(and(eq(t.agentRuns.workspaceId, workspaceId), eq(t.agentRuns.prId, prId)))
     .orderBy(desc(t.agentRuns.ranAt));
-  return rows.map(({ run, agentName }) => ({
+  return rows.map(({ run, agentName, hasTrace }) => ({
     run_id: run.id,
     agent_id: run.agentId,
     agent_name: agentName ?? null,
@@ -65,6 +74,7 @@ export async function listRunsForPull(
     ran_at: run.ranAt ? run.ranAt.toISOString() : null,
     score: run.score,
     blockers: run.blockers,
+    has_trace: hasTrace === true,
   }));
 }
 

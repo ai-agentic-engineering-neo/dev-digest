@@ -115,5 +115,10 @@ export const RunSummary = z.object({
   blockers: z.number().int().nullable(),
   /** USD cost of this run; null = no cost data (never fabricated). */
   cost_usd: z.number().nullable(),
+  /** True when a `run_traces` document exists for this run. Derived server-side
+   *  from a LEFT JOIN flag — never the trace itself (that jsonb holds the whole
+   *  run log). Optional so pre-existing `RunSummary` fixtures/rows stay valid;
+   *  treat a missing value as "unknown, assume a trace may exist". */
+  has_trace: z.boolean().optional(),
 });
 export type RunSummary = z.infer<typeof RunSummary>;

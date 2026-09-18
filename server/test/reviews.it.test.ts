@@ -217,8 +217,8 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(run!.grounding).toBe('1/2 passed');
     expect(run!.costUsd).toBe(0.001);
 
-    // PR-list COST column: sum of the last review-batch's run costs (a
-    // single-run batch here, so it's just this run's cost).
+    // PR-list COST column: all-time sum of the PR's successful runs (only
+    // one run here, so it's just this run's cost).
     const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
     const listedPr = pulls.find((p: { id: string }) => p.id === pr.id);
     expect(listedPr.cost_usd).toBe(0.001);
@@ -314,7 +314,7 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     await app.close();
   });
 
-  it('PR-list COST sums every run from the same review batch, not just one', async () => {
+  it('PR-list COST sums every run of a multi-agent "Review all", not just one', async () => {
     const app = await appWith(REVIEW_FIXTURE);
     const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
 
@@ -334,10 +334,8 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
       payload: { name: 'BatchB', provider: 'openai', model: 'gpt-4.1', system_prompt: 'b' },
     });
 
-    // ONE "Review all" click — service.runReview() creates every agent_runs
-    // row for the whole batch up front, in a single synchronous loop, before
-    // any LLM work starts (unlike two separate POSTs, which are two distinct
-    // clicks and wouldn't exercise the batch-reconstruction window at all).
+    // ONE "Review all" click — service.runReview() creates one agent_runs
+    // row per enabled agent; the PR-list cost must include both.
     const body = (
       await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { all: true } })
     ).json();
@@ -347,6 +345,116 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
     const listedPr = pulls.find((p: { id: string }) => p.id === pr.id);
     expect(listedPr.cost_usd).toBeCloseTo(0.002, 6);
+
+    await app.close();
+  });
+
+  it('PR-list COST is a true all-time sum across separate historical batches, not just the latest', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+
+    // Two runs recorded hours apart — under the old batch-window logic these
+    // would NOT have been summed together; the all-time sum must include both.
+    await pg.handle.db.insert(t.agentRuns).values([
+      {
+        workspaceId,
+        prId: pr.id,
+        status: 'done',
+        costUsd: 0.001,
+        ranAt: new Date('2026-01-01T00:00:00Z'),
+      },
+      {
+        workspaceId,
+        prId: pr.id,
+        status: 'done',
+        costUsd: 0.004,
+        ranAt: new Date('2026-01-02T00:00:00Z'),
+      },
+    ]);
+
+    const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const listedPr = pulls.find((p: { id: string }) => p.id === pr.id);
+    expect(listedPr.cost_usd).toBeCloseTo(0.005, 6);
+
+    await app.close();
+  });
+
+  it('PR-list COST is null (not summed as $0) when every run failed, even if one recorded partial cost', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+
+    await pg.handle.db.insert(t.agentRuns).values([
+      { workspaceId, prId: pr.id, status: 'failed', costUsd: 0.0002, ranAt: new Date() },
+      { workspaceId, prId: pr.id, status: 'failed', costUsd: null, ranAt: new Date() },
+    ]);
+
+    const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const listedPr = pulls.find((p: { id: string }) => p.id === pr.id);
+    expect(listedPr.cost_usd).toBeNull();
+
+    await app.close();
+  });
+
+  /**
+   * `has_trace` on GET /pulls/:id/runs — a narrow EXISTS flag from a LEFT JOIN
+   * against run_traces (never the jsonb `trace` column itself). It gates the
+   * timeline's trace button so a run that can never produce a trace document
+   * doesn't advertise one.
+   */
+  it('GET /pulls/:id/runs reports has_trace: true once a trace was saved, false for a reaped run', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'Sec-trace', provider: 'openai', model: 'gpt-4.1', system_prompt: 'sec' },
+      })
+    ).json();
+
+    // A real run writes a run_traces document as part of finishing.
+    const started = (
+      await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } })
+    ).json();
+    const tracedRunId = started.runs[0].run_id as string;
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+
+    // A run reaped by reapStaleRunningRuns() never calls saveRunTrace: insert
+    // a stuck 'running' row, then reap it exactly the way boot does.
+    const [stale] = await pg.handle.db
+      .insert(t.agentRuns)
+      .values({ workspaceId, prId: pr.id, status: 'running', ranAt: new Date() })
+      .returning();
+    // buildApp() awaits reapStaleRunningRuns() during boot — booting a second
+    // app is the real code path, not a hand-rolled UPDATE.
+    const rebooted = await appWith(REVIEW_FIXTURE);
+    await rebooted.close();
+
+    const runs = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    const traced = runs.find((r: { run_id: string }) => r.run_id === tracedRunId);
+    const reapedRun = runs.find((r: { run_id: string }) => r.run_id === stale!.id);
+    expect(traced.has_trace).toBe(true);
+    expect(reapedRun.status).toBe('failed');
+    expect(reapedRun.has_trace).toBe(false);
+
+    // The list endpoint must never ship the trace jsonb itself — only the flag.
+    for (const r of runs) expect('trace' in r).toBe(false);
+
+    await app.close();
+  });
+
+  it('PR-list COST sums only the successful run when mixed with a failed one', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+
+    await pg.handle.db.insert(t.agentRuns).values([
+      { workspaceId, prId: pr.id, status: 'done', costUsd: 0.003, ranAt: new Date() },
+      { workspaceId, prId: pr.id, status: 'failed', costUsd: 0.0009, ranAt: new Date() },
+    ]);
+
+    const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const listedPr = pulls.find((p: { id: string }) => p.id === pr.id);
+    expect(listedPr.cost_usd).toBeCloseTo(0.003, 6);
 
     await app.close();
   });

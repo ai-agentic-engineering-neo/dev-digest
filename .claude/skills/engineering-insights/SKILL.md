@@ -78,19 +78,33 @@ Check the entries above before writing anything. Four outcomes:
 | The finding | What to do |
 |---|---|
 | Already recorded, nothing new | Nothing. This is the usual case |
-| Already recorded, but now the cause, the boundary or the exact path is known | Sharpen the existing entry in place |
+| Already recorded, but now the cause, the boundary or the exact path is known | Extend that entry — its wording stays, yours is added to it |
 | Contradicts an existing entry | New entry, naming the one it supersedes |
 | Not there at all | Append it |
 
-**Sharpening** adds to an entry without withdrawing its claim, and carries both dates:
-`**2026-09-18** (refined 2026-10-02) — …`. Sharpening an entry written the same day needs no second
-date — two identical dates say nothing. Only sharpen an entry whose evidence path you opened this
-session. Removing or reversing a claim is not sharpening — that is the contradiction row.
+**Extending** leaves the existing sentence intact and adds to it, and carries both dates:
+`**2026-09-18** (refined 2026-10-02) — …`. An entry written the same day needs no second date — two
+identical dates say nothing. Only extend an entry whose evidence path you opened this session.
+Removing or reversing a claim is not extending — that is the contradiction row, and it is served by
+a new entry, leaving the old one readable.
 
-Sharpening is not the same as rewriting. Consolidating several entries into a principle, or
-clearing out stale ones, is a separate pass a person reviews — not something to do mid-task.
-Everything else is append-only: these files are versioned and several people write them, so
-rewriting produces merge conflicts and quietly erased lessons.
+Consolidating several entries into a principle, or clearing out stale ones, is a separate pass that
+a person reviews — never something to do mid-task.
+
+## Nothing already written is lost
+
+These files are versioned and several people add to them, so a lost line is a lost lesson that
+nobody notices. Three guarantees, in order of strength:
+
+- **Whole-file replacement is impossible.** This skill is granted `Edit` and not `Write`, so it can
+  only change text it has matched — it cannot hand back a new version of the file.
+- **Only two operations are allowed:** adding a new entry under a heading, and appending words to
+  the end of one existing entry. Nothing else is edited.
+- **Never touched:** any other entry, any heading, the file's opening lines, and every file outside
+  the one area this finding belongs to.
+
+If a change cannot be made under those terms, it is not a change for this skill to make — say what
+is needed and leave the file alone.
 
 ## Entry format
 

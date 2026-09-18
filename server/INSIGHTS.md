@@ -23,6 +23,19 @@ Entry format: `.claude/skills/engineering-insights/reference/entry-format.md`.
 
 ## Codebase Patterns
 
+- **2026-09-18** — `server/CLAUDE.md`'s "Reading `process.env` for a key is
+  banned" is true of application code but `platform/config.ts` is not the only
+  file that touches the environment, and the other four are all legitimate:
+  `adapters/secrets/local.ts:21` takes `process.env` as an injectable
+  constructor default (that IS the secrets chokepoint, and tests pass a fake
+  env); `adapters/git/simple-git.ts:33-34` WRITES `GIT_TERMINAL_PROMPT` /
+  `GCM_INTERACTIVE` so git subprocesses inherit them; `db/migrate.ts:38` and
+  `db/seed.ts:228` read `DATABASE_URL` inside their `import.meta.url ===
+  process.argv[1]` CLI blocks. `pnpm lint` enforces the ban with
+  `no-restricted-syntax` and names exactly these four as `ignores` in
+  `eslint.config.mjs` — a fifth reader is a real violation, not a missing
+  exception.
+
 - **2026-09-18** — `server/CLAUDE.md`'s "Layer duties are strict … no raw SQL
   and no HTTP inside a service" describes the intent, not the tree. Eight files
   query the DB outside a repository — `pulls/routes.ts`, `polling/routes.ts`,
@@ -109,6 +122,12 @@ Entry format: `.claude/skills/engineering-insights/reference/entry-format.md`.
   price table, so costs still render.
 
 ## Session Notes
+
+- **2026-09-18** — Added `eslint.config.mjs` + a `lint` script, wired `lint`
+  and `arch` into `server-unit.yml`, and added migration `0011` (7 FK/filter
+  indexes: `findings_review_idx`, `reviews_pr_idx`, `reviews_run_idx`,
+  `agent_runs_pr_status_idx`, `agent_runs_status_idx`, `pr_files_pr_idx`,
+  `pr_commits_pr_idx`).
 
 - **2026-09-18** — Added the `onion-architecture` skill
   (`.claude/skills/onion-architecture/`) plus `server/.dependency-cruiser.cjs`

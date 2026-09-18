@@ -81,15 +81,18 @@ export function countSeveritiesByPr(
 }
 
 /**
- * The latest completed run's cost per PR — the list's cost badge. Input must be
- * newest-first and already filtered to completed runs.
+ * Total cost of every completed run per PR — the list's cost badge. A run with
+ * `costUsd: null` (unpriced model) contributes nothing to the sum rather than
+ * zeroing it; a PR with no completed run has no entry at all, which the caller
+ * reads as `null` ("no runs — empty"), not `0` ("this cost nothing").
  */
-export function pickLatestCostByPr(
+export function sumCostByPr(
   runs: { prId: string | null; costUsd: number | null }[],
 ): Map<string, number | null> {
   const byPr = new Map<string, number | null>();
   for (const run of runs) {
-    if (run.prId && !byPr.has(run.prId)) byPr.set(run.prId, run.costUsd);
+    if (!run.prId || run.costUsd == null) continue;
+    byPr.set(run.prId, (byPr.get(run.prId) ?? 0) + run.costUsd);
   }
   return byPr;
 }

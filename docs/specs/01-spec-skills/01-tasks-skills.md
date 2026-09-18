@@ -93,7 +93,7 @@ Workspace-scoped Fastify module over the existing `skills` / `skill_versions` ta
 - [x] 1.5 Add `service.ts` (create `source: 'manual'`, `enabled` default true) and `routes.ts`: `GET /skills`, `GET /skills/:id`, `POST /skills`, `PUT /skills/:id`, `DELETE /skills/:id`. Validate bodies with Zod at the route (`description`/`body`/`name` min 1, `type` enum). Use `getContext`; missing/foreign workspace → `NotFoundError`. Register the plugin in `server/src/modules/index.ts`.
 - [x] 1.6 Add `server/test/skills.it.test.ts` (copy the `startPg` / `seed` / `buildApp` setup from `agents-versions.it.test.ts`) implementing every case listed in 1.0 Proof Artifacts. Do **not** add restore/list-versions routes here — those are 3.x — but assert v1 exists after create.
 
-### [ ] 2.0 Skills Lab list + master-detail editor (Config + Preview)
+### [x] 2.0 Skills Lab list + master-detail editor (Config + Preview)
 
 `/skills` and `/skills/:id` reuse the Agents split: cards on the left, Config/Preview on the right. Create, search, toggle, save. Description caption is the skill interface (directive). No Import, no Context/Evals/Stats.
 
@@ -107,14 +107,14 @@ Workspace-scoped Fastify module over the existing `skills` / `skill_versions` ta
 - URL: `http://localhost:3000/skills` and `http://localhost:3000/skills/<id>` reachable; sidebar `activeKey` is `skills` (`app-shell/helpers.ts` already maps `/skills`).
 
 #### 2.0 Tasks
-- [ ] 2.1 Add `client/src/lib/hooks/skills.ts` (`useSkills`, `useSkill`, `useCreateSkill`, `useUpdateSkill`, `useDeleteSkill`) using `api` + query keys `["skills"]` / `["skill", id]`. Re-export from `client/src/lib/hooks/index.ts`. No `fetch` in components.
-- [ ] 2.2 Documented NAV exception: in `client/src/vendor/ui/nav.ts` add a Skills Lab item `{ key: "skills", href: "/skills", icon: "Sparkles" }` (label can stay hardcoded like existing items; `shell.json` already has `nav.skills`). Add `g s` shortcut next to `g a` if the `gKey` pattern is used. Do not add Import/community routes.
-- [ ] 2.3 Extend `client/messages/en/skills.json` with Config / Preview / Create / dirty-unsaved strings and a description caption (“this is the skill interface; write it as a directive”). Change empty-state copy to Create, not Import. Leave unused import keys unreferenced.
-- [ ] 2.4 Add colocated `SkillCard/` (name, type badge, description, enabled toggle, optional delete matching `AgentCard`). Styles in `styles.ts`. Tests in `SkillCard.test.tsx`.
-- [ ] 2.5 Add `SkillsListView/` + create modal/form (name, description, type, body). Search via a pure `filterSkills` helper (copy `filterAgents`). Add Skill dropdown: **Create** only. Wire list into thin `client/src/app/skills/page.tsx`.
-- [ ] 2.6 Add `client/src/app/skills/[id]/page.tsx` (master-detail like `agents/[id]/page.tsx`: list left, editor right, `?tab=`). `SkillEditor` tabs: `config` | `preview` only in this parent (Versions tab mounts in 3.3 but the tab key may already be listed).
-- [ ] 2.7 `ConfigTab`: name, description + caption, type select (`rubric|convention|security|custom`), markdown body, enabled, unsaved badge, Save → `PUT`. `PreviewTab`: label “as the reviewing agent receives it”; render **body** with `Markdown` from `@devdigest/ui`; do not inject description or fake prompt chrome.
-- [ ] 2.8 Write the RTL tests named in 2.0 Proof Artifacts (mock hooks like `AgentEditor.test.tsx`). `cd client && pnpm test` green for the new files.
+- [x] 2.1 Add `client/src/lib/hooks/skills.ts` (`useSkills`, `useSkill`, `useCreateSkill`, `useUpdateSkill`, `useDeleteSkill`) using `api` + query keys `["skills"]` / `["skill", id]`. Re-export from `client/src/lib/hooks/index.ts`. No `fetch` in components.
+- [x] 2.2 Documented NAV exception: in `client/src/vendor/ui/nav.ts` add a Skills Lab item `{ key: "skills", href: "/skills", icon: "Sparkles" }` (label can stay hardcoded like existing items; `shell.json` already has `nav.skills`). Add `g s` shortcut next to `g a` if the `gKey` pattern is used. Do not add Import/community routes.
+- [x] 2.3 Extend `client/messages/en/skills.json` with Config / Preview / Create / dirty-unsaved strings and a description caption (“this is the skill interface; write it as a directive”). Change empty-state copy to Create, not Import. Leave unused import keys unreferenced.
+- [x] 2.4 Add colocated `SkillCard/` (name, type badge, description, enabled toggle, optional delete matching `AgentCard`). Styles in `styles.ts`. Tests in `SkillCard.test.tsx`.
+- [x] 2.5 Add `SkillsListView/` + create modal/form (name, description, type, body). Search via a pure `filterSkills` helper (copy `filterAgents`). Add Skill dropdown: **Create** only. Wire list into thin `client/src/app/skills/page.tsx`.
+- [x] 2.6 Add `client/src/app/skills/[id]/page.tsx` (master-detail like `agents/[id]/page.tsx`: list left, editor right, `?tab=`). `SkillEditor` tabs: `config` | `preview` only in this parent (Versions tab mounts in 3.3 but the tab key may already be listed).
+- [x] 2.7 `ConfigTab`: name, description + caption, type select (`rubric|convention|security|custom`), markdown body, enabled, unsaved badge, Save → `PUT`. `PreviewTab`: label “as the reviewing agent receives it”; render **body** with `Markdown` from `@devdigest/ui`; do not inject description or fake prompt chrome.
+- [x] 2.8 Write the RTL tests named in 2.0 Proof Artifacts (mock hooks like `AgentEditor.test.tsx`). `cd client && pnpm test` green for the new files.
 
 ### [ ] 3.0 Versions tab (history, Diff, Restore)
 

@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { pgTable, uuid, text, integer, jsonb, timestamp, doublePrecision } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, integer, jsonb, timestamp, doublePrecision, index } from 'drizzle-orm/pg-core';
 import { now } from './_shared';
 import { workspaces } from './core';
 import { pullRequests } from './pulls';
@@ -23,7 +23,13 @@ export const reviews = pgTable('reviews', {
   score: integer('score'),
   model: text('model'),
   createdAt: now(),
-});
+}, (t) => ({
+  // Every PR-detail load filters by pr_id (review.repo.ts), and the PR list
+  // rolls findings up with inArray(pr_id) — Postgres does not index FKs itself.
+  prIdx: index('reviews_pr_idx').on(t.prId),
+  // The timeline resolves review ← run (run.repo.ts).
+  runIdx: index('reviews_run_idx').on(t.runId),
+}));
 
 export const findings = pgTable('findings', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -43,7 +49,10 @@ export const findings = pgTable('findings', {
   trifectaComponents: jsonb('trifecta_components').$type<string[]>(),
   acceptedAt: timestamp('accepted_at', { withTimezone: true }),
   dismissedAt: timestamp('dismissed_at', { withTimezone: true }),
-});
+}, (t) => ({
+  // Findings are always fetched per review — inArray(review_id, ids).
+  reviewIdx: index('findings_review_idx').on(t.reviewId),
+}));
 
 export const prIntent = pgTable('pr_intent', {
   prId: uuid('pr_id')

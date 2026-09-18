@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, integer, jsonb, timestamp, doublePrecision } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, integer, jsonb, timestamp, doublePrecision, index } from 'drizzle-orm/pg-core';
 import { workspaces } from './core';
 import { agents } from './agents';
 import { pullRequests } from './pulls';
@@ -31,7 +31,13 @@ export const agentRuns = pgTable('agent_runs', {
   score: integer('score'),
   /** Findings that tripped the agent's gate (severity ≥ ciFailOn). */
   blockers: integer('blockers'),
-});
+}, (t) => ({
+  // Live-run polling and the PR-list cost rollup both filter pr_id + status
+  // (run.repo.ts, pulls/routes.ts).
+  prStatusIdx: index('agent_runs_pr_status_idx').on(t.prId, t.status),
+  // The boot reaper scans status='running' across every PR.
+  statusIdx: index('agent_runs_status_idx').on(t.status),
+}));
 
 /** Whole trace of one run as a SINGLE jsonb document. */
 export const runTraces = pgTable('run_traces', {

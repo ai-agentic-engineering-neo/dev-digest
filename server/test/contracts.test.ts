@@ -15,6 +15,7 @@ import {
   Settings,
   Repo,
   PrDetail,
+  AgentSkillLink,
 } from '@devdigest/shared';
 
 /**
@@ -173,6 +174,28 @@ describe('AI contracts parse fixtures', () => {
       log: [{ t: '00.00', kind: 'info', msg: 'started' }],
     });
     expect(trace.tool_calls).toHaveLength(1);
+  });
+});
+
+describe('AgentSkillLink', () => {
+  const base = {
+    agent_id: 'ag1',
+    skill_id: 's1',
+    order: 0,
+    name: 'uncovered-branches',
+    type: 'custom' as const,
+    description: 'Flag new production paths with no asserting test.',
+    skill_enabled: true,
+  };
+
+  it('parse fails without enabled and succeeds with the GET summary fields', () => {
+    expect(() => AgentSkillLink.parse(base)).toThrow();
+    expect(AgentSkillLink.parse({ ...base, enabled: true })).toMatchObject({
+      enabled: true,
+      skill_enabled: true,
+      name: 'uncovered-branches',
+      type: 'custom',
+    });
   });
 });
 

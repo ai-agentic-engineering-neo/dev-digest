@@ -1,4 +1,4 @@
-import type { Agent, AgentVersion, CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
+import type { Agent, AgentSkillLink, AgentVersion, CiFailOn, Provider, ReviewStrategy, SkillType } from '@devdigest/shared';
 import { AgentVersionConfig } from '@devdigest/shared';
 import type { AgentRow, AgentVersionRow } from './repository.js';
 
@@ -23,6 +23,33 @@ export function toAgentDto(row: AgentRow): Agent {
     strategy: row.strategy as ReviewStrategy,
     ci_fail_on: row.ciFailOn as CiFailOn,
     repo_intel: row.repoIntel,
+  };
+}
+
+/** Map a joined agent_skills row to the public GET DTO. Body is never exposed. */
+export function toAgentSkillLink(
+  agentId: string,
+  row: {
+    skill: {
+      id: string;
+      name: string;
+      type: string;
+      description: string;
+      enabled: boolean;
+    };
+    order: number;
+    enabled: boolean;
+  },
+): AgentSkillLink {
+  return {
+    agent_id: agentId,
+    skill_id: row.skill.id,
+    order: row.order,
+    enabled: row.enabled,
+    name: row.skill.name,
+    type: row.skill.type as SkillType,
+    description: row.skill.description,
+    skill_enabled: row.skill.enabled,
   };
 }
 

@@ -30,10 +30,12 @@ seed data.
 `@devdigest/shared` first (`server/src/vendor/shared/`, then hand-copied to
 `client/src/vendor/shared/` — see root `INSIGHTS.md` on that copy lagging):
 
-- `contracts/platform.ts` — `PrMeta.cost_usd` (nullable number, latest
-  completed run's cost, list endpoint only) and `PrMeta.findings_counts`
-  (nullable `{ CRITICAL, WARNING, SUGGESTION }`, summed over each agent's
-  latest review).
+- `contracts/platform.ts` — `PrMeta.cost_usd` (nullable number, **sum of
+  every completed run's cost** for the PR, list endpoint only — a run with
+  an unpriced model contributes nothing to the sum; null when the PR has no
+  completed run) and `PrMeta.findings_counts` (nullable
+  `{ CRITICAL, WARNING, SUGGESTION }`, summed over each agent's latest
+  review).
 - `contracts/trace.ts` — `RunStats.cost_usd` / `RunSummary.cost_usd`
   (nullable — never `0`, which would read as "this review was free") and
   `RunSummary.critical_count` / `warning_count` / `suggestion_count`
@@ -51,8 +53,10 @@ landing. Do not close this out until that drift is resolved.
 
 - PR list row: SCORE (circular score or `—`), FINDINGS (per-severity chips,
   clickable through to the Findings tab filtered by that severity, or `—`),
-  COST (`$X.XXX` or `—` for unpriced/unfinished).
-  `client/src/app/repos/[repoId]/pulls/_components/PRRow/PRRow.tsx`
+  COST (sum of every completed run's cost as `$X.XXX`, or `—` when the PR
+  has no completed run).
+  `client/src/app/repos/[repoId]/pulls/_components/PRRow/PRRow.tsx`,
+  `server/src/modules/pulls/helpers.ts#sumCostByPr`
 - Hovering the FINDINGS cell on the PR list shows a popover titled
   "N findings in this run" (renders uppercase via CSS) with up to 6 findings
   (severity, title, category, `file:line`, confidence, truncated

@@ -97,6 +97,11 @@ export class JobRunner {
       }
     }) as Promise<void>;
 
+    // Nobody currently awaits `done` — without this, a failed job (e.g. an
+    // unauthenticated clone) becomes an unhandled rejection that crashes the
+    // whole process. `done` itself still rejects for any caller that awaits it.
+    done.catch(() => {});
+
     return { id: jobId, done };
   }
 

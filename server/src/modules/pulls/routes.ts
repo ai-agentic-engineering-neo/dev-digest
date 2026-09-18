@@ -129,6 +129,25 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
+    // Total cost across every COMPLETED run for the PR (e.g. running 3 agents
+    // on one PR should show their combined cost, not just the newest one's).
+    // Gated on status='done' so an in-flight/failed run contributes nothing.
+    // Null-propagates: if ANY completed run's cost is unknown (unpriced
+    // model), the PR's total is unknown too, rather than silently
+    // undercounting — same rule as reviewer-core's per-run cost summation.
+    const costByPr = new Map<string, number | null>();
+    if (prIds.length > 0) {
+      const runRows = await container.db
+        .select({ prId: t.agentRuns.prId, costUsd: t.agentRuns.costUsd })
+        .from(t.agentRuns)
+        .where(and(inArray(t.agentRuns.prId, prIds), eq(t.agentRuns.status, 'done')));
+      for (const run of runRows) {
+        if (!run.prId) continue;
+        const prior = costByPr.has(run.prId) ? costByPr.get(run.prId)! : 0;
+        costByPr.set(run.prId, prior == null || run.costUsd == null ? null : prior + run.costUsd);
+      }
+    }
+
     const now = Date.now();
     return rows.map((r) => {
       const review = latestReviewByPr.get(r.id);
@@ -153,6 +172,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
+        cost_usd: costByPr.get(r.id) ?? null,
       };
     });
   });

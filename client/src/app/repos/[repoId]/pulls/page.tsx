@@ -98,7 +98,7 @@ export default function PullsPage() {
         />
         <div style={s.headRow}>
           {COLUMN_KEYS.map((key, i) => (
-            <div key={key} style={s.headCell(i === COLUMN_KEYS.length - 1)}>
+            <div key={key} style={s.headCell(i >= COLUMN_KEYS.length - 2)}>
               {t(`list.columns.${key}`)}
             </div>
           ))}

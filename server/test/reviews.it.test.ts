@@ -201,6 +201,7 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     const trace = (await app.inject({ method: 'GET', url: `/runs/${runId}/trace` })).json();
     expect(trace.config.model).toBe('gpt-4.1');
     expect(trace.stats.grounding).toBe('1/2 passed');
+    expect(trace.stats.cost_usd).toBe(0.001);
     expect(trace.log.length).toBeGreaterThan(0);
 
     // agent_runs row populated for A5 to aggregate
@@ -208,6 +209,12 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(run!.status).toBe('done');
     expect(run!.findingsCount).toBe(1);
     expect(run!.grounding).toBe('1/2 passed');
+    expect(run!.costUsd).toBe(0.001);
+
+    // PR list surfaces the same run's cost as its COST column
+    const pulls = (await app.inject({ method: 'GET', url: `/repos/${pr.repoId}/pulls` })).json();
+    const listedPr = pulls.find((p: { number: number }) => p.number === pr.number);
+    expect(listedPr.cost_usd).toBe(0.001);
 
     await app.close();
   });
@@ -297,6 +304,16 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     ).json();
     // seed has 2 enabled agents; we may have created more above in this PR's ws.
     expect(body.runs.length).toBeGreaterThanOrEqual(2);
+
+    // Regression: the PR list's COST must be the SUM across every completed
+    // run, not just the newest one's — running N agents on one PR is the
+    // normal case, and showing only one run's cost badly undercounts it.
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: body.runs.length });
+    const pulls = (await app.inject({ method: 'GET', url: `/repos/${pr.repoId}/pulls` })).json();
+    const listedPr = pulls.find((p: { number: number }) => p.number === pr.number);
+    // MockLLMProvider returns costUsd: 0.001 per run (see adapters/mocks.ts).
+    expect(listedPr.cost_usd).toBeCloseTo(0.001 * body.runs.length, 6);
+
     await app.close();
   });
 });

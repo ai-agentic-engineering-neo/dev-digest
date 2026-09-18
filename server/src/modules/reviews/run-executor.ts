@@ -82,6 +82,7 @@ export class ReviewRunExecutor {
             tokensOut: 0,
             findingsCount: 0,
             grounding: '0/0 passed',
+            costUsd: null,
             error: msg,
           })
           .catch(() => undefined);
@@ -210,7 +211,7 @@ export class ReviewRunExecutor {
           if (this.container.runBus.isCancelled(runId)) throw new RunCancelledError();
         },
       });
-      const { tokensIn, tokensOut, grounding } = outcome;
+      const { tokensIn, tokensOut, grounding, costUsd } = outcome;
 
       const keptFindings = outcome.review.findings;
 
@@ -228,6 +229,12 @@ export class ReviewRunExecutor {
       });
       const findingRows = await this.repo.insertFindings(review.id, keptFindings);
       runLog.result(`Persisted review ${review.id} with ${findingRows.length} finding(s)`);
+      // Cost belongs in the log too, not just the DB/UI badge — this is the
+      // one place a reader can see exactly which run cost how much without
+      // opening the trace drawer or the OpenRouter dashboard.
+      runLog.info(
+        `Run cost: ${costUsd == null ? 'unknown (unpriced model)' : `$${costUsd.toFixed(6)}`} (tokens ${tokensIn} in → ${tokensOut} out)`,
+      );
 
       // Mark the commit this review ran against so the PR list can tell
       // reviewed / needs-review (head moved) / stale apart.
@@ -249,6 +256,7 @@ export class ReviewRunExecutor {
         grounding,
         score: outcome.review.score,
         blockers,
+        costUsd,
         error: null,
       });
 
@@ -267,6 +275,7 @@ export class ReviewRunExecutor {
           tokens_out: tokensOut,
           findings: findingRows.length,
           grounding,
+          cost_usd: costUsd,
         },
         prompt_assembly: outcome.assembly,
         tool_calls: outcome.chunks.map((c) => ({
@@ -302,6 +311,7 @@ export class ReviewRunExecutor {
           tokensOut: 0,
           findingsCount: 0,
           grounding: '0/0 passed',
+          costUsd: null,
           error: msg,
         })
         .catch(() => undefined);
@@ -421,7 +431,7 @@ export class ReviewRunExecutor {
         pr: pull.number,
         source: 'local',
       },
-      stats: { duration_ms: durationMs, tokens_in: 0, tokens_out: 0, findings: 0, grounding },
+      stats: { duration_ms: durationMs, tokens_in: 0, tokens_out: 0, findings: 0, grounding, cost_usd: null },
       prompt_assembly: { system: agent.systemPrompt, skills: null, memory: null, specs: null, user: '' },
       tool_calls: [],
       raw_output: '',

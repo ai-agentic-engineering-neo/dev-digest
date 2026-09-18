@@ -25,6 +25,11 @@ Feature components are colocated in `app/<route>/_components/`.
 Shared ones live in `src/components/`. The design kit is `src/vendor/ui`
 (`@devdigest/ui`), shared Zod contracts are `src/vendor/shared` (`@devdigest/shared`).
 
+The folder's case depends on where it lives: shared folders are kebab-case
+(`src/components/severity-counts/`), feature folders are PascalCase
+(`app/agents/_components/AgentCard/`). The component file inside is PascalCase
+either way. Full shape: `docs/component-conventions.md`.
+
 ## Rules
 
 - Pages stay thin. All logic belongs in `_components/`.

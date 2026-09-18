@@ -27,6 +27,10 @@ src/vendor/shared/      Zod contracts (canonical copy)
 
 - Modules register **statically** in `src/modules/index.ts` — no autoload.
   A new module is `modules/<name>/routes.ts` plus one import and one entry.
+- Directories are lowercase kebab-case (`pulls`, `repo-intel`, `github`) and the
+  layer filenames are fixed: `routes.ts`, `service.ts`, `repository.ts`,
+  `helpers.ts`, `constants.ts`. Anything extra is a kebab-case module
+  (`diff-loader.ts`, `run-executor.ts`).
 - Layer duties are strict: routes = HTTP, service = logic, repository = all
   persistence, helpers = pure transforms, constants = every literal.
   **No raw SQL and no HTTP inside a service.**

@@ -25,6 +25,7 @@ export const NAV: NavGroup[] = [
       { key: "pulls", label: "Pull Requests", icon: "GitPullRequest", href: "/repos/:repoId/pulls", gKey: "p" },
       { key: "skills", label: "Skills", icon: "Sparkles", href: "/skills", gKey: "s" },
       { key: "agents", label: "Agents", icon: "Cpu", href: "/agents", gKey: "a" },
+      { key: "conventions", label: "Conventions", icon: "ListChecks", href: "/repos/:repoId/conventions" },
     ],
   },
 ];

@@ -5,6 +5,7 @@
     "headingPrefix": "Conventions in ",
     "repoFallback": "repo",
     "subtitle": "Scan the cloned repo to surface house-rules — each backed by evidence you can turn into a Skill.",
+    "scanMeta": "Detected from {count} sample files · last scan {when}",
     "scanning": "Scanning…",
     "rescan": "Re-scan",
     "runExtraction": "Run extraction",
@@ -17,10 +18,19 @@
     },
     "candidateCount": "{count, plural, one {# candidate} other {# candidates}} · grounded against sampled files"
   },
+  "toolbar": {
+    "deselectAll": "Deselect all",
+    "acceptedCount": "{selected} of {total} accepted",
+    "createSkill": "Create skill"
+  },
   "card": {
     "confidence": "Confidence",
     "accepted": "Accepted",
     "accepting": "Accepting…",
+    "reject": "Reject",
+    "rejecting": "Rejecting…",
+    "openEvidence": "Open evidence on the code host",
+    "editRule": "Edit rule",
     "acceptAsSkill": "Accept as Skill"
   }
 }

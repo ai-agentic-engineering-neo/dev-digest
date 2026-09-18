@@ -119,7 +119,7 @@ New `conventions` module (`routes` → `service` → `repository`), registered i
 - [x] 1.8 `routes.ts` + register in `modules/index.ts`: `GET /repos/:id/conventions`; `POST /repos/:id/conventions/extract` with `schema.body` **`.nullish()`**; `PATCH /repos/:id/conventions/:cid`. Workspace via `getContext`.
 - [x] 1.9 `test/conventions.it.test.ts` (copy `skills.it.test.ts` harness): seed repo; `overrides.git` with fixture file contents; `overrides.llm` structured list mixing one grounded and one bad path; `overrides.repoIntel.getConventionSamples` returns the fixture path. Assert POST extract 200, GET items are pending+grounded only, metadata present, second extract after PATCH accepted does not duplicate that rule+path, ghost repo 404, extract with no readable samples 200. `GET /skills` count unchanged. `pnpm typecheck`.
 
-### [ ] 2.0 Conventions page — list, accept / reject / edit, evidence
+### [x] 2.0 Conventions page — list, accept / reject / edit, evidence
 
 Thin App Router page `/repos/:repoId/conventions` with colocated feature folder. Skills Lab sidebar gains **Conventions** (`client/src/vendor/ui/nav.ts` exception). Empty state = Run extraction; after a scan, Re-scan. Cards show rule, `path:start-end`, snippet, confidence, Accepted / Reject. PATCH persists `status` and `rule`. Evidence control uses existing `repoBlobUrl` (GitHub + GitLab). Only accepted cards can be selected for compose; Deselect all clears selection only; Create skill disabled at 0 selected. Hooks in `client/src/lib/hooks/`; i18n under `conventions.json`.
 
@@ -131,14 +131,14 @@ Thin App Router page `/repos/:repoId/conventions` with colocated feature folder.
 - Screenshot: `docs/specs/04-spec-conventions-extractor/04-proofs/04-conventions-list.png` — after extract, cards show title, evidence path+range, snippet, confidence, Accepted/Reject, Create skill (match [04-mockup-conventions-list.png](./04-mockup-conventions-list.png) closely enough).
 
 #### 2.0 Tasks
-- [ ] 2.1 Add Conventions to `NAV` in `client/src/vendor/ui/nav.ts` (explicit exception): `key: "conventions"`, icon `ListChecks`, `href: "/repos/:repoId/conventions"`. Do not add Eval / Memory / Multi-Agent / CI items. `activeKeyFor` already maps `/conventions`.
-- [ ] 2.2 `client/src/lib/hooks/conventions.ts` + barrel: `useConventions(repoId)`, `useExtractConventions(repoId)` (POST extract), `usePatchConvention(repoId)` (PATCH). Mocked in component tests; no `fetch` in components.
-- [ ] 2.3 Extend `client/messages/en/conventions.json`: reject, deselect all, N of M accepted, create skill, last-scan/sample subtitle, scanning, load/extract errors. Keep existing empty-state keys. Namespace loads automatically via `i18n/request.ts`.
-- [ ] 2.4 Thin `page.tsx` + `ConventionsView`: AppShell, breadcrumb Skills Lab → Conventions, title “Conventions in {repo}”. `items.length === 0` → empty CTA Run extraction; after items exist → Re-scan (not a second empty CTA). Subtitle shows `sample_file_count` and last-scan when `extracted_at` is set. Tests: empty CTA; Re-scan visible when items exist.
-- [ ] 2.5 Candidate cards: rule, `path:start-end`, snippet, confidence bar + percent, Accepted / Reject. Accept → PATCH `{ status: 'accepted' }`; Reject → `{ status: 'rejected' }`. Rejected remain visible, not selectable. Only accepted can be selected. Create skill disabled at 0 selected. Deselect all clears selection and does not PATCH. Tests cover each of those calls/non-calls.
-- [ ] 2.6 Colocated `evidenceHref` helper wrapping `repoBlobUrl(provider, full_name, default_branch, path, start, end)`. Tests: GitHub `#L23-L31` and GitLab `#L23-31`. External-link control `target="_blank"` `rel="noreferrer"`.
-- [ ] 2.7 Edit rule on the card (inline title or small control). Persist PATCH `{ rule }`. Test asserts the PATCH body.
-- [ ] 2.8 Manual: `./scripts/dev.sh`, open `http://localhost:3000/repos/<seeded-repo-id>/conventions`, run extract (needs LLM key; mock-shaped live result is OK). Save `04-proofs/04-conventions-list.png`. Do not fail CI on live model wording.
+- [x] 2.1 Add Conventions to `NAV` in `client/src/vendor/ui/nav.ts` (explicit exception): `key: "conventions"`, icon `ListChecks`, `href: "/repos/:repoId/conventions"`. Do not add Eval / Memory / Multi-Agent / CI items. `activeKeyFor` already maps `/conventions`.
+- [x] 2.2 `client/src/lib/hooks/conventions.ts` + barrel: `useConventions(repoId)`, `useExtractConventions(repoId)` (POST extract), `usePatchConvention(repoId)` (PATCH). Mocked in component tests; no `fetch` in components.
+- [x] 2.3 Extend `client/messages/en/conventions.json`: reject, deselect all, N of M accepted, create skill, last-scan/sample subtitle, scanning, load/extract errors. Keep existing empty-state keys. Namespace loads automatically via `i18n/request.ts`.
+- [x] 2.4 Thin `page.tsx` + `ConventionsView`: AppShell, breadcrumb Skills Lab → Conventions, title “Conventions in {repo}”. `items.length === 0` → empty CTA Run extraction; after items exist → Re-scan (not a second empty CTA). Subtitle shows `sample_file_count` and last-scan when `extracted_at` is set. Tests: empty CTA; Re-scan visible when items exist.
+- [x] 2.5 Candidate cards: rule, `path:start-end`, snippet, confidence bar + percent, Accepted / Reject. Accept → PATCH `{ status: 'accepted' }`; Reject → `{ status: 'rejected' }`. Rejected remain visible, not selectable. Only accepted can be selected. Create skill disabled at 0 selected. Deselect all clears selection and does not PATCH. Tests cover each of those calls/non-calls.
+- [x] 2.6 Colocated `evidenceHref` helper wrapping `repoBlobUrl(provider, full_name, default_branch, path, start, end)`. Tests: GitHub `#L23-L31` and GitLab `#L23-31`. External-link control `target="_blank"` `rel="noreferrer"`.
+- [x] 2.7 Edit rule on the card (inline title or small control). Persist PATCH `{ rule }`. Test asserts the PATCH body.
+- [x] 2.8 Manual: `./scripts/dev.sh`, open `http://localhost:3000/repos/<seeded-repo-id>/conventions`, run extract (needs LLM key; mock-shaped live result is OK). Save `04-proofs/04-conventions-list.png`. Do not fail CI on live model wording.
 
 ### [ ] 3.0 Create skill from selected accepted conventions
 

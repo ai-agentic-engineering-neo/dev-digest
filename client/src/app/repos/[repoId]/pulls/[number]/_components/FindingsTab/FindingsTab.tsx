@@ -7,7 +7,7 @@ import { RunHistory } from "../RunHistory/RunHistory";
 import { ReviewRunAccordion } from "../ReviewRunAccordion";
 import { s } from "./styles";
 import type { FindingRecord, ReviewRecord, RunSummary, PrCommit } from "@devdigest/shared";
-import type { UseMutationResult } from "@tanstack/react-query";
+import type { useCancelRun } from "../../../../../../../lib/hooks/reviews";
 
 interface FindingsTabProps {
   prId: string | null;
@@ -17,7 +17,8 @@ interface FindingsTabProps {
   runs: ReviewRecord[];
   prRuns: RunSummary[] | undefined;
   prCommits: PrCommit[];
-  cancelMutation: UseMutationResult<any, any, string, any>;
+  /** The `useCancelRun()` mutation, owned by the page and passed down. */
+  cancelMutation: ReturnType<typeof useCancelRun>;
   /** owner/repo + head sha — used to deep-link a finding's file:line to GitHub. */
   repoFullName?: string | null;
   headSha?: string | null;
@@ -70,6 +71,15 @@ export function FindingsTab({
   const handleGoToReview = useCallback((runId: string) => {
     setTarget((p) => ({ runId, n: (p?.n ?? 0) + 1 }));
   }, []);
+
+  // Findings are already loaded per-review for the accordions below; key them
+  // by run_id so the Timeline's severity chips can preview them on hover
+  // without a second fetch.
+  const findingsByRun = React.useMemo(() => {
+    const m = new Map<string, FindingRecord[]>();
+    for (const review of runs) if (review.run_id) m.set(review.run_id, review.findings);
+    return m;
+  }, [runs]);
 
   return (
     <section>
@@ -131,6 +141,9 @@ export function FindingsTab({
           <RunHistory
             runs={prRuns ?? []}
             commits={prCommits}
+            findingsByRun={findingsByRun}
+            repoFullName={repoFullName}
+            headSha={headSha}
             onOpenTrace={handleOpenTrace}
             onGoToReview={handleGoToReview}
             onDelete={handleDelete}
@@ -158,6 +171,7 @@ export function FindingsTab({
           <ReviewRunAccordion
             key={review.id}
             review={review}
+            run={prRuns?.find((r) => r.run_id === review.run_id) ?? null}
             prId={prId}
             defaultOpen={i === 0}
             repoFullName={repoFullName}

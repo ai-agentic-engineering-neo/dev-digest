@@ -6,9 +6,12 @@
 "use client";
 
 import React from "react";
+import { useSearchParams } from "next/navigation";
 import { Icon, Badge } from "@devdigest/ui";
-import type { ReviewRecord, Verdict } from "@devdigest/shared";
+import type { ReviewRecord, RunSummary, Verdict } from "@devdigest/shared";
 import { FindingsPanel } from "../FindingsPanel";
+import { SEVERITY_ORDER } from "../FindingsPanel/constants";
+import { severityCounts } from "../FindingsPanel/helpers";
 import { VerdictBanner } from "../VerdictBanner";
 import { useDeleteReview } from "../../../../../../../lib/hooks/reviews";
 
@@ -25,6 +28,7 @@ function formatWhen(iso: string): string {
 
 export function ReviewRunAccordion({
   review,
+  run = null,
   prId,
   defaultOpen = false,
   repoFullName,
@@ -33,6 +37,9 @@ export function ReviewRunAccordion({
   targetNonce = 0,
 }: {
   review: ReviewRecord;
+  /** The agent_runs row behind this review (matched by run_id) — feeds the
+   *  cost/token line in the VerdictBanner. Null when no run row is known. */
+  run?: RunSummary | null;
   prId: string;
   defaultOpen?: boolean;
   repoFullName?: string | null;
@@ -49,12 +56,21 @@ export function ReviewRunAccordion({
       setOpen(true);
       rootRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targetRunId, targetNonce, review.run_id]);
   const del = useDeleteReview(prId);
   const findings = review.findings;
   const blockers = findings.filter((f) => f.severity === "CRITICAL" && !f.dismissed_at).length;
   const verdictColor = review.verdict ? VERDICT_COLOR[review.verdict] ?? "var(--text-muted)" : "var(--text-muted)";
+  // Lifted out of FindingsPanel so the "N CRITICAL · N WARNING · N SUGGESTION"
+  // pills under VerdictBanner and FindingsPanel's own (hidden here) counters
+  // share one filter instead of drifting into two sources of truth. Seeded
+  // from ?severity= — the same deep link FindingsPanel used to read itself
+  // (the PR list's findings chips navigate here).
+  const urlSeverity = useSearchParams().get("severity");
+  const [severityFilter, setSeverityFilter] = React.useState<string | null>(
+    urlSeverity && urlSeverity in SEVERITY_ORDER ? urlSeverity : null,
+  );
+  const counts = React.useMemo(() => severityCounts(findings), [findings]);
 
   return (
     <div
@@ -144,6 +160,14 @@ export function ReviewRunAccordion({
                 findingsCount={findings.length}
                 blockers={blockers}
                 agentName={review.agent_name}
+                run={
+                  run
+                    ? { cost_usd: run.cost_usd, tokens_in: run.tokens_in, tokens_out: run.tokens_out }
+                    : null
+                }
+                severityCounts={counts}
+                activeSeverity={severityFilter}
+                onSeverityClick={(sev) => setSeverityFilter((cur) => (cur === sev ? null : sev))}
               />
             </div>
           )}
@@ -152,6 +176,9 @@ export function ReviewRunAccordion({
             prId={prId}
             repoFullName={repoFullName}
             headSha={headSha}
+            severityFilter={severityFilter}
+            onSeverityFilterChange={setSeverityFilter}
+            hideSeverityCounters={!!review.verdict}
           />
         </div>
       )}

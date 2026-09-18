@@ -50,6 +50,14 @@ export function countBlockers(findings: Finding[], failOn: CiFailOn): number {
   return findings.reduce((n, f) => n + ((SEV_RANK[f.severity] ?? 0) >= min ? 1 : 0), 0);
 }
 
+export function severityCounts(
+  findings: Finding[],
+): Record<'CRITICAL' | 'WARNING' | 'SUGGESTION', number> {
+  const c = { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 };
+  for (const f of findings) c[f.severity as keyof typeof c] = (c[f.severity as keyof typeof c] ?? 0) + 1;
+  return c;
+}
+
 export interface ToReviewOptions {
   /** Emit one inline comment per finding (default true). */
   inline?: boolean;
@@ -65,7 +73,7 @@ export interface ToReviewOptions {
   diff?: UnifiedDiff;
 }
 
-function severityCounts(findings: Finding[]): string {
+function severityCountsLabel(findings: Finding[]): string {
   const c: Record<string, number> = { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 };
   for (const f of findings) c[f.severity] = (c[f.severity] ?? 0) + 1;
   return `${c.CRITICAL} critical · ${c.WARNING} warning · ${c.SUGGESTION} suggestion`;
@@ -92,7 +100,7 @@ function composeBody(
     return `- ${emoji} **${f.title}** (${f.severity.toLowerCase()}, ${f.category}) — ${loc}\n  - ${f.rationale}${sugg}`;
   });
 
-  const summary = `**${findings.length} finding${findings.length === 1 ? '' : 's'}** · ${severityCounts(findings)}`;
+  const summary = `**${findings.length} finding${findings.length === 1 ? '' : 's'}** · ${severityCountsLabel(findings)}`;
   return `${header}\n\n${summary}\n\n${lines.join('\n')}\n\n_Posted via DevDigest._`;
 }
 

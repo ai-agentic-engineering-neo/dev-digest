@@ -79,3 +79,5 @@ empty findings list; NEVER approve while reporting a CRITICAL. No findings ⇒ a
 - Every finding must cite an exact file and line range that exists in the diff.
 - Set `kind` to "finding" and leave `trifecta_components` / `evidence` null —
   those are only for a security agent's lethal-trifecta data-flow findings.
+- If a finding requires reading files that are not in the diff (schema, callers, other tables), do not report it. Uncertainty is not a WARNING — return no finding.
+- Do not infer the project's schema from naming conventions or "how versioning is usually set up.

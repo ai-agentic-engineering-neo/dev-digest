@@ -1,4 +1,35 @@
-import { SIZE_MEDIUM_MAX, SIZE_SMALL_MAX, type PrMeta, type SizeInfo } from "./constants";
+import type { FindingRecord, ReviewRecord } from "@devdigest/shared";
+import {
+  FINDINGS_SEVERITIES,
+  SIZE_MEDIUM_MAX,
+  SIZE_SMALL_MAX,
+  type PrMeta,
+  type SizeInfo,
+} from "./constants";
+
+/**
+ * Findings from each agent's latest review, sorted by severity — the same
+ * rule the API applies to the list's `findings_counts`, so the hover preview
+ * always matches the chips.
+ */
+export function latestFindingsPerAgent(reviews: ReviewRecord[]): FindingRecord[] {
+  const newestFirst = [...reviews]
+    .filter((rv) => rv.kind === "review")
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const seenAgents = new Set<string>();
+  const findings: FindingRecord[] = [];
+  for (const rv of newestFirst) {
+    const agentKey = rv.agent_id ?? "none";
+    if (seenAgents.has(agentKey)) continue;
+    seenAgents.add(agentKey);
+    findings.push(...rv.findings);
+  }
+  const rank = (sev: string) => {
+    const i = FINDINGS_SEVERITIES.indexOf(sev as (typeof FINDINGS_SEVERITIES)[number]);
+    return i === -1 ? FINDINGS_SEVERITIES.length : i;
+  };
+  return findings.sort((a, b) => rank(a.severity) - rank(b.severity));
+}
 
 /** Bucket a PR into S/M/L by total changed lines. */
 export function sizeOf(pr: PrMeta): SizeInfo {

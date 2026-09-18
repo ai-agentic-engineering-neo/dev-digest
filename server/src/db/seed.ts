@@ -6,11 +6,13 @@ import {
   GENERAL_REVIEWER_PROMPT,
   SECURITY_REVIEWER_PROMPT,
   PERFORMANCE_REVIEWER_PROMPT,
+  TEST_QUALITY_REVIEWER_PROMPT,
 } from './seed-prompts.js';
+import { seedSkills } from './seed-skills.js';
 
 /** Default provider/model for the built-in reviewer agents. */
-const DEFAULT_PROVIDER = 'openrouter' as const;
-const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
+export const DEFAULT_PROVIDER = 'openrouter' as const;
+export const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
 
 /**
  * Seed the starter's demo data. Idempotent: re-running upserts the default
@@ -18,11 +20,9 @@ const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
  *
  * Seeds: default workspace + system user + membership, default settings,
  * demo repo (acme/payments-api), PR #482 with files/commits, a sample review
- * with a few findings, and the three built-in agents (General + Security +
- * Performance), all on the default openrouter/deepseek-v4-flash provider+model.
- *
- * Course lessons populate the other tables (skills, conventions, memory, eval,
- * …) once their features are built — they start empty here.
+ * with a few findings, and the built-in agents (General + Security +
+ * Performance + Test Quality), all on the default openrouter/deepseek-v4-flash
+ * provider+model, plus the mockup skill catalog and agent_skills links.
  */
 
 export const DEFAULT_WORKSPACE_NAME = 'default';
@@ -211,6 +211,17 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       version: 1,
       createdBy: userId,
     },
+    {
+      workspaceId,
+      name: 'Test Quality Reviewer',
+      description: 'Flags weak tests: uncovered branches, missing corners, heavy mocks, flakes.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: TEST_QUALITY_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
   ];
   for (const a of seedAgents) {
     const [existing] = await db
@@ -219,6 +230,8 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, a.name)));
     if (!existing) await db.insert(t.agents).values(a);
   }
+
+  await seedSkills(db, workspaceId);
 
   return { workspaceId, userId };
 }

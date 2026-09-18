@@ -43,7 +43,36 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 - **2026-08-05** — An import of a package absent from both `package.json` and `pnpm-lock.yaml` passes typecheck, unit, and integration lanes locally because a stray copy sits in `server/node_modules` (`fflate`, imported at `src/modules/skills/service.ts:1`), and only a fresh `pnpm install --frozen-lockfile` exposes it as TS2307 — verify a new import against a clean worktree install, not the dev tree. Evidence: `grep fflate package.json pnpm-lock.yaml` returned nothing while `pnpm typecheck` was green.
 
+- **2026-09-16** — `repo-intel`'s `getBlastRadius` had two gaps its own
+  naming/comments already pointed at, both silent (no test caught them): (1)
+  `MAX_CALLERS_PER_SYMBOL` (`constants.ts:30`) was applied as a single global
+  `callers.slice(0, 20)` across every changed symbol combined, not per symbol
+  as its name says — a PR touching 2+ symbols could starve one symbol's
+  callers entirely; (2) `getResolvedCallers` didn't exclude
+  `fromPath === declFile`, unlike the ripgrep-degraded path which already did
+  (`service.ts:273` pre-fix) — a same-file self-reference could resolve
+  through a `file_edges` self-edge and leak back as a "caller" of its own
+  declaration. **Fixed 2026-09-16**: capped per `viaSymbol` group in
+  `tryPersistentBlast` (`service.ts`), added `ne(fromPath, declFile)` to
+  `getResolvedCallers`'s where clause (`repository.ts`). Covered by
+  `server/test/repo-intel-blast-persistent.test.ts` (cap, hermetic) and
+  `server/test/blast.it.test.ts` (self-ref exclusion, needs real Postgres —
+  the SQL predicate can't be exercised with a stubbed repository).
+
 ## Codebase Patterns
+
+- **2026-09-16** — repo-intel's internal `BlastResult` (flat `callers[]` with
+  a `viaSymbol` field, plus a `factsByFile` keyed by file) and the shared
+  wire contract `BlastRadius` (one `DownstreamImpact` per changed symbol,
+  each with its own `endpoints_affected`) are different shapes on purpose —
+  a feature module built on `getBlastRadius()` needs an explicit mapping
+  step, not a passthrough. Per-symbol endpoint/cron attribution also needs
+  the reverse-import BFS kept per changed FILE
+  (`BlastResult.dependentFilesByChangedFile`), not merged into one global
+  set up front — a merged set can't tell which changed symbol's declaring
+  file is the one that actually reaches a given downstream route.
+  `server/src/modules/blast/helpers.ts` (`toBlastRadius`),
+  `server/src/modules/repo-intel/types.ts` (`BlastResult`).
 
 - **2026-08-15** — `ReviewRepository`'s raw query layer and its DTO layer
   disagree on casing for the same finding fields: `repo.reviewsForPull()`

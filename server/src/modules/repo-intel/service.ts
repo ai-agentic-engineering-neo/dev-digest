@@ -269,8 +269,10 @@ export class RepoIntelService implements RepoIntel {
         continue;
       }
       const callerFiles = new Set<string>();
+      let symCallerCount = 0;
       for (const r of refs) {
         if (r.fromPath === sym.file) continue; // skip the decl's own file
+        if (symCallerCount >= MAX_CALLERS_PER_SYMBOL) break; // cap PER symbol
         const callerName = enclosingSymbolName(allSymbols, r.fromPath, r.line);
         const key = `${r.fromPath}|${callerName}|${sym.name}`;
         if (callerSeen.has(key)) continue;
@@ -283,6 +285,7 @@ export class RepoIntelService implements RepoIntel {
           rank: 0, // ripgrep/degraded path has no persistent rank
         });
         callerFiles.add(r.fromPath);
+        symCallerCount += 1;
       }
 
       // Detect HTTP routes reachable from any caller file (best-effort, just
@@ -371,9 +374,48 @@ export class RepoIntelService implements RepoIntel {
     }
     callers.sort((a, b) => b.rank - a.rank);
 
-    // Precomputed facts per caller file (endpoints + crons), so consumers can
-    // attribute them to the changed symbol whose callers live in that file.
-    const facts = await this.repo.getFileFacts(repoId, callerFiles);
+    // Cap PER changed symbol (not globally) — group by viaSymbol, sort each
+    // group by rank desc (already true from the sort above), slice to
+    // MAX_CALLERS_PER_SYMBOL, then flatten back to a flat list.
+    const byViaSymbol = new Map<string, BlastCallerRow[]>();
+    for (const c of callers) {
+      const arr = byViaSymbol.get(c.viaSymbol);
+      if (arr) arr.push(c);
+      else byViaSymbol.set(c.viaSymbol, [c]);
+    }
+    const cappedCallers = [...byViaSymbol.values()].flatMap((group) =>
+      group.slice(0, MAX_CALLERS_PER_SYMBOL),
+    );
+
+    // Reverse-import BFS from EACH changed file separately (up to BFS_DEPTH
+    // hops), so endpoint/cron impact isn't limited to files that directly
+    // call a changed symbol — a file that only imports (without calling) a
+    // changed file can still be the one that registers the affected route. A
+    // caller file is always within depth 1 of a resolved reference edge, so
+    // this is a superset of the old caller-files-only lookup. Kept per-file
+    // (not merged up front) so blast/helpers.ts can attribute reach back to
+    // the specific changed file a symbol was declared in.
+    const dependentFilesByChangedFile: Record<string, string[]> = {};
+    const allDependentFiles = new Set<string>(changedFiles);
+    for (const changedFile of changedFiles) {
+      const visited = new Set<string>([changedFile]);
+      let frontier = new Set<string>([changedFile]);
+      for (let hop = 0; hop < BFS_DEPTH; hop += 1) {
+        const next = await this.repo.getDependentFiles(repoId, [...frontier]);
+        const newFiles = next.filter((f) => !visited.has(f));
+        if (newFiles.length === 0) break;
+        newFiles.forEach((f) => visited.add(f));
+        frontier = new Set(newFiles);
+      }
+      dependentFilesByChangedFile[changedFile] = [...visited];
+      visited.forEach((f) => allDependentFiles.add(f));
+    }
+    for (const f of callerFiles) allDependentFiles.add(f);
+
+    // Precomputed facts per reached file (endpoints + crons), so consumers
+    // can attribute them to the changed symbol whose callers live in that
+    // file (or whose import chain reaches it).
+    const facts = await this.repo.getFileFacts(repoId, [...allDependentFiles]);
     const endpoints = new Set<string>();
     const factsByFile: Record<string, { endpoints: string[]; crons: string[] }> = {};
     for (const f of facts) {
@@ -383,9 +425,10 @@ export class RepoIntelService implements RepoIntel {
 
     return {
       changedSymbols,
-      callers: callers.slice(0, MAX_CALLERS_PER_SYMBOL),
+      callers: cappedCallers,
       impactedEndpoints: [...endpoints],
       factsByFile,
+      dependentFilesByChangedFile,
       degraded: false,
     };
   }

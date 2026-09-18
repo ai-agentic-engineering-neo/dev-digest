@@ -38,14 +38,17 @@ touch the pipeline internals:
 - `getRepoMap(repoId)` → the cached repo skeleton (fed into the **review prompt**).
 - `getFileRank(repoId, files)` → importance percentile per changed file.
 - `getCallerSignatures(repoId, files, limit)` → callers of changed symbols.
-- `getBlastRadius(repoId, files)` → impacted symbols / callers (used by L04).
+- `getBlastRadius(repoId, files)` → impacted symbols / callers / endpoints /
+  crons. Wired into `modules/blast/service.ts` (L04, `GET /pulls/:id/blast`),
+  which maps the result onto the shared `BlastRadius` contract.
 - `getUnresolvedReferences(repoId, …)` → phantom-symbol detection (used by L06).
 - `getConventionSamples(repoId)` → top-ranked files for convention extraction (L02).
 
-In the starter, only `getRepoMap` / `getFileRank` / `getCallerSignatures` are
-wired — into `modules/reviews/run-executor.ts`, which adds the repo map and a
-high-blast-radius note to the prompt. Toggled by `REPO_INTEL_ENABLED` (global)
-and a per-agent `repo_intel` flag.
+In the starter, `getRepoMap` / `getFileRank` / `getCallerSignatures` are wired
+into `modules/reviews/run-executor.ts`, which adds the repo map and a
+high-blast-radius note to the prompt; `getBlastRadius` is wired into
+`modules/blast/`. Toggled by `REPO_INTEL_ENABLED` (global) and a per-agent
+`repo_intel` flag.
 
 ## Routes
 

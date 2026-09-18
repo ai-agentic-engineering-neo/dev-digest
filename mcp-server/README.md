@@ -37,10 +37,13 @@ invokes.
   already-completed run; does not trigger one.
 - **`get_conventions(repo)`** — accepted repo conventions + last-scan
   metadata.
-- **`get_blast_radius(repo, pr)`** — **stub**. Always returns `isError: true`
-  with a "not implemented yet" message; the underlying logic exists
-  server-side (`repoIntel.getBlastRadius()`) but has no HTTP route yet —
-  wiring that up is later homework.
+- **`get_blast_radius(repo, pr)`** — changed symbols for the PR, their
+  resolved callers (`file:line`), and the HTTP endpoints/cron jobs reachable
+  from those changes. Wraps `GET /pulls/:id/blast`, which maps
+  `repoIntel.getBlastRadius()` onto the shared `BlastRadius` contract. A
+  partial/degraded repo index is called out in `summary` rather than
+  silently returning an empty result — check `summary` before treating an
+  empty `downstream[]` as "no impact".
 
 ## Testing
 

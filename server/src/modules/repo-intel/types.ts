@@ -82,6 +82,16 @@ export interface BlastResult {
    * Present on the persistent (non-degraded) path; absent otherwise.
    */
   factsByFile?: Record<string, { endpoints: string[]; crons: string[] }>;
+  /**
+   * Per changed file, every file reached by walking the REVERSE import graph
+   * up to BFS_DEPTH hops (so a file that only imports a changed file — never
+   * calls into it directly — still counts). Keys are the input `changedFiles`
+   * paths; values index into `factsByFile`. Lets a consumer (blast) attribute
+   * endpoint/cron impact to a changed symbol via its *declaring file's*
+   * import reach, not just via its resolved callers. Present on the
+   * persistent path only.
+   */
+  dependentFilesByChangedFile?: Record<string, string[]>;
   degraded?: boolean;
   reason?: DegradedReason;
 }

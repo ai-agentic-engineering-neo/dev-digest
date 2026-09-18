@@ -14,9 +14,11 @@ interface OverviewTabProps {
   prId: string | null;
   /** Newest-first, as returned by `GET /pulls/:id/reviews`. */
   reviews?: ReviewRecord[];
+  repoFullName: string | null;
+  headSha: string | null | undefined;
 }
 
-export function OverviewTab({ prBody, prId, reviews }: OverviewTabProps) {
+export function OverviewTab({ prBody, prId, reviews, repoFullName, headSha }: OverviewTabProps) {
   const t = useTranslations("prReview");
   const latestReview = reviews?.[0];
   const blockers = latestReview
@@ -41,7 +43,7 @@ export function OverviewTab({ prBody, prId, reviews }: OverviewTabProps) {
 
       <div style={s.grid}>
         <IntentCard prId={prId} />
-        <BlastRadiusCard />
+        <BlastRadiusCard prId={prId} repoFullName={repoFullName} headSha={headSha} />
       </div>
 
       {prBody && (

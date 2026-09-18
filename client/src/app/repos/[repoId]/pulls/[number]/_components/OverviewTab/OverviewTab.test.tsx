@@ -4,11 +4,15 @@ import { NextIntlClientProvider } from "next-intl";
 import messages from "../../../../../../../../messages/en/prReview.json";
 import type { ReviewRecord, FindingRecord } from "@devdigest/shared";
 
-// IntentCard (rendered unconditionally in the grid) calls these hooks — stub
-// them so it renders its empty state without needing a real QueryClient.
+// IntentCard/BlastRadiusCard (rendered unconditionally in the grid) call
+// these hooks — stub them so they render their empty states without needing
+// a real QueryClient.
 vi.mock("../../../../../../../lib/hooks/intent", () => ({
   usePrIntent: () => ({ data: null, isLoading: false }),
   useComputeIntent: () => ({ mutate: vi.fn(), isPending: false }),
+}));
+vi.mock("../../../../../../../lib/hooks/blast-radius", () => ({
+  useBlastRadius: () => ({ data: null, isLoading: false }),
 }));
 
 import { OverviewTab } from "./OverviewTab";
@@ -59,7 +63,13 @@ function review(o: Partial<ReviewRecord>): ReviewRecord {
 function renderTab(props: Partial<React.ComponentProps<typeof OverviewTab>> = {}) {
   return render(
     <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
-      <OverviewTab prBody={null} prId="pr-1" {...props} />
+      <OverviewTab
+        prBody={null}
+        prId="pr-1"
+        repoFullName="acme/payments-api"
+        headSha="a1b2c3d4"
+        {...props}
+      />
     </NextIntlClientProvider>,
   );
 }

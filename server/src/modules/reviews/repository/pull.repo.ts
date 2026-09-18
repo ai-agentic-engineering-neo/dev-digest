@@ -2,7 +2,7 @@ import { and, eq } from 'drizzle-orm';
 import type { Db } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
 import type { Intent } from '@devdigest/shared';
-import type { PullRow } from '../../../db/rows.js';
+import type { PullRow, RepoRow } from '../../../db/rows.js';
 
 // ---- PR lookup (workspace-scoped) -----------------------------------------
 
@@ -18,10 +18,7 @@ export async function getPull(
   return row;
 }
 
-export async function getRepo(
-  db: Db,
-  repoId: string,
-): Promise<typeof t.repos.$inferSelect | undefined> {
+export async function getRepo(db: Db, repoId: string): Promise<RepoRow | undefined> {
   const [row] = await db.select().from(t.repos).where(eq(t.repos.id, repoId));
   return row;
 }

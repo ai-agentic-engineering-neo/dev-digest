@@ -13,8 +13,8 @@ import type { Finding, Intent, RunSummary, RunTrace } from '@devdigest/shared';
  * composes them so its public API stays identical.
  */
 
-import type { FindingRow, PullRow } from '../../db/rows.js';
-export type { FindingRow, PullRow };
+import type { FindingRow, PullRow, RepoRow } from '../../db/rows.js';
+export type { FindingRow, PullRow, RepoRow };
 
 export type ReviewRow = typeof t.reviews.$inferSelect;
 
@@ -31,7 +31,7 @@ export class ReviewRepository {
     return pullRepo.getPull(this.db, workspaceId, prId);
   }
 
-  getRepo(repoId: string): Promise<typeof t.repos.$inferSelect | undefined> {
+  getRepo(repoId: string): Promise<RepoRow | undefined> {
     return pullRepo.getRepo(this.db, repoId);
   }
 
@@ -87,9 +87,9 @@ export class ReviewRepository {
     return runRepo.deleteAgentRun(this.db, workspaceId, runId);
   }
 
-  /** Mark a still-running run as cancelled (no-op if it already finished). */
-  cancelRunIfRunning(runId: string): Promise<boolean> {
-    return runRepo.cancelRunIfRunning(this.db, runId);
+  /** Mark a still-running run as cancelled (no-op if it already finished). Workspace-scoped. */
+  cancelRunIfRunning(workspaceId: string, runId: string): Promise<boolean> {
+    return runRepo.cancelRunIfRunning(this.db, workspaceId, runId);
   }
 
   /** On boot: any run still 'running' is orphaned (its process died / restarted),
@@ -183,7 +183,7 @@ export class ReviewRepository {
     return runRepo.saveRunTrace(this.db, runId, trace);
   }
 
-  getRunTrace(runId: string): Promise<RunTrace | undefined> {
-    return runRepo.getRunTrace(this.db, runId);
+  getRunTrace(workspaceId: string, runId: string): Promise<RunTrace | undefined> {
+    return runRepo.getRunTrace(this.db, workspaceId, runId);
   }
 }

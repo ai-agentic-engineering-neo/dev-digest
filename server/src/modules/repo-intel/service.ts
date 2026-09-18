@@ -17,7 +17,7 @@
  * The constructor takes ONLY a Container. No astgrep / depgraph / tokenizer
  * deps are imported here — those land later and plug into this same shell.
  */
-import type { CodeSymbol, RepoRef } from '@devdigest/shared';
+import type { CodeSymbol, GitClient, RepoRef } from '@devdigest/shared';
 import type { Container } from '../../platform/container.js';
 import { extractEndpoints } from '../../adapters/codeindex/extract.js';
 import {
@@ -26,8 +26,7 @@ import {
   parseSymbols,
   langForFile,
 } from '../../adapters/astgrep/index.js';
-import { readFile } from 'node:fs/promises';
-import { extname, join } from 'node:path';
+import { extname } from 'node:path';
 import { RepoIntelRepository, type FullSymbolRow } from './repository.js';
 import type {
   BlastCallerRow,
@@ -52,7 +51,7 @@ import {
   RESYNC_JOB_KIND,
   SUPPORTED_EXT,
 } from './constants.js';
-import { runFullIndex, type IndexPayload } from './pipeline/full.js';
+import { runFullIndex, IndexPayload } from './pipeline/full.js';
 import { runIncremental } from './pipeline/incremental.js';
 
 /**
@@ -171,13 +170,13 @@ export class RepoIntelService implements RepoIntel {
    */
   registerIndexJobHandlers(): void {
     this.container.jobs.register(INDEX_JOB_KIND, async (payload) => {
-      await this.indexRepo((payload as IndexPayload).repoId);
+      await this.indexRepo(IndexPayload.parse(payload).repoId);
     });
     this.container.jobs.register(REFRESH_JOB_KIND, async (payload) => {
-      await this.refreshIndex((payload as IndexPayload).repoId);
+      await this.refreshIndex(IndexPayload.parse(payload).repoId);
     });
     this.container.jobs.register(RESYNC_JOB_KIND, async (payload) => {
-      await this.resyncRepo((payload as IndexPayload).repoId);
+      await this.resyncRepo(IndexPayload.parse(payload).repoId);
     });
   }
 
@@ -288,7 +287,7 @@ export class RepoIntelService implements RepoIntel {
       // Detect HTTP routes reachable from any caller file (best-effort, just
       // like the legacy blast service).
       for (const file of callerFiles) {
-        const content = await readClone(repo.clonePath, file);
+        const content = await readClone(this.container.git, ref, file);
         if (!content) continue;
         for (const e of extractEndpoints(content)) endpoints.add(e);
       }
@@ -460,6 +459,7 @@ export class RepoIntelService implements RepoIntel {
 
     const repo = await this.repo.getRepoBasics(repoId);
     if (!repo || !repo.clonePath) return [];
+    const ref: RepoRef = { owner: repo.owner, name: repo.name };
 
     // 1. Symbols declared in changed files. Filter to symbols that can BE
     //    called (function / method / class). Type/interface aliases have no
@@ -467,7 +467,7 @@ export class RepoIntelService implements RepoIntel {
     const declaredSymbols = new Map<string, { file: string; kind: string }>();
     for (const file of changedFiles) {
       if (!langForFile(file)) continue;
-      const source = await readClone(repo.clonePath, file);
+      const source = await readClone(this.container.git, ref, file);
       if (source == null) continue;
       try {
         for (const s of parseSymbols(file, source)) {
@@ -485,7 +485,6 @@ export class RepoIntelService implements RepoIntel {
     }
     if (declaredSymbols.size === 0) return [];
 
-    const ref: RepoRef = { owner: repo.owner, name: repo.name };
     const out: SignatureRow[] = [];
     const seen = new Set<string>();
     // Cache caller-file astgrep parses so we don't re-parse the same file per
@@ -511,7 +510,7 @@ export class RepoIntelService implements RepoIntel {
             callerSymbolsByFile.set(r.fromPath, []);
             callerSyms = [];
           } else {
-            const callerSrc = await readClone(repo.clonePath, r.fromPath);
+            const callerSrc = await readClone(this.container.git, ref, r.fromPath);
             if (callerSrc == null) {
               callerSymbolsByFile.set(r.fromPath, []);
               callerSyms = [];
@@ -581,6 +580,7 @@ export class RepoIntelService implements RepoIntel {
 
     const repo = await this.repo.getRepoBasics(repoId);
     if (!repo || !repo.clonePath) return [];
+    const ref: RepoRef = { owner: repo.owner, name: repo.name };
 
     const out: RefRow[] = [];
 
@@ -588,7 +588,7 @@ export class RepoIntelService implements RepoIntel {
       const ext = extname(file).toLowerCase();
       if (!(SUPPORTED_EXT as readonly string[]).includes(ext)) continue;
 
-      const source = await readClone(repo.clonePath, file);
+      const source = await readClone(this.container.git, ref, file);
       if (source == null) continue;
 
       let declared: ReturnType<typeof parseSymbols>;
@@ -759,6 +759,10 @@ function enclosingSymbolName(
   return inFile[0]?.name ?? fromPath.split('/').pop() ?? fromPath;
 }
 
-async function readClone(clonePath: string, file: string): Promise<string | null> {
-  return readFile(join(clonePath, file), 'utf8').catch(() => null);
+/** Best-effort file read through the GitClient port (never throws). Goes
+ *  through `git.readFile` rather than the filesystem directly, so this
+ *  service stays testable with a fake GitClient instead of a real clone
+ *  on disk — the same port every other read here (`sync`, `diff`, …) uses. */
+async function readClone(git: GitClient, ref: RepoRef, file: string): Promise<string | null> {
+  return git.readFile(ref, file).catch(() => null);
 }

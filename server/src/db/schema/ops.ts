@@ -23,7 +23,10 @@ export const jobs = pgTable(
     finishedAt: timestamp('finished_at', { withTimezone: true }),
     error: text('error'),
   },
-  (t) => ({ statusIdx: index('jobs_status_idx').on(t.status) }),
+  (t) => ({
+    statusIdx: index('jobs_status_idx').on(t.status),
+    wsIdx: index('jobs_ws_idx').on(t.workspaceId),
+  }),
 );
 
 export const installedPlugins = pgTable('installed_plugins', {

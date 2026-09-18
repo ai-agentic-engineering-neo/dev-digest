@@ -299,4 +299,47 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(body.runs.length).toBeGreaterThanOrEqual(2);
     await app.close();
   });
+
+  it('POST /pulls/:id/review with no body at all still validates (schema.body is optional)', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    // No payload/content-type sent — must not 422 at the schema layer (that
+    // would mean the optional body schema rejects a missing body); it should
+    // reach the handler and fail business validation instead (neither
+    // agentId nor all:true given).
+    const res = await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review` });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('invalid_run_request');
+    await app.close();
+  });
+
+  it('/runs/:id/cancel and /runs/:id/trace are workspace-scoped', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { db } = pg.handle;
+
+    // A run that lives in a DIFFERENT workspace than the request context
+    // (every request through `app` resolves to the seeded default workspace).
+    const [otherWs] = await db.insert(t.workspaces).values({ name: 'other-tenant' }).returning();
+    const { pr: foreignPr } = await setupRepoAndPr(db, otherWs!.id);
+    const [foreignRun] = await db
+      .insert(t.agentRuns)
+      .values({ workspaceId: otherWs!.id, prId: foreignPr.id, status: 'running' })
+      .returning();
+    await db.insert(t.runTraces).values({ runId: foreignRun!.id, trace: { steps: [] } });
+
+    // Cancelling across tenants must be a no-op — the foreign run stays 'running'.
+    const cancelRes = await app.inject({ method: 'POST', url: `/runs/${foreignRun!.id}/cancel` });
+    expect(cancelRes.statusCode).toBe(200);
+    const [afterCancel] = await db
+      .select({ status: t.agentRuns.status })
+      .from(t.agentRuns)
+      .where(eq(t.agentRuns.id, foreignRun!.id));
+    expect(afterCancel!.status).toBe('running');
+
+    // Reading the trace across tenants must 404, not leak the foreign trace.
+    const traceRes = await app.inject({ method: 'GET', url: `/runs/${foreignRun!.id}/trace` });
+    expect(traceRes.statusCode).toBe(404);
+
+    await app.close();
+  });
 });

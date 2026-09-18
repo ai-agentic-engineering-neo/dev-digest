@@ -23,6 +23,7 @@ import { readFile } from 'node:fs/promises';
 import { cpus } from 'node:os';
 import { join } from 'node:path';
 import PQueue from 'p-queue';
+import { z } from 'zod';
 import type { RepoRef } from '@devdigest/shared';
 import type { Container } from '../../../platform/container.js';
 import { withTimeout } from '../../../platform/resilience.js';
@@ -46,12 +47,19 @@ import { walkClone } from './walk.js';
 import { computeFileRank } from './rank.js';
 import { renderRepoMap } from './repo-map.js';
 
-export interface IndexPayload {
-  repoId: string;
+/**
+ * Payload for the `index`/`refresh`/`resync` jobs. JobRunner.enqueue() takes
+ * `unknown` and hands the SAME in-memory object straight to the handler (no
+ * DB round-trip today) — parsed at the handler boundary anyway (repo-intel/
+ * service.ts), matching the Zod-at-every-boundary convention.
+ */
+export const IndexPayload = z.object({
+  repoId: z.string(),
   /** Optional ref hint — when omitted we look up the repo's owner/name from the DB. */
-  owner?: string;
-  name?: string;
-}
+  owner: z.string().optional(),
+  name: z.string().optional(),
+});
+export type IndexPayload = z.infer<typeof IndexPayload>;
 
 /** Per-file parse error captured into `stats.parseDegraded` (capped). */
 interface ParseDegradedEntry {

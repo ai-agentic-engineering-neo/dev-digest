@@ -59,7 +59,8 @@ export async function listRunsForPull(
     duration_ms: run.durationMs,
     tokens_in: run.tokensIn,
     tokens_out: run.tokensOut,
-    cost_usd: run.costUsd,
+    // numeric column → Drizzle returns a string; the API contract is a number.
+    cost_usd: run.costUsd != null ? Number(run.costUsd) : null,
     findings_count: run.findingsCount,
     grounding: run.grounding,
     ran_at: run.ranAt ? run.ranAt.toISOString() : null,
@@ -90,12 +91,19 @@ export async function deleteAgentRun(
   return rows.length > 0;
 }
 
-/** Mark a still-running run as cancelled (no-op if it already finished). */
-export async function cancelRunIfRunning(db: Db, runId: string): Promise<boolean> {
+/** Mark a still-running run as cancelled (no-op if it already finished).
+ *  Workspace-scoped, like every other by-id lookup in this module. */
+export async function cancelRunIfRunning(db: Db, workspaceId: string, runId: string): Promise<boolean> {
   const rows = await db
     .update(t.agentRuns)
     .set({ status: 'cancelled' })
-    .where(and(eq(t.agentRuns.id, runId), eq(t.agentRuns.status, 'running')))
+    .where(
+      and(
+        eq(t.agentRuns.id, runId),
+        eq(t.agentRuns.workspaceId, workspaceId),
+        eq(t.agentRuns.status, 'running'),
+      ),
+    )
     .returning({ id: t.agentRuns.id });
   return rows.length > 0;
 }
@@ -168,7 +176,9 @@ export async function completeAgentRun(
       durationMs: values.durationMs,
       tokensIn: values.tokensIn,
       tokensOut: values.tokensOut,
-      costUsd: values.costUsd ?? null,
+      // numeric column → Drizzle expects a string; .toFixed matches scale=6
+      // and avoids exponential notation for very small per-token costs.
+      costUsd: values.costUsd != null ? values.costUsd.toFixed(6) : null,
       findingsCount: values.findingsCount,
       grounding: values.grounding,
       score: values.score ?? null,
@@ -186,7 +196,17 @@ export async function saveRunTrace(db: Db, runId: string, trace: RunTrace): Prom
     .onConflictDoUpdate({ target: t.runTraces.runId, set: { trace } });
 }
 
-export async function getRunTrace(db: Db, runId: string): Promise<RunTrace | undefined> {
-  const [row] = await db.select().from(t.runTraces).where(eq(t.runTraces.runId, runId));
+/** `run_traces` has no workspace_id of its own (PK = runId → agent_runs), so
+ *  the workspace scope is enforced via a join against agent_runs. */
+export async function getRunTrace(
+  db: Db,
+  workspaceId: string,
+  runId: string,
+): Promise<RunTrace | undefined> {
+  const [row] = await db
+    .select({ trace: t.runTraces.trace })
+    .from(t.runTraces)
+    .innerJoin(t.agentRuns, eq(t.agentRuns.id, t.runTraces.runId))
+    .where(and(eq(t.runTraces.runId, runId), eq(t.agentRuns.workspaceId, workspaceId)));
   return row ? (row.trace as RunTrace) : undefined;
 }

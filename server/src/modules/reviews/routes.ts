@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { RunRequest } from '@devdigest/shared';
+import { z } from 'zod';
+import { RunRequest, ReviewDto } from '@devdigest/shared';
 import type { RunEvent } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
@@ -23,13 +24,20 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
 
   // ---- Run a review (manual trigger) -------------------------------
   // Tight per-route limit: each call can fan out to expensive LLM runs.
-  // Body stays a tolerant manual parse (both fields optional; empty body is OK).
+  // Body is optional at the schema level (both fields optional; an empty/
+  // missing body is OK) so it goes through the same declarative validation
+  // path as every other route instead of a manual `.parse()` in the handler.
   app.post(
     '/pulls/:id/review',
-    { schema: { params: IdParams }, config: { rateLimit: { max: 10, timeWindow: '1 minute' } } },
+    {
+      // .nullish() (not just .optional()): a request sent with no body/content-type
+      // resolves req.body to `null`, not `undefined`.
+      schema: { params: IdParams, body: RunRequest.nullish() },
+      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+    },
     async (req) => {
     const { workspaceId } = await getContext(container, req);
-    const body = RunRequest.parse(req.body ?? {});
+    const body = req.body ?? {};
     const targets = await service.resolveTargets(workspaceId, {
       ...(body.agentId !== undefined ? { agentId: body.agentId } : {}),
       ...(body.all !== undefined ? { all: body.all } : {}),
@@ -112,24 +120,28 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
 
   // ---- Cancel an in-flight run --------------------------------------------
   app.post('/runs/:id/cancel', { schema: { params: IdParams } }, async (req) => {
-    await getContext(container, req);
-    await service.cancelRun(req.params.id);
+    const { workspaceId } = await getContext(container, req);
+    await service.cancelRun(workspaceId, req.params.id);
     return { ok: true };
   });
 
   // ---- Run trace (single document; A5 enriches with multi-agent/stats) ----
   app.get('/runs/:id/trace', { schema: { params: IdParams } }, async (req) => {
-    await getContext(container, req);
-    const trace = await service.getRunTrace(req.params.id);
+    const { workspaceId } = await getContext(container, req);
+    const trace = await service.getRunTrace(workspaceId, req.params.id);
     if (!trace) throw new NotFoundError('Run trace not found');
     return trace;
   });
 
   // ---- Reads --------------------------------------------------------------
-  app.get('/pulls/:id/reviews', { schema: { params: IdParams } }, async (req) => {
-    const { workspaceId } = await getContext(container, req);
-    return service.reviewsForPull(workspaceId, req.params.id);
-  });
+  app.get(
+    '/pulls/:id/reviews',
+    { schema: { params: IdParams, response: { 200: z.array(ReviewDto) } } },
+    async (req) => {
+      const { workspaceId } = await getContext(container, req);
+      return service.reviewsForPull(workspaceId, req.params.id);
+    },
+  );
 
   // ---- Delete a whole review run (one agent's pass) + its findings --------
   app.delete('/reviews/:id', { schema: { params: IdParams } }, async (req) => {

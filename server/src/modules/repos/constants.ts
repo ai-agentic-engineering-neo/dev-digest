@@ -15,18 +15,11 @@ export const GITHUB_TOKEN_SECRET = 'GITHUB_TOKEN';
 export const GITLAB_TOKEN_SECRET = 'GITLAB_TOKEN';
 
 /**
- * Parse `owner`/`repo` from a GitHub URL — supports both
- * `https://github.com/owner/repo(.git)` and `git@github.com:owner/repo.git`.
- * GitHub owners are a single path segment (orgs/users can't contain "/").
+ * A path segment allowed in an owner/name (GitHub) or group/subgroup/name
+ * (GitLab) repo path — deliberately excludes `/`, `.`/`..` (path traversal),
+ * and anything else that isn't a normal repo-slug character.
  */
-export const GITHUB_URL_REGEX = /github\.com[/:]([^/]+)\/([^/.]+)(?:\.git)?\/?$/;
-
-/**
- * Parse `owner`/`repo` from a GitLab.com URL — supports both https and ssh
- * forms, AND nested group namespaces (`group/subgroup/project`). `owner` is
- * everything up to the last `/` segment (the project name).
- */
-export const GITLAB_URL_REGEX = /gitlab\.com[/:](.+)\/([^/.]+)(?:\.git)?\/?$/;
+export const REPO_PATH_SEGMENT_REGEX = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 /** Username embedded into an authenticated https github.com clone URL. */
 export const GIT_TOKEN_USERNAME = 'x-access-token';

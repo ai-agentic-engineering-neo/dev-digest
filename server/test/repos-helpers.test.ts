@@ -67,6 +67,41 @@ describe('parseRepoUrl', () => {
       expect((err as AppError).code).toBe('invalid_repo_url');
     }
   });
+
+  // Regression coverage for a host-spoofing SSRF: the old implementation matched
+  // GITHUB_URL_REGEX/GITLAB_URL_REGEX against the *raw* URL string, so any URL
+  // that merely *contained* "github.com/owner/repo" as a substring would parse
+  // successfully and record a legit-looking owner/repo — while the actual clone
+  // target (untouched by the regex) pointed at the attacker's host. Fixed by
+  // resolving the URL's real hostname via `new URL()` before matching.
+  it('rejects a host that merely contains "github.com" as a path segment (SSRF/spoofing)', () => {
+    expect(() => parseRepoUrl('https://attacker.example/redirect/github.com/owner/repo')).toThrow(
+      AppError,
+    );
+  });
+
+  it('rejects a github.com string embedded via userinfo on a different host', () => {
+    expect(() => parseRepoUrl('https://github.com@attacker.example/owner/repo')).toThrow(AppError);
+  });
+
+  it('rejects a file:// URL', () => {
+    expect(() => parseRepoUrl('file:///etc/passwd')).toThrow(AppError);
+  });
+
+  // Regression coverage for path traversal: owner segments used to accept any
+  // non-slash character (including "."/".."), which could escape the
+  // configured clone directory by one level via clonePathFor(owner, name).
+  it('rejects a ".." owner segment (path traversal)', () => {
+    expect(() => parseRepoUrl('https://github.com/../repo')).toThrow(AppError);
+  });
+
+  it('rejects a "." owner segment', () => {
+    expect(() => parseRepoUrl('https://github.com/./repo')).toThrow(AppError);
+  });
+
+  it('rejects a URL with too few path segments', () => {
+    expect(() => parseRepoUrl('https://github.com/acme')).toThrow(AppError);
+  });
 });
 
 describe('withProviderToken', () => {

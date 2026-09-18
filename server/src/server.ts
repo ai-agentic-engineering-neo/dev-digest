@@ -26,7 +26,7 @@ async function main() {
   }
 
   try {
-    await app.listen({ port: config.apiPort, host: '0.0.0.0' });
+    await app.listen({ port: config.apiPort, host: config.apiHost });
     app.log.info(`DevDigest API listening on http://localhost:${config.apiPort}`);
   } catch (err) {
     app.log.error(err);

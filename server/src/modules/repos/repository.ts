@@ -1,13 +1,18 @@
 import { and, eq } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
+import type { RepoRow } from '../../db/rows.js';
 
 /**
  * F1 — repos data-access layer. The ONLY place that touches the `repos`
  * table. Every query is scoped by `workspaceId` (tenancy guard).
  */
 
-export type RepoRow = typeof t.repos.$inferSelect;
+// Re-exported from db/rows.ts (not defined here) so cross-module consumers
+// (e.g. reviews' run-executor/diff-loader) can reference the row shape
+// without importing another module's data-access layer — same convention as
+// FindingRow/PullRow in modules/reviews/repository.ts.
+export type { RepoRow };
 
 export interface InsertRepo {
   workspaceId: string;

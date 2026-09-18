@@ -87,3 +87,30 @@ export const FindingAction = z.object({
   reply: z.string().optional(),
 });
 export type FindingAction = z.infer<typeof FindingAction>;
+
+/** A persisted Finding as returned by GET /pulls/:id/reviews — Finding plus
+ *  the review it belongs to and its accept/dismiss state. */
+export const ReviewDtoFinding = Finding.extend({
+  review_id: z.string(),
+  accepted_at: z.string().nullable(),
+  dismissed_at: z.string().nullable(),
+});
+export type ReviewDtoFinding = z.infer<typeof ReviewDtoFinding>;
+
+/** A persisted review run + its findings — GET /pulls/:id/reviews response shape. */
+export const ReviewDto = z.object({
+  id: z.string(),
+  pr_id: z.string(),
+  agent_id: z.string().nullable(),
+  run_id: z.string().nullable(),
+  agent_name: z.string().nullish(),
+  kind: z.enum(['summary', 'review']),
+  verdict: z.string().nullable(),
+  summary: z.string().nullable(),
+  score: z.number().nullable(),
+  model: z.string().nullable(),
+  grounding: z.string().nullish(),
+  created_at: z.string(),
+  findings: z.array(ReviewDtoFinding),
+});
+export type ReviewDto = z.infer<typeof ReviewDto>;

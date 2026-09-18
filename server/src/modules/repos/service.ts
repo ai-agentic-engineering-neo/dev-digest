@@ -1,5 +1,6 @@
+import { z } from 'zod';
 import type { Container } from '../../platform/container.js';
-import { type Repo, type RepoProvider } from '@devdigest/shared';
+import { RepoProvider, type Repo } from '@devdigest/shared';
 import { NotFoundError } from '../../platform/errors.js';
 import { RepoRepository } from './repository.js';
 import { parseRepoUrl, withProviderToken, toRepoDto } from './helpers.js';
@@ -25,14 +26,22 @@ import {
  * pure transforms through helpers.ts, literals through constants.ts.
  */
 
-/** Payload enqueued for (and consumed by) the `clone` job. */
-export interface CloneJobPayload {
-  repoId: string;
-  provider: RepoProvider;
-  owner: string;
-  name: string;
-  url: string;
-}
+/**
+ * Payload enqueued for (and consumed by) the `clone` job. JobRunner.enqueue()
+ * takes `unknown` and hands the SAME in-memory object straight to the handler
+ * (no DB round-trip today) — parsed at the handler boundary anyway, matching
+ * the Zod-at-every-boundary convention, so a future call site that skips
+ * `satisfies CloneJobPayload`, or a payload ever persisted/reloaded from
+ * jobs.payload, fails loudly instead of silently mis-casting.
+ */
+export const CloneJobPayload = z.object({
+  repoId: z.string(),
+  provider: RepoProvider,
+  owner: z.string(),
+  name: z.string(),
+  url: z.string(),
+});
+export type CloneJobPayload = z.infer<typeof CloneJobPayload>;
 
 /** The secret key holding the clone/API token for a given provider. */
 function tokenSecretFor(provider: RepoProvider): string {
@@ -59,7 +68,7 @@ export class RepoService {
    */
   registerCloneJobHandler(): void {
     this.container.jobs.register(CLONE_JOB_KIND, async (payload) => {
-      await this.runCloneJob(payload as CloneJobPayload);
+      await this.runCloneJob(CloneJobPayload.parse(payload));
     });
   }
 
@@ -117,12 +126,18 @@ export class RepoService {
       fullName,
       createdBy: userId,
     });
+    // Clone from the canonical provider URL we derived (owner/name), never
+    // the caller-supplied `url` string — parseRepoUrl only checks that `url`
+    // *resolves* to github.com/gitlab.com, so trusting it further here would
+    // still let a crafted URL (e.g. an unusual port, or a form parseRepoUrl
+    // accepts but a differently-behaved git client resolves differently)
+    // reach somewhere other than the host we just validated against.
     await this.container.jobs.enqueue(workspaceId, CLONE_JOB_KIND, {
       repoId: row.id,
       provider,
       owner,
       name,
-      url,
+      url: cloneUrlFor(provider, fullName),
     } satisfies CloneJobPayload);
 
     return { repo: toRepoDto(row), created: true };

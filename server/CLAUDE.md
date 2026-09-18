@@ -62,3 +62,8 @@ src/vendor/shared/      Zod contracts (canonical copy)
 `pnpm exec vitest run --exclude '**/*.it.test.ts'`.
 DB-backed (testcontainers): `pnpm exec vitest run .it.test`.
 Mock adapters live in `src/adapters/mocks.ts`.
+
+`pnpm lint` (eslint) also enforces the `process.env` ban outside
+`platform/config.ts` — the named exceptions are listed in `eslint.config.mjs`.
+`pnpm arch` checks the onion rings (`.dependency-cruiser.cjs`). Both run in
+`server-unit.yml` alongside the typecheck.

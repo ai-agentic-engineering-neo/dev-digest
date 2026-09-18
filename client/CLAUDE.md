@@ -40,6 +40,11 @@ either way. Full shape: `docs/component-conventions.md`.
   never hardcoded in a component.
 - API errors are normalized to `ApiError` — branch on `status`, never on message text.
 
+`pnpm lint` (eslint) enforces the `fetch` ban and hook correctness; `pnpm arch`
+(dependency-cruiser, `.dependency-cruiser.cjs`) enforces the layering — shared
+code may not import a route, and no route may reach into another route's
+`_components/`. Both run in `client.yml`. `src/vendor/**` is excluded from both.
+
 ## Gotchas
 
 - `src/vendor/shared` is a LAGGING copy of the contracts (see the root `CLAUDE.md`).

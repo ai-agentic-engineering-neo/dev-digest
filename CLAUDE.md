@@ -51,6 +51,8 @@ docker compose up -d          # Postgres only
 cd server && pnpm db:migrate  # REQUIRED manually — never runs on boot
 cd server && pnpm db:seed     # idempotent; without it the API fails "No system user"
 pnpm test / pnpm typecheck    # per package
+pnpm lint                     # eslint — server/ and client/
+pnpm arch                     # import boundaries (dependency-cruiser) — server/ and client/
 ./scripts/e2e.sh              # browser flows
 ```
 

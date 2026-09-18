@@ -120,16 +120,25 @@ export type SkillSource = z.infer<typeof SkillSource>;
 
 export const Skill = z.object({
   id: z.string(),
-  name: z.string(),
-  description: z.string(),
+  name: z.string().min(1),
+  description: z.string().min(1),
   type: SkillType,
   source: SkillSource,
-  body: z.string(),
+  body: z.string().min(1),
   enabled: z.boolean(),
   version: z.number().int(),
   evidence_files: z.array(z.string()).nullish(),
 });
 export type Skill = z.infer<typeof Skill>;
+
+export const SkillVersion = z.object({
+  skill_id: z.string(),
+  version: z.number().int(),
+  body: z.string().min(1),
+  note: z.string().nullish(),
+  created_at: z.string(),
+});
+export type SkillVersion = z.infer<typeof SkillVersion>;
 
 export const CommunitySkill = z.object({
   name: z.string(),

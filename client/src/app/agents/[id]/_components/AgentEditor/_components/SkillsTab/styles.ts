@@ -1,0 +1,47 @@
+import type { CSSProperties } from "react";
+
+export const s = {
+  wrap: { maxWidth: 760 } satisfies CSSProperties,
+  header: { display: "flex", alignItems: "baseline", gap: 12, marginBottom: 8 } satisfies CSSProperties,
+  h2: { fontSize: 18, fontWeight: 700 } satisfies CSSProperties,
+  count: { fontSize: 13, color: "var(--text-muted)" } satisfies CSSProperties,
+  hint: { fontSize: 13, color: "var(--text-secondary)", marginBottom: 14, lineHeight: 1.4 } satisfies CSSProperties,
+  filter: {
+    width: "100%",
+    marginBottom: 14,
+    padding: "8px 12px",
+    borderRadius: 8,
+    border: "1px solid var(--border)",
+    background: "var(--bg-elevated)",
+    color: "var(--text)",
+    fontSize: 13,
+  } satisfies CSSProperties,
+  row: (dim: boolean): CSSProperties => ({
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "10px 8px",
+    borderRadius: 8,
+    border: "1px solid var(--border)",
+    background: "var(--bg-elevated)",
+    marginBottom: 8,
+    opacity: dim ? 0.6 : 1,
+  }),
+  handle: {
+    cursor: "grab",
+    color: "var(--text-muted)",
+    display: "inline-flex",
+    padding: 4,
+    background: "none",
+    border: "none",
+  } satisfies CSSProperties,
+  chip: (color: string): CSSProperties => ({
+    fontSize: 12,
+    fontWeight: 600,
+    color,
+    background: color + "1a",
+    padding: "1px 8px",
+    borderRadius: 4,
+    flexShrink: 0,
+  }),
+} as const;

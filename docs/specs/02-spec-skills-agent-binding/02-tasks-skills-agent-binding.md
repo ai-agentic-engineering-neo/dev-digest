@@ -99,7 +99,7 @@ Add `agent_skills.enabled`, extend `AgentSkillLink`, and make `GET|POST /agents/
 - [x] 1.5 Service: `setSkillBindings(workspaceId, agentId, skills: { skill_id: string; enabled: boolean }[])` — 404 if agent missing; 422 `ValidationError` if any `skill_id` is not in this workspace. Routes: extend `SetSkillsBody` so `{ skills: [{ skill_id, enabled }] }` is the editor path; existing `{ skill_ids }` / `{ skill_id }` may remain and default `enabled: true`. GET still 404s across workspaces via `getContext` + agent lookup.
 - [x] 1.6 Add `server/test/agent-skills.it.test.ts` (copy `startPg` / `seed` / `buildApp` from `agents-versions.it.test.ts`) implementing every case in 1.0 Proof Artifacts. Create three skills via `POST /skills`. Add `AgentSkillLink.parse` missing-`enabled` case to `server/test/contracts.test.ts`.
 
-### [ ] 2.0 Agent editor Skills tab
+### [x] 2.0 Agent editor Skills tab
 
 `/agents/:id?tab=skills` lists workspace skills with drag handle, per-agent checkbox, type badge, “N of M enabled”, name filter, and the order-matters copy. Pages stay thin; UI colocated under `AgentEditor/_components/SkillsTab/`; hooks in `client/src/lib/hooks/`. No Context / Evals / Stats / CI tabs.
 
@@ -112,11 +112,11 @@ Add `agent_skills.enabled`, extend `AgentSkillLink`, and make `GET|POST /agents/
 - Browser (after `./scripts/dev.sh`): open any agent (e.g. Security Reviewer), bind two skills, drag to reorder, reload — order and checkboxes persist. Globally disabled skill stays visible; its checkbox does not increment N until the library toggle is on.
 
 #### 2.0 Tasks
-- [ ] 2.1 Add `useAgentSkills(agentId)` (`GET /agents/:id/skills`) and `useSetAgentSkills(agentId)` (`POST` `{ skills: [{ skill_id, enabled }] }`) in `client/src/lib/hooks/agents.ts` (or a small `agent-skills.ts` re-exported from `hooks/index.ts`). Query keys `["agent-skills", id]`. Invalidate on success. No `fetch` in components. Reuse `useSkills` for the catalog.
-- [ ] 2.2 Add `{ key: "skills", labelKey: "editor.tabs.skills", icon: "Sparkles" }` to `TABS`. `AgentEditor` renders `SkillsTab` when `tab === "skills"` (keep `key={agent.id}` remount). `page.tsx` `VALID_TABS` becomes `["config", "skills"]`. Do not add Context / Evals / Stats / CI.
-- [ ] 2.3 Add colocated `SkillsTab/` (`tsx`, `styles.ts`, `helpers.ts`, `constants.ts`, `index.ts`). Copy `TYPE_COLOR` locally (do not import from `/skills`). Merge catalog + links in a pure helper: unlinked = unchecked; linked keep `enabled` + `order`; leftover catalog after linked rows, stable by name. Header uses existing `agents.skills.enabledCount` / `orderHint` / `filterPlaceholder`. Filter by **name** only. Globally disabled rows stay visible.
-- [ ] 2.4 Checkbox on: if unlinked, append a link `{ skill_id, enabled: true }` and POST the full linked set. Checkbox off: set that link `enabled: false`, keep it in the POST list (do not unlink). Native HTML5 drag-and-drop: first drag of an unlinked row inserts it into the linked ordered set with `enabled: true`; drop writes `POST` with the new order. Unlinked-only rows are not sent.
-- [ ] 2.5 Write the RTL tests named in 2.0 Proof Artifacts (mock hooks like `AgentEditor.test.tsx`). Cover `mergeCatalogWithLinks` / `enabledCount` / `filterSkillRows` in `helpers.test.ts`. `cd client && pnpm test` green for the new files.
+- [x] 2.1 Add `useAgentSkills(agentId)` (`GET /agents/:id/skills`) and `useSetAgentSkills(agentId)` (`POST` `{ skills: [{ skill_id, enabled }] }`) in `client/src/lib/hooks/agents.ts` (or a small `agent-skills.ts` re-exported from `hooks/index.ts`). Query keys `["agent-skills", id]`. Invalidate on success. No `fetch` in components. Reuse `useSkills` for the catalog.
+- [x] 2.2 Add `{ key: "skills", labelKey: "editor.tabs.skills", icon: "Sparkles" }` to `TABS`. `AgentEditor` renders `SkillsTab` when `tab === "skills"` (keep `key={agent.id}` remount). `page.tsx` `VALID_TABS` becomes `["config", "skills"]`. Do not add Context / Evals / Stats / CI.
+- [x] 2.3 Add colocated `SkillsTab/` (`tsx`, `styles.ts`, `helpers.ts`, `constants.ts`, `index.ts`). Copy `TYPE_COLOR` locally (do not import from `/skills`). Merge catalog + links in a pure helper: unlinked = unchecked; linked keep `enabled` + `order`; leftover catalog after linked rows, stable by name. Header uses existing `agents.skills.enabledCount` / `orderHint` / `filterPlaceholder`. Filter by **name** only. Globally disabled rows stay visible.
+- [x] 2.4 Checkbox on: if unlinked, append a link `{ skill_id, enabled: true }` and POST the full linked set. Checkbox off: set that link `enabled: false`, keep it in the POST list (do not unlink). Native HTML5 drag-and-drop: first drag of an unlinked row inserts it into the linked ordered set with `enabled: true`; drop writes `POST` with the new order. Unlinked-only rows are not sent.
+- [x] 2.5 Write the RTL tests named in 2.0 Proof Artifacts (mock hooks like `AgentEditor.test.tsx`). Cover `mergeCatalogWithLinks` / `enabledCount` / `filterSkillRows` in `helpers.test.ts`. `cd client && pnpm test` green for the new files.
 
 ### [ ] 3.0 Prompt assembly + trace skills block
 

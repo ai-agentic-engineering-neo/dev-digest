@@ -23,6 +23,18 @@ Entry format: `.claude/skills/engineering-insights/reference/entry-format.md`.
 
 ## Codebase Patterns
 
+- **2026-09-18** — `server/CLAUDE.md`'s "Layer duties are strict … no raw SQL
+  and no HTTP inside a service" describes the intent, not the tree. Eight files
+  query the DB outside a repository — `pulls/routes.ts`, `polling/routes.ts`,
+  `workspace/routes.ts`, `settings/routes.ts`, `settings/feature-models.ts`,
+  `repos/helpers.ts`, `reviews/diff-loader.ts`, `reviews/run-executor.ts` — and
+  `pulls`, `polling` and `workspace` have no `service.ts`/`repository.ts` at
+  all, so their handlers go straight from URL to SQL. `repos/helpers.ts`
+  imports `db/schema.js` under a docblock promising "pure functions only".
+  These are allowlisted in `server/.dependency-cruiser.cjs`; `pnpm arch` is
+  green on the current tree, so any NEW violation is yours. Copying the shape of
+  `pulls/routes.ts` for a new endpoint will fail that check.
+
 - **2026-09-17** — `CLAUDE.md`'s "Every table still carries `workspace_id`" is
   not literally true. On the review path only `reviews`, `pull_requests`,
   `agent_runs` and `multi_agent_runs` have the column; `findings`, `pr_intent`,
@@ -67,6 +79,21 @@ Entry format: `.claude/skills/engineering-insights/reference/entry-format.md`.
 
 ## Tool & Library Notes
 
+- **2026-09-18** — Two dependency-cruiser settings decide whether `pnpm arch`
+  (`server/.dependency-cruiser.cjs`) checks anything at all, and both fail
+  SILENTLY with a green "no dependency violations found". (1) Listing
+  `node_modules` in `options.exclude` drops external modules from the graph, so
+  every rule about an npm package (drizzle-orm, fastify, the SDKs) stops
+  matching — keep `doNotFollow: { path: 'node_modules' }` for speed and restrict
+  `exclude` to `clones`/`dist`. (2) Without
+  `options.tsPreCompilationDeps: true`, `import type { … }` crossings are
+  invisible, which is most of the boundary traffic in this codebase. Third trap,
+  this one loud: on a circular rule `viaNot: 'X'` ("no module in the cycle
+  matches X") is NOT the same as the documented-looking `via: { pathNot: 'X' }`
+  ("some module does not match X") — the latter is true of nearly every cycle.
+  Verify any rule change by injecting a violation and re-running, not by reading
+  a green result.
+
 ## Recurring Errors & Fixes
 
 - **2026-09-17** — `Run failed: 401 User not found.` mid-agent-run is OpenRouter
@@ -82,6 +109,11 @@ Entry format: `.claude/skills/engineering-insights/reference/entry-format.md`.
   price table, so costs still render.
 
 ## Session Notes
+
+- **2026-09-18** — Added the `onion-architecture` skill
+  (`.claude/skills/onion-architecture/`) plus `server/.dependency-cruiser.cjs`
+  and a `pnpm arch` script; each rule was confirmed to fire against an injected
+  violation before the allowlist was written.
 
 - **2026-09-17** — Ran the PR-review prompt against PR #4 (the
   `test/reviewer-bait` fixture); review only, no code change.

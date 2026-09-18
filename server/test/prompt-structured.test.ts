@@ -1,8 +1,16 @@
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
+import { readFileSync } from 'node:fs';
 import { assemblePrompt, wrapUntrusted } from '../src/platform/prompt.js';
 import { toJsonSchema, parseWithRepair, extractJson } from '../src/platform/structured.js';
 import { Review } from '@devdigest/shared';
+import { TEST_QUALITY_SKILL_BODIES } from '../src/db/seed-skills.js';
+import { skillsPromptArg } from '../src/modules/reviews/helpers.js';
+
+const HAPPY_PATH_DIFF = readFileSync(
+  new URL('../../docs/skill-fixtures/happy-path-only.diff', import.meta.url),
+  'utf8',
+);
 
 describe('prompt assembly + injection hardening', () => {
   it('wraps untrusted content in delimiters and neutralizes close attempts', () => {
@@ -51,6 +59,30 @@ describe('prompt assembly + injection hardening', () => {
     expect(empty.assembly.skills).toBeNull();
     expect(ws.assembly.skills).toBeNull();
     expect(none.messages[1]!.content).not.toContain('## Skills / rules');
+  });
+
+  it('includes Test Quality bodies for the happy-path fixture and omits them via skillsPromptArg([])', () => {
+    const on = assemblePrompt({
+      system: 'You are a test-quality reviewer.',
+      ...skillsPromptArg(TEST_QUALITY_SKILL_BODIES),
+      diff: HAPPY_PATH_DIFF,
+      task: "Review PR #901 'Add parseAmount helper with happy-path-only tests'",
+    });
+    expect(on.assembly.skills).not.toBeNull();
+    for (const body of TEST_QUALITY_SKILL_BODIES) {
+      expect(on.assembly.skills).toContain(body);
+    }
+    expect(on.messages[1]!.content).toContain('## Skills / rules');
+    expect(on.messages[1]!.content).toContain('parseAmount');
+
+    const off = assemblePrompt({
+      system: 'You are a test-quality reviewer.',
+      ...skillsPromptArg([]),
+      diff: HAPPY_PATH_DIFF,
+    });
+    expect(skillsPromptArg([])).toEqual({});
+    expect(off.assembly.skills).toBeNull();
+    expect(off.messages[1]!.content).not.toContain('## Skills / rules');
   });
 });
 

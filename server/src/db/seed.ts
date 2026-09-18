@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { readFileSync } from 'node:fs';
 import { createDb, type Db } from './client.js';
 import * as t from './schema.js';
 import { eq, and } from 'drizzle-orm';
@@ -13,6 +14,33 @@ import { seedSkills } from './seed-skills.js';
 /** Default provider/model for the built-in reviewer agents. */
 export const DEFAULT_PROVIDER = 'openrouter' as const;
 export const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
+
+const HAPPY_PATH_DIFF = new URL('../../../docs/skill-fixtures/happy-path-only.diff', import.meta.url);
+
+function filesFromUnifiedDiff(text: string): Array<{
+  path: string;
+  patch: string;
+  additions: number;
+  deletions: number;
+}> {
+  const out: Array<{ path: string; patch: string; additions: number; deletions: number }> = [];
+  for (const part of text.split(/^diff --git /m).filter(Boolean)) {
+    const header = part.match(/^a\/(\S+) b\/(\S+)/);
+    const path = header?.[2];
+    if (!path) continue;
+    const hunkAt = part.indexOf('\n@@');
+    const patch = hunkAt >= 0 ? part.slice(hunkAt + 1).replace(/\s+$/, '') + '\n' : '';
+    let additions = 0;
+    let deletions = 0;
+    for (const line of patch.split('\n')) {
+      if (line.startsWith('+++') || line.startsWith('---') || line.startsWith('@@')) continue;
+      if (line.startsWith('+')) additions += 1;
+      else if (line.startsWith('-')) deletions += 1;
+    }
+    out.push({ path, patch, additions, deletions });
+  }
+  return out;
+}
 
 /**
  * Seed the starter's demo data. Idempotent: re-running upserts the default
@@ -173,6 +201,44 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
         confidence: 0.86,
       },
     ]);
+  }
+
+  // ---- PR #901 (happy-path-only tests — control experiment) ----
+  let [pr901] = await db
+    .select()
+    .from(t.pullRequests)
+    .where(and(eq(t.pullRequests.repoId, repoId), eq(t.pullRequests.number, 901)));
+  if (!pr901) {
+    const files = filesFromUnifiedDiff(readFileSync(HAPPY_PATH_DIFF, 'utf8'));
+    const additions = files.reduce((n, f) => n + f.additions, 0);
+    const deletions = files.reduce((n, f) => n + f.deletions, 0);
+    [pr901] = await db
+      .insert(t.pullRequests)
+      .values({
+        workspaceId,
+        repoId,
+        number: 901,
+        title: 'Add parseAmount helper with happy-path-only tests',
+        author: 'seed',
+        branch: 'test/happy-path-only',
+        base: 'main',
+        headSha: 'c0ntr0l901',
+        additions,
+        deletions,
+        filesCount: files.length,
+        status: 'needs_review',
+        body: 'Tests cover the successful parse only. Empty input, NaN, and negative branches have no assertions.',
+      })
+      .returning();
+    if (files.length > 0) {
+      await db.insert(t.prFiles).values(files.map((f) => ({ prId: pr901!.id, ...f })));
+    }
+    await db.insert(t.prCommits).values({
+      prId: pr901!.id,
+      sha: 'c0ntr0l901',
+      message: 'Add parseAmount with a happy-path-only test',
+      author: 'seed',
+    });
   }
 
   // ---- built-in agents (the three starter presets) ----

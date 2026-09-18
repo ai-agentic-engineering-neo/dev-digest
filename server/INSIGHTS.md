@@ -18,6 +18,12 @@ When a feature looks like it's just never been built (e.g. cost tracking absent 
 
 ## Mistake
 
+### 2026-09-19 — `server/src/db/seed.ts` is three hops from the repo root, not four
+`new URL('../../../../docs/skill-fixtures/happy-path-only.diff', import.meta.url)` from `server/src/db/seed.ts` resolved to `/Users/nata/Documents/neo/DevDigest/docs/...` (parent of the repo) and `pnpm db:seed` threw ENOENT. The file lives at `server/src/db/` → `../../../docs/...` is the monorepo `docs/`. Hermetic tests under `server/test/` correctly use `../../docs/...` — do not copy that URL into seed.
+
+### 2026-09-19 — a JSDoc block cannot contain the characters `*/`
+Hit in `server/src/modules/skills/import.ts` documenting nested zip paths like `skill-name/SKILL.md`. TypeScript treated `*/` inside the comment as the end of the block (TS1160). Describe the layout in words ("one path segment, then SKILL.md") instead of writing that character pair.
+
 ### 2026-09-18 — `skills.insert` writes the row then snapshots `skill_versions` outside a transaction
 `server/src/modules/skills/repository.ts` `insert` (`this.db.insert(t.skills)` then `snapshotVersion`) is two statements. If the snapshot fails — hit locally when `skill_versions.note` was missing until `pnpm db:migrate` applied `0014` — the skill row remains and Versions shows only later saves (no v1). Wrap insert+snapshot (and restore's update+snapshot) in `this.db.transaction` like `pulls/repository.ts` `refreshDetail` before relying on v1 existing after every create.
 

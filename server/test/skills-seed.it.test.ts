@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { and, eq } from 'drizzle-orm';
 import { startPg, dockerAvailable, type PgFixture } from './helpers/pg.js';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/platform/config.js';
 import { seed } from '../src/db/seed.js';
+import * as t from '../src/db/schema.js';
 import { MockGitClient, MockGitHubClient } from '../src/adapters/mocks.js';
 
 const hasDocker = await dockerAvailable();
@@ -167,5 +169,20 @@ d('skills catalog seed', () => {
       'flaky-tests',
     ]);
     await app.close();
+  });
+
+  it('seeds PR #901 with a non-null pr_files.patch', async () => {
+    const [repo] = await pg.handle.db
+      .select()
+      .from(t.repos)
+      .where(eq(t.repos.fullName, 'acme/payments-api'));
+    const [pr] = await pg.handle.db
+      .select()
+      .from(t.pullRequests)
+      .where(and(eq(t.pullRequests.repoId, repo!.id), eq(t.pullRequests.number, 901)));
+    expect(pr?.title).toMatch(/happy-path-only/i);
+    expect(pr?.body).toMatch(/successful parse only/i);
+    const files = await pg.handle.db.select().from(t.prFiles).where(eq(t.prFiles.prId, pr!.id));
+    expect(files.some((f) => typeof f.patch === 'string' && f.patch.includes('parseAmount'))).toBe(true);
   });
 });

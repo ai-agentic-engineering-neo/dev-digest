@@ -1,0 +1,34 @@
+diff --git a/src/lib/parseAmount.ts b/src/lib/parseAmount.ts
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/lib/parseAmount.ts
+@@ -0,0 +1,14 @@
++export function parseAmount(raw: string): number {
++  const trimmed = raw.trim();
++  if (trimmed === '') {
++    throw new Error('empty amount');
++  }
++  const n = Number(trimmed);
++  if (Number.isNaN(n)) {
++    throw new Error('invalid amount');
++  }
++  if (n < 0) {
++    throw new Error('negative amount');
++  }
++  return n;
++}
+diff --git a/src/lib/parseAmount.test.ts b/src/lib/parseAmount.test.ts
+new file mode 100644
+index 0000000..2222222
+--- /dev/null
++++ b/src/lib/parseAmount.test.ts
+@@ -0,0 +1,8 @@
++import { describe, it, expect } from 'vitest';
++import { parseAmount } from './parseAmount.js';
++
++describe('parseAmount', () => {
++  it('parses a positive integer (happy path only)', () => {
++    expect(parseAmount('42')).toBe(42);
++  });
++});

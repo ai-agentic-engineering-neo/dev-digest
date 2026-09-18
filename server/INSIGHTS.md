@@ -12,6 +12,8 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 ## What Doesn't Work
 
+- **2026-09-18** — The PR list's cost column was built as "latest completed run's cost", not "sum of every completed run's cost", and the wrong semantics was documented as deliberate in the contract comment (`// USD cost of the LATEST COMPLETED run… Deliberately not a sum across runs`) — a reviewer reading the comment alone would conclude the behavior was intentional and correct. The underlying query (`doneRunCostsForPulls`) already returns every `done` run per PR; only the grouping function picked the first one. Fixed by replacing `pickLatestCostByPr` with `sumCostByPr` (skips `costUsd: null` runs rather than zeroing the sum) and correcting the contract comment in both `server/src/vendor/shared/contracts/platform.ts` and its client hand-copy. When a list column is described as "the latest X" or "not a sum", check the actual product requirement before trusting the comment — it can describe what was built, not what was asked for. Evidence: `server/src/modules/pulls/helpers.ts:83-98`.
+
 - **2026-07-29** — A green `pnpm test` does not mean the integration tests ran: `*.it.test.ts` files self-skip when no Docker daemon is reachable, so a machine without Docker reports success having exercised none of the DB paths. Evidence: `server/test/helpers/pg.ts:10`.
 
 - **2026-07-29** — `TESTING.md:43` promises a Windows `typecheck` job as the `@ast-grep/napi` prebuilt gate; the gate no longer exists, so a missing win32 prebuilt now reaches users uncaught. Evidence: commit `b7838c8` *"ci(server): drop the Windows typecheck matrix"*.

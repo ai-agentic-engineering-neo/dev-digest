@@ -18,6 +18,10 @@ import {
   AgentSkillLink,
   Skill,
   SkillSource,
+  ConventionStatus,
+  ConventionCandidate,
+  ConventionList,
+  ConventionCompose,
 } from '@devdigest/shared';
 
 /**
@@ -258,5 +262,61 @@ describe('platform DTOs', () => {
         commits: [],
       }),
     ).not.toThrow();
+  });
+});
+
+describe('Convention contracts', () => {
+  const accepted = {
+    id: 'c1',
+    rule: 'Use p-queue, not a homemade limiter',
+    evidence_path: 'src/middleware/ratelimit.ts',
+    evidence_snippet: 'Use p-queue, not a homemade limiter',
+    confidence: 0.91,
+    status: 'accepted' as const,
+    category: 'async',
+    evidence_start_line: 23,
+    evidence_end_line: 31,
+    accepted: true,
+  };
+
+  it('ConventionStatus parses pending | accepted | rejected', () => {
+    expect(ConventionStatus.parse('pending')).toBe('pending');
+    expect(ConventionStatus.parse('accepted')).toBe('accepted');
+    expect(ConventionStatus.parse('rejected')).toBe('rejected');
+    expect(() => ConventionStatus.parse('draft')).toThrow();
+  });
+
+  it('ConventionCandidate parses status, category, line range; accepted is true iff status is accepted', () => {
+    const parsed = ConventionCandidate.parse(accepted);
+    expect(parsed.status).toBe('accepted');
+    expect(parsed.accepted).toBe(true);
+    expect(parsed.category).toBe('async');
+    expect(parsed.evidence_start_line).toBe(23);
+    expect(parsed.evidence_end_line).toBe(31);
+
+    const pending = ConventionCandidate.parse({ ...accepted, status: 'pending', accepted: false });
+    expect(pending.accepted).toBe(false);
+  });
+
+  it('ConventionList.parse requires items', () => {
+    expect(() => ConventionList.parse({ extracted_at: null, sample_file_count: 0 })).toThrow();
+    const list = ConventionList.parse({ items: [accepted], extracted_at: null, sample_file_count: 12 });
+    expect(list.items).toHaveLength(1);
+    expect(list.sample_file_count).toBe(12);
+  });
+
+  it('ConventionCompose requires convention_ids min 1 and Skill name/description/body', () => {
+    const base = {
+      convention_ids: ['00000000-0000-0000-0000-000000000001'],
+      name: 'payments-api-conventions',
+      description: 'House conventions from acme/payments-api.',
+      type: 'convention' as const,
+      body: '# House conventions\nFlag violations.',
+    };
+    expect(ConventionCompose.parse(base).convention_ids).toHaveLength(1);
+    expect(() => ConventionCompose.parse({ ...base, convention_ids: [] })).toThrow();
+    expect(() => ConventionCompose.parse({ ...base, name: '' })).toThrow();
+    expect(() => ConventionCompose.parse({ ...base, description: '' })).toThrow();
+    expect(() => ConventionCompose.parse({ ...base, body: '' })).toThrow();
   });
 });

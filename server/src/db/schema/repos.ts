@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, uniqueIndex, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, timestamp, uniqueIndex, index, integer } from 'drizzle-orm/pg-core';
 import { now } from './_shared';
 import { workspaces, users } from './core';
 
@@ -17,6 +17,8 @@ export const repos = pgTable(
     defaultBranch: text('default_branch').notNull().default('main'),
     clonePath: text('clone_path'),
     lastPolledAt: timestamp('last_polled_at', { withTimezone: true }),
+    conventionsExtractedAt: timestamp('conventions_extracted_at', { withTimezone: true }),
+    conventionsSampleCount: integer('conventions_sample_count'),
     createdBy: uuid('created_by').references(() => users.id),
     createdAt: now(),
   },

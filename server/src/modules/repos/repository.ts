@@ -84,6 +84,18 @@ export class RepoRepository {
       .where(eq(t.repos.id, repoId));
   }
 
+  /** Last conventions extract time + how many files were sampled (subtitle reload). */
+  async updateConventionsExtract(
+    repoId: string,
+    extractedAt: Date,
+    sampleCount: number,
+  ): Promise<void> {
+    await this.db
+      .update(t.repos)
+      .set({ conventionsExtractedAt: extractedAt, conventionsSampleCount: sampleCount })
+      .where(eq(t.repos.id, repoId));
+  }
+
   async remove(workspaceId: string, id: string): Promise<boolean> {
     const deleted = await this.db
       .delete(t.repos)

@@ -4,6 +4,9 @@ Read before starting work here; append before finishing — see [`engineering-in
 
 ## Pattern
 
+### 2026-09-19 — `MockGitClient.readFile` returns `''` for a missing path, not a throw
+`server/src/adapters/mocks.ts` (`this.opts.files?.[path] ?? ''`). Real `SimpleGitClient.readFile` throws ENOENT. Conventions extract treats thrown reads **and** empty/whitespace as missing (`groundCandidate` + `readCloneText` in `server/src/modules/conventions/{helpers,service}.ts`) — otherwise a hallucinated path can “pass” the snippet gate against `''`. Do not only catch exceptions.
+
 ### 2026-09-18 — a Fastify request sent with no body/content-type resolves `req.body` to `null`, not `undefined`
 Hit while tightening `POST /pulls/:id/review`'s body schema from a manual `RunRequest.parse(req.body ?? {})` to a declarative `schema.body`. `RunRequest.optional()` (which only widens to `T | undefined`) still 422'd a genuinely bodiless `app.inject({ method: 'POST', url })` call with `"Expected object, received null"` — confirmed by logging the response body. Fix: use `RunRequest.nullish()` (accepts `null` and `undefined`) for any route whose body is meant to be fully optional (e.g. all-fields-optional trigger routes) — `.optional()` alone will 422 a real no-body request. Regression test: `server/test/reviews.it.test.ts` ("POST /pulls/:id/review with no body at all still validates").
 

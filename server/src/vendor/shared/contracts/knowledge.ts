@@ -158,15 +158,64 @@ export const CommunitySkill = z.object({
 export type CommunitySkill = z.infer<typeof CommunitySkill>;
 
 // ---- Conventions ----
+export const ConventionStatus = z.enum(['pending', 'accepted', 'rejected']);
+export type ConventionStatus = z.infer<typeof ConventionStatus>;
+
 export const ConventionCandidate = z.object({
   id: z.string(),
   rule: z.string(),
   evidence_path: z.string(),
   evidence_snippet: z.string(),
   confidence: z.number().min(0).max(1),
+  status: ConventionStatus,
+  category: z.string().nullish(),
+  evidence_start_line: z.number().int().nullable(),
+  evidence_end_line: z.number().int().nullable(),
+  /** True iff `status === 'accepted'`. Kept in sync by the mapper. */
   accepted: z.boolean(),
 });
 export type ConventionCandidate = z.infer<typeof ConventionCandidate>;
+
+export const ConventionList = z.object({
+  items: z.array(ConventionCandidate),
+  extracted_at: z.string().nullable(),
+  sample_file_count: z.number().int().nonnegative(),
+});
+export type ConventionList = z.infer<typeof ConventionList>;
+
+export const ConventionPatch = z.object({
+  status: ConventionStatus.optional(),
+  rule: z.string().min(1).optional(),
+});
+export type ConventionPatch = z.infer<typeof ConventionPatch>;
+
+export const ConventionCompose = z.object({
+  convention_ids: z.array(z.string().uuid()).min(1),
+  name: z.string().min(1),
+  description: z.string().min(1),
+  type: SkillType,
+  body: z.string().min(1),
+  enabled: z.boolean().optional(),
+  agent_id: z.string().uuid().nullish(),
+});
+export type ConventionCompose = z.infer<typeof ConventionCompose>;
+
+/** Structured LLM extraction payload (not a persisted DTO). */
+export const ConventionExtractionItem = z.object({
+  category: z.string(),
+  rule: z.string().min(1),
+  evidence_path: z.string().min(1),
+  evidence_start_line: z.number().int().positive(),
+  evidence_end_line: z.number().int().positive(),
+  evidence_snippet: z.string().min(1),
+  confidence: z.number().min(0).max(1),
+});
+export type ConventionExtractionItem = z.infer<typeof ConventionExtractionItem>;
+
+export const ConventionExtraction = z.object({
+  candidates: z.array(ConventionExtractionItem),
+});
+export type ConventionExtraction = z.infer<typeof ConventionExtraction>;
 
 // ---- Agents ----
 // 'openrouter' routes through the OpenAI-compatible API (OpenAIProvider with a

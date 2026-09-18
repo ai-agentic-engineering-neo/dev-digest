@@ -3,16 +3,14 @@
 Local-first AI pull-request reviewer. The starter works end to end: import a PR → run an agent →
 grounded findings. Each course lesson adds one feature.
 
-This file is a map, not documentation. Architecture lives in each package's README — read it when
-the task needs it.
-
 ## Stack
 
-Node ≥22 · pnpm ≥10 · TypeScript 5.7 (strict, ESM, ES2022) · Postgres 16 + pgvector (Docker)
+Node ≥22 · pnpm ≥10 · TypeScript 5 (strict, ESM, ES2022) · Postgres 16 + pgvector (Docker).
+Exact versions live in each package's `package.json` — check there, not here.
 
-- `server/` **@devdigest/api** — Fastify 5 · Drizzle 0.38 + drizzle-kit 0.30 · postgres 3.4 · Zod 3.24 via fastify-type-provider-zod · fastify-sse-v2 · octokit 4 · simple-git · @ast-grep/napi 0.43 · dependency-cruiser 17 · vitest 2 · tsx
-- `client/` **@devdigest/web** — Next.js 15 (App Router) · React 19 · TanStack Query 5 · next-intl 3 · recharts 2 · mermaid 11 · vitest 2 + jsdom
-- `reviewer-core/` **@devdigest/reviewer-core** — openai 4 + zod only. No DB, GitHub or FS. Ships TS source, never JS
+- `server/` **@devdigest/api** — Fastify 5 · Drizzle ORM + drizzle-kit · postgres driver · Zod 3 via fastify-type-provider-zod · fastify-sse-v2 · octokit · simple-git · ast-grep · dependency-cruiser · vitest · tsx
+- `client/` **@devdigest/web** — Next.js 15 (App Router) · React 19 · TanStack Query 5 · next-intl · recharts · mermaid · vitest + jsdom
+- `reviewer-core/` **@devdigest/reviewer-core** — openai + zod only. No DB, GitHub or FS. Ships TS source, never JS
 - `e2e/` **@devdigest/e2e** — Vercel agent-browser (Rust + CDP). NOT Playwright. No LLM, no keys
 
 ## Map — four standalone packages, not a workspace
@@ -21,11 +19,11 @@ Each has its own package.json and lockfile. Code is shared through tsconfig path
 published modules.
 
 - `@devdigest/shared` — Zod contracts, vendored **twice**: `server/src/vendor/shared` (also used by reviewer-core) and `client/src/vendor/shared`
-- `@devdigest/ui` — design system at `client/src/vendor/ui`; import only from the barrel
-- `server/src/modules/<name>/` — one feature = one Fastify plugin, registered by hand in `modules/index.ts`
+- `@devdigest/ui` — design system at `client/src/vendor/ui`
+- `server/src/modules/<name>/` — feature modules, one Fastify plugin each
 - `server/src/modules/repo-intel/` — codebase indexer; reach it only through `container.repoIntel.*`
 - `docs/agent-prompts/` — canonical reviewer system prompts (the DB is the source of truth at run time)
-- `.claude/skills/` — 10 stack skills (fastify, drizzle, postgres, zod, next, react, rtl, typescript, security, mermaid)
+- `.claude/skills/` — per-stack skills; the catalog is `.claude/skills/README.md`
 
 ## Commands
 
@@ -33,22 +31,18 @@ published modules.
 ./scripts/dev.sh                    # Postgres + .env + deps + migrate + seed + API :3001 + web :3000
 docker compose up -d                # Postgres only. Never `down -v` — it deletes every imported repo
 cd <pkg> && pnpm typecheck && pnpm test          # server · client · reviewer-core · e2e
-cd server && pnpm db:generate | db:migrate | db:seed   # migrations are NOT applied on boot
-cd server && pnpm exec vitest run --exclude '**/*.it.test.ts'   # unit only, no Docker
-cd server && pnpm exec vitest run .it.test                      # integration, real Postgres
 ./scripts/e2e.sh                    # isolated seeded stack on :5433 / :3101 / :3100
 ```
 
-There is no lint step — `typecheck` is the gate.
+There is no lint step — `typecheck` is the gate. Package-specific commands (migrations, the
+unit/integration split) are in that package's `CLAUDE.md`.
 
 ## Naming conventions (non-default only)
 
-- **`*.it.test.ts` = DB-backed test.** Anything importing `test/helpers/pg.ts` MUST use this suffix,
-  or the unit/integration split silently breaks.
-- ESM: relative imports carry `.js` — `import { buildApp } from './app.js'`.
-- Client feature components: PascalCase folder + file under the route's `_components/`, test colocated.
-- Migrations are named by drizzle-kit (`00NN_*.sql`); e2e flows are `specs/NN-name.flow.json`.
-- A contract's Zod schema and its type share one name: `export const Review` + `export type Review`.
+- A contract's Zod schema and its inferred type share one name: `export const Review` +
+  `export type Review`.
+- Package-specific naming rules live in that package's `CLAUDE.md` — they genuinely differ between
+  packages, so do not assume one applies everywhere.
 
 ## Do not touch
 
@@ -77,8 +71,8 @@ There is no lint step — `typecheck` is the gate.
 
 ## Use when
 
-- Writing Fastify routes, Drizzle schema or queries, Zod contracts, Next.js/React components or RTL
-  tests → the matching skill in `.claude/skills/` applies; load it before writing
+- Writing framework-specific code — routes, schema, queries, contracts, components, tests → check
+  `.claude/skills/README.md` and load the matching skill before writing
 - Working inside a package → read that package's `CLAUDE.md`: `server/` · `client/` ·
   `reviewer-core/` · `e2e/`
 - Architecture, request flow, API map, env vars → that package's `README.md`

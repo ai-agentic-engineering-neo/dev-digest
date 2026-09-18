@@ -17,17 +17,26 @@ Fastify API and host of the review engine. The root `CLAUDE.md` applies; this ad
   in `modules/index.ts`. Nothing else changes.
 - Routes declare Zod `params`/`body`; invalid input is rejected with 422 **before** the handler runs.
   Never `Schema.parse(req.body)` inside a handler.
-- Services depend on interfaces from `@devdigest/shared` and take adapters from
-  `platform/container.ts`; tests inject mocks through `ContainerOverrides`.
+- Adapters come from the DI container, never constructed inline; tests swap them through
+  `ContainerOverrides` (`platform/container.ts`). The flow itself is diagrammed in `README.md`.
 - Context enrichment (repo map, callers) is best-effort: unindexed or throwing → omit that section,
   never fail the review.
 - New column: edit `db/schema/*.ts` → `pnpm db:generate` → `pnpm db:migrate`. If a contract field
   becomes required, the inline fixtures in `test/contracts.test.ts` break — fix them in the same change.
 
+## Naming (server-only)
+
+- **`*.it.test.ts` = DB-backed test.** Anything importing `test/helpers/pg.ts` MUST use this suffix,
+  or the unit/integration split silently breaks — the file lands in the wrong suite and CI runs it
+  in the lane without Docker.
+- Relative imports carry `.js`: `import { buildApp } from './app.js'`. `moduleResolution` is
+  `Bundler`, so typecheck does **not** enforce this — it is a house rule, kept because the API runs
+  as real ESM under tsx.
+
 ## Commands (server-only)
 
 ```sh
-pnpm db:generate | db:migrate | db:seed            # seed is idempotent
-pnpm exec vitest run --exclude '**/*.it.test.ts'   # unit
-pnpm exec vitest run .it.test                      # integration — self-skips without Docker
+pnpm db:generate | db:migrate | db:seed            # migrations are NOT applied on boot; seed is idempotent
+pnpm exec vitest run --exclude '**/*.it.test.ts'   # unit, no Docker
+pnpm exec vitest run .it.test                      # integration, real Postgres — self-skips without Docker
 ```

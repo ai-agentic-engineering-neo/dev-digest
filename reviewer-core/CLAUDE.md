@@ -21,9 +21,16 @@ Pure review engine: diff → prompt → LLM → grounded findings. The root `CLA
 - `@devdigest/shared` resolves here to the **server** copy (`../server/src/vendor/shared`), not the
   client's.
 - `groundFindings` is a mandatory gate, and `scoreFromFindings` recomputes the score from the
-  survivors (0 findings = 100; CRITICAL −35, WARNING −12, SUGGESTION −3).
+  survivors — the model's own score is never used. Weights live in `SEVERITY_PENALTY`
+  (`src/review/reduce.ts`); read them there rather than assuming.
 - `assemblePrompt` appends a private `INJECTION_GUARD` to every system prompt and delimiter-wraps
   untrusted blocks. Never restate that guard inside an agent prompt, and do not add keyword scanning.
+
+## Naming (package-only)
+
+- Relative imports carry `.js`, same as `server` and unlike `client`: `from './prompt.js'`.
+  `moduleResolution` is `Bundler`, so typecheck does not enforce it — the server consumes this
+  source as real ESM, so the extension has to be there.
 
 ## Commands
 

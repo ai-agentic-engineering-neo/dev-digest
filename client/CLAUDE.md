@@ -12,7 +12,10 @@ Next.js 15 studio UI. The root `CLAUDE.md` applies; this adds client-only rules.
 
 ## Rules not visible from any single file
 
-- Pages are thin. Feature logic lives in the route's `_components/<Name>/` with a colocated `*.test.tsx`.
+- Pages are thin. Feature logic lives in the route's `_components/<Name>/` — PascalCase folder and
+  file, with a colocated `*.test.tsx`.
+- Relative imports have **no** extension here (`from "./core"`), unlike `server` and
+  `reviewer-core` — Next bundles this code, it does not run as raw ESM.
 - Data flows only through `src/lib/hooks/*` → `src/lib/api.ts` (TanStack Query). No `fetch` in components.
 - UI primitives come only from the `@devdigest/ui` barrel — never import a layer file directly.
   Colors come from CSS variables, never hard-coded.

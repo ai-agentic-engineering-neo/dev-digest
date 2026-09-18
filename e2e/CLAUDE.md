@@ -19,7 +19,8 @@ Deterministic browser flows driven by Vercel agent-browser. The root `CLAUDE.md`
 - Flows target read-only seeded data (`acme/payments-api`, PR #482, the seeded agents). Nothing here
   may trigger a model call.
 - Run through `./scripts/e2e.sh` (isolated stack on :5433 / :3101 / :3100). `pnpm test` against your
-  own dev stack fails flows 02/04/05 unless the seeded repo is the only one.
+  own dev stack fails any flow that follows the home redirect, unless the seeded repo is the only
+  one in the DB.
 - Never `docker compose down -v` to "reset" a DB — it deletes the `devdigest_pgdata` volume with
   every imported repo and review.
 

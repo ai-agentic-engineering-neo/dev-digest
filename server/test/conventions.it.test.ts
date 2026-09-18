@@ -207,4 +207,199 @@ d('conventions extract / list / patch', () => {
     expect(empty.json().sample_file_count).toBe(0);
     await app.close();
   });
+
+  it('compose of two accepted ids creates one extracted skill; non-accepted is 400', async () => {
+    const app = await makeApp();
+    const [ws] = await pg.handle.db.select().from(t.workspaces);
+    const [repo] = await pg.handle.db
+      .insert(t.repos)
+      .values({
+        workspaceId: ws!.id,
+        owner: 'acme',
+        name: 'compose-api',
+        fullName: 'acme/compose-api',
+      })
+      .returning();
+    const composeRepoId = repo!.id;
+
+    const [acceptedA, acceptedB, rejected] = await pg.handle.db
+      .insert(t.conventions)
+      .values([
+        {
+          workspaceId: ws!.id,
+          repoId: composeRepoId,
+          rule: 'Use p-queue, not a homemade limiter',
+          status: 'accepted',
+          accepted: true,
+          evidencePath: 'src/a.ts',
+          evidenceStartLine: 2,
+          evidenceEndLine: 4,
+          category: 'async',
+        },
+        {
+          workspaceId: ws!.id,
+          repoId: composeRepoId,
+          rule: 'Typed Result from handlers',
+          status: 'accepted',
+          accepted: true,
+          evidencePath: 'src/b.ts',
+          evidenceStartLine: 1,
+          evidenceEndLine: 1,
+          category: 'types',
+        },
+        {
+          workspaceId: ws!.id,
+          repoId: composeRepoId,
+          rule: 'Rejected leftover',
+          status: 'rejected',
+          accepted: false,
+          evidencePath: 'src/c.ts',
+          evidenceStartLine: 1,
+          evidenceEndLine: 2,
+          category: 'security',
+        },
+      ])
+      .returning();
+
+    const skillsBefore = (await app.inject({ method: 'GET', url: '/skills' })).json() as {
+      id: string;
+    }[];
+    const skillsUnchanged = (await app.inject({ method: 'GET', url: '/skills' })).json() as {
+      id: string;
+    }[];
+    expect(skillsUnchanged).toHaveLength(skillsBefore.length);
+
+    const refused = await app.inject({
+      method: 'POST',
+      url: `/repos/${composeRepoId}/conventions/skills`,
+      payload: {
+        convention_ids: [acceptedA!.id, rejected!.id],
+        name: 'compose-api-conventions',
+        description: 'House conventions extracted from compose-api',
+        type: 'convention',
+        body: '# compose-api-conventions\nUse p-queue\nRejected leftover\n',
+      },
+    });
+    expect(refused.statusCode).toBe(400);
+
+    const composed = await app.inject({
+      method: 'POST',
+      url: `/repos/${composeRepoId}/conventions/skills`,
+      payload: {
+        convention_ids: [acceptedA!.id, acceptedB!.id],
+        name: 'compose-api-conventions',
+        description: 'House conventions extracted from compose-api',
+        type: 'convention',
+        body: [
+          '# compose-api-conventions',
+          'Use p-queue, not a homemade limiter',
+          'Typed Result from handlers',
+        ].join('\n'),
+        enabled: true,
+      },
+    });
+    expect(composed.statusCode).toBe(201);
+    const skill = composed.json() as { id: string; source: string; type: string; body: string };
+    expect(skill).toMatchObject({ source: 'extracted', type: 'convention' });
+    expect(skill.body).toContain('Use p-queue, not a homemade limiter');
+    expect(skill.body).toContain('Typed Result from handlers');
+    expect(skill.body).not.toContain('Rejected leftover');
+
+    const listed = (await app.inject({ method: 'GET', url: '/skills' })).json() as {
+      id: string;
+      source: string;
+    }[];
+    expect(listed.some((row) => row.id === skill.id && row.source === 'extracted')).toBe(true);
+
+    const convAfter = (
+      await app.inject({ method: 'GET', url: `/repos/${composeRepoId}/conventions` })
+    ).json() as { items: { status: string }[] };
+    expect(convAfter.items).toHaveLength(3);
+    expect(convAfter.items.filter((c) => c.status === 'accepted')).toHaveLength(2);
+    await app.close();
+  });
+
+  it('optional agent_id appends the new skill without replacing existing links', async () => {
+    const app = await makeApp();
+    const [ws] = await pg.handle.db.select().from(t.workspaces);
+    const [repo] = await pg.handle.db
+      .insert(t.repos)
+      .values({
+        workspaceId: ws!.id,
+        owner: 'acme',
+        name: 'compose-agent-api',
+        fullName: 'acme/compose-agent-api',
+      })
+      .returning();
+
+    const [accepted] = await pg.handle.db
+      .insert(t.conventions)
+      .values({
+        workspaceId: ws!.id,
+        repoId: repo!.id,
+        rule: 'Use p-queue',
+        status: 'accepted',
+        accepted: true,
+        evidencePath: 'src/a.ts',
+        evidenceStartLine: 1,
+        evidenceEndLine: 1,
+      })
+      .returning();
+
+    const existing = await app.inject({
+      method: 'POST',
+      url: '/skills',
+      payload: {
+        name: 'already-linked',
+        description: 'Existing skill.',
+        type: 'custom',
+        body: '# already\nStay linked.',
+      },
+    });
+    expect(existing.statusCode).toBe(201);
+    const existingId = existing.json().id as string;
+
+    const agent = await app.inject({
+      method: 'POST',
+      url: '/agents',
+      payload: {
+        name: 'Compose Binder',
+        provider: 'openai',
+        model: 'gpt-4o-mini',
+        system_prompt: 'Review the diff.',
+      },
+    });
+    const agentId = agent.json().id as string;
+
+    const linked = await app.inject({
+      method: 'POST',
+      url: `/agents/${agentId}/skills`,
+      payload: { skill_id: existingId },
+    });
+    expect(linked.statusCode).toBe(200);
+    const previous = linked.json() as { skill_id: string }[];
+    expect(previous.map((row) => row.skill_id)).toEqual([existingId]);
+
+    const composed = await app.inject({
+      method: 'POST',
+      url: `/repos/${repo!.id}/conventions/skills`,
+      payload: {
+        convention_ids: [accepted!.id],
+        name: 'compose-agent-api-conventions',
+        description: 'House conventions.',
+        type: 'convention',
+        body: '# compose-agent-api-conventions\nUse p-queue\n',
+        agent_id: agentId,
+      },
+    });
+    expect(composed.statusCode).toBe(201);
+    const skillId = composed.json().id as string;
+
+    const after = (await app.inject({ method: 'GET', url: `/agents/${agentId}/skills` })).json() as {
+      skill_id: string;
+    }[];
+    expect(after).toHaveLength(previous.length + 1);
+    expect(after.map((row) => row.skill_id)).toEqual(expect.arrayContaining([existingId, skillId]));
+    await app.close();
+  });
 });

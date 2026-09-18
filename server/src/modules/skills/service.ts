@@ -1,5 +1,5 @@
 import type { Container } from '../../platform/container.js';
-import type { Skill, SkillImportPreview, SkillType, SkillVersion } from '@devdigest/shared';
+import type { Skill, SkillImportPreview, SkillSource, SkillType, SkillVersion } from '@devdigest/shared';
 import { ValidationError } from '../../platform/errors.js';
 import { SkillsRepository } from './repository.js';
 import { toSkillDto, toSkillVersionDto } from './helpers.js';
@@ -14,6 +14,7 @@ export interface CreateSkillInput {
   body: string;
   enabled?: boolean;
   note?: string | null;
+  source?: SkillSource;
 }
 
 export interface UpdateSkillInput {
@@ -56,7 +57,7 @@ export class SkillsService {
       name: input.name,
       description: input.description,
       type: input.type,
-      source: 'manual',
+      source: input.source ?? 'manual',
       body: input.body,
       enabled: input.enabled,
       note: input.note,

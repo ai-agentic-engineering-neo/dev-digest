@@ -73,6 +73,56 @@ export function shouldInsertPending(
   );
 }
 
+export interface AssembleRow {
+  status: string;
+  category: string | null;
+  rule: string;
+  evidencePath: string | null;
+  evidenceStartLine: number | null;
+  evidenceEndLine: number | null;
+}
+
+/** Heading-safe slug from category (or rule). Empty / punctuation-only → `convention`. */
+export function headingSlug(text: string): string {
+  const slug = text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return slug || 'convention';
+}
+
+function evidenceRange(row: AssembleRow): string {
+  const path = row.evidencePath ?? '';
+  if (row.evidenceStartLine == null) return path;
+  if (row.evidenceEndLine == null || row.evidenceEndLine === row.evidenceStartLine) {
+    return `${path}:${row.evidenceStartLine}`;
+  }
+  return `${path}:${row.evidenceStartLine}-${row.evidenceEndLine}`;
+}
+
+/**
+ * Markdown skill body from accepted rows only. Rejected / pending in `rows`
+ * are omitted — the compose route still refuses those ids separately.
+ */
+export function assembleSkillBody(name: string, repoLabel: string, rows: AssembleRow[]): string {
+  const sections = rows
+    .filter((row) => row.status === 'accepted')
+    .map((row) => {
+      const slug = headingSlug(row.category || row.rule);
+      return `## ${slug}\n${row.rule}\nDetected in \`${evidenceRange(row)}\``;
+    });
+  return [
+    `# ${name}`,
+    '',
+    `House conventions for '${repoLabel}'. Flag changes that violate any rule below and cite the offending \`file:line\`.`,
+    '',
+    ...sections,
+  ]
+    .join('\n')
+    .trimEnd()
+    .concat('\n');
+}
+
 export function toConventionDto(row: ConventionRow): ConventionCandidate {
   const status = row.status as ConventionStatus;
   return {

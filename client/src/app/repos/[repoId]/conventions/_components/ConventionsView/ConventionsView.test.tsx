@@ -103,6 +103,9 @@ beforeEach(() => {
       if (method === "GET" && url.includes("/conventions")) {
         return { ok: true, status: 200, json: async () => list };
       }
+      if (method === "GET" && url.includes("/agents")) {
+        return { ok: true, status: 200, json: async () => [] };
+      }
       if (method === "PATCH") {
         const body = JSON.parse(String(init?.body)) as { status?: string; rule?: string };
         const id = url.split("/").pop()!;
@@ -201,5 +204,13 @@ describe("ConventionsView", () => {
     );
     expect(link).toHaveAttribute("target", "_blank");
     expect(link.getAttribute("rel") ?? "").toMatch(/noreferrer/);
+  });
+
+  it("opens Create skill from conventions from the toolbar", async () => {
+    list = { items: [ACCEPTED], extracted_at: "2026-09-19T11:00:00Z", sample_file_count: 1 };
+    renderView();
+    fireEvent.click(await screen.findByRole("button", { name: "Create skill" }));
+    expect(await screen.findByText("Create skill from conventions")).toBeInTheDocument();
+    expect(screen.getByText(/Merged from 1 accepted conventions in payments-api/)).toBeInTheDocument();
   });
 });

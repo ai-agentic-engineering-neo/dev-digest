@@ -32,6 +32,9 @@ Hit in `server/src/modules/skills/import.ts` documenting nested zip paths like `
 
 ## Decision
 
+### 2026-09-19 — compose rejects non-accepted ids with `AppError` 400, not `ValidationError`
+`server/src/platform/errors.ts` `ValidationError` is always 422. Spec 04 requires `POST /repos/:id/conventions/skills` to return **400** when any id is missing, other-repo, or not `accepted`. `ConventionsService.compose` throws `new AppError('validation_error', '...', 400)` so the integration assertion stays 400. Do not swap in `ValidationError` for that gate — Fastify would 422 and the proof fails.
+
 ### 2026-09-16 — PR-list COST reverted from "latest batch" to "sum of all completed runs, ever"
 `server/src/modules/pulls/total-cost.ts` (`totalCostByPr`) replaces the 2026-09-14 `latest-batch-cost.ts`/`latestBatchCostByPr` entry below — that design deliberately scoped Cost to only the PR's latest "Run Review" batch, to avoid double-counting spend across re-runs. Re-scoped to a straight `SUM(cost_usd) WHERE status='done'` per PR (no `batch_id` grouping, no `ran_at` ordering needed) because the grading rubric this feature was built against defines the column as "sum of every successful run for the PR," full history, not just the latest batch. Trade-off is real and intentional: re-running a review N times now makes Cost grow unbounded rather than reflect current spend-per-review — if a future request wants "spend on the latest review" back, `latestBatchCostByPr`'s git history (this commit's parent) has the working batch-grouped version to restore, not a redesign from scratch.
 

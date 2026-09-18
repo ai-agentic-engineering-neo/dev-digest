@@ -1,13 +1,16 @@
-import type { GitClient, RepoRef } from '@devdigest/shared';
+import type { GitClient, RepoRef, Skill } from '@devdigest/shared';
 import {
   ConventionExtraction,
+  type ConventionCompose,
   type ConventionExtractionItem,
   type ConventionList,
   type ConventionPatch,
 } from '@devdigest/shared';
 import type { Container } from '../../platform/container.js';
-import { NotFoundError, ValidationError } from '../../platform/errors.js';
+import { AppError, NotFoundError, ValidationError } from '../../platform/errors.js';
+import { AgentsService } from '../agents/service.js';
 import { RepoRepository } from '../repos/repository.js';
+import { SkillsService } from '../skills/service.js';
 import { resolveFeatureModel } from '../settings/feature-models.js';
 import {
   CONFIG_BASENAMES,
@@ -25,15 +28,19 @@ import { ConventionsRepository, type InsertPendingConvention } from './repositor
 /**
  * Conventions extractor. Samples configs + top-N files in code (no model pick),
  * asks the workspace conventions model for grounded candidates, persists survivors.
- * Does not insert into `skills` — compose is a later task.
+ * Compose goes through SkillsService (source=extracted) and optional AgentsService.linkSkill.
  */
 export class ConventionsService {
   private conventions: ConventionsRepository;
   private repos: RepoRepository;
+  private skills: SkillsService;
+  private agents: AgentsService;
 
   constructor(private container: Container) {
     this.conventions = new ConventionsRepository(container.db);
     this.repos = new RepoRepository(container.db);
+    this.skills = new SkillsService(container);
+    this.agents = new AgentsService(container);
   }
 
   async list(workspaceId: string, repoId: string): Promise<ConventionList> {
@@ -92,6 +99,28 @@ export class ConventionsService {
     const row = await this.conventions.update(workspaceId, repoId, conventionId, patch);
     if (!row) throw new NotFoundError('Convention not found');
     return toConventionDto(row);
+  }
+
+  async compose(workspaceId: string, repoId: string, input: ConventionCompose): Promise<Skill> {
+    if (!(await this.repos.getById(workspaceId, repoId))) throw new NotFoundError('Repo not found');
+    const uniqueIds = [...new Set(input.convention_ids)];
+    const rows = await this.conventions.getByIds(workspaceId, repoId, uniqueIds);
+    if (rows.length !== uniqueIds.length || rows.some((row) => row.status !== 'accepted')) {
+      throw new AppError('validation_error', 'Every convention id must be accepted in this repo', 400);
+    }
+    const skill = await this.skills.create(workspaceId, {
+      name: input.name,
+      description: input.description,
+      type: input.type,
+      body: input.body,
+      enabled: input.enabled,
+      source: 'extracted',
+    });
+    if (input.agent_id) {
+      const links = await this.agents.linkSkill(workspaceId, input.agent_id, skill.id);
+      if (!links) throw new NotFoundError('Agent not found');
+    }
+    return skill;
   }
 
   private async collectSamples(ref: RepoRef, repoId: string): Promise<Map<string, string>> {

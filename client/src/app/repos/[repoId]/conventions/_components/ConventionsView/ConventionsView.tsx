@@ -12,6 +12,7 @@ import { useConventions, useExtractConventions, usePatchConvention } from "@/lib
 import type { ConventionCandidate } from "@devdigest/shared";
 import { ConventionCard } from "./ConventionCard";
 import { formatLastScan, repoDisplayName } from "./helpers";
+import { CreateSkillFromConventionsModal } from "./_components/CreateSkillFromConventionsModal";
 import { s } from "./styles";
 
 export function ConventionsView() {
@@ -24,6 +25,7 @@ export function ConventionsView() {
   const extract = useExtractConventions(repoId);
   const patch = usePatchConvention(repoId);
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
+  const [composeOpen, setComposeOpen] = React.useState(false);
   const seeded = React.useRef(false);
 
   const items = data?.items ?? [];
@@ -133,7 +135,13 @@ export function ConventionsView() {
                   })}
                 </span>
               </div>
-              <Button kind="primary" size="sm" icon="Sparkles" disabled={selectedAccepted.length === 0}>
+              <Button
+                kind="primary"
+                size="sm"
+                icon="Sparkles"
+                disabled={selectedAccepted.length === 0}
+                onClick={() => setComposeOpen(true)}
+              >
                 {t("toolbar.createSkill")}
               </Button>
             </div>
@@ -179,6 +187,14 @@ export function ConventionsView() {
               ))}
             </div>
           </>
+        )}
+        {composeOpen && (
+          <CreateSkillFromConventionsModal
+            repoId={repoId}
+            repoFullName={fullName}
+            selected={selectedAccepted}
+            onClose={() => setComposeOpen(false)}
+          />
         )}
       </div>
     </AppShell>

@@ -3,7 +3,13 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
-import type { ConventionCandidate, ConventionList, ConventionPatch } from "@devdigest/shared";
+import type {
+  ConventionCandidate,
+  ConventionCompose,
+  ConventionList,
+  ConventionPatch,
+  Skill,
+} from "@devdigest/shared";
 
 export function useConventions(repoId: string | null | undefined) {
   return useQuery({
@@ -27,5 +33,17 @@ export function usePatchConvention(repoId: string) {
     mutationFn: ({ cid, patch }: { cid: string; patch: ConventionPatch }) =>
       api.patch<ConventionCandidate>(`/repos/${repoId}/conventions/${cid}`, patch),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["conventions", repoId] }),
+  });
+}
+
+export function useComposeConventions(repoId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: ConventionCompose) =>
+      api.post<Skill>(`/repos/${repoId}/conventions/skills`, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["skills"] });
+      qc.invalidateQueries({ queryKey: ["agents"] });
+    },
   });
 }

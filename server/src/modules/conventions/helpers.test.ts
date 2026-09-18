@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createRequire } from 'node:module';
 import {
+  assembleSkillBody,
   groundCandidate,
+  headingSlug,
   isSafeRepoPath,
   pendingDedupeKey,
   shouldInsertPending,
@@ -103,5 +105,54 @@ describe('re-scan dedupe', () => {
     expect(
       shouldInsertPending([{ rule: 'Use p-queue', evidencePath: 'src/a.ts' }], candidate),
     ).toBe(false);
+  });
+});
+
+describe('assembleSkillBody', () => {
+  const acceptedA = {
+    status: 'accepted',
+    category: 'async',
+    rule: 'Use p-queue, not a homemade limiter',
+    evidencePath: 'src/middleware/ratelimit.ts',
+    evidenceStartLine: 2,
+    evidenceEndLine: 4,
+  };
+  const acceptedB = {
+    status: 'accepted',
+    category: null,
+    rule: 'All handlers return typed Result',
+    evidencePath: 'src/api/public/index.ts',
+    evidenceStartLine: 14,
+    evidenceEndLine: 14,
+  };
+  const rejected = {
+    status: 'rejected',
+    category: 'security',
+    rule: 'Do not leak secrets',
+    evidencePath: 'src/lib/secrets.ts',
+    evidenceStartLine: 1,
+    evidenceEndLine: 2,
+  };
+
+  it('includes only accepted rows and drops a rejected row in the input', () => {
+    const body = assembleSkillBody('payments-api-conventions', 'payments-api', [
+      acceptedA,
+      rejected,
+      acceptedB,
+    ]);
+    expect(body).toContain('# payments-api-conventions');
+    expect(body).toContain('file:line');
+    expect(body).toContain('Use p-queue, not a homemade limiter');
+    expect(body).toContain('All handlers return typed Result');
+    expect(body).toContain('Detected in `src/middleware/ratelimit.ts:2-4`');
+    expect(body).toContain('Detected in `src/api/public/index.ts:14`');
+    expect(body).toContain('## async');
+    expect(body).not.toContain('Do not leak secrets');
+    expect(body).not.toContain('## security');
+  });
+
+  it('slugifies category/rule into heading-safe text', () => {
+    expect(headingSlug('Async / Await Then-Chains')).toBe('async-await-then-chains');
+    expect(headingSlug('!!!')).toBe('convention');
   });
 });

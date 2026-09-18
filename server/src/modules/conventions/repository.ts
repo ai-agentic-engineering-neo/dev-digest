@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import type { ConventionRow } from '../../db/rows.js';
@@ -54,6 +54,24 @@ export class ConventionsRepository {
         ),
       );
     return row;
+  }
+
+  async getByIds(
+    workspaceId: string,
+    repoId: string,
+    ids: string[],
+  ): Promise<ConventionRow[]> {
+    if (ids.length === 0) return [];
+    return this.db
+      .select()
+      .from(t.conventions)
+      .where(
+        and(
+          eq(t.conventions.workspaceId, workspaceId),
+          eq(t.conventions.repoId, repoId),
+          inArray(t.conventions.id, ids),
+        ),
+      );
   }
 
   /**

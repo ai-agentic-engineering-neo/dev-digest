@@ -1,0 +1,48 @@
+import type { CSSProperties } from "react";
+
+export const s = {
+  footer: { display: "flex", gap: 10, justifyContent: "flex-end" } satisfies CSSProperties,
+  body: { padding: 24, display: "flex", flexDirection: "column", gap: 0 } satisfies CSSProperties,
+  banner: {
+    display: "flex",
+    gap: 10,
+    alignItems: "flex-start",
+    padding: "10px 12px",
+    borderRadius: 8,
+    background: "color-mix(in srgb, var(--accent) 16%, transparent)",
+    border: "1px solid color-mix(in srgb, var(--accent) 35%, transparent)",
+    color: "var(--text-secondary)",
+    fontSize: 13,
+    lineHeight: 1.45,
+    marginBottom: 20,
+  } satisfies CSSProperties,
+  row: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 } satisfies CSSProperties,
+  enabled: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+    marginBottom: 20,
+  } satisfies CSSProperties,
+  enabledLabel: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    fontSize: 13,
+    fontWeight: 600,
+    color: "var(--text-secondary)",
+  } satisfies CSSProperties,
+  bodyChrome: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "8px 10px",
+    border: "1px solid var(--border-strong)",
+    borderBottom: "none",
+    borderRadius: "7px 7px 0 0",
+    background: "var(--bg-sunken)",
+    fontSize: 12,
+    color: "var(--text-muted)",
+  } satisfies CSSProperties,
+  bodyName: { fontFamily: "var(--font-mono)", color: "var(--text-secondary)" } satisfies CSSProperties,
+  tokens: { marginLeft: "auto" } satisfies CSSProperties,
+} as const;

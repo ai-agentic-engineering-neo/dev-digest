@@ -1,0 +1,511 @@
+[
+  {
+    "type": "dependency",
+    "from": "src/modules/repos/helpers.ts",
+    "to": "src/db/schema.ts",
+    "unresolvedTo": "../../db/schema.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "domain-pure"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/repos/service.ts",
+    "to": "src/modules/repo-intel/constants.ts",
+    "unresolvedTo": "../repo-intel/constants.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-cross-module-internals"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/polling/routes.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.38.4_postgres@3.4.9/node_modules/drizzle-orm/index.d.ts",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-db-outside-infra"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/polling/routes.ts",
+    "to": "src/db/schema.ts",
+    "unresolvedTo": "../../db/schema.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-db-outside-infra"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/pulls/routes.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.38.4_postgres@3.4.9/node_modules/drizzle-orm/index.d.ts",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-db-outside-infra"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/pulls/routes.ts",
+    "to": "src/db/schema.ts",
+    "unresolvedTo": "../../db/schema.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-db-outside-infra"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/repos/helpers.ts",
+    "to": "src/db/schema.ts",
+    "unresolvedTo": "../../db/schema.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-db-outside-infra"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/reviews/diff-loader.ts",
+    "to": "src/db/schema.ts",
+    "unresolvedTo": "../../db/schema.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-db-outside-infra"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/reviews/run-executor.ts",
+    "to": "src/db/schema.ts",
+    "unresolvedTo": "../../db/schema.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-db-outside-infra"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/settings/feature-models.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.38.4_postgres@3.4.9/node_modules/drizzle-orm/index.d.ts",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-db-outside-infra"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/settings/feature-models.ts",
+    "to": "src/db/schema.ts",
+    "unresolvedTo": "../../db/schema.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-db-outside-infra"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/settings/routes.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.38.4_postgres@3.4.9/node_modules/drizzle-orm/index.d.ts",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-db-outside-infra"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/settings/routes.ts",
+    "to": "src/db/schema.ts",
+    "unresolvedTo": "../../db/schema.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-db-outside-infra"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/workspace/routes.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.38.4_postgres@3.4.9/node_modules/drizzle-orm/index.d.ts",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-db-outside-infra"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/workspace/routes.ts",
+    "to": "src/db/schema.ts",
+    "unresolvedTo": "../../db/schema.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-db-outside-infra"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/polling/routes.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.38.4_postgres@3.4.9/node_modules/drizzle-orm/index.d.ts",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "routes-thin"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/polling/routes.ts",
+    "to": "src/db/schema.ts",
+    "unresolvedTo": "../../db/schema.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "routes-thin"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/pulls/routes.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.38.4_postgres@3.4.9/node_modules/drizzle-orm/index.d.ts",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "routes-thin"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/pulls/routes.ts",
+    "to": "src/db/schema.ts",
+    "unresolvedTo": "../../db/schema.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "routes-thin"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/settings/routes.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.38.4_postgres@3.4.9/node_modules/drizzle-orm/index.d.ts",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "routes-thin"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/settings/routes.ts",
+    "to": "src/db/schema.ts",
+    "unresolvedTo": "../../db/schema.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "routes-thin"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/workspace/routes.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.38.4_postgres@3.4.9/node_modules/drizzle-orm/index.d.ts",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "routes-thin"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/workspace/routes.ts",
+    "to": "src/db/schema.ts",
+    "unresolvedTo": "../../db/schema.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "routes-thin"
+    }
+  },
+  {
+    "type": "cycle",
+    "from": "src/modules/agents/helpers.ts",
+    "to": "src/modules/agents/repository.ts",
+    "unresolvedTo": "./repository.js",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "warn",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/modules/agents/repository.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "src/modules/agents/helpers.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "src/modules/repo-intel/pipeline/full.ts",
+    "to": "src/platform/container.ts",
+    "unresolvedTo": "../../../platform/container.js",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "warn",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/platform/container.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "src/modules/repo-intel/service.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/modules/repo-intel/pipeline/full.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "src/modules/repo-intel/pipeline/incremental.ts",
+    "to": "src/modules/repo-intel/pipeline/full.ts",
+    "unresolvedTo": "./full.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "warn",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/modules/repo-intel/pipeline/full.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/platform/container.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "src/modules/repo-intel/service.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/modules/repo-intel/pipeline/incremental.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "src/modules/repo-intel/pipeline/incremental.ts",
+    "to": "src/platform/container.ts",
+    "unresolvedTo": "../../../platform/container.js",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "warn",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/platform/container.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "src/modules/repo-intel/service.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/modules/repo-intel/pipeline/incremental.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "src/modules/repo-intel/service.ts",
+    "to": "src/platform/container.ts",
+    "unresolvedTo": "../../platform/container.js",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "warn",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/platform/container.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "src/modules/repo-intel/service.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      }
+    ]
+  }
+]

@@ -8,6 +8,7 @@ Pure TS lib (no HTTP/DB), zod + OpenAI SDK. Layout: `src/review` (pipeline), `sr
 
 - changing review-engine logic → `docs/README.md`
 - adding a feature → check `specs/` for its spec first
+- adding a dependency or capability (tokenizer, clock, LLM) → `.claude/skills/onion-architecture/SKILL.md` (core defines the port, server injects it; checked by `pnpm arch` in server)
 - **before any work → `INSIGHTS.md` (read first, always)**
 
 ## Naming

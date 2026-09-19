@@ -29,7 +29,11 @@ The original `latestBatchCostByPr` (deleted this session) summed only the newest
 
 ## Tool & Library Notes
 
-_No entries yet._
+### dependency-cruiser `exclude` silently deletes edges to npm packages (2026-09)
+
+While building the onion-architecture rules, an `exclude` pattern containing `node_modules` (and an unanchored `(^|/)dist(/|$)`, which also matches `node_modules/graphology/dist/...`) removed those modules from the graph entirely, not just from traversal. So every rule targeting an SDK package (`sdk-only-in-adapters`, `no-db-outside-infra` → `drizzle-orm`) reported zero violations, even though real ones existed. No error, just a false green.
+
+**Rule:** stop recursion into npm with `doNotFollow: { path: 'node_modules' }`, never with `exclude`, and anchor `exclude` to the package's own output (`^dist(/|$)`). After you change the rules, prove each one fires with a temporary violating import before you trust a clean `pnpm arch`. (`server/.dependency-cruiser.cjs:180-185`)
 
 ## Recurring Errors & Fixes
 

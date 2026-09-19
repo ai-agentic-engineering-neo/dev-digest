@@ -72,6 +72,9 @@ cd server && pnpm test                                          # both
 ./scripts/dev.sh
 npm i -g agent-browser && agent-browser install
 cd e2e && npm install && npm test
+
+# repo-level: CLAUDE.md structure check (CLAUDE.md only at the repo root and module roots)
+cd .. && node scripts/check-claude-md.mjs   # previous line left us in e2e/; go back to the repo root
 ```
 
 ## Conventions
@@ -93,3 +96,7 @@ cd e2e && npm install && npm test
   because the server type-checks against `../reviewer-core/src`).
 - **`server/clones/**` is runtime data** (git-ignored) and never collected by
   any suite.
+- **CLAUDE.md files** exist only at the repo root and the four module roots
+  (`server`, `client`, `reviewer-core`, `e2e`). They link to docs, never copy
+  them. When a module's folders, commands or rules change, update its
+  CLAUDE.md in the same change (check: `node scripts/check-claude-md.mjs`).

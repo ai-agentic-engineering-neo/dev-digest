@@ -25,6 +25,7 @@ const CATALOG_NAMES = [
 ] as const;
 
 const FIXTURE_MD = new URL('../../docs/skill-fixtures/flaky-tests/SKILL.md', import.meta.url);
+const DEPRECATION_MD = new URL('../../docs/skill-fixtures/deprecation-policy/SKILL.md', import.meta.url);
 
 d('skills catalog seed', () => {
   let pg: PgFixture;
@@ -207,5 +208,72 @@ d('skills catalog seed', () => {
     expect(pr?.body).toMatch(/successful parse only/i);
     const files = await pg.handle.db.select().from(t.prFiles).where(eq(t.prFiles.prId, pr!.id));
     expect(files.some((f) => typeof f.patch === 'string' && f.patch.includes('parseAmount'))).toBe(true);
+  });
+
+  it('import + enable + attach deprecation-policy yields four ordered API Contract links', async () => {
+    const app = await makeApp();
+    const before = (await app.inject({ method: 'GET', url: '/skills' })).json() as unknown[];
+    const md = readFileSync(DEPRECATION_MD, 'utf8');
+    const preview = await app.inject({
+      method: 'POST',
+      url: '/skills/import/preview',
+      payload: { filename: 'deprecation-policy.md', content_base64: Buffer.from(md, 'utf8').toString('base64') },
+    });
+    expect(preview.statusCode).toBe(200);
+    const afterPreview = (await app.inject({ method: 'GET', url: '/skills' })).json() as unknown[];
+    expect(afterPreview).toHaveLength(before.length);
+
+    const confirmed = await app.inject({
+      method: 'POST',
+      url: '/skills/import',
+      payload: {
+        name: preview.json().name,
+        description: preview.json().description,
+        type: 'custom',
+        body: preview.json().body,
+      },
+    });
+    expect(confirmed.statusCode).toBe(201);
+    expect(confirmed.json().enabled).toBe(false);
+    expect(confirmed.json().source).toBe('imported');
+    const skillId = confirmed.json().id as string;
+
+    const enabled = await app.inject({
+      method: 'PUT',
+      url: `/skills/${skillId}`,
+      payload: { enabled: true },
+    });
+    expect(enabled.statusCode).toBe(200);
+
+    const agents = (await app.inject({ method: 'GET', url: '/agents' })).json() as {
+      id: string;
+      name: string;
+    }[];
+    const apiId = agents.find((a) => a.name === 'API Contract Reviewer')!.id;
+    const existing = (
+      await app.inject({ method: 'GET', url: `/agents/${apiId}/skills` })
+    ).json() as Array<{ skill_id: string; enabled: boolean }>;
+    const previousIds = existing.map((l) => l.skill_id);
+
+    const attached = await app.inject({
+      method: 'POST',
+      url: `/agents/${apiId}/skills`,
+      payload: {
+        skills: [...existing.map((l) => ({ skill_id: l.skill_id, enabled: l.enabled })), { skill_id: skillId, enabled: true }],
+      },
+    });
+    expect(attached.statusCode).toBe(200);
+
+    const links = (
+      await app.inject({ method: 'GET', url: `/agents/${apiId}/skills` })
+    ).json() as Array<{ name: string; skill_id: string }>;
+    expect(links.map((l) => l.name)).toEqual([
+      'breaking-change',
+      'response-schema',
+      'semver-discipline',
+      'deprecation-policy',
+    ]);
+    expect(links.slice(0, 3).map((l) => l.skill_id)).toEqual(previousIds);
+    await app.close();
   });
 });

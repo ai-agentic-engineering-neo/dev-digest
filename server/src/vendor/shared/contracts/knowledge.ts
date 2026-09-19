@@ -115,7 +115,16 @@ export type MemoryItem = z.infer<typeof MemoryItem>;
 export const SkillType = z.enum(['rubric', 'convention', 'security', 'custom']);
 export type SkillType = z.infer<typeof SkillType>;
 
-export const SkillSource = z.enum(['manual', 'imported_url', 'extracted', 'community']);
+// 'imported_file' — a skill body derived from an uploaded .md/.zip (server-side
+// parse → preview → explicit save). Distinct from 'imported_url', which this
+// lesson does not implement (the client's URL tab stays wired but unused).
+export const SkillSource = z.enum([
+  'manual',
+  'imported_url',
+  'imported_file',
+  'extracted',
+  'community',
+]);
 export type SkillSource = z.infer<typeof SkillSource>;
 
 export const Skill = z.object({
@@ -128,8 +137,63 @@ export const Skill = z.object({
   enabled: z.boolean(),
   version: z.number().int(),
   evidence_files: z.array(z.string()).nullish(),
+  // Real token cost of `body`, from the server's tokenizer — the Config tab
+  // shows this instead of a client-side `chars / 4` guess.
+  token_estimate: z.number().int(),
 });
 export type Skill = z.infer<typeof Skill>;
+
+/** A skill row plus how many agents currently link it (the rail's list view). */
+export const SkillSummary = Skill.extend({
+  used_by: z.number().int(),
+});
+export type SkillSummary = z.infer<typeof SkillSummary>;
+
+/** A skill as seen from an agent's Skills tab: its per-link order + enabled flag. */
+export const AgentSkillDetail = Skill.extend({
+  order: z.number().int(),
+  link_enabled: z.boolean(),
+});
+export type AgentSkillDetail = z.infer<typeof AgentSkillDetail>;
+
+/** One row of a skill's version history (Versions tab). */
+export const SkillVersion = z.object({
+  skill_id: z.string(),
+  version: z.number().int(),
+  body: z.string(),
+  message: z.string().nullish(),
+  created_at: z.string(),
+});
+export type SkillVersion = z.infer<typeof SkillVersion>;
+
+/** Result of `POST /skills/import` — parsed, never persisted. */
+export const SkillImportPreview = z.object({
+  name: z.string(),
+  description: z.string(),
+  type: SkillType,
+  body: z.string(),
+  source: SkillSource,
+  ignored_entries: z.array(z.string()),
+  warnings: z.array(z.string()),
+});
+export type SkillImportPreview = z.infer<typeof SkillImportPreview>;
+
+/** `GET /skills/:id/stats` — every tile is run-level (§7.2 of specs/02-skills.md);
+ *  a `null` field means the denominator was zero and the UI renders "—". */
+export const SkillStats = z.object({
+  used_by: z.number().int(),
+  agents: z.array(z.object({ id: z.string(), name: z.string() })),
+  runs_with_skill: z.number().int(),
+  runs_by_linked_agents: z.number().int(),
+  pull_frequency: z.number().nullable(),
+  findings: z.number().int(),
+  accepted: z.number().int(),
+  settled: z.number().int(),
+  accept_rate: z.number().nullable(),
+  by_category: z.array(z.object({ category: z.string(), count: z.number().int() })),
+  window_days: z.number().int(),
+});
+export type SkillStats = z.infer<typeof SkillStats>;
 
 export const CommunitySkill = z.object({
   name: z.string(),
@@ -195,6 +259,8 @@ export const AgentSkillLink = z.object({
   agent_id: z.string(),
   skill_id: z.string(),
   order: z.number().int(),
+  // D2 — per-link kill switch, independent of the skill's own `enabled`.
+  enabled: z.boolean(),
 });
 export type AgentSkillLink = z.infer<typeof AgentSkillLink>;
 

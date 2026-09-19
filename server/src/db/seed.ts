@@ -381,6 +381,10 @@ treat it as CRITICAL.`,
       .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.name, s.name)));
     if (!existing) {
       [existing] = await db.insert(t.skills).values(s).returning();
+      // Mirror SkillsRepository.insert()'s v1 snapshot: a skill created any
+      // other way (the API) always gets one, so Versions is never empty for
+      // a skill that has never been edited.
+      await db.insert(t.skillVersions).values({ skillId: existing!.id, version: 1, body: existing!.body });
     }
     seededSkillIds.push(existing!.id);
   }

@@ -85,17 +85,28 @@ export function ConventionsView() {
                 : t("page.subtitle")}
             </p>
           </div>
-          {items.length > 0 && (
+          <div style={s.headerActions}>
+            <Button
+              kind="primary"
+              size="sm"
+              icon="Play"
+              disabled={!!data?.extracted_at || extract.isPending}
+              loading={extract.isPending && !data?.extracted_at}
+              onClick={runExtract}
+            >
+              {t("page.runScan")}
+            </Button>
             <Button
               kind="ghost"
               size="sm"
               icon="RefreshCw"
-              loading={extract.isPending}
+              disabled={!data?.extracted_at || extract.isPending}
+              loading={extract.isPending && !!data?.extracted_at}
               onClick={runExtract}
             >
-              {extract.isPending ? t("page.scanning") : t("page.rescan")}
+              {t("page.rescan")}
             </Button>
-          )}
+          </div>
         </div>
 
         {isLoading && (
@@ -116,9 +127,6 @@ export function ConventionsView() {
             icon="ListChecks"
             title={t("page.empty.title")}
             body={t("page.empty.body")}
-            cta={extract.isPending ? t("page.scanning") : t("page.empty.cta")}
-            onCta={runExtract}
-            ctaLoading={extract.isPending}
           />
         )}
         {items.length > 0 && (
@@ -135,15 +143,16 @@ export function ConventionsView() {
                   })}
                 </span>
               </div>
-              <Button
-                kind="primary"
-                size="sm"
-                icon="Sparkles"
-                disabled={selectedAccepted.length === 0}
-                onClick={() => setComposeOpen(true)}
-              >
-                {t("toolbar.createSkill")}
-              </Button>
+              {selectedAccepted.length > 0 && (
+                <Button
+                  kind="primary"
+                  size="sm"
+                  icon="Sparkles"
+                  onClick={() => setComposeOpen(true)}
+                >
+                  {t("toolbar.createSkill")}
+                </Button>
+              )}
             </div>
             <div style={s.list}>
               {items.map((item) => (

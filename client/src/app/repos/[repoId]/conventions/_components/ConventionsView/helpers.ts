@@ -58,8 +58,8 @@ export function headingSlug(text: string): string {
   return slug || "convention";
 }
 
-export function defaultSkillName(fullName: string | undefined, fallback: string): string {
-  return `${repoDisplayName(fullName, fallback)}-conventions`;
+export function defaultSkillName(_fullName?: string, _fallback?: string): string {
+  return "repo-conventions";
 }
 
 export function assembleSkillBody(

@@ -75,10 +75,12 @@ describe("VersionsTab", () => {
     expect(restoreMutate).toHaveBeenCalledWith({ id: SKILL.id, version: 1 });
   });
 
-  it("Diff reveals a text difference vs the current body", () => {
+  it("Diff reveals added and removed lines vs the current body", () => {
     renderTab();
     fireEvent.click(screen.getAllByText("Diff")[1]!);
-    expect(screen.getByText(/- # Uncovered branches/)).toBeInTheDocument();
-    expect(screen.getByText(/\+ # Catch blocks too/)).toBeInTheDocument();
+    expect(screen.getByText("# Uncovered branches")).toBeInTheDocument();
+    expect(screen.getByText("# Catch blocks too")).toBeInTheDocument();
+    expect(screen.getAllByText("−").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("+").length).toBeGreaterThan(0);
   });
 });

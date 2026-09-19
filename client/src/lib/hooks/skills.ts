@@ -60,6 +60,7 @@ export function useDeleteSkill() {
     onSuccess: (_d, id) => {
       qc.invalidateQueries({ queryKey: ["skills"] });
       qc.removeQueries({ queryKey: ["skill", id] });
+      qc.invalidateQueries({ queryKey: ["agents"] });
     },
   });
 }

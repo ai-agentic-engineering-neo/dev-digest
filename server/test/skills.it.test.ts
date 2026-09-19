@@ -55,6 +55,7 @@ d('skills CRUD', () => {
       body: createBody.body,
       enabled: true,
       version: 1,
+      agent_count: 0,
     });
 
     const listed = await app.inject({ method: 'GET', url: '/skills' });

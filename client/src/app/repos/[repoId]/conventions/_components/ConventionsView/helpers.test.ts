@@ -3,6 +3,7 @@ import {
   approxTokens,
   assembleSkillBody,
   confidencePercent,
+  defaultSkillName,
   evidenceHref,
   formatLastScan,
   headingSlug,
@@ -33,6 +34,7 @@ describe("confidencePercent / repoDisplayName / formatLastScan", () => {
   it("rounds confidence and takes the last path segment", () => {
     expect(confidencePercent(0.91)).toBe(91);
     expect(repoDisplayName("acme/payments-api", "repo")).toBe("payments-api");
+    expect(defaultSkillName("acme/payments-api", "repo")).toBe("repo-conventions");
   });
 
   it("formats last-scan relative to now", () => {

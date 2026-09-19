@@ -12,6 +12,7 @@ export const s = {
   h1: { fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em" } satisfies CSSProperties,
   repoName: { color: "var(--accent-text)" } satisfies CSSProperties,
   subtitle: { fontSize: 14, color: "var(--text-secondary)", marginTop: 4 } satisfies CSSProperties,
+  headerActions: { display: "flex", alignItems: "center", gap: 8, flexShrink: 0 } satisfies CSSProperties,
   toolbar: {
     display: "flex",
     alignItems: "center",

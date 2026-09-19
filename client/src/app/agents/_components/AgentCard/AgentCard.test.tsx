@@ -46,4 +46,9 @@ describe("AgentCard (smoke)", () => {
     renderWithIntl(<AgentCard ag={{ ...AGENT, description: "" }} />);
     expect(screen.getByText("No description")).toBeInTheDocument();
   });
+
+  it("reads skill_count from the agent when the skillCount prop is omitted", () => {
+    renderWithIntl(<AgentCard ag={{ ...AGENT, skill_count: 4 }} />);
+    expect(screen.getByText("4 skills")).toBeInTheDocument();
+  });
 });

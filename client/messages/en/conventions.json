@@ -7,7 +7,8 @@
     "subtitle": "Scan the cloned repo to surface house-rules — each backed by evidence you can turn into a Skill.",
     "scanMeta": "Detected from {count} sample files · last scan {when}",
     "scanning": "Scanning…",
-    "rescan": "Re-scan",
+    "runScan": "Run Scan",
+    "rescan": "ReScan",
     "runExtraction": "Run extraction",
     "extractionFailed": "Extraction failed",
     "loadError": "Could not load conventions.",
@@ -29,6 +30,7 @@
     "accepting": "Accepting…",
     "reject": "Reject",
     "rejecting": "Rejecting…",
+    "edit": "Edit",
     "openEvidence": "Open evidence on the code host",
     "editRule": "Edit rule",
     "acceptAsSkill": "Accept as Skill"

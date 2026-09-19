@@ -47,7 +47,14 @@ export function CreateSkillFromConventionsModal({
   const [body, setBody] = React.useState(() =>
     assembleSkillBody(defaultSkillName(repoFullName, t("page.repoFallback")), repoLabel, accepted),
   );
-  const [agentId, setAgentId] = React.useState("");
+  const [agentId, setAgentId] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (agentId !== null || agents.length === 0) return;
+    setAgentId(agents[0]!.id);
+  }, [agents, agentId]);
+
+  const resolvedAgentId = agentId ?? "";
 
   const canSubmit =
     name.trim().length > 0 &&
@@ -64,10 +71,10 @@ export function CreateSkillFromConventionsModal({
       type,
       body: body.trim(),
       enabled,
-      ...(agentId ? { agent_id: agentId } : {}),
+      ...(resolvedAgentId ? { agent_id: resolvedAgentId } : {}),
     });
     onClose();
-    router.push(agentId ? `/agents/${agentId}?tab=skills` : "/skills");
+    router.push(resolvedAgentId ? `/agents/${resolvedAgentId}?tab=skills` : "/skills");
   };
 
   const typeOptions = TYPE_OPTIONS.map((v) => ({ value: v, label: t(`compose.types.${v}`) }));
@@ -123,7 +130,7 @@ export function CreateSkillFromConventionsModal({
           </div>
         </div>
         <FormField label={t("compose.agent")} hint={t("compose.agentHint")}>
-          <SelectInput value={agentId} onChange={setAgentId} options={agentOptions} mono={false} />
+          <SelectInput value={resolvedAgentId} onChange={setAgentId} options={agentOptions} mono={false} />
         </FormField>
         <FormField label={t("compose.fields.body")} required>
           <div style={s.bodyChrome}>

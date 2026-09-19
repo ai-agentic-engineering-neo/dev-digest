@@ -9,6 +9,7 @@ import { useSkills } from "../../../../../../../lib/hooks/skills";
 import { TYPE_COLOR } from "./constants";
 import {
   applyDrop,
+  canReorder,
   enabledCount,
   filterSkillRows,
   mergeCatalogWithLinks,
@@ -59,9 +60,14 @@ export function SkillsTab({ agentId }: { agentId: string }) {
       {visible.map((row) => (
         <div
           key={row.skill_id}
-          draggable
-          onDragStart={() => setDragId(row.skill_id)}
-          onDragOver={(e) => e.preventDefault()}
+          draggable={canReorder(row)}
+          onDragStart={() => {
+            if (!canReorder(row)) return;
+            setDragId(row.skill_id);
+          }}
+          onDragOver={(e) => {
+            if (dragId) e.preventDefault();
+          }}
           onDrop={() => {
             if (!dragId) return;
             persist(applyDrop(rows, dragId, row.skill_id));
@@ -69,7 +75,7 @@ export function SkillsTab({ agentId }: { agentId: string }) {
           }}
           style={s.row(!row.skill_enabled)}
         >
-          <span style={s.handle} aria-label="Reorder">
+          <span style={s.handle(canReorder(row))} aria-label="Reorder" aria-disabled={!canReorder(row)}>
             <Icon.Menu size={14} />
           </span>
           <Checkbox

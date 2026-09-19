@@ -25,7 +25,11 @@
   },
   "card": {
     "deleteConfirm": "Delete skill \"{name}\"? This cannot be undone.",
-    "deleteTitle": "Delete skill"
+    "deleteTitle": "Delete skill",
+    "confirm": "Delete",
+    "cancel": "Cancel",
+    "version": "v{version}",
+    "agentCount": "{count, plural, one {# agent} other {# agents}}"
   },
   "importModal": {
     "title": "Import skill",

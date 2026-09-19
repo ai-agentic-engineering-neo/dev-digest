@@ -27,8 +27,10 @@ const SKILL_B: Skill = {
   version: 1,
 };
 
+const nav = vi.hoisted(() => ({ push: vi.fn() }));
+
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useRouter: () => ({ push: nav.push, replace: vi.fn() }),
 }));
 
 vi.mock("../../../../components/app-shell", () => ({
@@ -106,5 +108,12 @@ describe("SkillsListView", () => {
     expect(screen.getByText("Import from file")).toBeInTheDocument();
     expect(screen.queryByText("Import from URL")).not.toBeInTheDocument();
     expect(screen.queryByText("Search community skills…")).not.toBeInTheDocument();
+  });
+
+  it("clicking a card opens the skill editor", () => {
+    nav.push.mockReset();
+    renderList();
+    fireEvent.click(screen.getByText(SKILL_A.name));
+    expect(nav.push).toHaveBeenCalledWith(`/skills/${SKILL_A.id}?tab=config`);
   });
 });

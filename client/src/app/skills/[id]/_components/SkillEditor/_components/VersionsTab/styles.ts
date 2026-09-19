@@ -17,13 +17,10 @@ export const s = {
   actions: { display: "flex", gap: 8, alignItems: "center" } satisfies CSSProperties,
   diff: {
     marginTop: 12,
-    padding: 12,
+    padding: "8px 0",
     borderRadius: 8,
-    background: "var(--bg-elevated)",
+    background: "var(--bg-surface)",
     border: "1px solid var(--border)",
-    fontSize: 12,
-    lineHeight: 1.5,
-    whiteSpace: "pre-wrap",
-    color: "var(--text-primary)",
+    overflow: "hidden",
   } satisfies CSSProperties,
 } as const;

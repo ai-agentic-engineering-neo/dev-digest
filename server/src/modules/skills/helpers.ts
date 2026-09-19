@@ -7,7 +7,7 @@ import type { SkillRow, SkillVersionRow } from '../../db/rows.js';
  */
 
 /** Map a persisted skill row to the public `Skill` DTO. */
-export function toSkillDto(row: SkillRow): Skill {
+export function toSkillDto(row: SkillRow, agentCount = 0): Skill {
   return {
     id: row.id,
     name: row.name,
@@ -17,6 +17,7 @@ export function toSkillDto(row: SkillRow): Skill {
     body: row.body,
     enabled: row.enabled,
     version: row.version,
+    agent_count: agentCount,
     evidence_files: row.evidenceFiles ?? null,
   };
 }

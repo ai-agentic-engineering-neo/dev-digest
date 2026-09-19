@@ -86,9 +86,21 @@ describe("toggleRow / applyDrop", () => {
     expect(toBindings(rows)).toEqual([{ skill_id: "1", enabled: false }]);
   });
 
-  it("first drop of an unlinked row creates a link", () => {
-    const rows = applyDrop(mergeCatalogWithLinks(catalog, [link("1", "Alpha", 0, true)]), "2", "1");
-    expect(toBindings(rows).map((b) => b.skill_id)).toEqual(["2", "1"]);
-    expect(rows.find((r) => r.skill_id === "2")?.enabled).toBe(true);
+  it("first drop of an unlinked or disabled row is a no-op", () => {
+    const linked = mergeCatalogWithLinks(catalog, [link("1", "Alpha", 0, true)]);
+    expect(applyDrop(linked, "2", "1")).toEqual(linked);
+    const mixed = mergeCatalogWithLinks(catalog, [
+      link("1", "Alpha", 0, true),
+      link("2", "Bravo", 1, false),
+    ]);
+    expect(applyDrop(mixed, "2", "1")).toEqual(mixed);
+  });
+
+  it("reorders two dual-gated skills", () => {
+    const rows = mergeCatalogWithLinks(catalog, [
+      link("1", "Alpha", 0, true),
+      link("2", "Bravo", 1, true),
+    ]);
+    expect(applyDrop(rows, "2", "1").map((r) => r.skill_id).slice(0, 2)).toEqual(["2", "1"]);
   });
 });

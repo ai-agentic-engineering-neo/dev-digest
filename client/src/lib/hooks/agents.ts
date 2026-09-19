@@ -105,6 +105,8 @@ export function useSetAgentSkills(agentId: string) {
       api.post<AgentSkillLink[]>(`/agents/${agentId}/skills`, { skills }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["agent-skills", agentId] });
+      qc.invalidateQueries({ queryKey: ["agents"] });
+      qc.invalidateQueries({ queryKey: ["skills"] });
     },
   });
 }

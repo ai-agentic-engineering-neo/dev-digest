@@ -1,11 +1,11 @@
-/* AgentCard — model chip, skills count, enabled toggle. Stats are an A5 mount;
-   we render the provider/model + skill count here. */
+/* AgentCard — model chip, skills count, enabled toggle, delete. */
 "use client";
 
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Icon, Badge, Toggle } from "@devdigest/ui";
 import type { Agent } from "@devdigest/shared";
+import { ConfirmModal } from "../../../../components/confirm-modal";
 import { useDeleteAgent } from "../../../../lib/hooks/agents";
 import { modelColor } from "./helpers";
 import { s } from "./styles";
@@ -25,9 +25,24 @@ export function AgentCard({
 }) {
   const t = useTranslations("agents");
   const del = useDeleteAgent();
+  const [confirming, setConfirming] = React.useState(false);
   const color = modelColor(ag.model);
+  const count = skillCount ?? ag.skill_count;
   return (
     <div onClick={onClick} style={s.card(!!active, ag.enabled)}>
+      {confirming && (
+        <div onClick={(e) => e.stopPropagation()}>
+          <ConfirmModal
+            title={t("card.deleteTitle")}
+            body={t("card.deleteConfirm", { name: ag.name })}
+            confirmLabel={t("card.confirm")}
+            cancelLabel={t("card.cancel")}
+            pending={del.isPending}
+            onClose={() => setConfirming(false)}
+            onConfirm={() => del.mutate(ag.id, { onSuccess: () => setConfirming(false) })}
+          />
+        </div>
+      )}
       <div style={s.headerRow}>
         <div style={s.iconBox}>
           <Icon.Cpu size={15} />
@@ -41,11 +56,11 @@ export function AgentCard({
         <button
           onClick={(e) => {
             e.stopPropagation();
-            if (window.confirm(`Delete agent "${ag.name}"? This cannot be undone.`)) del.mutate(ag.id);
+            setConfirming(true);
           }}
           disabled={del.isPending}
-          title="Delete agent"
-          aria-label="Delete agent"
+          title={t("card.deleteTitle")}
+          aria-label={t("card.deleteTitle")}
           style={{
             background: "none",
             border: "none",
@@ -63,9 +78,9 @@ export function AgentCard({
         <span className="mono" style={s.modelChip(color)}>
           {ag.model}
         </span>
-        {skillCount != null && (
+        {count != null && (
           <Badge color="var(--text-secondary)" icon="Sparkles">
-            {t("card.skillCount", { count: skillCount })}
+            {t("card.skillCount", { count })}
           </Badge>
         )}
       </div>

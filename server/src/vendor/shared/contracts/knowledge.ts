@@ -135,6 +135,7 @@ export const Skill = z.object({
   body: z.string().min(1),
   enabled: z.boolean(),
   version: z.number().int(),
+  agent_count: z.number().int().nonnegative().optional(),
   evidence_files: z.array(z.string()).nullish(),
 });
 export type Skill = z.infer<typeof Skill>;
@@ -249,6 +250,7 @@ export const Agent = z.object({
   output_schema: z.unknown().nullish(),
   enabled: z.boolean(),
   version: z.number().int(),
+  skill_count: z.number().int().nonnegative().optional(),
   strategy: ReviewStrategy.default('single-pass'),
   ci_fail_on: CiFailOn.default('critical'),
   // Inject repo-intel context (repo skeleton + callers + rank note) into this

@@ -48,11 +48,13 @@ describe("SkillCard", () => {
     vi.unstubAllGlobals();
   });
 
-  it("renders the name, type badge and description", () => {
-    renderCard(SKILL);
+  it("renders the name, type badge, description, version and agent count", () => {
+    renderCard({ ...SKILL, agent_count: 2 });
     expect(screen.getByText("Uncovered branches")).toBeInTheDocument();
     expect(screen.getByText("custom")).toBeInTheDocument();
     expect(screen.getByText("Flag new production paths with no asserting test.")).toBeInTheDocument();
+    expect(screen.getByText("v1")).toBeInTheDocument();
+    expect(screen.getByText("2 agents")).toBeInTheDocument();
   });
 
   it("greys the card when enabled=false", () => {
@@ -72,5 +74,17 @@ describe("SkillCard", () => {
     expect(call).toBeTruthy();
     expect(String(call![0])).toContain(`/skills/${SKILL.id}`);
     expect(JSON.parse(String((call![1] as RequestInit).body))).toEqual({ enabled: false });
+  });
+
+  it("delete opens a confirm modal instead of window.confirm", () => {
+    const confirm = vi.fn();
+    vi.stubGlobal("confirm", confirm);
+    renderCard(SKILL);
+    fireEvent.click(screen.getByRole("button", { name: "Delete skill" }));
+    expect(confirm).not.toHaveBeenCalled();
+    expect(screen.getByText(/cannot be undone/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByText(/cannot be undone/)).not.toBeInTheDocument();
   });
 });

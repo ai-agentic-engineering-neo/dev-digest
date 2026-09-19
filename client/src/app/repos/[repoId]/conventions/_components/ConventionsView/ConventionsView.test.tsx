@@ -138,11 +138,12 @@ afterEach(() => {
 });
 
 describe("ConventionsView", () => {
-  it("shows the empty Run extraction CTA when there are no items", async () => {
+  it("shows Run Scan enabled and ReScan disabled when there are no items", async () => {
     renderView();
     expect(await screen.findByText("No conventions extracted yet")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Run extraction" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Re-scan" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Run Scan" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "ReScan" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Create skill" })).not.toBeInTheDocument();
   });
 
   it("renders cards, patches accept/reject/rule, and keeps selection client-only", async () => {
@@ -157,15 +158,16 @@ describe("ConventionsView", () => {
     expect(screen.getByText("src/api/users.ts:23-31")).toBeInTheDocument();
     expect(screen.getByText(PENDING.evidence_snippet)).toBeInTheDocument();
     expect(screen.getByText("91%")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Re-scan" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "ReScan" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Run Scan" })).toBeDisabled();
+    expect(screen.getAllByRole("button", { name: "Edit" }).length).toBeGreaterThan(0);
 
-    const create = screen.getByRole("button", { name: "Create skill" });
-    expect(create).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Create skill" })).toBeEnabled();
 
     const beforeDeselect = patchCalls().length;
     fireEvent.click(screen.getByRole("button", { name: "Deselect all" }));
     expect(patchCalls()).toHaveLength(beforeDeselect);
-    expect(create).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Create skill" })).not.toBeInTheDocument();
 
     const pendingCard = screen.getByText(PENDING.rule).closest("article")!;
     fireEvent.click(within(pendingCard).getByRole("button", { name: "Accepted" }));
@@ -177,14 +179,14 @@ describe("ConventionsView", () => {
     const before = patchCalls().length;
     fireEvent.click(screen.getByRole("button", { name: "Deselect all" }));
     expect(patchCalls()).toHaveLength(before);
-    expect(create).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Create skill" })).not.toBeInTheDocument();
 
     const rejectedCard = screen.getByText(REJECTED.rule).closest("article")!;
     expect(rejectedCard).toBeInTheDocument();
     fireEvent.click(rejectedCard);
-    expect(create).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Create skill" })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByText(PENDING.rule));
+    fireEvent.click(within(screen.getByText(PENDING.rule).closest("article")!).getByRole("button", { name: "Edit" }));
     fireEvent.change(screen.getByLabelText("Edit rule"), {
       target: { value: "Prefer async/await over then-chains" },
     });

@@ -104,7 +104,7 @@ beforeEach(() => {
         return {
           ok: true,
           status: 201,
-          json: async () => ({ id: "skill-1", name: "payments-api-conventions", source: "extracted" }),
+          json: async () => ({ id: "skill-1", name: "repo-conventions", source: "extracted" }),
         };
       }
       return { ok: false, status: 404, json: async () => ({}) };
@@ -129,11 +129,11 @@ describe("CreateSkillFromConventionsModal", () => {
     const create = screen.getByRole("button", { name: "Create skill" });
     expect(create).toBeEnabled();
 
-    fireEvent.change(screen.getByDisplayValue("payments-api-conventions"), { target: { value: "" } });
+    fireEvent.change(screen.getByDisplayValue("repo-conventions"), { target: { value: "" } });
     expect(create).toBeDisabled();
   });
 
-  it("Cancel does not POST; empty agent picker omits agent_id", async () => {
+  it("Cancel does not POST", async () => {
     renderModal();
     await screen.findByText(/Merged from 2 accepted conventions/);
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
@@ -141,25 +141,33 @@ describe("CreateSkillFromConventionsModal", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("submits selected ids without agent_id when the picker stays empty", async () => {
+  it("defaults the name to repo-conventions and attaches the first agent", async () => {
     renderModal([ACCEPTED_A, ACCEPTED_B, REJECTED]);
-    await screen.findByText(/Merged from 2 accepted conventions/);
+    expect(await screen.findByDisplayValue("repo-conventions")).toBeInTheDocument();
+    await waitFor(() => {
+      const selects = screen.getAllByRole("combobox") as HTMLSelectElement[];
+      expect(selects[1]?.value).toBe(AGENT_ID);
+    });
     fireEvent.click(screen.getByRole("button", { name: "Create skill" }));
     await waitFor(() => expect(composePosts()).toHaveLength(1));
     const body = composePosts()[0]!;
     expect(body.convention_ids).toEqual([ACCEPTED_A.id, ACCEPTED_B.id]);
-    expect(body.agent_id).toBeUndefined();
+    expect(body.name).toBe("repo-conventions");
+    expect(body.agent_id).toBe(AGENT_ID);
     expect(body.type).toBe("convention");
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("includes agent_id when an agent is chosen", async () => {
+  it("omits agent_id when the picker is set to none", async () => {
     renderModal();
-    await screen.findByRole("option", { name: "API Contract Reviewer" });
+    await waitFor(() => {
+      const selects = screen.getAllByRole("combobox") as HTMLSelectElement[];
+      expect(selects[1]?.value).toBe(AGENT_ID);
+    });
     const selects = screen.getAllByRole("combobox");
-    fireEvent.change(selects[1]!, { target: { value: AGENT_ID } });
+    fireEvent.change(selects[1]!, { target: { value: "" } });
     fireEvent.click(screen.getByRole("button", { name: "Create skill" }));
     await waitFor(() => expect(composePosts()).toHaveLength(1));
-    expect(composePosts()[0]!.agent_id).toBe(AGENT_ID);
+    expect(composePosts()[0]!.agent_id).toBeUndefined();
   });
 });

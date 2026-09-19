@@ -9,7 +9,7 @@ import type { AgentRow, AgentVersionRow } from './repository.js';
  */
 
 /** Map a persisted agent row to the public `Agent` DTO. */
-export function toAgentDto(row: AgentRow): Agent {
+export function toAgentDto(row: AgentRow, skillCount = 0): Agent {
   return {
     id: row.id,
     name: row.name,
@@ -20,6 +20,7 @@ export function toAgentDto(row: AgentRow): Agent {
     output_schema: row.outputSchema ?? null,
     enabled: row.enabled,
     version: row.version,
+    skill_count: skillCount,
     strategy: row.strategy as ReviewStrategy,
     ci_fail_on: row.ciFailOn as CiFailOn,
     repo_intel: row.repoIntel,

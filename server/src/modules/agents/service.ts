@@ -58,12 +58,14 @@ export class AgentsService {
 
   async list(workspaceId: string): Promise<Agent[]> {
     const rows = await this.repo.list(workspaceId);
-    return rows.map(toAgentDto);
+    return this.toDtos(rows);
   }
 
   async get(workspaceId: string, id: string): Promise<Agent | undefined> {
     const row = await this.repo.getById(workspaceId, id);
-    return row ? toAgentDto(row) : undefined;
+    if (!row) return undefined;
+    const [dto] = await this.toDtos([row]);
+    return dto;
   }
 
   /** Delete an agent (and its versions/skill-links, via cascade). */
@@ -86,7 +88,7 @@ export class AgentsService {
       enabled: input.enabled,
       createdBy: userId ?? null,
     });
-    return toAgentDto(row);
+    return toAgentDto(row, 0);
   }
 
   async update(
@@ -106,7 +108,9 @@ export class AgentsService {
       ...(patch.repo_intel !== undefined ? { repoIntel: patch.repo_intel } : {}),
       ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
     });
-    return row ? toAgentDto(row) : undefined;
+    if (!row) return undefined;
+    const [dto] = await this.toDtos([row]);
+    return dto;
   }
 
   /**
@@ -208,5 +212,10 @@ export class AgentsService {
     } catch {
       return [];
     }
+  }
+
+  private async toDtos(rows: Awaited<ReturnType<AgentsRepository['list']>>): Promise<Agent[]> {
+    const counts = await this.repo.countSkillsByAgentIds(rows.map((r) => r.id));
+    return rows.map((r) => toAgentDto(r, counts.get(r.id) ?? 0));
   }
 }

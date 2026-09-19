@@ -4,8 +4,9 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Badge, Button } from "@devdigest/ui";
 import type { Skill } from "@devdigest/shared";
+import { CodeLine } from "@/components/diff-viewer";
 import { useRestoreSkillVersion, useSkillVersions } from "../../../../../../../lib/hooks/skills";
-import { diffBodies } from "./helpers";
+import { diffLines } from "./helpers";
 import { s } from "./styles";
 
 /** Versions tab — append-only snapshots, Diff vs current, Restore on older rows. */
@@ -64,9 +65,11 @@ export function VersionsTab({ skill }: { skill: Skill }) {
         );
       })}
       {selected && (
-        <pre className="mono" style={s.diff}>
-          {diffBodies(selected.body, skill.body)}
-        </pre>
+        <div style={s.diff}>
+          {diffLines(selected.body, skill.body).map((ln, idx) => (
+            <CodeLine key={idx} ln={ln} path={skill.name} threads={[]} />
+          ))}
+        </div>
       )}
     </div>
   );

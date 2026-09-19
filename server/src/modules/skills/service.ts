@@ -39,12 +39,14 @@ export class SkillsService {
 
   async list(workspaceId: string): Promise<Skill[]> {
     const rows = await this.repo.list(workspaceId);
-    return rows.map(toSkillDto);
+    return this.toDtos(rows);
   }
 
   async get(workspaceId: string, id: string): Promise<Skill | undefined> {
     const row = await this.repo.getById(workspaceId, id);
-    return row ? toSkillDto(row) : undefined;
+    if (!row) return undefined;
+    const [dto] = await this.toDtos([row]);
+    return dto;
   }
 
   async delete(workspaceId: string, id: string): Promise<boolean> {
@@ -62,7 +64,7 @@ export class SkillsService {
       enabled: input.enabled,
       note: input.note,
     });
-    return toSkillDto(row);
+    return toSkillDto(row, 0);
   }
 
   previewImport(filename: string, bytes: Uint8Array): SkillImportPreview {
@@ -85,7 +87,7 @@ export class SkillsService {
       body: input.body.trim(),
       enabled: false,
     });
-    return toSkillDto(row);
+    return toSkillDto(row, 0);
   }
 
   async update(
@@ -101,7 +103,9 @@ export class SkillsService {
       ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
       ...(patch.note !== undefined ? { note: patch.note } : {}),
     });
-    return row ? toSkillDto(row) : undefined;
+    if (!row) return undefined;
+    const [dto] = await this.toDtos([row]);
+    return dto;
   }
 
   async listVersions(
@@ -131,6 +135,13 @@ export class SkillsService {
     version: number,
   ): Promise<Skill | undefined> {
     const row = await this.repo.restore(workspaceId, skillId, version);
-    return row ? toSkillDto(row) : undefined;
+    if (!row) return undefined;
+    const [dto] = await this.toDtos([row]);
+    return dto;
+  }
+
+  private async toDtos(rows: Awaited<ReturnType<SkillsRepository['list']>>): Promise<Skill[]> {
+    const counts = await this.repo.countAgentsBySkillIds(rows.map((r) => r.id));
+    return rows.map((r) => toSkillDto(r, counts.get(r.id) ?? 0));
   }
 }

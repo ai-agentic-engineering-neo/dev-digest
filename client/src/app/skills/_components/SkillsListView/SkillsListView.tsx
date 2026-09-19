@@ -1,5 +1,5 @@
 /* /skills — Skills Lab list. SkillCards + create. Selecting a skill
-   navigates to the editor at /skills/:id. */
+   opens the editor at /skills/:id (Config + Preview tabs). */
 "use client";
 
 import React from "react";
@@ -78,7 +78,11 @@ export function SkillsListView() {
         {list.length > 0 && (
           <div style={s.grid}>
             {list.map((sk) => (
-              <SkillCard key={sk.id} skill={sk} onClick={() => router.push(`/skills/${sk.id}?tab=config`)} />
+              <SkillCard
+                key={sk.id}
+                skill={sk}
+                onClick={() => router.push(`/skills/${sk.id}?tab=config`)}
+              />
             ))}
           </div>
         )}

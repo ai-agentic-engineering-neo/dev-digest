@@ -1,10 +1,11 @@
-/* SkillCard — name, type badge, description, enabled toggle, optional delete. */
+/* SkillCard — name, type badge, description, enabled toggle, version, agent_count, delete. */
 "use client";
 
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Icon, Toggle } from "@devdigest/ui";
 import type { Skill } from "@devdigest/shared";
+import { ConfirmModal } from "../../../../components/confirm-modal";
 import { useDeleteSkill, useUpdateSkill } from "../../../../lib/hooks/skills";
 import { typeColor } from "./helpers";
 import { s } from "./styles";
@@ -21,9 +22,24 @@ export function SkillCard({
   const t = useTranslations("skills");
   const update = useUpdateSkill();
   const del = useDeleteSkill();
+  const [confirming, setConfirming] = React.useState(false);
   const color = typeColor(skill.type);
+  const agentCount = skill.agent_count ?? 0;
   return (
     <div onClick={onClick} style={s.card(!!active, skill.enabled)}>
+      {confirming && (
+        <div onClick={(e) => e.stopPropagation()}>
+          <ConfirmModal
+            title={t("card.deleteTitle")}
+            body={t("card.deleteConfirm", { name: skill.name })}
+            confirmLabel={t("card.confirm")}
+            cancelLabel={t("card.cancel")}
+            pending={del.isPending}
+            onClose={() => setConfirming(false)}
+            onConfirm={() => del.mutate(skill.id, { onSuccess: () => setConfirming(false) })}
+          />
+        </div>
+      )}
       <div style={s.headerRow}>
         <div style={s.iconBox}>
           <Icon.Sparkles size={15} />
@@ -39,7 +55,7 @@ export function SkillCard({
         <button
           onClick={(e) => {
             e.stopPropagation();
-            if (window.confirm(t("card.deleteConfirm", { name: skill.name }))) del.mutate(skill.id);
+            setConfirming(true);
           }}
           disabled={del.isPending}
           title={t("card.deleteTitle")}
@@ -60,6 +76,12 @@ export function SkillCard({
       <div style={s.metaRow}>
         <span className="mono" style={s.typeChip(color)}>
           {t(`listItem.type.${skill.type}`)}
+        </span>
+        <span className="mono" style={s.metaChip}>
+          {t("card.version", { version: skill.version })}
+        </span>
+        <span className="mono" style={s.metaChip}>
+          {t("card.agentCount", { count: agentCount })}
         </span>
       </div>
     </div>

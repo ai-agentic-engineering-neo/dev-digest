@@ -27,14 +27,15 @@ export const s = {
     marginBottom: 8,
     opacity: dim ? 0.6 : 1,
   }),
-  handle: {
-    cursor: "grab",
+  handle: (on: boolean): CSSProperties => ({
+    cursor: on ? "grab" : "default",
     color: "var(--text-muted)",
     display: "inline-flex",
     padding: 4,
     background: "none",
     border: "none",
-  } satisfies CSSProperties,
+    opacity: on ? 1 : 0.35,
+  }),
   chip: (color: string): CSSProperties => ({
     fontSize: 12,
     fontWeight: 600,

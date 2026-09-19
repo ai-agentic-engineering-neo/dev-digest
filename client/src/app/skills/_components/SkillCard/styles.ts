@@ -48,4 +48,12 @@ export const s = {
     padding: "1px 8px",
     borderRadius: 4,
   }),
+  metaChip: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: "var(--text-muted)",
+    padding: "1px 8px",
+    borderRadius: 4,
+    background: "var(--bg-surface)",
+  } satisfies CSSProperties,
 } as const;

@@ -66,13 +66,17 @@ export function toggleRow(rows: SkillRow[], skillId: string, on: boolean): Skill
   });
 }
 
+export function canReorder(row: SkillRow): boolean {
+  return row.linked && row.enabled && row.skill_enabled;
+}
+
 export function applyDrop(rows: SkillRow[], fromId: string, toId: string): SkillRow[] {
   if (fromId === toId) return rows;
   const from = rows.find((r) => r.skill_id === fromId);
-  if (!from) return rows;
+  const to = rows.find((r) => r.skill_id === toId);
+  if (!from || !to || !canReorder(from) || !canReorder(to)) return rows;
   const without = rows.filter((r) => r.skill_id !== fromId);
   const toIndex = without.findIndex((r) => r.skill_id === toId);
   if (toIndex < 0) return rows;
-  const moved = from.linked ? from : { ...from, linked: true, enabled: true };
-  return [...without.slice(0, toIndex), moved, ...without.slice(toIndex)];
+  return [...without.slice(0, toIndex), from, ...without.slice(toIndex)];
 }

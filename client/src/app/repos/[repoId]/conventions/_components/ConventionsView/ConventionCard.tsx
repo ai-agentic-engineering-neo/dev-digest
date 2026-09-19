@@ -123,6 +123,12 @@ export function ConventionCard({
         >
           {t("card.accepted")}
         </Button>
+        <Button kind="ghost" size="sm" icon="Edit" disabled={patching} onClick={() => {
+          setDraft(item.rule);
+          setEditing(true);
+        }}>
+          {t("card.edit")}
+        </Button>
         <Button kind="ghost" size="sm" icon="X" disabled={patching} onClick={onReject}>
           {t("card.reject")}
         </Button>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isConfigChange } from './helpers.js';
+import { isConfigChange, toSkillDto } from './helpers.js';
 
 const existing = {
   name: 'pr-quality-rubric',
@@ -20,5 +20,28 @@ describe('isConfigChange', () => {
     expect(isConfigChange(existing, {})).toBe(false);
     expect(isConfigChange(existing, { name: existing.name })).toBe(false);
     expect(isConfigChange(existing, { body: existing.body })).toBe(false);
+  });
+});
+
+describe('toSkillDto', () => {
+  it('maps agentCount onto agent_count', () => {
+    const dto = toSkillDto(
+      {
+        id: 's1',
+        workspaceId: 'w1',
+        name: 'uncovered-branches',
+        description: 'Flag gaps.',
+        type: 'custom',
+        source: 'manual',
+        body: '# Body',
+        enabled: true,
+        version: 2,
+        evidenceFiles: null,
+        createdAt: new Date('2026-09-19T00:00:00Z'),
+      },
+      3,
+    );
+    expect(dto.agent_count).toBe(3);
+    expect(dto.version).toBe(2);
   });
 });

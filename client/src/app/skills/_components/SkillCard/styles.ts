@@ -14,11 +14,11 @@ export const s = {
     opacity: enabled ? 1 : 0.6,
   }),
   headerRow: { display: "flex", alignItems: "center", gap: 10 } satisfies CSSProperties,
-  iconBox: (color: string): CSSProperties => ({
+  iconBox: (color: string, bg: string): CSSProperties => ({
     width: 26,
     height: 26,
     borderRadius: 7,
-    background: color + "1a",
+    background: bg,
     color,
     display: "grid",
     placeItems: "center",
@@ -42,11 +42,11 @@ export const s = {
     textOverflow: "ellipsis",
   } satisfies CSSProperties,
   metaRow: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" } satisfies CSSProperties,
-  typeChip: (color: string): CSSProperties => ({
+  typeChip: (color: string, bg: string): CSSProperties => ({
     fontSize: 12,
     fontWeight: 600,
     color,
-    background: color + "1a",
+    background: bg,
     padding: "1px 8px",
     borderRadius: 4,
   }),

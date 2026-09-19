@@ -8,9 +8,26 @@ export function typeColor(type: SkillType): string {
     case "rubric":
       return "var(--accent)";
     case "convention":
-      return "var(--warn)";
+      return "var(--ok)";
     default:
       return "var(--text-secondary)";
+  }
+}
+
+/** The paired background token for `typeColor` — `color + "1a"` does not work
+ * on a `var(--x)` reference (it produces the invalid CSS `var(--x)1a`, which
+ * the browser silently drops); the design system's own tinted `-bg` tokens
+ * are the real pairing. */
+export function typeBg(type: SkillType): string {
+  switch (type) {
+    case "security":
+      return "var(--crit-bg)";
+    case "rubric":
+      return "var(--accent-bg)";
+    case "convention":
+      return "var(--ok-bg)";
+    default:
+      return "var(--bg-hover)";
   }
 }
 

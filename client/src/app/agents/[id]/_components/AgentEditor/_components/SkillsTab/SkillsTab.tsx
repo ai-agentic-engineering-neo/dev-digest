@@ -2,10 +2,10 @@
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { Checkbox, Chip, ErrorState, Icon, Skeleton, TextInput } from "@devdigest/ui";
+import { Badge, Checkbox, Chip, ErrorState, Icon, Skeleton } from "@devdigest/ui";
 import type { Agent, AgentSkillDetail } from "@devdigest/shared";
 import { useAgentSkills, useSetAgentSkills } from "../../../../../../../lib/hooks/agents";
-import { filterSkills, moveSkill, reorderByDrag } from "./helpers";
+import { filterSkills, moveSkill, reorderByDrag, typeBg, typeColor } from "./helpers";
 import { s } from "./styles";
 
 /** Agent editor's Skills tab — link, per-agent enable and reorder (spec §8).
@@ -61,11 +61,19 @@ export function SkillsTab({ agent }: { agent: Agent }) {
   return (
     <div style={s.wrap}>
       <div style={s.header}>
-        <h2 style={s.h2}>{t("skills.title")}</h2>
-        <Chip>{t("skills.enabledCount", { linked: enabledCount, total: skills.length })}</Chip>
-      </div>
-      <div style={s.filter}>
-        <TextInput value={query} onChange={setQuery} placeholder={t("skills.filterPlaceholder")} />
+        <div style={s.headerLeft}>
+          <h2 style={s.h2}>{t("skills.title")}</h2>
+          <Chip active>{t("skills.enabledCount", { linked: enabledCount, total: skills.length })}</Chip>
+        </div>
+        <div style={s.search}>
+          <Icon.Search size={13} style={s.searchIcon} />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t("skills.filterPlaceholder")}
+            style={s.searchInput}
+          />
+        </div>
       </div>
       <p style={s.hint}>{t("skills.orderHint")}</p>
       {visible.length === 0 ? (
@@ -96,8 +104,12 @@ export function SkillsTab({ agent }: { agent: Agent }) {
                   <Icon.Menu size={14} />
                 </span>
                 <Checkbox checked={skill.link_enabled} onChange={globalOff ? undefined : () => toggle(skill)} />
-                <span style={globalOff ? s.nameOff : s.name}>{skill.name}</span>
-                <Chip>{skill.type}</Chip>
+                <span className="mono" style={globalOff ? s.nameOff : s.name}>
+                  {skill.name}
+                </span>
+                <Badge color={typeColor(skill.type)} bg={typeBg(skill.type)} mono>
+                  {skill.type}
+                </Badge>
                 <div style={s.reorder}>
                   <button
                     type="button"

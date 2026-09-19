@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { Badge, Icon, IconBtn, Toggle } from "@devdigest/ui";
 import type { SkillSummary } from "@devdigest/shared";
 import { useUpdateSkill } from "../../../../../../lib/hooks/skills";
-import { needsVettingBadge, typeColor } from "./helpers";
+import { needsVettingBadge, typeBg, typeColor } from "./helpers";
 import { s } from "./styles";
 
 /** One row of the Skills rail: name, type/source badges, used-by count, and
@@ -48,7 +48,7 @@ export function SkillRailCard({
       </div>
       <div style={s.description}>{skill.description}</div>
       <div style={s.metaRow}>
-        <Badge color={typeColor(skill.type)} mono>
+        <Badge color={typeColor(skill.type)} bg={typeBg(skill.type)} mono>
           {t(`listItem.type.${skill.type}`)}
         </Badge>
         {skill.source !== "manual" && (

@@ -1,4 +1,35 @@
-import type { AgentSkillDetail } from "@devdigest/shared";
+import type { AgentSkillDetail, SkillType } from "@devdigest/shared";
+
+/** A stable accent colour per skill type, for the row's type badge. */
+export function typeColor(type: SkillType): string {
+  switch (type) {
+    case "security":
+      return "var(--crit)";
+    case "rubric":
+      return "var(--accent)";
+    case "convention":
+      return "var(--ok)";
+    default:
+      return "var(--text-secondary)";
+  }
+}
+
+/** The paired background token for `typeColor` — `color + "1a"` does not work
+ * on a `var(--x)` reference (it produces the invalid CSS `var(--x)1a`, which
+ * the browser silently drops); the design system's own tinted `-bg` tokens
+ * are the real pairing. */
+export function typeBg(type: SkillType): string {
+  switch (type) {
+    case "security":
+      return "var(--crit-bg)";
+    case "rubric":
+      return "var(--accent-bg)";
+    case "convention":
+      return "var(--ok-bg)";
+    default:
+      return "var(--bg-hover)";
+  }
+}
 
 /** Case-insensitive filter over a skill's name + type. Order is untouched —
  *  filtering never reorders, it only hides rows. */

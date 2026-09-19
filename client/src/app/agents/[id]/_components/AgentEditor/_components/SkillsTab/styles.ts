@@ -3,9 +3,30 @@ import type { CSSProperties } from "react";
 /** Co-located styles for SkillsTab. */
 export const s = {
   wrap: { maxWidth: 760 } satisfies CSSProperties,
-  header: { display: "flex", alignItems: "center", gap: 12, marginBottom: 16 } satisfies CSSProperties,
+  header: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 16 } satisfies CSSProperties,
+  headerLeft: { display: "flex", alignItems: "center", gap: 12 } satisfies CSSProperties,
   h2: { fontSize: 18, fontWeight: 700 } satisfies CSSProperties,
-  filter: { marginBottom: 10 } satisfies CSSProperties,
+  search: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "8px 12px",
+    borderRadius: 7,
+    border: "1px solid var(--border)",
+    background: "var(--bg-surface)",
+    width: 220,
+    flexShrink: 0,
+  } satisfies CSSProperties,
+  searchIcon: { color: "var(--text-muted)", flexShrink: 0 } satisfies CSSProperties,
+  searchInput: {
+    flex: 1,
+    fontSize: 13,
+    background: "transparent",
+    border: "none",
+    outline: "none",
+    color: "var(--text-primary)",
+    minWidth: 0,
+  } satisfies CSSProperties,
   hint: {
     fontSize: 12,
     color: "var(--text-muted)",

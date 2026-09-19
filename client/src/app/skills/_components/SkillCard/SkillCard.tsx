@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { Badge, Icon, Toggle } from "@devdigest/ui";
 import type { SkillSummary } from "@devdigest/shared";
 import { useUpdateSkill } from "../../../../lib/hooks/skills";
-import { needsVettingBadge, typeColor } from "./helpers";
+import { needsVettingBadge, typeBg, typeColor } from "./helpers";
 import { s } from "./styles";
 
 /**
@@ -25,12 +25,13 @@ export function SkillCard({
   const t = useTranslations("skills");
   const update = useUpdateSkill();
   const color = typeColor(skill.type);
+  const bg = typeBg(skill.type);
   const vetting = needsVettingBadge(skill.source);
 
   return (
     <div onClick={onClick} style={s.card(skill.enabled)}>
       <div style={s.headerRow}>
-        <div style={s.iconBox(color)}>
+        <div style={s.iconBox(color, bg)}>
           <Icon.Sparkles size={15} />
         </div>
         <span className="mono" style={s.name}>
@@ -59,7 +60,7 @@ export function SkillCard({
       </div>
       <div style={s.description}>{skill.description}</div>
       <div style={s.metaRow}>
-        <span className="mono" style={s.typeChip(color)}>
+        <span className="mono" style={s.typeChip(color, bg)}>
           {t(`listItem.type.${skill.type}`)}
         </span>
         <Badge color="var(--text-secondary)" icon="Users">

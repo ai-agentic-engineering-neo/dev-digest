@@ -9,6 +9,8 @@ Reusable AI skills that provide specialized knowledge and workflows. Canonical l
 | [fastify-best-practices](fastify-best-practices/SKILL.md) | Backend | Fastify routes, plugins, JSON-schema validation, error handling |
 | [drizzle-orm-patterns](drizzle-orm-patterns/SKILL.md) | Backend | Drizzle schema, queries, relations, transactions, migrations |
 | [postgresql-table-design](postgresql-table-design/SKILL.md) | Backend | Postgres schema design, data types, indexing, constraints |
+| [onion-architecture](onion-architecture/SKILL.md) | Backend | Ring placement and dependency direction in `server/`, enforced by `pnpm arch` (authored here, not vendored) |
+| [frontend-ui-architecture](frontend-ui-architecture/SKILL.md) | Frontend | Where code lives, when to split a component, layering and boundary enforcement (authored here, not vendored) |
 | [next-best-practices](next-best-practices/SKILL.md) | Frontend | Next.js App Router, RSC boundaries, data fetching, optimization |
 | [react-best-practices](react-best-practices/SKILL.md) | Frontend | React anti-patterns, state management, hooks rules |
 | [react-testing-library](react-testing-library/SKILL.md) | Frontend | General-purpose React Testing Library guide with Vitest |
@@ -17,6 +19,7 @@ Reusable AI skills that provide specialized knowledge and workflows. Canonical l
 | [security](security/SKILL.md) | Full-stack | OWASP Top 10:2025, auth, injection, uploads, secrets |
 | [mermaid-diagram](mermaid-diagram/SKILL.md) | Shared | Mermaid diagrams in markdown (flowcharts, sequence, ERD, …) |
 | [engineering-insights](engineering-insights/SKILL.md) | Workflow | Reads and records the per-module `INSIGHTS.md` log (authored here, not vendored) |
+| [pr-self-review](pr-self-review/SKILL.md) | Workflow | Pre-PR gate: routes the open diff to the skills that own those files, runs the matching gates, blocks on any CRITICAL (authored here, not vendored) |
 
 ## What Are Skills?
 
@@ -38,3 +41,5 @@ Each skill has:
 - `SKILL.md` — Main skill file with rules and conventions (required)
 - `examples.md` — Code examples showing good/bad patterns (recommended)
 - `references.md` — Sources and rationale (optional)
+
+`frontend-ui-architecture` keeps its annotated source list in `README.md` instead of `references.md`; either name is fine as long as `SKILL.md` points at it.

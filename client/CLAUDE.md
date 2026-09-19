@@ -25,6 +25,11 @@ Feature components are colocated in `app/<route>/_components/`.
 Shared ones live in `src/components/`. The design kit is `src/vendor/ui`
 (`@devdigest/ui`), shared Zod contracts are `src/vendor/shared` (`@devdigest/shared`).
 
+The folder's case depends on where it lives: shared folders are kebab-case
+(`src/components/severity-counts/`), feature folders are PascalCase
+(`app/agents/_components/AgentCard/`). The component file inside is PascalCase
+either way. Full shape: `docs/component-conventions.md`.
+
 ## Rules
 
 - Pages stay thin. All logic belongs in `_components/`.
@@ -34,6 +39,11 @@ Shared ones live in `src/components/`. The design kit is `src/vendor/ui`
 - User-facing text goes through `next-intl` (`messages/<locale>/*.json`),
   never hardcoded in a component.
 - API errors are normalized to `ApiError` — branch on `status`, never on message text.
+
+`pnpm lint` (eslint) enforces the `fetch` ban and hook correctness; `pnpm arch`
+(dependency-cruiser, `.dependency-cruiser.cjs`) enforces the layering — shared
+code may not import a route, and no route may reach into another route's
+`_components/`. Both run in `client.yml`. `src/vendor/**` is excluded from both.
 
 ## Gotchas
 

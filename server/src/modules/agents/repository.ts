@@ -42,10 +42,12 @@ export interface UpdateAgent {
   enabled?: boolean;
 }
 
-/** A skill linked to an agent (with its order), joined from agent_skills. */
+/** A skill linked to an agent (with its order and per-link enabled flag), joined
+ *  from agent_skills. */
 export interface LinkedSkillRow {
   skill: typeof t.skills.$inferSelect;
   order: number;
+  enabled: boolean;
 }
 
 export class AgentsRepository {
@@ -145,6 +147,25 @@ export class AgentsRepository {
     return row;
   }
 
+  /**
+   * Bump an agent's config version and snapshot it, after `agent_skills` has
+   * already been mutated (linkSkill / unlinkSkill / setSkills). Every link
+   * change counts as a config change — there is no toggle-only exception on the
+   * agent side (unlike a skill's own `enabled`, a different flag on a different
+   * table). No-ops if the agent no longer exists.
+   */
+  private async bumpVersionAfterSkillChange(agentId: string): Promise<void> {
+    const [existing] = await this.db.select().from(t.agents).where(eq(t.agents.id, agentId));
+    if (!existing) return;
+    const nextVersion = existing.version + 1;
+    const [row] = await this.db
+      .update(t.agents)
+      .set({ version: nextVersion })
+      .where(eq(t.agents.id, agentId))
+      .returning();
+    if (row) await this.snapshotVersion(row, nextVersion);
+  }
+
   private async snapshotVersion(row: AgentRow, version: number): Promise<void> {
     const skills = await this.skillIdsForAgent(row.id);
     await this.db
@@ -188,49 +209,96 @@ export class AgentsRepository {
 
   // ---- agent_skills link table (A2 owns the agent side) -------------------
 
-  /** Skills linked to an agent, in `order` ascending. */
+  /** Skills linked to an agent (every link, on or off), in `order` ascending. */
   async linkedSkills(agentId: string): Promise<LinkedSkillRow[]> {
     const rows = await this.db
-      .select({ skill: t.skills, order: t.agentSkills.order })
+      .select({ skill: t.skills, order: t.agentSkills.order, enabled: t.agentSkills.enabled })
       .from(t.agentSkills)
       .innerJoin(t.skills, eq(t.agentSkills.skillId, t.skills.id))
       .where(eq(t.agentSkills.agentId, agentId))
       .orderBy(asc(t.agentSkills.order));
-    return rows.map((r) => ({ skill: r.skill, order: r.order }));
+    return rows.map((r) => ({ skill: r.skill, order: r.order, enabled: r.enabled }));
   }
 
+  /**
+   * The ordered ids of the links that are currently ENABLED — this is what
+   * `AgentVersionConfig.skills` must snapshot (specs/02-skills.md §5.3): what was
+   * linked AND live when the snapshot was taken, not every link that exists.
+   * Called only by `snapshotVersion`.
+   */
   async skillIdsForAgent(agentId: string): Promise<string[]> {
     const links = await this.linkedSkills(agentId);
-    return links.map((l) => l.skill.id);
+    return links.filter((l) => l.enabled).map((l) => l.skill.id);
   }
 
-  /** Link a skill to an agent at a given order (idempotent: upserts order). */
-  async linkSkill(agentId: string, skillId: string, order: number): Promise<void> {
+  /**
+   * The sanctioned path for prompt assembly (specs/02-skills.md §7.5): rows where
+   * both the link AND the skill itself are enabled, in link order. Called by
+   * `run-executor.ts` via `container.agentsRepo.enabledSkillsForPrompt(agent.id)`.
+   */
+  async enabledSkillsForPrompt(
+    agentId: string,
+  ): Promise<{ id: string; name: string; body: string }[]> {
+    return this.db
+      .select({ id: t.skills.id, name: t.skills.name, body: t.skills.body })
+      .from(t.agentSkills)
+      .innerJoin(t.skills, eq(t.agentSkills.skillId, t.skills.id))
+      .where(
+        and(
+          eq(t.agentSkills.agentId, agentId),
+          eq(t.agentSkills.enabled, true),
+          eq(t.skills.enabled, true),
+        ),
+      )
+      .orderBy(asc(t.agentSkills.order));
+  }
+
+  /**
+   * Link a skill to an agent at a given order (idempotent: upserts order and
+   * enabled). Bumps and snapshots the agent's version — a link change is always
+   * a config change (§7.3).
+   */
+  async linkSkill(
+    agentId: string,
+    skillId: string,
+    order: number,
+    enabled = true,
+  ): Promise<void> {
     await this.db
       .insert(t.agentSkills)
-      .values({ agentId, skillId, order })
+      .values({ agentId, skillId, order, enabled })
       .onConflictDoUpdate({
         target: [t.agentSkills.agentId, t.agentSkills.skillId],
-        set: { order },
+        set: { order, enabled },
       });
+    await this.bumpVersionAfterSkillChange(agentId);
   }
 
+  /** Unlink a skill from an agent. Bumps and snapshots the agent's version. */
   async unlinkSkill(agentId: string, skillId: string): Promise<void> {
     await this.db
       .delete(t.agentSkills)
       .where(and(eq(t.agentSkills.agentId, agentId), eq(t.agentSkills.skillId, skillId)));
+    await this.bumpVersionAfterSkillChange(agentId);
   }
 
   /**
-   * Replace the full set of linked skills for an agent with `skillIds`, assigning
-   * order = index. Used by the "Skills" editor tab (attach/reorder). Skills not in
-   * the list are unlinked.
+   * Replace the full set of linked skills for an agent with `entries`, assigning
+   * order = index and each entry's `enabled` flag. Used by the "Skills" editor
+   * tab (attach/reorder/per-agent enable). Skills not in the list are unlinked.
+   * Bumps and snapshots the agent's version, even when `entries` is empty — no
+   * transaction wraps the delete+insert (documented pre-existing risk, specs/
+   * 02-skills.md §14).
    */
-  async setSkills(agentId: string, skillIds: string[]): Promise<void> {
+  async setSkills(agentId: string, entries: { skillId: string; enabled: boolean }[]): Promise<void> {
     await this.db.delete(t.agentSkills).where(eq(t.agentSkills.agentId, agentId));
-    if (skillIds.length === 0) return;
-    await this.db
-      .insert(t.agentSkills)
-      .values(skillIds.map((skillId, i) => ({ agentId, skillId, order: i })));
+    if (entries.length > 0) {
+      await this.db
+        .insert(t.agentSkills)
+        .values(
+          entries.map((e, i) => ({ agentId, skillId: e.skillId, order: i, enabled: e.enabled })),
+        );
+    }
+    await this.bumpVersionAfterSkillChange(agentId);
   }
 }

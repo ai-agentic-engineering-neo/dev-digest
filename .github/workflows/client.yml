@@ -1,7 +1,7 @@
 # Client suite — Next.js web app (@devdigest/web).
-# Typecheck + component/unit tests (vitest + jsdom). Hermetic: no API, no DB,
-# no browser — fetch is mocked in the tests. The full-stack browser flow lives
-# in e2e-web.yml.
+# Typecheck + eslint + the UI boundary check + component/unit tests (vitest +
+# jsdom). Hermetic: no API, no DB, no browser — fetch is mocked in the tests.
+# The full-stack browser flow lives in e2e-web.yml.
 name: client
 
 on:
@@ -45,5 +45,13 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - run: pnpm typecheck
+
+      - run: pnpm exec eslint .
+
+      # UI boundaries (client/.dependency-cruiser.cjs): shared code may not
+      # import a route, and a route may not reach into another route's
+      # _components/. Same tool the server uses for its onion rings.
+      - name: Architecture boundaries
+        run: pnpm exec depcruise src --config .dependency-cruiser.cjs --output-type err
 
       - run: pnpm test

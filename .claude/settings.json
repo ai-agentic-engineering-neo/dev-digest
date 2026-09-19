@@ -1,0 +1,35 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/skills/pr-self-review/scripts/gate.sh"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(git diff:*)",
+      "Bash(git status:*)",
+      "Bash(git merge-base:*)",
+      "Bash(git ls-files:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git show:*)",
+      "Bash(git log:*)",
+      "Bash(pnpm --dir server typecheck)",
+      "Bash(pnpm --dir server lint)",
+      "Bash(pnpm --dir server arch)",
+      "Bash(pnpm --dir client typecheck)",
+      "Bash(pnpm --dir client lint)",
+      "Bash(pnpm --dir client arch)",
+      "Bash(pnpm --dir client test)",
+      "Bash(npm --prefix reviewer-core run typecheck)",
+      "Bash(npm --prefix e2e run typecheck)"
+    ]
+  }
+}

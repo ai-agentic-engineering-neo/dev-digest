@@ -184,6 +184,16 @@ export class ReviewRunExecutor {
 
       const task = taskLine(pull) + rankNote;
 
+      // D5 — linked, enabled skills (link.enabled && skill.enabled, link order;
+      // specs/02-skills.md §7.5). Logged only when non-empty so a skill-less
+      // agent's prompt and log stay byte-identical to the pre-feature shape.
+      const skills = await this.agents.enabledSkillsForPrompt(agent.id);
+      const blocks = skills.map((s) => `### ${s.name}\n${s.body}`);
+      if (skills.length > 0) {
+        const tokens = blocks.reduce((n, b) => n + this.container.tokenizer.count(b), 0);
+        runLog.info(`skills: ${skills.length} attached (+~${tokens} tokens)`);
+      }
+
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
       // the CI runner). The service owns only I/O: repo-intel context resolution
@@ -204,6 +214,9 @@ export class ReviewRunExecutor {
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
+        // D5 — linked, enabled skill bodies, `### name`-prefixed. Omitted when
+        // empty so assemblePrompt's `## Skills / rules` section stays absent.
+        ...(blocks.length ? { skills: blocks } : {}),
         task,
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
@@ -228,6 +241,13 @@ export class ReviewRunExecutor {
         model: agent.model,
       });
       const findingRows = await this.repo.insertFindings(review.id, keptFindings);
+      if (skills.length) {
+        // D5 — which skills shaped this run, in link order. Recorded against the
+        // RUN (not the review), per specs/02-skills.md §7.5. No transaction: a
+        // crash between this and the review/findings insert above just leaves
+        // agent_run_skills unpopulated for this one run (spec §14).
+        await this.repo.recordRunSkills(runId, skills.map((s) => s.id));
+      }
       runLog.result(`Persisted review ${review.id} with ${findingRows.length} finding(s)`);
 
       // Mark the commit this review ran against so the PR list can tell

@@ -1,8 +1,9 @@
 # Server unit suite — Fastify API (@devdigest/api), hermetic tests only.
 #
 # Two jobs:
-#  - typecheck: type-check on Linux only — the platform CI and the exported
-#    agent-runner both run on. We deliberately do NOT matrix over Windows/macOS:
+#  - typecheck: type-check + eslint + the dependency-cruiser layer check, on
+#    Linux only — the platform CI and the exported agent-runner both run on.
+#    We deliberately do NOT matrix over Windows/macOS:
 #    macOS is covered by daily local dev, Windows is not a ship target, and
 #    `@ast-grep/napi` is exact-pinned so its native binary only changes on a
 #    deliberate version bump.
@@ -64,6 +65,14 @@ jobs:
         run: npm ci
 
       - run: pnpm typecheck
+
+      - run: pnpm exec eslint .
+
+      # Onion-layer boundaries (server/.dependency-cruiser.cjs). Inlined rather than
+      # `pnpm arch` for the same reason vitest is inlined below — the committed
+      # package.json may not carry the script.
+      - name: Architecture boundaries
+        run: pnpm exec depcruise src --config .dependency-cruiser.cjs --output-type err
 
   unit:
     name: tests

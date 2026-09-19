@@ -4,11 +4,15 @@ import { readFileSync } from 'node:fs';
 import { assemblePrompt, wrapUntrusted } from '../src/platform/prompt.js';
 import { toJsonSchema, parseWithRepair, extractJson } from '../src/platform/structured.js';
 import { Review } from '@devdigest/shared';
-import { TEST_QUALITY_SKILL_BODIES } from '../src/db/seed-skills.js';
+import { TEST_QUALITY_SKILL_BODIES, API_CONTRACT_SKILL_BODIES } from '../src/db/seed-skills.js';
 import { skillsPromptArg } from '../src/modules/reviews/helpers.js';
 
 const HAPPY_PATH_DIFF = readFileSync(
   new URL('../../docs/skill-fixtures/happy-path-only.diff', import.meta.url),
+  'utf8',
+);
+const BREAKING_RENAME_DIFF = readFileSync(
+  new URL('../../docs/skill-fixtures/breaking-response-rename.diff', import.meta.url),
   'utf8',
 );
 
@@ -79,6 +83,30 @@ describe('prompt assembly + injection hardening', () => {
       system: 'You are a test-quality reviewer.',
       ...skillsPromptArg([]),
       diff: HAPPY_PATH_DIFF,
+    });
+    expect(skillsPromptArg([])).toEqual({});
+    expect(off.assembly.skills).toBeNull();
+    expect(off.messages[1]!.content).not.toContain('## Skills / rules');
+  });
+
+  it('includes API Contract bodies for the breaking-rename fixture and omits them via skillsPromptArg([])', () => {
+    const on = assemblePrompt({
+      system: 'You are an API contract reviewer.',
+      ...skillsPromptArg(API_CONTRACT_SKILL_BODIES),
+      diff: BREAKING_RENAME_DIFF,
+      task: "Review PR #902 'Rename userId to user_id in the public user payload'",
+    });
+    expect(on.assembly.skills).not.toBeNull();
+    for (const body of API_CONTRACT_SKILL_BODIES) {
+      expect(on.assembly.skills).toContain(body);
+    }
+    expect(on.messages[1]!.content).toContain('## Skills / rules');
+    expect(on.messages[1]!.content).toContain('user_id');
+
+    const off = assemblePrompt({
+      system: 'You are an API contract reviewer.',
+      ...skillsPromptArg([]),
+      diff: BREAKING_RENAME_DIFF,
     });
     expect(skillsPromptArg([])).toEqual({});
     expect(off.assembly.skills).toBeNull();

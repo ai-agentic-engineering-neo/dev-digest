@@ -46,6 +46,9 @@ Hit in `server/src/modules/skills/import.ts` documenting nested zip paths like `
 
 ## Context
 
+### 2026-09-19 — workspace SecretsProvider can supply OpenRouter even when `server/.env` `OPENROUTER_API_KEY` is empty
+`GET /settings/secrets-status` returned `openrouter: true` while `server/.env` had `OPENROUTER_API_KEY=` (length 0). Spec 03 traces were skipped on env emptiness; spec 05 live runs on #902 still called the provider. For studio demos, trust `secrets-status` (and Settings → API keys), not `.env` alone.
+
 ### 2026-09-18 — this drizzle-orm version's `numeric()` column always types as `string`, and `text(col, { enum })` adds no DB-level constraint
 Hit while migrating `costUsd` (`runs.ts`/`ci.ts`/`eval.ts`) from `doublePrecision` (float) to `numeric('cost_usd', { precision: 12, scale: 6 })` for money-safety. This drizzle-orm version (0.38, see `node_modules/drizzle-orm/pg-core/columns/numeric.d.ts`) has no `mode: 'number'` option on `numeric()` — the column's JS type is always `string`, both on select and insert. Every read site needs `Number(row.costUsd)` and every write needs `value.toFixed(6)` (not bare `String()`, which can emit exponential notation for very small per-token costs); see `server/src/modules/reviews/repository/run.repo.ts`'s `completeAgentRun`/`listRunsForPull`. Separately: `text('severity', { enum: [...] })` (added to `findings` to match `reviews.kind`'s existing pattern) is TS-level narrowing only — confirmed via `pnpm db:generate` producing zero DDL for it — there is no CHECK constraint or native Postgres enum backing it. If a future task wants real DB-level enforcement, that needs an explicit `CHECK` constraint, not the `{ enum }` column option.
 

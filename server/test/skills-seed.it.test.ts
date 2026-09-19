@@ -276,4 +276,22 @@ d('skills catalog seed', () => {
     expect(links.slice(0, 3).map((l) => l.skill_id)).toEqual(previousIds);
     await app.close();
   });
+
+  it('seeds PR #902 with a silent public-field rename patch', async () => {
+    const [repo] = await pg.handle.db
+      .select()
+      .from(t.repos)
+      .where(eq(t.repos.fullName, 'acme/payments-api'));
+    const [pr] = await pg.handle.db
+      .select()
+      .from(t.pullRequests)
+      .where(and(eq(t.pullRequests.repoId, repo!.id), eq(t.pullRequests.number, 902)));
+    expect(pr?.title).toMatch(/rename|breaking/i);
+    expect(pr?.body).toMatch(/rename|breaking/i);
+    const files = await pg.handle.db.select().from(t.prFiles).where(eq(t.prFiles.prId, pr!.id));
+    const patch = files.find((f) => typeof f.patch === 'string')?.patch ?? '';
+    expect(patch).toContain('userId');
+    expect(patch).toContain('user_id');
+    expect(patch).not.toContain('deprecated');
+  });
 });

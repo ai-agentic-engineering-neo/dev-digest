@@ -17,6 +17,10 @@ export const DEFAULT_PROVIDER = 'openrouter' as const;
 export const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
 
 const HAPPY_PATH_DIFF = new URL('../../../docs/skill-fixtures/happy-path-only.diff', import.meta.url);
+const BREAKING_RENAME_DIFF = new URL(
+  '../../../docs/skill-fixtures/breaking-response-rename.diff',
+  import.meta.url,
+);
 
 function filesFromUnifiedDiff(text: string): Array<{
   path: string;
@@ -49,7 +53,8 @@ function filesFromUnifiedDiff(text: string): Array<{
  *
  * Seeds: default workspace + system user + membership, default settings,
  * demo repo (acme/payments-api), PR #482 with files/commits, a sample review
- * with a few findings, and the built-in agents (General + Security +
+ * with a few findings, control PRs #901 (happy-path tests) and #902 (silent
+ * public-field rename), and the built-in agents (General + Security +
  * Performance + Test Quality + API Contract), all on the default
  * openrouter/deepseek-v4-flash provider+model, plus the mockup skill catalog
  * and agent_skills links.
@@ -239,6 +244,44 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       prId: pr901!.id,
       sha: 'c0ntr0l901',
       message: 'Add parseAmount with a happy-path-only test',
+      author: 'seed',
+    });
+  }
+
+  // ---- PR #902 (silent public payload rename — API Contract control) ----
+  let [pr902] = await db
+    .select()
+    .from(t.pullRequests)
+    .where(and(eq(t.pullRequests.repoId, repoId), eq(t.pullRequests.number, 902)));
+  if (!pr902) {
+    const files = filesFromUnifiedDiff(readFileSync(BREAKING_RENAME_DIFF, 'utf8'));
+    const additions = files.reduce((n, f) => n + f.additions, 0);
+    const deletions = files.reduce((n, f) => n + f.deletions, 0);
+    [pr902] = await db
+      .insert(t.pullRequests)
+      .values({
+        workspaceId,
+        repoId,
+        number: 902,
+        title: 'Rename userId to user_id in the public user payload',
+        author: 'seed',
+        branch: 'breaking/rename-userid',
+        base: 'main',
+        headSha: 'c0ntr0l902',
+        additions,
+        deletions,
+        filesCount: files.length,
+        status: 'needs_review',
+        body: 'Breaking rename of a public JSON field. No deprecation marker and no major version bump.',
+      })
+      .returning();
+    if (files.length > 0) {
+      await db.insert(t.prFiles).values(files.map((f) => ({ prId: pr902!.id, ...f })));
+    }
+    await db.insert(t.prCommits).values({
+      prId: pr902!.id,
+      sha: 'c0ntr0l902',
+      message: 'Rename userId to user_id in public user payload',
       author: 'seed',
     });
   }

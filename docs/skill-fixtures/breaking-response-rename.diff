@@ -1,0 +1,12 @@
+diff --git a/src/api/public/users.ts b/src/api/public/users.ts
+index 1111111..2222222 100644
+--- a/src/api/public/users.ts
++++ b/src/api/public/users.ts
+@@ -1,8 +1,8 @@
+ export function toPublicUser(user: { id: string; email: string }) {
+   return {
+-    userId: user.id,
++    user_id: user.id,
+     email: user.email,
+   };
+ }

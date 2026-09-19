@@ -95,7 +95,6 @@ d('PR list COST column (Testcontainers pg)', () => {
     const a = list.find((p) => p.id === reviewed.id)!;
     expect(a.score).toBe(80);
     expect(a.cost_usd).toBe(latestRun);
-    expect(a.cost_usd).not.toBe(olderPricierRun + latestRun);
 
     const b = list.find((p) => p.id === unreviewed.id)!;
     expect(b.score).toBeNull();

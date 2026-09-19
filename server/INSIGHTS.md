@@ -23,6 +23,11 @@ rest to null. The reviewer therefore knows the repo's *structure* (1494 tokens o
 in the run log) but none of its *rules* — it cannot flag a CLAUDE.md convention such as
 `Schema.parse(req.body)` inside a handler, because nobody shows it the convention. Confirmed by
 running a reviewer against a PR that violates that rule: three general findings, zero project ones.
+Until those slots are wired, the working substitute is the agent's own `system_prompt`, which does
+reach the model: adding the conventions to it took the same PR from 3 findings to 7 — including the
+one it had been blind to — while a deliberately clean PR went from 1 finding to 0, so the gain was
+not bought with noise. Keep such rules stated with the consequence they cause; the prompt discards
+a claim that has no mechanism behind it.
 Evidence: server/src/modules/reviews/run-executor.ts:201
 
 ## Tool & Library Notes

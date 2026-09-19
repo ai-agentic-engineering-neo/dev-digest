@@ -7,7 +7,10 @@ import * as t from '../../db/schema.js';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { AppError, NotFoundError } from '../../platform/errors.js';
-import { deriveReviewStatus } from './status.js';
+import { deriveReviewStatus, rollupSeverities } from './status.js';
+
+/** Worst → best verdict rank, for picking the PR-level "lowest" outcome across runs. */
+const VERDICT_RANK: Record<string, number> = { request_changes: 0, comment: 1, approve: 2 };
 
 /**
  * F1 — pulls module. PR import via Octokit (list + per-PR detail).
@@ -111,21 +114,78 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
-    // Latest-review SCORE per PR for the list's score ring. Computed on read
-    // from reviews (no FK denorm); the list is small, so one IN-query + JS
-    // grouping is cheap. (The per-severity FINDINGS breakdown is intentionally
-    // not surfaced on the list — findings live on the PR detail page.)
+    // SCORE + STATUS + FINDINGS per PR, aggregated across each AGENT'S LATEST
+    // completed review only — re-running the same agent supersedes its prior
+    // pass rather than stacking a stale run's score/findings on top of the
+    // fresh one. (Re-running a DIFFERENT agent still contributes its own
+    // latest review — this scopes "latest" to "latest PER AGENT", not "only
+    // the single latest review on the PR".) Computed on read from `reviews`
+    // (no FK denorm); the list is small, so one IN-query + JS grouping is
+    // cheap. A `reviews` row only ever exists for a successfully completed
+    // run (inserted at the end of run-executor's pipeline), so no extra join
+    // to agentRuns.status is needed here — same assumption the pre-existing
+    // code already made.
     const prIds = rows.map((r) => r.id);
-    const latestReviewByPr = new Map<string, { score: number | null }>();
+    const scoreByPr = new Map<string, number | null>();
+    const worstVerdictByPr = new Map<string, string | null>();
+    const findingsByPr = new Map<string, ReturnType<typeof rollupSeverities>>();
     if (prIds.length > 0) {
       const reviewRows = await container.db
-        .select({ prId: t.reviews.prId, score: t.reviews.score })
+        .select({
+          id: t.reviews.id,
+          prId: t.reviews.prId,
+          agentId: t.reviews.agentId,
+          score: t.reviews.score,
+          verdict: t.reviews.verdict,
+        })
         .from(t.reviews)
         .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review')))
         .orderBy(desc(t.reviews.createdAt));
-      // Rows are newest-first → first seen per PR is the latest review.
+
+      // Rows are newest-first → first-seen per (prId, agentId) is that
+      // agent's latest review. A null agentId can't be deduped against other
+      // runs, so each such review counts as its own group (falls back to its
+      // own row id as the grouping key).
+      const latestReviewIds: string[] = [];
+      const prIdsWithLatestReview = new Set<string>();
+      const seenPrAgent = new Set<string>();
       for (const rv of reviewRows) {
-        if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { score: rv.score });
+        const key = `${rv.prId}:${rv.agentId ?? rv.id}`;
+        if (seenPrAgent.has(key)) continue;
+        seenPrAgent.add(key);
+        latestReviewIds.push(rv.id);
+        prIdsWithLatestReview.add(rv.prId);
+
+        if (rv.score != null) {
+          const prior = scoreByPr.get(rv.prId);
+          if (prior == null || rv.score < prior) scoreByPr.set(rv.prId, rv.score);
+        }
+        if (rv.verdict && VERDICT_RANK[rv.verdict] != null) {
+          const prior = worstVerdictByPr.get(rv.prId);
+          if (!prior || VERDICT_RANK[rv.verdict]! < VERDICT_RANK[prior]!) {
+            worstVerdictByPr.set(rv.prId, rv.verdict);
+          }
+        }
+      }
+
+      if (latestReviewIds.length > 0) {
+        const findingRows = await container.db
+          .select({ prId: t.reviews.prId, severity: t.findings.severity })
+          .from(t.findings)
+          .innerJoin(t.reviews, eq(t.findings.reviewId, t.reviews.id))
+          .where(inArray(t.reviews.id, latestReviewIds));
+        const bySeverityRowsByPr = new Map<string, { severity: string }[]>();
+        for (const fr of findingRows) {
+          const list = bySeverityRowsByPr.get(fr.prId) ?? [];
+          list.push({ severity: fr.severity });
+          bySeverityRowsByPr.set(fr.prId, list);
+        }
+        // Every PR with at least one qualifying (latest-per-agent) review
+        // gets a real zero-filled findings object, not `null` — `null` is
+        // reserved for "no completed review at all yet" (below).
+        for (const prId of prIdsWithLatestReview) {
+          findingsByPr.set(prId, rollupSeverities(bySeverityRowsByPr.get(prId) ?? []));
+        }
       }
     }
 
@@ -150,7 +210,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
 
     const now = Date.now();
     return rows.map((r) => {
-      const review = latestReviewByPr.get(r.id);
+      const findings = findingsByPr.get(r.id) ?? null;
       return {
         id: r.id,
         number: r.number,
@@ -168,11 +228,13 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
           headSha: r.headSha,
           updatedAt: r.updatedAt,
           now,
+          worstVerdict: worstVerdictByPr.get(r.id) ?? null,
         }),
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
-        score: review ? review.score : null,
+        score: scoreByPr.get(r.id) ?? null,
         cost_usd: costByPr.get(r.id) ?? null,
+        findings,
       };
     });
   });

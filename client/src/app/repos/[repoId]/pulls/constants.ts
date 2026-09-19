@@ -11,6 +11,7 @@ export const STATUS_META: Record<string, { c: string; labelKey: string }> = {
   needs_review: { c: "var(--warn)", labelKey: "needs_review" },
   reviewed: { c: "var(--ok)", labelKey: "reviewed" },
   stale: { c: "var(--stale)", labelKey: "stale" },
+  changes_requested: { c: "var(--crit)", labelKey: "changes_requested" },
   open: { c: "var(--warn)", labelKey: "open" },
   merged: { c: "var(--ok)", labelKey: "merged" },
   closed: { c: "var(--stale)", labelKey: "closed" },
@@ -24,7 +25,7 @@ export const SIZE_COLOR: Record<string, string> = {
 };
 
 /** Grid template for both the header row and PR rows. */
-export const GRID = "1fr 132px 92px 60px 118px 70px 78px";
+export const GRID = "1fr 132px 92px 60px 110px 118px 70px 78px";
 
 /** Line-count thresholds for the S/M/L size bucket. */
 export const SIZE_SMALL_MAX = 100;
@@ -36,6 +37,7 @@ export const STATUS_FILTERS: { key: string; labelKey: string }[] = [
   { key: "needs_review", labelKey: "needs_review" },
   { key: "reviewed", labelKey: "reviewed" },
   { key: "stale", labelKey: "stale" },
+  { key: "changes_requested", labelKey: "changes_requested" },
 ];
 
 /** Column header i18n keys (under `list.columns`), in display order. */
@@ -44,6 +46,7 @@ export const COLUMN_KEYS: string[] = [
   "author",
   "size",
   "score",
+  "findings",
   "status",
   "cost",
   "updated",

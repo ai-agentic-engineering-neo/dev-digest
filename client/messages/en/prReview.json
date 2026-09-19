@@ -22,7 +22,7 @@
     "requestChanges": "Request changes",
     "approve": "Approve",
     "comment": "Comment",
-    "findingsCount": "{count} findings",
+    "findingsCount": "{count} finding(s)",
     "blockers": " · {count} blockers",
     "prScore": "PR SCORE"
   },
@@ -37,7 +37,8 @@
     "running": "Running…",
     "runReview": "Run Review",
     "mergedWarning": "Already merged — review is informational",
-    "mergedTooltip": "This PR is already merged; running a review won’t affect the merged code."
+    "mergedTooltip": "This PR is already merged; running a review won’t affect the merged code.",
+    "runSelected": "Run selected ({count})"
   },
   "runStatus": {
     "elapsed": "Running · {count} agent(s)",
@@ -71,13 +72,15 @@
       "merged": "Merged",
       "needs_review": "Needs review",
       "reviewed": "Reviewed",
-      "stale": "Stale"
+      "stale": "Stale",
+      "changes_requested": "Changes requested"
     },
     "filter": {
       "all": "All",
       "needs_review": "Needs review",
       "reviewed": "Reviewed",
-      "stale": "Stale"
+      "stale": "Stale",
+      "changes_requested": "Changes requested"
     },
     "refresh": "Refresh",
     "refreshing": "Refreshing…",
@@ -91,6 +94,7 @@
       "author": "Author",
       "size": "Size",
       "score": "Score",
+      "findings": "Findings",
       "status": "Status",
       "cost": "Cost",
       "updated": "Updated"
@@ -100,7 +104,11 @@
     "errorBody": "The engine returned an error.",
     "emptyTitle": "No pull requests",
     "emptyAllBody": "No open PRs found for this repo yet. Refresh to sync from GitHub.",
-    "emptyStatusBody": "No PRs with status “{status}”."
+    "emptyStatusBody": "No PRs with status “{status}”.",
+    "findings": {
+      "popoverTitle": "{count} FINDING(S) IN THIS RUN",
+      "none": "—"
+    }
   },
   "timeline": {
     "goToReview": "Jump to this run’s findings below",

@@ -28,6 +28,6 @@ describe("VerdictBanner (smoke)", () => {
     );
     expect(screen.getByText("Request changes")).toBeInTheDocument();
     expect(screen.getByText("42")).toBeInTheDocument();
-    expect(screen.getByText(/1 findings · 1 blockers/)).toBeInTheDocument();
+    expect(screen.getByText(/1 finding\(s\) · 1 blockers/)).toBeInTheDocument();
   });
 });

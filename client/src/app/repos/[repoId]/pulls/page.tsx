@@ -22,7 +22,7 @@ import { PRRow } from "./_components/PRRow";
 import { FilterBar } from "./_components/FilterBar";
 
 /** Open PRs carry a derived review status; everything else is merged/closed. */
-const OPEN_STATUSES = new Set(["needs_review", "reviewed", "stale"]);
+const OPEN_STATUSES = new Set(["needs_review", "reviewed", "stale", "changes_requested"]);
 
 export default function PullsPage() {
   const t = useTranslations("prReview");

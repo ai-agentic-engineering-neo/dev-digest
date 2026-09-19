@@ -75,8 +75,15 @@ bar and the rules. This section only says when the loop runs.
   still in front of you.
 - **End:** wrapping up a task that involved a problem, a decision or a discovery.
 
-The skill is expected to load on its own at the first of those. When it does not, invoke
-`/engineering-insights` by hand rather than working from memory of what it says.
+The skill is expected to load on its own at the first of those. Two situations where it reliably
+will not, because nothing in them looks like the start of a task:
+
+- **A resumed or compacted session.** The skill's body does not survive compaction; this file does.
+  If the skill has not loaded since the resume, invoke `/engineering-insights` before the first edit.
+- **Executing an approved plan.** Plan execution does not re-classify the work, so no trigger fires.
+  Write the insights pass into the plan as a step, the same way tests and verification are.
+
+Otherwise, when it does not fire, invoke it by hand rather than working from memory of what it says.
 
 ## Use when
 

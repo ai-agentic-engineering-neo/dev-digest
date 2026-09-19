@@ -23,6 +23,36 @@ Entry format: `.claude/skills/engineering-insights/reference/entry-format.md`.
 
 ## Codebase Patterns
 
+- **2026-09-19** — Two "enabled" flags on the skills feature have OPPOSITE
+  version-bump behavior and are easy to conflate. Toggling `skills.enabled`
+  (the skill's own global kill-switch) bumps nothing on the skill itself
+  (`SkillsRepository`, spec D2/§5.2). Toggling `agent_skills.enabled` (the
+  per-agent link flag) via `linkSkill`/`unlinkSkill`/`setSkills` ALWAYS bumps
+  the agent's version and snapshots it (spec §7.3) — there is no toggle-only
+  exception on the agent side. A change that touches only one of the two
+  tables can look identical in a diff but differ in whether it produces a new
+  `agent_versions` row. `server/src/modules/agents/repository.ts`
+
+- **2026-09-19** — `AgentsRepository.skillIdsForAgent(agentId)` returns only
+  `agent_skills.enabled = true` links, not every linked skill — narrower than
+  its name suggests. That's deliberate: it is called ONLY by `snapshotVersion`
+  (verified via grep before narrowing it), and `AgentVersionConfig.skills` must
+  record "the ids of the links that were enabled when the snapshot was taken"
+  (spec §5.3). `linkedSkills(agentId)` is the one that returns every link
+  (enabled or not) with its own `enabled` flag — call that one for anything
+  that needs to render disabled links (e.g. the Skills tab).
+  `server/src/modules/agents/repository.ts`
+
+- **2026-09-19** — `agent_run_skills.order` is the index in the RESOLVED,
+  already-filtered list of enabled skills (0, 1, 2…) that
+  `enabledSkillsForPrompt` returned — not the original `agent_skills.order`
+  column. The two diverge as soon as any link in between is disabled (e.g.
+  links at order 0/1/2/3 with #1 disabled record as order 0/1/2 against
+  skills #0/#2/#3). Querying "what order was this skill originally linked at"
+  needs `agent_skills.order`, not `agent_run_skills.order`.
+  `server/src/modules/reviews/run-executor.ts`,
+  `server/src/modules/reviews/repository/run.repo.ts`
+
 - **2026-09-18** — `server/CLAUDE.md`'s "Reading `process.env` for a key is
   banned" is true of application code but `platform/config.ts` is not the only
   file that touches the environment, and the other four are all legitimate:
@@ -122,6 +152,14 @@ Entry format: `.claude/skills/engineering-insights/reference/entry-format.md`.
   price table, so costs still render.
 
 ## Session Notes
+
+- **2026-09-19** — Built the full Skills feature (`specs/02-skills.md`): the
+  `skills` module (CRUD/versions/import/stats), `agent_skills.enabled`
+  per-link flag + `enabledSkillsForPrompt` + agent-version bump on link
+  changes, prompt-assembly wiring in `run-executor.ts` + `agent_run_skills`
+  recording, migration `0012`, and the client `/skills` rail+editor + the
+  Agent editor's Skills tab. Seeded "Test Quality Reviewer" (disabled) + 4
+  skills.
 
 - **2026-09-18** — Added `eslint.config.mjs` + a `lint` script, wired `lint`
   and `arch` into `server-unit.yml`, and added migration `0011` (7 FK/filter

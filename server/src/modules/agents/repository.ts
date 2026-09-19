@@ -62,6 +62,11 @@ export class AgentsRepository {
       .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.enabled, true)));
   }
 
+  /** Starter has no skills module; reviews still call this when assembling a prompt. */
+  async enabledSkillsForPrompt(_agentId: string): Promise<{ skill: { name: string; body: string } }[]> {
+    return [];
+  }
+
   async getById(workspaceId: string, id: string): Promise<AgentRow | undefined> {
     const [row] = await this.db
       .select()

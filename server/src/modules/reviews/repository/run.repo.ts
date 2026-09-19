@@ -188,3 +188,17 @@ export async function getRunTrace(db: Db, runId: string): Promise<RunTrace | und
   const [row] = await db.select().from(t.runTraces).where(eq(t.runTraces.runId, runId));
   return row ? (row.trace as RunTrace) : undefined;
 }
+
+/**
+ * D5 — record which skills shaped a run: one row per skill, `order` = its
+ * index in `skillIds` (the enabled, link-order list resolved into the prompt
+ * at assembly time — specs/02-skills.md §7.5). No-op on an empty list. Called
+ * after the review/findings are already persisted; no transaction wraps it
+ * (spec §14 — pre-existing no-transactions risk, not introduced here).
+ */
+export async function recordRunSkills(db: Db, runId: string, skillIds: string[]): Promise<void> {
+  if (skillIds.length === 0) return;
+  await db
+    .insert(t.agentRunSkills)
+    .values(skillIds.map((skillId, order) => ({ runId, skillId, order })));
+}

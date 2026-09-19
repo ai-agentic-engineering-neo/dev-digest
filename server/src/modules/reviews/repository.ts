@@ -183,4 +183,10 @@ export class ReviewRepository {
   getRunTrace(runId: string): Promise<RunTrace | undefined> {
     return runRepo.getRunTrace(this.db, runId);
   }
+
+  /** D5 — record which skills shaped a run (one row per skill, order = link
+   *  order). No-op when `skillIds` is empty. */
+  recordRunSkills(runId: string, skillIds: string[]): Promise<void> {
+    return runRepo.recordRunSkills(this.db, runId, skillIds);
+  }
 }

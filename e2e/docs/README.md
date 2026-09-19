@@ -1,7 +1,8 @@
 # e2e/docs
 
-Глибша документація по e2e-сюїті, яку свідомо не тримаємо в `CLAUDE.md`.
+Deeper documentation for the e2e suite that we deliberately keep out of
+`CLAUDE.md`.
 
-**Специфікації фіч живуть у [`specs/`](./specs/) тут, усередині `docs/`** — щоб не
-конфліктувати з `e2e/specs/` верхнього рівня, де лежать JSON-флоу для
-agent-browser (інший зміст, той самий термін).
+**Feature specs live in [`specs/`](./specs/) here, inside `docs/`** — to avoid
+colliding with the top-level `e2e/specs/`, which holds the JSON flows for
+agent-browser (same term, different content).

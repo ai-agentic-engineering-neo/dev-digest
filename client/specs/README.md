@@ -1,8 +1,8 @@
 # client/specs
 
-Специфікації та вимоги до фіч `client` — один файл на фічу/епік, до того як
-починається імплементація.
+Specifications and requirements for `client` features — one file per
+feature/epic, written before implementation starts.
 
-Формат вільний, але корисно тримати: мету, критерії готовності (acceptance
-criteria), явно виключене зі скоупу. `CLAUDE.md` лінкує сюди — файли читаються
-лише під час роботи над відповідною фічею.
+Format is free-form, but it helps to include: the goal, acceptance criteria,
+and what's explicitly out of scope. `CLAUDE.md` links here — files are read
+only while working on the matching feature.

@@ -1,10 +1,11 @@
 # client/docs
 
-Глибша документація по `client`, яку свідомо не тримаємо в `CLAUDE.md` (щоб не
-роздувати контекст щосесії). `CLAUDE.md` лінкує сюди — Claude читає файли з цієї
-папки лише коли задача цього вимагає.
+Deeper documentation for `client` that we deliberately keep out of
+`CLAUDE.md` (to avoid bloating context every session). `CLAUDE.md` links here
+— Claude reads files from this folder only when the task actually needs them.
 
-Що сюди класти: деталізовану архітектуру фіч, рішення з обґрунтуванням (ADR-like
-нотатки), інтеграційні нюанси, які не влізуть у формат "gotcha".
+What belongs here: detailed feature architecture, decisions with rationale
+(ADR-like notes), integration nuances that don't fit the "gotcha" format.
 
-Чого не класти: те, що й так видно з коду, і те, що змінюється щотижня.
+What doesn't belong here: anything already obvious from the code, and
+anything that changes weekly.

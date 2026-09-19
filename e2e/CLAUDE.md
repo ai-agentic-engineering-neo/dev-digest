@@ -2,43 +2,51 @@
 
 ## Stack
 
-Vercel **agent-browser** (Rust + CDP) — не Playwright, без LLM і без ключів.
-Деталі — [README](./README.md).
+Vercel **agent-browser** (Rust + CDP) — not Playwright, no LLM, no keys.
+Details — [README](./README.md).
 
 ## Commands
 
-`./scripts/e2e.sh` (hermetic, рекомендовано — ізольований стек на портах
-5433/3101/3100) · `npm test` (проти вже запущеного `./scripts/dev.sh`, лише якщо
-dev-БД містить ТІЛЬКИ сідовані дані)
+`./scripts/e2e.sh` (hermetic, recommended — an isolated stack on ports
+5433/3101/3100) · `npm test` (against an already-running `./scripts/dev.sh`,
+only if the dev DB contains ONLY seeded data)
 
 ## Map
 
-- `specs/NN-name.flow.json` — тест-флоу: список agent-browser команд, виконуються
-  по черзі (це TEST-флоу, не плутати з `docs/specs/` нижче)
-- `run.ts` — раннер, читає flow-файли й виконує steps проти спільної browser-сесії
-- Локатори — лише детерміновані (`--url`, `--text`, `find role|text|label`);
-  AI `chat`-команда НЕ використовується
+- `specs/NN-name.flow.json` — a test flow: a list of agent-browser commands,
+  run in order (this is a TEST flow, not to be confused with `docs/specs/`
+  below)
+- `run.ts` — the runner, reads flow files and executes steps against a shared
+  browser session
+- Locators are deterministic only (`--url`, `--text`, `find role|text|label`);
+  the AI `chat` command is NOT used
 
 ## Non-default conventions
 
-- Кожен `cmd` у flow-файлі — прямий виклик agent-browser; `wait --text`/
-  `wait --url` одночасно і крок, і асерт (non-zero exit = fail).
-- `{BASE}` у flow-файлах підставляється з `E2E_BASE_URL`.
+- Each `cmd` in a flow file is a direct agent-browser call; `wait --text`/
+  `wait --url` double as both a step and an assertion (non-zero exit = fail).
+- `{BASE}` in flow files is substituted from `E2E_BASE_URL`.
 
 ## Gotchas
 
-- Flow `02`/`04`/`05` покладаються на те, що сідоване репо `acme/payments-api` —
-  ЄДИНЕ репо в БД. Проти звичайної dev-БД (де є інші імпортовані репо) вони
-  падають — тому дефолт саме hermetic-раннер.
-- **Ніколи `docker compose down -v`** для "скидання" — видаляє volume
-  `devdigest_pgdata` з усіма реальними даними, не лише e2e.
+- Flows `02`/`04`/`05` rely on the seeded repo `acme/payments-api` being the
+  ONLY repo in the DB. Against a normal dev DB (which has other imported
+  repos) they fail — that's why the hermetic runner is the default.
+- **Never run `docker compose down -v`** to "reset" — it deletes the
+  `devdigest_pgdata` volume along with every real repo and review, not just
+  e2e data.
 
 ## Do-not-touch
 
-- Не додавати AI `chat`-команди у flow — це зламає детермінованість і
-  ключ-фрі природу сюїти.
+- Don't add AI `chat` commands to a flow — it would break determinism and the
+  key-free nature of the suite.
 
-## Докладніше
+## Read when
 
-[README](./README.md) · [docs/](./docs/) (тут же `docs/specs/` — специфікації
-фіч, не плутати з `specs/` вище — то test-флоу) · [INSIGHTS.md](./INSIGHTS.md)
+- Need the full suite description, runner env vars → read [README.md](./README.md).
+- Planning a new flow → start with [docs/specs/](./docs/specs/) (feature
+  specs; do NOT confuse with `specs/` above — that's already-built test
+  flows), then write `specs/NN-name.flow.json`.
+- Need deeper notes that don't belong in this file → [docs/](./docs/).
+- Need to see how e2e fits into the overall pipeline → read [../docs/architecture.md](../docs/architecture.md).
+- Before changing something non-trivial — check whether we've already hit this wall → [INSIGHTS.md](./INSIGHTS.md).

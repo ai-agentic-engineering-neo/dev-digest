@@ -1,7 +1,8 @@
 # e2e/docs/specs
 
-Специфікації та вимоги до нових e2e-флоу — один файл на фічу/сценарій, до того
-як з'являється відповідний `specs/NN-name.flow.json`.
+Specifications and requirements for new e2e flows — one file per
+feature/scenario, written before the matching `specs/NN-name.flow.json` is
+built.
 
-Навмисно тут, а не в `e2e/specs/` верхнього рівня — та папка вже зайнята під
-JSON-флоу для agent-browser.
+Deliberately placed here, not in the top-level `e2e/specs/` — that folder is
+already taken by the JSON flows for agent-browser.

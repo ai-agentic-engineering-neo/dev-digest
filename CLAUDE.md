@@ -1,31 +1,27 @@
 # DevDigest — CLAUDE.md
 
-Курсовий starter: local-first AI-рев'ю пул-реквестів. Репо = 4 незалежні пакети
-(НЕ monorepo, без workspaces) — кожен зі своїм `package.json`, lock-файлом і
-власним `CLAUDE.md`.
+Course starter: local-first AI pull-request review. The repo is 4 independent
+packages (NOT a monorepo, no workspaces) — each with its own `package.json`,
+lockfile, and its own `CLAUDE.md`.
 
-## Модулі
+## Read when
 
-- [client/CLAUDE.md](client/CLAUDE.md) — Next.js 15 студія, `:3000`
-- [server/CLAUDE.md](server/CLAUDE.md) — Fastify API + Postgres/pgvector, `:3001`
-- [reviewer-core/CLAUDE.md](reviewer-core/CLAUDE.md) — чистий review-движок (diff → LLM → findings)
-- [e2e/CLAUDE.md](e2e/CLAUDE.md) — детерміновані browser-тести (agent-browser)
+- Working inside a specific module → read `<module>/CLAUDE.md` (`client/`,
+  `server/`, `reviewer-core/`, `e2e/`) — it has that module's stack, commands,
+  gotchas, and do-not-touch zones. Claude Code auto-loads it whenever it
+  touches a file inside that folder.
+- Need to understand how the modules talk to each other (diff → repo-intel →
+  reviewer-core → LLM → findings), or why this isn't a monorepo →
+  read [docs/architecture.md](docs/architecture.md).
+- Need the API route contracts → read [server/README.md](server/README.md).
+- Need past decisions/lessons for a specific module → read
+  `<module>/INSIGHTS.md`.
+- Need to run the project from scratch → read [README.md](README.md) (Quick
+  start section) or just run `./scripts/dev.sh`.
 
-## Gotchas на рівні репо
+## Modules
 
-- Спільний код (`@devdigest/shared`, `@devdigest/ui`) **вендориться копіями** в
-  `server/src/vendor/*` і `client/src/vendor/*`, а не через workspace-залежності —
-  зміни в одній копії не підтягуються в іншу автоматично.
-- `reviewer-core` ставиться через **npm** (не pnpm) і окремо від `server`/`client` —
-  без цього API падає при старті з `ERR_MODULE_NOT_FOUND`.
-- Міграції БД **не застосовуються автоматично** — `cd server && pnpm db:migrate`.
-- Секрети — у `~/.devdigest/secrets.json`, не в `.env` і не в БД.
-- Ніколи `docker compose down -v` для "скидання" — видаляє реальні дані, не лише тестові.
-
-## Запуск
-
-`./scripts/dev.sh` — піднімає все з нуля. Деталі — [README.md](README.md).
-
-## Докладніше
-
-[README.md](README.md) · [TESTING.md](TESTING.md) · [docs/agent-prompts/](docs/agent-prompts/) — читати лише за потреби задачі.
+- [client/](client/CLAUDE.md) — Next.js 15 studio, `:3000`
+- [server/](server/CLAUDE.md) — Fastify API + Postgres/pgvector, `:3001`
+- [reviewer-core/](reviewer-core/CLAUDE.md) — pure review engine (diff → LLM → findings)
+- [e2e/](e2e/CLAUDE.md) — deterministic browser tests (agent-browser)

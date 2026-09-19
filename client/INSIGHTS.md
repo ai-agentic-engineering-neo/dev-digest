@@ -1,9 +1,10 @@
 # Insights — client
 
-Накопичені уроки, нетривіальні рішення, речі, які довелось з'ясовувати методом
-спроб. Один запис = одна теза з датою; найновіші зверху. `CLAUDE.md` лінкує сюди
-умовно — читається лише за потреби, не щосесії.
+Accumulated lessons, non-trivial decisions, things we had to learn the hard
+way. One entry = one dated point; newest on top. `CLAUDE.md` links here
+conditionally — read only when needed, not every session.
 
 <!--
-2026-09-18: приклад запису — коротко опиши проблему, рішення і чому саме так.
+2026-09-18: example entry — briefly describe the problem, the fix, and why
+that approach.
 -->

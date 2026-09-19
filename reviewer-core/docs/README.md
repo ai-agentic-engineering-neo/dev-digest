@@ -1,5 +1,6 @@
 # reviewer-core/docs
 
-Глибша документація по review-пайплайну (`diff → prompt → LLM → findings`), яку
-свідомо не тримаємо в `CLAUDE.md`. `CLAUDE.md` лінкує сюди — читається лише коли
-задача цього вимагає (наприклад: деталі роботи `groundFindings`, формат промпту).
+Deeper documentation for the review pipeline (`diff → prompt → LLM →
+findings`) that we deliberately keep out of `CLAUDE.md`. `CLAUDE.md` links
+here — read only when the task actually needs it (e.g. how `groundFindings`
+works internally, the exact prompt format).

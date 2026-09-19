@@ -2,45 +2,51 @@
 
 ## Stack
 
-Чистий TypeScript, без БД/GitHub/FS. Єдиний side-effect — LLM-виклик через
-injected `LLMProvider`. Пакетний менеджер — **npm**, не pnpm. `build` = типчек,
-JS не емітиться. Деталі — [README](./README.md).
+Pure TypeScript, no DB/GitHub/FS. The only side effect is an LLM call through
+an injected `LLMProvider`. Package manager — **npm**, not pnpm. `build` is
+just a type-check, no JS is emitted. Details — [README](./README.md).
 
 ## Commands
 
-`npm test` (vitest, хермітичні юніти зі stub `LLMProvider`) · `npm run typecheck` (== build) · `npm ci` для встановлення
+`npm test` (vitest, hermetic units with a stub `LLMProvider`) · `npm run typecheck` (== build) · `npm ci` to install
 
 ## Map
 
 - `src/prompt.ts` — `assemblePrompt()`, `wrapUntrusted()`, `INJECTION_GUARD`
 - `src/grounding.ts` — `groundFindings()`, `groundingSummary()`
-- `src/llm/openrouter.ts` — реалізація `LLMProvider`; `src/llm/structured.ts` —
+- `src/llm/openrouter.ts` — the `LLMProvider` implementation; `src/llm/structured.ts` —
   Zod → JSON Schema, parse-with-repair
-- `src/review/run.ts` — оркестрація прогону (single-pass за замовчуванням)
-- `src/index.ts` — публічний API пакета
+- `src/review/run.ts` — orchestrates a run (single-pass by default)
+- `src/index.ts` — the package's public API
 
 ## Non-default conventions
 
-- Єдиний споживач у стартері — `server`, який тягне САМЕ вихідний TS через
-  tsconfig alias (`@devdigest/reviewer-core` → `../reviewer-core/src`), а не
-  збілджений пакет.
-- Промпт приймає опційні слоти (`skills`, `memory`, `specs`, `callers`) для
-  майбутніх уроків курсу — у стартері вони просто не заповнюються, не видаляти.
+- The only consumer in the starter is `server`, which pulls in the RAW TS
+  source through a tsconfig alias (`@devdigest/reviewer-core` →
+  `../reviewer-core/src`), not a built package.
+- The prompt accepts optional slots (`skills`, `memory`, `specs`, `callers`)
+  for future course lessons — in the starter they're simply left unfilled,
+  don't delete them.
 
 ## Gotchas
 
-- Забув `npm ci` тут → `server` падає при старті з `ERR_MODULE_NOT_FOUND`;
-  помилка виглядає як серверна, хоча корінь — тут.
-- `INJECTION_GUARD` — навмисно НЕ keyword-scan (denylist ловить лише одне
-  формулювання); не "спрощувати" на regex.
-- Score фінального review рахується детерміновано з findings, що вижили
-  grounding gate — self-reported score моделі ігнорується.
+- Forgetting `npm ci` here → `server` crashes at startup with
+  `ERR_MODULE_NOT_FOUND`; the error looks like a server issue even though the
+  root cause is here.
+- `INJECTION_GUARD` is deliberately NOT a keyword scan (a denylist only
+  catches one phrasing) — don't "simplify" it into a regex.
+- The final review score is computed deterministically from the findings that
+  survived the grounding gate — the model's self-reported score is ignored.
 
 ## Do-not-touch
 
-- Контракти `Review`/`Finding`/`Verdict` приходять з `@devdigest/shared` —
-  міняти тільки синхронно з `server` і `client`.
+- The `Review`/`Finding`/`Verdict` contracts come from `@devdigest/shared` —
+  change them only in sync with `server` and `client`.
 
-## Докладніше
+## Read when
 
-[README](./README.md) · [docs/](./docs/) · [specs/](./specs/) · [INSIGHTS.md](./INSIGHTS.md)
+- Need the package's public API, testing strategy → read [README.md](./README.md).
+- Planning a new prompt slot or pipeline change → start with [specs/](./specs/), then write code.
+- Need details on how `groundFindings` works or the prompt format → [docs/](./docs/).
+- Need to see how this engine gets called from server → read [../docs/architecture.md](../docs/architecture.md).
+- Before changing something non-trivial — check whether we've already hit this wall → [INSIGHTS.md](./INSIGHTS.md).

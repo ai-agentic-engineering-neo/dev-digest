@@ -1,7 +1,8 @@
 # reviewer-core/specs
 
-Специфікації до змін движка рев'ю — один файл на фічу (наприклад, новий prompt
-слот з майбутнього уроку курсу: `skills`, `memory`, `specs`, `callers`, `reduce`).
+Specifications for changes to the review engine — one file per feature (e.g.
+a new prompt slot from a future course lesson: `skills`, `memory`, `specs`,
+`callers`, `reduce`).
 
-Тримай: мету, вхід/вихід (контракт), acceptance criteria, явно виключене зі
-скоупу.
+Keep: the goal, input/output (the contract), acceptance criteria, and what's
+explicitly out of scope.

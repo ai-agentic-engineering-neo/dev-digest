@@ -15,7 +15,17 @@ _No entries yet._
 
 ## Codebase Patterns
 
-_No entries yet._
+### Reuse the existing severity tally instead of duplicating it (2026-09-18)
+
+`rollupSeverities` (`server/src/modules/pulls/status.ts:23`) already tallies `{severity}[]` into `{critical, warning, suggestion}` — it was written for the PR-list FINDINGS column but never wired into a route (`status.ts:1-11` docblock describes exactly this feature). Before adding a new severity-counting function, grep `src/modules/pulls/` for existing pure helpers — this one had its own passing unit test (`test/pulls-status.test.ts`) and sat unused.
+
+**Rule:** `findingsCountsByPr` (`server/src/modules/pulls/findings-counts.ts`) groups rows to "each agent's latest review" and then calls `rollupSeverities` for the leaf count, instead of reimplementing the CRITICAL/WARNING/SUGGESTION branching a second time. (`server/src/modules/pulls/findings-counts.ts:1-50`, `server/src/modules/pulls/status.ts:23-31`)
+
+### PR-list cost changed from "latest batch" to "sum of all runs" (2026-09-18)
+
+The original `latestBatchCostByPr` (deleted this session) summed only the newest "Review all" batch per PR — a re-run's older cost was dropped entirely. The homework criterion for this column defines cost as the PR's cumulative review spend, which is a different aggregation, not a bugfix of the old one: it's a deliberate semantic change (a PR reviewed 3 times now shows 3x the single-run cost, not the latest run's cost).
+
+**Rule:** if a future task touches the COST column again, check `total-cost.ts`'s docblock before assuming "latest batch" — that rule was intentionally replaced, not preserved. (`server/src/modules/pulls/total-cost.ts:1-9`, `server/test/total-cost.test.ts`)
 
 ## Tool & Library Notes
 
@@ -29,10 +39,16 @@ Merging a branch by copying its whole `src/db/migrations/` dir over upstream's �
 
 **Rule:** never copy the migrations dir wholesale across branches. Always regenerate with `pnpm db:generate` and resolve journal conflicts by appending, never replacing. (`server/src/db/migrations/`, commit `2006964`.)
 
+> **2026-09-18 correction:** sharper pointer — the actual file that got clobbered is `server/src/db/migrations/meta/_journal.json` (its `entries` array is the append-only history; a wholesale copy silently renumbers/replaces entries there).
+
 ## Session Notes
 
 _No entries yet._
 
 ## Open Questions
 
-_No entries yet._
+### The two `vendor/shared` copies are already out of sync in files this session didn't touch (2026-09-18)
+
+`diff -r server/src/vendor/shared client/src/vendor/shared` shows real drift in `adapters.ts`, `contracts/eval-ci.ts`, `contracts/knowledge.ts`, `contracts/productionize.ts`, and `contracts/trace.ts` — e.g. server's copy has an `'openrouter'` provider variant and an `AgentVersion`/`AgentManifest` shape client's copy lacks entirely. `platform.ts` (the file this session edited) is confirmed in sync; the drift predates this session and is unrelated to the `findings_counts`/cost work.
+
+**Not fixed here** — reconciling it is a separate, larger change (unclear which side is canonical for each divergent symbol) and out of scope for this PR. Flagging so the next session doesn't assume "both copies in sync" without checking the specific file it's about to touch.

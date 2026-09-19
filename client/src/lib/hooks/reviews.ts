@@ -48,11 +48,15 @@ export function usePrRuns(prId: string | null | undefined) {
 }
 
 // ---- Persisted reviews + findings for a PR ----
-export function usePrReviews(prId: string | null | undefined) {
+// `enabled` gates the fetch beyond `!!prId` — e.g. the PR-list hover preview
+// only wants this to fire on first hover, not for every row on page load.
+// The query key stays ["reviews", prId] regardless, so once fetched it's
+// cached for any other caller (including the PR detail page).
+export function usePrReviews(prId: string | null | undefined, enabled = true) {
   return useQuery({
     queryKey: ["reviews", prId],
     queryFn: () => api.get<ReviewRecord[]>(`/pulls/${prId}/reviews`),
-    enabled: !!prId,
+    enabled: !!prId && enabled,
   });
 }
 

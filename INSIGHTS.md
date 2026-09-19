@@ -11,7 +11,11 @@ _No entries yet._
 
 ## What Doesn't Work
 
-_No entries yet._
+### A hook's `"once": true` did not suppress repeat firing in the Claude Desktop app harness (2026-09-18)
+
+Added a `Stop` hook to `.claude/settings.json` with `"once": true` (per the documented schema: "hook runs once and is removed after execution") to nudge `/engineering-insights` at session wrap-up without nagging every turn. It still fired its `additionalContext` after every single assistant turn — across a session restart too, not just within one live process — so `once` bought nothing observable here. Root cause unconfirmed (no access to the harness's hook-execution internals from inside the session); could be host-specific (Claude Desktop's Code tab) rather than a general Claude Code bug.
+
+**Rule:** don't rely on `"once": true` to make a `Stop` hook non-repetitive when running inside Claude Desktop. If a Stop-hook reminder must fire, prefer `SessionStart` (confirmed to fire exactly once per session here) over `Stop`, or skip the Stop hook if a `SessionStart` nudge already covers the "fires automatically" requirement — don't add both banking on `once` to keep Stop quiet. Removed the Stop hook entirely in this repo's `.claude/settings.json` after ~10 repeat firings in one session; `SessionStart` alone remains.
 
 ## Codebase Patterns
 
@@ -19,7 +23,11 @@ _No entries yet._
 
 ## Tool & Library Notes
 
-_No entries yet._
+### `e2e/` and `reviewer-core/` use npm, not pnpm — running the wrong one litters stray lockfiles (2026-09-18)
+
+`client` and `server` use pnpm (`pnpm-lock.yaml`); `e2e` and `reviewer-core` use npm (`package-lock.json` — see each's `CLAUDE.md` "do not touch"). Running `pnpm typecheck`/`pnpm install` inside `e2e/` or `reviewer-core/` "works" (pnpm happily installs from `package.json`) but silently creates a `pnpm-lock.yaml` + `pnpm-workspace.yaml` next to the real npm lockfile — untracked files that look like legitimate new lockfiles in `git status` and would get committed if not caught.
+
+**Rule:** before running any package-manager command in a module, check which lockfile already exists there (`ls <module>/*lock*`) — don't default to the monorepo's dominant pnpm. If stray `pnpm-lock.yaml`/`pnpm-workspace.yaml` show up in `git status` for `e2e/` or `reviewer-core/`, delete them; `package-lock.json` is the source of truth there. (`e2e/package-lock.json`, `reviewer-core/package-lock.json`)
 
 ## Recurring Errors & Fixes
 

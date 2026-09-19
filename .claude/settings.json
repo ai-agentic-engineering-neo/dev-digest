@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"{\\\"hookSpecificOutput\\\":{\\\"hookEventName\\\":\\\"SessionStart\\\",\\\"additionalContext\\\":\\\"engineering-insights: before doing other work, read the INSIGHTS.md of the module you are about to touch (client/server/reviewer-core/e2e), or run .claude/skills/engineering-insights/scripts/detect-module.sh to find it. See .claude/skills/engineering-insights/SKILL.md.\\\"}}\" 2>/dev/null || true"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,14 +1,15 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { and, desc, eq, inArray } from 'drizzle-orm';
-import type { PrMeta, PrDetail, GitHubClient, PrReviewComment } from '@devdigest/shared';
+import type { PrMeta, PrDetail, GitHubClient, PrReviewComment, Severity } from '@devdigest/shared';
 import { PrCommentInput } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { AppError, NotFoundError } from '../../platform/errors.js';
 import { deriveReviewStatus } from './status.js';
-import { latestBatchCostByPr } from './latest-batch-cost.js';
+import { totalCostByPr } from './total-cost.js';
+import { findingsCountsByPr } from './findings-counts.js';
 
 /**
  * F1 — pulls module. PR import via Octokit (list + per-PR detail).
@@ -130,26 +131,49 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
-    // Latest-batch run COST per PR for the list's COST column. Same shape as
-    // the score block above: one IN-query over done runs, reduced in JS
-    // (latestBatchCostByPr) — a PR mid-review keeps its last completed batch's
-    // cost rather than showing a partial/blank number.
+    // Total run COST per PR for the list's COST column: the sum of every
+    // successful (done) run's known cost, not just the newest batch — a
+    // re-run's cost adds to the total (criterion: cost = cumulative spend
+    // reviewing this PR). Same one-IN-query + JS-reduce shape as the score
+    // block above.
     const costByPr = new Map<string, number | null>();
     if (prIds.length > 0) {
       const runRows = await container.db
         .select({
           prId: t.agentRuns.prId,
-          batchId: t.agentRuns.batchId,
           runId: t.agentRuns.id,
           costUsd: t.agentRuns.costUsd,
         })
         .from(t.agentRuns)
-        .where(and(inArray(t.agentRuns.prId, prIds), eq(t.agentRuns.status, 'done')))
-        .orderBy(desc(t.agentRuns.ranAt));
-      for (const [prId, cost] of latestBatchCostByPr(
+        .where(and(inArray(t.agentRuns.prId, prIds), eq(t.agentRuns.status, 'done')));
+      for (const [prId, cost] of totalCostByPr(
         runRows.filter((r): r is typeof r & { prId: string } => r.prId != null),
       )) {
         costByPr.set(prId, cost);
+      }
+    }
+
+    // Per-severity FINDINGS breakdown per PR for the list's FINDINGS column +
+    // hover preview. One join query (findings ⋈ reviews), reduced in JS by
+    // findingsCountsByPr — each agent's latest review counts once, same
+    // "latest wins" rule as the score block above.
+    const findingsCountsByPrId = new Map<string, Partial<Record<Severity, number>>>();
+    if (prIds.length > 0) {
+      const findingRows = await container.db
+        .select({
+          prId: t.reviews.prId,
+          agentId: t.reviews.agentId,
+          reviewId: t.findings.reviewId,
+          severity: t.findings.severity,
+        })
+        .from(t.findings)
+        .innerJoin(t.reviews, eq(t.findings.reviewId, t.reviews.id))
+        .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review')))
+        .orderBy(desc(t.reviews.createdAt));
+      for (const [prId, counts] of findingsCountsByPr(
+        findingRows.map((r) => ({ ...r, severity: r.severity as Severity })),
+      )) {
+        findingsCountsByPrId.set(prId, counts);
       }
     }
 
@@ -178,6 +202,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
         cost_usd: costByPr.has(r.id) ? costByPr.get(r.id) : null,
+        findings_counts: findingsCountsByPrId.get(r.id) ?? null,
       };
     });
   });

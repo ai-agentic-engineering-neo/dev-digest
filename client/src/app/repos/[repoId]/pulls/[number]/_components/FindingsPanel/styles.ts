@@ -9,6 +9,12 @@ export const s = {
     marginBottom: 16,
     flexWrap: "wrap",
   } satisfies CSSProperties,
+  pillRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  } satisfies CSSProperties,
   divider: {
     width: 1,
     height: 18,

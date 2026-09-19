@@ -314,4 +314,38 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
 
     await app.close();
   });
+
+  it('list endpoint: findings_counts breaks down by severity from each agent\'s latest review; cost_usd sums every done run', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'ListAgent', provider: 'openai', model: 'gpt-4.1', system_prompt: 's' },
+      })
+    ).json();
+
+    // Two runs from the same agent — the second (re-run) is the "latest" and
+    // should fully replace the first's contribution to findings_counts, while
+    // cost_usd sums both runs' cost (criterion 12: sum of ALL successful runs).
+    await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } });
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+    await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } });
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 2 });
+
+    const list = (
+      await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })
+    ).json();
+    const row = list.find((p: { id: string }) => p.id === pr.id);
+
+    // REVIEW_FIXTURE grounds to exactly one CRITICAL finding per run — counted
+    // once (latest review only), not twice across the two runs.
+    expect(row.findings_counts).toEqual({ CRITICAL: 1 });
+    // Both runs priced at 0.001 (MockLLMProvider fixture) → summed, not just
+    // the latest run's cost.
+    expect(row.cost_usd).toBeCloseTo(0.002);
+
+    await app.close();
+  });
 });

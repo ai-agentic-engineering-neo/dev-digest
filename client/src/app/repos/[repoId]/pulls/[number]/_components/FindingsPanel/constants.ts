@@ -16,3 +16,10 @@ export const KEY_TO_ACTION: Record<string, FindingActionKind> = {
   a: "accept",
   d: "dismiss",
 };
+
+/** Severity filter pill order: CRITICAL → WARNING → SUGGESTION. */
+export const SEVERITY_FILTERS: readonly ("CRITICAL" | "WARNING" | "SUGGESTION")[] = [
+  "CRITICAL",
+  "WARNING",
+  "SUGGESTION",
+];

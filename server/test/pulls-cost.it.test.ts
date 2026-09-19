@@ -1,8 +1,8 @@
 /**
  * PR-list COST column — GET /repos/:id/pulls → PrMeta.cost_usd.
- * The list shows the cost of the LATEST review's run, resolved exactly through
- * reviews.run_id → agent_runs.cost_usd (the same review the SCORE ring comes
- * from), not a time-window sum. Unreviewed or unpriced → null, never 0.
+ * The list shows what the PR has cost so far: every completed run, summed. A run
+ * the provider never priced adds nothing rather than zeroing the total; a PR with
+ * no priced run stays null so the UI can render "—" instead of "$0.00".
  * Gated on Docker like the other integration tests.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -80,39 +80,52 @@ d('PR list COST column (Testcontainers pg)', () => {
     });
   }
 
-  it('reports the cost of the LATEST review — the one the score comes from — and null for an unreviewed PR', async () => {
+  it('sums every completed run on the PR, and reports null for a PR nobody has run', async () => {
     const server = await app();
     const { repo, reviewed, unreviewed } = await seedRepoWithTwoPrs();
-    const olderPricierRun = 0.5;
-    const latestRun = 0.0013;
-    await doneRunWithReview(reviewed.id, olderPricierRun, 40);
-    await doneRunWithReview(reviewed.id, latestRun, 80);
+    const first = 0.5;
+    const second = 0.0013;
+    await doneRunWithReview(reviewed.id, first, 40);
+    await doneRunWithReview(reviewed.id, second, 80);
 
     const res = await server.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` });
     expect(res.statusCode).toBe(200);
     const list = res.json() as PrMeta[];
 
     const a = list.find((p) => p.id === reviewed.id)!;
+    expect(a.cost_usd).toBeCloseTo(first + second, 10);
     expect(a.score).toBe(80);
-    expect(a.cost_usd).toBe(latestRun);
 
     const b = list.find((p) => p.id === unreviewed.id)!;
-    expect(b.score).toBeNull();
     expect(b.cost_usd).toBeNull();
+    expect(b.score).toBeNull();
 
     await server.close();
   });
 
-  it('an unpriced latest run yields null, not 0 — the UI must be able to show "—"', async () => {
+  it('a run the provider never priced adds nothing rather than zeroing the total', async () => {
     const server = await app();
     const { repo, reviewed } = await seedRepoWithTwoPrs();
-    await doneRunWithReview(reviewed.id, 0.02, 60);
+    const priced = 0.02;
+    await doneRunWithReview(reviewed.id, priced, 60);
     await doneRunWithReview(reviewed.id, null, 70);
 
     const list = (await server.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json() as PrMeta[];
     const pr = list.find((p) => p.id === reviewed.id)!;
-    expect(pr.score).toBe(70);
+    expect(pr.cost_usd).toBe(priced);
+
+    await server.close();
+  });
+
+  it('a PR whose only runs are unpriced reports null, never 0 — "—" and "free" differ', async () => {
+    const server = await app();
+    const { repo, reviewed } = await seedRepoWithTwoPrs();
+    await doneRunWithReview(reviewed.id, null, 70);
+
+    const list = (await server.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json() as PrMeta[];
+    const pr = list.find((p) => p.id === reviewed.id)!;
     expect(pr.cost_usd).toBeNull();
+    expect(pr.score).toBe(70);
 
     await server.close();
   });

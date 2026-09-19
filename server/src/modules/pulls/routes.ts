@@ -116,33 +116,38 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
     // grouping is cheap. (The per-severity FINDINGS breakdown is intentionally
     // not surfaced on the list — findings live on the PR detail page.)
     const prIds = rows.map((r) => r.id);
-    const latestReviewByPr = new Map<string, { score: number | null; runId: string | null }>();
+    const latestReviewByPr = new Map<string, { score: number | null }>();
     if (prIds.length > 0) {
       const reviewRows = await container.db
-        .select({ prId: t.reviews.prId, score: t.reviews.score, runId: t.reviews.runId })
+        .select({ prId: t.reviews.prId, score: t.reviews.score })
         .from(t.reviews)
         .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review')))
         .orderBy(desc(t.reviews.createdAt));
       // Rows are newest-first → first seen per PR is the latest review.
       for (const rv of reviewRows) {
-        if (!latestReviewByPr.has(rv.prId)) {
-          latestReviewByPr.set(rv.prId, { score: rv.score, runId: rv.runId });
-        }
+        if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { score: rv.score });
       }
     }
 
-    // COST of that same latest review, exact via reviews.run_id → agent_runs.cost_usd
-    // (no time-window batching: score and cost describe the one same review).
-    const costByRunId = new Map<string, number | null>();
-    const latestRunIds = [...latestReviewByPr.values()]
-      .map((v) => v.runId)
-      .filter((id): id is string => id != null);
-    if (latestRunIds.length > 0) {
+    // What this PR has cost so far: every completed run, summed. A run the
+    // provider never priced contributes nothing rather than zeroing the total,
+    // and a PR with no priced run at all stays null so the UI shows "—".
+    const costByPr = new Map<string, number>();
+    if (prIds.length > 0) {
       const runRows = await container.db
-        .select({ id: t.agentRuns.id, costUsd: t.agentRuns.costUsd })
+        .select({ prId: t.agentRuns.prId, costUsd: t.agentRuns.costUsd })
         .from(t.agentRuns)
-        .where(inArray(t.agentRuns.id, latestRunIds));
-      for (const run of runRows) costByRunId.set(run.id, run.costUsd);
+        .where(
+          and(
+            eq(t.agentRuns.workspaceId, workspaceId),
+            inArray(t.agentRuns.prId, prIds),
+            eq(t.agentRuns.status, 'done'),
+          ),
+        );
+      for (const run of runRows) {
+        if (!run.prId || run.costUsd == null) continue;
+        costByPr.set(run.prId, (costByPr.get(run.prId) ?? 0) + run.costUsd);
+      }
     }
 
     const now = Date.now();
@@ -169,7 +174,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
-        cost_usd: review?.runId ? (costByRunId.get(review.runId) ?? null) : null,
+        cost_usd: costByPr.get(r.id) ?? null,
       };
     });
   });

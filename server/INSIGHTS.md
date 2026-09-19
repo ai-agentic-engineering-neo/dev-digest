@@ -43,5 +43,13 @@ second. A document written before a field existed simply has no key, so the cont
 symmetry — it type-checks and then lies about every trace older than the field.
 Evidence: server/src/vendor/shared/contracts/trace.ts:65
 
+**2026-09-19** — Supersedes the 2026-09-19 entry above on `RunStats` only in one respect: the PR
+list's cost is now the SUM of every completed run on the PR, not the cost of the latest review. The
+earlier choice tied cost to the same review the score ring comes from, which reads consistently but
+answers a question nobody asked — what one of several runs cost. The column is headed "Cost", and
+the cost of a PR is what has been spent on it. A run the provider never priced adds nothing rather
+than zeroing the total, and a PR with no priced run stays null so "—" and "$0.00" stay distinct.
+Evidence: server/src/modules/pulls/routes.ts:126
+
 
 ## Open Questions

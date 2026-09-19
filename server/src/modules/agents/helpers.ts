@@ -1,6 +1,16 @@
-import type { Agent, AgentVersion, CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
+import type {
+  Agent,
+  AgentSkillDetail,
+  AgentVersion,
+  CiFailOn,
+  Provider,
+  ReviewStrategy,
+  SkillSource,
+  SkillType,
+} from '@devdigest/shared';
 import { AgentVersionConfig } from '@devdigest/shared';
 import type { AgentRow, AgentVersionRow } from './repository.js';
+import type { SkillRow } from '../../db/rows.js';
 
 /**
  * Pure helpers for the agents module — DB row ⇄ DTO mapping and the
@@ -38,6 +48,32 @@ export function toAgentVersionDto(row: AgentVersionRow): AgentVersion {
     version: row.version,
     config: AgentVersionConfig.parse(row.configJson),
     created_at: row.createdAt.toISOString(),
+  };
+}
+
+/**
+ * Map a linked-skill row (the joined skill plus its per-agent link order and
+ * enabled flag) to the `AgentSkillDetail` DTO the agent's Skills tab consumes.
+ * `tokenEstimate` is passed in rather than computed here — helpers stay
+ * I/O- and container-free (no `container.tokenizer` inside a pure helper).
+ */
+export function toAgentSkillDetail(
+  link: { skill: SkillRow; order: number; enabled: boolean },
+  tokenEstimate: number,
+): AgentSkillDetail {
+  return {
+    id: link.skill.id,
+    name: link.skill.name,
+    description: link.skill.description,
+    type: link.skill.type as SkillType,
+    source: link.skill.source as SkillSource,
+    body: link.skill.body,
+    enabled: link.skill.enabled,
+    version: link.skill.version,
+    evidence_files: link.skill.evidenceFiles,
+    token_estimate: tokenEstimate,
+    order: link.order,
+    link_enabled: link.enabled,
   };
 }
 

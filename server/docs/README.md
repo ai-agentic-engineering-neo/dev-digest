@@ -1,8 +1,8 @@
 # server/docs
 
-Глибша документація по `server`, яку свідомо не тримаємо в `CLAUDE.md`. `CLAUDE.md`
-лінкує сюди — читається лише коли задача цього вимагає (наприклад: деталі
-DI-контейнера, схема адаптерів, нюанси конкретного модуля).
+Deeper documentation for `server` that we deliberately keep out of
+`CLAUDE.md`. `CLAUDE.md` links here — read only when the task actually needs
+it (e.g. DI container details, adapter design, nuances of a specific module).
 
-Чого не класти: те, що й так видно з коду, і мінливі дані (ціни моделей, поточні
-ліміти тощо).
+What doesn't belong here: anything already obvious from the code, and
+volatile data (model prices, current limits, etc.).

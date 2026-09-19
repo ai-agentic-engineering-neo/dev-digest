@@ -1,8 +1,9 @@
 # Insights — server
 
-Накопичені уроки, нетривіальні рішення, пастки, з якими вже стикались. Один
-запис = одна теза з датою; найновіші зверху.
+Accumulated lessons, non-trivial decisions, traps we've already run into. One
+entry = one dated point; newest on top.
 
 <!--
-2026-09-18: приклад запису — коротко опиши проблему, рішення і чому саме так.
+2026-09-18: example entry — briefly describe the problem, the fix, and why
+that approach.
 -->

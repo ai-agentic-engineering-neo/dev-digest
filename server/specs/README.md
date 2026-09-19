@@ -1,7 +1,8 @@
 # server/specs
 
-Специфікації та вимоги до фіч `server` — один файл на фічу/епік (наприклад,
-новий модуль з майбутнього уроку курсу), до того як починається імплементація.
+Specifications and requirements for `server` features — one file per
+feature/epic (e.g. a new module from a future course lesson), written before
+implementation starts.
 
-Тримай: мету, контракт (які route/схеми з'являться), acceptance criteria, явно
-виключене зі скоупу.
+Keep: the goal, the contract (which routes/schemas will appear), acceptance
+criteria, and what's explicitly out of scope.

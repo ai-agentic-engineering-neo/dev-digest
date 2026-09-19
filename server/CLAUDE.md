@@ -2,8 +2,9 @@
 
 ## Stack
 
-Fastify 5, Drizzle ORM, `postgres` + pgvector, Zod-схеми з `src/vendor/shared` як
-route-схеми (`fastify-type-provider-zod`). Деталі — [README](./README.md).
+Fastify 5, Drizzle ORM, `postgres` + pgvector, Zod schemas from
+`src/vendor/shared` doubling as route schemas (`fastify-type-provider-zod`).
+Details — [README](./README.md).
 
 ## Commands
 
@@ -12,40 +13,45 @@ Unit: `pnpm exec vitest run --exclude '**/*.it.test.ts'` · Integration (Docker)
 
 ## Map
 
-- `src/modules/<name>/routes.ts` — кожен фіча-модуль сам реєструє свої роути
-- `src/platform/container.ts` — DI-контейнер, адаптери підмінюються моками в тестах
-- `src/adapters/{llm,github,git,astgrep,secrets}` — порти назовні
-- `src/modules/repo-intel` — індексатор коду (живе всередині server, не окремий пакет)
-- `src/db/schema/*` — схема БД, уже містить таблиці для всіх 8 уроків курсу
-- `src/vendor/shared` — вендорені Zod-контракти (`@devdigest/shared`)
+- `src/modules/<name>/routes.ts` — each feature module registers its own routes
+- `src/platform/container.ts` — DI container; adapters get swapped for mocks in tests
+- `src/adapters/{llm,github,git,astgrep,secrets}` — outbound ports
+- `src/modules/repo-intel` — the code indexer (lives inside server, not a separate package)
+- `src/db/schema/*` — DB schema, already holds tables for all 8 course lessons
+- `src/vendor/shared` — vendored Zod contracts (`@devdigest/shared`)
 
 ## Non-default conventions
 
-- Валідація — schema-first через zod `params`/`body` у route, а не
-  `Schema.parse(req.body)` вручну в хендлері.
-- Секрети НЕ в `AppConfig`: йдуть через `SecretsProvider` →
-  `~/.devdigest/secrets.json` (`0600`), `process.env` лише fallback.
+- Validation is schema-first via zod `params`/`body` on the route, not
+  `Schema.parse(req.body)` by hand in the handler.
+- Secrets are NOT part of `AppConfig`: they go through `SecretsProvider` →
+  `~/.devdigest/secrets.json` (`0600`), `process.env` is only a fallback.
 
 ## Gotchas
 
-- Міграції НЕ застосовуються на boot — `pnpm db:migrate` вручну, інакше
-  `relation ... does not exist`.
-- `reviewer-core` імпортується як сирий TS через tsconfig path alias — без
-  `npm ci` у `reviewer-core` сервер падає з `ERR_MODULE_NOT_FOUND` при старті.
-- `EMBEDDINGS_ENABLED=false` за замовчуванням → нуль запитів до OpenAI, доки не
-  увімкнено явно.
-- `REPO_INTEL_ENABLED=true` за замовчуванням, але repo map у промпті порожній,
-  доки репо не проіндексовано — тиха деградація до diff-only.
-- Grounding gate (`groundFindings`) — механічна перевірка цитувань; фінальний
-  score НЕ береться від LLM.
+- Migrations are NOT applied on boot — run `pnpm db:migrate` manually,
+  otherwise you'll hit `relation ... does not exist`.
+- `reviewer-core` is imported as raw TS via a tsconfig path alias — without
+  `npm ci` in `reviewer-core`, the server crashes at startup with
+  `ERR_MODULE_NOT_FOUND`.
+- `EMBEDDINGS_ENABLED=false` by default → zero OpenAI requests until it's
+  explicitly turned on.
+- `REPO_INTEL_ENABLED=true` by default, but the repo map in the prompt stays
+  empty until the repo is indexed — a silent degrade to diff-only.
+- The grounding gate (`groundFindings`) is a mechanical citation check; the
+  final score is NOT taken from the LLM.
 
 ## Do-not-touch
 
-- `INJECTION_GUARD` (з `reviewer-core`, вендорений сюди) — не спрощувати на
-  keyword-фільтр, це свідоме архітектурне рішення.
-- `src/db/schema/*` — таблиці майбутніх уроків не видаляти, навіть якщо здаються
-  "unused".
+- `INJECTION_GUARD` (from `reviewer-core`, vendored in here) — don't simplify
+  it into a keyword filter, that's a deliberate architectural decision.
+- `src/db/schema/*` — don't delete tables for future lessons even if they
+  look "unused".
 
-## Докладніше
+## Read when
 
-[README](./README.md) · [docs/](./docs/) · [specs/](./specs/) · [INSIGHTS.md](./INSIGHTS.md)
+- Need the API route contracts, env vars, full description → read [README.md](./README.md).
+- Planning a new module or route → start with [specs/](./specs/), then write code.
+- Need details on the DI container or a specific adapter → [docs/](./docs/).
+- Need the architecture of the whole pipeline (not just server) → read [../docs/architecture.md](../docs/architecture.md).
+- Before changing something non-trivial — check whether we've already hit this wall → [INSIGHTS.md](./INSIGHTS.md).

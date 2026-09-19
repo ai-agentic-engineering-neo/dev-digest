@@ -43,6 +43,9 @@ A finding is a candidate only if it came from one of these, listed strongest fir
 3. **A pattern that repeated** within the session
 4. **An error whose cause was not obvious**
 5. **A sequence of steps that turned out to be the working one**
+6. **A decision between real alternatives** — one was chosen and another rejected for a
+   reason that would not be obvious to the next person. A decision with no rejected
+   alternative is not a finding; it is just what happened.
 
 "It seemed interesting" is not on the list. Name which one a candidate came from; if none fits,
 there is nothing to record.

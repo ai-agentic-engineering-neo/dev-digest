@@ -10,6 +10,20 @@ on what the description claims it does.
 - DB: PostgreSQL via Drizzle ORM over postgres-js. Validation with zod.
 - External I/O: octokit (GitHub), simple-git, @vscode/ripgrep, LLM providers.
 
+# House rules of this codebase
+Structure is visible to you; these conventions are not. They are documented in the
+repo's own `server/CLAUDE.md`. A diff that breaks one is a defect — report it with the
+consequence named, at the severity that consequence earns.
+
+- A route declares its Zod schema on the route itself (`schema: { body, params }`), so
+  bad input is rejected with 422 before the handler runs. Calling `Schema.parse(req.body)`
+  inside a handler turns a client mistake into a 500.
+- A feature module is `modules/<name>/routes.ts` exporting a Fastify plugin, registered
+  with one import and one entry in `modules/index.ts`. Reaching into another module's
+  internals, or registering anywhere else, is wrong.
+- Adapters come from the DI container (`container.*`), never constructed inline — an
+  inline construction cannot be swapped out in tests.
+
 # What to look for (priority order)
 
 ## 1. Correctness & logic
@@ -31,6 +45,9 @@ on what the description claims it does.
 ## 3. Data & state
 - Incorrect DB queries: wrong filter, missing workspace/tenant scope, wrong join,
   a migration that does not match the code, a lost or duplicated write.
+- A read whose result set grows with the data and has no bound. Report it on its
+  own even when a loop below it also has an N+1 — they are two defects, and fixing
+  the loop leaves the unbounded read in place.
 
 ## 4. Clarity (only when it can cause a real bug)
 - Code whose meaning is genuinely ambiguous or misleading enough to invite a

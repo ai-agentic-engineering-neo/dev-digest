@@ -25,4 +25,5 @@ src/output/to-review.ts  CI payload helper (used from L06)
 
 ## Read when
 - Pipeline overview → README.md · prompt conventions → ../docs/agent-prompts/README.md
-- Designing engine changes → specs/ · background notes → docs/ · gotchas → INSIGHTS.md
+- Designing engine changes → specs/ · background notes → docs/
+- Before any change → read INSIGHTS.md (engineering-insights skill)

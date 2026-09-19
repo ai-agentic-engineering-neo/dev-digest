@@ -31,4 +31,4 @@ messages/en/<ns>.json             next-intl strings, one namespace per feature
 ## Read when
 - Route map / which page calls which endpoint → README.md
 - Designing UI for a feature → specs/ · background notes → docs/
-- Before a non-trivial change → skim INSIGHTS.md
+- Before any change → read INSIGHTS.md (engineering-insights skill)

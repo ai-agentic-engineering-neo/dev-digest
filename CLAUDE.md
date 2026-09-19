@@ -35,15 +35,22 @@ Each package also has docs/ (notes), specs/ (feature specs), INSIGHTS.md (lesson
 - Secrets never go to git/DB: they live in ~/.devdigest/secrets.json (0600) or .env.
 - New cross-package alias → add it to the CI `paths:` filters in .github/workflows.
 
+## Insights loop (engineering-insights skill) — do not skip
+- After the user's prompt, before the first action: read `<pkg>/INSIGHTS.md` of every package
+  the task touches and print `INSIGHTS (<pkg>): …` (skill Phase 1).
+- Before finishing a task that changed code or hit problems: run the skill's wrap-up (Phase 3) —
+  write only new, verified, non-obvious lessons; "Insights: nothing new" is a valid outcome.
+
 ## Do not touch
 - server/src/db/migrations/** (existing files + meta/_journal.json) — append only via drizzle-kit.
 - `docker compose down -v` — deletes the devdigest_pgdata volume (all imported repos/reviews).
 - server/clones/** — runtime data (git-ignored); git remotes there contain the GitHub token.
 - server/package.json is `skip-worktree` locally — don't "fix" diffs against committed scripts.
 - .claude/skills/** and skills-lock.json — vendored via the skills CLI, not hand-edited.
+  Exception: .claude/skills/engineering-insights/ is hand-authored for this repo — edit freely.
 
 ## Read when
 - Architecture / end-to-end flow → README.md
 - Writing or placing tests, CI lanes → TESTING.md
 - Editing a reviewer prompt → docs/agent-prompts/README.md
-- Something non-obvious cost you time → add an entry to `<pkg>/INSIGHTS.md` (format inside)
+- Something non-obvious cost you time → add it to `<pkg>/INSIGHTS.md` via engineering-insights

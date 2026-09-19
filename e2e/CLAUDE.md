@@ -22,4 +22,5 @@ lib/assert.ts              stdout assertions
 
 ## Read when
 - Spec format / preconditions → README.md · CI job → ../.github/workflows/e2e-web.yml
-- Planning new flows → docs/ (specs/ holds only executable *.flow.json) · gotchas → INSIGHTS.md
+- Planning new flows → docs/ (specs/ holds only executable *.flow.json)
+- Before any change → read INSIGHTS.md (engineering-insights skill)

@@ -37,4 +37,4 @@ test/                    *.test.ts (hermetic) · *.it.test.ts (testcontainers Po
 - API map / DI flow / env vars / review-context details → README.md
 - Touching the indexer or the repo-intel facade → src/modules/repo-intel/README.md
 - Designing a feature in this package → specs/ · background notes → docs/
-- Before a non-trivial change → skim INSIGHTS.md
+- Before any change → read INSIGHTS.md (engineering-insights skill)

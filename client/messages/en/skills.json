@@ -3,11 +3,13 @@
     "crumbLab": "Skills Lab",
     "crumbSkills": "Skills",
     "heading": "Skills",
+    "subtitle": "Reusable review guidance. Each = a directive description, a type, and a markdown body you can attach to any agent.",
     "addSkill": "Add Skill",
     "searchPlaceholder": "Search skills…",
     "loadError": "Could not load skills.",
     "menu": {
-      "fromFile": "Import from file",
+      "newSkill": "New skill",
+      "fromFile": "Import from file (.md or .zip)",
       "fromUrl": "Import from URL",
       "community": "Search community skills…"
     },
@@ -30,6 +32,94 @@
       "body": "It may have been deleted."
     }
   },
+  "editor": {
+    "loadErrorTitle": "Couldn’t load this skill",
+    "disabled": "disabled",
+    "tabs": {
+      "config": "Config",
+      "preview": "Preview",
+      "evals": "Evals",
+      "stats": "Stats",
+      "versions": "Versions"
+    }
+  },
+  "card": {
+    "usedBy": "{count, plural, one {# agent} other {# agents}}"
+  },
+  "newSkill": {
+    "title": "Create skill",
+    "subtitle": "A skill is a name, a directive description, a type, and a markdown body.",
+    "cancel": "Cancel",
+    "create": "Create skill",
+    "creating": "Creating…",
+    "slugError": "Lowercase letters, digits and hyphens only, at least two characters, starting with a letter or digit.",
+    "fields": {
+      "name": "Name",
+      "description": "Description",
+      "descriptionPlaceholder": "What this skill checks for",
+      "type": "Type",
+      "body": "Body (Markdown)"
+    }
+  },
+  "config": {
+    "title": "Configuration",
+    "descriptionHint": "The skill's interface — write it as a directive, saying when the skill applies.",
+    "unsaved": "Unsaved",
+    "tokenCount": "~{count} tokens",
+    "versionMessage": "Version note (optional)",
+    "versionMessageHint": "A short note on what changed — shown on this version's row in Versions.",
+    "versionMessagePlaceholder": "What changed?",
+    "save": "Save",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "willSnapshotAs": "Saving snapshots the body as v{version}",
+    "savedToast": "Saved (v{version})",
+    "dangerZoneTitle": "Delete skill",
+    "dangerZoneBody": "Removes it from all agents. This can't be undone."
+  },
+  "evals": {
+    "placeholderTitle": "Evals arrive in L06",
+    "placeholderBody": "The eval pipeline runs this skill's linked eval cases and tracks recall, precision and citation accuracy over time.",
+    "runOnEvals": "Run on evals",
+    "runOnEvalsTooltip": "Evals ship in L06 — this skill has no eval cases to run yet."
+  },
+  "stats": {
+    "usedBy": "Used by",
+    "usedByHint": "Agents currently linking this skill.",
+    "pullFrequency": "Pull frequency",
+    "pullFrequencyHint": "Runs that included this skill ÷ runs by agents linked to it.",
+    "findingsWithWindow": "Findings ({days}d)",
+    "findingsHint": "From runs that included this skill — run-level, not per-finding attribution.",
+    "acceptRate": "Accept rate",
+    "acceptRateHint": "Accepted ÷ settled findings from those same runs.",
+    "openAgent": "Open",
+    "agentsUsing": "Agents using this skill",
+    "noAgents": "Not linked to any agent yet.",
+    "byCategory": "Findings by category",
+    "noCategories": "No findings in this window yet."
+  },
+  "versions": {
+    "header": "Version history · {count} versions",
+    "subtitle": "Every save snapshots the body so eval runs stay reproducible against the exact text they scored",
+    "current": "Current",
+    "diff": "Diff",
+    "restore": "Restore",
+    "restoredToast": "Restored as v{version}"
+  },
+  "delete": {
+    "title": "Delete \"{name}\"?",
+    "cancel": "Cancel",
+    "confirm": "Delete",
+    "trigger": "Delete \"{name}\"",
+    "usedByWarning": "Linked to: {agents}. Deleting this skill removes those links too. This cannot be undone.",
+    "noAgents": "Not linked to any agent. This cannot be undone."
+  },
+  "import": {
+    "filePickerLabel": "Choose a .md or .zip file",
+    "tooLarge": "That file is larger than 512 KB — split it or trim it before importing.",
+    "ignored": "Not imported ({count})",
+    "executableWarning": "Executable members — not imported, never run."
+  },
   "drawer": {
     "title": "Add a skill",
     "subtitle": "Import from a file, a URL, or search vetted community skills",
@@ -45,15 +135,15 @@
     "nameHint": "Optional — derived from the first heading if blank.",
     "namePlaceholder": "pr-quality-rubric",
     "bodyLabel": "Skill body (Markdown)",
-    "bodyHint": "Pasted content is wrapped as untrusted data — never executed as instructions.",
+    "bodyHint": "An imported skill's text becomes instructions in your agent's prompt. Read it before you enable it.",
     "bodyPlaceholder": "# Rule\nDescribe the rule…",
     "importing": "Importing…",
     "import": "Import skill",
-    "success": "Imported \"{name}\" (stored as untrusted data)."
+    "success": "Imported \"{name}\". Read it before you enable it."
   },
   "url": {
     "label": "Skill URL",
-    "hint": "Fetched server-side, stored as untrusted, and left disabled until vetted.",
+    "hint": "Fetched server-side. An imported skill's text becomes instructions in your agent's prompt — read it before you enable it.",
     "placeholder": "https://example.com/skills/security.md",
     "fetching": "Fetching…",
     "import": "Import from URL",
@@ -84,16 +174,19 @@
       "manual": "Manual",
       "extracted": "Extracted",
       "community": "Community",
-      "imported_url": "Imported"
+      "imported_url": "Imported",
+      "imported_file": "Imported"
     }
   },
   "preview": {
+    "title": "Preview",
+    "subtitle": "The exact text sent to the model when this skill is enabled.",
     "untrustedBadge": "untrusted source",
     "enabled": "Enabled",
     "disabled": "Disabled",
     "save": "Save",
     "edit": "Edit",
-    "untrustedNotice": "This skill came from an untrusted source. Its body is stored as data (delimiter-wrapped) and must be vetted before it is enabled for an agent.",
+    "untrustedNotice": "An imported skill's text becomes instructions in your agent's prompt. Read it before you enable it.",
     "bodyLabel": "Skill body (Markdown)",
     "bodyHint": "Saving a changed body creates a new immutable version.",
     "version": "v{version}"

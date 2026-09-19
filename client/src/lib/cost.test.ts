@@ -31,4 +31,17 @@ describe("formatCost", () => {
     expect(formatCost(1.5)).toBe("$1.50");
     expect(formatCost(12.34)).toBe("$12.34");
   });
+
+  it("treats a value that cannot be a cost as unknown, never as a price", () => {
+    expect(formatCost(NaN)).toBe("—");
+    expect(formatCost(Infinity)).toBe("—");
+    expect(formatCost(-Infinity)).toBe("—");
+    expect(formatCost(-0.5)).toBe("—");
+    expect(formatCost(-1e-9)).toBe("—");
+  });
+
+  it("does not throw on a value too small for toFixed's digit range", () => {
+    expect(() => formatCost(1e-101)).not.toThrow();
+    expect(() => formatCost(Number.MIN_VALUE)).not.toThrow();
+  });
 });

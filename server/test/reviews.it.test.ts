@@ -209,6 +209,42 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(run!.findingsCount).toBe(1);
     expect(run!.grounding).toBe('1/2 passed');
 
+    // Cost is persisted from the provider's own usage report (mock: 0.001) and
+    // must read the same on the row, in the trace stats and in the run summary.
+    expect(run!.costUsd).toBe(0.001);
+    expect(trace.stats.cost_usd).toBe(0.001);
+    const runs = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(runs[0].cost_usd).toBe(0.001);
+
+    await app.close();
+  });
+
+  it('a failed run persists cost_usd = null (never 0), so the UI can show "—"', async () => {
+    // A fixture that fails the Review schema makes the mock provider throw → run fails.
+    const app = await appWith({ not: 'a review' });
+    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'Broken', provider: 'openai', model: 'gpt-4.1', system_prompt: 'x' },
+      })
+    ).json();
+    const body = (
+      await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } })
+    ).json();
+
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+    const [run] = await pg.handle.db
+      .select()
+      .from(t.agentRuns)
+      .where(eq(t.agentRuns.id, body.runs[0].run_id));
+    expect(run!.status).toBe('failed');
+    expect(run!.costUsd).toBeNull();
+
+    const runs = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(runs[0].cost_usd).toBeNull();
+
     await app.close();
   });
 

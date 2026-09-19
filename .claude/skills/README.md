@@ -1,6 +1,6 @@
 # Skills
 
-Reusable AI skills that provide specialized knowledge and workflows. Canonical location is `.claude/skills/` with a symlink at `.cursor/skills/ → ../.claude/skills` for Cursor compatibility. Shared with the team via version control.
+Reusable AI skills that provide specialized knowledge and workflows. They live in `.claude/skills/` and are shared with the team via version control.
 
 ## Catalog
 
@@ -16,6 +16,7 @@ Reusable AI skills that provide specialized knowledge and workflows. Canonical l
 | [typescript-expert](typescript-expert/SKILL.md) | Full-stack | Type-level programming, performance, tooling, migrations |
 | [security](security/SKILL.md) | Full-stack | OWASP Top 10:2025, auth, injection, uploads, secrets |
 | [mermaid-diagram](mermaid-diagram/SKILL.md) | Shared | Mermaid diagrams in markdown (flowcharts, sequence, ERD, …) |
+| [engineering-insights](engineering-insights/SKILL.md) | Workflow | Reads and records per-package `INSIGHTS.md` — this repo's own skill |
 
 ## What Are Skills?
 

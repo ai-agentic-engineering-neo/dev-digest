@@ -129,6 +129,27 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
+    // What this PR has cost so far: every completed run, summed. A run the
+    // provider never priced contributes nothing rather than zeroing the total,
+    // and a PR with no priced run at all stays null so the UI shows "—".
+    const costByPr = new Map<string, number>();
+    if (prIds.length > 0) {
+      const runRows = await container.db
+        .select({ prId: t.agentRuns.prId, costUsd: t.agentRuns.costUsd })
+        .from(t.agentRuns)
+        .where(
+          and(
+            eq(t.agentRuns.workspaceId, workspaceId),
+            inArray(t.agentRuns.prId, prIds),
+            eq(t.agentRuns.status, 'done'),
+          ),
+        );
+      for (const run of runRows) {
+        if (!run.prId || run.costUsd == null) continue;
+        costByPr.set(run.prId, (costByPr.get(run.prId) ?? 0) + run.costUsd);
+      }
+    }
+
     const now = Date.now();
     return rows.map((r) => {
       const review = latestReviewByPr.get(r.id);
@@ -153,6 +174,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
+        cost_usd: costByPr.get(r.id) ?? null,
       };
     });
   });

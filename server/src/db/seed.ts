@@ -8,6 +8,7 @@ import {
   SECURITY_REVIEWER_PROMPT,
   PERFORMANCE_REVIEWER_PROMPT,
   TEST_QUALITY_REVIEWER_PROMPT,
+  API_CONTRACT_REVIEWER_PROMPT,
 } from './seed-prompts.js';
 import { seedSkills } from './seed-skills.js';
 
@@ -49,8 +50,9 @@ function filesFromUnifiedDiff(text: string): Array<{
  * Seeds: default workspace + system user + membership, default settings,
  * demo repo (acme/payments-api), PR #482 with files/commits, a sample review
  * with a few findings, and the built-in agents (General + Security +
- * Performance + Test Quality), all on the default openrouter/deepseek-v4-flash
- * provider+model, plus the mockup skill catalog and agent_skills links.
+ * Performance + Test Quality + API Contract), all on the default
+ * openrouter/deepseek-v4-flash provider+model, plus the mockup skill catalog
+ * and agent_skills links.
  */
 
 export const DEFAULT_WORKSPACE_NAME = 'default';
@@ -241,7 +243,7 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
     });
   }
 
-  // ---- built-in agents (the three starter presets) ----
+  // ---- built-in agents (starter presets + lab reviewers) ----
   // Prompt bodies live in ./seed-prompts.ts (mirrored in docs/agent-prompts/*.md).
   const seedAgents: Array<typeof t.agents.$inferInsert> = [
     {
@@ -284,6 +286,18 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       provider: DEFAULT_PROVIDER,
       model: DEFAULT_MODEL,
       systemPrompt: TEST_QUALITY_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
+    {
+      workspaceId,
+      name: 'API Contract Reviewer',
+      description:
+        'Flags public-contract breaks: renamed or removed fields and routes, shape drift, missing major, silent deletion.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: API_CONTRACT_REVIEWER_PROMPT,
       enabled: true,
       version: 1,
       createdBy: userId,

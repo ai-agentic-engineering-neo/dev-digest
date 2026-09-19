@@ -24,6 +24,43 @@ export const TEST_QUALITY_SKILL_BODIES = [
   EXCESSIVE_MOCKING_BODY,
 ];
 
+export const BREAKING_CHANGE_BODY = `# Breaking change
+Flag a change or deletion of a **public** contract: renamed or removed route,
+method, path param, or JSON field that existing clients send or read.
+
+## Bad
+Rename \`userId\` to \`user_id\` (or delete the field) with no alias on the same path.
+
+## Good
+Keep the old field, or ship \`/v2/\` (or a major bump) and leave \`/v1/\` until sunset.`;
+
+export const RESPONSE_SCHEMA_BODY = `# Response schema
+Flag response **shape** drift: type change, newly required response field,
+optional becoming required, nullability, or enum narrowing.
+
+## Bad
+\`email: string\` becomes \`email: string | null\` (or the reverse: clients that
+sent \`null\` now get 400).
+
+## Good
+Add an **optional** field. Do not remove or rename an existing one.`;
+
+export const SEMVER_DISCIPLINE_BODY = `# Semver discipline
+Flag a breaking contract change with no major version bump (URL prefix, package
+version, or changelog BREAKING).
+
+## Bad
+Breaking rename on the same \`/v1/\` path, patch bump only.
+
+## Good
+Breaking change only on \`/v2/\` (or a documented major) while \`/v1/\` stays compatible.`;
+
+export const API_CONTRACT_SKILL_BODIES = [
+  BREAKING_CHANGE_BODY,
+  RESPONSE_SCHEMA_BODY,
+  SEMVER_DISCIPLINE_BODY,
+];
+
 interface SeedSkillSpec {
   name: string;
   description: string;
@@ -108,6 +145,27 @@ const TEST_QUALITY_SKILLS: SeedSkillSpec[] = [
   },
 ];
 
+const API_CONTRACT_SKILLS: SeedSkillSpec[] = [
+  {
+    name: 'breaking-change',
+    description: 'Flag renamed or deleted public routes, methods, params, or JSON fields.',
+    type: 'custom',
+    body: BREAKING_CHANGE_BODY,
+  },
+  {
+    name: 'response-schema',
+    description: 'Flag public response shape drift: types, requiredness, nullability.',
+    type: 'custom',
+    body: RESPONSE_SCHEMA_BODY,
+  },
+  {
+    name: 'semver-discipline',
+    description: 'Flag a breaking contract change with no major version bump.',
+    type: 'custom',
+    body: SEMVER_DISCIPLINE_BODY,
+  },
+];
+
 async function upsertSkill(db: Db, workspaceId: string, spec: SeedSkillSpec) {
   const [existing] = await db
     .select()
@@ -134,12 +192,12 @@ async function agentIdByName(db: Db, workspaceId: string, name: string): Promise
 }
 
 /**
- * Idempotent mockup catalog + Test Quality skill rows and agent_skills links.
- * Does not insert \`flaky-tests\` — that skill arrives through import.
+ * Idempotent mockup catalog + Test Quality + API Contract skill rows and links.
+ * Does not insert \`flaky-tests\` or \`deprecation-policy\` — those arrive through import.
  */
 export async function seedSkills(db: Db, workspaceId: string): Promise<void> {
   const byName = new Map<string, { id: string }>();
-  for (const spec of [...CATALOG, ...TEST_QUALITY_SKILLS]) {
+  for (const spec of [...CATALOG, ...TEST_QUALITY_SKILLS, ...API_CONTRACT_SKILLS]) {
     const row = await upsertSkill(db, workspaceId, spec);
     byName.set(spec.name, row);
   }
@@ -155,6 +213,7 @@ export async function seedSkills(db: Db, workspaceId: string): Promise<void> {
   const performance = await agentIdByName(db, workspaceId, 'Performance Reviewer');
   const general = await agentIdByName(db, workspaceId, 'General Reviewer');
   const testQuality = await agentIdByName(db, workspaceId, 'Test Quality Reviewer');
+  const apiContract = await agentIdByName(db, workspaceId, 'API Contract Reviewer');
 
   if (security) {
     await agents.setSkills(security, [
@@ -175,6 +234,13 @@ export async function seedSkills(db: Db, workspaceId: string): Promise<void> {
       { skillId: id('uncovered-branches'), enabled: true },
       { skillId: id('corner-cases'), enabled: true },
       { skillId: id('excessive-mocking'), enabled: true },
+    ]);
+  }
+  if (apiContract) {
+    await agents.setSkills(apiContract, [
+      { skillId: id('breaking-change'), enabled: true },
+      { skillId: id('response-schema'), enabled: true },
+      { skillId: id('semver-discipline'), enabled: true },
     ]);
   }
 }

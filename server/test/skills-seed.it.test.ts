@@ -4,7 +4,7 @@ import { and, eq } from 'drizzle-orm';
 import { startPg, dockerAvailable, type PgFixture } from './helpers/pg.js';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/platform/config.js';
-import { seed } from '../src/db/seed.js';
+import { seed, DEFAULT_PROVIDER, DEFAULT_MODEL } from '../src/db/seed.js';
 import * as t from '../src/db/schema.js';
 import { MockGitClient, MockGitHubClient } from '../src/adapters/mocks.js';
 
@@ -47,7 +47,7 @@ d('skills catalog seed', () => {
     });
   }
 
-  it('is idempotent: unique catalog names and one Test Quality Reviewer', async () => {
+  it('is idempotent: unique catalog names, one Test Quality, one API Contract Reviewer', async () => {
     const app = await makeApp();
     const skills = (await app.inject({ method: 'GET', url: '/skills' })).json() as { name: string }[];
     const names = skills.map((s) => s.name);
@@ -57,14 +57,31 @@ d('skills catalog seed', () => {
     expect(names).toContain('uncovered-branches');
     expect(names).toContain('corner-cases');
     expect(names).toContain('excessive-mocking');
+    expect(names).toContain('breaking-change');
+    expect(names).toContain('response-schema');
+    expect(names).toContain('semver-discipline');
     expect(names).not.toContain('flaky-tests');
+    expect(names).not.toContain('deprecation-policy');
+    expect(names.filter((n) => n === 'breaking-change')).toHaveLength(1);
+    expect(names.filter((n) => n === 'response-schema')).toHaveLength(1);
+    expect(names.filter((n) => n === 'semver-discipline')).toHaveLength(1);
 
-    const agents = (await app.inject({ method: 'GET', url: '/agents' })).json() as { name: string }[];
+    const agents = (await app.inject({ method: 'GET', url: '/agents' })).json() as {
+      name: string;
+      provider: string;
+      model: string;
+      ci_fail_on: string;
+    }[];
     expect(agents.filter((a) => a.name === 'Test Quality Reviewer')).toHaveLength(1);
+    const api = agents.filter((a) => a.name === 'API Contract Reviewer');
+    expect(api).toHaveLength(1);
+    expect(api[0]!.ci_fail_on).toBe('critical');
+    expect(api[0]!.provider).toBe(DEFAULT_PROVIDER);
+    expect(api[0]!.model).toBe(DEFAULT_MODEL);
     await app.close();
   });
 
-  it('seeds the Security / Performance / General / Test Quality link matrix', async () => {
+  it('seeds the Security / Performance / General / Test Quality / API Contract link matrix', async () => {
     const app = await makeApp();
     const agents = (await app.inject({ method: 'GET', url: '/agents' })).json() as {
       id: string;
@@ -109,6 +126,12 @@ d('skills catalog seed', () => {
     expect(tq.every((l) => l.enabled)).toBe(true);
     expect(tq.every((l) => l.type === 'custom' || l.type === 'rubric')).toBe(true);
     expect(tq.every((l) => l.description.trim().length > 0)).toBe(true);
+
+    const api = await linksOf('API Contract Reviewer');
+    expect(api.map((l) => l.name)).toEqual(['breaking-change', 'response-schema', 'semver-discipline']);
+    expect(api.every((l) => l.enabled)).toBe(true);
+    expect(api.every((l) => l.type === 'custom')).toBe(true);
+    expect(api.every((l) => l.description.trim().length > 0)).toBe(true);
     await app.close();
   });
 

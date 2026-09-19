@@ -235,6 +235,91 @@ d('Testcontainers: DB-backed routes via app.inject', () => {
     await app.close();
   });
 
+  it('GET /repos/:id/pulls sums cost across every successful run, ignoring runs with unknown cost', async () => {
+    const config = loadConfig({ ...process.env, NODE_ENV: 'test' } as NodeJS.ProcessEnv);
+    const app = await buildApp({
+      config,
+      db: pg.handle.db,
+      overrides: { git: new MockGitClient(), github: new MockGitHubClient() },
+    });
+    const { workspaceId } = await seed(pg.handle.db);
+    const [repo] = await pg.handle.db
+      .insert(t.repos)
+      .values({ workspaceId, owner: 'acme', name: 'cost-list', fullName: 'acme/cost-list' })
+      .returning();
+    const [pr] = await pg.handle.db
+      .insert(t.pullRequests)
+      .values({
+        workspaceId,
+        repoId: repo!.id,
+        number: 1,
+        title: 'Test PR',
+        author: 'octocat',
+        branch: 'feat',
+        base: 'main',
+        headSha: 'abc123',
+        status: 'open',
+      })
+      .returning();
+
+    await pg.handle.db.insert(t.agentRuns).values([
+      // Two successful runs with known cost → should be summed together.
+      { workspaceId, prId: pr!.id, status: 'done', costUsd: 1.5 },
+      { workspaceId, prId: pr!.id, status: 'done', costUsd: 2.25 },
+      // A successful run with no usage/pricing data → contributes nothing,
+      // but must not blank the total since other runs do have cost data.
+      { workspaceId, prId: pr!.id, status: 'done', costUsd: null },
+      // A failed run's cost must never count toward the total.
+      { workspaceId, prId: pr!.id, status: 'failed', costUsd: 100 },
+    ]);
+
+    const list = await app.inject({ method: 'GET', url: `/repos/${repo!.id}/pulls` });
+    expect(list.statusCode).toBe(200);
+    const row = list.json().find((p: { number: number }) => p.number === 1);
+    expect(row.cost_usd).toBe(3.75);
+    await app.close();
+  });
+
+  it('GET /repos/:id/pulls returns null cost_usd when no successful run has cost data', async () => {
+    const config = loadConfig({ ...process.env, NODE_ENV: 'test' } as NodeJS.ProcessEnv);
+    const app = await buildApp({
+      config,
+      db: pg.handle.db,
+      overrides: { git: new MockGitClient(), github: new MockGitHubClient() },
+    });
+    const { workspaceId } = await seed(pg.handle.db);
+    const [repo] = await pg.handle.db
+      .insert(t.repos)
+      .values({ workspaceId, owner: 'acme', name: 'cost-list-null', fullName: 'acme/cost-list-null' })
+      .returning();
+    const [pr] = await pg.handle.db
+      .insert(t.pullRequests)
+      .values({
+        workspaceId,
+        repoId: repo!.id,
+        number: 1,
+        title: 'Test PR',
+        author: 'octocat',
+        branch: 'feat',
+        base: 'main',
+        headSha: 'abc123',
+        status: 'open',
+      })
+      .returning();
+    await pg.handle.db.insert(t.agentRuns).values({
+      workspaceId,
+      prId: pr!.id,
+      status: 'done',
+      costUsd: null,
+    });
+
+    const list = await app.inject({ method: 'GET', url: `/repos/${repo!.id}/pulls` });
+    expect(list.statusCode).toBe(200);
+    const row = list.json().find((p: { number: number }) => p.number === 1);
+    expect(row.cost_usd).toBeNull();
+    await app.close();
+  });
+
   it('POST /repos/:id/poll syncs PR list and does NOT trigger a review', async () => {
     const config = loadConfig({ ...process.env, NODE_ENV: 'test' } as NodeJS.ProcessEnv);
     const app = await buildApp({

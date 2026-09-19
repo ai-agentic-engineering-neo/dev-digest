@@ -9,6 +9,28 @@ gotchas, dead ends, decisions that don't belong in the fixed map in
 What happened, what was tried, what actually worked or didn't, and why.
 -->
 
+## 2026-09-18 — PR-list cost column sums runs; score/findings deliberately don't [Decision]
+`GET /repos/:id/pulls` in `modules/pulls/routes.ts` computes three per-PR
+rollups (score, findings, cost) with the same "one IN-query, reduce in JS"
+shape, but the reduction differs on purpose: score and findings use "latest
+review wins" (a re-review replaces the prior verdict, so history shouldn't
+accumulate), while cost sums every `status='done'` run (each run actually
+spent money, so history must accumulate). Don't unify these three into one
+helper — they're intentionally different aggregations wearing the same
+query pattern. For the cost sum specifically: a `done` run with `costUsd:
+null` (provider reported no usage/pricing) contributes 0 and is otherwise
+ignored, and the PR's total is `null` only when **no** `done` run has cost
+data at all — this stops one undated run from silently zeroing out an
+otherwise-known total, while keeping the existing "null means unknown, not
+free" convention from `RunCostBadge`. Also confirmed: no SQL `SUM`/`GROUP
+BY` exists anywhere in this codebase — every per-PR rollup reduces rows in
+JS after a single `IN` query (justified inline as cheap since PR lists are
+small) — so the cost fix kept that style rather than introducing the first
+SQL aggregate. The `cost_usd` field's doc comment lives as a plain comment
+in `vendor/shared/contracts/platform.ts`, hand-mirrored in
+`client/src/vendor/shared/contracts/platform.ts` — both copies needed
+updating since they're copies, not symlinks.
+
 ## 2026-09-16 — fixed: `pnpm db:migrate`/`pnpm db:seed` silently no-op when the checkout path has spaces [Mistake]
 Both `src/db/migrate.ts` and `src/db/seed.ts` guarded their CLI entrypoint
 with `import.meta.url === \`file://${process.argv[1]}\``.

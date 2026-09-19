@@ -157,19 +157,27 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
-    // Latest completed run's COST per PR for the list's cost column. Same
-    // read-time derivation as the score above: newest-first agent_runs rows,
-    // first seen per PR wins. Only status='done' runs count — a failed run has
-    // no meaningful spend to surface.
-    const latestRunCostByPr = new Map<string, number | null>();
+    // TOTAL cost per PR for the list's cost column: every review costs money,
+    // so unlike score/findings above (which only reflect the latest review),
+    // cost accumulates across every run. Same IN-query pattern as score/cost,
+    // reduced by summing instead of "first wins". Only status='done' runs
+    // count — a failed run has no meaningful spend to surface. A run with no
+    // usage/pricing data (costUsd null) doesn't reduce or blank the total —
+    // the total is only null when NO run for the PR has cost data at all.
+    const totalRunCostByPr = new Map<string, { sum: number; hasKnownCost: boolean }>();
     if (prIds.length > 0) {
       const runRows = await container.db
         .select({ prId: t.agentRuns.prId, costUsd: t.agentRuns.costUsd })
         .from(t.agentRuns)
-        .where(and(inArray(t.agentRuns.prId, prIds), eq(t.agentRuns.status, 'done')))
-        .orderBy(desc(t.agentRuns.ranAt));
+        .where(and(inArray(t.agentRuns.prId, prIds), eq(t.agentRuns.status, 'done')));
       for (const run of runRows) {
-        if (run.prId && !latestRunCostByPr.has(run.prId)) latestRunCostByPr.set(run.prId, run.costUsd);
+        if (!run.prId) continue;
+        const totals = totalRunCostByPr.get(run.prId) ?? { sum: 0, hasKnownCost: false };
+        if (run.costUsd != null) {
+          totals.sum += run.costUsd;
+          totals.hasKnownCost = true;
+        }
+        totalRunCostByPr.set(run.prId, totals);
       }
     }
 
@@ -197,7 +205,9 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
-        cost_usd: latestRunCostByPr.get(r.id) ?? null,
+        cost_usd: totalRunCostByPr.get(r.id)?.hasKnownCost
+          ? totalRunCostByPr.get(r.id)!.sum
+          : null,
         findings_by_severity: review
           ? (findingsByReviewId.get(review.reviewId) ?? { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 })
           : null,

@@ -7,6 +7,7 @@
     "searchPlaceholder": "Search skills…",
     "loadError": "Could not load skills.",
     "menu": {
+      "createFromScratch": "Create from scratch",
       "fromFile": "Import from file",
       "fromUrl": "Import from URL",
       "community": "Search community skills…"
@@ -28,6 +29,51 @@
     "notFound": {
       "title": "Skill not found",
       "body": "It may have been deleted."
+    },
+    "tabs": {
+      "config": "Config",
+      "preview": "Preview",
+      "versions": "Versions"
+    }
+  },
+  "config": {
+    "title": "Configuration",
+    "name": "Name",
+    "description": "Description",
+    "descriptionHint": "This is the skill's interface — it's what an agent reads to decide whether to apply the skill. Write it directively.",
+    "type": "Type",
+    "body": "Skill body (Markdown)",
+    "enabled": "Enabled",
+    "save": "Save",
+    "saving": "Saving…",
+    "savedToast": "Saved (v{version})",
+    "dangerTitle": "Delete skill",
+    "dangerBody": "Removes it from all agents. This can't be undone.",
+    "delete": "Delete skill",
+    "deleteConfirm": "Delete skill \"{name}\"? This cannot be undone.",
+    "deletedToast": "Skill deleted"
+  },
+  "versions": {
+    "current": "Current",
+    "empty": "No versions yet."
+  },
+  "create": {
+    "title": "Create a skill",
+    "subtitle": "Start from scratch and fill in the body Markdown.",
+    "cancel": "Cancel",
+    "create": "Create",
+    "creating": "Creating…",
+    "defaultName": "New Skill",
+    "defaultDescription": "Describes what this skill checks or enforces.",
+    "defaultBody": "# New skill\n\nDescribe the rule…",
+    "fields": {
+      "name": "Name",
+      "namePlaceholder": "pr-quality-rubric",
+      "description": "Description",
+      "descriptionPlaceholder": "What this skill checks or enforces",
+      "type": "Type",
+      "body": "Skill body (Markdown)",
+      "bodyPlaceholder": "# Rule\nDescribe the rule…"
     }
   },
   "drawer": {
@@ -84,7 +130,8 @@
       "manual": "Manual",
       "extracted": "Extracted",
       "community": "Community",
-      "imported_url": "Imported"
+      "imported_url": "Imported",
+      "imported_file": "Imported"
     }
   },
   "preview": {
@@ -96,6 +143,7 @@
     "untrustedNotice": "This skill came from an untrusted source. Its body is stored as data (delimiter-wrapped) and must be vetted before it is enabled for an agent.",
     "bodyLabel": "Skill body (Markdown)",
     "bodyHint": "Saving a changed body creates a new immutable version.",
-    "version": "v{version}"
+    "version": "v{version}",
+    "tokens": "~{count} tokens"
   }
 }

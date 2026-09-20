@@ -48,11 +48,11 @@ module.exports = {
         "'ancestor'). A new top-level route folder must be added to both lists below or " +
         'it silently falls outside this rule.',
       from: {
-        path: '^src/app/(?:\\(shell\\)/)?(agents|repos|settings|onboarding)/',
+        path: '^src/app/(?:\\(shell\\)/)?(agents|repos|settings|onboarding|skills)/',
       },
       to: {
         path:
-          '^src/app/(?:\\(shell\\)/)?(?!$1/)(agents|repos|settings|onboarding)/.*(_components|_lib)/',
+          '^src/app/(?:\\(shell\\)/)?(?!$1/)(agents|repos|settings|onboarding|skills)/.*(_components|_lib)/',
       },
     },
     {

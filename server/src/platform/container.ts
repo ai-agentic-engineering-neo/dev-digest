@@ -130,7 +130,7 @@ export class Container {
     return this._depgraph;
   }
 
-  /** Token counter (js-tiktoken) for the repo-map budget search. */
+  /** Token counter (js-tiktoken): the repo-map budget search and per-slot prompt accounting. */
   get tokenizer(): Tokenizer {
     if (this.overrides.tokenizer) return this.overrides.tokenizer;
     this._tokenizer ??= new TiktokenTokenizer();

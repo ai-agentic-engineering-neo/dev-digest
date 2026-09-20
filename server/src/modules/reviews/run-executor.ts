@@ -6,7 +6,7 @@ import * as schema from '../../db/schema.js';
 import type { AgentRow } from '../../db/rows.js';
 import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './repository.js';
 import { REVIEW_STRATEGY } from './constants.js';
-import { taskLine } from './helpers.js';
+import { skillPromptBlocks, taskLine } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
 
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
@@ -184,6 +184,11 @@ export class ReviewRunExecutor {
 
       const task = taskLine(pull) + rankNote;
 
+      // L5 — the agent's enabled skills, in link order. Independent of
+      // repo-intel: skills are the user's own prompt blocks, not derived
+      // context. No enabled skills → the section is absent from the prompt.
+      const skills = await this.buildSkillBlocks(agent.id, runLog);
+
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
       // the CI runner). The service owns only I/O: repo-intel context resolution
@@ -201,6 +206,8 @@ export class ReviewRunExecutor {
         ...(callersDigest ? { callers: callersDigest } : {}),
         // T3 — repo skeleton, same omit-when-empty contract.
         ...(repoMap ? { repoMap } : {}),
+        // L5 — linked skill bodies, same omit-when-empty contract.
+        ...(skills.length ? { skills } : {}),
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
@@ -358,6 +365,24 @@ export class ReviewRunExecutor {
     }
     runLog.info(`callers digest: ${rows.length} caller signature(s) attached`);
     return out.join('\n');
+  }
+
+  /**
+   * L5 — skill bodies for this agent's prompt, in link order.
+   *
+   * A skill is attached only when BOTH flags are true: its own `enabled`
+   * (vetted) and the per-agent link's. Imported bodies are delimiter-wrapped
+   * by `skillPromptBlocks` — a downloaded skill is someone else's instructions
+   * sitting inside our prompt. The token line mirrors the repo-map one so the
+   * run trace shows what each slot cost.
+   */
+  private async buildSkillBlocks(agentId: string, runLog: RunLogger): Promise<string[]> {
+    const links = await this.container.agentsRepo.linkedSkills(agentId);
+    const blocks = skillPromptBlocks(links);
+    if (blocks.length === 0) return [];
+    const tokens = this.container.tokenizer.count(blocks.join('\n\n'));
+    runLog.info(`skills: ${blocks.length} skill(s), ~${tokens} token(s) attached`);
+    return blocks;
   }
 
   /**

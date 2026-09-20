@@ -64,3 +64,28 @@ describe('assemblePrompt — ## PR description', () => {
     expect((assembly.pr_description as string).length).toBe(4000);
   });
 });
+
+/**
+ * The skills slot. Bodies arrive already sanitized (the server wraps imported
+ * ones), so assemblePrompt only joins and places them — before the diff, and
+ * absent entirely when there are none.
+ */
+describe('assemblePrompt — skills slot', () => {
+  it('renders the linked bodies under one heading, joined', () => {
+    const user = userOf({ system: 'S', diff: 'DIFF', skills: ['RULE ONE', 'RULE TWO'] });
+    expect(user).toContain('## Skills / rules');
+    expect(user).toMatch(/RULE ONE\n\nRULE TWO/);
+  });
+
+  it('omits the section when no skills are linked', () => {
+    expect(userOf({ system: 'S', diff: 'DIFF' })).not.toContain('## Skills / rules');
+    expect(userOf({ system: 'S', diff: 'DIFF', skills: [] })).not.toContain('## Skills / rules');
+  });
+
+  it('places skills before the diff and reports the block in the assembly', () => {
+    const { assembly, messages } = assemblePrompt({ system: 'S', diff: 'DIFF', skills: ['RULE'] });
+    const user = messages[1]!.content;
+    expect(user.indexOf('## Skills / rules')).toBeLessThan(user.indexOf('## Diff to review'));
+    expect(assembly.skills).toBe('RULE');
+  });
+});

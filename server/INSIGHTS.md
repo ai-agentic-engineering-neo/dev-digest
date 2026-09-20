@@ -20,6 +20,20 @@ by hand in the same format.
 
 ## Codebase Patterns
 
+- 2026-09-20 — `src/vendor/shared` is canonical but hand-mirrored into
+  `client/src/vendor/shared`; each package compiles against its own copy, so a
+  field added to only one side compiles clean on the server and fails in the
+  client with a confusing "two unrelated types" error. ALWAYS apply a contract
+  change to both files in the same commit, then `diff` the touched region to
+  confirm they match. (`server/src/vendor/shared/contracts/trace.ts:61`)
+- 2026-09-20 — the review result reaches the DB through a hand-written
+  projection: `ReviewOutcome` is destructured in the executor and its fields are
+  passed field-by-field to `completeAgentRun`. A field the destructuring omits
+  is silently dropped — no type error, no test failure — which is exactly how
+  `costUsd` was computed for months and never persisted. When adding anything
+  observable, diff `ReviewOutcome`'s shape against the `completeAgentRun` call
+  rather than trusting the types. (`server/src/modules/reviews/run-executor.ts:213`)
+
 ## Tool & Library Notes
 
 ## Recurring Errors & Fixes

@@ -25,6 +25,13 @@ by hand in the same format.
 
 ## Recurring Errors & Fixes
 
+- 2026-09-20 — `pnpm typecheck` failing with "Two different types with this name
+  exist, but they are unrelated" on a `@devdigest/shared` type means the
+  contract was changed in `server/src/vendor/shared` but not in the client's
+  copy (or vice versa) — the named property in the error message is the one
+  that drifted. Fix it in `client/src/vendor/shared/contracts/*`, not in the
+  component the error points at. (`client/src/vendor/shared/contracts/trace.ts:61`)
+
 ## Session Notes
 
 ## Open Questions

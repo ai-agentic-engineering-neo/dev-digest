@@ -62,6 +62,10 @@ export const RunStats = z.object({
   duration_ms: z.number().int(),
   tokens_in: z.number().int(),
   tokens_out: z.number().int(),
+  // Run spend in USD. Nullish = unknown (no usage reported, or the model has no
+  // price) — and traces written before cost was tracked simply omit the key.
+  // Unknown renders as "—", never "$0.00".
+  cost_usd: z.number().nullish(),
   findings: z.number().int(),
   grounding: z.string(),
 });
@@ -102,6 +106,8 @@ export const RunSummary = z.object({
   duration_ms: z.number().int().nullable(),
   tokens_in: z.number().int().nullable(),
   tokens_out: z.number().int().nullable(),
+  /** Run spend in USD; null = unknown, not free. Renders as "—". */
+  cost_usd: z.number().nullable(),
   findings_count: z.number().int().nullable(),
   grounding: z.string().nullable(),
   ran_at: z.string().nullable(),

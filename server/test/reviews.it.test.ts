@@ -209,6 +209,15 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(run!.findingsCount).toBe(1);
     expect(run!.grounding).toBe('1/2 passed');
 
+    // Run spend survives the executor: reviewer-core reports ReviewOutcome.costUsd,
+    // and it must reach the column, the trace doc, AND the runs list (the three
+    // places the UI reads it from). Regression guard — it used to be dropped on
+    // the destructuring line in run-executor.ts.
+    expect(run!.costUsd).toBeGreaterThan(0);
+    expect(trace.stats.cost_usd).toBe(run!.costUsd);
+    const runsList = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(runsList[0].cost_usd).toBe(run!.costUsd);
+
     await app.close();
   });
 

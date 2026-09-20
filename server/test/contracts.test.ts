@@ -12,6 +12,7 @@ import {
   EvalRun,
   MemoryItem,
   RunTrace,
+  RunStats,
   Settings,
   Repo,
   PrDetail,
@@ -166,6 +167,25 @@ describe('AI contracts parse fixtures', () => {
       log: [{ t: '00.00', kind: 'info', msg: 'started' }],
     });
     expect(trace.tool_calls).toHaveLength(1);
+    // The fixture above predates cost tracking: traces stored before the
+    // cost_usd column existed omit the key entirely and must still parse, so
+    // the drawer can degrade to "—" instead of blowing up on an old run.
+    expect(trace.stats.cost_usd).toBeUndefined();
+  });
+
+  it('RunStats carries the run spend when the provider reported one', () => {
+    const stats = RunStats.parse({
+      duration_ms: 8200,
+      tokens_in: 14820,
+      tokens_out: 1240,
+      cost_usd: 0.06,
+      findings: 3,
+      grounding: '3/3 passed',
+    });
+    expect(stats.cost_usd).toBe(0.06);
+    // null is "unknown price", a distinct state from a free (0) run.
+    expect(RunStats.parse({ ...stats, cost_usd: null }).cost_usd).toBeNull();
+    expect(RunStats.parse({ ...stats, cost_usd: 0 }).cost_usd).toBe(0);
   });
 });
 

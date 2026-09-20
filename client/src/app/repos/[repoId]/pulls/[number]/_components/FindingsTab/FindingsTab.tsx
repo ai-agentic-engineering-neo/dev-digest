@@ -5,8 +5,9 @@ import { Icon, Badge, Button, SectionLabel, EmptyState } from "@devdigest/ui";
 import { RunStatus } from "../RunStatus";
 import { RunHistory } from "../RunHistory/RunHistory";
 import { ReviewRunAccordion } from "../ReviewRunAccordion";
+import { SeverityCounters } from "./SeverityCounters";
 import { s } from "./styles";
-import type { FindingRecord, ReviewRecord, RunSummary, PrCommit } from "@devdigest/shared";
+import type { FindingRecord, ReviewRecord, RunSummary, PrCommit, Severity } from "@devdigest/shared";
 import type { UseMutationResult } from "@tanstack/react-query";
 
 interface FindingsTabProps {
@@ -14,6 +15,7 @@ interface FindingsTabProps {
   liveRunIds: string[];
   reviewRunning: boolean;
   lethalTrifecta: FindingRecord[];
+  allFindings: FindingRecord[];
   runs: ReviewRecord[];
   prRuns: RunSummary[] | undefined;
   prCommits: PrCommit[];
@@ -21,6 +23,8 @@ interface FindingsTabProps {
   /** owner/repo + head sha — used to deep-link a finding's file:line to GitHub. */
   repoFullName?: string | null;
   headSha?: string | null;
+  severityFilter: Severity | null;
+  onSeverityChange: (severity: Severity | null) => void;
   onOpenTrace: (id: string) => void;
   onDelete: (id: string) => void;
   onRunDone: () => void;
@@ -31,12 +35,15 @@ export function FindingsTab({
   liveRunIds,
   reviewRunning,
   lethalTrifecta,
+  allFindings,
   runs,
   prRuns,
   prCommits,
   cancelMutation,
   repoFullName,
   headSha,
+  severityFilter,
+  onSeverityChange,
   onOpenTrace,
   onDelete,
   onRunDone,
@@ -144,6 +151,9 @@ export function FindingsTab({
       >
         Review runs
       </SectionLabel>
+
+      <SeverityCounters findings={allFindings} active={severityFilter} onSelect={onSeverityChange} />
+
       {runs.length === 0 ? (
         reviewRunning || liveRunIds.length > 0 ? null : (
           <EmptyState
@@ -162,6 +172,7 @@ export function FindingsTab({
             defaultOpen={i === 0}
             repoFullName={repoFullName}
             headSha={headSha}
+            severityFilter={severityFilter}
             targetRunId={target?.runId ?? null}
             targetNonce={target?.n ?? 0}
           />

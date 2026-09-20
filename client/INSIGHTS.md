@@ -16,6 +16,26 @@ of re-explaining it here.
 
 ## Codebase Patterns
 
+### 2026-09-19 — Most `page.tsx` files are `"use client"` by design, not oversight — the API is a separate Fastify server, not Next.js server-side data
+5 of 7 `page.tsx` files (`app/page.tsx`, `app/onboarding/page.tsx`,
+`app/agents/[id]/page.tsx`, `app/repos/[repoId]/pulls/page.tsx`,
+`app/repos/[repoId]/pulls/[number]/page.tsx`) fetch client-side via
+`lib/hooks/*` (TanStack Query) instead of using React Server Components /
+`redirect()` the way a typical Next.js app would. This looks like a missed
+optimization on a quick read, but it's deliberate: all data lives behind
+`@devdigest/api` (a separate Fastify server at `NEXT_PUBLIC_API_BASE`), not
+in Next.js's own server runtime, so there's no RSC-native data-fetching win
+here — a server component would still have to make the same HTTP round trip.
+More importantly, these pages depend on TanStack Query's client-side cache
+and invalidation (SSE-driven review runs, live status updates, optimistic
+finding accept/dismiss) — owning the fetch on the client is what makes that
+live-update UX work without a manual refetch dance. Converting these to
+Server Components would need a parallel client-side re-fetch/subscription
+layer anyway, for uncertain benefit. Revisit only if the API moves inside
+the Next.js server boundary (e.g. route handlers) or if a specific page's
+initial-load latency becomes a measured problem — this is a tradeoff, not
+an oversight.
+
 ### 2026-09-18 — "Agent runs" tab badge showed the FINDINGS total, not the run count — looked like DB corruption but wasn't
 `page.tsx`'s "Agent runs" tab badge (`PrDetailHeader.tsx`) was wired to
 `allFindings.length` (`runs.flatMap(r => r.findings).length`, summed across

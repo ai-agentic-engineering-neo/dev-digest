@@ -7,6 +7,7 @@ import type {
   StructuredRequest,
   StructuredResult,
 } from '@devdigest/shared';
+import { DEFAULT_REVIEW_MAX_RETRIES } from '@devdigest/reviewer-core';
 import { withRetry, withTimeout } from '../../platform/resilience.js';
 import { toJsonSchema, parseWithRepair } from '../../platform/structured.js';
 import { estimateCost } from './pricing.js';
@@ -87,7 +88,7 @@ export class OpenAIProvider implements LLMProvider {
 
   async completeStructured<T>(req: StructuredRequest<T>): Promise<StructuredResult<T>> {
     const jsonSchema = toJsonSchema(req.schema, req.schemaName);
-    const maxRetries = req.maxRetries ?? 2;
+    const maxRetries = req.maxRetries ?? DEFAULT_REVIEW_MAX_RETRIES;
     const messages = [...req.messages];
     let tokensIn = 0;
     let tokensOut = 0;

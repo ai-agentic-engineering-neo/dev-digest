@@ -9,6 +9,13 @@ Full assembly model, output-schema rules, and the required-conventions checklist
 push it via `PUT /agents/:id` so it versions into `agent_versions`, or the two
 copies drift.
 
+For the SEED source specifically (`server/src/db/seed-prompts.ts`, which is what
+a freshly-seeded workspace actually gets), `cd server && pnpm check:agent-prompts`
+diffs each `*_PROMPT` constant against its `.md` mirror here — no DB needed, and
+it runs in CI (`sync-checks.yml`) on every change to either side. It can't see
+drift from a live edit made only via `PUT /agents/:id` — that half still relies
+on the manual-push discipline above.
+
 ## Non-default conventions
 - Never describe the JSON output shape or an alternate severity scale in prompt
   prose — the schema is enforced out-of-band (`response_format: json_schema`,

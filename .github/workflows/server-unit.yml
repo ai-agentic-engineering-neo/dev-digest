@@ -65,6 +65,34 @@ jobs:
 
       - run: pnpm typecheck
 
+  # Onion Architecture boundary check (see .claude/skills/onion-architecture).
+  # Pre-existing violations are ratcheted in .dependency-cruiser-known-violations.json
+  # (may only shrink). reviewer-core is not followed (doNotFollow in the config), so its
+  # deps are not needed here. Inlined rather than `pnpm arch:check` for the same reason
+  # as the vitest step below.
+  arch:
+    name: architecture boundaries
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: server/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm exec depcruise src --config .dependency-cruiser.cjs --ignore-known
+
   unit:
     name: tests
     runs-on: ubuntu-latest

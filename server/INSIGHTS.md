@@ -16,6 +16,9 @@ of re-explaining it here.
 
 ## Codebase Patterns
 
+### 2026-09-19 — Onion layering is now machine-checked; the baseline (42 entries) may only shrink
+`server/.dependency-cruiser.cjs` + `pnpm arch:check` (CI job `arch` in `server-unit.yml`) enforce inward-only imports over the flat per-module files; rules/rationale in `.claude/skills/onion-architecture/`. Pre-existing debt is frozen in `.dependency-cruiser-known-violations.json` (routes running Drizzle in `pulls|polling|settings|workspace`, ORM row types in `repos/helpers.ts` + `reviews/*`, whole-`Container` in every service, `repo-intel` importing concrete adapters). Never add to the baseline to make CI green — fix the import or move the code; run `pnpm arch:baseline` only after fixes and check the diff is removals-only.
+
 ### 2026-09-18 — PR-list SCORE/STATUS/FINDINGS now dedupe to each agent's LATEST review, not every review ever
 `server/src/modules/pulls/routes.ts`'s aggregation previously counted EVERY
 completed `reviews` row for a PR when computing lowest score, worst verdict,
@@ -114,6 +117,9 @@ workspace tool. Editing one without the other silently desyncs request/response
 contracts between client and server with no compiler error until runtime.
 
 ## Tool & Library Notes
+
+### 2026-09-19 — dependency-cruiser 17.4: four quirks that break the docs' recipe
+(1) No `--baseline` flag (the `main` docs describe a newer CLI) — generate with `depcruise src --config … --output-type baseline > .dependency-cruiser-known-violations.json`; no `shrink-only` mode, so review the diff by hand. (2) `tsPreCompilationDeps: true` is mandatory, otherwise `import type` / `typeof t.x.$inferSelect` leaks are invisible (TS elides them). (3) `dependencyTypesNot: ['type-only']` on a `circular` rule only exempts cycles whose *first* edge is type-only — `Container ↔ RepoIntelService` still reports. (4) Drizzle edges resolve to `node_modules/.pnpm/drizzle-orm@<ver>…`, so baseline entries for them go stale on upgrade (regenerate, confirm count unchanged). Because `package.json` may be skip-worktree (below), CI runs `pnpm exec depcruise …` inline rather than `pnpm arch:check`.
 
 ### 2026-09-16 — `reviewer-core` needs its own `npm ci`, separate from server's `pnpm install`
 `server/tsconfig.json` path-aliases straight into `reviewer-core/src` (raw

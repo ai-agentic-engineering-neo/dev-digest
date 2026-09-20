@@ -7,7 +7,7 @@
 
 /** A single agent-browser invocation within a flow. */
 export interface Step {
-  /** agent-browser argv, e.g. ["wait", "--text", "#482"]. `{BASE}` is substituted. */
+  /** agent-browser argv, e.g. ["wait", "--text", "#482"]. `{BASE}`/`{REPO_PATH}` are substituted. */
   cmd: string[];
   /** Human label for logs (defaults to the joined cmd). */
   label?: string;
@@ -33,10 +33,16 @@ export interface FlowResult {
   steps: StepResult[];
 }
 
-/** Substitute `{BASE}` (and trim a trailing slash on BASE) in every arg. */
-export function resolveArgs(cmd: string[], base: string): string[] {
-  const b = base.replace(/\/+$/, "");
-  return cmd.map((a) => a.replaceAll("{BASE}", b));
+/**
+ * Substitute `{KEY}` template placeholders in every arg. `BASE` is always
+ * trimmed of a trailing slash; other vars (e.g. `REPO_PATH`, resolved once
+ * per run via the API so flows never depend on DB row ordering) are used as-is.
+ */
+export function resolveArgs(cmd: string[], vars: Record<string, string>): string[] {
+  const resolved = { ...vars, BASE: vars.BASE?.replace(/\/+$/, "") ?? "" };
+  return cmd.map((a) =>
+    Object.entries(resolved).reduce((s, [key, value]) => s.replaceAll(`{${key}}`, value), a),
+  );
 }
 
 export function stdoutContains(stdout: string, needle: string): boolean {

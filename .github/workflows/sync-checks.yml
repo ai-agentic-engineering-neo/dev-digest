@@ -1,0 +1,68 @@
+# Two hand-mirrored, no-DB drift checks that are cheap enough to run as their
+# own workflow (no install/build/DB needed for either):
+#  - server/src/vendor/shared/ vs client/src/vendor/shared/ (same @devdigest/shared
+#    Zod contracts, copy-pasted into both packages — see root CLAUDE.md).
+#  - docs/agent-prompts/*.md vs the *_PROMPT constants in server/src/db/seed-prompts.ts
+#    (the human-readable originals vs the seed source — see docs/agent-prompts/CLAUDE.md).
+#    NOTE: this does not check a LIVE database's agents.system_prompt column — that's
+#    a separate, heavier concern (see the script's own header comment).
+name: shared contracts & prompt sync
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/src/vendor/shared/**'
+      - 'client/src/vendor/shared/**'
+      - 'server/src/db/seed-prompts.ts'
+      - 'docs/agent-prompts/*.md'
+      - 'scripts/check-vendor-shared-sync.sh'
+      - 'server/scripts/check-agent-prompt-sync.ts'
+      - '.github/workflows/vendor-shared-sync.yml'
+  pull_request:
+    paths:
+      - 'server/src/vendor/shared/**'
+      - 'client/src/vendor/shared/**'
+      - 'server/src/db/seed-prompts.ts'
+      - 'docs/agent-prompts/*.md'
+      - 'scripts/check-vendor-shared-sync.sh'
+      - 'server/scripts/check-agent-prompt-sync.ts'
+      - '.github/workflows/vendor-shared-sync.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vendor-shared-sync-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  vendor-shared:
+    name: diff server/client vendor/shared
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./scripts/check-vendor-shared-sync.sh
+
+  agent-prompts:
+    name: diff docs/agent-prompts vs seed-prompts.ts
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: server/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm exec tsx scripts/check-agent-prompt-sync.ts

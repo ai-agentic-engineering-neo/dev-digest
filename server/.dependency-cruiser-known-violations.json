@@ -1,0 +1,658 @@
+[
+  {
+    "type": "dependency",
+    "from": "src/adapters/astgrep/index.ts",
+    "to": "src/modules/repo-intel/constants.ts",
+    "unresolvedTo": "../../modules/repo-intel/constants.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "adapters-no-modules"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/adapters/auth/local.ts",
+    "to": "src/db/seed.ts",
+    "unresolvedTo": "../../db/seed.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "adapters-no-modules"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/adapters/depgraph/index.ts",
+    "to": "src/modules/repo-intel/constants.ts",
+    "unresolvedTo": "../../modules/repo-intel/constants.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "adapters-no-modules"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/agents/service.ts",
+    "to": "src/platform/container.ts",
+    "unresolvedTo": "../../platform/container.js",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "inner-no-container"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/repo-intel/pipeline/full.ts",
+    "to": "src/platform/container.ts",
+    "unresolvedTo": "../../../platform/container.js",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "inner-no-container"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/repo-intel/pipeline/incremental.ts",
+    "to": "src/platform/container.ts",
+    "unresolvedTo": "../../../platform/container.js",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "inner-no-container"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/repo-intel/service.ts",
+    "to": "src/platform/container.ts",
+    "unresolvedTo": "../../platform/container.js",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "inner-no-container"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/repos/service.ts",
+    "to": "src/platform/container.ts",
+    "unresolvedTo": "../../platform/container.js",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "inner-no-container"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/reviews/diff-loader.ts",
+    "to": "src/platform/container.ts",
+    "unresolvedTo": "../../platform/container.js",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "inner-no-container"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/reviews/run-executor.ts",
+    "to": "src/platform/container.ts",
+    "unresolvedTo": "../../platform/container.js",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "inner-no-container"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/reviews/service.ts",
+    "to": "src/platform/container.ts",
+    "unresolvedTo": "../../platform/container.js",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "inner-no-container"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/repo-intel/pipeline/full.ts",
+    "to": "src/adapters/astgrep/index.ts",
+    "unresolvedTo": "../../../adapters/astgrep/index.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "inner-no-outer"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/repo-intel/pipeline/full.ts",
+    "to": "src/adapters/codeindex/extract.ts",
+    "unresolvedTo": "../../../adapters/codeindex/extract.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "inner-no-outer"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/repo-intel/pipeline/incremental.ts",
+    "to": "src/adapters/astgrep/index.ts",
+    "unresolvedTo": "../../../adapters/astgrep/index.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "inner-no-outer"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/repo-intel/pipeline/incremental.ts",
+    "to": "src/adapters/codeindex/extract.ts",
+    "unresolvedTo": "../../../adapters/codeindex/extract.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "inner-no-outer"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/repo-intel/pipeline/repo-map.ts",
+    "to": "src/adapters/tokenizer/index.ts",
+    "unresolvedTo": "../../../adapters/tokenizer/index.js",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "inner-no-outer"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/repo-intel/service.ts",
+    "to": "src/adapters/astgrep/index.ts",
+    "unresolvedTo": "../../adapters/astgrep/index.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "inner-no-outer"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/repo-intel/service.ts",
+    "to": "src/adapters/codeindex/extract.ts",
+    "unresolvedTo": "../../adapters/codeindex/extract.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "inner-no-outer"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/repos/helpers.ts",
+    "to": "src/db/schema.ts",
+    "unresolvedTo": "../../db/schema.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "inner-no-outer"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/reviews/diff-loader.ts",
+    "to": "src/adapters/git/diff-parser.ts",
+    "unresolvedTo": "../../adapters/git/diff-parser.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "inner-no-outer"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/reviews/diff-loader.ts",
+    "to": "src/db/schema.ts",
+    "unresolvedTo": "../../db/schema.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "inner-no-outer"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/reviews/run-executor.ts",
+    "to": "src/db/rows.ts",
+    "unresolvedTo": "../../db/rows.js",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "inner-no-outer"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/reviews/run-executor.ts",
+    "to": "src/db/schema.ts",
+    "unresolvedTo": "../../db/schema.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "inner-no-outer"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/reviews/service.ts",
+    "to": "src/db/rows.ts",
+    "unresolvedTo": "../../db/rows.js",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "inner-no-outer"
+    }
+  },
+  {
+    "type": "cycle",
+    "from": "src/modules/agents/repository.ts",
+    "to": "src/modules/agents/helpers.ts",
+    "unresolvedTo": "./helpers.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/modules/agents/helpers.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/modules/agents/repository.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "src/modules/repo-intel/pipeline/incremental.ts",
+    "to": "src/modules/repo-intel/pipeline/full.ts",
+    "unresolvedTo": "./full.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/modules/repo-intel/pipeline/full.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/platform/container.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "src/modules/repo-intel/service.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/modules/repo-intel/pipeline/incremental.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "src/modules/repo-intel/service.ts",
+    "to": "src/modules/repo-intel/pipeline/full.ts",
+    "unresolvedTo": "./pipeline/full.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/modules/repo-intel/pipeline/full.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/platform/container.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "src/modules/repo-intel/service.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "src/modules/repo-intel/service.ts",
+    "to": "src/modules/repo-intel/pipeline/incremental.ts",
+    "unresolvedTo": "./pipeline/incremental.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/modules/repo-intel/pipeline/incremental.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/platform/container.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      },
+      {
+        "name": "src/modules/repo-intel/service.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "src/platform/container.ts",
+    "to": "src/modules/repo-intel/service.ts",
+    "unresolvedTo": "../modules/repo-intel/service.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-circular"
+    },
+    "cycle": [
+      {
+        "name": "src/modules/repo-intel/service.ts",
+        "dependencyTypes": [
+          "local",
+          "import"
+        ]
+      },
+      {
+        "name": "src/platform/container.ts",
+        "dependencyTypes": [
+          "local",
+          "type-only",
+          "import"
+        ]
+      }
+    ]
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/repos/service.ts",
+    "to": "src/modules/repo-intel/constants.ts",
+    "unresolvedTo": "../repo-intel/constants.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-cross-module"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/settings/feature-models.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.38.4_postgres@3.4.9/node_modules/drizzle-orm/index.d.ts",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "only-repository-touches-db"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/settings/feature-models.ts",
+    "to": "src/db/schema.ts",
+    "unresolvedTo": "../../db/schema.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "only-repository-touches-db"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/platform/jobs.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.38.4_postgres@3.4.9/node_modules/drizzle-orm/index.d.ts",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "only-repository-touches-db"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/platform/jobs.ts",
+    "to": "src/db/schema.ts",
+    "unresolvedTo": "../db/schema.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "only-repository-touches-db"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/settings/routes.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.38.4_postgres@3.4.9/node_modules/drizzle-orm/index.d.ts",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "routes-no-persistence"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/settings/routes.ts",
+    "to": "src/db/schema.ts",
+    "unresolvedTo": "../../db/schema.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "routes-no-persistence"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/workspace/routes.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.38.4_postgres@3.4.9/node_modules/drizzle-orm/index.d.ts",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "routes-no-persistence"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/workspace/routes.ts",
+    "to": "src/db/schema.ts",
+    "unresolvedTo": "../../db/schema.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "routes-no-persistence"
+    }
+  }
+]

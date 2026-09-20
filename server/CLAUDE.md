@@ -23,6 +23,14 @@ Node ≥22, pnpm ≥10, vitest. Standalone package — own `package.json`/lockfi
 - `src/vendor/shared/` — vendored copy of `@devdigest/shared` Zod contracts.
 - `docs/` — server-specific design notes. `specs/` — feature specs.
 
+## Layering (Onion Architecture)
+Dependencies point inward only: `routes.ts` (edge) → `service.ts` (application) → ports;
+`repository.ts` / `adapters/` implement them. Only repositories touch Drizzle; services
+take explicit deps, not the whole `Container`. Rules + rationale + sources:
+`.claude/skills/onion-architecture/`. Check with `pnpm arch:check` (CI: `server-unit.yml`);
+pre-existing violations are ratcheted in `.dependency-cruiser-known-violations.json` —
+it may only shrink, never add entries.
+
 ## Non-default conventions
 - **Migrations do NOT run on boot** — always `pnpm db:migrate` after pulling schema changes.
 - **Secrets live in `~/.devdigest/secrets.json`** (mode 0600), never `.env` or the DB;

@@ -26,9 +26,10 @@ import { reduceReviews, scoreFromFindings, sliceDiff } from './reduce.js';
  * AgentManifest skill slugs into bodies (DB in the studio, fs in the runner).
  */
 
-/** Default map-reduce threshold (matches the server's FILE_MAP_THRESHOLD_LINES). */
+/** Default map-reduce threshold: diffs above this line count switch to per-file map-reduce. */
 export const DEFAULT_MAP_THRESHOLD_LINES = 400;
-/** Default structured-output reprompt retries (matches REVIEW_MAX_RETRIES). */
+/** Default structured-output reprompt retries. Single source of truth — LLM
+ *  adapters (`server/src/adapters/llm/*`) import this instead of hardcoding it. */
 export const DEFAULT_REVIEW_MAX_RETRIES = 2;
 
 export type ReviewStrategy = 'auto' | 'single-pass' | 'map-reduce';

@@ -22,13 +22,20 @@ persistent volume) whenever you need a clean-slate Postgres for a test run.
 
 ## Codebase Patterns
 
-### 2026-09-16 — Flows assume the seeded demo repo is the *only* repo
-Flow `02` (and `04`/`05`, which depend on landing on the same PR) follow the
-home redirect to the *first* repo in the DB. Running `npm test` against your
-normal dev stack — which usually has other imported repos — makes these flows
-land on the wrong repo and fail non-deterministically. This is exactly why the
-hermetic runner exists: it seeds an empty, isolated Postgres so the demo repo
-`acme/payments-api` is guaranteed to be the only one.
+### 2026-09-19 — Flows 02/04/05 resolve the demo repo by name, not DB order
+Previously these flows followed the home redirect to whatever repo the API
+returned *first*, so running `npm test` against a dev stack with other
+imported repos made them land on the wrong one and fail non-deterministically
+— only the hermetic runner's empty-DB seed made "first" reliably mean
+`acme/payments-api`. Fixed: `run.ts` resolves the demo repo's id by
+`full_name` via `GET {NEXT_PUBLIC_API_BASE}/repos` once at startup and exposes
+it to specs as a `{REPO_PATH}` template var (alongside `{BASE}`); flows
+navigate straight to `{BASE}{REPO_PATH}` instead of `{BASE}/` + waiting for
+the redirect. Flow `01-app-boot` deliberately keeps testing the `{BASE}/`
+redirect itself (that's the behavior it exercises), so it's unaffected. This
+still requires the demo repo to exist under that exact `full_name` — same
+precondition the suite always had (see `e2e/CLAUDE.md`'s "read-only seeded
+data" note) — it just no longer also requires it to be the *first* one.
 
 ## Tool & Library Notes
 

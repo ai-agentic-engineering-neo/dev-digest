@@ -7,6 +7,7 @@ Reusable AI skills that provide specialized knowledge and workflows. Canonical l
 | Skill | Scope | Description |
 |-------|-------|-------------|
 | [fastify-best-practices](fastify-best-practices/SKILL.md) | Backend | Fastify routes, plugins, JSON-schema validation, error handling |
+| [onion-architecture](onion-architecture/SKILL.md) | Backend | Onion layering for `server/`: dependency rule, ports & adapters, repositories, DI, `pnpm arch:check` |
 | [drizzle-orm-patterns](drizzle-orm-patterns/SKILL.md) | Backend | Drizzle schema, queries, relations, transactions, migrations |
 | [postgresql-table-design](postgresql-table-design/SKILL.md) | Backend | Postgres schema design, data types, indexing, constraints |
 | [next-best-practices](next-best-practices/SKILL.md) | Frontend | Next.js App Router, RSC boundaries, data fetching, optimization |

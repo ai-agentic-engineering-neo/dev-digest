@@ -23,3 +23,6 @@ test-results/
 
 # emdash worktree config (local)
 .emdash.json
+
+# pr-self-review output (per-run report + marker)
+.claude/pr-self-review/

@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { Gallery } from "./showcase";
-import { DiffViewer } from "../app/repos/[repoId]/pulls/[number]/_components/DiffTab/diff-viewer";
+import { DiffViewer } from "@/app/(shell)/repos/[repoId]/pulls/[number]/_components/DiffTab/diff-viewer";
 import type { PrFile } from "@devdigest/shared";
 import shellMessages from "../../messages/en/shell.json";
 

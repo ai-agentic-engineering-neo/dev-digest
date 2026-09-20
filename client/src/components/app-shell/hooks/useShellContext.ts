@@ -5,10 +5,10 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { type ShellContext } from "@devdigest/ui";
-import { useTheme } from "../../../lib/theme";
-import { useActiveRepo } from "../../../lib/repo-context";
-import { usePulls } from "../../../lib/api/pulls";
-import { useDeleteRepo } from "../../../lib/api/repos";
+import { useTheme } from "@/lib/theme";
+import { useActiveRepo } from "@/lib/repo-context";
+import { usePulls } from "@/lib/api/pulls";
+import { useDeleteRepo } from "@/lib/api/repos";
 import { activeKeyFor, toShellRepo } from "../helpers";
 
 interface ShellContextOptions {

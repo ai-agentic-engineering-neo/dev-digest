@@ -4,10 +4,11 @@
 "use client";
 
 import React from "react";
-import { AppFrame, CommandPalette, ShortcutsHelp, type Crumb } from "@devdigest/ui";
+import { AppFrame, CommandPalette, ShortcutsHelp } from "@devdigest/ui";
 import { useGlobalShortcuts, useShellCommands, useShellContext } from "./hooks";
+import { useCrumb } from "./crumb-context";
 
-export function AppShell({ children, crumb }: { children: React.ReactNode; crumb?: Crumb[] }) {
+export function AppShell({ children }: { children: React.ReactNode }) {
   const [paletteOpen, setPaletteOpen] = React.useState(false);
   const [helpOpen, setHelpOpen] = React.useState(false);
   const openPalette = React.useCallback(() => setPaletteOpen(true), []);
@@ -18,6 +19,7 @@ export function AppShell({ children, crumb }: { children: React.ReactNode; crumb
   useGlobalShortcuts({ onOpenPalette: openPalette, onOpenHelp: openHelp });
   const commands = useShellCommands();
   const ctx = useShellContext({ onOpenCommandPalette: openPalette });
+  const crumb = useCrumb();
 
   return (
     <>

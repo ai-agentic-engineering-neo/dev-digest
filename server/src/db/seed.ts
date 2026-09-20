@@ -6,7 +6,15 @@ import {
   GENERAL_REVIEWER_PROMPT,
   SECURITY_REVIEWER_PROMPT,
   PERFORMANCE_REVIEWER_PROMPT,
+  TEST_QUALITY_REVIEWER_PROMPT,
+  API_CONTRACT_REVIEWER_PROMPT,
 } from './seed-prompts.js';
+import {
+  TEST_COVERAGE_RUBRIC_SKILL,
+  TEST_SMELLS_SKILL,
+  API_BREAKING_CHANGES_SKILL,
+  API_VERSIONING_SKILL,
+} from './seed-skills.js';
 
 /** Default provider/model for the built-in reviewer agents. */
 const DEFAULT_PROVIDER = 'openrouter' as const;
@@ -17,12 +25,17 @@ const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
  * workspace/user and the demo fixtures.
  *
  * Seeds: default workspace + system user + membership, default settings,
- * demo repo (acme/payments-api), PR #482 with files/commits, a sample review
- * with a few findings, and the three built-in agents (General + Security +
- * Performance), all on the default openrouter/deepseek-v4-flash provider+model.
+ * demo repo (acme/payments-api), PRs #482/#483/#484 with files/commits, a sample
+ * review with a few findings, five built-in agents (General + Security +
+ * Performance + Test Quality + API Contract) on the default
+ * openrouter/deepseek-v4-flash provider+model, and the skills linked to the last
+ * two.
  *
- * Course lessons populate the other tables (skills, conventions, memory, eval,
- * …) once their features are built — they start empty here.
+ * #483 and #484 are the control-experiment fixtures: each carries a real patch
+ * whose defect its reviewer only names once the matching skill is attached.
+ *
+ * Course lessons populate the remaining tables (conventions, memory, eval, …)
+ * once their features are built — they start empty here.
  */
 
 export const DEFAULT_WORKSPACE_NAME = 'default';
@@ -175,6 +188,166 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
     ]);
   }
 
+  // ---- PR #483 / #484 (control-experiment fixtures) ----
+  // Both carry a real `patch`, which is what the review run reconstructs its
+  // diff from when the repo has no clone (see reviews/diff-loader.ts). Each
+  // defect is one its reviewer only names once the matching skill is attached:
+  //   #483 → a test that covers the happy path of a function full of guards
+  //   #484 → a route whose query contract changes under existing callers
+  const fixtures: Array<{
+    pr: Omit<typeof t.pullRequests.$inferInsert, 'workspaceId' | 'repoId'>;
+    files: Array<{ path: string; additions: number; deletions: number; patch: string }>;
+    commit: { sha: string; message: string; author: string };
+  }> = [
+    {
+      pr: {
+        number: 483,
+        title: 'Add refundPayment service + tests',
+        author: 'dan.oyelowo',
+        branch: 'feat/refund-service',
+        base: 'main',
+        headSha: 'b7c1d9e2f3a4',
+        additions: 46,
+        deletions: 0,
+        filesCount: 2,
+        status: 'needs_review',
+        body: 'Adds the refund service with full test coverage for the refund flow.',
+      },
+      files: [
+        {
+          path: 'src/services/refund.ts',
+          additions: 24,
+          deletions: 0,
+          patch: [
+            '@@ -0,0 +1,24 @@',
+            "+import { db } from '../db/client.js';",
+            '+',
+            '+export interface RefundResult {',
+            '+  id: string;',
+            '+  amount: number;',
+            "+  status: 'refunded' | 'partial';",
+            '+}',
+            '+',
+            '+export async function refundPayment(paymentId: string, amount: number): Promise<RefundResult> {',
+            '+  const payment = await db.payments.byId(paymentId);',
+            '+  if (!payment) {',
+            "+    throw new Error('payment ' + paymentId + ' not found');",
+            '+  }',
+            "+  if (payment.status === 'refunded') {",
+            "+    throw new Error('payment already refunded');",
+            '+  }',
+            '+  if (amount <= 0) {',
+            "+    throw new Error('refund amount must be positive');",
+            '+  }',
+            '+  if (amount > payment.amount) {',
+            "+    throw new Error('refund exceeds captured amount');",
+            '+  }',
+            "+  const status = amount === payment.amount ? 'refunded' : 'partial';",
+            '+  await db.payments.update(paymentId, { status, refundedAmount: amount });',
+            '+  return { id: paymentId, amount, status };',
+            '+}',
+          ].join('\n'),
+        },
+        {
+          path: 'src/services/refund.test.ts',
+          additions: 22,
+          deletions: 0,
+          patch: [
+            '@@ -0,0 +1,22 @@',
+            "+import { describe, it, expect, vi, type Mock } from 'vitest';",
+            "+import { db } from '../db/client.js';",
+            "+import { refundPayment } from './refund.js';",
+            '+',
+            "+vi.mock('../db/client.js', () => ({",
+            '+  db: { payments: { byId: vi.fn(), update: vi.fn() } },',
+            '+}));',
+            '+',
+            "+describe('refundPayment', () => {",
+            "+  it('refunds a captured payment', async () => {",
+            "+    (db.payments.byId as Mock).mockResolvedValue({ id: 'p1', amount: 100, status: 'captured' });",
+            '+    (db.payments.update as Mock).mockResolvedValue(undefined);',
+            '+',
+            "+    const result = await refundPayment('p1', 100);",
+            '+',
+            '+    expect(result).toBeDefined();',
+            '+    expect(db.payments.update).toHaveBeenCalled();',
+            '+  });',
+            '+});',
+          ].join('\n'),
+        },
+      ],
+      commit: {
+        sha: 'b7c1d9e2f3a4',
+        message: 'Add refundPayment service + tests',
+        author: 'dan.oyelowo',
+      },
+    },
+    {
+      pr: {
+        number: 484,
+        title: 'Scope the payments list to a customer',
+        author: 'marisa.koch',
+        branch: 'feat/payments-by-customer',
+        base: 'main',
+        headSha: 'c4e8a1b6d7f0',
+        additions: 12,
+        deletions: 8,
+        filesCount: 1,
+        status: 'needs_review',
+        body: 'Every caller of GET /payments wants one customer, so the query now takes customer_id.',
+      },
+      files: [
+        {
+          path: 'src/api/payments.ts',
+          additions: 12,
+          deletions: 8,
+          patch: [
+            '@@ -12,22 +12,26 @@ const ListQuery = z.object({',
+            ' const ListQuery = z.object({',
+            '-  limit: z.coerce.number().int().min(1).max(100).default(25),',
+            "-  status: z.enum(['captured', 'refunded', 'failed']).optional(),",
+            '+  page_size: z.coerce.number().int().min(1).max(50).default(25),',
+            "+  status: z.enum(['captured', 'refunded']),",
+            '+  customer_id: z.string().uuid(),',
+            ' });',
+            ' ',
+            " app.get('/payments', { schema: { querystring: ListQuery } }, async (req) => {",
+            '-  const { limit, status } = req.query;',
+            '-  const rows = await repo.list({ limit, status });',
+            '-  return rows.map(toPaymentDto);',
+            '+  const { page_size, status, customer_id } = req.query;',
+            '+  const rows = await repo.list({',
+            '+    limit: page_size,',
+            '+    status,',
+            '+    customerId: customer_id,',
+            '+  });',
+            '+  return { items: rows.map(toPaymentDto), page_size };',
+            ' });',
+          ].join('\n'),
+        },
+      ],
+      commit: {
+        sha: 'c4e8a1b6d7f0',
+        message: 'Scope the payments list to a customer',
+        author: 'marisa.koch',
+      },
+    },
+  ];
+
+  for (const fx of fixtures) {
+    const [existingPr] = await db
+      .select()
+      .from(t.pullRequests)
+      .where(and(eq(t.pullRequests.repoId, repoId), eq(t.pullRequests.number, fx.pr.number)));
+    if (existingPr) continue;
+    const [row] = await db
+      .insert(t.pullRequests)
+      .values({ workspaceId, repoId, ...fx.pr })
+      .returning();
+    await db.insert(t.prFiles).values(fx.files.map((f) => ({ prId: row!.id, ...f })));
+    await db.insert(t.prCommits).values({ prId: row!.id, ...fx.commit });
+  }
+
   // ---- built-in agents (the three starter presets) ----
   // Prompt bodies live in ./seed-prompts.ts (mirrored in docs/agent-prompts/*.md).
   const seedAgents: Array<typeof t.agents.$inferInsert> = [
@@ -211,6 +384,29 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       version: 1,
       createdBy: userId,
     },
+    {
+      workspaceId,
+      name: 'Test Quality Reviewer',
+      description:
+        'Judges the tests in a diff: uncovered branches, missing corner cases, over-mocking, flakes.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: TEST_QUALITY_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
+    {
+      workspaceId,
+      name: 'API Contract Reviewer',
+      description: 'Compares a route contract before and after the diff and flags what breaks callers.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: API_CONTRACT_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
   ];
   for (const a of seedAgents) {
     const [existing] = await db
@@ -218,6 +414,95 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       .from(t.agents)
       .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, a.name)));
     if (!existing) await db.insert(t.agents).values(a);
+  }
+
+  // ---- skills + agent links (L5) ----
+  // A skill's `description` is its interface: it is what tells a reader (and an
+  // agent's author) when the block applies, so it is written as an instruction.
+  // Bodies live in ./seed-skills.ts. Seeding writes v1 into skill_versions by
+  // hand — only the repository does that automatically.
+  const seedSkills: Array<typeof t.skills.$inferInsert> = [
+    {
+      workspaceId,
+      name: 'test-coverage-rubric',
+      description:
+        'Enumerate the branches and boundary values of the code under test, then report each one the tests leave uncovered.',
+      type: 'rubric',
+      source: 'manual',
+      body: TEST_COVERAGE_RUBRIC_SKILL,
+      enabled: true,
+      version: 1,
+    },
+    {
+      workspaceId,
+      name: 'test-smells',
+      description:
+        'Flag tests that cannot fail, mock away the code under test, or depend on time, ordering, or randomness.',
+      type: 'convention',
+      source: 'manual',
+      body: TEST_SMELLS_SKILL,
+      enabled: true,
+      version: 1,
+    },
+    {
+      workspaceId,
+      name: 'api-breaking-changes',
+      description:
+        'Compare the route contract before and after the diff and name every change that breaks an existing client.',
+      type: 'rubric',
+      source: 'manual',
+      body: API_BREAKING_CHANGES_SKILL,
+      enabled: true,
+      version: 1,
+    },
+    {
+      workspaceId,
+      name: 'api-versioning',
+      description:
+        'Check that a breaking contract change ships additively, versioned, or deprecated — and say what is missing.',
+      type: 'convention',
+      source: 'manual',
+      body: API_VERSIONING_SKILL,
+      enabled: true,
+      version: 1,
+    },
+  ];
+  for (const sk of seedSkills) {
+    const [existing] = await db
+      .select()
+      .from(t.skills)
+      .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.name, sk.name)));
+    if (existing) continue;
+    const [row] = await db.insert(t.skills).values(sk).returning();
+    await db
+      .insert(t.skillVersions)
+      .values({ skillId: row!.id, version: 1, body: sk.body })
+      .onConflictDoNothing();
+  }
+
+  // Array position is the link's `order`, which is the order the blocks appear
+  // in the assembled prompt.
+  const skillLinks: Record<string, string[]> = {
+    'Test Quality Reviewer': ['test-coverage-rubric', 'test-smells'],
+    'API Contract Reviewer': ['api-breaking-changes', 'api-versioning'],
+  };
+  for (const [agentName, skillNames] of Object.entries(skillLinks)) {
+    const [agent] = await db
+      .select()
+      .from(t.agents)
+      .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, agentName)));
+    if (!agent) continue;
+    for (const [order, skillName] of skillNames.entries()) {
+      const [skill] = await db
+        .select()
+        .from(t.skills)
+        .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.name, skillName)));
+      if (!skill) continue;
+      await db
+        .insert(t.agentSkills)
+        .values({ agentId: agent.id, skillId: skill.id, order, enabled: true })
+        .onConflictDoNothing();
+    }
   }
 
   return { workspaceId, userId };

@@ -39,10 +39,17 @@ export function FindingsPanel({
     [findings, hideLow, severity],
   );
 
-  // Reset focus when the visible list changes shape (filter/toggle change).
-  React.useEffect(() => {
+  // Filter changes reset keyboard focus back to the top — done in the
+  // handlers below (setHideLow/setSeverity) rather than an effect, since it's
+  // a direct response to those events, not a sync with anything external.
+  const toggleHideLow = (v: boolean) => {
+    setHideLow(v);
     setFocusIdx(0);
-  }, [hideLow, severity]);
+  };
+  const toggleSeverity = (sev: Severity) => {
+    setSeverity((cur) => (cur === sev ? null : sev));
+    setFocusIdx(0);
+  };
 
   // j/k navigation + a/d shortcuts on the focused finding (keyboard).
   React.useEffect(() => {
@@ -72,14 +79,14 @@ export function FindingsPanel({
                 severity={sev}
                 count={counts[sev]!}
                 active={severity === sev}
-                onClick={() => setSeverity((cur) => (cur === sev ? null : sev))}
+                onClick={() => toggleSeverity(sev)}
               />
             ))}
           </div>
         )}
         <div style={s.toggleGroup}>
           {t("panel.hideLowConfidence")}
-          <Toggle on={hideLow} onChange={setHideLow} size={16} />
+          <Toggle on={hideLow} onChange={toggleHideLow} size={16} />
         </div>
       </div>
 

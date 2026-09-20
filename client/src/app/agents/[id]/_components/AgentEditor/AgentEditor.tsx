@@ -20,7 +20,9 @@ export function AgentEditor({ agent, tab, onTab }: { agent: Agent; tab: string; 
         <Tabs tabs={tabs} value={tab} onChange={onTab} pad="0 24px" />
       </div>
       <div style={s.body}>
-        <ConfigTab agent={agent} />
+        {/* Remount on agent switch instead of an effect-driven state reset
+            inside ConfigTab — see ConfigTab.tsx. */}
+        <ConfigTab key={agent.id} agent={agent} />
       </div>
     </div>
   );

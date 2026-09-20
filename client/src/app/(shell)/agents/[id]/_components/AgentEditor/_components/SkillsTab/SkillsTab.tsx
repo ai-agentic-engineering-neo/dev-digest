@@ -58,7 +58,10 @@ export function SkillsTab({ agentId }: { agentId: string }) {
     commit([...attached, ...rest]);
   };
 
-  const linkedCount = rows.filter((r) => r.attached).length;
+  // What the badge counts is what a run will actually send: attached, on for
+  // this agent, and not globally disabled. Counting attachments instead would
+  // promise blocks the prompt never gets.
+  const effectiveCount = rows.filter((r) => r.attached && r.enabled && r.skill_enabled).length;
   const visible = filter.trim()
     ? rows.filter((r) => r.name.toLowerCase().includes(filter.trim().toLowerCase()))
     : rows;
@@ -68,7 +71,9 @@ export function SkillsTab({ agentId }: { agentId: string }) {
     <div style={s.wrap}>
       <div style={s.header}>
         <h2 style={s.h2}>{t("skills.title")}</h2>
-        <Badge>{t("skills.enabledCount", { linked: linkedCount, total: rows.length })}</Badge>
+        <span title={t("skills.enabledCountTitle")}>
+          <Badge>{t("skills.enabledCount", { count: effectiveCount, total: rows.length })}</Badge>
+        </span>
         <div style={s.filter}>
           <TextInput value={filter} onChange={setFilter} placeholder={t("skills.filterPlaceholder")} />
         </div>

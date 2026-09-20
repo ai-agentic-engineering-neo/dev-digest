@@ -84,7 +84,9 @@ describe("SkillsTab", () => {
   it("renders every workspace skill with the attached-count badge", () => {
     renderWithIntl();
     expect(screen.getByText("Skills")).toBeInTheDocument();
-    expect(screen.getByText("2 of 3 enabled")).toBeInTheDocument();
+    // s1 is attached and on; s3 is attached but off for this agent, so only one
+    // of the three actually reaches the prompt.
+    expect(screen.getByText("1 of 3 reach the prompt")).toBeInTheDocument();
     expect(screen.getByText("pr-rubric")).toBeInTheDocument();
     expect(screen.getByText("sec-check")).toBeInTheDocument();
     expect(screen.getByText("conv-style")).toBeInTheDocument();

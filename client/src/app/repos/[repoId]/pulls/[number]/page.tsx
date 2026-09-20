@@ -15,11 +15,18 @@ import { OverviewTab } from "./_components/OverviewTab";
 import { FindingsTab } from "./_components/FindingsTab";
 import { DiffTab } from "./_components/DiffTab";
 import RunTraceDrawer from "./_components/RunTraceDrawer";
-import { usePullDetail, usePulls } from "../../../../../lib/hooks";
+import { usePullDetail, usePulls } from "../../../../../lib/api/pulls";
 import { useQueryClient } from "@tanstack/react-query";
-import { usePrReviews, useCancelRun, usePrActiveRuns, usePrRuns, useDeleteRun } from "../../../../../lib/hooks/reviews";
+import {
+  usePrReviews,
+  useCancelRun,
+  usePrActiveRuns,
+  usePrRuns,
+  useDeleteRun,
+  reviewKeys,
+} from "../../../../../lib/api/reviews";
 import { useActiveRepo, useRepoNotFound } from "../../../../../lib/repo-context";
-import { ApiError } from "../../../../../lib/api";
+import { ApiError } from "../../../../../lib/api/client";
 import { githubPrUrl } from "../../../../../lib/github-urls";
 import type { FindingRecord } from "@devdigest/shared";
 
@@ -49,12 +56,12 @@ export default function PRDetailPage() {
   const reviewRunning = liveRunIds.length > 0;
   const cancel = useCancelRun();
   const invalidateActiveRuns = () => {
-    if (prId) qc.invalidateQueries({ queryKey: ["pr-active-runs", prId] });
+    if (prId) qc.invalidateQueries({ queryKey: reviewKeys.activeRuns(prId) });
   };
   // When a run settles (done OR failed) refresh the full run history too, so a
   // just-failed run shows up in "Run history" immediately — no page reload.
   const invalidateRunHistory = () => {
-    if (prId) qc.invalidateQueries({ queryKey: ["pr-runs", prId] });
+    if (prId) qc.invalidateQueries({ queryKey: reviewKeys.runs(prId) });
   };
 
   const tab = search.get("tab") ?? "overview";

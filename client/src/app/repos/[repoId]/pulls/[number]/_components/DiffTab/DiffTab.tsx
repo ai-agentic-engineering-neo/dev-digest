@@ -3,7 +3,7 @@
 import React from "react";
 import { SectionLabel, Button } from "@devdigest/ui";
 import { DiffViewer, type DiffCommentApi } from "@/components/diff-viewer";
-import { usePrComments, useCreatePrComment } from "@/lib/hooks/reviews";
+import { usePrComments, useCreatePrComment } from "@/lib/api/reviews";
 import { notify } from "@/lib/toast";
 import type { PrFile } from "@devdigest/shared";
 

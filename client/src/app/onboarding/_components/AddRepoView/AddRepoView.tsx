@@ -7,8 +7,8 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import { Button, Icon, IconBtn, Kbd, TextInput, FormField } from "@devdigest/ui";
-import { useAddRepo } from "@/lib/hooks";
-import { ApiError } from "@/lib/api";
+import { useAddRepo } from "@/lib/api/repos";
+import { ApiError } from "@/lib/api/client";
 
 export function AddRepoView() {
   const router = useRouter();

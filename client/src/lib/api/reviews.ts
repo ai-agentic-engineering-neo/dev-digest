@@ -1,19 +1,19 @@
-/* hooks/reviews.ts — React Query + SSE hooks for the A2 reviewer.
+/* api/reviews.ts — React Query + SSE hooks for the A2 reviewer.
    Run a review, stream RunEvents live, act on findings. */
-"use client";
 
 import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api, API_BASE } from "../api";
+import { api, API_BASE } from "./client";
 import { notify } from "../toast";
-import type {
-  FindingActionKind,
-  PrReviewComment,
-  ReviewRecord,
-  ReviewRunResponse,
-  RunEvent,
-  RunSummary,
-} from "@devdigest/shared";
+import { PrReviewComment, ReviewRecord, ReviewRunResponse, RunSummary } from "@devdigest/shared";
+import type { FindingActionKind, RunEvent } from "@devdigest/shared";
+
+export const reviewKeys = {
+  activeRuns: (prId: string | null | undefined) => ["pr-active-runs", prId] as const,
+  runs: (prId: string | null | undefined) => ["pr-runs", prId] as const,
+  list: (prId: string | null | undefined) => ["reviews", prId] as const,
+  comments: (prId: string | null | undefined) => ["pr-comments", prId] as const,
+};
 
 // ---- Active (in-flight) runs — server-side source of truth ----
 export interface ActiveRun {
@@ -27,7 +27,8 @@ export interface ActiveRun {
    Survives reloads/devices; polls while anything is running so it self-clears. */
 export function usePrActiveRuns(prId: string | null | undefined) {
   return useQuery({
-    queryKey: ["pr-active-runs", prId],
+    queryKey: reviewKeys.activeRuns(prId),
+    // TODO(step 3): parse with contract schema
     queryFn: () => api.get<ActiveRun[]>(`/pulls/${prId}/runs/active`),
     enabled: !!prId,
     refetchInterval: (query) => ((query.state.data?.length ?? 0) > 0 ? 4000 : false),
@@ -39,8 +40,8 @@ export function usePrActiveRuns(prId: string | null | undefined) {
    reload (DB-backed). Polls while anything is running so it self-updates. */
 export function usePrRuns(prId: string | null | undefined) {
   return useQuery({
-    queryKey: ["pr-runs", prId],
-    queryFn: () => api.get<RunSummary[]>(`/pulls/${prId}/runs`),
+    queryKey: reviewKeys.runs(prId),
+    queryFn: () => api.get(`/pulls/${prId}/runs`, RunSummary.array()),
     enabled: !!prId,
     refetchInterval: (query) =>
       (query.state.data ?? []).some((r) => r.status === "running") ? 4000 : false,
@@ -54,8 +55,8 @@ export function usePrRuns(prId: string | null | undefined) {
 // cached for any other caller (including the PR detail page).
 export function usePrReviews(prId: string | null | undefined, enabled = true) {
   return useQuery({
-    queryKey: ["reviews", prId],
-    queryFn: () => api.get<ReviewRecord[]>(`/pulls/${prId}/reviews`),
+    queryKey: reviewKeys.list(prId),
+    queryFn: () => api.get(`/pulls/${prId}/reviews`, ReviewRecord.array()),
     enabled: !!prId && enabled,
   });
 }
@@ -64,12 +65,13 @@ export function usePrReviews(prId: string | null | undefined, enabled = true) {
 export function useDeleteRun(prId: string | null | undefined) {
   const qc = useQueryClient();
   return useMutation({
+    // TODO(step 3): parse with contract schema
     mutationFn: (runId: string) => api.del<{ ok: boolean }>(`/runs/${runId}`),
     // Deleting a run also deletes the review it produced (server-side), so drop
     // both the timeline and the Review Runs list from cache.
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["pr-runs", prId] });
-      qc.invalidateQueries({ queryKey: ["reviews", prId] });
+      qc.invalidateQueries({ queryKey: reviewKeys.runs(prId) });
+      qc.invalidateQueries({ queryKey: reviewKeys.list(prId) });
     },
   });
 }
@@ -77,6 +79,7 @@ export function useDeleteRun(prId: string | null | undefined) {
 /** Request cancellation of an in-flight run (takes effect at the next step). */
 export function useCancelRun() {
   return useMutation({
+    // TODO(step 3): parse with contract schema
     mutationFn: (runId: string) => api.post<{ ok: boolean }>(`/runs/${runId}/cancel`),
   });
 }
@@ -85,8 +88,9 @@ export function useCancelRun() {
 export function useDeleteReview(prId: string | null | undefined) {
   const qc = useQueryClient();
   return useMutation({
+    // TODO(step 3): parse with contract schema
     mutationFn: (reviewId: string) => api.del<{ ok: boolean }>(`/reviews/${reviewId}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["reviews", prId] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: reviewKeys.list(prId) }),
   });
 }
 
@@ -94,8 +98,8 @@ export function useDeleteReview(prId: string | null | undefined) {
 /** Existing GitHub PR review comments, fetched live. */
 export function usePrComments(prId: string | null | undefined) {
   return useQuery({
-    queryKey: ["pr-comments", prId],
-    queryFn: () => api.get<PrReviewComment[]>(`/pulls/${prId}/comments`),
+    queryKey: reviewKeys.comments(prId),
+    queryFn: () => api.get(`/pulls/${prId}/comments`, PrReviewComment.array()),
     enabled: !!prId,
   });
 }
@@ -113,8 +117,8 @@ export function useCreatePrComment(prId: string | null | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: CreateCommentInput) =>
-      api.post<PrReviewComment>(`/pulls/${prId}/comments`, input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["pr-comments", prId] }),
+      api.post(`/pulls/${prId}/comments`, input, PrReviewComment),
+    onSuccess: () => qc.invalidateQueries({ queryKey: reviewKeys.comments(prId) }),
   });
 }
 
@@ -129,12 +133,16 @@ export function useRunReview() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ prId, agentId, all }: RunReviewInput) =>
-      api.post<ReviewRunResponse>(`/pulls/${prId}/review`, {
-        ...(agentId ? { agentId } : {}),
-        ...(all ? { all } : {}),
-      }),
+      api.post(
+        `/pulls/${prId}/review`,
+        {
+          ...(agentId ? { agentId } : {}),
+          ...(all ? { all } : {}),
+        },
+        ReviewRunResponse,
+      ),
     onSuccess: (_d, { prId }) => {
-      qc.invalidateQueries({ queryKey: ["reviews", prId] });
+      qc.invalidateQueries({ queryKey: reviewKeys.list(prId) });
     },
   });
 }
@@ -154,12 +162,13 @@ export function useFindingAction() {
       reply?: string;
       prId?: string;
     }) =>
+      // TODO(step 3): parse with contract schema
       api.post<{ finding: ReviewRecord["findings"][number]; memoryId?: string }>(
         `/findings/${findingId}/${action}`,
         reply ? { reply } : undefined,
       ),
     onSuccess: (_d, { prId }) => {
-      if (prId) qc.invalidateQueries({ queryKey: ["reviews", prId] });
+      if (prId) qc.invalidateQueries({ queryKey: reviewKeys.list(prId) });
     },
   });
 }

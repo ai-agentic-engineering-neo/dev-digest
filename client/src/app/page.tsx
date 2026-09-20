@@ -3,7 +3,7 @@
 
 import React from "react";
 import { useRouter } from "next/navigation";
-import { useRepos } from "../lib/hooks";
+import { useRepos } from "../lib/api/repos";
 import { AppShell } from "../components/app-shell";
 import { PageContainer } from "../components/page-shell";
 import { EmptyState, Button, Skeleton } from "@devdigest/ui";

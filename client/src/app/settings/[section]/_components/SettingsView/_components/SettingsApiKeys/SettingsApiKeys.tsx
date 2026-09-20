@@ -3,8 +3,8 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Button, Icon, FormField, TextInput } from "@devdigest/ui";
-import { useTestConnection, useSecretsStatus } from "../../../../../../../lib/hooks";
-import { ApiError } from "../../../../../../../lib/api";
+import { useTestConnection, useSecretsStatus } from "../../../../../../../lib/api/settings";
+import { ApiError } from "../../../../../../../lib/api/client";
 import type { ConnTestProvider } from "../../../../../../../lib/types";
 import { SectionTitle } from "../SectionTitle";
 import { KEY_ROWS } from "./constants";

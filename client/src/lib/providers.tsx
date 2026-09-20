@@ -11,7 +11,7 @@ import {
 import { ThemeProvider } from "./theme";
 import { RepoProvider } from "./repo-context";
 import { ToastProvider, notify } from "./toast";
-import { ApiError } from "./api";
+import { ApiError } from "./api/client";
 
 function errorMessage(e: unknown): string {
   if (e instanceof Error) return e.message;

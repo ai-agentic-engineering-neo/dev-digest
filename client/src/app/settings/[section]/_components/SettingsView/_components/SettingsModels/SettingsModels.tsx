@@ -3,8 +3,8 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { FormField, SearchableSelect, Icon } from "@devdigest/ui";
-import { useSettings, useUpdateSettings } from "../../../../../../../lib/hooks";
-import { useProviderModels } from "../../../../../../../lib/hooks/agents";
+import { useSettings, useUpdateSettings } from "../../../../../../../lib/api/settings";
+import { useProviderModels } from "../../../../../../../lib/api/agents";
 import { toModelOptions } from "../../../../../../../lib/model-label";
 import { FEATURE_MODELS } from "@devdigest/shared";
 import type { FeatureModelChoice, FeatureModelId } from "../../../../../../../lib/types";

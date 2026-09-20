@@ -13,9 +13,10 @@ import {
 } from "@devdigest/ui";
 import { AppShell } from "@/components/app-shell";
 import { RepoNotFound } from "@/components/repo-not-found";
-import { usePulls, useRefreshRepo } from "@/lib/hooks";
+import { usePulls } from "@/lib/api/pulls";
+import { useRefreshRepo } from "@/lib/api/repos";
 import { useActiveRepo, useRepoNotFound } from "@/lib/repo-context";
-import { ApiError } from "@/lib/api";
+import { ApiError } from "@/lib/api/client";
 import { COLUMN_KEYS, SKELETON_ROWS } from "./constants";
 import { s } from "./styles";
 import { PRRow } from "./_components/PRRow";

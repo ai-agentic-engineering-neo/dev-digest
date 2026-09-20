@@ -7,7 +7,7 @@ import { useTranslations } from "next-intl";
 import { Icon, Avatar, Badge, CircularScore, SeverityBadge } from "@devdigest/ui";
 import type { PrMeta } from "@/lib/types";
 import { formatCost } from "@/lib/format";
-import { usePrReviews } from "../../../../../../lib/hooks/reviews";
+import { usePrReviews } from "../../../../../../lib/api/reviews";
 import { FindingsPreviewCard } from "@/components/findings-preview";
 import { SIZE_COLOR, STATUS_META } from "../../constants";
 import { latestFindingsPerAgent, presentFindingsSeverities, relativeTime, sizeOf } from "../../helpers";

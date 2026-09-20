@@ -19,10 +19,10 @@ const TRACE: RunTrace = {
   ],
 };
 
-vi.mock("../../../../../../../lib/hooks/trace", () => ({
+vi.mock("../../../../../../../lib/api/trace", () => ({
   useRunTrace: () => ({ data: TRACE, isLoading: false }),
 }));
-vi.mock("../../../../../../../lib/hooks/reviews", () => ({
+vi.mock("../../../../../../../lib/api/reviews", () => ({
   useRunEvents: () => ({ events: [], running: false }),
 }));
 

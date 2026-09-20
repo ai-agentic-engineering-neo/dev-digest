@@ -1,13 +1,16 @@
-/* hooks/repo-intel.ts — React Query hooks for the repo-intel (T3) index state.
-   Mirrors hooks/context.ts (useIndexStatus/useReindex) but targets the
+/* api/repo-intel.ts — React Query hooks for the repo-intel (T3) index state.
+   Mirrors api/context.ts (useContextFiles/useReindexContext) but targets the
    repo-intel facade's HTTP surface:
      GET  /repos/:id/index-state  → RepoIntelState
      POST /repos/:id/resync       → fetch latest from origin + incremental
                                      reindex (202). NOT a destructive re-clone. */
-"use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "../api";
+import { api } from "./client";
+
+export const repoIntelKeys = {
+  state: (repoId: string | null | undefined) => ["repo-intel-state", repoId] as const,
+};
 
 /** Subset of the server's IndexState the badge + completion-poll need (kept
     local — not in @devdigest/shared, since repo-intel types live server-side). */
@@ -30,7 +33,8 @@ export interface RepoIntelState {
     `lastIndexedSha`/`updatedAt` advance, not by status). */
 export function useRepoIntelStatus(repoId: string | null | undefined, poll = false) {
   return useQuery({
-    queryKey: ["repo-intel-state", repoId],
+    queryKey: repoIntelKeys.state(repoId),
+    // TODO(step 3): parse with contract schema
     queryFn: () => api.get<RepoIntelState>(`/repos/${repoId}/index-state`),
     enabled: !!repoId,
     refetchInterval: poll ? 1500 : false,
@@ -41,9 +45,10 @@ export function useRepoIntelStatus(repoId: string | null | undefined, poll = fal
 export function useResyncRepoIntel(repoId: string | null | undefined) {
   const qc = useQueryClient();
   return useMutation({
+    // TODO(step 3): parse with contract schema
     mutationFn: () => api.post<{ status: string }>(`/repos/${repoId}/resync`),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["repo-intel-state", repoId] });
+      qc.invalidateQueries({ queryKey: repoIntelKeys.state(repoId) });
     },
   });
 }

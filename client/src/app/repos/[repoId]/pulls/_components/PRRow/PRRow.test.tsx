@@ -18,7 +18,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 const mockUsePrReviews = vi.fn();
-vi.mock("../../../../../../lib/hooks/reviews", () => ({
+vi.mock("../../../../../../lib/api/reviews", () => ({
   usePrReviews: (...args: unknown[]) => mockUsePrReviews(...args),
 }));
 

@@ -8,6 +8,7 @@ import { useTranslations } from "next-intl";
 import { Tabs } from "@devdigest/ui";
 import type { Agent } from "@devdigest/shared";
 import { ConfigTab } from "./_components/ConfigTab";
+import { SkillsTab } from "./_components/SkillsTab";
 import { TABS } from "./constants";
 import { s } from "./styles";
 
@@ -21,8 +22,8 @@ export function AgentEditor({ agent, tab, onTab }: { agent: Agent; tab: string; 
       </div>
       <div style={s.body}>
         {/* Remount on agent switch instead of an effect-driven state reset
-            inside ConfigTab — see ConfigTab.tsx. */}
-        <ConfigTab key={agent.id} agent={agent} />
+            inside the tab bodies — see ConfigTab.tsx. */}
+        {tab === "skills" ? <SkillsTab key={agent.id} agentId={agent.id} /> : <ConfigTab key={agent.id} agent={agent} />}
       </div>
     </div>
   );

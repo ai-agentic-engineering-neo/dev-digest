@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { deflateRawSync } from "node:zlib";
 import {
+  MAX_SKILL_BYTES,
   baseName,
   guessType,
   ignoredEntries,
@@ -216,5 +217,29 @@ describe("guessType / baseName", () => {
 
   it("turns a file name into a skill name", () => {
     expect(baseName("pr quality_rubric.md")).toBe("pr-quality-rubric");
+  });
+});
+
+/**
+ * A zip bomb is small on disk and enormous once inflated, so the ceiling has
+ * to hold on the real output, not on what the archive claims about itself.
+ */
+describe("decompression ceiling", () => {
+  it("refuses an entry whose declared size is over the cap", async () => {
+    const buf = zipWithDeflatedFiles([{ name: "SKILL.md", content: "# Small\n" }]);
+    const [entry] = readZipEntries(buf);
+    await expect(readZipText(buf, { ...entry!, size: MAX_SKILL_BYTES + 1 })).rejects.toThrow(
+      /too large/,
+    );
+  });
+
+  it("refuses an entry that lies about its size and inflates past the cap", async () => {
+    // 4 MB of zeroes compresses to a few KB — the declared size is under the
+    // cap, so only the running total can catch it.
+    const big = "0".repeat(4 * 1024 * 1024);
+    const buf = zipWithDeflatedFiles([{ name: "SKILL.md", content: big }]);
+    const [entry] = readZipEntries(buf);
+    expect(entry!.compressedSize).toBeLessThan(MAX_SKILL_BYTES);
+    await expect(readZipText(buf, { ...entry!, size: 10 })).rejects.toThrow(/too large/);
   });
 });

@@ -11,6 +11,7 @@ import type {
   SkillType,
 } from '@devdigest/shared';
 import { AgentsRepository } from './repository.js';
+import { ValidationError } from '../../platform/errors.js';
 import { toAgentDto, toAgentVersionDto, type SkillLinkInput } from './helpers.js';
 
 /**
@@ -142,8 +143,8 @@ export class AgentsService {
    * fields plus the skill's own name/description/type/source/enabled, so the
    * agent editor's Skills tab needs one request.
    */
-  async skillLinks(agentId: string): Promise<AgentAttachedSkill[]> {
-    const links = await this.repo.linkedSkills(agentId);
+  async skillLinks(workspaceId: string, agentId: string): Promise<AgentAttachedSkill[]> {
+    const links = await this.repo.linkedSkills(workspaceId, agentId);
     return links.map((l) => ({
       agent_id: agentId,
       skill_id: l.skill.id,
@@ -169,8 +170,12 @@ export class AgentsService {
   ): Promise<AgentAttachedSkill[] | undefined> {
     const agent = await this.repo.getById(workspaceId, agentId);
     if (!agent) return undefined;
+    await this.assertSkillsInWorkspace(
+      workspaceId,
+      skills.map((s) => s.id),
+    );
     await this.repo.setSkills(agentId, skills);
-    return this.skillLinks(agentId);
+    return this.skillLinks(workspaceId, agentId);
   }
 
   /** Link a single skill (append or set order) — additive to existing links. */
@@ -182,10 +187,27 @@ export class AgentsService {
   ): Promise<AgentAttachedSkill[] | undefined> {
     const agent = await this.repo.getById(workspaceId, agentId);
     if (!agent) return undefined;
-    const existing = await this.repo.linkedSkills(agentId);
+    await this.assertSkillsInWorkspace(workspaceId, [skillId]);
+    const existing = await this.repo.linkedSkills(workspaceId, agentId);
     const resolvedOrder = order ?? existing.length;
     await this.repo.linkSkill(agentId, skillId, resolvedOrder);
-    return this.skillLinks(agentId);
+    return this.skillLinks(workspaceId, agentId);
+  }
+
+  /**
+   * Every skill id must belong to the caller's workspace. The agent's owner is
+   * checked by `getById`; without this the skill's never was, so a caller could
+   * attach another workspace's skill to their own agent and read its body back
+   * — through the editor tab, and through the next review prompt.
+   *
+   * Rejects instead of dropping: a silently ignored id looks like a UI bug.
+   */
+  private async assertSkillsInWorkspace(workspaceId: string, ids: string[]): Promise<void> {
+    const known = await this.container.skillsRepo.idsInWorkspace(workspaceId, ids);
+    const unknown = ids.filter((id) => !known.has(id));
+    if (unknown.length > 0) {
+      throw new ValidationError(`Unknown skill(s): ${unknown.join(', ')}`);
+    }
   }
 
   /**

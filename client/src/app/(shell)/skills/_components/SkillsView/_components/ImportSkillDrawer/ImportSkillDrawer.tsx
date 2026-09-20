@@ -21,6 +21,7 @@ import { useCreateSkill } from "@/lib/api/skills";
 import { useToast } from "@/lib/toast";
 import { skillTypeOptions } from "../../helpers";
 import {
+  MAX_ARCHIVE_BYTES,
   baseName,
   guessType,
   ignoredEntries,
@@ -57,6 +58,11 @@ export function ImportSkillDrawer({ onClose }: { onClose: () => void }) {
 
   const read = async (file: File) => {
     setError(null);
+    // Checked before the bytes are ever read: a zip bomb is small on disk.
+    if (file.size > MAX_ARCHIVE_BYTES) {
+      setError(t("file.tooLarge"));
+      return;
+    }
     try {
       if (/\.zip$/i.test(file.name)) {
         const buf = await file.arrayBuffer();

@@ -111,7 +111,8 @@
     "descriptionHint": "The skill's interface — say directively when an agent should apply it.",
     "previewLabel": "Body preview",
     "disabledNotice": "Imported skills arrive disabled. Read the body, then enable it on the Skills page.",
-    "back": "← Choose another file"
+    "back": "← Choose another file",
+    "tooLarge": "That file is too large to import. A skill is Markdown — keep it under 10 MB."
   },
   "url": {
     "label": "Skill URL",

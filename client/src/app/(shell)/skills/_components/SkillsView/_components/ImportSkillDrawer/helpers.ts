@@ -11,6 +11,15 @@ export interface ArchiveEntry {
   localOffset: number;
 }
 
+/**
+ * Ceilings for an imported archive. A skill body is Markdown — a couple of
+ * hundred KB is already generous — while DEFLATE reaches ~1000:1, so a small
+ * upload can expand to gigabytes and hang the tab. Both limits are cheap to
+ * raise and expensive to omit.
+ */
+export const MAX_ARCHIVE_BYTES = 10 * 1024 * 1024;
+export const MAX_SKILL_BYTES = 2 * 1024 * 1024;
+
 const SIG_EOCD = 0x06054b50;
 const SIG_CENTRAL = 0x02014b50;
 const SIG_LOCAL = 0x04034b50;
@@ -75,10 +84,15 @@ export async function readZipText(buf: ArrayBuffer, entry: ArchiveEntry): Promis
   if (entry.method === 0) return DEC.decode(new Uint8Array(buf, start, entry.size));
   if (entry.method !== 8) throw new Error("unsupported compression");
 
+  if (entry.size > MAX_SKILL_BYTES) throw new Error("skill file too large");
+
   const ds = new DecompressionStream("deflate-raw");
   const writer = ds.writable.getWriter();
-  void writer.write(new Uint8Array(buf, start, entry.compressedSize));
-  void writer.close();
+  // Swallowed on purpose: when the read loop cancels (over the cap, or a
+  // corrupt stream) these reject with the same failure the reader already
+  // throws, and an unhandled rejection would surface as noise in the console.
+  writer.write(new Uint8Array(buf, start, entry.compressedSize)).catch(() => {});
+  writer.close().catch(() => {});
 
   const reader = ds.readable.getReader();
   const chunks: Uint8Array[] = [];
@@ -88,6 +102,11 @@ export async function readZipText(buf: ArrayBuffer, entry: ArchiveEntry): Promis
     if (done) break;
     chunks.push(value);
     total += value.length;
+    // The declared size is the archive's own claim; this is the real one.
+    if (total > MAX_SKILL_BYTES) {
+      await reader.cancel();
+      throw new Error("skill file too large");
+    }
   }
   const out = new Uint8Array(total);
   let at = 0;

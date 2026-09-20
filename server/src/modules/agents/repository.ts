@@ -102,7 +102,7 @@ export class AgentsRepository {
         createdBy: values.createdBy ?? null,
       })
       .returning();
-    await this.snapshotVersion(row!, INITIAL_AGENT_VERSION);
+    await this.snapshotVersion(values.workspaceId, row!, INITIAL_AGENT_VERSION);
     return row!;
   }
 
@@ -142,12 +142,16 @@ export class AgentsRepository {
       .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.id, id)))
       .returning();
 
-    if (configChanged && row) await this.snapshotVersion(row, nextVersion);
+    if (configChanged && row) await this.snapshotVersion(workspaceId, row, nextVersion);
     return row;
   }
 
-  private async snapshotVersion(row: AgentRow, version: number): Promise<void> {
-    const skills = await this.skillIdsForAgent(row.id);
+  private async snapshotVersion(
+    workspaceId: string,
+    row: AgentRow,
+    version: number,
+  ): Promise<void> {
+    const skills = await this.skillIdsForAgent(workspaceId, row.id);
     await this.db
       .insert(t.agentVersions)
       .values({
@@ -189,19 +193,24 @@ export class AgentsRepository {
 
   // ---- agent_skills link table (A2 owns the agent side) -------------------
 
-  /** Skills linked to an agent, in `order` ascending. */
-  async linkedSkills(agentId: string): Promise<LinkedSkillRow[]> {
+  /**
+   * Skills linked to an agent, in `order` ascending, restricted to the
+   * workspace. The join is scoped as well as the write: a stray cross-tenant
+   * row — however it got there — must never be readable, and this query feeds
+   * both the editor tab and the review prompt.
+   */
+  async linkedSkills(workspaceId: string, agentId: string): Promise<LinkedSkillRow[]> {
     const rows = await this.db
       .select({ skill: t.skills, order: t.agentSkills.order, enabled: t.agentSkills.enabled })
       .from(t.agentSkills)
       .innerJoin(t.skills, eq(t.agentSkills.skillId, t.skills.id))
-      .where(eq(t.agentSkills.agentId, agentId))
+      .where(and(eq(t.agentSkills.agentId, agentId), eq(t.skills.workspaceId, workspaceId)))
       .orderBy(asc(t.agentSkills.order));
     return rows.map((r) => ({ skill: r.skill, order: r.order, enabled: r.enabled }));
   }
 
-  async skillIdsForAgent(agentId: string): Promise<string[]> {
-    const links = await this.linkedSkills(agentId);
+  async skillIdsForAgent(workspaceId: string, agentId: string): Promise<string[]> {
+    const links = await this.linkedSkills(workspaceId, agentId);
     return links.map((l) => l.skill.id);
   }
 

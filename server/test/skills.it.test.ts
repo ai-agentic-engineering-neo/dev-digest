@@ -179,6 +179,57 @@ d('skills module', () => {
     await app.close();
   });
 
+  it("refuses to link another workspace's skill to your agent", async () => {
+    const { db } = pg.handle;
+    const [otherWs] = await db.insert(t.workspaces).values({ name: 'other-link' }).returning();
+    const [foreign] = await db
+      .insert(t.skills)
+      .values({
+        workspaceId: otherWs!.id,
+        name: 'Foreign rubric',
+        description: 'belongs to someone else',
+        type: 'rubric',
+        source: 'manual',
+        body: 'PROPRIETARY',
+      })
+      .returning();
+
+    const app = await makeApp();
+    const agentId = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: {
+          name: `Link guard ${Date.now()}`,
+          provider: 'openai',
+          model: 'gpt-4.1',
+          system_prompt: 'p',
+        },
+      })
+    ).json().id as string;
+
+    // Both shapes of the endpoint must refuse it — the agent is ours, the skill
+    // is not. 422 is this codebase's status for a rejected payload.
+    const set = await app.inject({
+      method: 'POST',
+      url: `/agents/${agentId}/skills`,
+      payload: { skill_ids: [{ id: foreign!.id, enabled: true }] },
+    });
+    expect(set.statusCode).toBe(422);
+
+    const one = await app.inject({
+      method: 'POST',
+      url: `/agents/${agentId}/skills`,
+      payload: { skill_id: foreign!.id },
+    });
+    expect(one.statusCode).toBe(422);
+
+    // And nothing was linked, so the foreign body can never reach a prompt.
+    const links = await app.inject({ method: 'GET', url: `/agents/${agentId}/skills` });
+    expect(links.json()).toEqual([]);
+    await app.close();
+  });
+
   it('POST /agents/:id/skills (object form) persists per-link enabled and order; GET hydrates them', async () => {
     const app = await makeApp();
 

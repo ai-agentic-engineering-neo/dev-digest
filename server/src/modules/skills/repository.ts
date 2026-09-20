@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import type { SkillSource, SkillType } from '@devdigest/shared';
@@ -122,6 +122,21 @@ export class SkillsRepository {
       }
       return row;
     });
+  }
+
+  /**
+   * Which of `ids` actually belong to this workspace. Used before linking a
+   * skill to an agent: the agent's ownership is checked, and the skill's has to
+   * be too, or a caller could attach — and then read the body of — another
+   * workspace's skill.
+   */
+  async idsInWorkspace(workspaceId: string, ids: string[]): Promise<Set<string>> {
+    if (ids.length === 0) return new Set();
+    const rows = await this.db
+      .select({ id: t.skills.id })
+      .from(t.skills)
+      .where(and(eq(t.skills.workspaceId, workspaceId), inArray(t.skills.id, ids)));
+    return new Set(rows.map((r) => r.id));
   }
 
   /** Delete a skill (scoped to workspace); skill_versions/agent_skills cascade. */

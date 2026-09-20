@@ -187,7 +187,7 @@ export class ReviewRunExecutor {
       // L5 — the agent's enabled skills, in link order. Independent of
       // repo-intel: skills are the user's own prompt blocks, not derived
       // context. No enabled skills → the section is absent from the prompt.
-      const skills = await this.buildSkillBlocks(agent.id, runLog);
+      const skills = await this.buildSkillBlocks(workspaceId, agent.id, runLog);
 
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
@@ -376,8 +376,12 @@ export class ReviewRunExecutor {
    * sitting inside our prompt. The token line mirrors the repo-map one so the
    * run trace shows what each slot cost.
    */
-  private async buildSkillBlocks(agentId: string, runLog: RunLogger): Promise<string[]> {
-    const links = await this.container.agentsRepo.linkedSkills(agentId);
+  private async buildSkillBlocks(
+    workspaceId: string,
+    agentId: string,
+    runLog: RunLogger,
+  ): Promise<string[]> {
+    const links = await this.container.agentsRepo.linkedSkills(workspaceId, agentId);
     const blocks = skillPromptBlocks(links);
     if (blocks.length === 0) return [];
     const tokens = this.container.tokenizer.count(blocks.join('\n\n'));

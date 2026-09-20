@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { Button, Icon, FormField, TextInput } from "@devdigest/ui";
 import { useTestConnection, useSecretsStatus } from "../../../../../../../lib/api/settings";
 import { ApiError } from "../../../../../../../lib/api/client";
-import type { ConnTestProvider } from "../../../../../../../lib/types";
+import type { ConnTestProvider } from "@devdigest/shared";
 import { SectionTitle } from "../SectionTitle";
 import { KEY_ROWS } from "./constants";
 import { s } from "./styles";

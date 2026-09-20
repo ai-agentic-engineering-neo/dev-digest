@@ -6,7 +6,7 @@
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import type { PrFile } from "@/lib/types";
+import type { PrFile } from "@devdigest/shared";
 import { type DiffCommentApi } from "../comments";
 import { s } from "../styles";
 import { FileCard } from "../FileCard";

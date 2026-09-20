@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
+import { CreateAgentInput, Provider, UpdateAgentInput } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { NotFoundError } from '../../platform/errors.js';
@@ -30,32 +30,6 @@ const VersionParams = z.object({
  *   GET    /providers/:id/models    → dynamic model list for a provider (editor)
  */
 
-const CreateAgentBody = z.object({
-  name: z.string().min(1),
-  description: z.string().optional(),
-  provider: Provider,
-  model: z.string().min(1),
-  system_prompt: z.string().min(1),
-  output_schema: z.unknown().optional(),
-  strategy: ReviewStrategy.optional(),
-  ci_fail_on: CiFailOn.optional(),
-  repo_intel: z.boolean().optional(),
-  enabled: z.boolean().optional(),
-});
-
-const UpdateAgentBody = z.object({
-  name: z.string().min(1).optional(),
-  description: z.string().optional(),
-  provider: Provider.optional(),
-  model: z.string().min(1).optional(),
-  system_prompt: z.string().min(1).optional(),
-  output_schema: z.unknown().optional(),
-  strategy: ReviewStrategy.optional(),
-  ci_fail_on: CiFailOn.optional(),
-  repo_intel: z.boolean().optional(),
-  enabled: z.boolean().optional(),
-});
-
 /** Either set the whole ordered set (`skill_ids`) or link one (`skill_id`). */
 const SetSkillsBody = z
   .object({
@@ -83,7 +57,7 @@ export default async function agentsRoutes(appBase: FastifyInstance) {
     return agent;
   });
 
-  app.post('/agents', { schema: { body: CreateAgentBody } }, async (req, reply) => {
+  app.post('/agents', { schema: { body: CreateAgentInput } }, async (req, reply) => {
     const { workspaceId, userId } = await getContext(app.container, req);
     const body = req.body;
     const agent = await service.create(
@@ -108,7 +82,7 @@ export default async function agentsRoutes(appBase: FastifyInstance) {
 
   app.put(
     '/agents/:id',
-    { schema: { params: IdParams, body: UpdateAgentBody } },
+    { schema: { params: IdParams, body: UpdateAgentInput } },
     async (req) => {
       const { workspaceId } = await getContext(app.container, req);
       const agent = await service.update(workspaceId, req.params.id, req.body);

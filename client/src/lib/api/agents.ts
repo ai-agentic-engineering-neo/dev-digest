@@ -2,8 +2,8 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
-import { Agent, ModelInfo } from "@devdigest/shared";
-import type { Provider, ReviewStrategy } from "@devdigest/shared";
+import { Agent, CreateAgentInput, ModelInfo, UpdateAgentInput } from "@devdigest/shared";
+import type { Provider } from "@devdigest/shared";
 
 export const agentKeys = {
   all: ["agents"] as const,
@@ -29,17 +29,6 @@ export function useAgent(id: string | null | undefined) {
   });
 }
 
-export interface CreateAgentInput {
-  name: string;
-  description?: string;
-  provider: Provider;
-  model: string;
-  system_prompt: string;
-  output_schema?: unknown;
-  strategy?: ReviewStrategy;
-  enabled?: boolean;
-}
-
 export function useCreateAgent() {
   const qc = useQueryClient();
   return useMutation({
@@ -48,29 +37,11 @@ export function useCreateAgent() {
   });
 }
 
-export interface UpdateAgentInput {
-  id: string;
-  patch: Partial<
-    Pick<
-      Agent,
-      | "name"
-      | "description"
-      | "provider"
-      | "model"
-      | "system_prompt"
-      | "output_schema"
-      | "strategy"
-      | "ci_fail_on"
-      | "repo_intel"
-      | "enabled"
-    >
-  >;
-}
-
 export function useUpdateAgent() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, patch }: UpdateAgentInput) => api.put(`/agents/${id}`, patch, Agent),
+    mutationFn: ({ id, patch }: { id: string; patch: UpdateAgentInput }) =>
+      api.put(`/agents/${id}`, patch, Agent),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: agentKeys.all });
       qc.setQueryData(agentKeys.detail(data.id), data);
@@ -81,7 +52,6 @@ export function useUpdateAgent() {
 export function useDeleteAgent() {
   const qc = useQueryClient();
   return useMutation({
-    // TODO(step 3): parse with contract schema
     mutationFn: (id: string) => api.del<{ ok: boolean }>(`/agents/${id}`),
     onSuccess: (_d, id) => {
       qc.invalidateQueries({ queryKey: agentKeys.all });

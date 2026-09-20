@@ -4,7 +4,7 @@ import React, { useCallback } from "react";
 import { Icon, Avatar, Badge, Button, Tabs } from "@devdigest/ui";
 import { RunReviewDropdown } from "../RunReviewDropdown";
 import { s } from "./styles";
-import type { PrDetail } from "@/lib/types";
+import type { PrDetail } from "@devdigest/shared";
 
 interface PrDetailHeaderProps {
   pr: PrDetail;

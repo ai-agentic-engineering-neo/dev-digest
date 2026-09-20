@@ -5,7 +5,15 @@ import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, API_BASE } from "./client";
 import { notify } from "../toast";
-import { PrReviewComment, ReviewRecord, ReviewRunResponse, RunSummary } from "@devdigest/shared";
+import {
+  ActiveRun,
+  PrCommentInput,
+  PrReviewComment,
+  ReviewRecord,
+  ReviewRunResponse,
+  RunRequest,
+  RunSummary,
+} from "@devdigest/shared";
 import type { FindingActionKind, RunEvent } from "@devdigest/shared";
 
 export const reviewKeys = {
@@ -16,20 +24,13 @@ export const reviewKeys = {
 };
 
 // ---- Active (in-flight) runs — server-side source of truth ----
-export interface ActiveRun {
-  run_id: string;
-  agent_id: string | null;
-  agent_name: string | null;
-  ran_at: string | null;
-}
 
 /** In-flight runs for a PR, from the server (agent_runs where status='running').
    Survives reloads/devices; polls while anything is running so it self-clears. */
 export function usePrActiveRuns(prId: string | null | undefined) {
   return useQuery({
     queryKey: reviewKeys.activeRuns(prId),
-    // TODO(step 3): parse with contract schema
-    queryFn: () => api.get<ActiveRun[]>(`/pulls/${prId}/runs/active`),
+    queryFn: () => api.get(`/pulls/${prId}/runs/active`, ActiveRun.array()),
     enabled: !!prId,
     refetchInterval: (query) => ((query.state.data?.length ?? 0) > 0 ? 4000 : false),
   });
@@ -65,7 +66,6 @@ export function usePrReviews(prId: string | null | undefined, enabled = true) {
 export function useDeleteRun(prId: string | null | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    // TODO(step 3): parse with contract schema
     mutationFn: (runId: string) => api.del<{ ok: boolean }>(`/runs/${runId}`),
     // Deleting a run also deletes the review it produced (server-side), so drop
     // both the timeline and the Review Runs list from cache.
@@ -79,7 +79,6 @@ export function useDeleteRun(prId: string | null | undefined) {
 /** Request cancellation of an in-flight run (takes effect at the next step). */
 export function useCancelRun() {
   return useMutation({
-    // TODO(step 3): parse with contract schema
     mutationFn: (runId: string) => api.post<{ ok: boolean }>(`/runs/${runId}/cancel`),
   });
 }
@@ -88,7 +87,6 @@ export function useCancelRun() {
 export function useDeleteReview(prId: string | null | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    // TODO(step 3): parse with contract schema
     mutationFn: (reviewId: string) => api.del<{ ok: boolean }>(`/reviews/${reviewId}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: reviewKeys.list(prId) }),
   });
@@ -104,29 +102,22 @@ export function usePrComments(prId: string | null | undefined) {
   });
 }
 
-export interface CreateCommentInput {
-  path: string;
-  line: number;
-  side?: "LEFT" | "RIGHT";
-  body: string;
-  in_reply_to?: number;
-}
-
 /** Post one inline comment (or reply) to GitHub; refreshes the thread list. */
 export function useCreatePrComment(prId: string | null | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: CreateCommentInput) =>
+    mutationFn: (input: PrCommentInput) =>
       api.post(`/pulls/${prId}/comments`, input, PrReviewComment),
     onSuccess: () => qc.invalidateQueries({ queryKey: reviewKeys.comments(prId) }),
   });
 }
 
 // ---- Run a review (all enabled agents or a specific agent) ----
-export interface RunReviewInput {
+// `RunRequest` (the wire body) never crosses as-is: `prId` addresses the URL,
+// not the JSON body — so this stays a local client-argument wrapper, not a
+// contract schema (see plan step 3 note on RunReviewInput).
+export interface RunReviewInput extends RunRequest {
   prId: string;
-  agentId?: string;
-  all?: boolean;
 }
 
 export function useRunReview() {
@@ -162,7 +153,6 @@ export function useFindingAction() {
       reply?: string;
       prId?: string;
     }) =>
-      // TODO(step 3): parse with contract schema
       api.post<{ finding: ReviewRecord["findings"][number]; memoryId?: string }>(
         `/findings/${findingId}/${action}`,
         reply ? { reply } : undefined,

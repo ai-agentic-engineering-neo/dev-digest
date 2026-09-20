@@ -38,7 +38,6 @@ export function useRefreshRepo() {
 export function useDeleteRepo() {
   const qc = useQueryClient();
   return useMutation({
-    // TODO(step 3): parse with contract schema
     mutationFn: (repoId: string) => api.del<{ deleted: string }>(`/repos/${repoId}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: repoKeys.all }),
   });

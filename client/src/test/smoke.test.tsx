@@ -3,7 +3,7 @@ import { render, screen, cleanup } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { Gallery } from "../components/showcase";
 import { DiffViewer } from "../components/diff-viewer";
-import type { PrFile } from "../lib/types";
+import type { PrFile } from "@devdigest/shared";
 import shellMessages from "../../messages/en/shell.json";
 
 afterEach(cleanup);

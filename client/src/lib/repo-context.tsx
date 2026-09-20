@@ -5,7 +5,7 @@
 import React from "react";
 import { usePathname } from "next/navigation";
 import { useRepos } from "./api/repos";
-import type { Repo } from "./types";
+import type { Repo } from "@devdigest/shared";
 
 const RepoCtx = React.createContext<{
   repoId: string | null;

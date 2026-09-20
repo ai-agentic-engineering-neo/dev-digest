@@ -56,6 +56,17 @@ export const ReviewRunResponse = z.object({
 });
 export type ReviewRunResponse = z.infer<typeof ReviewRunResponse>;
 
+/** One in-flight run, from `GET /pulls/:id/runs/active` (agent_runs where
+    status='running'). Used to render "review in progress" state that survives
+    reloads/devices, independent of the SSE stream. */
+export const ActiveRun = z.object({
+  run_id: z.string(),
+  agent_id: z.string().nullable(),
+  agent_name: z.string().nullable(),
+  ran_at: z.string().nullable(),
+});
+export type ActiveRun = z.infer<typeof ActiveRun>;
+
 /** Intent persisted for a PR (the Intent plus the pr_id it scopes). */
 export const PrIntentRecord = Intent.extend({ pr_id: z.string() });
 export type PrIntentRecord = z.infer<typeof PrIntentRecord>;

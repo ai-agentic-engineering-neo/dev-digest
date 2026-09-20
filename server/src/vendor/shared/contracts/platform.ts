@@ -269,6 +269,21 @@ export const IndexStatus = z.object({
 });
 export type IndexStatus = z.infer<typeof IndexStatus>;
 
+/** `GET /repos/:id/index-state` — repo-intel (T3 code index) state. Distinct
+    from `IndexStatus` above, which tracks Project Context vectorization. */
+export const RepoIntelState = z.object({
+  status: z.enum(['full', 'partial', 'degraded', 'failed']),
+  filesIndexed: z.number().int(),
+  filesSkipped: z.number().int(),
+  /** Advances when a resync writes a new index row — the UI's completion signal. */
+  lastIndexedSha: z.string(),
+  updatedAt: z.string(),
+  degraded: z.boolean().optional(),
+  degradedReason: z.string().optional(),
+  reason: z.string().optional(),
+});
+export type RepoIntelState = z.infer<typeof RepoIntelState>;
+
 // ---- Run request (review trigger; owned by A2, contract lives here) ----
 export const RunRequest = z.object({
   agentId: z.string().optional(),

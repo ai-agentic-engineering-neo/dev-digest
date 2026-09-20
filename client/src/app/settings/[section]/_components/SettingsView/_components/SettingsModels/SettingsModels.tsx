@@ -7,7 +7,7 @@ import { useSettings, useUpdateSettings } from "../../../../../../../lib/api/set
 import { useProviderModels } from "../../../../../../../lib/api/agents";
 import { toModelOptions } from "../../../../../../../lib/model-label";
 import { FEATURE_MODELS } from "@devdigest/shared";
-import type { FeatureModelChoice, FeatureModelId } from "../../../../../../../lib/types";
+import type { FeatureModelChoice, FeatureModelId } from "@devdigest/shared";
 import { SectionTitle } from "../SectionTitle";
 import { s } from "./styles";
 

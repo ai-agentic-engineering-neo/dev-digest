@@ -191,6 +191,36 @@ export const Agent = z.object({
 });
 export type Agent = z.infer<typeof Agent>;
 
+/** Body for `POST /agents` (create). */
+export const CreateAgentInput = z.object({
+  name: z.string().min(1),
+  description: z.string().optional(),
+  provider: Provider,
+  model: z.string().min(1),
+  system_prompt: z.string().min(1),
+  output_schema: z.unknown().optional(),
+  strategy: ReviewStrategy.optional(),
+  ci_fail_on: CiFailOn.optional(),
+  repo_intel: z.boolean().optional(),
+  enabled: z.boolean().optional(),
+});
+export type CreateAgentInput = z.infer<typeof CreateAgentInput>;
+
+/** Body for `PUT /agents/:id` (patch; every field optional). */
+export const UpdateAgentInput = z.object({
+  name: z.string().min(1).optional(),
+  description: z.string().optional(),
+  provider: Provider.optional(),
+  model: z.string().min(1).optional(),
+  system_prompt: z.string().min(1).optional(),
+  output_schema: z.unknown().optional(),
+  strategy: ReviewStrategy.optional(),
+  ci_fail_on: CiFailOn.optional(),
+  repo_intel: z.boolean().optional(),
+  enabled: z.boolean().optional(),
+});
+export type UpdateAgentInput = z.infer<typeof UpdateAgentInput>;
+
 export const AgentSkillLink = z.object({
   agent_id: z.string(),
   skill_id: z.string(),

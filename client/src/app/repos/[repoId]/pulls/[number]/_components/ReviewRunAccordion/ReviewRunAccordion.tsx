@@ -11,17 +11,13 @@ import type { ReviewRecord, RunSummary, Verdict } from "@devdigest/shared";
 import { FindingsPanel } from "../FindingsPanel";
 import { VerdictBanner } from "../VerdictBanner";
 import { useDeleteReview } from "../../../../../../../lib/api/reviews";
+import { formatWhen } from "../../../../../../../lib/date";
 
 const VERDICT_COLOR: Record<string, string> = {
   request_changes: "var(--crit)",
   comment: "var(--warn)",
   approve: "var(--ok)",
 };
-
-function formatWhen(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
-}
 
 export function ReviewRunAccordion({
   review,

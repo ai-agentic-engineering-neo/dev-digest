@@ -5,7 +5,7 @@ import React from "react";
 import { useRouter } from "next/navigation";
 import { useRepos } from "../lib/api/repos";
 import { AppShell } from "../components/app-shell";
-import { PageContainer } from "../components/page-shell";
+import { PageContainer } from "./_components/PageShell";
 import { EmptyState, Button, Skeleton } from "@devdigest/ui";
 
 export default function HomePage() {

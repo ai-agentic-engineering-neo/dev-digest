@@ -12,7 +12,7 @@ import {
   AutoTriggerStatus,
 } from "@devdigest/ui";
 import { AppShell } from "@/components/app-shell";
-import { RepoNotFound } from "@/components/repo-not-found";
+import { RepoNotFound } from "../_components/RepoNotFound";
 import { usePulls } from "@/lib/api/pulls";
 import { useRefreshRepo } from "@/lib/api/repos";
 import { useActiveRepo, useRepoNotFound } from "@/lib/repo-context";

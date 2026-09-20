@@ -8,7 +8,7 @@
 import { useParams } from "next/navigation";
 import { Skeleton, ErrorState } from "@devdigest/ui";
 import { AppShell } from "../../../../../components/app-shell";
-import { RepoNotFound } from "@/components/repo-not-found";
+import { RepoNotFound } from "../../_components/RepoNotFound";
 import { PrDetailHeader } from "./_components/PrDetailHeader";
 import { OverviewTab } from "./_components/OverviewTab";
 import { FindingsTab } from "./_components/FindingsTab";
@@ -22,7 +22,7 @@ import { usePullDetail, usePulls } from "../../../../../lib/api/pulls";
 import { usePrReviews, reviewKeys } from "../../../../../lib/api/reviews";
 import { useActiveRepo, useRepoNotFound } from "../../../../../lib/repo-context";
 import { ApiError } from "../../../../../lib/api/client";
-import { githubPrUrl } from "../../../../../lib/github-urls";
+import { githubPrUrl } from "./_lib/github-urls";
 
 export default function PRDetailPage() {
   const params = useParams<{ repoId: string; number: string }>();

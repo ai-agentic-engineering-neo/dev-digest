@@ -8,9 +8,10 @@ import { Icon, Avatar, Badge, CircularScore, SeverityBadge } from "@devdigest/ui
 import type { PrMeta } from "@devdigest/shared";
 import { formatCost } from "@/lib/format";
 import { usePrReviews } from "../../../../../../lib/api/reviews";
-import { FindingsPreviewCard } from "@/components/findings-preview";
+import { FindingsPreviewCard } from "./FindingsPreviewCard";
 import { SIZE_COLOR, STATUS_META } from "../../constants";
-import { latestFindingsPerAgent, presentFindingsSeverities, relativeTime } from "../../helpers";
+import { latestFindingsPerAgent, presentFindingsSeverities } from "../../helpers";
+import { relativeTime } from "@/lib/date";
 import { sizeOf } from "../../_lib/model";
 import { s } from "../../styles";
 

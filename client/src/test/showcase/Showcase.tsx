@@ -1,6 +1,6 @@
-/* Showcase.tsx — renders every design-system component for visual verification.
-   Used by the /showcase route (both themes) and by the smoke tests.
-   Dev-only page: labels are intentionally not internationalized. */
+/* Showcase.tsx — test fixture for the design-system smoke test. Renders every
+   design-system component for visual verification in both light and dark themes.
+   Dev-only fixture: labels are intentionally not internationalized. */
 "use client";
 
 import React from "react";

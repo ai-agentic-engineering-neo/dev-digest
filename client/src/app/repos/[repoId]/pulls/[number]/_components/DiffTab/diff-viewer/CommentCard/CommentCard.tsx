@@ -7,11 +7,7 @@ import { useTranslations } from "next-intl";
 import { Icon, Card, Avatar, Markdown } from "@devdigest/ui";
 import type { PrReviewComment } from "@devdigest/shared";
 import { cs } from "../comments";
-
-function formatWhen(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
-}
+import { formatWhen } from "@/lib/date";
 
 export function CommentCard({ c }: { c: PrReviewComment }) {
   const t = useTranslations("shell");

@@ -168,7 +168,7 @@ export class SkillsService {
       findings: agg.findings,
       accepted: agg.accepted,
       settled: agg.settled,
-      accept_rate: ratio(agg.accepted, agg.settled),
+      accept_rate: ratio(agg.accepted, agg.settled) ?? 0,
       by_category: agg.by_category,
       window_days: days,
     };

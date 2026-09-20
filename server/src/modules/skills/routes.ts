@@ -6,7 +6,7 @@ import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { NotFoundError } from '../../platform/errors.js';
 import { SkillsService } from './service.js';
-import { DEFAULT_STATS_WINDOW_DAYS, MAX_VERSION_MESSAGE_LENGTH, SKILL_NAME_PATTERN } from './constants.js';
+import { MAX_VERSION_MESSAGE_LENGTH, SKILL_NAME_PATTERN } from './constants.js';
 
 /**
  * Skills module (specs/02-skills.md §7.1).
@@ -34,7 +34,7 @@ const CreateSkillBody = z.object({
   description: z.string().min(1),
   type: SkillType,
   body: z.string().min(1),
-  source: SkillSource.optional(),
+  source: SkillSource.exclude(['community']).optional(),
   enabled: z.boolean().optional(),
 });
 
@@ -60,7 +60,7 @@ const VersionParams = z.object({
 });
 
 const StatsQuery = z.object({
-  days: z.coerce.number().int().positive().optional(),
+  days: z.coerce.number().int().positive(),
 });
 
 const ImportBody = z.object({
@@ -128,7 +128,7 @@ export default async function skillsRoutes(appBase: FastifyInstance) {
     { schema: { params: IdParams, querystring: StatsQuery } },
     async (req) => {
       const { workspaceId } = await getContext(app.container, req);
-      const days = req.query.days ?? DEFAULT_STATS_WINDOW_DAYS;
+      const days = req.query.days;
       const stats = await service.stats(workspaceId, req.params.id, days);
       if (!stats) throw new NotFoundError('Skill not found');
       return stats;

@@ -102,10 +102,11 @@ describe("FindingsTab severity filtering", () => {
     expect(screen.getByText("WARNING")).toBeInTheDocument();
   });
 
-  it("filtering to CRITICAL hides the run with no critical findings", () => {
+  it("filtering to CRITICAL keeps every run visible, filtering findings within each run", () => {
     renderTab("CRITICAL");
     expect(screen.getAllByText("Security Reviewer").length).toBeGreaterThan(0);
-    expect(screen.queryByText("Performance Reviewer")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Performance Reviewer").length).toBeGreaterThan(0);
+    expect(screen.getByText("0 findings")).toBeInTheDocument();
   });
 
   it("clicking a severity chip reports the selection to the parent", () => {

@@ -78,10 +78,6 @@ export function FindingsTab({
     setTarget((p) => ({ runId, n: (p?.n ?? 0) + 1 }));
   }, []);
 
-  const visibleRuns = severityFilter
-    ? runs.filter((r) => r.findings.some((f) => f.severity === severityFilter))
-    : runs;
-
   return (
     <section>
       {liveRunIds.length > 0 && (
@@ -166,15 +162,9 @@ export function FindingsTab({
             body="Run a review to generate findings. Use Run Review ▾ above (run all enabled agents or a specific one)."
           />
         )
-      ) : visibleRuns.length === 0 ? (
-        <EmptyState
-          icon="Filter"
-          title={`No ${severityFilter} findings`}
-          body="No review run in this PR has a finding at this severity. Clear the filter to see everything."
-        />
       ) : (
         prId &&
-        visibleRuns.map((review, i) => (
+        runs.map((review, i) => (
           <ReviewRunAccordion
             key={review.id}
             review={review}

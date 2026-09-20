@@ -9,6 +9,21 @@ gotchas, dead ends, decisions that don't belong in the fixed map in
 What happened, what was tried, what actually worked or didn't, and why.
 -->
 
+## 2026-09-19 — one filter value drove two different scopes [Mistake]
+`FindingsTab`'s `severityFilter` was passed to two places at once: down into
+`ReviewRunAccordion` (correctly filters that run's own findings) and into a
+local `visibleRuns = runs.filter(r => r.findings.some(f => f.severity ===
+severityFilter))` that decided which run *cards* to render at all. Clicking
+a severity chip therefore both filtered findings within a run **and** hid
+entire run cards that had zero findings at that severity — a run with other,
+non-matching findings vanished from the list instead of just showing 0
+findings. Fix: delete the list-visibility filter entirely and always render
+`runs`; let the per-card `severityFilter` prop (already correct) be the only
+consumer. Lesson: when a filter value is threaded through props into a child
+that does its own filtering, don't *also* use that same value to decide
+list membership one level up — pick one owner for "is this item shown at
+all" vs. "what does this item show internally."
+
 ## 2026-09-16 — hover popovers on the PR list must use a portal [Context]
 `pulls/styles.ts`'s `tableCard` has `overflow: hidden` (to clip the table's
 rounded corners), which silently clips any normal absolutely-positioned

@@ -2,8 +2,8 @@
 name: frontend-ui-architecture
 description: Use when deciding where frontend code lives or how to split it in a React / Next.js app — placing a new component, hook, constant, helper, util, type, API call or business rule; breaking up a large component; creating or cleaning up utils/, lib/, hooks/, constants/ or index.ts barrels; choosing shared vs feature-local; drawing the 'use client' boundary. Architecture and code organization only, not performance.
 metadata:
-  version: "1.0.0"
-  updated: "2026-09-19"
+  version: "1.1.0"
+  updated: "2026-09-20"
 ---
 
 # Frontend UI Architecture
@@ -13,6 +13,8 @@ metadata:
 Placement follows ownership: code lives next to its only consumer, and moves to shared code only when a second consumer appears. Every non-JSX piece has a kind (domain rule, UI mapping, generic util, adapter, data access, hook). The kind decides where it goes, not the file it happened to be written in.
 
 **Project conventions win.** If the repo's `CLAUDE.md` names folder or file shapes (for example `_components/<Name>/` with `helpers.ts`, `constants.ts`, `styles.ts`), use those names. This skill decides *which* of those slots a piece of code goes into, and when it moves up.
+
+The dependency direction (Step 2) and the barrel rules are enforced by `cd client && pnpm arch` (dependency-cruiser, `client/.dependency-cruiser.cjs`). Existing violations are frozen in `.dependency-cruiser-known-violations.json`. **Never regenerate the baseline to make a new violation pass.** Fix the import instead.
 
 Out of scope, see the sibling skills instead: hooks misuse and render performance (`react-best-practices`), Next.js file conventions, RSC serialization and data-fetching APIs (`next-best-practices`), Zod API (`zod`).
 

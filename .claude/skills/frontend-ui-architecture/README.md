@@ -1,6 +1,6 @@
 # frontend-ui-architecture
 
-**Version:** 1.0.0 (2026-09-19) · Files: `SKILL.md` (core decision tables), `nextjs.md` (App Router boundaries and data layer)
+**Version:** 1.1.0 (2026-09-20) · Files: `SKILL.md` (core decision tables), `nextjs.md` (App Router boundaries and data layer) · Enforced by `cd client && pnpm arch`
 
 ## Motivation
 
@@ -46,7 +46,7 @@ This skill answers those questions as a **classify → place → split** recipe,
 | Where Server Actions live | Centralized `lib/actions/<domain>.ts` vs colocated `actions.ts`. | Either works. Actions must be thin and must re-check auth. (dev-digest has no Server Actions, because the backend is Fastify.) |
 | How eagerly to name constants | "Name every magic value" vs "a self-evident one-scope literal doesn't need a name". | Name it once it is non-obvious or reused. Keep it with its only consumer. |
 
-**Open question for dev-digest:** `client/src/lib/hooks/` currently groups query hooks by resource (`reviews.ts`, `agents.ts`, …) globally. This fits the skill's "per-resource data module" rule for hooks shared across routes. A hook with a single consumer would, by this skill, be colocated instead. Revisit if that folder grows single-use hooks.
+**Settled for dev-digest (2026-09-20):** `client/src/lib/hooks/` was an `export *` hub over five files with inline query keys. The refactor in `docs/cc-plans/2026-09-19+frontend-architecture-refactor.md` replaced it with `lib/api/<resource>.ts` modules, each owning its fetchers, exported key factory and hooks. A hook with a single consumer still belongs next to that consumer, not in `lib/api/`.
 
 ## Sources
 
@@ -100,4 +100,5 @@ This skill answers those questions as a **classify → place → split** recipe,
 
 ## Changelog
 
+- **1.1.0 (2026-09-20)** — dependency direction and barrel rules are now enforced by `cd client && pnpm arch` (dependency-cruiser, `client/.dependency-cruiser.cjs`): `shared-not-importing-app` (`src/lib`/`src/components` → `src/app`), `no-cross-route-internals` (sibling top-level routes reaching into each other's `_components`/`_lib`), `no-circular`, `no-orphans`, and `vendor-is-leaf`. Existing violations freeze in `.dependency-cruiser-known-violations.json`; never regenerate that baseline to make a new violation pass.
 - **1.0.0 (2026-09-19)** — initial version: classify/place/split recipe, Next.js boundaries and data layer, barrels policy, red flags.

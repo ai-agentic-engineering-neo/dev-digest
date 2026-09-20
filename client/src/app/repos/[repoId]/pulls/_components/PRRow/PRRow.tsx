@@ -10,7 +10,8 @@ import { formatCost } from "@/lib/format";
 import { usePrReviews } from "../../../../../../lib/api/reviews";
 import { FindingsPreviewCard } from "@/components/findings-preview";
 import { SIZE_COLOR, STATUS_META } from "../../constants";
-import { latestFindingsPerAgent, presentFindingsSeverities, relativeTime, sizeOf } from "../../helpers";
+import { latestFindingsPerAgent, presentFindingsSeverities, relativeTime } from "../../helpers";
+import { sizeOf } from "../../_lib/model";
 import { s } from "../../styles";
 
 export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {

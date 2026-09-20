@@ -1,6 +1,7 @@
-import type { PrMeta, Severity } from "@devdigest/shared";
+import type { Severity } from "@devdigest/shared";
 
-/** Constants for the PR list page (/repos/:repoId/pulls). */
+/** Presentation constants for the PR list page (/repos/:repoId/pulls).
+ *  Business thresholds (size buckets, open-status set) live in `_lib/model.ts`. */
 
 /**
  * Review status → colour token + i18n label key (under `list.status`). Open PRs
@@ -25,10 +26,6 @@ export const SIZE_COLOR: Record<string, string> = {
 
 /** Grid template for both the header row and PR rows. */
 export const GRID = "1fr 132px 92px 60px 108px 118px 86px 78px";
-
-/** Line-count thresholds for the S/M/L size bucket. */
-export const SIZE_SMALL_MAX = 100;
-export const SIZE_MEDIUM_MAX = 400;
 
 /** Filter chips: status key + i18n label key (under `list.filter`). */
 export const STATUS_FILTERS: { key: string; labelKey: string }[] = [
@@ -55,9 +52,3 @@ export const FINDINGS_SEVERITIES: readonly Severity[] = ["CRITICAL", "WARNING", 
 
 /** Number of skeleton rows shown while loading. */
 export const SKELETON_ROWS = 4;
-
-export type PrSize = "S" | "M" | "L";
-export type SizeInfo = { size: PrSize; lines: number };
-
-/** Re-exported for helpers that consume PrMeta. */
-export type { PrMeta };

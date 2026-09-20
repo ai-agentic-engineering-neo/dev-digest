@@ -19,6 +19,21 @@ import type { RunSummary, PrCommit } from "@devdigest/shared";
 
 type Outcome = { key: string; color: string; bg: string; icon: IconName };
 
+/**
+ * Token + cost line for a settled run: "9,119 tok · $0.0013". Cost is shown at 4
+ * decimals here (a run costs a tenth of a cent) and falls back to "—" rather
+ * than "$0.00" when the model has no known price. Returns null when the run
+ * recorded no tokens at all — an errored run has nothing to report.
+ */
+function usageOf(r: RunSummary): { tokens: string; cost: string } | null {
+  const total = (r.tokens_in ?? 0) + (r.tokens_out ?? 0);
+  if (total === 0) return null;
+  return {
+    tokens: total.toLocaleString(),
+    cost: r.cost_usd == null ? "—" : `$${r.cost_usd.toFixed(4)}`,
+  };
+}
+
 function outcomeOf(run: RunSummary): Outcome {
   const status = run.status ?? "";
   if (status === "running")
@@ -149,6 +164,7 @@ export function RunHistory({
         const r = item.run;
         const o = outcomeOf(r);
         const settled = r.status === "done";
+        const usage = settled ? usageOf(r) : null;
         return (
           <div key={`run:${r.run_id}`} style={rowStyle}>
             <Badge color={o.color} bg={o.bg} icon={o.icon}>
@@ -197,6 +213,11 @@ export function RunHistory({
             </div>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, fontSize: 11, color: "var(--text-muted)", flexShrink: 0 }}>
               {r.ran_at && <span>{new Date(r.ran_at).toLocaleTimeString()}</span>}
+              {usage && (
+                <span className="mono tnum" style={{ fontSize: 11, color: "var(--text-secondary)" }}>
+                  {t("timeline.usage", usage)}
+                </span>
+              )}
             </div>
             <button
               type="button"

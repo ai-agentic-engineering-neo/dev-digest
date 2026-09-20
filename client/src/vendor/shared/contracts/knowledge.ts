@@ -115,7 +115,13 @@ export type MemoryItem = z.infer<typeof MemoryItem>;
 export const SkillType = z.enum(['rubric', 'convention', 'security', 'custom']);
 export type SkillType = z.infer<typeof SkillType>;
 
-export const SkillSource = z.enum(['manual', 'imported_url', 'extracted', 'community']);
+export const SkillSource = z.enum([
+  'manual',
+  'imported_url',
+  'imported_file',
+  'extracted',
+  'community',
+]);
 export type SkillSource = z.infer<typeof SkillSource>;
 
 export const Skill = z.object({
@@ -128,8 +134,39 @@ export const Skill = z.object({
   enabled: z.boolean(),
   version: z.number().int(),
   evidence_files: z.array(z.string()).nullish(),
+  created_at: z.string(),
 });
 export type Skill = z.infer<typeof Skill>;
+
+/** Body for `POST /skills` (create). */
+export const CreateSkillInput = z.object({
+  name: z.string().min(1),
+  description: z.string().min(1),
+  type: SkillType,
+  body: z.string().min(1),
+  source: SkillSource.optional(),
+  enabled: z.boolean().optional(),
+});
+export type CreateSkillInput = z.infer<typeof CreateSkillInput>;
+
+/** Body for `PUT /skills/:id` (patch; every field optional). */
+export const UpdateSkillInput = z.object({
+  name: z.string().min(1).optional(),
+  description: z.string().min(1).optional(),
+  type: SkillType.optional(),
+  body: z.string().min(1).optional(),
+  enabled: z.boolean().optional(),
+});
+export type UpdateSkillInput = z.infer<typeof UpdateSkillInput>;
+
+/** One immutable body snapshot from `skill_versions`. */
+export const SkillVersion = z.object({
+  skill_id: z.string(),
+  version: z.number().int(),
+  body: z.string(),
+  created_at: z.string(),
+});
+export type SkillVersion = z.infer<typeof SkillVersion>;
 
 export const CommunitySkill = z.object({
   name: z.string(),
@@ -219,5 +256,21 @@ export const AgentSkillLink = z.object({
   agent_id: z.string(),
   skill_id: z.string(),
   order: z.number().int(),
+  enabled: z.boolean(),
 });
 export type AgentSkillLink = z.infer<typeof AgentSkillLink>;
+
+/**
+ * A skill as the agent editor's Skills tab needs it: the link (order + per-agent
+ * enabled) joined with the fields the row renders, so the tab needs one request.
+ * `skill_enabled` is the skill's own global flag — a skill reaches the prompt
+ * only when BOTH flags are true.
+ */
+export const AgentAttachedSkill = AgentSkillLink.extend({
+  name: z.string(),
+  description: z.string(),
+  type: SkillType,
+  source: SkillSource,
+  skill_enabled: z.boolean(),
+});
+export type AgentAttachedSkill = z.infer<typeof AgentAttachedSkill>;

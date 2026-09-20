@@ -15,6 +15,9 @@ import {
   Settings,
   Repo,
   PrDetail,
+  Skill,
+  CreateSkillInput,
+  AgentAttachedSkill,
 } from '@devdigest/shared';
 
 /**
@@ -166,6 +169,46 @@ describe('AI contracts parse fixtures', () => {
       log: [{ t: '00.00', kind: 'info', msg: 'started' }],
     });
     expect(trace.tool_calls).toHaveLength(1);
+  });
+
+  it('Skill / CreateSkillInput / AgentAttachedSkill', () => {
+    const skill = Skill.parse({
+      id: 'skill-001',
+      name: 'Security Rubric',
+      description: 'Check for common security flaws',
+      type: 'rubric',
+      source: 'imported_file',
+      body: 'Check for hardcoded secrets in the code...',
+      enabled: false,
+      version: 1,
+      evidence_files: null,
+      created_at: '2026-01-15T10:30:00Z',
+    });
+    expect(skill.type).toBe('rubric');
+    expect(skill.created_at).toBe('2026-01-15T10:30:00Z');
+
+    const createInput = CreateSkillInput.parse({
+      name: 'My Skill',
+      description: 'A custom skill',
+      type: 'custom',
+      body: 'The skill logic here',
+    });
+    expect(createInput.source).toBeUndefined();
+    expect(createInput.enabled).toBeUndefined();
+
+    const attached = AgentAttachedSkill.parse({
+      agent_id: 'agent-001',
+      skill_id: 'skill-001',
+      order: 1,
+      enabled: true,
+      name: 'Security Rubric',
+      description: 'Check for common security flaws',
+      type: 'rubric',
+      source: 'imported_file',
+      skill_enabled: false,
+    });
+    expect(attached.enabled).toBe(true);
+    expect(attached.skill_enabled).toBe(false);
   });
 });
 

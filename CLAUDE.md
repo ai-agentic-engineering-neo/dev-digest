@@ -15,9 +15,18 @@ lockfile, and its own `CLAUDE.md`.
   read [docs/architecture.md](docs/architecture.md).
 - Need the API route contracts → read [server/README.md](server/README.md).
 - Need past decisions/lessons for a specific module → read
-  `<module>/INSIGHTS.md`.
+  `<module>/INSIGHTS.md` (written by the `engineering-insights` skill).
 - Need to run the project from scratch → read [README.md](README.md) (Quick
   start section) or just run `./scripts/dev.sh`.
+
+## Session protocol
+
+- Before non-trivial work in a module, read its `INSIGHTS.md`; treat entries as
+  high-confidence unless the code contradicts them.
+- Ending a task that involved a problem, a decision or a discovery → run
+  `engineering-insights`. Don't skip it; that's how the next session learns.
+- `INSIGHTS.md` is append-only: correct a wrong entry with a new dated one,
+  never by overwriting.
 
 ## Modules
 

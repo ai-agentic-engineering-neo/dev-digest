@@ -63,6 +63,8 @@ export const RunStats = z.object({
   tokens_out: z.number().int(),
   findings: z.number().int(),
   grounding: z.string(),
+  /** USD cost of this run; null = no cost data available (never 0 for "unknown"). */
+  cost_usd: z.number().nullable(),
 });
 export type RunStats = z.infer<typeof RunStats>;
 
@@ -106,8 +108,10 @@ export const RunSummary = z.object({
   ran_at: z.string().nullable(),
   // Review outcome, denormalized onto the run row at completion (the timeline
   // has no FK to the review). score = the review's 0-100 score; blockers =
-  // findings that trip the agent's gate. Null on failed/cancelled runs.
+  // findings that trip the agent's gate. cost_usd = total LLM cost for this
+  // run. All null on failed/cancelled runs (never 0 — 0 means "genuinely free").
   score: z.number().int().nullable(),
   blockers: z.number().int().nullable(),
+  cost_usd: z.number().nullable(),
 });
 export type RunSummary = z.infer<typeof RunSummary>;

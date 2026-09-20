@@ -129,6 +129,24 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
+    // Summed LLM cost per PR across all its agent_runs. Runs with null cost
+    // contribute 0 to the sum (partial data is fine); a PR with ZERO runs
+    // carrying cost data (all-null, incl. no runs at all) resolves to null
+    // (→ "—" in the UI), never "$0". Computed in JS, not SQL, so the null vs
+    // zero-sum distinction stays explicit.
+    const costByPr = new Map<string, number | null>();
+    if (prIds.length > 0) {
+      const runRows = await container.db
+        .select({ prId: t.agentRuns.prId, costUsd: t.agentRuns.costUsd })
+        .from(t.agentRuns)
+        .where(inArray(t.agentRuns.prId, prIds));
+      for (const row of runRows) {
+        if (!row.prId) continue;
+        if (row.costUsd == null) continue;
+        costByPr.set(row.prId, (costByPr.get(row.prId) ?? 0) + row.costUsd);
+      }
+    }
+
     const now = Date.now();
     return rows.map((r) => {
       const review = latestReviewByPr.get(r.id);
@@ -153,6 +171,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
+        cost_usd: costByPr.get(r.id) ?? null,
       };
     });
   });

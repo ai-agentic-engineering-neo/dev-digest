@@ -208,6 +208,96 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(run!.status).toBe('done');
     expect(run!.findingsCount).toBe(1);
     expect(run!.grounding).toBe('1/2 passed');
+    // Run Cost Badge: MockLLMProvider.completeStructured always reports
+    // costUsd: 0.001; single-pass strategy makes exactly one call.
+    expect(run!.costUsd).toBe(0.001);
+    expect(trace.stats.cost_usd).toBe(0.001);
+
+    await app.close();
+  });
+
+  it('failed run persists null cost_usd, not zero', async () => {
+    // An empty fixture fails Zod validation inside MockLLMProvider.completeStructured,
+    // which throws before any cost is produced — the run must fail with no cost
+    // data, never a misleading "$0" (a run that failed is not a run that was free).
+    const app = await appWith({});
+    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'Broken', provider: 'openai', model: 'gpt-4.1', system_prompt: 'sec' },
+      })
+    ).json();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/pulls/${pr.id}/review`,
+      payload: { agentId: agent.id },
+    });
+    const runId = res.json().runs[0].run_id;
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+
+    const [run] = await pg.handle.db.select().from(t.agentRuns).where(eq(t.agentRuns.id, runId));
+    expect(run!.status).toBe('failed');
+    expect(run!.costUsd).toBeNull();
+
+    const trace = (await app.inject({ method: 'GET', url: `/runs/${runId}/trace` })).json();
+    expect(trace.stats.cost_usd).toBeNull();
+
+    await app.close();
+  });
+
+  it('PR list sums cost across runs, null-safe, and never reports "$0" for a PR with no cost data', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+
+    const agentA = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'A', provider: 'openai', model: 'gpt-4.1', system_prompt: 'a' },
+      })
+    ).json();
+    const agentB = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'B', provider: 'openai', model: 'gpt-4.1', system_prompt: 'b' },
+      })
+    ).json();
+
+    await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agentA.id } });
+    await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agentB.id } });
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 2 });
+
+    // Both runs succeed (0.001 each) — sums to 0.002 for this PR.
+    const list = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const row = list.find((p: { id: string }) => p.id === pr.id);
+    expect(row.cost_usd).toBeCloseTo(0.002, 6);
+
+    // A second PR in the same repo with zero runs has no cost data at all —
+    // must be null, never 0.
+    const [prNoRuns] = await pg.handle.db
+      .insert(t.pullRequests)
+      .values({
+        workspaceId,
+        repoId: repo.id,
+        number: 483,
+        title: 'No runs yet',
+        author: 'marisa.koch',
+        branch: 'feat/other',
+        base: 'main',
+        headSha: 'e5f6a7b8',
+        additions: 1,
+        deletions: 0,
+        filesCount: 1,
+        status: 'needs_review',
+      })
+      .returning();
+    const list2 = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const rowNoRuns = list2.find((p: { id: string }) => p.id === prNoRuns.id);
+    expect(rowNoRuns.cost_usd).toBeNull();
 
     await app.close();
   });

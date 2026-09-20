@@ -12,10 +12,13 @@ What happened, what was tried, what actually worked or didn't, and why.
 ## 2026-09-18 — PR-list cost column sums runs; score/findings deliberately don't [Decision]
 `GET /repos/:id/pulls` in `modules/pulls/routes.ts` computes three per-PR
 rollups (score, findings, cost) with the same "one IN-query, reduce in JS"
-shape, but the reduction differs on purpose: score and findings use "latest
-review wins" (a re-review replaces the prior verdict, so history shouldn't
-accumulate), while cost sums every `status='done'` run (each run actually
-spent money, so history must accumulate). Don't unify these three into one
+shape — score at `routes.ts:118` (`latestReviewByPr`), findings at
+`routes.ts:138` (`findingsByReviewId`), cost at `routes.ts:170` (the
+`agentRuns.costUsd` query) — but the reduction differs on purpose: score
+and findings use "latest review wins" (a re-review replaces the prior
+verdict, so history shouldn't accumulate), while cost sums every
+`status='done'` run (each run actually spent money, so history must
+accumulate). Don't unify these three into one
 helper — they're intentionally different aggregations wearing the same
 query pattern. For the cost sum specifically: a `done` run with `costUsd:
 null` (provider reported no usage/pricing) contributes 0 and is otherwise
@@ -32,8 +35,8 @@ in `vendor/shared/contracts/platform.ts`, hand-mirrored in
 updating since they're copies, not symlinks.
 
 ## 2026-09-16 — fixed: `pnpm db:migrate`/`pnpm db:seed` silently no-op when the checkout path has spaces [Mistake]
-Both `src/db/migrate.ts` and `src/db/seed.ts` guarded their CLI entrypoint
-with `import.meta.url === \`file://${process.argv[1]}\``.
+Both `src/db/migrate.ts:37` and `src/db/seed.ts:228` guarded their CLI
+entrypoint with `import.meta.url === \`file://${process.argv[1]}\``.
 `import.meta.url` is percent-encoded (spaces → `%20`); `process.argv[1]` is
 not. On a checkout path containing spaces (e.g. this repo under
 `.../AI Agentic Engineer/dev-digest/...`), the two never match, so the CLI
@@ -50,18 +53,21 @@ spacey path should check this pattern in any other `if (import.meta.url ===
 ...)` CLI entrypoint in this codebase.
 
 ## 2026-09-16 — a run's completion writes TWO independent sibling documents [Context]
-`run-executor.ts` persists the same in-memory numbers (`durationMs`,
-`tokensIn`, `tokensOut`, now `costUsd`) twice, in two unrelated calls:
-`completeAgentRun()` (→ the `agent_runs` row, source for `RunSummary`/PR-list
-cost) and the `RunTrace.stats` object literal a few lines later (→ the
-`run_traces` jsonb blob, source for the trace-drawer stat row). Neither read
-path derives from the other. Adding any new per-run stat means touching
+`modules/reviews/run-executor.ts` persists the same in-memory numbers
+(`durationMs`, `tokensIn`, `tokensOut`, now `costUsd`) twice, in two
+unrelated calls: `completeAgentRun()` at `run-executor.ts:243` (→ the
+`agent_runs` row, source for `RunSummary`/PR-list cost) and the
+`RunTrace.stats` object literal at `run-executor.ts:256` a few lines later
+(→ the `run_traces` jsonb blob, source for the trace-drawer stat row).
+Neither read path derives from the other. Adding any new per-run stat means touching
 both call sites in `run-executor.ts` AND both `RunStats`/`RunSummary` shapes
 in `vendor/shared/contracts/trace.ts` (server AND client copies) — missing
 one silently leaves the stat blank on exactly one of the three UI surfaces
 (PR list / timeline vs. the run trace drawer) while the others work fine.
 
 ## 2026-09-16 — pnpm 12's build-approval gate blocks headless `pnpm install`/`db:generate` [Decision]
+Process/tooling gotcha, not tied to a single source line — the workaround
+below runs already-built binaries directly instead of changing any file.
 This env's pnpm is v12 (via `corepack`/`npx pnpm`), which added a
 mandatory interactive `pnpm approve-builds` gate for any dependency with a
 native build script (`esbuild`, `ssh2`, `cpu-features`, `protobufjs`, …).

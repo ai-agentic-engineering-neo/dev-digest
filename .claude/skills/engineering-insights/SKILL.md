@@ -51,6 +51,7 @@ per-category sections).
 ```
 ## YYYY-MM-DD — short title [Category]
 What happened, what was tried, what actually worked or didn't, and why.
+Cite the code: `path/to/file.ts:123`.
 ```
 
 - One `##` heading per entry, one paragraph (a few sentences) underneath.
@@ -59,6 +60,14 @@ What happened, what was tried, what actually worked or didn't, and why.
   originally happened.
 - Title is a short, specific label (not "Bug fix" — "Drizzle migration
   hangs on concurrent index" or similar).
+- **Cite a real `path/to/file.ext:LINE`** (or `:START-END` for a short
+  range) for at least the primary code the entry is about — not just a bare
+  file name or symbol mentioned in prose. Verify the line against the
+  file's *current* contents right before writing (re-read/grep it) rather
+  than reusing a number from earlier in the session — code shifts. Exception:
+  a pure process/tooling gotcha with no single anchoring source line (a
+  package-manager or CLI behavior, say) may name the closest relevant file
+  with no line and say so explicitly — this should be rare, not the default.
 
 ## Which package's INSIGHTS.md
 

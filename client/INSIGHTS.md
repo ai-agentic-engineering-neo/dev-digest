@@ -18,26 +18,30 @@ a severity chip therefore both filtered findings within a run **and** hid
 entire run cards that had zero findings at that severity — a run with other,
 non-matching findings vanished from the list instead of just showing 0
 findings. Fix: delete the list-visibility filter entirely and always render
-`runs`; let the per-card `severityFilter` prop (already correct) be the only
-consumer. Lesson: when a filter value is threaded through props into a child
-that does its own filtering, don't *also* use that same value to decide
-list membership one level up — pick one owner for "is this item shown at
-all" vs. "what does this item show internally."
+`runs` (`FindingsTab.tsx:167`); let the per-card `severityFilter` prop
+passed into `SeverityCounters` (`FindingsTab.tsx:155`, already correct) be
+the only consumer. Lesson: when a filter value is threaded through props
+into a child that does its own filtering, don't *also* use that same value
+to decide list membership one level up — pick one owner for "is this item
+shown at all" vs. "what does this item show internally."
 
 ## 2026-09-16 — hover popovers on the PR list must use a portal [Context]
-`pulls/styles.ts`'s `tableCard` has `overflow: hidden` (to clip the table's
-rounded corners), which silently clips any normal absolutely-positioned
-child that extends past a row — a hover-preview popover (`FindingsCell`)
-rendered this way was invisible even though it mounted correctly (confirmed
-via DOM/text queries) and had no console errors. Fix: render it via
-`ReactDOM.createPortal(..., document.body)` with `position: fixed` computed
-from the trigger's `getBoundingClientRect()` at hover-open time, not as a
-normal child. Anything else added to this page that needs to visually
-escape its row (tooltips, dropdowns taller than the row) will hit the same
-clipping and needs the same portal treatment.
+`pulls/styles.ts:86`'s `tableCard` has `overflow: hidden` (to clip the
+table's rounded corners), which silently clips any normal
+absolutely-positioned child that extends past a row — a hover-preview
+popover (`FindingsCell`) rendered this way was invisible even though it
+mounted correctly (confirmed via DOM/text queries) and had no console
+errors. Fix: render it via `ReactDOM.createPortal(..., document.body)`
+(`FindingsCell.tsx:99`) with `position: fixed` computed from the trigger's
+`getBoundingClientRect()` at hover-open time, not as a normal child.
+Anything else added to this page that needs to visually escape its row
+(tooltips, dropdowns taller than the row) will hit the same clipping and
+needs the same portal treatment.
 
 ## 2026-09-16 — `pnpm build` corrupts a concurrently-running `pnpm dev` [Mistake]
-Ran `pnpm build` (production `next build`) to sanity-check a change while a
+Process/tooling gotcha, not tied to a single source line (no code change
+involved — see `client/package.json`'s `dev`/`build` scripts for the two
+commands in question). Ran `pnpm build` (production `next build`) to sanity-check a change while a
 `pnpm dev` server was already up on :3000 (started earlier by `scripts/dev.sh`).
 Both commands write into the same `.next/` directory; afterward the dev server
 500'd on every route with `Cannot find module './vendor-chunks/recharts@....js'`

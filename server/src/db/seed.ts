@@ -6,7 +6,10 @@ import {
   GENERAL_REVIEWER_PROMPT,
   SECURITY_REVIEWER_PROMPT,
   PERFORMANCE_REVIEWER_PROMPT,
+  TEST_QUALITY_REVIEWER_PROMPT,
+  API_CONTRACT_REVIEWER_PROMPT,
 } from './seed-prompts.js';
+import { API_CONTRACT_SKILLS, TEST_QUALITY_SKILLS, type SeedSkill } from './seed-skills.js';
 
 /** Default provider/model for the built-in reviewer agents. */
 const DEFAULT_PROVIDER = 'openrouter' as const;
@@ -211,6 +214,29 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       version: 1,
       createdBy: userId,
     },
+    {
+      workspaceId,
+      name: 'Test Quality Reviewer',
+      description:
+        'Checks test quality: uncovered branches, missed corner cases, over-mocking and flakes.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: TEST_QUALITY_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
+    {
+      workspaceId,
+      name: 'API Contract Reviewer',
+      description: 'Detects breaking changes to routes, response shapes and shared contracts.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: API_CONTRACT_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
   ];
   for (const a of seedAgents) {
     const [existing] = await db
@@ -220,7 +246,45 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
     if (!existing) await db.insert(t.agents).values(a);
   }
 
+  // ---- skills for the two skill-driven reviewers ----
+  await seedAgentSkills(db, workspaceId, 'Test Quality Reviewer', TEST_QUALITY_SKILLS);
+  await seedAgentSkills(db, workspaceId, 'API Contract Reviewer', API_CONTRACT_SKILLS);
+
   return { workspaceId, userId };
+}
+
+/**
+ * Create each skill (if no skill of that name exists — UI edits are never
+ * overwritten) and link it to the agent in the given order. Idempotent.
+ */
+async function seedAgentSkills(
+  db: Db,
+  workspaceId: string,
+  agentName: string,
+  seedSkills: SeedSkill[],
+): Promise<void> {
+  const [agent] = await db
+    .select()
+    .from(t.agents)
+    .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, agentName)));
+  if (!agent) return;
+  for (const [order, s] of seedSkills.entries()) {
+    let [skill] = await db
+      .select()
+      .from(t.skills)
+      .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.name, s.name)));
+    if (!skill) {
+      [skill] = await db
+        .insert(t.skills)
+        .values({ workspaceId, ...s, source: 'manual', enabled: true, version: 1 })
+        .returning();
+      await db.insert(t.skillVersions).values({ skillId: skill!.id, version: 1, body: s.body });
+    }
+    await db
+      .insert(t.agentSkills)
+      .values({ agentId: agent.id, skillId: skill!.id, order, enabled: true })
+      .onConflictDoNothing();
+  }
 }
 
 // CLI entrypoint

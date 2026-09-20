@@ -99,7 +99,8 @@ export class RepoService {
       repoId: row.id,
       owner,
       name,
-      url,
+      // Canonical URL built from the validated owner/name — never the raw input.
+      url: `https://github.com/${owner}/${name}.git`,
     } satisfies CloneJobPayload);
 
     return { repo: toRepoDto(row), created: true };

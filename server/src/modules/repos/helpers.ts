@@ -19,7 +19,14 @@ export function parseRepoUrl(url: string): { owner: string; name: string } {
   if (!match?.[1] || !match[2]) {
     throw new AppError('invalid_repo_url', `Could not parse owner/repo from '${url}'`, 400);
   }
-  return { owner: match[1], name: match[2] };
+  const owner = match[1];
+  const name = match[2];
+  // `.` / `..` match the segment charset but would escape the clone dir when
+  // joined into `<cloneDir>/<owner>/<name>`.
+  if (/^\.+$/.test(owner) || /^\.+$/.test(name)) {
+    throw new AppError('invalid_repo_url', `Could not parse owner/repo from '${url}'`, 400);
+  }
+  return { owner, name };
 }
 
 /**

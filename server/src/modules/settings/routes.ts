@@ -92,7 +92,11 @@ export default async function settingsRoutes(appBase: FastifyInstance) {
       const models = await llm.listModels();
       return { provider, ok: true, message: `OK — ${models.length} models available` };
     } catch (err) {
-      return { provider, ok: false, message: (err as Error).message };
+      // Provider errors can echo request details — redact the submitted key
+      // and cap the length before returning it to the client.
+      let message = (err as Error).message ?? 'Connection failed';
+      if (key) message = message.split(key).join('[redacted]');
+      return { provider, ok: false, message: message.slice(0, 300) };
     }
   });
 }

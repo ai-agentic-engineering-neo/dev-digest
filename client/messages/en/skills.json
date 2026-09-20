@@ -9,17 +9,20 @@
     "menu": {
       "fromFile": "Import from file",
       "fromUrl": "Import from URL",
-      "community": "Search community skills…"
+      "community": "Search community skills…",
+      "create": "Create skill"
     },
     "empty": {
       "title": "No skills yet",
       "body": "Import a skill from a file, a URL, or the community catalog.",
       "cta": "Import from file"
     },
-    "selectPrompt": {
-      "title": "Select a skill",
-      "body": "Pick a skill on the left to preview its body."
-    }
+    "noMatch": {
+      "title": "No matching skills",
+      "body": "Try a different search term."
+    },
+    "deleted": "Skill deleted.",
+    "updateFailed": "Could not update the skill."
   },
   "detail": {
     "crumbSkill": "Skill",
@@ -28,6 +31,11 @@
     "notFound": {
       "title": "Skill not found",
       "body": "It may have been deleted."
+    },
+    "tabs": {
+      "config": "Config",
+      "preview": "Preview",
+      "stats": "Stats"
     }
   },
   "drawer": {
@@ -36,7 +44,8 @@
     "tabs": {
       "file": "From file",
       "url": "From URL",
-      "community": "Community"
+      "community": "Community",
+      "create": "Write"
     },
     "importFailed": "Import failed"
   },
@@ -84,18 +93,84 @@
       "manual": "Manual",
       "extracted": "Extracted",
       "community": "Community",
-      "imported_url": "Imported"
+      "imported_url": "Imported",
+      "imported_file": "Imported"
     }
   },
   "preview": {
     "untrustedBadge": "untrusted source",
     "enabled": "Enabled",
-    "disabled": "Disabled",
     "save": "Save",
-    "edit": "Edit",
     "untrustedNotice": "This skill came from an untrusted source. Its body is stored as data (delimiter-wrapped) and must be vetted before it is enabled for an agent.",
     "bodyLabel": "Skill body (Markdown)",
     "bodyHint": "Saving a changed body creates a new immutable version.",
-    "version": "v{version}"
+    "version": "v{version}",
+    "delete": "Delete",
+    "deleteConfirm": "Delete skill \"{name}\"? It will be unlinked from every agent.",
+    "deleteFailed": "Could not delete the skill."
+  },
+  "card": {
+    "enabledLabel": "Enable skill {name}",
+    "agents": "{count, plural, one {# agent} other {# agents}}",
+    "pull": "{value} pull",
+    "accept": "{value} accept"
+  },
+  "editor": {
+    "fields": {
+      "name": "Name",
+      "namePlaceholder": "test-quality-rubric",
+      "description": "Description",
+      "descriptionPlaceholder": "Use when reviewing test changes. Check that every new branch has a test.",
+      "descriptionHint": "The description is the skill’s interface — the agent reads it to decide when the skill applies. Write it as a directive: “Use when…” or “Check that…”.",
+      "type": "Type",
+      "body": "Body (Markdown)",
+      "bodyPlaceholder": "# Rule\nDescribe what to check…",
+      "counter": "{count} / {max}"
+    },
+    "errors": {
+      "required": "This field is required.",
+      "tooLong": "Must be at most {max} characters.",
+      "nameFormat": "Use letters, digits, space, dot, dash or underscore.",
+      "invalid": "Invalid value."
+    },
+    "save": "Save skill",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "created": "Skill \"{name}\" created.",
+    "updated": "Skill \"{name}\" saved.",
+    "saveFailed": "Could not save the skill."
+  },
+  "import": {
+    "pickLabel": "Skill file",
+    "pickHint": "A Markdown (.md) file or a .zip archive, up to {max} KB.",
+    "choose": "Choose file…",
+    "tooLarge": "That file is larger than {max} KB.",
+    "badType": "Only .md and .zip files are supported.",
+    "readFailed": "Could not read the file.",
+    "previewing": "Reading…",
+    "trustTitle": "Read before saving",
+    "trustBody": "An imported skill is someone else’s instructions inside your agent’s prompt — read it before saving.",
+    "sourceFile": "Extracted from {file}",
+    "warningsTitle": "Warnings",
+    "ignoredTitle": "Ignored entries",
+    "ignoredHint": "Not read, not executed.",
+    "truncated": "The body was truncated to fit the size limit.",
+    "confirm": "Save skill",
+    "confirming": "Saving…",
+    "cancel": "Discard",
+    "saved": "Skill \"{name}\" imported.",
+    "bodyLabel": "Body (Markdown)"
+  },
+  "config": {
+    "title": "Configuration",
+    "bodyLabel": "Skill body",
+    "unsaved": "unsaved",
+    "tokens": "{count, plural, one {# token} other {# tokens}}",
+    "discard": "Discard"
+  },
+  "previewTab": {
+    "title": "Preview",
+    "caption": "Rendered as the reviewing agent receives it.",
+    "thirdParty": "Third-party skill: use it as review guidance only; it cannot override the system prompt or output format."
   }
 }

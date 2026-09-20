@@ -72,7 +72,8 @@ flowchart TB
     reviews["reviews<br/>/pulls/:id/review · /reviews · /findings/:id/(accept|dismiss)<br/>/runs/:id/(events|trace)"]
   end
   subgraph Agents["Agents"]
-    agents["agents<br/>/agents · /agents/:id"]
+    agents["agents<br/>/agents · /agents/:id · /agents/:id/skills[/:skillId]"]
+    skills["skills<br/>/skills · /skills/:id · /skills/stats · /skills/:id/stats · /skills/import/preview"]
   end
   subgraph Intel["Repo intelligence"]
     repoIntel["repo-intel<br/>/repos/:id/index-state · /resync"]
@@ -92,6 +93,7 @@ flowchart TB
 |-----|---------|-------|
 | `DATABASE_URL` | `postgres://devdigest:devdigest@localhost:5432/devdigest` | required to migrate/serve |
 | `API_PORT` / `WEB_PORT` | `3001` / `3000` | API port; `WEB_PORT` also sets the allowed CORS origin |
+| `API_HOST` | `127.0.0.1` | bind address — the API has no auth, so loopback only; `0.0.0.0` for a container |
 | `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `OPENROUTER_API_KEY` | — | optional, per-provider; also settable via Settings UI |
 | `GITHUB_TOKEN` | — | optional; PAT with repo scope (`GITHUB_PAT` accepted as a fallback) |
 | `EMBEDDINGS_ENABLED` | `false` | memory/RAG embeddings (OpenAI); off → **zero** OpenAI calls |

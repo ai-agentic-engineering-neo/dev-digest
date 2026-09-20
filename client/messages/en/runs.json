@@ -53,6 +53,7 @@
       "specs": "Project context (dynamic)",
       "callers": "Callers of changed symbols — repo-intel (dynamic)",
       "user": "User / diff (dynamic)",
+      "tokens": "~{count} tokens",
       "copy": "Copy",
       "fullscreen": "Open fullscreen",
       "search": "Search in this block…",

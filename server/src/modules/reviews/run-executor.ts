@@ -344,15 +344,21 @@ export class ReviewRunExecutor {
       if (links.length === 0) return [];
 
       const blocks = links.map((l) => toSkillPromptBlock(l.skill));
+      const perSkill = links.map((l, i) => ({
+        name: l.skill.name,
+        source: l.skill.source,
+        tokens: this.container.tokenizer.count(blocks[i]!),
+      }));
       const tokens = this.container.tokenizer.count(blocks.join('\n\n'));
       runLog.info(
         `skills: ${links.length} attached (+~${tokens} tokens) — ${links
           .map((l) => l.skill.name)
           .join(', ')}`,
+        { skills: perSkill, tokens },
       );
       return blocks;
     } catch (err) {
-      runLog.info(`skills: skipped — ${(err as Error).message}`);
+      runLog.error(`skills: could not load, running without skills — ${(err as Error).message}`);
       return [];
     }
   }

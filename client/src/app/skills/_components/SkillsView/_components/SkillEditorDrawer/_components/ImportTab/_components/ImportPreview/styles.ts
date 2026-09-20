@@ -1,0 +1,36 @@
+import type { CSSProperties } from "react";
+
+export const s = {
+  trust: {
+    display: "flex",
+    gap: 10,
+    padding: "12px 14px",
+    borderRadius: 8,
+    border: "1px solid var(--crit)",
+    background: "var(--bg-elevated)",
+    fontSize: 14,
+    fontWeight: 600,
+    lineHeight: 1.45,
+    marginBottom: 16,
+  } satisfies CSSProperties,
+  trustIcon: { color: "var(--crit)", flexShrink: 0, marginTop: 2 } satisfies CSSProperties,
+  trustTitle: { fontSize: 12, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--crit)" } satisfies CSSProperties,
+  block: { marginBottom: 16, fontSize: 13, color: "var(--text-secondary)" } satisfies CSSProperties,
+  blockTitle: { fontSize: 13, fontWeight: 600, marginBottom: 6 } satisfies CSSProperties,
+  list: { margin: 0, paddingLeft: 18, lineHeight: 1.6 } satisfies CSSProperties,
+  mono: { fontFamily: "var(--font-mono, monospace)" } satisfies CSSProperties,
+  meta: { fontSize: 12, color: "var(--text-muted)", marginBottom: 12 } satisfies CSSProperties,
+  body: {
+    maxHeight: 320,
+    overflow: "auto",
+    margin: 0,
+    padding: 12,
+    borderRadius: 7,
+    border: "1px solid var(--border-strong)",
+    background: "var(--bg-elevated)",
+    fontSize: 13,
+    lineHeight: 1.5,
+    whiteSpace: "pre-wrap",
+    wordBreak: "break-word",
+  } satisfies CSSProperties,
+} as const;

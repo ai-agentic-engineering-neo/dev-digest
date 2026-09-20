@@ -1,0 +1,47 @@
+import type { CSSProperties } from "react";
+
+export const s = {
+  card: {
+    background: "var(--bg-elevated)",
+    border: "1px solid var(--border)",
+    borderRadius: 10,
+    padding: 18,
+    display: "flex",
+    flexDirection: "column",
+    gap: 14,
+  } satisfies CSSProperties,
+  title: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    margin: 0,
+    fontSize: 11,
+    fontWeight: 600,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    color: "var(--text-muted)",
+  } satisfies CSSProperties,
+  list: { listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 } satisfies CSSProperties,
+  row: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    padding: "10px 12px",
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    background: "var(--bg-surface)",
+  } satisfies CSSProperties,
+  icon: {
+    width: 28,
+    height: 28,
+    borderRadius: 7,
+    display: "grid",
+    placeItems: "center",
+    background: "var(--bg-hover)",
+    color: "var(--accent)",
+    flexShrink: 0,
+  } satisfies CSSProperties,
+  name: { flex: 1, fontSize: 13, fontWeight: 600, color: "var(--text-primary)", minWidth: 0 } satisfies CSSProperties,
+  open: { fontSize: 12, color: "var(--text-muted)", textDecoration: "none" } satisfies CSSProperties,
+  muted: { fontSize: 13, color: "var(--text-muted)" } satisfies CSSProperties,
+} as const;

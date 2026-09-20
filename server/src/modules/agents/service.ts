@@ -1,4 +1,5 @@
 import type { Container } from '../../platform/container.js';
+import { ValidationError } from '../../platform/errors.js';
 import type {
   Agent,
   AgentSkillLink,
@@ -138,7 +139,12 @@ export class AgentsService {
   /** Linked skills for an agent as AgentSkillLink[] (ordered). */
   async skillLinks(agentId: string): Promise<AgentSkillLink[]> {
     const links = await this.repo.linkedSkills(agentId);
-    return links.map((l) => ({ agent_id: agentId, skill_id: l.skill.id, order: l.order }));
+    return links.map((l) => ({
+      agent_id: agentId,
+      skill_id: l.skill.id,
+      order: l.order,
+      enabled: l.enabled,
+    }));
   }
 
   /**
@@ -152,6 +158,7 @@ export class AgentsService {
   ): Promise<AgentSkillLink[] | undefined> {
     const agent = await this.repo.getById(workspaceId, agentId);
     if (!agent) return undefined;
+    await this.assertSkillsInWorkspace(workspaceId, skillIds);
     await this.repo.setSkills(agentId, skillIds);
     return this.skillLinks(agentId);
   }
@@ -165,10 +172,43 @@ export class AgentsService {
   ): Promise<AgentSkillLink[] | undefined> {
     const agent = await this.repo.getById(workspaceId, agentId);
     if (!agent) return undefined;
+    await this.assertSkillsInWorkspace(workspaceId, [skillId]);
     const existing = await this.repo.linkedSkills(agentId);
     const resolvedOrder = order ?? existing.length;
     await this.repo.linkSkill(agentId, skillId, resolvedOrder);
     return this.skillLinks(agentId);
+  }
+
+  /** Change one link's per-agent switch / order. Undefined when agent or link is missing. */
+  async updateSkillLink(
+    workspaceId: string,
+    agentId: string,
+    skillId: string,
+    patch: { enabled?: boolean; order?: number },
+  ): Promise<AgentSkillLink[] | undefined> {
+    const agent = await this.repo.getById(workspaceId, agentId);
+    if (!agent) return undefined;
+    const found = await this.repo.updateLink(agentId, skillId, patch);
+    return found ? this.skillLinks(agentId) : undefined;
+  }
+
+  /** Detach a skill from an agent. Undefined when the agent does not exist. */
+  async unlinkSkill(
+    workspaceId: string,
+    agentId: string,
+    skillId: string,
+  ): Promise<AgentSkillLink[] | undefined> {
+    const agent = await this.repo.getById(workspaceId, agentId);
+    if (!agent) return undefined;
+    await this.repo.unlinkSkill(agentId, skillId);
+    return this.skillLinks(agentId);
+  }
+
+  /** A link may only point at a skill of the same workspace (no cross-tenant ids). */
+  private async assertSkillsInWorkspace(workspaceId: string, skillIds: string[]): Promise<void> {
+    const found = await this.container.skillsRepo.existingIds(workspaceId, skillIds);
+    const unknown = skillIds.filter((id) => !found.has(id));
+    if (unknown.length > 0) throw new ValidationError('Unknown skill ids', { skill_ids: unknown });
   }
 
   /**

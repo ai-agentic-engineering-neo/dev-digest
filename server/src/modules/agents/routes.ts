@@ -26,6 +26,8 @@ const VersionParams = z.object({
  *   GET    /agents/:id/versions/:version → one config snapshot
  *   GET    /agents/:id/skills       → linked skills (ordered)
  *   POST   /agents/:id/skills       → set/reorder linked skills OR link one
+ *   PUT    /agents/:id/skills/:skillId    → per-agent switch (`enabled`) / `order`
+ *   DELETE /agents/:id/skills/:skillId    → unlink
  *   GET    /agents/:id/models       → dynamic model list for the agent's provider
  *   GET    /providers/:id/models    → dynamic model list for a provider (editor)
  */
@@ -65,6 +67,15 @@ const SetSkillsBody = z
   })
   .refine((b) => b.skill_ids !== undefined || b.skill_id !== undefined, {
     message: 'Provide skill_ids (set/reorder) or skill_id (link one)',
+  });
+
+/** `/agents/:id/skills/:skillId` — both uuids. */
+const SkillLinkParams = z.object({ id: z.string().uuid(), skillId: z.string().uuid() });
+
+const UpdateSkillLinkBody = z
+  .object({ enabled: z.boolean().optional(), order: z.number().int().min(0).optional() })
+  .refine((b) => b.enabled !== undefined || b.order !== undefined, {
+    message: 'Provide enabled and/or order',
   });
 
 export default async function agentsRoutes(appBase: FastifyInstance) {
@@ -163,6 +174,29 @@ export default async function agentsRoutes(appBase: FastifyInstance) {
       return links;
     },
   );
+
+  app.put(
+    '/agents/:id/skills/:skillId',
+    { schema: { params: SkillLinkParams, body: UpdateSkillLinkBody } },
+    async (req) => {
+      const { workspaceId } = await getContext(app.container, req);
+      const links = await service.updateSkillLink(
+        workspaceId,
+        req.params.id,
+        req.params.skillId,
+        req.body,
+      );
+      if (!links) throw new NotFoundError('Agent or skill link not found');
+      return links;
+    },
+  );
+
+  app.delete('/agents/:id/skills/:skillId', { schema: { params: SkillLinkParams } }, async (req) => {
+    const { workspaceId } = await getContext(app.container, req);
+    const links = await service.unlinkSkill(workspaceId, req.params.id, req.params.skillId);
+    if (!links) throw new NotFoundError('Agent not found');
+    return links;
+  });
 
   app.get('/agents/:id/models', { schema: { params: IdParams } }, async (req) => {
     const { workspaceId } = await getContext(app.container, req);

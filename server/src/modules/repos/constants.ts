@@ -15,7 +15,8 @@ export const GITHUB_TOKEN_SECRET = 'GITHUB_TOKEN';
  * Parse `owner`/`repo` from a GitHub URL — supports both
  * `https://github.com/owner/repo(.git)` and `git@github.com:owner/repo.git`.
  */
-export const GITHUB_URL_REGEX = /github\.com[/:]([^/]+)\/([^/.]+)(?:\.git)?\/?$/;
+export const GITHUB_URL_REGEX =
+  /^(?:https:\/\/github\.com\/|git@github\.com:)([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?$/;
 
 /** Username embedded into an authenticated https github.com clone URL. */
 export const GIT_TOKEN_USERNAME = 'x-access-token';

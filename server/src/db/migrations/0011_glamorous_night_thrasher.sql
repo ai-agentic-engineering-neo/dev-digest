@@ -1,0 +1,1 @@
+ALTER TABLE "agent_skills" ADD COLUMN IF NOT EXISTS "enabled" boolean DEFAULT true NOT NULL;

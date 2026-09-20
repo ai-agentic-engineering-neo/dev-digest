@@ -73,6 +73,8 @@ _None yet._
 
 ## Tool & Library Notes
 
+- **2026-09-19** — Importing a VALUE (not a type) from `@devdigest/shared` in client code breaks `next build` with `Module not found: Can't resolve './contracts/knowledge.js'`: the vendored package is NodeNext-style TS (`from "./x.js"` meaning `x.ts`), which vitest and `tsc` resolve but webpack does not. Until now every client import from it was `import type`, erased before bundling. `next.config.mjs` now maps `.js` → `.ts` via `resolve.extensionAlias`; `pnpm build` (not typecheck/test) is the check that catches this. Building also rewrites `.next`, so restart a running `next dev` afterwards. Evidence: `client/next.config.mjs`, `src/app/skills/_components/SkillsView/_components/SkillEditorDrawer/helpers.ts` (imports the `SkillInput` zod schema).
+
 - **2026-08-04** — This dev environment's seeded Postgres has zero
   `agent_runs` rows with `findings_count > 0` across all 3 seeded repos
   (`acme/payments-api`, `myasoid/dev-digest`, `quarkusio/quarkus`) — every
@@ -87,6 +89,8 @@ _None yet._
   playwright install chromium` (no `--with-deps`, which needs sudo) downloads
   a working headless Chromium fine, so a scratch `npm install playwright` +
   a small driver script is the fallback for one-off browser verification here.
+
+- **2026-09-19** — `@devdigest/ui` `Textarea`, `SelectInput` and `Toggle` accept no `id`/`aria-label`, and `FormField`'s `<label>` has no `htmlFor`, so `getByLabelText` cannot reach them. The skill Config tab therefore uses native `<input>/<textarea>/<select>` with `useId()` + `<label htmlFor>`, and wraps each `Toggle` in `<span role="group" aria-label>`. For master–detail state in the URL, tests mock `next/navigation` with a `useSyncExternalStore`-backed `useSearchParams` so `router.replace` really re-renders. Evidence: `src/app/skills/_components/SkillDetail/_components/SkillConfigTab/`, `SkillsView.test.tsx`.
 
 ## Recurring Errors & Fixes
 

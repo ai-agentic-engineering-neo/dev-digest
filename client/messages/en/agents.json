@@ -95,5 +95,26 @@
   },
   "mount": {
     "body": "Mount point for {owner}. The Agent Editor shell + tab routing are wired by A2 — {owner} renders this tab."
+  },
+  "skillsTab": {
+    "title": "Skills",
+    "enabledCount": "{enabled} of {total} enabled",
+    "filterPlaceholder": "Filter skills…",
+    "orderHint": "Order matters: skills higher in the list appear earlier in the assembled prompt.",
+    "empty": "No skills linked yet. Add one to extend this agent’s prompt.",
+    "noMatch": "No linked skills match.",
+    "dragHandle": "Drag to reorder {name}",
+    "moveUp": "Move {name} up",
+    "moveDown": "Move {name} down",
+    "unlink": "Unlink {name}",
+    "enable": "Enable {name} for this agent",
+    "globallyOff": "off globally",
+    "addSkill": "Add skill",
+    "addNone": "Every skill is already linked.",
+    "add": "Add",
+    "cancel": "Cancel",
+    "tokens": "~{count} tokens of skill text enabled",
+    "loadError": "Could not load skills.",
+    "updateFailed": "Could not update skills."
   }
 }

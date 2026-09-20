@@ -1,0 +1,29 @@
+{
+  "tiles": {
+    "usedBy": "Used by",
+    "usedByValue": "{count, plural, one {agent} other {agents}}",
+    "pullFrequency": "Pull frequency",
+    "acceptRate": "Accept rate",
+    "findings": "Findings ({days}d)",
+    "noValue": "—"
+  },
+  "agents": {
+    "title": "Agents using this skill",
+    "open": "Open",
+    "openAria": "Open {name}",
+    "off": "off",
+    "none": "No agents use this skill yet."
+  },
+  "categories": {
+    "title": "Findings by category",
+    "other": "other",
+    "none": "No findings yet.",
+    "chartAria": "Findings by category: {summary}"
+  },
+  "ring": { "aria": "Accept rate {percent}%" },
+  "empty": {
+    "title": "No stats yet",
+    "body": "Stats appear after agents that use this skill complete runs in the last {days} days."
+  },
+  "error": { "title": "Couldn't load stats", "body": "The skill stats request failed." }
+}

@@ -5,6 +5,7 @@
 
 import React from "react";
 import { AppFrame, CommandPalette, ShortcutsHelp, type Crumb } from "@devdigest/ui";
+import "./nav";
 import { useGlobalShortcuts, useShellCommands, useShellContext } from "./hooks";
 
 export function AppShell({ children, crumb }: { children: React.ReactNode; crumb?: Crumb[] }) {

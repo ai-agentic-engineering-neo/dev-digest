@@ -1,5 +1,5 @@
 import { simpleGit, type SimpleGit } from 'simple-git';
-import { join } from 'node:path';
+import { join, resolve, sep } from 'node:path';
 import { mkdir, readFile, access, rm } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import type {
@@ -35,7 +35,14 @@ export class SimpleGitClient implements GitClient {
   }
 
   clonePathFor(repo: RepoRef): string {
-    return join(this.cloneDir, repo.owner, repo.name);
+    const root = resolve(this.cloneDir);
+    const dest = resolve(root, repo.owner, repo.name);
+    // Defense in depth: owner/name come from user-supplied URLs; never let them
+    // resolve outside the clone root (clone() may rm -rf this path).
+    if (!dest.startsWith(root + sep)) {
+      throw new Error(`Refusing clone path outside ${root}: ${repo.owner}/${repo.name}`);
+    }
+    return dest;
   }
 
   private git(repo: RepoRef): SimpleGit {

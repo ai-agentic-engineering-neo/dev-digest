@@ -1,46 +1,70 @@
 "use client";
 
 import React, { useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Icon, Badge, Button, SectionLabel, EmptyState } from "@devdigest/ui";
 import { RunStatus } from "../RunStatus";
 import { RunHistory } from "../RunHistory/RunHistory";
 import { ReviewRunAccordion } from "../ReviewRunAccordion";
 import { s } from "./styles";
-import type { FindingRecord, ReviewRecord, RunSummary, PrCommit } from "@devdigest/shared";
-import type { UseMutationResult } from "@tanstack/react-query";
+import { allFindings } from "../../_lib/findings";
+import {
+  usePrReviews,
+  usePrActiveRuns,
+  usePrRuns,
+  useCancelRun,
+  useDeleteRun,
+  reviewKeys,
+} from "../../../../../../../lib/api/reviews";
+import type { PrCommit } from "@devdigest/shared";
 
 interface FindingsTabProps {
   prId: string | null;
-  liveRunIds: string[];
-  reviewRunning: boolean;
-  lethalTrifecta: FindingRecord[];
-  runs: ReviewRecord[];
-  prRuns: RunSummary[] | undefined;
   prCommits: PrCommit[];
-  cancelMutation: UseMutationResult<any, any, string, any>;
   /** owner/repo + head sha — used to deep-link a finding's file:line to GitHub. */
   repoFullName?: string | null;
   headSha?: string | null;
   onOpenTrace: (id: string) => void;
-  onDelete: (id: string) => void;
-  onRunDone: () => void;
 }
 
 export function FindingsTab({
   prId,
-  liveRunIds,
-  reviewRunning,
-  lethalTrifecta,
-  runs,
-  prRuns,
   prCommits,
-  cancelMutation,
   repoFullName,
   headSha,
   onOpenTrace,
-  onDelete,
-  onRunDone,
 }: FindingsTabProps) {
+  const qc = useQueryClient();
+  const { data: reviews, refetch: refetchReviews } = usePrReviews(prId);
+  const { data: activeRuns } = usePrActiveRuns(prId);
+  const { data: prRuns } = usePrRuns(prId);
+  const cancelMutation = useCancelRun();
+  const deleteRun = useDeleteRun(prId);
+
+  const runs = reviews ?? [];
+  const liveRunIds = (activeRuns ?? []).map((r) => r.run_id);
+  const reviewRunning = liveRunIds.length > 0;
+  const lethalTrifecta = allFindings(runs).filter((f) => f.kind === "lethal_trifecta");
+
+  // When a run settles (done OR failed) refresh both the live-run banner and
+  // the full run history, so a just-failed run shows up in "Run history"
+  // immediately — no page reload — plus refetch reviews for its findings.
+  const onRunDone = useCallback(() => {
+    if (prId) {
+      qc.invalidateQueries({ queryKey: reviewKeys.activeRuns(prId) });
+      qc.invalidateQueries({ queryKey: reviewKeys.runs(prId) });
+    }
+    refetchReviews();
+  }, [prId, qc, refetchReviews]);
+
+  const onDelete = useCallback(
+    (id: string) => {
+      if (window.confirm("Delete this run from history? (its logs are removed too)"))
+        deleteRun.mutate(id);
+    },
+    [deleteRun],
+  );
+
   const handleCancelAll = useCallback(() => {
     liveRunIds.forEach((id) => cancelMutation.mutate(id));
   }, [liveRunIds, cancelMutation]);

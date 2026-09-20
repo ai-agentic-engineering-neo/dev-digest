@@ -14,6 +14,7 @@ import { ApiError } from "@/lib/api/client";
 import { SkillCard } from "../SkillCard";
 import { typeColor } from "../SkillCard/helpers";
 import { CreateSkillModal } from "./_components/CreateSkillModal";
+import { ImportSkillDrawer } from "./_components/ImportSkillDrawer";
 import { SkillEditor } from "./_components/SkillEditor";
 import { filterSkills } from "./helpers";
 import { s } from "./styles";
@@ -33,6 +34,7 @@ export function SkillsView() {
 
   const [query, setQuery] = React.useState("");
   const [creating, setCreating] = React.useState(false);
+  const [importing, setImporting] = React.useState(false);
 
   const tab = VALID_TABS.includes(search.get("tab") ?? "") ? search.get("tab")! : "config";
   const setTab = (tb: string) => {
@@ -42,11 +44,7 @@ export function SkillsView() {
     router.replace(`/skills/${id}?${sp.toString()}`);
   };
 
-  // ANOTHER TASK adds the import drawer (file/URL/community). This just opens
-  // the seam — wire it to a real drawer there.
-  const onImport = () => {
-    /* TODO(import): open the import drawer. */
-  };
+  const onImport = () => setImporting(true);
 
   const list = filterSkills(skills ?? [], query);
 
@@ -62,6 +60,7 @@ export function SkillsView() {
     <>
       <ShellCrumb items={crumb} />
       {creating && <CreateSkillModal onClose={() => setCreating(false)} />}
+      {importing && <ImportSkillDrawer onClose={() => setImporting(false)} />}
       <div style={s.container}>
         {/* left: skill list */}
         <div style={s.sidebar}>

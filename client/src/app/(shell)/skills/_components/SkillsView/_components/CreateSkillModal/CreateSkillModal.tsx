@@ -8,7 +8,8 @@ import { useTranslations } from "next-intl";
 import { Button, Modal, FormField, TextInput, SelectInput, Textarea } from "@devdigest/ui";
 import type { SkillType } from "@devdigest/shared";
 import { useCreateSkill } from "@/lib/api/skills";
-import { DEFAULT_TYPE, MODAL_WIDTH, TYPE_OPTIONS } from "./constants";
+import { SKILL_TYPES } from "../../constants";
+import { DEFAULT_TYPE, MODAL_WIDTH } from "./constants";
 import { s } from "./styles";
 
 export function CreateSkillModal({ onClose }: { onClose: () => void }) {
@@ -20,7 +21,7 @@ export function CreateSkillModal({ onClose }: { onClose: () => void }) {
   const [type, setType] = React.useState<SkillType>(DEFAULT_TYPE);
   const [body, setBody] = React.useState("");
 
-  const typeOptions = TYPE_OPTIONS.map((v) => ({ value: v, label: t(`listItem.type.${v}`) }));
+  const typeOptions = SKILL_TYPES.map((v) => ({ value: v, label: t(`listItem.type.${v}`) }));
 
   const submit = async () => {
     const skill = await create.mutateAsync({

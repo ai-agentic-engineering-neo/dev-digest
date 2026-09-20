@@ -12,6 +12,7 @@ import {
 import { sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { loadConfig, type AppConfig } from './platform/config.js';
+import { APP_VERSION } from './platform/version.js';
 import { createDb, type Db } from './db/client.js';
 import { Container, type ContainerOverrides } from './platform/container.js';
 import { AppError } from './platform/errors.js';
@@ -96,8 +97,14 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
     await app.register(rateLimit, { max: 120, timeWindow: '1 minute' });
   }
 
-  // Liveness check (no module, no DB, no rate limit).
-  app.get('/health', { config: { rateLimit: false } }, async () => ({ status: 'ok' }));
+  // Liveness check (no module, no DB, no rate limit). Reports which build is
+  // answering and how long it has been up — enough to tell "restarted 3s ago"
+  // from "healthy for a day" without shelling into the process.
+  app.get('/health', { config: { rateLimit: false } }, async () => ({
+    status: 'ok',
+    version: APP_VERSION,
+    uptimeSeconds: Math.floor(process.uptime()),
+  }));
 
   // Readiness check — verifies the DB is reachable with a cheap `SELECT 1`.
   // 503 (not 500) so orchestrators treat it as "not ready yet", not a crash.

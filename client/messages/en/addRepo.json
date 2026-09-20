@@ -1,0 +1,13 @@
+{
+  "title": "Add a repository",
+  "description": "Paste a GitHub repository URL — DevDigest clones it locally and imports open PRs. API keys aren't needed here; set them once in",
+  "settingsLink": "Settings → API Keys",
+  "field": {
+    "label": "Repository URL",
+    "hint": "e.g. https://github.com/acme/payments-api",
+    "placeholder": "https://github.com/owner/repo"
+  },
+  "errors": {
+    "couldNotAdd": "Could not add repository"
+  }
+}

@@ -78,6 +78,10 @@ export function FileCard({ file, commenting }: { file: PrFile; commenting?: Diff
           {lines.length === 0 ? (
             <div style={s.noDiff}>{t("diffViewer.noDiffText")}</div>
           ) : (
+            // Index key: `lines` is parsePatch's output for one immutable patch
+            // — never reordered, filtered or appended to. A composite of
+            // kind/oldNo/newNo is NOT unique here: hunk headers carry no line
+            // numbers, so every "@@" line in a multi-hunk file collides.
             lines.map((ln, i) => (
               <CodeLine
                 key={i}

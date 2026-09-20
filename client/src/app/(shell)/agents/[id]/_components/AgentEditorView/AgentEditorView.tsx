@@ -4,6 +4,7 @@
 
 import React from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Button, Dropdown, ErrorState, Skeleton, Icon, Badge } from "@devdigest/ui";
 import { ShellCrumb } from "@/components/app-shell";
 import { AgentCard } from "../../../_components/AgentCard";
@@ -18,6 +19,7 @@ export function AgentEditorView() {
   const params = useParams<{ id: string }>();
   const search = useSearchParams();
   const router = useRouter();
+  const t = useTranslations("agents");
   const { id } = params;
 
   const { data: agents } = useAgents();
@@ -34,7 +36,7 @@ export function AgentEditorView() {
   const crumb = [
     { label: "Skills Lab" },
     { label: "Agents", href: "/agents" },
-    { label: agent?.name ?? "Agent" },
+    { label: agent?.name ?? t("editor.agentFallback") },
   ];
 
   if (isError || (!isLoading && !agent)) {
@@ -43,8 +45,8 @@ export function AgentEditorView() {
         <ShellCrumb items={crumb} />
         <ErrorState
           fullScreen
-          title="Couldn't load this agent"
-          body={error instanceof ApiError ? error.message : "The agent could not be loaded."}
+          title={t("editor.loadErrorTitle")}
+          body={error instanceof ApiError ? error.message : t("editor.loadErrorBody")}
           onRetry={() => refetch()}
         />
       </>
@@ -59,16 +61,16 @@ export function AgentEditorView() {
         <div style={s.sidebar}>
           <div style={s.sidebarHeader}>
             <div style={s.sidebarHeaderTop}>
-              <h1 style={s.sidebarTitle}>Agents</h1>
+              <h1 style={s.sidebarTitle}>{t("editor.listTitle")}</h1>
               <Dropdown
                 width={210}
                 align="right"
                 trigger={
                   <Button kind="primary" size="sm" icon="Plus">
-                    Add
+                    {t("editor.add")}
                   </Button>
                 }
-                items={[{ label: "Create from scratch", icon: "Edit", onClick: () => router.push("/agents") }]}
+                items={[{ label: t("editor.createFromScratch"), icon: "Edit", onClick: () => router.push("/agents") }]}
               />
             </div>
           </div>
@@ -99,10 +101,10 @@ export function AgentEditorView() {
               <Badge color="var(--text-secondary)" mono>
                 {agent.provider}/{agent.model}
               </Badge>
-              {!agent.enabled && <Badge color="var(--text-muted)">disabled</Badge>}
+              {!agent.enabled && <Badge color="var(--text-muted)">{t("editor.disabled")}</Badge>}
               <div style={s.editorHeaderSpacer}>
                 <Button kind="secondary" size="sm" icon="GitPullRequest" onClick={() => router.push("/")}>
-                  Run on a PR…
+                  {t("editor.runOnPr")}
                 </Button>
               </div>
             </div>

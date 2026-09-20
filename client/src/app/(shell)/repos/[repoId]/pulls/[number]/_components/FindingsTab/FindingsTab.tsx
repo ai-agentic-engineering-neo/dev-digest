@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback } from "react";
+import { useTranslations } from "next-intl";
 import { useQueryClient } from "@tanstack/react-query";
 import { Icon, Badge, Button, SectionLabel, EmptyState } from "@devdigest/ui";
 import { RunStatus } from "../RunStatus";
@@ -34,6 +35,7 @@ export function FindingsTab({
   headSha,
   onOpenTrace,
 }: FindingsTabProps) {
+  const t = useTranslations("prReview");
   const qc = useQueryClient();
   const { data: reviews, refetch: refetchReviews } = usePrReviews(prId);
   const { data: activeRuns } = usePrActiveRuns(prId);
@@ -59,10 +61,10 @@ export function FindingsTab({
 
   const onDelete = useCallback(
     (id: string) => {
-      if (window.confirm("Delete this run from history? (its logs are removed too)"))
+      if (window.confirm(t("findings.deleteConfirm")))
         deleteRun.mutate(id);
     },
-    [deleteRun],
+    [deleteRun, t],
   );
 
   const handleCancelAll = useCallback(() => {
@@ -172,8 +174,8 @@ export function FindingsTab({
         reviewRunning || liveRunIds.length > 0 ? null : (
           <EmptyState
             icon="Sparkles"
-            title="No findings yet"
-            body="Run a review to generate findings. Use Run Review ▾ above (run all enabled agents or a specific one)."
+            title={t("findings.emptyTitle")}
+            body={t("findings.emptyBody")}
           />
         )
       ) : (

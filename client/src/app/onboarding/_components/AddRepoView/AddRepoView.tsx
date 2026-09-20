@@ -6,12 +6,14 @@
 
 import React from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Button, Icon, IconBtn, Kbd, TextInput, FormField } from "@devdigest/ui";
 import { useAddRepo } from "@/lib/api/repos";
 import { ApiError } from "@/lib/api/client";
 
 export function AddRepoView() {
   const router = useRouter();
+  const t = useTranslations("addRepo");
   const [repoUrl, setRepoUrl] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
   const addRepo = useAddRepo();
@@ -34,7 +36,7 @@ export function AddRepoView() {
       const repo = await addRepo.mutateAsync(repoUrl.trim());
       router.push(`/repos/${repo.id}/pulls`);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Could not add repository");
+      setError(e instanceof ApiError ? e.message : t("errors.couldNotAdd"));
     }
   };
 
@@ -74,10 +76,9 @@ export function AddRepoView() {
           <IconBtn icon="X" label="Close" onClick={close} />
         </div>
 
-        <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.02em" }}>Add a repository</h1>
+        <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.02em" }}>{t("title")}</h1>
         <p style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 8, marginBottom: 28, lineHeight: 1.5 }}>
-          Paste a GitHub repository URL — DevDigest clones it locally and imports open PRs.
-          API keys aren’t needed here; set them once in{" "}
+          {t("description")}{" "}
           <a
             href="/settings/api-keys"
             onClick={(e) => {
@@ -86,17 +87,17 @@ export function AddRepoView() {
             }}
             style={{ color: "var(--accent-text)" }}
           >
-            Settings → API Keys
+            {t("settingsLink")}
           </a>
           .
         </p>
 
-        <FormField label="Repository URL" hint="e.g. https://github.com/acme/payments-api">
+        <FormField label={t("field.label")} hint={t("field.hint")}>
           <TextInput
             value={repoUrl}
             onChange={setRepoUrl}
             mono
-            placeholder="https://github.com/owner/repo"
+            placeholder={t("field.placeholder")}
             onKeyDown={(e) => {
               if (e.key === "Enter") submit();
             }}

@@ -41,5 +41,14 @@
     "viewOnGitHub": "View on GitHub",
     "postedToGitHub": "Posts to GitHub immediately",
     "outdatedTitle": "{count} comment(s) on older revisions"
+  },
+  "page": {
+    "title": "Welcome to DevDigest",
+    "subtitle": "Local-first AI PR review",
+    "emptyTitle": "No repositories yet",
+    "emptyBody": "Add a repository to start reviewing pull requests. Set your API keys once in Settings → API Keys.",
+    "emptyCta": "Add repository",
+    "redirecting": "Taking you to your repository…",
+    "open": "Open {name}"
   }
 }

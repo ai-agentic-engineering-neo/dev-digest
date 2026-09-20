@@ -99,6 +99,7 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
         {trace.tool_calls.length === 0 ? (
           <span style={s.noToolCalls}>{t("trace.noToolCalls")}</span>
         ) : (
+          // ToolCall has no id field and the trace is an append-only log; index is stable.
           trace.tool_calls.map((tc, i) => <ToolCallRow key={i} tc={tc} />)
         )}
       </TraceSection>

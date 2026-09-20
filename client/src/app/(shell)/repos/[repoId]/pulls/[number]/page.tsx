@@ -6,6 +6,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Skeleton, ErrorState } from "@devdigest/ui";
 import { ShellCrumb } from "@/components/app-shell";
 import { RepoNotFound } from "../../_components/RepoNotFound";
@@ -26,6 +27,7 @@ import { githubPrUrl } from "./_lib/github-urls";
 
 export default function PRDetailPage() {
   const params = useParams<{ repoId: string; number: string }>();
+  const t = useTranslations("prReview");
   const { repoId, number } = params;
   const { activeRepo } = useActiveRepo();
   const repoNotFound = useRepoNotFound(repoId);
@@ -52,7 +54,7 @@ export default function PRDetailPage() {
   const repoFullName = activeRepo?.full_name ?? null;
   const crumb = [
     { label: repoName, mono: true, href: `/repos/${repoId}/pulls` },
-    { label: "Pull Requests", href: `/repos/${repoId}/pulls` },
+    { label: t("detail.breadcrumb"), href: `/repos/${repoId}/pulls` },
     { label: `#${number}`, mono: true },
   ];
 
@@ -85,8 +87,8 @@ export default function PRDetailPage() {
         <ShellCrumb items={crumb} />
         <ErrorState
           fullScreen
-          title="Couldn't load this pull request"
-          body={error instanceof ApiError ? error.message : `PR #${number} could not be loaded.`}
+          title={t("detail.loadErrorTitle")}
+          body={error instanceof ApiError ? error.message : t("detail.loadErrorBody", { number })}
           onRetry={() => refetch()}
         />
       </>

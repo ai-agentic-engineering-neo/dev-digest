@@ -108,5 +108,15 @@
     "goToReview": "Jump to this run’s findings below",
     "openTrace": "Open run trace & logs",
     "deleteRun": "Delete run"
+  },
+  "detail": {
+    "loadErrorTitle": "Couldn’t load this pull request",
+    "loadErrorBody": "PR #{number} could not be loaded.",
+    "breadcrumb": "Pull Requests"
+  },
+  "findings": {
+    "emptyTitle": "No findings yet",
+    "emptyBody": "Run a review to generate findings. Use Run Review ▾ above (run all enabled agents or a specific one).",
+    "deleteConfirm": "Delete this run from history? (its logs are removed too)"
   }
 }

@@ -19,7 +19,7 @@ import {
 import type { SkillType } from "@devdigest/shared";
 import { useCreateSkill } from "@/lib/api/skills";
 import { useToast } from "@/lib/toast";
-import { SKILL_TYPES } from "../../constants";
+import { skillTypeOptions } from "../../helpers";
 import {
   baseName,
   guessType,
@@ -184,7 +184,7 @@ export function ImportSkillDrawer({ onClose }: { onClose: () => void }) {
             <FormField label={t("file.typeLabel")}>
               <SelectInput
                 value={draft.type}
-                options={SKILL_TYPES.map((v) => ({ value: v, label: t(`listItem.type.${v}`) }))}
+                options={skillTypeOptions(t)}
                 onChange={(v) => patch("type", v as SkillType)}
               />
             </FormField>

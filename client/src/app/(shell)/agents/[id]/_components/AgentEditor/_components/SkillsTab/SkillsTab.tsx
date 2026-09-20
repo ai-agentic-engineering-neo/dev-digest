@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { Badge, Checkbox, IconBtn, Skeleton, TextInput, Toggle } from "@devdigest/ui";
 import { useSkills } from "@/lib/api/skills";
 import { useAgentSkills, useSetAgentSkills } from "@/lib/api/agents";
-import { TYPE_COLORS } from "./constants";
+import { SKILL_TYPE_COLOR } from "@/components/skills";
 import { buildRows, toAttachedLinks, type SkillRow } from "./helpers";
 import { orderBtnWrap, row, s, typeChip } from "./styles";
 
@@ -102,7 +102,7 @@ export function SkillsTab({ agentId }: { agentId: string }) {
               <span className="mono" style={s.name}>
                 {r.name}
               </span>
-              <Badge style={typeChip(TYPE_COLORS[r.type])}>{r.type}</Badge>
+              <Badge style={typeChip(SKILL_TYPE_COLOR[r.type])}>{r.type}</Badge>
               {!r.skill_enabled && (
                 <span title={t("skills.globalDisabledTitle")}>
                   <Badge color="var(--text-muted)">{t("skills.globalDisabled")}</Badge>

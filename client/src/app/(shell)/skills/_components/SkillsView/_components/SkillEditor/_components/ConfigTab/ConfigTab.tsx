@@ -7,7 +7,7 @@ import { FormField, TextInput, SelectInput, Textarea, Toggle, Button } from "@de
 import type { Skill, SkillType, UpdateSkillInput } from "@devdigest/shared";
 import { useDeleteSkill, useUpdateSkill } from "@/lib/api/skills";
 import { useToast } from "@/lib/toast";
-import { SKILL_TYPES } from "../../../../constants";
+import { skillTypeOptions } from "../../../../helpers";
 import { s } from "./styles";
 
 /** Draft shape mirrors the PUT /skills/:id payload, so `save` can send it as-is. */
@@ -36,7 +36,7 @@ export function ConfigTab({ skill }: { skill: Skill }) {
   const patch = <K extends keyof Draft>(key: K, value: Draft[K]) =>
     setDraft((d) => ({ ...d, [key]: value }));
 
-  const typeOptions = SKILL_TYPES.map((v) => ({ value: v, label: t(`listItem.type.${v}`) }));
+  const typeOptions = skillTypeOptions(t);
 
   const save = () =>
     update.mutate(

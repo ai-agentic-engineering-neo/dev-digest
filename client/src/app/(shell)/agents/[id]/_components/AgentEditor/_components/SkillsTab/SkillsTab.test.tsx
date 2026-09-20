@@ -106,7 +106,7 @@ describe("SkillsTab", () => {
 
   it("moving the second attached row up swaps it with the first", () => {
     renderWithIntl();
-    const moveUpButtons = screen.getAllByLabelText("Move up");
+    const moveUpButtons = screen.getAllByRole("button", { name: "Move up" });
     // moveUpButtons[0] belongs to the first attached row (pr-rubric) and is a
     // no-op boundary; moveUpButtons[1] belongs to conv-style.
     fireEvent.click(moveUpButtons[1]!);

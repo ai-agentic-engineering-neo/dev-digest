@@ -53,23 +53,32 @@ export class SkillsRepository {
     return row;
   }
 
-  /** Insert a skill AND record version 1 in skill_versions (immutable body snapshot). */
+  /**
+   * Insert a skill AND record version 1 in skill_versions (immutable body
+   * snapshot). One transaction: a skill whose v1 snapshot failed to write would
+   * report version 1 with an empty history forever.
+   */
   async insert(values: InsertSkill): Promise<SkillRow> {
-    const [row] = await this.db
-      .insert(t.skills)
-      .values({
-        workspaceId: values.workspaceId,
-        name: values.name,
-        description: values.description,
-        type: values.type,
-        source: values.source,
-        body: values.body,
-        enabled: values.enabled ?? true,
-        version: 1,
-      })
-      .returning();
-    await this.snapshotVersion(row!.id, 1, row!.body);
-    return row!;
+    return this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(t.skills)
+        .values({
+          workspaceId: values.workspaceId,
+          name: values.name,
+          description: values.description,
+          type: values.type,
+          source: values.source,
+          body: values.body,
+          enabled: values.enabled ?? true,
+          version: 1,
+        })
+        .returning();
+      await tx
+        .insert(t.skillVersions)
+        .values({ skillId: row!.id, version: 1, body: row!.body })
+        .onConflictDoNothing();
+      return row!;
+    });
   }
 
   /**
@@ -88,21 +97,31 @@ export class SkillsRepository {
     const bodyChanged = isBodyChange(existing, patch);
     const nextVersion = bodyChanged ? existing.version + 1 : existing.version;
 
-    const [row] = await this.db
-      .update(t.skills)
-      .set({
-        ...(patch.name !== undefined ? { name: patch.name } : {}),
-        ...(patch.description !== undefined ? { description: patch.description } : {}),
-        ...(patch.type !== undefined ? { type: patch.type } : {}),
-        ...(patch.body !== undefined ? { body: patch.body } : {}),
-        ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
-        ...(bodyChanged ? { version: nextVersion } : {}),
-      })
-      .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.id, id)))
-      .returning();
+    // The version bump and its snapshot commit together: a row claiming
+    // version N with no snapshot of N loses that wording for good, and an eval
+    // replaying that version would score text nobody can see.
+    return this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(t.skills)
+        .set({
+          ...(patch.name !== undefined ? { name: patch.name } : {}),
+          ...(patch.description !== undefined ? { description: patch.description } : {}),
+          ...(patch.type !== undefined ? { type: patch.type } : {}),
+          ...(patch.body !== undefined ? { body: patch.body } : {}),
+          ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
+          ...(bodyChanged ? { version: nextVersion } : {}),
+        })
+        .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.id, id)))
+        .returning();
 
-    if (bodyChanged && row) await this.snapshotVersion(row.id, nextVersion, row.body);
-    return row;
+      if (bodyChanged && row) {
+        await tx
+          .insert(t.skillVersions)
+          .values({ skillId: row.id, version: nextVersion, body: row.body })
+          .onConflictDoNothing();
+      }
+      return row;
+    });
   }
 
   /** Delete a skill (scoped to workspace); skill_versions/agent_skills cascade. */
@@ -125,7 +144,4 @@ export class SkillsRepository {
       .orderBy(desc(t.skillVersions.version));
   }
 
-  private async snapshotVersion(skillId: string, version: number, body: string): Promise<void> {
-    await this.db.insert(t.skillVersions).values({ skillId, version, body }).onConflictDoNothing();
-  }
 }

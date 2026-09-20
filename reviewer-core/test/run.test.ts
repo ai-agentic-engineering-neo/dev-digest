@@ -104,6 +104,83 @@ describe('reviewPullRequest (engine)', () => {
     ).rejects.toThrow('cancelled');
   });
 
+  // A two-file diff, so `strategy: 'map-reduce'` really fans out into two calls.
+  const twoFileDiff = [
+    'diff --git a/src/a.ts b/src/a.ts',
+    '--- a/src/a.ts',
+    '+++ b/src/a.ts',
+    '@@ -1,2 +1,3 @@',
+    ' const a = 1;',
+    '+const b = 2;',
+    'diff --git a/src/b.ts b/src/b.ts',
+    '--- a/src/b.ts',
+    '+++ b/src/b.ts',
+    '@@ -1,2 +1,3 @@',
+    ' const c = 3;',
+    '+const d = 4;',
+  ].join('\n');
+
+  const clean = { verdict: 'approve', summary: 'looks good', score: 100, findings: [] };
+
+  /** An LLM that reports each chunk's cost from `costs`, in call order. */
+  function costingLlm(costs: (number | null)[]): LLMProvider {
+    let call = 0;
+    return {
+      id: 'openrouter',
+      async completeStructured<T>(req): Promise<StructuredResult<T>> {
+        const costUsd = costs[call++] ?? null;
+        return {
+          data: clean as unknown as T,
+          model: req.model,
+          tokensIn: 10,
+          tokensOut: 5,
+          costUsd,
+          raw: '',
+          attempts: 1,
+        };
+      },
+      async listModels() {
+        return [];
+      },
+      async complete() {
+        throw new Error('not used');
+      },
+      async embed() {
+        return [];
+      },
+    };
+  }
+
+  it('map-reduce: sums the cost of every chunk', async () => {
+    const diff = await new MockGitClient({ diff: twoFileDiff }).diff();
+    const outcome = await reviewPullRequest({
+      systemPrompt: 's',
+      model: 'm',
+      diff,
+      llm: costingLlm([0.002, 0.003]),
+      strategy: 'map-reduce',
+    });
+
+    expect(outcome.mode).toBe('map-reduce');
+    expect(outcome.costUsd).toBeCloseTo(0.005, 10);
+  });
+
+  it('map-reduce: one unpriced chunk makes the whole run cost unknown', async () => {
+    // An unknown chunk cost is contagious on purpose: a partial sum would read
+    // as a real total and under-report what the run actually cost.
+    const diff = await new MockGitClient({ diff: twoFileDiff }).diff();
+    const outcome = await reviewPullRequest({
+      systemPrompt: 's',
+      model: 'm',
+      diff,
+      llm: costingLlm([0.002, null]),
+      strategy: 'map-reduce',
+    });
+
+    expect(outcome.mode).toBe('map-reduce');
+    expect(outcome.costUsd).toBeNull();
+  });
+
   it('forwards sessionId to every LLM call (OpenRouter session grouping)', async () => {
     const seen: (string | undefined)[] = [];
     const recorder: LLMProvider = {

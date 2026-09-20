@@ -1,4 +1,12 @@
-import { pgTable, uuid, text, integer, jsonb, timestamp } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  uuid,
+  text,
+  integer,
+  jsonb,
+  timestamp,
+  doublePrecision,
+} from 'drizzle-orm/pg-core';
 import { workspaces } from './core';
 import { agents } from './agents';
 import { pullRequests } from './pulls';
@@ -24,6 +32,8 @@ export const agentRuns = pgTable('agent_runs', {
   source: text('source', { enum: ['local', 'ci'] }).notNull().default('local'),
   findingsCount: integer('findings_count'),
   grounding: text('grounding'),
+  /** Dollar cost of this run; null when the model has no known pricing. */
+  costUsd: doublePrecision('cost_usd'),
   /** Review score (0-100) for this run; null on failed/cancelled runs. */
   score: integer('score'),
   /** Findings that tripped the agent's gate (severity ≥ ciFailOn). */

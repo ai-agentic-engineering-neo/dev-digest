@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { eq } from 'drizzle-orm';
+import type { PrMeta } from '@devdigest/shared';
 import { startPg, dockerAvailable, type PgFixture } from './helpers/pg.js';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/platform/config.js';
@@ -128,6 +129,72 @@ d('Testcontainers: DB-backed routes via app.inject', () => {
     // import again → still idempotent (unique repo_id+number)
     const second = await app.inject({ method: 'GET', url: `/repos/${repoId}/pulls` });
     expect(second.json().length).toBe(first.json().length);
+    await app.close();
+  });
+
+  it('GET /repos/:id/pulls reports the cost of each PR’s LATEST run', async () => {
+    const config = loadConfig({ ...process.env, NODE_ENV: 'test' } as NodeJS.ProcessEnv);
+    // Two PRs: one we run agents on, one nobody touches. The default mock ships
+    // a single PR, so the second is spelled out here.
+    const pr = (number: number, title: string): PrMeta => ({
+      number,
+      title,
+      author: 'marisa.koch',
+      branch: `feat/${number}`,
+      base: 'main',
+      head_sha: `sha-${number}`,
+      additions: 10,
+      deletions: 1,
+      files_count: 2,
+      status: 'open',
+      opened_at: '2026-06-01T00:00:00Z',
+      updated_at: '2026-06-01T03:00:00Z',
+    });
+    const app = await buildApp({
+      config,
+      db: pg.handle.db,
+      overrides: {
+        git: new MockGitClient(),
+        github: new MockGitHubClient({
+          pulls: [pr(901, 'reviewed twice'), pr(902, 'never reviewed')],
+        }),
+      },
+    });
+    const repos = await app.inject({ method: 'GET', url: '/repos' });
+    const repoId = repos.json()[0]!.id;
+    const pulls: { id: string; number: number }[] = (
+      await app.inject({ method: 'GET', url: `/repos/${repoId}/pulls` })
+    ).json();
+    const target = pulls.find((p) => p.number === 901)!;
+    const untouched = pulls.find((p) => p.number === 902)!;
+
+    const [repoRow] = await pg.handle.db
+      .select()
+      .from(t.repos)
+      .where(eq(t.repos.id, repoId));
+
+    // Two settled runs on the same PR, the dearer one OLDER — so a sum (0.75)
+    // and a max (0.50) would both differ from the expected latest (0.25).
+    const run = (ranAt: Date, costUsd: number) => ({
+      workspaceId: repoRow!.workspaceId,
+      prId: target.id,
+      ranAt,
+      status: 'done',
+      costUsd,
+    });
+    await pg.handle.db.insert(t.agentRuns).values([
+      run(new Date('2026-06-10T10:00:00Z'), 0.5),
+      run(new Date('2026-06-11T10:00:00Z'), 0.25),
+    ]);
+
+    const after: { id: string; cost_usd: number | null }[] = (
+      await app.inject({ method: 'GET', url: `/repos/${repoId}/pulls` })
+    ).json();
+    const byId = (id: string) => after.find((p) => p.id === id)!;
+    expect(byId(target.id).cost_usd).toBeCloseTo(0.25, 10);
+    // A PR nobody has run an agent on has no cost at all — not zero.
+    expect(byId(untouched.id).cost_usd).toBeNull();
+
     await app.close();
   });
 

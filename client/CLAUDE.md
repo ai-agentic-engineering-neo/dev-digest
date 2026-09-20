@@ -26,7 +26,7 @@ Next.js 15 App Router studio on port 3000. Stack: TypeScript (no `"type"` field)
 - Read [README](README.md) when you need the UI route map.
 - Read [docs](docs/README.md) when you need how-it-works detail.
 - Read [specs](specs/README.md) when starting a lesson or feature.
-- Read [INSIGHTS](INSIGHTS.md) before changing a route, hook or i18n area it lists.
+- Read [INSIGHTS](INSIGHTS.md) at the start of any task in this module.
 - Read [TESTING](../TESTING.md) when adding component tests.
 - Read the [root README](../README.md) when setting up the whole project.
 

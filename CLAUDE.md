@@ -32,7 +32,7 @@ Run the module's own commands (see its CLAUDE.md), then `node scripts/check-clau
 
 ## Read when
 - Read `<module>/CLAUDE.md` before editing that module.
-- Read `<module>/INSIGHTS.md` before changing an area it lists (gotchas).
+- Read `<module>/INSIGHTS.md` at the start of any task in that module; at session end, record findings with the `engineering-insights` skill.
 - Read [README](README.md) when setting up or when you need the architecture diagram.
 - Read [TESTING](TESTING.md) when adding tests, touching CI or running the checker.
 - Read [agent prompts](docs/agent-prompts/README.md) when editing reviewer prompts.

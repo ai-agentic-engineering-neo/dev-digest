@@ -1,5 +1,18 @@
 # e2e insights
 
-Append-only. One dated bullet per non-obvious fact: what, why it matters, where it applies.
+Append-only. One line per finding, at the end of its section:
+`- YYYY-MM-DD Fact, the action to take, and why. Applies to path/file.ext:LINE.`
 
-_No entries yet._
+## What Works
+
+## What Doesn't Work
+
+## Codebase Patterns
+
+## Tool & Library Notes
+
+## Recurring Errors & Fixes
+
+## Session Notes
+
+## Open Questions

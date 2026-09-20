@@ -25,7 +25,7 @@ Deterministic browser flows driven by Vercel agent-browser: no Playwright, no LL
 - Read [README](README.md) when running flows or setting up agent-browser.
 - Read [docs](docs/README.md) when you need how-it-works detail.
 - Read [specs](specs/README.md) before adding or editing a flow.
-- Read [INSIGHTS](INSIGHTS.md) before changing runner behavior.
+- Read [INSIGHTS](INSIGHTS.md) at the start of any task in this module.
 - Read [TESTING](../TESTING.md) when touching CI or the e2e-web workflow.
 - Read the [root README](../README.md) when setting up the whole project.
 

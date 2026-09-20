@@ -30,7 +30,7 @@ Fastify 5 API on port 3001. Stack: TypeScript ESM (`"type": "module"`), Node >= 
 - Read [README](README.md) when changing routes, environment or the request/DI flow.
 - Read [docs](docs/README.md) when you need how-it-works detail.
 - Read [specs](specs/README.md) when starting a lesson or feature.
-- Read [INSIGHTS](INSIGHTS.md) before changing `src/db` or `src/modules/repo-intel`.
+- Read [INSIGHTS](INSIGHTS.md) at the start of any task in this module.
 - Read the [repo-intel README](src/modules/repo-intel/README.md) when touching the indexer.
 - Read [TESTING](../TESTING.md) when adding or splitting tests.
 - Read the [root README](../README.md) when setting up the whole project.

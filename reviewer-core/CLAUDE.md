@@ -24,7 +24,7 @@ Pure review engine: diff to prompt to injected LLM to grounded findings. Stack: 
 - Read [README](README.md) when changing the engine flow; its [pipeline section](README.md#pipeline) has the stages.
 - Read [docs](docs/README.md) when you need how-it-works detail.
 - Read [specs](specs/README.md) when starting a lesson or feature.
-- Read [INSIGHTS](INSIGHTS.md) before changing grounding or the LLM provider.
+- Read [INSIGHTS](INSIGHTS.md) at the start of any task in this module.
 - Read [TESTING](../TESTING.md) when adding tests.
 - Read the [root README](../README.md) when setting up the whole project.
 

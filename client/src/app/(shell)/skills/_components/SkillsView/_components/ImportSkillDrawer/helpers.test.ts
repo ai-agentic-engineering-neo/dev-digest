@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { deflateRawSync } from "node:zlib";
 import {
   baseName,
   guessType,
@@ -13,6 +14,7 @@ import {
 const entry = (name: string, over: Partial<ArchiveEntry> = {}): ArchiveEntry => ({
   name,
   size: 10,
+  compressedSize: 10,
   method: 0,
   localOffset: 0,
   ...over,
@@ -50,6 +52,67 @@ function zipWithStoredFile(name: string, content: string): ArrayBuffer {
   v.setUint16(eocd + 10, 1, true); // entry count
   v.setUint32(eocd + 16, local, true); // central directory offset
   return buf;
+}
+
+/**
+ * A ZIP with SEVERAL deflated entries — the shape that caught a real bug: an
+ * entry's compressed bytes are followed by the next entry and the central
+ * directory, and a decompressor handed any of that fails. A single-entry
+ * fixture cannot catch it.
+ */
+function zipWithDeflatedFiles(files: Array<{ name: string; content: string }>): ArrayBuffer {
+  const enc = new TextEncoder();
+  const parts: Uint8Array[] = [];
+  const central: Uint8Array[] = [];
+  let offset = 0;
+
+  for (const f of files) {
+    const nameB = enc.encode(f.name);
+    const dataB = enc.encode(f.content);
+    const comp = new Uint8Array(deflateRawSync(dataB));
+
+    const local = new Uint8Array(30 + nameB.length + comp.length);
+    const lv = new DataView(local.buffer);
+    lv.setUint32(0, 0x04034b50, true);
+    lv.setUint16(8, 8, true); // deflate
+    lv.setUint32(18, comp.length, true);
+    lv.setUint32(22, dataB.length, true);
+    lv.setUint16(26, nameB.length, true);
+    local.set(nameB, 30);
+    local.set(comp, 30 + nameB.length);
+    parts.push(local);
+
+    const cd = new Uint8Array(46 + nameB.length);
+    const cv = new DataView(cd.buffer);
+    cv.setUint32(0, 0x02014b50, true);
+    cv.setUint16(10, 8, true);
+    cv.setUint32(20, comp.length, true);
+    cv.setUint32(24, dataB.length, true);
+    cv.setUint16(28, nameB.length, true);
+    cv.setUint32(42, offset, true);
+    cd.set(nameB, 46);
+    central.push(cd);
+
+    offset += local.length;
+  }
+
+  const cdSize = central.reduce((n, c) => n + c.length, 0);
+  const eocd = new Uint8Array(22);
+  const ev = new DataView(eocd.buffer);
+  ev.setUint32(0, 0x06054b50, true);
+  ev.setUint16(8, files.length, true);
+  ev.setUint16(10, files.length, true);
+  ev.setUint32(12, cdSize, true);
+  ev.setUint32(16, offset, true);
+
+  const all = [...parts, ...central, eocd];
+  const out = new Uint8Array(all.reduce((n, a) => n + a.length, 0));
+  let at = 0;
+  for (const a of all) {
+    out.set(a, at);
+    at += a.length;
+  }
+  return out.buffer;
 }
 
 describe("parseSkillMarkdown", () => {
@@ -116,6 +179,24 @@ describe("readZipEntries", () => {
     const entries = readZipEntries(buf);
     expect(entries.map((e) => e.name)).toEqual(["skill/SKILL.md"]);
     expect(await readZipText(buf, entries[0]!)).toBe("# Hi\n");
+  });
+
+  it("reads a deflated entry that other entries follow", async () => {
+    const buf = zipWithDeflatedFiles([
+      { name: "skill/SKILL.md", content: "# Rubric\n\nEvery branch gets a test.\n" },
+      { name: "skill/scripts/run.sh", content: "#!/bin/sh\necho nope\n" },
+    ]);
+    const entries = readZipEntries(buf);
+    expect(entries.map((e) => e.name)).toEqual(["skill/SKILL.md", "skill/scripts/run.sh"]);
+
+    // The bug this pins: compressedSize was never read, so the decompressor got
+    // everything to EOF. Node's tolerates the trailing junk, the browser's does
+    // not — so assert the boundary itself, not just that the text decodes.
+    const picked = pickSkillEntry(entries)!;
+    expect(picked.compressedSize).toBe(deflateRawSync(Buffer.from("# Rubric\n\nEvery branch gets a test.\n")).length);
+    expect(picked.compressedSize).toBeLessThan(buf.byteLength - picked.localOffset - 30 - picked.name.length);
+
+    expect(await readZipText(buf, picked)).toBe("# Rubric\n\nEvery branch gets a test.\n");
   });
 
   it("rejects a file that is not a zip", () => {

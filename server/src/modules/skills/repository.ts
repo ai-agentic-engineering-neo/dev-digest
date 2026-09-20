@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import type { SkillSource, SkillType } from '@devdigest/shared';
@@ -35,8 +35,14 @@ export interface UpdateSkill {
 export class SkillsRepository {
   constructor(private db: Db) {}
 
+  /** Ordered by name: without it Postgres returns rows in update order, so
+      saving a skill makes it jump to the end of the sidebar list. */
   async list(workspaceId: string): Promise<SkillRow[]> {
-    return this.db.select().from(t.skills).where(eq(t.skills.workspaceId, workspaceId));
+    return this.db
+      .select()
+      .from(t.skills)
+      .where(eq(t.skills.workspaceId, workspaceId))
+      .orderBy(asc(t.skills.name));
   }
 
   async byId(workspaceId: string, id: string): Promise<SkillRow | undefined> {

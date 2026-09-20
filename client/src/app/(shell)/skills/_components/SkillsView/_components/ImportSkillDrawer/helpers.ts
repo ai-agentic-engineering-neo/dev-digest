@@ -3,7 +3,10 @@ import type { SkillType } from "@devdigest/shared";
 /** One entry of a ZIP central directory. `method` 0 = stored, 8 = deflate. */
 export interface ArchiveEntry {
   name: string;
+  /** Uncompressed size. */
   size: number;
+  /** Compressed size — the exact byte count to hand the decompressor. */
+  compressedSize: number;
   method: number;
   localOffset: number;
 }
@@ -44,6 +47,7 @@ export function readZipEntries(buf: ArrayBuffer): ArchiveEntry[] {
     const nameLen = v.getUint16(p + 28, true);
     entries.push({
       method: v.getUint16(p + 10, true),
+      compressedSize: v.getUint32(p + 20, true),
       size: v.getUint32(p + 24, true),
       name: DEC.decode(new Uint8Array(buf, p + 46, nameLen)),
       localOffset: v.getUint32(p + 42, true),
@@ -53,8 +57,16 @@ export function readZipEntries(buf: ArrayBuffer): ArchiveEntry[] {
   return entries;
 }
 
-/** Read ONE entry as text. Stored entries are sliced; deflated ones go through
-    the platform's DecompressionStream. */
+/**
+ * Read ONE entry as text. Stored entries are sliced; deflated ones go through
+ * the platform's DecompressionStream.
+ *
+ * The slice is EXACTLY `compressedSize` bytes: an entry is followed by the next
+ * entry and the central directory, and a deflate stream handed anything past
+ * its own end fails with "Junk found after end of compressed data". The sizes
+ * come from the central directory because a local header may leave them zero
+ * (data-descriptor entries).
+ */
 export async function readZipText(buf: ArrayBuffer, entry: ArchiveEntry): Promise<string> {
   const v = new DataView(buf);
   const o = entry.localOffset;
@@ -62,10 +74,28 @@ export async function readZipText(buf: ArrayBuffer, entry: ArchiveEntry): Promis
   const start = o + 30 + v.getUint16(o + 26, true) + v.getUint16(o + 28, true);
   if (entry.method === 0) return DEC.decode(new Uint8Array(buf, start, entry.size));
   if (entry.method !== 8) throw new Error("unsupported compression");
-  const raw = new Uint8Array(buf, start, buf.byteLength - start);
-  const stream = new Blob([raw as BlobPart]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
-  const out = new Uint8Array(await new Response(stream).arrayBuffer());
-  return DEC.decode(out.slice(0, entry.size));
+
+  const ds = new DecompressionStream("deflate-raw");
+  const writer = ds.writable.getWriter();
+  void writer.write(new Uint8Array(buf, start, entry.compressedSize));
+  void writer.close();
+
+  const reader = ds.readable.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    total += value.length;
+  }
+  const out = new Uint8Array(total);
+  let at = 0;
+  for (const c of chunks) {
+    out.set(c, at);
+    at += c.length;
+  }
+  return DEC.decode(out);
 }
 
 const isDir = (e: ArchiveEntry) => e.name.endsWith("/");

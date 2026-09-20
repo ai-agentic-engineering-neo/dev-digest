@@ -59,4 +59,17 @@ _No entries yet._
 
 ## Open Questions
 
-_No entries yet._
+### MermaidDiagram видалено як мертвий код — повернути разом з onboarding-туром (2026-09-20)
+
+`client/src/components/mermaid-diagram/` і залежність `mermaid` прибрані на кроці 8
+рефакторингу, бо на компонент не було жодного імпорту. Але фіча, під яку він робився,
+жива в контрактах: `OnboardingSection.diagram` (`vendor/shared/contracts/knowledge.ts:39`,
+поле в mermaid-синтаксисі), промпт `server/src/prompts/onboarding.system.md` (правила
+"Mermaid rules (so it renders — invalid diagrams are dropped)") і запис `onboarding`
+у Feature Models. UI туру в стартері немає — `app/onboarding/` це екран додавання репо.
+
+**Правило:** коли з'явиться екран onboarding-туру, не пиши обгортку заново:
+`git checkout "$(git rev-list -1 HEAD -- client/src/components/mermaid-diagram)^" -- client/src/components/mermaid-diagram`
+і `cd client && pnpm add mermaid` (не редагуй lockfile руками). За
+`frontend-ui-architecture` це адаптер над сторонньою бібліотекою: клади його поруч
+з єдиним споживачем — екраном туру, а не назад у `src/components/`.

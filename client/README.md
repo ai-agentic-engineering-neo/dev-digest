@@ -7,7 +7,7 @@ course lessons add the Skills, Memory, Eval, Blast/Brief, multi-agent, CI, and
 dashboard screens.)
 
 - **Stack:** Next.js 15 (App Router), React 19, TanStack Query, `next-intl`
-  (messages in `messages/<locale>/*.json`), `recharts`, `mermaid`,
+  (messages in `messages/<locale>/*.json`), `recharts`,
   `react-markdown`. UI primitives are vendored under `src/vendor/ui`
   (`@devdigest/ui`) and shared Zod contracts under `src/vendor/shared`
   (`@devdigest/shared`).

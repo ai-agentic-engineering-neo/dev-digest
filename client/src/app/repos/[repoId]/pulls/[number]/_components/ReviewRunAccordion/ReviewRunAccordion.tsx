@@ -7,8 +7,9 @@
 
 import React from "react";
 import { Icon, Badge } from "@devdigest/ui";
-import type { ReviewRecord, Verdict } from "@devdigest/shared";
+import type { ReviewRecord, Severity, Verdict } from "@devdigest/shared";
 import { FindingsPanel } from "../FindingsPanel";
+import { SeverityCounters } from "../SeverityCounters";
 import { VerdictBanner } from "../VerdictBanner";
 import { useDeleteReview } from "../../../../../../../lib/hooks/reviews";
 
@@ -43,6 +44,7 @@ export function ReviewRunAccordion({
   targetNonce?: number;
 }) {
   const [open, setOpen] = React.useState(defaultOpen);
+  const [severityFilter, setSeverityFilter] = React.useState<Severity | null>(null);
   const rootRef = React.useRef<HTMLDivElement | null>(null);
   React.useEffect(() => {
     if (review.run_id && review.run_id === targetRunId) {
@@ -147,11 +149,17 @@ export function ReviewRunAccordion({
               />
             </div>
           )}
+          <SeverityCounters
+            findings={findings}
+            active={severityFilter}
+            onChange={setSeverityFilter}
+          />
           <FindingsPanel
             findings={findings}
             prId={prId}
             repoFullName={repoFullName}
             headSha={headSha}
+            severityFilter={severityFilter}
           />
         </div>
       )}

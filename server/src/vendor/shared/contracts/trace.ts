@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { FindingsBySeverity } from './findings.js';
 
 /**
  * Run trace. The ENTIRE trace of one run is persisted as a SINGLE
@@ -114,5 +115,11 @@ export const RunSummary = z.object({
   score: z.number().int().nullable(),
   blockers: z.number().int().nullable(),
   cost_usd: z.number().nullable(),
+  // Findings for this run, bucketed by severity. Computed at read time by
+  // joining reviews → findings (the timeline has no FK to the review, same
+  // reason score/blockers/cost_usd are denormalized above). Null when this
+  // run produced no review (failed/cancelled/still running) — never a
+  // zero-valued bucket, which instead means "reviewed, no findings".
+  findings_by_severity: FindingsBySeverity.nullable(),
 });
 export type RunSummary = z.infer<typeof RunSummary>;

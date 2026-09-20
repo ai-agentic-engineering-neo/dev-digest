@@ -302,6 +302,91 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     await app.close();
   });
 
+  it('PR list findings are bucketed by severity from the latest review; null for a PR never reviewed', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'Sev', provider: 'openai', model: 'gpt-4.1', system_prompt: 's' },
+      })
+    ).json();
+    await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } });
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+
+    // Grounding keeps only the CRITICAL finding (line 11); the WARNING on the
+    // non-existent line 999 is dropped as a phantom — the list must reflect
+    // the KEPT findings, not the model's raw output.
+    const list = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const row = list.find((p: { id: string }) => p.id === pr.id);
+    expect(row.findings).toEqual({ CRITICAL: 1, WARNING: 0, SUGGESTION: 0 });
+
+    // A PR with no review at all gets null — never a zero bucket, which would
+    // misleadingly read as "reviewed, clean".
+    const [prNoRuns] = await pg.handle.db
+      .insert(t.pullRequests)
+      .values({
+        workspaceId,
+        repoId: repo.id,
+        number: 484,
+        title: 'No runs yet',
+        author: 'marisa.koch',
+        branch: 'feat/other2',
+        base: 'main',
+        headSha: 'c9d0e1f2',
+        additions: 1,
+        deletions: 0,
+        filesCount: 1,
+        status: 'needs_review',
+      })
+      .returning();
+    const list2 = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const rowNoRuns = list2.find((p: { id: string }) => p.id === prNoRuns.id);
+    expect(rowNoRuns.findings).toBeNull();
+
+    await app.close();
+  });
+
+  it("Timeline run findings_by_severity matches the run's kept findings; null on a failed run", async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'SevRun', provider: 'openai', model: 'gpt-4.1', system_prompt: 's' },
+      })
+    ).json();
+    await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } });
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+
+    const runs = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(runs[0].findings_by_severity).toEqual({ CRITICAL: 1, WARNING: 0, SUGGESTION: 0 });
+
+    // A run that fails before producing a review has no findings data at all.
+    const brokenApp = await appWith({});
+    const failedAgent = (
+      await brokenApp.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'Broken2', provider: 'openai', model: 'gpt-4.1', system_prompt: 's' },
+      })
+    ).json();
+    await brokenApp.inject({
+      method: 'POST',
+      url: `/pulls/${pr.id}/review`,
+      payload: { agentId: failedAgent.id },
+    });
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 2 });
+    const runsAfterFailure = (await brokenApp.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    const failedRun = runsAfterFailure.find((r: { status: string }) => r.status === 'failed');
+    expect(failedRun.findings_by_severity).toBeNull();
+
+    await app.close();
+    await brokenApp.close();
+  });
+
   it('dual-provider structured output: anthropic provider returns the same Review shape', async () => {
     const app = await appWith(REVIEW_FIXTURE, 'anthropic');
     const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);

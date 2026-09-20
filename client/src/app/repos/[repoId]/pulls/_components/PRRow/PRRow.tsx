@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Icon, Avatar, Badge, CircularScore } from "@devdigest/ui";
 import { RunCostBadge } from "@/components/run-cost-badge";
+import { FindingsSeverityIcons } from "@/components/findings-severity-icons";
 import type { PrMeta } from "@/lib/types";
 import { SIZE_COLOR, STATUS_META } from "../../constants";
 import { relativeTime, sizeOf } from "../../helpers";
@@ -56,6 +57,16 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
       </div>
       <div style={s.costCell}>
         <RunCostBadge variant="compact" costUsd={pr.cost_usd} />
+      </div>
+      <div style={s.findingsCell} onClick={(e) => e.stopPropagation()}>
+        {pr.id && (
+          <FindingsSeverityIcons
+            counts={pr.findings ?? null}
+            source={{ kind: "lazy", prId: pr.id }}
+            popoverAlign="right"
+            popoverStrategy="fixed"
+          />
+        )}
       </div>
       <div>
         <Badge dot color={st.c} bg="transparent">

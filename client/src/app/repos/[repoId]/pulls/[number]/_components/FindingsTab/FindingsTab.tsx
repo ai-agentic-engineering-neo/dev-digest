@@ -63,6 +63,18 @@ export function FindingsTab({
     [onDelete],
   );
 
+  // For the Timeline's per-run findings popover: reuse the already-fetched
+  // reviews (no extra request) to look up a run's full finding list by run_id.
+  // The badge COUNTS still come from RunSummary.findings_by_severity — this
+  // map only supplies the popover's detail list.
+  const reviewsByRunId = React.useMemo(() => {
+    const m = new Map<string, ReviewRecord>();
+    for (const review of runs) {
+      if (review.run_id) m.set(review.run_id, review);
+    }
+    return m;
+  }, [runs]);
+
   // Timeline → Review-runs navigation: clicking an agent name in the timeline
   // opens + scrolls to that run's accordion below. The nonce re-triggers the
   // scroll even when the same run is clicked twice.
@@ -131,6 +143,7 @@ export function FindingsTab({
           <RunHistory
             runs={prRuns ?? []}
             commits={prCommits}
+            reviewsByRunId={reviewsByRunId}
             onOpenTrace={handleOpenTrace}
             onGoToReview={handleGoToReview}
             onDelete={handleDelete}

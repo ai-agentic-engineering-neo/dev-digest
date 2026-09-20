@@ -31,6 +31,10 @@
     "noMatchTitle": "No findings match",
     "noMatchBody": "Adjust the filters above, or run a review to generate findings."
   },
+  "findingsPopover": {
+    "title": "{count} findings",
+    "loading": "Loading findings…"
+  },
   "runReview": {
     "runAll": "Run all enabled agents",
     "configureAgents": "Configure agents…",
@@ -92,6 +96,7 @@
       "size": "Size",
       "score": "Score",
       "cost": "Cost",
+      "findings": "Findings",
       "status": "Status",
       "updated": "Updated"
     },

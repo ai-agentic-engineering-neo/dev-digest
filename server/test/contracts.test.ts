@@ -218,6 +218,7 @@ describe('AI contracts parse fixtures', () => {
       ran_at: '2026-06-13T20:52:51.000Z',
       score: 38,
       blockers: 2,
+      findings_by_severity: { CRITICAL: 0, WARNING: 2, SUGGESTION: 1 },
     };
     expect(() => RunSummary.parse({ ...base, cost_usd: 0.0013 })).not.toThrow();
     expect(() =>
@@ -227,6 +228,7 @@ describe('AI contracts parse fixtures', () => {
         score: null,
         blockers: null,
         cost_usd: null,
+        findings_by_severity: null,
       }),
     ).not.toThrow();
   });

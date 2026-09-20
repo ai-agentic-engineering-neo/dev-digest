@@ -46,6 +46,10 @@ export const s = {
     textAlign: "right",
     fontVariantNumeric: "tabular-nums",
   } satisfies CSSProperties,
+  findingsCell: {
+    display: "flex",
+    alignItems: "center",
+  } satisfies CSSProperties,
   updatedCell: {
     fontSize: 12,
     color: "var(--text-muted)",

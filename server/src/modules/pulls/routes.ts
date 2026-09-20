@@ -113,19 +113,43 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
 
     // Latest-review SCORE per PR for the list's score ring. Computed on read
     // from reviews (no FK denorm); the list is small, so one IN-query + JS
-    // grouping is cheap. (The per-severity FINDINGS breakdown is intentionally
-    // not surfaced on the list — findings live on the PR detail page.)
+    // grouping is cheap.
     const prIds = rows.map((r) => r.id);
-    const latestReviewByPr = new Map<string, { score: number | null }>();
+    const latestReviewByPr = new Map<string, { score: number | null; reviewId: string }>();
     if (prIds.length > 0) {
       const reviewRows = await container.db
-        .select({ prId: t.reviews.prId, score: t.reviews.score })
+        .select({ prId: t.reviews.prId, score: t.reviews.score, id: t.reviews.id })
         .from(t.reviews)
         .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review')))
         .orderBy(desc(t.reviews.createdAt));
       // Rows are newest-first → first seen per PR is the latest review.
       for (const rv of reviewRows) {
-        if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { score: rv.score });
+        if (!latestReviewByPr.has(rv.prId))
+          latestReviewByPr.set(rv.prId, { score: rv.score, reviewId: rv.id });
+      }
+    }
+
+    // Latest-review FINDINGS per PR, bucketed by severity. A PR with a latest
+    // review always gets a bucket (zeros if it has no findings); a PR with no
+    // review at all has no entry (→ null, never a zero bucket — those mean
+    // different things: "not reviewed" vs. "reviewed, clean").
+    const findingsByPr = new Map<string, { CRITICAL: number; WARNING: number; SUGGESTION: number }>();
+    if (latestReviewByPr.size > 0) {
+      const reviewIdToPrId = new Map<string, string>();
+      for (const [prId, rv] of latestReviewByPr) {
+        findingsByPr.set(prId, { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 });
+        reviewIdToPrId.set(rv.reviewId, prId);
+      }
+      const findingRows = await container.db
+        .select({ reviewId: t.findings.reviewId, severity: t.findings.severity })
+        .from(t.findings)
+        .where(inArray(t.findings.reviewId, [...reviewIdToPrId.keys()]));
+      for (const fr of findingRows) {
+        const prId = reviewIdToPrId.get(fr.reviewId);
+        if (!prId) continue;
+        if (fr.severity !== 'CRITICAL' && fr.severity !== 'WARNING' && fr.severity !== 'SUGGESTION')
+          continue;
+        findingsByPr.get(prId)![fr.severity] += 1;
       }
     }
 
@@ -172,6 +196,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
         cost_usd: costByPr.get(r.id) ?? null,
+        findings: findingsByPr.get(r.id) ?? null,
       };
     });
   });

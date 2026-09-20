@@ -31,6 +31,7 @@ function run(o: Partial<RunSummary>): RunSummary {
     score: null,
     blockers: null,
     cost_usd: null,
+    findings_by_severity: null,
     ...o,
   };
 }

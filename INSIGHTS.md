@@ -17,6 +17,12 @@ Added a `Stop` hook to `.claude/settings.json` with `"once": true` (per the docu
 
 **Rule:** don't rely on `"once": true` to make a `Stop` hook non-repetitive when running inside Claude Desktop. If a Stop-hook reminder must fire, prefer `SessionStart` (confirmed to fire exactly once per session here) over `Stop`, or skip the Stop hook if a `SessionStart` nudge already covers the "fires automatically" requirement — don't add both banking on `once` to keep Stop quiet. Removed the Stop hook entirely in this repo's `.claude/settings.json` after ~10 repeat firings in one session; `SessionStart` alone remains.
 
+### `git add -A` while a subagent is running swallows its work into your commit (2026-09-20)
+
+Committing a two-file docs change during a parallel refactor produced "158 files changed": a background agent was moving route folders with `git mv`, which stages the rename immediately, so the whole in-flight step landed inside an unrelated `docs(...)` commit. `git status` looked innocent beforehand — the renames read as ordinary staged entries, not as someone else's half-finished work. Recovered with `git reset --soft HEAD~1`, `git restore --staged client/src`, then a pathspec commit.
+
+**Rule:** while any subagent is editing the repo, never `git add -A` / `git add <dir>`; commit with explicit paths (`git commit -m … -- path/a path/b`), which ignores the index entirely. If a commit comes back with a file count you did not expect, `reset --soft` and redo it rather than "fixing it later" — the renames are unrecoverable from the message alone. (commit `6a5ebd4`, split out of an accidental 158-file commit)
+
 ## Codebase Patterns
 
 _No entries yet._

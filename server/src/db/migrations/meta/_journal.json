@@ -78,6 +78,13 @@
       "when": 1789672336599,
       "tag": "0010_perpetual_stardust",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1789922811483,
+      "tag": "0011_shiny_invisible_woman",
+      "breakpoints": true
     }
   ]
 }

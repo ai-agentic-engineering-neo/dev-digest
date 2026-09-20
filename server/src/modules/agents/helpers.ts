@@ -54,6 +54,23 @@ export interface ConfigChangePatch {
   repoIntel?: boolean;
 }
 
+/** One normalized entry for `POST /agents/:id/skills` (set/reorder form). */
+export interface SkillLinkInput {
+  id: string;
+  enabled: boolean;
+}
+
+/**
+ * Normalize `SetSkillsBody.skill_ids`, which accepts either a bare uuid array
+ * (legacy — every skill linked enabled) or an array of `{ id, enabled }`, into
+ * one shape the repository writes. A bare uuid links enabled by default.
+ */
+export function normalizeSkillIds(
+  skillIds: (string | { id: string; enabled: boolean })[],
+): SkillLinkInput[] {
+  return skillIds.map((s) => (typeof s === 'string' ? { id: s, enabled: true } : s));
+}
+
 /**
  * True when a patch changes config (vs. just toggling `enabled`) relative to the
  * existing row — a config change bumps the version and snapshots agent_versions.

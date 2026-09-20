@@ -6,6 +6,7 @@ import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { NotFoundError } from '../../platform/errors.js';
 import { AgentsService } from './service.js';
+import { normalizeSkillIds } from './helpers.js';
 
 /** `/providers/:id` addresses a provider by name, not a uuid. */
 const ProviderParams = z.object({ id: Provider });
@@ -30,10 +31,17 @@ const VersionParams = z.object({
  *   GET    /providers/:id/models    → dynamic model list for a provider (editor)
  */
 
-/** Either set the whole ordered set (`skill_ids`) or link one (`skill_id`). */
+/** One entry of the object form of `skill_ids` — a link plus its own enabled flag. */
+const SkillIdEntry = z.object({ id: z.string().uuid(), enabled: z.boolean().default(true) });
+
+/**
+ * Either set the whole ordered set (`skill_ids`) or link one (`skill_id`).
+ * `skill_ids` accepts a bare uuid array (legacy — every link enabled) or an
+ * array of `{ id, enabled }` to set each link's own enabled flag.
+ */
 const SetSkillsBody = z
   .object({
-    skill_ids: z.array(z.string().uuid()).optional(),
+    skill_ids: z.union([z.array(z.string().uuid()), z.array(SkillIdEntry)]).optional(),
     skill_id: z.string().uuid().optional(),
     order: z.number().int().optional(),
   })
@@ -131,7 +139,7 @@ export default async function agentsRoutes(appBase: FastifyInstance) {
       const body = req.body;
       const links =
         body.skill_ids !== undefined
-          ? await service.setSkills(workspaceId, req.params.id, body.skill_ids)
+          ? await service.setSkills(workspaceId, req.params.id, normalizeSkillIds(body.skill_ids))
           : await service.linkSkill(workspaceId, req.params.id, body.skill_id!, body.order);
       if (!links) throw new NotFoundError('Agent not found');
       return links;

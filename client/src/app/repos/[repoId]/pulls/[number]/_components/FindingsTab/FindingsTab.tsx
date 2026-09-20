@@ -71,6 +71,16 @@ export function FindingsTab({
     setTarget((p) => ({ runId, n: (p?.n ?? 0) + 1 }));
   }, []);
 
+  // Cost lives on agent_runs (RunSummary), not on the reviews table — build a
+  // runId → cost_usd lookup from the already-fetched Timeline data so each
+  // Review Runs accordion can show its run's cost without duplicating the
+  // column onto `reviews`.
+  const costByRunId = React.useMemo(() => {
+    const m = new Map<string, number | null>();
+    for (const run of prRuns ?? []) m.set(run.run_id, run.cost_usd ?? null);
+    return m;
+  }, [prRuns]);
+
   return (
     <section>
       {liveRunIds.length > 0 && (
@@ -164,6 +174,7 @@ export function FindingsTab({
             headSha={headSha}
             targetRunId={target?.runId ?? null}
             targetNonce={target?.n ?? 0}
+            cost={review.run_id ? costByRunId.get(review.run_id) ?? null : null}
           />
         ))
       )}

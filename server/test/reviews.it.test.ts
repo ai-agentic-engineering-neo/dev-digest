@@ -208,6 +208,44 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(run!.status).toBe('done');
     expect(run!.findingsCount).toBe(1);
     expect(run!.grounding).toBe('1/2 passed');
+    // MockLLMProvider always returns costUsd: 0.001 per call (single-pass here).
+    expect(run!.costUsd).toBeCloseTo(0.001, 5);
+    expect(trace.stats.cost_usd).toBeCloseTo(0.001, 5);
+
+    await app.close();
+  });
+
+  it('run cost: persists per-run cost and sums across multiple agents on the same PR', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+
+    const agentA = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'CostA', provider: 'openai', model: 'gpt-4.1', system_prompt: 's' },
+      })
+    ).json();
+    const agentB = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'CostB', provider: 'openai', model: 'gpt-4.1', system_prompt: 's' },
+      })
+    ).json();
+
+    await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agentA.id } });
+    await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agentB.id } });
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 2 });
+
+    const runs = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(runs).toHaveLength(2);
+    for (const r of runs) expect(r.cost_usd).toBeCloseTo(0.001, 5);
+
+    // PR list's Cost column sums every run's cost, not just the latest one.
+    const repo = (await app.inject({ method: 'GET', url: `/repos/${pr.repoId}/pulls` })).json();
+    const listed = repo.find((p: { id: string }) => p.id === pr.id);
+    expect(listed.cost_usd).toBeCloseTo(0.002, 5);
 
     await app.close();
   });

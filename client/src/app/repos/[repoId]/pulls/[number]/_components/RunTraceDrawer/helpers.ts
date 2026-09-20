@@ -26,3 +26,10 @@ export function formatSeconds(ms: number): string {
 export function formatTokens(tokensIn: number, tokensOut: number): string {
   return `${(tokensIn / 1000).toFixed(0)}k→${(tokensOut / 1000).toFixed(1)}k`;
 }
+
+/** USD cost, e.g. "$0.0013" / "$0.06". Null/undefined (unpriced) → "—". */
+export function formatUsd(cost: number | null | undefined): string {
+  if (cost == null) return "—";
+  const decimals = cost < 0.01 ? 4 : cost < 1 ? 3 : 2;
+  return `$${cost.toFixed(decimals)}`;
+}

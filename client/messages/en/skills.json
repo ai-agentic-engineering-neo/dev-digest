@@ -1,7 +1,9 @@
 {
   "card": {
     "noDescription": "No description",
-    "agentsCount": "{count} agent(s)"
+    "agentsCount": "{count} agent(s)",
+    "deleteLabel": "Delete skill",
+    "deleteConfirm": "Delete skill \"{name}\"? This cannot be undone."
   },
   "page": {
     "crumbLab": "Skills Lab",

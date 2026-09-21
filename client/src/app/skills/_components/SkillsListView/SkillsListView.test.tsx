@@ -26,6 +26,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("../../../../lib/hooks/skills", () => ({
   useSkills: () => ({ data: SKILLS, isLoading: false, isError: false, refetch: vi.fn() }),
   useUpdateSkill: () => ({ mutate: vi.fn() }),
+  useDeleteSkill: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 // AppShell pulls in the full shell (command palette, shortcuts, repo context)

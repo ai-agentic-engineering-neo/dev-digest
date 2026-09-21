@@ -1,3 +1,3 @@
 # specs/
 
-Server feature specs go here — see [../CLAUDE.md](../CLAUDE.md).
+Server feature specs go here — see [../AGENTS.md](../AGENTS.md).

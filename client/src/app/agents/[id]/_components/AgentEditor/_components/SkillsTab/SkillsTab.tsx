@@ -17,9 +17,24 @@ import { Badge, Button, EmptyState, ErrorState, Icon, Skeleton, TextInput } from
 import type { Agent } from "@devdigest/shared";
 import { useAgentSkills, useSetAgentSkills } from "@/lib/hooks/agents";
 import { useSkills } from "@/lib/hooks/skills";
+import { ApiError } from "@/lib/api";
 import { useToast } from "@/lib/toast";
+import { AvailableSkillRow } from "./AvailableSkillRow";
 import { DRAG_ACTIVATION_DISTANCE, LOADING_ROWS } from "./constants";
-import { buildRows, countLinked, filterRows, reorder, sameIds, syncRows, toSkillIds, toggleRow, type SkillRow } from "./helpers";
+import {
+  blockedIds,
+  buildRows,
+  countLinked,
+  filterRows,
+  groupRows,
+  reorder,
+  sameIds,
+  syncRows,
+  toSkillIds,
+  toggleRow,
+  unlinkRows,
+  type SkillRow,
+} from "./helpers";
 import { SortableSkillRow } from "./SortableSkillRow";
 import { s } from "./styles";
 
@@ -85,8 +100,9 @@ export function SkillsTab({ agent }: { agent: Agent }) {
   const saved = buildRows(skillsQuery.data, linksQuery.data);
   const rows = edits ? syncRows(edits, skillsQuery.data) : saved;
   const dirty = !sameIds(toSkillIds(rows), toSkillIds(saved));
-  const visible = filterRows(rows, query);
+  const { enabled, available } = groupRows(filterRows(rows, query));
   const filtering = query.trim() !== "";
+  const onToggle = (id: string) => setEdits(toggleRow(rows, id));
 
   const onDragEnd = ({ active, over }: DragEndEvent) => {
     if (over && active.id !== over.id) setEdits(reorder(rows, String(active.id), String(over.id)));
@@ -94,10 +110,18 @@ export function SkillsTab({ agent }: { agent: Agent }) {
 
   const save = () =>
     setSkills.mutate(toSkillIds(rows), {
-      // Failures are surfaced by the global mutation error toast.
+      // The failure toast comes from the global mutation error handler and carries the server
+      // message (422 SKILL_BLOCKED: "Cannot link a skill with detected prompt injection").
       onSuccess: (links) => {
         setEdits(null);
         toast.success(t("skills.savedToast", { count: links.length }));
+      },
+      onError: (err) => {
+        if (!(err instanceof ApiError) || err.code !== "SKILL_BLOCKED") return;
+        // Flagged after this tab loaded: drop it from the pending selection and refresh the
+        // catalog so its row shows the injection state.
+        setEdits(unlinkRows(rows, blockedIds(err.details)));
+        skillsQuery.refetch();
       },
     });
 
@@ -120,21 +144,38 @@ export function SkillsTab({ agent }: { agent: Agent }) {
       </div>
       <p style={s.hint}>{t("skills.orderHint")}</p>
 
-      <DndContext id={`agent-skills-${agent.id}`} sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-        <SortableContext items={visible.map((r) => r.skill.id)} strategy={verticalListSortingStrategy}>
+      {/* Enabled: linked skills, sortable — this order is the prompt order. */}
+      {(enabled.length > 0 || !filtering) && (
+        <section style={s.group} aria-label={t("skills.groups.enabled")}>
+          <h3 style={s.groupTitle}>{t("skills.groups.enabled")}</h3>
+          {enabled.length === 0 ? (
+            <div style={s.groupEmpty}>{t("skills.groups.enabledEmpty")}</div>
+          ) : (
+            <DndContext id={`agent-skills-${agent.id}`} sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+              <SortableContext items={enabled.map((r) => r.skill.id)} strategy={verticalListSortingStrategy}>
+                <div style={s.list}>
+                  {enabled.map((row) => (
+                    <SortableSkillRow key={row.skill.id} row={row} dragDisabled={filtering} onToggle={onToggle} />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
+          )}
+        </section>
+      )}
+
+      {/* Available: not linked — no drag handle, order is irrelevant. */}
+      {available.length > 0 && (
+        <section style={s.group} aria-label={t("skills.groups.available")}>
+          <h3 style={s.groupTitle}>{t("skills.groups.available")}</h3>
           <div style={s.list}>
-            {visible.map((row) => (
-              <SortableSkillRow
-                key={row.skill.id}
-                row={row}
-                dragDisabled={filtering}
-                onToggle={(id) => setEdits(toggleRow(rows, id))}
-              />
+            {available.map((row) => (
+              <AvailableSkillRow key={row.skill.id} row={row} onToggle={onToggle} />
             ))}
           </div>
-        </SortableContext>
-      </DndContext>
-      {visible.length === 0 && <div style={s.noMatch}>{t("skills.noMatch", { query: query.trim() })}</div>}
+        </section>
+      )}
+      {enabled.length + available.length === 0 &&<div style={s.noMatch}>{t("skills.noMatch", { query: query.trim() })}</div>}
 
       <div style={s.actions}>
         <Button kind="primary" icon="Check" onClick={save} disabled={!dirty || setSkills.isPending}>

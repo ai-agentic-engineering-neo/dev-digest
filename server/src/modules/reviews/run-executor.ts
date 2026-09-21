@@ -292,6 +292,11 @@ export class ReviewRunExecutor {
           cost_usd: costUsd,
         },
         prompt_assembly: outcome.assembly,
+        // Token count of the Skills block ONLY (not the whole prompt); null when
+        // the run had no skills block (disabled / unlinked / flagged skills).
+        prompt_assembly_meta: {
+          skills_tokens: outcome.assembly.skills ? this.container.tokenizer.count(outcome.assembly.skills) : null,
+        },
         tool_calls: outcome.chunks.map((c) => ({
           tool: 'review_file',
           args: c.label,
@@ -382,7 +387,7 @@ export class ReviewRunExecutor {
 
   /**
    * Skills this run will actually use: the agent's linked skills (already in
-   * `order` ascending) filtered to those globally `enabled`. Logs the attached
+   * `order` ascending) filtered to those globally `enabled` and not injection-flagged. Logs the attached
    * names in order, and any linked-but-disabled ones that were skipped. Logs
    * nothing when the agent has no linked skills.
    */
@@ -391,12 +396,18 @@ export class ReviewRunExecutor {
     runLog: RunLogger,
   ): Promise<{ id: string; name: string; body: string }[]> {
     const linked = await this.agents.linkedSkills(agent.id);
-    const active = linked.filter((l) => l.skill.enabled).map((l) => l.skill);
-    const skipped = linked.length - active.length;
+    // Defence in depth: a skill flagged by the injection scan never reaches the prompt,
+    // even if something re-enabled it or it was flagged after being linked.
+    const flagged = linked.filter((l) => l.skill.injectionDetected).length;
+    const active = linked
+      .filter((l) => l.skill.enabled && !l.skill.injectionDetected)
+      .map((l) => l.skill);
+    const skipped = linked.length - active.length - flagged;
     if (active.length > 0) {
       runLog.info(`skills: ${active.length} skill(s) attached — ${active.map((s) => s.name).join(', ')}`);
     }
     if (skipped > 0) runLog.info(`skills: ${skipped} linked skill(s) skipped (disabled)`);
+    if (flagged > 0) runLog.info(`skills: ${flagged} linked skill(s) skipped (injection detected)`);
     return active;
   }
 
@@ -467,6 +478,7 @@ export class ReviewRunExecutor {
       },
       stats: { duration_ms: durationMs, tokens_in: 0, tokens_out: 0, findings: 0, grounding, cost_usd: null },
       prompt_assembly: { system: agent.systemPrompt, skills: null, memory: null, specs: null, user: '' },
+      prompt_assembly_meta: { skills_tokens: null },
       tool_calls: [],
       raw_output: '',
       memory_pulled: [],

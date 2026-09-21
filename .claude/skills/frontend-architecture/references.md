@@ -1,6 +1,6 @@
 # Frontend Architecture — Sources & Rationale
 
-Research brief for the (not-yet-authored) `frontend-architecture` skill. Every
+Research brief behind the [`frontend-architecture`](SKILL.md) skill. Every
 source below was fetched and read this session — none are cited from memory.
 Six primary sources, covering the seven target topics. Where sources take
 different stances, that's called out explicitly rather than silently resolved.
@@ -143,13 +143,13 @@ slice of bulletproof-react's taxonomy, not to state generally.
   per-section layouts. Explicitly presents "split by feature or route" as one
   of three equally-supported top-level strategies — this is the strategy this
   repo's own `client/` package already follows (`_components/<Name>/` per
-  route, per `client/CLAUDE.md`), which is useful validation that the
+  route, per `client/AGENTS.md`), which is useful validation that the
   project's existing convention matches an officially-documented pattern
   rather than being a one-off.
 
 ---
 
-## Follow-ups for whoever authors SKILL.md
+## Follow-ups for whoever maintains SKILL.md
 - Constants placement (topic 3) has only one direct source — consider a
   second pass specifically for constants/config conventions (e.g. a
   TypeScript-focused style guide) before writing that section.

@@ -29,6 +29,12 @@ out of scope.
 - **`platform/container.ts` is the sole composition root.** It may import everything; nothing else may import it except routes (to reach `app.container`) and `_shared/context.ts`.
 - **A module's public surface** is `index.ts` + `types.ts`. Everything else is private (`no-cross-module`). Cross-module needs go through a port on the Container or `_shared/`.
 
+## Request flow — the layers in one line
+
+`routes.ts` (validate) → **one** `service` call → domain (`helpers.ts`, pure) → ports → adapters/repositories at the edge. Services are built once from the Container (composition root) and reach every external system (LLM, GitHub, git, DB) **through a port injected by the Container** — the inner rings depend on the interface, the edge supplies the implementation.
+
+**A route never calls an adapter (or a repository, or drizzle) directly.** `routes.ts` may import its own module's service, `_shared/*` and `@devdigest/shared` schemas — not `adapters/**` (`routes-no-persistence`). If a handler needs GitHub/LLM/git data, the service gets it via its port; the route only translates HTTP ↔ service call.
+
 ## Before you write code (checklist)
 
 1. Which ring does each new file belong to? Name it by the ring map (`routes.ts`, `service.ts`, `repository.ts`, `helpers.ts`, `types.ts`).

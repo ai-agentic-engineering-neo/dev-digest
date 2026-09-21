@@ -1,4 +1,4 @@
-import type { SkillSource, SkillType } from '@devdigest/shared';
+import type { InjectionMatch, SkillSource, SkillType } from '@devdigest/shared';
 
 /**
  * Ports + domain shapes for the skills module (ring 2). The service depends on
@@ -18,6 +18,9 @@ export interface SkillRecord {
   enabled: boolean;
   version: number;
   evidenceFiles: string[] | null;
+  /** Result of the injection scan on the CURRENT body (see injection.ts). */
+  injectionDetected: boolean;
+  injectionMatches: InjectionMatch[];
   createdAt: Date;
 }
 
@@ -26,6 +29,8 @@ export interface SkillVersionRecord {
   skillId: string;
   version: number;
   body: string;
+  /** Set when this version was appended by restoring an older one. */
+  restoredFrom: number | null;
   createdAt: Date;
 }
 
@@ -37,6 +42,8 @@ export interface InsertSkill {
   body: string;
   source?: SkillSource;
   enabled?: boolean;
+  injectionDetected?: boolean;
+  injectionMatches?: InjectionMatch[];
 }
 
 export interface UpdateSkill {
@@ -45,7 +52,15 @@ export interface UpdateSkill {
   type?: SkillType;
   body?: string;
   enabled?: boolean;
+  injectionDetected?: boolean;
+  injectionMatches?: InjectionMatch[];
 }
+
+/** Outcome of an append-only restore (decided atomically under the row lock). */
+export type RestoreOutcome =
+  | { kind: 'restored'; skill: SkillRecord }
+  | { kind: 'is_current' }
+  | { kind: 'not_found' };
 
 /** Raw (un-divided) usage numbers for one skill; rates are derived in helpers. */
 export interface SkillUsageCounts {
@@ -76,11 +91,33 @@ export interface SkillsStore {
   update(workspaceId: string, id: string, patch: UpdateSkill): Promise<SkillRecord | undefined>;
   listVersions(skillId: string): Promise<SkillVersionRecord[]>;
   getVersion(skillId: string, version: number): Promise<SkillVersionRecord | undefined>;
+  /**
+   * Append version N+1 whose body is `patch.body` (a copy of `fromVersion`'s body),
+   * recording `restored_from = fromVersion`. One transaction with the skill row
+   * locked, like `update`. `is_current` when `fromVersion` is already the current version.
+   */
+  restoreVersion(
+    workspaceId: string,
+    id: string,
+    fromVersion: number,
+    patch: UpdateSkill,
+  ): Promise<RestoreOutcome>;
+  /** Ids (among `ids`, in this workspace) whose injection scan flagged them. */
+  findFlaggedIds(workspaceId: string, ids: string[]): Promise<string[]>;
   /** Batched usage counts for many skills (fixed number of queries, no N+1). */
   statsForSkills(skillIds: string[]): Promise<Map<string, SkillUsageCounts>>;
+}
+
+/**
+ * Port for fetching a remote text file (skill import). Implemented by the
+ * `UrlFetcher` adapter (SSRF-guarded); the service never touches the network itself.
+ */
+export interface SkillUrlFetcher {
+  fetchText(url: string): Promise<{ url: string; text: string }>;
 }
 
 /** Explicit dependencies of `SkillsService`. */
 export interface SkillsDeps {
   repo: SkillsStore;
+  urlFetcher: SkillUrlFetcher;
 }

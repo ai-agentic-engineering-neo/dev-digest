@@ -1,3 +1,3 @@
 # docs/
 
-Reviewer-core design docs go here — see [../CLAUDE.md](../CLAUDE.md).
+Reviewer-core design docs go here — see [../AGENTS.md](../AGENTS.md).

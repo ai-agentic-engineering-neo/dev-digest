@@ -33,6 +33,7 @@ import type {
   SecretKey,
 } from '@devdigest/shared';
 import { parseUnifiedDiff } from './git/diff-parser.js';
+import type { FetchedText, UrlFetcher } from './url-fetcher/types.js';
 
 /**
  * Deterministic MOCK adapters for tests/dev — NO real network. Each mirrors the
@@ -326,5 +327,22 @@ export class MockSecretsProvider implements SecretsProvider {
   constructor(private secrets: Partial<Record<string, string>> = {}) {}
   async get(key: SecretKey): Promise<string | undefined> {
     return this.secrets[key as string];
+  }
+}
+
+// ---------- Mock URL fetcher ----------
+/**
+ * Canned responses by URL (exact match) — NO network. An unknown URL throws, so a
+ * test can never silently depend on a real fetch. `calls` records every URL asked.
+ */
+export class MockUrlFetcher implements UrlFetcher {
+  public calls: string[] = [];
+  constructor(private responses: Record<string, string | FetchedText | Error> = {}) {}
+  async fetchText(url: string): Promise<FetchedText> {
+    this.calls.push(url);
+    const r = this.responses[url];
+    if (r === undefined) throw new Error(`MockUrlFetcher: no response for ${url}`);
+    if (r instanceof Error) throw r;
+    return typeof r === 'string' ? { url, text: r, contentType: 'text/plain' } : r;
   }
 }

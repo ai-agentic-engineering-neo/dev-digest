@@ -4,7 +4,7 @@ import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/platform/config.js';
 import { seed } from '../src/db/seed.js';
 import * as t from '../src/db/schema.js';
-import type { SecretsProvider } from '@devdigest/shared';
+import { FEATURE_MODELS, type SecretsProvider } from '@devdigest/shared';
 import {
   resolveFeatureModel,
   getFeatureModelOverride,
@@ -54,6 +54,37 @@ d('Settings: feature models + secrets status (Testcontainers pg)', () => {
     expect(await resolveFeatureModel(app.container, workspaceId, 'risk_brief')).toEqual({
       provider: 'openai',
       model: 'gpt-4.1',
+    });
+
+    await app.close();
+  });
+
+  it('conventions: dedicated registry row, resolves via the container to the workspace choice', async () => {
+    const app = await buildApp({ config: config(), db: pg.handle.db, overrides: {} });
+
+    // The Settings -> Models row is the registry entry with the sharpened copy.
+    const def = FEATURE_MODELS.find((f) => f.id === 'conventions');
+    expect(def).toMatchObject({
+      label: 'Conventions classification',
+      description: 'Classifies repository code-style conventions into candidate rules.',
+    });
+
+    // Until a model is picked, the container port yields the registry default...
+    expect(await app.container.resolveFeatureModel(workspaceId, 'conventions')).toEqual({
+      provider: def!.defaultProvider,
+      model: def!.defaultModel,
+    });
+
+    // ...then the stored provider + model (what the UI writes after a pick), verbatim.
+    const put = await app.inject({
+      method: 'PUT',
+      url: '/settings',
+      payload: { feature_models: { conventions: { provider: 'anthropic', model: 'claude-haiku-4-5' } } },
+    });
+    expect(put.statusCode).toBe(200);
+    expect(await app.container.resolveFeatureModel(workspaceId, 'conventions')).toEqual({
+      provider: 'anthropic',
+      model: 'claude-haiku-4-5',
     });
 
     await app.close();

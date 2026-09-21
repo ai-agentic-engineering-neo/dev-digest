@@ -4,6 +4,7 @@
 
 import React from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Button, Dropdown, ErrorState, Skeleton, Icon, Badge } from "@devdigest/ui";
 import { AppShell } from "@/components/app-shell";
 import { AgentCard } from "../_components/AgentCard";
@@ -14,6 +15,7 @@ import { ApiError } from "@/lib/api";
 const VALID_TABS = ["config", "skills"];
 
 export default function AgentEditorPage() {
+  const t = useTranslations("agents");
   const params = useParams<{ id: string }>();
   const search = useSearchParams();
   const router = useRouter();
@@ -31,9 +33,9 @@ export default function AgentEditorPage() {
   };
 
   const crumb = [
-    { label: "Skills Lab" },
-    { label: "Agents", href: "/agents" },
-    { label: agent?.name ?? "Agent" },
+    { label: t("list.breadcrumbLab") },
+    { label: t("list.breadcrumb"), href: "/agents" },
+    { label: agent?.name ?? t("editor.agentFallback") },
   ];
 
   if (isError || (!isLoading && !agent)) {
@@ -41,8 +43,8 @@ export default function AgentEditorPage() {
       <AppShell crumb={crumb}>
         <ErrorState
           fullScreen
-          title="Couldn’t load this agent"
-          body={error instanceof ApiError ? error.message : "The agent could not be loaded."}
+          title={t("editor.loadErrorTitle")}
+          body={error instanceof ApiError ? error.message : t("editor.loadErrorBody")}
           onRetry={() => refetch()}
         />
       </AppShell>
@@ -65,16 +67,16 @@ export default function AgentEditorPage() {
         >
           <div style={{ padding: "16px 16px 12px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-              <h1 style={{ fontSize: 18, fontWeight: 700, flex: 1 }}>Agents</h1>
+              <h1 style={{ fontSize: 18, fontWeight: 700, flex: 1 }}>{t("editor.listTitle")}</h1>
               <Dropdown
                 width={210}
                 align="right"
                 trigger={
                   <Button kind="primary" size="sm" icon="Plus">
-                    Add
+                    {t("editor.add")}
                   </Button>
                 }
-                items={[{ label: "Create from scratch", icon: "Edit", onClick: () => router.push("/agents") }]}
+                items={[{ label: t("editor.createFromScratch"), icon: "Edit", onClick: () => router.push("/agents") }]}
               />
             </div>
           </div>
@@ -86,6 +88,8 @@ export default function AgentEditorPage() {
                 active={a.id === id}
                 onClick={() => router.push(`/agents/${a.id}?tab=${tab}`)}
                 onToggle={(enabled) => update.mutate({ id: a.id, patch: { enabled } })}
+                // Deleting the agent that is open here would leave its editor on a 404: back to the list.
+                onDeleted={() => a.id === id && router.replace("/agents")}
               />
             ))}
           </div>
@@ -105,10 +109,10 @@ export default function AgentEditorPage() {
               <Badge color="var(--text-secondary)" mono>
                 {agent.provider}/{agent.model}
               </Badge>
-              {!agent.enabled && <Badge color="var(--text-muted)">disabled</Badge>}
+              {!agent.enabled && <Badge color="var(--text-muted)">{t("editor.disabled")}</Badge>}
               <div style={{ marginLeft: "auto" }}>
                 <Button kind="secondary" size="sm" icon="GitPullRequest" onClick={() => router.push("/")}>
-                  Run on a PR…
+                  {t("editor.runOnPr")}
                 </Button>
               </div>
             </div>

@@ -1,6 +1,14 @@
-import type { Agent, AgentVersion, CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
+import type {
+  Agent,
+  AgentListItem,
+  AgentVersion,
+  CiFailOn,
+  Provider,
+  ReviewStrategy,
+} from '@devdigest/shared';
 import { AgentVersionConfig } from '@devdigest/shared';
-import type { AgentRow, AgentVersionRow } from './repository.js';
+import { toPercent } from '../_shared/percent.js';
+import type { AgentRow, AgentStatsCounts, AgentVersionRow } from './repository.js';
 
 /**
  * Pure helpers for the agents module — DB row ⇄ DTO mapping and the
@@ -23,6 +31,24 @@ export function toAgentDto(row: AgentRow): Agent {
     strategy: row.strategy as ReviewStrategy,
     ci_fail_on: row.ciFailOn as CiFailOn,
     repo_intel: row.repoIntel,
+  };
+}
+
+/**
+ * `Agent` + its grid aggregates → `AgentListItem`. `accept_rate` is 0-100 over
+ * decided (accepted + dismissed) findings, null when none were decided; a missing
+ * stats entry (agent with no rows at all) reads as zeros / null.
+ */
+export function toAgentListItem(
+  agent: Agent,
+  stats: AgentStatsCounts | undefined,
+): AgentListItem {
+  return {
+    ...agent,
+    skill_count: stats?.skillCount ?? 0,
+    runs: stats?.runs ?? 0,
+    accept_rate: stats ? toPercent(stats.accepted, stats.decided) : null,
+    avg_cost_usd: stats?.avgCostUsd ?? null,
   };
 }
 

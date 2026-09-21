@@ -7,7 +7,6 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push, replace: vi.fn() }
 vi.mock("@/components/app-shell", () => ({
   AppShell: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
-vi.mock("../ImportSkillDrawer", () => ({ ImportSkillDrawer: () => null }));
 
 import { SkillsListView } from "./SkillsListView";
 
@@ -39,12 +38,12 @@ describe("SkillsListView", () => {
     expect(screen.getByText("3 agents")).toBeInTheDocument();
     expect(screen.getByText("71% pull")).toBeInTheDocument();
     expect(screen.getByText("74% accept")).toBeInTheDocument();
-    expect(screen.getByText("Manual")).toBeInTheDocument();
+    expect(screen.getByText("Manual · v2")).toBeInTheDocument();
 
     expect(screen.getByText("1 agent")).toBeInTheDocument();
     expect(screen.getByText("— pull")).toBeInTheDocument();
     expect(screen.getByText("— accept")).toBeInTheDocument();
-    expect(screen.getByText("Extracted")).toBeInTheDocument();
+    expect(screen.getByText("Imported · v2")).toBeInTheDocument();
     expect(screen.getAllByText("needs vetting")).toHaveLength(1); // non-manual only
   });
 

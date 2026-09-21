@@ -2,26 +2,27 @@ import type { CSSProperties } from "react";
 
 /** Co-located styles for SkillRow. */
 export const s = {
-  card: (active: boolean, enabled: boolean): CSSProperties => ({
+  card: (active: boolean, enabled: boolean, blocked: boolean): CSSProperties => ({
     padding: 14,
     borderRadius: 8,
     cursor: "pointer",
-    border: "1px solid " + (active ? "var(--border-strong)" : "var(--border)"),
-    background: active ? "var(--bg-hover)" : "var(--bg-elevated)",
-    opacity: enabled ? 1 : 0.6,
+    border: "1px solid " + (blocked ? "var(--crit)" : active ? "var(--border-strong)" : "var(--border)"),
+    background: blocked ? "var(--crit-bg)" : active ? "var(--bg-hover)" : "var(--bg-elevated)",
+    // A blocked skill is always disabled; keep it fully opaque so the red state stays readable.
+    opacity: enabled || blocked ? 1 : 0.6,
     marginBottom: 10,
   }),
   headerRow: { display: "flex", alignItems: "center", gap: 10 } satisfies CSSProperties,
-  iconBox: {
+  iconBox: (blocked: boolean): CSSProperties => ({
     width: 26,
     height: 26,
     borderRadius: 7,
-    background: "var(--accent-bg)",
-    color: "var(--accent)",
+    background: blocked ? "var(--crit-bg)" : "var(--accent-bg)",
+    color: blocked ? "var(--crit)" : "var(--accent)",
     display: "grid",
     placeItems: "center",
     flexShrink: 0,
-  } satisfies CSSProperties,
+  }),
   name: {
     fontSize: 14,
     fontWeight: 600,

@@ -10,6 +10,7 @@ Reusable AI skills that provide specialized knowledge and workflows. Canonical l
 | [onion-architecture](onion-architecture/SKILL.md) | Backend | Onion layering for `server/`: dependency rule, ports & adapters, repositories, DI, `pnpm arch:check` |
 | [drizzle-orm-patterns](drizzle-orm-patterns/SKILL.md) | Backend | Drizzle schema, queries, relations, transactions, migrations |
 | [postgresql-table-design](postgresql-table-design/SKILL.md) | Backend | Postgres schema design, data types, indexing, constraints |
+| [frontend-architecture](frontend-architecture/SKILL.md) | Frontend | Where code lives in `client/`: thin pages, colocated `_components/<Name>/`, shared `components/`, `@devdigest/ui` barrel, hooks/constants/helpers/tests placement, naming |
 | [next-best-practices](next-best-practices/SKILL.md) | Frontend | Next.js App Router, RSC boundaries, data fetching, optimization |
 | [react-best-practices](react-best-practices/SKILL.md) | Frontend | React anti-patterns, state management, hooks rules |
 | [react-testing-library](react-testing-library/SKILL.md) | Frontend | General-purpose React Testing Library guide with Vitest |
@@ -18,6 +19,9 @@ Reusable AI skills that provide specialized knowledge and workflows. Canonical l
 | [security](security/SKILL.md) | Full-stack | OWASP Top 10:2025, auth, injection, uploads, secrets |
 | [mermaid-diagram](mermaid-diagram/SKILL.md) | Shared | Mermaid diagrams in markdown (flowcharts, sequence, ERD, …) |
 | [engineering-insights](engineering-insights/SKILL.md) | Shared | Captures gotchas, dead ends, and decisions into per-module INSIGHTS.md |
+| [pr-self-review](pr-self-review/SKILL.md) | Workflow (dispatcher) | Manual `/pr-self-review`: gates the local diff before a PR — deterministic gates, repo invariants, routes `client/**` and `server/**` files to the skills above → `PASS`/`WARN`/`BLOCKED`. Not the seeded app agent of the same name; no auto-invoke hook |
+
+A **Workflow (dispatcher)** skill (like `pr-self-review`) does not hold domain rules itself: it resolves its input, then routes each piece to the domain skills above and merges their findings. Domain skills (Backend / Frontend / Full-stack) are loaded on demand for the files they cover.
 
 ## What Are Skills?
 

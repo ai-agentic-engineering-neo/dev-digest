@@ -4,7 +4,8 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Checkbox, Icon, SkillTypeTag } from "@devdigest/ui";
+import { Icon } from "@devdigest/ui";
+import { SkillRowContent } from "./SkillRowContent";
 import type { SkillRow } from "./helpers";
 import { s } from "./styles";
 
@@ -15,24 +16,38 @@ export interface SortableSkillRowProps {
   onToggle: (id: string) => void;
 }
 
-/** One draggable skill row: grip handle (the only drag activator), checkbox, name, type tag. */
+/** One draggable row of the Enabled group: the grip handle is the only drag activator. */
 export function SortableSkillRow({ row, dragDisabled, onToggle }: SortableSkillRowProps) {
   const t = useTranslations("agents");
-  const { skill, linked } = row;
+  const { skill } = row;
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
     id: skill.id,
     disabled: dragDisabled,
   });
 
   const style: React.CSSProperties = {
-    ...s.row,
+    ...s.row({ flagged: skill.injection_detected, dimmed: !skill.enabled && !isDragging }),
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.6 : skill.enabled ? 1 : 0.55,
+    opacity: isDragging ? 0.6 : undefined,
     boxShadow: isDragging ? "var(--shadow-drawer)" : undefined,
     position: "relative",
     zIndex: isDragging ? 1 : undefined,
   };
+
+  const handle = (
+    <button
+      type="button"
+      ref={setActivatorNodeRef}
+      {...attributes}
+      {...listeners}
+      aria-label={t("skills.dragHandle", { name: skill.name })}
+      title={dragDisabled ? t("skills.dragDisabledTitle") : undefined}
+      style={{ ...s.handle, cursor: dragDisabled ? "not-allowed" : isDragging ? "grabbing" : "grab" }}
+    >
+      <Icon.Menu size={16} />
+    </button>
+  );
 
   return (
     <div
@@ -41,26 +56,7 @@ export function SortableSkillRow({ row, dragDisabled, onToggle }: SortableSkillR
       data-testid={`skill-row-${skill.id}`}
       title={skill.enabled ? undefined : t("skills.disabledTitle")}
     >
-      <button
-        type="button"
-        ref={setActivatorNodeRef}
-        {...attributes}
-        {...listeners}
-        aria-label={t("skills.dragHandle", { name: skill.name })}
-        title={dragDisabled ? t("skills.dragDisabledTitle") : undefined}
-        style={{ ...s.handle, cursor: dragDisabled ? "not-allowed" : isDragging ? "grabbing" : "grab" }}
-      >
-        <Icon.Menu size={16} />
-      </button>
-      <Checkbox
-        checked={linked}
-        onChange={() => onToggle(skill.id)}
-        label={<span className="mono" style={s.name}>{skill.name}</span>}
-      />
-      {!skill.enabled && <span style={s.disabledNote}>{t("skills.disabledNote")}</span>}
-      <span style={s.spacer}>
-        <SkillTypeTag type={skill.type} />
-      </span>
+      <SkillRowContent row={row} onToggle={onToggle} handle={handle} />
     </div>
   );
 }

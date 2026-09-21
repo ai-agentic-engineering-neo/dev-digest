@@ -10,8 +10,10 @@ import {
   PERFORMANCE_REVIEWER_PROMPT,
   TEST_QUALITY_REVIEWER_PROMPT,
   PR_SELF_REVIEW_PROMPT,
+  API_CONTRACT_REVIEWER_PROMPT,
 } from './seed-prompts.js';
 import { SEED_SKILLS } from './seed-skills.js';
+import { seedConventions } from './seed-conventions.js';
 
 /** Default provider/model for the built-in reviewer agents. */
 const DEFAULT_PROVIDER = 'openrouter' as const;
@@ -23,11 +25,12 @@ const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
  *
  * Seeds: default workspace + system user + membership, default settings,
  * demo repo (acme/payments-api), PR #482 with files/commits, a sample review
- * with a few findings, three built-in skills (test-coverage-nudge,
- * frontend-conventions, api-contract-gate), and the five built-in agents (General +
- * Security + Performance + Test Quality Reviewer + pr-self-review, the last one
- * disabled / manual-only), all on the default openrouter/deepseek-v4-flash
- * provider+model, plus the agent↔skill links.
+ * with a few findings, seven built-in skills (test-coverage-nudge,
+ * frontend-conventions, api-contract-gate + the API Contract Reviewer's
+ * breaking-change, response-schema, semver-discipline, deprecation-policy), and the
+ * six built-in agents (General + Security + Performance + Test Quality + API Contract
+ * Reviewer + pr-self-review, the last one disabled / manual-only), all on the default
+ * openrouter/deepseek-v4-flash provider+model, plus the agent↔skill links.
  *
  * Course lessons populate the other tables (conventions, memory, eval, …) once
  * their features are built — they start empty here.
@@ -98,6 +101,7 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       .returning();
   }
   const repoId = repo!.id;
+  await seedConventions(db, workspaceId, repoId);
 
   // ---- PR #482 (rate limiting) ----
   let [pr] = await db
@@ -203,7 +207,7 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
         name: s.name,
         description: s.description,
         type: s.type,
-        source: 'manual',
+        source: s.source ?? 'manual',
         body: s.body,
         enabled: true,
         version: 1,
@@ -275,6 +279,20 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       version: 1,
       createdBy: userId,
     },
+    {
+      workspaceId,
+      name: 'API Contract Reviewer',
+      description:
+        'Detects breaking API changes, schema drift and missing versioning/deprecation discipline. Specifics come from linked skills.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      // Deliberately generic (no breaking-change rules): the rules live only in
+      // the four linked skills, so a run without them is a valid control.
+      systemPrompt: API_CONTRACT_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
   ];
   const agentIds = new Map<string, string>();
   for (const a of seedAgents) {
@@ -295,6 +313,10 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
     { agent: 'Test Quality Reviewer', skill: 'test-coverage-nudge', order: 0 },
     { agent: 'pr-self-review', skill: 'frontend-conventions', order: 0 },
     { agent: 'pr-self-review', skill: 'api-contract-gate', order: 1 },
+    { agent: 'API Contract Reviewer', skill: 'breaking-change', order: 0 },
+    { agent: 'API Contract Reviewer', skill: 'response-schema', order: 1 },
+    { agent: 'API Contract Reviewer', skill: 'semver-discipline', order: 2 },
+    { agent: 'API Contract Reviewer', skill: 'deprecation-policy', order: 3 },
   ];
   for (const l of seedLinks) {
     await db

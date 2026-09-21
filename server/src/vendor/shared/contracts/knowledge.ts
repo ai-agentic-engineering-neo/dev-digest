@@ -118,6 +118,15 @@ export type SkillType = z.infer<typeof SkillType>;
 export const SkillSource = z.enum(['manual', 'imported_url', 'extracted', 'community']);
 export type SkillSource = z.infer<typeof SkillSource>;
 
+// One deterministic prompt-injection rule hit inside a skill body. `line` is 1-based.
+export const InjectionMatch = z.object({
+  rule: z.string(),
+  severity: z.enum(['high', 'medium']),
+  line: z.number().int(),
+  excerpt: z.string(),
+});
+export type InjectionMatch = z.infer<typeof InjectionMatch>;
+
 export const Skill = z.object({
   id: z.string(),
   name: z.string(),
@@ -128,8 +137,20 @@ export const Skill = z.object({
   enabled: z.boolean(),
   version: z.number().int(),
   evidence_files: z.array(z.string()).nullish(),
+  // Set by the server-side injection scan on every body write. A flagged skill is
+  // auto-blocked: `enabled` is forced false and it cannot be enabled or linked to an agent.
+  injection_detected: z.boolean(),
+  injection_matches: z.array(InjectionMatch),
 });
 export type Skill = z.infer<typeof Skill>;
+
+// `POST /skills/import-url` — server-side fetch of a markdown skill (https only).
+export const ImportSkillUrlBody = z.object({
+  url: z.string().url().refine((u) => u.startsWith('https://'), { message: 'URL must use https' }),
+  name: z.string().min(1).optional(),
+  type: SkillType.optional(),
+});
+export type ImportSkillUrlBody = z.infer<typeof ImportSkillUrlBody>;
 
 // `GET /skills` row: the skill plus usage aggregates. `pull_rate` / `accept_rate`
 // are percentages (0-100), null when there is nothing to divide by yet.
@@ -146,6 +167,8 @@ export const SkillVersion = z.object({
   version: z.number().int(),
   body: z.string(),
   created_at: z.string(),
+  // Set when this version was created by restoring an older one (append-only restore).
+  restored_from: z.number().int().nullable(),
 });
 export type SkillVersion = z.infer<typeof SkillVersion>;
 
@@ -169,17 +192,6 @@ export const CommunitySkill = z.object({
   desc: z.string(),
 });
 export type CommunitySkill = z.infer<typeof CommunitySkill>;
-
-// ---- Conventions ----
-export const ConventionCandidate = z.object({
-  id: z.string(),
-  rule: z.string(),
-  evidence_path: z.string(),
-  evidence_snippet: z.string(),
-  confidence: z.number().min(0).max(1),
-  accepted: z.boolean(),
-});
-export type ConventionCandidate = z.infer<typeof ConventionCandidate>;
 
 // ---- Agents ----
 // 'openrouter' routes through the OpenAI-compatible API (OpenAIProvider with a
@@ -220,6 +232,19 @@ export const Agent = z.object({
   repo_intel: z.boolean().default(true),
 });
 export type Agent = z.infer<typeof Agent>;
+
+// One tile of `GET /agents`: the Agent plus the aggregates the agents grid shows
+// (skills linked, completed runs, finding accept-rate, average run cost).
+//  - accept_rate:  0-100 (same unit as SkillListItem); null when no finding of the
+//                  agent was ever accepted/dismissed
+//  - avg_cost_usd: mean cost of done runs; null when there is no priced done run
+export const AgentListItem = Agent.extend({
+  skill_count: z.number().int(),
+  runs: z.number().int(),
+  accept_rate: z.number().nullable(),
+  avg_cost_usd: z.number().nullable(),
+});
+export type AgentListItem = z.infer<typeof AgentListItem>;
 
 export const AgentSkillLink = z.object({
   agent_id: z.string(),

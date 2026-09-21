@@ -4,23 +4,86 @@
     "crumbConventions": "Conventions",
     "headingPrefix": "Conventions in ",
     "repoFallback": "repo",
-    "subtitle": "Scan the cloned repo to surface house-rules — each backed by evidence you can turn into a Skill.",
+    "subtitle": "Scan the cloned repo to surface house rules, each backed by code you can check, then turn the ones you accept into a Skill.",
+    "acceptedCount": "{accepted} of {total} accepted",
+    "runScan": "Run Scan",
+    "rescan": "ReScan",
     "scanning": "Scanning…",
-    "rescan": "Re-scan",
-    "runExtraction": "Run extraction",
-    "extractionFailed": "Extraction failed",
     "loadError": "Could not load conventions.",
-    "empty": {
-      "title": "No conventions extracted yet",
-      "body": "Scan the repo to surface house-rules — naming, error handling, structure — each backed by evidence you can turn into a Skill.",
-      "cta": "Run extraction"
-    },
-    "candidateCount": "{count, plural, one {# candidate} other {# candidates}} · grounded against sampled files"
+    "createSkill": "Create skill"
+  },
+  "scan": {
+    "progress": "Scanning the repository. Files are sampled in code, then one model call proposes rules. This can take up to two minutes.",
+    "failedTitle": "The scan failed",
+    "summaryTitle": "Last scan",
+    "proposed": "{count} proposed",
+    "grounded": "{count} grounded in code",
+    "droppedUngrounded": "{count} dropped (evidence not found)",
+    "droppedDuplicate": "{count} merged or already decided",
+    "sampled": "{count, plural, one {# file} other {# files}} sampled",
+    "model": "model {model}"
+  },
+  "empty": {
+    "title": "No conventions scanned yet",
+    "body": "Run a scan to surface house rules (naming, error handling, structure), each backed by evidence from your code.",
+    "afterScanTitle": "The scan found no new conventions",
+    "afterScanBody": "Nothing new survived the evidence check. Rules you already accepted or rejected are not proposed again."
   },
   "card": {
-    "confidence": "Confidence",
+    "accept": "Accept",
     "accepted": "Accepted",
-    "accepting": "Accepting…",
-    "acceptAsSkill": "Accept as Skill"
+    "reject": "Reject",
+    "edit": "Edit",
+    "save": "Save",
+    "cancel": "Cancel",
+    "ruleLabel": "Rule",
+    "rationaleLabel": "Why it matters",
+    "confidence": "Confidence",
+    "seenIn": "seen in {count, plural, one {# file} other {# files}}",
+    "github": "GitHub",
+    "openOnGithub": "Open {path} on GitHub",
+    "category": {
+      "naming": "naming",
+      "structure": "structure",
+      "errors": "errors",
+      "testing": "testing",
+      "imports": "imports",
+      "typing": "typing",
+      "api": "api",
+      "general": "general"
+    }
+  },
+  "bar": {
+    "selected": "{count, plural, one {# convention accepted} other {# conventions accepted}}"
+  },
+  "modal": {
+    "title": "Create skill from conventions",
+    "intro": "Create a skill from {count, plural, one {# accepted convention} other {# accepted conventions}}. It is saved as a Skill you can review, edit and version. Saving again updates the skill with the same name and adds a new version.",
+    "name": "Name",
+    "description": "Description",
+    "type": "Type",
+    "body": "Skill body (Markdown)",
+    "bodyHint": "This text is injected into the agent prompt. Edit anything before saving.",
+    "agent": "Link to agent",
+    "agentHint": "Added to the agent's skills; its other skills are kept.",
+    "noAgent": "Do not link to an agent",
+    "cancel": "Cancel",
+    "create": "Create",
+    "creating": "Creating…",
+    "loadFailed": "Could not build the skill draft. Accept at least one convention first.",
+    "saveFailed": "Could not create the skill.",
+    "saved": "Skill \"{name}\" saved (v{version}).",
+    "savedLinked": "Skill \"{name}\" saved (v{version}) and linked to the agent.",
+    "blocked": "Skill \"{name}\" was flagged for prompt injection and is blocked: it was not linked to the agent.",
+    "types": {
+      "convention": "convention",
+      "rubric": "rubric",
+      "security": "security",
+      "custom": "custom"
+    }
+  },
+  "created": {
+    "message": "Skill \"{name}\" is ready.",
+    "view": "View in Skills"
   }
 }

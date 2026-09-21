@@ -1,6 +1,7 @@
 import type { Container } from '../../platform/container.js';
 import type {
   Agent,
+  AgentListItem,
   AgentSkillLink,
   AgentVersion,
   CiFailOn,
@@ -8,8 +9,9 @@ import type {
   Provider,
   ReviewStrategy,
 } from '@devdigest/shared';
+import { SkillBlockedError } from '../../platform/errors.js';
 import { AgentsRepository } from './repository.js';
-import { toAgentDto, toAgentVersionDto } from './helpers.js';
+import { toAgentDto, toAgentListItem, toAgentVersionDto } from './helpers.js';
 
 /**
  * A2 — agents service. Business logic for the Agents tab + Agent Editor.
@@ -48,16 +50,53 @@ export interface UpdateAgentInput {
   enabled?: boolean;
 }
 
+/**
+ * Port: which of the given skills are flagged by the injection scan. Implemented by
+ * `SkillsRepository` (reached via the Container, not a cross-module import).
+ */
+export interface SkillGuard {
+  findFlaggedIds(workspaceId: string, ids: string[]): Promise<string[]>;
+}
+
 export class AgentsService {
   private repo: AgentsRepository;
 
-  constructor(private container: Container) {
+  constructor(
+    private container: Container,
+    private skillGuard: SkillGuard = container.skillsRepo,
+  ) {
     this.repo = new AgentsRepository(container.db);
   }
 
-  async list(workspaceId: string): Promise<Agent[]> {
+  /**
+   * Reject (422 SKILL_BLOCKED) linking a flagged skill. Skills the agent already
+   * links are exempt so re-saving/reordering an agent whose skill was flagged
+   * later still works (it is skipped at run time instead).
+   */
+  private async assertLinkable(
+    workspaceId: string,
+    agentId: string,
+    skillIds: string[],
+  ): Promise<void> {
+    const flagged = await this.skillGuard.findFlaggedIds(workspaceId, skillIds);
+    if (flagged.length === 0) return;
+    const linked = new Set((await this.repo.linkedSkills(agentId)).map((l) => l.skill.id));
+    const blocked = flagged.filter((id) => !linked.has(id));
+    if (blocked.length > 0) {
+      throw new SkillBlockedError('Cannot link a skill with detected prompt injection', {
+        skill_ids: blocked,
+      });
+    }
+  }
+
+  /** All agents in the workspace with their grid stats (batched — no N+1). */
+  async list(workspaceId: string): Promise<AgentListItem[]> {
     const rows = await this.repo.list(workspaceId);
-    return rows.map(toAgentDto);
+    const stats = await this.repo.statsForAgents(
+      workspaceId,
+      rows.map((r) => r.id),
+    );
+    return rows.map((r) => toAgentListItem(toAgentDto(r), stats.get(r.id)));
   }
 
   async get(workspaceId: string, id: string): Promise<Agent | undefined> {
@@ -152,6 +191,7 @@ export class AgentsService {
   ): Promise<AgentSkillLink[] | undefined> {
     const agent = await this.repo.getById(workspaceId, agentId);
     if (!agent) return undefined;
+    await this.assertLinkable(workspaceId, agentId, skillIds);
     await this.repo.setSkills(agentId, skillIds);
     return this.skillLinks(agentId);
   }
@@ -165,6 +205,7 @@ export class AgentsService {
   ): Promise<AgentSkillLink[] | undefined> {
     const agent = await this.repo.getById(workspaceId, agentId);
     if (!agent) return undefined;
+    await this.assertLinkable(workspaceId, agentId, [skillId]);
     const existing = await this.repo.linkedSkills(agentId);
     const resolvedOrder = order ?? existing.length;
     await this.repo.linkSkill(agentId, skillId, resolvedOrder);

@@ -36,17 +36,52 @@ export function syncRows(rows: readonly SkillRow[], catalog: readonly SkillListI
   return [...kept, ...catalog.filter((skill) => !known.has(skill.id)).map((skill) => ({ skill, linked: false }))];
 }
 
-/** Move the row `activeId` to the position currently held by `overId` (by id, so it works on the full list). */
+/**
+ * Move the row `activeId` to the position currently held by `overId` (by id, so it works on the
+ * full list). Only linked ("Enabled") rows are orderable: a move involving an unlinked row is a no-op.
+ */
 export function reorder(rows: readonly SkillRow[], activeId: string, overId: string): SkillRow[] {
   const from = rows.findIndex((r) => r.skill.id === activeId);
   const to = rows.findIndex((r) => r.skill.id === overId);
-  if (from < 0 || to < 0 || from === to) return [...rows];
+  if (from < 0 || to < 0 || from === to || !rows[from]!.linked || !rows[to]!.linked) return [...rows];
   return arrayMove([...rows], from, to);
 }
 
-/** Flip the `linked` flag of one row. */
+/**
+ * Flip the `linked` flag of one row and move it across the group boundary: a newly linked row is
+ * appended at the end of the Enabled group (last in prompt order), an unlinked row lands at the top
+ * of the Available group. Keeps the invariant "linked rows first" that `buildRows` establishes.
+ * A blocked (injection-flagged) skill cannot be newly linked — that is a no-op.
+ */
 export function toggleRow(rows: readonly SkillRow[], id: string): SkillRow[] {
-  return rows.map((r) => (r.skill.id === id ? { ...r, linked: !r.linked } : r));
+  const target = rows.find((r) => r.skill.id === id);
+  if (!target || isLinkBlocked(target)) return [...rows];
+  const { enabled, available } = groupRows(rows);
+  const without = (list: readonly SkillRow[]) => list.filter((r) => r.skill.id !== id);
+  return target.linked
+    ? [...without(enabled), { ...target, linked: false }, ...without(available)]
+    : [...enabled, { ...target, linked: true }, ...without(available)];
+}
+
+/** Unlink every linked row whose id is in `ids` (used after the server rejected them as blocked). */
+export function unlinkRows(rows: readonly SkillRow[], ids: readonly string[]): SkillRow[] {
+  return ids.reduce((acc, id) => (acc.find((r) => r.skill.id === id)?.linked ? toggleRow(acc, id) : acc), [...rows]);
+}
+
+/** Skill ids a 422 `SKILL_BLOCKED` response names in its `details.skill_ids` (empty when absent/malformed). */
+export function blockedIds(details: unknown): string[] {
+  const ids = (details as { skill_ids?: unknown } | null | undefined)?.skill_ids;
+  return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === "string") : [];
+}
+
+/** An injection-flagged skill that is not linked yet cannot be linked (the server answers 422 SKILL_BLOCKED). */
+export function isLinkBlocked(row: SkillRow): boolean {
+  return row.skill.injection_detected && !row.linked;
+}
+
+/** Split into the two displayed groups, each keeping its relative list order. */
+export function groupRows(rows: readonly SkillRow[]): { enabled: SkillRow[]; available: SkillRow[] } {
+  return { enabled: rows.filter((r) => r.linked), available: rows.filter((r) => !r.linked) };
 }
 
 /** Ids of the linked rows in current list order — the payload for `setSkills` (order = index). */

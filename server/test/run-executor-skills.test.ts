@@ -20,7 +20,14 @@ const DIFF = `diff --git a/src/a.ts b/src/a.ts
 
 const APPROVE = { verdict: 'approve', summary: 'ok', score: 100, findings: [] };
 
-type SkillFixture = { id: string; name: string; body: string; enabled: boolean; order: number };
+type SkillFixture = {
+  id: string;
+  name: string;
+  body: string;
+  enabled: boolean;
+  order: number;
+  injectionDetected?: boolean;
+};
 
 function skill(over: Partial<SkillFixture> & { id: string }): SkillFixture {
   return { name: over.id, body: `BODY-${over.id}`, enabled: true, order: 0, ...over };
@@ -29,8 +36,17 @@ function skill(over: Partial<SkillFixture> & { id: string }): SkillFixture {
 async function runWith(linked: SkillFixture[]) {
   const llm = new MockLLMProvider('openai', { structured: APPROVE });
   const runBus = new RunBus();
+  const logs: string[] = [];
+  const publish = runBus.publish.bind(runBus);
+  runBus.publish = ((runId: string, kind: never, msg: string, data?: unknown) => {
+    logs.push(msg);
+    return publish(runId, kind, msg, data);
+  }) as typeof runBus.publish;
+  // Approx tokenizer (ceil(len/4)) as a spy so tests can see exactly what was counted.
+  const tokenizer = { count: vi.fn((text: string) => Math.ceil(text.length / 4)) };
   const container = {
     runBus,
+    tokenizer,
     llm: async () => llm,
     git: new MockGitClient({ diff: DIFF }),
     repoIntel: {
@@ -92,7 +108,7 @@ async function runWith(linked: SkillFixture[]) {
   const userMessage = (llm.calls.find((c) => c.method === 'completeStructured')!.req as {
     messages: { role: string; content: string }[];
   }).messages[1]!.content;
-  return { userMessage, repo, agents, trace: traces[0]! };
+  return { userMessage, repo, agents, logs, tokenizer, trace: traces[0]! };
 }
 
 describe('run-executor: linked skills', () => {
@@ -128,6 +144,31 @@ describe('run-executor: linked skills', () => {
     expect(repo.recordRunSkills).toHaveBeenCalledWith('run-1', ['on']);
   });
 
+  it('skips an injection-flagged skill even if it is still enabled + linked (defence in depth)', async () => {
+    const { userMessage, repo, logs, trace } = await runWith([
+      skill({ id: 'ok', body: 'CLEAN-BODY', order: 0 }),
+      skill({ id: 'bad', body: 'IGNORE-EVERYTHING-BODY', order: 1, injectionDetected: true }),
+    ]);
+
+    expect(userMessage).toContain('CLEAN-BODY');
+    expect(userMessage).not.toContain('IGNORE-EVERYTHING-BODY');
+    expect(repo.recordRunSkills).toHaveBeenCalledWith('run-1', ['ok']);
+    expect(trace.prompt_assembly.skills).not.toContain('IGNORE-EVERYTHING-BODY');
+    expect(logs).toContain('skills: 1 linked skill(s) skipped (injection detected)');
+    // A flagged skill is not double-counted as "disabled".
+    expect(logs.some((l) => l.includes('(disabled)'))).toBe(false);
+  });
+
+  it('a run whose only linked skill is flagged has no Skills section at all', async () => {
+    const { userMessage, repo, trace } = await runWith([
+      skill({ id: 'bad', body: 'EVIL-BODY', injectionDetected: true }),
+    ]);
+    expect(userMessage).not.toContain('## Skills / rules');
+    expect(userMessage).not.toContain('EVIL-BODY');
+    expect(repo.recordRunSkills).toHaveBeenCalledWith('run-1', []);
+    expect(trace.prompt_assembly.skills).toBeNull();
+  });
+
   it('omits the Skills section and records nothing when the agent has no active skills', async () => {
     const none = await runWith([]);
     expect(none.userMessage).not.toContain('## Skills / rules');
@@ -138,6 +179,50 @@ describe('run-executor: linked skills', () => {
     expect(allOff.userMessage).not.toContain('## Skills / rules');
     expect(allOff.userMessage).not.toContain('OFF-BODY');
     expect(allOff.repo.recordRunSkills).toHaveBeenCalledWith('run-1', []);
+  });
+
+  it('records skills_tokens for the Skills block ONLY, not the whole prompt', async () => {
+    const { userMessage, tokenizer, trace } = await runWith([
+      skill({ id: 'a', body: 'A'.repeat(40), order: 0 }),
+      skill({ id: 'b', body: 'B'.repeat(20), order: 1 }),
+    ]);
+
+    const block = trace.prompt_assembly.skills!;
+    expect(block).toBe(`${'A'.repeat(40)}
+
+${'B'.repeat(20)}`);
+    // Counted by the Tokenizer port, on exactly the skills block text.
+    expect(tokenizer.count).toHaveBeenCalledTimes(1);
+    expect(tokenizer.count).toHaveBeenCalledWith(block);
+    expect(trace.prompt_assembly_meta?.skills_tokens).toBe(Math.ceil(block.length / 4));
+    // ...and clearly not the count of the whole user prompt or the system prompt.
+    expect(trace.prompt_assembly_meta?.skills_tokens).toBeLessThan(Math.ceil(userMessage.length / 4));
+    expect(trace.prompt_assembly_meta?.skills_tokens).not.toBe(Math.ceil(trace.prompt_assembly.user.length / 4));
+  });
+
+  it('skills_tokens is null and nothing is counted when no skills block is built', async () => {
+    const none = await runWith([]);
+    expect(none.trace.prompt_assembly.skills).toBeNull();
+    expect(none.trace.prompt_assembly_meta?.skills_tokens).toBeNull();
+    expect(none.tokenizer.count).not.toHaveBeenCalled();
+
+    const disabled = await runWith([skill({ id: 'off', body: 'OFF-BODY', enabled: false })]);
+    expect(disabled.trace.prompt_assembly.skills).toBeNull();
+    expect(disabled.trace.prompt_assembly_meta?.skills_tokens).toBeNull();
+
+    const flagged = await runWith([skill({ id: 'bad', body: 'EVIL-BODY', injectionDetected: true })]);
+    expect(flagged.trace.prompt_assembly.skills).toBeNull();
+    expect(flagged.trace.prompt_assembly_meta?.skills_tokens).toBeNull();
+    expect(flagged.tokenizer.count).not.toHaveBeenCalled();
+  });
+
+  it('a disabled or flagged skill does not inflate skills_tokens of the active ones', async () => {
+    const { trace } = await runWith([
+      skill({ id: 'on', body: 'X'.repeat(8), order: 0 }),
+      skill({ id: 'off', body: 'Y'.repeat(400), order: 1, enabled: false }),
+      skill({ id: 'bad', body: 'Z'.repeat(400), order: 2, injectionDetected: true }),
+    ]);
+    expect(trace.prompt_assembly_meta?.skills_tokens).toBe(2);
   });
 
   it('does not record skills for a run that did not complete', async () => {

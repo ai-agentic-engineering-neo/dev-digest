@@ -17,6 +17,7 @@
  *   E2E_DEMO_REPO        demo repo full_name to resolve (default acme/payments-api)
  *   AGENT_BROWSER_BIN    binary name/path (default "agent-browser")
  *   E2E_STEP_TIMEOUT     per-command timeout in ms (default 60000)
+ *   E2E_ONLY             run only flows whose file name contains this (e.g. "08")
  *
  * Specs target read-only seeded data, so nothing here triggers an LLM call or
  * needs an API key. Run order is the lexical order of the spec filenames.
@@ -85,8 +86,10 @@ async function ab(args: string[]): Promise<string> {
 }
 
 function loadFlows(): { file: string; flow: Flow }[] {
+  // E2E_ONLY=08 (substring of the file name) runs just the matching flow(s) — for iterating on one spec.
+  const only = process.env.E2E_ONLY;
   return readdirSync(SPECS_DIR)
-    .filter((f) => f.endsWith(".flow.json"))
+    .filter((f) => f.endsWith(".flow.json") && (!only || f.includes(only)))
     .sort()
     .map((file) => ({
       file,
@@ -136,7 +139,8 @@ async function main(): Promise<void> {
 
   const repoPath = await resolveDemoRepoPath();
   console.log(`Resolved seeded demo repo "${DEMO_REPO}" → ${repoPath}`);
-  const vars = { BASE, REPO_PATH: repoPath };
+  // REPO_ROOT = "/repos/<id>" (REPO_PATH is its "/pulls" page) for flows on other repo tabs.
+  const vars = { BASE, REPO_PATH: repoPath, REPO_ROOT: repoPath.replace(/\/pulls$/, "") };
 
   const results: FlowResult[] = [];
   try {

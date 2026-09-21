@@ -1,14 +1,14 @@
-/* SkillsPanel — left column of /skills/[id]: title + Add dropdown, search and
+/* SkillsPanel — left column of /skills/[id]: title + Add Skill button, search and
    the skill rows with the open skill highlighted. */
 "use client";
 
 import React from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Button, Dropdown, Icon, Skeleton } from "@devdigest/ui";
+import { Button, Icon, Skeleton } from "@devdigest/ui";
 import { useSkills, useUpdateSkill } from "@/lib/hooks/skills";
 import { SkillRow, filterSkills } from "../SkillRow";
-import { ImportSkillDrawer } from "../ImportSkillDrawer";
+import { AddSkillModal } from "../AddSkillModal";
 import { s } from "./styles";
 
 export function SkillsPanel({ activeId, tab }: { activeId: string; tab: string }) {
@@ -16,7 +16,7 @@ export function SkillsPanel({ activeId, tab }: { activeId: string; tab: string }
   const router = useRouter();
   const { data: skills, isLoading } = useSkills();
   const update = useUpdateSkill();
-  const [importing, setImporting] = React.useState(false);
+  const [adding, setAdding] = React.useState(false);
   const [search, setSearch] = React.useState("");
 
   const all = skills ?? [];
@@ -24,25 +24,13 @@ export function SkillsPanel({ activeId, tab }: { activeId: string; tab: string }
 
   return (
     <div style={s.wrap}>
-      {importing && (
-        <ImportSkillDrawer
-          onClose={() => setImporting(false)}
-          onImported={(sk) => router.push(`/skills/${sk.id}?tab=config`)}
-        />
-      )}
+      {adding && <AddSkillModal onClose={() => setAdding(false)} />}
       <div style={s.head}>
         <div style={s.titleRow}>
           <h1 style={s.h1}>{t("page.heading")}</h1>
-          <Dropdown
-            width={210}
-            align="right"
-            trigger={
-              <Button kind="primary" size="sm" icon="Plus" iconRight="ChevronDown">
-                {t("page.addSkill")}
-              </Button>
-            }
-            items={[{ label: t("page.menu.fromFile"), icon: "Upload", onClick: () => setImporting(true) }]}
-          />
+          <Button kind="primary" size="sm" icon="Plus" onClick={() => setAdding(true)}>
+            {t("page.addSkill")}
+          </Button>
         </div>
         <div style={s.search}>
           <Icon.Search size={13} style={s.searchIcon} />
@@ -70,6 +58,10 @@ export function SkillsPanel({ activeId, tab }: { activeId: string; tab: string }
             active={sk.id === activeId}
             onClick={() => router.push(`/skills/${sk.id}?tab=${tab}`)}
             onToggle={(enabled) => update.mutate({ id: sk.id, patch: { enabled } })}
+            // Deleting the skill that is open on the right would leave a dead page — go back to the list.
+            onDeleted={() => {
+              if (sk.id === activeId) router.push("/skills");
+            }}
           />
         ))}
       </div>

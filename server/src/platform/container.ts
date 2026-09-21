@@ -6,6 +6,8 @@ import type {
   CodeIndex,
   Embedder,
   LLMProvider,
+  FeatureModelChoice,
+  FeatureModelId,
 } from '@devdigest/shared';
 import type { AppConfig } from './config.js';
 import type { Db } from '../db/client.js';
@@ -26,10 +28,13 @@ import { ConfigError } from './errors.js';
 import { AgentsRepository } from '../modules/agents/repository.js';
 import { ReviewRepository } from '../modules/reviews/repository.js';
 import { SkillsRepository } from '../modules/skills/repository.js';
+import { SkillsService } from '../modules/skills/service.js';
+import { resolveFeatureModel } from '../modules/settings/feature-models.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
 import { type DepGraph, DepCruiseGraph } from '../adapters/depgraph/index.js';
 import { type Tokenizer, TiktokenTokenizer } from '../adapters/tokenizer/index.js';
+import { type UrlFetcher, HttpUrlFetcher } from '../adapters/url-fetcher/index.js';
 
 /**
  * DI container. One per app instance. Holds config, db, the JobRunner,
@@ -52,6 +57,8 @@ export interface ContainerOverrides {
   /** repo-intel T3 adapters — only the indexer pipeline reads these. */
   depgraph?: DepGraph;
   tokenizer?: Tokenizer;
+  /** Server-side URL fetcher (skill import). Tests inject MockUrlFetcher. */
+  urlFetcher?: UrlFetcher;
 }
 
 export class Container {
@@ -74,9 +81,11 @@ export class Container {
   private _agentsRepo?: AgentsRepository;
   private _reviewRepo?: ReviewRepository;
   private _skillsRepo?: SkillsRepository;
+  private _skillsService?: SkillsService;
   private _repoIntel?: RepoIntel;
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
+  private _urlFetcher?: UrlFetcher;
   private _priceBook?: PriceBook;
 
   constructor(config: AppConfig, db: Db, private overrides: ContainerOverrides = {}) {
@@ -100,6 +109,18 @@ export class Container {
 
   get skillsRepo(): SkillsRepository {
     return (this._skillsRepo ??= new SkillsRepository(this.db));
+  }
+
+  /**
+   * The skills application service, for feature modules that write skills
+   * (e.g. conventions) and must go through the same validation, versioning and
+   * injection scan as the Skills routes.
+   */
+  get skillsService(): SkillsService {
+    return (this._skillsService ??= new SkillsService({
+      repo: this.skillsRepo,
+      urlFetcher: this.urlFetcher,
+    }));
   }
 
   get reviewRepo(): ReviewRepository {
@@ -135,6 +156,13 @@ export class Container {
     if (this.overrides.tokenizer) return this.overrides.tokenizer;
     this._tokenizer ??= new TiktokenTokenizer();
     return this._tokenizer;
+  }
+
+  /** SSRF-guarded https text fetcher for `POST /skills/import-url`. */
+  get urlFetcher(): UrlFetcher {
+    if (this.overrides.urlFetcher) return this.overrides.urlFetcher;
+    this._urlFetcher ??= new HttpUrlFetcher();
+    return this._urlFetcher;
   }
 
   /**
@@ -174,6 +202,16 @@ export class Container {
     const provider = await this.buildLlm(id);
     this.llmCache.set(id, provider);
     return provider;
+  }
+
+  /**
+   * Settings -> Feature Models: the workspace's chosen provider+model for a
+   * system LLM feature, else the registry default. Exposed here so feature
+   * modules can take it as an injected port instead of importing the settings
+   * module's internals.
+   */
+  resolveFeatureModel(workspaceId: string, id: FeatureModelId): Promise<FeatureModelChoice> {
+    return resolveFeatureModel(this, workspaceId, id);
   }
 
   private async buildLlm(id: 'openai' | 'anthropic' | 'openrouter'): Promise<LLMProvider> {

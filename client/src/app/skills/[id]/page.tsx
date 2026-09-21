@@ -10,6 +10,7 @@ import { EmptyState, ErrorState, Skeleton, Icon, Badge, SkillTypeTag } from "@de
 import { AppShell } from "@/components/app-shell";
 import { useSkill } from "@/lib/hooks/skills";
 import { ApiError } from "@/lib/api";
+import { InjectionBadge } from "../_components/InjectionBadge";
 import { SkillsPanel } from "../_components/SkillsPanel";
 import { SkillEditor } from "./_components/SkillEditor";
 import { s } from "./styles";
@@ -80,6 +81,7 @@ export default function SkillEditorPage() {
               <Badge color="var(--text-secondary)" icon="Tag" mono>
                 {t("preview.version", { version: skill.version })}
               </Badge>
+              {skill.injection_detected && <InjectionBadge />}
               {!skill.enabled && <Badge color="var(--text-muted)">{t("detail.disabledBadge")}</Badge>}
             </div>
             <div style={s.body}>

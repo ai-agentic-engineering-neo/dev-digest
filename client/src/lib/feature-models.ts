@@ -41,8 +41,8 @@ export const FEATURE_MODELS: FeatureModelDef[] = [
   },
   {
     id: "conventions",
-    label: "Conventions",
-    description: "Extracts coding conventions from the repo.",
+    label: "Conventions classification",
+    description: "Classifies repository code-style conventions into candidate rules.",
     defaultProvider: "openai",
     defaultModel: "gpt-5.4",
   },

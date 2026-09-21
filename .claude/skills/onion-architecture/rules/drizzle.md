@@ -14,7 +14,7 @@
    - Drizzle: `db.transaction(async (tx) => { … })`; `tx.transaction()` gives savepoints; `tx.rollback()` for business-triggered rollback.
    - Repository methods take an optional last arg `tx?: DbOrTx` and use `(tx ?? this.db)`. Export the `DbOrTx` type once from `db/client.ts`.
    - A service needing atomicity across repositories asks a small `UnitOfWork`/`TransactionRunner` port (implemented in infra) rather than importing `Db`.
-8. **Migrations stay in `db/migrations`** and are never edited once applied (`server/CLAUDE.md`). Schema changes are infrastructure changes; a domain-type change is a separate, deliberate step in the mapper.
+8. **Migrations stay in `db/migrations`** and are never edited once applied (`server/AGENTS.md`). Schema changes are infrastructure changes; a domain-type change is a separate, deliberate step in the mapper.
 9. **No raw SQL in services or routes.** pgvector/similarity queries also live in repositories.
 10. **Duplicate persistence code is a boundary smell.** The `pullRequests` upsert exists in both `pulls/routes.ts` and `polling/routes.ts` — one repository method, called from one service.
 

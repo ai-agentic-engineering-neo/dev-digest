@@ -2,7 +2,7 @@
   "name": "Open a PR from the list and load its review detail",
   "description": "From the seeded repo's PR list, click into PR #482 and confirm the detail route loads with the PR title and review surface. Exercises nested routing (/repos/<id>/pulls/<number>) and the per-PR detail fetch. Navigates straight to the demo repo acme/payments-api's PR list via {REPO_PATH} (resolved by name through the API at runner startup, not by DB row order) so this doesn't depend on it being the only/first repo.",
   "steps": [
-    { "cmd": ["open", "{BASE}{REPO_PATH}"], "label": "open the seeded demo repo's PR list" },
+    { "cmd": ["open", "{BASE}{REPO_PATH}?status=all"], "label": "open the seeded demo repo's PR list (all statuses)" },
     { "cmd": ["wait", "--load", "networkidle"], "label": "PR list data settles" },
     { "cmd": ["wait", "--text", "Add rate limiting to public API endpoints"], "label": "seeded PR title row is visible" },
     { "cmd": ["find", "text", "Add rate limiting to public API endpoints", "click"], "label": "open the PR row" },

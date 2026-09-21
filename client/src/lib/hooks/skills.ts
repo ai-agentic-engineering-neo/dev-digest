@@ -3,7 +3,15 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
-import type { Skill, SkillListItem, SkillSource, SkillStats, SkillType, SkillVersion } from "@devdigest/shared";
+import type {
+  ImportSkillUrlBody,
+  Skill,
+  SkillListItem,
+  SkillSource,
+  SkillStats,
+  SkillType,
+  SkillVersion,
+} from "@devdigest/shared";
 
 export function useSkills() {
   return useQuery({
@@ -54,6 +62,15 @@ export function useCreateSkill() {
   });
 }
 
+/** Server-side import of a Markdown skill from an https URL (the server enforces the SSRF guard). */
+export function useImportSkillUrl() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ImportSkillUrlBody) => api.post<Skill>("/skills/import-url", input),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["skills"] }),
+  });
+}
+
 export interface UpdateSkillInput {
   id: string;
   patch: Partial<Pick<Skill, "name" | "description" | "type" | "body" | "enabled">>;
@@ -78,6 +95,29 @@ export function useDeleteSkill() {
     onSuccess: (_d, id) => {
       qc.invalidateQueries({ queryKey: ["skills"] });
       qc.removeQueries({ queryKey: ["skill", id] });
+      // Deleting cascades to agent links: refresh the agent tiles and Skills tabs.
+      qc.invalidateQueries({ queryKey: ["agents"] });
+      qc.invalidateQueries({ queryKey: ["agent-skills"] });
+    },
+  });
+}
+
+export interface RestoreSkillVersionInput {
+  id: string;
+  version: number;
+}
+
+/** Append-only restore: the server creates version N+1 whose body is the chosen version's. */
+export function useRestoreSkillVersion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, version }: RestoreSkillVersionInput) =>
+      api.post<Skill>(`/skills/${id}/versions/${version}/restore`),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["skills"] });
+      qc.invalidateQueries({ queryKey: ["skill-versions", data.id] });
+      qc.invalidateQueries({ queryKey: ["skill-stats", data.id] });
+      qc.setQueryData(["skill", data.id], data);
     },
   });
 }

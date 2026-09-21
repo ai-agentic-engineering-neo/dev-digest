@@ -4,7 +4,7 @@ import {
   FeatureModelChoice,
   type FeatureModelId,
 } from '@devdigest/shared';
-import type { Container } from '../../platform/container.js';
+import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import { rowsToSettings } from './helpers.js';
 
@@ -34,7 +34,7 @@ export function defaultFeatureModel(id: FeatureModelId): FeatureModelChoice {
  * `resolveFeatureModel` instead.
  */
 export async function getFeatureModelOverride(
-  container: Container,
+  container: { db: Db },
   workspaceId: string,
   id: FeatureModelId,
 ): Promise<FeatureModelChoice | undefined> {
@@ -49,7 +49,7 @@ export async function getFeatureModelOverride(
 
 /** Resolve `id` to a concrete provider+model: workspace override, else registry default. */
 export async function resolveFeatureModel(
-  container: Container,
+  container: { db: Db },
   workspaceId: string,
   id: FeatureModelId,
 ): Promise<FeatureModelChoice> {

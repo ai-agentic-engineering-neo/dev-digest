@@ -6,7 +6,8 @@ import { render, type RenderResult } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { SkillListItem } from "@devdigest/shared";
-import messages from "../../../../messages/en/skills.json";
+import skillsMessages from "../../../../messages/en/skills.json";
+import skillsImportMessages from "../../../../messages/en/skillsImport.json";
 import { API_BASE } from "@/lib/api";
 import { ToastProvider } from "@/lib/toast";
 
@@ -14,7 +15,7 @@ export function renderWithProviders(ui: React.ReactElement): RenderResult {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <NextIntlClientProvider locale="en" messages={{ skills: messages }}>
+      <NextIntlClientProvider locale="en" messages={{ skills: skillsMessages, skillsImport: skillsImportMessages }}>
         <ToastProvider>{ui}</ToastProvider>
       </NextIntlClientProvider>
     </QueryClientProvider>,
@@ -50,6 +51,8 @@ export const SKILL_ITEM: SkillListItem = {
   body: "# PR Quality Rubric\n\nEvaluate the pull request.",
   enabled: true,
   version: 2,
+  injection_detected: false,
+  injection_matches: [],
   used_by: 3,
   pull_rate: 71,
   accept_rate: 74,

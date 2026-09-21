@@ -9,6 +9,7 @@ import {
 import { EMPTY_USAGE, isBodyChange } from './helpers.js';
 import type {
   InsertSkill,
+  RestoreOutcome,
   SkillRecord,
   SkillsStore,
   SkillUsageCounts,
@@ -65,6 +66,8 @@ export class SkillsRepository implements SkillsStore {
           body: values.body,
           enabled: values.enabled ?? true,
           version: INITIAL_SKILL_VERSION,
+          injectionDetected: values.injectionDetected ?? false,
+          injectionMatches: values.injectionMatches ?? [],
         })
         .returning();
       await tx
@@ -104,6 +107,12 @@ export class SkillsRepository implements SkillsStore {
           ...(patch.type !== undefined ? { type: patch.type } : {}),
           ...(patch.body !== undefined ? { body: patch.body } : {}),
           ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
+          ...(patch.injectionDetected !== undefined
+            ? { injectionDetected: patch.injectionDetected }
+            : {}),
+          ...(patch.injectionMatches !== undefined
+            ? { injectionMatches: patch.injectionMatches }
+            : {}),
           ...(bodyChanged ? { version: nextVersion } : {}),
         })
         .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.id, id)))
@@ -117,6 +126,68 @@ export class SkillsRepository implements SkillsStore {
       }
       return row;
     });
+  }
+
+  /**
+   * Append-only restore: new version N+1 with the chosen snapshot's body and
+   * `restored_from` set — never rewinds the counter. Same transaction + row lock
+   * as `update`, so a concurrent edit can't claim the same version number.
+   */
+  async restoreVersion(
+    workspaceId: string,
+    id: string,
+    fromVersion: number,
+    patch: UpdateSkill,
+  ): Promise<RestoreOutcome> {
+    return this.db.transaction(async (tx) => {
+      const [existing] = await tx
+        .select()
+        .from(t.skills)
+        .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.id, id)))
+        .for('update');
+      if (!existing) return { kind: 'not_found' } as const;
+      if (existing.version === fromVersion) return { kind: 'is_current' } as const;
+
+      const nextVersion = existing.version + 1;
+      const [row] = await tx
+        .update(t.skills)
+        .set({
+          ...(patch.body !== undefined ? { body: patch.body } : {}),
+          ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
+          ...(patch.injectionDetected !== undefined
+            ? { injectionDetected: patch.injectionDetected }
+            : {}),
+          ...(patch.injectionMatches !== undefined
+            ? { injectionMatches: patch.injectionMatches }
+            : {}),
+          version: nextVersion,
+        })
+        .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.id, id)))
+        .returning();
+      await tx.insert(t.skillVersions).values({
+        skillId: id,
+        version: nextVersion,
+        body: row!.body,
+        restoredFrom: fromVersion,
+      });
+      return { kind: 'restored', skill: row! } as const;
+    });
+  }
+
+  /** Which of `ids` (in this workspace) are flagged by the injection scan. */
+  async findFlaggedIds(workspaceId: string, ids: string[]): Promise<string[]> {
+    if (ids.length === 0) return [];
+    const rows = await this.db
+      .select({ id: t.skills.id })
+      .from(t.skills)
+      .where(
+        and(
+          eq(t.skills.workspaceId, workspaceId),
+          inArray(t.skills.id, ids),
+          eq(t.skills.injectionDetected, true),
+        ),
+      );
+    return rows.map((r) => r.id);
   }
 
   // ---- skill_versions (immutable body snapshots) --------------------------

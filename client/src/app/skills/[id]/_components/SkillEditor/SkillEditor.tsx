@@ -1,11 +1,12 @@
-/* SkillEditor — 4-tab skill editor (Config / Preview / Stats / Versions).
-   Tab state lives in ?tab= (owned by the page). */
+/* SkillEditor — 4-tab skill editor (Config / Preview / Stats / Versions), with a red
+   "injection detected" banner on top for a blocked skill. Tab state lives in ?tab= (owned by the page). */
 "use client";
 
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Tabs } from "@devdigest/ui";
 import type { Skill } from "@devdigest/shared";
+import { InjectionBanner } from "./_components/InjectionBanner";
 import { SkillConfigTab } from "./_components/SkillConfigTab";
 import { SkillPreviewTab } from "./_components/SkillPreviewTab";
 import { SkillStatsTab } from "./_components/SkillStatsTab";
@@ -18,6 +19,7 @@ export function SkillEditor({ skill, tab, onTab }: { skill: Skill; tab: string; 
   const tabs = TABS.map((tb) => ({ key: tb.key, label: t(tb.labelKey), icon: tb.icon }));
   return (
     <div style={s.wrap}>
+      {skill.injection_detected && <InjectionBanner />}
       <div style={s.tabsBar}>
         <Tabs tabs={tabs} value={tab} onChange={onTab} pad="0 24px" />
       </div>

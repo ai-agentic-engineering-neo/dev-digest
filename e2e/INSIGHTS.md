@@ -14,6 +14,12 @@ of re-explaining it here.
 
 ## What Doesn't Work
 
+### 2026-09-20 — The "hermetic" stack was NOT safe next to a dev server: both `next dev` shared `client/.next`
+`scripts/e2e.sh` started `next dev -p 3100` in the same `client/.next` as a developer's `next dev` on :3000, so each overwrote the other's compiled bundles — the e2e web app ended up calling the dev API on :3001 ("Cannot reach the DevDigest engine") and the dev server could serve bundles built for :3101. Fixed by exporting `NEXT_DIST_DIR=.next-e2e` in the script (read by `client/next.config.mjs`, git-ignored). If a dev server ever shows the wrong API base or stale UI after an e2e run, delete `client/.next`.
+
+### 2026-09-20 — Flow steps that pass or fail depending on window size: scroll before clicking, and never put a newline in an argument
+The agent-browser window is ~1262×568, so a button that sits below the fold in a scrollable modal (the Add Skill "Create skill" button) is clicked at off-screen coordinates: exit 0, nothing happens, and the flow fails 60 s later at the *next* wait — precede such clicks with `scrollintoview <sel>` or trigger them via `eval` (`el.scrollIntoView(); el.click()`). Separately, args go through `cmd.exe` on Windows, which truncates a `fill` value at the first literal newline (a two-line body silently saved as `# Rule`, so the injection check "failed") — keep `fill` values single-line. Also: `find text`/CSS-`click` on an element in a long list can miss for the same off-screen reason.
+
 ### 2026-09-16 — Never `docker compose down -v` against the dev stack
 `-v` deletes the `devdigest_pgdata` volume along with every repo and review
 you've imported for local development — it is not scoped to e2e data. Use the
@@ -54,6 +60,12 @@ which resolves the Windows shim AND quotes arguments correctly. Verified
 6/7 flows pass after the fix (see Open Questions for the 7th).
 
 ## Recurring Errors & Fixes
+
+### 2026-09-20 — Flows 02/04/05 failed at "seeded PR title row is visible": the PR list defaults to the Needs-review filter
+`app/repos/[repoId]/pulls/page.tsx` defaults `status` to `needs_review` (committed L01 change), and the seeded PR #482 already has a review, so it isn't listed by default — flows that open `{REPO_PATH}` saw "No pull requests" and then timed out. The flows now open `{REPO_PATH}?status=all` (an explicit status always sticks). If a future default-filter change breaks these again, that is the first place to look. Note the `2026-09-19` "resolve the demo repo by name" entry is unrelated to this.
+
+### 2026-09-20 — `npm run e2e:hermetic` fails under Windows cmd (`'..' is not recognized`)
+The npm script is `../scripts/e2e.sh`, which cmd tries to execute directly. Run `./scripts/e2e.sh` from Git Bash instead (same thing, and it is what the README shows first). Use `E2E_ONLY=08` (substring of the flow file name) to iterate on a single flow against a stack you keep running.
 
 ## Session Notes
 

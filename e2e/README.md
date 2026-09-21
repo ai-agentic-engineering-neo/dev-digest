@@ -32,7 +32,7 @@ A spec lives in `specs/NN-name.flow.json`:
 - Locators are deterministic only (`--url`, `--text`, `find role|text|label`).
   We never use the AI `chat` command, so runs are stable and key-free.
 
-Flows target **read-only seeded data** (the demo repo `acme/payments-api`, PR
+Flows 01-07 target **read-only seeded data** (the demo repo `acme/payments-api`, PR
 #482, the seeded agents), so nothing triggers a model call.
 
 > **Precondition: a freshly-seeded DB.** Flow `02` follows the home redirect to
@@ -79,6 +79,12 @@ cd e2e && npm install && npm test
 ```
 
 Env knobs:
+
+- `E2E_ONLY=08` runs only flows whose file name contains it. Flows 08/09 create,
+  triage and delete data, so use them on the hermetic DB only. `{REPO_ROOT}` (`/repos/<id>`)
+  is available to flows alongside `{BASE}` and `{REPO_PATH}`.
+- The hermetic web server builds into `client/.next-e2e` (`NEXT_DIST_DIR`), so it can run next to
+  a dev server without the two overwriting each other's `client/.next` bundles.
 
 - Runner: `E2E_BASE_URL`, `AGENT_BROWSER_BIN` (default `agent-browser`),
   `E2E_STEP_TIMEOUT` (ms, default 60000).

@@ -1,0 +1,94 @@
+diff --git a/openapi.yaml b/openapi.yaml
+index c0ef725..887a693 100644
+--- a/openapi.yaml
++++ b/openapi.yaml
+@@ -3,12 +3,12 @@ info:
+   title: Orders API
+   version: 1.3.0
+ paths:
+-  /v1/orders/{id}:
++  /v1/orders/{orderId}:
+     get:
+       operationId: getOrder
+       summary: Fetch a single order
+       parameters:
+-        - name: id
++        - name: orderId
+           in: path
+           required: true
+           schema:
+@@ -26,12 +26,10 @@ components:
+   schemas:
+     Order:
+       type: object
+-      required: [id, total, currency]
++      required: [id, amount]
+       properties:
+         id:
+           type: string
+-        total:
++        amount:
+           type: number
+-          description: Order total in minor units (cents)
+-        currency:
+-          type: string
++          description: Order amount in minor units (cents)
+diff --git a/src/routes/orders.ts b/src/routes/orders.ts
+index f5f6e59..173a6b0 100644
+--- a/src/routes/orders.ts
++++ b/src/routes/orders.ts
+@@ -13,11 +13,10 @@ const ORDERS: Record<string, Order> = {
+ 
+ const OrderResponse = {
+   type: 'object',
+-  required: ['id', 'total', 'currency'],
++  required: ['id', 'amount'],
+   properties: {
+     id: { type: 'string' },
+-    total: { type: 'number' },
+-    currency: { type: 'string' },
++    amount: { type: 'number' },
+   },
+ } as const;
+ 
+@@ -28,22 +27,22 @@ const NotFoundResponse = {
+ } as const;
+ 
+ export async function ordersRoutes(app: FastifyInstance): Promise<void> {
+-  app.get<{ Params: { id: string } }>(
+-    '/orders/:id',
++  app.get<{ Params: { orderId: string } }>(
++    '/orders/:orderId',
+     {
+       schema: {
+         params: {
+           type: 'object',
+-          required: ['id'],
+-          properties: { id: { type: 'string' } },
++          required: ['orderId'],
++          properties: { orderId: { type: 'string' } },
+         },
+         response: { 200: OrderResponse, 404: NotFoundResponse },
+       },
+     },
+     async (req, reply) => {
+-      const order = ORDERS[req.params.id];
++      const order = ORDERS[req.params.orderId];
+       if (!order) return reply.code(404).send({ error: 'order not found' });
+-      return order;
++      return { id: order.id, amount: order.total };
+     },
+   );
+ }
+diff --git a/test/orders.test.ts b/test/orders.test.ts
+index d5ed55e..38eea32 100644
+--- a/test/orders.test.ts
++++ b/test/orders.test.ts
+@@ -6,6 +6,6 @@ describe('GET /v1/orders/:id', () => {
+     const app = buildApp();
+     const res = await app.inject({ method: 'GET', url: '/v1/orders/1001' });
+     expect(res.statusCode).toBe(200);
+-    expect(res.json()).toEqual({ id: '1001', total: 4200, currency: 'EUR' });
++    expect(res.json()).toEqual({ id: '1001', amount: 4200 });
+   });
+ });

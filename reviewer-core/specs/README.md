@@ -1,3 +1,3 @@
 # specs/
 
-Reviewer-core feature specs go here — see [../CLAUDE.md](../CLAUDE.md).
+Reviewer-core feature specs go here — see [../AGENTS.md](../AGENTS.md).

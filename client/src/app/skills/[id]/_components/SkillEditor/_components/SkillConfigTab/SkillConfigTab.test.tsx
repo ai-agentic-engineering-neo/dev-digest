@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { screen, cleanup, waitFor, fireEvent, act } from "@testing-library/react";
+import { screen, cleanup, waitFor, fireEvent, act, within } from "@testing-library/react";
 import { renderWithProviders, mockFetch, bodyOf, SKILL_ITEM } from "../../../../../_test/harness";
 
 const push = vi.fn();
@@ -64,17 +64,41 @@ describe("SkillConfigTab", () => {
     expect(screen.getByRole("note")).toHaveTextContent("untrusted source");
   });
 
-  it("deletes after confirmation and returns to the list", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
+  it("deletes only after the confirm modal, then returns to the list", async () => {
+    const confirm = vi.spyOn(window, "confirm");
     const fetchMock = mockFetch({ "DELETE /skills/s1": { ok: true } });
     renderWithProviders(<SkillConfigTab skill={SKILL} />);
 
     fireEvent.click(screen.getByText("Delete skill"));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText('Delete "pr-quality-rubric"?')).toBeInTheDocument();
+    expect(dialog).toHaveTextContent("unlinked from every agent");
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
 
     await waitFor(() => expect(push).toHaveBeenCalledWith("/skills"));
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining("/skills/s1"),
       expect.objectContaining({ method: "DELETE" }),
     );
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it("does not delete when the modal is cancelled", () => {
+    const fetchMock = mockFetch({});
+    renderWithProviders(<SkillConfigTab skill={SKILL} />);
+    fireEvent.click(screen.getByText("Delete skill"));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("warns when a save leaves the body flagged", async () => {
+    mockFetch({ "PUT /skills/s1": { ...SKILL, enabled: false, injection_detected: true, version: 3 } });
+    renderWithProviders(<SkillConfigTab skill={SKILL} />);
+    fireEvent.click(screen.getByText("Save skill"));
+    expect(await screen.findByText(/still contains prompt injection patterns/)).toBeInTheDocument();
   });
 });

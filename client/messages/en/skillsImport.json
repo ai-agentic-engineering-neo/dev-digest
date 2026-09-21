@@ -1,19 +1,58 @@
 {
-  "subtitle": "Import a Markdown file or a .zip archive — or write a skill from scratch",
-  "cancel": "Cancel",
+  "title": "Add skill",
+  "tabs": {
+    "create": "Create",
+    "file": "From file",
+    "url": "Import from URL"
+  },
+  "fields": {
+    "name": "Name",
+    "namePlaceholder": "pr-quality-rubric",
+    "description": "Description",
+    "descriptionPlaceholder": "What this skill checks…",
+    "type": "Type",
+    "body": "Body (Markdown)",
+    "bodyPlaceholder": "# Rule\nDescribe the rule…"
+  },
+  "create": {
+    "submit": "Create skill",
+    "submitting": "Creating…"
+  },
+  "file": {
+    "nameLabel": "Skill name",
+    "nameHint": "Optional — derived from the first heading if blank.",
+    "namePlaceholder": "pr-quality-rubric",
+    "submit": "Import skill",
+    "submitting": "Importing…"
+  },
   "pick": {
-    "label": "Skill file",
-    "hint": "Optional. Read in your browser — nothing is saved until you click Import skill.",
+    "label": "File (.md or .zip)",
+    "hint": "Read in your browser — nothing is saved until you click Import skill.",
     "choose": "Choose a .md, .markdown or .zip file",
     "replace": "Choose a different file",
     "reading": "Reading…",
     "loaded": "Loaded {file}",
     "ignored": "{count, plural, one {# other file in the archive was ignored (not processed)} other {# other files in the archive were ignored (not processed)}}"
   },
-  "fields": {
-    "type": "Type",
+  "preview": {
+    "title": "What will be imported",
+    "name": "Name",
     "description": "Description",
-    "descriptionPlaceholder": "What this skill checks for"
+    "body": "Body",
+    "noDescription": "No description",
+    "noName": "No name found — enter one above.",
+    "truncated": "… ({count} more lines)"
+  },
+  "url": {
+    "label": "URL (https:// only)",
+    "placeholder": "https://raw.githubusercontent.com/org/repo/main/skill.md",
+    "hint": "Fetched server-side and scanned for prompt injection before it is saved.",
+    "invalid": "Enter a valid https:// URL.",
+    "nameLabel": "Skill name",
+    "nameHint": "Optional — derived from the file when blank.",
+    "namePlaceholder": "my-skill",
+    "submit": "Import from URL",
+    "fetching": "Fetching…"
   },
   "errors": {
     "unsupported_type": "\"{file}\" is not supported. Choose a .md, .markdown or .zip file.",
@@ -27,6 +66,7 @@
   },
   "toast": {
     "created": "Created skill \"{name}\".",
-    "imported": "Imported skill \"{name}\"."
+    "imported": "Imported skill \"{name}\".",
+    "injection": "\"{name}\" contains prompt injection patterns and was blocked (disabled)."
   }
 }

@@ -2,7 +2,7 @@
   "name": "PR detail shows the seeded review run, verdict, and findings",
   "description": "From PR #482, open the Agent runs tab and confirm the seeded review run renders (verdict 'request changes', 2 findings) in its accordion header. The newest run's accordion is open by default (FindingsTab passes defaultOpen to the first run), so the VerdictBanner and the seeded FindingCard ('Hardcoded Stripe secret key in commit') are revealed without an extra click. Exercises the refactored ReviewRunAccordion / VerdictBanner / FindingsPanel / FindingCard. Read-only seeded data (no model call). Navigates straight to the demo repo acme/payments-api's PR list via {REPO_PATH} (resolved by name through the API at runner startup, not by DB row order).",
   "steps": [
-    { "cmd": ["open", "{BASE}{REPO_PATH}"], "label": "open the seeded demo repo's PR list" },
+    { "cmd": ["open", "{BASE}{REPO_PATH}?status=all"], "label": "open the seeded demo repo's PR list (all statuses)" },
     { "cmd": ["wait", "--load", "networkidle"], "label": "PR list data settles" },
     { "cmd": ["find", "text", "Add rate limiting to public API endpoints", "click"], "label": "open the PR row" },
     { "cmd": ["wait", "--url", "/pulls/482"], "label": "navigate to the PR detail route" },

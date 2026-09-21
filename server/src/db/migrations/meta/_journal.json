@@ -92,6 +92,20 @@
       "when": 1789874644067,
       "tag": "0012_chief_tattoo",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1789952416863,
+      "tag": "0013_skills_injection_restore",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1789952712058,
+      "tag": "0014_conventions_triage",
+      "breakpoints": true
     }
   ]
 }

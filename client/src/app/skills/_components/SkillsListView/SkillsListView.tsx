@@ -1,16 +1,16 @@
-/* /skills — Skills list. Search + "Add Skill" (import from file) + one row per
-   skill (toggle, badges, usage metrics). Selecting a skill navigates to the
+/* /skills — Skills list. Search + "Add Skill" (create / from file / from URL modal) + one
+   row per skill (toggle, trash, badges, usage metrics). Selecting a skill navigates to the
    4-tab editor at /skills/:id. */
 "use client";
 
 import React from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Button, Dropdown, EmptyState, ErrorState, Skeleton, Icon } from "@devdigest/ui";
+import { Button, EmptyState, ErrorState, Skeleton, Icon } from "@devdigest/ui";
 import { AppShell } from "@/components/app-shell";
 import { useSkills, useUpdateSkill } from "@/lib/hooks/skills";
 import { SkillRow, filterSkills } from "../SkillRow";
-import { ImportSkillDrawer } from "../ImportSkillDrawer";
+import { AddSkillModal } from "../AddSkillModal";
 import { s } from "./styles";
 
 export function SkillsListView() {
@@ -18,7 +18,7 @@ export function SkillsListView() {
   const router = useRouter();
   const { data: skills, isLoading, isError, refetch } = useSkills();
   const update = useUpdateSkill();
-  const [importing, setImporting] = React.useState(false);
+  const [adding, setAdding] = React.useState(false);
   const [search, setSearch] = React.useState("");
 
   const all = skills ?? [];
@@ -28,12 +28,7 @@ export function SkillsListView() {
 
   return (
     <AppShell crumb={[{ label: t("page.crumbLab") }, { label: t("page.crumbSkills") }]}>
-      {importing && (
-        <ImportSkillDrawer
-          onClose={() => setImporting(false)}
-          onImported={(sk) => router.push(`/skills/${sk.id}?tab=config`)}
-        />
-      )}
+      {adding && <AddSkillModal onClose={() => setAdding(false)} />}
       <div style={s.page}>
         <div style={s.header}>
           <div style={s.headerText}>
@@ -50,16 +45,9 @@ export function SkillsListView() {
               style={s.searchInput}
             />
           </div>
-          <Dropdown
-            width={220}
-            align="right"
-            trigger={
-              <Button kind="primary" size="sm" icon="Plus" iconRight="ChevronDown">
-                {t("page.addSkill")}
-              </Button>
-            }
-            items={[{ label: t("page.menu.fromFile"), icon: "Upload", onClick: () => setImporting(true) }]}
-          />
+          <Button kind="primary" size="sm" icon="Plus" onClick={() => setAdding(true)}>
+            {t("page.addSkill")}
+          </Button>
         </div>
 
         {isLoading && (
@@ -76,7 +64,7 @@ export function SkillsListView() {
             title={t("page.empty.title")}
             body={t("page.empty.body")}
             cta={t("page.empty.cta")}
-            onCta={() => setImporting(true)}
+            onCta={() => setAdding(true)}
           />
         )}
         {showNoMatch && <EmptyState icon="Search" title={t("page.noResults")} />}

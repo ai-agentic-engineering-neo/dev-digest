@@ -1,0 +1,32 @@
+diff --git a/src/discount.ts b/src/discount.ts
+new file mode 100644
+index 0000000..cf2e2cb
+--- /dev/null
++++ b/src/discount.ts
+@@ -0,0 +1,12 @@
++export interface DiscountableOrder {
++  id: string;
++  total: number; // minor units (cents)
++}
++
++/** Applies a percentage discount (0-100) to an order total. */
++export function applyDiscount(order: DiscountableOrder, pct: number): DiscountableOrder {
++  if (pct < 0) throw new RangeError('pct must be >= 0');
++  if (pct > 100) throw new RangeError('pct must be <= 100');
++  if (pct === 0) return order;
++  return { ...order, total: Math.round(order.total * (1 - pct / 100)) };
++}
+diff --git a/test/discount.test.ts b/test/discount.test.ts
+new file mode 100644
+index 0000000..f5c70f7
+--- /dev/null
++++ b/test/discount.test.ts
+@@ -0,0 +1,8 @@
++import { describe, it, expect } from 'vitest';
++import { applyDiscount } from '../src/discount.js';
++
++describe('applyDiscount', () => {
++  it('applies a percentage discount', () => {
++    expect(applyDiscount({ id: '1001', total: 1000 }, 10)).toEqual({ id: '1001', total: 900 });
++  });
++});

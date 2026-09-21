@@ -1,0 +1,43 @@
+{
+  "name": "Conventions: seeded candidates → Accept / Edit / Reject (persists) → Create skill modal → Cancel",
+  "description": "Loads the Conventions page for the seeded demo repo (3 pending demo candidates, no model call), accepts two, opens and cancels an inline edit, rejects the third and reloads to prove the rejection persists, checks the Create skill button only exists once something is accepted, then opens the Create skill modal (default name repo-conventions, editable body) and cancels — nothing is saved as a skill.",
+  "steps": [
+    { "cmd": ["open", "{BASE}{REPO_ROOT}/conventions"], "label": "load the Conventions page for the demo repo" },
+    { "cmd": ["wait", "--url", "/conventions"], "label": "conventions route reached" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "conventions fetch settles" },
+    { "cmd": ["wait", "--text", "Conventions in"], "label": "the header reads \"Conventions in <repo>\"" },
+    { "cmd": ["wait", "--text", "Throw a typed AppError"], "label": "seeded candidate 1 (rule text) is visible" },
+    { "cmd": ["wait", "--text", "Validate every request body"], "label": "seeded candidate 2 is visible" },
+    { "cmd": ["wait", "--text", "explicit .js extension"], "label": "seeded candidate 3 is visible" },
+    { "cmd": ["wait", "--fn", "['Run Scan','ReScan'].some(t=>[...document.querySelectorAll('button')].some(b=>b.textContent.trim()===t))"], "label": "a Run Scan / ReScan button is present" },
+    { "cmd": ["wait", "--fn", "![...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Create skill')"], "label": "no Create skill button while nothing is accepted" },
+
+    { "cmd": ["eval", "((p,t)=>{const a=[...document.querySelectorAll('article')].find(x=>(x.getAttribute('aria-label')||'').startsWith(p));if(!a)throw new Error('no card '+p);const b=[...a.querySelectorAll('button')].find(x=>x.textContent.trim()===t);if(!b)throw new Error('no button '+t);b.click();return 'ok'})('Throw a typed AppError','Accept')"], "label": "Accept candidate 1" },
+    { "cmd": ["wait", "--fn", "(()=>{const a=[...document.querySelectorAll('article')].find(x=>(x.getAttribute('aria-label')||'').startsWith('Throw a typed AppError'));return !!a&&a.dataset.status==='accepted'})()"], "label": "candidate 1 is shown as accepted" },
+    { "cmd": ["eval", "((p,t)=>{const a=[...document.querySelectorAll('article')].find(x=>(x.getAttribute('aria-label')||'').startsWith(p));if(!a)throw new Error('no card '+p);const b=[...a.querySelectorAll('button')].find(x=>x.textContent.trim()===t);if(!b)throw new Error('no button '+t);b.click();return 'ok'})('Validate every request body','Accept')"], "label": "Accept candidate 2" },
+    { "cmd": ["wait", "--text", "2 of 3 accepted"], "label": "the header counts 2 of 3 accepted" },
+    { "cmd": ["wait", "--fn", "[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='Create skill')"], "label": "the Create skill button appears after accepting" },
+
+    { "cmd": ["eval", "((p,t)=>{const a=[...document.querySelectorAll('article')].find(x=>(x.getAttribute('aria-label')||'').startsWith(p));if(!a)throw new Error('no card '+p);const b=[...a.querySelectorAll('button')].find(x=>x.textContent.trim()===t);if(!b)throw new Error('no button '+t);b.click();return 'ok'})('Import local modules','Edit')"], "label": "click Edit on candidate 3" },
+    { "cmd": ["wait", "--fn", "(()=>{const a=[...document.querySelectorAll('article')].find(x=>x.querySelector('input'));return !!a&&window.location.pathname.endsWith('/conventions')})()"], "label": "the card edits inline (rule field appears, no navigation)" },
+    { "cmd": ["eval", "((p,t)=>{const a=[...document.querySelectorAll('article')].find(x=>x.querySelector('input'));if(!a)throw new Error('no editing card');const b=[...a.querySelectorAll('button')].find(x=>x.textContent.trim()===t);if(!b)throw new Error('no button '+t);b.click();return 'ok'})('','Cancel')"], "label": "Cancel the inline edit" },
+    { "cmd": ["wait", "--fn", "![...document.querySelectorAll('article')].some(x=>x.querySelector('input'))"], "label": "the edit form closes" },
+
+    { "cmd": ["eval", "((p,t)=>{const a=[...document.querySelectorAll('article')].find(x=>(x.getAttribute('aria-label')||'').startsWith(p));if(!a)throw new Error('no card '+p);const b=[...a.querySelectorAll('button')].find(x=>x.textContent.trim()===t);if(!b)throw new Error('no button '+t);b.click();return 'ok'})('Import local modules','Reject')"], "label": "Reject candidate 3" },
+    { "cmd": ["wait", "--fn", "![...document.querySelectorAll('article')].some(x=>(x.getAttribute('aria-label')||'').startsWith('Import local modules'))"], "label": "the rejected card disappears" },
+    { "cmd": ["wait", "--text", "2 of 2 accepted"], "label": "the header now counts 2 of 2 accepted" },
+
+    { "cmd": ["reload"], "label": "reload the page" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "conventions refetch settles" },
+    { "cmd": ["wait", "--text", "Throw a typed AppError"], "label": "accepted candidate 1 survives the reload" },
+    { "cmd": ["wait", "--fn", "(()=>{const a=[...document.querySelectorAll('article')].find(x=>(x.getAttribute('aria-label')||'').startsWith('Validate every request body'));return !!a&&a.dataset.status==='accepted'})()"], "label": "accepted candidate 2 is still accepted after reload" },
+    { "cmd": ["wait", "--fn", "![...document.querySelectorAll('article')].some(x=>(x.getAttribute('aria-label')||'').startsWith('Import local modules'))"], "label": "the rejected candidate stays gone after reload" },
+
+    { "cmd": ["eval", "(t=>{const b=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()===t);if(!b)throw new Error('no button '+t);b.click();return 'ok'})('Create skill')"], "label": "click Create skill" },
+    { "cmd": ["wait", "--text", "Create skill from conventions"], "label": "the Create skill modal opens" },
+    { "cmd": ["wait", "--fn", "[...document.querySelectorAll('input')].some(i=>i.value==='repo-conventions')"], "label": "the name defaults to repo-conventions" },
+    { "cmd": ["wait", "--fn", "[...document.querySelectorAll('textarea')].some(t=>t.value.length>0)"], "label": "the editable body is preloaded from the accepted rules" },
+    { "cmd": ["eval", "(t=>{const b=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()===t);if(!b)throw new Error('no button '+t);b.click();return 'ok'})('Cancel')"], "label": "Cancel the modal" },
+    { "cmd": ["wait", "--fn", "!document.body.innerText.includes('Create skill from conventions')"], "label": "the modal closes without saving anything" }
+  ]
+}

@@ -36,4 +36,4 @@ Retrieved 2026-09-19. "Read" = page content fetched and read; "Snippet" = seen o
 
 ## Local sources of truth
 
-`server/CLAUDE.md` · `server/README.md` (request/DI diagram) · `server/INSIGHTS.md` · `server/src/platform/container.ts` · `server/src/vendor/shared/adapters.ts` · `server/src/modules/repo-intel/CLAUDE.md` · `reviewer-core/CLAUDE.md` · `TESTING.md`.
+`server/AGENTS.md` · `server/README.md` (request/DI diagram) · `server/INSIGHTS.md` · `server/src/platform/container.ts` · `server/src/vendor/shared/adapters.ts` · `server/src/modules/repo-intel/AGENTS.md` · `reviewer-core/AGENTS.md` · `TESTING.md`.

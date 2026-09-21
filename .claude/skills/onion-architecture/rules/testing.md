@@ -17,7 +17,7 @@ The point of the dependency rule is that inner rings are testable **without** Fa
 3. **Repositories are tested for real.** Mappers and workspace scoping are the value there; mocking the DB proves nothing.
 4. **One contract, two implementations.** A port's mock and its real adapter should pass the same behavioural assertions where practical.
 5. **Route tests assert the edge only:** status, envelope, schema validation errors (422 shape), error mapping — not business rules.
-6. **Anything importing `test/helpers/pg.ts` must end in `*.it.test.ts`** or the unit/integration split breaks (`server/CLAUDE.md`).
+6. **Anything importing `test/helpers/pg.ts` must end in `*.it.test.ts`** or the unit/integration split breaks (`server/AGENTS.md`).
 7. **Boundary regressions are tests too:** `pnpm arch:check` runs in CI (`server-unit.yml`). A new violation fails the build; never "fix" it by growing the baseline.
 
 ## Sources

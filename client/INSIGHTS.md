@@ -16,6 +16,15 @@ of re-explaining it here.
 
 ## Codebase Patterns
 
+### 2026-09-20 — Agent tile stats: accept % is legitimately grey until findings have been accepted/dismissed
+`AgentCard` colours the accept segment (`<30` crit, `<60` warn, else ok — `AgentCard/helpers.ts`), but `accept_rate` is `null` until an agent's findings have `accepted_at`/`dismissed_at` set, and then it renders a muted "— accept". A fresh dev/seed DB has 52 findings and zero decisions, so every tile looks monochrome next to a mockup that was screenshotted with real triage data — check `select count(*) from findings where accepted_at is not null` before assuming a styling bug. The model-chip tint is `color-mix(in srgb, <color> 12%, transparent)`: the old `color + "1a"` produced invalid CSS for `var(--…)` colours (every model outside `MODEL_COLOR`).
+
+### 2026-09-20 — Agent Skills tab: only linked skills are sortable; the order sent to the server IS the prompt order
+`SkillsTab` renders *Enabled* (sortable, grip) then *Available* (static); `toSkillIds` sends only linked ids in list order and `resolveActiveSkills` builds the prompt in that order, so reordering is user-visible in the run trace. A skill that gets flagged for injection after being linked keeps a working toggle (so it can be unlinked) because the server exempts already-linked skills from the 422; a 422 `SKILL_BLOCKED` is already toasted by the global handler, so the tab only unlinks + refetches (a second toast doubled up).
+
+### 2026-09-20 — Trace skills-token badge is approximate by design
+`RunTraceDrawer` shows `~{n} tokens` next to "Skills (dynamic)": the server stores `prompt_assembly_meta.skills_tokens` (real tokenizer, js-tiktoken cl100k, over the joined skill bodies only — not the `## Skills / rules` header), and old traces fall back to client-side `ceil(length/4)`, so the two can differ slightly — hence the `~`.
+
 ### 2026-09-19 — Skill version diff is a hand-rolled line LCS with a size cap, not a diff library
 `SkillVersionsTab/diff.ts` diffs each version's body against the previous one (only bodies can differ — the server snapshots `skill_versions` on body change only). It trims the shared prefix/suffix, then runs an LCS table; if the remaining region exceeds 4M cells `diffLines` returns `null` and the UI shows a "too large to diff" note pointing at the Rendered view (imports can be up to 256 KB, so an uncapped table would allocate ~100 MB). Kept dependency-free on purpose; swap in a real diff lib only if word-level or moved-block diffs are ever needed.
 
@@ -237,6 +246,12 @@ symlink. A schema change made in one and not the other desyncs request/response
 contracts with no compiler error until a runtime mismatch shows up.
 
 ## Tool & Library Notes
+
+### 2026-09-20 — `@devdigest/ui` gotchas hit while adding modals, badges and toggles
+`Modal` is not a portal: render `ConfirmDialog` as a *sibling* of a clickable or `opacity`-dimmed card (not inside it), or clicks bubble to the card and the dialog inherits the dimming. `IconBtn.onClick` gets no event, so wrap it in a `stopPropagation` span. `Toggle`/`Checkbox` have no `disabled` prop — use `SkillEnabledToggle` (inert + dimmed) and wrap in a `<label>` for an accessible name. The toast has no warning kind. `ToastProvider` already owns a `role="status"` region, so don't add that role to badges. Any test rendering `SkillEnabledToggle` or `InjectionBadge` needs the `skills` namespace in its messages or next-intl logs MISSING_MESSAGE.
+
+### 2026-09-20 — Editing CRLF files from scripts silently normalises them
+Many client/server files are CRLF in the working tree. The `Edit` tool preserves CRLF, but Python's default newline handling and `\n`-only node string replaces either rewrite the whole file to LF (a noisy diff) or fail to match. When patching from a script, open with `newline=''` and match `\r\n`; and when writing `\uXXXX`/`\n` escapes through the Write tool or a heredoc, check the escape wasn't emitted as a literal character. `vitest` runs from the package root — `pnpm exec vitest run src/app/agents`, not a path relative to `src/`.
 
 ### 2026-09-19 — jsdom's `File`/`Blob` has no `.text()` or `.arrayBuffer()`; archive extraction needs a `FileReader` fallback
 Browsers and Node have them, jsdom (vitest env) doesn't, so `extractSkillFile` (`app/skills/_components/ImportSkillDrawer/extract.ts`) reads via `FileReader` when `.arrayBuffer` is missing — otherwise every drawer/extract test throws `file.text is not a function` while the feature works fine in a real browser.

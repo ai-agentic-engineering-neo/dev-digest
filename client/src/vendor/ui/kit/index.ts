@@ -1,6 +1,7 @@
 export type { TabDef, DropdownItemDef } from "./types";
 export { Drawer } from "./Drawer";
 export { Modal } from "./Modal";
+export { ConfirmDialog } from "./ConfirmDialog";
 export { Tabs } from "./Tabs";
 export { Dropdown } from "./Dropdown";
 export { Popover } from "./Popover";

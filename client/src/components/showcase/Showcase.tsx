@@ -28,6 +28,7 @@ import {
   Markdown,
   Drawer,
   Modal,
+  ConfirmDialog,
   Tabs,
   Dropdown,
   Popover,
@@ -65,6 +66,7 @@ export function Gallery() {
   const [sel, setSel] = React.useState("gpt-4.1");
   const [drawer, setDrawer] = React.useState(false);
   const [modal, setModal] = React.useState(false);
+  const [confirm, setConfirm] = React.useState(false);
 
   return (
     <div style={s.gallery}>
@@ -217,6 +219,9 @@ export function Gallery() {
         <Button kind="ghost" onClick={() => setModal(true)}>
           Open Modal
         </Button>
+        <Button kind="ghost" onClick={() => setConfirm(true)}>
+          Open ConfirmDialog
+        </Button>
       </Group>
 
       <Group title="Charts (Recharts)">
@@ -273,6 +278,16 @@ export function Gallery() {
         <Modal title="Example Modal" subtitle="centered" onClose={() => setModal(false)} width={480}>
           <div style={s.modalBody}>Modal body content.</div>
         </Modal>
+      )}
+      {confirm && (
+        <ConfirmDialog
+          title="Delete example?"
+          message="This can't be undone."
+          confirmLabel="Delete"
+          danger
+          onConfirm={() => setConfirm(false)}
+          onCancel={() => setConfirm(false)}
+        />
       )}
     </div>
   );

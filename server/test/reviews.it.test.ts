@@ -118,6 +118,12 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
         embedder: new MockEmbedder(),
         git: new MockGitClient({ diff: DIFF }),
         llm: {
+          // Mock every provider an agent in this shared DB can use: seeded agents run on
+          // openrouter and earlier tests create openai/anthropic ones, so an `all: true` run
+          // would otherwise reach a real adapter (billed with a key, failing without one).
+          openai: new MockLLMProvider('openai', { structured }),
+          anthropic: new MockLLMProvider('anthropic', { structured }),
+          openrouter: new MockLLMProvider('openrouter', { structured }),
           [provider]: new MockLLMProvider(provider, { structured }),
         },
       },

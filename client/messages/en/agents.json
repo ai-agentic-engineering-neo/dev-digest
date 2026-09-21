@@ -1,7 +1,18 @@
 {
   "card": {
     "noDescription": "No description",
-    "skillCount": "{count} skills"
+    "skillCount": "{count, plural, one {# skill} other {# skills}}",
+    "runs": "{count, plural, one {# run} other {# runs}}",
+    "accept": "{pct}% accept",
+    "acceptNone": "— accept",
+    "avgCost": "{cost} avg",
+    "delete": {
+      "action": "Delete agent",
+      "title": "Delete agent “{name}”?",
+      "message": "This permanently deletes the agent along with its version history and skill links. Its past runs stay in the timeline but are no longer linked to an agent. This cannot be undone.",
+      "confirm": "Delete",
+      "cancel": "Cancel"
+    }
   },
   "list": {
     "breadcrumbLab": "Skills Lab",
@@ -91,7 +102,12 @@
     "title": "Skills",
     "enabledCount": "{linked} of {total} enabled",
     "filterPlaceholder": "Filter skills…",
-    "orderHint": "Order matters — earlier skills appear earlier in the assembled prompt. Drag to reorder.",
+    "orderHint": "Order matters — earlier skills appear earlier in the assembled prompt. Drag enabled skills to reorder.",
+    "groups": {
+      "enabled": "Enabled",
+      "available": "Available",
+      "enabledEmpty": "No skills enabled for this agent yet. Turn one on below."
+    },
     "dragHandle": "Drag to reorder {name}",
     "dragDisabledTitle": "Clear the filter to reorder",
     "disabledNote": "disabled",

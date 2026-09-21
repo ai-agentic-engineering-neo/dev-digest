@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { startPg, dockerAvailable, type PgFixture } from './helpers/pg.js';
 import { waitForPrRuns } from './helpers/runs.js';
@@ -37,26 +37,72 @@ d('linked skills in a live run (Testcontainers pg)', () => {
     await pg?.stop();
   });
 
-  it('seed creates the 3 skills (with v1), 2 new agents and links, idempotently', async () => {
+  it('seed creates the 7 skills (with v1), 6 agents and 7 links, idempotently', async () => {
     await seed(pg.handle.db); // second run must not duplicate anything
     const db = pg.handle.db;
     const skills = await db.select().from(t.skills).where(eq(t.skills.workspaceId, workspaceId));
     expect(skills.map((s) => s.name).sort()).toEqual([
       'api-contract-gate',
+      'breaking-change',
+      'deprecation-policy',
       'frontend-conventions',
+      'response-schema',
+      'semver-discipline',
       'test-coverage-nudge',
     ]);
     const versions = await db.select().from(t.skillVersions);
-    expect(versions).toHaveLength(3);
+    expect(versions).toHaveLength(7);
 
     const agents = await db.select().from(t.agents).where(eq(t.agents.workspaceId, workspaceId));
+    expect(agents.map((a) => a.name).sort()).toEqual([
+      'API Contract Reviewer',
+      'General Reviewer',
+      'Performance Reviewer',
+      'Security Reviewer',
+      'Test Quality Reviewer',
+      'pr-self-review',
+    ]);
     const selfReview = agents.find((a) => a.name === 'pr-self-review');
     const testQuality = agents.find((a) => a.name === 'Test Quality Reviewer');
+    const apiContract = agents.find((a) => a.name === 'API Contract Reviewer');
     expect(selfReview?.enabled).toBe(false);
     expect(testQuality?.enabled).toBe(true);
+    expect(apiContract?.enabled).toBe(true);
 
     const links = await db.select().from(t.agentSkills);
-    expect(links).toHaveLength(3);
+    expect(links).toHaveLength(7);
+
+    // API Contract Reviewer links its 4 skills in this exact order.
+    const skillName = new Map(skills.map((s) => [s.id, s.name]));
+    const apiLinks = links
+      .filter((l) => l.agentId === apiContract!.id)
+      .sort((a, b) => a.order - b.order)
+      .map((l) => skillName.get(l.skillId));
+    expect(apiLinks).toEqual([
+      'breaking-change',
+      'response-schema',
+      'semver-discipline',
+      'deprecation-policy',
+    ]);
+
+    // Origin (criterion 16): deprecation-policy is file-imported ('extracted');
+    // the other seeded skills are 'manual'.
+    const bySource = (name: string) => skills.find((s) => s.name === name)?.source;
+    expect(bySource('deprecation-policy')).toBe('extracted');
+    expect(bySource('breaking-change')).toBe('manual');
+    expect(bySource('test-coverage-nudge')).toBe('manual');
+
+    // Each API Contract skill body carries a directive + a good/bad example, and
+    // test-coverage-nudge explicitly directs boundary + uncovered-branch flagging.
+    for (const name of ['breaking-change', 'response-schema', 'semver-discipline', 'deprecation-policy']) {
+      const body = skills.find((s) => s.name === name)!.body;
+      expect(body).toContain('## Directive');
+      expect(body).toContain('## Good');
+      expect(body).toContain('## Bad');
+    }
+    const nudge = skills.find((s) => s.name === 'test-coverage-nudge')!.body;
+    expect(nudge).toContain('Uncovered branches');
+    expect(nudge).toContain('Boundary cases');
   });
 
   it('records active skills on a completed run, passes bodies in order, skips disabled', async () => {
@@ -130,10 +176,19 @@ d('linked skills in a live run (Testcontainers pg)', () => {
     const runId = res.json().runs[0].run_id as string;
     await waitForPrRuns(db, pr!.id, { expected: 1 });
 
-    const rows = await db
-      .select()
-      .from(t.agentRunSkills)
-      .where(eq(t.agentRunSkills.agentRunId, runId));
+    // `recordRunSkills` runs just AFTER the run is marked done (run-executor), so the
+    // row can lag `waitForPrRuns` under load — poll instead of reading once.
+    const rows = await vi.waitFor(
+      async () => {
+        const found = await db
+          .select()
+          .from(t.agentRunSkills)
+          .where(eq(t.agentRunSkills.agentRunId, runId));
+        if (found.length === 0) throw new Error('agent_run_skills not recorded yet');
+        return found;
+      },
+      { timeout: 5000, interval: 50 },
+    );
     expect(rows.map((r) => r.skillId).sort()).toEqual([first.id, second.id].sort());
     expect(rows.some((r) => r.skillId === off.id || r.skillId === unlinked.id)).toBe(false);
 
@@ -145,7 +200,15 @@ d('linked skills in a live run (Testcontainers pg)', () => {
     expect(user).not.toContain('RUN-OFF-BODY');
     expect(user).not.toContain('RUN-UNLINKED-BODY');
 
-    const trace = (await app.inject({ method: 'GET', url: `/runs/${runId}/trace` })).json();
+    // Same lag as above: the trace is persisted after the run flips to done.
+    const trace = await vi.waitFor(
+      async () => {
+        const body = (await app.inject({ method: 'GET', url: `/runs/${runId}/trace` })).json();
+        if (!body?.prompt_assembly) throw new Error('trace not persisted yet');
+        return body;
+      },
+      { timeout: 5000, interval: 50 },
+    );
     expect(trace.prompt_assembly.skills).toContain('RUN-FIRST-BODY');
     expect(trace.prompt_assembly.skills).toContain('RUN-SECOND-BODY');
 

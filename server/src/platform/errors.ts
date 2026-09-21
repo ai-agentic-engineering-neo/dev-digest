@@ -22,9 +22,22 @@ export class NotFoundError extends AppError {
   }
 }
 
+export class ConflictError extends AppError {
+  constructor(message = 'Conflict', details?: unknown) {
+    super('conflict', message, 409, details);
+  }
+}
+
 export class ValidationError extends AppError {
   constructor(message = 'Validation failed', details?: unknown) {
     super('validation_error', message, 422, details);
+  }
+}
+
+/** A flagged (prompt-injection) skill cannot be enabled or linked to an agent. */
+export class SkillBlockedError extends AppError {
+  constructor(message = 'Skill is blocked: prompt injection detected', details?: unknown) {
+    super('SKILL_BLOCKED', message, 422, details);
   }
 }
 

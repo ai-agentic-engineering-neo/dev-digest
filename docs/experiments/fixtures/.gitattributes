@@ -1,0 +1,2 @@
+# Keep fixtures byte-stable: the *.patch files must apply with `git apply` on any OS.
+* text eol=lf

@@ -3,12 +3,20 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
-import type { Agent, AgentSkillLink, ModelInfo, Provider, ReviewStrategy } from "@devdigest/shared";
+import type {
+  Agent,
+  AgentListItem,
+  AgentSkillLink,
+  ModelInfo,
+  Provider,
+  ReviewStrategy,
+} from "@devdigest/shared";
 
+/** All agents with their tile stats (skill count, runs, accept %, avg cost). */
 export function useAgents() {
   return useQuery({
     queryKey: ["agents"],
-    queryFn: () => api.get<Agent[]>("/agents"),
+    queryFn: () => api.get<AgentListItem[]>("/agents"),
   });
 }
 
@@ -98,6 +106,8 @@ export function useSetAgentSkills(agentId: string) {
     onSuccess: (links) => {
       qc.setQueryData(["agent-skills", agentId], links);
       qc.invalidateQueries({ queryKey: ["skills"] });
+      // The agent tile shows a linked-skills count.
+      qc.invalidateQueries({ queryKey: ["agents"] });
     },
   });
 }

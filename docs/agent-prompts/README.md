@@ -13,6 +13,11 @@ in the DB). The canonical, reviewable copies live next to this file:
   its specifics come from the `test-coverage-nudge` skill
 - [`pr-self-review.md`](./pr-self-review.md) — manual-only (seeded disabled);
   its specifics come from the `frontend-conventions` and `api-contract-gate` skills
+- [`api-contract-reviewer.md`](./api-contract-reviewer.md) — deliberately generic (no
+  breaking-change rules in the prompt); its specifics come from the four skills in
+  [`../agent-skills/api-contract-reviewer/`](../agent-skills/api-contract-reviewer/)
+  (`breaking-change`, `response-schema`, `semver-discipline`, `deprecation-policy`),
+  so a run with the skills unlinked is a valid control
 
 > The DB is the source of truth at run time. These files are the human-readable
 > originals — when you change a prompt, edit the file here **and** push it to the

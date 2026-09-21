@@ -3,11 +3,14 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { FormField, TextInput, SelectInput, Textarea, Toggle, Button, Icon } from "@devdigest/ui";
+import { FormField, TextInput, SelectInput, Textarea, Button, Icon } from "@devdigest/ui";
 import type { Skill, SkillType } from "@devdigest/shared";
-import { useUpdateSkill, useDeleteSkill } from "@/lib/hooks/skills";
+import { useUpdateSkill } from "@/lib/hooks/skills";
 import { useToast } from "@/lib/toast";
 import { needsVetting } from "@/app/skills/_components/SkillRow";
+import { DeleteSkillDialog } from "@/app/skills/_components/DeleteSkillDialog";
+import { SkillEnabledToggle } from "@/app/skills/_components/SkillEnabledToggle";
+import { InjectionMatches } from "./InjectionMatches";
 import { BODY_ROWS, SKILL_TYPE_VALUES } from "./constants";
 import { s } from "./styles";
 
@@ -17,7 +20,7 @@ export function SkillConfigTab({ skill }: { skill: Skill }) {
   const router = useRouter();
   const toast = useToast();
   const update = useUpdateSkill();
-  const del = useDeleteSkill();
+  const [confirmingDelete, setConfirmingDelete] = React.useState(false);
   const [name, setName] = React.useState(skill.name);
   const [description, setDescription] = React.useState(skill.description);
   const [type, setType] = React.useState<SkillType>(skill.type);
@@ -46,19 +49,12 @@ export function SkillConfigTab({ skill }: { skill: Skill }) {
       { id: skill.id, patch: { name, description, type, body, enabled } },
       {
         // Failures are surfaced by the global mutation error toast.
-        onSuccess: (data) => toast.success(t("config.savedToast", { version: data.version })),
+        onSuccess: (data) => {
+          toast.success(t("config.savedToast", { version: data.version }));
+          if (data.injection_detected) toast.error(t("injection.stillBlocked"));
+        },
       },
     );
-
-  const remove = () => {
-    if (!window.confirm(t("config.deleteConfirm", { name: skill.name }))) return;
-    del.mutate(skill.id, {
-      onSuccess: () => {
-        toast.success(t("config.deleteToast"));
-        router.push("/skills");
-      },
-    });
-  };
 
   return (
     <div style={s.wrap}>
@@ -66,7 +62,7 @@ export function SkillConfigTab({ skill }: { skill: Skill }) {
         <h2 style={s.h2}>{t("config.title")}</h2>
         <label style={s.enabledLabel}>
           {t("config.enabled")}
-          <Toggle on={enabled} onChange={setEnabled} size={16} />
+          <SkillEnabledToggle on={enabled} onChange={setEnabled} blocked={skill.injection_detected} size={16} />
         </label>
       </div>
       {needsVetting(skill.source) && (
@@ -87,16 +83,24 @@ export function SkillConfigTab({ skill }: { skill: Skill }) {
       <FormField label={t("config.body")} hint={t("preview.bodyHint")}>
         <Textarea value={body} onChange={setBody} rows={BODY_ROWS} mono />
       </FormField>
+      {skill.injection_detected && <InjectionMatches matches={skill.injection_matches} />}
       <div style={s.actions}>
         <Button kind="primary" icon="Check" onClick={save} disabled={update.isPending || !name.trim()}>
           {update.isPending ? t("config.saving") : t("config.save")}
         </Button>
         {update.isSuccess && <span style={s.savedNote}>{t("config.saved", { version: update.data?.version })}</span>}
         <div style={s.spacer} />
-        <Button kind="danger" icon="Trash" onClick={remove} disabled={del.isPending}>
+        <Button kind="danger" icon="Trash" onClick={() => setConfirmingDelete(true)}>
           {t("config.delete")}
         </Button>
       </div>
+      {confirmingDelete && (
+        <DeleteSkillDialog
+          skill={skill}
+          onClose={() => setConfirmingDelete(false)}
+          onDeleted={() => router.push("/skills")}
+        />
+      )}
     </div>
   );
 }

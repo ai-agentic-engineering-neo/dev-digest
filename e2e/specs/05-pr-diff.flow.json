@@ -2,7 +2,7 @@
   "name": "PR detail Files changed tab renders the seeded diff",
   "description": "From PR #482, open the Files changed tab and confirm the unified-diff viewer renders a seeded file path (src/config.ts). Exercises the refactored diff-viewer (DiffViewer → FileCard → CodeLine). Read-only seeded data (no model call). Navigates straight to the demo repo acme/payments-api's PR list via {REPO_PATH} (resolved by name through the API at runner startup, not by DB row order).",
   "steps": [
-    { "cmd": ["open", "{BASE}{REPO_PATH}"], "label": "open the seeded demo repo's PR list" },
+    { "cmd": ["open", "{BASE}{REPO_PATH}?status=all"], "label": "open the seeded demo repo's PR list (all statuses)" },
     { "cmd": ["wait", "--load", "networkidle"], "label": "PR list data settles" },
     { "cmd": ["find", "text", "Add rate limiting to public API endpoints", "click"], "label": "open the PR row" },
     { "cmd": ["wait", "--url", "/pulls/482"], "label": "navigate to the PR detail route" },

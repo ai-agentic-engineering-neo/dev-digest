@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import type { CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
@@ -48,11 +48,102 @@ export interface LinkedSkillRow {
   order: number;
 }
 
+/**
+ * Raw per-agent aggregates for the agents grid. `accepted`/`decided` are counts
+ * (the service turns them into a percentage); `avgCostUsd` is null when no done
+ * run of the agent has a price.
+ */
+export interface AgentStatsCounts {
+  skillCount: number;
+  runs: number;
+  accepted: number;
+  decided: number;
+  avgCostUsd: number | null;
+}
+
 export class AgentsRepository {
   constructor(private db: Db) {}
 
   async list(workspaceId: string): Promise<AgentRow[]> {
     return this.db.select().from(t.agents).where(eq(t.agents.workspaceId, workspaceId));
+  }
+
+  /**
+   * Aggregates for the agents grid, keyed by agent id — three batched queries
+   * (no N+1), scoped to the workspace and the given agent ids. Every requested id
+   * gets an entry (zeros / null for an agent with no skills, runs or decided findings).
+   */
+  async statsForAgents(
+    workspaceId: string,
+    agentIds: string[],
+  ): Promise<Map<string, AgentStatsCounts>> {
+    const out = new Map<string, AgentStatsCounts>();
+    if (agentIds.length === 0) return out;
+    for (const id of agentIds) {
+      out.set(id, { skillCount: 0, runs: 0, accepted: 0, decided: 0, avgCostUsd: null });
+    }
+
+    // 1. Linked skills per agent.
+    const links = await this.db
+      .select({
+        agentId: t.agentSkills.agentId,
+        n: sql<number>`count(*)`.mapWith(Number),
+      })
+      .from(t.agentSkills)
+      .where(inArray(t.agentSkills.agentId, agentIds))
+      .groupBy(t.agentSkills.agentId);
+    for (const r of links) out.get(r.agentId)!.skillCount = r.n;
+
+    // 2. Done runs + average cost (avg ignores null costs).
+    const runs = await this.db
+      .select({
+        agentId: t.agentRuns.agentId,
+        n: sql<number>`count(*)`.mapWith(Number),
+        avgCost: sql<number | null>`avg(${t.agentRuns.costUsd})`.mapWith((v) =>
+          v == null ? null : Number(v),
+        ),
+      })
+      .from(t.agentRuns)
+      .where(
+        and(
+          eq(t.agentRuns.workspaceId, workspaceId),
+          inArray(t.agentRuns.agentId, agentIds),
+          eq(t.agentRuns.status, 'done'),
+        ),
+      )
+      .groupBy(t.agentRuns.agentId);
+    for (const r of runs) {
+      if (r.agentId === null) continue;
+      const c = out.get(r.agentId)!;
+      c.runs = r.n;
+      c.avgCostUsd = r.avgCost;
+    }
+
+    // 3. Accept-rate inputs: findings of the reviews these agents' runs produced.
+    const decisions = await this.db
+      .select({
+        agentId: t.agentRuns.agentId,
+        accepted: sql<number>`count(*) filter (where ${t.findings.acceptedAt} is not null)`.mapWith(
+          Number,
+        ),
+        decided:
+          sql<number>`count(*) filter (where ${t.findings.acceptedAt} is not null or ${t.findings.dismissedAt} is not null)`.mapWith(
+            Number,
+          ),
+      })
+      .from(t.agentRuns)
+      .innerJoin(t.reviews, eq(t.reviews.runId, t.agentRuns.id))
+      .innerJoin(t.findings, eq(t.findings.reviewId, t.reviews.id))
+      .where(and(eq(t.agentRuns.workspaceId, workspaceId), inArray(t.agentRuns.agentId, agentIds)))
+      .groupBy(t.agentRuns.agentId);
+    for (const r of decisions) {
+      if (r.agentId === null) continue;
+      const c = out.get(r.agentId)!;
+      c.accepted = r.accepted;
+      c.decided = r.decided;
+    }
+
+    return out;
   }
 
   async listEnabled(workspaceId: string): Promise<AgentRow[]> {

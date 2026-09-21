@@ -1,3 +1,3 @@
 # specs/
 
-Client feature specs go here — see [../CLAUDE.md](../CLAUDE.md).
+Client feature specs go here — see [../AGENTS.md](../AGENTS.md).

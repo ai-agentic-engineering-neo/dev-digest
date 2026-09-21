@@ -8,6 +8,13 @@ the section rules and the quality bar.
 
 ## What Doesn't Work
 
+**2026-09-21** — Do not key UI state in a findings panel on the identity of its `findings` prop.
+`useFindingAction` invalidates `["reviews", prId]` on success, the refetch hands down a fresh array,
+and any `useEffect` with `findings` in its deps fires on every accept/reject — a severity filter
+reset itself the moment the reader acted on a card, which reads as the list jumping on its own.
+Reviews are per-run and each run mounts its own panel, so remount already gives fresh state; key
+such effects on `prId` alone. Evidence: client/src/lib/hooks/reviews.ts:158
+
 ## Codebase Patterns
 
 **2026-09-19** — One run's token count is rendered two different ways on screens a click apart: the

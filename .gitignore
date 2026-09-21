@@ -23,3 +23,9 @@ test-results/
 
 # emdash worktree config (local)
 .emdash.json
+
+# oh-my-claudecode state (local, any depth)
+.omc/
+
+# local design export
+DevDigest Design (standalone).html

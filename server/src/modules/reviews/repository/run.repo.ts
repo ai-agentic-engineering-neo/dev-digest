@@ -64,6 +64,7 @@ export async function listRunsForPull(
     ran_at: run.ranAt ? run.ranAt.toISOString() : null,
     score: run.score,
     blockers: run.blockers,
+    cost_usd: run.costUsd,
   }));
 }
 
@@ -146,6 +147,8 @@ export async function completeAgentRun(
     durationMs: number;
     tokensIn: number;
     tokensOut: number;
+    /** USD spend; null when unknown (unpriced model) or the run failed. */
+    costUsd?: number | null;
     findingsCount: number;
     grounding: string;
     /** Review score (0-100); null on failed/cancelled runs. */
@@ -163,6 +166,7 @@ export async function completeAgentRun(
       durationMs: values.durationMs,
       tokensIn: values.tokensIn,
       tokensOut: values.tokensOut,
+      costUsd: values.costUsd ?? null,
       findingsCount: values.findingsCount,
       grounding: values.grounding,
       score: values.score ?? null,

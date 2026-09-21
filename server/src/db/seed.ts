@@ -92,6 +92,9 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
   const repoId = repo!.id;
 
   // ---- PR #482 (rate limiting) ----
+  // Set only when PR #482 is created on THIS run, so the demo run below is
+  // seeded once (idempotent re-seeds leave it alone).
+  let seededReviewId: string | null = null;
   let [pr] = await db
     .select()
     .from(t.pullRequests)
@@ -146,6 +149,7 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
         model: 'seed',
       })
       .returning();
+    seededReviewId = review!.id;
 
     await db.insert(t.findings).values([
       {
@@ -218,6 +222,38 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       .from(t.agents)
       .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, a.name)));
     if (!existing) await db.insert(t.agents).values(a);
+  }
+
+  // ---- demo agent run for the seeded review (tokens + cost for the Run Cost UI) ----
+  if (seededReviewId && pr) {
+    const [general] = await db
+      .select()
+      .from(t.agents)
+      .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, 'General Reviewer')));
+    const [run] = await db
+      .insert(t.agentRuns)
+      .values({
+        workspaceId,
+        agentId: general?.id ?? null,
+        prId: pr.id,
+        provider: DEFAULT_PROVIDER,
+        model: DEFAULT_MODEL,
+        durationMs: 8200,
+        tokensIn: 8200,
+        tokensOut: 1300,
+        costUsd: 0.014,
+        status: 'done',
+        source: 'local',
+        findingsCount: 2,
+        grounding: '2/2 passed',
+        score: 61,
+        blockers: 1,
+      })
+      .returning({ id: t.agentRuns.id });
+    await db
+      .update(t.reviews)
+      .set({ runId: run!.id, agentId: general?.id ?? null })
+      .where(eq(t.reviews.id, seededReviewId));
   }
 
   return { workspaceId, userId };

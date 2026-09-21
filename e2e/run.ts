@@ -16,8 +16,7 @@
  * Specs target read-only seeded data, so nothing here triggers an LLM call or
  * needs an API key. Run order is the lexical order of the spec filenames.
  */
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
+import crossSpawn from "cross-spawn";
 import { readdirSync, readFileSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -30,8 +29,6 @@ import {
   type StepResult,
 } from "./lib/assert.js";
 
-const exec = promisify(execFile);
-
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SPECS_DIR = join(HERE, "specs");
 const RESULTS_DIR = join(HERE, "test-results");
@@ -40,14 +37,29 @@ const BASE = process.env.E2E_BASE_URL ?? "http://localhost:3000";
 const BIN = process.env.AGENT_BROWSER_BIN ?? "agent-browser";
 const STEP_TIMEOUT = Number(process.env.E2E_STEP_TIMEOUT ?? 60_000);
 
-/** Run one agent-browser command; resolve with its stdout, reject on non-zero exit. */
+/**
+ * Run one agent-browser command; resolve with its stdout, reject on non-zero
+ * exit. Uses cross-spawn (not node:child_process directly) because BIN
+ * resolves to a Windows .cmd shim for npm-installed CLIs — Node refuses to
+ * spawn .cmd/.bat files without shell:true (CVE-2024-27980), and naive
+ * shell:true splits args containing spaces (e.g. `find text "some label"`)
+ * on their own spaces instead of passing them through as one argument.
+ * cross-spawn resolves the shim and quotes arguments correctly on Windows.
+ */
 async function ab(args: string[]): Promise<string> {
-  const { stdout } = await exec(BIN, args, {
+  const result = crossSpawn.sync(BIN, args, {
     cwd: HERE,
     timeout: STEP_TIMEOUT,
     maxBuffer: 32 * 1024 * 1024,
+    encoding: "utf8",
   });
-  return stdout ?? "";
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw new Error(
+      `${BIN} ${args.join(" ")} exited with code ${result.status}\n${result.stderr || result.stdout || ""}`,
+    );
+  }
+  return result.stdout ?? "";
 }
 
 function loadFlows(): { file: string; flow: Flow }[] {

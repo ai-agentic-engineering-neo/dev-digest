@@ -79,7 +79,12 @@ export async function getReview(db: Db, reviewId: string): Promise<ReviewRow | u
 }
 
 /** Delete a whole review (one agent's run) + its findings (cascade), scoped
- *  to the workspace. Returns false if not found in the workspace. */
+ *  to the workspace. Also deletes the matching `agent_runs` row (and, via
+ *  ITS cascade, the run's trace) so the Timeline's tile for this same run
+ *  disappears too — `reviews.run_id` has no FK to `agent_runs` (unlike
+ *  `agent_runs` → `run_traces`, which does cascade), so this side must be
+ *  cleaned up manually, mirroring what `deleteAgentRun` already does in the
+ *  opposite direction. Returns false if not found in the workspace. */
 export async function deleteReview(
   db: Db,
   workspaceId: string,
@@ -88,8 +93,15 @@ export async function deleteReview(
   const rows = await db
     .delete(t.reviews)
     .where(and(eq(t.reviews.workspaceId, workspaceId), eq(t.reviews.id, reviewId)))
-    .returning({ id: t.reviews.id });
-  return rows.length > 0;
+    .returning({ id: t.reviews.id, runId: t.reviews.runId });
+  const deleted = rows[0];
+  if (!deleted) return false;
+  if (deleted.runId) {
+    await db
+      .delete(t.agentRuns)
+      .where(and(eq(t.agentRuns.id, deleted.runId), eq(t.agentRuns.workspaceId, workspaceId)));
+  }
+  return true;
 }
 
 // ---- finding actions ------------------------------------------------------

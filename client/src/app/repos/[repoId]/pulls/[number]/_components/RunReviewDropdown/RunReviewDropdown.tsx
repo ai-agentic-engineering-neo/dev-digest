@@ -10,6 +10,7 @@ import { Button, Dropdown, type DropdownItemDef } from "@devdigest/ui";
 import { useAgents } from "../../../../../../../lib/hooks/agents";
 import { useRunReview } from "../../../../../../../lib/hooks/reviews";
 import { DROPDOWN_WIDTH } from "./constants";
+import { AgentSelectList } from "./AgentSelectList";
 
 export function RunReviewDropdown({
   prId,
@@ -37,6 +38,7 @@ export function RunReviewDropdown({
   const run = useRunReview();
   const all = agents ?? [];
   const hasEnabled = all.some((a) => a.enabled);
+  const [selected, setSelected] = React.useState<Set<string>>(new Set());
 
   const kick = async (opts: { all?: boolean; agentId?: string }) => {
     onRunStart?.();
@@ -48,16 +50,52 @@ export function RunReviewDropdown({
     }
   };
 
+  // Runs several agents in parallel via the existing single-agent endpoint —
+  // no backend change needed, each request already returns its own run id(s).
+  const kickMany = async (agentIds: string[]) => {
+    onRunStart?.();
+    try {
+      const results = await Promise.all(agentIds.map((agentId) => run.mutateAsync({ prId, agentId })));
+      onRunsStarted?.(results.flatMap((res) => res.runs.map((r) => r.run_id)));
+    } finally {
+      onRunSettled?.();
+    }
+  };
+
+  const toggleSelected = (agentId: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(agentId)) next.delete(agentId);
+      else next.add(agentId);
+      return next;
+    });
+
   // List EVERY agent (not just enabled) so they're always visible; a specific
   // agent can be run regardless of its enabled flag. "Run all" still targets
   // only enabled agents.
   const agentItems: DropdownItemDef[] = all.length
-    ? all.map((a) => ({
-        label: a.name,
-        icon: "Cpu" as const,
-        hint: a.enabled ? a.model : `${a.model} · disabled`,
-        onClick: () => kick({ agentId: a.id }),
-      }))
+    ? [
+        {
+          custom: (close: () => void) => (
+            <AgentSelectList
+              agents={all}
+              selected={selected}
+              onToggle={toggleSelected}
+              onRunOne={(agentId) => {
+                close();
+                kick({ agentId });
+              }}
+              onRunSelected={() => {
+                const ids = [...selected];
+                setSelected(new Set());
+                close();
+                void kickMany(ids);
+              }}
+              runSelectedLabel={(count) => t("runReview.runSelected", { count })}
+            />
+          ),
+        },
+      ]
     : [{ label: "No agents yet — create one", icon: "Plus", muted: true, onClick: () => router.push("/agents") }];
 
   const items: DropdownItemDef[] = [

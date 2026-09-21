@@ -11,7 +11,32 @@ _No entries yet._
 
 ## What Doesn't Work
 
-_No entries yet._
+### Checking the parent's workspace is not checking the child's (2026-09)
+
+`POST /agents/:id/skills` verified that the AGENT belonged to the caller's workspace and
+then linked whatever `skill_id` the body carried; `linkedSkills` joined `agent_skills` to
+`skills` with no workspace filter at all. Every other query in the module is scoped, which
+is exactly why it read as safe. A caller could attach another workspace's skill to their
+own agent and read its body back — in the editor tab, and in the next review prompt.
+Found by the `security` skill during self-review, not by any test.
+
+**Rule:** when an endpoint links resource A to resource B, scope BOTH — validate the
+incoming ids against the workspace on write, and scope the read-back join too, so a stray
+row can never be read even if one exists (`src/modules/agents/service.ts:205`, commit
+`933c65c`)
+
+### A base agent prompt that already teaches the skill's checks hides the skill (2026-09)
+
+The control experiment was meant to show a reviewer missing a defect without its skills
+and catching it with them. It did not: the Test Quality agent found the uncovered branches
+on PR #483 with skills OFF (2 findings, verdict `comment`), because the prompt itself told
+it to look for untested branches. Skills still changed the output — 3 findings anchored to
+the SOURCE file with per-branch line ranges and verdict `request_changes` — but that is
+"vaguer vs sharper", not "missed vs caught".
+
+**Rule:** keep the split honest — the agent prompt owns role, stack and reporting rules;
+the skill owns WHICH checks to run. Any check listed in both makes the skill's effect
+unmeasurable (`src/db/seed-prompts.ts:294`, `src/db/seed-skills.ts`)
 
 ## Codebase Patterns
 
@@ -26,6 +51,19 @@ _No entries yet._
 The original `latestBatchCostByPr` (deleted this session) summed only the newest "Review all" batch per PR — a re-run's older cost was dropped entirely. The homework criterion for this column defines cost as the PR's cumulative review spend, which is a different aggregation, not a bugfix of the old one: it's a deliberate semantic change (a PR reviewed 3 times now shows 3x the single-run cost, not the latest run's cost).
 
 **Rule:** if a future task touches the COST column again, check `total-cost.ts`'s docblock before assuming "latest batch" — that rule was intentionally replaced, not preserved. (`server/src/modules/pulls/total-cost.ts:1-9`, `server/test/total-cost.test.ts`)
+
+### A run has TWO trace builders, and the failure path is the one that rots (2026-09)
+
+A successful run builds its `RunTrace` inline in `run-executor.ts`; a failed one goes
+through `traceFromBuffer`, which hardcodes the prompt slots it does not have. Adding the
+skills slot to the success path left the failure path writing `skills: null`, so a failed
+run's trace claimed the prompt had no skills while its own log line said two were
+attached — misleading exactly when the trace is what you read. A third builder,
+`platform/trace-builder.ts`, exists for non-LLM detectors.
+
+**Rule:** adding a prompt slot means updating every trace builder, and anything the
+failure path needs must be hoisted above the `try` (`src/modules/reviews/run-executor.ts:446`,
+commit `96a60d0`)
 
 ## Tool & Library Notes
 
@@ -56,3 +94,9 @@ _No entries yet._
 `diff -r server/src/vendor/shared client/src/vendor/shared` shows real drift in `adapters.ts`, `contracts/eval-ci.ts`, `contracts/knowledge.ts`, `contracts/productionize.ts`, and `contracts/trace.ts` — e.g. server's copy has an `'openrouter'` provider variant and an `AgentVersion`/`AgentManifest` shape client's copy lacks entirely. `platform.ts` (the file this session edited) is confirmed in sync; the drift predates this session and is unrelated to the `findings_counts`/cost work.
 
 **Not fixed here** — reconciling it is a separate, larger change (unclear which side is canonical for each divergent symbol) and out of scope for this PR. Flagging so the next session doesn't assume "both copies in sync" without checking the specific file it's about to touch.
+
+> **2026-09-21 correction:** `contracts/knowledge.ts` is now reconciled — the client copy
+> was a strict subset (missing `AgentVersionConfig`/`AgentVersion` and several comments),
+> so the server's was copied over it and the two are byte-identical (commit `2311b4f`).
+> `pr-self-review`'s `guards.sh` treats ANY drift as blocking, so this surfaces on every
+> PR now. The other files listed above are still unreconciled.

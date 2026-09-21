@@ -35,6 +35,20 @@ _No entries yet._
 
 **Rule:** before running any package-manager command in a module, check which lockfile already exists there (`ls <module>/*lock*`) — don't default to the monorepo's dominant pnpm. If stray `pnpm-lock.yaml`/`pnpm-workspace.yaml` show up in `git status` for `e2e/` or `reviewer-core/`, delete them; `package-lock.json` is the source of truth there. (`e2e/package-lock.json`, `reviewer-core/package-lock.json`)
 
+### The built-in browser pane has no file-upload tool — inject the File yourself (2026-09)
+
+Verifying the skill import end to end needed a real `.zip` in an `<input type="file">`.
+The pane's toolset has no upload action (that is Claude-in-Chrome's `file_upload`), and
+it cannot open `file://`, so there is no path from disk to the page. What works: base64
+the file into a `javascript_tool` call, rebuild it with `new File([bytes], name)`, put it
+on the input through a `DataTransfer`, and dispatch `new Event("change", {bubbles:true})`
+— React's onChange picks it up.
+
+**Rule:** don't conclude a file-upload flow is unverifiable in the pane; inject the File
+through DataTransfer. Take the drawer's state from the DOM (`[role="dialog"]`) rather
+than a screenshot — screenshots lag a React re-render and showed a stale dropdown three
+times in a row (commit `4703d6d`)
+
 ## Recurring Errors & Fixes
 
 _No entries yet._

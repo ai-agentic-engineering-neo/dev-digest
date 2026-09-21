@@ -61,6 +61,21 @@ Same `.next` directory, two writers: every `pnpm build` run for verification mad
 
 **Rule:** run `pnpm build` only when the preview server is stopped; if you ran it anyway, `rm -rf client/.next` and restart. After any restart, verify in a NEW tab (`tabs_create`) — an existing tab's JS and its console buffer both belong to the dead process. Trust `preview_logs` over the browser console when they disagree. (symptom: `Cannot find module './156.js'`; dev-server log showed `✓ Compiled` + 200s at the same moment)
 
+### Node's `DecompressionStream` tolerates trailing junk, the browser's does not (2026-09)
+
+The skill importer read a ZIP entry by handing the decompressor everything from the
+entry's start to the end of the file. Unit tests passed in Node/jsdom; the same archive
+in the browser pane failed with "Junk found after end of compressed data", surfaced as
+a bare "Failed to fetch" because the bytes were consumed via `new Response(stream)`. The
+central directory's *compressed* size (offset 20) was never read — only the uncompressed
+one (offset 24). A multi-entry archive is the only case that triggers it, and the first
+fixture had one entry.
+
+**Rule:** slice exactly `compressedSize` bytes for a deflated entry, and never trust a
+green Node test to prove stream handling in a browser — a test that only decodes passes
+either way, so assert the byte boundary itself (`.../ImportSkillDrawer/helpers.ts:80`,
+commit `d94ceac`)
+
 ## Recurring Errors & Fixes
 
 ### React dev warning: `borderColor` + `borderLeftColor` still "conflict" even without the `border` shorthand (2026-09-18)

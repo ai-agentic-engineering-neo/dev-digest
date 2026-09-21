@@ -73,8 +73,13 @@ therefore cannot be asked separately.
 - **AC-8** — Below the counters the system SHALL show three filter buttons — Critical, Warning,
   Suggestion — regardless of which severities the run produced.
   _(observable: all three are present; the row is a stable control, not a moving target)_
-- **AC-9** — IF a severity occurs zero times in the run, THEN its button SHALL be disabled.
-  _(observable: a button that could only ever empty the list cannot be pressed)_
+- **AC-9** — IF a severity occurs zero times among the currently listed findings AND its
+  button is not active, THEN that button SHALL be disabled.
+  _(observable: a button that could only ever empty the list cannot be pressed — but an
+  active button stays pressable even when its count falls to zero, because the count can
+  fall to zero as a RESULT of narrowing or of hiding low confidence, and a control that
+  applied a narrowing must always be able to undo it. Disabling it would strand the reader
+  in an empty list whose only exit is a different control)_
 - **AC-10** — WHEN a reader activates a button, the system SHALL list only findings of the
   activated severities.
 - **AC-11** — WHEN a reader activates a second button, the system SHALL list the union of both.

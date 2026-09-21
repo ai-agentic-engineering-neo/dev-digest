@@ -1,4 +1,5 @@
-import { Severity, type FindingActionKind } from "@devdigest/shared";
+import { Severity } from "@devdigest/shared/contracts/findings";
+import type { FindingActionKind } from "@devdigest/shared";
 
 /** Sort weight per severity (lower = shown first). */
 export const SEVERITY_ORDER: Record<string, number> = {

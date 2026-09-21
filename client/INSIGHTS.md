@@ -29,6 +29,17 @@ that matches neither. Evidence: client/src/components/run-cost-badge/RunCostBadg
 
 ## Recurring Errors & Fixes
 
+**2026-09-21** — The client's `vendor/shared` barrel cannot be used to import a VALUE. It
+re-exports `./contracts/findings.js` while the files on disk are `.ts` — the server's extension
+convention, carried into the client along with the vendored copy — and Next's bundler does not
+rewrite `.js` to `.ts`, so the page 500s with module-not-found pointing at the importing file.
+Every other client import from that barrel is an `import type`, which is erased before bundling,
+which is why the mine sat untouched. Import a value deep instead, past the barrel:
+`from "@devdigest/shared/contracts/findings"` — the `@devdigest/shared/*` alias already exists in
+`client/tsconfig.json`. `pnpm typecheck` and vitest both resolve the extension themselves and stay
+green on the broken import, so this is only reproducible through `pnpm dev`.
+Evidence: client/src/vendor/shared/index.ts:19
+
 ## Session Notes
 
 ## Open Questions

@@ -5,7 +5,7 @@
  * and shows the review score ring.
  */
 import { describe, it, expect, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { RunSummary } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/prReview.json";
@@ -35,10 +35,13 @@ function run(o: Partial<RunSummary>): RunSummary {
   };
 }
 
-function renderRuns(runs: RunSummary[]) {
+function renderRuns(
+  runs: RunSummary[],
+  props: Partial<React.ComponentProps<typeof RunHistory>> = {},
+) {
   return render(
     <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
-      <RunHistory runs={runs} onOpenTrace={() => {}} />
+      <RunHistory runs={runs} onOpenTrace={() => {}} {...props} />
     </NextIntlClientProvider>,
   );
 }
@@ -88,5 +91,48 @@ describe("RunHistory — outcome badge", () => {
   it("a run still going shows no cost badge at all", () => {
     renderRuns([run({ status: "running", tokens_in: null, tokens_out: null, cost_usd: null, score: null, blockers: null })]);
     expect(screen.queryByText(/tok ·/)).not.toBeInTheDocument();
+  });
+});
+
+describe("RunHistory — severity indicators", () => {
+  it("a tile shows its run's severity breakdown (AC-19)", () => {
+    renderRuns([run({ run_id: "r1", status: "done", findings_count: 3, blockers: 1, score: 40 })], {
+      severityByRun: { r1: { CRITICAL: 1, WARNING: 2, SUGGESTION: 0 } },
+    });
+    expect(screen.getByTestId("tile-severity-r1")).toHaveTextContent("1");
+    expect(screen.getByTestId("tile-severity-r1")).toHaveTextContent("2");
+  });
+
+  it("a run with no findings gets no indicators (AC-19)", () => {
+    renderRuns([run({ run_id: "r2", status: "done", findings_count: 0, blockers: 0, score: 95 })], {
+      severityByRun: { r2: { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 } },
+    });
+    expect(screen.queryByTestId("tile-severity-r2")).not.toBeInTheDocument();
+    expect(screen.getByText(/0 finding/)).toBeInTheDocument();
+  });
+
+  it("a failed run gets no indicators even when a breakdown is passed (AC-19)", () => {
+    renderRuns([run({ run_id: "r3", status: "failed", error: "boom", score: null, blockers: null })], {
+      severityByRun: { r3: { CRITICAL: 2, WARNING: 0, SUGGESTION: 0 } },
+    });
+    expect(screen.queryByTestId("tile-severity-r3")).not.toBeInTheDocument();
+  });
+
+  it("a commit tile carries no indicators (AC-19)", () => {
+    renderRuns([], {
+      commits: [{ sha: "abc1234", message: "fix things", author: "dev", committed_at: null }],
+      severityByRun: { abc1234: { CRITICAL: 1, WARNING: 0, SUGGESTION: 0 } },
+    });
+    expect(screen.getByText("fix things")).toBeInTheDocument();
+    expect(screen.queryByTestId(/tile-severity/)).not.toBeInTheDocument();
+  });
+
+  it("the indicators are not interactive (AC-20)", () => {
+    renderRuns([run({ run_id: "r4", status: "done", findings_count: 2, blockers: 0, score: 60 })], {
+      severityByRun: { r4: { CRITICAL: 0, WARNING: 2, SUGGESTION: 0 } },
+    });
+    const tile = screen.getByTestId("tile-severity-r4");
+    expect(within(tile).queryAllByRole("button")).toHaveLength(0);
+    expect(within(tile).queryAllByRole("link")).toHaveLength(0);
   });
 });

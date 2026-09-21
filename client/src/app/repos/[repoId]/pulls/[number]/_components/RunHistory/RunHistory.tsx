@@ -2,9 +2,10 @@
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { Badge, Icon, CircularScore, type IconName } from "@devdigest/ui";
+import { Badge, Icon, CircularScore, SeverityBadge, type IconName } from "@devdigest/ui";
 import type { RunSummary, PrCommit } from "@devdigest/shared";
 import { RunCostBadge } from "@/components/run-cost-badge";
+import { SEVERITIES } from "../FindingsPanel/constants";
 
 /**
  * PR timeline — every agent run interleaved with the PR's commits, newest-first
@@ -88,12 +89,14 @@ function tsOf(s: string | null | undefined): number {
 export function RunHistory({
   runs,
   commits = [],
+  severityByRun,
   onOpenTrace,
   onGoToReview,
   onDelete,
 }: {
   runs: RunSummary[];
   commits?: PrCommit[];
+  severityByRun?: Record<string, Record<string, number>>;
   /** Open the trace + log drawer for a run (the logs icon). */
   onOpenTrace: (runId: string) => void;
   /** Jump to this run's inline review accordion below (clicking the agent name). */
@@ -150,6 +153,8 @@ export function RunHistory({
         const r = item.run;
         const o = outcomeOf(r);
         const settled = r.status === "done";
+        const counts = severityByRun?.[r.run_id];
+        const present = counts ? SEVERITIES.filter((l) => (counts[l] ?? 0) > 0) : [];
         return (
           <div key={`run:${r.run_id}`} style={rowStyle}>
             <Badge color={o.color} bg={o.bg} icon={o.icon}>
@@ -189,12 +194,27 @@ export function RunHistory({
                   {r.error}
                 </div>
               )}
-              {settled && (
-                <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                  {t("runStatus.findings", { count: r.findings_count ?? 0 })}
-                  {(r.blockers ?? 0) > 0 ? t("runStatus.blockers", { count: r.blockers ?? 0 }) : ""}
-                </div>
-              )}
+              {settled &&
+                (present.length > 0 ? (
+                  <div
+                    data-testid={`tile-severity-${r.run_id}`}
+                    style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}
+                  >
+                    {present.map((l) => (
+                      <SeverityBadge key={l} severity={l} count={counts?.[l]} compact />
+                    ))}
+                    {(r.blockers ?? 0) > 0 && (
+                      <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                        {t("runStatus.blockers", { count: r.blockers ?? 0 })}
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                    {t("runStatus.findings", { count: r.findings_count ?? 0 })}
+                    {(r.blockers ?? 0) > 0 ? t("runStatus.blockers", { count: r.blockers ?? 0 }) : ""}
+                  </div>
+                ))}
             </div>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, fontSize: 11, color: "var(--text-muted)", flexShrink: 0 }}>
               {r.ran_at && <span>{new Date(r.ran_at).toLocaleTimeString()}</span>}

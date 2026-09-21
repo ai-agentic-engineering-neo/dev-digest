@@ -38,6 +38,10 @@ which is why the mine sat untouched. Import a value deep instead, past the barre
 `from "@devdigest/shared/contracts/findings"` — the `@devdigest/shared/*` alias already exists in
 `client/tsconfig.json`. `pnpm typecheck` and vitest both resolve the extension themselves and stay
 green on the broken import, so this is only reproducible through `pnpm dev`.
+The deep import is no longer the remedy: `next.config.mjs` now sets
+`resolve.extensionAlias = { ".js": [".ts", ".tsx", ".js"] }`, which teaches the bundler what tsc
+and vitest already did, so the barrel is importable as a value like any other module. The deep
+import fixed one call site and left the mine for whoever came next.
 Evidence: client/src/vendor/shared/index.ts:19
 
 ## Session Notes

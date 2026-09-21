@@ -35,7 +35,11 @@ cd <pkg> && pnpm typecheck && pnpm test          # server · client · reviewer-
 ./scripts/e2e.sh                    # isolated seeded stack on :5433 / :3101 / :3100
 ```
 
-There is no lint step — `typecheck` is the gate. Package-specific commands (migrations, the
+There is no lint step, and `typecheck` alone is **not** enough: all four packages set
+`moduleResolution: "Bundler"`, so `tsc` never checks that a specifier resolves the way the runtime
+will. A wrong relative-import extension type-checks green and then fails — in `client` at bundle
+time, elsewhere at run time, and only on a path some test actually walks. Run the package's build
+or its app, not just `typecheck`. Package-specific commands (migrations, the
 unit/integration split) are in that package's `CLAUDE.md`.
 
 ## Naming conventions (non-default only)

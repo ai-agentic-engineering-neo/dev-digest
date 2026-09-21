@@ -22,7 +22,9 @@ Next.js 15 studio UI. The root `CLAUDE.md` applies; this adds client-only rules.
   Colors come from CSS variables, never hard-coded.
 - User-facing strings live in `messages/en/<area>.json` (next-intl), not inline in JSX.
 - Contracts come from `src/vendor/shared`, which can lag the server's copy. When a type looks wrong,
-  diff it against `server/src/vendor/shared`.
+  diff it against `server/src/vendor/shared`. Values (Zod schemas, not just types) import from the
+  same barrel and bundle correctly only because `next.config.mjs` sets `resolve.extensionAlias` —
+  the vendored files carry the server's `.js` specifiers. Do not remove it.
 
 ## Commands (client-only)
 
@@ -30,6 +32,11 @@ Next.js 15 studio UI. The root `CLAUDE.md` applies; this adds client-only rules.
 pnpm dev          # :3000
 pnpm test         # vitest + jsdom, fetch mocked — needs neither API nor browser
 pnpm typecheck
+pnpm build        # the only check that exercises the bundler — see below
 ```
+
+`typecheck` and `test` both resolve a `./x.js` specifier to `x.ts` themselves; the bundler does
+not. A broken import therefore stays green in both and fails only in `pnpm build` or `pnpm dev`.
+Run one of those before calling client work done.
 
 Env: `NEXT_PUBLIC_API_BASE` (default `http://localhost:3001`).

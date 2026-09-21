@@ -6,6 +6,8 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Icon, Badge, CircularScore } from "@devdigest/ui";
 import type { Verdict } from "@devdigest/shared";
+import { CostText } from "@/components/cost-text";
+import { formatTokens } from "@/lib/format-usage";
 import { VERDICT_META } from "./constants";
 import { s } from "./styles";
 
@@ -16,6 +18,9 @@ export function VerdictBanner({
   findingsCount,
   blockers,
   agentName,
+  costUsd,
+  tokensIn,
+  tokensOut,
 }: {
   verdict: Verdict;
   summary: string | null;
@@ -23,10 +28,16 @@ export function VerdictBanner({
   findingsCount: number;
   blockers: number;
   agentName?: string | null;
+  /** Usage of the run behind this review; the cost row shows only when known
+      (tokensIn != null ⇒ the review is linked to a run). */
+  costUsd?: number | null;
+  tokensIn?: number | null;
+  tokensOut?: number | null;
 }) {
   const t = useTranslations("prReview");
   const m = VERDICT_META[verdict] ?? VERDICT_META.comment;
   const VIcon = Icon[m.icon];
+  const hasUsage = tokensIn != null;
   return (
     <div style={s.wrap}>
       <div style={s.iconBox(m.bg, m.c)}>
@@ -47,10 +58,23 @@ export function VerdictBanner({
         </div>
         {summary && <p style={s.summary}>{summary}</p>}
       </div>
-      {score != null && (
+      {(score != null || hasUsage) && (
         <div style={s.scoreCol}>
-          <CircularScore score={score} size={52} stroke={5} />
-          <span style={s.scoreLabel}>{t("verdict.prScore")}</span>
+          {score != null && (
+            <>
+              <CircularScore score={score} size={52} stroke={5} />
+              <span style={s.scoreLabel}>{t("verdict.prScore")}</span>
+            </>
+          )}
+          {hasUsage && (
+            <div style={s.costRow} title={t("verdict.runCost")}>
+              <Icon.DollarSign size={11} style={s.costIcon} />
+              <CostText usd={costUsd} />
+              <span className="mono" style={s.costTokens}>
+                {formatTokens(tokensIn, tokensOut ?? 0)}
+              </span>
+            </div>
+          )}
         </div>
       )}
     </div>

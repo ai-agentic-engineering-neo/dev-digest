@@ -78,9 +78,12 @@ question about the pull request ("what has this cost"); findings are a question 
   description.
 - **AC-6** — The panel SHALL NOT render any control that changes state — no accept, no reject,
   no reply, no edit.
-- **AC-7** — The panel SHALL list at most 5 entries, ordered by descending severity then
-  descending confidence, WHILE the heading reports the review's full count.
-  _(observable: a 12-finding review previews 5 under a heading reading 12)_
+- **AC-7** — The panel SHALL list every finding of the review, ordered by descending severity
+  then descending confidence, and SHALL scroll when they do not fit.
+  _(observable: a 12-finding review shows all 12 under a heading reading 12 — the reader
+  scrolls rather than being told there is more somewhere else. Nothing is withheld: a preview
+  that hides the finding someone is looking for sends them to open the pull request anyway,
+  which is the cost this column exists to remove)_
 - **AC-8** — The system SHALL abbreviate each description to at most 160 characters, ending an
   abbreviated one with an ellipsis.
   _(observable: about two lines at the panel's width — past that it stops being a preview, and
@@ -111,7 +114,7 @@ question about the pull request ("what has this cost"); findings are a question 
 | Latest review completed with zero findings | Placeholder. accepted: not distinguished from "never reviewed" — the score column already tells those apart, and a second mark for the same distinction is noise |
 | An earlier run found problems, the latest none | Placeholder. Follows from *Which run*; intended, not an oversight |
 | Latest review still running | Treated as no completed review → AC-2; the row updates when it finishes |
-| More findings than the preview holds | 5 shown, true total in the heading → AC-7 |
+| More findings than fit the panel | All listed, the panel scrolls → AC-7 |
 | Touch device, where pointing does not exist | Focus opens the panel → AC-11 |
 | A finding citing a path containing markup characters | Rendered literally → AC-12 |
 | A description shorter than the limit | Shown whole, no ellipsis → AC-8 |
@@ -119,8 +122,10 @@ question about the pull request ("what has this cost"); findings are a question 
 
 ## Non-functional
 
-- The response SHALL carry at most 5 preview entries per row, so its size grows with the number
-  of rows and not with the number of findings in the repository.
+- The response SHALL carry every finding of each row's latest completed review. Its size
+  therefore grows with findings per review, which a single review bounds in practice; it does
+  NOT grow with the repository's total findings, because only the latest review of each listed
+  row is read.
 - The counts and previews for a page of rows SHALL be fetched in a bounded number of queries,
   independent of the row count — no query per row.
 - A preview SHALL appear within 100 ms of the pointer arriving, being rendered from data the
@@ -145,7 +150,9 @@ Shape, not implementation:
 
 - **counts** — per occurring severity, the number of findings at it. A severity that does not
   occur is absent rather than present with a zero.
-- **total** — the review's full count, which may exceed the number of previews.
+- **total** — the review's finding count. It equals `previews.length`; it is carried
+  separately so the heading does not have to be computed from the array, and so a future
+  decision to bound the array cannot silently change what the heading claims.
 - **previews** — an ordered, bounded list; each entry carries severity, title, category, cited
   file, cited line, and confidence as a fraction from 0 to 1.
 

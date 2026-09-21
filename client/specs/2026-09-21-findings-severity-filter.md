@@ -149,7 +149,7 @@ therefore cannot be asked separately.
 | Reader filters, then toggles confidence | Both apply; counts follow confidence → AC-6 |
 | Two runs expanded at once | Each filters only its own list → AC-15 |
 | Tile of a run that produced nothing, failed, or is still running | No indicators, and so nothing to point at → AC-19, AC-22 |
-| A run with more findings than the panel can show | The panel lists at most 5, ordered by descending severity then confidence, while the heading reports the run's full count — the same bound the pull-request list uses, for the same reason |
+| A run with more findings than the panel can show | All of them are listed and the panel scrolls, ordered by descending severity then confidence — the same rule the pull-request list follows, for the same reason: a preview that hides what the reader came for sends them elsewhere anyway |
 | Tile of a commit rather than a run | Unaffected; it has no findings to describe |
 
 ## Non-functional

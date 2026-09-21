@@ -115,6 +115,7 @@ question about the pull request ("what has this cost"); findings are a question 
 | Touch device, where pointing does not exist | Focus opens the panel → AC-11 |
 | A finding citing a path containing markup characters | Rendered literally → AC-12 |
 | A description shorter than the limit | Shown whole, no ellipsis → AC-8 |
+| The review contains findings a reviewer has already accepted or rejected | Counted and previewable like any other. The heading describes the run, not the current triage state; a run that found six things found six things whatever was later done about them. Triage state lives on the pull-request page, where it can be acted on |
 
 ## Non-functional
 

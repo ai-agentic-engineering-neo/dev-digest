@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Provider } from './knowledge.js';
+import { FindingCategory, Severity } from './findings.js';
 
 /**
  * Platform / scaffolding DTOs owned by F1:
@@ -154,6 +155,31 @@ export type Repo = z.infer<typeof Repo>;
 export const PrStatus = z.enum(['needs_review', 'reviewed', 'stale', 'open', 'closed', 'merged']);
 export type PrStatus = z.infer<typeof PrStatus>;
 
+/** One finding as previewed on the PR list. Read-only projection: no id, no
+ *  action state — the list cannot act on a finding, only point at one. */
+export const PrFindingPreview = z.object({
+  severity: Severity,
+  title: z.string(),
+  category: FindingCategory,
+  file: z.string(),
+  line: z.number().int(),
+  confidence: z.number().min(0).max(1),
+  description: z.string(),
+});
+export type PrFindingPreview = z.infer<typeof PrFindingPreview>;
+
+/** Latest completed review's findings, for the list's FINDINGS column.
+ *  `total` equals `previews.length` today; kept separate so a future bound on
+ *  the array can't silently change what the heading claims. Absent when there
+ *  is no completed review or it produced nothing — the two are deliberately
+ *  not distinguished (see specs/2026-09-21-pr-list-findings-column.md). */
+export const PrFindings = z.object({
+  counts: z.record(Severity, z.number().int()),
+  total: z.number().int(),
+  previews: z.array(PrFindingPreview),
+});
+export type PrFindings = z.infer<typeof PrFindings>;
+
 export const PrMeta = z.object({
   id: z.string().nullish(),
   number: z.number().int(),
@@ -173,6 +199,8 @@ export const PrMeta = z.object({
   // Cost (USD) of that same latest review's run (list endpoint only); null/absent
   // until reviewed or when the run was unpriced — UI shows "—", not "$0".
   cost_usd: z.number().nullish(),
+  // Latest completed review's findings (list endpoint only). See PrFindings.
+  findings: PrFindings.nullish(),
 });
 export type PrMeta = z.infer<typeof PrMeta>;
 

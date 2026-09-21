@@ -129,6 +129,14 @@ therefore cannot be asked separately.
   _(observable: a reader discovers the panel without being told it exists)_
 - **AC-25** — WHEN the reader stops pointing, the panel SHALL close; the indicators SHALL be
   reachable by keyboard, SHALL open the panel on focus and SHALL close it on Escape.
+- **AC-25a** — WHILE the indicators hold keyboard focus, moving the pointer away SHALL NOT
+  close the panel.
+  _(observable: pointing and focusing are two independent reasons to be open, and neither may
+  revoke the other's. A keyboard reader otherwise loses the panel because a mouse happened to
+  be resting over the tile — a thing they cannot see and did not do)_
+- **AC-25b** — The heading SHALL stay visible while the reader scrolls the entries.
+  _(observable: the count still answers "of what" at the bottom of a long list; a heading that
+  scrolls away has stopped heading anything)_
 - **AC-26** — The panel SHALL be built from findings the client already holds, issuing no
   request and invoking no model.
   _(observable: the reviews carrying these findings are already on the page — the same source
@@ -149,6 +157,7 @@ therefore cannot be asked separately.
 | Reader filters, then toggles confidence | Both apply; counts follow confidence → AC-6 |
 | Two runs expanded at once | Each filters only its own list → AC-15 |
 | Tile of a run that produced nothing, failed, or is still running | No indicators, and so nothing to point at → AC-19, AC-22 |
+| Pointer resting over a tile whose indicators also hold focus | Both reasons to be open are live; the panel closes only when both are gone → AC-25a |
 | A run with more findings than the panel can show | All of them are listed and the panel scrolls, ordered by descending severity then confidence — the same rule the pull-request list follows, for the same reason: a preview that hides what the reader came for sends them elsewhere anyway |
 | Tile of a commit rather than a run | Unaffected; it has no findings to describe |
 

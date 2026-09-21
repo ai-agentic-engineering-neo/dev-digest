@@ -7,11 +7,21 @@ import { useTranslations } from "next-intl";
 import { Icon, Avatar, Badge, CircularScore } from "@devdigest/ui";
 import type { PrMeta } from "@/lib/types";
 import { CostText } from "@/components/cost-text";
+import { PrFindingsCell } from "../PrFindingsCell";
 import { SIZE_COLOR, STATUS_META } from "../../constants";
 import { relativeTime, sizeOf } from "../../helpers";
 import { s } from "../../styles";
 
-export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
+export function PRRow({
+  pr,
+  repoId,
+  popoverUp = false,
+}: {
+  pr: PrMeta;
+  repoId: string;
+  /** Open the FINDINGS popover upwards (rows near the bottom of the table). */
+  popoverUp?: boolean;
+}) {
   const t = useTranslations("prReview");
   const router = useRouter();
   const [h, setH] = React.useState(false);
@@ -53,6 +63,10 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
         ) : (
           <span style={s.muted}>—</span>
         )}
+      </div>
+      {/* Latest review's findings per severity; hover → read-only preview popover. */}
+      <div>
+        <PrFindingsCell pr={pr} up={popoverUp} />
       </div>
       <div>
         <Badge dot color={st.c} bg="transparent">

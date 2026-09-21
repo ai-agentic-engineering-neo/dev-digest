@@ -173,6 +173,13 @@ export const PrMeta = z.object({
   // Total USD cost of ALL runs of the PR (list endpoint only). Unknown run costs
   // are skipped; null when no run has a known cost.
   cost_usd: z.number().nullish(),
+  // Latest review (the one `score` comes from) and its findings per severity
+  // (list endpoint only). Null until the PR has a review. The breakdown counts
+  // every finding of that review, i.e. what GET /pulls/:id/reviews returns for it.
+  latest_review_id: z.string().nullish(),
+  findings_counts: z
+    .object({ CRITICAL: z.number().int(), WARNING: z.number().int(), SUGGESTION: z.number().int() })
+    .nullish(),
 });
 export type PrMeta = z.infer<typeof PrMeta>;
 

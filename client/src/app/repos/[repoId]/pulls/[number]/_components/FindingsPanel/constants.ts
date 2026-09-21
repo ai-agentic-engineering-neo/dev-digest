@@ -8,6 +8,9 @@ export const SEVERITY_ORDER: Record<string, number> = {
   INFO: 3,
 };
 
+/** Severity levels in display order — counters and filter buttons follow it. */
+export { SEVERITY_LEVELS } from "@/components/findings-hover";
+
 /** Confidence below this is hidden when "hide low confidence" is on. */
 export const LOW_CONFIDENCE_THRESHOLD = 0.65;
 

@@ -12,6 +12,7 @@ Reviewed monthly: stale entries are removed in a dedicated commit.
 
 ## What Doesn't Work
 <!-- dead ends and anti-patterns — the most valuable section -->
+- 2026-09-21 — src/modules/pulls/routes.ts under ./scripts/dev.sh (tsx watch src/server.ts): after `git stash` + `git stash pop` of a source file, tsx restarted on the stashed (old) version and never picked up the restored file — even `touch` did not trigger a reload, so the API kept serving old code (new PrMeta fields missing) → after any git op that rewrites files under server/src, restart the dev stack, and curl the endpoint to confirm the change is live
 
 ## Codebase Patterns
 <!-- conventions and architectural decisions not obvious from the code -->

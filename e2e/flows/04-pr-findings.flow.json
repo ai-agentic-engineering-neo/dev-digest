@@ -1,9 +1,11 @@
 {
   "name": "PR detail shows the seeded review run, verdict, and findings",
-  "description": "From PR #482, open the Agent runs tab and confirm the seeded review run renders (verdict 'request changes', 2 findings) in its accordion header. The newest run's accordion is open by default (FindingsTab passes defaultOpen to the first run), so the VerdictBanner and the seeded FindingCard ('Hardcoded Stripe secret key in commit') are revealed without an extra click. Exercises the refactored ReviewRunAccordion / VerdictBanner / FindingsPanel / FindingCard. Read-only seeded data (no model call). Assumes a freshly-seeded DB where acme/payments-api (PR #482) is the first repo — guaranteed by e2e-web.yml; run locally via the hermetic stack (see e2e/README.md).",
+  "description": "From PR #482, open the Agent runs tab and confirm the seeded review run renders (verdict 'request changes', 2 findings) in its accordion header. The newest run's accordion is open by default (FindingsTab passes defaultOpen to the first run), so the VerdictBanner and the seeded FindingCard ('Hardcoded Stripe secret key in commit') are revealed without an extra click. Exercises the refactored ReviewRunAccordion / VerdictBanner / FindingsPanel / FindingCard. Read-only seeded data (no model call). Assumes a freshly-seeded DB where acme/payments-api (PR #482) is the first repo — guaranteed by e2e-web.yml; run locally via the hermetic stack (see e2e/README.md). Also hovers the FINDINGS counters on the PR list (read-only popover; the seed has no agent runs, so the timeline tiles are covered by RunHistory unit tests). Then checks the severity counters under the verdict (seed: 1 CRITICAL · 1 WARNING) and that the Warning filter hides the CRITICAL card and a second click restores it.",
   "steps": [
     { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
     { "cmd": ["wait", "--url", "/pulls"], "label": "land on the PR list" },
+    { "cmd": ["hover", "[aria-label='1 critical, 1 warning']"], "label": "PR list FINDINGS column: hover the seeded PR's severity counters" },
+    { "cmd": ["wait", "--text", "Hardcoded Stripe secret key in commit"], "label": "read-only findings popover lists the latest run's findings" },
     { "cmd": ["find", "text", "Add rate limiting to public API endpoints", "click"], "label": "open the PR row" },
     { "cmd": ["wait", "--url", "/pulls/482"], "label": "navigate to the PR detail route" },
     { "cmd": ["wait", "--load", "networkidle"], "label": "PR detail data settles" },
@@ -11,6 +13,13 @@
     { "cmd": ["wait", "--url", "tab=findings"], "label": "findings tab is active in the URL" },
     { "cmd": ["wait", "--text", "request changes"], "label": "seeded run accordion shows its verdict" },
     { "cmd": ["wait", "--text", "2 findings"], "label": "accordion header shows the seeded finding count" },
-    { "cmd": ["wait", "--text", "Hardcoded Stripe secret key in commit"], "label": "seeded FindingCard is visible (newest run is open by default)" }
+    { "cmd": ["wait", "--text", "Hardcoded Stripe secret key in commit"], "label": "seeded FindingCard is visible (newest run is open by default)" },
+    { "cmd": ["find", "role", "button", "click", "--name", "1 critical"], "label": "CRITICAL counter pill is rendered (click = filter to CRITICAL)" },
+    { "cmd": ["find", "role", "button", "click", "--name", "1 critical"], "label": "second click on the pill clears the filter" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Warning"], "label": "Warning filter button: only WARNING findings remain" },
+    { "cmd": ["wait", "--text", "N+1 query in user list endpoint"], "label": "the WARNING card is shown" },
+    { "cmd": ["is", "visible", "text=Hardcoded Stripe secret key in commit"], "assert": {"stdoutIncludes": "false"}, "label": "the CRITICAL card is hidden by the filter" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Warning"], "label": "click Warning again to clear the filter" },
+    { "cmd": ["wait", "--text", "Hardcoded Stripe secret key in commit"], "label": "full list is back" }
   ]
 }

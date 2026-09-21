@@ -434,6 +434,52 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
       expect((byNumber.get(other!.number) as { cost_usd: number | null }).cost_usd).toBeNull();
       await app.close();
     });
+
+    it('PR list: findings_counts + latest_review_id come from the LATEST review only; null when unreviewed', async () => {
+      const app = await appWith(REVIEW_FIXTURE);
+      const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+      const finding = (reviewId: string, severity: string) => ({
+        reviewId,
+        file: 'src/a.ts',
+        startLine: 1,
+        endLine: 1,
+        severity,
+        category: 'bug',
+        title: `${severity} finding`,
+        rationale: 'r',
+        confidence: 0.9,
+      });
+      const [older] = await pg.handle.db
+        .insert(t.reviews)
+        .values({ workspaceId, prId: pr.id, kind: 'review', score: 10, createdAt: new Date('2026-01-01') })
+        .returning();
+      const [latest] = await pg.handle.db
+        .insert(t.reviews)
+        .values({ workspaceId, prId: pr.id, kind: 'review', score: 61, createdAt: new Date('2026-02-01') })
+        .returning();
+      await pg.handle.db.insert(t.findings).values([
+        finding(older!.id, 'CRITICAL'),
+        finding(latest!.id, 'CRITICAL'),
+        finding(latest!.id, 'CRITICAL'),
+        finding(latest!.id, 'SUGGESTION'),
+      ]);
+
+      const list = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+      const row = list.find((p: { number: number }) => p.number === 482);
+      expect(row.latest_review_id).toBe(latest!.id);
+      expect(row.findings_counts).toEqual({ CRITICAL: 2, WARNING: 0, SUGGESTION: 1 });
+      expect(row.score).toBe(61);
+      await app.close();
+
+      // A PR with no review has no breakdown.
+      await pg.handle.db.delete(t.reviews).where(eq(t.reviews.prId, pr.id));
+      const app2 = await appWith(REVIEW_FIXTURE);
+      const list2 = (await app2.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+      const row2 = list2.find((p: { number: number }) => p.number === 482);
+      expect(row2.findings_counts).toBeNull();
+      expect(row2.latest_review_id).toBeNull();
+      await app2.close();
+    });
   });
 
   it('run all enabled agents reviews with each enabled agent', async () => {

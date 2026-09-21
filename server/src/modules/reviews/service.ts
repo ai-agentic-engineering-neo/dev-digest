@@ -168,8 +168,16 @@ export class ReviewService {
         if (a) names.set(review.agentId, a.name);
       }
     }
+    const usage = await this.repo.usageForRuns(
+      rows.flatMap(({ review }) => (review.runId ? [review.runId] : [])),
+    );
     return rows.map(({ review, findings }) =>
-      reviewToDto(review, findings, review.agentId ? names.get(review.agentId) : null),
+      reviewToDto(
+        review,
+        findings,
+        review.agentId ? names.get(review.agentId) : null,
+        review.runId ? usage.get(review.runId) : undefined,
+      ),
     );
   }
 

@@ -57,3 +57,7 @@ export {
 // The single OpenAI-compatible structured provider (OpenRouter), shared by the
 // CI runner and the server's openrouter path. Owns session grouping + guards.
 export { OpenRouterProvider, type OpenRouterProviderOptions } from './llm/openrouter.js';
+
+// Per-response usage reporting (StructuredRequest.onUsage) — shared by every
+// provider so a throwing hook never breaks a call.
+export { emitUsage, addCost } from './llm/usage.js';

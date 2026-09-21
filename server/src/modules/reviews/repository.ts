@@ -82,6 +82,11 @@ export class ReviewRepository {
     return runRepo.listRunsForPull(this.db, workspaceId, prId);
   }
 
+  /** Token + USD usage per run id, one query (attached to review DTOs). */
+  usageForRuns(runIds: string[]): Promise<Map<string, runRepo.RunUsage>> {
+    return runRepo.usageForRuns(this.db, runIds);
+  }
+
   /** Delete one agent run (+ its trace via FK cascade). Workspace-scoped. */
   deleteAgentRun(workspaceId: string, runId: string): Promise<boolean> {
     return runRepo.deleteAgentRun(this.db, workspaceId, runId);
@@ -155,6 +160,8 @@ export class ReviewRepository {
       durationMs: number;
       tokensIn: number;
       tokensOut: number;
+      /** USD; null = unpriced model. */
+      costUsd: number | null;
       findingsCount: number;
       grounding: string;
       /** Review score (0-100); null on failed/cancelled runs. */

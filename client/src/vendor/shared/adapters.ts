@@ -61,6 +61,21 @@ export interface StructuredRequest<T> {
   maxTokens?: number;
   timeoutMs?: number;
   maxRetries?: number;
+  /**
+   * Called once per received response — including schema-invalid retry
+   * attempts — with THAT attempt's usage, so a caller can still account for
+   * spend when the call ultimately throws. Observational: providers swallow any
+   * error it throws.
+   */
+  onUsage?: (usage: LlmUsage) => void;
+}
+
+/** Usage of ONE LLM response (one attempt), reported via `onUsage`. */
+export interface LlmUsage {
+  tokensIn: number;
+  tokensOut: number;
+  /** null = the model is unpriced. */
+  costUsd: number | null;
 }
 
 export interface StructuredResult<T> {

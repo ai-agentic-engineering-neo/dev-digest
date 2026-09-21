@@ -62,11 +62,26 @@ export interface StructuredRequest<T> {
   timeoutMs?: number;
   maxRetries?: number;
   /**
+   * Called once per received response — including schema-invalid retry
+   * attempts — with THAT attempt's usage, so a caller can still account for
+   * spend when the call ultimately throws. Observational: providers swallow any
+   * error it throws.
+   */
+  onUsage?: (usage: LlmUsage) => void;
+  /**
    * OpenRouter session id — groups related generations (e.g. all map-reduce
    * chunks of one review) into a session in the OpenRouter dashboard. Sent as
    * the `session_id` body field; ignored by providers that don't support it.
    */
   sessionId?: string;
+}
+
+/** Usage of ONE LLM response (one attempt), reported via `onUsage`. */
+export interface LlmUsage {
+  tokensIn: number;
+  tokensOut: number;
+  /** null = the model is unpriced. */
+  costUsd: number | null;
 }
 
 export interface StructuredResult<T> {

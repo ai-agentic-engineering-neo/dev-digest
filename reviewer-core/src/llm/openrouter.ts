@@ -8,6 +8,7 @@ import type {
   StructuredResult,
 } from '@devdigest/shared';
 import { toJsonSchema, parseWithRepair } from './structured.js';
+import { addCost, emitUsage } from './usage.js';
 
 /**
  * The single OpenAI-compatible structured provider, owned by the engine because
@@ -62,7 +63,7 @@ export class OpenRouterProvider implements LLMProvider {
     const messages = [...req.messages];
     let tokensIn = 0;
     let tokensOut = 0;
-    let costFromApi: number | null = null;
+    let costUsd: number | null = 0;
     let lastRaw = '';
 
     for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
@@ -83,6 +84,20 @@ export class OpenRouterProvider implements LLMProvider {
         ...(this.id === 'openrouter' ? { usage: { include: true } } : {}),
       });
 
+      // Per-attempt usage. `usage.cost` is an OpenRouter extension (the REAL
+      // generation cost, USD), absent from the OpenAI SDK type; fall back to the
+      // injected estimator. Reported BEFORE parsing/guards so a call that
+      // ultimately throws still accounts for what it spent.
+      const attemptIn = res.usage?.prompt_tokens ?? 0;
+      const attemptOut = res.usage?.completion_tokens ?? 0;
+      const apiCost = (res.usage as { cost?: number } | null | undefined)?.cost;
+      const attemptCost =
+        typeof apiCost === 'number' ? apiCost : (this.estimateCost?.(req.model, attemptIn, attemptOut) ?? null);
+      tokensIn += attemptIn;
+      tokensOut += attemptOut;
+      costUsd = addCost(costUsd, attemptCost);
+      if (res.usage) emitUsage(req.onUsage, { tokensIn: attemptIn, tokensOut: attemptOut, costUsd: attemptCost });
+
       // OpenRouter can return HTTP 200 with no `choices` (an upstream provider
       // error / moderation / free-tier limit in the body) — surface it.
       const choice = res.choices?.[0];
@@ -91,11 +106,6 @@ export class OpenRouterProvider implements LLMProvider {
         throw new Error(`OpenRouter returned no choices for ${req.schemaName}${errMsg ? `: ${errMsg}` : ''}`);
       }
       lastRaw = choice.message?.content ?? '';
-      tokensIn += res.usage?.prompt_tokens ?? 0;
-      tokensOut += res.usage?.completion_tokens ?? 0;
-      // `usage.cost` is an OpenRouter extension (USD), absent from the OpenAI SDK type.
-      const apiCost = (res.usage as { cost?: number } | null | undefined)?.cost;
-      if (typeof apiCost === 'number') costFromApi = (costFromApi ?? 0) + apiCost;
 
       const parsed = parseWithRepair(req.schema, lastRaw);
       if (parsed.ok) {
@@ -104,7 +114,7 @@ export class OpenRouterProvider implements LLMProvider {
           model: req.model,
           tokensIn,
           tokensOut,
-          costUsd: costFromApi ?? this.estimateCost?.(req.model, tokensIn, tokensOut) ?? null,
+          costUsd,
           raw: lastRaw,
           attempts: attempt,
         };

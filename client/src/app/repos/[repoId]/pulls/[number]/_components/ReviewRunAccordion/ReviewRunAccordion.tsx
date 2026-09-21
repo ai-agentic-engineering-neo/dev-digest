@@ -10,6 +10,7 @@ import { Icon, Badge } from "@devdigest/ui";
 import type { ReviewRecord, Verdict } from "@devdigest/shared";
 import { FindingsPanel } from "../FindingsPanel";
 import { VerdictBanner } from "../VerdictBanner";
+import { CostText } from "@/components/cost-text";
 import { useDeleteReview } from "../../../../../../../lib/hooks/reviews";
 
 const VERDICT_COLOR: Record<string, string> = {
@@ -103,6 +104,10 @@ export function ReviewRunAccordion({
             {review.score}
           </Badge>
         )}
+        {/* Unknown cost (old review / no run) shows nothing — no header dashes. */}
+        {review.cost_usd != null && (
+          <CostText usd={review.cost_usd} style={{ fontSize: 12, color: "var(--text-secondary)" }} />
+        )}
         <span className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>
           {formatWhen(review.created_at)}
         </span>
@@ -144,6 +149,9 @@ export function ReviewRunAccordion({
                 findingsCount={findings.length}
                 blockers={blockers}
                 agentName={review.agent_name}
+                costUsd={review.cost_usd}
+                tokensIn={review.tokens_in}
+                tokensOut={review.tokens_out}
               />
             </div>
           )}

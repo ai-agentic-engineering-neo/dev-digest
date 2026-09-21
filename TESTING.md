@@ -39,9 +39,8 @@ If a test wouldn't catch a class of regression we care about, we don't write it.
 surface (list, diff, findings, run controls) and the agent editor.
 
 **server-unit** — the DB-free majority: adapters, prompt assembly, grounding,
-repo-intel ranking & indexing, pricing, route smoke. The `typecheck` job also
-runs on Windows, which doubles as the `@ast-grep/napi` prebuilt gate (install
-fails there if the win32 prebuilt is missing).
+repo-intel ranking & indexing, pricing, route smoke. CI (typecheck included)
+runs on Linux only.
 
 **server-integration** — the `*.it.test.ts` files. Each starts a real Postgres
 (pgvector) via testcontainers, builds the Fastify app, migrates + seeds, and
@@ -86,7 +85,7 @@ cd e2e && npm install && npm test
   `test:integration` scripts.
 - **Hermetic by default.** Reach for `src/adapters/mocks.ts` (MockLLMProvider,
   MockGitClient) rather than real network/keys.
-- **E2E specs are deterministic batch JSON** (`e2e/specs/*.flow.json`) using
+- **E2E flows are deterministic batch JSON** (`e2e/flows/*.flow.json`) using
   only `--url` / `--text` / `find` locators — never the AI `chat` command.
 - **CI is path-filtered per package.** Cross-package source aliases are encoded
   in each workflow's `paths:` (e.g. `reviewer-core/**` triggers `server-unit`

@@ -1,6 +1,7 @@
 import type {
   Finding,
   LLMProvider,
+  LlmUsage,
   PromptAssembly,
   Review,
   RunEventKind,
@@ -10,6 +11,7 @@ import { Review as ReviewSchema } from '@devdigest/shared';
 import { assemblePrompt } from '../prompt.js';
 import { groundFindings, groundingSummary } from '../grounding.js';
 import { reduceReviews, scoreFromFindings, sliceDiff } from './reduce.js';
+import { addCost } from '../llm/usage.js';
 
 /**
  * reviewPullRequest — the review engine entry point.
@@ -84,6 +86,13 @@ export interface ReviewInput {
   sessionId?: string;
   /** Progress sink. */
   onEvent?: (e: ReviewEvent) => void;
+  /**
+   * Usage sink — forwarded to every LLM call; the provider reports each
+   * response's usage (incl. schema-invalid retries) as it arrives. Lets the
+   * caller account for spend when the review throws (failure / cancel), which
+   * the returned outcome cannot carry.
+   */
+  onUsage?: (u: LlmUsage) => void;
   /**
    * Cancellation checkpoint, called before each (expensive) chunk LLM call.
    * Supply a function that THROWS to abort mid-run (the caller owns the error
@@ -178,10 +187,11 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
       messages: a.messages,
       maxRetries,
       ...(input.sessionId ? { sessionId: input.sessionId } : {}),
+      ...(input.onUsage ? { onUsage: input.onUsage } : {}),
     });
     tokensIn += res.tokensIn;
     tokensOut += res.tokensOut;
-    costUsd = costUsd == null || res.costUsd == null ? null : costUsd + res.costUsd;
+    costUsd = addCost(costUsd, res.costUsd);
     raws.push(res.raw);
     partials.push(res.data);
     emit('result', `${chunk.label}: ${res.data.findings.length} candidate finding(s)`);

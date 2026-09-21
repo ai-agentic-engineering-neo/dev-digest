@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import type { Db } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
 import type { RunSummary, RunTrace } from '@devdigest/shared';
@@ -59,12 +59,35 @@ export async function listRunsForPull(
     duration_ms: run.durationMs,
     tokens_in: run.tokensIn,
     tokens_out: run.tokensOut,
+    cost_usd: run.costUsd,
     findings_count: run.findingsCount,
     grounding: run.grounding,
     ran_at: run.ranAt ? run.ranAt.toISOString() : null,
     score: run.score,
     blockers: run.blockers,
   }));
+}
+
+/** Token + USD usage of one run, keyed by run id (see usageForRuns). */
+export type RunUsage = { tokensIn: number | null; tokensOut: number | null; costUsd: number | null };
+
+/**
+ * Usage of the given runs in ONE query — attached to each review DTO
+ * (reviews.run_id → agent_runs; there is no FK, so a deleted run is simply
+ * absent from the map).
+ */
+export async function usageForRuns(db: Db, runIds: string[]): Promise<Map<string, RunUsage>> {
+  if (runIds.length === 0) return new Map();
+  const rows = await db
+    .select({
+      id: t.agentRuns.id,
+      tokensIn: t.agentRuns.tokensIn,
+      tokensOut: t.agentRuns.tokensOut,
+      costUsd: t.agentRuns.costUsd,
+    })
+    .from(t.agentRuns)
+    .where(inArray(t.agentRuns.id, runIds));
+  return new Map(rows.map(({ id, ...u }) => [id, u]));
 }
 
 /**
@@ -146,6 +169,8 @@ export async function completeAgentRun(
     durationMs: number;
     tokensIn: number;
     tokensOut: number;
+    /** USD; null = unpriced model. */
+    costUsd: number | null;
     findingsCount: number;
     grounding: string;
     /** Review score (0-100); null on failed/cancelled runs. */
@@ -163,6 +188,7 @@ export async function completeAgentRun(
       durationMs: values.durationMs,
       tokensIn: values.tokensIn,
       tokensOut: values.tokensOut,
+      costUsd: values.costUsd,
       findingsCount: values.findingsCount,
       grounding: values.grounding,
       score: values.score ?? null,

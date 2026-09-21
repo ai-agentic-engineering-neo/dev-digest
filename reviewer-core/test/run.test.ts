@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { LLMProvider, StructuredResult } from '@devdigest/shared';
+import type { LLMProvider, StructuredRequest, StructuredResult } from '@devdigest/shared';
 import { MockLLMProvider, MockGitClient } from '../../server/src/adapters/mocks.js';
 import { reviewPullRequest } from '../src/index.js';
 
@@ -134,5 +134,83 @@ describe('reviewPullRequest (engine)', () => {
     await reviewPullRequest({ systemPrompt: 's', model: 'm', diff, llm: recorder, sessionId: 'sess-abc' });
     expect(seen.length).toBeGreaterThan(0);
     expect(seen.every((s) => s === 'sess-abc')).toBe(true);
+  });
+
+  describe('onUsage (per-response usage for failed/cancelled runs)', () => {
+    // Two changed files + map-reduce ⇒ one LLM call per file.
+    async function twoFileDiff() {
+      const base = await new MockGitClient().diff();
+      const file = base.files[0]!;
+      const second = { ...file, path: 'src/other.ts' };
+      return {
+        ...base,
+        files: [file, second],
+        raw: `${base.raw}\n${base.raw.replaceAll(file.path, second.path)}`,
+      };
+    }
+
+    /** Fake provider: every call reports 100/50 tokens at $0.001 via onUsage,
+     *  like a real one; from call `failFrom` on it throws AFTER reporting. */
+    function usageLlm(failFrom = Infinity): LLMProvider {
+      let n = 0;
+      return {
+        id: 'openrouter',
+        async completeStructured<T>(req: StructuredRequest<T>): Promise<StructuredResult<T>> {
+          req.onUsage?.({ tokensIn: 100, tokensOut: 50, costUsd: 0.001 });
+          if (++n >= failFrom) throw new Error('structured output failed schema validation');
+          return {
+            data: fixture as unknown as T,
+            model: req.model,
+            tokensIn: 100,
+            tokensOut: 50,
+            costUsd: 0.001,
+            raw: '',
+            attempts: 1,
+          };
+        },
+        async listModels() {
+          return [];
+        },
+        async complete() {
+          throw new Error('not used');
+        },
+        async embed() {
+          return [];
+        },
+      };
+    }
+
+    it('forwards onUsage to every LLM call; the deltas sum to the outcome totals', async () => {
+      const usage: { tokensIn: number; tokensOut: number; costUsd: number | null }[] = [];
+      const outcome = await reviewPullRequest({
+        systemPrompt: 's',
+        model: 'm',
+        diff: await twoFileDiff(),
+        llm: usageLlm(),
+        strategy: 'map-reduce',
+        onUsage: (u) => usage.push(u),
+      });
+      expect(outcome.mode).toBe('map-reduce');
+      expect(usage).toHaveLength(2);
+      expect(usage.reduce((n, u) => n + u.tokensIn, 0)).toBe(outcome.tokensIn);
+      expect(usage.reduce((n, u) => n + u.tokensOut, 0)).toBe(outcome.tokensOut);
+      expect(usage.reduce((n, u) => n + (u.costUsd ?? 0), 0)).toBeCloseTo(outcome.costUsd!);
+    });
+
+    it('map-reduce: chunk 2 throws → chunk 1 usage was still reported', async () => {
+      const usage: number[] = [];
+      await expect(
+        reviewPullRequest({
+          systemPrompt: 's',
+          model: 'm',
+          diff: await twoFileDiff(),
+          llm: usageLlm(2),
+          strategy: 'map-reduce',
+          onUsage: (u) => usage.push(u.tokensIn),
+        }),
+      ).rejects.toThrow('schema validation');
+      // chunk 1 (ok) + chunk 2 (spent, then failed)
+      expect(usage).toEqual([100, 100]);
+    });
   });
 });

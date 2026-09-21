@@ -4,6 +4,7 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Badge, Icon, CircularScore, type IconName } from "@devdigest/ui";
 import type { RunSummary, PrCommit } from "@devdigest/shared";
+import { CostText } from "@/components/cost-text";
 
 /**
  * PR timeline — every agent run interleaved with the PR's commits, newest-first
@@ -72,6 +73,19 @@ const commitRowStyle: React.CSSProperties = {
   border: "1px dashed var(--border)",
   background: "transparent",
 };
+
+/**
+ * Tokens spent by a run, or null when the usage line should be hidden. Settled
+ * runs always show it; failed/cancelled ones only when they actually spent
+ * tokens before the error (the server records that usage); running never.
+ */
+function usageTokens(run: RunSummary): number | null {
+  if (run.tokens_in == null && run.tokens_out == null) return null;
+  const tokens = (run.tokens_in ?? 0) + (run.tokens_out ?? 0);
+  if (run.status === "done") return tokens;
+  if ((run.status === "failed" || run.status === "cancelled") && tokens > 0) return tokens;
+  return null;
+}
 
 type TimelineItem =
   | { kind: "run"; ts: number; run: RunSummary }
@@ -149,6 +163,7 @@ export function RunHistory({
         const r = item.run;
         const o = outcomeOf(r);
         const settled = r.status === "done";
+        const tokens = usageTokens(r);
         return (
           <div key={`run:${r.run_id}`} style={rowStyle}>
             <Badge color={o.color} bg={o.bg} icon={o.icon}>
@@ -197,6 +212,21 @@ export function RunHistory({
             </div>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, fontSize: 11, color: "var(--text-muted)", flexShrink: 0 }}>
               {r.ran_at && <span>{new Date(r.ran_at).toLocaleTimeString()}</span>}
+              {tokens != null && (
+                <span
+                  className="mono tnum"
+                  style={{ color: "var(--text-secondary)" }}
+                  title={t("timeline.tokensSplit", { tokensIn: r.tokens_in ?? 0, tokensOut: r.tokens_out ?? 0 })}
+                >
+                  {t("timeline.tokens", { count: tokens })}
+                  {r.cost_usd != null && (
+                    <>
+                      {" · "}
+                      <CostText usd={r.cost_usd} />
+                    </>
+                  )}
+                </span>
+              )}
             </div>
             <button
               type="button"

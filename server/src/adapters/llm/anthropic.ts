@@ -10,6 +10,7 @@ import type {
 } from '@devdigest/shared';
 import { withRetry, withTimeout } from '../../platform/resilience.js';
 import { toJsonSchema, parseWithRepair } from '../../platform/structured.js';
+import { emitUsage } from '@devdigest/reviewer-core';
 import { estimateCost } from './pricing.js';
 import { ExternalServiceError } from '../../platform/errors.js';
 
@@ -119,6 +120,13 @@ export class AnthropicProvider implements LLMProvider {
       );
       tokensIn += res.usage.input_tokens;
       tokensOut += res.usage.output_tokens;
+      // Per-attempt usage BEFORE parsing, so spend is accounted even if every
+      // attempt fails validation and we throw below.
+      emitUsage(req.onUsage, {
+        tokensIn: res.usage.input_tokens,
+        tokensOut: res.usage.output_tokens,
+        costUsd: estimateCost(req.model, res.usage.input_tokens, res.usage.output_tokens),
+      });
 
       const toolUse = res.content.find(
         (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use',

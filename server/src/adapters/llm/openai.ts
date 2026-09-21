@@ -9,6 +9,7 @@ import type {
 } from '@devdigest/shared';
 import { withRetry, withTimeout } from '../../platform/resilience.js';
 import { toJsonSchema, parseWithRepair } from '../../platform/structured.js';
+import { emitUsage } from '@devdigest/reviewer-core';
 import { estimateCost } from './pricing.js';
 import { ExternalServiceError } from '../../platform/errors.js';
 
@@ -109,8 +110,17 @@ export class OpenAIProvider implements LLMProvider {
         ),
       );
       lastRaw = res.choices?.[0]?.message?.content ?? '';
-      tokensIn += res.usage?.prompt_tokens ?? 0;
-      tokensOut += res.usage?.completion_tokens ?? 0;
+      const attemptIn = res.usage?.prompt_tokens ?? 0;
+      const attemptOut = res.usage?.completion_tokens ?? 0;
+      tokensIn += attemptIn;
+      tokensOut += attemptOut;
+      // Per-attempt usage BEFORE parsing, so spend is accounted even if every
+      // attempt fails validation and we throw below.
+      emitUsage(req.onUsage, {
+        tokensIn: attemptIn,
+        tokensOut: attemptOut,
+        costUsd: estimateCost(req.model, attemptIn, attemptOut),
+      });
 
       const parsed = parseWithRepair(req.schema, lastRaw);
       if (parsed.ok) {

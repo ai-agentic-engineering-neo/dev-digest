@@ -78,6 +78,13 @@
       "when": 1789616280886,
       "tag": "0010_omniscient_imperial_guard",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1789962193950,
+      "tag": "0011_rare_supreme_intelligence",
+      "breakpoints": true
     }
   ]
 }

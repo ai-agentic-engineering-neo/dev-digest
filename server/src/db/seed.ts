@@ -8,6 +8,13 @@ import {
   SECURITY_REVIEWER_PROMPT,
   PERFORMANCE_REVIEWER_PROMPT,
 } from './seed-prompts.js';
+import {
+  UNCOVERED_BRANCH_SKILL,
+  MISSED_CORNER_CASES_SKILL,
+  MOCK_OVERUSE_SKILL,
+  FLAKY_TESTS_SKILL,
+  BREAKING_API_CHANGES_SKILL,
+} from './seed-skills.js';
 
 /** Default provider/model for the built-in reviewer agents. */
 const DEFAULT_PROVIDER = 'openrouter' as const;
@@ -213,13 +220,132 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       createdBy: userId,
     },
   ];
+  const agentIdsByName = new Map<string, string>();
   for (const a of seedAgents) {
     const [existing] = await db
       .select()
       .from(t.agents)
       .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, a.name)));
-    if (!existing) await db.insert(t.agents).values(a);
+    const row = existing ?? (await db.insert(t.agents).values(a).returning())[0];
+    agentIdsByName.set(a.name, row!.id);
   }
+
+  // ---- "Test Quality Reviewer" agent (skills lesson demo) ----
+  const testQualityAgent: typeof t.agents.$inferInsert = {
+    workspaceId,
+    name: 'Test Quality Reviewer',
+    description: 'Reviews test suites for coverage gaps, overmocking, and flakiness.',
+    provider: DEFAULT_PROVIDER,
+    model: DEFAULT_MODEL,
+    systemPrompt:
+      'You are a senior test engineer reviewing the tests added or changed in this diff. ' +
+      'Apply every linked skill below to the diff and report findings using the same ' +
+      'severity/verdict conventions as any other reviewer agent.',
+    enabled: true,
+    version: 1,
+    createdBy: userId,
+  };
+  {
+    const [existing] = await db
+      .select()
+      .from(t.agents)
+      .where(
+        and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, testQualityAgent.name)),
+      );
+    const row = existing ?? (await db.insert(t.agents).values(testQualityAgent).returning())[0];
+    agentIdsByName.set(testQualityAgent.name, row!.id);
+  }
+
+  // ---- built-in skills (Skills lesson demo) ----
+  const seedSkills: Array<typeof t.skills.$inferInsert> = [
+    {
+      workspaceId,
+      name: 'Uncovered branch detection',
+      description: 'Flags conditional branches/error paths with no exercising test.',
+      type: 'rubric',
+      source: 'manual',
+      body: UNCOVERED_BRANCH_SKILL,
+    },
+    {
+      workspaceId,
+      name: 'Missed corner cases',
+      description: 'Flags test suites that only exercise the happy path.',
+      type: 'rubric',
+      source: 'manual',
+      body: MISSED_CORNER_CASES_SKILL,
+    },
+    {
+      workspaceId,
+      name: 'Mock overuse',
+      description: 'Flags tests that mock away the behavior they claim to verify.',
+      type: 'rubric',
+      source: 'manual',
+      body: MOCK_OVERUSE_SKILL,
+    },
+    {
+      workspaceId,
+      name: 'Flaky tests',
+      description: 'Flags tests likely to pass/fail non-deterministically.',
+      type: 'rubric',
+      source: 'manual',
+      body: FLAKY_TESTS_SKILL,
+    },
+    {
+      workspaceId,
+      name: 'Breaking API/route signature changes',
+      description: 'Flags route/contract/exported-signature changes that break callers.',
+      type: 'convention',
+      source: 'manual',
+      body: BREAKING_API_CHANGES_SKILL,
+    },
+  ];
+  const skillIdsByName = new Map<string, string>();
+  for (const s of seedSkills) {
+    const [existing] = await db
+      .select()
+      .from(t.skills)
+      .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.name, s.name)));
+    const row = existing ?? (await db.insert(t.skills).values(s).returning())[0];
+    skillIdsByName.set(s.name, row!.id);
+    // Snapshot version 1 for a freshly-created skill (mirrors SkillsRepository.insert).
+    if (!existing) {
+      await db
+        .insert(t.skillVersions)
+        .values({ skillId: row!.id, version: row!.version, body: row!.body })
+        .onConflictDoNothing();
+    }
+  }
+
+  // ---- agent ↔ skill links (idempotent on the agent_skills PK) ----
+  const testQualityAgentId = agentIdsByName.get(testQualityAgent.name)!;
+  const testQualitySkillOrder = [
+    'Uncovered branch detection',
+    'Missed corner cases',
+    'Mock overuse',
+    'Flaky tests',
+  ];
+  for (const [order, name] of testQualitySkillOrder.entries()) {
+    await db
+      .insert(t.agentSkills)
+      .values({ agentId: testQualityAgentId, skillId: skillIdsByName.get(name)!, order })
+      .onConflictDoUpdate({
+        target: [t.agentSkills.agentId, t.agentSkills.skillId],
+        set: { order },
+      });
+  }
+
+  const generalReviewerId = agentIdsByName.get('General Reviewer')!;
+  await db
+    .insert(t.agentSkills)
+    .values({
+      agentId: generalReviewerId,
+      skillId: skillIdsByName.get('Breaking API/route signature changes')!,
+      order: 0,
+    })
+    .onConflictDoUpdate({
+      target: [t.agentSkills.agentId, t.agentSkills.skillId],
+      set: { order: 0 },
+    });
 
   return { workspaceId, userId };
 }

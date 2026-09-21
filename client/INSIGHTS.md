@@ -9,6 +9,22 @@ gotchas, dead ends, decisions that don't belong in the fixed map in
 What happened, what was tried, what actually worked or didn't, and why.
 -->
 
+## 2026-09-20 — `z.number().default(0)` makes a contract field required, not optional, at the type level [Context]
+`Agent.skills_count` and `Skill.agents_count` in `client/src/vendor/shared/contracts/knowledge.ts:132,197`
+are declared `z.number().int().default(0)`. `.default()` only makes a field
+optional on the schema's *input* (parse) side — the inferred TS type
+(`z.infer<typeof Agent>`) still marks it non-optional, since a parsed value
+always has it. Any object literal typed as `Agent`/`Skill` (test fixtures,
+mock data) that predates this field now fails `tsc --noEmit` with "Property
+'skills_count' is missing" even though at runtime `Schema.parse({})` would
+happily fill in `0`. Pre-existing fixtures in `AgentEditor.test.tsx:18` and
+`AgentCard.test.tsx:11` broke this way when another workstream added the
+field — vitest itself still ran fine (no type-checking in the test
+transform), only `pnpm typecheck` caught it. Takeaway: adding a `.default()`
+field to a widely-fixture'd contract is not typecheck-safe without also
+updating every existing literal of that type; grep for `: Agent = {` /
+`: Skill = {`-style literals before landing the schema change.
+
 ## 2026-09-19 — one filter value drove two different scopes [Mistake]
 `FindingsTab`'s `severityFilter` was passed to two places at once: down into
 `ReviewRunAccordion` (correctly filters that run's own findings) and into a

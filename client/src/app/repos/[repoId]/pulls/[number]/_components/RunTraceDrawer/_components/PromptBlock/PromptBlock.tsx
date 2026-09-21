@@ -5,6 +5,7 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Button, Icon, Modal } from "@devdigest/ui";
+import { estimateTokens } from "../../helpers";
 import { s } from "../../styles";
 import { PromptModalBody } from "../PromptModalBody";
 
@@ -35,6 +36,9 @@ export function PromptBlock({ label, text, color }: { label: string; text: strin
       <div onClick={() => setOpen((o) => !o)} style={s.promptHead}>
         <span style={s.promptDot(color)} />
         <span style={s.promptLabel}>{label}</span>
+        <span style={{ fontSize: 11, color: "var(--text-muted)" }} className="mono tnum">
+          ≈{estimateTokens(text)} tok
+        </span>
         <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
           <button
             type="button"

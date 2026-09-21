@@ -9,6 +9,60 @@ gotchas, dead ends, decisions that don't belong in the fixed map in
 What happened, what was tried, what actually worked or didn't, and why.
 -->
 
+## 2026-09-20 — `agent_skills` link-order upsert must use `onConflictDoUpdate`, not `onConflictDoNothing` [Bug found via manual smoke test]
+`seed.ts`'s agent↔skill link loop originally used `.onConflictDoNothing()`
+keyed on the `agent_skills` PK (`agentId`,`skillId`). During development the
+skill/order list changed shape more than once, so an earlier seed run had
+already inserted `(testQualityAgentId, flakyTestsSkillId)` at `order: 1`;
+once the final code moved "Flaky tests" to `order: 3` and added "Missed
+corner cases" at `order: 1`, re-running seed left the DB with **one skill
+permanently missing from the agent's linked list and a stale order value on
+another** — `onConflictDoNothing` means a reseed can never repair a link
+that already exists with the wrong `order`, only add brand-new pairs. Found
+by manually hitting `GET /agents/:id/skills` after seeding and getting 3
+links instead of 4. Fixed by switching both link inserts to
+`.onConflictDoUpdate({ target: [agentId, skillId], set: { order } })` —
+matches the file's own doc comment ("re-running **upserts** the demo
+fixtures"). Verified: reseeding twice now converges to the same 4
+correctly-ordered links, and a subsequent `4 skill(s) applied: …` log line
+from a real `POST /pulls/:id/review` run confirmed the fix reaches
+`PromptAssembly.skills` end-to-end (and dropped to `3 skill(s) applied` when
+one was toggled `enabled: false`, as expected). Lesson: any `agent_skills` /
+similarly-ordered join-table seed insert in this repo should default to
+`onConflictDoUpdate` on the mutable columns, not `onConflictDoNothing` —
+the latter is only safe when every column besides the PK is truly immutable
+once set.
+
+## 2026-09-20 — `agent_skills` gives two opposite per-row counts from one join; split into two methods [Decision]
+The Skills feature spec asked for one `SkillsRepository.agentCounts(workspaceId)`
+(`server/src/modules/skills/repository.ts:184-216`) and then, separately, said
+to reuse that same method to populate `Agent.skills_count` in
+`AgentsService.list()`. Those are opposite reductions of the same join: a
+row scoped to `agent_skills` joined to the workspace's `skills` carries both
+an `agentId` and a `skillId`, so grouping it by `skillId` gives "agents per
+skill" (`Skill.agents_count`) while grouping the SAME rows by `agentId`
+gives "skills per agent" (`Agent.skills_count`) — one `Map<string, number>`
+return type can't serve both directions at once. Resolved by factoring the
+join into a private `agentSkillPairs()` and exposing two thin reducers,
+`agentCounts()` (keyed by skillId) and `skillCountsByAgent()` (keyed by
+agentId, used from `server/src/modules/agents/service.ts`'s `list()`) —
+both still "one query, reduce in JS", per the no-`GROUP BY` convention
+below. If a future lesson needs this again, reach for the pair, not a
+single generically-named counter.
+
+## 2026-09-20 — fflate's `unzipSync` lists directory entries as `''`-suffixed empty-body keys [Context]
+`fflate@0.8` (`server/src/modules/skills/import.ts`) returns directories
+from a zip listing as ordinary keys in the same `Record<string, Uint8Array>`
+as files — e.g. `'pkg/'` with a zero-length `Uint8Array`, not omitted and
+not flagged by any separate boolean. There's no `.dir`/`.isDirectory` field
+to check; the only signal is the trailing `/` on the key itself (confirmed
+empirically via `zipSync`/`unzipSync` round-trip, not from reading fflate's
+d.ts). `importSkillFromFile`'s `isDirEntry()`/`isMarkdownEntry()` helpers
+filter on that trailing slash before searching for a `.md` entry AND before
+counting "other files" for the import warning — skipping this filter would
+both misreport the ignored-file count and could false-positive-match a
+directory literally named `something.md/`.
+
 ## 2026-09-18 — PR-list cost column sums runs; score/findings deliberately don't [Decision]
 `GET /repos/:id/pulls` in `modules/pulls/routes.ts` computes three per-PR
 rollups (score, findings, cost) with the same "one IN-query, reduce in JS"

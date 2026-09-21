@@ -9,6 +9,7 @@ import type {
   ReviewStrategy,
 } from '@devdigest/shared';
 import { AgentsRepository } from './repository.js';
+import { SkillsRepository } from '../skills/repository.js';
 import { toAgentDto, toAgentVersionDto } from './helpers.js';
 
 /**
@@ -50,19 +51,26 @@ export interface UpdateAgentInput {
 
 export class AgentsService {
   private repo: AgentsRepository;
+  private skillsRepo: SkillsRepository;
 
   constructor(private container: Container) {
     this.repo = new AgentsRepository(container.db);
+    this.skillsRepo = new SkillsRepository(container.db);
   }
 
   async list(workspaceId: string): Promise<Agent[]> {
-    const rows = await this.repo.list(workspaceId);
-    return rows.map(toAgentDto);
+    const [rows, skillCounts] = await Promise.all([
+      this.repo.list(workspaceId),
+      this.skillsRepo.skillCountsByAgent(workspaceId),
+    ]);
+    return rows.map((r) => toAgentDto(r, skillCounts.get(r.id) ?? 0));
   }
 
   async get(workspaceId: string, id: string): Promise<Agent | undefined> {
     const row = await this.repo.getById(workspaceId, id);
-    return row ? toAgentDto(row) : undefined;
+    if (!row) return undefined;
+    const links = await this.repo.linkedSkills(id);
+    return toAgentDto(row, links.length);
   }
 
   /** Delete an agent (and its versions/skill-links, via cascade). */

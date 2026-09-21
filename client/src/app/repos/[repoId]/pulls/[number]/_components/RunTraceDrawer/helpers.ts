@@ -26,3 +26,8 @@ export function formatSeconds(ms: number): string {
 export function formatTokens(tokensIn: number, tokensOut: number): string {
   return `${(tokensIn / 1000).toFixed(0)}k→${(tokensOut / 1000).toFixed(1)}k`;
 }
+
+/** Rough client-side token estimate for a block of prompt text (~4 chars/token). */
+export function estimateTokens(text: string): number {
+  return Math.round(text.length / 4);
+}

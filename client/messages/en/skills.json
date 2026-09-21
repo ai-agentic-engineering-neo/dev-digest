@@ -1,9 +1,14 @@
 {
+  "card": {
+    "noDescription": "No description",
+    "agentsCount": "{count} agent(s)"
+  },
   "page": {
     "crumbLab": "Skills Lab",
     "crumbSkills": "Skills",
     "heading": "Skills",
     "addSkill": "Add Skill",
+    "create": "Create",
     "searchPlaceholder": "Search skills…",
     "loadError": "Could not load skills.",
     "menu": {
@@ -21,6 +26,23 @@
       "body": "Pick a skill on the left to preview its body."
     }
   },
+  "createModal": {
+    "title": "Create skill",
+    "subtitle": "A skill is a body of Markdown appended into a reviewing agent's prompt.",
+    "cancel": "Cancel",
+    "create": "Create skill",
+    "creating": "Creating…",
+    "defaultName": "New Skill",
+    "defaultBody": "# Rule\nDescribe the rule…",
+    "fields": {
+      "name": "Name",
+      "namePlaceholder": "PR Quality Rubric",
+      "description": "Description",
+      "descriptionPlaceholder": "What this skill enforces",
+      "type": "Type",
+      "body": "Skill body (Markdown)"
+    }
+  },
   "detail": {
     "crumbSkill": "Skill",
     "back": "← All skills",
@@ -33,11 +55,15 @@
   "drawer": {
     "title": "Add a skill",
     "subtitle": "Import from a file, a URL, or search vetted community skills",
+    "subtitleFile": "Upload a Markdown, text, or zip file to preview it before saving.",
     "tabs": {
       "file": "From file",
       "url": "From URL",
       "community": "Community"
     },
+    "chooseFileLabel": "Skill file",
+    "chooseFileHint": "Accepted: .md, .markdown, .txt, .zip",
+    "warningsTitle": "Warnings",
     "importFailed": "Import failed"
   },
   "file": {
@@ -97,5 +123,57 @@
     "bodyLabel": "Skill body (Markdown)",
     "bodyHint": "Saving a changed body creates a new immutable version.",
     "version": "v{version}"
+  },
+  "editor": {
+    "loadErrorTitle": "Couldn’t load this skill",
+    "loadErrorBody": "The skill could not be loaded.",
+    "skillFallback": "Skill",
+    "listTitle": "Skills",
+    "add": "Add",
+    "createFromScratch": "Create from scratch",
+    "disabled": "disabled",
+    "runOnEvals": "Run on evals",
+    "tabs": {
+      "config": "Config",
+      "preview": "Preview",
+      "evals": "Evals",
+      "stats": "Stats",
+      "versions": "Versions"
+    }
+  },
+  "config": {
+    "title": "Configuration",
+    "enabled": "Enabled",
+    "name": "Name",
+    "description": "Description",
+    "type": "Type",
+    "bodyPanelTitle": "Skill body",
+    "unsaved": "unsaved",
+    "tokens": "≈{count} tokens",
+    "changeNoteLabel": "Change note",
+    "changeNotePlaceholder": "What changed and why…",
+    "save": "Save",
+    "saving": "Saving…",
+    "saved": "Saved (v{version})",
+    "savedToast": "Skill saved (v{version})"
+  },
+  "previewTab": {
+    "subtitle": "Rendered as the reviewing agent receives it.",
+    "empty": "This skill has no body yet."
+  },
+  "placeholder": {
+    "body": "Skill-level {label} land in a later lesson."
+  },
+  "versionsTab": {
+    "current": "current",
+    "noChangeNote": "—",
+    "diff": "Diff",
+    "restore": "Restore",
+    "restoring": "Restoring…",
+    "diffModalTitle": "v{from} → v{to}",
+    "diffOld": "v{version} (old)",
+    "diffCurrent": "Current (v{version})",
+    "loadError": "Could not load version history.",
+    "empty": "No earlier versions yet."
   }
 }

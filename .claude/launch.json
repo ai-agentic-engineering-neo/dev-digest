@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "server",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["--yes", "pnpm@10", "--dir", "server", "run", "dev"],
+      "port": 3001
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["--yes", "pnpm@10", "--dir", "client", "run", "dev"],
+      "port": 3000
+    }
+  ]
+}

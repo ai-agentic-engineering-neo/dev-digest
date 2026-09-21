@@ -10,7 +10,10 @@ against one shared browser session by `run.ts`.
 
 ## How a flow works
 
-A spec lives in `specs/NN-name.flow.json`:
+> **Note:** flow definitions live in `specs_old/`, not `specs/` — `specs/` is
+> reserved for product/feature specs (see [CLAUDE.md](CLAUDE.md)).
+
+A spec lives in `specs_old/NN-name.flow.json`:
 
 ```jsonc
 {

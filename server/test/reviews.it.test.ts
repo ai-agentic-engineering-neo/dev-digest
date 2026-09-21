@@ -202,12 +202,23 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(trace.config.model).toBe('gpt-4.1');
     expect(trace.stats.grounding).toBe('1/2 passed');
     expect(trace.log.length).toBeGreaterThan(0);
+    // MockLLMProvider reports costUsd: 0.001 per call; a single-file diff is one
+    // call, so the run's cost is exactly that, not null/0 (Run Cost Badge).
+    expect(trace.stats.cost_usd).toBe(0.001);
 
     // agent_runs row populated for A5 to aggregate
     const [run] = await pg.handle.db.select().from(t.agentRuns).where(eq(t.agentRuns.id, runId));
     expect(run!.status).toBe('done');
     expect(run!.findingsCount).toBe(1);
     expect(run!.grounding).toBe('1/2 passed');
+    expect(run!.costUsd).toBe(0.001);
+
+    // the PR list surfaces that same run's cost alongside its score (same
+    // provenance — joined via reviews.run_id, not a separately-"latest" run).
+    const pulls = (await app.inject({ method: 'GET', url: `/repos/${pr.repoId}/pulls` })).json();
+    const listed = pulls.find((p: { id: string }) => p.id === pr.id);
+    expect(listed.score).toBe(65);
+    expect(listed.cost_usd).toBe(0.001);
 
     await app.close();
   });

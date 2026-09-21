@@ -157,5 +157,8 @@ Postgres); everything else is hermetic. The browser e2e flows live in
   host port in `docker-compose.yml`.
 - **`vector` type errors** — the pgvector extension is enabled by migration `0000`;
   make sure migrations ran against the Dockerized DB, not a different one.
-- **Reset everything** — `docker compose down -v` drops the volume, then re-run
-  `./scripts/dev.sh`.
+- **Reset everything** — `docker compose down -v` drops the `devdigest_pgdata`
+  volume, i.e. **every repo and review you've imported** — it is irreversible.
+  For a clean, seeded DB (e.g. for e2e) use the hermetic `./scripts/e2e.sh`
+  instead; only reach for `down -v` when you really want to lose local data,
+  then re-run `./scripts/dev.sh`.

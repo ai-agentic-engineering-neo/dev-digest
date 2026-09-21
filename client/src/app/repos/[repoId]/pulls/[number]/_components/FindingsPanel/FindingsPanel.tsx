@@ -84,17 +84,15 @@ export function FindingsPanel({
       </div>
 
       <div style={s.filterRow}>
-        {SEVERITIES.map((lvl) => {
+        {SEVERITIES.filter((lvl) => counts[lvl]! > 0 || severities.has(lvl)).map((lvl) => {
           const active = severities.has(lvl);
-          const disabled = counts[lvl] === 0 && !active;
           return (
             <button
               key={lvl}
               type="button"
               aria-pressed={active}
-              disabled={disabled}
               onClick={() => toggleSeverity(lvl)}
-              style={s.filterButton(active, SEV[lvl].c, disabled)}
+              style={s.filterButton(active, SEV[lvl].c, false)}
             >
               {SEV[lvl].label}
             </button>

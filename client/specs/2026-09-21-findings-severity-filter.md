@@ -30,7 +30,8 @@ therefore cannot be asked separately.
 
 **Non-goals**
 
-- Making timeline tiles interactive. They report; they do not filter.
+- Making timeline tiles filter anything. A tile reports its own run and may be pointed at to
+  read that run's findings, but it never narrows the list below.
 - Filtering by category, file, agent or confidence — confidence has its own control.
 - Persisting or sharing the selection.
 - Changing severity assignment, finding cards, or their actions.
@@ -70,15 +71,15 @@ therefore cannot be asked separately.
 
 **The filter**
 
-- **AC-8** — Below the counters the system SHALL show three filter buttons — Critical, Warning,
-  Suggestion — regardless of which severities the run produced.
-  _(observable: all three are present; the row is a stable control, not a moving target)_
-- **AC-9** — IF a severity occurs zero times among the currently listed findings AND its
-  button is not active, THEN that button SHALL be disabled.
-  _(observable: a button that could only ever empty the list cannot be pressed — but an
-  active button stays pressable even when its count falls to zero, because the count can
-  fall to zero as a RESULT of narrowing or of hiding low confidence, and a control that
-  applied a narrowing must always be able to undo it. Disabling it would strand the reader
+- **AC-8** — Below the counters the system SHALL show a filter button for each severity the
+  run produced, and SHALL NOT show one for a severity it did not.
+  _(observable: a run of criticals and warnings offers two buttons, not three greyed ones. A
+  control that can only ever empty the list is not offered at all — the same rule the counters
+  follow, so the two rows always describe the same set of levels)_
+- **AC-9** — WHILE a button is active, the system SHALL keep showing it even if its count
+  falls to zero.
+  _(observable: the count can fall to zero as a RESULT of hiding low confidence, and a control
+  that applied a narrowing must always be able to undo it. Removing it would strand the reader
   in an empty list whose only exit is a different control)_
 - **AC-10** — WHEN a reader activates a button, the system SHALL list only findings of the
   activated severities.
@@ -115,18 +116,40 @@ therefore cannot be asked separately.
   _(observable: clicking one does what clicking the tile already did, nothing more)_
 - **AC-21** — Tiles SHALL use the same severity symbols and ordering as the counters.
   _(observable: the two surfaces cannot be read as different scales)_
+- **AC-22** — WHEN a reader points at a tile's severity indicators, the system SHALL open a
+  panel headed with that run's finding count.
+  _(observable: a run of three findings heads its panel `3 FINDINGS`. The wording is the short
+  one, unlike the pull-request list's: there the heading must name which run it describes,
+  here the tile the reader is pointing at IS the run)_
+- **AC-23** — Each entry in that panel SHALL show the severity icon, the title, the category,
+  the cited file and line, the confidence as a percentage, and an abbreviated description, and
+  SHALL NOT render any control that changes state.
+  _(observable: the same read-only shape the pull-request list previews use)_
+- **AC-24** — The indicators SHALL carry a visible affordance that they can be pointed at.
+  _(observable: a reader discovers the panel without being told it exists)_
+- **AC-25** — WHEN the reader stops pointing, the panel SHALL close; the indicators SHALL be
+  reachable by keyboard, SHALL open the panel on focus and SHALL close it on Escape.
+- **AC-26** — The panel SHALL be built from findings the client already holds, issuing no
+  request and invoking no model.
+  _(observable: the reviews carrying these findings are already on the page — the same source
+  the counters are grouped from)_
+- **AC-27** — The panel SHALL render every finding-derived string as plain text.
+  _(observable: titles and descriptions come from model output over attacker-influenced diff
+  content; markup in them appears literally, as characters)_
 
 ## Edge cases
 
 | Case | Handling |
 |---|---|
-| Run produced no findings | No counters, all three buttons disabled, existing empty state → AC-2, AC-9 |
-| Every finding hidden by confidence | No severity occurs, so no counters; buttons disabled → AC-6, AC-9 |
-| One severity only | One counter, one enabled button → AC-1, AC-9 |
+| Run produced no findings | No counters, no buttons, existing empty state → AC-2, AC-8 |
+| Every finding hidden by confidence | No severity occurs, so neither row is shown → AC-6, AC-8 |
+| One severity only | One counter, one button → AC-1, AC-8 |
+| Confidence hides every finding of an ACTIVE level | Its button stays, so the reader can undo → AC-9 |
 | Severity outside the three defined values | accepted: no handling — the contract's enum makes it unrepresentable, and a value that slipped past validation is a bug to fix at the boundary |
 | Reader filters, then toggles confidence | Both apply; counts follow confidence → AC-6 |
 | Two runs expanded at once | Each filters only its own list → AC-15 |
-| Tile of a run that produced nothing, failed, or is still running | No indicators — a count would claim a result that does not exist → AC-19 |
+| Tile of a run that produced nothing, failed, or is still running | No indicators, and so nothing to point at → AC-19, AC-22 |
+| A run with more findings than the panel can show | The panel lists at most 5, ordered by descending severity then confidence, while the heading reports the run's full count — the same bound the pull-request list uses, for the same reason |
 | Tile of a commit rather than a run | Unaffected; it has no findings to describe |
 
 ## Non-functional

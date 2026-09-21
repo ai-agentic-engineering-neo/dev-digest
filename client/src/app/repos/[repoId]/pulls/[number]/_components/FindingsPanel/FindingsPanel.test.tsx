@@ -82,10 +82,11 @@ describe("severity counters and filter", () => {
     expect(screen.getByText("Warn two")).toBeInTheDocument();
   });
 
-  it("offers all three buttons and disables absent levels (AC-8, AC-9)", () => {
+  it("offers a button only for a level the run produced (AC-8)", () => {
     renderWithIntl(<FindingsPanel findings={MANY} prId="pr1" />);
-    expect(screen.getByRole("button", { name: /suggestion/i })).toBeDisabled();
-    expect(screen.getByRole("button", { name: /critical/i })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: /suggestion/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /critical/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /warning/i })).toBeInTheDocument();
   });
 
   it("filters, unions and clears (AC-10, AC-11, AC-12, AC-13)", () => {
@@ -121,21 +122,21 @@ describe("severity counters and filter", () => {
     const counters = screen.getByTestId("severity-counters");
     expect(within(counters).queryByText("Critical")).not.toBeInTheDocument();
     expect(within(counters).getByText("Warning")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /critical/i })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /critical/i })).not.toBeInTheDocument();
   });
 
-  it("an active button stays pressable when its count falls to zero (AC-9)", () => {
+  it("an active button survives its count falling to zero (AC-9)", () => {
     renderWithIntl(<FindingsPanel findings={LOW_CRIT} prId="pr1" />);
-    const crit = screen.getByRole("button", { name: /critical/i });
-    fireEvent.click(crit);
+    const critButton = () => screen.getByRole("button", { name: /critical/i });
+    fireEvent.click(critButton());
     fireEvent.click(screen.getByRole("switch"));
 
     expect(within(screen.getByTestId("severity-counters")).queryByText("Critical")).not.toBeInTheDocument();
-    expect(crit).toBeEnabled();
+    expect(critButton()).toBeInTheDocument();
 
-    fireEvent.click(crit);
+    fireEvent.click(critButton());
 
-    expect(crit).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByRole("button", { name: /critical/i })).not.toBeInTheDocument();
     expect(screen.getByText("High warn")).toBeInTheDocument();
   });
 

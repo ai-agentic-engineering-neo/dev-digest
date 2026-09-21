@@ -50,15 +50,33 @@ export class MockNotificationClient implements NotificationClient {
   }
 }
 
-// 4. server/src/platform/container.ts — the wiring
-notifications: overrides?.notifications ?? new SlackNotificationClient(),
+// 4. server/src/platform/container.ts — the wiring. Note the async getter
+// shape, matching container.github()/container.llm() — this is the real
+// convention, not a same-line `new` in the constructor.
+export class Container {
+  private _notifications?: NotificationClient;
 
-// 5. server/src/modules/notifications/service.ts — depends on the port, not the SDK
+  async notifications(): Promise<NotificationClient> {
+    if (this.overrides.notifications) return this.overrides.notifications;
+    if (this._notifications) return this._notifications;
+    const token = await this.secrets.get('SLACK_BOT_TOKEN');
+    this._notifications = new SlackNotificationClient(token);
+    return this._notifications;
+  }
+}
+
+// 5. server/src/modules/notifications/service.ts — depends on the port, not
+// the SDK. Takes the whole Container (the real convention ReviewService and
+// RepoService use) and pulls the port off it via the async getter, rather
+// than taking `NotificationClient` directly in the constructor — a service
+// that takes individual ports one by one doesn't match how existing modules
+// are wired and makes adding a second dependency an API-breaking change.
 export class NotificationService {
-  constructor(private notifications: NotificationClient) {}
+  constructor(private container: Container) {}
 
   async notifyReviewDone(reviewId: string) {
-    await this.notifications.postMessage('#reviews', `Review ${reviewId} done`);
+    const notifications = await this.container.notifications();
+    await notifications.postMessage('#reviews', `Review ${reviewId} done`);
   }
 }
 ```
@@ -67,6 +85,37 @@ export class NotificationService {
 `MockNotificationClient` through `ContainerOverrides` exactly the way
 existing tests inject a mock `LLMProvider` or `GitHubClient` — no network
 call, no real Slack token needed.
+
+### Calling this service from another module
+
+`ReviewRunExecutor` (in the `reviews` module) needs to call
+`NotificationService.notifyReviewDone` when a run finishes. This skill's
+guidance doesn't cover cross-module calls as their own layer, so use this
+rule: instantiate the callee at the call site with `new NotificationService(
+this.container)`, the same way `RepoService` constructs `RepoRepository`
+directly rather than through a shared registry. Reserve a container-level
+facade getter (like `container.repoIntel`) for a subsystem with several
+independent consumers — a single caller doesn't need one.
+
+```ts
+// server/src/modules/reviews/run-executor.ts
+import { NotificationService } from '../notifications/service.js';
+
+export class ReviewRunExecutor {
+  private notifications: NotificationService;
+
+  constructor(private container: Container, /* ...other deps... */) {
+    this.notifications = new NotificationService(container);
+  }
+
+  private async onRunComplete(/* ... */) {
+    // Best-effort — a Slack outage must never fail the review run.
+    void this.notifications
+      .notifyReviewDone(reviewId)
+      .catch((err) => logger?.warn({ err }, 'notifications: failed to post'));
+  }
+}
+```
 
 ---
 

@@ -19,11 +19,21 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
   const st = STATUS_META[pr.status] ?? STATUS_META.needs_review!;
   const { size, lines } = sizeOf(pr);
   const reviewed = pr.score != null; // null score ⇒ PR has never been reviewed
+  const href = `/repos/${repoId}/pulls/${pr.number}`;
   return (
     <div
+      role="link"
+      tabIndex={0}
+      aria-label={pr.title}
       onMouseEnter={() => setH(true)}
       onMouseLeave={() => setH(false)}
-      onClick={() => router.push(`/repos/${repoId}/pulls/${pr.number}`)}
+      onClick={() => router.push(href)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          router.push(href);
+        }
+      }}
       style={s.row(h)}
     >
       <div style={s.rowTitleCell}>

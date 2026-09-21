@@ -2,7 +2,6 @@
    GET /repos/:id/pulls (F1). Filters/sort live in query (?status&sort). */
 "use client";
 
-import React from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
@@ -43,8 +42,20 @@ export default function PullsPage() {
     router.replace(`/repos/${repoId}/pulls?${sp.toString()}`);
   };
 
-  const [query, setQuery] = React.useState("");
-  const [sort, setSort] = React.useState("newest");
+  const query = search.get("q") ?? "";
+  const setQuery = (v: string) => {
+    const sp = new URLSearchParams(search.toString());
+    if (v) sp.set("q", v);
+    else sp.delete("q");
+    router.replace(`/repos/${repoId}/pulls?${sp.toString()}`);
+  };
+
+  const sort = search.get("sort") ?? "newest";
+  const setSort = (v: string) => {
+    const sp = new URLSearchParams(search.toString());
+    sp.set("sort", v);
+    router.replace(`/repos/${repoId}/pulls?${sp.toString()}`);
+  };
 
   const q = query.trim().toLowerCase();
   const filtered = (pulls ?? [])

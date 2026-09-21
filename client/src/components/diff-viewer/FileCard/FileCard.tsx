@@ -80,7 +80,7 @@ export function FileCard({ file, commenting }: { file: PrFile; commenting?: Diff
           ) : (
             lines.map((ln, i) => (
               <CodeLine
-                key={i}
+                key={`${ln.kind}:${ln.oldNo ?? "-"}:${ln.newNo ?? "-"}:${i}`}
                 ln={ln}
                 path={file.path}
                 threads={threadsForLine(ln, matched)}

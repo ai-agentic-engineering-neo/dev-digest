@@ -41,8 +41,8 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
               {trace.specs_read.length === 0 ? (
                 <span style={s.specsNone}>{t("trace.config.none")}</span>
               ) : (
-                trace.specs_read.map((sp, i) => (
-                  <span key={i} className="mono" style={s.spec}>
+                trace.specs_read.map((sp) => (
+                  <span key={sp} className="mono" style={s.spec}>
                     {sp}
                   </span>
                 ))
@@ -99,7 +99,7 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
         {trace.tool_calls.length === 0 ? (
           <span style={s.noToolCalls}>{t("trace.noToolCalls")}</span>
         ) : (
-          trace.tool_calls.map((tc, i) => <ToolCallRow key={i} tc={tc} />)
+          trace.tool_calls.map((tc, i) => <ToolCallRow key={`${tc.tool}:${tc.ms}:${i}`} tc={tc} />)
         )}
       </TraceSection>
 

@@ -27,6 +27,15 @@ that matches neither. Evidence: client/src/components/run-cost-badge/RunCostBadg
 
 ## Tool & Library Notes
 
+**2026-09-21** — When two inputs open the same thing, the test that matters CROSSES them; one test
+per input passes on a component that is broken. A timeline preview panel kept a single open-slot
+for pointer and keyboard and passed every test in its file — hover opens, hover closes, focus
+opens, Escape closes, each on its own — while Chrome closed it on `mouseleave` although focus was
+still holding it open. jsdom can express the crossing: `mouseEnter → focus → mouseLeave` fails on
+the single-slot version. Nothing made anyone write it, and this client's gate cannot make up for
+that — typecheck, vitest and build all stayed green; a browser pass is what exposed it.
+Evidence: client/src/app/repos/[repoId]/pulls/[number]/_components/RunHistory/RunHistory.test.tsx:223
+
 ## Recurring Errors & Fixes
 
 **2026-09-21** — The client's `vendor/shared` barrel cannot be used to import a VALUE. It

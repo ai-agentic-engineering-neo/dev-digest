@@ -210,6 +210,10 @@ export class ReviewRunExecutor {
           if (this.container.runBus.isCancelled(runId)) throw new RunCancelledError();
         },
       });
+      // Last checkpoint: a cancel that arrived DURING the final LLM call must
+      // still win — otherwise the review is persisted and 'done' overwrites
+      // the 'cancelled' status the cancel route already wrote.
+      if (this.container.runBus.isCancelled(runId)) throw new RunCancelledError();
       const { tokensIn, tokensOut, grounding } = outcome;
 
       const keptFindings = outcome.review.findings;

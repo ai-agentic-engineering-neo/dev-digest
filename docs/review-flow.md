@@ -139,9 +139,12 @@ sequenceDiagram
 ## Not shown in the diagram
 
 - **Cancel.** `POST /runs/:id/cancel` calls `runBus.cancel`. The engine stops
-  at its next `checkCancelled` checkpoint, before the next LLM call. The server
-  also marks the row `cancelled` and completes the bus immediately, so orphaned
-  runs can be cancelled too.
+  at its next `checkCancelled` checkpoint, before the next LLM call. The executor
+  checks once more after the engine returns, so a cancel that arrives during the
+  last LLM call still discards the review. The server also marks the row
+  `cancelled` and completes the bus immediately, so orphaned runs can be
+  cancelled too. The cancel flag survives `complete()`, which is why the live
+  runner still sees it.
 - **Per-agent failure.** Status `failed`, the error text and the log so far
   are persisted. The remaining agents keep running.
 - **Server restart.** `RunBus` is in-memory and reviews don't go through

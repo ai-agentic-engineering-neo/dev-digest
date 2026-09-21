@@ -24,7 +24,10 @@ export class RunBus {
   private cancelled = new Set<string>();
 
   /** Request cancellation of an in-flight run. The runner checks `isCancelled`
-   *  at its next checkpoint (between map-reduce files) and stops. */
+   *  at its next checkpoint (before each LLM call, and once more before it
+   *  persists the review) and stops. The flag is sticky: `complete()` must not
+   *  clear it, because `cancelRun` completes the bus right after cancelling
+   *  (to end the SSE stream at once) while a live runner has yet to see it. */
   cancel(runId: string): void {
     this.cancelled.add(runId);
   }
@@ -72,11 +75,11 @@ export class RunBus {
     return this.buffers.get(runId) ?? [];
   }
 
-  /** Signal completion and release buffers/emitters. */
+  /** Signal completion and release buffers/emitters. Leaves the cancel flag
+   *  alone (see `cancel`). */
   complete(runId: string): void {
     const e = this.emitters.get(runId);
     this.completed.add(runId);
-    this.cancelled.delete(runId);
     e?.emit('done');
     // Keep the buffer briefly available for late subscribers; clear emitter.
     this.emitters.delete(runId);

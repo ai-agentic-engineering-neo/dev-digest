@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { render, screen, cleanup, within } from "@testing-library/react";
+import { render, screen, cleanup, within, fireEvent } from "@testing-library/react";
 import { FindingPreviewPanel, type FindingPreviewItem } from "./FindingPreviewPanel";
 
 afterEach(cleanup);
@@ -42,6 +42,30 @@ describe("FindingPreviewPanel", () => {
     const hostile: FindingPreviewItem[] = [{ ...ITEMS[0]!, title: "<img src=x onerror=alert(1)>" }];
     render(<FindingPreviewPanel heading="1 FINDING" items={hostile} />);
     expect(screen.getByText("<img src=x onerror=alert(1)>")).toBeInTheDocument();
+  });
+
+  it("keeps the heading in place while the entries scroll under it (AC-22)", () => {
+    const many: FindingPreviewItem[] = Array.from({ length: 12 }, (_, i) => ({
+      ...ITEMS[0]!,
+      title: `Finding ${i}`,
+      line: i,
+    }));
+    render(<FindingPreviewPanel heading="12 FINDINGS" items={many} />);
+
+    const list = screen.getByTestId("finding-preview-list");
+    expect(list.style.overflowY).toBe("auto");
+    expect(list).not.toContainElement(screen.getByText("12 FINDINGS"));
+
+    fireEvent.scroll(list, { target: { scrollTop: 400 } });
+
+    expect(screen.getByText("12 FINDINGS")).toBeInTheDocument();
+  });
+
+  it("names the dialog by its visible heading rather than repeating it", () => {
+    render(<FindingPreviewPanel heading="3 FINDINGS" items={ITEMS} />);
+    const panel = screen.getByRole("dialog", { name: "3 FINDINGS" });
+    expect(panel).not.toHaveAttribute("aria-label");
+    expect(panel.getAttribute("aria-labelledby")).toBe(screen.getByText("3 FINDINGS").id);
   });
 
   it("lists every entry it is given, rather than a capped sample", () => {

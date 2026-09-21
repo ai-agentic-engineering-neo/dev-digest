@@ -153,6 +153,11 @@ export class ReviewRunExecutor {
 
     runLog.info(`Starting review with agent "${agent.name}" (${agent.provider}/${agent.model})`);
 
+    // Held outside the try so a FAILED run's trace still reports the skills it
+    // assembled. A trace is what you read when a run failed; one that says the
+    // prompt had no skills when it did sends you looking in the wrong place.
+    let skills: string[] = [];
+
     try {
       // Resolve the agent's LLM provider. (container.llm throws if the provider
       // key is missing — caught below and persisted as a failed run.)
@@ -187,7 +192,7 @@ export class ReviewRunExecutor {
       // L5 — the agent's enabled skills, in link order. Independent of
       // repo-intel: skills are the user's own prompt blocks, not derived
       // context. No enabled skills → the section is absent from the prompt.
-      const skills = await this.buildSkillBlocks(workspaceId, agent.id, runLog);
+      skills = await this.buildSkillBlocks(workspaceId, agent.id, runLog);
 
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
@@ -317,7 +322,7 @@ export class ReviewRunExecutor {
         })
         .catch(() => undefined);
       await this.repo
-        .saveRunTrace(runId, this.traceFromBuffer(runId, pull, agent, '0/0 passed', Date.now() - start))
+        .saveRunTrace(runId, this.traceFromBuffer(runId, pull, agent, '0/0 passed', Date.now() - start, skills))
         .catch(() => undefined);
       this.container.runBus.complete(runId);
       throw err;
@@ -444,6 +449,7 @@ export class ReviewRunExecutor {
     agent: AgentRow,
     grounding: string,
     durationMs = 0,
+    skills: string[] = [],
   ): RunTrace {
     return {
       config: {
@@ -455,7 +461,13 @@ export class ReviewRunExecutor {
         source: 'local',
       },
       stats: { duration_ms: durationMs, tokens_in: 0, tokens_out: 0, cost_usd: null, findings: 0, grounding },
-      prompt_assembly: { system: agent.systemPrompt, skills: null, memory: null, specs: null, user: '' },
+      prompt_assembly: {
+        system: agent.systemPrompt,
+        skills: skills.length > 0 ? skills.join('\n\n') : null,
+        memory: null,
+        specs: null,
+        user: '',
+      },
       tool_calls: [],
       raw_output: '',
       memory_pulled: [],

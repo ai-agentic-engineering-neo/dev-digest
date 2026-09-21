@@ -30,4 +30,13 @@ opening request. Evidence: .claude/skills/engineering-insights/SKILL.md:3
 
 ## Session Notes
 
+**2026-09-21** — "The skill fires without an explicit request" (criterion 9) has two distinct
+satisfying mechanisms, not one: the skill description matching the request's own wording (the
+2026-09-18 entry above), and the root `CLAUDE.md` session-protocol section, which told this session
+to invoke `engineering-insights` by hand at the start of package work. Both count toward the
+criterion — it is worded around the absence of a user request for the skill, not around which
+mechanism raised it — but only the first is evidence of description-based auto-triggering. When
+reporting which one fired, name the mechanism rather than calling a CLAUDE.md-driven invocation an
+invalid measurement. Evidence: CLAUDE.md (## Session protocol).
+
 ## Open Questions

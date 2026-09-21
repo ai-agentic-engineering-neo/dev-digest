@@ -9,6 +9,8 @@ Pure review engine: diff → prompt → LLM → grounded findings. The root `CLA
   the engine and the prompts must agree
 - Feeding a new prompt slot (skills, memory, specs, callers) → read `src/prompt.ts`: the slots
   already exist in `PromptParts`, the server simply does not pass them yet
+- Implementing a feature → read its spec in `specs/`; write one first if it is missing. A feature
+  that also needs the server or the client goes in the repository-root `specs/` instead
 - Something surprised you, or a fix was not obvious → `INSIGHTS.md`, through the
   `engineering-insights` skill, which carries the format and the rules
 - Need depth the README does not give → `docs/`

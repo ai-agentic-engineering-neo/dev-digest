@@ -24,6 +24,8 @@ published modules.
 - `server/src/modules/repo-intel/` — codebase indexer; reach it only through `container.repoIntel.*`
 - `docs/agent-prompts/` — canonical reviewer system prompts (the DB is the source of truth at run time)
 - `.claude/skills/` — per-stack skills plus this repo's own `engineering-insights`; the catalog is `.claude/skills/README.md`
+- `specs/` — one per package for a feature confined to it, plus a root `specs/` for features that
+  span two or more. Written before the code; `specs/README.md` carries the format
 - `INSIGHTS.md` — one per area: the four packages, plus `.claude/INSIGHTS.md` for the agent setup itself
 
 ## Commands

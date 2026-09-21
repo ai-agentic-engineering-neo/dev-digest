@@ -13,8 +13,9 @@ Deterministic browser flows driven by Vercel agent-browser. The root `CLAUDE.md`
 
 ## Rules not visible from any single file
 
-- `specs/` here holds `NN-name.flow.json` **test flows**, not feature specs. Feature specs live in
-  `server/specs/` and `client/specs/`.
+- `specs/` here holds `NN-name.flow.json` **test flows**. A feature's spec lives with the package
+  it changes — `server/specs/`, `client/specs/`, `reviewer-core/specs/` — or in the
+  repository-root `specs/` when it spans more than one.
 - Locators are deterministic only (`--url`, `--text`, `find role|text|label`). Never the AI `chat`
   command — runs must stay stable and key-free.
 - Flows target read-only seeded data (`acme/payments-api`, PR #482, the seeded agents). Nothing here

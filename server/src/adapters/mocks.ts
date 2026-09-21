@@ -17,6 +17,8 @@ import type {
   OpenPrPayload,
   CommitFilesPayload,
   IssueMeta,
+  WorkflowRun,
+  RunArtifact,
   GitClient,
   CloneOptions,
   UnifiedDiff,
@@ -125,6 +127,20 @@ export interface MockGitHubOptions {
   login?: string;
   /** Existing inline review comments returned by listReviewComments. */
   comments?: PrReviewComment[];
+  /** specs/14-export-to-ci.md — scriptable CI-ingestion fixtures. */
+  workflowRuns?: WorkflowRun[];
+  /** Keyed by workflow-run id. */
+  runArtifacts?: Record<number, RunArtifact[]>;
+  /** Keyed by artifact id. */
+  artifactBytes?: Record<number, Uint8Array>;
+  /** `undefined` → no secrets configured (empty list, the default fixture);
+   *  `null` → simulate a 403 on the secrets-list endpoint (P-7's "unknown"
+   *  state — the credential cannot even LIST secrets, distinct from
+   *  "confirmed missing"); an array → those names are configured. */
+  secretNames?: string[] | null;
+  /** When true, `commitFiles`/`openPullRequest` throw as if the credential
+   *  lacked write access (AC-10a). */
+  writeAccessDenied?: boolean;
 }
 
 export class MockGitHubClient implements GitHubClient {
@@ -216,11 +232,17 @@ export class MockGitHubClient implements GitHubClient {
   }
 
   async openPullRequest(_repo: RepoRef, payload: OpenPrPayload): Promise<{ url: string }> {
+    if (this.opts.writeAccessDenied) {
+      throw new Error('mock: credential cannot write to this repository (403)');
+    }
     this.openedPrs.push(payload);
     return { url: 'https://github.com/mock/mock/pull/1' };
   }
 
   async commitFiles(_repo: RepoRef, payload: CommitFilesPayload): Promise<{ branch: string }> {
+    if (this.opts.writeAccessDenied) {
+      throw new Error('mock: credential cannot write to this repository (403)');
+    }
     this.committed.push(payload);
     return { branch: payload.branch };
   }
@@ -236,6 +258,29 @@ export class MockGitHubClient implements GitHubClient {
 
   async currentLogin(): Promise<string> {
     return this.opts.login ?? 'mock-user';
+  }
+
+  async listWorkflowRuns(
+    _repo: RepoRef,
+    _opts: { workflowPath: string; perPage?: number },
+  ): Promise<WorkflowRun[]> {
+    return this.opts.workflowRuns ?? [];
+  }
+
+  async listRunArtifacts(_repo: RepoRef, runId: number): Promise<RunArtifact[]> {
+    return this.opts.runArtifacts?.[runId] ?? [];
+  }
+
+  async downloadArtifact(_repo: RepoRef, artifactId: number): Promise<Uint8Array> {
+    const bytes = this.opts.artifactBytes?.[artifactId];
+    if (!bytes) throw new Error(`mock: no artifact bytes scripted for id ${artifactId}`);
+    return bytes;
+  }
+
+  async listRepoSecretNames(_repo: RepoRef): Promise<string[] | null> {
+    // P-7 — `null` scripted explicitly means "simulate a 403" (unknown);
+    // `undefined` (the default) means "no secrets configured".
+    return this.opts.secretNames === undefined ? [] : this.opts.secretNames;
   }
 }
 

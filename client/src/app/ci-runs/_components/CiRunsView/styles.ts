@@ -1,0 +1,55 @@
+import type { CSSProperties } from "react";
+
+/** Co-located styles for /ci-runs. */
+export const s = {
+  page: {
+    maxWidth: 1200,
+    margin: "0 auto",
+    padding: "28px 32px 60px",
+    display: "flex",
+    flexDirection: "column",
+    gap: 20,
+  } satisfies CSSProperties,
+  header: { display: "flex", alignItems: "flex-start", gap: 16 } satisfies CSSProperties,
+  headerText: { flex: 1 } satisfies CSSProperties,
+  h1: { fontSize: 22, fontWeight: 700 } satisfies CSSProperties,
+  subtitle: { fontSize: 14, color: "var(--text-secondary)", marginTop: 4 } satisfies CSSProperties,
+  refreshRow: { display: "flex", alignItems: "center", gap: 10 } satisfies CSSProperties,
+  autoRefreshNote: {
+    fontSize: 12.5,
+    color: "var(--text-muted)",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 5,
+  } satisfies CSSProperties,
+  filtersRow: {
+    display: "flex",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 10,
+  } satisfies CSSProperties,
+  select: { minWidth: 160 } satisfies CSSProperties,
+  chipRow: { display: "flex", flexWrap: "wrap", gap: 6 } satisfies CSSProperties,
+  table: { width: "100%", borderCollapse: "collapse", fontSize: 13 } satisfies CSSProperties,
+  th: {
+    textAlign: "left",
+    padding: "8px 10px",
+    fontSize: 11.5,
+    fontWeight: 700,
+    letterSpacing: "0.04em",
+    textTransform: "uppercase",
+    color: "var(--text-muted)",
+    borderBottom: "1px solid var(--border)",
+  } satisfies CSSProperties,
+  td: { padding: "8px 10px", borderBottom: "1px solid var(--border)", color: "var(--text-secondary)" } satisfies CSSProperties,
+  outcome: (color: string): CSSProperties => ({
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 5,
+    fontSize: 12.5,
+    fontWeight: 600,
+    color,
+  }),
+  linkCell: { display: "flex", flexDirection: "column", gap: 2 } satisfies CSSProperties,
+  hint: { fontSize: 12, color: "var(--text-muted)" } satisfies CSSProperties,
+} as const;

@@ -16,10 +16,13 @@ on:
     paths:
       - 'server/**'
       - '.github/workflows/server-integration.yml'
+  # NOTE: deliberately no `paths:` filter here. This job is a REQUIRED status
+  # check on main (Settings -> Branches). A required check that does not run
+  # never reports, and GitHub leaves the PR stuck on "Expected - waiting for
+  # status" with the merge button disabled forever. Path-filtering it would
+  # deadlock every PR that touches only docs/ or .claude/.
+  # The `push:` trigger above keeps its filter — no required check there.
   pull_request:
-    paths:
-      - 'server/**'
-      - '.github/workflows/server-integration.yml'
 
 permissions:
   contents: read
@@ -30,7 +33,7 @@ concurrency:
 
 jobs:
   integration:
-    name: tests (postgres)
+    name: server integration (postgres)
     runs-on: ubuntu-latest
     defaults:
       run:

@@ -1,0 +1,66 @@
+import type { CSSProperties } from "react";
+
+export const s = {
+  wrap: { display: "flex", flexDirection: "column", gap: 18, maxWidth: 900 } satisfies CSSProperties,
+  tiles: { display: "flex", gap: 14, flexWrap: "wrap" } satisfies CSSProperties,
+  acceptTile: {
+    flex: 1,
+    minWidth: 190,
+    display: "flex",
+    alignItems: "center",
+    gap: 14,
+    background: "var(--bg-elevated)",
+    border: "1px solid var(--border)",
+    borderRadius: 9,
+    padding: 18,
+  } satisfies CSSProperties,
+  acceptText: { minWidth: 0 } satisfies CSSProperties,
+  tileLabel: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: "var(--text-muted)",
+    letterSpacing: "0.03em",
+  } satisfies CSSProperties,
+  tileValue: { fontSize: 32, fontWeight: 700, letterSpacing: "-0.02em", marginTop: 8 } satisfies CSSProperties,
+
+  panels: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 } satisfies CSSProperties,
+  panel: {
+    border: "1px solid var(--border)",
+    borderRadius: 9,
+    background: "var(--bg-elevated)",
+    padding: 16,
+    minWidth: 0,
+  } satisfies CSSProperties,
+  panelTitle: {
+    fontSize: 12,
+    fontWeight: 700,
+    letterSpacing: "0.05em",
+    color: "var(--text-muted)",
+    marginBottom: 12,
+  } satisfies CSSProperties,
+  panelHint: { fontSize: 11.5, color: "var(--text-muted)", lineHeight: 1.5, marginTop: 12 } satisfies CSSProperties,
+  agentRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "9px 0",
+    borderTop: "1px solid var(--border)",
+    fontSize: 13,
+  } satisfies CSSProperties,
+  agentName: { flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } satisfies CSSProperties,
+  agentLink: { fontSize: 12.5, color: "var(--accent)", textDecoration: "none", fontWeight: 600 } satisfies CSSProperties,
+  empty: { fontSize: 13, color: "var(--text-muted)" } satisfies CSSProperties,
+
+  donutRow: { display: "flex", alignItems: "center", gap: 20 } satisfies CSSProperties,
+  legend: { display: "flex", flexDirection: "column", gap: 8, flex: 1, minWidth: 0 } satisfies CSSProperties,
+  legendRow: { display: "flex", alignItems: "center", gap: 10, fontSize: 13 } satisfies CSSProperties,
+  legendSwatch: (color: string): CSSProperties => ({
+    width: 9,
+    height: 9,
+    borderRadius: 2,
+    background: color,
+    flexShrink: 0,
+  }),
+  legendLabel: { color: "var(--text-secondary)", flex: 1, minWidth: 0 } satisfies CSSProperties,
+  legendCount: { color: "var(--text-primary)", fontWeight: 600 } satisfies CSSProperties,
+} as const;

@@ -33,7 +33,7 @@ export type PluginSkill = z.infer<typeof PluginSkill>;
 export const PluginAgent = z.object({
   name: z.string(),
   description: z.string(),
-  provider: z.enum(['openai', 'anthropic']),
+  provider: z.enum(['openai', 'anthropic', 'openrouter']),
   model: z.string(),
   system_prompt: z.string(),
   output_schema: z.unknown().nullish(),
@@ -142,6 +142,11 @@ export const AgentPerfRow = z.object({
   provider: z.string().nullable(),
   model: z.string().nullable(),
   runs: z.number().int(),
+  /** specs/14-export-to-ci.md AC-45/AC-46 — `runs` splits by source so a
+   *  CI-only agent's "accept rate: N/A" (never computed from CI runs, which
+   *  contribute no triaged findings) is explainable rather than a bare null. */
+  runs_local: z.number().int(),
+  runs_ci: z.number().int(),
   findings_total: z.number().int(),
   accepted: z.number().int(),
   dismissed: z.number().int(),
@@ -177,6 +182,9 @@ export const AgentPerf = z.object({
     total_cost_usd: z.number().nullable(),
     avg_accept_rate: z.number().nullable(),
     most_active_agent: z.string().nullable(),
+    /** D12/AC-43 — the selected preset (7/30/90) every figure on the page
+     *  was computed over. */
+    range_days: z.number().int(),
   }),
   agents: z.array(AgentPerfRow),
   /** cost split by agent and by model (for the two cost-breakdown donuts). */

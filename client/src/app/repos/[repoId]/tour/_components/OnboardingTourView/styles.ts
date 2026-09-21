@@ -1,0 +1,142 @@
+import type { CSSProperties } from "react";
+
+/** Co-located styles for the Onboarding Tour page — mirrors Project
+ *  Context's page-header shape, plus a status banner, a table of contents,
+ *  ranked-entry rows (shared by critical paths + reading path) and the
+ *  facts-only skeleton. */
+export const s = {
+  pageHeader: {
+    padding: "24px 32px 10px",
+    display: "flex",
+    alignItems: "flex-end",
+    gap: 16,
+    flexWrap: "wrap",
+  } satisfies CSSProperties,
+  pageTitle: { fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em" } satisfies CSSProperties,
+  pageSubtitle: { fontSize: 14, color: "var(--text-secondary)", marginTop: 4 } satisfies CSSProperties,
+  headerActions: { marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" } satisfies CSSProperties,
+
+  body: { margin: "0 32px 44px", display: "flex", flexDirection: "column", gap: 16 } satisfies CSSProperties,
+  loadingStack: { display: "flex", flexDirection: "column", gap: 12, margin: "14px 32px 44px" } satisfies CSSProperties,
+
+  banner: (color: string, bg: string): CSSProperties => ({
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 8,
+    padding: "10px 14px",
+    borderRadius: 8,
+    border: `1px solid ${color}`,
+    background: bg,
+    color,
+    fontSize: 13,
+    lineHeight: 1.5,
+  }),
+
+  provenance: {
+    fontSize: 12.5,
+    color: "var(--text-muted)",
+    lineHeight: 1.6,
+  } satisfies CSSProperties,
+
+  toc: {
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    background: "var(--bg-elevated)",
+    padding: "12px 16px",
+  } satisfies CSSProperties,
+  tocLabel: {
+    fontSize: 12,
+    fontWeight: 700,
+    letterSpacing: "0.06em",
+    color: "var(--text-muted)",
+    marginBottom: 8,
+  } satisfies CSSProperties,
+  tocList: { display: "flex", flexDirection: "column", gap: 6, listStyle: "none", margin: 0, padding: 0 } satisfies CSSProperties,
+  tocLink: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    fontSize: 13.5,
+    color: "var(--text-primary)",
+    textDecoration: "none",
+  } satisfies CSSProperties,
+
+  section: {
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    background: "var(--bg-elevated)",
+    padding: 20,
+    scrollMarginTop: 16,
+  } satisfies CSSProperties,
+  sectionHead: { display: "flex", alignItems: "center", gap: 8, marginBottom: 10 } satisfies CSSProperties,
+  sectionTitle: { fontSize: 16, fontWeight: 650, letterSpacing: "-0.01em" } satisfies CSSProperties,
+  sectionBody: { fontSize: 14, color: "var(--text-secondary)" } satisfies CSSProperties,
+
+  rankedList: { display: "flex", flexDirection: "column", gap: 8, marginTop: 12 } satisfies CSSProperties,
+  rankedRow: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 10,
+    padding: "8px 10px",
+    borderRadius: 6,
+    border: "1px solid var(--border)",
+    background: "var(--bg-surface)",
+  } satisfies CSSProperties,
+  rankedPosition: {
+    flexShrink: 0,
+    width: 22,
+    height: 22,
+    borderRadius: 5,
+    background: "var(--bg-hover)",
+    color: "var(--text-muted)",
+    fontSize: 11.5,
+    fontWeight: 700,
+    display: "grid",
+    placeItems: "center",
+  } satisfies CSSProperties,
+  rankedBody: { flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 } satisfies CSSProperties,
+  rankedPathRow: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" } satisfies CSSProperties,
+  rankedPath: { fontSize: 13, color: "var(--text-primary)", wordBreak: "break-all" } satisfies CSSProperties,
+  rankedReason: { fontSize: 12.5, color: "var(--text-secondary)" } satisfies CSSProperties,
+  rankedChain: { fontSize: 12, color: "var(--text-muted)" } satisfies CSSProperties,
+  rankedOpenLink: {
+    flexShrink: 0,
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 4,
+    fontSize: 12,
+    color: "var(--accent-text)",
+    textDecoration: "none",
+  } satisfies CSSProperties,
+
+  setupSteps: { display: "flex", flexDirection: "column", gap: 6 } satisfies CSSProperties,
+  setupRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "8px 10px",
+    borderRadius: 6,
+    border: "1px solid var(--border)",
+    background: "var(--bg-surface)",
+  } satisfies CSSProperties,
+  setupCommand: { flex: 1, minWidth: 0, fontSize: 13, color: "var(--text-primary)", overflow: "auto" } satisfies CSSProperties,
+  setupEvidence: { fontSize: 11.5, color: "var(--text-muted)" } satisfies CSSProperties,
+
+  skeletonGroup: { display: "flex", flexDirection: "column", gap: 8 } satisfies CSSProperties,
+  skeletonGroupTitle: { fontSize: 13, fontWeight: 650, color: "var(--text-primary)" } satisfies CSSProperties,
+  factRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    padding: "6px 10px",
+    borderRadius: 6,
+    border: "1px solid var(--border)",
+    background: "var(--bg-surface)",
+    fontSize: 12.5,
+  } satisfies CSSProperties,
+  factLabel: { color: "var(--text-secondary)" } satisfies CSSProperties,
+  factValue: { color: "var(--text-primary)", fontWeight: 600 } satisfies CSSProperties,
+  factEvidence: { color: "var(--text-muted)", fontSize: 11.5 } satisfies CSSProperties,
+  empty: { fontSize: 12.5, color: "var(--text-muted)", padding: "6px 2px" } satisfies CSSProperties,
+} as const;

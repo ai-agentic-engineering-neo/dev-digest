@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { taskLine } from '../src/modules/reviews/helpers.js';
+import { promptAssemblySections, taskLine } from '../src/modules/reviews/helpers.js';
 
 /**
  * Unit coverage for the review task-line. The key invariant: our trusted
@@ -20,5 +20,36 @@ describe('taskLine', () => {
     const line = taskLine(pull);
     expect(line).toMatch(/never .*withhold .*(or downgrade )?.*security/i);
     expect(line).toMatch(/review the entire diff/i);
+  });
+});
+
+/**
+ * specs/09-project-context-folder.md — the `specs` slot's debug source label
+ * moved from the old (never-shipped) `project_specs` to
+ * `project_context.documents`, now that the slot is real.
+ */
+describe('promptAssemblySections — specs source label', () => {
+  const baseAssembly = {
+    system: 'sys',
+    skills: null,
+    memory: null,
+    specs: null,
+    callers: null,
+    repo_map: null,
+    pr_description: null,
+    intent: null,
+    intent_scope: null,
+    user: 'user',
+  } as const;
+
+  it('labels the specs section project_context.documents when present', () => {
+    const sections = promptAssemblySections({ ...baseAssembly, specs: 'wrapped block' }, 10);
+    const specsSection = sections.find((s) => s.section === 'specs');
+    expect(specsSection?.source).toBe('project_context.documents');
+  });
+
+  it('omits the specs section when null (byte-identical debug view to before)', () => {
+    const sections = promptAssemblySections(baseAssembly, 10);
+    expect(sections.some((s) => s.section === 'specs')).toBe(false);
   });
 });

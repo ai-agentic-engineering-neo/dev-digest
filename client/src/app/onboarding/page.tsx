@@ -1,9 +1,7 @@
-/* Add-repository route — /onboarding. Thin wrapper; the screen lives in
-   _components/AddRepoView. */
-"use client";
-
 import { AddRepoView } from "./_components/AddRepoView";
 
+/* Route: /onboarding — thin route entry. The screen lives in
+   _components/AddRepoView, which owns the "use client" boundary. */
 export default function AddRepoPage() {
   return <AddRepoView />;
 }

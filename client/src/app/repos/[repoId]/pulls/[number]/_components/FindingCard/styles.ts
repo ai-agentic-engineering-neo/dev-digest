@@ -4,10 +4,13 @@ import type { CSSProperties } from "react";
 export const s = {
   card: (focused: boolean, sevColor: string, muted: boolean): CSSProperties => ({
     borderRadius: 8,
-    // All-longhand (never mix `border` shorthand with `borderLeft` — React warns
-    // about updating shorthand + non-shorthand on the same rerender).
+    // Per-side colours, never `borderColor`: that is itself a shorthand for the
+    // four sides, so pairing it with `borderLeftColor` makes React warn when
+    // `focused` flips on a rerender.
     borderStyle: "solid",
-    borderColor: focused ? sevColor : "var(--border)",
+    borderTopColor: focused ? sevColor : "var(--border)",
+    borderRightColor: focused ? sevColor : "var(--border)",
+    borderBottomColor: focused ? sevColor : "var(--border)",
     borderWidth: 1,
     borderLeftWidth: 3,
     borderLeftColor: sevColor,
@@ -86,4 +89,43 @@ export const s = {
     gap: 10,
   } satisfies CSSProperties,
   composerActions: { display: "flex", gap: 8 } satisfies CSSProperties,
+  skillMenuWrap: { position: "relative", display: "inline-block" } satisfies CSSProperties,
+  skillMenu: {
+    position: "absolute",
+    top: "calc(100% + 6px)",
+    left: 0,
+    width: 260,
+    background: "var(--bg-elevated)",
+    border: "1px solid var(--border-strong)",
+    borderRadius: 9,
+    boxShadow: "var(--shadow-modal)",
+    padding: 10,
+    zIndex: 40,
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+  } satisfies CSSProperties,
+  skillMenuCaption: {
+    fontSize: 11.5,
+    color: "var(--text-muted)",
+    lineHeight: 1.4,
+    marginBottom: 2,
+  } satisfies CSSProperties,
+  skillMenuHint: { fontSize: 12.5, color: "var(--text-muted)" } satisfies CSSProperties,
+  skillMenuItem: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    width: "100%",
+    padding: "7px 8px",
+    borderRadius: 6,
+    border: "none",
+    background: "transparent",
+    color: "var(--text-primary)",
+    fontSize: 13,
+    fontWeight: 500,
+    textAlign: "left",
+    cursor: "pointer",
+  } satisfies CSSProperties,
 } as const;

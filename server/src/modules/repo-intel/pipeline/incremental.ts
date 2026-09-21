@@ -11,7 +11,9 @@
  *
  * [T3] After the slice reparse, the graph + rank are rebuilt over the full
  * file set and `decl_file` is re-resolved; the per-commit repo-map cache is
- * invalidated and re-rendered. Option B: rank = PageRank, hotness=0.
+ * invalidated and re-rendered. `rank = PageRank` (D7); `hotness` is real,
+ * refetched from PR history the same way `pipeline/full.ts` does — see its
+ * header comment.
  */
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
@@ -23,6 +25,7 @@ import { parseSymbols, parseReferences, langForFile } from '../../../adapters/as
 import { extractEndpoints, extractCrons } from '../../../adapters/codeindex/extract.js';
 import {
   DEFAULT_REPO_MAP_TOKEN_BUDGET,
+  HOTNESS_WINDOW_DAYS,
   INDEXER_VERSION,
   MAX_PARSE_MS_PER_FILE,
   SUPPORTED_EXT,
@@ -36,7 +39,7 @@ import type {
 } from '../repository.js';
 import type { IndexResult, IndexStatus } from '../types.js';
 import { runFullIndex, type IndexPayload } from './full.js';
-import { walkClone } from './walk.js';
+import { walkClone, type WalkStats } from './walk.js';
 import { computeFileRank } from './rank.js';
 import { renderRepoMap } from './repo-map.js';
 
@@ -214,14 +217,28 @@ export async function runIncremental(
   // v1 favours simple correctness.
   let graphFailed: string | undefined;
   let edgeRows: IndexerEdgeRow[] = [];
+  let walkStats: WalkStats | undefined;
+  let hotnessPrs = 0;
   try {
-    const allFiles = (await walkClone(repo.clonePath)).files;
+    const walked = await walkClone(repo.clonePath);
+    const allFiles = walked.files;
+    walkStats = walked.stats;
     const edges = await container.depgraph.buildEdges(repo.clonePath, allFiles);
     edgeRows = edges.map((e) => ({ fromFile: e.from, toFile: e.to }));
     await repository.replaceEdges(repoId, edgeRows);
     // reset: a changed decl-file can invalidate a prior resolution.
     await repository.resolveReferences(repoId, { reset: true });
-    const rankRows = computeFileRank(allFiles, edgeRows);
+
+    // Hotness (D6): same source as pipeline/full.ts — already-ingested PR
+    // history, never git log. Fetched here (not hoisted above the graph
+    // build) so a graph failure still lets the outer catch below record it;
+    // hotness itself is independent of the import graph.
+    const since = new Date(Date.now() - HOTNESS_WINDOW_DAYS * 86_400_000);
+    const churn = await repository.getPrChurn(repoId, since);
+    hotnessPrs = churn.prsConsidered;
+    const churnMap = new Map(churn.counts.map((c) => [c.path, c.prs]));
+
+    const rankRows = computeFileRank(allFiles, edgeRows, churnMap);
     await repository.replaceFileRank(repoId, rankRows);
     // The repo-map is keyed per commit_sha → prior entries are now stale.
     const candidates = await repository.getRepoMapCandidates(repoId);
@@ -243,12 +260,18 @@ export async function runIncremental(
   const status: IndexStatus = clean && state.status === 'full' ? 'full' : 'partial';
 
   const stats: Record<string, unknown> = {
+    // walkClone already ran above (to rebuild the graph over the full file
+    // set) — its bounded/totalCandidates would otherwise be silently lost on
+    // every incremental refresh (AC-18 needs this to survive a refresh).
+    ...(walkStats ?? {}),
     incremental: true,
     changedFiles: changed.length,
     symbolsWritten: symbolsBuf.length,
     referencesWritten: refsBuf.length,
     edgesWritten: edgeRows.length,
-    hotnessAvailable: false,
+    hotnessPrs,
+    hotnessWindowDays: HOTNESS_WINDOW_DAYS,
+    hotnessAvailable: hotnessPrs > 0,
     ...(graphFailed ? { graphFailed } : {}),
     parseDegraded,
     durationMs: Date.now() - startedAt,

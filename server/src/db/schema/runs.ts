@@ -1,7 +1,18 @@
-import { pgTable, uuid, text, integer, jsonb, timestamp, doublePrecision, index } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  uuid,
+  text,
+  integer,
+  jsonb,
+  timestamp,
+  doublePrecision,
+  index,
+  primaryKey,
+} from 'drizzle-orm/pg-core';
 import { workspaces } from './core';
 import { agents } from './agents';
 import { pullRequests } from './pulls';
+import { skills } from './skills';
 
 // ============================================================ Observability
 
@@ -37,6 +48,23 @@ export const agentRuns = pgTable(
   (t) => ({
     // Serves the pulls-list cost rollup: `WHERE pr_id IN (...) AND status = 'done'`.
     prStatusIdx: index('agent_runs_pr_status_idx').on(t.prId, t.status),
+  }),
+);
+
+/** Which skills were actually pulled into a run's prompt (linked AND enabled at run time). */
+export const agentRunSkills = pgTable(
+  'agent_run_skills',
+  {
+    agentRunId: uuid('agent_run_id')
+      .notNull()
+      .references(() => agentRuns.id, { onDelete: 'cascade' }),
+    skillId: uuid('skill_id')
+      .notNull()
+      .references(() => skills.id, { onDelete: 'cascade' }),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.agentRunId, t.skillId] }),
+    skillIdx: index('agent_run_skills_skill_idx').on(t.skillId),
   }),
 );
 

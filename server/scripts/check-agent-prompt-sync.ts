@@ -23,6 +23,8 @@ import {
   GENERAL_REVIEWER_PROMPT,
   SECURITY_REVIEWER_PROMPT,
   PERFORMANCE_REVIEWER_PROMPT,
+  TEST_QUALITY_REVIEWER_PROMPT,
+  PR_SELF_REVIEW_PROMPT,
 } from '../src/db/seed-prompts.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -32,6 +34,8 @@ const pairs: [string, string][] = [
   ['general-reviewer.md', GENERAL_REVIEWER_PROMPT],
   ['security-reviewer.md', SECURITY_REVIEWER_PROMPT],
   ['performance-reviewer.md', PERFORMANCE_REVIEWER_PROMPT],
+  ['test-quality-reviewer.md', TEST_QUALITY_REVIEWER_PROMPT],
+  ['pr-self-review.md', PR_SELF_REVIEW_PROMPT],
 ];
 
 let ok = true;

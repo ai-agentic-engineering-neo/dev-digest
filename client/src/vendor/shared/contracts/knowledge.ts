@@ -131,6 +131,36 @@ export const Skill = z.object({
 });
 export type Skill = z.infer<typeof Skill>;
 
+// `GET /skills` row: the skill plus usage aggregates. `pull_rate` / `accept_rate`
+// are percentages (0-100), null when there is nothing to divide by yet.
+export const SkillListItem = Skill.extend({
+  used_by: z.number().int(),
+  pull_rate: z.number().nullable(),
+  accept_rate: z.number().nullable(),
+});
+export type SkillListItem = z.infer<typeof SkillListItem>;
+
+// One immutable body snapshot from `skill_versions`.
+export const SkillVersion = z.object({
+  skill_id: z.string(),
+  version: z.number().int(),
+  body: z.string(),
+  created_at: z.string(),
+});
+export type SkillVersion = z.infer<typeof SkillVersion>;
+
+// `GET /skills/:id/stats` — Stats tab.
+export const SkillStats = z.object({
+  used_by: z.number().int(),
+  pull_rate: z.number().nullable(),
+  accept_rate: z.number().nullable(),
+  findings_30d: z.number().int(),
+  agents_using: z.array(z.object({ id: z.string(), name: z.string() })),
+  // Sum of agent_runs.cost_usd over distinct runs that raised >=1 finding of the category.
+  findings_by_category: z.array(z.object({ category: z.string(), cost_usd: z.number() })),
+});
+export type SkillStats = z.infer<typeof SkillStats>;
+
 export const CommunitySkill = z.object({
   name: z.string(),
   repo: z.string(),

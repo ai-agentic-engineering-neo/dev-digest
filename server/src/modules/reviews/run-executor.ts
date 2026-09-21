@@ -184,6 +184,11 @@ export class ReviewRunExecutor {
 
       const task = taskLine(pull) + rankNote;
 
+      // Linked skills — only those that are ALSO globally enabled fire. Bodies
+      // are passed in `order`; the section is omitted when none are active.
+      const activeSkills = await this.resolveActiveSkills(agent, runLog);
+      const skillBodies = activeSkills.map((s) => s.body);
+
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
       // the CI runner). The service owns only I/O: repo-intel context resolution
@@ -201,6 +206,9 @@ export class ReviewRunExecutor {
         ...(callersDigest ? { callers: callersDigest } : {}),
         // T3 — repo skeleton, same omit-when-empty contract.
         ...(repoMap ? { repoMap } : {}),
+        // Linked + enabled skill bodies (`## Skills / rules`), same omit-when-empty
+        // contract; surfaces in the trace's prompt_assembly.skills.
+        ...(skillBodies.length ? { skills: skillBodies } : {}),
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
@@ -259,6 +267,12 @@ export class ReviewRunExecutor {
         costUsd,
         error: null,
       });
+      // The only durable record of which skills fired on this run (feeds the
+      // Skills Stats tab). Runs after the row is finalized, for completed runs only.
+      await this.repo.recordRunSkills(
+        runId,
+        activeSkills.map((s) => s.id),
+      );
 
       const trace: RunTrace = {
         config: {
@@ -364,6 +378,26 @@ export class ReviewRunExecutor {
     }
     runLog.info(`callers digest: ${rows.length} caller signature(s) attached`);
     return out.join('\n');
+  }
+
+  /**
+   * Skills this run will actually use: the agent's linked skills (already in
+   * `order` ascending) filtered to those globally `enabled`. Logs the attached
+   * names in order, and any linked-but-disabled ones that were skipped. Logs
+   * nothing when the agent has no linked skills.
+   */
+  private async resolveActiveSkills(
+    agent: AgentRow,
+    runLog: RunLogger,
+  ): Promise<{ id: string; name: string; body: string }[]> {
+    const linked = await this.agents.linkedSkills(agent.id);
+    const active = linked.filter((l) => l.skill.enabled).map((l) => l.skill);
+    const skipped = linked.length - active.length;
+    if (active.length > 0) {
+      runLog.info(`skills: ${active.length} skill(s) attached — ${active.map((s) => s.name).join(', ')}`);
+    }
+    if (skipped > 0) runLog.info(`skills: ${skipped} linked skill(s) skipped (disabled)`);
+    return active;
   }
 
   /**

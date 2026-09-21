@@ -1,0 +1,1 @@
+export { SkillConfigTab } from "./SkillConfigTab";

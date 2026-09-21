@@ -1,0 +1,32 @@
+{
+  "subtitle": "Import a Markdown file or a .zip archive — or write a skill from scratch",
+  "cancel": "Cancel",
+  "pick": {
+    "label": "Skill file",
+    "hint": "Optional. Read in your browser — nothing is saved until you click Import skill.",
+    "choose": "Choose a .md, .markdown or .zip file",
+    "replace": "Choose a different file",
+    "reading": "Reading…",
+    "loaded": "Loaded {file}",
+    "ignored": "{count, plural, one {# other file in the archive was ignored (not processed)} other {# other files in the archive were ignored (not processed)}}"
+  },
+  "fields": {
+    "type": "Type",
+    "description": "Description",
+    "descriptionPlaceholder": "What this skill checks for"
+  },
+  "errors": {
+    "unsupported_type": "\"{file}\" is not supported. Choose a .md, .markdown or .zip file.",
+    "too_many_entries": "This archive has too many files (limit: {max}).",
+    "too_large": "\"{file}\" is too large (limit: {kb} KB of text).",
+    "no_text_entry": "No Markdown or text file was found in this archive.",
+    "invalid_archive": "This archive could not be read.",
+    "not_text": "\"{file}\" does not look like a text file.",
+    "empty": "\"{file}\" is empty.",
+    "unknown": "Could not read this file."
+  },
+  "toast": {
+    "created": "Created skill \"{name}\".",
+    "imported": "Imported skill \"{name}\"."
+  }
+}

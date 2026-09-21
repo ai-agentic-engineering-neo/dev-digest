@@ -16,6 +16,12 @@ of re-explaining it here.
 
 ## Codebase Patterns
 
+### 2026-09-19 — Skill usage stats: `agent_run_skills` is the only record of which skills fired, and accept-rate is correlational
+A run's skills are decided at run time (linked in `agent_skills` AND `skills.enabled`), so history can't be reconstructed later from current links — `ReviewRepository.recordRunSkills` writes `agent_run_skills` right after `completeAgentRun('done')` (`reviews/run-executor.ts`), so failed/cancelled runs record nothing and pre-feature runs have no rows. `pull_rate` = those rows ÷ `done` runs of agents that *currently* link the skill (kept ≤100%). `accept_rate`/`findings_by_category` join `findings → reviews.run_id → agent_run_skills`: findings are never attributed to a specific skill (the model doesn't say which one triggered it), so treat these as "findings from runs where the skill was on", and a run with several categories counts its cost in each. Don't "fix" this into causal attribution without a schema for it.
+
+### 2026-09-19 — "Auto-invocation disabled" agent = `agents.enabled: false`, no new flag needed
+`ReviewService.resolveTargets({ all: true })` uses `listEnabled` (skips disabled agents) while `resolveTargets({ agentId })` calls `getById` with no `enabled` filter (`reviews/service.ts:46-57`). So the seeded `pr-self-review` (`enabled: false`) never runs on "Run all" but can still be run by picking it explicitly. Note the polling module never calls `resolveTargets` — "auto" runs are only the client's `all:true` action.
+
 ### 2026-09-19 — Onion layering is now machine-checked; the baseline (42 entries) may only shrink
 `server/.dependency-cruiser.cjs` + `pnpm arch:check` (CI job `arch` in `server-unit.yml`) enforce inward-only imports over the flat per-module files; rules/rationale in `.claude/skills/onion-architecture/`. Pre-existing debt is frozen in `.dependency-cruiser-known-violations.json` (routes running Drizzle in `pulls|polling|settings|workspace`, ORM row types in `repos/helpers.ts` + `reviews/*`, whole-`Container` in every service, `repo-intel` importing concrete adapters). Never add to the baseline to make CI green — fix the import or move the code; run `pnpm arch:baseline` only after fixes and check the diff is removals-only.
 
@@ -142,6 +148,9 @@ whoever has the skip-worktree bit set.
 
 ## Recurring Errors & Fixes
 
+### 2026-09-19 — `reviews.it` "run all enabled agents" runs against the REAL provider; it's machine-dependent, not skills-related
+The seeded agents all use `DEFAULT_PROVIDER` (openrouter) but the test only mocks `openai` (`test/reviews.it.test.ts:113-125`), so `all: true` runs hit the real openrouter adapter. With no key the runs fail and the PR's `cost_usd` is `null` (`expected null to be close to 0.004`); with `~/.devdigest/secrets.json` present it makes real, billed calls and can blow the 10s `waitForPrRuns`. Every new *enabled* seeded agent adds one more (the "seed has 2 enabled agents" comment is stale). To run it safely, hide the keys: `HOME=/tmp/nohome USERPROFILE=<empty dir> pnpm exec vitest run test/reviews.it.test.ts`. Real fix (not done): register mocks for the seed agents' provider in `appWith`. Diagnosed by reading the code, not by running against a clean checkout.
+
 ### 2026-09-18 — Deleting a review left an orphaned Timeline tile: two tables, one unenforced link, one-way cleanup
 `reviews` and `agent_runs` represent the SAME run from two angles (Review-runs
 section vs. Timeline), linked only by a bare `reviews.run_id` uuid column —
@@ -182,6 +191,9 @@ CLI script run actually did anything on Windows.
 ## Session Notes
 
 ## Open Questions
+
+### 2026-09-19 — `test/indexer-pipeline.test.ts` fails 6 tests on Windows (unrelated to skills)
+Its helper splits paths with `full.lastIndexOf('/')` (`indexer-pipeline.test.ts:~142`) so `mkdir` never creates the nested dir on a backslash path and `writeFile` throws ENOENT under `%TEMP%\repo-intel-*`. Present before the Skills work (untouched by it); the unit suite therefore shows 115/121 on Windows. Not fixed here — use `path.dirname` when someone owns that test.
 
 ---
 

@@ -171,6 +171,12 @@ export class ReviewRepository {
     return runRepo.completeAgentRun(this.db, runId, values);
   }
 
+  /** Record the skills that actually fired on a run (agent_run_skills; the
+   *  Stats numbers derive from this). Call after the run's agent_runs row exists. */
+  recordRunSkills(runId: string, skillIds: string[]): Promise<void> {
+    return runRepo.recordRunSkills(this.db, runId, skillIds);
+  }
+
   /** Record the head SHA a review ran against (PR-list freshness derivation). */
   markReviewed(prId: string, sha: string): Promise<void> {
     return pullRepo.markReviewed(this.db, prId, sha);

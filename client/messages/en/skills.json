@@ -19,7 +19,10 @@
     "selectPrompt": {
       "title": "Select a skill",
       "body": "Pick a skill on the left to preview its body."
-    }
+    },
+    "subtitle": "Reusable prompt blocks agents pull into a review. Toggle a skill off to exclude it everywhere.",
+    "noResults": "No skills match your search.",
+    "selectAria": "Skill list"
   },
   "detail": {
     "crumbSkill": "Skill",
@@ -28,7 +31,10 @@
     "notFound": {
       "title": "Skill not found",
       "body": "It may have been deleted."
-    }
+    },
+    "loadErrorTitle": "Couldn’t load this skill",
+    "skillFallback": "Skill",
+    "disabledBadge": "disabled"
   },
   "drawer": {
     "title": "Add a skill",
@@ -96,6 +102,79 @@
     "untrustedNotice": "This skill came from an untrusted source. Its body is stored as data (delimiter-wrapped) and must be vetted before it is enabled for an agent.",
     "bodyLabel": "Skill body (Markdown)",
     "bodyHint": "Saving a changed body creates a new immutable version.",
-    "version": "v{version}"
+    "version": "v{version}",
+    "title": "Preview",
+    "subtitle": "Rendered as the reviewing agent receives it.",
+    "empty": "This skill has no body yet."
+  },
+  "list": {
+    "noDescription": "No description",
+    "toggleAria": "Enable skill {name}",
+    "metrics": {
+      "usedBy": "{count, plural, one {# agent} other {# agents}}",
+      "pull": "{value} pull",
+      "accept": "{value} accept",
+      "none": "—"
+    }
+  },
+  "tabs": {
+    "config": "Config",
+    "preview": "Preview",
+    "stats": "Stats",
+    "versions": "Versions"
+  },
+  "config": {
+    "title": "Configuration",
+    "name": "Name",
+    "description": "Description",
+    "descriptionHint": "Phrase as a directive — this is how agents see the skill.",
+    "type": "Type",
+    "body": "Body (Markdown)",
+    "enabled": "Enabled",
+    "save": "Save skill",
+    "saving": "Saving…",
+    "saved": "Saved (v{version})",
+    "savedToast": "Skill saved — now at v{version}",
+    "delete": "Delete skill",
+    "deleteConfirm": "Delete skill \"{name}\"? It will be unlinked from every agent. This cannot be undone.",
+    "deleteToast": "Skill deleted"
+  },
+  "stats": {
+    "loadError": "Could not load stats for this skill.",
+    "usedBy": "USED BY",
+    "usedByUnit": "{count, plural, one {agent} other {agents}}",
+    "pullFrequency": "PULL FREQUENCY",
+    "acceptRate": "ACCEPT RATE",
+    "findings30d": "FINDINGS (30D)",
+    "agentsUsing": "AGENTS USING THIS SKILL",
+    "open": "Open",
+    "openAria": "Open agent {name}",
+    "noAgents": "No agents use this skill yet. Link it from an agent’s Skills tab.",
+    "findingsByCategory": "FINDINGS BY CATEGORY",
+    "noFindings": "No findings yet — numbers appear after a review run that used this skill.",
+    "noValue": "—"
+  },
+  "versions": {
+    "title": "Version history",
+    "subtitle": "Saving a changed body creates a new immutable version. Newest first.",
+    "loadError": "Could not load versions for this skill.",
+    "empty": "No versions recorded.",
+    "current": "current",
+    "toggleAria": "Show or hide version {version}",
+    "view": {
+      "label": "Version view",
+      "changes": "Changes",
+      "rendered": "Rendered"
+    },
+    "diff": {
+      "against": "Changes from v{version}",
+      "aria": "Line changes from v{version}",
+      "noChanges": "No changes from v{version}.",
+      "unchanged": "{count, plural, one {# unchanged line} other {# unchanged lines}}",
+      "tooLarge": "This change is too large to diff — switch to Rendered to read the body.",
+      "add": "added",
+      "del": "removed",
+      "same": "unchanged"
+    }
   }
 }

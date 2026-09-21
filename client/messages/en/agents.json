@@ -91,7 +91,20 @@
     "title": "Skills",
     "enabledCount": "{linked} of {total} enabled",
     "filterPlaceholder": "Filter skills…",
-    "orderHint": "Order matters — earlier skills appear earlier in the assembled prompt. Toggle to attach."
+    "orderHint": "Order matters — earlier skills appear earlier in the assembled prompt. Drag to reorder.",
+    "dragHandle": "Drag to reorder {name}",
+    "dragDisabledTitle": "Clear the filter to reorder",
+    "disabledNote": "disabled",
+    "disabledTitle": "This skill is disabled globally — it is skipped at run time even when linked.",
+    "noMatch": "No skills match \"{query}\".",
+    "save": "Save skills",
+    "saving": "Saving…",
+    "savedToast": "Skills saved ({count} linked)",
+    "loadErrorTitle": "Couldn’t load skills",
+    "loadErrorBody": "The skills catalog or this agent’s linked skills could not be loaded.",
+    "emptyTitle": "No skills yet",
+    "emptyBody": "Create a skill first, then link it to this agent here.",
+    "emptyCta": "Go to Skills"
   },
   "mount": {
     "body": "Mount point for {owner}. The Agent Editor shell + tab routing are wired by A2 — {owner} renders this tab."

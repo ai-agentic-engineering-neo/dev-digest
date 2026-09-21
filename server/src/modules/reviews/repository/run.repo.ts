@@ -177,6 +177,19 @@ export async function completeAgentRun(
     .where(eq(t.agentRuns.id, runId));
 }
 
+/**
+ * Record which skills were actually pulled into a run's prompt (linked AND
+ * enabled at run time). Idempotent on the (run, skill) PK; no-op for none.
+ * The agent_runs row must already exist (FK).
+ */
+export async function recordRunSkills(db: Db, runId: string, skillIds: string[]): Promise<void> {
+  if (skillIds.length === 0) return;
+  await db
+    .insert(t.agentRunSkills)
+    .values([...new Set(skillIds)].map((skillId) => ({ agentRunId: runId, skillId })))
+    .onConflictDoNothing();
+}
+
 /** Persist the WHOLE run log as ONE document. PK = runId → agent_runs. */
 export async function saveRunTrace(db: Db, runId: string, trace: RunTrace): Promise<void> {
   await db

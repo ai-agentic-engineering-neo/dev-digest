@@ -16,6 +16,15 @@ of re-explaining it here.
 
 ## Codebase Patterns
 
+### 2026-09-19 — Skill version diff is a hand-rolled line LCS with a size cap, not a diff library
+`SkillVersionsTab/diff.ts` diffs each version's body against the previous one (only bodies can differ — the server snapshots `skill_versions` on body change only). It trims the shared prefix/suffix, then runs an LCS table; if the remaining region exceeds 4M cells `diffLines` returns `null` and the UI shows a "too large to diff" note pointing at the Rendered view (imports can be up to 256 KB, so an uncapped table would allocate ~100 MB). Kept dependency-free on purpose; swap in a real diff lib only if word-level or moved-block diffs are ever needed.
+
+### 2026-09-19 — `messages/en/*.json` files are each auto-loaded as their own i18n namespace; new features can add a file instead of editing a shared one
+The loader merges every JSON in `client/messages/en/` under its filename (`skills.json` → `useTranslations("skills")`), so the import drawer's strings live in a new `skillsImport.json` rather than growing `skills.json`. Useful when two people/agents touch one feature's copy concurrently — no merge conflict on a shared file, no loader change needed.
+
+### 2026-09-19 — Agent Skills tab: checkbox = `agent_skills` membership, list order = prompt order, Save is explicit
+`AgentEditor/_components/SkillsTab` lists the whole catalog but persists only the linked ids, in list order, via `useSetAgentSkills` (server `setSkills`: `order` = array index). So reordering only *unlinked* rows changes nothing persistent and doesn't enable Save; a globally disabled skill (`skills.enabled: false`) can still be linked but is skipped at run time, hence the dimmed row. Drag is disabled while the filter is active so `arrayMove` indices stay valid.
+
 ### 2026-09-19 — Most `page.tsx` files are `"use client"` by design, not oversight — the API is a separate Fastify server, not Next.js server-side data
 5 of 7 `page.tsx` files (`app/page.tsx`, `app/onboarding/page.tsx`,
 `app/agents/[id]/page.tsx`, `app/repos/[repoId]/pulls/page.tsx`,
@@ -229,7 +238,19 @@ contracts with no compiler error until a runtime mismatch shows up.
 
 ## Tool & Library Notes
 
+### 2026-09-19 — jsdom's `File`/`Blob` has no `.text()` or `.arrayBuffer()`; archive extraction needs a `FileReader` fallback
+Browsers and Node have them, jsdom (vitest env) doesn't, so `extractSkillFile` (`app/skills/_components/ImportSkillDrawer/extract.ts`) reads via `FileReader` when `.arrayBuffer` is missing — otherwise every drawer/extract test throws `file.text is not a function` while the feature works fine in a real browser.
+
+### 2026-09-19 — An exported test helper returning `render(...)` fails typecheck with TS2742 — annotate `RenderResult`
+`export function renderWithProviders(ui) { return render(...) }` in `app/skills/_test/harness.tsx` errors ("inferred type cannot be named without a reference to `.pnpm/@testing-library+dom…`") because pnpm's nested path isn't portable. Give it an explicit `: RenderResult` (imported from `@testing-library/react`); `vitest` itself doesn't type-check, so only `pnpm typecheck` catches it.
+
+### 2026-09-19 — The `Write` tool can turn a ` `-style escape in source into a literal NUL byte
+Seen while writing `extract.ts`: an escape written into a regex/string landed as a real NUL in the file. Grep for it after generating text-processing code: `grep -rlP '\x00' src`.
+
 ## Recurring Errors & Fixes
+
+### 2026-09-20 — Skill Config tab's Save wrote a stale `enabled` back over a toggle flipped elsewhere
+Three surfaces edit `skills.enabled`: the `/skills` list toggle and side-panel toggle (both PUT `{enabled}` immediately) and the Config tab, which copies it into local state once per `skill.id` and always sends it on Save. Enabling from the list and then saving the open Config tab re-disabled the skill (`test-coverage-nudge` sat at `enabled=f, version=3`). Fixed with a second effect keyed on `skill.enabled` in `SkillConfigTab.tsx`. Any form that holds a server-owned flag in local state AND sends it on save needs this re-sync. Related: the agent Skills tab's "N of M enabled" counts `agent_skills` links, not `skills.enabled`, so a globally disabled skill still counts.
 
 ### 2026-09-18 — `useDeleteReview` invalidated only its own cache key, leaving the Timeline stale
 `useDeleteReview` (`lib/hooks/reviews.ts`) only invalidated `["reviews", prId]`

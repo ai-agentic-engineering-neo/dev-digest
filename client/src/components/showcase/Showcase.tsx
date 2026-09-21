@@ -8,6 +8,7 @@ import {
   Button,
   IconBtn,
   Badge,
+  SkillTypeTag,
   SeverityBadge,
   CategoryTag,
   Chip,
@@ -93,6 +94,10 @@ export function Gallery() {
           <SeverityBadge key={sev} severity={sev} count={3} />
         ))}
         <Badge icon="GitBranch">branch</Badge>
+        <SkillTypeTag type="rubric" />
+        <SkillTypeTag type="convention" />
+        <SkillTypeTag type="security" />
+        <SkillTypeTag type="custom" />
         <Badge dot color="var(--ok)" bg="transparent">
           synced
         </Badge>

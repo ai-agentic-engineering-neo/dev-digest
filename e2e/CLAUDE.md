@@ -11,7 +11,7 @@
 - Adding or editing a flow → read `README.md` (flow format, env knobs, coverage table)
 - Deciding what deserves an e2e flow → read `../TESTING.md`
 - Implementing a planned feature → look for its spec in `specs/`
-- Before any change → read `INSIGHTS.md` (high-confidence guidance; append via `/engineering-insights`)
+- Start of every task here → read `INSIGHTS.md` first; at the end → `engineering-insights` wrap-up
 
 ## Conventions (non-default)
 - `flows/NN-name.flow.json` = browser test flows; they run in lexical order in

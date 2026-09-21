@@ -11,7 +11,7 @@
 - Changing what gets sent to the model → read `README.md#review-context-non-obvious`
 - Touching indexing, repo map, ranking → read `src/modules/repo-intel/README.md`
 - Implementing a planned feature → look for its spec in `specs/`
-- Before any change → read `INSIGHTS.md` (high-confidence guidance; append via `/engineering-insights`)
+- Start of every task here → read `INSIGHTS.md` first; at the end → `engineering-insights` wrap-up
 
 ## Conventions (non-default)
 - A feature = `src/modules/<name>/` plugin, registered statically in `src/modules/index.ts`.

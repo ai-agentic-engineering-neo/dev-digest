@@ -1,8 +1,9 @@
 # Insights — e2e
 
 Lessons learned in `e2e/` that the code doesn't tell you. Written by the
-`engineering-insights` skill (and by hand). **Append only** — add new bullets at
-the top of a section, never rewrite. Format: `- YYYY-MM-DD — concrete, actionable fact`.
+`engineering-insights` skill via `.claude/skills/engineering-insights/scripts/append_insight.py`.
+**Append only** — new bullets go on top of a section; existing lines are never changed by agents.
+Format: `- YYYY-MM-DD — <where>: <fact> → <action>`.
 Reviewed monthly: stale entries are removed in a dedicated commit.
 
 ## What Works

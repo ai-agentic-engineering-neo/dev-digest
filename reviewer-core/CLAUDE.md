@@ -7,7 +7,7 @@
 - Changing prompt assembly, structured output or grounding → read `README.md` (pipeline, public API)
 - Changing what the server feeds in → read `../server/README.md#review-context-non-obvious`
 - Implementing a planned feature → look for its spec in `specs/`
-- Before any change → read `INSIGHTS.md` (high-confidence guidance; append via `/engineering-insights`)
+- Start of every task here → read `INSIGHTS.md` first; at the end → `engineering-insights` wrap-up
 
 ## Conventions (non-default)
 - Stays **pure**: no DB, GitHub, filesystem or env access. The only side effect is

@@ -7,7 +7,7 @@
 - Adding a page or wiring a screen to the API → read `README.md` (UI route map)
 - Changing a real user journey → also read `../e2e/README.md` (flows may need updating)
 - Implementing a planned feature → look for its spec in `specs/`
-- Before any change → read `INSIGHTS.md` (high-confidence guidance; append via `/engineering-insights`)
+- Start of every task here → read `INSIGHTS.md` first; at the end → `engineering-insights` wrap-up
 
 ## Conventions (non-default)
 - Pages (`src/app/**/page.tsx`) stay thin; feature logic lives in colocated

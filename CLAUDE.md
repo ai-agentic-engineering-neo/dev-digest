@@ -21,8 +21,9 @@ Node ≥ 22 · pnpm ≥ 10 · Docker (Postgres only; API and web run on the host
 - Touching the review flow end to end (import → run → findings UI) → read `docs/review-flow.md`
 - Writing, moving or splitting tests, or editing CI → read `TESTING.md`
 - Editing built-in agent prompts or model choice → read `docs/agent-prompts/README.md`
-- Before working in a package → read its `INSIGHTS.md` and treat it as
-  high-confidence guidance unless told otherwise (its `CLAUDE.md` loads automatically)
+- Every task, right after the user's request and before planning/editing → read the
+  `INSIGHTS.md` of each package it concerns; treat it as high-confidence guidance
+  unless told otherwise (skill `engineering-insights`, step READ)
 
 ## Per-package layout (convention)
 Every package has the same four knowledge slots:
@@ -45,5 +46,6 @@ Every package has the same four knowledge slots:
 - `server/clones/` — runtime checkouts of imported repos.
 
 ## On finishing a task
-Update the touched package's `INSIGHTS.md` via the `engineering-insights` skill
-(`/engineering-insights`). Do not skip this step — trivial edits excepted.
+Run `engineering-insights` (WRAP-UP): re-read the touched package's `INSIGHTS.md`,
+append only new, verified, non-obvious insights via its script; if nothing qualifies,
+write nothing. Never edit existing INSIGHTS.md lines. Do not skip this step.

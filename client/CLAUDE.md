@@ -39,4 +39,9 @@ pnpm build        # the only check that exercises the bundler — see below
 not. A broken import therefore stays green in both and fails only in `pnpm build` or `pnpm dev`.
 Run one of those before calling client work done.
 
+**Stop `pnpm dev` before `pnpm build`.** They share `.next`, so a build run against a live dev
+server overwrites its chunks and the page then dies with `Cannot find module
+'./vendor-chunks/…'` — an error that names a dependency and says nothing about the cause.
+Recover by deleting `.next` and starting `dev` again.
+
 Env: `NEXT_PUBLIC_API_BASE` (default `http://localhost:3001`).

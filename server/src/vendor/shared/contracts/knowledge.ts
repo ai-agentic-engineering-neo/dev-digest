@@ -115,7 +115,18 @@ export type MemoryItem = z.infer<typeof MemoryItem>;
 export const SkillType = z.enum(['rubric', 'convention', 'security', 'custom']);
 export type SkillType = z.infer<typeof SkillType>;
 
-export const SkillSource = z.enum(['manual', 'imported_url', 'extracted', 'community']);
+// Where a skill's body came from. Everything except 'manual' is SOMEONE ELSE'S
+// text that ends up inside an agent's prompt, so the review pipeline wraps those
+// bodies in an <untrusted> block (see reviews/helpers.ts → renderSkillBlocks).
+// The DB column is plain `text` with no check constraint, so extending this enum
+// is a TypeScript-only change — no migration.
+export const SkillSource = z.enum([
+  'manual',
+  'imported_file',
+  'imported_url',
+  'extracted',
+  'community',
+]);
 export type SkillSource = z.infer<typeof SkillSource>;
 
 export const Skill = z.object({
@@ -128,8 +139,42 @@ export const Skill = z.object({
   enabled: z.boolean(),
   version: z.number().int(),
   evidence_files: z.array(z.string()).nullish(),
+  /**
+   * How many agents link this skill. Absent on the skill objects embedded in an
+   * agent's link list, where the count would be a self-referential round trip —
+   * present on the list/detail reads the Skills page renders.
+   */
+  agent_count: z.number().int().nullish(),
 });
 export type Skill = z.infer<typeof Skill>;
+
+/** One immutable body snapshot from `skill_versions` (newest first in listings). */
+export const SkillVersion = z.object({
+  skill_id: z.string(),
+  version: z.number().int(),
+  body: z.string(),
+  created_at: z.string(),
+});
+export type SkillVersion = z.infer<typeof SkillVersion>;
+
+/**
+ * The parsed CORE of an imported skill, returned by the import-preview endpoint.
+ * Nothing is persisted at preview time — the user confirms first, then the
+ * client POSTs a normal create. `skipped_entries` lists archive members that
+ * were deliberately NOT read (scripts, binaries, anything executable): the
+ * product imports configuration text, never behaviour.
+ */
+export const SkillImportPreview = z.object({
+  name: z.string(),
+  description: z.string(),
+  type: SkillType,
+  source: SkillSource,
+  body: z.string(),
+  /** Where it came from — a filename or a URL — shown in the preview header. */
+  origin: z.string().nullish(),
+  skipped_entries: z.array(z.string()),
+});
+export type SkillImportPreview = z.infer<typeof SkillImportPreview>;
 
 export const CommunitySkill = z.object({
   name: z.string(),
@@ -195,8 +240,25 @@ export const AgentSkillLink = z.object({
   agent_id: z.string(),
   skill_id: z.string(),
   order: z.number().int(),
+  /**
+   * Per-agent on/off, independent of the skill's own `Skill.enabled`. The skill
+   * is injected into this agent's prompt only when BOTH are true.
+   */
+  enabled: z.boolean(),
 });
 export type AgentSkillLink = z.infer<typeof AgentSkillLink>;
+
+/**
+ * A linked skill joined with its link state — what the agent editor's Skills tab
+ * renders in one row (drag handle, checkbox, name, type badge). Returned by
+ * `GET /agents/:id/skills` so the client never has to join two lists by id.
+ */
+export const AgentSkillDetail = z.object({
+  skill: Skill,
+  order: z.number().int(),
+  enabled: z.boolean(),
+});
+export type AgentSkillDetail = z.infer<typeof AgentSkillDetail>;
 
 // The immutable config snapshot captured in `agent_versions` whenever an agent's
 // config changes (everything but `enabled`). Mirrors the shape written by the

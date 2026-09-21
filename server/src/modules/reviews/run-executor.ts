@@ -6,7 +6,8 @@ import * as schema from '../../db/schema.js';
 import type { AgentRow } from '../../db/rows.js';
 import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './repository.js';
 import { REVIEW_STRATEGY } from './constants.js';
-import { taskLine } from './helpers.js';
+import { renderSkillBlocks, selectActiveSkills, taskLine } from './helpers.js';
+import { toSkillDto } from '../skills/helpers.js';
 import { loadDiff } from './diff-loader.js';
 
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
@@ -183,6 +184,11 @@ export class ReviewRunExecutor {
 
       const task = taskLine(pull) + rankNote;
 
+      // L02 — the agent's linked skills, in the order the editor put them.
+      // Failing to attach a skill must never sink an otherwise-good run, so
+      // this degrades to "no skills" and says so in the Live Log.
+      const skillBlocks = await this.buildSkillBlocks(agent.id, runLog);
+
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
       // the CI runner). The service owns only I/O: repo-intel context resolution
@@ -195,6 +201,10 @@ export class ReviewRunExecutor {
         // Per-agent review strategy (configured in the Agent editor); falls back
         // to the studio default. single-pass = whole diff in one call.
         strategy: agent.strategy ?? REVIEW_STRATEGY,
+        // L02 — linked skills. Omitted entirely when the agent has none enabled,
+        // so an agent without skills produces the exact pre-skills prompt (the
+        // baseline half of the control experiment).
+        ...(skillBlocks.length > 0 ? { skills: skillBlocks } : {}),
         // T1.3 — pass the callers digest only when we built one. assemblePrompt
         // omits the section when this is empty/undefined.
         ...(callersDigest ? { callers: callersDigest } : {}),
@@ -313,6 +323,45 @@ export class ReviewRunExecutor {
       this.container.runBus.complete(runId);
       throw err;
     }
+  }
+
+  /**
+   * Resolve the agent's linked skills into prompt blocks.
+   *
+   * Emits ONE Live Log line naming every skill that made it in, plus the
+   * token cost it added — so "what did enabling this skill actually change?"
+   * is answerable from the run trace instead of by re-reading the config.
+   * A skill that is linked but switched off (either switch) is silently
+   * absent: no block, no line, nothing in `prompt_assembly.skills`.
+   */
+  private async buildSkillBlocks(agentId: string, runLog: RunLogger): Promise<string[]> {
+    let links;
+    try {
+      links = await this.agents.linkedSkills(agentId);
+    } catch (err) {
+      runLog.info(`skills: could not load linked skills — ${(err as Error).message}`);
+      return [];
+    }
+    if (links.length === 0) return [];
+
+    const linked = links.map((l) => ({
+      skill: toSkillDto(l.skill),
+      order: l.order,
+      enabled: l.enabled,
+    }));
+    const blocks = renderSkillBlocks(linked);
+    if (blocks.length === 0) {
+      runLog.info(`skills: ${links.length} linked, 0 enabled — no skills block in the prompt`);
+      return [];
+    }
+
+    const names = selectActiveSkills(linked).map((l) => l.skill.name);
+    const tokens = this.container.tokenizer.count(blocks.join('\n\n'));
+    runLog.info(
+      `skills: ${blocks.length} of ${links.length} linked skill(s) attached ` +
+        `(${names.join(', ')}) — ~${tokens} token(s)`,
+    );
+    return blocks;
   }
 
   /**

@@ -8,6 +8,12 @@
 
 :root,
 [data-theme="dark"] {
+  /* Makes the UA paint its own widgets dark — most visibly the <select> option
+     popup, which is drawn by the OS and ignores our colours. Without this the
+     popup keeps its light background while the options inherit our near-white
+     --text-primary, i.e. white on white. */
+  color-scheme: dark;
+
   --bg-primary: #0a0a0a;
   --bg-surface: #141414;
   --bg-elevated: #1c1c1c;
@@ -47,6 +53,8 @@
 }
 
 [data-theme="light"] {
+  color-scheme: light;
+
   --bg-primary: #ffffff;
   --bg-surface: #fafafa;
   --bg-elevated: #ffffff;

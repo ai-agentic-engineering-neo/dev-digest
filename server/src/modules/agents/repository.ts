@@ -42,10 +42,18 @@ export interface UpdateAgent {
   enabled?: boolean;
 }
 
-/** A skill linked to an agent (with its order), joined from agent_skills. */
+/** A skill linked to an agent (with its link state), joined from agent_skills. */
 export interface LinkedSkillRow {
   skill: typeof t.skills.$inferSelect;
   order: number;
+  /** Per-agent switch; independent of the skill's own `skills.enabled`. */
+  enabled: boolean;
+}
+
+/** One entry of the ordered set written by `setSkills` (order = array index). */
+export interface SkillLinkInput {
+  skillId: string;
+  enabled?: boolean;
 }
 
 export class AgentsRepository {
@@ -191,12 +199,12 @@ export class AgentsRepository {
   /** Skills linked to an agent, in `order` ascending. */
   async linkedSkills(agentId: string): Promise<LinkedSkillRow[]> {
     const rows = await this.db
-      .select({ skill: t.skills, order: t.agentSkills.order })
+      .select({ skill: t.skills, order: t.agentSkills.order, enabled: t.agentSkills.enabled })
       .from(t.agentSkills)
       .innerJoin(t.skills, eq(t.agentSkills.skillId, t.skills.id))
       .where(eq(t.agentSkills.agentId, agentId))
       .orderBy(asc(t.agentSkills.order));
-    return rows.map((r) => ({ skill: r.skill, order: r.order }));
+    return rows.map((r) => ({ skill: r.skill, order: r.order, enabled: r.enabled }));
   }
 
   async skillIdsForAgent(agentId: string): Promise<string[]> {
@@ -205,13 +213,18 @@ export class AgentsRepository {
   }
 
   /** Link a skill to an agent at a given order (idempotent: upserts order). */
-  async linkSkill(agentId: string, skillId: string, order: number): Promise<void> {
+  async linkSkill(
+    agentId: string,
+    skillId: string,
+    order: number,
+    enabled = true,
+  ): Promise<void> {
     await this.db
       .insert(t.agentSkills)
-      .values({ agentId, skillId, order })
+      .values({ agentId, skillId, order, enabled })
       .onConflictDoUpdate({
         target: [t.agentSkills.agentId, t.agentSkills.skillId],
-        set: { order },
+        set: { order, enabled },
       });
   }
 
@@ -222,15 +235,22 @@ export class AgentsRepository {
   }
 
   /**
-   * Replace the full set of linked skills for an agent with `skillIds`, assigning
-   * order = index. Used by the "Skills" editor tab (attach/reorder). Skills not in
-   * the list are unlinked.
+   * Replace the full set of linked skills for an agent with `links`, assigning
+   * order = array index. Used by the "Skills" editor tab, which owns attach,
+   * detach, per-agent enable/disable and drag-reorder as ONE ordered list —
+   * sending the whole set makes a reorder a single atomic write instead of a
+   * burst of per-row updates that could half-apply.
    */
-  async setSkills(agentId: string, skillIds: string[]): Promise<void> {
+  async setSkills(agentId: string, links: SkillLinkInput[]): Promise<void> {
     await this.db.delete(t.agentSkills).where(eq(t.agentSkills.agentId, agentId));
-    if (skillIds.length === 0) return;
-    await this.db
-      .insert(t.agentSkills)
-      .values(skillIds.map((skillId, i) => ({ agentId, skillId, order: i })));
+    if (links.length === 0) return;
+    await this.db.insert(t.agentSkills).values(
+      links.map((link, i) => ({
+        agentId,
+        skillId: link.skillId,
+        order: i,
+        enabled: link.enabled ?? true,
+      })),
+    );
   }
 }

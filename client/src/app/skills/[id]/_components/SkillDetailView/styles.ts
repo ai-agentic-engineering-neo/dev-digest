@@ -1,0 +1,82 @@
+import type { CSSProperties } from "react";
+import { SIDEBAR_WIDTH } from "./constants";
+
+/** Co-located styles for SkillDetailView. */
+export const s = {
+  shell: { display: "flex", height: "calc(100vh - 52px)" } satisfies CSSProperties,
+  sidebar: {
+    width: SIDEBAR_WIDTH,
+    flexShrink: 0,
+    borderRight: "1px solid var(--border)",
+    display: "flex",
+    flexDirection: "column",
+    background: "var(--bg-surface)",
+  } satisfies CSSProperties,
+  sidebarHeader: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "16px 16px 12px",
+  } satisfies CSSProperties,
+  sidebarTitle: { fontSize: 18, fontWeight: 700, flex: 1 } satisfies CSSProperties,
+  sidebarBack: { padding: "0 16px 10px" } satisfies CSSProperties,
+  sidebarList: {
+    flex: 1,
+    overflow: "auto",
+    padding: "0 12px 12px",
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+  } satisfies CSSProperties,
+  main: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    minWidth: 0,
+    minHeight: 0,
+  } satisfies CSSProperties,
+  header: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    padding: "16px 28px 0",
+    flexShrink: 0,
+  } satisfies CSSProperties,
+  title: {
+    fontSize: 18,
+    fontWeight: 700,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  } satisfies CSSProperties,
+  headerActions: {
+    marginLeft: "auto",
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+  } satisfies CSSProperties,
+  toggleWrap: { display: "flex", alignItems: "center", gap: 8 } satisfies CSSProperties,
+  toggleLabel: { fontSize: 12.5, color: "var(--text-secondary)" } satisfies CSSProperties,
+  tabsWrap: { flexShrink: 0, marginTop: 12 } satisfies CSSProperties,
+  content: { flex: 1, minHeight: 0, overflow: "auto", padding: 28 } satisfies CSSProperties,
+  loading: {
+    flex: 1,
+    padding: 28,
+    display: "flex",
+    flexDirection: "column",
+    gap: 16,
+  } satisfies CSSProperties,
+  untrustedNotice: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 8,
+    margin: "16px 28px 0",
+    padding: "10px 12px",
+    borderRadius: 8,
+    border: "1px solid var(--warn)",
+    background: "color-mix(in srgb, var(--warn) 10%, transparent)",
+    fontSize: 12.5,
+    color: "var(--text-secondary)",
+    lineHeight: 1.5,
+  } satisfies CSSProperties,
+} as const;

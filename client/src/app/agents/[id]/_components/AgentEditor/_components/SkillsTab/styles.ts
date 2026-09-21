@@ -1,0 +1,53 @@
+import type { CSSProperties } from "react";
+
+/** Co-located styles for SkillsTab. */
+export const s = {
+  wrap: { padding: "24px 28px 40px", display: "flex", flexDirection: "column", gap: 12 } satisfies CSSProperties,
+  header: { display: "flex", alignItems: "center", gap: 12 } satisfies CSSProperties,
+  h2: { fontSize: 20, fontWeight: 700, letterSpacing: "-0.01em" } satisfies CSSProperties,
+  search: {
+    marginLeft: "auto",
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "7px 12px",
+    borderRadius: 7,
+    border: "1px solid var(--border)",
+    background: "var(--bg-surface)",
+    width: 220,
+  } satisfies CSSProperties,
+  searchIcon: { color: "var(--text-muted)" } satisfies CSSProperties,
+  searchInput: {
+    flex: 1,
+    fontSize: 13,
+    background: "transparent",
+    border: "none",
+    outline: "none",
+    color: "var(--text-primary)",
+  } satisfies CSSProperties,
+  hint: { fontSize: 13, color: "var(--text-secondary)", margin: 0 } satisfies CSSProperties,
+  empty: { fontSize: 13, color: "var(--text-muted)", margin: 0 } satisfies CSSProperties,
+  list: { listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 } satisfies CSSProperties,
+  row: (on: boolean, isDragging: boolean): CSSProperties => ({
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    padding: "11px 14px",
+    borderRadius: 8,
+    border: `1px solid ${on ? "var(--border-strong)" : "var(--border)"}`,
+    background: on ? "var(--bg-elevated)" : "var(--bg-surface)",
+    opacity: isDragging ? 0.45 : 1,
+    cursor: "grab",
+  }),
+  handle: { color: "var(--text-muted)", display: "inline-flex", cursor: "grab" } satisfies CSSProperties,
+  checkboxWrap: { flex: 1, minWidth: 0 } satisfies CSSProperties,
+  skillName: { fontSize: 13.5, color: "var(--text-primary)" } satisfies CSSProperties,
+  typeChip: (color: string): CSSProperties => ({
+    fontSize: 11,
+    padding: "2px 8px",
+    borderRadius: 5,
+    color,
+    border: `1px solid ${color}`,
+    flexShrink: 0,
+  }),
+} as const;

@@ -45,7 +45,14 @@ export function SelectInput({
           const v = typeof o === "string" ? o : o.value;
           const l = typeof o === "string" ? o : o.label;
           return (
-            <option key={v} value={v}>
+            // The popup is drawn by the OS, so an option that inherits only the
+            // select's colour lands on whatever background the UA picked. Stating
+            // both keeps it readable where `color-scheme` is not honoured.
+            <option
+              key={v}
+              value={v}
+              style={{ background: "var(--bg-elevated)", color: "var(--text-primary)" }}
+            >
               {l}
             </option>
           );

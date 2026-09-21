@@ -58,6 +58,12 @@ export const agentSkills = pgTable(
       .notNull()
       .references(() => skills.id, { onDelete: 'cascade' }),
     order: integer('order').notNull().default(0),
+    // Per-agent on/off, INDEPENDENT of the skill's own global `skills.enabled`.
+    // A skill reaches the prompt only when BOTH are true: the workspace still
+    // trusts the skill at all, AND this agent currently wants it. Keeping the
+    // link while switching it off is how you A/B a skill without losing its
+    // position in the order.
+    enabled: boolean('enabled').notNull().default(true),
   },
   (t) => ({ pk: primaryKey({ columns: [t.agentId, t.skillId] }) }),
 );

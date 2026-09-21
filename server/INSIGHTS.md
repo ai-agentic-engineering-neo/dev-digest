@@ -19,7 +19,30 @@ non-obvious; never rewritten, only appended to.
   schema migration. Don't assume every `RunSummary` field is denormalized —
   check `run.repo.ts` vs `run-executor.ts` before adding a new one.
 
+- 2026-09-21: `run-executor.ts` marks a run terminal (`completeAgentRun`) BEFORE
+  it writes the `run_traces` document (`saveRunTrace`). Anything that polls
+  `agent_runs` for a terminal status and then fetches `/runs/:id/trace` can land
+  in that gap and get a 404 — it is a real window, not a theoretical one (it hit
+  a test whose run finished in ~290ms). Poll for the trace itself rather than
+  treating "status is done" as "trace exists".
+
+- 2026-09-21: A DERIVED DTO field (one computed by a join rather than stored on
+  the row — e.g. `Skill.agent_count`) has to be populated by every write path,
+  not just `list`/`get`. The client writes a mutation's response straight into
+  its cache (`useUpdateSkill` → `qc.setQueryData(["skill", id], data)`), so a
+  `PUT` that returns the field as `null` visibly BLANKS a value the list had
+  already shown. `create` can fill it from a known invariant (a brand-new skill
+  has no links, so `0`); `update` has to re-run the aggregate. Covered by an
+  assertion in `skills.it.test.ts` — mirror it for any future derived field.
+
 ## Tool & Library Notes
+
+- 2026-09-21: `dockerAvailable()` in `test/helpers/pg.ts` probes with
+  `execSync('docker info', { timeout: 5000 })`. On Windows under load that probe
+  exceeds 5s even when Docker is healthy, and the `*.it.test.ts` suites then
+  **skip silently and report green**. A passing integration run is only
+  meaningful if the output shows the test count — check for `skipped` before
+  believing it, and just re-run.
 
 ## Decisions
 
@@ -30,6 +53,17 @@ non-obvious; never rewritten, only appended to.
   Established for `cost_usd`/`score`/`blockers`; the same convention was
   extended to the new `findings_by_severity` (`RunSummary`) and `findings`
   (`PrMeta`) fields — mirror it for any future aggregate on these rows.
+
+- 2026-09-21: A skill body whose `source` is anything but `'manual'` is
+  delimiter-wrapped with `wrapUntrusted()` before it enters the prompt
+  (`reviews/helpers.ts` → `renderSkillBlocks`). Importing someone's skill is not
+  endorsing every sentence in it: without the wrapper, "import a skill from a
+  URL" would be a remote prompt-injection channel into every review that agent
+  runs. Keep any future skill source that isn't hand-written on the wrapped side.
+- 2026-09-21: `SkillSource` / other `text('col', { enum: [...] })` columns have
+  NO check constraint in Postgres — drizzle enforces them at the type level only.
+  Widening such an enum is a TypeScript-only change; `drizzle-kit generate`
+  correctly reports "nothing to migrate". Don't hand-write a migration for it.
 
 ## Recurring Errors & Fixes
 
@@ -42,5 +76,19 @@ non-obvious; never rewritten, only appended to.
   change's fault.
 
 ## Session Notes
+
+- 2026-09-21: `server/src/vendor/shared` and `client/src/vendor/shared` are
+  documented as hand-maintained duplicates — but they have ALREADY diverged, and
+  not trivially: the client copy lacks `AgentVersionConfig`, the `openrouter`
+  provider, `commitFiles`, `findOpenPr`, `sync`, `diffNameOnly` and the
+  `sessionId` field. `diff` the two before assuming a symbol exists on both
+  sides, and only mirror what your change needs rather than "syncing" them.
+- 2026-09-21: Before building anything in the skills area, check what is already
+  scaffolded: the `skills` / `skill_versions` / `agent_skills` tables, the Zod
+  contracts, the `assemblePrompt({ skills })` parameter, the trace drawer's
+  skills block and the whole `messages/en/skills.json` namespace all pre-existed
+  with no code between them. The actual gap was one missing argument —
+  `run-executor.ts` never passed `skills` to `reviewPullRequest`, so no skill
+  ever reached a prompt. Assume "the table exists" ≠ "the feature is wired".
 
 ## Open Questions

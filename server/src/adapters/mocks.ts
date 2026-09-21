@@ -31,6 +31,8 @@ import type {
   AuthWorkspace,
   SecretsProvider,
   SecretKey,
+  WebFetcher,
+  FetchedDocument,
 } from '@devdigest/shared';
 import { parseUnifiedDiff } from './git/diff-parser.js';
 
@@ -305,6 +307,29 @@ export class MockCodeIndex implements CodeIndex {
   }
   async references(_repo: RepoRef, symbol: string): Promise<CodeReference[]> {
     return [{ fromPath: 'src/api/public/index.ts', toSymbol: symbol, line: 23 }];
+  }
+}
+
+// ---------- Mock WebFetcher ----------
+/**
+ * Returns a canned document for any URL — NO network, so skill-import tests
+ * exercise parsing/persistence without depending on (or being able to reach)
+ * the outside world. Set `error` to rehearse the guard-refusal path.
+ */
+export class MockWebFetcher implements WebFetcher {
+  public calls: string[] = [];
+  constructor(
+    private doc: Partial<FetchedDocument> = {},
+    private error?: string,
+  ) {}
+  async fetchText(url: string): Promise<FetchedDocument> {
+    this.calls.push(url);
+    if (this.error) throw new Error(this.error);
+    return {
+      url,
+      contentType: this.doc.contentType ?? 'text/markdown',
+      text: this.doc.text ?? '# Mock skill\n\nA rule body.',
+    };
   }
 }
 

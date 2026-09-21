@@ -87,6 +87,29 @@ export interface LLMProvider {
   embed(texts: string[]): Promise<number[][]>;
 }
 
+// ---------- Web fetch (user-supplied URLs) ----------
+/** A text document fetched from a user-supplied URL. */
+export interface FetchedDocument {
+  /** The URL actually requested (redirects are refused, so this is the input). */
+  url: string;
+  contentType: string;
+  text: string;
+}
+
+/**
+ * Fetches a TEXT document from a URL the USER typed — the skill-import path.
+ *
+ * This is a server-side request to an arbitrary address, i.e. a textbook SSRF
+ * sink, so the guarantees live in the adapter rather than at each call site:
+ * http/https only, DNS resolved and rejected for loopback / private /
+ * link-local / IPv4-mapped ranges, redirects refused (a redirect would bypass
+ * the host check), a hard timeout, a response-size cap, and a content-type
+ * allowlist. Implementations throw on violation; callers surface the message.
+ */
+export interface WebFetcher {
+  fetchText(url: string): Promise<FetchedDocument>;
+}
+
 // ---------- Embedder ----------
 export interface Embedder {
   /** OpenAI text-embedding-3-small → 1536 dims. */

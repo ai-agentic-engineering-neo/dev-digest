@@ -6,6 +6,7 @@ import type {
   CodeIndex,
   Embedder,
   LLMProvider,
+  WebFetcher,
 } from '@devdigest/shared';
 import type { AppConfig } from './config.js';
 import type { Db } from '../db/client.js';
@@ -16,6 +17,7 @@ import { LocalNoAuthProvider } from '../adapters/auth/local.js';
 import { OctokitGitHubClient } from '../adapters/github/octokit.js';
 import { SimpleGitClient } from '../adapters/git/simple-git.js';
 import { RipgrepCodeIndex } from '../adapters/codeindex/ripgrep.js';
+import { SsrfSafeWebFetcher } from '../adapters/webfetch/safe-fetch.js';
 import { OpenAIProvider } from '../adapters/llm/openai.js';
 import { AnthropicProvider } from '../adapters/llm/anthropic.js';
 import { OpenAIEmbedder } from '../adapters/embedder/openai.js';
@@ -48,6 +50,8 @@ export interface ContainerOverrides {
   llm?: Partial<Record<'openai' | 'anthropic' | 'openrouter', LLMProvider>>;
   /** repo-intel facade (T1.1+) — tests inject mock RepoIntel implementations. */
   repoIntel?: RepoIntel;
+  /** Outbound fetcher for user-supplied URLs (skill import) — mocked in tests. */
+  webFetcher?: WebFetcher;
   /** repo-intel T3 adapters — only the indexer pipeline reads these. */
   depgraph?: DepGraph;
   tokenizer?: Tokenizer;
@@ -76,6 +80,7 @@ export class Container {
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
   private _priceBook?: PriceBook;
+  private _webFetcher?: WebFetcher;
 
   constructor(config: AppConfig, db: Db, private overrides: ContainerOverrides = {}) {
     this.config = config;
@@ -122,6 +127,17 @@ export class Container {
     if (this.overrides.depgraph) return this.overrides.depgraph;
     this._depgraph ??= new DepCruiseGraph();
     return this._depgraph;
+  }
+
+  /**
+   * Fetcher for URLs the user typed (skill import). The real implementation
+   * enforces the SSRF / size / content-type guards; tests inject
+   * `MockWebFetcher` so no suite ever reaches the network.
+   */
+  get webFetcher(): WebFetcher {
+    if (this.overrides.webFetcher) return this.overrides.webFetcher;
+    this._webFetcher ??= new SsrfSafeWebFetcher();
+    return this._webFetcher;
   }
 
   /** Token counter (js-tiktoken) for the repo-map budget search. */

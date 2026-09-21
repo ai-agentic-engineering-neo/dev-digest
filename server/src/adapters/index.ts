@@ -8,5 +8,6 @@ export { OctokitGitHubClient } from './github/octokit.js';
 export { SimpleGitClient } from './git/simple-git.js';
 export { parseUnifiedDiff } from './git/diff-parser.js';
 export { RipgrepCodeIndex } from './codeindex/ripgrep.js';
+export { SsrfSafeWebFetcher, isPublicAddress } from './webfetch/safe-fetch.js';
 export { estimateCost } from './llm/pricing.js';
 export * from './mocks.js';

@@ -1,0 +1,33 @@
+{
+  "name": "Skills library, the skill detail tabs, and the agent's Skills tab",
+  "description": "Loads /skills and confirms a seeded skill card renders, opens it to the detail page and walks the Config / Preview / Versions tabs, then opens the Test Quality Reviewer's Skills tab and confirms its linked skill is listed and filterable. Exercises the skills list route, the detail route and its tab routing, the version-history fetch, and the agent skill-link fetch. Drag-reordering and the version diff are covered by unit tests instead — HTML5 drag is not reliably drivable here, and the diff is pure logic.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/skills"], "label": "load the skills page" },
+    { "cmd": ["wait", "--url", "/skills"], "label": "skills route reached" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "skills fetch settles" },
+    { "cmd": ["wait", "--text", "Add Skill"], "label": "the create/import entry point is on the list page" },
+    { "cmd": ["wait", "--text", "secret-leakage-gate"], "label": "seeded skill card is visible" },
+    { "cmd": ["wait", "--text", "1 agent"], "label": "the card shows its agent count" },
+    { "cmd": ["click", "--text", "secret-leakage-gate"], "label": "open the skill" },
+    { "cmd": ["wait", "--url", "/skills/"], "label": "skill detail route reached" },
+    { "cmd": ["wait", "--text", "Configuration"], "label": "Config tab is the default" },
+
+    { "cmd": ["click", "--text", "Preview"], "label": "switch to the Preview tab" },
+    { "cmd": ["wait", "--text", "Rendered as the reviewing agent receives it."], "label": "the body renders as markdown" },
+
+    { "cmd": ["click", "--text", "Versions"], "label": "switch to the Versions tab" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "version history fetch settles" },
+    { "cmd": ["wait", "--text", "Version history"], "label": "the history list is rendered" },
+    { "cmd": ["wait", "--text", "Current"], "label": "the live version is marked current" },
+
+    { "cmd": ["open", "{BASE}/agents"], "label": "load the agents page" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "agents fetch settles" },
+    { "cmd": ["click", "--text", "Test Quality Reviewer"], "label": "open the new agent" },
+    { "cmd": ["wait", "--url", "/agents/"], "label": "agent editor reached" },
+    { "cmd": ["click", "--text", "Skills"], "label": "switch to the Skills tab" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "skill links fetch settles" },
+    { "cmd": ["wait", "--text", "test-quality-rubric"], "label": "the agent's linked skill is listed" },
+    { "cmd": ["wait", "--text", "Filter skills"], "label": "the skill filter input is available" },
+    { "cmd": ["wait", "--text", "of"], "label": "the enabled-count badge is rendered" }
+  ]
+}

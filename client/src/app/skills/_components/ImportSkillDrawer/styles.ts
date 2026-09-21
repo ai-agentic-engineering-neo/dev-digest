@@ -1,0 +1,90 @@
+import type { CSSProperties } from "react";
+
+/** Co-located styles for ImportSkillDrawer. */
+export const s = {
+  body: { padding: "18px 24px 24px", display: "flex", flexDirection: "column", gap: 16 } satisfies CSSProperties,
+  section: { display: "flex", flexDirection: "column", gap: 10 } satisfies CSSProperties,
+  fileInput: { fontSize: 13, color: "var(--text-secondary)" } satisfies CSSProperties,
+  footer: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 10,
+  } satisfies CSSProperties,
+  error: {
+    marginRight: "auto",
+    fontSize: 12.5,
+    color: "var(--crit)",
+    maxWidth: 420,
+    lineHeight: 1.45,
+  } satisfies CSSProperties,
+
+  preview: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 12,
+    padding: 16,
+    borderRadius: 10,
+    border: "1px solid var(--border-strong)",
+    background: "var(--bg-elevated)",
+  } satisfies CSSProperties,
+  previewHead: { display: "flex", alignItems: "center", gap: 9 } satisfies CSSProperties,
+  previewName: { flex: 1, fontSize: 14, fontWeight: 650 } satisfies CSSProperties,
+  origin: { fontSize: 11.5, color: "var(--text-muted)" } satisfies CSSProperties,
+  previewDesc: {
+    margin: 0,
+    fontSize: 13,
+    color: "var(--text-secondary)",
+    lineHeight: 1.5,
+  } satisfies CSSProperties,
+  untrustedNotice: {
+    display: "flex",
+    gap: 8,
+    padding: "10px 12px",
+    borderRadius: 8,
+    border: "1px solid var(--warn)",
+    fontSize: 12,
+    color: "var(--text-secondary)",
+    lineHeight: 1.5,
+  } satisfies CSSProperties,
+
+  skipped: {
+    padding: "10px 12px",
+    borderRadius: 8,
+    border: "1px solid var(--border)",
+    background: "var(--bg-surface)",
+  } satisfies CSSProperties,
+  skippedHead: {
+    display: "flex",
+    alignItems: "center",
+    gap: 7,
+    fontSize: 12,
+    fontWeight: 600,
+    color: "var(--text-secondary)",
+    marginBottom: 6,
+  } satisfies CSSProperties,
+  skippedList: { margin: 0, paddingLeft: 18, maxHeight: 120, overflow: "auto" } satisfies CSSProperties,
+  skippedItem: { fontSize: 11.5, color: "var(--text-muted)", lineHeight: 1.6 } satisfies CSSProperties,
+
+  bodyLabel: {
+    fontSize: 11,
+    fontWeight: 650,
+    letterSpacing: "0.04em",
+    textTransform: "uppercase",
+    color: "var(--text-muted)",
+  } satisfies CSSProperties,
+  bodyPre: {
+    margin: 0,
+    maxHeight: 260,
+    overflow: "auto",
+    fontSize: 12,
+    lineHeight: 1.55,
+    whiteSpace: "pre-wrap",
+    wordBreak: "break-word",
+    padding: "12px 14px",
+    borderRadius: 8,
+    border: "1px solid var(--border)",
+    background: "var(--bg-surface)",
+    color: "var(--text-secondary)",
+  } satisfies CSSProperties,
+} as const;

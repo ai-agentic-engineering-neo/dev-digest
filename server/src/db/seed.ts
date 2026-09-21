@@ -7,7 +7,23 @@ import {
   GENERAL_REVIEWER_PROMPT,
   SECURITY_REVIEWER_PROMPT,
   PERFORMANCE_REVIEWER_PROMPT,
+  TEST_QUALITY_REVIEWER_PROMPT,
+  API_CONTRACT_REVIEWER_PROMPT,
 } from './seed-prompts.js';
+import { SEED_SKILLS } from './seed-skills.js';
+import { CONTROL_PRS } from './seed-control-prs.js';
+
+/**
+ * Which starter skills each built-in agent links to, in prompt order. Named
+ * rather than keyed by id so the mapping survives a re-seed, and so it reads as
+ * documentation of what each agent is actually configured to do.
+ */
+const AGENT_SKILL_LINKS: Record<string, string[]> = {
+  'General Reviewer': ['pr-quality-rubric', 'no-then-chains'],
+  'Security Reviewer': ['secret-leakage-gate', 'lethal-trifecta', 'phantom-api-gate'],
+  'Test Quality Reviewer': ['test-quality-rubric'],
+  'API Contract Reviewer': ['api-contract-gate'],
+};
 
 /** Default provider/model for the built-in reviewer agents. */
 const DEFAULT_PROVIDER = 'openrouter' as const;
@@ -212,6 +228,29 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       version: 1,
       createdBy: userId,
     },
+    {
+      workspaceId,
+      name: 'Test Quality Reviewer',
+      description:
+        'Checks the tests that ship with a change: uncovered branches, missing corner cases, over-mocking, flakes.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: TEST_QUALITY_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
+    {
+      workspaceId,
+      name: 'API Contract Reviewer',
+      description: 'Catches breaking changes to route signatures, schemas and response shapes.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: API_CONTRACT_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
   ];
   for (const a of seedAgents) {
     const [existing] = await db
@@ -221,7 +260,126 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
     if (!existing) await db.insert(t.agents).values(a);
   }
 
+  await seedSkills(db, workspaceId);
+  await seedAgentSkillLinks(db, workspaceId);
+  await seedControlPrs(db, workspaceId, repoId);
+
   return { workspaceId, userId };
+}
+
+/**
+ * Starter skills. Idempotent by name, like the agents: re-seeding an existing
+ * workspace must not duplicate a skill or clobber a body the user has edited.
+ */
+async function seedSkills(db: Db, workspaceId: string): Promise<void> {
+  for (const skill of SEED_SKILLS) {
+    const [existing] = await db
+      .select()
+      .from(t.skills)
+      .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.name, skill.name)));
+    if (existing) continue;
+
+    const [row] = await db
+      .insert(t.skills)
+      .values({
+        workspaceId,
+        name: skill.name,
+        description: skill.description,
+        type: skill.type,
+        source: skill.source,
+        body: skill.body,
+        enabled: true,
+        version: 1,
+      })
+      .returning();
+    // Mirror the repository's contract: v1 always has a body snapshot, so the
+    // version history is complete for seeded skills too.
+    await db
+      .insert(t.skillVersions)
+      .values({ skillId: row!.id, version: 1, body: row!.body })
+      .onConflictDoNothing();
+  }
+}
+
+/** Link the starter skills to the built-in agents, in prompt order. */
+async function seedAgentSkillLinks(db: Db, workspaceId: string): Promise<void> {
+  for (const [agentName, skillNames] of Object.entries(AGENT_SKILL_LINKS)) {
+    const [agent] = await db
+      .select()
+      .from(t.agents)
+      .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, agentName)));
+    if (!agent) continue;
+
+    // Only seed links for an agent that has none — otherwise a re-seed would
+    // undo a reordering or a per-agent toggle the user made in the editor.
+    const existing = await db
+      .select()
+      .from(t.agentSkills)
+      .where(eq(t.agentSkills.agentId, agent.id));
+    if (existing.length > 0) continue;
+
+    for (const [order, skillName] of skillNames.entries()) {
+      const [skill] = await db
+        .select()
+        .from(t.skills)
+        .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.name, skillName)));
+      if (!skill) continue;
+      await db
+        .insert(t.agentSkills)
+        .values({ agentId: agent.id, skillId: skill.id, order, enabled: true })
+        .onConflictDoNothing();
+    }
+  }
+}
+
+/**
+ * The two demo PRs the skills control experiment runs against. Unlike PR #482
+ * these carry real `patch` text, so `diffFromPrFiles` can reconstruct a diff
+ * and a review actually has something to read without a clone.
+ */
+async function seedControlPrs(db: Db, workspaceId: string, repoId: string): Promise<void> {
+  for (const spec of CONTROL_PRS) {
+    const [existing] = await db
+      .select()
+      .from(t.pullRequests)
+      .where(and(eq(t.pullRequests.repoId, repoId), eq(t.pullRequests.number, spec.number)));
+    if (existing) continue;
+
+    const [pr] = await db
+      .insert(t.pullRequests)
+      .values({
+        workspaceId,
+        repoId,
+        number: spec.number,
+        title: spec.title,
+        author: spec.author,
+        branch: spec.branch,
+        base: spec.base,
+        headSha: spec.headSha,
+        additions: spec.files.reduce((n, f) => n + f.additions, 0),
+        deletions: spec.files.reduce((n, f) => n + f.deletions, 0),
+        filesCount: spec.files.length,
+        status: 'needs_review',
+        body: spec.body,
+      })
+      .returning();
+
+    await db.insert(t.prFiles).values(
+      spec.files.map((f) => ({
+        prId: pr!.id,
+        path: f.path,
+        additions: f.additions,
+        deletions: f.deletions,
+        patch: f.patch,
+      })),
+    );
+    await db.insert(t.prCommits).values({
+      prId: pr!.id,
+      sha: spec.headSha,
+      message: spec.commitMessage,
+      author: spec.author,
+    });
+  }
 }
 
 // CLI entrypoint. Compares real filesystem paths (not raw URL strings) so

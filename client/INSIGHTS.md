@@ -44,6 +44,15 @@ and vitest already did, so the barrel is importable as a value like any other mo
 import fixed one call site and left the mine for whoever came next.
 Evidence: client/src/vendor/shared/index.ts:19
 
+**2026-09-21** — Supersedes the entry above, which is no longer true and whose advice should not
+be followed: the barrel now carries values fine, and importing past it is not the fix. The cause
+was the bundler alone, and it is cured once for the whole package by `resolve.extensionAlias =
+{ ".js": [".ts", ".tsx", ".js"] }` in `client/next.config.mjs` — tsc and vitest already did this
+themselves, which is why only `pnpm dev` / `pnpm build` ever saw the breakage. Import values from
+`@devdigest/shared` normally; if such an import fails to resolve, suspect that config line was
+removed rather than reaching for a deep import.
+Evidence: client/next.config.mjs:10
+
 ## Session Notes
 
 ## Open Questions

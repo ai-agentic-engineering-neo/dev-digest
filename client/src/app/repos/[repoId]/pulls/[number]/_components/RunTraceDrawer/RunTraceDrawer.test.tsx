@@ -47,6 +47,19 @@ describe("A5 Run Trace drawer (smoke)", () => {
     expect(screen.getByText("Tool calls")).toBeInTheDocument();
   });
 
+  it("shows the run cost from the run row, and the trace's own number as fallback", () => {
+    renderWithIntl(
+      <RunTraceDrawer runId="r1" agentName="Security" prNumber={482} costUsd={0.06} onClose={() => {}} />,
+    );
+    expect(screen.getByText("COST")).toBeInTheDocument();
+    expect(screen.getByText("$0.06")).toBeInTheDocument();
+  });
+
+  it("shows an em dash when neither the run row nor the trace has a cost", () => {
+    renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    expect(screen.getByText("—")).toBeInTheDocument();
+  });
+
   it("switches to the live log tab", () => {
     renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
     fireEvent.click(screen.getByText("log"));

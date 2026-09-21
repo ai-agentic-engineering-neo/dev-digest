@@ -209,6 +209,13 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(run!.findingsCount).toBe(1);
     expect(run!.grounding).toBe('1/2 passed');
 
+    // Cost is attributed from the provider's usage (MockLLMProvider reports
+    // 0.001 per call) and lands on all three surfaces with the same number.
+    expect(run!.costUsd).toBeGreaterThan(0);
+    expect(trace.stats.cost_usd).toBe(run!.costUsd);
+    const runs = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(runs.find((r: { run_id: string }) => r.run_id === runId).cost_usd).toBe(run!.costUsd);
+
     await app.close();
   });
 

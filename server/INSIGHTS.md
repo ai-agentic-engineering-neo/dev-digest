@@ -25,8 +25,20 @@ Keep each entry ≤5 lines. Agents only append; changing, moving to CLAUDE.md or
 ## Tool & Library Notes
 <!-- Quirks of dependencies and tools -->
 
+### 2026-09-21 — Drizzle aggregates keep SQL NULL as `null`, even with `.mapWith(Number)`
+- What: `sum(col).mapWith(Number)` returns `null` (not `0`) for a group whose values are all NULL.
+- Why: drizzle's row mapper short-circuits on null before calling the decoder (node_modules/drizzle-orm/utils.js:28).
+- Rule: ALWAYS rely on that for "no data" vs "genuinely zero" aggregates instead of adding COALESCE.
+- Evidence: src/modules/pulls/routes.ts:139 · test/run-cost.it.test.ts "PR list COST is null (not 0)"
+
 ## Recurring Errors & Fixes
 <!-- Exact error text → cause → fix -->
+
+### 2026-09-21 — `(HTTP code 409) … container is running` when the whole *.it.test suite runs
+- What: one suite fails at teardown with "cannot remove container ... container is running", while all its tests pass.
+- Why: testcontainers races on removing parallel Postgres containers; it is a teardown flake, not a test failure.
+- Rule: Re-run that one file (`pnpm exec vitest run test/<file>.it.test.ts`) before investigating; treat a green single-file run as proof.
+- Evidence: test/settings-models.it.test.ts · `pnpm exec vitest run .it.test` (33/33 tests passed, 1 suite errored)
 
 ## Open Questions
 <!-- Unresolved; What + Evidence only; delete once answered -->

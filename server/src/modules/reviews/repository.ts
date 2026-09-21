@@ -98,6 +98,13 @@ export class ReviewRepository {
     return runRepo.reapStaleRunningRuns(this.db);
   }
 
+  /** On boot: estimate cost for runs finished before cost attribution existed. */
+  backfillRunCosts(
+    estimate: (model: string, tokensIn: number, tokensOut: number) => number | null,
+  ): Promise<number> {
+    return runRepo.backfillRunCosts(this.db, estimate);
+  }
+
   /** Delete a whole review (one agent's run) + its findings (cascade), scoped
    *  to the workspace. Returns false if not found in the workspace. */
   deleteReview(workspaceId: string, reviewId: string): Promise<boolean> {
@@ -155,6 +162,8 @@ export class ReviewRepository {
       durationMs: number;
       tokensIn: number;
       tokensOut: number;
+      /** Run cost in USD; null when unknown (failed run / unpriced model). */
+      costUsd?: number | null;
       findingsCount: number;
       grounding: string;
       /** Review score (0-100); null on failed/cancelled runs. */

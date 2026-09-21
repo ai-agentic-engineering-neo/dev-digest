@@ -23,6 +23,8 @@ export interface RunTraceDrawerProps {
   prNumber?: number | null;
   /** Persisted findings of this run (shown in the Findings section). */
   findings?: FindingRecord[];
+  /** This run's cost in USD (from the run row); null = no cost data. */
+  costUsd?: number | null;
   /** When true, the drawer defaults to the live log and streams SSE. */
   running?: boolean;
   onClose: () => void;
@@ -38,6 +40,7 @@ export default function RunTraceDrawer({
   agentName,
   prNumber,
   findings = [],
+  costUsd = null,
   running = false,
   onClose,
 }: RunTraceDrawerProps) {
@@ -94,7 +97,7 @@ export default function RunTraceDrawer({
               {stillRunning ? t("drawer.tracePending") : t("drawer.loadingTrace")}
             </div>
           ) : trace ? (
-            <TraceBody trace={trace} findings={findings} />
+            <TraceBody trace={trace} findings={findings} costUsd={costUsd} />
           ) : (
             <div style={s.emptyNote}>{t("drawer.noTrace")}</div>
           )

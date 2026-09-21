@@ -53,15 +53,26 @@ export function SeverityBadge({
   severity,
   count,
   compact,
+  onClick,
+  active,
 }: {
   severity: Severity;
   count?: number;
   compact?: boolean;
+  /** Makes the badge clickable (e.g. a severity filter pill). */
+  onClick?: () => void;
+  /** Only meaningful with `onClick`. `false` dims the badge (another pill is
+   *  active); `true`/`undefined` renders it at full strength. */
+  active?: boolean;
 }) {
   const s = SEV[severity];
   const I = Icon[s.icon];
+  const dimmed = onClick != null && active === false;
+  const Tag: React.ElementType = onClick ? "button" : "span";
   return (
-    <span
+    <Tag
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
       style={{
         display: "inline-flex",
         alignItems: "center",
@@ -74,6 +85,10 @@ export function SeverityBadge({
         background: s.bg,
         textTransform: "uppercase",
         letterSpacing: "0.04em",
+        opacity: dimmed ? 0.5 : 1,
+        border: "none",
+        cursor: onClick ? "pointer" : undefined,
+        font: onClick ? "inherit" : undefined,
       }}
     >
       <I size={12.5} />
@@ -83,7 +98,7 @@ export function SeverityBadge({
           {count}
         </span>
       )}
-    </span>
+    </Tag>
   );
 }
 

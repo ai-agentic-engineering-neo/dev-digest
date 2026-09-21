@@ -1,7 +1,7 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import type { Db } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
-import type { RunSummary, RunTrace } from '@devdigest/shared';
+import type { FindingsBySeverity, RunSummary, RunTrace } from '@devdigest/shared';
 
 // ---- in-flight / history --------------------------------------------------
 
@@ -36,6 +36,51 @@ export async function activeRunsForPull(
   }));
 }
 
+const SEVERITIES = ['CRITICAL', 'WARNING', 'SUGGESTION'] as const;
+function isSeverity(v: string): v is (typeof SEVERITIES)[number] {
+  return (SEVERITIES as readonly string[]).includes(v);
+}
+
+/**
+ * Per-run findings, bucketed by severity, for every run id given. Computed at
+ * read time (join reviews → findings) — same reason score/blockers/cost_usd
+ * are denormalized onto agent_runs instead: the timeline has no FK to the
+ * review. A run with a review gets a bucket (zeros if it has no findings); a
+ * run with no review at all is simply absent from the returned map (→ null).
+ */
+async function findingsBySeverityByRun(
+  db: Db,
+  runIds: string[],
+): Promise<Map<string, FindingsBySeverity>> {
+  const byRun = new Map<string, FindingsBySeverity>();
+  if (runIds.length === 0) return byRun;
+
+  const reviewRows = await db
+    .select({ runId: t.reviews.runId, reviewId: t.reviews.id })
+    .from(t.reviews)
+    .where(and(inArray(t.reviews.runId, runIds), eq(t.reviews.kind, 'review')));
+  const reviewIdToRunId = new Map<string, string>();
+  for (const rv of reviewRows) {
+    if (!rv.runId) continue;
+    byRun.set(rv.runId, { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 });
+    reviewIdToRunId.set(rv.reviewId, rv.runId);
+  }
+
+  if (reviewIdToRunId.size > 0) {
+    const findingRows = await db
+      .select({ reviewId: t.findings.reviewId, severity: t.findings.severity })
+      .from(t.findings)
+      .where(inArray(t.findings.reviewId, [...reviewIdToRunId.keys()]));
+    for (const fr of findingRows) {
+      const runId = reviewIdToRunId.get(fr.reviewId);
+      if (!runId || !isSeverity(fr.severity)) continue;
+      byRun.get(runId)![fr.severity] += 1;
+    }
+  }
+
+  return byRun;
+}
+
 /** All runs for a PR (any status), newest first — the PR run history. */
 export async function listRunsForPull(
   db: Db,
@@ -48,6 +93,10 @@ export async function listRunsForPull(
     .leftJoin(t.agents, eq(t.agents.id, t.agentRuns.agentId))
     .where(and(eq(t.agentRuns.workspaceId, workspaceId), eq(t.agentRuns.prId, prId)))
     .orderBy(desc(t.agentRuns.ranAt));
+  const findingsByRun = await findingsBySeverityByRun(
+    db,
+    rows.map(({ run }) => run.id),
+  );
   return rows.map(({ run, agentName }) => ({
     run_id: run.id,
     agent_id: run.agentId,
@@ -64,6 +113,8 @@ export async function listRunsForPull(
     ran_at: run.ranAt ? run.ranAt.toISOString() : null,
     score: run.score,
     blockers: run.blockers,
+    cost_usd: run.costUsd,
+    findings_by_severity: findingsByRun.get(run.id) ?? null,
   }));
 }
 
@@ -154,6 +205,8 @@ export async function completeAgentRun(
     blockers?: number | null;
     /** Failure reason (status='failed') / cancellation note. Null clears it. */
     error?: string | null;
+    /** Total LLM cost (USD); null on failed/cancelled runs (no data, not $0). */
+    costUsd?: number | null;
   },
 ): Promise<void> {
   await db
@@ -168,6 +221,7 @@ export async function completeAgentRun(
       score: values.score ?? null,
       blockers: values.blockers ?? null,
       error: values.error ?? null,
+      costUsd: values.costUsd ?? null,
     })
     .where(eq(t.agentRuns.id, runId));
 }

@@ -3,7 +3,9 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Badge, Icon, CircularScore, type IconName } from "@devdigest/ui";
-import type { RunSummary, PrCommit } from "@devdigest/shared";
+import { RunCostBadge } from "@/components/run-cost-badge";
+import { FindingsSeverityIcons } from "@/components/findings-severity-icons";
+import type { RunSummary, PrCommit, ReviewRecord } from "@devdigest/shared";
 
 /**
  * PR timeline — every agent run interleaved with the PR's commits, newest-first
@@ -87,12 +89,17 @@ function tsOf(s: string | null | undefined): number {
 export function RunHistory({
   runs,
   commits = [],
+  reviewsByRunId,
   onOpenTrace,
   onGoToReview,
   onDelete,
 }: {
   runs: RunSummary[];
   commits?: PrCommit[];
+  /** review.findings for this run's popover body; counts come from
+   *  RunSummary.findings_by_severity regardless (authoritative + always in
+   *  sync), findings here are just for the hover detail list. */
+  reviewsByRunId?: Map<string, ReviewRecord>;
   /** Open the trace + log drawer for a run (the logs icon). */
   onOpenTrace: (runId: string) => void;
   /** Jump to this run's inline review accordion below (clicking the agent name). */
@@ -188,6 +195,12 @@ export function RunHistory({
                   {r.error}
                 </div>
               )}
+              {r.findings_by_severity && (
+                <FindingsSeverityIcons
+                  counts={r.findings_by_severity}
+                  source={{ kind: "eager", findings: reviewsByRunId?.get(r.run_id)?.findings ?? null }}
+                />
+              )}
               {settled && (
                 <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
                   {t("runStatus.findings", { count: r.findings_count ?? 0 })}
@@ -196,6 +209,7 @@ export function RunHistory({
               )}
             </div>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, fontSize: 11, color: "var(--text-muted)", flexShrink: 0 }}>
+              <RunCostBadge variant="detailed" costUsd={r.cost_usd} tokensIn={r.tokens_in} tokensOut={r.tokens_out} />
               {r.ran_at && <span>{new Date(r.ran_at).toLocaleTimeString()}</span>}
             </div>
             <button

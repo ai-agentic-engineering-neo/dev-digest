@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { fileURLToPath } from 'node:url';
 import { createDb, type Db } from './client.js';
 import * as t from './schema.js';
 import { eq, and } from 'drizzle-orm';
@@ -223,8 +224,10 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
   return { workspaceId, userId };
 }
 
-// CLI entrypoint
-if (import.meta.url === `file://${process.argv[1]}`) {
+// CLI entrypoint. Compares real filesystem paths (not raw URL strings) so
+// this also works on Windows — see the comment in migrate.ts for why the
+// naive `file://${process.argv[1]}` comparison silently fails there.
+if (fileURLToPath(import.meta.url) === process.argv[1]) {
   const url = process.env.DATABASE_URL;
   if (!url) {
     console.error('DATABASE_URL is required');

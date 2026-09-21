@@ -8,6 +8,7 @@ import { Badge } from "@devdigest/ui";
 import type { RunTrace, FindingRecord } from "@devdigest/shared";
 import { PROMPT_COLORS } from "../../constants";
 import { formatSeconds, formatTokens } from "../../helpers";
+import { formatCost } from "@/lib/format-cost";
 import { s } from "../../styles";
 import { TraceSection } from "../TraceSection";
 import { ToolCallRow } from "../ToolCallRow";
@@ -64,6 +65,7 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
           <Stat label={t("trace.stat.duration")} val={formatSeconds(stats.duration_ms)} />
           <Stat label={t("trace.stat.tokens")} val={formatTokens(stats.tokens_in, stats.tokens_out)} />
           <Stat label={t("trace.stat.findings")} val={stats.findings} />
+          <Stat label={t("trace.stat.cost")} val={formatCost(stats.cost_usd)} />
         </div>
       </TraceSection>
 

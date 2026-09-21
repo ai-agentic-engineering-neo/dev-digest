@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Provider } from './knowledge.js';
+import { FindingsBySeverity } from './findings.js';
 
 /**
  * Platform / scaffolding DTOs owned by F1:
@@ -170,6 +171,13 @@ export const PrMeta = z.object({
   updated_at: z.string().nullish(),
   // Latest-review score (list endpoint only; null/absent until reviewed).
   score: z.number().int().nullish(),
+  // Summed LLM cost across this PR's agent_runs (list endpoint only);
+  // null/absent when no run has cost data.
+  cost_usd: z.number().nullish(),
+  // Latest-review findings, bucketed by severity (list endpoint only).
+  // Null/absent when the PR has no review yet — never a zero-valued bucket,
+  // which instead means "reviewed, no findings".
+  findings: FindingsBySeverity.nullish(),
 });
 export type PrMeta = z.infer<typeof PrMeta>;
 

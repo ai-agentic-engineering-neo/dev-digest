@@ -30,6 +30,8 @@ function run(o: Partial<RunSummary>): RunSummary {
     ran_at: "2026-06-11T18:44:34.000Z",
     score: null,
     blockers: null,
+    cost_usd: null,
+    findings_by_severity: null,
     ...o,
   };
 }

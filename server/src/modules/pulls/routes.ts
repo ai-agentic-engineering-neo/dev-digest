@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm';
 import type { PrMeta, PrDetail, GitHubClient, PrReviewComment } from '@devdigest/shared';
 import { PrCommentInput } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
@@ -129,6 +129,24 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
+    // Latest priced run's COST per PR for the list's cost column. Same read-time
+    // shape as the score lookup above: newest-first + JS grouping. Runs with no
+    // price (unknown model, failed run) are skipped so one unpriced re-run does
+    // not blank out a PR that already has a real number.
+    const latestCostByPr = new Map<string, number>();
+    if (prIds.length > 0) {
+      const costRows = await container.db
+        .select({ prId: t.agentRuns.prId, costUsd: t.agentRuns.costUsd })
+        .from(t.agentRuns)
+        .where(and(inArray(t.agentRuns.prId, prIds), isNotNull(t.agentRuns.costUsd)))
+        .orderBy(desc(t.agentRuns.ranAt));
+      for (const run of costRows) {
+        if (run.prId && run.costUsd != null && !latestCostByPr.has(run.prId)) {
+          latestCostByPr.set(run.prId, run.costUsd);
+        }
+      }
+    }
+
     const now = Date.now();
     return rows.map((r) => {
       const review = latestReviewByPr.get(r.id);
@@ -153,6 +171,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
+        cost_usd: latestCostByPr.get(r.id) ?? null,
       };
     });
   });

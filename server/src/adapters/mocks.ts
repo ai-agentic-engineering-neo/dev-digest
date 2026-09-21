@@ -53,6 +53,11 @@ export interface MockLLMOptions {
   structuredBySchema?: Record<string, unknown>;
   completionText?: string;
   embedding?: number[];
+  /**
+   * USD cost reported per call. Defaults to 0.001; pass `null` to simulate a
+   * model the price book cannot price (cost then stays null all the way to the UI).
+   */
+  costUsd?: number | null;
 }
 
 export class MockLLMProvider implements LLMProvider {
@@ -82,7 +87,7 @@ export class MockLLMProvider implements LLMProvider {
       model: req.model,
       tokensIn: 100,
       tokensOut: 50,
-      costUsd: 0.001,
+      costUsd: this.opts.costUsd === undefined ? 0.001 : this.opts.costUsd,
     };
   }
 
@@ -98,7 +103,7 @@ export class MockLLMProvider implements LLMProvider {
       model: req.model,
       tokensIn: 100,
       tokensOut: 50,
-      costUsd: 0.001,
+      costUsd: this.opts.costUsd === undefined ? 0.001 : this.opts.costUsd,
       raw: JSON.stringify(fixture),
       attempts: 1,
     };

@@ -6,6 +6,13 @@ import type { FindingRow, PullRow } from '../../../db/rows.js';
 
 export type ReviewRow = typeof t.reviews.$inferSelect;
 
+/** Cost + token usage of the agent run behind a review; all null when the run is gone. */
+export interface ReviewUsage {
+  costUsd: number | null;
+  tokensIn: number | null;
+  tokensOut: number | null;
+}
+
 // ---- reviews + findings ---------------------------------------------------
 
 export async function insertReview(
@@ -58,18 +65,26 @@ export async function insertFindings(
 export async function reviewsForPull(
   db: Db,
   prId: string,
-): Promise<{ review: ReviewRow; findings: FindingRow[] }[]> {
-  const reviews = await db
-    .select()
+): Promise<{ review: ReviewRow; findings: FindingRow[]; usage: ReviewUsage }[]> {
+  // reviews.run_id carries no FK, so the join is LEFT: a review whose run was
+  // deleted (or that predates run tracking) still comes back, with null usage.
+  const rows = await db
+    .select({ review: t.reviews, run: t.agentRuns })
     .from(t.reviews)
+    .leftJoin(t.agentRuns, eq(t.agentRuns.id, t.reviews.runId))
     .where(eq(t.reviews.prId, prId))
     .orderBy(desc(t.reviews.createdAt));
-  if (reviews.length === 0) return [];
-  const ids = reviews.map((r) => r.id);
+  if (rows.length === 0) return [];
+  const ids = rows.map(({ review }) => review.id);
   const findings = await db.select().from(t.findings).where(inArray(t.findings.reviewId, ids));
-  return reviews.map((review) => ({
+  return rows.map(({ review, run }) => ({
     review,
     findings: findings.filter((f) => f.reviewId === review.id),
+    usage: {
+      costUsd: run?.costUsd ?? null,
+      tokensIn: run?.tokensIn ?? null,
+      tokensOut: run?.tokensOut ?? null,
+    },
   }));
 }
 

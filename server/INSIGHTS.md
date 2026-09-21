@@ -8,6 +8,7 @@ Reviewed monthly: stale entries are removed in a dedicated commit.
 
 ## What Works
 <!-- approaches and solutions that worked here -->
+- 2026-09-21 — Manual end-to-end check with NO LLM keys and zero spend: OpenAIProvider uses `new OpenAI({ apiKey })`, so the SDK honours OPENAI_BASE_URL → run the API with OPENAI_API_KEY=anything and OPENAI_BASE_URL=http://127.0.0.1:<port>/v1 pointing at a tiny fake /v1/chat/completions server (per-model delay / invalid JSON / usage), and create agents with provider=openai. Without GitHub the diff comes from pr_files.patch, and the seed leaves it NULL → UPDATE pr_files SET patch=… first, or the review sees 0 files
 
 ## What Doesn't Work
 <!-- dead ends and anti-patterns — the most valuable section -->

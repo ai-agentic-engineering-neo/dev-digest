@@ -4,10 +4,10 @@ import { waitForPrRuns } from './helpers/runs.js';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/platform/config.js';
 import { seed } from '../src/db/seed.js';
-import { MockLLMProvider, MockEmbedder, MockGitClient } from '../src/adapters/mocks.js';
+import { MockLLMProvider, MockEmbedder, MockGitClient, MockGitHubClient } from '../src/adapters/mocks.js';
 import * as t from '../src/db/schema.js';
 import { eq } from 'drizzle-orm';
-import type { Review } from '@devdigest/shared';
+import type { LLMProvider, Review, StructuredResult } from '@devdigest/shared';
 
 const hasDocker = await dockerAvailable();
 const d = hasDocker ? describe : describe.skip;
@@ -25,6 +25,15 @@ const DIFF = `diff --git a/src/config.ts b/src/config.ts
    port: 3000,
 +  stripeKey: "sk_live_xxx",
    redisUrl: x,`;
+
+/** Two changed files ⇒ a map-reduce agent makes one LLM call per file. */
+const DIFF_TWO_FILES = `${DIFF}
+diff --git a/src/other.ts b/src/other.ts
+--- a/src/other.ts
++++ b/src/other.ts
+@@ -1,1 +1,2 @@
+ export const a = 1;
++export const b = 2;`;
 
 /** A Review fixture: one valid finding (line 11), one hallucinated (line 999). */
 const REVIEW_FIXTURE: Review = {
@@ -110,18 +119,44 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     await pg?.stop();
   });
 
-  function appWith(structured: unknown, provider: 'openai' | 'anthropic' = 'openai') {
+  function appWith(
+    structured: unknown,
+    provider: 'openai' | 'anthropic' = 'openai',
+    opts: { llm?: LLMProvider; failStructuredFromCall?: number; diff?: string } = {},
+  ) {
     return buildApp({
       config: config(),
       db: pg.handle.db,
       overrides: {
         embedder: new MockEmbedder(),
-        git: new MockGitClient({ diff: DIFF }),
+        git: new MockGitClient({ diff: opts.diff ?? DIFF }),
+        // Never hit real GitHub from the list endpoint (a local token may exist).
+        github: new MockGitHubClient({ pulls: [] }),
         llm: {
-          [provider]: new MockLLMProvider(provider, { structured }),
+          [provider]:
+            opts.llm ??
+            new MockLLMProvider(provider, {
+              structured,
+              ...(opts.failStructuredFromCall != null
+                ? { failStructuredFromCall: opts.failStructuredFromCall }
+                : {}),
+            }),
         },
       },
     });
+  }
+
+  async function createAgent(
+    app: Awaited<ReturnType<typeof appWith>>,
+    payload: Record<string, unknown> = {},
+  ): Promise<{ id: string }> {
+    return (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: `Cost-${repoSeq}`, provider: 'openai', model: 'gpt-4.1', system_prompt: 's', ...payload },
+      })
+    ).json();
   }
 
   it('agents CRUD', async () => {
@@ -209,6 +244,15 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(run!.findingsCount).toBe(1);
     expect(run!.grounding).toBe('1/2 passed');
 
+    // Run cost: the mock LLM reports 100/50 tokens at $0.001 per call (1 call).
+    expect(run!.costUsd).toBeCloseTo(0.001);
+    expect(trace.stats.cost_usd).toBeCloseTo(0.001);
+    const runs = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(runs[0].cost_usd).toBeCloseTo(0.001);
+    expect(review.cost_usd).toBeCloseTo(0.001);
+    expect(review.tokens_in).toBe(100);
+    expect(review.tokens_out).toBe(50);
+
     await app.close();
   });
 
@@ -287,6 +331,109 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(sse.payload).toContain('Starting review');
     expect(sse.payload).toContain('Citation grounding');
     await app.close();
+  });
+
+  describe('run cost', () => {
+    it('failed run records the usage spent before the error (not 0)', async () => {
+      const app = await appWith(REVIEW_FIXTURE, 'openai', { failStructuredFromCall: 1 });
+      const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+      const agent = await createAgent(app);
+      const body = (
+        await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } })
+      ).json();
+      const runId = body.runs[0].run_id;
+      await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+
+      const [run] = await pg.handle.db.select().from(t.agentRuns).where(eq(t.agentRuns.id, runId));
+      expect(run!.status).toBe('failed');
+      expect(run!.tokensIn).toBe(100);
+      expect(run!.tokensOut).toBe(50);
+      expect(run!.costUsd).toBeCloseTo(0.001);
+      const trace = (await app.inject({ method: 'GET', url: `/runs/${runId}/trace` })).json();
+      expect(trace.stats.tokens_in).toBe(100);
+      expect(trace.stats.cost_usd).toBeCloseTo(0.001);
+      await app.close();
+    });
+
+    it('cancelled run keeps the usage spent before the cancel', async () => {
+      const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+      let app!: Awaited<ReturnType<typeof appWith>>;
+      const inner = new MockLLMProvider('openai', { structured: REVIEW_FIXTURE });
+      let calls = 0;
+      // Chunk 1 spends tokens, then the user cancels; the engine stops at the
+      // checkpoint before chunk 2.
+      const cancelling: LLMProvider = {
+        id: 'openai',
+        listModels: () => inner.listModels(),
+        complete: (req) => inner.complete(req),
+        embed: (x) => inner.embed(x),
+        async completeStructured<T>(req: Parameters<LLMProvider['completeStructured']>[0]) {
+          const res = (await inner.completeStructured(req)) as StructuredResult<T>;
+          if (++calls === 1) {
+            const [running] = await pg.handle.db
+              .select()
+              .from(t.agentRuns)
+              .where(eq(t.agentRuns.prId, pr.id));
+            await app.inject({ method: 'POST', url: `/runs/${running!.id}/cancel` });
+          }
+          return res;
+        },
+      };
+      app = await appWith(REVIEW_FIXTURE, 'openai', { llm: cancelling, diff: DIFF_TWO_FILES });
+      const agent = await createAgent(app, { strategy: 'map-reduce' });
+      const body = (
+        await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } })
+      ).json();
+      const runId = body.runs[0].run_id;
+      // The route flips the row to 'cancelled' at once; wait for the executor's
+      // final write (it carries the usage).
+      const deadline = Date.now() + 10_000;
+      let run: typeof t.agentRuns.$inferSelect | undefined;
+      do {
+        [run] = await pg.handle.db.select().from(t.agentRuns).where(eq(t.agentRuns.id, runId));
+        if (run?.costUsd != null) break;
+        await new Promise((r) => setTimeout(r, 25));
+      } while (Date.now() < deadline);
+
+      expect(calls).toBe(1);
+      expect(run!.status).toBe('cancelled');
+      expect(run!.tokensIn).toBe(100);
+      expect(run!.costUsd).toBeCloseTo(0.001);
+      await app.close();
+    });
+
+    it('PR list: cost_usd = sum of known run costs (any status); null without runs', async () => {
+      const app = await appWith(REVIEW_FIXTURE);
+      const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+      const [other] = await pg.handle.db
+        .insert(t.pullRequests)
+        .values({
+          workspaceId,
+          repoId: repo.id,
+          number: 483,
+          title: 'No runs yet',
+          author: 'a',
+          branch: 'b',
+          base: 'main',
+          headSha: 'ffff',
+          additions: 1,
+          deletions: 0,
+          filesCount: 1,
+          status: 'needs_review',
+        })
+        .returning();
+      await pg.handle.db.insert(t.agentRuns).values([
+        { workspaceId, prId: pr.id, status: 'done', costUsd: 0.0013 },
+        { workspaceId, prId: pr.id, status: 'failed', costUsd: 0.0007 },
+        { workspaceId, prId: pr.id, status: 'done', costUsd: null }, // pre-tracking / unpriced
+      ]);
+
+      const list = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+      const byNumber = new Map(list.map((p: { number: number }) => [p.number, p]));
+      expect((byNumber.get(482) as { cost_usd: number }).cost_usd).toBeCloseTo(0.002);
+      expect((byNumber.get(other!.number) as { cost_usd: number | null }).cost_usd).toBeNull();
+      await app.close();
+    });
   });
 
   it('run all enabled agents reviews with each enabled agent', async () => {

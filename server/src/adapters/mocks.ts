@@ -53,6 +53,12 @@ export interface MockLLMOptions {
   structuredBySchema?: Record<string, unknown>;
   completionText?: string;
   embedding?: number[];
+  /**
+   * Simulate a structured call that SPENDS tokens and then fails (e.g. schema
+   * validation exhausted): from the Nth completeStructured call on (1-based),
+   * report usage via `onUsage` and then throw. Unset → never fails.
+   */
+  failStructuredFromCall?: number;
 }
 
 export class MockLLMProvider implements LLMProvider {
@@ -86,8 +92,17 @@ export class MockLLMProvider implements LLMProvider {
     };
   }
 
+  private structuredCalls = 0;
+
   async completeStructured<T>(req: StructuredRequest<T>): Promise<StructuredResult<T>> {
     this.calls.push({ method: 'completeStructured', req });
+    this.structuredCalls++;
+    // Every mock response "costs" the same; reported per call like a real provider.
+    req.onUsage?.({ tokensIn: 100, tokensOut: 50, costUsd: 0.001 });
+    const failFrom = this.opts.failStructuredFromCall;
+    if (failFrom != null && this.structuredCalls >= failFrom) {
+      throw new Error('MockLLMProvider: structured output failed schema validation');
+    }
     const fixture = this.opts.structuredBySchema?.[req.schemaName] ?? this.opts.structured ?? {};
     const parsed = (req.schema as z.ZodType<T>).safeParse(fixture);
     if (!parsed.success) {

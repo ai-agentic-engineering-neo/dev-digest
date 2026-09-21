@@ -8,6 +8,7 @@ import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './reposit
 import { REVIEW_STRATEGY } from './constants.js';
 import { taskLine } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
+import { UsageMeter } from './usage-meter.js';
 
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
 export class RunCancelledError extends Error {
@@ -80,6 +81,7 @@ export class ReviewRunExecutor {
             durationMs: 0,
             tokensIn: 0,
             tokensOut: 0,
+            costUsd: 0, // no LLM call was made ⇒ nothing billed
             findingsCount: 0,
             grounding: '0/0 passed',
             error: msg,
@@ -149,6 +151,9 @@ export class ReviewRunExecutor {
     // events are already in this run's buffer, so the persisted trace below
     // (built from the buffer) includes them too.
     const runLog = parentLog.forRun(runId, { agent: agent.name });
+    // Every LLM response's usage, as it arrives — the only record of spend if
+    // the run fails or is cancelled (the engine's outcome is lost with the throw).
+    const usage = new UsageMeter();
 
     runLog.info(`Starting review with agent "${agent.name}" (${agent.provider}/${agent.model})`);
 
@@ -206,6 +211,7 @@ export class ReviewRunExecutor {
         task,
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
+        onUsage: usage.add,
         checkCancelled: () => {
           if (this.container.runBus.isCancelled(runId)) throw new RunCancelledError();
         },
@@ -214,7 +220,7 @@ export class ReviewRunExecutor {
       // still win — otherwise the review is persisted and 'done' overwrites
       // the 'cancelled' status the cancel route already wrote.
       if (this.container.runBus.isCancelled(runId)) throw new RunCancelledError();
-      const { tokensIn, tokensOut, grounding } = outcome;
+      const { tokensIn, tokensOut, costUsd, grounding } = outcome;
 
       const keptFindings = outcome.review.findings;
 
@@ -249,6 +255,7 @@ export class ReviewRunExecutor {
         durationMs,
         tokensIn,
         tokensOut,
+        costUsd,
         findingsCount: findingRows.length,
         grounding,
         score: outcome.review.score,
@@ -269,6 +276,7 @@ export class ReviewRunExecutor {
           duration_ms: durationMs,
           tokens_in: tokensIn,
           tokens_out: tokensOut,
+          cost_usd: costUsd,
           findings: findingRows.length,
           grounding,
         },
@@ -302,15 +310,17 @@ export class ReviewRunExecutor {
         .completeAgentRun(runId, {
           status,
           durationMs: Date.now() - start,
-          tokensIn: 0,
-          tokensOut: 0,
+          // What the LLM calls spent before the failure/cancel (not 0).
+          tokensIn: usage.tokensIn,
+          tokensOut: usage.tokensOut,
+          costUsd: usage.costUsd,
           findingsCount: 0,
           grounding: '0/0 passed',
           error: msg,
         })
         .catch(() => undefined);
       await this.repo
-        .saveRunTrace(runId, this.traceFromBuffer(runId, pull, agent, '0/0 passed', Date.now() - start))
+        .saveRunTrace(runId, this.traceFromBuffer(runId, pull, agent, '0/0 passed', Date.now() - start, usage))
         .catch(() => undefined);
       this.container.runBus.complete(runId);
       throw err;
@@ -415,6 +425,7 @@ export class ReviewRunExecutor {
     agent: AgentRow,
     grounding: string,
     durationMs = 0,
+    usage: Pick<UsageMeter, 'tokensIn' | 'tokensOut' | 'costUsd'> = { tokensIn: 0, tokensOut: 0, costUsd: 0 },
   ): RunTrace {
     return {
       config: {
@@ -425,7 +436,14 @@ export class ReviewRunExecutor {
         pr: pull.number,
         source: 'local',
       },
-      stats: { duration_ms: durationMs, tokens_in: 0, tokens_out: 0, findings: 0, grounding },
+      stats: {
+        duration_ms: durationMs,
+        tokens_in: usage.tokensIn,
+        tokens_out: usage.tokensOut,
+        cost_usd: usage.costUsd,
+        findings: 0,
+        grounding,
+      },
       prompt_assembly: { system: agent.systemPrompt, skills: null, memory: null, specs: null, user: '' },
       tool_calls: [],
       raw_output: '',

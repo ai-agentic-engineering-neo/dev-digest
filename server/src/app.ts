@@ -84,6 +84,17 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
     app.log.warn({ err: (err as Error).message }, 'stale-run reaping failed (non-fatal)');
   }
 
+  // Runs finished before cost attribution existed have tokens but no cost. Give
+  // them a price-book estimate once, so the PR list / timeline don't show "—"
+  // for every historical run. Idempotent and cheap after the first boot;
+  // non-fatal, and not awaited into the request path beyond this point.
+  try {
+    const backfilled = await new ReviewService(container).backfillRunCosts();
+    if (backfilled > 0) app.log.info({ backfilled }, 'backfilled agent_runs cost_usd on boot');
+  } catch (err) {
+    app.log.warn({ err: (err as Error).message }, 'run-cost backfill failed (non-fatal)');
+  }
+
   // Security headers (X-Content-Type-Options, X-Frame-Options, …). The API
   // serves JSON only, so the default CSP is fine.
   await app.register(helmet);

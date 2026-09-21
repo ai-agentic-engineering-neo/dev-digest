@@ -95,6 +95,16 @@ export class ReviewService {
   }
 
   /**
+   * Give pre-cost-attribution runs an estimated cost from the tokens they
+   * already stored. Called on boot; idempotent (see repository.backfillRunCosts).
+   */
+  async backfillRunCosts(): Promise<number> {
+    return this.repo.backfillRunCosts((model, tokensIn, tokensOut) =>
+      this.container.priceBook.estimate(model, tokensIn, tokensOut),
+    );
+  }
+
+  /**
    * Run a review for each target agent. Each agent gets its own runId
    * (= agent_runs.id) created up-front so the SSE route can be subscribed
    * before/while the run progresses. A partial failure in one agent does not

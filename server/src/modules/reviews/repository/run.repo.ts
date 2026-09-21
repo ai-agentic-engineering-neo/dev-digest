@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, gt, isNotNull, isNull } from 'drizzle-orm';
 import type { Db } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
 import type { RunSummary, RunTrace } from '@devdigest/shared';
@@ -59,6 +59,7 @@ export async function listRunsForPull(
     duration_ms: run.durationMs,
     tokens_in: run.tokensIn,
     tokens_out: run.tokensOut,
+    cost_usd: run.costUsd,
     findings_count: run.findingsCount,
     grounding: run.grounding,
     ran_at: run.ranAt ? run.ranAt.toISOString() : null,
@@ -97,6 +98,44 @@ export async function cancelRunIfRunning(db: Db, runId: string): Promise<boolean
     .where(and(eq(t.agentRuns.id, runId), eq(t.agentRuns.status, 'running')))
     .returning({ id: t.agentRuns.id });
   return rows.length > 0;
+}
+
+/**
+ * On boot: give runs finished BEFORE cost attribution existed a cost, estimated
+ * from the tokens they already stored (`estimate` = the price book). Rows whose
+ * model has no price stay null and keep rendering as "—" in the UI.
+ *
+ * Idempotent: only rows with `cost_usd IS NULL` are considered, so after the
+ * first boot only unpriced models are re-examined (and left alone).
+ */
+export async function backfillRunCosts(
+  db: Db,
+  estimate: (model: string, tokensIn: number, tokensOut: number) => number | null,
+): Promise<number> {
+  const rows = await db
+    .select({
+      id: t.agentRuns.id,
+      model: t.agentRuns.model,
+      tokensIn: t.agentRuns.tokensIn,
+      tokensOut: t.agentRuns.tokensOut,
+    })
+    .from(t.agentRuns)
+    .where(
+      and(
+        isNull(t.agentRuns.costUsd),
+        eq(t.agentRuns.status, 'done'),
+        isNotNull(t.agentRuns.model),
+        gt(t.agentRuns.tokensIn, 0),
+      ),
+    );
+  let updated = 0;
+  for (const row of rows) {
+    const cost = estimate(row.model!, row.tokensIn ?? 0, row.tokensOut ?? 0);
+    if (cost == null) continue;
+    await db.update(t.agentRuns).set({ costUsd: cost }).where(eq(t.agentRuns.id, row.id));
+    updated += 1;
+  }
+  return updated;
 }
 
 /** On boot: any run still 'running' is orphaned (its process died / restarted),
@@ -146,6 +185,9 @@ export async function completeAgentRun(
     durationMs: number;
     tokensIn: number;
     tokensOut: number;
+    /** Run cost in USD; null when the provider reported none and the model is
+     *  unpriced, and on failed/cancelled runs. */
+    costUsd?: number | null;
     findingsCount: number;
     grounding: string;
     /** Review score (0-100); null on failed/cancelled runs. */
@@ -163,6 +205,7 @@ export async function completeAgentRun(
       durationMs: values.durationMs,
       tokensIn: values.tokensIn,
       tokensOut: values.tokensOut,
+      costUsd: values.costUsd ?? null,
       findingsCount: values.findingsCount,
       grounding: values.grounding,
       score: values.score ?? null,

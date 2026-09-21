@@ -66,6 +66,9 @@ export function useDeleteRun(prId: string | null | undefined) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["pr-runs", prId] });
       qc.invalidateQueries({ queryKey: ["reviews", prId] });
+      // A deleted run drops out of the PR list's COST sum (prefix key: the
+      // hook doesn't know which repo this PR belongs to).
+      qc.invalidateQueries({ queryKey: ["pulls"] });
     },
   });
 }

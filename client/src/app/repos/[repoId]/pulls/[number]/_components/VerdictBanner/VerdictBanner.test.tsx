@@ -30,4 +30,29 @@ describe("VerdictBanner (smoke)", () => {
     expect(screen.getByText("42")).toBeInTheDocument();
     expect(screen.getByText(/1 findings · 1 blockers/)).toBeInTheDocument();
   });
+
+  it("shows what the run cost and the tokens it used", () => {
+    renderWithIntl(
+      <VerdictBanner
+        verdict="request_changes"
+        summary="Hardcoded secret introduced."
+        score={42}
+        findingsCount={1}
+        blockers={1}
+        costUsd={0.014}
+        tokensIn={8200}
+        tokensOut={1300}
+      />,
+    );
+    expect(screen.getByText("$0.014")).toBeInTheDocument();
+    expect(screen.getByText("8.2K→1.3K")).toBeInTheDocument();
+  });
+
+  it("shows an em dash when the run has no cost data", () => {
+    renderWithIntl(
+      <VerdictBanner verdict="approve" summary={null} score={95} findingsCount={0} blockers={0} />,
+    );
+    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.queryByText("$0.00")).not.toBeInTheDocument();
+  });
 });

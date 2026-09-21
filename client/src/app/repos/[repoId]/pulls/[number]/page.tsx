@@ -55,6 +55,8 @@ export default function PRDetailPage() {
   // just-failed run shows up in "Run history" immediately — no page reload.
   const invalidateRunHistory = () => {
     if (prId) qc.invalidateQueries({ queryKey: ["pr-runs", prId] });
+    // The PR list's COST column sums this PR's runs, so a settled run changes it.
+    qc.invalidateQueries({ queryKey: ["pulls", repoId] });
   };
 
   const tab = search.get("tab") ?? "overview";
@@ -177,6 +179,7 @@ export default function PRDetailPage() {
           prNumber={pr.number}
           findings={runs.find((r) => r.run_id === traceRunId)?.findings ?? []}
           agentName={runs.find((r) => r.run_id === traceRunId)?.agent_name ?? null}
+          costUsd={prRuns?.find((r) => r.run_id === traceRunId)?.cost_usd ?? null}
           onClose={() => setParam("trace", null)}
         />
       )}

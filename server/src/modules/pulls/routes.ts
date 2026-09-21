@@ -1,7 +1,15 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { and, desc, eq, inArray } from 'drizzle-orm';
-import type { PrMeta, PrDetail, GitHubClient, PrReviewComment } from '@devdigest/shared';
+import type {
+  PrMeta,
+  PrDetail,
+  PrFindings,
+  GitHubClient,
+  PrReviewComment,
+  Severity,
+  FindingCategory,
+} from '@devdigest/shared';
 import { PrCommentInput } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
 import { getContext } from '../_shared/context.js';
@@ -111,21 +119,81 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
-    // Latest-review SCORE per PR for the list's score ring. Computed on read
-    // from reviews (no FK denorm); the list is small, so one IN-query + JS
-    // grouping is cheap. (The per-severity FINDINGS breakdown is intentionally
-    // not surfaced on the list — findings live on the PR detail page.)
+    // Latest-review SCORE and its per-severity FINDINGS breakdown, both computed
+    // on read. The breakdown used to be deliberately absent here; it is now shown
+    // in full — see PrFindings.
     const prIds = rows.map((r) => r.id);
-    const latestReviewByPr = new Map<string, { score: number | null }>();
+    const latestReviewByPr = new Map<string, { id: string; score: number | null }>();
     if (prIds.length > 0) {
       const reviewRows = await container.db
-        .select({ prId: t.reviews.prId, score: t.reviews.score })
+        .select({ id: t.reviews.id, prId: t.reviews.prId, score: t.reviews.score })
         .from(t.reviews)
         .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review')))
         .orderBy(desc(t.reviews.createdAt));
       // Rows are newest-first → first seen per PR is the latest review.
       for (const rv of reviewRows) {
-        if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { score: rv.score });
+        if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { id: rv.id, score: rv.score });
+      }
+    }
+
+    // FINDINGS column: every finding of that same latest review, previewed.
+    // One IN-query over the already-known review ids — never a query per row.
+    const DESCRIPTION_LIMIT = 160;
+    const SEVERITY_RANK: Record<string, number> = { CRITICAL: 0, WARNING: 1, SUGGESTION: 2 };
+
+    const findingsByPr = new Map<string, PrFindings>();
+    const latestReviewIds = [...latestReviewByPr.values()].map((r) => r.id);
+    if (latestReviewIds.length > 0) {
+      const reviewToPr = new Map<string, string>();
+      for (const [prId2, rv] of latestReviewByPr) reviewToPr.set(rv.id, prId2);
+
+      // Every finding the review produced, including ones already accepted or
+      // rejected: the heading describes the run, not the current triage state.
+      const findingRows = await container.db
+        .select({
+          reviewId: t.findings.reviewId,
+          severity: t.findings.severity,
+          title: t.findings.title,
+          category: t.findings.category,
+          file: t.findings.file,
+          startLine: t.findings.startLine,
+          confidence: t.findings.confidence,
+          rationale: t.findings.rationale,
+        })
+        .from(t.findings)
+        .where(inArray(t.findings.reviewId, latestReviewIds));
+
+      const grouped = new Map<string, typeof findingRows>();
+      for (const row of findingRows) {
+        const bucket = grouped.get(row.reviewId) ?? [];
+        bucket.push(row);
+        grouped.set(row.reviewId, bucket);
+      }
+
+      for (const [reviewId, findingsForReview] of grouped) {
+        const prId2 = reviewToPr.get(reviewId);
+        if (!prId2 || findingsForReview.length === 0) continue;
+        const counts: Record<string, number> = {};
+        for (const row of findingsForReview) counts[row.severity] = (counts[row.severity] ?? 0) + 1;
+        const previews = [...findingsForReview]
+          .sort(
+            (a, b) =>
+              (SEVERITY_RANK[a.severity] ?? 9) - (SEVERITY_RANK[b.severity] ?? 9) ||
+              b.confidence - a.confidence,
+          )
+          .map((row) => ({
+            severity: row.severity as Severity,
+            title: row.title,
+            category: row.category as FindingCategory,
+            file: row.file,
+            line: row.startLine,
+            confidence: row.confidence,
+            description:
+              row.rationale.length > DESCRIPTION_LIMIT
+                ? `${row.rationale.slice(0, DESCRIPTION_LIMIT)}…`
+                : row.rationale,
+          }));
+        findingsByPr.set(prId2, { counts, total: findingsForReview.length, previews });
       }
     }
 
@@ -175,6 +243,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
         cost_usd: costByPr.get(r.id) ?? null,
+        findings: findingsByPr.get(r.id) ?? null,
       };
     });
   });

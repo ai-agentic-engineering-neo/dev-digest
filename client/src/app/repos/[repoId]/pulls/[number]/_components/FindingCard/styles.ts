@@ -2,21 +2,26 @@ import type { CSSProperties } from "react";
 
 /** Co-located styles for FindingCard (extracted from inline styles). */
 export const s = {
-  card: (focused: boolean, sevColor: string, muted: boolean): CSSProperties => ({
-    borderRadius: 8,
-    // All-longhand (never mix `border` shorthand with `borderLeft` — React warns
-    // about updating shorthand + non-shorthand on the same rerender).
-    borderStyle: "solid",
-    borderColor: focused ? sevColor : "var(--border)",
-    borderWidth: 1,
-    borderLeftWidth: 3,
-    borderLeftColor: sevColor,
-    background: "var(--bg-elevated)",
-    overflow: "hidden",
-    opacity: muted ? 0.6 : 1,
-    transition: "opacity .2s, border-color .12s, box-shadow .12s",
-    boxShadow: focused ? "0 0 0 1px " + sevColor : "none",
-  }),
+  card: (focused: boolean, sevColor: string, muted: boolean): CSSProperties => {
+    const edge = focused ? sevColor : "var(--border)";
+    return {
+      borderRadius: 8,
+      borderStyle: "solid",
+      borderTopColor: edge,
+      borderRightColor: edge,
+      borderBottomColor: edge,
+      borderLeftColor: sevColor,
+      borderTopWidth: 1,
+      borderRightWidth: 1,
+      borderBottomWidth: 1,
+      borderLeftWidth: 3,
+      background: "var(--bg-elevated)",
+      overflow: "hidden",
+      opacity: muted ? 0.6 : 1,
+      transition: "opacity .2s, border-color .12s, box-shadow .12s",
+      boxShadow: focused ? "0 0 0 1px " + sevColor : "none",
+    };
+  },
   header: {
     display: "flex",
     alignItems: "flex-start",

@@ -11,6 +11,9 @@ Fastify API and host of the review engine. The root `CLAUDE.md` applies; this ad
   what a finished run persists → read `docs/01-review-run.md`
 - Implementing a feature → read its spec in `specs/`; write one first if it is missing. A feature
   that also needs the client goes in the repository-root `specs/` instead
+- Changing anything about what a run returns, stores or costs → read
+  `specs/2026-09-22-review-run-contract.md` first: it states which of those are promises to the
+  caller, and which of them no test currently protects
 - Something surprised you, or a fix was not obvious → `INSIGHTS.md`, through the
   `engineering-insights` skill, which carries the format and the rules
 - Need depth the README does not give → `docs/`

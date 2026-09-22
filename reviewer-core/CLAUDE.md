@@ -14,6 +14,9 @@ Pure review engine: diff → prompt → LLM → grounded findings. The root `CLA
   isolation the second consumer depends on
 - Implementing a feature → read its spec in `specs/`; write one first if it is missing. A feature
   that also needs the server or the client goes in the repository-root `specs/` instead
+- Changing what the engine returns, refuses or reaches for → read
+  `specs/2026-09-22-engine-contract.md` first: it states which of those two callers depend on, and
+  names four it holds up by review rather than by a test — map-reduce among them
 - Something surprised you, or a fix was not obvious → `INSIGHTS.md`, through the
   `engineering-insights` skill, which carries the format and the rules
 - Need depth the README does not give → `docs/`

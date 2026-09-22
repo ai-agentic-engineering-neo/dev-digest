@@ -54,6 +54,16 @@ export function createdMessage(source: CreatableSkillSource, sourceRef: string |
   return `Imported from ${sourceRef}`;
 }
 
+/** Message of v1 of a skill merged from a repo's accepted conventions. */
+export function extractedMessage(repoFullName: string): string {
+  return `Extracted from conventions of ${repoFullName}`;
+}
+
+/** Provenance of an extracted skill (`skills.source_ref`). */
+export function extractedSourceRef(repoFullName: string): string {
+  return `conventions:${repoFullName}`;
+}
+
 /** Message of a restore: the texts of vK written as a new version. */
 export function restoredMessage(version: number): string {
   return `Restored from v${version}`;

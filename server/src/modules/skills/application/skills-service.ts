@@ -13,9 +13,16 @@ import type {
 } from '@devdigest/shared';
 import { ConflictError, NotFoundError } from '../../../platform/errors.js';
 import { STATS_DEFAULT_DAYS } from '../domain/constants.js';
-import { createdMessage, editMessage, initialEnabled, restoredMessage } from '../domain/skill.js';
+import {
+  createdMessage,
+  editMessage,
+  extractedMessage,
+  extractedSourceRef,
+  initialEnabled,
+  restoredMessage,
+} from '../domain/skill.js';
 import { acceptRate, pullRate, windowStart } from '../domain/stats.js';
-import type { SkillCounters } from '../domain/types.js';
+import type { NewSkill, SkillCounters } from '../domain/types.js';
 import type { Clock, SkillsReader, SkillsTx } from './ports.js';
 
 export interface SkillsServiceDeps {
@@ -41,24 +48,49 @@ export class SkillsService {
   create(workspaceId: string, input: CreateSkillInput): Promise<Skill> {
     const source = input.source ?? 'manual';
     const sourceRef = source === 'manual' ? null : (input.source_ref ?? null);
-    const description = input.description ?? '';
-    return this.deps.tx.run(async ({ skills }) => {
-      const skill = await skills.insert({
+    return this.insertWithV1(
+      { workspaceId, ...this.texts(input), enabled: initialEnabled(source, input.enabled), source, sourceRef },
+      createdMessage(source, sourceRef),
+    );
+  }
+
+  /**
+   * Create a skill merged from a repo's accepted conventions
+   * (server/specs/04-conventions.md Rules §2). Unlike imports it honours
+   * `enabled`: the text comes from the user's own repo and was reviewed and
+   * edited before saving. A duplicate name throws ConflictError('conflict').
+   */
+  createExtracted(
+    workspaceId: string,
+    repoFullName: string,
+    input: Omit<CreateSkillInput, 'source' | 'source_ref'> & { enabled: boolean },
+  ): Promise<Skill> {
+    return this.insertWithV1(
+      {
         workspaceId,
-        name: input.name,
-        description,
-        type: input.type,
-        body: input.body,
-        enabled: initialEnabled(source, input.enabled),
-        source,
-        sourceRef,
-      });
+        ...this.texts(input),
+        enabled: input.enabled,
+        source: 'extracted',
+        sourceRef: extractedSourceRef(repoFullName),
+      },
+      extractedMessage(repoFullName),
+    );
+  }
+
+  private texts(input: Pick<CreateSkillInput, 'name' | 'description' | 'type' | 'body'>) {
+    return { name: input.name, description: input.description ?? '', type: input.type, body: input.body };
+  }
+
+  /** Insert + snapshot v1 in one transaction. */
+  private insertWithV1(values: NewSkill, message: string): Promise<Skill> {
+    return this.deps.tx.run(async ({ skills }) => {
+      const skill = await skills.insert(values);
       await skills.insertVersion({
         skillId: skill.id,
         version: skill.version,
-        body: input.body,
-        description,
-        message: createdMessage(source, sourceRef),
+        body: values.body,
+        description: values.description,
+        message,
       });
       return skill;
     });

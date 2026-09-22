@@ -16,6 +16,7 @@ Reviewed monthly: stale entries are removed in a dedicated commit.
 
 ## What Doesn't Work
 <!-- dead ends and anti-patterns — the most valuable section -->
+- 2026-09-22 — test/*.it.test.ts with buildApp: when overrides.llm is not set, the Container resolves the developer's REAL keys from ~/.devdigest/secrets.json, and a background job (e.g. conventions.extract) makes a real paid LLM call — seen 2026-09-22 as an OpenAI 429 inside a test → always inject overrides.llm (a mock, or a stub that throws ConfigError) for every provider id in tests
 - 2026-09-22 — test helpers waitForPrRuns({expected}) on seeded PR #482: returns at once because the seed already has a terminal 'done' run for that PR → in tests on seeded PRs wait on the specific new run id, not on 'all runs terminal'
 - 2026-09-22 — server/tsconfig.json include covers only src, and vitest does not typecheck, so a changed port signature breaks test fakes only at runtime (e.g. 'ids.map is not a function'); a tsconfig that also includes test/** shows existing errors too (test/agents-service.test.ts ciFailOn:'major') → after changing a port, grep test/ for its fakes or typecheck with a temp tsconfig including test/**
 - 2026-09-22 — test/*.it.test.ts concurrency: Promise.all of N db.transaction() calls on a cold postgres-js pool runs effectively serialized (each tx waits for a new connection), so a lost-update test passed even with SELECT … FOR UPDATE removed (verified 2026-09-22) → warm the pool first (Promise.all of 5× select pg_sleep(0.05)) and prove the test goes red without the lock
@@ -40,6 +41,7 @@ Reviewed monthly: stale entries are removed in a dedicated commit.
 
 ## Tool & Library Notes
 <!-- dependency quirks, versions, flags -->
+- 2026-09-22 — src/db/schema + pnpm db:generate (drizzle-kit 0.31): a change that ADDS and DROPS columns on the same table triggers the rename prompt, which fails in a non-TTY shell with 'Interactive prompts require a TTY terminal' → split it: first add the new columns (keep the old ones), generate; then remove the old ones, generate again (0013 + 0014 conventions migrations)
 - 2026-09-22 — modules/skills/infrastructure/zip-reader.ts (fflate 0.8 unzipSync): the filter callback gets each entry's name + declared originalSize and returning false skips inflating it, and fflate allocates the declared size up front → list/skip entries (executables, oversize) inside filter, never inflate first and check after
 - 2026-09-22 — modules/skills/http/routes.ts (Fastify 5): the default bodyLimit is 1 MiB, so a base64 file upload (skill .zip up to 2 MB) 413s before zod runs → set a route-level bodyLimit on upload routes, not a global one
 - 2026-09-22 — modules/skills/infrastructure/repository.ts (Postgres default locale collation): ORDER BY name ignores dashes, so kebab slugs sort differently from JS (n-plus-one-gate vs no-then-chains) → use ORDER BY name COLLATE "C" when a list must match JS/client sorting

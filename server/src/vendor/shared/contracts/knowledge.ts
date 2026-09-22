@@ -284,15 +284,135 @@ export const SkillStatsSummary = z.object({
 export type SkillStatsSummary = z.infer<typeof SkillStatsSummary>;
 
 // ---- Conventions ----
-export const ConventionCandidate = z.object({
-  id: z.string(),
-  rule: z.string(),
-  evidence_path: z.string(),
-  evidence_snippet: z.string(),
-  confidence: z.number().min(0).max(1),
-  accepted: z.boolean(),
+// Conventions extractor (server/specs/04-conventions.md): a scan samples the
+// repo in code, one model call proposes house rules, and code verifies each
+// cited evidence line against the clone. Accepted rules merge into ONE skill.
+export const CONVENTION_RULE_MAX = 500;
+export const CONVENTION_EVIDENCE_MAX = 3;
+
+export const ConventionCategory = z.enum([
+  'naming',
+  'structure',
+  'error-handling',
+  'async',
+  'types',
+  'imports',
+  'testing',
+  'api',
+  'data-access',
+  'style',
+  'other',
+]);
+export type ConventionCategory = z.infer<typeof ConventionCategory>;
+
+export const ConventionStatus = z.enum(['pending', 'accepted', 'rejected']);
+export type ConventionStatus = z.infer<typeof ConventionStatus>;
+
+/** One VERIFIED place in the repo that shows the rule (snippet = the real file lines). */
+export const ConventionEvidence = z.object({
+  path: z.string(),
+  start_line: z.number().int().positive(),
+  end_line: z.number().int().positive(),
+  snippet: z.string(),
 });
-export type ConventionCandidate = z.infer<typeof ConventionCandidate>;
+export type ConventionEvidence = z.infer<typeof ConventionEvidence>;
+
+export const Convention = z.object({
+  id: z.string(),
+  repo_id: z.string(),
+  scan_id: z.string().nullish(),
+  category: ConventionCategory,
+  rule: z.string(),
+  /** 1..CONVENTION_EVIDENCE_MAX verified locations; the first is the primary one. */
+  evidence: z.array(ConventionEvidence),
+  /** The model's confidence, 0..1. */
+  confidence: z.number().min(0).max(1),
+  status: ConventionStatus,
+  /** The user changed the rule text or category (kept across re-scans). */
+  edited: z.boolean(),
+  /** The skill this rule was last merged into. */
+  skill_id: z.string().nullish(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+export type Convention = z.infer<typeof Convention>;
+
+/** Why a model candidate was not kept (evidence gate / de-duplication). */
+export const ConventionDropReason = z.enum([
+  'file_not_found',
+  'line_out_of_range',
+  'snippet_mismatch',
+  'duplicate',
+  'invalid',
+]);
+export type ConventionDropReason = z.infer<typeof ConventionDropReason>;
+
+export const DroppedConvention = z.object({
+  rule: z.string(),
+  path: z.string(),
+  reason: ConventionDropReason,
+});
+export type DroppedConvention = z.infer<typeof DroppedConvention>;
+
+export const ConventionScanStatus = z.enum(['running', 'done', 'failed']);
+export type ConventionScanStatus = z.infer<typeof ConventionScanStatus>;
+
+export const ConventionScan = z.object({
+  id: z.string(),
+  repo_id: z.string(),
+  status: ConventionScanStatus,
+  /** Files sent to the model: config files first, then the top-ranked sources. */
+  sampled_files: z.array(z.string()),
+  /** Candidates the model proposed / kept after the evidence gate. */
+  proposed: z.number().int(),
+  kept: z.number().int(),
+  dropped: z.array(DroppedConvention),
+  model: z.string().nullish(),
+  cost_usd: z.number().nullish(),
+  error: z.string().nullish(),
+  started_at: z.string(),
+  finished_at: z.string().nullish(),
+});
+export type ConventionScan = z.infer<typeof ConventionScan>;
+
+/** GET /repos/:id/conventions — the latest scan + every stored rule of the repo. */
+export const ConventionsState = z.object({
+  scan: ConventionScan.nullable(),
+  conventions: z.array(Convention),
+});
+export type ConventionsState = z.infer<typeof ConventionsState>;
+
+/** PATCH /conventions/:id — accept / reject / reset, or edit the rule. */
+export const UpdateConventionInput = z
+  .object({
+    status: ConventionStatus.optional(),
+    rule: z.string().trim().min(1).max(CONVENTION_RULE_MAX).optional(),
+    category: ConventionCategory.optional(),
+  })
+  .refine((v) => v.status !== undefined || v.rule !== undefined || v.category !== undefined, {
+    message: 'Nothing to update',
+  });
+export type UpdateConventionInput = z.infer<typeof UpdateConventionInput>;
+
+/** POST /repos/:id/conventions/skill — the edited draft from the modal. */
+export const CreateConventionSkillInput = z.object({
+  /** Accepted conventions of this repo merged into the skill. */
+  convention_ids: z.array(z.string().uuid()).min(1).max(100),
+  name: SkillName,
+  description: z.string().max(SKILL_DESCRIPTION_MAX).optional(),
+  type: SkillType.default('convention'),
+  body: z.string().min(1).max(SKILL_BODY_MAX),
+  enabled: z.boolean().default(true),
+  /** Agents to link the new skill to (appended to their skill list). */
+  agent_ids: z.array(z.string().uuid()).max(50).default([]),
+});
+export type CreateConventionSkillInput = z.input<typeof CreateConventionSkillInput>;
+
+export const CreateConventionSkillResult = z.object({
+  skill: Skill,
+  linked_agents: z.array(SkillAgentRef),
+});
+export type CreateConventionSkillResult = z.infer<typeof CreateConventionSkillResult>;
 
 // ---- Agents ----
 // 'openrouter' routes through the OpenAI-compatible API (OpenAIProvider with a

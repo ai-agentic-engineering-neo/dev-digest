@@ -6,6 +6,7 @@ import type { Db } from '../src/db/client.js';
 import type { RepoIntel } from '../src/modules/repo-intel/types.js';
 import { CLONE_JOB_KIND } from '../src/modules/repos/constants.js';
 import { INDEX_JOB_KIND, REFRESH_JOB_KIND, RESYNC_JOB_KIND } from '../src/modules/repo-intel/constants.js';
+import { EXTRACT_JOB_KIND } from '../src/modules/conventions/domain/constants.js';
 
 /** Composition root: one lazily-built service set per container, jobs registered once, graceful close. */
 const config = loadConfig({ ...process.env, NODE_ENV: 'test' } as NodeJS.ProcessEnv);
@@ -18,7 +19,7 @@ describe('Container composition root', () => {
     expect(c.modules.reviews.service).toBe(c.modules.reviews.service);
     expect(c.repoIntel).toBe(c.modules.repoIntel.service);
     expect(Object.keys(c.modules).sort()).toEqual(
-      ['agents', 'polling', 'pulls', 'repoIntel', 'repos', 'reviews', 'settings', 'skills', 'workspace'],
+      ['agents', 'conventions', 'polling', 'pulls', 'repoIntel', 'repos', 'reviews', 'settings', 'skills', 'workspace'],
     );
   });
 
@@ -34,7 +35,7 @@ describe('Container composition root', () => {
     const register = vi.spyOn(c.jobs, 'register');
     c.registerJobHandlers();
     const kinds = register.mock.calls.map(([kind]) => kind).sort();
-    expect(kinds).toEqual([CLONE_JOB_KIND, INDEX_JOB_KIND, REFRESH_JOB_KIND, RESYNC_JOB_KIND].sort());
+    expect(kinds).toEqual([CLONE_JOB_KIND, INDEX_JOB_KIND, REFRESH_JOB_KIND, RESYNC_JOB_KIND, EXTRACT_JOB_KIND].sort());
   });
 });
 

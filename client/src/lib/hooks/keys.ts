@@ -74,6 +74,11 @@ export const skillKeys = {
     [...skillKeys.all, "community", f.q ?? "", f.tag ?? "", f.lang ?? ""] as const,
 };
 
+export const conventionKeys = {
+  /** Latest scan + every rule of a repo (GET /repos/:id/conventions); nested under the repo. */
+  state: (repoId: Id) => [...repoKeys.detail(repoId), "conventions"] as const,
+};
+
 export const runKeys = {
   all: ["runs"] as const,
   trace: (runId: Id) => [...runKeys.all, runId, "trace"] as const,

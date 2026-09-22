@@ -100,7 +100,7 @@ describe('MockReviewLLMProvider', () => {
       new MockReviewLLMProvider('openai').completeStructured({
         model: 'm',
         schema: Review,
-        schemaName: 'ConventionExtraction',
+        schemaName: 'OnboardingTour',
         messages: [],
       }),
     ).rejects.toThrow(/no fixture/);

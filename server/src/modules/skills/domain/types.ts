@@ -2,7 +2,7 @@
  * Domain shapes of the skills module (write models + read models the use cases
  * pass around). No DB row types: the repository maps its rows onto these.
  */
-import type { CreatableSkillSource, SkillType } from '@devdigest/shared';
+import type { SkillSource, SkillType } from '@devdigest/shared';
 
 /** A skill to insert (v1 is snapshotted with it). */
 export interface NewSkill {
@@ -12,7 +12,7 @@ export interface NewSkill {
   type: SkillType;
   body: string;
   enabled: boolean;
-  source: CreatableSkillSource;
+  source: SkillSource;
   sourceRef: string | null;
 }
 

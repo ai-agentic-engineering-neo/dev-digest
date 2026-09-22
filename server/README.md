@@ -92,6 +92,7 @@ flowchart TB
   subgraph Agents["Agents & skills"]
     agents["agents<br/>/agents · /agents/:id · /agents/:id/skills"]
     skills["skills<br/>/skills · /skills/:id · /skills/stats · /skills/community<br/>/skills/import/preview · /skills/:id/(versions|agents|stats)"]
+    conventions["conventions<br/>/repos/:id/conventions · /extract · /skill<br/>/conventions/:id"]
   end
   subgraph Intel["Repo intelligence"]
     repoIntel["repo-intel<br/>/repos/:id/index-state · /resync"]
@@ -124,6 +125,20 @@ renders the agent's linked, **enabled** skills as `### <name>` blocks under
 `## Skills / rules` (see [`../docs/agent-prompts/README.md`](../docs/agent-prompts/README.md)),
 records them in `agent_run_skills` + the trace's `skills_used`, and resolves each
 finding's cited `skill` name to `findings.skill_id` (the base of the stats).
+
+### Conventions (`modules/conventions`, spec [`specs/04-conventions.md`](specs/04-conventions.md))
+
+| Method | Path | Result |
+|---|---|---|
+| GET | `/repos/:id/conventions` | `ConventionsState`: latest scan + every rule (accepted → pending → rejected) |
+| POST | `/repos/:id/conventions/extract` | 202 `ConventionScan`; runs as job `conventions.extract`. 409 `scan_running` · 422 `not_cloned` |
+| PATCH | `/conventions/:id` | accept / reject / reset, or edit rule + category (`edited=true`) |
+| POST | `/repos/:id/conventions/skill` | 201 `{ skill, linked_agents }`: accepted rules → one `extracted` skill, linked to agents |
+
+The model (Settings → Feature models → `conventions`) only proposes rules. Code picks
+the sample (configs + repo-intel top 12, or a walk of the clone) and checks every
+cited line against the clone. A rule without verified evidence is dropped and listed in
+`scan.dropped`. `LLM_PROVIDER_OVERRIDE=mock` gives a key-free scan.
 
 ## Environment
 

@@ -22,6 +22,10 @@ import { ExternalServiceError } from '../../platform/errors.js';
  *   survive the grounding gate there. On any other diff they are dropped by
  *   grounding (the run still ends `done`, with 0 findings). When the prompt
  *   carries skills, the first finding cites the first one (`Finding.skill`).
+ * - `ConventionExtraction` (conventions extractor) returns candidates citing
+ *   the first code line of up to 3 sampled source files — real evidence that
+ *   passes the evidence gate on any repo — plus one candidate citing a file that
+ *   does not exist, which the gate drops (mockConventionsFor).
  * - Other structured schemas have no fixture → ExternalServiceError (the
  *   feature under test fails loudly instead of receiving invented data).
  * - `delayMs` makes each call take that long (abortable by the run's signal),
@@ -96,6 +100,43 @@ function mockReviewFor(messages: readonly { content: string }[]): Review {
   return { ...MOCK_REVIEW, findings: [{ ...first!, skill }, ...rest] };
 }
 
+/** Schema name of the conventions extractor call (modules/conventions). */
+export const CONVENTION_EXTRACTION_SCHEMA = 'ConventionExtraction';
+
+/**
+ * Candidates for the conventions extractor built from the sample in the prompt:
+ * each `=== FILE: <path> (source) ===` block's first substantial numbered line
+ * becomes the evidence of one rule, so the flow is grounded on any repo.
+ */
+export function mockConventionsFor(messages: readonly { content: string }[]) {
+  const text = messages.map((m) => m.content).join('\n');
+  const blocks = [...text.matchAll(/^=== FILE: (.+) \(source\) ===\n([\s\S]*?)(?=\n=== FILE: |\n<\/untrusted>|$)/gm)];
+  const candidates = [];
+  const categories = ['structure', 'imports', 'naming'] as const;
+  for (const [, path, body] of blocks) {
+    if (candidates.length >= 3) break;
+    const line = body!
+      .split('\n')
+      .map((l) => /^\s*(\d+)\| (.*)$/.exec(l))
+      .find((m) => m && m[2]!.trim().length >= 12);
+    if (!line) continue;
+    const n = Number(line[1]);
+    candidates.push({
+      category: categories[candidates.length]!,
+      rule: `[mock LLM] Follow the pattern used at the top of ${path}`,
+      confidence: 0.9 - candidates.length * 0.12,
+      evidence: [{ path: path!, start_line: n, end_line: n, snippet: line[2]! }],
+    });
+  }
+  candidates.push({
+    category: 'other' as const,
+    rule: '[mock LLM] A rule whose evidence does not exist (dropped by the evidence gate)',
+    confidence: 0.5,
+    evidence: [{ path: 'src/__mock__/does-not-exist.ts', start_line: 1, end_line: 1, snippet: 'export {}' }],
+  });
+  return { candidates };
+}
+
 export interface MockReviewLLMOptions {
   /** Latency of each call in ms (default 0). Aborted by the request signal. */
   delayMs?: number;
@@ -134,13 +175,18 @@ export class MockReviewLLMProvider implements LLMProvider {
 
   async completeStructured<T>(req: StructuredRequest<T>): Promise<StructuredResult<T>> {
     await sleep(this.opts.delayMs ?? 0, req.signal);
-    if (req.schemaName !== 'Review') {
+    const fixture =
+      req.schemaName === 'Review'
+        ? mockReviewFor(req.messages)
+        : req.schemaName === CONVENTION_EXTRACTION_SCHEMA
+          ? mockConventionsFor(req.messages)
+          : undefined;
+    if (fixture === undefined) {
       throw new ExternalServiceError(`Mock LLM provider has no fixture for structured output '${req.schemaName}'`);
     }
     emitUsage(req.onUsage, { ...MOCK_USAGE });
-    const review = mockReviewFor(req.messages);
-    const data = req.schema.parse(review);
-    return { data, model: req.model, ...MOCK_USAGE, raw: JSON.stringify(review), attempts: 1 };
+    const data = req.schema.parse(fixture);
+    return { data, model: req.model, ...MOCK_USAGE, raw: JSON.stringify(fixture), attempts: 1 };
   }
 
   async embed(texts: string[]): Promise<number[][]> {

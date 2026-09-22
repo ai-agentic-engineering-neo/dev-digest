@@ -30,6 +30,7 @@ flowchart TD
 
   AGENTS["/agents"] --> AGENT["/agents/:id<br/>editor (config · skills)"]
   SKILLS["/skills<br/>grid + ?preview= drawer"] --> SKILL["/skills/:id<br/>editor (config · preview · versions · stats)"]
+  CONV["/repos/:repoId/conventions<br/>rules + create-skill modal"]
   SETTINGS["/settings/:section<br/>API keys · models"]
 
   PULLS -->|"GET /repos/:id/pulls · /repos/:id/index-state"| API
@@ -37,6 +38,7 @@ flowchart TD
   AGENTS -->|"/agents · /agents/:id · /agents/:id/skills"| API
   SKILLS -->|"/skills · /skills/stats · /skills/community · /skills/import/preview"| API
   SKILL -->|"/skills/:id · /versions · /versions/:v/restore · /agents · /stats"| API
+  CONV -->|"/repos/:id/conventions · /extract · /skill · /conventions/:id"| API
   SETTINGS -->|"/settings · /providers"| API
 ```
 

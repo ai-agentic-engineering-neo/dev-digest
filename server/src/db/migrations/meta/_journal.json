@@ -92,6 +92,20 @@
       "when": 1790089583346,
       "tag": "0012_skills",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1790096841809,
+      "tag": "0013_conventions_extractor",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1790096845252,
+      "tag": "0014_conventions_drop_legacy",
+      "breakpoints": true
     }
   ]
 }

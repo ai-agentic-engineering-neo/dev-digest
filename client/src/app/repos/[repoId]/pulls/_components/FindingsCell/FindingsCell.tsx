@@ -4,9 +4,8 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { SeverityBadge } from "@devdigest/ui";
 import { FindingPreviewPanel } from "@/components/finding-preview";
-import type { PrFindings, Severity } from "@devdigest/shared";
-
-const ORDER: Severity[] = ["CRITICAL", "WARNING", "SUGGESTION"];
+import { SEVERITIES } from "@/lib/severity";
+import type { PrFindings } from "@devdigest/shared";
 
 export function FindingsCell({ findings }: { findings?: PrFindings | null }) {
   const t = useTranslations("prReview");
@@ -17,13 +16,14 @@ export function FindingsCell({ findings }: { findings?: PrFindings | null }) {
     return <span style={{ color: "var(--text-muted)" }}>—</span>;
   }
 
-  const present = ORDER.filter((l) => (findings.counts[l] ?? 0) > 0);
+  const present = SEVERITIES.filter((l) => (findings.counts[l] ?? 0) > 0);
   const open = hovered || focused;
 
   return (
     <div
       data-testid="findings-cell"
       tabIndex={0}
+      aria-label={t("list.findingsInRun", { count: findings.total })}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onFocus={() => setFocused(true)}

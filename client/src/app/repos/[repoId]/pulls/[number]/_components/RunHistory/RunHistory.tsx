@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { Badge, Icon, CircularScore, SeverityBadge, type IconName } from "@devdigest/ui";
 import type { RunSummary, PrCommit } from "@devdigest/shared";
 import { RunCostBadge } from "@/components/run-cost-badge";
-import { SEVERITIES } from "../FindingsPanel/constants";
+import { SEVERITIES } from "@/lib/severity";
 import { FindingPreviewPanel, type FindingPreviewItem } from "@/components/finding-preview";
 
 /**

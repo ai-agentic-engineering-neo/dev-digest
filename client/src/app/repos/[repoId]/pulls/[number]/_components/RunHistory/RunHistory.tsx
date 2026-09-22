@@ -226,7 +226,7 @@ export function RunHistory({
                         alignItems: "center",
                         gap: 6,
                         flexWrap: "wrap",
-                        cursor: "default",
+                        cursor: pointable ? "help" : "default",
                         borderBottomWidth: pointable ? 1 : 0,
                         borderBottomStyle: "dotted",
                         borderBottomColor: "var(--text-muted)",

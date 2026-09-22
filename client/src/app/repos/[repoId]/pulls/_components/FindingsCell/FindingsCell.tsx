@@ -82,7 +82,7 @@ export function FindingsCell({ findings }: { findings?: PrFindings | null }) {
         setFocused(false);
       }}
       onClick={(e) => e.stopPropagation()}
-      style={{ display: "inline-flex", gap: 6, cursor: "default" }}
+      style={{ display: "inline-flex", gap: 6, cursor: "help" }}
     >
       {present.map((l) => (
         <SeverityBadge key={l} severity={l} count={findings.counts[l]} compact />

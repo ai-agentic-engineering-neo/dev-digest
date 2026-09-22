@@ -9,6 +9,38 @@ gotchas, dead ends, decisions that don't belong in the fixed map in
 What happened, what was tried, what actually worked or didn't, and why.
 -->
 
+## 2026-09-21 — `agent_skills` bulk-replace race caused PK-violation 500s on rapid checkbox toggles [Mistake]
+`AgentsRepository.setSkills` (`server/src/modules/agents/repository.ts:229-235`
+before this fix) did `DELETE all rows for agent` then `INSERT the full new
+list` as two separate, non-transactional statements. There is no per-skill
+attach/detach endpoint — the Skills tab checkbox (`client/src/app/agents/[id]/_components/AgentEditor/_components/SkillsTab/SkillsTab.tsx`)
+sends the *entire* desired `skill_ids` list on every single toggle (check
+**or** uncheck) via `POST /agents/:id/skills`, and nothing on the client
+prevented two toggles from being in flight at once. Two overlapping requests
+reliably interleaved as `A.DELETE -> B.DELETE(no-op) -> A.INSERT(commits) ->
+B.INSERT` and B's insert collided with a skill id A's insert had just
+committed, throwing `duplicate key value violates unique constraint
+"agent_skills_agent_id_skill_id_pk"` — reproduced deterministically in a test
+via `Promise.all` of two overlapping POSTs against a real Testcontainers
+Postgres (both DELETEs land before either INSERT because each needs its own
+network round-trip). A bare `db.transaction(...)` wrap around the existing
+delete-then-insert would **not** have fixed this — READ COMMITTED doesn't
+stop two transactions' fresh INSERTs of the same key from colliding with
+each other's already-committed rows. The actual fix: rewrite `setSkills` to
+loop `insert(...).onConflictDoUpdate({ target: [agentId, skillId], set: { order } })`
+per desired skill (same idiom as `linkSkill`, `repository.ts:207-216`, and
+the seed-loop fix in the entry below — this table's established safe-upsert
+convention), then `delete ... where notInArray(skillId, skillIds)` for the
+rest, all inside `db.transaction(...)` (the transaction now guards against a
+different failure mode: delete-succeeds-insert-fails silently wiping an
+agent's links, not the PK collision itself). Also added client-side defense
+in depth — `Checkbox.tsx` gained a `disabled` prop (had none before) and
+`SkillsTab.tsx` disables checkboxes / no-ops `toggle()` while
+`setSkills.isPending` — but this only reduces how often overlapping requests
+fire from one tab; it doesn't replace the server-side upsert fix (a second
+browser tab or a retried fetch would still race two disjoint client
+instances).
+
 ## 2026-09-20 — `agent_skills` link-order upsert must use `onConflictDoUpdate`, not `onConflictDoNothing` [Bug found via manual smoke test]
 `seed.ts`'s agent↔skill link loop originally used `.onConflictDoNothing()`
 keyed on the `agent_skills` PK (`agentId`,`skillId`). During development the

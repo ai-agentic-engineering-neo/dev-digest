@@ -47,7 +47,7 @@ export function SkillsTab({ agent }: { agent: Agent }) {
   };
 
   const toggle = (id: string) => {
-    if (!order || !checked) return;
+    if (!order || !checked || setSkills.isPending) return;
     const next = new Set(checked);
     if (next.has(id)) next.delete(id);
     else next.add(id);
@@ -132,7 +132,7 @@ export function SkillsTab({ agent }: { agent: Agent }) {
                 <span style={s.handle} aria-hidden="true">
                   <Icon.Menu size={14} />
                 </span>
-                <Checkbox checked={isChecked} onChange={() => toggle(id)} />
+                <Checkbox checked={isChecked} onChange={() => toggle(id)} disabled={setSkills.isPending} />
                 <span style={s.name}>{skill.name}</span>
                 <Badge color={SKILL_TYPE_COLOR[skill.type]}>{skill.type}</Badge>
               </div>

@@ -44,6 +44,7 @@ const SKILLS: Skill[] = [
 const LINKS: AgentSkillLink[] = [{ agent_id: "ag1", skill_id: "sk-1", order: 0 }];
 
 const mutate = vi.fn();
+let mockIsPending = false;
 
 vi.mock("../../../../../../../lib/hooks/skills", () => ({
   useSkills: () => ({ data: SKILLS, isLoading: false, isError: false, refetch: vi.fn() }),
@@ -51,7 +52,7 @@ vi.mock("../../../../../../../lib/hooks/skills", () => ({
 
 vi.mock("../../../../../../../lib/hooks/agents", () => ({
   useAgentSkills: () => ({ data: LINKS, isLoading: false, isError: false, refetch: vi.fn() }),
-  useSetAgentSkills: () => ({ mutate, isPending: false }),
+  useSetAgentSkills: () => ({ mutate, isPending: mockIsPending }),
 }));
 
 import { SkillsTab } from "./SkillsTab";
@@ -83,6 +84,7 @@ function renderWithIntl(ui: React.ReactElement) {
 afterEach(() => {
   cleanup();
   mutate.mockClear();
+  mockIsPending = false;
 });
 
 describe("SkillsTab (smoke)", () => {
@@ -107,6 +109,15 @@ describe("SkillsTab (smoke)", () => {
     const checkboxes = screen.getAllByRole("checkbox");
     fireEvent.click(checkboxes[0]!);
     expect(mutate).toHaveBeenCalledWith({ skill_ids: [] });
+  });
+
+  it("disables all checkboxes while a set-skills mutation is in flight", () => {
+    mockIsPending = true;
+    renderWithIntl(<SkillsTab agent={AGENT} />);
+    const checkboxes = screen.getAllByRole("checkbox");
+    expect(checkboxes.every((cb) => cb.hasAttribute("disabled"))).toBe(true);
+    fireEvent.click(checkboxes[1]!);
+    expect(mutate).not.toHaveBeenCalled();
   });
 
   it("filters the visible list by skill name", () => {

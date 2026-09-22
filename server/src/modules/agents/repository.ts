@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, notInArray } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import type { CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
@@ -227,10 +227,23 @@ export class AgentsRepository {
    * the list are unlinked.
    */
   async setSkills(agentId: string, skillIds: string[]): Promise<void> {
-    await this.db.delete(t.agentSkills).where(eq(t.agentSkills.agentId, agentId));
-    if (skillIds.length === 0) return;
-    await this.db
-      .insert(t.agentSkills)
-      .values(skillIds.map((skillId, i) => ({ agentId, skillId, order: i })));
+    await this.db.transaction(async (tx) => {
+      for (const [i, skillId] of skillIds.entries()) {
+        await tx
+          .insert(t.agentSkills)
+          .values({ agentId, skillId, order: i })
+          .onConflictDoUpdate({
+            target: [t.agentSkills.agentId, t.agentSkills.skillId],
+            set: { order: i },
+          });
+      }
+      await tx
+        .delete(t.agentSkills)
+        .where(
+          skillIds.length > 0
+            ? and(eq(t.agentSkills.agentId, agentId), notInArray(t.agentSkills.skillId, skillIds))
+            : eq(t.agentSkills.agentId, agentId),
+        );
+    });
   }
 }

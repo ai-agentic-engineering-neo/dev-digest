@@ -256,6 +256,59 @@ d('skills module (Testcontainers pg)', () => {
     await app.close();
   });
 
+  it('POST /agents/:id/skills: overlapping concurrent set-skills calls never 500 with a duplicate-key error', async () => {
+    const app = await makeApp();
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'Racy', provider: 'openai', model: 'gpt-4.1', system_prompt: 'x' },
+      })
+    ).json();
+    const skillA = (
+      await app.inject({ method: 'POST', url: '/skills', payload: createBody })
+    ).json();
+    const skillB = (
+      await app.inject({ method: 'POST', url: '/skills', payload: { ...createBody, name: 'B' } })
+    ).json();
+    const skillC = (
+      await app.inject({ method: 'POST', url: '/skills', payload: { ...createBody, name: 'C' } })
+    ).json();
+    const ids = { A: skillA.id, B: skillB.id, C: skillC.id };
+
+    // Seed a populated link set — the bug reproduces on uncheck/re-toggle
+    // once several skills are already linked, not from an empty set.
+    await app.inject({
+      method: 'POST',
+      url: `/agents/${agent.id}/skills`,
+      payload: { skill_ids: [ids.A, ids.B, ids.C] },
+    });
+
+    // Two overlapping, mostly-overlapping-but-different requests — the
+    // "uncheck while a check is still in flight" shape.
+    const post = (skillIds: string[]) =>
+      app.inject({
+        method: 'POST',
+        url: `/agents/${agent.id}/skills`,
+        payload: { skill_ids: skillIds },
+      });
+    const [r1, r2] = await Promise.all([post([ids.A, ids.B]), post([ids.A, ids.B, ids.C])]);
+    expect(r1.statusCode).toBe(200);
+    expect(r2.statusCode).toBe(200);
+
+    // Two identical concurrent re-POSTs — the "rapid double-click" shape.
+    const [r3, r4] = await Promise.all([post([ids.A]), post([ids.A])]);
+    expect(r3.statusCode).toBe(200);
+    expect(r4.statusCode).toBe(200);
+
+    const links = (await app.inject({ method: 'GET', url: `/agents/${agent.id}/skills` })).json();
+    const linkedIds = links.map((l: { skill_id: string }) => l.skill_id);
+    expect(new Set(linkedIds).size).toBe(linkedIds.length);
+    expect(linkedIds.every((id: string) => Object.values(ids).includes(id))).toBe(true);
+
+    await app.close();
+  });
+
   async function setupRepoAndPr(db: PgFixture['handle']['db']) {
     const [repo] = await db
       .insert(t.repos)

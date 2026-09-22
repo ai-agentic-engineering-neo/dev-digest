@@ -10,6 +10,9 @@ Next.js 15 studio UI. The root `CLAUDE.md` applies; this adds client-only rules.
 - Adding or changing a UI component → read `src/vendor/ui/README.md`, then add it to `/showcase`
 - Implementing a feature → read its spec in `specs/`; write one first if it is missing. A feature
   that also needs the server goes in the repository-root `specs/` instead
+- Changing how findings are counted, filtered or previewed on a PR page → read
+  `specs/2026-09-21-findings-severity-filter.md` first: it states which of that behaviour is a
+  promise and how each promise is checked
 - Something surprised you, or a fix was not obvious → `INSIGHTS.md`, through the
   `engineering-insights` skill, which carries the format and the rules
 - Need depth the README does not give → `docs/`

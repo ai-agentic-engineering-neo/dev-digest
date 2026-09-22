@@ -69,8 +69,10 @@ unit/integration split) are in that package's `CLAUDE.md`.
   not two.
 - Response shape is enforced by JSON Schema (`strict`) out of band — never describe fields or
   layout inside an agent's system prompt.
-- A finding citing no real diff line is dropped and the score is recomputed — the model's own score
-  is ignored.
+- A finding whose file is absent from the diff is dropped, and so is one whose lines miss every
+  hunk — except for the four whole-file kinds (`secret_leak`, `lethal_trifecta`, `phantom`, `hook`),
+  which only need the file to be present. The score is then recomputed from what survived; the
+  model's own score is ignored.
 - Secrets go through `SecretsProvider` into `~/.devdigest/secrets.json` (mode 0600), `.env` as
   fallback. Never git, never the DB.
 

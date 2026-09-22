@@ -14,11 +14,15 @@ export interface FindingPreviewItem {
   description: string;
 }
 
+/** Exported because the cell must place the panel before it exists to measure. */
+export const PREVIEW_PANEL_WIDTH = 380;
+export const PREVIEW_PANEL_MAX_HEIGHT = 320;
+
 const panelStyle: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  width: 380,
-  maxHeight: 320,
+  width: PREVIEW_PANEL_WIDTH,
+  maxHeight: PREVIEW_PANEL_MAX_HEIGHT,
   padding: 12,
   borderRadius: 10,
   border: "1px solid var(--border)",

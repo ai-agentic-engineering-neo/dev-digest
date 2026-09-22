@@ -94,4 +94,36 @@ describe("FindingsCell", () => {
     fireEvent.click(screen.getByTestId("findings-cell"));
     expect(rowClick).not.toHaveBeenCalled();
   });
+  it("renders the panel outside the cell, so a clipping ancestor cannot cut it", () => {
+    renderWithIntl(<FindingsCell findings={FINDINGS} />);
+    const cell = screen.getByTestId("findings-cell");
+    fireEvent.mouseEnter(cell);
+
+    const panel = screen.getByRole("dialog");
+    expect(cell.contains(panel)).toBe(false);
+    expect(screen.getByTestId("findings-preview-portal").parentElement).toBe(document.body);
+  });
+
+  it("stays open while the pointer is over the panel itself", () => {
+    renderWithIntl(<FindingsCell findings={FINDINGS} />);
+    fireEvent.mouseEnter(screen.getByTestId("findings-cell"));
+
+    fireEvent.mouseEnter(screen.getByTestId("findings-preview-portal"));
+    fireEvent.mouseLeave(screen.getByTestId("findings-cell"));
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("opens above the icons when the row sits near the bottom of the viewport", () => {
+    renderWithIntl(<FindingsCell findings={FINDINGS} />);
+    const cell = screen.getByTestId("findings-cell");
+    cell.getBoundingClientRect = () =>
+      ({ top: 700, bottom: 720, left: 100, right: 200, width: 100, height: 20 }) as DOMRect;
+
+    fireEvent.mouseEnter(cell);
+
+    const portal = screen.getByTestId("findings-preview-portal");
+    expect(portal.style.bottom).not.toBe("");
+    expect(portal.style.top).toBe("");
+  });
 });

@@ -10,6 +10,19 @@ the section rules and the quality bar.
 
 ## What Works
 
+**2026-09-22** — Reading past findings is made deterministic by injection, not by instruction:
+`SKILL.md:22` carries `` !`cat */INSIGHTS.md .claude/INSIGHTS.md` ``, which runs before the model
+sees the skill body, so the files arrive as context rather than as a request the model may skip.
+That is why a session can name which entries bear on its task before touching anything.
+
+The cost is that the line must stay ONE literal command. The permission check rejects brace
+expansion, `$VAR`, `||` and redirection, so it cannot be made defensive — no fallback, no
+alternative path. Two consequences to plan around: the glob `*/INSIGHTS.md` only reaches files one
+level deep, so a package nested deeper would be silently skipped; and the `.claude/` path is
+spelled out because the glob does not match a dot-directory. Adding a fifth area means editing this
+line by hand, and nothing will complain if you forget — the skill will simply read four files and
+say nothing about the fifth. Evidence: .claude/skills/engineering-insights/SKILL.md:22
+
 ## What Doesn't Work
 
 ## Codebase Patterns

@@ -14,7 +14,7 @@ Node ≥ 22 · pnpm ≥ 10 · Docker (Postgres only; API and web run on the host
 
 ## Commands
 - Boot everything: `./scripts/dev.sh` (`--no-seed` · `--no-client` · `--db-only`)
-- Test / typecheck: run inside the package — see its `CLAUDE.md`.
+- Test / typecheck: run inside the package — see its `AGENTS.md`.
 
 ## Read when
 - Change spans packages or you need the big picture → read `README.md` (Architecture)

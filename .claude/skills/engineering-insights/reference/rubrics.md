@@ -19,14 +19,14 @@
 | **Open Questions** | suspected but unverified, or deliberately left unresolved | `<question> — seen in <where>` |
 
 ## Qualifies (all must hold)
-- **Counterfactual:** if this entry vanished, would the next agent — even after reading the code, tests, README and CLAUDE.md — likely repeat the mistake or redo the investigation? (Every `ce-compound`)
+- **Counterfactual:** if this entry vanished, would the next agent — even after reading the code, tests, README and AGENTS.md — likely repeat the mistake or redo the investigation? (Every `ce-compound`)
 - **Recurs:** project-specific and will matter again; not a one-off typo. (evoleinik)
 - **Worth it:** saves 5+ minutes or prevents a wrong turn. (evoleinik)
 - **Verified:** observed this session — ran, failed, measured, fix confirmed working. Otherwise → Open Questions. (evoleinik, learning-loop)
 
 ## Does not qualify
 - Generic programming knowledge ("await inside loops is slow").
-- Anything already in `README.md`, `docs/`, `CLAUDE.md`, or obvious from the code.
+- Anything already in `README.md`, `docs/`, `AGENTS.md`, or obvious from the code.
 - Effort, diff size or "task finished" by themselves. (Every `ce-compound`)
 - Fixes whose code/test already makes the lesson obvious.
 - Anything needing a paragraph — that's documentation: write `<package>/docs/<topic>.md`, then add a one-line entry pointing to it.

@@ -32,4 +32,4 @@
 ## Do not touch
 - Committed migrations in `src/db/migrations/` — generate a new one instead.
 - Prompt-injection guard and grounding semantics — they live in `reviewer-core`;
-  read `../reviewer-core/CLAUDE.md` first.
+  read `../reviewer-core/AGENTS.md` first.

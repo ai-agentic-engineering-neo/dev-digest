@@ -9,6 +9,9 @@ Pure review engine: diff → prompt → LLM → grounded findings. The root `CLA
   the engine and the prompts must agree
 - Feeding a new prompt slot (skills, memory, specs, callers) → read `src/prompt.ts`: the slots
   already exist in `PromptParts`, the server simply does not pass them yet
+- Adding a dependency or an adapter here, emitting JS, fencing a new untrusted slot, or changing
+  the retry/repair budget → read `docs/01-package-boundary.md` first: each of those spends the
+  isolation the second consumer depends on
 - Implementing a feature → read its spec in `specs/`; write one first if it is missing. A feature
   that also needs the server or the client goes in the repository-root `specs/` instead
 - Something surprised you, or a fix was not obvious → `INSIGHTS.md`, through the

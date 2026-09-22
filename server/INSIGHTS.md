@@ -17,7 +17,7 @@ Evidence: server/src/db/seed.ts
 
 ## Codebase Patterns
 
-**2026-09-19** — A review run's prompt gets `repoMap` and `callers` but never `skills`, `memory` or
+**2026-09-19** (refined 2026-09-22) — A review run's prompt gets `repoMap` and `callers` but never `skills`, `memory` or
 `specs`: `run-executor.ts:201-203` fills only the first two, and the trace literal hardcodes the
 rest to null. The reviewer therefore knows the repo's *structure* (1494 tokens of skeleton, visible
 in the run log) but none of its *rules* — it cannot flag a CLAUDE.md convention such as
@@ -28,7 +28,15 @@ reach the model: adding the conventions to it took the same PR from 3 findings t
 one it had been blind to — while a deliberately clean PR went from 1 finding to 0, so the gain was
 not bought with noise. Keep such rules stated with the consequence they cause; the prompt discards
 a claim that has no mechanism behind it.
-Evidence: server/src/modules/reviews/run-executor.ts:201
+The mechanism is not what this entry said: the three slots are not passed as `null`, they are
+absent from the `reviewPullRequest` call object entirely
+(`server/src/modules/reviews/run-executor.ts:191-213`), so `assemblePrompt` omits their sections and
+the model is shown no heading rather than an empty one. Two different literals are hardcoded, and
+neither is the prompt: `memory_pulled: []` / `specs_read: []` in a SUCCESSFUL run's trace
+(`run-executor.ts:282`), and `skills: null, memory: null, specs: null` in the trace synthesised for
+a run that died before assembly (`run-executor.ts:429`) — so a `null` there means "failed early",
+not "offered and empty". Wiring a slot therefore means adding a key to that call, not replacing a
+null. Evidence: server/src/modules/reviews/run-executor.ts:191
 
 ## Tool & Library Notes
 

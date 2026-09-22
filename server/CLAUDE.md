@@ -7,6 +7,8 @@ Fastify API and host of the review engine. The root `CLAUDE.md` applies; this ad
 - Adding or changing a route, adapter or env var → read `README.md` (request & DI flow, API map, env table)
 - Touching the indexer, repo map, callers or blast radius → read `src/modules/repo-intel/README.md`
 - Changing what the model actually sees in a review → read `README.md` § *Review context*, then `../docs/agent-prompts/README.md`
+- Changing the review run itself — the trigger, the prompt slots, the grounding gate, the score or
+  what a finished run persists → read `docs/01-review-run.md`
 - Implementing a feature → read its spec in `specs/`; write one first if it is missing. A feature
   that also needs the client goes in the repository-root `specs/` instead
 - Something surprised you, or a fix was not obvious → `INSIGHTS.md`, through the

@@ -9,6 +9,8 @@ Deterministic browser flows driven by Vercel agent-browser. The root `CLAUDE.md`
   beyond the seeded one
 - Reaching for a locator, a key, a model call or a flow that mutates data, or wondering why a
   scenario is not covered here at all → read `docs/01-determinism-by-construction.md`
+- Before relaxing any of that → read `specs/2026-09-22-suite-contract.md`: it states which of the
+  suite's properties a mechanism actually protects and which rest on review alone
 - Something surprised you, or a fix was not obvious → `INSIGHTS.md`, through the
   `engineering-insights` skill, which carries the format and the rules
 - Need depth the README does not give → `docs/`
@@ -18,6 +20,8 @@ Deterministic browser flows driven by Vercel agent-browser. The root `CLAUDE.md`
 - `specs/` here holds `NN-name.flow.json` **test flows**. A feature's spec lives with the package
   it changes — `server/specs/`, `client/specs/`, `reviewer-core/specs/` — or in the
   repository-root `specs/` when it spans more than one.
+  Beside the flows sits this package's own behaviour spec, `YYYY-MM-DD-<kebab>.md` — what must stay
+  true of the suite itself, which is a different thing from a feature of the app.
 - Locators are deterministic only (`--url`, `--text`, `find role|text|label`). Never the AI `chat`
   command — runs must stay stable and key-free.
 - Flows target read-only seeded data (`acme/payments-api`, PR #482, the seeded agents). Nothing here

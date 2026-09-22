@@ -1,13 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { and, desc, eq, inArray, sum } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, sum } from 'drizzle-orm';
 import type { PrMeta, PrDetail, GitHubClient, PrReviewComment } from '@devdigest/shared';
 import { PrCommentInput } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { AppError, NotFoundError } from '../../platform/errors.js';
-import { deriveReviewStatus } from './status.js';
+import { deriveReviewStatus, rollupSeverities, type SeverityCounts } from './status.js';
 
 /**
  * F1 — pulls module. PR import via Octokit (list + per-PR detail).
@@ -113,20 +113,54 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
 
     // Latest-review SCORE per PR for the list's score ring. Computed on read
     // from reviews (no FK denorm); the list is small, so one IN-query + JS
-    // grouping is cheap. (The per-severity FINDINGS breakdown is intentionally
-    // not surfaced on the list — findings live on the PR detail page.)
+    // grouping is cheap. The same pass collects which PRs have ANY review row,
+    // which is what tells "never reviewed" apart from "reviewed, zero findings"
+    // in the FINDINGS breakdown below.
     const prIds = rows.map((r) => r.id);
     const latestReviewByPr = new Map<string, { score: number | null }>();
+    const reviewedPrIds = new Set<string>();
     if (prIds.length > 0) {
       const reviewRows = await container.db
-        .select({ prId: t.reviews.prId, score: t.reviews.score })
+        .select({ prId: t.reviews.prId, score: t.reviews.score, kind: t.reviews.kind })
         .from(t.reviews)
-        .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review')))
+        .where(and(eq(t.reviews.workspaceId, workspaceId), inArray(t.reviews.prId, prIds)))
         .orderBy(desc(t.reviews.createdAt));
-      // Rows are newest-first → first seen per PR is the latest review.
+      // Rows are newest-first → first seen per PR is the latest review. Only a
+      // 'review' row carries a score, but ANY row means the PR was reviewed.
       for (const rv of reviewRows) {
-        if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { score: rv.score });
+        reviewedPrIds.add(rv.prId);
+        if (rv.kind === 'review' && !latestReviewByPr.has(rv.prId)) {
+          latestReviewByPr.set(rv.prId, { score: rv.score });
+        }
       }
+    }
+
+    // Per-severity FINDINGS breakdown for the list's findings column: every
+    // review run of the PR, DISMISSED findings excluded (the column answers
+    // "what is still outstanding"). `findings` has no pr_id, so the join goes
+    // through reviews — which is also where workspace scoping lives. No `kind`
+    // filter: GET /pulls/:id/reviews doesn't filter either, so the column and
+    // the PR page would otherwise disagree.
+    const findingsByPr = new Map<string, SeverityCounts>();
+    if (prIds.length > 0) {
+      const findingRows = await container.db
+        .select({ prId: t.reviews.prId, severity: t.findings.severity })
+        .from(t.findings)
+        .innerJoin(t.reviews, eq(t.findings.reviewId, t.reviews.id))
+        .where(
+          and(
+            eq(t.reviews.workspaceId, workspaceId),
+            inArray(t.reviews.prId, prIds),
+            isNull(t.findings.dismissedAt),
+          ),
+        );
+      const grouped = new Map<string, { severity: string }[]>();
+      for (const f of findingRows) {
+        const list = grouped.get(f.prId);
+        if (list) list.push(f);
+        else grouped.set(f.prId, [f]);
+      }
+      for (const [prId, findings] of grouped) findingsByPr.set(prId, rollupSeverities(findings));
     }
 
     // Total spend per PR for the list's COST column: the SUM of every agent
@@ -168,6 +202,11 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
         cost_usd: costByPr.get(r.id) ?? null,
+        // Null = never reviewed (the "—" the score ring also shows); {0,0,0} =
+        // reviewed with nothing outstanding.
+        findings_counts: reviewedPrIds.has(r.id)
+          ? findingsByPr.get(r.id) ?? { critical: 0, warning: 0, suggestion: 0 }
+          : null,
       };
     });
   });

@@ -85,7 +85,12 @@ export function useDeleteReview(prId: string | null | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (reviewId: string) => api.del<{ ok: boolean }>(`/reviews/${reviewId}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["reviews", prId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["reviews", prId] });
+      // Deleting a run takes its findings with it → the list's FINDINGS column
+      // (and its score ring) change too.
+      qc.invalidateQueries({ queryKey: ["pulls"] });
+    },
   });
 }
 
@@ -159,6 +164,9 @@ export function useFindingAction() {
       ),
     onSuccess: (_d, { prId }) => {
       if (prId) qc.invalidateQueries({ queryKey: ["reviews", prId] });
+      // The PR list's FINDINGS column counts only outstanding findings, so a
+      // dismiss changes it too. Prefix match — the hook doesn't know the repo.
+      qc.invalidateQueries({ queryKey: ["pulls"] });
     },
   });
 }

@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { Icon, Avatar, Badge, CircularScore } from "@devdigest/ui";
 import type { PrMeta } from "@/lib/types";
 import { RunCostBadge } from "@/components/run-cost-badge";
+import { FindingsCell } from "../FindingsCell";
 import { SIZE_COLOR, STATUS_META } from "../../constants";
 import { relativeTime, sizeOf } from "../../helpers";
 import { s } from "../../styles";
@@ -15,6 +16,9 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
   const t = useTranslations("prReview");
   const router = useRouter();
   const [h, setH] = React.useState(false);
+  // The findings card is portalled to <body>, so the pointer technically leaves
+  // the row while reading it — keep the row highlighted meanwhile.
+  const [cardOpen, setCardOpen] = React.useState(false);
   const st = STATUS_META[pr.status] ?? STATUS_META.needs_review!;
   const { size, lines } = sizeOf(pr);
   const reviewed = pr.score != null; // null score ⇒ PR has never been reviewed
@@ -23,7 +27,7 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
       onMouseEnter={() => setH(true)}
       onMouseLeave={() => setH(false)}
       onClick={() => router.push(`/repos/${repoId}/pulls/${pr.number}`)}
-      style={s.row(h)}
+      style={s.row(h || cardOpen)}
     >
       <div style={s.rowTitleCell}>
         <Icon.GitPullRequest size={15} style={s.rowIcon(st.c)} />
@@ -54,6 +58,13 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
           <span style={s.muted}>—</span>
         )}
       </div>
+      {/* Outstanding findings by severity; hover opens the full list. */}
+      <FindingsCell
+        counts={pr.findings_counts}
+        prId={pr.id}
+        prNumber={pr.number}
+        onOpenChange={setCardOpen}
+      />
       <div>
         <Badge dot color={st.c} bg="transparent">
           {t(`list.status.${st.labelKey}`)}

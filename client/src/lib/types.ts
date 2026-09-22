@@ -23,6 +23,7 @@ export type {
   RepoInput,
   PrMeta,
   PrDetail,
+  SeverityCounts,
   PrFile,
   PrCommit,
   PrReviewComment,

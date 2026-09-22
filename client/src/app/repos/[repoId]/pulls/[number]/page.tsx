@@ -76,7 +76,9 @@ export default function PRDetailPage() {
     [reviews],
   );
   const lethalTrifecta = allFindings.filter((f) => f.kind === "lethal_trifecta");
-  const findingsCount = allFindings.length;
+  // Outstanding only, so the tab badge matches the PR list's FINDINGS column
+  // (which also excludes dismissed findings).
+  const findingsCount = allFindings.filter((f) => !f.dismissed_at).length;
 
   const repoName = activeRepo?.full_name ?? repoId;
   // The real "owner/repo" (null until the repo is loaded) — used to build

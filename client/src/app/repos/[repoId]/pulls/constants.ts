@@ -1,4 +1,4 @@
-import type { PrMeta } from "../../../../lib/types";
+import type { PrMeta, Severity } from "../../../../lib/types";
 
 /** Constants for the PR list page (/repos/:repoId/pulls). */
 
@@ -23,8 +23,37 @@ export const SIZE_COLOR: Record<string, string> = {
   L: "var(--crit)",
 };
 
-/** Grid template for both the header row and PR rows. */
-export const GRID = "1fr 132px 92px 60px 118px 74px 78px";
+/**
+ * Grid template for both the header row and PR rows — s.headRow and s.row()
+ * share it, so a new column must be inserted at the SAME index in COLUMN_KEYS,
+ * here, and in PRRow, or the header stops lining up with the cells.
+ *
+ * Every fixed column is taken out of the `1fr` title column: at a 1280px window
+ * the title gets ~142px and ellipsises, at 1920px it gets ~780px and fits. That
+ * truncation is an accepted trade-off for the FINDINGS column (116px) — budget
+ * for it before adding a ninth.
+ */
+export const GRID = "1fr 132px 92px 60px 116px 118px 74px 78px";
+
+/**
+ * The three finding severities in display order, with the key they carry in
+ * `PrMeta.findings_counts`. Typed with the CONTRACT's Severity (3 values) —
+ * the UI kit's own `Severity` adds a phantom "INFO" that no finding ever has.
+ */
+export const SEVERITIES: {
+  key: Severity;
+  countKey: "critical" | "warning" | "suggestion";
+}[] = [
+  { key: "CRITICAL", countKey: "critical" },
+  { key: "WARNING", countKey: "warning" },
+  { key: "SUGGESTION", countKey: "suggestion" },
+];
+
+/** Hover-card timing: open on a deliberate hover, survive the gap on the way in. */
+export const HOVER_OPEN_MS = 120;
+export const HOVER_CLOSE_MS = 180;
+export const CARD_WIDTH = 460;
+export const CARD_MAX_HEIGHT = 340;
 
 /** Line-count thresholds for the S/M/L size bucket. */
 export const SIZE_SMALL_MAX = 100;
@@ -44,6 +73,7 @@ export const COLUMN_KEYS: string[] = [
   "author",
   "size",
   "score",
+  "findings",
   "status",
   "cost",
   "updated",

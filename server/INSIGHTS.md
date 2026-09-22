@@ -22,6 +22,12 @@ Keep each entry ≤5 lines. Agents only append; changing, moving to CLAUDE.md or
 ## Codebase Patterns
 <!-- Non-obvious conventions or decisions with rationale, not already in CLAUDE.md -->
 
+### 2026-09-22 — PR-level finding aggregates must NOT filter `reviews.kind`
+- What: `reviewsForPull` returns every review row, 'summary' included, so a rollup adding `eq(t.reviews.kind, 'review')` under-counts vs what the PR page shows.
+- Why: the adjacent latest-SCORE query *does* filter kind (only 'review' rows carry a score), so copying it into a findings query is the natural, wrong move.
+- Rule: NEVER filter `kind` when aggregating findings per PR; filter it only when reading a score.
+- Evidence: src/modules/reviews/repository/review.repo.ts:58 · test/pulls-findings.it.test.ts "counts a 'summary' review's findings too"
+
 ## Tool & Library Notes
 <!-- Quirks of dependencies and tools -->
 

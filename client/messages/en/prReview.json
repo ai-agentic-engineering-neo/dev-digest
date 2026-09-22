@@ -1,4 +1,9 @@
 {
+  "severity": {
+    "critical": "Critical",
+    "warning": "Warning",
+    "suggestion": "Suggestion"
+  },
   "finding": {
     "accepted": "accepted",
     "dismissed": "dismissed",
@@ -91,9 +96,18 @@
       "author": "Author",
       "size": "Size",
       "score": "Score",
+      "findings": "Findings",
       "status": "Status",
       "updated": "Updated",
       "cost": "Cost"
+    },
+    "findings": {
+      "aria": "{severity}: {count}",
+      "notReviewed": "Not reviewed yet",
+      "cardAria": "Findings for this pull request",
+      "cardTitle": "{count, plural, one {# finding} other {# findings}}",
+      "loading": "Loading findings…",
+      "error": "Couldn’t load findings"
     },
     "filesCount": "{count} files",
     "errorTitle": "Couldn’t load pull requests",

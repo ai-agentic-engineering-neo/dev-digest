@@ -24,6 +24,18 @@ the same run reads as two different numbers, and the drawer's form cannot be com
 timeline's at all. Reuse one of the two when adding a third surface rather than inventing a format
 that matches neither. Evidence: client/src/components/run-cost-badge/RunCostBadge.tsx:31
 
+**2026-09-22** — A severity level lives in THREE places, not the two that the root `CLAUDE.md`'s
+"check both `vendor/shared` copies" gotcha implies: the two vendored contract copies, and
+`@devdigest/ui`'s own hand-written `Severity` union, which knows nothing about the contract or its
+vendoring. Those two have already drifted — the UI union carries an `INFO` the contract has never
+had, which is why `INFO` sits dead in every `SEVERITY_ORDER`. Adding a level is three edits.
+Known from an experiment rather than from reading the code: adding a fourth level to both contract
+copies and running `pnpm typecheck` gave SEVEN errors, not one — the exhaustiveness guard in
+`lib/severity.ts`, plus six at call sites in four files where `<SeverityBadge>` or the `SEV` record
+rejected the new member. So missing the third place costs a failed typecheck that names every site,
+never a silent gap; make all three edits in one change instead of discovering them one compiler run
+at a time. Evidence: client/src/vendor/ui/primitives/tokens.ts:3
+
 
 ## Tool & Library Notes
 

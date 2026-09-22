@@ -47,4 +47,13 @@ describe("AgentCard (smoke)", () => {
     renderWithIntl(<AgentCard ag={{ ...AGENT, description: "" }} />);
     expect(screen.getByText("No description")).toBeInTheDocument();
   });
+
+  it("truncates a long model id instead of wrapping, and keeps the skill badge visible", () => {
+    const longModel = "deepseek/deepseek-v4-flash";
+    renderWithIntl(<AgentCard ag={{ ...AGENT, model: longModel }} skillCount={3} />);
+    const chip = screen.getByText(longModel);
+    expect(chip).toHaveStyle({ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" });
+    expect(chip).toHaveAttribute("title", longModel);
+    expect(screen.getByText("3 skills")).toBeInTheDocument();
+  });
 });

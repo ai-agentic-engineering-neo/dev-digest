@@ -47,5 +47,10 @@ export const s = {
     background: color + "1a",
     padding: "1px 8px",
     borderRadius: 4,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    minWidth: 0,
+    flex: "0 1 auto",
   }),
 } as const;

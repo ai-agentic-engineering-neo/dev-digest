@@ -104,7 +104,11 @@ export default function AgentEditorPage() {
             <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 28px 0", flexShrink: 0 }}>
               <Icon.Cpu size={18} style={{ color: "var(--accent)" }} />
               <h1 style={{ fontSize: 18, fontWeight: 700 }}>{agent.name}</h1>
-              <Badge color="var(--text-secondary)" mono>
+              <Badge
+                color="var(--text-secondary)"
+                mono
+                style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}
+              >
                 {agent.provider}/{agent.model}
               </Badge>
               {!agent.enabled && <Badge color="var(--text-muted)">disabled</Badge>}

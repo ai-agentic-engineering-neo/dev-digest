@@ -5,6 +5,8 @@ Next.js 15 studio UI. The root `CLAUDE.md` applies; this adds client-only rules.
 ## Use when
 
 - Adding a page or a hook, or wiring to the API → read `README.md` (route map → hooks → `api.ts`)
+- Moving the Server/Client boundary, adding a query key or an invalidation, touching the live-run
+  stream, or importing a contract as a value → read `docs/01-ui-architecture.md`
 - Adding or changing a UI component → read `src/vendor/ui/README.md`, then add it to `/showcase`
 - Implementing a feature → read its spec in `specs/`; write one first if it is missing. A feature
   that also needs the server goes in the repository-root `specs/` instead

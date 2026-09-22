@@ -13,6 +13,10 @@ import * as t from '../src/db/schema.js';
  * and then completed the bus, and complete() cleared the cancel flag — the
  * runner never saw it, finished the review, and overwrote 'cancelled' with
  * 'done'. A cancel during the LAST LLM call must win too.
+ *
+ * Map-reduce chunks run in parallel (REVIEW_MAP_CONCURRENCY, reviewer-core
+ * default 3). Cancel semantics: every IN-FLIGHT chunk call is aborted through
+ * its AbortSignal, and chunks that have not started never start.
  */
 const hasDocker = await dockerAvailable();
 const d = hasDocker ? describe : describe.skip;
@@ -30,6 +34,11 @@ diff --git a/src/other.ts b/src/other.ts
 @@ -1,1 +1,2 @@
  export const a = 1;
 +export const b = 2;`;
+
+/** Four changed files ⇒ four map-reduce chunks. */
+const DIFF_FOUR = ['a', 'b', 'c', 'd']
+  .map((f) => `diff --git a/src/${f}.ts b/src/${f}.ts\n--- a/src/${f}.ts\n+++ b/src/${f}.ts\n@@ -1,1 +1,2 @@\n x\n+y`)
+  .join('\n');
 
 const REVIEW: Review = { verdict: 'approve', summary: 'ok', score: 100, findings: [] };
 
@@ -74,33 +83,50 @@ d('run cancel (Testcontainers pg)', () => {
     return pr!;
   }
 
-  /** Runs one agent; the user hits POST /runs/:id/cancel during LLM call #1. */
-  async function runAndCancel(strategy: 'map-reduce' | 'single-pass') {
+  /** POST /runs/:id/cancel for the PR's (only) run, as the user would. */
+  async function cancelViaRoute(app: Awaited<ReturnType<typeof buildApp>>, prId: string) {
+    const [run] = await pg.handle.db.select().from(t.agentRuns).where(eq(t.agentRuns.prId, prId));
+    const res = await app.inject({ method: 'POST', url: `/runs/${run!.id}/cancel` });
+    expect(res.statusCode).toBe(200);
+  }
+
+  /**
+   * Runs one agent whose LLM calls are scripted by `onCall` (call index from 1,
+   * the request, the app — to cancel through the route).
+   */
+  async function runScripted(
+    strategy: 'map-reduce' | 'single-pass',
+    opts: {
+      diff: string;
+      concurrency?: string;
+      onCall: (n: number, req: StructuredRequest<unknown>, cancel: () => Promise<void>) => Promise<void>;
+    },
+  ) {
     const pr = await setupPr();
     const inner = new MockLLMProvider('openai', { structured: REVIEW });
     let calls = 0;
+    const signals: AbortSignal[] = [];
     let app!: Awaited<ReturnType<typeof buildApp>>;
-    const cancelling: LLMProvider = {
+    const scripted: LLMProvider = {
       id: 'openai',
       listModels: () => inner.listModels(),
       complete: (req) => inner.complete(req),
       embed: (x) => inner.embed(x),
       async completeStructured<T>(req: StructuredRequest<T>) {
-        if (++calls === 1) {
-          const [run] = await pg.handle.db.select().from(t.agentRuns).where(eq(t.agentRuns.prId, pr.id));
-          const res = await app.inject({ method: 'POST', url: `/runs/${run!.id}/cancel` });
-          expect(res.statusCode).toBe(200);
-        }
+        const n = ++calls;
+        if (req.signal) signals.push(req.signal);
+        await opts.onCall(n, req as StructuredRequest<unknown>, () => cancelViaRoute(app, pr.id));
         return inner.completeStructured(req);
       },
     };
+    const env = { ...process.env, NODE_ENV: 'test', REVIEW_MAP_CONCURRENCY: opts.concurrency ?? '' };
     app = await buildApp({
-      config: loadConfig({ ...process.env, NODE_ENV: 'test' } as NodeJS.ProcessEnv),
+      config: loadConfig(env as NodeJS.ProcessEnv),
       db: pg.handle.db,
       overrides: {
         embedder: new MockEmbedder(),
-        git: new MockGitClient({ diff: DIFF }),
-        llm: { openai: cancelling },
+        git: new MockGitClient({ diff: opts.diff }),
+        llm: { openai: scripted },
       },
     });
     const agent = (
@@ -125,18 +151,58 @@ d('run cancel (Testcontainers pg)', () => {
     const [run] = await pg.handle.db.select().from(t.agentRuns).where(eq(t.agentRuns.id, runId));
     const reviews = await pg.handle.db.select().from(t.reviews).where(eq(t.reviews.prId, pr.id));
     await app.close();
-    return { run: run!, reviews, calls };
+    return { run: run!, reviews, calls, signals };
   }
 
-  it('map-reduce: stops before the next chunk and stays cancelled', async () => {
-    const { run, reviews, calls } = await runAndCancel('map-reduce');
+  /** The user cancels during LLM call #1; the call itself then completes. */
+  const cancelOnFirst = async (n: number, _req: unknown, cancel: () => Promise<void>) => {
+    if (n === 1) await cancel();
+  };
+
+  /** Rejects like an SDK call once `signal` aborts (fails the test if it never does). */
+  const untilAborted = (signal: AbortSignal) =>
+    new Promise<void>((_, reject) => {
+      const fail = () => reject(Object.assign(new Error('Request was aborted.'), { name: 'AbortError' }));
+      if (signal.aborted) fail();
+      signal.addEventListener('abort', fail, { once: true });
+      setTimeout(() => reject(new Error('test: in-flight call was never aborted')), 5_000).unref();
+    });
+
+  it('map-reduce, concurrency 1: stops before the next chunk and stays cancelled', async () => {
+    const { run, reviews, calls } = await runScripted('map-reduce', {
+      diff: DIFF,
+      concurrency: '1',
+      onCall: cancelOnFirst,
+    });
     expect(calls).toBe(1);
     expect(run.status).toBe('cancelled');
     expect(reviews).toHaveLength(0);
   });
 
+  it('map-reduce, concurrency 2: cancel aborts the in-flight chunk and no further chunk starts', async () => {
+    let secondStarted!: () => void;
+    const second = new Promise<void>((r) => (secondStarted = r));
+    const { run, reviews, calls, signals } = await runScripted('map-reduce', {
+      diff: DIFF_FOUR,
+      concurrency: '2',
+      onCall: async (n, req, cancel) => {
+        if (n === 1) {
+          await second; // chunks 1 and 2 are both in flight
+          await cancel();
+          return;
+        }
+        secondStarted();
+        await untilAborted(req.signal!);
+      },
+    });
+    expect(calls).toBe(2); // chunks 3 and 4 never reached the LLM
+    expect(signals.every((s) => s.aborted)).toBe(true);
+    expect(run.status).toBe('cancelled');
+    expect(reviews).toHaveLength(0);
+  });
+
   it('single-pass: a cancel during the only LLM call still wins', async () => {
-    const { run, reviews, calls } = await runAndCancel('single-pass');
+    const { run, reviews, calls } = await runScripted('single-pass', { diff: DIFF, onCall: cancelOnFirst });
     expect(calls).toBe(1);
     expect(run.status).toBe('cancelled');
     expect(reviews).toHaveLength(0);

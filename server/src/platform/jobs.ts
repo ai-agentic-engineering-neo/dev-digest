@@ -2,7 +2,7 @@ import PQueue from 'p-queue';
 import { eq } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import * as t from '../db/schema.js';
-import { withTimeout, withRetry } from './resilience.js';
+import { withTimeout, withRetry, isTransient } from './resilience.js';
 
 /**
  * JobRunner — async work (clone, PR import, indexing, polling) on a
@@ -13,7 +13,20 @@ import { withTimeout, withRetry } from './resilience.js';
  * the handler on the queue, and updates status/attempts/error as it runs.
  */
 
-export type JobHandler = (payload: unknown, ctx: { jobId: string }) => Promise<void>;
+/**
+ * `signal` aborts when the attempt times out (reason: TimeoutError) or the
+ * runner shuts down. Handlers forward it to anything abortable (simple-git
+ * `abort`, fetch/SDK `{ signal }`) and stop at their next checkpoint.
+ */
+export interface JobContext {
+  jobId: string;
+  signal: AbortSignal;
+}
+
+export type JobHandler = (payload: unknown, ctx: JobContext) => Promise<void>;
+
+/** Job handlers a module declares in its composition.ts, keyed by job kind. */
+export type JobHandlers = Record<string, JobHandler>;
 
 export interface JobRunnerOptions {
   concurrency?: number;
@@ -32,6 +45,8 @@ export class JobRunner {
   private handlers = new Map<string, JobHandler>();
   private timeoutMs: number;
   private retries: number;
+  /** Aborted by `shutdown()`; every running attempt's signal follows it. */
+  private lifecycle = new AbortController();
 
   constructor(
     private db: Db,
@@ -49,6 +64,7 @@ export class JobRunner {
   async enqueue(workspaceId: string, kind: string, payload: unknown): Promise<EnqueuedJob> {
     const handler = this.handlers.get(kind);
     if (!handler) throw new Error(`No job handler registered for kind '${kind}'`);
+    if (this.lifecycle.signal.aborted) throw new Error('JobRunner is shutting down');
 
     const [row] = await this.db
       .insert(t.jobs)
@@ -64,7 +80,11 @@ export class JobRunner {
       try {
         await withRetry(
           () =>
-            withTimeout(handler(payload, { jobId }), this.timeoutMs).then(async () => {
+            withTimeout(
+              (signal) => handler(payload, { jobId, signal }),
+              this.timeoutMs,
+              this.lifecycle.signal,
+            ).then(async () => {
               await this.db
                 .update(t.jobs)
                 .set({ attempts: 1 })
@@ -72,6 +92,8 @@ export class JobRunner {
             }),
           {
             retries: this.retries,
+            // Never retry once the runner is shutting down.
+            isRetryable: (err) => !this.lifecycle.signal.aborted && isTransient(err),
             onRetry: async (attempt) => {
               await this.db
                 .update(t.jobs)
@@ -103,5 +125,24 @@ export class JobRunner {
   /** Wait for the queue to drain (useful in tests). */
   async onIdle(): Promise<void> {
     await this.queue.onIdle();
+  }
+
+  /**
+   * Graceful stop: refuse new jobs, drop queued-but-not-started ones (their
+   * rows stay 'queued'), abort running handlers, then wait up to `timeoutMs`
+   * for them to settle. Returns true when the runner went idle in time.
+   */
+  async shutdown(timeoutMs = 10_000): Promise<boolean> {
+    this.queue.clear();
+    this.lifecycle.abort(new Error('JobRunner shutdown'));
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timedOut = new Promise<false>((r) => {
+      timer = setTimeout(() => r(false), timeoutMs);
+    });
+    try {
+      return await Promise.race([this.queue.onIdle().then(() => true as const), timedOut]);
+    } finally {
+      clearTimeout(timer);
+    }
   }
 }

@@ -1,0 +1,127 @@
+{
+  "name": "Run a review from the PR page (mock LLM): live progress, then findings",
+  "description": "Needs the API on the deterministic mock LLM (LLM_PROVIDER_OVERRIDE=mock, set by scripts/e2e.sh together with E2E_MOCK_LLM) — skipped otherwise. PR #482 → Agent runs → Run Review ▾ → Security Reviewer. The POST starts one run; while the mock call sleeps (LLM_MOCK_DELAY_MS) the Live review section ('Review in progress…') is on screen; when the run ends it disappears and the new review (newest, open by default) shows the mock's two grounded findings on src/middleware/ratelimit.ts, and the timeline gets a tile with their severity counters. WRITES (a run + review) — the hermetic stack reseeds every run.",
+  "requiresEnv": "E2E_MOCK_LLM",
+  "steps": [
+    {
+      "cmd": [
+        "open",
+        "{BASE}/"
+      ],
+      "label": "load the app root"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "/pulls"
+      ],
+      "label": "land on the PR list"
+    },
+    {
+      "cmd": [
+        "find",
+        "text",
+        "Add rate limiting to public API endpoints",
+        "click"
+      ],
+      "label": "open the PR row"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "/pulls/482"
+      ],
+      "label": "navigate to the PR detail route"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--load",
+        "networkidle"
+      ],
+      "label": "PR detail data settles"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Agent runs"
+      ],
+      "label": "switch to the Agent runs tab"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "tab=findings"
+      ],
+      "label": "findings tab is active in the URL"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Run Review"
+      ],
+      "label": "open the Run Review dropdown"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Security Reviewer"
+      ],
+      "label": "run the Security Reviewer agent"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Review in progress"
+      ],
+      "label": "live progress: the Live review section shows the in-progress note"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--fn",
+        "!document.body.innerText.includes('Review in progress')"
+      ],
+      "label": "the run finishes (live section goes away)"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Rate-limit key trusts the spoofable X-Forwarded-For header"
+      ],
+      "label": "new review shows the mock's WARNING finding"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Bucket map grows without eviction"
+      ],
+      "label": "new review shows the mock's SUGGESTION finding"
+    },
+    {
+      "cmd": [
+        "wait",
+        "[aria-label='1 warning, 1 suggestion']"
+      ],
+      "label": "timeline tile of the new run shows its severity counters"
+    }
+  ]
+}

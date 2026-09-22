@@ -1,8 +1,9 @@
 /**
  * T2.2 — full + incremental pipeline tests.
  *
- * No real DB. Uses a small in-memory `RepoIntelRepository` stub so the focus
- * stays on pipeline flow:
+ * No real DB. The use cases get in-memory fakes of their ports (reader, state
+ * writer, transaction-bound index writer) plus the REAL ast-grep analyzer and
+ * clone file system over a tmpdir, so the focus stays on pipeline flow:
  *   - runFullIndex over a tmpdir clone → expected symbols/references persisted,
  *     repo_index_state stamped 'full' on a clean pass (T3: graph/rank/map ran
  *     via stubbed depgraph+tokenizer), unsupported / oversize files counted.
@@ -19,15 +20,18 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { runFullIndex } from '../src/modules/repo-intel/pipeline/full.js';
-import { runIncremental } from '../src/modules/repo-intel/pipeline/incremental.js';
-import type { RepoIntelRepository } from '../src/modules/repo-intel/repository.js';
+import { runFullIndex } from '../src/modules/repo-intel/application/full-index.js';
+import { runIncremental } from '../src/modules/repo-intel/application/incremental-index.js';
+import type { IndexerDeps, IndexWriter } from '../src/modules/repo-intel/application/ports.js';
+import {
+  astGrepSourceAnalyzer,
+  cloneFileSystem,
+} from '../src/modules/repo-intel/infrastructure/source-adapters.js';
 import { INDEXER_VERSION } from '../src/modules/repo-intel/constants.js';
 import type { IndexState } from '../src/modules/repo-intel/types.js';
-import type { Container } from '../src/platform/container.js';
 
 // ---------------------------------------------------------------------------
-// In-memory repository stub — matches RepoIntelRepository's surface.
+// In-memory fake of the reader / state-writer / index-writer ports.
 // ---------------------------------------------------------------------------
 
 interface RepoBasics {
@@ -106,20 +110,20 @@ function makeRepoStub(opts: {
     getRepoMapCandidates: async () => [],
     deleteRepoMapCache: async () => {},
     putRepoMapCache: async () => {},
+    // No real DB → a savepoint just runs the work on the same stub.
+    savepoint: async <T>(work: (w: IndexWriter) => Promise<T>): Promise<T> =>
+      work(stub as unknown as IndexWriter),
   };
 
-  // The pipeline calls these via the typed repository; the stub satisfies the
-  // structural shape. `unknown as` keeps the test isolated from the class's
-  // private fields without leaking type-erased anys into the pipeline code.
   return {
-    repo: stub as unknown as RepoIntelRepository,
+    stub,
     symbols,
     references,
     getState: () => state,
   };
 }
 
-// Minimal Container — only the fields the pipeline reads.
+// The git operations the indexer uses.
 interface MiniGit {
   currentHead: () => Promise<string>;
   diffNameOnly: (
@@ -128,13 +132,21 @@ interface MiniGit {
     head: string,
   ) => Promise<string[]>;
 }
-function makeContainer(git: MiniGit): Container {
+/** Use-case deps over the fake store; the transaction runs the work on the same stub. */
+function makeDeps(repo: ReturnType<typeof makeRepoStub>, git: MiniGit): IndexerDeps {
+  const writer = repo.stub as unknown as IndexWriter;
   return {
-    git,
-    // T3 adapters — stubbed: empty graph (rank degrades to flat) + char/4 tokens.
-    depgraph: { buildEdges: async () => [] },
+    reader: repo.stub,
+    state: repo.stub,
+    tx: { run: (work) => work({ index: writer }) },
+    git: { ...git, sync: async () => ({ head: '' }) },
+    analyzer: astGrepSourceAnalyzer,
+    files: cloneFileSystem,
+    // T3 ports — stubbed: empty graph (rank degrades to flat) + char/4 tokens.
+    graph: { buildEdges: async () => [] },
     tokenizer: { count: (text: string) => Math.ceil(text.length / 4) },
-  } as unknown as Container;
+    parseConcurrency: 2,
+  };
 }
 
 async function writeFileAt(root: string, rel: string, contents: string): Promise<void> {
@@ -175,12 +187,12 @@ describe('runFullIndex', () => {
     const stub = makeRepoStub({
       basics: { id: 'r1', owner: 'acme', name: 'app', clonePath: root },
     });
-    const container = makeContainer({
+    const deps = makeDeps(stub, {
       currentHead: async () => 'sha-head',
       diffNameOnly: async () => [],
     });
 
-    const result = await runFullIndex(container, stub.repo, { repoId: 'r1' });
+    const result = await runFullIndex(deps, { repoId: 'r1' });
 
     // Clean pass (no soft-budget / graph failure / parse errors) → 'full' (T3).
     expect(result.status).toBe('full');
@@ -210,12 +222,12 @@ describe('runFullIndex', () => {
     const stub = makeRepoStub({
       basics: { id: 'r2', owner: 'acme', name: 'app', clonePath: null },
     });
-    const container = makeContainer({
+    const deps = makeDeps(stub, {
       currentHead: async () => '',
       diffNameOnly: async () => [],
     });
 
-    const result = await runFullIndex(container, stub.repo, { repoId: 'r2' });
+    const result = await runFullIndex(deps, { repoId: 'r2' });
     expect(result.status).toBe('degraded');
     expect(result.reason).toBe('no_clone');
 
@@ -226,12 +238,12 @@ describe('runFullIndex', () => {
 
   it('returns degraded when the repo is missing (no row to write)', async () => {
     const stub = makeRepoStub({ basics: null });
-    const container = makeContainer({
+    const deps = makeDeps(stub, {
       currentHead: async () => '',
       diffNameOnly: async () => [],
     });
 
-    const result = await runFullIndex(container, stub.repo, { repoId: 'missing' });
+    const result = await runFullIndex(deps, { repoId: 'missing' });
     expect(result.status).toBe('degraded');
     expect(result.reason).toBe('repo_not_found');
     expect(stub.getState()).toBeNull();
@@ -243,12 +255,12 @@ describe('runFullIndex', () => {
     const stub = makeRepoStub({
       basics: { id: 'r3', owner: 'acme', name: 'app', clonePath: root },
     });
-    const container = makeContainer({
+    const deps = makeDeps(stub, {
       currentHead: async () => 'sha-empty',
       diffNameOnly: async () => [],
     });
 
-    const result = await runFullIndex(container, stub.repo, { repoId: 'r3' });
+    const result = await runFullIndex(deps, { repoId: 'r3' });
     expect(result.status).toBe('partial');
     expect(result.filesIndexed).toBe(0);
     expect(result.reason).toBe('no_files');
@@ -291,12 +303,12 @@ describe('runIncremental', () => {
       basics: { id: 'r1', owner: 'acme', name: 'app', clonePath: root },
       initialState: null,
     });
-    const container = makeContainer({
+    const deps = makeDeps(stub, {
       currentHead: async () => 'sha-new',
       diffNameOnly: async () => [],
     });
 
-    const result = await runIncremental(container, stub.repo, { repoId: 'r1' });
+    const result = await runIncremental(deps, { repoId: 'r1' });
     // Full path on a clean tree → 'full' with the new sha persisted (T3).
     expect(result.status).toBe('full');
     expect(stub.getState()!.lastIndexedSha).toBe('sha-new');
@@ -309,12 +321,12 @@ describe('runIncremental', () => {
       basics: { id: 'r1', owner: 'acme', name: 'app', clonePath: root },
       initialState: makeInitialState({ indexerVersion: INDEXER_VERSION - 1 }),
     });
-    const container = makeContainer({
+    const deps = makeDeps(stub, {
       currentHead: async () => 'sha-new',
       diffNameOnly: async () => [],
     });
 
-    await runIncremental(container, stub.repo, { repoId: 'r1' });
+    await runIncremental(deps, { repoId: 'r1' });
     expect(stub.getState()!.indexerVersion).toBe(INDEXER_VERSION);
     expect(stub.getState()!.lastIndexedSha).toBe('sha-new');
   });
@@ -324,14 +336,14 @@ describe('runIncremental', () => {
       basics: { id: 'r1', owner: 'acme', name: 'app', clonePath: root },
       initialState: makeInitialState({ lastIndexedSha: 'sha-same' }),
     });
-    const container = makeContainer({
+    const deps = makeDeps(stub, {
       currentHead: async () => 'sha-same',
       diffNameOnly: async () => {
         throw new Error('should not be called');
       },
     });
 
-    const result = await runIncremental(container, stub.repo, { repoId: 'r1' });
+    const result = await runIncremental(deps, { repoId: 'r1' });
     expect(result.reason).toBe('sha_unchanged');
     expect(stub.symbols.length).toBe(0);
     expect(stub.references.length).toBe(0);
@@ -345,12 +357,12 @@ describe('runIncremental', () => {
       basics: { id: 'r1', owner: 'acme', name: 'app', clonePath: root },
       initialState: makeInitialState(),
     });
-    const container = makeContainer({
+    const deps = makeDeps(stub, {
       currentHead: async () => 'sha-new',
       diffNameOnly: async () => ['README.md', 'package.json'],
     });
 
-    const result = await runIncremental(container, stub.repo, { repoId: 'r1' });
+    const result = await runIncremental(deps, { repoId: 'r1' });
     expect(result.reason).toBe('no_supported_changes');
     expect(stub.symbols.length).toBe(0);
     expect(stub.getState()!.lastIndexedSha).toBe('sha-new');
@@ -367,12 +379,12 @@ describe('runIncremental', () => {
       basics: { id: 'r1', owner: 'acme', name: 'app', clonePath: root },
       initialState: makeInitialState(),
     });
-    const container = makeContainer({
+    const deps = makeDeps(stub, {
       currentHead: async () => 'sha-new',
       diffNameOnly: async () => ['src/changed.ts'],
     });
 
-    const result = await runIncremental(container, stub.repo, { repoId: 'r1' });
+    const result = await runIncremental(deps, { repoId: 'r1' });
     expect(result.status).toBe('partial');
     expect(result.filesIndexed).toBe(1);
     const names = stub.symbols.map((s) => (s as { name: string }).name);
@@ -391,12 +403,12 @@ describe('runIncremental', () => {
     });
     // 301 changed files — over the 300 threshold.
     const changed = Array.from({ length: 301 }, (_, i) => `src/big-${i}.ts`);
-    const container = makeContainer({
+    const deps = makeDeps(stub, {
       currentHead: async () => 'sha-huge',
       diffNameOnly: async () => changed,
     });
 
-    const result = await runIncremental(container, stub.repo, { repoId: 'r1' });
+    const result = await runIncremental(deps, { repoId: 'r1' });
     // Full reindex ran — it walked the real tmpdir (just src/a.ts) and persisted.
     expect(result.status).toBe('full');
     expect(stub.getState()!.lastIndexedSha).toBe('sha-huge');
@@ -413,15 +425,73 @@ describe('runIncremental', () => {
       basics: { id: 'r1', owner: 'acme', name: 'app', clonePath: root },
       initialState: makeInitialState(),
     });
-    const container = makeContainer({
+    const deps = makeDeps(stub, {
       currentHead: async () => 'sha-new',
       diffNameOnly: async () => {
         throw new Error('shallow clone, base missing');
       },
     });
 
-    const result = await runIncremental(container, stub.repo, { repoId: 'r1' });
+    const result = await runIncremental(deps, { repoId: 'r1' });
     expect(result.status).toBe('full');
     expect(stub.getState()!.lastIndexedSha).toBe('sha-new');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Transaction shape + clone containment
+// ---------------------------------------------------------------------------
+
+describe('runIncremental — graph step in a savepoint', () => {
+  let root: string;
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), 'repo-intel-sp-'));
+  });
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it('a failing graph/rank savepoint keeps the slice and degrades the status to partial', async () => {
+    await writeFileAt(root, 'src/changed.ts', 'export function fresh(x: number) { return x; }\n');
+    const stub = makeRepoStub({
+      basics: { id: 'r1', owner: 'acme', name: 'app', clonePath: root },
+      initialState: {
+        repoId: 'r1',
+        status: 'full',
+        filesIndexed: 5,
+        filesSkipped: 0,
+        durationMs: 1,
+        lastIndexedSha: 'sha-old',
+        indexerVersion: INDEXER_VERSION,
+        updatedAt: new Date(0),
+      },
+    });
+    stub.stub.savepoint = async () => {
+      throw new Error('rank step exploded');
+    };
+    const deps = makeDeps(stub, {
+      currentHead: async () => 'sha-new',
+      diffNameOnly: async () => ['src/changed.ts'],
+    });
+
+    const result = await runIncremental(deps, { repoId: 'r1' });
+
+    expect(result.status).toBe('partial');
+    expect(stub.symbols.map((s) => (s as { name: string }).name)).toContain('fresh');
+    expect(stub.getState()!.lastIndexedSha).toBe('sha-new');
+  });
+});
+
+describe('cloneFileSystem.read', () => {
+  it('refuses paths that escape the clone root', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'repo-intel-read-'));
+    try {
+      await writeFileAt(root, 'src/a.ts', 'export const a = 1;\n');
+      await expect(cloneFileSystem.read(root, 'src/a.ts')).resolves.toContain('export const a');
+      await expect(cloneFileSystem.read(root, '../outside.ts')).rejects.toThrow(/escapes the clone root/);
+      await expect(cloneFileSystem.read(root, '/etc/passwd')).rejects.toThrow(/escapes the clone root/);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });

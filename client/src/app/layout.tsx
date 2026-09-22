@@ -1,21 +1,26 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import "./globals.css";
-import { Providers } from "../lib/providers";
-import { themeNoFlashScript } from "../lib/theme";
+import { fontVariables } from "@/lib/fonts";
+import { Providers } from "@/lib/providers";
+import { themeNoFlashScript } from "@/lib/theme";
 
 export const metadata: Metadata = {
-  title: "DevDigest",
+  title: { default: "DevDigest", template: "%s · DevDigest" },
   description: "Local-first AI PR review tool",
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const locale = await getLocale();
-  const messages = await getMessages();
+  const [locale, messages] = await Promise.all([getLocale(), getMessages()]);
   return (
-    <html lang={locale} data-theme="dark" data-density="regular" suppressHydrationWarning>
+    <html
+      lang={locale}
+      className={fontVariables}
+      data-theme="dark"
+      data-density="regular"
+      suppressHydrationWarning
+    >
       <head>
         {/* set theme before paint to avoid FOUC */}
         <script dangerouslySetInnerHTML={{ __html: themeNoFlashScript }} />
@@ -26,9 +31,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           (one level deep) — real mismatches in descendants are still reported. */}
       <body suppressHydrationWarning>
         <NextIntlClientProvider locale={locale} messages={messages}>
-          <Suspense fallback={null}>
-            <Providers>{children}</Providers>
-          </Suspense>
+          <Providers>{children}</Providers>
         </NextIntlClientProvider>
       </body>
     </html>

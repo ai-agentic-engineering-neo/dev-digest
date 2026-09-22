@@ -1,6 +1,6 @@
 /* hooks/ barrel — every React Query hook over the F1/feature APIs.
-   Import from "@/lib/hooks" for the platform hooks (settings/repos/pulls/context)
-   or from a domain file directly (e.g. "@/lib/hooks/reviews") — both resolve here. */
+   Components import from "@/lib/hooks" only; the domain files (core, agents,
+   reviews, trace, repo-intel) are internal to this folder. */
 export * from "./core";
 export * from "./agents";
 export * from "./reviews";

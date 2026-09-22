@@ -35,14 +35,15 @@ flowchart LR
   REQ["HTTP request"] --> MW["plugins (registered before modules)<br/>helmet · cors · rate-limit · SSE"]
   MW --> VAL["route zod schema<br/>params/body validation"]
   VAL --> MOD["feature module plugin<br/>modules/&lt;name&gt;/routes.ts"]
-  MOD --> SVC["service<br/>(e.g. ReviewService)"]
-  SVC --> DI{"DI container<br/>platform/container.ts"}
+  MOD -->|"app.container.modules.&lt;name&gt;.service"| SVC["service<br/>(e.g. ReviewService)"]
+  DI{"DI container (composition root)<br/>platform/container.ts"} -->|"lazy: modules/&lt;name&gt;/composition.ts"| SVC
   DI --> ADP["adapters (ports)<br/>llm · github · git · astgrep · tokenizer · secrets"]
+  SVC --> ADP
   ADP -->|"prod"| EXT["LLM (OpenAI/Anthropic) · GitHub · git · pgvector"]
   ADP -->|"tests"| MOCK["src/adapters/mocks.ts<br/>MockLLMProvider · MockGitClient · …"]
   SVC --> DB[("Drizzle → Postgres")]
   SVC -. "run traces" .-> SSE["SSE stream → client"]
-  VAL -. "invalid" .-> ERR["error handler (structured envelope)<br/>validation → 422 · AppError → status<br/>response serialization → 500"]
+  VAL -. "invalid" .-> ERR["http/error-handler.ts (structured envelope)<br/>validation → 422 · AppError kind → status table<br/>other ZodError / serialization → 500 · unknown route → 404"]
   SVC -. "throws" .-> ERR
 ```
 
@@ -54,8 +55,25 @@ flowchart LR
 - **Rate limiting:** a global 120/min limit (disabled under `NODE_ENV=test`), with
   tighter per-route caps on expensive endpoints (e.g. `POST /pulls/:id/review`);
   SSE and `/health*` are exempt.
-- Modules are registered statically in `src/modules/index.ts` (one import + one
-  `app.register` each); the engine reaps orphaned `running` runs on boot.
+- Modules are registered statically in `src/modules/index.ts` (route plugins) and
+  `src/modules/composition.ts` (service factories). Each module builds its own
+  services in `modules/<name>/composition.ts` (`build<Name>Module(container)` →
+  `{ service, jobs? }`); the Container builds them lazily as
+  `container.modules.<name>` and registers every module's `jobs` at boot. Routes
+  never `new` a service. The engine reaps orphaned `running` runs on boot.
+- **Errors carry a kind + code, never an HTTP status.** Services throw
+  `NotFoundError` / `InvalidInputError` / `ConflictError` / … from
+  `platform/errors.ts`; `src/http/error-handler.ts` owns the one
+  `kind → status` table and the envelope `{ error: { code, message, details } }`
+  (also for unknown routes). A `ZodError` that is not request validation (LLM
+  output, stored JSON) is a **500**, not a 422. `new AppError(code, msg, status)`
+  still works but is deprecated.
+- **Graceful shutdown:** `server.ts` uses close-with-grace (20s). `preClose`
+  → `Container.shutdown()` cancels live review runs, aborts running jobs (their
+  `signal`) and ends open SSE streams; `onClose` then closes the pool. Logs
+  redact auth headers/cookies and `apiKey`/`key`/`token`/`secret`/`password`
+  fields (`platform/logging.ts`).
+- Onion refactor status per module and the step list: [`docs/onion-migration.md`](docs/onion-migration.md).
 
 ## API map (starter)
 
@@ -92,10 +110,14 @@ flowchart TB
 |-----|---------|-------|
 | `DATABASE_URL` | `postgres://devdigest:devdigest@localhost:5432/devdigest` | required to migrate/serve |
 | `API_PORT` / `WEB_PORT` | `3001` / `3000` | API port; `WEB_PORT` also sets the allowed CORS origin |
+| `API_HOST` | `127.0.0.1` | interface the API binds to; loopback-only by default (no auth) — set `0.0.0.0` only in a container / trusted network |
 | `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `OPENROUTER_API_KEY` | — | optional, per-provider; also settable via Settings UI |
 | `GITHUB_TOKEN` | — | optional; PAT with repo scope (`GITHUB_PAT` accepted as a fallback) |
 | `EMBEDDINGS_ENABLED` | `false` | memory/RAG embeddings (OpenAI); off → **zero** OpenAI calls |
 | `REPO_INTEL_ENABLED` | `true` | repo skeleton + callers in the prompt; `false` → ripgrep-only |
+| `REVIEW_MAP_CONCURRENCY` | reviewer-core default (3) | map-reduce chunks sent to the LLM in parallel (1–16); cancel aborts the in-flight ones |
+| `LLM_PROVIDER_OVERRIDE` | — | **dev/e2e only**: `mock` → every provider is the deterministic mock (`src/adapters/llm/mock.ts`, fixed review grounded on the seeded PR #482); refused with `NODE_ENV=production`, loud warning at boot |
+| `LLM_MOCK_DELAY_MS` | `0` | latency of each mock LLM call (abortable), so the live-run UI is observable |
 | `DEVDIGEST_CLONE_DIR` | `./clones` | imported-repo checkouts (git-ignored) |
 | `LOG_LEVEL` | `info` (`silent` in test) | pino level |
 | `NODE_ENV` | `development` | `test` → silent logs + global rate-limit disabled |
@@ -111,7 +133,8 @@ enabled by migration `0000`). `pnpm db:seed` is idempotent demo data
 ## Review context (non-obvious)
 
 What the reviewer actually sends to the model is assembled in
-`reviewer-core/prompt.ts` from inputs gathered in `modules/reviews/run-executor.ts`:
+`reviewer-core/prompt.ts` from inputs gathered in `modules/reviews/application/run-executor.ts`
+(repo-intel sections: `application/prompt-context.ts`):
 
 - **Repo Intel is ON by default.** `REPO_INTEL_ENABLED` defaults to true (set it
   to `false` to opt out); each agent also has a `repo_intel` toggle in the Agent
@@ -137,9 +160,9 @@ What the reviewer actually sends to the model is assembled in
 The suite splits by filename — `*.it.test.ts` is DB-backed, everything else is
 hermetic:
 
-- **unit** — `pnpm exec vitest run --exclude '**/*.it.test.ts'` — the DB-free
+- **unit** — `pnpm test:unit` (`vitest run --exclude '**/*.it.test.ts'`) — the DB-free
   files. Adapters mocked; no Docker.
-- **integration** — `pnpm exec vitest run .it.test` — the `*.it.test.ts` files.
+- **integration** — `pnpm test:integration` (`vitest run .it.test`) — the `*.it.test.ts` files.
   Each starts a real Postgres via testcontainers (`test/helpers/pg.ts`), builds
   the app, migrates + seeds, and exercises routes end-to-end. They self-skip when
   Docker is absent.

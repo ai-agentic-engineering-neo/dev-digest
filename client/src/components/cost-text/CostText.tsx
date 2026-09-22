@@ -23,4 +23,3 @@ export function CostText({
   );
 }
 
-export default CostText;

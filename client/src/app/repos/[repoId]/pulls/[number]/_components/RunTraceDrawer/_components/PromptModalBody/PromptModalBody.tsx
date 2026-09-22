@@ -36,7 +36,10 @@ export function PromptModalBody({ text }: { text: string }) {
   const [q, setQ] = React.useState("");
   const lines = React.useMemo(() => (text || "—").split("\n"), [text]);
   const ql = q.trim().toLowerCase();
-  const shown = ql ? lines.filter((l) => l.toLowerCase().includes(ql)) : lines;
+  // Keep each line's original index: it is the stable key while the filter changes.
+  const shown = ql
+    ? lines.flatMap((line, lineNo) => (line.toLowerCase().includes(ql) ? [{ line, lineNo }] : []))
+    : [];
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "70vh" }}>
       <div style={{ padding: "12px 24px", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
@@ -63,7 +66,7 @@ export function PromptModalBody({ text }: { text: string }) {
             className="mono"
             style={{ margin: 0, padding: "16px 24px", whiteSpace: "pre-wrap", fontSize: 12.5, lineHeight: 1.6 }}
           >
-            {ql ? shown.map((l, i) => <div key={i}>{highlightLine(l, q)}</div>) : text || "—"}
+            {ql ? shown.map(({ line, lineNo }) => <div key={lineNo}>{highlightLine(line, q)}</div>) : text || "—"}
           </pre>
         )}
       </div>

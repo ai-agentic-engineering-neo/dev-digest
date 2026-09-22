@@ -10,11 +10,16 @@ own `package.json` + lockfile; code is shared via tsconfig path aliases.
 | `reviewer-core/` | pure TS review engine, consumed as source | npm | — |
 | `e2e/` | agent-browser (CDP), no LLM | npm | — |
 
-Node ≥ 22 · pnpm ≥ 10 · Docker (Postgres only; API and web run on the host).
+Node 22 (`.nvmrc`) · pnpm 10 (exact version in `packageManager`) · Docker (Postgres only;
+API and web run on the host).
 
 ## Commands
 - Boot everything: `./scripts/dev.sh` (`--no-seed` · `--no-client` · `--db-only`)
-- Test / typecheck: run inside the package — see its `AGENTS.md`.
+- Test / typecheck / lint: run inside the package — see its `AGENTS.md`.
+- Lint = Biome, linter only, one root `biome.jsonc` (must stay `.jsonc`: a
+  commented `biome.json` is silently ignored). Never run `biome check --write`
+  or enable the formatter — it would rewrite the whole repo.
+- Shared contracts in sync: `./scripts/check-shared-drift.sh` (also in CI).
 
 ## Read when
 - Change spans packages or you need the big picture → read `README.md` (Architecture)

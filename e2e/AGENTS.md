@@ -4,8 +4,8 @@
 - Recommended: `./scripts/e2e.sh` (from repo root) — isolated, freshly seeded
   stack on :5433 / :3101 / :3100, torn down afterwards.
 - `npm test` — runs against an already running stack (`E2E_BASE_URL`, default :3000).
-- `npm run typecheck`
-- One-time: `npm i -g agent-browser && agent-browser install`
+- `npm run typecheck` · `npm run lint`
+- One-time: `npm i -g agent-browser@0.27.0 && agent-browser install` (CI pins 0.27.0)
 
 ## Read when
 - Adding or editing a flow → read `README.md` (flow format, env knobs, coverage table)
@@ -18,12 +18,15 @@
   one shared browser session. `specs/` = feature specs, **not** tests.
 - `wait --url` / `wait --text` are the assertions. Locators are deterministic only
   (`--url`, `--text`, `find role|text|label`); never the AI `chat` command.
-- Flows read seeded data only (`acme/payments-api`, PR #482, built-in agents):
-  no writes, no model calls.
+- Flows read seeded data (`acme/payments-api`, PR #482, built-in agents). Flows
+  that write/start a review declare `"requiresEnv": "E2E_MOCK_LLM"` and run only
+  on the hermetic stack (API on `LLM_PROVIDER_OVERRIDE=mock`); never a real model.
 
 ## Gotchas
 - `npm test` against your dev DB fails flows 02/04/05 if it has more than the
   seeded repo — use `./scripts/e2e.sh`.
+- Uppercased labels, the `<main>` scroll container and late layout shifts break
+  naive `wait --text` / `click` steps — see README "Gotchas when writing flows".
 - Failure screenshots land in `test-results/` (git-ignored, uploaded by CI).
 
 ## Do not touch

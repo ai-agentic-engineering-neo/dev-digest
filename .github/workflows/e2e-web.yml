@@ -14,13 +14,21 @@ on:
     paths:
       - 'client/**'
       - 'server/**'
+      - 'reviewer-core/**'
       - 'e2e/**'
+      - 'docker-compose.yml'
+      - 'biome.jsonc'
+      - '.nvmrc'
       - '.github/workflows/e2e-web.yml'
   pull_request:
     paths:
       - 'client/**'
       - 'server/**'
+      - 'reviewer-core/**'
       - 'e2e/**'
+      - 'docker-compose.yml'
+      - 'biome.jsonc'
+      - '.nvmrc'
       - '.github/workflows/e2e-web.yml'
 
 permissions:
@@ -40,22 +48,35 @@ jobs:
     name: browser flows
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
         with:
-          version: 10
+          package_json_file: server/package.json
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: |
+            server/pnpm-lock.yaml
+            client/pnpm-lock.yaml
+
+      # Cheap static checks on the runner itself first, so a type/lint error
+      # fails in seconds instead of after the whole stack has booted.
+      - name: Install + typecheck + lint (e2e)
+        working-directory: e2e
+        run: |
+          npm ci
+          npm run typecheck
+          npm run lint
 
       # --- Postgres (pgvector) via the repo's compose file ---
       - name: Start Postgres
         run: |
           docker compose up -d
           echo "waiting for Postgres health…"
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             status=$(docker inspect -f '{{.State.Health.Status}}' devdigest-postgres 2>/dev/null || echo starting)
             [ "$status" = "healthy" ] && { echo "postgres healthy"; break; }
             sleep 2
@@ -81,13 +102,17 @@ jobs:
 
       - name: Start API (:3001)
         working-directory: server
+        # Deterministic mock LLM (never real providers in CI) — enables flows 09/10.
+        env:
+          LLM_PROVIDER_OVERRIDE: mock
+          LLM_MOCK_DELAY_MS: "4000"
         run: |
-          # tsx directly (not `pnpm start`): the committed package.json's start
-          # is `node dist/server.js`, which would need a build first. tsx runs
-          # the TS entrypoint as dev does. (server/package.json is skip-worktree.)
+          # tsx directly (not `pnpm start`): package.json's start is
+          # `node dist/server.js`, which would need a build first. tsx runs the
+          # TS entrypoint as dev does, without the watcher.
           nohup pnpm exec tsx src/server.ts > "$RUNNER_TEMP/api.log" 2>&1 &
           echo "waiting for API /health…"
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             curl -fsS http://localhost:3001/health >/dev/null 2>&1 && { echo "api up"; break; }
             sleep 2
           done
@@ -101,27 +126,29 @@ jobs:
           pnpm build
           nohup pnpm start > "$RUNNER_TEMP/web.log" 2>&1 &
           echo "waiting for web :3000…"
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             curl -fsS http://localhost:3000 >/dev/null 2>&1 && { echo "web up"; break; }
             sleep 2
           done
           curl -fsS http://localhost:3000 >/dev/null 2>&1 || { echo "::error::web never became reachable"; cat "$RUNNER_TEMP/web.log"; exit 1; }
 
       # --- agent-browser CLI (Rust + CDP) + Chrome for Testing ---
+      # Pinned: the flows' batch-JSON command syntax is tied to the CLI version
+      # (verified with 0.27.0 — see e2e/INSIGHTS.md). Bump deliberately.
       - name: Install agent-browser
         run: |
-          npm i -g agent-browser
+          npm i -g agent-browser@0.27.0
           agent-browser install --with-deps
 
       - name: Run e2e flows
         working-directory: e2e
-        run: |
-          npm ci
-          npm test
+        env:
+          E2E_MOCK_LLM: "1"
+        run: npm test
 
       - name: Upload failure artifacts
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: e2e-failure
           path: |

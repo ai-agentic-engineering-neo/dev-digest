@@ -15,6 +15,22 @@ import type {
 import { withRetry, withTimeout } from '../../platform/resilience.js';
 
 const TIMEOUT = 30_000;
+/** GitHub's own ceiling for GET /pulls/:n/files; bigger PRs are truncated by the API. */
+export const MAX_PR_FILES = 3000;
+/** GitHub's own ceiling for GET /pulls/:n/commits. */
+export const MAX_PR_COMMITS = 250;
+const PAGE_SIZE = 100;
+/** PR detail pages through files/commits (up to ~33 requests) — give it more room. */
+const DETAIL_TIMEOUT = 90_000;
+
+/** Minimal logger surface (pino / fastify `app.log` compatible). */
+export interface GitHubClientLogger {
+  warn(obj: Record<string, unknown>, msg: string): void;
+}
+
+const consoleLogger: GitHubClientLogger = {
+  warn: (obj, msg) => console.warn(msg, obj),
+};
 
 function mapStatus(state: string, merged: boolean | undefined): PrStatus {
   if (merged) return 'merged';
@@ -29,8 +45,28 @@ function mapStatus(state: string, merged: boolean | undefined): PrStatus {
 export class OctokitGitHubClient implements GitHubClient {
   private octokit: Octokit;
 
-  constructor(token: string) {
+  constructor(
+    token: string,
+    private readonly log: GitHubClientLogger = consoleLogger,
+  ) {
     this.octokit = new Octokit({ auth: token });
+  }
+
+  /**
+   * Every page of a list endpoint, stopping once `max` items are collected
+   * (single-page `per_page: 100` silently dropped the rest of big PRs).
+   */
+  private async paginateCapped<T>(
+    fetchPage: (page: number) => Promise<{ data: T[] }>,
+    max: number,
+  ): Promise<T[]> {
+    const out: T[] = [];
+    for (let page = 1; out.length < max; page++) {
+      const { data } = await fetchPage(page);
+      out.push(...data);
+      if (data.length < PAGE_SIZE) break;
+    }
+    return out.slice(0, max);
   }
 
   async listPullRequests(repo: RepoRef): Promise<PrMeta[]> {
@@ -76,18 +112,26 @@ export class OctokitGitHubClient implements GitHubClient {
             repo: repo.name,
             pull_number: n,
           });
-          const { data: files } = await this.octokit.rest.pulls.listFiles({
-            owner: repo.owner,
-            repo: repo.name,
-            pull_number: n,
-            per_page: 100,
-          });
-          const { data: commits } = await this.octokit.rest.pulls.listCommits({
-            owner: repo.owner,
-            repo: repo.name,
-            pull_number: n,
-            per_page: 100,
-          });
+          const page = { owner: repo.owner, repo: repo.name, pull_number: n, per_page: PAGE_SIZE };
+          const files = await this.paginateCapped(
+            (p) => this.octokit.rest.pulls.listFiles({ ...page, page: p }),
+            MAX_PR_FILES,
+          );
+          if (pr.changed_files > files.length) {
+            this.log.warn(
+              {
+                repo: `${repo.owner}/${repo.name}`,
+                pr: n,
+                changedFiles: pr.changed_files,
+                fetched: files.length,
+              },
+              `PR file list capped at ${files.length} of ${pr.changed_files} files`,
+            );
+          }
+          const commits = await this.paginateCapped(
+            (p) => this.octokit.rest.pulls.listCommits({ ...page, page: p }),
+            MAX_PR_COMMITS,
+          );
           const linkedIssue = await this.resolveLinkedIssue(repo, pr.body ?? '');
           return {
             number: pr.number,
@@ -118,7 +162,7 @@ export class OctokitGitHubClient implements GitHubClient {
             linked_issue: linkedIssue,
           };
         })(),
-        TIMEOUT,
+        DETAIL_TIMEOUT,
       ),
     );
   }

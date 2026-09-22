@@ -22,8 +22,8 @@
     "requestChanges": "Request changes",
     "approve": "Approve",
     "comment": "Comment",
-    "findingsCount": "{count} findings",
-    "blockers": " · {count} blockers",
+    "findingsCount": "{count, plural, one {# finding} other {# findings}}",
+    "blockers": "{count, plural, one { · # blocker} other { · # blockers}}",
     "prScore": "PR SCORE",
     "runCost": "Cost of this review run · tokens in→out"
   },
@@ -45,18 +45,20 @@
     "running": "Running…",
     "runReview": "Run Review",
     "mergedWarning": "Already merged — review is informational",
-    "mergedTooltip": "This PR is already merged; running a review won’t affect the merged code."
+    "mergedTooltip": "This PR is already merged; running a review won’t affect the merged code.",
+    "noAgents": "No agents yet — create one",
+    "agentDisabled": "{model} · disabled"
   },
   "runStatus": {
-    "elapsed": "Running · {count} agent(s)",
+    "elapsed": "Running · {count, plural, one {# agent} other {# agents}}",
     "approved": "approved",
     "reviewed": "reviewed",
     "rejected": "rejected",
     "error": "error",
     "cancelled": "cancelled",
     "running": "running",
-    "findings": "{count} finding(s)",
-    "blockers": " · {count} blockers"
+    "findings": "{count, plural, one {# finding} other {# findings}}",
+    "blockers": "{count, plural, one { · # blocker} other { · # blockers}}"
   },
   "smartDiff": {
     "coreLabel": "Core",
@@ -116,6 +118,63 @@
     "openTrace": "Open run trace & logs",
     "deleteRun": "Delete run",
     "tokens": "{count, number} tok",
-    "tokensSplit": "{tokensIn, number} in → {tokensOut, number} out"
+    "tokensSplit": "{tokensIn, number} in → {tokensOut, number} out",
+    "agentFallback": "Agent"
+  },
+  "detail": {
+    "metaTitle": "PR #{number}",
+    "crumbPulls": "Pull Requests",
+    "crumbNumber": "#{number}",
+    "loading": "Loading pull request…",
+    "errorTitle": "Couldn’t load this pull request",
+    "errorBody": "PR #{number} could not be loaded.",
+    "boundaryTitle": "Something went wrong on this pull request",
+    "boundaryBody": "An unexpected error interrupted this page. Retry to load it again."
+  },
+  "header": {
+    "viewOnGithub": "View on GitHub",
+    "staleBanner": "This PR is already {status} — running a review is informational and won’t affect the merged code.",
+    "tabs": {
+      "overview": "Overview",
+      "findings": "Agent runs",
+      "diff": "Files changed"
+    }
+  },
+  "overview": {
+    "description": "Description"
+  },
+  "diff": {
+    "title": "Files changed · {count, plural, one {# file} other {# files}}",
+    "showComments": "Show comments ({count})",
+    "hideComments": "Hide comments ({count})",
+    "postFailed": "Couldn’t post the comment to GitHub."
+  },
+  "findingsTab": {
+    "liveReview": "Live review",
+    "cancel": "Cancel",
+    "openTrace": "Open run trace",
+    "inProgressTitle": "Review in progress…",
+    "inProgressBody": "the agent is analyzing the diff — this can take a while on large PRs.",
+    "lethalTrifecta": "Lethal Trifecta detected",
+    "lethalCount": "{count, plural, one {# finding} other {# findings}}",
+    "timeline": "Timeline",
+    "timelineHint": "runs & commits · newest first",
+    "reviewRuns": "Review runs",
+    "reviewRunsHint": "grouped by run · newest first",
+    "emptyTitle": "No findings yet",
+    "emptyBody": "Run a review to generate findings. Use Run Review ▾ above (run all enabled agents or a specific one).",
+    "confirmDeleteRun": "Delete this run from history? (its logs are removed too)"
+  },
+  "accordion": {
+    "agentFallback": "Agent",
+    "findings": "{count, plural, one {# finding} other {# findings}}",
+    "blockers": "{count, plural, one { · # blocker} other { · # blockers}}",
+    "verdict": {
+      "request_changes": "request changes",
+      "comment": "comment",
+      "approve": "approve"
+    },
+    "delete": "Delete this review run",
+    "confirmDelete": "Delete this “{agent}” review run and its findings?"
   }
 }

@@ -1,0 +1,12 @@
+{
+  "breadcrumb": "DevDigest",
+  "title": "Welcome to DevDigest",
+  "subtitle": "Local-first AI PR review",
+  "empty": {
+    "title": "No repositories yet",
+    "body": "Add a repository to start reviewing pull requests. Set your API keys once in Settings → API Keys.",
+    "cta": "Add repository"
+  },
+  "redirecting": "Taking you to your repository…",
+  "openRepo": "Open {name}"
+}

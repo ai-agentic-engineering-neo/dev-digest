@@ -1,1 +1,1 @@
-export { RunStatus, RunStatus as default } from "./RunStatus";
+export { RunStatus } from "./RunStatus";

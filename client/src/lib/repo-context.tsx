@@ -15,6 +15,8 @@ const RepoCtx = React.createContext<{
   reposLoaded: boolean;
 }>({ repoId: null, setRepoId: () => {}, repos: [], activeRepo: null, reposLoaded: false });
 
+const EMPTY_REPOS: Repo[] = [];
+
 function repoIdFromPath(pathname: string | null): string | null {
   if (!pathname) return null;
   const m = pathname.match(/^\/repos\/([^/]+)/);
@@ -43,16 +45,15 @@ export function RepoProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const list = repos ?? [];
   const fromPath = repoIdFromPath(pathname);
-  const repoId = fromPath ?? stored ?? list[0]?.id ?? null;
-  const activeRepo = list.find((r) => r.id === repoId) ?? null;
+  const value = React.useMemo(() => {
+    const list = repos ?? EMPTY_REPOS;
+    const repoId = fromPath ?? stored ?? list[0]?.id ?? null;
+    const activeRepo = list.find((r) => r.id === repoId) ?? null;
+    return { repoId, setRepoId, repos: list, activeRepo, reposLoaded };
+  }, [repos, fromPath, stored, setRepoId, reposLoaded]);
 
-  return (
-    <RepoCtx.Provider value={{ repoId, setRepoId, repos: list, activeRepo, reposLoaded }}>
-      {children}
-    </RepoCtx.Provider>
-  );
+  return <RepoCtx.Provider value={value}>{children}</RepoCtx.Provider>;
 }
 
 export function useActiveRepo() {

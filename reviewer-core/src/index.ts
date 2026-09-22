@@ -1,14 +1,14 @@
 /**
  * @devdigest/reviewer-core — the review engine.
  *
- * Pure review logic shared by the server (local reviews in the studio) and the
- * agent-runner (CI). NO database, GitHub, or filesystem access; the only side
- * effect is an LLM call through an INJECTED LLMProvider (so it is mock-testable).
+ * Pure review logic used by the server (local reviews in the studio). NO
+ * database, GitHub, or filesystem access; the only side effect is an LLM call
+ * through an INJECTED LLMProvider (so it is mock-testable).
  *
  * Consumers wire it via a tsconfig path alias (`@devdigest/reviewer-core` →
  * `../reviewer-core/src`) and consume the TypeScript source directly (tsx in
- * dev, vitest in tests, @vercel/ncc bundle in the runner). The package itself
- * never emits JS — its `build` is a type-check.
+ * dev, vitest in tests). The package itself never emits JS — its `build` is a
+ * type-check.
  */
 
 // Prompt assembly + prompt-injection hardening.
@@ -27,18 +27,23 @@ export {
   toJsonSchema,
   extractJson,
   parseWithRepair,
+  truncate,
   type JsonSchema,
   type ParseResult,
 } from './llm/structured.js';
 
 // Map-reduce helpers (reduce partials, slice a file's diff).
-export { reduceReviews, sliceDiff } from './review/reduce.js';
+export { reduceReviews, sliceDiff, scoreFromFindings } from './review/reduce.js';
+export { splitOversizeDiff, type SplitResult } from './review/split.js';
 
 // The engine entry point: given (diff + resolved agent inputs + LLM) → grounded Review.
 export {
   reviewPullRequest,
   DEFAULT_MAP_THRESHOLD_LINES,
   DEFAULT_REVIEW_MAX_RETRIES,
+  DEFAULT_MAP_CONCURRENCY,
+  DEFAULT_MAX_DIFF_CHARS,
+  DEFAULT_REVIEW_TEMPERATURE,
   type ReviewInput,
   type ReviewOutcome,
   type ReviewEvent,
@@ -56,8 +61,18 @@ export {
 
 // The single OpenAI-compatible structured provider (OpenRouter), shared by the
 // CI runner and the server's openrouter path. Owns session grouping + guards.
-export { OpenRouterProvider, type OpenRouterProviderOptions } from './llm/openrouter.js';
+export {
+  OpenRouterProvider,
+  DEFAULT_REQUEST_TIMEOUT_MS,
+  DEFAULT_CALL_BUDGET_MS,
+  DEFAULT_LIST_MODELS_TIMEOUT_MS,
+  type OpenRouterProviderOptions,
+} from './llm/openrouter.js';
+
+// Per-call wall-clock budget (SDK retries + reprompts) and model param rules.
+export { createCallBudget, CallBudgetExceededError, type CallBudget } from './llm/budget.js';
+export { supportsTemperature, temperatureParam } from './llm/model-params.js';
 
 // Per-response usage reporting (StructuredRequest.onUsage) — shared by every
 // provider so a throwing hook never breaks a call.
-export { emitUsage, addCost } from './llm/usage.js';
+export { emitUsage, addCost, estimateTokens } from './llm/usage.js';

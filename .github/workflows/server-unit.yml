@@ -1,16 +1,16 @@
 # Server unit suite — Fastify API (@devdigest/api), hermetic tests only.
 #
 # Two jobs:
-#  - typecheck: type-check on Linux only — the platform CI and the exported
-#    agent-runner both run on. We deliberately do NOT matrix over Windows/macOS:
-#    macOS is covered by daily local dev, Windows is not a ship target, and
-#    `@ast-grep/napi` is exact-pinned so its native binary only changes on a
-#    deliberate version bump.
-#  - unit: the ~19 DB-free test files (everything that is NOT `*.it.test.ts`).
+#  - static: typecheck + Biome lint + onion-architecture check (dependency-cruiser
+#    over src/ and ../reviewer-core/src). Linux only: macOS is covered by daily
+#    local dev, Windows is not a ship target, and `@ast-grep/napi` is
+#    exact-pinned so its native binary only changes on a deliberate version bump.
+#  - unit: the DB-free test files (everything that is NOT `*.it.test.ts`).
 #    LLM/git/embeddings are mocked via src/adapters/mocks.ts — no Docker.
 #
 # DB-backed tests run in server-integration.yml. reviewer-core/** is in the
-# path filter because server aliases ../reviewer-core/src at type-check time.
+# path filter because server type-checks, lints the layering of, and imports
+# ../reviewer-core/src.
 name: server unit
 
 on:
@@ -19,11 +19,15 @@ on:
     paths:
       - 'server/**'
       - 'reviewer-core/**'
+      - 'biome.jsonc'
+      - '.nvmrc'
       - '.github/workflows/server-unit.yml'
   pull_request:
     paths:
       - 'server/**'
       - 'reviewer-core/**'
+      - 'biome.jsonc'
+      - '.nvmrc'
       - '.github/workflows/server-unit.yml'
 
 permissions:
@@ -34,21 +38,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  typecheck:
+  static:
+    name: typecheck + lint + architecture
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: server
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
         with:
-          version: 10
+          package_json_file: server/package.json
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: pnpm
           cache-dependency-path: server/pnpm-lock.yaml
 
@@ -65,6 +70,15 @@ jobs:
 
       - run: pnpm typecheck
 
+      - run: pnpm lint
+
+      # Onion-architecture rules (.dependency-cruiser.cjs) via `pnpm arch:check`
+      # = depcruise src ../reviewer-core/src --config .dependency-cruiser.cjs --ignore-known.
+      # The known-violations baseline is empty, so --ignore-known is a no-op
+      # today; it stays so a deliberate baseline keeps working (it may only shrink).
+      - name: Architecture (dependency-cruiser)
+        run: pnpm arch:check
+
   unit:
     name: tests
     runs-on: ubuntu-latest
@@ -72,15 +86,15 @@ jobs:
       run:
         working-directory: server
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
         with:
-          version: 10
+          package_json_file: server/package.json
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: pnpm
           cache-dependency-path: server/pnpm-lock.yaml
 
@@ -93,7 +107,4 @@ jobs:
         working-directory: reviewer-core
         run: npm ci
 
-      # Inlined rather than `pnpm test:unit`: server/package.json is
-      # skip-worktree (a local variant), so the committed package.json may
-      # not carry the split scripts. Run vitest directly.
-      - run: pnpm exec vitest run --exclude '**/*.it.test.ts'
+      - run: pnpm test:unit

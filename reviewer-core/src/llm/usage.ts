@@ -17,3 +17,12 @@ export function emitUsage(onUsage: StructuredRequest<unknown>['onUsage'], usage:
 export function addCost(total: number | null, part: number | null): number | null {
   return total == null || part == null ? null : total + part;
 }
+
+/**
+ * Rough token estimate (~4 chars/token) for responses that arrive WITHOUT a
+ * `usage` block — better than silently booking 0 tokens. Always ≥ 1 for
+ * non-empty text.
+ */
+export function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}

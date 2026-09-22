@@ -7,7 +7,7 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { EmptyState, type IconName } from "@devdigest/ui";
 import type { Crumb } from "@devdigest/ui";
-import { AppShell } from "../app-shell";
+import { AppShell } from "@/components/app-shell";
 import { s } from "./styles";
 
 export function PageContainer({

@@ -1,1 +1,1 @@
-export { VerdictBanner, VerdictBanner as default } from "./VerdictBanner";
+export { VerdictBanner } from "./VerdictBanner";

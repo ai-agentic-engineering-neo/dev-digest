@@ -5,7 +5,7 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { LiveLogStream, type LogLine } from "@devdigest/ui";
-import { useRunEvents } from "../../../../../../../lib/hooks/reviews";
+import { useRunEvents } from "@/lib/hooks/reviews";
 import { LOG_HEIGHT } from "./constants";
 import { s } from "./styles";
 
@@ -19,11 +19,22 @@ export function RunStatus({
   const t = useTranslations("prReview");
   const { events, running } = useRunEvents(runIds);
   const wasRunning = React.useRef(false);
+  // Latest onDone in a ref: parents pass an inline callback, which must not
+  // re-run the effect (that re-fired onDone on every render after a run).
+  const onDoneRef = React.useRef(onDone);
+  React.useLayoutEffect(() => {
+    onDoneRef.current = onDone;
+  });
 
+  // Fire onDone exactly once per running → done transition.
   React.useEffect(() => {
-    if (running) wasRunning.current = true;
-    if (!running && wasRunning.current) onDone?.();
-  }, [running, onDone]);
+    if (running) {
+      wasRunning.current = true;
+    } else if (wasRunning.current) {
+      wasRunning.current = false;
+      onDoneRef.current?.();
+    }
+  }, [running]);
 
   if (runIds.length === 0) return null;
 

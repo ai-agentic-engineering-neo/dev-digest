@@ -41,9 +41,10 @@ export const PromptAssembly = z.object({
   skills: z.string().nullish(),
   memory: z.string().nullish(),
   specs: z.string().nullish(),
-  /** Callers-of-changed-symbols digest (repo-intel); null when absent. */
+  /** Callers-of-changed-symbols digest (T1.3); null when absent. */
   callers: z.string().nullish(),
-  /** Repo skeleton / map (repo-intel); null when absent. */
+  /** Repo skeleton / map (T3); null when absent. Enables per-slot token
+      attribution in the run trace. */
   repo_map: z.string().nullish(),
   /** PR author's description/body (truncated); null when absent. */
   pr_description: z.string().nullish(),
@@ -118,3 +119,12 @@ export const RunSummary = z.object({
   blockers: z.number().int().nullable(),
 });
 export type RunSummary = z.infer<typeof RunSummary>;
+
+/** One in-flight run of a PR — GET /pulls/:id/runs/active (agent_runs where status='running'). */
+export const ActiveRun = z.object({
+  run_id: z.string(),
+  agent_id: z.string().nullable(),
+  agent_name: z.string().nullable(),
+  ran_at: z.string().nullable(),
+});
+export type ActiveRun = z.infer<typeof ActiveRun>;

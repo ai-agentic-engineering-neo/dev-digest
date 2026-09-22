@@ -19,8 +19,8 @@ import {
 } from "@devdigest/ui";
 import type { FindingRecord, FindingActionKind } from "@devdigest/shared";
 import { SEV_COLOR, SEV_COLOR_FALLBACK } from "./constants";
-import { lineLabel } from "./helpers";
-import { githubBlobUrl } from "../../../../../../../lib/github-urls";
+import { isFromInteractive, lineLabel } from "./helpers";
+import { githubBlobUrl } from "@/lib/github-urls";
 import { s } from "./styles";
 
 export function FindingCard({
@@ -42,6 +42,8 @@ export function FindingCard({
 }) {
   const t = useTranslations("prReview");
   const [expanded, setExpanded] = React.useState(defaultExpanded ?? false);
+  const bodyId = React.useId();
+  const toggle = () => setExpanded((e) => !e);
   const sevColor = SEV_COLOR[f.severity] ?? SEV_COLOR_FALLBACK;
   const fileHref =
     repoFullName && headSha
@@ -53,13 +55,23 @@ export function FindingCard({
 
   return (
     <div data-finding-id={f.id} style={s.card(!!focused, sevColor, muted)}>
-      <div onClick={() => setExpanded((e) => !e)} style={s.header}>
+      {/* The title button is the accessible toggle; the rest of the header is a
+          pointer-only convenience that leaves its own links/buttons alone. */}
+      <div onClick={(e) => !isFromInteractive(e.target) && toggle()} style={s.header}>
         <div style={s.badgeWrap}>
           <SeverityBadge severity={f.severity as Severity} compact />
         </div>
         <div style={s.headerMain}>
           <div style={s.titleRow}>
-            <span style={s.title(muted, dismissed)}>{f.title}</span>
+            <button
+              type="button"
+              aria-expanded={expanded}
+              aria-controls={bodyId}
+              onClick={toggle}
+              style={s.title(muted, dismissed)}
+            >
+              {f.title}
+            </button>
             <CategoryTag category={f.category as Category} />
             {accepted && <span style={s.acceptedTag}>{t("finding.accepted")}</span>}
             {dismissed && <span style={s.dismissedTag}>{t("finding.dismissed")}</span>}
@@ -71,11 +83,11 @@ export function FindingCard({
             <ConfidenceNum value={f.confidence} />
           </div>
         </div>
-        <Icon.ChevronDown size={16} style={s.chevron(expanded)} />
+        <Icon.ChevronDown size={16} aria-hidden style={s.chevron(expanded)} />
       </div>
 
       {expanded && (
-        <div style={s.body}>
+        <div id={bodyId} style={s.body}>
           <div style={s.prose}>
             <Markdown>{f.rationale}</Markdown>
           </div>

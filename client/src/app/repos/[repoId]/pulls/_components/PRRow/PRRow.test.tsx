@@ -1,18 +1,13 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { NextIntlClientProvider } from "next-intl";
+import { renderWithProviders, screen, cleanup } from "@/test/render";
+import { mockFetch } from "@/test/fetch-mock";
 import type { PrMeta } from "@/lib/types";
-import messages from "../../../../../../../messages/en/prReview.json";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: () => {} }) }));
 
 import { PRRow } from "./PRRow";
 
-afterEach(() => {
-  cleanup();
-  vi.unstubAllGlobals();
-});
+afterEach(cleanup);
 
 function pr(o: Partial<PrMeta> = {}): PrMeta {
   return {
@@ -33,13 +28,7 @@ function pr(o: Partial<PrMeta> = {}): PrMeta {
 }
 
 function renderRow(p: PrMeta) {
-  return render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
-        <PRRow pr={p} repoId="r1" />
-      </NextIntlClientProvider>
-    </QueryClientProvider>,
-  );
+  return renderWithProviders(<PRRow pr={p} repoId="r1" />);
 }
 
 describe("PRRow — cost column", () => {
@@ -84,20 +73,18 @@ describe("PRRow — findings column", () => {
   });
 
   it("hover loads the latest review and lists its findings read-only", async () => {
-    const fetchMock = vi.fn(async (_url: RequestInfo | URL) =>
-      new Response(
-        JSON.stringify([
-          { id: "rv-new", run_id: "run-2", findings: [finding("f1", "CRITICAL", "Hardcoded Stripe secret key")] },
-          { id: "rv-old", run_id: "run-1", findings: [finding("f0", "WARNING", "Old finding")] },
-        ]),
-        { status: 200, headers: { "content-type": "application/json" } },
-      ),
+    const api = mockFetch({
+      "GET /pulls/p1/reviews": [
+        { id: "rv-new", run_id: "run-2", findings: [finding("f1", "CRITICAL", "Hardcoded Stripe secret key")] },
+        { id: "rv-old", run_id: "run-1", findings: [finding("f0", "WARNING", "Old finding")] },
+      ],
+    });
+    const { user } = renderRow(
+      pr({ id: "p1", findings_counts: { CRITICAL: 1, WARNING: 0, SUGGESTION: 0 }, latest_review_id: "rv-new" }),
     );
-    vi.stubGlobal("fetch", fetchMock);
-    renderRow(pr({ id: "p1", findings_counts: { CRITICAL: 1, WARNING: 0, SUGGESTION: 0 }, latest_review_id: "rv-new" }));
-    expect(fetchMock).not.toHaveBeenCalled(); // lazy: nothing until hover
+    expect(api.requests()).toHaveLength(0); // lazy: nothing until hover
 
-    fireEvent.mouseEnter(screen.getByLabelText("1 critical"));
+    await user.hover(screen.getByLabelText("1 critical"));
     const tip = await screen.findByRole("tooltip");
     expect(tip).toHaveTextContent("1 finding in this run");
     expect(await screen.findByText("Hardcoded Stripe secret key")).toBeInTheDocument();
@@ -105,6 +92,6 @@ describe("PRRow — findings column", () => {
     expect(screen.getByText("Line 12 contains a live key.")).toBeInTheDocument();
     expect(screen.queryByText("Old finding")).toBeNull();
     expect(tip.querySelector("button")).toBeNull(); // no Accept/Dismiss here
-    expect(String(fetchMock.mock.calls[0]![0])).toContain("/pulls/p1/reviews");
+    expect(api.requests("GET", "/pulls/p1/reviews")).toHaveLength(1);
   });
 });

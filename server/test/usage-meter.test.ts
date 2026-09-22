@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { UsageMeter } from '../src/modules/reviews/usage-meter.js';
+import { UsageMeter } from '../src/modules/reviews/domain/usage-meter.js';
 
 /** The meter is the only record of spend when a run fails/cancels mid-way. */
 describe('UsageMeter', () => {

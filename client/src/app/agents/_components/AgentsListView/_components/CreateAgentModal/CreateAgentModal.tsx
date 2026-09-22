@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Button, Modal, FormField, TextInput, SelectInput, Textarea } from "@devdigest/ui";
 import type { Provider } from "@devdigest/shared";
-import { useCreateAgent } from "../../../../../../lib/hooks/agents";
-import { DEFAULT_MODEL, DEFAULT_PROVIDER, MODAL_WIDTH, PROVIDER_OPTIONS } from "./constants";
+import { useCreateAgent } from "@/lib/hooks";
+import { DEFAULT_AGENT_MODEL, DEFAULT_AGENT_PROVIDER } from "@/lib/model-defaults";
+import { MODAL_WIDTH, PROVIDER_OPTIONS } from "./constants";
 import { s } from "./styles";
 
 /** Create-agent modal — name/description/provider/model/system-prompt. */
@@ -16,8 +17,8 @@ export function CreateAgentModal({ onClose }: { onClose: () => void }) {
   const create = useCreateAgent();
   const [name, setName] = React.useState("");
   const [description, setDescription] = React.useState("");
-  const [provider, setProvider] = React.useState<Provider>(DEFAULT_PROVIDER);
-  const [model, setModel] = React.useState(DEFAULT_MODEL);
+  const [provider, setProvider] = React.useState<Provider>(DEFAULT_AGENT_PROVIDER);
+  const [model, setModel] = React.useState(DEFAULT_AGENT_MODEL);
   const [systemPrompt, setSystemPrompt] = React.useState(t("create.defaultSystemPrompt"));
 
   const submit = async () => {

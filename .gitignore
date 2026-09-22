@@ -1,9 +1,5 @@
 node_modules/
 dist/
-# agent-runner ships as a JS GitHub Action — its bundled dist/ MUST be committed
-# (GitHub runs action.yml `main: dist/index.js` as-is, with no build step).
-!agent-runner/dist/
-!agent-runner/dist/**
 build/
 .next/
 out/
@@ -23,3 +19,10 @@ test-results/
 
 # emdash worktree config (local)
 .emdash.json
+
+# large media (homework recordings etc.) — keep out of git
+*.mp4
+*.mov
+# Windows ADS junk from WSL copies
+*:Zone.Identifier
+.next-e2e/

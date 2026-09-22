@@ -1,6 +1,18 @@
 import type { CSSProperties } from "react";
 
 /** Co-located styles for RunTraceDrawer (extracted from inline styles). */
+/** Unstyled <button> base for clickable headers (keeps the look, adds keyboard + role). */
+const buttonReset = {
+  border: "none",
+  background: "none",
+  padding: 0,
+  margin: 0,
+  font: "inherit",
+  color: "inherit",
+  textAlign: "left",
+  cursor: "pointer",
+} satisfies CSSProperties;
+
 export const s = {
   // ---- TraceSection ----
   section: {
@@ -11,6 +23,8 @@ export const s = {
     background: "var(--bg-elevated)",
   } satisfies CSSProperties,
   sectionHead: {
+    ...buttonReset,
+    width: "100%",
     display: "flex",
     alignItems: "center",
     gap: 10,
@@ -34,6 +48,8 @@ export const s = {
     overflow: "hidden",
   } satisfies CSSProperties,
   toolHead: {
+    ...buttonReset,
+    width: "100%",
     display: "flex",
     alignItems: "center",
     gap: 10,
@@ -64,7 +80,7 @@ export const s = {
   } satisfies CSSProperties,
   promptHead: { display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", cursor: "pointer" } satisfies CSSProperties,
   promptDot: (color: string): CSSProperties => ({ width: 7, height: 7, borderRadius: 2, background: color }),
-  promptLabel: { fontSize: 13, fontWeight: 600 } satisfies CSSProperties,
+  promptLabel: { ...buttonReset, fontSize: 13, fontWeight: 600 } satisfies CSSProperties,
   promptToggle: { marginLeft: "auto", fontSize: 12, color: "var(--text-muted)" } satisfies CSSProperties,
   promptPre: {
     margin: 0,

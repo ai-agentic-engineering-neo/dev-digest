@@ -1,1 +1,1 @@
-export { AgentCard, AgentCard as default } from "./AgentCard";
+export { AgentCard } from "./AgentCard";

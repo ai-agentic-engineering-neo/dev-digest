@@ -3,20 +3,14 @@ import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
 import { FastifySSEPlugin } from 'fastify-sse-v2';
-import {
-  validatorCompiler,
-  serializerCompiler,
-  hasZodFastifySchemaValidationErrors,
-  isResponseSerializationError,
-} from 'fastify-type-provider-zod';
+import { validatorCompiler, serializerCompiler } from 'fastify-type-provider-zod';
 import { sql } from 'drizzle-orm';
-import { z } from 'zod';
 import { loadConfig, type AppConfig } from './platform/config.js';
+import { loggerOptions } from './platform/logging.js';
 import { createDb, type Db } from './db/client.js';
 import { Container, type ContainerOverrides } from './platform/container.js';
-import { AppError } from './platform/errors.js';
+import { registerErrorHandling } from './http/error-handler.js';
 import { modules } from './modules/index.js';
-import { ReviewService } from './modules/reviews/service.js';
 
 // Attach the DI container to every request/instance.
 declare module 'fastify' {
@@ -47,16 +41,7 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
     // Explicit 1MB cap on request bodies (PR comments, settings payloads are
     // small). Protects against oversized/abusive payloads.
     bodyLimit: 1_048_576,
-    logger:
-      config.logLevel === 'silent'
-        ? false
-        : {
-            level: config.logLevel,
-            transport:
-              config.nodeEnv === 'development'
-                ? { target: 'pino-pretty', options: { colorize: true } }
-                : undefined,
-          },
+    logger: loggerOptions(config),
   });
 
   // Use zod schemas directly for request validation + response serialization.
@@ -64,8 +49,10 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
 
-  const container = new Container(config, db, opts.overrides);
+  const container = new Container(config, db, opts.overrides, app.log);
   app.decorate('container', container);
+  // Every module's job handlers (declared in modules/<name>/composition.ts).
+  container.registerJobHandlers();
 
   // Reap runs left 'running' by a previous (now-dead) process — otherwise they
   // show as perpetually "running" in the UI and can't be cancelled (no runner).
@@ -78,10 +65,10 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
   // NOTE: assumes a SINGLE API instance per DB. With multiple replicas this
   // would need per-instance scoping / heartbeats (not this app's deployment).
   try {
-    const reaped = await new ReviewService(container).reapStaleRuns();
+    const reaped = await container.modules.reviews.service.reapStaleRuns();
     if (reaped > 0) app.log.info({ reaped }, 'reaped stale running agent_runs on boot');
   } catch (err) {
-    app.log.warn({ err: (err as Error).message }, 'stale-run reaping failed (non-fatal)');
+    app.log.warn({ err }, 'stale-run reaping failed (non-fatal)');
   }
 
   // Security headers (X-Content-Type-Options, X-Frame-Options, …). The API
@@ -106,62 +93,15 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
       await db.execute(sql`select 1`);
       return { ready: true };
     } catch (err) {
-      app.log.warn({ err: (err as Error).message }, 'readiness check failed: db unreachable');
+      app.log.warn({ err }, 'readiness check failed: db unreachable');
       return reply.status(503).send({ ready: false });
     }
   });
 
-  // Structured error handler. Registered BEFORE modules so encapsulated
-  // module plugins inherit it. Validation → 422; AppError → its status.
-  app.setErrorHandler((err: unknown, _req, reply) => {
-    // Request validation failure from the zod type provider (schema.body/params).
-    if (hasZodFastifySchemaValidationErrors(err)) {
-      reply.status(422).send({
-        error: {
-          code: 'validation_error',
-          message: 'Request validation failed',
-          details: err.validation,
-        },
-      });
-      return;
-    }
-    // Response failed its own serialization schema — never leak the raw object;
-    // log it and return a generic 500.
-    if (isResponseSerializationError(err)) {
-      app.log.error({ err }, 'response serialization failed');
-      reply.status(500).send({ error: { code: 'internal_error', message: 'Internal error' } });
-      return;
-    }
-    // Robust ZodError detection: `instanceof` can fail across duplicate zod
-    // module instances (shared vs api), so also match by shape. Still needed for
-    // service-level `.parse` calls and routes not yet on schema.body.
-    const maybeZod = err as { name?: string; issues?: unknown; errors?: unknown };
-    const isZodError =
-      err instanceof z.ZodError ||
-      (maybeZod?.name === 'ZodError' &&
-        (Array.isArray(maybeZod.issues) || Array.isArray(maybeZod.errors)));
-    if (isZodError) {
-      reply.status(422).send({
-        error: {
-          code: 'validation_error',
-          message: 'Request validation failed',
-          details: maybeZod.issues ?? maybeZod.errors,
-        },
-      });
-      return;
-    }
-    if (err instanceof AppError) {
-      reply.status(err.statusCode).send({
-        error: { code: err.code, message: err.message, details: err.details },
-      });
-      return;
-    }
-    app.log.error(err);
-    const e = err as { statusCode?: number; message?: string };
-    reply.status(e.statusCode ?? 500).send({
-      error: { code: 'internal_error', message: e.message ?? 'Internal error' },
-    });
-  });
+  // Root error + 404 handlers (envelope + the one kind → status table live in
+  // src/http/error-handler.ts). Registered BEFORE modules so encapsulated
+  // module plugins inherit them.
+  registerErrorHandling(app);
 
   // Register feature modules from the static registry (src/modules/index.ts).
   // Each module is a Fastify plugin in modules/<name>/routes.ts.
@@ -169,7 +109,16 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
     await app.register(plugin);
   }
 
-  // Close the db handle we created on shutdown.
+  // Graceful shutdown, part 1 (preClose = before the HTTP server stops
+  // accepting/draining): cancel live review runs, stop the JobRunner, end SSE
+  // streams — an open SSE connection would otherwise stall app.close().
+  app.addHook('preClose', async () => {
+    const res = await container.shutdown();
+    if (res.cancelledRuns.length > 0 || !res.runsDrained || !res.jobsDrained) {
+      app.log.warn(res, 'shutdown: in-flight work cancelled');
+    }
+  });
+  // Part 2: close the db handle we created (after runs/jobs wrote their final state).
   if (handle) app.addHook('onClose', async () => handle.close());
 
   return app;

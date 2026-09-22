@@ -11,7 +11,7 @@ import { eq } from 'drizzle-orm';
 import { startPg, dockerAvailable, type PgFixture } from './helpers/pg.js';
 import { seed } from '../src/db/seed.js';
 import * as t from '../src/db/schema.js';
-import { RepoIntelRepository } from '../src/modules/repo-intel/repository.js';
+import { RepoIntelRepository } from '../src/modules/repo-intel/infrastructure/repository.js';
 import { MAX_INDEXED_NAME_LEN } from '../src/db/schema/context.js';
 
 const hasDocker = await dockerAvailable();

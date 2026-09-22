@@ -1,0 +1,227 @@
+{
+  "name": "Accept and dismiss a finding; the state survives a reload",
+  "description": "Needs the mock LLM (skipped otherwise) and runs after 09: acts on the two findings of the mock review 09 created, which is the newest run so its accordion is open by default. The first finding of the open run is expanded by default → Accept → 'accepted' tag; expand the other → Dismiss → 'dismissed' tag; reload and both tags come back from the server (POST /findings/:id/accept|dismiss persisted accepted_at / dismissed_at, not just the optimistic cache). WRITES — the hermetic stack reseeds every run. Starts with a 2000px-tall viewport (kept for later flows): the PR page scrolls inside <main>, and agent-browser neither scrolls that container on click nor with scrollintoview/scroll, so a below-the-fold Accept click silently hits nothing.",
+  "requiresEnv": "E2E_MOCK_LLM",
+  "steps": [
+    {
+      "cmd": [
+        "set",
+        "viewport",
+        "1280",
+        "2000"
+      ],
+      "label": "tall viewport: the PR page scrolls inside <main>, which agent-browser's click does not scroll, so below-the-fold buttons must already be on screen"
+    },
+    {
+      "cmd": [
+        "open",
+        "{BASE}/"
+      ],
+      "label": "load the app root"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "/pulls"
+      ],
+      "label": "land on the PR list"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "All",
+        "--exact"
+      ],
+      "label": "PR list: show All (the reviewed PR is hidden by the default 'Needs review' filter)"
+    },
+    {
+      "cmd": [
+        "find",
+        "text",
+        "Add rate limiting to public API endpoints",
+        "click"
+      ],
+      "label": "open the PR row"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "/pulls/482"
+      ],
+      "label": "navigate to the PR detail route"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--load",
+        "networkidle"
+      ],
+      "label": "PR detail data settles"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Agent runs"
+      ],
+      "label": "switch to the Agent runs tab"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "tab=findings"
+      ],
+      "label": "findings tab is active in the URL"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--load",
+        "networkidle"
+      ],
+      "label": "runs + reviews settle (the timeline shifts the cards down when it loads)"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "1,380 tok"
+      ],
+      "label": "the mock run's timeline tile has rendered (layout is stable)"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Any client can send a fresh"
+      ],
+      "label": "the newest run's first finding (WARNING) is expanded by default (rationale visible)"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Accept",
+        "--exact"
+      ],
+      "label": "click Accept"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "accepted"
+      ],
+      "label": "the finding is tagged 'accepted'"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Rate-limit key trusts the spoofable X-Forwarded-For header"
+      ],
+      "label": "collapse the accepted finding"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--fn",
+        "!document.body.innerText.includes('Any client can send a fresh')"
+      ],
+      "label": "the accepted card is collapsed (only one Accept/Dismiss pair on screen)"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Bucket map grows without eviction"
+      ],
+      "label": "expand the SUGGESTION finding"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "One entry is kept per distinct key forever"
+      ],
+      "label": "the SUGGESTION card is expanded (rationale visible)"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Dismiss",
+        "--exact"
+      ],
+      "label": "click Dismiss"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "dismissed"
+      ],
+      "label": "the finding is tagged 'dismissed'"
+    },
+    {
+      "cmd": [
+        "reload"
+      ],
+      "label": "reload the page"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--load",
+        "networkidle"
+      ],
+      "label": "reviews refetched from the server"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Bucket map grows without eviction"
+      ],
+      "label": "the mock review is back"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "accepted"
+      ],
+      "label": "'accepted' persisted"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "dismissed"
+      ],
+      "label": "'dismissed' persisted"
+    }
+  ]
+}

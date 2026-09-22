@@ -1,56 +1,24 @@
-import { type Repo } from '@devdigest/shared';
-import * as t from '../../db/schema.js';
-import { AppError } from '../../platform/errors.js';
-import {
-  GITHUB_URL_REGEX,
-  GIT_TOKEN_USERNAME,
-  GITHUB_HTTPS_HOST,
-} from './constants.js';
+import { parseGitHubRepoUrl } from '@devdigest/shared';
+import { InvalidInputError } from '../../platform/errors.js';
 
 /**
- * F1 — repos pure helpers (extracted from routes.ts; no behaviour change).
- * Pure functions only — no I/O, no DB, no container.
+ * F1 — repos pure helpers. No I/O, no DB, no container.
  */
 
-/** Parse `owner`/`name` from a GitHub URL (https or ssh form). */
+/**
+ * Parse `owner`/`name` from a GitHub URL (https or ssh form). Anchored and
+ * charset-restricted (see `parseGitHubRepoUrl`) because the result becomes the
+ * on-disk clone path `<cloneDir>/<owner>/<name>`.
+ */
 export function parseRepoUrl(url: string): { owner: string; name: string } {
-  // https://github.com/owner/repo(.git)  |  git@github.com:owner/repo.git
-  const match = url.match(GITHUB_URL_REGEX);
-  if (!match?.[1] || !match[2]) {
-    throw new AppError('invalid_repo_url', `Could not parse owner/repo from '${url}'`, 400);
+  const parsed = parseGitHubRepoUrl(url);
+  if (!parsed) {
+    throw new InvalidInputError(`Could not parse owner/repo from '${url}'`, undefined, 'invalid_repo_url');
   }
-  return { owner: match[1], name: match[2] };
+  return parsed;
 }
 
-/**
- * Embed a token into an https github.com URL so private clones authenticate
- * non-interactively. SSH/non-GitHub URLs are left untouched.
- */
-export function withGitHubToken(url: string, token: string): string {
-  try {
-    const u = new URL(url);
-    if (u.protocol === 'https:' && u.hostname === GITHUB_HTTPS_HOST) {
-      u.username = GIT_TOKEN_USERNAME;
-      u.password = token;
-      return u.toString();
-    }
-  } catch {
-    /* non-URL (e.g. git@github.com:...) — leave as-is */
-  }
-  return url;
-}
-
-/** Map a persisted repo row to the API `Repo` DTO. */
-export function toRepoDto(row: typeof t.repos.$inferSelect): Repo {
-  return {
-    id: row.id,
-    workspace_id: row.workspaceId,
-    owner: row.owner,
-    name: row.name,
-    full_name: row.fullName,
-    default_branch: row.defaultBranch,
-    clone_path: row.clonePath,
-    last_polled_at: row.lastPolledAt?.toISOString() ?? null,
-    created_by: row.createdBy,
-  };
+/** HTTPS clone URL of a GitHub repo by its `owner/name`. */
+export function githubCloneUrl(fullName: string): string {
+  return `https://github.com/${fullName}.git`;
 }

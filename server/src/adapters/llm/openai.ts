@@ -11,9 +11,16 @@ import { withRetry, withTimeout } from '../../platform/resilience.js';
 import { toJsonSchema, parseWithRepair } from '../../platform/structured.js';
 import { emitUsage } from '@devdigest/reviewer-core';
 import { estimateCost } from './pricing.js';
-import { ExternalServiceError } from '../../platform/errors.js';
+import {
+  DEFAULT_REQUEST_TIMEOUT_MS,
+  budgetedRequest,
+  schemaFailure,
+  startBudget,
+  usageOrEstimate,
+  warnWith,
+  type LlmAdapterOptions,
+} from './call.js';
 
-const DEFAULT_TIMEOUT = 60_000;
 const EMBED_MODEL = 'text-embedding-3-small';
 
 /**
@@ -39,18 +46,31 @@ function tuningParams(
   return p;
 }
 
+type ChatUsage = { prompt_tokens?: number; completion_tokens?: number } | null | undefined;
+
+function reportedUsage(usage: ChatUsage): { tokensIn: number; tokensOut: number } | null {
+  return usage ? { tokensIn: usage.prompt_tokens ?? 0, tokensOut: usage.completion_tokens ?? 0 } : null;
+}
+
 /**
  * OpenAI LLMProvider.
  * - listModels: dynamic via GET /models (not hardcoded).
+ * - complete / completeStructured: one call budget (./call.ts) over SDK
+ *   retries + reprompts, honouring the caller's AbortSignal.
  * - completeStructured: response_format json_schema + Zod validate + reprompt.
  * - embed: text-embedding-3-small (1536 dims).
  */
 export class OpenAIProvider implements LLMProvider {
   readonly id = 'openai' as const;
   private client: OpenAI;
+  private readonly warn: (message: string) => void;
 
-  constructor(apiKey: string) {
+  constructor(
+    apiKey: string,
+    private readonly opts: LlmAdapterOptions = {},
+  ) {
     this.client = new OpenAI({ apiKey });
+    this.warn = warnWith(opts);
   }
 
   async listModels(): Promise<ModelInfo[]> {
@@ -63,41 +83,45 @@ export class OpenAIProvider implements LLMProvider {
   }
 
   async complete(req: CompletionRequest): Promise<CompletionResult> {
-    return withRetry(() =>
-      withTimeout(this.doComplete(req), req.timeoutMs ?? DEFAULT_TIMEOUT),
+    const budget = startBudget(this.opts, `OpenAI completion (${req.model})`, req.signal);
+    const res = await budgetedRequest(budget, req.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS, (options) =>
+      this.client.chat.completions.create(
+        {
+          model: req.model,
+          messages: req.messages,
+          ...tuningParams(req.model, req.temperature ?? 0.2, req.maxTokens),
+        },
+        options,
+      ),
     );
-  }
-
-  private async doComplete(req: CompletionRequest): Promise<CompletionResult> {
-    const res = await this.client.chat.completions.create({
-      model: req.model,
-      messages: req.messages,
-      ...tuningParams(req.model, req.temperature ?? 0.2, req.maxTokens),
-    });
     const text = res.choices?.[0]?.message?.content ?? '';
-    const tokensIn = res.usage?.prompt_tokens ?? 0;
-    const tokensOut = res.usage?.completion_tokens ?? 0;
-    return {
-      text,
-      model: req.model,
-      tokensIn,
-      tokensOut,
-      costUsd: estimateCost(req.model, tokensIn, tokensOut),
-    };
+    const { tokensIn, tokensOut } = usageOrEstimate(
+      reportedUsage(res.usage),
+      { messages: req.messages, output: text },
+      this.warn,
+      `${req.model} completion`,
+    );
+    return { text, model: req.model, tokensIn, tokensOut, costUsd: estimateCost(req.model, tokensIn, tokensOut) };
   }
 
   async completeStructured<T>(req: StructuredRequest<T>): Promise<StructuredResult<T>> {
     const jsonSchema = toJsonSchema(req.schema, req.schemaName);
     const maxRetries = req.maxRetries ?? 2;
+    const requestTimeout = req.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+    const budget = startBudget(this.opts, `OpenAI structured call for ${req.schemaName}`, req.signal);
     const messages = [...req.messages];
     let tokensIn = 0;
     let tokensOut = 0;
     let lastRaw = '';
+    let lastIssues = '';
+    let attempt = 0;
 
-    for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
-      const res = await withRetry(() =>
-        withTimeout(
-          this.client.chat.completions.create({
+    while (attempt <= maxRetries) {
+      budget.throwIfDone();
+      attempt++;
+      const res = await budgetedRequest(budget, requestTimeout, (options) =>
+        this.client.chat.completions.create(
+          {
             model: req.model,
             messages,
             ...tuningParams(req.model, req.temperature, req.maxTokens),
@@ -105,22 +129,22 @@ export class OpenAIProvider implements LLMProvider {
               type: 'json_schema',
               json_schema: { name: req.schemaName, schema: jsonSchema.schema, strict: true },
             },
-          }),
-          req.timeoutMs ?? DEFAULT_TIMEOUT,
+          },
+          options,
         ),
       );
       lastRaw = res.choices?.[0]?.message?.content ?? '';
-      const attemptIn = res.usage?.prompt_tokens ?? 0;
-      const attemptOut = res.usage?.completion_tokens ?? 0;
-      tokensIn += attemptIn;
-      tokensOut += attemptOut;
+      const usage = usageOrEstimate(
+        reportedUsage(res.usage),
+        { messages, output: lastRaw },
+        this.warn,
+        `${req.model} (${req.schemaName})`,
+      );
+      tokensIn += usage.tokensIn;
+      tokensOut += usage.tokensOut;
       // Per-attempt usage BEFORE parsing, so spend is accounted even if every
       // attempt fails validation and we throw below.
-      emitUsage(req.onUsage, {
-        tokensIn: attemptIn,
-        tokensOut: attemptOut,
-        costUsd: estimateCost(req.model, attemptIn, attemptOut),
-      });
+      emitUsage(req.onUsage, { ...usage, costUsd: estimateCost(req.model, usage.tokensIn, usage.tokensOut) });
 
       const parsed = parseWithRepair(req.schema, lastRaw);
       if (parsed.ok) {
@@ -134,14 +158,13 @@ export class OpenAIProvider implements LLMProvider {
           attempts: attempt,
         };
       }
+      lastIssues = parsed.error;
       // reprompt-on-error
       messages.push({ role: 'assistant', content: lastRaw });
       messages.push({ role: 'user', content: parsed.repromptMessage });
     }
 
-    throw new ExternalServiceError('OpenAI structured output failed schema validation', {
-      raw: lastRaw,
-    });
+    throw schemaFailure('OpenAI', req.schemaName, attempt, lastIssues, lastRaw);
   }
 
   async embed(texts: string[]): Promise<number[][]> {
@@ -149,7 +172,7 @@ export class OpenAIProvider implements LLMProvider {
     return withRetry(async () => {
       const res = await withTimeout(
         this.client.embeddings.create({ model: EMBED_MODEL, input: texts }),
-        DEFAULT_TIMEOUT,
+        DEFAULT_REQUEST_TIMEOUT_MS,
       );
       return res.data.map((d) => d.embedding);
     });

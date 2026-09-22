@@ -8,16 +8,17 @@ import type {
   LLMProvider,
 } from '@devdigest/shared';
 import type { AppConfig } from './config.js';
-import type { Db } from '../db/client.js';
-import { JobRunner } from './jobs.js';
-import { runBus, type RunBus } from './sse.js';
+import type { Db, DbOrTx } from '../db/client.js';
+import { JobRunner, type JobHandlers } from './jobs.js';
+import { RunBus } from './sse.js';
 import { LocalSecretsProvider } from '../adapters/secrets/local.js';
 import { LocalNoAuthProvider } from '../adapters/auth/local.js';
-import { OctokitGitHubClient } from '../adapters/github/octokit.js';
+import { OctokitGitHubClient, type GitHubClientLogger } from '../adapters/github/octokit.js';
 import { SimpleGitClient } from '../adapters/git/simple-git.js';
 import { RipgrepCodeIndex } from '../adapters/codeindex/ripgrep.js';
 import { OpenAIProvider } from '../adapters/llm/openai.js';
 import { AnthropicProvider } from '../adapters/llm/anthropic.js';
+import { MockReviewLLMProvider } from '../adapters/llm/mock.js';
 import { OpenAIEmbedder } from '../adapters/embedder/openai.js';
 import { OpenRouterProvider } from '@devdigest/reviewer-core';
 import { estimateCost } from '../adapters/llm/pricing.js';
@@ -26,17 +27,52 @@ import { ConfigError } from './errors.js';
 import { AgentsRepository } from '../modules/agents/repository.js';
 import { ReviewRepository } from '../modules/reviews/repository.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
-import { RepoIntelService } from '../modules/repo-intel/service.js';
+import { moduleFactories } from '../modules/composition.js';
+import type { TransactionRunner } from '../application/transaction.js';
+import { DrizzleTransactionRunner } from '../db/transaction.js';
 import { type DepGraph, DepCruiseGraph } from '../adapters/depgraph/index.js';
 import { type Tokenizer, TiktokenTokenizer } from '../adapters/tokenizer/index.js';
 
 /**
- * DI container. One per app instance. Holds config, db, the JobRunner,
- * the SSE bus, and lazily-constructed adapters resolved through SecretsProvider.
+ * DI container = the composition root. One per app instance. Holds config, db,
+ * the JobRunner, the SSE bus, lazily-constructed adapters (resolved through
+ * SecretsProvider) and the feature modules' services.
  *
- * Tests construct a container with `overrides` to inject mock adapters; the
- * Services depend on these interfaces, not the concrete classes.
+ * - Platform/adapters: getters below (`git`, `codeIndex`, `llm()`, …).
+ * - Feature services: `container.modules.<name>` — built lazily by the module's
+ *   own factory (`modules/<name>/composition.ts`, listed in
+ *   `modules/composition.ts`). Modules own their wiring; this file does not
+ *   change when a module's services or their deps change.
+ * - Tests construct a container with `overrides` to inject mock adapters.
  */
+
+/** Lazily-built services of every feature module, typed from the factories. */
+export type Modules = {
+  readonly [K in keyof typeof moduleFactories]: ReturnType<(typeof moduleFactories)[K]>;
+};
+
+function lazyModules(c: Container): Modules {
+  const out = {} as Record<string, unknown>;
+  const cache = new Map<string, unknown>();
+  for (const [name, build] of Object.entries(moduleFactories)) {
+    Object.defineProperty(out, name, {
+      enumerable: true,
+      get: () => {
+        if (!cache.has(name)) cache.set(name, (build as (c: Container) => unknown)(c));
+        return cache.get(name);
+      },
+    });
+  }
+  return out as Modules;
+}
+
+export interface ShutdownResult {
+  /** Every live review run completed (cancelled) within the timeout. */
+  runsDrained: boolean;
+  /** The JobRunner went idle within the timeout. */
+  jobsDrained: boolean;
+  cancelledRuns: string[];
+}
 export interface ContainerOverrides {
   secrets?: SecretsProvider;
   auth?: AuthProvider;
@@ -60,6 +96,8 @@ export class Container {
   readonly auth: AuthProvider;
   readonly jobs: JobRunner;
   readonly runBus: RunBus;
+  /** Feature-module services, built on first access by each module's factory. */
+  readonly modules: Modules;
 
   private _git?: GitClient;
   private _github?: GitHubClient;
@@ -72,23 +110,65 @@ export class Container {
   // `container.agentsRepo` instead of reaching into another module's folder.
   private _agentsRepo?: AgentsRepository;
   private _reviewRepo?: ReviewRepository;
-  private _repoIntel?: RepoIntel;
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
   private _priceBook?: PriceBook;
 
-  constructor(config: AppConfig, db: Db, private overrides: ContainerOverrides = {}) {
+  /**
+   * @param log app logger (fastify `app.log`) handed to adapters that warn —
+   *   optional so unit tests can build a bare Container; adapters then fall back to console.
+   */
+  constructor(
+    config: AppConfig,
+    db: Db,
+    private overrides: ContainerOverrides = {},
+    private readonly log?: GitHubClientLogger,
+  ) {
     this.config = config;
     this.db = db;
     this.secrets = overrides.secrets ?? new LocalSecretsProvider(config.secretsPath);
     this.auth = overrides.auth ?? new LocalNoAuthProvider(db);
-    this.runBus = runBus;
+    this.runBus = new RunBus();
     this.jobs = new JobRunner(db);
+    this.modules = lazyModules(this);
+  }
+
+  /** Register every module's declared job handlers on the JobRunner. Call once at boot. */
+  registerJobHandlers(): void {
+    for (const mod of Object.values(this.modules) as { jobs?: JobHandlers }[]) {
+      for (const [kind, handler] of Object.entries(mod.jobs ?? {})) this.jobs.register(kind, handler);
+    }
+  }
+
+  /**
+   * A TransactionRunner port whose `work` receives the repositories `bind`
+   * builds on the transaction handle. Use in a module's composition.ts:
+   *   tx: c.transactionRunner((db) => ({ agents: new AgentsRepository(db) }))
+   */
+  transactionRunner<R>(bind: (tx: DbOrTx) => R): TransactionRunner<R> {
+    return new DrizzleTransactionRunner(this.db, bind);
+  }
+
+  /**
+   * Graceful stop (called from the app's preClose hook): cancel every live
+   * review run and stop the JobRunner, wait for both (bounded), then complete
+   * whatever is left on the bus so open SSE streams end and never stall close.
+   */
+  async shutdown(opts: { runsTimeoutMs?: number; jobsTimeoutMs?: number } = {}): Promise<ShutdownResult> {
+    const cancelledRuns = this.runBus.cancelAll();
+    const [runsDrained, jobsDrained] = await Promise.all([
+      this.runBus.whenIdle(opts.runsTimeoutMs ?? 5_000),
+      this.jobs.shutdown(opts.jobsTimeoutMs ?? 10_000),
+    ]);
+    this.runBus.completeAll();
+    return { runsDrained, jobsDrained, cancelledRuns };
   }
 
   get git(): GitClient {
     if (this.overrides.git) return this.overrides.git;
-    this._git ??= new SimpleGitClient(this.config.cloneDir);
+    // The PAT is resolved per git command (never embedded in the clone URL),
+    // so rotating it via Settings takes effect without resetting the client.
+    this._git ??= new SimpleGitClient(this.config.cloneDir, () => this.secrets.get('GITHUB_TOKEN'));
     return this._git;
   }
 
@@ -112,9 +192,7 @@ export class Container {
    * Tests inject a mock via `ContainerOverrides.repoIntel`.
    */
   get repoIntel(): RepoIntel {
-    if (this.overrides.repoIntel) return this.overrides.repoIntel;
-    this._repoIntel ??= new RepoIntelService(this);
-    return this._repoIntel;
+    return this.overrides.repoIntel ?? this.modules.repoIntel.service;
   }
 
   /** Import-graph builder (dependency-cruiser). T3 indexer pipeline only. */
@@ -155,7 +233,7 @@ export class Container {
     if (this._github) return this._github;
     const token = await this.secrets.get('GITHUB_TOKEN');
     if (!token) throw new ConfigError('GITHUB_TOKEN is not configured');
-    this._github = new OctokitGitHubClient(token);
+    this._github = new OctokitGitHubClient(token, this.log);
     return this._github;
   }
 
@@ -171,6 +249,11 @@ export class Container {
   }
 
   private async buildLlm(id: 'openai' | 'anthropic' | 'openrouter'): Promise<LLMProvider> {
+    // DEV/E2E switch (LLM_PROVIDER_OVERRIDE=mock): every provider is the
+    // deterministic mock — no key lookup, no network. Test overrides still win.
+    if (this.config.llmProviderOverride === 'mock') {
+      return new MockReviewLLMProvider(id, { delayMs: this.config.llmMockDelayMs ?? 0 });
+    }
     if (id === 'openai') {
       const key = await this.secrets.get('OPENAI_API_KEY');
       if (!key) throw new ConfigError('OPENAI_API_KEY is not configured');

@@ -1,1 +1,1 @@
-export { PrFindingsCell, default } from "./PrFindingsCell";
+export { PrFindingsCell } from "./PrFindingsCell";

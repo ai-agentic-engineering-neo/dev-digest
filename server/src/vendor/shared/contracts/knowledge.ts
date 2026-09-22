@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { PROVIDER_IDS } from '../constants/feature-models.js';
 
 /**
  * Conformance, Onboarding, Eval, Memory, Conventions, Skills,
@@ -154,7 +155,7 @@ export type ConventionCandidate = z.infer<typeof ConventionCandidate>;
 // ---- Agents ----
 // 'openrouter' routes through the OpenAI-compatible API (OpenAIProvider with a
 // custom baseURL) — used by the CI runner for cheap models (DeepSeek/GLM/MiniMax).
-export const Provider = z.enum(['openai', 'anthropic', 'openrouter']);
+export const Provider = z.enum(PROVIDER_IDS);
 export type Provider = z.infer<typeof Provider>;
 
 // Review execution strategy (matches @devdigest/reviewer-core's ReviewStrategy):
@@ -190,6 +191,21 @@ export const Agent = z.object({
   repo_intel: z.boolean().default(true),
 });
 export type Agent = z.infer<typeof Agent>;
+
+/** Body for POST /agents (create). Omitted optional fields take server defaults. */
+export const CreateAgentInput = z.object({
+  name: z.string().min(1),
+  description: z.string().optional(),
+  provider: Provider,
+  model: z.string().min(1),
+  system_prompt: z.string().min(1),
+  output_schema: z.unknown().optional(),
+  strategy: ReviewStrategy.optional(),
+  ci_fail_on: CiFailOn.optional(),
+  repo_intel: z.boolean().optional(),
+  enabled: z.boolean().optional(),
+});
+export type CreateAgentInput = z.infer<typeof CreateAgentInput>;
 
 export const AgentSkillLink = z.object({
   agent_id: z.string(),

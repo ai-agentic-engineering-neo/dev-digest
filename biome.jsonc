@@ -1,0 +1,68 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.14/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "includes": [
+      "**",
+      "!**/node_modules",
+      "!**/.next",
+      "!**/coverage",
+      "!**/dist",
+      "!**/test-results",
+      "!design",
+      "!server/clones",
+      "!**/src/vendor/ui",
+      "!**/src/db/migrations"
+    ]
+  },
+  "formatter": {
+    "enabled": false
+  },
+  "assist": {
+    "enabled": false
+  },
+  // Linter only: formatter + assist are off to avoid a repo-wide rewrite.
+  // Every rule below set to "info" / "off" is DEBT — it fired on existing code
+  // when Biome was introduced (2026-09-22). Fix its hits, then delete the line so
+  // the rule is back to its recommended severity. CI: `biome lint --error-on-warnings`.
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "style": {
+        "noNonNullAssertion": "off",
+        "useImportType": "info",
+        "useTemplate": "info"
+      },
+      "complexity": {
+        "useOptionalChain": "info"
+      },
+      "correctness": {
+        "noUnusedImports": "info",
+        "useExhaustiveDependencies": "info"
+      },
+      "suspicious": {
+        "noImplicitAnyLet": "info",
+        "noAssignInExpressions": "info",
+        "useIterableCallbackReturn": "info",
+        "noArrayIndexKey": "info"
+      },
+      "security": {
+        "noDangerouslySetInnerHtml": "info"
+      },
+      "a11y": {
+        "noStaticElementInteractions": "info",
+        "useKeyWithClickEvents": "info",
+        "noLabelWithoutControl": "info",
+        "useButtonType": "info",
+        "useSemanticElements": "info",
+        "useAriaPropsSupportedByRole": "info",
+        "noNoninteractiveTabindex": "info"
+      }
+    }
+  }
+}

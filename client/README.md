@@ -14,7 +14,8 @@ dashboard screens.)
 - **API base:** `NEXT_PUBLIC_API_BASE` (default `http://localhost:3001`), used by
   `src/lib/api.ts`. Every data hook lives in `src/lib/hooks/*`.
 - **Run:** `pnpm dev` (`:3000`). **Test:** `pnpm test` (vitest + jsdom, fetch
-  mocked — no API needed). **Typecheck:** `pnpm typecheck`.
+  mocked — no API needed). **Typecheck:** `pnpm typecheck`. **Lint:** `pnpm lint`
+  (Biome, config in `../biome.jsonc`).
 
 ## UI route map
 

@@ -1,33 +1,40 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
-import { NextIntlClientProvider } from "next-intl";
-import messages from "../../../../../../../../messages/en/prReview.json";
+import { renderWithProviders, screen, cleanup, waitFor } from "@/test/render";
+import { mockFetch } from "@/test/fetch-mock";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
-}));
-vi.mock("../../../../../../../lib/hooks/agents", () => ({
-  useAgents: () => ({ data: [{ id: "a1", name: "Security", model: "gpt-4.1", enabled: true }] }),
-}));
-vi.mock("../../../../../../../lib/hooks/reviews", () => ({
-  useRunReview: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
 import { RunReviewDropdown } from "./RunReviewDropdown";
 
 afterEach(cleanup);
 
-function renderWithIntl(ui: React.ReactElement) {
-  return render(
-    <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
-      {ui}
-    </NextIntlClientProvider>,
-  );
-}
+const AGENTS = [{ id: "a1", name: "Security", model: "gpt-4.1", enabled: true }];
 
-describe("RunReviewDropdown (smoke)", () => {
+describe("RunReviewDropdown", () => {
   it("renders the trigger label", () => {
-    renderWithIntl(<RunReviewDropdown prId="pr1" />);
+    mockFetch({ "GET /agents": AGENTS });
+    renderWithProviders(<RunReviewDropdown prId="pr1" />);
     expect(screen.getByText("Run Review")).toBeInTheDocument();
+  });
+
+  it("running one agent posts the review and hands the new run ids up", async () => {
+    const api = mockFetch({
+      "GET /agents": AGENTS,
+      "POST /pulls/pr1/review": {
+        pr_id: "pr1",
+        runs: [{ run_id: "run-9", agent_id: "a1", agent_name: "Security" }],
+        reviews: [],
+      },
+    });
+    const onRunsStarted = vi.fn();
+    const { user } = renderWithProviders(<RunReviewDropdown prId="pr1" onRunsStarted={onRunsStarted} />);
+
+    await user.click(screen.getByText("Run Review"));
+    await user.click(await screen.findByText("Security"));
+
+    await waitFor(() => expect(onRunsStarted).toHaveBeenCalledWith(["run-9"]));
+    expect(api.requests("POST", "/pulls/pr1/review").map((r) => r.body)).toEqual([{ agentId: "a1" }]);
   });
 });

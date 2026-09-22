@@ -22,7 +22,7 @@ import { readFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 
 import type { ExtractedReference, ExtractedSymbol } from '../codeindex/extract.js';
-import { MAX_SIGNATURE_CHARS, SUPPORTED_EXT } from '../../modules/repo-intel/constants.js';
+import { MAX_SIGNATURE_CHARS, SUPPORTED_EXT } from '../../domain/source-scope.js';
 
 // ---------------------------------------------------------------------------
 // Public types — superset of the regex extractor's row shapes.

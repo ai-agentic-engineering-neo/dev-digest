@@ -53,6 +53,45 @@ describe('routes (no DB)', () => {
     await app.close();
   });
 
+  it('unexpected 5xx errors return a generic message (no raw e.message leak)', async () => {
+    const app = await buildApp({ config });
+    app.get('/__boom', async () => {
+      throw new Error('relation "secret_table" does not exist at postgres://u:p@db');
+    });
+    app.get('/__boom502', async () => {
+      throw Object.assign(new Error('upstream said: token=abc'), { statusCode: 502 });
+    });
+    for (const url of ['/__boom', '/__boom502']) {
+      const res = await app.inject({ method: 'GET', url });
+      expect(res.statusCode).toBeGreaterThanOrEqual(500);
+      expect(res.json()).toEqual({ error: { code: 'internal_error', message: 'Internal error' } });
+    }
+    await app.close();
+  });
+
+  it('non-AppError 4xx errors keep their status and message', async () => {
+    const app = await buildApp({ config });
+    app.get('/__conflict', async () => {
+      throw Object.assign(new Error('already exists'), { statusCode: 409 });
+    });
+    const res = await app.inject({ method: 'GET', url: '/__conflict' });
+    expect(res.statusCode).toBe(409);
+    expect(res.json().error.message).toBe('already exists');
+    await app.close();
+  });
+
+  it('POST /repos rejects a path-traversal URL at the schema (422)', async () => {
+    const app = await buildApp({ config });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/repos',
+      payload: { url: 'https://github.com/../src' },
+    });
+    expect(res.statusCode).toBe(422);
+    expect(JSON.stringify(res.json())).toContain('GitHub repository URL');
+    await app.close();
+  });
+
   it('returns 422 structured error on invalid body', async () => {
     const app = await buildApp({ config });
     const res = await app.inject({

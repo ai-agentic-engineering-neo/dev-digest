@@ -1,7 +1,9 @@
 {
   "card": {
     "noDescription": "No description",
-    "skillCount": "{count} skills"
+    "skillCount": "{count} skills",
+    "delete": "Delete agent",
+    "deleteConfirm": "Delete agent \"{name}\"? This cannot be undone."
   },
   "list": {
     "breadcrumbLab": "Skills Lab",

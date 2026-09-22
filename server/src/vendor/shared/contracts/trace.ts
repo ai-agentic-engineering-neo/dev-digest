@@ -119,3 +119,12 @@ export const RunSummary = z.object({
   blockers: z.number().int().nullable(),
 });
 export type RunSummary = z.infer<typeof RunSummary>;
+
+/** One in-flight run of a PR — GET /pulls/:id/runs/active (agent_runs where status='running'). */
+export const ActiveRun = z.object({
+  run_id: z.string(),
+  agent_id: z.string().nullable(),
+  agent_name: z.string().nullable(),
+  ran_at: z.string().nullable(),
+});
+export type ActiveRun = z.infer<typeof ActiveRun>;

@@ -1,7 +1,8 @@
 # reviewer-core — `@devdigest/reviewer-core`
 
 ## Commands (npm, not pnpm)
-- `npm test` · `npm run typecheck` (this *is* the build — the package never emits JS)
+- `npm test` · `npm run test:coverage` (CI) · `npm run lint`
+- `npm run typecheck` (this *is* the build — the package never emits JS)
 
 ## Read when
 - Changing prompt assembly, structured output or grounding → read `README.md` (pipeline, public API)

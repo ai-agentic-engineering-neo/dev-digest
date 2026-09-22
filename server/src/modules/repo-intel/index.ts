@@ -1,12 +1,9 @@
 /**
- * repo-intel module barrel.
- *
- * T1.0 exports the contract (types) + constants. T1.1 adds the facade
- * `RepoIntelService`, the thin Drizzle helpers (`RepoIntelRepository`), and
- * the Fastify routes plugin.
+ * repo-intel module barrel — the public surface other modules may use: the
+ * `RepoIntel` contract (types), the constants (job kinds, limits) and the
+ * facade class. Pipeline internals (application/, domain/, infrastructure/)
+ * stay private; consumers go through `container.repoIntel`.
  */
 export * from './types.js';
 export * from './constants.js';
-export * from './service.js';
-export * from './repository.js';
-export { default as repoIntelRoutes } from './routes.js';
+export { RepoIntelService, type ResyncRequest } from './service.js';

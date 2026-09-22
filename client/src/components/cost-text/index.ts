@@ -1,1 +1,1 @@
-export { CostText, default } from "./CostText";
+export { CostText } from "./CostText";

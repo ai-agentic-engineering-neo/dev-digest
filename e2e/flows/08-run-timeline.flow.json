@@ -1,0 +1,120 @@
+{
+  "name": "Agent runs timeline shows the seeded run tile (outcome, usage, cost, severity counters)",
+  "description": "PR #482 → Agent runs tab → the Timeline renders the seeded agent_run (server/src/db/seed.ts: General Reviewer, done, 6,214 in + 842 out tokens, $0.002135, 1 blocker) linked to the seeded review via reviews.run_id. Asserts the outcome badge (1 blocker → 'rejected'), provider/model, token + cost usage line, and the per-run severity counters with their read-only hover popover. Read-only seeded data, no model call.",
+  "steps": [
+    {
+      "cmd": [
+        "open",
+        "{BASE}/"
+      ],
+      "label": "load the app root"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "/pulls"
+      ],
+      "label": "land on the PR list"
+    },
+    {
+      "cmd": [
+        "find",
+        "text",
+        "Add rate limiting to public API endpoints",
+        "click"
+      ],
+      "label": "open the PR row"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "/pulls/482"
+      ],
+      "label": "navigate to the PR detail route"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--load",
+        "networkidle"
+      ],
+      "label": "PR detail data settles"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Agent runs"
+      ],
+      "label": "switch to the Agent runs tab"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "tab=findings"
+      ],
+      "label": "findings tab is active in the URL"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "runs & commits · newest first"
+      ],
+      "label": "the Timeline section renders (its hint; the label itself is CSS-uppercased)"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "openrouter/deepseek/deepseek-v4-flash"
+      ],
+      "label": "run tile shows the run's provider/model"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "rejected"
+      ],
+      "label": "outcome badge: a run with a blocker reads 'rejected'"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "7,056 tok"
+      ],
+      "label": "usage line: tokens in + out"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "$0.0021"
+      ],
+      "label": "usage line: the run's cost"
+    },
+    {
+      "cmd": [
+        "hover",
+        "[aria-label='1 critical, 1 warning']"
+      ],
+      "label": "hover the run tile's severity counters"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--fn",
+        "document.body.innerText.toLowerCase().includes('2 findings in this run')"
+      ],
+      "label": "read-only popover opens with the run's finding count (its title is CSS-uppercased, so compare case-insensitively)"
+    }
+  ]
+}

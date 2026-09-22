@@ -15,20 +15,31 @@ the Phantom-API gate (L06) — by calling `repoIntel.*`, not by re-indexing.
 
 ```mermaid
 flowchart LR
-  CLONE["git clone / fetch"] --> WALK["walk.ts<br/>discover source files"]
+  CLONE["git clone / fetch"] --> WALK["infrastructure/walk.ts<br/>discover source files"]
   WALK --> AST["ast-grep adapter<br/>symbols + references"]
   AST --> EDGES["import graph<br/>(dependency-cruiser)"]
-  EDGES --> RANK["rank.ts<br/>PageRank + git hotness → file rank"]
-  RANK --> MAP["repo-map.ts<br/>compact repo skeleton (cached)"]
+  EDGES --> RANK["domain/rank.ts<br/>PageRank → file rank"]
+  RANK --> MAP["domain/repo-map.ts<br/>compact repo skeleton (cached)"]
   AST --> DB[("Postgres<br/>symbols · references · file_edges · file_rank · repo_map_cache")]
   EDGES --> DB
   RANK --> DB
   MAP --> DB
 ```
 
-Full vs incremental indexing lives in `pipeline/{full,incremental}.ts`; an
-unindexed or partially-indexed repo degrades gracefully (the facade returns empty
-results rather than throwing).
+Full vs incremental indexing lives in `application/{full-index,incremental-index}.ts`;
+an unindexed or partially-indexed repo degrades gracefully (the facade returns
+empty results rather than throwing). A reindex is persisted in ONE transaction
+(`TransactionRunner` port); incremental's graph/rank/map step runs in a
+savepoint, so its failure only degrades the status to `partial`.
+
+## Layout (onion rings)
+
+| Ring | Files |
+|---|---|
+| domain | `types.ts` (the `RepoIntel` contract), `constants.ts`, `domain/model.ts` (row / read-model shapes), `domain/rank.ts`, `domain/repo-map.ts`, `domain/rules.ts` (phantom allowlist, junk paths, critical paths) |
+| application | `application/ports.ts` (reader, index writer, state writer, source analyzer, clone files, import graph, git, job queue), `full-index.ts`, `incremental-index.ts`, `parse-sources.ts`, `blast-radius.ts`, `source-queries.ts`; `service.ts` = the facade |
+| infrastructure | `infrastructure/read-repository.ts` (reads), `repository.ts` (indexer writes, extends the reader), `source-adapters.ts` (ast-grep analyzer, contained clone reads), `walk.ts` (fs walk) |
+| http / wiring | `routes.ts`; `composition.ts` builds the ports and the job handlers |
 
 ## Facade (`repoIntel.*`)
 
@@ -43,11 +54,11 @@ touch the pipeline internals:
 - `getConventionSamples(repoId)` → top-ranked files for convention extraction (L02).
 
 In the starter, only `getRepoMap` / `getFileRank` / `getCallerSignatures` are
-wired — into `modules/reviews/run-executor.ts`, which adds the repo map and a
+wired — into `modules/reviews/application/run-executor.ts`, which adds the repo map and a
 high-blast-radius note to the prompt. Toggled by `REPO_INTEL_ENABLED` (global)
 and a per-agent `repo_intel` flag.
 
 ## Routes
 
 - `GET /repos/:id/index-state` — index status (drives the **Indexed** badge).
-- `POST /repos/:id/resync` — enqueue a re-index.
+- `POST /repos/:id/resync` — enqueue a re-index (`RepoIntelService.requestResync`, 202).

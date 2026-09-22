@@ -128,9 +128,13 @@ cd ../client && pnpm install && pnpm dev               # web on :3000
 
 ## Useful scripts
 
-`server/`: `dev` · `build` · `db:migrate` · `db:seed` · `db:generate` · `test` · `typecheck`
-(unit/integration split: `pnpm exec vitest run --exclude '**/*.it.test.ts'` / `pnpm exec vitest run .it.test`)
-`client/`: `dev` · `build` · `start` · `test` · `typecheck`
+`server/`: `dev` · `build` · `db:migrate` · `db:seed` · `db:generate` · `test` (`test:unit` · `test:integration`) · `typecheck` · `lint` · `arch:check`
+`client/`: `dev` · `build` · `start` · `test` · `typecheck` · `lint`
+`reviewer-core/` · `e2e/` (npm): `test` · `typecheck` · `lint`
+
+Toolchain is pinned: `.nvmrc` (Node 22) and each `package.json`'s `engines` /
+`packageManager`. Lint is [Biome](https://biomejs.dev) (linter only, one root
+`biome.jsonc`).
 
 ## Testing & CI
 
@@ -143,6 +147,8 @@ path filter — full strategy in **[`TESTING.md`](TESTING.md)**.
 | server unit (hermetic) | `server-unit.yml` | no |
 | server integration (real Postgres) | `server-integration.yml` | yes |
 | reviewer-core (engine) | `reviewer-core.yml` | no |
+| e2e web (browser flows) | `e2e-web.yml` | yes |
+| shared-contract drift | `shared-drift.yml` | no |
 | web e2e (agent-browser, real stack) | `e2e-web.yml` | yes |
 
 Server tests split by filename: `*.it.test.ts` are DB-backed (testcontainers

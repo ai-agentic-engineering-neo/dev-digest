@@ -14,9 +14,14 @@ Reviewed monthly: stale entries are removed in a dedicated commit.
 
 ## Codebase Patterns
 <!-- conventions and architectural decisions not obvious from the code -->
+- 2026-09-22 — src/llm/usage.ts addCost is null-propagating and server UsageMeter/run-executor reuse it, so ONE unpriced attempt (model missing from server/src/adapters/llm/pricing.ts and no OpenRouter usage.cost) nulls the whole run's cost_usd → when a new model becomes selectable, add it to pricing.ts; a partial-sum flag would need a DB column (migration)
+- 2026-09-22 — test/fixtures (StubLLM + pre-parsed configDiff/twoFileDiff): the run/abort tests no longer import server/src/adapters/mocks — supersedes the earlier run.test.ts coupling note → new engine tests must use these fixtures; only @devdigest/shared contracts may come from server/ (via the vitest alias)
+- 2026-09-22 — src/prompt.ts wrapUntrusted: the escaped delimiter form '<\/untrusted>' is pinned by server/test/prompt-callers.test.ts, which reviewer-core's own suite never runs → if you change the escape format, run `cd server && npx vitest run test/prompt-callers.test.ts` too (current escape inserts a backslash after '<' so the legacy form is preserved)
+- 2026-09-22 — test/run.test.ts: imports MockLLMProvider/MockGitClient from ../../server/src/adapters/mocks.js, so the pure core's test suite depends on server/ (fails if reviewer-core is used standalone, and reviewer-core.yml does not trigger on server/src/adapters changes) → when touching those mocks, run reviewer-core tests too; target fix is local fixtures in reviewer-core/test
 
 ## Tool & Library Notes
 <!-- dependency quirks, versions, flags -->
+- 2026-09-22 — openai SDK 4.104 core.js makeRequest: it re-checks options.signal before every internal retry, but the backoff sleep between retries is NOT abortable (up to ~8s) → to bound SDK retries, pass ONE AbortSignal.any([caller, AbortSignal.timeout(budget)]) plus a per-request timeout capped at the remaining budget (see src/llm/budget.ts); don't rely on maxRetries×timeout arithmetic
 
 ## Recurring Errors & Fixes
 <!-- error message → cause → fix -->

@@ -6,7 +6,7 @@ import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/platform/config.js';
 import { seed } from '../src/db/seed.js';
 import * as t from '../src/db/schema.js';
-import { MockGitClient, MockGitHubClient } from '../src/adapters/mocks.js';
+import { MockGitClient, MockGitHubClient, MockSecretsProvider } from '../src/adapters/mocks.js';
 
 const hasDocker = await dockerAvailable();
 const d = hasDocker ? describe : describe.skip;
@@ -109,6 +109,37 @@ d('Testcontainers: DB-backed routes via app.inject', () => {
     expect(list.json().some((r: { full_name: string }) => r.full_name === 'acme/widgets')).toBe(
       true,
     );
+    await app.close();
+  });
+
+  it('POST /repos rejects a path-traversal URL (422) and never clones', async () => {
+    const config = loadConfig({ ...process.env, NODE_ENV: 'test' } as NodeJS.ProcessEnv);
+    const git = new MockGitClient();
+    const app = await buildApp({ config, db: pg.handle.db, overrides: { git } });
+    for (const url of ['https://github.com/../src', 'https://github.com/acme/..']) {
+      const res = await app.inject({ method: 'POST', url: '/repos', payload: { url } });
+      expect(res.statusCode).toBe(422);
+    }
+    await app.container.jobs.onIdle();
+    expect(git.cloned).toHaveLength(0);
+    await app.close();
+  });
+
+  it('clone job passes git a token-free URL even when a GitHub PAT is stored', async () => {
+    const config = loadConfig({ ...process.env, NODE_ENV: 'test' } as NodeJS.ProcessEnv);
+    const git = new MockGitClient();
+    const secrets = new MockSecretsProvider({ GITHUB_TOKEN: 'ghp_never_in_url' });
+    const app = await buildApp({ config, db: pg.handle.db, overrides: { git, secrets } });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/repos',
+      payload: { url: 'https://github.com/acme/private-thing' },
+    });
+    expect(res.statusCode).toBe(201);
+    await app.container.jobs.onIdle();
+    const cloned = git.cloned.find((c) => c.repo.name === 'private-thing');
+    expect(cloned?.url).toBe('https://github.com/acme/private-thing');
+    expect(cloned?.url).not.toContain('ghp_never_in_url');
     await app.close();
   });
 

@@ -11,21 +11,29 @@
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
-    "db:seed": "tsx src/db/seed.ts"
+    "db:seed": "tsx src/db/seed.ts",
+    "lint": "biome lint --error-on-warnings .",
+    "test:unit": "vitest run --exclude '**/*.it.test.ts'",
+    "test:integration": "vitest run .it.test",
+    "arch:check": "depcruise src ../reviewer-core/src --config .dependency-cruiser.cjs --ignore-known"
   },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@10.34.5",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.33.1",
+    "@anthropic-ai/sdk": "^0.127.0",
     "@ast-grep/napi": "0.43.0",
-    "@fastify/autoload": "^6.0.3",
-    "@fastify/cors": "^10.0.2",
-    "@fastify/helmet": "^13.0.2",
-    "@fastify/rate-limit": "^11.0.0",
+    "@fastify/autoload": "^6.5.0",
+    "@fastify/cors": "^10.1.0",
+    "@fastify/helmet": "^13.1.1",
+    "@fastify/rate-limit": "^11.2.0",
     "@vscode/ripgrep": "^1.15.9",
-    "dependency-cruiser": "^17.4.3",
+    "close-with-grace": "^2.5.0",
     "dotenv": "^16.4.7",
-    "drizzle-orm": "^0.38.3",
-    "fastify": "^5.2.0",
-    "fastify-sse-v2": "^4.2.1",
+    "drizzle-orm": "^0.45.3",
+    "fastify": "^5.12.5",
+    "fastify-sse-v2": "^4.2.2",
     "fastify-type-provider-zod": "^4.0.2",
     "graphology": "^0.26.0",
     "graphology-metrics": "^2.4.0",
@@ -34,17 +42,30 @@
     "openai": "^4.77.0",
     "p-queue": "^8.0.1",
     "postgres": "^3.4.5",
-    "simple-git": "^3.27.0",
+    "simple-git": "^3.36.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.14",
     "@testcontainers/postgresql": "^10.16.0",
     "@types/node": "^22.10.0",
-    "drizzle-kit": "^0.30.1",
+    "dependency-cruiser": "^17.4.3",
+    "drizzle-kit": "^0.31.11",
     "pino-pretty": "^13.0.0",
     "testcontainers": "^10.16.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
-    "vitest": "^2.1.8"
+    "vitest": "^3.2.7"
+  },
+  "pnpm": {
+    "overrides": {
+      "fast-uri@3": "^3.1.6",
+      "find-my-way@9": "^9.7.0",
+      "form-data@4": "^4.0.6",
+      "brace-expansion@2": "^2.1.4",
+      "nanoid@3": "^3.3.18",
+      "postcss@8": "^8.5.23",
+      "vite": "^6.4.3"
+    }
   }
 }

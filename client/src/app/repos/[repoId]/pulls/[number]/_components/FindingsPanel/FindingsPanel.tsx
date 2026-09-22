@@ -8,9 +8,9 @@ import { useTranslations } from "next-intl";
 import { Toggle, EmptyState, Chip, SEV } from "@devdigest/ui";
 import type { FindingRecord, Severity } from "@devdigest/shared";
 import { FindingCard } from "../FindingCard";
-import { useFindingAction } from "../../../../../../../lib/hooks/reviews";
+import { useFindingAction } from "@/lib/hooks/reviews";
 import { KEY_TO_ACTION, SEVERITY_LEVELS } from "./constants";
-import { filterBySeverity, severityCounts, visibleFindings } from "./helpers";
+import { filterBySeverity, isEditableTarget, severityCounts, visibleFindings } from "./helpers";
 import { SeverityCounts } from "./SeverityCounts";
 import { s } from "./styles";
 
@@ -19,14 +19,21 @@ export function FindingsPanel({
   prId,
   repoFullName,
   headSha,
+  active = true,
+  onActivate,
 }: {
   findings: FindingRecord[];
   prId: string;
   repoFullName?: string | null;
   headSha?: string | null;
+  /** Only the active panel handles j/k/a/d — several panels can be open at once. */
+  active?: boolean;
+  /** Called when the user interacts with this panel, so the parent can make it active. */
+  onActivate?: () => void;
 }) {
   const t = useTranslations("prReview");
-  const action = useFindingAction();
+  const action = useFindingAction(prId);
+  const { mutate } = action;
   const [hideLow, setHideLow] = React.useState(false);
   const [sevFilter, setSevFilter] = React.useState<Severity | null>(null);
   const [focusIdx, setFocusIdx] = React.useState(0);
@@ -42,23 +49,27 @@ export function FindingsPanel({
     setFocusIdx(0);
   };
 
-  // j/k navigation + a/d shortcuts on the focused finding (keyboard).
+  // Clamp during render: the filtered list can shrink below the focused index.
+  const lastIdx = Math.max(shown.length - 1, 0);
+  const focused = Math.min(focusIdx, lastIdx);
+
+  // j/k navigation + a/d shortcuts on the focused finding (keyboard), active panel only.
   React.useEffect(() => {
+    if (!active) return;
     const handler = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
-      if (e.key === "j") setFocusIdx((i) => Math.min(i + 1, shown.length - 1));
-      else if (e.key === "k") setFocusIdx((i) => Math.max(i - 1, 0));
-      else if (KEY_TO_ACTION[e.key] && shown[focusIdx]) {
-        action.mutate({ findingId: shown[focusIdx]!.id, action: KEY_TO_ACTION[e.key]!, prId });
+      if (e.metaKey || e.ctrlKey || e.altKey || isEditableTarget(e.target)) return;
+      if (e.key === "j") setFocusIdx(Math.min(focused + 1, lastIdx));
+      else if (e.key === "k") setFocusIdx(Math.max(focused - 1, 0));
+      else if (KEY_TO_ACTION[e.key] && shown[focused]) {
+        mutate({ findingId: shown[focused]!.id, action: KEY_TO_ACTION[e.key]! });
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [shown, focusIdx, action, prId]);
+  }, [active, shown, focused, lastIdx, mutate]);
 
   return (
-    <div>
+    <div onPointerDownCapture={active ? undefined : onActivate} onFocusCapture={active ? undefined : onActivate}>
       <SeverityCounts counts={counts} active={sevFilter} onToggle={toggleSeverity} />
       <div style={s.toolbar}>
         <span style={s.filterLabel}>{t("panel.filterBy")}</span>
@@ -87,12 +98,12 @@ export function FindingsPanel({
             <FindingCard
               key={f.id}
               f={f}
-              focused={i === focusIdx}
+              focused={active && i === focused}
               defaultExpanded={i === 0}
               pending={action.isPending}
               repoFullName={repoFullName}
               headSha={headSha}
-              onAction={(act) => action.mutate({ findingId: f.id, action: act, prId })}
+              onAction={(act) => mutate({ findingId: f.id, action: act })}
             />
           ))
         )}

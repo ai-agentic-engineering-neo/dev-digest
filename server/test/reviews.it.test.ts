@@ -12,7 +12,8 @@ import type { LLMProvider, Review, StructuredResult } from '@devdigest/shared';
 const hasDocker = await dockerAvailable();
 const d = hasDocker ? describe : describe.skip;
 
-const config = () => loadConfig({ ...process.env, NODE_ENV: 'test' } as NodeJS.ProcessEnv);
+const config = (env: Record<string, string> = {}) =>
+  loadConfig({ ...process.env, NODE_ENV: 'test', ...env } as NodeJS.ProcessEnv);
 
 /**
  * A unified diff touching src/config.ts (line 11 added) so grounding can keep a
@@ -122,10 +123,10 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
   function appWith(
     structured: unknown,
     provider: 'openai' | 'anthropic' = 'openai',
-    opts: { llm?: LLMProvider; failStructuredFromCall?: number; diff?: string } = {},
+    opts: { llm?: LLMProvider; failStructuredFromCall?: number; diff?: string; env?: Record<string, string> } = {},
   ) {
     return buildApp({
-      config: config(),
+      config: config(opts.env),
       db: pg.handle.db,
       overrides: {
         embedder: new MockEmbedder(),
@@ -307,6 +308,38 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     await app.close();
   });
 
+  it('response schemas: every contract field reaches the client', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const agent = await createAgent(app);
+    const started = await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } });
+    expect(started.statusCode).toBe(200);
+    expect(Object.keys(started.json()).sort()).toEqual(['pr_id', 'reviews', 'runs']);
+    const runId = started.json().runs[0].run_id;
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+
+    const active = await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs/active` });
+    expect(active.statusCode).toBe(200);
+    expect(active.json()).toEqual([]);
+
+    const [review] = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/reviews` })).json();
+    expect(review).toMatchObject({ run_id: runId, agent_name: expect.any(String), tokens_in: 100, cost_usd: expect.any(Number) });
+    expect(Object.keys(review.findings[0])).toEqual(
+      expect.arrayContaining(['id', 'severity', 'file', 'start_line', 'review_id', 'accepted_at', 'dismissed_at']),
+    );
+
+    const [summary] = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(summary).toMatchObject({ run_id: runId, status: 'done', score: expect.any(Number), blockers: 1 });
+
+    const del = await app.inject({ method: 'DELETE', url: `/reviews/${review.id}` });
+    expect(del.statusCode).toBe(200);
+    expect(del.json()).toEqual({ ok: true });
+    const again = await app.inject({ method: 'DELETE', url: `/reviews/${review.id}` });
+    expect(again.statusCode).toBe(404);
+    expect(again.json().error.code).toBe('not_found');
+    await app.close();
+  });
+
   it('SSE: /runs/:id/events streams events and completes', async () => {
     const app = await appWith(REVIEW_FIXTURE);
     const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
@@ -361,7 +394,8 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
       const inner = new MockLLMProvider('openai', { structured: REVIEW_FIXTURE });
       let calls = 0;
       // Chunk 1 spends tokens, then the user cancels; the engine stops at the
-      // checkpoint before chunk 2.
+      // checkpoint before chunk 2 (concurrency pinned to 1 so chunk 2 is not
+      // already in flight — the parallel case is covered in run-cancel.it).
       const cancelling: LLMProvider = {
         id: 'openai',
         listModels: () => inner.listModels(),
@@ -379,7 +413,11 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
           return res;
         },
       };
-      app = await appWith(REVIEW_FIXTURE, 'openai', { llm: cancelling, diff: DIFF_TWO_FILES });
+      app = await appWith(REVIEW_FIXTURE, 'openai', {
+        llm: cancelling,
+        diff: DIFF_TWO_FILES,
+        env: { REVIEW_MAP_CONCURRENCY: '1' },
+      });
       const agent = await createAgent(app, { strategy: 'map-reduce' });
       const body = (
         await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } })

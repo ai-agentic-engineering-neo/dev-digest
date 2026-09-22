@@ -15,9 +15,8 @@ import { describe, it, expect } from 'vitest';
 import { RepoIntelService } from '../src/modules/repo-intel/service.js';
 import { MockGitClient } from '../src/adapters/mocks.js';
 import { INDEXER_VERSION } from '../src/modules/repo-intel/constants.js';
-import type { RepoIntelRepository } from '../src/modules/repo-intel/repository.js';
+import type { RepoIntelDeps } from '../src/modules/repo-intel/application/ports.js';
 import type { IndexState } from '../src/modules/repo-intel/types.js';
-import type { Container } from '../src/platform/container.js';
 
 interface Basics {
   id: string;
@@ -27,29 +26,32 @@ interface Basics {
   clonePath: string | null;
 }
 
-/** Build a service with a stubbed repository (no DB) + a MockGitClient. */
+/** Build a service over in-memory port fakes (no DB) + a MockGitClient. */
 function makeService(opts: { basics: Basics | null; state?: IndexState | null; git: MockGitClient }) {
   let state = opts.state ?? null;
   const touched = { n: 0 };
-  const repo = {
-    getRepoBasics: async () => opts.basics,
-    tryGetIndexState: async () => state,
-    touchIndexState: async () => {
-      touched.n += 1;
-      if (state) state = { ...state, updatedAt: new Date() };
+  const noop = async () => {};
+  const deps = {
+    enabled: true,
+    reader: {
+      getRepoBasics: async () => opts.basics,
+      tryGetIndexState: async () => state,
     },
-  } as unknown as RepoIntelRepository;
-
-  const container = {
+    state: {
+      upsertIndexState: noop,
+      advanceSha: noop,
+      touchIndexState: async () => {
+        touched.n += 1;
+        if (state) state = { ...state, updatedAt: new Date() };
+      },
+    },
+    tx: { run: async () => { throw new Error('no reindex expected'); } },
     git: opts.git,
-    db: {}, // never queried — service.repo is overridden below
-    depgraph: { buildEdges: async () => [] },
+    graph: { buildEdges: async () => [] },
     tokenizer: { count: (text: string) => Math.ceil(text.length / 4) },
-  } as unknown as Container;
+  } as unknown as RepoIntelDeps;
 
-  const service = new RepoIntelService(container);
-  (service as unknown as { repo: RepoIntelRepository }).repo = repo;
-  return { service, touched };
+  return { service: new RepoIntelService(deps), touched };
 }
 
 function stateAt(sha: string): IndexState {

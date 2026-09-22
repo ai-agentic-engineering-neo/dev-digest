@@ -8,7 +8,7 @@ import { Badge } from "@devdigest/ui";
 import type { RunTrace, FindingRecord } from "@devdigest/shared";
 import { PROMPT_COLORS } from "../../constants";
 import { formatTokens, formatUsd } from "@/lib/format-usage";
-import { formatSeconds } from "../../helpers";
+import { formatSeconds, toolCallKeys } from "../../helpers";
 import { s } from "../../styles";
 import { TraceSection } from "../TraceSection";
 import { ToolCallRow } from "../ToolCallRow";
@@ -19,6 +19,7 @@ import { Row, Stat } from "../atoms";
 export function TraceBody({ trace, findings }: { trace: RunTrace; findings: FindingRecord[] }) {
   const t = useTranslations("runs");
   const stats = trace.stats;
+  const toolKeys = toolCallKeys(trace.tool_calls);
   return (
     <>
       <TraceSection icon="Settings" title={t("trace.configuration")}>
@@ -41,8 +42,8 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
               {trace.specs_read.length === 0 ? (
                 <span style={s.specsNone}>{t("trace.config.none")}</span>
               ) : (
-                trace.specs_read.map((sp, i) => (
-                  <span key={i} className="mono" style={s.spec}>
+                trace.specs_read.map((sp) => (
+                  <span key={sp} className="mono" style={s.spec}>
                     {sp}
                   </span>
                 ))
@@ -99,7 +100,7 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
         {trace.tool_calls.length === 0 ? (
           <span style={s.noToolCalls}>{t("trace.noToolCalls")}</span>
         ) : (
-          trace.tool_calls.map((tc, i) => <ToolCallRow key={i} tc={tc} />)
+          trace.tool_calls.map((tc, i) => <ToolCallRow key={toolKeys[i]} tc={tc} />)
         )}
       </TraceSection>
 

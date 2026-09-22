@@ -54,19 +54,63 @@ export function reduceReviews(partials: Review[]): Review {
   return { verdict, score, summary, findings };
 }
 
-/** Extract the slice of the unified diff for a single file (for map chunks). */
+/**
+ * Parse the two paths of a `diff --git a/X b/Y` header. Handles git's quoted
+ * form (`"a/my dir/f.ts" "b/my dir/f.ts"`, used for spaces/special chars;
+ * only `\"` and `\\` escapes are decoded). For unquoted paths containing
+ * spaces the split is ambiguous; we pick the split where both sides are equal
+ * (the non-rename case) and otherwise the first ` b/`.
+ */
+function parseDiffGitHeader(line: string): { a: string; b: string } | null {
+  const rest = line.slice('diff --git '.length);
+  const quoted = rest.match(/^"((?:[^"\\]|\\.)*)"\s+"((?:[^"\\]|\\.)*)"$/);
+  const unq = (s: string) => s.replace(/\\(["\\])/g, '$1');
+  let a: string;
+  let b: string;
+  if (quoted) {
+    a = unq(quoted[1]!);
+    b = unq(quoted[2]!);
+  } else {
+    const half = (rest.length - 1) / 2;
+    if (Number.isInteger(half) && rest[half] === ' ' && rest.slice(2, half) === rest.slice(half + 3)) {
+      a = rest.slice(0, half);
+      b = rest.slice(half + 1);
+    } else {
+      const sep = rest.indexOf(' b/');
+      if (sep < 0) return null;
+      a = rest.slice(0, sep);
+      b = rest.slice(sep + 1);
+    }
+  }
+  if (!a.startsWith('a/') || !b.startsWith('b/')) return null;
+  return { a: a.slice(2), b: b.slice(2) };
+}
+
+/**
+ * Extract the slice of the unified diff for a single file (for map chunks).
+ * Matches the `diff --git` header path exactly (new `b/` path first, old `a/`
+ * path as a fallback for renames/deletions) — never by substring, so
+ * `src/a.ts` does not also capture `src/a.tsx`.
+ */
 export function sliceDiff(diff: UnifiedDiff, path: string): string {
   const lines = diff.raw.split('\n');
-  const out: string[] = [];
-  let capture = false;
-  for (const line of lines) {
-    if (line.startsWith('diff --git'))
-      capture = line.includes(`b/${path}`) || line.includes(` ${path}`);
-    if (capture) out.push(line);
+  const sections: { a: string; b: string; start: number; end: number }[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+    if (!line.startsWith('diff --git ')) continue;
+    const last = sections[sections.length - 1];
+    if (last) last.end = i;
+    const parsed = parseDiffGitHeader(line) ?? { a: '', b: '' };
+    sections.push({ ...parsed, start: i, end: lines.length });
   }
-  if (out.length > 0) return out.join('\n');
-  // fallback: synthesize from the file's hunks
+  const hit = sections.find((s) => s.b === path) ?? sections.find((s) => s.a === path);
+  if (hit) return lines.slice(hit.start, hit.end).join('\n');
+
+  // fallback: rebuild hunk headers from the parsed file (raw body unavailable)
   const f = diff.files.find((x) => x.path === path);
   if (!f) return diff.raw;
-  return `diff --git a/${path} b/${path}\n--- a/${path}\n+++ b/${path}`;
+  const hunks = f.hunks.map(
+    (h) => `@@ -${h.oldStart},${h.oldLines} +${h.newStart},${h.newLines} @@`,
+  );
+  return [`diff --git a/${path} b/${path}`, `--- a/${path}`, `+++ b/${path}`, ...hunks].join('\n');
 }

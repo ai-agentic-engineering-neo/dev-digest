@@ -1,5 +1,5 @@
 # Client suite — Next.js web app (@devdigest/web).
-# Typecheck + component/unit tests (vitest + jsdom). Hermetic: no API, no DB,
+# Typecheck + Biome lint + component/unit tests (vitest + jsdom). Hermetic: no API, no DB,
 # no browser — fetch is mocked in the tests. The full-stack browser flow lives
 # in e2e-web.yml.
 name: client
@@ -9,10 +9,14 @@ on:
     branches: [main]
     paths:
       - 'client/**'
+      - 'biome.jsonc'
+      - '.nvmrc'
       - '.github/workflows/client.yml'
   pull_request:
     paths:
       - 'client/**'
+      - 'biome.jsonc'
+      - '.nvmrc'
       - '.github/workflows/client.yml'
 
 permissions:
@@ -30,20 +34,22 @@ jobs:
       run:
         working-directory: client
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
         with:
-          version: 10
+          package_json_file: client/package.json
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: pnpm
           cache-dependency-path: client/pnpm-lock.yaml
 
       - run: pnpm install --frozen-lockfile
 
       - run: pnpm typecheck
+
+      - run: pnpm lint
 
       - run: pnpm test

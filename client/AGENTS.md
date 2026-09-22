@@ -1,7 +1,7 @@
 # client — `@devdigest/web`
 
 ## Commands (pnpm)
-- `pnpm dev` (:3000, needs API on :3001) · `pnpm test` (vitest + jsdom) · `pnpm typecheck`
+- `pnpm dev` (:3000, needs API on :3001) · `pnpm test` (vitest + jsdom) · `pnpm typecheck` · `pnpm lint`
 
 ## Read when
 - Adding a page or wiring a screen to the API → read `README.md` (UI route map)
@@ -19,8 +19,13 @@
 - Component tests mock `fetch`; they never need the API or a browser.
 
 ## Gotchas
-- `src/vendor/shared` is a copy of the server's contracts and has drifted —
-  a contract change must land in `../server/src/vendor/shared` too.
+- `src/vendor/shared` is a byte-identical copy of `../server/src/vendor/shared`
+  (the source of truth). Change contracts on the server side, copy them over and
+  run `../scripts/check-shared-drift.sh` (non-zero exit on any drift).
+- Runtime values (schemas) may be imported from
+  `@devdigest/shared`: `next.config.mjs` maps its `./x.js` specifiers to `.ts`.
+  The barrel pulls zod into the route; take `FEATURE_MODELS` from the zod-free
+  `@devdigest/shared/constants/feature-models`.
 - API base comes from `NEXT_PUBLIC_API_BASE` (default `http://localhost:3001`).
 
 ## Do not touch

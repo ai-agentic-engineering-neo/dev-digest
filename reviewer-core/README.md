@@ -42,9 +42,23 @@ Exported from `src/index.ts`: `assemblePrompt` / `wrapUntrusted` (prompt),
 `reduce`. Contracts (`Review`, `Finding`, `Verdict`, …) come from
 `@devdigest/shared`.
 
+Robustness knobs (all optional, sane defaults):
+- `reviewPullRequest`: `concurrency` (map chunks in flight, default 3, result
+  order stays deterministic), `maxDiffChars` (per-chunk cap, default 200k — an
+  oversize chunk is split by hunks, a single oversize hunk is truncated with an
+  in-prompt note; both emit a `warning:` info event), `temperature` (default 0,
+  `null` = provider default).
+- `OpenRouterProvider`: `totalTimeoutMs` (one wall-clock budget per
+  `completeStructured` shared by SDK retries AND schema reprompts, default 180s;
+  the caller `signal` aborts it too), `listModelsTimeoutMs`, `onWarning`.
+  Reasoning models (o-series, gpt-5*, deepseek-r1/reasoner) never get
+  `temperature`. A response without `usage` is estimated (~4 chars/token) and
+  warned about instead of booked as 0 tokens.
+
 ## Testing
 
-`npm test` (vitest) — hermetic units with a stubbed `LLMProvider`: prompt
-assembly, the grounding gate, `toReview` selection, and a full `run`. No keys,
-no network. `npm run typecheck` doubles as the build. See
+`npm test` (vitest) — hermetic units with a stubbed `LLMProvider`
+(`test/fixtures/`: `StubLLM` + pre-parsed diffs — tests never import server
+code): prompt assembly, the grounding gate, `toReview` selection, and a full
+`run`. No keys, no network. `npm run test:coverage` enforces v8 thresholds. `npm run typecheck` doubles as the build. See
 [`../TESTING.md`](../TESTING.md).

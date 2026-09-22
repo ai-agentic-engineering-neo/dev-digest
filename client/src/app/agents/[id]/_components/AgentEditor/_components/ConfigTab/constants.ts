@@ -8,6 +8,3 @@ export const STRATEGY_VALUES: readonly ReviewStrategy[] = ["single-pass", "map-r
 
 /** CI gate policy options — when a CI review blocks/fails (labels i18n'd). */
 export const CI_FAIL_ON_VALUES: readonly CiFailOn[] = ["never", "critical", "warning", "any"];
-
-/** Output-schema options (only one supported in MVP). */
-export const OUTPUT_SCHEMA_VALUE = "Standard findings JSON";

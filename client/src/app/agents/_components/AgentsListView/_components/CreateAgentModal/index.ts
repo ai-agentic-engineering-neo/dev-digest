@@ -1,1 +1,1 @@
-export { CreateAgentModal, CreateAgentModal as default } from "./CreateAgentModal";
+export { CreateAgentModal } from "./CreateAgentModal";

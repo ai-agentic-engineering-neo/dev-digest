@@ -4,6 +4,7 @@
 "use client";
 
 import React from "react";
+import { useTranslations } from "next-intl";
 
 type ToastKind = "success" | "error" | "info";
 interface Toast {
@@ -45,6 +46,7 @@ const COLORS: Record<ToastKind, { bg: string; border: string; icon: string }> = 
 };
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
+  const tc = useTranslations("common");
   const [items, setItems] = React.useState<Toast[]>([]);
   const seq = React.useRef(1);
 
@@ -114,7 +116,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               <button
                 onClick={() => setItems((prev) => prev.filter((x) => x.id !== t.id))}
                 style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", fontSize: 16 }}
-                aria-label="Dismiss"
+                aria-label={tc("actions.dismiss")}
               >
                 ×
               </button>

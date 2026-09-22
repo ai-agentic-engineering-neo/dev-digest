@@ -1,1 +1,1 @@
-export { ConfigTab, ConfigTab as default } from "./ConfigTab";
+export { ConfigTab } from "./ConfigTab";

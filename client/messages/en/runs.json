@@ -58,7 +58,8 @@
     "tools": {
       "args": "args",
       "result": "result",
-      "previewTruncated": "(preview truncated)"
+      "previewTruncated": "(preview truncated)",
+      "ms": "{ms}ms"
     }
   },
   "drawer": {
@@ -68,10 +69,14 @@
     "running": "running",
     "completed": "completed",
     "copyRawOutput": "Copy raw output",
-  "copied": "Copied!",
+    "copied": "Copied!",
     "tracePending": "Trace is written when the run completes — see the Live log tab.",
     "loadingTrace": "Loading trace…",
-    "noTrace": "No trace available yet."
+    "noTrace": "No trace available yet.",
+    "tabs": {
+      "trace": "trace",
+      "log": "log"
+    }
   },
   "stats": {
     "na": "n/a",

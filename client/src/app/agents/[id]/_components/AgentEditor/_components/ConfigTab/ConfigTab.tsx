@@ -123,7 +123,7 @@ export function ConfigTab({ agent }: { agent: Agent }) {
         <SelectInput value={t("config.outputSchemaOption")} options={[t("config.outputSchemaOption")]} />
       </FormField>
       <div style={s.actions}>
-        <Button kind="primary" icon="Check" onClick={save} disabled={update.isPending}>
+        <Button kind="primary" icon="Check" onClick={save} disabled={update.isPending || Object.keys(draft).length === 0}>
           {update.isPending ? t("config.saving") : t("config.save")}
         </Button>
         {update.isSuccess && (

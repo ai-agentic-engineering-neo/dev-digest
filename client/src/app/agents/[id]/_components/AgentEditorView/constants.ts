@@ -1,5 +1,5 @@
-/** Editor tabs reachable via ?tab= (Part-0 ships Config only). */
-export const VALID_TABS: readonly string[] = ["config"];
+/** Editor tabs reachable via ?tab=. */
+export const VALID_TABS: readonly string[] = ["config", "skills"];
 
 /** Tab shown when ?tab= is missing or unknown. */
 export const DEFAULT_TAB = "config";

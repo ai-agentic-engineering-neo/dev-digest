@@ -31,8 +31,10 @@ export interface AgentsStore {
   listAgentVersions(agentId: string): Promise<AgentVersion[]>;
   findAgentVersion(agentId: string, version: number): Promise<AgentVersion | undefined>;
   skillLinks(agentId: string): Promise<AgentSkillLink[]>;
-  setSkills(agentId: string, skillIds: string[]): Promise<void>;
-  linkSkill(agentId: string, skillId: string, order: number): Promise<void>;
+  /** False = agent not in the workspace; throws ValidationError('unknown_skill'). */
+  setSkills(workspaceId: string, agentId: string, skillIds: string[]): Promise<boolean>;
+  /** False = agent not in the workspace; throws ValidationError('unknown_skill'). */
+  linkSkill(workspaceId: string, agentId: string, skillId: string, order?: number): Promise<boolean>;
 }
 
 export interface AgentsServiceDeps {
@@ -115,24 +117,23 @@ export class AgentsService {
 
   /**
    * Replace the agent's linked skills with `skillIds`, in that order. Returns
-   * the resulting ordered links, or undefined when the agent isn't in the workspace.
+   * the resulting ordered links, or undefined when the agent isn't in the
+   * workspace. Unknown / foreign skill ids → 422 `unknown_skill`, links unchanged.
+   * A real change bumps the agent version (snapshot incl. skills).
    */
   async setSkills(workspaceId: string, agentId: string, skillIds: string[]): Promise<AgentSkillLink[] | undefined> {
-    if (!(await this.get(workspaceId, agentId))) return undefined;
-    await this.deps.agents.setSkills(agentId, skillIds);
+    if (!(await this.deps.agents.setSkills(workspaceId, agentId, skillIds))) return undefined;
     return this.skillLinks(agentId);
   }
 
-  /** Link a single skill (append, or at `order`) — additive to existing links. */
+  /** Link a single skill at index `order` (default: append) — additive to existing links. */
   async linkSkill(
     workspaceId: string,
     agentId: string,
     skillId: string,
     order?: number,
   ): Promise<AgentSkillLink[] | undefined> {
-    if (!(await this.get(workspaceId, agentId))) return undefined;
-    const resolvedOrder = order ?? (await this.skillLinks(agentId)).length;
-    await this.deps.agents.linkSkill(agentId, skillId, resolvedOrder);
+    if (!(await this.deps.agents.linkSkill(workspaceId, agentId, skillId, order))) return undefined;
     return this.skillLinks(agentId);
   }
 

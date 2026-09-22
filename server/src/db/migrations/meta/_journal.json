@@ -85,6 +85,13 @@
       "when": 1790077537140,
       "tag": "0011_integrity_indexes_checks",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1790089583346,
+      "tag": "0012_skills",
+      "breakpoints": true
     }
   ]
 }

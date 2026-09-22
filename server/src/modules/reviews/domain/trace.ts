@@ -1,7 +1,7 @@
 /**
  * Pure builders of the single-document RunTrace persisted per run.
  */
-import type { PromptAssembly, RunLogLine, RunTrace } from '@devdigest/shared';
+import type { PromptAssembly, RunLogLine, RunTrace, SkillUsed } from '@devdigest/shared';
 import { NO_GROUNDING } from './constants.js';
 import type { ReviewAgent } from './types.js';
 
@@ -37,6 +37,8 @@ export function completedRunTrace(input: {
   mode: string;
   raw: string;
   log: RunLogLine[];
+  /** Skills in the prompt (id, name, exact version), in order. */
+  skillsUsed?: SkillUsed[];
 }): RunTrace {
   const { agent, durationMs, usage, chunks } = input;
   return {
@@ -60,6 +62,7 @@ export function completedRunTrace(input: {
     memory_pulled: [],
     specs_read: [],
     log: input.log,
+    skills_used: input.skillsUsed ?? [],
   };
 }
 
@@ -74,6 +77,7 @@ export function endedRunTrace(input: {
   log: RunLogLine[];
   durationMs?: number;
   usage?: TraceUsage;
+  skillsUsed?: SkillUsed[];
 }): RunTrace {
   const usage = input.usage ?? { tokensIn: 0, tokensOut: 0, costUsd: 0 };
   return {
@@ -92,5 +96,6 @@ export function endedRunTrace(input: {
     memory_pulled: [],
     specs_read: [],
     log: input.log,
+    skills_used: input.skillsUsed ?? [],
   };
 }

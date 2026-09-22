@@ -64,6 +64,17 @@ describe("A5 Run Trace drawer (smoke)", () => {
     expect(screen.getByText("$0.011")).toBeInTheDocument();
   });
 
+  it("lists the skills that were in the prompt, with their versions", async () => {
+    renderDrawer({ ...TRACE, skills_used: [{ id: "sk1", name: "secret-leakage-gate", version: 3 }] });
+    expect(await screen.findByText("secret-leakage-gate v3")).toBeInTheDocument();
+  });
+
+  it("an old trace without skills_used has no Skills row", async () => {
+    renderDrawer();
+    expect(await screen.findByText("Configuration")).toBeInTheDocument();
+    expect(screen.queryByText("Skills")).toBeNull();
+  });
+
   it("switches to the live log tab", async () => {
     const { user } = renderDrawer();
     await user.click(screen.getByText("log"));

@@ -1,5 +1,11 @@
 import { z } from 'zod';
 import { PROVIDER_IDS } from '../constants/feature-models.js';
+import {
+  SKILL_BODY_MAX,
+  SKILL_DESCRIPTION_MAX,
+  SKILL_NAME_MAX,
+  SKILL_NAME_RE,
+} from '../constants/skills.js';
 
 /**
  * Conformance, Onboarding, Eval, Memory, Conventions, Skills,
@@ -113,11 +119,28 @@ export const MemoryItem = z.object({
 export type MemoryItem = z.infer<typeof MemoryItem>;
 
 // ---- Skills ----
+// A skill is text only: `name` + `description` + `body` reach the model (the
+// description is the skill's interface — a directive saying WHEN it applies);
+// `type`/`source` are metadata. See server/specs/03-skills.md.
+export { SKILL_BODY_MAX, SKILL_DESCRIPTION_MAX, SKILL_NAME_MAX, SKILL_NAME_RE };
+
 export const SkillType = z.enum(['rubric', 'convention', 'security', 'custom']);
 export type SkillType = z.infer<typeof SkillType>;
 
-export const SkillSource = z.enum(['manual', 'imported_url', 'extracted', 'community']);
+// imported_file = a .md or .zip upload. Every non-manual source is created
+// DISABLED (trust gate — foreign skills are foreign instructions).
+export const SkillSource = z.enum(['manual', 'imported_file', 'imported_url', 'extracted', 'community']);
 export type SkillSource = z.infer<typeof SkillSource>;
+
+/** Sources a client may set on create ('extracted' belongs to the conventions extractor). */
+export const CreatableSkillSource = z.enum(['manual', 'imported_file', 'imported_url', 'community']);
+export type CreatableSkillSource = z.infer<typeof CreatableSkillSource>;
+
+export const SkillName = z
+  .string()
+  .min(1)
+  .max(SKILL_NAME_MAX)
+  .regex(SKILL_NAME_RE, 'Use a kebab-case slug: lowercase letters, digits and single dashes');
 
 export const Skill = z.object({
   id: z.string(),
@@ -125,21 +148,140 @@ export const Skill = z.object({
   description: z.string(),
   type: SkillType,
   source: SkillSource,
+  /** Provenance: file name, URL or `community:<id>`; null for manual skills. */
+  source_ref: z.string().nullish(),
   body: z.string(),
   enabled: z.boolean(),
+  /** Current version (bumped by a body/description change). */
   version: z.number().int(),
   evidence_files: z.array(z.string()).nullish(),
+  created_at: z.string().nullish(),
+  updated_at: z.string().nullish(),
+  /** Number of agents linking this skill. */
+  used_by: z.number().int().nullish(),
 });
 export type Skill = z.infer<typeof Skill>;
 
+/** Body for POST /skills. Non-manual sources are always stored enabled=false. */
+export const CreateSkillInput = z.object({
+  name: SkillName,
+  description: z.string().max(SKILL_DESCRIPTION_MAX).optional(),
+  type: SkillType,
+  body: z.string().min(1).max(SKILL_BODY_MAX),
+  enabled: z.boolean().optional(),
+  source: CreatableSkillSource.optional(),
+  source_ref: z.string().max(500).optional(),
+});
+export type CreateSkillInput = z.infer<typeof CreateSkillInput>;
+
+/** Body for PUT /skills/:id — partial; `base_version` enables optimistic concurrency. */
+export const UpdateSkillInput = z.object({
+  name: SkillName.optional(),
+  description: z.string().max(SKILL_DESCRIPTION_MAX).optional(),
+  type: SkillType.optional(),
+  body: z.string().min(1).max(SKILL_BODY_MAX).optional(),
+  enabled: z.boolean().optional(),
+  base_version: z.number().int().positive().optional(),
+});
+export type UpdateSkillInput = z.infer<typeof UpdateSkillInput>;
+
+/** Immutable snapshot of a skill's model-facing text. */
+export const SkillVersion = z.object({
+  skill_id: z.string(),
+  version: z.number().int(),
+  body: z.string(),
+  description: z.string().nullish(),
+  message: z.string().nullish(),
+  created_at: z.string(),
+});
+export type SkillVersion = z.infer<typeof SkillVersion>;
+
+/** An agent that links a skill (Stats "Used by", delete confirm). */
+export const SkillAgentRef = z.object({
+  id: z.string(),
+  name: z.string(),
+  enabled: z.boolean(),
+});
+export type SkillAgentRef = z.infer<typeof SkillAgentRef>;
+
+/** POST /skills/import/preview — where the candidate skill comes from. */
+export const SkillImportRequest = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('file'),
+    filename: z.string().min(1).max(255),
+    content_base64: z.string().min(1),
+  }),
+  z.object({ kind: z.literal('url'), url: z.string().min(1).max(2000) }),
+  z.object({ kind: z.literal('community'), id: z.string().min(1).max(100) }),
+]);
+export type SkillImportRequest = z.infer<typeof SkillImportRequest>;
+
+export const IgnoredImportFile = z.object({
+  path: z.string(),
+  /** executable | not_markdown | reference_doc | too_large */
+  reason: z.string(),
+});
+export type IgnoredImportFile = z.infer<typeof IgnoredImportFile>;
+
+/** The extracted skill core, shown to the user BEFORE anything is saved. */
+export const SkillImportPreview = z.object({
+  name: z.string(),
+  description: z.string(),
+  type: SkillType,
+  body: z.string(),
+  source: CreatableSkillSource,
+  source_ref: z.string(),
+  included_files: z.array(z.string()),
+  ignored_files: z.array(IgnoredImportFile),
+  /** What the sanitizer removed or changed (hidden comments, control chars, …). */
+  warnings: z.array(z.string()),
+});
+export type SkillImportPreview = z.infer<typeof SkillImportPreview>;
+
 export const CommunitySkill = z.object({
+  id: z.string(),
   name: z.string(),
   repo: z.string(),
   stars: z.number().int(),
   lang: z.string(),
   desc: z.string(),
+  type: SkillType,
+  tags: z.array(z.string()),
 });
 export type CommunitySkill = z.infer<typeof CommunitySkill>;
+
+export const CountBy = z.object({ key: z.string(), count: z.number().int() });
+export type CountBy = z.infer<typeof CountBy>;
+
+/** Per-skill usage over a window (findings attributed via Finding.skill). */
+export const SkillStats = z.object({
+  skill_id: z.string(),
+  window_days: z.number().int(),
+  /** Runs where the skill was in the prompt. */
+  runs_attached: z.number().int(),
+  /** Of those, runs with ≥1 kept finding citing the skill. */
+  runs_cited: z.number().int(),
+  /** runs_cited / runs_attached; null when never attached. */
+  pull_rate: z.number().nullable(),
+  findings: z.number().int(),
+  accepted: z.number().int(),
+  dismissed: z.number().int(),
+  /** accepted / (accepted + dismissed); null when no finding was acted on. */
+  accept_rate: z.number().nullable(),
+  by_category: z.array(CountBy),
+  by_severity: z.array(CountBy),
+  used_by: z.array(SkillAgentRef),
+});
+export type SkillStats = z.infer<typeof SkillStats>;
+
+/** GET /skills/stats — the numbers on the list cards. */
+export const SkillStatsSummary = z.object({
+  skill_id: z.string(),
+  pull_rate: z.number().nullable(),
+  accept_rate: z.number().nullable(),
+  findings: z.number().int(),
+});
+export type SkillStatsSummary = z.infer<typeof SkillStatsSummary>;
 
 // ---- Conventions ----
 export const ConventionCandidate = z.object({

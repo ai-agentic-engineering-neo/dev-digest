@@ -18,7 +18,7 @@ describe('Container composition root', () => {
     expect(c.modules.reviews.service).toBe(c.modules.reviews.service);
     expect(c.repoIntel).toBe(c.modules.repoIntel.service);
     expect(Object.keys(c.modules).sort()).toEqual(
-      ['agents', 'polling', 'pulls', 'repoIntel', 'repos', 'reviews', 'settings', 'workspace'],
+      ['agents', 'polling', 'pulls', 'repoIntel', 'repos', 'reviews', 'settings', 'skills', 'workspace'],
     );
   });
 

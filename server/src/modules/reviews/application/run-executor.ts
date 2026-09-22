@@ -1,15 +1,26 @@
 import type { UnifiedDiff } from '@devdigest/shared';
-import { reviewPullRequest, countBlockers, type ReviewOutcome } from '@devdigest/reviewer-core';
+import { reviewPullRequest, countBlockers, estimateTokens, type ReviewOutcome } from '@devdigest/reviewer-core';
 import { RunLogger } from '../../../platform/run-logger.js';
+import { renderSkillBlock } from '../../skills/index.js';
 import type { RunBus } from '../../../platform/sse.js';
 import { NO_GROUNDING, REVIEW_STRATEGY } from '../domain/constants.js';
 import { taskLine } from '../domain/prompt.js';
 import { RunCancelledError, runEnding } from '../domain/run.js';
+import { skillIdsByName, skillsLogLine, skillsUsed } from '../domain/skills.js';
 import { completedRunTrace, endedRunTrace } from '../domain/trace.js';
-import type { ReviewAgent, ReviewPull, ReviewRepo } from '../domain/types.js';
+import type { ReviewAgent, ReviewPull, ReviewRepo, ReviewSkill } from '../domain/types.js';
 import { UsageMeter } from '../domain/usage-meter.js';
 import { loadDiff } from './diff-loader.js';
-import type { Clock, DiffSource, LlmResolver, Logger, RepoContext, ReviewStore, ReviewTx } from './ports.js';
+import type {
+  AgentSkillsReader,
+  Clock,
+  DiffSource,
+  LlmResolver,
+  Logger,
+  RepoContext,
+  ReviewStore,
+  ReviewTx,
+} from './ports.js';
 import { gatherPromptContext } from './prompt-context.js';
 
 export interface RunExecutorDeps {
@@ -20,6 +31,8 @@ export interface RunExecutorDeps {
   llm: LlmResolver;
   git: DiffSource;
   repoIntel: RepoContext;
+  /** The agent's linked + enabled skills (injected into the prompt). */
+  skills: AgentSkillsReader;
   clock: Clock;
   /** Max map-reduce chunks in flight; undefined = reviewer-core's default. */
   mapConcurrency?: number;
@@ -136,13 +149,23 @@ export class ReviewRunExecutor {
     const isCancelled = () => abort.signal.aborted || bus.isCancelled(runId);
 
     runLog.info(`Starting review with agent "${agent.name}" (${agent.provider}/${agent.model})`);
+    let skills: ReviewSkill[] = [];
     try {
-      const outcome = await this.review(pull, repo, diff, agent, runLog, usage, abort.signal, isCancelled);
+      skills = await this.attachSkills(agent, runId, runLog);
+      const outcome = await this.review(pull, repo, diff, agent, skills, runLog, usage, abort.signal, isCancelled);
       // Last in-memory checkpoint: a cancel that arrived DURING the final LLM
       // call must still win. A later one is caught by the conditional status
       // update inside the persist transaction.
       if (isCancelled()) throw new RunCancelledError();
-      const { reviewId, findings, durationMs } = await this.persist(workspaceId, pull, agent, runId, outcome, start);
+      const { reviewId, findings, durationMs } = await this.persist(
+        workspaceId,
+        pull,
+        agent,
+        runId,
+        outcome,
+        start,
+        skillIdsByName(skills),
+      );
       runLog.result(`Persisted review ${reviewId} with ${findings} finding(s)`);
       const trace = completedRunTrace({
         agent,
@@ -157,6 +180,7 @@ export class ReviewRunExecutor {
         raw: outcome.raw,
         // The run's FULL event buffer (incl. the shared diff pre-work).
         log: runLog.logFor(runId),
+        skillsUsed: skillsUsed(skills),
       });
       runLog.info('Run complete; trace persisted');
       await this.deps.reviews.saveRunTrace(runId, trace);
@@ -164,12 +188,27 @@ export class ReviewRunExecutor {
       return findings;
     } catch (err) {
       const cancelled = isCancelled();
-      await this.recordEnd(err, cancelled, runId, pull, agent, runLog, start, usage);
+      await this.recordEnd(err, cancelled, runId, pull, agent, runLog, start, usage, skills);
       // An error raised by an aborted LLM call is reported as the cancel it is.
       throw cancelled && !(err instanceof RunCancelledError) ? new RunCancelledError() : err;
     } finally {
       offCancel();
     }
+  }
+
+  /**
+   * Load the agent's linked, enabled skills (link order), record them on the
+   * run (agent_run_skills, exact versions) and log what the prompt carries.
+   */
+  private async attachSkills(agent: ReviewAgent, runId: string, runLog: RunLogger): Promise<ReviewSkill[]> {
+    const skills = await this.deps.skills.enabledForAgent(agent.id);
+    if (skills.length === 0) return skills;
+    await this.deps.reviews.recordRunSkills(runId, skills);
+    const tokens = estimateTokens(skills.map(renderSkillBlock).join('\n\n'));
+    runLog.info(skillsLogLine(skills, tokens, (agent.strategy ?? REVIEW_STRATEGY) !== 'single-pass'), {
+      skills: skillsUsed(skills),
+    });
+    return skills;
   }
 
   /** Resolve the provider, gather prompt context and run the engine. */
@@ -178,6 +217,7 @@ export class ReviewRunExecutor {
     repo: ReviewRepo,
     diff: UnifiedDiff,
     agent: ReviewAgent,
+    skills: readonly ReviewSkill[],
     runLog: RunLogger,
     usage: UsageMeter,
     signal: AbortSignal,
@@ -204,6 +244,8 @@ export class ReviewRunExecutor {
       ...(concurrency !== undefined ? { concurrency } : {}),
       ...(ctx.callers ? { callers: ctx.callers } : {}),
       ...(ctx.repoMap ? { repoMap: ctx.repoMap } : {}),
+      // Zero skills → the key is absent → the prompt is byte-identical to before.
+      ...(skills.length > 0 ? { skills: skills.map(renderSkillBlock) } : {}),
       // PR author's body — untrusted; the engine wraps + truncates it.
       ...(pull.body ? { prDescription: pull.body } : {}),
       task: taskLine(pull) + ctx.rankNote,
@@ -229,6 +271,7 @@ export class ReviewRunExecutor {
     runId: string,
     outcome: ReviewOutcome,
     start: number,
+    skillIds: ReadonlyMap<string, string>,
   ): Promise<{ reviewId: string; findings: number; durationMs: number }> {
     const kept = outcome.review.findings;
     // Deterministic blocker count (severity ≥ the agent's gate), not the model's verdict.
@@ -245,7 +288,7 @@ export class ReviewRunExecutor {
         score: outcome.review.score,
         model: agent.model,
       });
-      const findings = await reviews.insertFindings(review.id, kept);
+      const findings = await reviews.insertFindings(review.id, kept, skillIds);
       await reviews.markReviewed(pull.id, pull.headSha);
       const durationMs = this.now() - start;
       const completed = await reviews.completeAgentRunIfRunning(runId, {
@@ -277,6 +320,7 @@ export class ReviewRunExecutor {
     runLog: RunLogger,
     start: number,
     usage: UsageMeter,
+    skills: readonly ReviewSkill[],
   ): Promise<void> {
     const { status, note } = runEnding(err, cancelled);
     runLog.error(status === 'cancelled' ? 'Run cancelled by user' : `Run failed: ${note}`);
@@ -295,7 +339,14 @@ export class ReviewRunExecutor {
     await this.deps.reviews
       .saveRunTrace(
         runId,
-        endedRunTrace({ agent, prNumber: pull.number, log: this.bufferedLog(runId), durationMs, usage }),
+        endedRunTrace({
+          agent,
+          prNumber: pull.number,
+          log: this.bufferedLog(runId),
+          durationMs,
+          usage,
+          skillsUsed: skillsUsed(skills),
+        }),
       )
       .catch(() => undefined);
     this.deps.runBus.complete(runId);

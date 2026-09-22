@@ -95,3 +95,16 @@ export interface NewReview {
   score: number | null;
   model: string | null;
 }
+
+/**
+ * An enabled skill linked to the agent, as it goes into the run: rendered as a
+ * `### <name>` block under `## Skills / rules`, recorded in agent_run_skills
+ * at its exact `version`, and resolved from a finding's `skill` name.
+ */
+export interface ReviewSkill {
+  id: string;
+  name: string;
+  description: string;
+  body: string;
+  version: number;
+}

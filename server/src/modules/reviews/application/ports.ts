@@ -27,6 +27,7 @@ import type {
   RunCompletion,
   RunState,
   RunUsage,
+  ReviewSkill,
 } from '../domain/types.js';
 
 /** Minimal pino-compatible logger: (obj, msg). */
@@ -35,7 +36,8 @@ export type Logger = PinoLike;
 /** Writes of one review run that must commit together (see ReviewTx). */
 export interface ReviewWrites {
   insertReview(values: NewReview): Promise<{ id: string }>;
-  insertFindings(reviewId: string, findings: Finding[]): Promise<FindingRecord[]>;
+  /** `skillIds` resolves each finding's cited `skill` name to findings.skill_id. */
+  insertFindings(reviewId: string, findings: Finding[], skillIds?: ReadonlyMap<string, string>): Promise<FindingRecord[]>;
   /** Record the head SHA a review ran against (PR-list freshness). */
   markReviewed(prId: string, sha: string): Promise<void>;
   /** Mark a run `done` only if it is still `running`; false = a cancel won. */
@@ -57,6 +59,8 @@ export interface ReviewStore extends ReviewWrites {
   setFindingDismissed(findingId: string, at: Date): Promise<FindingRecord | undefined>;
 
   createAgentRun(values: NewAgentRun): Promise<string>;
+  /** agent_run_skills: the skills (at their exact version) in the run's prompt, in order. */
+  recordRunSkills(runId: string, skills: readonly ReviewSkill[]): Promise<void>;
   activeRunsForPull(workspaceId: string, prId: string): Promise<ActiveRun[]>;
   listRunsForPull(workspaceId: string, prId: string): Promise<RunSummary[]>;
   usageForRuns(runIds: string[]): Promise<Map<string, RunUsage>>;
@@ -79,6 +83,12 @@ export interface AgentDirectory {
   listEnabled(workspaceId: string): Promise<ReviewAgent[]>;
   getById(workspaceId: string, id: string): Promise<ReviewAgent | undefined>;
   namesByIds(workspaceId: string, ids: string[]): Promise<Map<string, string>>;
+}
+
+/** The agent's linked skills a review prompt carries. */
+export interface AgentSkillsReader {
+  /** Linked AND enabled skills, in the agent's link order. */
+  enabledForAgent(agentId: string): Promise<ReviewSkill[]>;
 }
 
 /** Repo-intel reads a review prompt is enriched with (all degrade, never throw by contract). */

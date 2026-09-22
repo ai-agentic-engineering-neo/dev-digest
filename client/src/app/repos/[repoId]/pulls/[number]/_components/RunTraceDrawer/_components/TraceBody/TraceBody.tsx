@@ -1,4 +1,5 @@
-/* TraceBody — the Trace tab content: Configuration, Stats, Findings, Prompt
+/* TraceBody — the Trace tab content: Configuration (incl. the skills in the
+   prompt, at their exact versions), Stats, Findings, Prompt
    assembly, Tool calls, and Raw output sections for one persisted RunTrace. */
 "use client";
 
@@ -50,6 +51,21 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
               )}
             </div>
           </Row>
+          {trace.skills_used != null && (
+            <Row label={t("trace.config.skills")}>
+              <div style={s.specsWrap}>
+                {trace.skills_used.length === 0 ? (
+                  <span style={s.specsNone}>{t("trace.config.none")}</span>
+                ) : (
+                  trace.skills_used.map((sk) => (
+                    <span key={sk.id} className="mono" style={s.spec}>
+                      {sk.name} v{sk.version}
+                    </span>
+                  ))
+                )}
+              </div>
+            </Row>
+          )}
         </div>
       </TraceSection>
 

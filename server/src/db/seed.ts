@@ -7,7 +7,9 @@ import {
   GENERAL_REVIEWER_PROMPT,
   SECURITY_REVIEWER_PROMPT,
   PERFORMANCE_REVIEWER_PROMPT,
+  TEST_QUALITY_REVIEWER_PROMPT,
 } from './seed-prompts.js';
+import { SEED_AGENT_SKILLS, SEED_SKILLS } from './seed-skills.js';
 
 /** Default provider/model for the built-in reviewer agents. */
 const DEFAULT_PROVIDER = 'openrouter' as const;
@@ -19,16 +21,19 @@ const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
  *
  * Seeds: default workspace + system user + membership, default settings,
  * demo repo (acme/payments-api), PR #482 with files (incl. their diff patches,
- * ./seed-diff.ts) and commits, a sample review with a few findings, the three
- * built-in agents (General + Security + Performance), all on the default
- * openrouter/deepseek-v4-flash provider+model, and the finished agent_run that
- * produced the sample review (so the Agent runs timeline has a run tile).
+ * ./seed-diff.ts) and commits, a sample review with a few findings, the four
+ * built-in agents (General + Security + Performance + Test Quality), all on the
+ * default openrouter/deepseek-v4-flash provider+model, the finished agent_run
+ * that produced the sample review (so the Agent runs timeline has a run tile),
+ * and the built-in skills (./seed-skills.ts) linked to those agents.
  *
  * The patch backfill and the run are keyed on "still missing" (patch IS NULL,
  * review.run_id IS NULL), so re-seeding an older DB adds them exactly once.
+ * Skills are keyed by name; agent links are written only for an agent with NO
+ * links yet, so re-seeding never overrides the user's choices.
  *
- * Course lessons populate the other tables (skills, conventions, memory, eval,
- * …) once their features are built — they start empty here.
+ * Course lessons populate the other tables (conventions, memory, eval, …) once
+ * their features are built — they start empty here.
  */
 
 export const DEFAULT_WORKSPACE_NAME = 'default';
@@ -217,6 +222,17 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       version: 1,
       createdBy: userId,
     },
+    {
+      workspaceId,
+      name: 'Test Quality Reviewer',
+      description: 'Checks tests for uncovered branches, missing corner cases, over-mocking and flakiness.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: TEST_QUALITY_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
   ];
   for (const a of seedAgents) {
     const [existing] = await db
@@ -226,10 +242,58 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
     if (!existing) await db.insert(t.agents).values(a);
   }
 
+  await seedSkills(db, workspaceId);
   await seedPr482Diff(db, pr!.id);
   await seedPr482Run(db, workspaceId, pr!.id);
 
   return { workspaceId, userId };
+}
+
+/**
+ * Built-in skills (idempotent by name; v1 snapshotted with message `Created`)
+ * and their links to the built-in agents — only for an agent with no links yet.
+ */
+async function seedSkills(db: Db, workspaceId: string): Promise<void> {
+  const ids = new Map<string, string>();
+  for (const s of SEED_SKILLS) {
+    const [existing] = await db
+      .select({ id: t.skills.id })
+      .from(t.skills)
+      .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.name, s.name)));
+    if (existing) {
+      ids.set(s.name, existing.id);
+      continue;
+    }
+    await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(t.skills)
+        .values({ workspaceId, ...s, source: 'manual', version: 1 })
+        .returning({ id: t.skills.id });
+      await tx
+        .insert(t.skillVersions)
+        .values({ skillId: row!.id, version: 1, body: s.body, description: s.description, message: 'Created' });
+      ids.set(s.name, row!.id);
+    });
+  }
+
+  for (const [agentName, skillNames] of Object.entries(SEED_AGENT_SKILLS)) {
+    const [agent] = await db
+      .select({ id: t.agents.id })
+      .from(t.agents)
+      .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, agentName)));
+    if (!agent) continue;
+    const [linked] = await db
+      .select({ skillId: t.agentSkills.skillId })
+      .from(t.agentSkills)
+      .where(eq(t.agentSkills.agentId, agent.id))
+      .limit(1);
+    if (linked) continue;
+    const links = skillNames.flatMap((name, order) => {
+      const skillId = ids.get(name);
+      return skillId ? [{ agentId: agent.id, skillId, order }] : [];
+    });
+    if (links.length > 0) await db.insert(t.agentSkills).values(links);
+  }
 }
 
 /** Backfill the demo diff on PR #482's files that still have no patch. */

@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import type { Agent, AgentSkillLink, LLMProvider } from '@devdigest/shared';
-import { isConfigChange, type AgentConfigFields } from '../src/modules/agents/domain.js';
+import {
+  isConfigChange,
+  sameSkillOrder,
+  unknownSkillIds,
+  withSkillAt,
+  type AgentConfigFields,
+} from '../src/modules/agents/domain.js';
 import { AgentsService, type AgentsStore } from '../src/modules/agents/service.js';
 
 const existing: AgentConfigFields = {
@@ -36,6 +42,29 @@ describe('isConfigChange (agents domain)', () => {
   });
 });
 
+describe('agent skill links (agents domain)', () => {
+  it('withSkillAt appends by default and moves an already linked skill', () => {
+    expect(withSkillAt(['a', 'b'], 'c')).toEqual(['a', 'b', 'c']);
+    expect(withSkillAt(['a', 'b', 'c'], 'c', 0)).toEqual(['c', 'a', 'b']);
+    expect(withSkillAt(['a', 'b'], 'a', 1)).toEqual(['b', 'a']);
+  });
+
+  it('withSkillAt clamps the position into the list', () => {
+    expect(withSkillAt(['a'], 'b', 99)).toEqual(['a', 'b']);
+    expect(withSkillAt(['a'], 'b', -3)).toEqual(['b', 'a']);
+  });
+
+  it('sameSkillOrder is order-sensitive', () => {
+    expect(sameSkillOrder(['a', 'b'], ['a', 'b'])).toBe(true);
+    expect(sameSkillOrder(['a', 'b'], ['b', 'a'])).toBe(false);
+    expect(sameSkillOrder(['a'], ['a', 'b'])).toBe(false);
+  });
+
+  it('unknownSkillIds lists the ids that are not in the workspace', () => {
+    expect(unknownSkillIds(['a', 'x', 'b'], new Set(['a', 'b']))).toEqual(['x']);
+  });
+});
+
 /** In-memory AgentsStore: one workspace-scoped agent + ordered skill links. */
 function fakeStore(): AgentsStore & { links: AgentSkillLink[] } {
   const agent = { id: 'a1', name: 'Reviewer' } as Agent;
@@ -51,11 +80,20 @@ function fakeStore(): AgentsStore & { links: AgentSkillLink[] } {
     listAgentVersions: async () => [],
     findAgentVersion: async () => undefined,
     skillLinks: async () => [...links].sort((a, b) => a.order - b.order),
-    setSkills: async (agentId, ids) => {
+    setSkills: async (ws, agentId, ids) => {
+      if (!(await find(ws, agentId))) return false;
       links.splice(0, links.length, ...ids.map((skill_id, order) => ({ agent_id: agentId, skill_id, order })));
+      return true;
     },
-    linkSkill: async (agentId, skillId, order) => {
-      links.push({ agent_id: agentId, skill_id: skillId, order });
+    linkSkill: async (ws, agentId, skillId, order) => {
+      if (!(await find(ws, agentId))) return false;
+      const ids = withSkillAt(
+        links.map((l) => l.skill_id),
+        skillId,
+        order,
+      );
+      links.splice(0, links.length, ...ids.map((skill_id, i) => ({ agent_id: agentId, skill_id, order: i })));
+      return true;
     },
   };
 }

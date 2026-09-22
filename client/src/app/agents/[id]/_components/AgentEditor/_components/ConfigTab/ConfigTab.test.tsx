@@ -40,8 +40,17 @@ describe("ConfigTab save", () => {
     const { rerender, user } = renderWithProviders(<ConfigTab agent={AGENT} />);
     // AgentCard toggle → cache update → the page re-renders with fresh server data.
     rerender(<ConfigTab agent={{ ...AGENT, enabled: false }} />);
+    await user.type(screen.getByDisplayValue("Security Reviewer"), "!");
     await user.click(screen.getByRole("button", { name: "Save agent" }));
     expect((await savedPatch()).enabled).not.toBe(true);
+  });
+
+  it("Save is disabled until a field is edited (an empty PUT is never sent)", async () => {
+    const { user } = renderWithProviders(<ConfigTab agent={AGENT} />);
+    const save = screen.getByRole("button", { name: "Save agent" });
+    expect(save).toBeDisabled();
+    await user.type(screen.getByDisplayValue("Security Reviewer"), "!");
+    expect(save).toBeEnabled();
   });
 
   it("sends only the fields the user edited", async () => {

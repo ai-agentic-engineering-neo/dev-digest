@@ -37,7 +37,7 @@ A flow lives in `flows/NN-name.flow.json`:
 
 Flows target **seeded data** (the demo repo `acme/payments-api`, PR #482 with
 its diff, one finished agent run + review, the seeded agents). Flows 01–08 are
-read-only. Flows 09–10 **write** (start a review, accept/dismiss its findings)
+read-only. Flows 09–11 **write** (start a review, accept/dismiss its findings, create + link a skill)
 and need the API on the **mock LLM**: `LLM_PROVIDER_OVERRIDE=mock` resolves
 every provider to `server/src/adapters/llm/mock.ts`, which returns a fixed
 review with two findings grounded on the seeded diff (each call sleeps
@@ -139,3 +139,4 @@ a CI artifact by `.github/workflows/e2e-web.yml`).
 | `08-run-timeline` | PR #482 → Agent runs → seeded run tile: outcome badge, provider/model, tokens + cost, severity counters + hover popover |
 | `09-run-review-mock` | *(mock LLM)* Run Review ▾ → Security Reviewer → live "Review in progress" → run ends → mock findings + new timeline tile |
 | `10-finding-actions` | *(mock LLM, after 09)* Accept one finding, Dismiss the other → tags shown → reload → tags persisted |
+| `11-skills` | *(mock LLM, after 09)* /skills shows seeded skills → create a skill → link it in Security Reviewer's Skills tab → reload → still linked → run a review → the run trace lists the skill + version |

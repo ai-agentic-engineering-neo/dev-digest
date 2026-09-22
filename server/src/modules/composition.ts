@@ -5,6 +5,7 @@ import { buildRepoIntelModule } from './repo-intel/composition.js';
 import { buildReposModule } from './repos/composition.js';
 import { buildReviewsModule } from './reviews/composition.js';
 import { buildSettingsModule } from './settings/composition.js';
+import { buildSkillsModule } from './skills/composition.js';
 import { buildWorkspaceModule } from './workspace/composition.js';
 
 /**
@@ -26,4 +27,5 @@ export const moduleFactories = {
   agents: buildAgentsModule,
   reviews: buildReviewsModule,
   repoIntel: buildRepoIntelModule,
+  skills: buildSkillsModule,
 };

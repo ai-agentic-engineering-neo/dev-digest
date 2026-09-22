@@ -9,6 +9,7 @@ in the DB). The canonical, reviewable copies live next to this file:
 - [`general-reviewer.md`](./general-reviewer.md)
 - [`security-reviewer.md`](./security-reviewer.md)
 - [`performance-reviewer.md`](./performance-reviewer.md)
+- [`test-quality-reviewer.md`](./test-quality-reviewer.md)
 
 > The DB is the source of truth at run time. These files are the human-readable
 > originals — when you change a prompt, edit the file here **and** push it to the
@@ -38,7 +39,7 @@ delimiter-wrapped (`prompt.ts:104-122`):
 ```
 <task line, e.g. "Review PR #7 '…'">
 ## PR description        (untrusted, author-controlled, truncated to 4000 chars)
-## Skills / rules        (linked skill bodies)
+## Skills / rules        (the agent's linked, enabled skills — see below)
 ## Relevant memory       (curated memory items)
 ## Repo skeleton         (untrusted, repo-derived)
 ## Project context       (untrusted spec chunks)
@@ -49,6 +50,46 @@ delimiter-wrapped (`prompt.ts:104-122`):
 Sections with no content are omitted. Everything repo- or author-derived is wrapped
 in `<untrusted source="…">…</untrusted>` so the model can tell instructions
 (system) from data (user).
+
+## Skills: the `## Skills / rules` section
+
+A **skill** is a named, versioned piece of Markdown (a rubric, a house convention, a
+security gate) that many agents can share. At run time the executor
+(`server/src/modules/reviews/application/run-executor.ts`) loads the agent's
+linked skills **in link order**, keeps only the **enabled** ones and renders each
+as one block (`modules/skills/domain/skill.ts` → `renderSkillBlock`):
+
+```
+### <name>
+_Applies when:_ <description>        ← omitted when the description is empty
+
+<body>
+```
+
+The blocks are joined with a blank line under `## Skills / rules`. With map-reduce
+the section repeats in every chunk. An agent with no enabled skills gets **no**
+section — its prompt is byte-for-byte the pre-skills prompt. Skills are
+**trusted** text (not `<untrusted>`-wrapped): wrapping them would make the
+injection guard tell the model to ignore them. Foreign skills are gated instead —
+an imported skill is stored disabled until the user reviews and enables it.
+
+Writing a skill:
+- The **description is the interface**: one directive sentence that says *when*
+  the rule applies — "Flag … when …". It is what the model reads first.
+- The body states what to flag, at which severity (`CRITICAL / WARNING /
+  SUGGESTION` — the same vocabulary as the agent prompt) and what **not** to flag.
+- No JSON shape, no output format, no finding quotas — same rules as agent prompts.
+- Limits: name is a kebab slug (≤ 64 chars, unique per workspace, shown as
+  `<name>.md`), description ≤ 300 chars, body ≤ 20 000 chars.
+
+**Attribution (`Finding.skill`).** The `Finding` schema has an optional `skill`
+field whose `.describe()` tells the model to put the exact `###` heading name of
+the skill a finding enforces, or null. Like every field meaning it lives in the
+schema, not in prompt prose — agent prompts need no extra instruction. The server
+resolves the name against the run's attached skills (`findings.skill_id`; an
+unknown name is kept in `skill_name` only). Skill stats (pull rate, accept rate)
+are computed from it, and each run records the exact skill versions it used
+(`agent_run_skills`, trace `skills_used`).
 
 ## The output schema is NOT in the prompt
 

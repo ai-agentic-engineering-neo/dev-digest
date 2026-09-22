@@ -62,10 +62,10 @@ d('transactional data access (Testcontainers pg)', () => {
       .insert(t.skills)
       .values({ workspaceId, name: 's', description: 'd', type: 'custom', source: 'manual', body: 'b' })
       .returning();
-    await repo.setSkills(agent!.id, [skill!.id]);
+    await repo.setSkills(workspaceId, agent!.id, [skill!.id]);
 
     await expect(
-      repo.setSkills(agent!.id, [skill!.id, '00000000-0000-4000-8000-000000000000']),
+      repo.setSkills(workspaceId, agent!.id, [skill!.id, '00000000-0000-4000-8000-000000000000']),
     ).rejects.toThrow();
 
     expect(await repo.skillIdsForAgent(agent!.id)).toEqual([skill!.id]);

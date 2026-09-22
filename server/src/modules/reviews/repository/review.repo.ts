@@ -17,6 +17,7 @@ export async function insertFindings(
   db: DbOrTx,
   reviewId: string,
   findings: Finding[],
+  skillIds: ReadonlyMap<string, string> = new Map(),
 ): Promise<FindingRecord[]> {
   if (findings.length === 0) return [];
   const rows = await db
@@ -35,6 +36,9 @@ export async function insertFindings(
         confidence: f.confidence,
         kind: f.kind ?? 'finding',
         trifectaComponents: f.trifecta_components ?? null,
+        // A cited name that is not one of the run's skills stays unresolved.
+        skillName: f.skill ?? null,
+        skillId: (f.skill && skillIds.get(f.skill)) || null,
       })),
     )
     .returning();

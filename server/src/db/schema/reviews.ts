@@ -14,6 +14,7 @@ import { workspaces } from './core';
 import { pullRequests } from './pulls';
 import { agents } from './agents';
 import { agentRuns } from './runs';
+import { skills } from './skills';
 
 // ============================================================ Review & findings
 
@@ -73,9 +74,15 @@ export const findings = pgTable(
     trifectaComponents: jsonb('trifecta_components').$type<string[]>(),
     acceptedAt: timestamp('accepted_at', { withTimezone: true }),
     dismissedAt: timestamp('dismissed_at', { withTimezone: true }),
+    /** The skill this finding enforces (Finding.skill resolved against the run's
+     *  attached skills). Null when the model cited none or an unknown name. */
+    skillId: uuid('skill_id').references(() => skills.id, { onDelete: 'set null' }),
+    /** The skill name exactly as the model cited it (kept even when unresolved). */
+    skillName: text('skill_name'),
   },
   (t) => [
     index('findings_review_idx').on(t.reviewId),
+    index('findings_skill_idx').on(t.skillId),
     enumCheck('findings_severity_chk', t.severity, FINDING_SEVERITIES),
     enumCheck('findings_category_chk', t.category, FINDING_CATEGORIES),
     enumCheck('findings_kind_chk', t.kind, FINDING_KINDS),

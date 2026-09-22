@@ -2,9 +2,9 @@ import type { DbOrTx } from '../../db/client.js';
 import type { Finding, FindingRecord, Intent, RunSummary, RunTrace, UnifiedDiff, ActiveRun } from '@devdigest/shared';
 import type { PullRow } from '../../db/rows.js';
 import type * as t from '../../db/schema.js';
-import type { ReviewStore } from './application/ports.js';
+import type { AgentSkillsReader, ReviewStore } from './application/ports.js';
 import type { StoredReview } from './domain/review.js';
-import type { NewAgentRun, NewReview, RunCompletion, RunState, RunUsage } from './domain/types.js';
+import type { NewAgentRun, NewReview, ReviewSkill, RunCompletion, RunState, RunUsage } from './domain/types.js';
 import * as reviewRepo from './repository/review.repo.js';
 import * as runRepo from './repository/run.repo.js';
 import * as pullRepo from './repository/pull.repo.js';
@@ -20,7 +20,7 @@ import * as pullRepo from './repository/pull.repo.js';
  * Transactions are opened by the use case through the TransactionRunner port
  * (composition.ts binds a ReviewRepository to the tx handle).
  */
-export class ReviewRepository implements ReviewStore {
+export class ReviewRepository implements ReviewStore, AgentSkillsReader {
   constructor(private db: DbOrTx) {}
 
   // ---- PR lookup (workspace-scoped) --------------------------------------
@@ -48,8 +48,8 @@ export class ReviewRepository implements ReviewStore {
     return reviewRepo.insertReview(this.db, values);
   }
 
-  insertFindings(reviewId: string, findings: Finding[]): Promise<FindingRecord[]> {
-    return reviewRepo.insertFindings(this.db, reviewId, findings);
+  insertFindings(reviewId: string, findings: Finding[], skillIds?: ReadonlyMap<string, string>): Promise<FindingRecord[]> {
+    return reviewRepo.insertFindings(this.db, reviewId, findings, skillIds);
   }
 
   /** Reviews for a PR (newest first), each with its findings. */
@@ -89,6 +89,16 @@ export class ReviewRepository implements ReviewStore {
   /** Create an agent_runs row in `running` state; returns its id (= the runId). */
   createAgentRun(values: NewAgentRun): Promise<string> {
     return runRepo.createAgentRun(this.db, values);
+  }
+
+  /** agent_run_skills: the skills in the run's prompt at their exact version. */
+  recordRunSkills(runId: string, skills: readonly ReviewSkill[]): Promise<void> {
+    return runRepo.recordRunSkills(this.db, runId, skills);
+  }
+
+  /** The agent's linked, enabled skills in link order (AgentSkillsReader). */
+  enabledForAgent(agentId: string): Promise<ReviewSkill[]> {
+    return runRepo.enabledSkillsForAgent(this.db, agentId);
   }
 
   /** In-flight runs for a PR (status='running'), joined with the agent name. */

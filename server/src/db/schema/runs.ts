@@ -1,9 +1,10 @@
 import { sql } from 'drizzle-orm';
-import { pgTable, uuid, text, integer, jsonb, timestamp, numeric, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, integer, jsonb, timestamp, numeric, index, primaryKey } from 'drizzle-orm/pg-core';
 import { enumCheck } from './_shared';
 import { workspaces } from './core';
 import { agents } from './agents';
 import { pullRequests } from './pulls';
+import { skills } from './skills';
 
 // ============================================================ Observability
 
@@ -48,6 +49,25 @@ export const agentRuns = pgTable(
     enumCheck('agent_runs_status_chk', t.status, AGENT_RUN_STATUSES),
     enumCheck('agent_runs_source_chk', t.source, AGENT_RUN_SOURCES),
   ],
+);
+
+/**
+ * The skills (at their exact version) that were in a run's prompt, in prompt
+ * order. Written when the run starts; the base of the skill stats (pull rate).
+ */
+export const agentRunSkills = pgTable(
+  'agent_run_skills',
+  {
+    runId: uuid('run_id')
+      .notNull()
+      .references(() => agentRuns.id, { onDelete: 'cascade' }),
+    skillId: uuid('skill_id')
+      .notNull()
+      .references(() => skills.id, { onDelete: 'cascade' }),
+    skillVersion: integer('skill_version').notNull(),
+    order: integer('order').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.runId, t.skillId] }), index('agent_run_skills_skill_idx').on(t.skillId)],
 );
 
 /** Whole trace of one run as a SINGLE jsonb document. */

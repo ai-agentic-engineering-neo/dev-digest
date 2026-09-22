@@ -31,3 +31,55 @@ body {
     transform: translateY(0);
   }
 }
+
+/* Block-level Markdown. The vendored <Markdown> (.dd-md) only styles inline
+   marks, and Tailwind's preflight strips heading sizes and list markers, so a
+   skill body (headings + lists) would render as flat text. */
+.dd-md > :first-child {
+  margin-top: 0;
+}
+.dd-md h1,
+.dd-md h2,
+.dd-md h3,
+.dd-md h4 {
+  font-weight: 650;
+  color: var(--text-primary);
+  line-height: 1.3;
+  margin: 16px 0 8px;
+}
+.dd-md h1 {
+  font-size: 1.3em;
+}
+.dd-md h2 {
+  font-size: 1.18em;
+}
+.dd-md h3 {
+  font-size: 1.06em;
+}
+.dd-md ul,
+.dd-md ol {
+  padding-left: 1.4em;
+  margin: 0 0 10px;
+}
+.dd-md ul {
+  list-style: disc;
+}
+.dd-md ol {
+  list-style: decimal;
+}
+.dd-md li {
+  margin: 3px 0;
+}
+.dd-md pre {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--bg-hover);
+  overflow: auto;
+}
+.dd-md blockquote {
+  margin: 0 0 10px;
+  padding-left: 12px;
+  border-left: 3px solid var(--border-strong);
+  color: var(--text-secondary);
+}

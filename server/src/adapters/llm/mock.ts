@@ -20,7 +20,8 @@ import { ExternalServiceError } from '../../platform/errors.js';
  * - `completeStructured` for the `Review` schema returns MOCK_REVIEW: two
  *   findings placed on the seeded PR #482 diff (db/seed-diff.ts), so they
  *   survive the grounding gate there. On any other diff they are dropped by
- *   grounding (the run still ends `done`, with 0 findings).
+ *   grounding (the run still ends `done`, with 0 findings). When the prompt
+ *   carries skills, the first finding cites the first one (`Finding.skill`).
  * - Other structured schemas have no fixture → ExternalServiceError (the
  *   feature under test fails loudly instead of receiving invented data).
  * - `delayMs` makes each call take that long (abortable by the run's signal),
@@ -69,6 +70,32 @@ export const MOCK_REVIEW: Review = {
   ],
 };
 
+/**
+ * The first skill name in the prompt's `## Skills / rules` section (its first
+ * `### <name>` heading), or null when the prompt carries no skills.
+ */
+export function firstPromptSkill(messages: readonly { content: string }[]): string | null {
+  for (const m of messages) {
+    const start = m.content.indexOf('## Skills / rules\n');
+    if (start < 0) continue;
+    const section = m.content.slice(start).split(/\n## (?!#)/)[0]!;
+    const heading = /^### (\S+)/m.exec(section);
+    if (heading) return heading[1]!;
+  }
+  return null;
+}
+
+/**
+ * MOCK_REVIEW, with its first finding citing the prompt's first skill (so the
+ * skill attribution + stats flow is visible end-to-end); no skills → no citation.
+ */
+function mockReviewFor(messages: readonly { content: string }[]): Review {
+  const skill = firstPromptSkill(messages);
+  if (!skill) return MOCK_REVIEW;
+  const [first, ...rest] = MOCK_REVIEW.findings;
+  return { ...MOCK_REVIEW, findings: [{ ...first!, skill }, ...rest] };
+}
+
 export interface MockReviewLLMOptions {
   /** Latency of each call in ms (default 0). Aborted by the request signal. */
   delayMs?: number;
@@ -111,8 +138,9 @@ export class MockReviewLLMProvider implements LLMProvider {
       throw new ExternalServiceError(`Mock LLM provider has no fixture for structured output '${req.schemaName}'`);
     }
     emitUsage(req.onUsage, { ...MOCK_USAGE });
-    const data = req.schema.parse(MOCK_REVIEW);
-    return { data, model: req.model, ...MOCK_USAGE, raw: JSON.stringify(MOCK_REVIEW), attempts: 1 };
+    const review = mockReviewFor(req.messages);
+    const data = req.schema.parse(review);
+    return { data, model: req.model, ...MOCK_USAGE, raw: JSON.stringify(review), attempts: 1 };
   }
 
   async embed(texts: string[]): Promise<number[][]> {

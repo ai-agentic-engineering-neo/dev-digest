@@ -1,30 +1,30 @@
-/* AgentCard — model chip, skills count, enabled toggle. Stats are an A5 mount;
-   we render the provider/model + skill count here. */
+/* AgentCard — model chip, linked-skills count, enabled toggle. The count comes
+   from the agent's own links query (useAgentSkillLinks), shared with the
+   Skills tab cache. Stats are an A5 mount. */
 "use client";
 
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Icon, Badge, Toggle } from "@devdigest/ui";
 import type { Agent } from "@devdigest/shared";
-import { useDeleteAgent } from "@/lib/hooks";
+import { useAgentSkillLinks, useDeleteAgent } from "@/lib/hooks";
 import { modelColor } from "./helpers";
 import { s } from "./styles";
 
 export function AgentCard({
   ag,
   active,
-  skillCount,
   onClick,
   onToggle,
 }: {
   ag: Agent;
   active?: boolean;
-  skillCount?: number;
   onClick?: () => void;
   onToggle?: (enabled: boolean) => void;
 }) {
   const t = useTranslations("agents");
   const del = useDeleteAgent();
+  const skillCount = useAgentSkillLinks(ag.id).data?.length;
   const color = modelColor(ag.model);
   return (
     <div onClick={onClick} style={s.card(!!active, ag.enabled)}>

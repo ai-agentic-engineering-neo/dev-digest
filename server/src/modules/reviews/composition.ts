@@ -22,6 +22,7 @@ export function buildReviewsModule(c: Container) {
       getRepoMap: (repoId, budget) => c.repoIntel.getRepoMap(repoId, budget),
       getFileRank: (repoId, paths) => c.repoIntel.getFileRank(repoId, paths),
     },
+    skills: reviews,
     clock,
     ...(c.config.reviewMapConcurrency !== undefined ? { mapConcurrency: c.config.reviewMapConcurrency } : {}),
   });

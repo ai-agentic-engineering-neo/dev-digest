@@ -59,6 +59,14 @@ export const Finding = z.object({
   // Lethal-trifecta variant fields (present only when kind === 'lethal_trifecta')
   trifecta_components: z.array(TrifectaComponent).nullish(),
   evidence: z.array(TrifectaEvidence).nullish(),
+  // Attribution for skill stats. Nullish so findings stored before skills
+  // (and agents without skills) stay valid.
+  skill: z
+    .string()
+    .nullish()
+    .describe(
+      'If this finding enforces a rule from a skill listed under "## Skills / rules", the exact name from that skill\'s ### heading; otherwise null.',
+    ),
 });
 export type Finding = z.infer<typeof Finding>;
 

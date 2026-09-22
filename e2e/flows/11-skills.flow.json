@@ -1,0 +1,363 @@
+{
+  "name": "Create a skill, link it to an agent, and see it in a mock review's trace",
+  "description": "Needs the mock LLM (skipped otherwise); runs after 09/10. /skills shows the seeded skills → Add Skill ▾ → Create from scratch → the new skill's editor. Then Security Reviewer → Skills tab → tick the new skill (one POST /agents/:id/skills), reload → still linked. Then PR #482 → Run Review → Security Reviewer; when the run ends, the newest timeline tile's trace lists the skill with its version under Configuration (RunTrace.skills_used, written by the executor). WRITES (a skill, a link, a run) — the hermetic stack reseeds every run. Inputs are found by aria-label (the kit's FormField label is not bound to its input).",
+  "requiresEnv": "E2E_MOCK_LLM",
+  "steps": [
+    {
+      "cmd": [
+        "set",
+        "viewport",
+        "1280",
+        "2000"
+      ],
+      "label": "tall viewport (PR page scrolls inside <main>; see flow 10)"
+    },
+    {
+      "cmd": [
+        "open",
+        "{BASE}/skills"
+      ],
+      "label": "load the skills page"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "/skills"
+      ],
+      "label": "skills route reached"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--load",
+        "networkidle"
+      ],
+      "label": "skills + card stats settle"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "pr-quality-rubric"
+      ],
+      "label": "a seeded skill card is visible"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "secret-leakage-gate"
+      ],
+      "label": "another seeded skill card is visible"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Add Skill"
+      ],
+      "label": "open the Add Skill menu"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Create from scratch"
+      ],
+      "label": "choose Create from scratch"
+    },
+    {
+      "cmd": [
+        "fill",
+        "input[aria-label='Name']",
+        "e2e-flow-skill"
+      ],
+      "label": "type the skill name (kebab slug)"
+    },
+    {
+      "cmd": [
+        "fill",
+        "input[aria-label='Description']",
+        "Flag every change that has no test."
+      ],
+      "label": "type the description (the skill's interface)"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Create skill",
+        "--exact"
+      ],
+      "label": "create the skill (the body keeps the default template)"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "tab=config"
+      ],
+      "label": "lands on the new skill's editor"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "e2e-flow-skill.md"
+      ],
+      "label": "editor header shows <name>.md"
+    },
+    {
+      "cmd": [
+        "open",
+        "{BASE}/agents"
+      ],
+      "label": "go to the agents list"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--load",
+        "networkidle"
+      ],
+      "label": "agents fetch settles"
+    },
+    {
+      "cmd": [
+        "find",
+        "text",
+        "Security Reviewer",
+        "click"
+      ],
+      "label": "open the Security Reviewer agent"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "tab=config"
+      ],
+      "label": "agent editor reached"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Skills",
+        "--exact"
+      ],
+      "label": "switch to the agent's Skills tab"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "tab=skills"
+      ],
+      "label": "skills tab is active in the URL"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--load",
+        "networkidle"
+      ],
+      "label": "skills + links settle"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "e2e-flow-skill"
+      ],
+      "label": "the new skill is listed (unlinked)"
+    },
+    {
+      "cmd": [
+        "find",
+        "text",
+        "e2e-flow-skill",
+        "click",
+        "--exact"
+      ],
+      "label": "tick the new skill (click its label text: the kit Checkbox is named by a wrapping <label>, which find role --name does not match) → one POST /agents/:id/skills"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--fn",
+        "[...document.querySelectorAll('[data-testid=agent-skill-row]')].some(r => r.innerText.includes('e2e-flow-skill') && r.querySelector('[role=checkbox]')?.getAttribute('aria-checked') === 'true')"
+      ],
+      "label": "the new skill's row is checked"
+    },
+    {
+      "cmd": [
+        "reload"
+      ],
+      "label": "reload the agent editor"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--load",
+        "networkidle"
+      ],
+      "label": "links reload from the server"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--fn",
+        "[...document.querySelectorAll('[data-testid=agent-skill-row]')].some(r => r.innerText.includes('e2e-flow-skill') && r.querySelector('[role=checkbox]')?.getAttribute('aria-checked') === 'true')"
+      ],
+      "label": "the link survived the reload (persisted, not just the optimistic cache)"
+    },
+    {
+      "cmd": [
+        "open",
+        "{BASE}/"
+      ],
+      "label": "load the app root"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "/pulls"
+      ],
+      "label": "land on the PR list"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "All",
+        "--exact"
+      ],
+      "label": "PR list: show All (flow 09 left the PR 'reviewed')"
+    },
+    {
+      "cmd": [
+        "find",
+        "text",
+        "Add rate limiting to public API endpoints",
+        "click"
+      ],
+      "label": "open the PR row"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "/pulls/482"
+      ],
+      "label": "navigate to the PR detail route"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--load",
+        "networkidle"
+      ],
+      "label": "PR detail data settles"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Agent runs"
+      ],
+      "label": "switch to the Agent runs tab"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "tab=findings"
+      ],
+      "label": "findings tab is active in the URL"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Run Review"
+      ],
+      "label": "open the Run Review dropdown"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Security Reviewer"
+      ],
+      "label": "run the Security Reviewer (now with the new skill linked)"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Review in progress"
+      ],
+      "label": "the run starts"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--fn",
+        "!document.body.innerText.includes('Review in progress')"
+      ],
+      "label": "the run finishes"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--load",
+        "networkidle"
+      ],
+      "label": "runs + reviews settle"
+    },
+    {
+      "cmd": [
+        "find",
+        "first",
+        "[aria-label='Open run trace & logs']",
+        "click"
+      ],
+      "label": "open the trace of the newest run (timeline is newest first)"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "e2e-flow-skill v1"
+      ],
+      "label": "trace Configuration lists the skill in the prompt, at v1 (RunTrace.skills_used)"
+    }
+  ]
+}

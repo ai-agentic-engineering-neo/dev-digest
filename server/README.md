@@ -89,8 +89,9 @@ flowchart TB
   subgraph Review["Review & runs"]
     reviews["reviews<br/>/pulls/:id/review · /reviews · /findings/:id/(accept|dismiss)<br/>/runs/:id/(events|trace)"]
   end
-  subgraph Agents["Agents"]
-    agents["agents<br/>/agents · /agents/:id"]
+  subgraph Agents["Agents & skills"]
+    agents["agents<br/>/agents · /agents/:id · /agents/:id/skills"]
+    skills["skills<br/>/skills · /skills/:id · /skills/stats · /skills/community<br/>/skills/import/preview · /skills/:id/(versions|agents|stats)"]
   end
   subgraph Intel["Repo intelligence"]
     repoIntel["repo-intel<br/>/repos/:id/index-state · /resync"]
@@ -101,6 +102,28 @@ flowchart TB
   end
   HEALTH["/health (liveness) · /health/ready (DB ping → 200/503)"]
 ```
+
+### Skills (`modules/skills`, spec [`specs/03-skills.md`](specs/03-skills.md))
+
+| Method | Path | Result |
+|---|---|---|
+| GET | `/skills` | `Skill[]` of the workspace, name asc, with `used_by` |
+| GET | `/skills/stats?days=` | `SkillStatsSummary[]` (list cards; default 30 days, 1–365) |
+| GET | `/skills/community?q=&tag=&lang=` | `CommunitySkill[]` from the catalog shipped in the server (no network) |
+| POST | `/skills/import/preview` | `SkillImportPreview` from a `.md`/`.zip` upload, an https URL or a community id. **Persists nothing**; 422 `invalid_import` |
+| GET · PUT · DELETE | `/skills/:id` | read · partial update (409 `stale_version` / `conflict`) · delete (links, versions, eval cases) |
+| POST | `/skills` | 201 `Skill`, v1 snapshotted; a non-`manual` source is always stored **disabled** |
+| GET | `/skills/:id/versions` · `/skills/:id/versions/:version` | snapshots (body + description + auto message), newest first |
+| POST | `/skills/:id/versions/:version/restore` | writes vK's texts as a new version |
+| GET | `/skills/:id/agents` · `/skills/:id/stats?days=` | linking agents · pull rate / accept rate / breakdowns |
+
+A skill from another workspace is a 404. `POST /agents/:id/skills` rejects ids
+that are not skills of the agent's workspace (422 `unknown_skill`) and bumps the
+agent version when the ordered list really changes. At run time the executor
+renders the agent's linked, **enabled** skills as `### <name>` blocks under
+`## Skills / rules` (see [`../docs/agent-prompts/README.md`](../docs/agent-prompts/README.md)),
+records them in `agent_run_skills` + the trace's `skills_used`, and resolves each
+finding's cited `skill` name to `findings.skill_id` (the base of the stats).
 
 ## Environment
 
@@ -128,7 +151,8 @@ through `SecretsProvider` (`~/.devdigest/secrets.json`, mode `0600`, with
 
 Migrations are **not** applied on boot — run `pnpm db:migrate` (pgvector is
 enabled by migration `0000`). `pnpm db:seed` is idempotent demo data
-(`acme/payments-api`, PR #482, the two built-in agents).
+(`acme/payments-api`, PR #482, the four built-in agents and their built-in
+skills; skill links are written only for an agent that has none yet).
 
 ## Review context (non-obvious)
 

@@ -21,6 +21,7 @@ once the extra files were checked. **From here on it may only shrink.**
 | settings | 0 (was 5) | done: `repository.ts` + `SettingsService`; `feature-models.ts` removed → `service.resolveFeatureModel` / pure `helpers.ts` |
 | agents | 0 (was 3) | done: `domain.ts` (`isConfigChange`, `NewAgent`/`AgentPatch`) · row→DTO mappers in `infrastructure/mappers.ts`, repository DTO methods · service on `{ agents, llm }` · routes use shared `CreateAgentInput` + `response` schemas |
 | repos | 0 (was 3) | done: `toRepoDto` moved to `repository.ts` · service on `{ repos, git, jobs }` · `InvalidInputError(…, 'invalid_repo_url')` · `response` schemas |
+| skills | 0 (new) | built onion-first: `domain/` (naming, versioning, trust gate, prompt block, import sanitizer/frontmatter/archive picker, URL guard, stats) · `application/` (ports.ts, `SkillsService` on a `TransactionRunner`, `SkillImportService`) · `infrastructure/` (repository, mappers, fflate zip reader, SSRF-guarded fetcher, community catalog) · `http/routes.ts` · `index.ts` exports `renderSkillBlock` to reviews |
 | pulls · polling · workspace | 0 (was 2 each) | done: repository + service + thin routes with `response` schemas; polling imports PRs through `pulls.service.importListed` (wired in its composition.ts) |
 
 To see them all, run `pnpm exec depcruise src ../reviewer-core/src --config .dependency-cruiser.cjs --no-ignore-known`.

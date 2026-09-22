@@ -2,6 +2,7 @@
    Keys are hierarchical, so invalidating a prefix covers its children:
      prKeys.detail(prId)   → the PR itself + its runs, active runs, reviews, comments
      repoKeys.detail(id)   → a repo's pulls list, context files and index state
+     skillKeys.detail(id)  → a skill + its versions and stats
    Hooks and mutations reference these factories — never inline key literals. */
 
 type Id = string | number | null | undefined;
@@ -43,6 +44,34 @@ export const agentKeys = {
   all: ["agents"] as const,
   list: () => [...agentKeys.all, "list"] as const,
   detail: (id: Id) => [...agentKeys.all, "detail", id] as const,
+  versions: (id: Id) => [...agentKeys.detail(id), "versions"] as const,
+  /** Prefix of every agent's skill links (invalidate all after a skill delete). */
+  skillsAll: () => [...agentKeys.all, "skills"] as const,
+  /** The ordered skill links of one agent (GET /agents/:id/skills). */
+  skills: (id: Id) => [...agentKeys.skillsAll(), id] as const,
+};
+
+/** Filters of the community catalog search (GET /skills/community). */
+export interface CommunitySkillFilters {
+  q?: string;
+  tag?: string;
+  lang?: string;
+}
+
+export const skillKeys = {
+  all: ["skills"] as const,
+  list: () => [...skillKeys.all, "list"] as const,
+  /** Card numbers of every skill (GET /skills/stats). */
+  stats: () => [...skillKeys.all, "stats"] as const,
+  /** Key of the skill query AND the prefix of its versions + stats. */
+  detail: (id: Id) => [...skillKeys.all, "detail", id] as const,
+  versions: (id: Id) => [...skillKeys.detail(id), "versions"] as const,
+  statsFor: (id: Id) => [...skillKeys.detail(id), "stats"] as const,
+  /** Prefix of every skill's "used by" list (agent links change them all). */
+  agentsAll: () => [...skillKeys.all, "agents"] as const,
+  agents: (id: Id) => [...skillKeys.agentsAll(), id] as const,
+  community: (f: CommunitySkillFilters) =>
+    [...skillKeys.all, "community", f.q ?? "", f.tag ?? "", f.lang ?? ""] as const,
 };
 
 export const runKeys = {

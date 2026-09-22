@@ -44,10 +44,14 @@ const SetSkillsBody = z
   .object({
     skill_ids: z.array(z.string().uuid()).optional(),
     skill_id: z.string().uuid().optional(),
-    order: z.number().int().optional(),
+    /** Position (0-based index) for `skill_id`; default = append. */
+    order: z.number().int().min(0).optional(),
   })
   .refine((b) => b.skill_ids !== undefined || b.skill_id !== undefined, {
     message: 'Provide skill_ids (set/reorder) or skill_id (link one)',
+  })
+  .refine((b) => b.skill_ids === undefined || new Set(b.skill_ids).size === b.skill_ids.length, {
+    message: 'skill_ids must not contain duplicates',
   });
 
 export default async function agentsRoutes(appBase: FastifyInstance) {

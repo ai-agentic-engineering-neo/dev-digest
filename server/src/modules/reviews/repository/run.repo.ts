@@ -2,7 +2,7 @@ import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { DbOrTx } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
 import type { ActiveRun, RunSummary, RunTrace } from '@devdigest/shared';
-import type { NewAgentRun, RunCompletion, RunState, RunUsage } from '../domain/types.js';
+import type { NewAgentRun, ReviewSkill, RunCompletion, RunState, RunUsage } from '../domain/types.js';
 
 // ---- in-flight / history --------------------------------------------------
 
@@ -253,4 +253,31 @@ export async function getRunTraceInWorkspace(
     .innerJoin(t.agentRuns, eq(t.agentRuns.id, t.runTraces.runId))
     .where(and(eq(t.runTraces.runId, runId), eq(t.agentRuns.workspaceId, workspaceId)));
   return row;
+}
+
+// ---- skills attached to a run ----------------------------------------------
+
+/** agent_run_skills rows: each attached skill at its exact version, in prompt order. */
+export async function recordRunSkills(db: DbOrTx, runId: string, skills: readonly ReviewSkill[]): Promise<void> {
+  if (skills.length === 0) return;
+  await db
+    .insert(t.agentRunSkills)
+    .values(skills.map((s, order) => ({ runId, skillId: s.id, skillVersion: s.version, order })))
+    .onConflictDoNothing();
+}
+
+/** The agent's linked, ENABLED skills in link order (a disabled skill stays linked but is skipped). */
+export async function enabledSkillsForAgent(db: DbOrTx, agentId: string): Promise<ReviewSkill[]> {
+  return db
+    .select({
+      id: t.skills.id,
+      name: t.skills.name,
+      description: t.skills.description,
+      body: t.skills.body,
+      version: t.skills.version,
+    })
+    .from(t.agentSkills)
+    .innerJoin(t.skills, eq(t.skills.id, t.agentSkills.skillId))
+    .where(and(eq(t.agentSkills.agentId, agentId), eq(t.skills.enabled, true)))
+    .orderBy(t.agentSkills.order);
 }

@@ -75,6 +75,7 @@ class FakeStore implements ReviewStore {
     return findings.map((f) => ({ ...f, review_id: reviewId, accepted_at: null, dismissed_at: null }));
   }
   async markReviewed() {}
+  async recordRunSkills() {}
   async completeAgentRunIfRunning(runId: string, completion: RunCompletion) {
     const run = this.runs.get(runId);
     if (run?.status !== 'running') return false;
@@ -207,6 +208,7 @@ function setup(llm: LLMProvider, mapConcurrency?: number) {
       getRepoMap: async () => ({ text: '', tokens: 0, cached: false, degraded: true }) as never,
       getFileRank: async () => [],
     },
+    skills: { enabledForAgent: async () => [] },
     clock,
     ...(mapConcurrency !== undefined ? { mapConcurrency } : {}),
   });

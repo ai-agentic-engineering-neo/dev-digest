@@ -63,7 +63,10 @@ unit/integration split) are in that package's `CLAUDE.md`.
 ## Gotchas
 
 - The two `vendor/shared` copies are not synced and **already differ in code** — check both before
-  trusting a type.
+  trusting a type. And two is not always the whole count: `@devdigest/ui` restates some of the same
+  unions by hand in `client/src/vendor/ui/primitives/tokens.ts`, where `Severity` already carries a
+  level the contract does not. A value the UI and the contract must agree on lives in three places,
+  not two.
 - Response shape is enforced by JSON Schema (`strict`) out of band — never describe fields or
   layout inside an agent's system prompt.
 - A finding citing no real diff line is dropped and the score is recomputed — the model's own score

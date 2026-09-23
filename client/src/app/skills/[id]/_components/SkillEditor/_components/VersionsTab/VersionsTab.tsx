@@ -6,7 +6,7 @@
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { Badge, Button, ErrorState, Icon, Skeleton } from "@devdigest/ui";
+import { Badge, Button, ErrorState, Skeleton } from "@devdigest/ui";
 import type { Skill, SkillVersion } from "@devdigest/shared";
 import { useRestoreSkillVersion, useSkillVersions } from "@/lib/hooks";
 import { useToast } from "@/lib/toast";
@@ -45,16 +45,18 @@ export function VersionsTab({ skill, dirty }: { skill: Skill; dirty: boolean }) 
           return (
             <li key={v.version} style={s.row(current)} data-testid={`version-v${v.version}`}>
               <div style={s.rowHead}>
-                <button
-                  type="button"
+                <Button
+                  kind="ghost"
+                  size="sm"
+                  icon={expanded ? "ChevronDown" : "ChevronRight"}
                   aria-expanded={expanded}
-                  aria-label={t("versions.showDiff")}
+                  title={t("versions.showDiff")}
                   disabled={current}
                   onClick={() => setOpen(expanded ? null : v.version)}
                   style={s.expand(current)}
                 >
-                  <Icon.ChevronRight size={14} style={s.chevron(expanded)} />
-                </button>
+                  {t("versions.diff")}
+                </Button>
                 <span className="mono" style={s.version}>
                   v{v.version}
                 </span>

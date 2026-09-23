@@ -116,7 +116,6 @@ export function ConventionCard({
         ) : (
           <div style={s.titleRow}>
             <div style={s.rule}>{c.rule}</div>
-            <IconBtn icon="Edit" label={t("card.edit")} size={26} onClick={() => setEditing(true)} />
           </div>
         )}
         {primary && <EvidenceBlock evidence={primary} />}
@@ -154,6 +153,18 @@ export function ConventionCard({
           onClick={() => onDecide(nextStatus(c.status, "rejected"))}
         >
           {rejected ? t("card.rejected") : t("card.reject")}
+        </Button>
+        {/* Third action of the card (AC 47); edits the rule in place. */}
+        <Button
+          kind="ghost"
+          icon="Edit"
+          full
+          aria-label={t("card.editLabel")}
+          aria-expanded={editing}
+          disabled={editing}
+          onClick={() => setEditing(true)}
+        >
+          {t("card.edit")}
         </Button>
       </div>
     </article>

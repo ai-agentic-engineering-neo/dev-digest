@@ -62,10 +62,8 @@ describe("naming helpers", () => {
     expect(slugify("a".repeat(80))).toHaveLength(64);
   });
 
-  it("default name is <repo>-conventions within 64 chars", () => {
-    expect(defaultSkillName("payments-api")).toBe("payments-api-conventions");
-    expect(defaultSkillName("x".repeat(80))).toHaveLength(64);
-    expect(defaultSkillName("___")).toBe("repo-conventions");
+  it("default name is the fixed `repo-conventions` slug", () => {
+    expect(defaultSkillName()).toBe("repo-conventions");
   });
 
   it("rule slug takes the first words", () => {

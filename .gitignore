@@ -13,6 +13,7 @@ coverage/
 .pnpm-store/
 *.log
 .devdigest/cache/
+.devdigest/self-review/
 clones/
 playwright-report/
 test-results/

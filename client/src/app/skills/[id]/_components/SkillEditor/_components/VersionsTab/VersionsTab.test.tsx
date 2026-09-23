@@ -52,14 +52,26 @@ describe("skill VersionsTab", () => {
     expect(within(screen.getByTestId("version-v1")).getByText("Created")).toBeInTheDocument();
   });
 
-  it("expands a row into a line diff against the current body", async () => {
+  it("the Diff button expands a row into a line diff against the current body", async () => {
     const { user } = renderWithProviders(<Harness initialTab="versions" />);
     const v4 = await screen.findByTestId("version-v4");
-    await user.click(within(v4).getByRole("button", { name: "Show diff against the current version" }));
+    const diff = within(v4).getByRole("button", { name: "Diff" });
+    expect(diff).toHaveAttribute("aria-expanded", "false");
+    await user.click(diff);
+    expect(diff).toHaveAttribute("aria-expanded", "true");
     const removed = v4.querySelectorAll('[data-kind="del"]');
     const added = v4.querySelectorAll('[data-kind="add"]');
     expect(Array.from(removed, (n) => n.textContent)).toEqual(["-Keep PRs small."]);
     expect(Array.from(added, (n) => n.textContent)).toEqual(["+Keep PRs focused.", "+New line."]);
+  });
+
+  it("the current version offers no Diff (nothing to compare against)", async () => {
+    renderWithProviders(<Harness initialTab="versions" />);
+    const v5 = await screen.findByTestId("version-v5");
+    // Hidden from the a11y tree AND disabled — there is no current-vs-current diff.
+    expect(within(v5).queryByRole("button", { name: "Diff" })).toBeNull();
+    const hiddenDiff = Array.from(v5.querySelectorAll("button")).find((b) => b.textContent?.includes("Diff"));
+    expect(hiddenDiff).toBeDisabled();
   });
 
   it("Restore confirms, then POSTs the version", async () => {

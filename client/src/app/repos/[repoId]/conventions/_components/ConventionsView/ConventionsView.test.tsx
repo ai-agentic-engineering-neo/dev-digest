@@ -77,14 +77,14 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("ConventionsView", () => {
-  it("empty repo: shows the empty state and Run extraction posts the extract", async () => {
+  it("empty repo: shows the empty state and Run Scan posts the extract", async () => {
     const api = setup(makeState({ scan: null, conventions: [] }));
     api.on("POST /repos/r1/conventions/extract", jsonResponse(makeScan({ status: "running", sampled_files: [] }), 202));
     const { user } = renderWithProviders(<ConventionsView repoId="r1" />);
 
     expect(await screen.findByText("No conventions extracted yet")).toBeInTheDocument();
     api.on("GET /repos/r1/conventions", makeState({ scan: makeScan({ status: "running", sampled_files: [] }) }));
-    await user.click(screen.getByRole("button", { name: "Run extraction" }));
+    await user.click(screen.getByRole("button", { name: "Run Scan" }));
 
     await waitFor(() => expect(api.requests("POST", "/repos/r1/conventions/extract")).toHaveLength(1));
     expect(await screen.findByText("Scanning the repo…")).toBeInTheDocument();
@@ -151,11 +151,26 @@ describe("ConventionsView", () => {
     );
   });
 
-  it("Create skill is disabled without accepted rules", async () => {
+  it("Create skill appears only once a rule is accepted", async () => {
+    setup(makeState({ conventions: [RESULT] }));
+    const view = renderWithProviders(<ConventionsView repoId="r1" />);
+    await screen.findByText(RESULT.rule);
+    expect(screen.queryByRole("button", { name: "Create skill" })).toBeNull();
+    view.unmount();
+
+    setup(makeState({ conventions: [makeConvention({ ...RESULT, status: "accepted" })] }));
+    renderWithProviders(<ConventionsView repoId="r1" />);
+    await screen.findByText(RESULT.rule);
+    expect(await screen.findByRole("button", { name: "Create skill" })).toBeEnabled();
+  });
+
+  it("offers Run Scan and ReScan as two separate controls", async () => {
     setup(makeState({ conventions: [RESULT] }));
     renderWithProviders(<ConventionsView repoId="r1" />);
     await screen.findByText(RESULT.rule);
-    expect(screen.getByRole("button", { name: "Create skill" })).toBeDisabled();
+    // A scan already ran → the first-run control is spent, the re-run is live.
+    expect(screen.getByRole("button", { name: "Run Scan" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "ReScan" })).toBeEnabled();
   });
 
   it("Create skill opens the draft and posts the edited values with the linked agents", async () => {
@@ -175,7 +190,7 @@ describe("ConventionsView", () => {
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText(/2 accepted conventions/)).toBeInTheDocument();
     const name = within(dialog).getByRole("textbox", { name: "Name" });
-    expect(name).toHaveValue("payments-api-conventions");
+    expect(name).toHaveValue("repo-conventions");
     expect(within(dialog).getByRole("textbox", { name: "Description" })).toHaveValue(
       "2 house conventions extracted from payments-api",
     );
@@ -188,7 +203,8 @@ describe("ConventionsView", () => {
     expect((body as HTMLTextAreaElement).value).toContain("Detected in `src/api/public/index.ts:14-16`:");
     expect(within(dialog).getByText("payments-house-rules.md")).toBeInTheDocument();
 
-    await user.click(within(dialog).getByRole("checkbox"));
+    // The first enabled agent is pre-selected, so the skill ships linked (AC 42).
+    expect(within(dialog).getByRole("checkbox")).toBeChecked();
     await user.click(within(dialog).getByRole("switch"));
     await user.click(within(dialog).getByRole("button", { name: "Create skill" }));
 

@@ -8,18 +8,19 @@
     "scanSummary": "Detected from {count, plural, one {# sample file} other {# sample files}} · last scan {when}",
     "scanningSummary": "Scanning {count, plural, =0 {the repo} one {# sample file} other {# sample files}}…",
     "scanning": "Scanning…",
-    "rescan": "Re-scan",
-    "runExtraction": "Run extraction",
+    "rescan": "ReScan",
     "extractionFailed": "Extraction failed",
     "loadError": "Could not load conventions.",
     "empty": {
       "title": "No conventions extracted yet",
-      "body": "Scan the repo to surface house-rules — naming, error handling, structure — each backed by evidence you can turn into a Skill.",
-      "cta": "Run extraction"
+      "body": "Scan the repo to surface house-rules — naming, error handling, structure — each backed by evidence you can turn into a Skill."
     },
     "noMatch": "No conventions with this status.",
     "noneKept": "The last scan found no convention with verified evidence.",
-    "candidateCount": "{count, plural, one {# candidate} other {# candidates}} · grounded against sampled files"
+    "candidateCount": "{count, plural, one {# candidate} other {# candidates}} · grounded against sampled files",
+    "runScan": "Run Scan",
+    "runScanHint": "Run the first conventions scan of this repo",
+    "rescanHint": "Run the scan again and refresh the candidates"
   },
   "time": {
     "justNow": "just now",
@@ -56,7 +57,7 @@
     "accepted": "Accepted",
     "reject": "Reject",
     "rejected": "Rejected",
-    "edit": "Edit rule",
+    "edit": "Edit",
     "edited": "edited",
     "save": "Save",
     "cancel": "Cancel",
@@ -65,7 +66,8 @@
     "copy": "Copy snippet",
     "morePlaces": "{count, plural, one {+# more place} other {+# more places}}",
     "fewerPlaces": "Show less",
-    "inSkill": "in skill {name}"
+    "inSkill": "in skill {name}",
+    "editLabel": "Edit rule"
   },
   "dropped": {
     "toggle": "{count, plural, one {# candidate dropped} other {# candidates dropped}} by the evidence check",

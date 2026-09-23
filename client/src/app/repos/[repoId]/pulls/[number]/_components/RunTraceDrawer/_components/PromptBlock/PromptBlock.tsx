@@ -6,7 +6,7 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Button, Icon, Modal } from "@devdigest/ui";
 import { s } from "../../styles";
-import { isFromInteractive } from "../../helpers";
+import { approxTokens, formatApproxTokens, isFromInteractive } from "../../helpers";
 import { PromptModalBody } from "../PromptModalBody";
 
 const miniBtnStyle: React.CSSProperties = {
@@ -19,6 +19,14 @@ const miniBtnStyle: React.CSSProperties = {
   background: "var(--bg-elevated)",
   color: "var(--text-muted)",
   cursor: "pointer",
+};
+
+/** Weight of THIS block only — it sits outside the label button, so the
+    toggle's accessible name stays the block name. */
+const tokenChipStyle: React.CSSProperties = {
+  fontSize: 11,
+  color: "var(--text-muted)",
+  whiteSpace: "nowrap",
 };
 
 export function PromptBlock({ label, text, color }: { label: string; text: string; color: string }) {
@@ -48,6 +56,9 @@ export function PromptBlock({ label, text, color }: { label: string; text: strin
           {label}
         </button>
         <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={tokenChipStyle}>
+            {t("trace.prompt.tokens", { tokens: formatApproxTokens(approxTokens(text)) })}
+          </span>
           <button
             type="button"
             title={t("trace.prompt.copy")}

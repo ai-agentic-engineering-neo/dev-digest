@@ -75,6 +75,23 @@ describe("A5 Run Trace drawer (smoke)", () => {
     expect(screen.queryByText("Skills")).toBeNull();
   });
 
+  it("weighs each prompt block on its own: the skills block carries its own token count", async () => {
+    const { user } = renderDrawer();
+    await user.click(await screen.findByRole("button", { name: /Prompt assembly/ }));
+    // "### skill" = 9 chars → 3 tokens; "You are a reviewer." = 19 chars → 5.
+    expect(screen.getByRole("button", { name: "Skills (dynamic)" })).toBeInTheDocument();
+    expect(screen.getByText("~3 tokens")).toBeInTheDocument();
+    expect(screen.getByText("~5 tokens")).toBeInTheDocument();
+  });
+
+  it("a run whose skills were all disabled has NO skills block at all", async () => {
+    const { user } = renderDrawer({ ...TRACE, prompt_assembly: { ...TRACE.prompt_assembly, skills: null } });
+    await user.click(await screen.findByRole("button", { name: /Prompt assembly/ }));
+    expect(screen.queryByRole("button", { name: "Skills (dynamic)" })).toBeNull();
+    expect(screen.queryByText("~3 tokens")).toBeNull();
+    expect(screen.getByRole("button", { name: "System" })).toBeInTheDocument();
+  });
+
   it("switches to the live log tab", async () => {
     const { user } = renderDrawer();
     await user.click(screen.getByText("log"));

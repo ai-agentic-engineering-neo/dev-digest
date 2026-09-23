@@ -93,12 +93,14 @@ export function SkillsTab({ agent }: { agent: Agent }) {
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={linkedIds} strategy={verticalListSortingStrategy} disabled={filtering}>
           <ul style={s.list} aria-label={t("skills.title")}>
+            {/* Only ENABLED skills can be reordered: a disabled one contributes
+                nothing to the prompt, so its position is meaningless. */}
             {shownLinked.map((sk) => (
               <SortableSkillRow
                 key={sk.id}
                 skill={sk}
                 checked
-                disabled={filtering}
+                disabled={filtering || !sk.enabled}
                 onCheck={(on) => onCheck(sk.id, on)}
               />
             ))}

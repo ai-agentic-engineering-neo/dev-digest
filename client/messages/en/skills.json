@@ -38,7 +38,9 @@
     "accept": "accept {value}",
     "noStat": "—",
     "enableLabel": "Enable {name}",
-    "sourceTitle": "Imported from {ref}"
+    "sourceTitle": "Imported from {ref}",
+    "versionTitle": "Current version v{version}",
+    "deleteLabel": "Delete {name}"
   },
   "menu": {
     "add": "Add Skill",
@@ -189,7 +191,8 @@
     "noDiff": "Same text as the current version.",
     "noMessage": "—",
     "loadError": "Could not load the versions.",
-    "empty": "No versions yet."
+    "empty": "No versions yet.",
+    "diff": "Diff"
   },
   "stats": {
     "title": "Last {days} days",

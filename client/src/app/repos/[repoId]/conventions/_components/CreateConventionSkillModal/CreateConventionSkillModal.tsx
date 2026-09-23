@@ -35,12 +35,16 @@ export function CreateConventionSkillModal({
   const create = useCreateConventionSkill(repoId);
   const { data: agents } = useAgents();
   const [meta, setMeta] = React.useState<SkillMetaValue>(() => ({
-    name: defaultSkillName(repoName),
+    name: defaultSkillName(),
     description: t("skillModal.defaultDescription", { count: conventions.length, repo: repoName }),
     type: "convention",
   }));
   const [enabled, setEnabled] = React.useState(true);
-  const [agentIds, setAgentIds] = React.useState<ReadonlySet<string>>(new Set());
+  // null = untouched → the first enabled agent is pre-selected, so the skill is
+  // linked to an agent out of the box (spec 04 Rules §3). Any click pins the set.
+  const [picked, setPicked] = React.useState<ReadonlySet<string> | null>(null);
+  const defaultAgent = agents?.find((a) => a.enabled) ?? agents?.[0];
+  const agentIds = picked ?? new Set(defaultAgent ? [defaultAgent.id] : []);
   // null = not edited by hand: the draft is derived from the name.
   const [editedBody, setEditedBody] = React.useState<string | null>(null);
   const body = editedBody ?? buildSkillDraft(meta.name, repoName, conventions);
@@ -52,13 +56,12 @@ export function CreateConventionSkillModal({
     if (key === "name" && conflict) create.reset();
     setMeta((m) => ({ ...m, [key]: v }));
   };
-  const toggleAgent = (id: string, on: boolean) =>
-    setAgentIds((prev) => {
-      const next = new Set(prev);
-      if (on) next.add(id);
-      else next.delete(id);
-      return next;
-    });
+  const toggleAgent = (id: string, on: boolean) => {
+    const next = new Set(agentIds);
+    if (on) next.add(id);
+    else next.delete(id);
+    setPicked(next);
+  };
 
   const submit = () =>
     create.mutate(

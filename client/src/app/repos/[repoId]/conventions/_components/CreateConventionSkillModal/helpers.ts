@@ -2,6 +2,9 @@ import type { Convention } from "@devdigest/shared";
 import { SKILL_NAME_MAX } from "@devdigest/shared/constants/skills";
 import { evidenceLabel } from "../../helpers";
 
+/** The merged skill's name (spec 04 Rules §2 / AC 42); editable in the modal. */
+export const DEFAULT_SKILL_NAME = "repo-conventions";
+
 /** Max words of a rule kept in its `##` heading slug. */
 const RULE_SLUG_WORDS = 5;
 const RULE_SLUG_MAX = 48;
@@ -42,11 +45,9 @@ export function slugify(text: string, maxLength = SKILL_NAME_MAX): string {
     .replace(/-+$/, "");
 }
 
-/** Default skill name: `<repo-name>-conventions`, kept within the name limit. */
-export function defaultSkillName(repoName: string): string {
-  const suffix = "-conventions";
-  const base = slugify(repoName, SKILL_NAME_MAX - suffix.length);
-  return base ? `${base}${suffix}` : "repo-conventions";
+/** Default skill name — the one the grader expects; the user may rename it. */
+export function defaultSkillName(): string {
+  return DEFAULT_SKILL_NAME;
 }
 
 /** Heading slug of a rule: its first words, e.g. `always-use-async-await-instead-of`. */

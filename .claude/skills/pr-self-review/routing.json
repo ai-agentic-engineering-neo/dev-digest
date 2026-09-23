@@ -1,0 +1,78 @@
+{
+  "$comment": "Which changed files go to which review skill. Deterministic table (docs/pr-self-review-plan.md §3) — never guessed by the model, so a review is reproducible. Paths are repo-relative; globs use fnmatch with '**' meaning any depth.",
+  "exclude": [
+    "design/**",
+    "server/clones/**",
+    "**/node_modules/**",
+    "**/*.lock",
+    "**/pnpm-lock.yaml",
+    "**/package-lock.json",
+    "**/INSIGHTS.md",
+    "**/*.mp4",
+    "**/*.png",
+    "**/*.jpg",
+    "**/*.webp",
+    "server/src/db/migrations/meta/**",
+    ".devdigest/**"
+  ],
+  "rules": [
+    {
+      "skills": ["frontend-ui-architecture", "react-best-practices", "typescript-expert", "security"],
+      "include": ["client/src/**/*.ts", "client/src/**/*.tsx"],
+      "exclude": ["client/src/vendor/**"]
+    },
+    {
+      "skills": ["next-best-practices"],
+      "include": ["client/src/app/**", "client/next.config.*", "client/middleware.ts"]
+    },
+    {
+      "skills": ["react-testing-library"],
+      "include": ["client/**/*.test.tsx", "client/src/test/**"]
+    },
+    {
+      "skills": ["onion-architecture", "typescript-expert", "security"],
+      "include": [
+        "server/src/domain/**",
+        "server/src/application/**",
+        "server/src/adapters/**",
+        "server/src/http/**",
+        "server/src/modules/**",
+        "server/src/platform/**",
+        "server/src/**/composition.ts"
+      ]
+    },
+    {
+      "skills": ["fastify-best-practices"],
+      "include": ["server/src/http/**", "server/src/modules/**/routes.ts", "server/src/modules/**/http/**", "server/src/app.ts", "server/src/server.ts"]
+    },
+    {
+      "skills": ["drizzle-orm-patterns", "postgresql-table-design"],
+      "include": ["server/src/db/**"]
+    },
+    {
+      "skills": ["onion-architecture", "typescript-expert"],
+      "include": ["reviewer-core/src/**"]
+    },
+    {
+      "skills": ["typescript-expert"],
+      "include": ["e2e/**/*.ts"]
+    }
+  ],
+  "content_rules": [
+    {
+      "$comment": "Matched on file CONTENT, not path: anything importing zod is reviewed by the zod skill.",
+      "skills": ["zod"],
+      "pattern": "from ['\"]zod['\"]|require\\(['\"]zod['\"]\\)",
+      "include": ["**/*.ts", "**/*.tsx"]
+    }
+  ],
+  "no_review": {
+    "$comment": "Skills that never review a diff: they are tools or meta-skills.",
+    "skills": ["mermaid-diagram", "engineering-insights", "pr-self-review"]
+  },
+  "drift_check": {
+    "$comment": "Changing a vendored shared contract runs the deterministic drift check instead of an LLM skill.",
+    "include": ["*/src/vendor/shared/**"],
+    "command": "./scripts/check-shared-drift.sh"
+  }
+}

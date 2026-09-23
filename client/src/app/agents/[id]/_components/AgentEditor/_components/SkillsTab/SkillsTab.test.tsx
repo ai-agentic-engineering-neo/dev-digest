@@ -110,6 +110,34 @@ describe("Agent Editor SkillsTab", () => {
     expect(rowNames()).toEqual(["delta-rule"]);
   });
 
+  it("only ENABLED linked skills can be dragged", async () => {
+    // bravo-rule is linked but globally disabled → its handle is off; alpha-rule stays draggable.
+    api.on("GET /agents/ag1/skills", [
+      { agent_id: "ag1", skill_id: "s-a", order: 0 },
+      { agent_id: "ag1", skill_id: "s-b", order: 1 },
+    ]);
+    renderWithProviders(<SkillsTab agent={AGENT} />);
+    await screen.findByText("2 of 4 enabled");
+    expect(screen.getByRole("button", { name: "Drag to reorder bravo-rule" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Drag to reorder alpha-rule" })).toBeEnabled();
+  });
+
+  it("a disabled linked skill cannot be moved with the keyboard", async () => {
+    api.on("GET /agents/ag1/skills", [
+      { agent_id: "ag1", skill_id: "s-a", order: 0 },
+      { agent_id: "ag1", skill_id: "s-b", order: 1 },
+    ]);
+    const { user } = renderWithProviders(<SkillsTab agent={AGENT} />);
+    await screen.findByText("2 of 4 enabled");
+    const handle = screen.getByRole("button", { name: "Drag to reorder bravo-rule" });
+    act(() => handle.focus());
+    await user.keyboard(" ");
+    await user.keyboard("{ArrowUp}");
+    await user.keyboard(" ");
+    expect(posted()).toEqual([]);
+    expect(rowNames().slice(0, 2)).toEqual(["alpha-rule", "bravo-rule"]);
+  });
+
   it("rolls back when the server rejects the change", async () => {
     api.on("POST /agents/ag1/skills", jsonResponse({ error: { code: "unknown_skill", message: "no" } }, 422));
     const { user } = renderWithProviders(<SkillsTab agent={AGENT} />);

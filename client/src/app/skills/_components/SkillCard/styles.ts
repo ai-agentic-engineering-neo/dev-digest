@@ -33,6 +33,17 @@ export const s = {
     overflow: "hidden",
     textOverflow: "ellipsis",
   } satisfies CSSProperties,
+  /** Current version chip, next to the name. */
+  version: {
+    fontSize: 11.5,
+    fontWeight: 600,
+    color: "var(--text-muted)",
+    background: "var(--bg-surface)",
+    border: "1px solid var(--border)",
+    borderRadius: 4,
+    padding: "1px 6px",
+    flexShrink: 0,
+  } satisfies CSSProperties,
   description: {
     fontSize: 13,
     color: "var(--text-secondary)",

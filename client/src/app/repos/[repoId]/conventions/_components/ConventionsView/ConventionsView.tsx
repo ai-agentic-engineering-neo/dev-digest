@@ -36,6 +36,8 @@ export function ConventionsView({ repoId }: { repoId: string }) {
   const scan = state?.scan ?? null;
   const conventions = state?.conventions ?? [];
   const running = scan?.status === "running" || extract.isPending;
+  /** A scan has already run for this repo → the re-run control takes over. */
+  const hasScan = Boolean(scan) || conventions.length > 0;
   const counts = countByStatus(conventions);
   const visible = filterByStatus(conventions, filter);
   const accepted = conventions.filter((c) => c.status === "accepted");
@@ -78,10 +80,28 @@ export function ConventionsView({ repoId }: { repoId: string }) {
             </h1>
             <p style={s.subtitle}>{subtitle}</p>
           </div>
-          {state && (scan || conventions.length > 0) && (
-            <Button icon="RefreshCw" loading={running} onClick={() => extract.mutate()}>
-              {running ? t("page.scanning") : t("page.rescan")}
-            </Button>
+          {state && (
+            <div style={s.scanButtons}>
+              {/* Two separate controls: the first run and the re-run (spec 04, AC 45). */}
+              <Button
+                icon="Play"
+                title={t("page.runScanHint")}
+                loading={running && !hasScan}
+                disabled={running || hasScan}
+                onClick={() => extract.mutate()}
+              >
+                {running && !hasScan ? t("page.scanning") : t("page.runScan")}
+              </Button>
+              <Button
+                icon="RefreshCw"
+                title={t("page.rescanHint")}
+                loading={running && hasScan}
+                disabled={running || !hasScan}
+                onClick={() => extract.mutate()}
+              >
+                {running && hasScan ? t("page.scanning") : t("page.rescan")}
+              </Button>
+            </div>
           )}
         </div>
 
@@ -105,15 +125,10 @@ export function ConventionsView({ repoId }: { repoId: string }) {
           <ErrorState title={tc("states.error")} body={t("page.loadError")} onRetry={() => refetch()} retryLabel={tc("actions.retry")} />
         )}
 
+        {/* No CTA on the empty state: the header owns Run Scan / ReScan, so the
+            page never shows two buttons that start the same scan. */}
         {state && !scan && conventions.length === 0 && (
-          <EmptyState
-            icon="ListChecks"
-            title={t("page.empty.title")}
-            body={t("page.empty.body")}
-            cta={t("page.empty.cta")}
-            onCta={() => extract.mutate()}
-            ctaLoading={running}
-          />
+          <EmptyState icon="ListChecks" title={t("page.empty.title")} body={t("page.empty.body")} />
         )}
 
         {conventions.length > 0 && (
@@ -138,9 +153,12 @@ export function ConventionsView({ repoId }: { repoId: string }) {
                     {t("toolbar.deselectAll")}
                   </Button>
                 )}
-                <Button kind="primary" icon="Sparkles" disabled={accepted.length === 0} onClick={() => setModalOpen(true)}>
-                  {t("toolbar.createSkill")}
-                </Button>
+                {/* Appears only once at least one candidate is accepted (AC 50). */}
+                {accepted.length > 0 && (
+                  <Button kind="primary" icon="Sparkles" onClick={() => setModalOpen(true)}>
+                    {t("toolbar.createSkill")}
+                  </Button>
+                )}
               </div>
             </div>
             {visible.length === 0 ? (

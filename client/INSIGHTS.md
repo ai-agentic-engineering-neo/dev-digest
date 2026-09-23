@@ -15,6 +15,7 @@ Reviewed monthly: stale entries are removed in a dedicated commit.
 
 ## What Doesn't Work
 <!-- dead ends and anti-patterns — the most valuable section -->
+- 2026-09-22 — component tests that assert an optimistic mutation's EFFECT (e.g. Create skill appearing after Accept): mockFetch returns the same GET body every time, so the mutation's onSettled invalidate refetches the ORIGINAL state and the optimistic change is rolled back before the assertion → assert the gated UI on two fixed states (render with the rule pending, unmount, re-render with it accepted), or stub the GET to change between calls
 
 ## Codebase Patterns
 <!-- conventions and architectural decisions not obvious from the code -->

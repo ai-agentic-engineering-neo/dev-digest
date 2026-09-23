@@ -50,6 +50,11 @@ Every package has the same four knowledge slots:
 - `design/` — reference mockup, not source.
 - `server/clones/` — runtime checkouts of imported repos.
 
+## Before opening a PR
+Run the `pr-self-review` skill (`/pr-self-review`) on the branch: it routes the diff to
+the other skills, runs the deterministic gates and answers PASS or BLOCK. It is manual —
+nothing invokes it on push.
+
 ## On finishing a task
 Run `engineering-insights` (WRAP-UP): re-read the touched package's `INSIGHTS.md`,
 append only new, verified, non-obvious insights via its script; if nothing qualifies,

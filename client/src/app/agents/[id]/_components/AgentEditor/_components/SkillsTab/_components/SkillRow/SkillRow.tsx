@@ -39,7 +39,8 @@ export const SkillRow = React.forwardRef<HTMLLIElement, RowProps & { style?: Rea
   },
 );
 
-/** A linked row in the sortable list; `disabled` (filter on) turns dragging off. */
+/** A linked row in the sortable list; `disabled` (filter on, or the skill is
+ *  disabled globally) turns dragging off. */
 export function SortableSkillRow({ disabled, ...props }: Omit<RowProps, "handle"> & { disabled: boolean }) {
   const t = useTranslations("agents");
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -63,6 +64,7 @@ export function SortableSkillRow({ disabled, ...props }: Omit<RowProps, "handle"
           {...listeners}
           disabled={disabled}
           aria-label={t("skills.dragHandle", { name: props.skill.name })}
+          title={props.skill.enabled ? undefined : t("skills.dragDisabled")}
           style={s.handle(disabled)}
         >
           <Icon.Menu size={14} />

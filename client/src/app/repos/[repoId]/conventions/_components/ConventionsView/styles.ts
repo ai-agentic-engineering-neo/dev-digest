@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 
 /** Co-located styles for ConventionsView. */
 export const s = {
+  scanButtons: { display: "flex", gap: 8, flexShrink: 0 } satisfies CSSProperties,
   page: { padding: "28px 32px 48px", maxWidth: 1180, margin: "0 auto" } satisfies CSSProperties,
   header: { display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 22 } satisfies CSSProperties,
   headerText: { flex: 1, minWidth: 0 } satisfies CSSProperties,

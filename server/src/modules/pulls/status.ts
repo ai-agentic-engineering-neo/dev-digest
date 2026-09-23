@@ -13,19 +13,28 @@ import type { PrStatus } from '@devdigest/shared';
 /** Open PRs whose current head was reviewed but untouched this long read "stale". */
 export const STALE_DAYS = 7;
 
+/** Sort weight for the popover preview — most severe first. */
+export const SEVERITY_SORT_ORDER: Record<string, number> = {
+  CRITICAL: 0,
+  WARNING: 1,
+  SUGGESTION: 2,
+};
+
+/** Keys match the wire `Severity` enum (`@devdigest/shared`) so callers can
+ *  index this object directly with a finding's `severity` field. */
 export interface SeverityCounts {
-  critical: number;
-  warning: number;
-  suggestion: number;
+  CRITICAL: number;
+  WARNING: number;
+  SUGGESTION: number;
 }
 
 /** Tally finding severities (CRITICAL / WARNING / SUGGESTION) for one review. */
 export function rollupSeverities(rows: { severity: string }[]): SeverityCounts {
-  const c: SeverityCounts = { critical: 0, warning: 0, suggestion: 0 };
+  const c: SeverityCounts = { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 };
   for (const r of rows) {
-    if (r.severity === 'CRITICAL') c.critical += 1;
-    else if (r.severity === 'WARNING') c.warning += 1;
-    else if (r.severity === 'SUGGESTION') c.suggestion += 1;
+    if (r.severity === 'CRITICAL') c.CRITICAL += 1;
+    else if (r.severity === 'WARNING') c.WARNING += 1;
+    else if (r.severity === 'SUGGESTION') c.SUGGESTION += 1;
   }
   return c;
 }

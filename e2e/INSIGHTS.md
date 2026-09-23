@@ -19,6 +19,14 @@ by hand in the same format.
 
 ## Codebase Patterns
 
+- 2026-09-21 — flow files assert the seeded finding count as literal text
+  (e.g. `wait --text "3 findings"` in `04-pr-findings.flow.json`), so a
+  change to `server/src/db/seed.ts`'s findings for PR #482 (adding/removing
+  one) must update the matching flow's expected text in the same change, or
+  the flow goes stale and starts failing (or worse, passes on an unrelated
+  string match) without the DB actually being wrong.
+  (`e2e/specs/04-pr-findings.flow.json`)
+
 ## Tool & Library Notes
 
 ## Recurring Errors & Fixes

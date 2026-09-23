@@ -7,7 +7,7 @@
 
 import React from "react";
 import { Icon, Badge } from "@devdigest/ui";
-import type { ReviewRecord, Verdict } from "@devdigest/shared";
+import type { ReviewRecord, Severity, Verdict } from "@devdigest/shared";
 import { FindingsPanel } from "../FindingsPanel";
 import { VerdictBanner } from "../VerdictBanner";
 import { useDeleteReview } from "../../../../../../../lib/hooks/reviews";
@@ -31,6 +31,8 @@ export function ReviewRunAccordion({
   headSha,
   targetRunId = null,
   targetNonce = 0,
+  severity = null,
+  onSeverityChange,
 }: {
   review: ReviewRecord;
   prId: string;
@@ -41,6 +43,9 @@ export function ReviewRunAccordion({
    *  (driven from the Timeline: clicking an agent name navigates here). */
   targetRunId?: string | null;
   targetNonce?: number;
+  /** Active severity filter (one `?severity=` for the whole PR-detail page). */
+  severity?: Severity | null;
+  onSeverityChange?: (severity: Severity | null) => void;
 }) {
   const [open, setOpen] = React.useState(defaultOpen);
   const rootRef = React.useRef<HTMLDivElement | null>(null);
@@ -51,6 +56,13 @@ export function ReviewRunAccordion({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targetRunId, targetNonce, review.run_id]);
+  // A severity deep-link (e.g. from the PR-list popover) should open whichever
+  // run actually has a finding at that level, even if it isn't the first run —
+  // never auto-collapses back when the filter is cleared.
+  React.useEffect(() => {
+    if (severity && review.findings.some((f) => f.severity === severity)) setOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [severity]);
   const del = useDeleteReview(prId);
   const findings = review.findings;
   const blockers = findings.filter((f) => f.severity === "CRITICAL" && !f.dismissed_at).length;
@@ -152,6 +164,8 @@ export function ReviewRunAccordion({
             prId={prId}
             repoFullName={repoFullName}
             headSha={headSha}
+            severity={severity}
+            onSeverityChange={onSeverityChange}
           />
         </div>
       )}

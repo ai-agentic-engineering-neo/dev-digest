@@ -2,6 +2,13 @@ import type { CSSProperties } from "react";
 
 /** Co-located styles for FindingsPanel (extracted from inline styles). */
 export const s = {
+  pillsRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 10,
+    minHeight: 22,
+  } satisfies CSSProperties,
   toolbar: {
     display: "flex",
     alignItems: "center",

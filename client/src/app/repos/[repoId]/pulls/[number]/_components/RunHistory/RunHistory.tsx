@@ -3,8 +3,10 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Badge, Icon, CircularScore, type IconName } from "@devdigest/ui";
-import type { RunSummary, PrCommit } from "@devdigest/shared";
+import type { RunSummary, PrCommit, FindingRecord } from "@devdigest/shared";
 import { RunCostBadge } from "@/components/run-cost-badge";
+import { SeverityPills, FindingsPopover, useFindingsPopoverAnchor } from "@/components/severity";
+import { countBySeverity } from "../FindingsPanel/helpers";
 
 /**
  * PR timeline — every agent run interleaved with the PR's commits, newest-first
@@ -88,12 +90,19 @@ function tsOf(s: string | null | undefined): number {
 export function RunHistory({
   runs,
   commits = [],
+  findingsByRun,
   onOpenTrace,
   onGoToReview,
   onDelete,
 }: {
   runs: RunSummary[];
   commits?: PrCommit[];
+  /** Per-run findings, keyed by `run_id` — drives both the read-only severity
+   *  icons AND the hover popover on each tile (`RunSummary` itself has no
+   *  severity breakdown). The icons/popover are never clickable — the only
+   *  clickable severity control on this page is under a review-run's own
+   *  SeverityFilterButtons row, further down in Review runs. */
+  findingsByRun?: Map<string, FindingRecord[]>;
   /** Open the trace + log drawer for a run (the logs icon). */
   onOpenTrace: (runId: string) => void;
   /** Jump to this run's inline review accordion below (clicking the agent name). */
@@ -147,89 +156,131 @@ export function RunHistory({
           );
         }
 
-        const r = item.run;
-        const o = outcomeOf(r);
-        const settled = r.status === "done";
         return (
-          <div key={`run:${r.run_id}`} style={rowStyle}>
-            <Badge color={o.color} bg={o.bg} icon={o.icon}>
-              {t(`runStatus.${o.key}`)}
-            </Badge>
-            {settled && r.score != null && <CircularScore score={r.score} size={30} stroke={3} />}
-            <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>
-                <button
-                  type="button"
-                  onClick={() => onGoToReview?.(r.run_id)}
-                  title={t("timeline.goToReview")}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    padding: 0,
-                    font: "inherit",
-                    fontWeight: 600,
-                    color: "var(--text-primary)",
-                    cursor: onGoToReview ? "pointer" : "default",
-                    textDecoration: onGoToReview ? "underline" : "none",
-                    textDecorationStyle: "dotted",
-                    textUnderlineOffset: 3,
-                  }}
-                >
-                  {r.agent_name ?? "Agent"}
-                </button>{" "}
-                <span className="mono" style={{ fontSize: 12, fontWeight: 400, color: "var(--text-muted)" }}>
-                  {r.provider}/{r.model}
-                </span>
-              </div>
-              {r.status === "failed" && r.error && (
-                <div
-                  style={{ fontSize: 12, color: "var(--crit)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-                  title={r.error}
-                >
-                  {r.error}
-                </div>
-              )}
-              {settled && (
-                <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                  {t("runStatus.findings", { count: r.findings_count ?? 0 })}
-                  {(r.blockers ?? 0) > 0 ? t("runStatus.blockers", { count: r.blockers ?? 0 }) : ""}
-                </div>
-              )}
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, fontSize: 11, color: "var(--text-muted)", flexShrink: 0 }}>
-              {r.ran_at && <span>{new Date(r.ran_at).toLocaleTimeString()}</span>}
-              {settled && (
-                <RunCostBadge
-                  variant="timeline"
-                  costUsd={r.cost_usd}
-                  tokensIn={r.tokens_in}
-                  tokensOut={r.tokens_out}
-                />
-              )}
-            </div>
-            <button
-              type="button"
-              title={t("timeline.openTrace")}
-              aria-label={t("timeline.openTrace")}
-              onClick={() => onOpenTrace(r.run_id)}
-              style={iconBtnStyle}
-            >
-              <Icon.FileText size={13} />
-            </button>
-            {onDelete && r.status !== "running" && (
-              <span
-                role="button"
-                aria-label={t("timeline.deleteRun")}
-                title={t("timeline.deleteRun")}
-                onClick={() => onDelete(r.run_id)}
-                style={{ display: "inline-flex", padding: 3, borderRadius: 5, color: "var(--text-muted)", flexShrink: 0, cursor: "pointer" }}
-              >
-                <Icon.Trash size={13} />
-              </span>
-            )}
-          </div>
+          <RunTile
+            key={`run:${item.run.run_id}`}
+            run={item.run}
+            findings={findingsByRun?.get(item.run.run_id) ?? []}
+            onOpenTrace={onOpenTrace}
+            onGoToReview={onGoToReview}
+            onDelete={onDelete}
+          />
         );
       })}
+    </div>
+  );
+}
+
+/** One Timeline run tile — its own component (not inlined in the `.map()`
+ *  above) because it needs its own `useFindingsPopoverAnchor()` hook instance
+ *  per tile; hooks can't be called a variable number of times inside a loop. */
+function RunTile({
+  run: r,
+  findings,
+  onOpenTrace,
+  onGoToReview,
+  onDelete,
+}: {
+  run: RunSummary;
+  findings: FindingRecord[];
+  onOpenTrace: (runId: string) => void;
+  onGoToReview?: (runId: string) => void;
+  onDelete?: (runId: string) => void;
+}) {
+  const t = useTranslations("prReview");
+  const o = outcomeOf(r);
+  const settled = r.status === "done";
+  const counts = React.useMemo(() => countBySeverity(findings), [findings]);
+  const popover = useFindingsPopoverAnchor<HTMLDivElement>();
+
+  return (
+    <div style={rowStyle}>
+      <Badge color={o.color} bg={o.bg} icon={o.icon}>
+        {t(`runStatus.${o.key}`)}
+      </Badge>
+      {settled && r.score != null && <CircularScore score={r.score} size={30} stroke={3} />}
+      <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>
+          <button
+            type="button"
+            onClick={() => onGoToReview?.(r.run_id)}
+            title={t("timeline.goToReview")}
+            style={{
+              background: "none",
+              border: "none",
+              padding: 0,
+              font: "inherit",
+              fontWeight: 600,
+              color: "var(--text-primary)",
+              cursor: onGoToReview ? "pointer" : "default",
+              textDecoration: onGoToReview ? "underline" : "none",
+              textDecorationStyle: "dotted",
+              textUnderlineOffset: 3,
+            }}
+          >
+            {r.agent_name ?? "Agent"}
+          </button>{" "}
+          <span className="mono" style={{ fontSize: 12, fontWeight: 400, color: "var(--text-muted)" }}>
+            {r.provider}/{r.model}
+          </span>
+        </div>
+        {r.status === "failed" && r.error && (
+          <div
+            style={{ fontSize: 12, color: "var(--crit)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+            title={r.error}
+          >
+            {r.error}
+          </div>
+        )}
+        {settled && (
+          <div
+            ref={popover.ref}
+            style={{ position: "relative", display: "flex", alignItems: "center", gap: 8, width: "fit-content" }}
+            {...popover.handlers}
+          >
+            <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+              {t("runStatus.findings", { count: r.findings_count ?? 0 })}
+              {(r.blockers ?? 0) > 0 ? t("runStatus.blockers", { count: r.blockers ?? 0 }) : ""}
+            </span>
+            <SeverityPills compact counts={counts} />
+            {popover.isOpen && findings.length > 0 && (
+              <FindingsPopover
+                findings={findings}
+                total={findings.length}
+                anchorRect={popover.anchorRect}
+                popoverRef={popover.popoverRef}
+                {...popover.popoverHandlers}
+              />
+            )}
+          </div>
+        )}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, fontSize: 11, color: "var(--text-muted)", flexShrink: 0 }}>
+        {r.ran_at && <span>{new Date(r.ran_at).toLocaleTimeString()}</span>}
+        {settled && (
+          <RunCostBadge variant="timeline" costUsd={r.cost_usd} tokensIn={r.tokens_in} tokensOut={r.tokens_out} />
+        )}
+      </div>
+      <button
+        type="button"
+        title={t("timeline.openTrace")}
+        aria-label={t("timeline.openTrace")}
+        onClick={() => onOpenTrace(r.run_id)}
+        style={iconBtnStyle}
+      >
+        <Icon.FileText size={13} />
+      </button>
+      {onDelete && r.status !== "running" && (
+        <span
+          role="button"
+          aria-label={t("timeline.deleteRun")}
+          title={t("timeline.deleteRun")}
+          onClick={() => onDelete(r.run_id)}
+          style={{ display: "inline-flex", padding: 3, borderRadius: 5, color: "var(--text-muted)", flexShrink: 0, cursor: "pointer" }}
+        >
+          <Icon.Trash size={13} />
+        </span>
+      )}
     </div>
   );
 }

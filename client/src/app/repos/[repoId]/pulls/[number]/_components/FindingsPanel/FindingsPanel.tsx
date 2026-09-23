@@ -5,11 +5,12 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Toggle, EmptyState } from "@devdigest/ui";
-import type { FindingRecord } from "@devdigest/shared";
+import type { FindingRecord, Severity } from "@devdigest/shared";
+import { SeverityPills, SeverityFilterButtons } from "@/components/severity";
 import { FindingCard } from "../FindingCard";
 import { useFindingAction } from "../../../../../../../lib/hooks/reviews";
 import { KEY_TO_ACTION } from "./constants";
-import { visibleFindings } from "./helpers";
+import { visibleFindings, countBySeverity } from "./helpers";
 import { s } from "./styles";
 
 export function FindingsPanel({
@@ -17,18 +18,37 @@ export function FindingsPanel({
   prId,
   repoFullName,
   headSha,
+  severity = null,
+  onSeverityChange,
 }: {
   findings: FindingRecord[];
   prId: string;
   repoFullName?: string | null;
   headSha?: string | null;
+  /** Active severity filter (`?severity=` on the PR-detail URL, one per page). */
+  severity?: Severity | null;
+  onSeverityChange?: (severity: Severity | null) => void;
 }) {
   const t = useTranslations("prReview");
   const action = useFindingAction();
   const [hideLow, setHideLow] = React.useState(false);
   const [focusIdx, setFocusIdx] = React.useState(0);
 
-  const shown = React.useMemo(() => visibleFindings(findings, hideLow), [findings, hideLow]);
+  // `base` is what the panel would show with no severity filter — the pill
+  // counts are tallied from THIS array (not `findings`), so "N on the pill"
+  // always equals "N cards below" even with hide-low-confidence on.
+  const base = React.useMemo(() => visibleFindings(findings, hideLow), [findings, hideLow]);
+  const counts = React.useMemo(() => countBySeverity(base), [base]);
+  const shown = React.useMemo(
+    () => (severity ? base.filter((f) => f.severity === severity) : base),
+    [base, severity],
+  );
+
+  // The severity filter can hide the currently-focused card — snap focus back
+  // to the top of the (possibly narrower) list instead of pointing at nothing.
+  React.useEffect(() => {
+    setFocusIdx(0);
+  }, [severity]);
 
   // j/k navigation + a/d shortcuts on the focused finding (keyboard).
   React.useEffect(() => {
@@ -47,7 +67,14 @@ export function FindingsPanel({
 
   return (
     <div>
+      {(counts.CRITICAL > 0 || counts.WARNING > 0 || counts.SUGGESTION > 0) && (
+        <div style={s.pillsRow}>
+          <SeverityPills counts={counts} />
+        </div>
+      )}
+
       <div style={s.toolbar}>
+        <SeverityFilterButtons active={severity} onSelect={(sev) => onSeverityChange?.(sev)} />
         <div style={s.toggleGroup}>
           {t("panel.hideLowConfidence")}
           <Toggle on={hideLow} onChange={setHideLow} size={16} />

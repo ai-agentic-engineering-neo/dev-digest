@@ -172,6 +172,19 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
         suggestion: 'Use a single IN query and group in memory.',
         confidence: 0.86,
       },
+      {
+        reviewId: review!.id,
+        file: 'src/middleware/ratelimit.ts',
+        startLine: 28,
+        endLine: 28,
+        severity: 'SUGGESTION',
+        category: 'style',
+        title: 'Extract magic number 3600',
+        rationale:
+          'The number 3600 appears twice without explanation. A reader has to infer it means seconds-in-an-hour.',
+        suggestion: 'Extract to a named constant, e.g. `const WINDOW_SECONDS = 3600`.',
+        confidence: 0.62,
+      },
     ]);
   }
 

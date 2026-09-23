@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Provider } from './knowledge.js';
+import { Finding } from './findings.js';
 
 /**
  * Platform / scaffolding DTOs owned by F1:
@@ -173,6 +174,20 @@ export const PrMeta = z.object({
   // Spend of the latest COMPLETED run on this PR, in USD (list endpoint only).
   // Null = nothing to show ("—"): never reviewed, or the price is unknown.
   cost_usd: z.number().nullish(),
+  // Severity breakdown of the LATEST review's findings (list endpoint only).
+  // Null/absent until the PR has been reviewed.
+  findings_by_severity: z
+    .object({
+      CRITICAL: z.number().int(),
+      WARNING: z.number().int(),
+      SUGGESTION: z.number().int(),
+    })
+    .nullish(),
+  // Read-only preview for the FINDINGS-column hover popover: ALL of the
+  // latest review's findings, severity-sorted, not capped — the popover is
+  // scrollable, same pattern as the PR-detail Timeline. Reuses the Finding
+  // schema — no new type.
+  findings_preview: z.array(Finding).nullish(),
 });
 export type PrMeta = z.infer<typeof PrMeta>;
 

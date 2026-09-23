@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Icon, Avatar, Badge, CircularScore } from "@devdigest/ui";
 import { RunCostBadge } from "@/components/run-cost-badge";
+import { SeverityPills, FindingsPopover, useFindingsPopoverAnchor } from "@/components/severity";
 import type { PrMeta } from "@/lib/types";
 import { SIZE_COLOR, STATUS_META } from "../../constants";
 import { relativeTime, sizeOf } from "../../helpers";
@@ -15,9 +16,13 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
   const t = useTranslations("prReview");
   const router = useRouter();
   const [h, setH] = React.useState(false);
+  const findingsPopover = useFindingsPopoverAnchor<HTMLDivElement>();
   const st = STATUS_META[pr.status] ?? STATUS_META.needs_review!;
   const { size, lines } = sizeOf(pr);
   const reviewed = pr.score != null; // null score ⇒ PR has never been reviewed
+  const findingsTotal = pr.findings_by_severity
+    ? pr.findings_by_severity.CRITICAL + pr.findings_by_severity.WARNING + pr.findings_by_severity.SUGGESTION
+    : 0;
   return (
     <div
       onMouseEnter={() => setH(true)}
@@ -52,6 +57,26 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
           <CircularScore score={pr.score!} size={34} stroke={3} />
         ) : (
           <span style={s.muted}>—</span>
+        )}
+      </div>
+      <div ref={findingsPopover.ref} style={{ position: "relative" }} {...findingsPopover.handlers}>
+        {findingsTotal > 0 ? (
+          <SeverityPills
+            compact
+            counts={pr.findings_by_severity}
+            onSelect={(sev) => router.push(`/repos/${repoId}/pulls/${pr.number}?tab=findings&severity=${sev}`)}
+          />
+        ) : (
+          <span style={s.muted}>—</span>
+        )}
+        {findingsPopover.isOpen && findingsTotal > 0 && pr.findings_preview && pr.findings_preview.length > 0 && (
+          <FindingsPopover
+            findings={pr.findings_preview}
+            total={findingsTotal}
+            anchorRect={findingsPopover.anchorRect}
+            popoverRef={findingsPopover.popoverRef}
+            {...findingsPopover.popoverHandlers}
+          />
         )}
       </div>
       <div>

@@ -23,7 +23,7 @@ import type {
 import { NotFoundError, ValidationError, ExternalServiceError } from '../../platform/errors.js';
 import { buildRunTrace } from '../../platform/trace-builder.js';
 import { CiRepository, type CiInstallationRow, type CiRunFilters, type CiRunRow } from './repository.js';
-import type { AgentLookup, MemoryReader, RepoLookup, SkillLookup } from './ports.js';
+import type { AgentLookup, AgentRecord, MemoryReader, RepoLookup, SkillLookup } from './ports.js';
 import { buildBundle, toPreviewFiles } from './bundle.js';
 import { listTargetOptions } from './targets.js';
 import { CI_BRANCH, OPENROUTER_SECRET_NAME, WORKFLOW_PATH } from './constants.js';
@@ -32,9 +32,12 @@ import { RefreshDebounce } from './refresh.js';
 import {
   computeAgentMetrics,
   dailyTrend,
+  emptyPerfSourceRow,
   previousPeriod,
   resolvePerfRange,
+  type ComputedPerfMetrics,
   type PerfRange,
+  type PerfSourceRow,
 } from '../_shared/perf.js';
 
 const RESULT_ARTIFACT_NAME = 'devdigest-result';
@@ -850,44 +853,70 @@ export class CiService {
     const agentById = new Map(agents.map((a) => [a.id, a] as const));
     const prevByAgent = new Map(prevPerfRows.map((r) => [r.agentId, r] as const));
 
-    const rows: AgentPerfRow[] = perfRows.map((r) => {
-      const agent = agentById.get(r.agentId);
-      const metrics = computeAgentMetrics(r, prevByAgent.get(r.agentId));
-      return {
-        agent_id: r.agentId,
-        agent_name: agent?.name ?? 'Unknown agent',
-        provider: agent?.provider ?? null,
-        model: agent?.model ?? null,
-        runs: metrics.runs,
-        runs_local: r.runsLocal,
-        runs_ci: r.runsCi,
-        counted_runs: r.countedRuns,
-        costed_runs: r.costedRuns,
-        findings_total: r.totalFindings,
-        accepted: r.accepted,
-        dismissed: r.dismissed,
-        // AC-46 — null (never 0) when this agent's runs in range are
-        // entirely CI-sourced (no local runs => no reviews/findings => a
-        // zero denominator here).
-        accept_rate: metrics.accept_rate,
-        dismiss_rate: metrics.dismiss_rate,
-        avg_findings_per_run: metrics.avg_findings_per_run,
-        total_cost_usd: r.totalCostUsd,
-        avg_cost_usd: metrics.avg_cost_usd,
-        avg_latency_ms: metrics.avg_latency_ms,
-        cost_by_source: metrics.cost_by_source,
-        last_run_at: r.lastRunAt ? r.lastRunAt.toISOString() : null,
-        // N4 — a CI run never contributes triaged findings by severity;
-        // this feature does not attempt per-severity CI attribution.
-        findings_by_severity: { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 },
-        trend: dailyTrend(r.runsByDay, from, to),
-        decisions: metrics.decisions,
-        low_sample: metrics.low_sample,
-        runs_delta: metrics.runs_delta,
-        accept_rate_delta: metrics.accept_rate_delta,
-        cost_delta: metrics.cost_delta,
-      };
+    // Gap 4 (plan-verifier fix round, plans/16-agent-performance-dashboard.md
+    // AC-4) — one row per agent, not one per agent-with-a-row-in-`perfRows`.
+    // `performanceRows` only ever returns a row for an agent with at least
+    // one run inside [from,to), so an agent that exists in the workspace but
+    // ran zero times in the selected period would otherwise be silently
+    // missing from the table entirely — indistinguishable from "this agent
+    // doesn't exist" rather than "zero runs, correctly rendered as such".
+    const toRow = (r: PerfSourceRow, metrics: ComputedPerfMetrics, agent: AgentRecord | undefined): AgentPerfRow => ({
+      agent_id: r.agentId,
+      agent_name: agent?.name ?? 'Unknown agent',
+      provider: agent?.provider ?? null,
+      model: agent?.model ?? null,
+      runs: metrics.runs,
+      runs_local: r.runsLocal,
+      runs_ci: r.runsCi,
+      counted_runs: r.countedRuns,
+      costed_runs: r.costedRuns,
+      findings_total: r.totalFindings,
+      accepted: r.accepted,
+      dismissed: r.dismissed,
+      // Gap 3 (plan-verifier fix round) — findings with neither `acceptedAt`
+      // nor `dismissedAt`; already computed into `PerfRangeRow.pending` by
+      // the repository (same source `AgentStats.pending` already reads), just
+      // never threaded onto this contract's row before now.
+      pending: r.pending,
+      // AC-46 — null (never 0) when this agent's runs in range are
+      // entirely CI-sourced (no local runs => no reviews/findings => a
+      // zero denominator here).
+      accept_rate: metrics.accept_rate,
+      dismiss_rate: metrics.dismiss_rate,
+      avg_findings_per_run: metrics.avg_findings_per_run,
+      total_cost_usd: r.totalCostUsd,
+      avg_cost_usd: metrics.avg_cost_usd,
+      avg_latency_ms: metrics.avg_latency_ms,
+      cost_by_source: metrics.cost_by_source,
+      last_run_at: r.lastRunAt ? r.lastRunAt.toISOString() : null,
+      // N4 — a CI run never contributes triaged findings by severity;
+      // this feature does not attempt per-severity CI attribution.
+      findings_by_severity: { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 },
+      trend: dailyTrend(r.runsByDay, from, to),
+      decisions: metrics.decisions,
+      low_sample: metrics.low_sample,
+      runs_delta: metrics.runs_delta,
+      accept_rate_delta: metrics.accept_rate_delta,
+      cost_delta: metrics.cost_delta,
     });
+
+    const rows: AgentPerfRow[] = perfRows.map((r) =>
+      toRow(r, computeAgentMetrics(r, prevByAgent.get(r.agentId)), agentById.get(r.agentId)),
+    );
+
+    const seenAgentIds = new Set(perfRows.map((r) => r.agentId));
+    for (const agent of agents) {
+      if (seenAgentIds.has(agent.id)) continue;
+      // `runs === 0` is an unambiguous "no runs in this period" marker on
+      // this row — a REAL `performanceRows` row can never have zero runs (the
+      // query only ever returns agents with >=1 run in range), so no
+      // separate boolean flag is needed; mirrors `agents/service.ts stats()`'s
+      // existing `data.runs === 0` convention (`StatsTab.tsx`'s EmptyState
+      // branch) rather than inventing a new one for this per-row case.
+      const emptyRow = emptyPerfSourceRow(agent.id);
+      const metrics = computeAgentMetrics(emptyRow, prevByAgent.get(agent.id));
+      rows.push(toRow(emptyRow, metrics, agent));
+    }
 
     const totalRuns = rows.reduce((sum, r) => sum + r.runs, 0);
     const totalCost = rows.reduce((sum, r) => (r.total_cost_usd != null ? sum + r.total_cost_usd : sum), 0);
@@ -896,7 +925,11 @@ export class CiService {
     // AC-2's "totals sum correctly" the same way total_cost_usd already does.
     const acceptedTotal = rows.reduce((sum, r) => sum + r.accepted, 0);
     const decisionsTotal = rows.reduce((sum, r) => sum + r.decisions, 0);
-    const mostActive = rows.slice().sort((a, b) => b.runs - a.runs)[0] ?? null;
+    // AC-3 — "most active" must never be a zero-runs synthesized row: when
+    // every agent in the workspace had zero runs in range, there is no
+    // most-active agent, not an arbitrary first zero-run one.
+    const rowsWithRuns = rows.filter((r) => r.runs > 0);
+    const mostActive = rowsWithRuns.length > 0 ? rowsWithRuns.slice().sort((a, b) => b.runs - a.runs)[0] : null;
 
     return {
       summary: {

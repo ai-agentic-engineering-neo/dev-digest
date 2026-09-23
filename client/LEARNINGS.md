@@ -58,6 +58,38 @@ test.tsx` convention already established elsewhere in this file) — the error
 message names the missing export but gives no hint that the REAL cause is a
 different component's import, several files away from the failing assertion.
 
+### 2026-09-23 — wiring `useRouter`/`useSearchParams` (`next/navigation`) into a component with an EXISTING vitest test that renders it directly throws "invariant expected app router to be mounted"; a `useState`-mirrors-into-URL pattern avoids depending on the App Router's own re-render timing in tests
+
+Wiring `AgentPerfView.tsx`'s range picker to the URL query string (plan-verifier
+fix round for `specs/16-agent-performance-dashboard.md` step 8 — "selected
+range goes into the URL query") needed both `useRouter()`/`useSearchParams()`.
+`AgentPerfView.test.tsx` renders `<AgentPerfView />` directly with no App
+Router test harness (this repo has none — confirmed via a repo-wide grep for
+`next-router-mock`/an App Router test provider) — without mocking the module,
+every render throws immediately. Fix, same shape as `EvalAgentDetailView.
+test.tsx`/`MultiAgentConfigureView.test.tsx` already use for the same import:
+`vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn() }),
+useSearchParams: () => new URLSearchParams() }))`.
+
+Separately, the state design itself matters for testability here: rather than
+making `useSearchParams()` the sole source of truth for `range` (re-derived on
+every render, matching `PullsListView.tsx`'s `?status` pattern exactly), this
+component keeps a local `useState<PerfRangeValue>` lazily initialized ONCE from
+`useSearchParams()` on mount, and `setRange` both updates that state directly
+AND calls `router.replace(...)` to mirror the choice into the URL. A fully
+URL-driven design would need the App Router to actually re-render the tree
+after `replace()` for a UI control (the range radiogroup) to reflect a new
+selection — real in the browser, but NOT true of `useRouter().replace` mocked
+as a bare `vi.fn()` in a vitest test, since nothing there re-triggers a render.
+The existing `AC-43` test (`fireEvent.click` a preset radio button, assert
+`aria-checked` flips) only stayed green because the local `useState` update is
+what drives the re-render, independent of whether `replace()` did anything.
+Any future component that needs to reflect a controlled UI element's state
+change immediately AND sync it to the URL should use this same "local state,
+URL as a write-only mirror" shape rather than a fully `searchParams`-driven
+one, unless a real App Router test harness gets added to this repo's vitest
+setup first.
+
 ### 2026-08-22 — D21's derived agent identity {color, icon} was NOT wired into `RunReviewDropdown`'s multi-select rows beyond the icon — the Dropdown extension's scope was already closed
 
 Building Phase B2 (plans/13-multi-agent-review.md), `agentIdentity()`

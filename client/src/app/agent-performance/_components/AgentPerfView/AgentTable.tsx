@@ -18,6 +18,12 @@ import { s } from "./styles";
  * marker rather than 0%; not a color-only cue (AC-56) since the cell is
  * text, not a colored dot. Row-expand reveals accepted/dismissed/pending and
  * cost-by-source (AC-7's provenance split) without leaving the table.
+ *
+ * AC-4 — an agent with zero runs in the selected period still gets a row
+ * (never silently omitted), rendered as "—" in every numeric cell plus a
+ * distinct "No runs in this period" marker — `runs === 0` is unambiguous for
+ * this: a real `performanceRows`-backed row can never have zero runs (only a
+ * server-synthesized one, `ci/service.ts`'s `agentPerformance`, can).
  */
 export function AgentTable({
   agents,
@@ -79,6 +85,10 @@ export function AgentTable({
       <tbody>
         {rows.map((r) => {
           const isOpen = expanded.has(r.agent_id);
+          // Gap 4 — `runs === 0` can only happen for a server-synthesized
+          // "no runs in this period" row (see file header comment); a real
+          // agent with runs never has a literal `0` here.
+          const noRunsInPeriod = r.runs === 0;
           return (
             <React.Fragment key={r.agent_id}>
               <tr>
@@ -93,13 +103,22 @@ export function AgentTable({
                     <Icon.ChevronDown size={13} style={isOpen ? undefined : { transform: "rotate(-90deg)" }} />
                   </button>
                 </td>
-                <td style={s.td}>{r.agent_name}</td>
-                <td style={s.td}>{r.runs}</td>
+                <td style={s.td}>
+                  {r.agent_name}
+                  {noRunsInPeriod && <span style={s.lowSampleChip}>{t("table.noRunsInPeriod")}</span>}
+                </td>
+                <td style={s.td}>{noRunsInPeriod ? na : r.runs}</td>
                 <td style={s.td}>{formatCost(r.avg_cost_usd)}</td>
                 <td style={s.td}>{formatDuration(r.avg_latency_ms)}</td>
                 <td style={s.td}>
-                  {acceptRateWithDenominator(r, na)}
-                  {r.low_sample && <span style={s.lowSampleChip}>{t("table.lowSample")}</span>}
+                  {noRunsInPeriod ? (
+                    na
+                  ) : (
+                    <>
+                      {acceptRateWithDenominator(r, na)}
+                      {r.low_sample && <span style={s.lowSampleChip}>{t("table.lowSample")}</span>}
+                    </>
+                  )}
                 </td>
                 <td style={s.td}>{relativeTime(r.last_run_at)}</td>
                 <td style={s.td}>
@@ -118,6 +137,10 @@ export function AgentTable({
                       <span>
                         <span style={s.detailLabel}>{t("table.dismissed")}</span>
                         {r.dismissed}
+                      </span>
+                      <span>
+                        <span style={s.detailLabel}>{t("table.pending")}</span>
+                        {r.pending}
                       </span>
                       <span>
                         <span style={s.detailLabel}>{t("table.costBySource")}</span>

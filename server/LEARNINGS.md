@@ -205,6 +205,32 @@ optional 4th constructor arg, wired at `agents/routes.ts` from
 repositories`/`no-cross-module` both stayed clean because the port method
 signature never leaks a `ci`-module-specific type across the boundary.
 
+**2026-09-23 addendum (plan-verifier fix round, AC-4) — `ci/service.ts`'s
+`agentPerformance` only ever built `AgentPerfRow`s from `performanceRows`
+results, which structurally can NEVER include an agent with zero runs in the
+selected period (the query's own `WHERE ranAt BETWEEN from AND to` excludes
+it) — so such an agent was silently missing from the table entirely, not
+merely rendered with fabricated zeros.** Fixed by also fetching the
+workspace's full agent list (`agentLookup.list`, already called for name/
+provider/model lookups on the real rows) and, for every agent present there
+but absent from `perfRows`, pushing a row built from `emptyPerfSourceRow(
+agentId)` (`_shared/perf.ts`, already used by `agents/service.ts`'s `stats()`
+for this exact single-agent case — the fix here is literally reusing that
+helper one ring up, for the whole-workspace aggregate). Two non-obvious
+follow-ons this created: (1) `most_active_agent` must filter to `runs > 0`
+before picking the max, or a workspace where every agent had zero runs in
+period (but agents exist) reports an arbitrary zero-run agent as "most
+active" instead of `null` — the previous `rows.slice().sort(...)[0] ?? null`
+only needed the `?? null` fallback for a genuinely EMPTY `rows` array, which
+stopped being possible once zero-run rows are always synthesized. (2) no new
+contract field was needed to mark "no runs in this period" distinctly from a
+real agent's legitimate zeros — `runs === 0` is already unambiguous on
+`AgentPerfRow`, since a real `performanceRows`-backed row can never have
+`runs: 0` by construction; the client (`AgentTable.tsx`) branches on it
+directly, mirroring the pre-existing `data.runs === 0` convention `agents/
+service.ts stats()` / `StatsTab.tsx` already used for the single-agent
+version of the same state.
+
 ### 2026-08-11 — `parseUnifiedDiff` silently drops binary files, pure renames, and deletions from `diff.files` — `diff.raw` still has them
 
 Building specs/08-pre-push-cli.md's `POST /reviews/adhoc` (a NEW consumer of

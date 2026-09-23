@@ -261,6 +261,10 @@ the repo and both load-bearing:
 - **D12 — The Agent Performance date range is a fixed preset set.** 7 / 30 / 90
   days, defaulting to 30 (the mockup's label). No custom picker.
 
+  > **Superseded by `plans/16-agent-performance-dashboard.md` clarification
+  > #5.** The range control now also offers a custom from–to picker alongside
+  > 1 / 7 / 30 / 90 presets — "no custom picker" no longer holds.
+
 - **D13 — Only targets with a real generator are rendered.** The Target step
   reads a registry of implemented targets and renders one option per entry.
   Adding CircleCI later means registering its generator, not rewriting the step.
@@ -752,6 +756,14 @@ valid.
   in range, average cost, average duration, accept rate with its direction of
   travel, when it last ran, and an affordance to open that agent; the table
   shall be sortable by accept rate.
+
+  > **Superseded in part by `plans/16-agent-performance-dashboard.md`
+  > clarification #7.** The workspace-level `avg_accept_rate` figure (AC-41)
+  > switched from an unweighted mean of per-agent rates to a **pooled**
+  > `sum(accepted) / sum(accepted + dismissed)` across all agents, so a
+  > 2-decision agent no longer moves the workspace number as much as a
+  > 250-decision one — this also makes it reconcile with AC-2's "totals sum
+  > correctly" the same way `total_cost_usd` already does.
 - **AC-43** — The page shall offer a date range selected from a fixed set of
   presets, defaulting to 30 days, and every figure on the page shall be computed
   over the selected range.

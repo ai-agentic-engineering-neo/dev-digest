@@ -25,6 +25,13 @@ vi.mock("@/components/app-shell", () => ({
   AppShell: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
+// specs/16-agent-performance-dashboard.md step 8 — the selected range is
+// mirrored into the URL query string, via `useRouter`/`useSearchParams`.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 import { AgentPerfView } from "./AgentPerfView";
 
 function row(overrides: Partial<AgentPerfRow>): AgentPerfRow {
@@ -41,6 +48,7 @@ function row(overrides: Partial<AgentPerfRow>): AgentPerfRow {
     findings_total: 20,
     accepted: 6,
     dismissed: 2,
+    pending: 0,
     accept_rate: 0.75,
     dismiss_rate: 0.25,
     avg_findings_per_run: 2,

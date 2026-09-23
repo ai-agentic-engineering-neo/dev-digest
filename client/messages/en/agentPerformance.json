@@ -32,7 +32,9 @@
     "collapse": "Hide details for {name}",
     "accepted": "Accepted",
     "dismissed": "Dismissed",
-    "costBySource": "Cost by source"
+    "pending": "Pending",
+    "costBySource": "Cost by source",
+    "noRunsInPeriod": "No runs in this period"
   },
   "notApplicable": "N/A",
   "ciOnlyNote": "Some accept rates show N/A: those agents' runs in this period are CI-sourced only, which contribute no triaged findings.",

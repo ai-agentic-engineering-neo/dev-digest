@@ -1,5 +1,6 @@
 import type { AgentPerfRow } from "@devdigest/shared/contracts/productionize";
-import type { SortDir, SortField } from "./constants";
+import { isCustomPerfRange, type PerfRangeValue } from "@/lib/hooks/agent-performance";
+import { DEFAULT_RANGE, type SortDir, type SortField } from "./constants";
 
 /** AC-42 — sortable by accept-rate (also by runs / cost). Nulls (AC-46's
  *  not-applicable accept rate) sort last regardless of direction, so an
@@ -79,4 +80,32 @@ export function totalCostBySource(rows: AgentPerfRow[]): { provider: number | nu
     if (r.cost_by_source.unknown != null) unknown = (unknown ?? 0) + r.cost_by_source.unknown;
   }
   return { provider, estimated, unknown };
+}
+
+/** Gap 1 (plan-verifier fix round, plan step 8) — the selected range mirrors
+ *  into the URL query string (`?range_days=N` or `?from=...&to=...`, the SAME
+ *  shape `hooks/agent-performance.ts`'s `rangeQuery` sends to the API) so it
+ *  is shareable and survives a reload. Read once on mount via
+ *  `useSearchParams()`; falls back to `DEFAULT_RANGE` for a missing/invalid
+ *  query. */
+export function parseRangeFromSearchParams(search: URLSearchParams): PerfRangeValue {
+  const from = search.get("from");
+  const to = search.get("to");
+  if (from && to) return { from, to };
+  const days = Number(search.get("range_days"));
+  if (Number.isInteger(days) && days > 0) return { days };
+  return DEFAULT_RANGE;
+}
+
+/** The inverse of `parseRangeFromSearchParams` — used to write the current
+ *  selection back into the URL (`router.replace`) whenever it changes. */
+export function rangeToSearchParams(range: PerfRangeValue): URLSearchParams {
+  const sp = new URLSearchParams();
+  if (isCustomPerfRange(range)) {
+    sp.set("from", range.from);
+    sp.set("to", range.to);
+  } else {
+    sp.set("range_days", String(range.days));
+  }
+  return sp;
 }

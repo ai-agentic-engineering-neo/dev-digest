@@ -11,17 +11,32 @@
  * (D1-D4 fixes, previous-period comparison), and the range picker supports
  * a custom `from`/`to` alongside the 1/7/30/90 presets (supersedes
  * specs/14-export-to-ci.md D12).
+ *
+ * plan step 8 (plan-verifier fix round) — the selected range is mirrored
+ * into the URL query string (`useRouter`/`useSearchParams`, the same
+ * read-on-mount + write-on-change pattern `PullsListView.tsx` established
+ * for `?status`), so it is shareable and survives a reload. The avg
+ * accept-rate summary tile uses `CircularScore` for its gauge ring, same as
+ * `StatsTab.tsx`'s own accept-rate tile.
  */
 import React from "react";
 import { useTranslations } from "next-intl";
-import { Donut, EmptyState, ErrorState, MetricCard, Skeleton } from "@devdigest/ui";
+import { useRouter, useSearchParams } from "next/navigation";
+import { CircularScore, Donut, EmptyState, ErrorState, MetricCard, Skeleton } from "@devdigest/ui";
 import { AppShell } from "@/components/app-shell";
 import { PerfRangePicker } from "@/components/perf-range-picker/PerfRangePicker";
 import { useAgentPerformance, type PerfRangeValue } from "@/lib/hooks/agent-performance";
 import { formatCost } from "@/lib/format";
-import { DEFAULT_RANGE, type SortDir, type SortField } from "./constants";
+import type { SortDir, SortField } from "./constants";
 import { AgentTable } from "./AgentTable";
-import { formatAcceptRate, totalCostBySource, totalCostDelta, totalTrend } from "./helpers";
+import {
+  formatAcceptRate,
+  parseRangeFromSearchParams,
+  rangeToSearchParams,
+  totalCostBySource,
+  totalCostDelta,
+  totalTrend,
+} from "./helpers";
 import { s } from "./styles";
 
 const SEGMENT_COLORS = ["var(--accent)", "var(--ok)", "var(--warn, var(--warning))", "var(--crit)", "var(--info, var(--text-secondary))"];
@@ -29,9 +44,21 @@ const SEGMENT_COLORS = ["var(--accent)", "var(--ok)", "var(--warn, var(--warning
 export function AgentPerfView() {
   const t = useTranslations("agentPerformance");
   const tRange = useTranslations("agentPerformance.range");
-  const [range, setRange] = React.useState<PerfRangeValue>(DEFAULT_RANGE);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  // plan step 8 — read the initial selection from the URL (survives a
+  // reload/shared link); `setRange` below keeps the URL in sync on every
+  // change. Local `useState` (not a full `searchParams`-driven render) so a
+  // selection re-renders immediately without depending on the App Router's
+  // own re-render timing.
+  const [range, setRangeState] = React.useState<PerfRangeValue>(() => parseRangeFromSearchParams(searchParams));
   const [sortField, setSortField] = React.useState<SortField>("accept_rate");
   const [sortDir, setSortDir] = React.useState<SortDir>("desc");
+
+  const setRange = (next: PerfRangeValue) => {
+    setRangeState(next);
+    router.replace(`/agent-performance?${rangeToSearchParams(next).toString()}`);
+  };
 
   // AC-6 — only ever this ONE read hook; no run-trigger hook is imported
   // into this file, so reload/sort/range-switch can never trigger a review.
@@ -108,10 +135,22 @@ export function AgentPerfView() {
                 delta={costDelta ?? undefined}
                 deltaLabel={costDelta != null ? t("delta.vsPrevious") : undefined}
               />
-              <MetricCard
-                label={t("summary.avgAcceptRate")}
-                value={data.summary.avg_accept_rate != null ? `${Math.round(data.summary.avg_accept_rate * 100)}%` : t("notApplicable")}
-              />
+              {/* Gap 2 (plan-verifier fix round) — the gauge ring, same
+                  treatment as StatsTab.tsx's own accept-rate tile: no ring
+                  drawn with nothing judged yet, "—" beats a fabricated 0%. */}
+              <div style={s.acceptTile}>
+                {data.summary.avg_accept_rate != null && (
+                  <CircularScore score={Math.round(data.summary.avg_accept_rate * 100)} size={46} />
+                )}
+                <div style={s.acceptText}>
+                  <div style={s.tileLabel}>{t("summary.avgAcceptRate")}</div>
+                  <div className="tnum" style={s.tileValue}>
+                    {data.summary.avg_accept_rate != null
+                      ? `${Math.round(data.summary.avg_accept_rate * 100)}%`
+                      : t("notApplicable")}
+                  </div>
+                </div>
+              </div>
               <MetricCard
                 label={t("summary.mostActive")}
                 value={data.summary.most_active_agent ?? t("notApplicable")}

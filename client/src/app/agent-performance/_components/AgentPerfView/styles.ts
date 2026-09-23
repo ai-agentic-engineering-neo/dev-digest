@@ -85,4 +85,25 @@ export const s = {
   detailLabel: { color: "var(--text-muted)", marginRight: 4 } satisfies CSSProperties,
   provenanceLine: { fontSize: 12, color: "var(--text-muted)", marginTop: 6 } satisfies CSSProperties,
   skeletonTiles: { display: "flex", gap: 14 } satisfies CSSProperties,
+  // Gap 2 (plan-verifier fix round) — the avg accept-rate tile's CircularScore
+  // treatment, mirrored from StatsTab/styles.ts's own `acceptTile`.
+  acceptTile: {
+    flex: 1,
+    minWidth: 190,
+    display: "flex",
+    alignItems: "center",
+    gap: 14,
+    background: "var(--bg-elevated)",
+    border: "1px solid var(--border)",
+    borderRadius: 9,
+    padding: 18,
+  } satisfies CSSProperties,
+  acceptText: { minWidth: 0 } satisfies CSSProperties,
+  tileLabel: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: "var(--text-muted)",
+    letterSpacing: "0.03em",
+  } satisfies CSSProperties,
+  tileValue: { fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em", marginTop: 8 } satisfies CSSProperties,
 } as const;

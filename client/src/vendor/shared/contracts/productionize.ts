@@ -169,6 +169,10 @@ export const AgentPerfRow = z.object({
   findings_total: z.number().int(),
   accepted: z.number().int(),
   dismissed: z.number().int(),
+  /** findings with neither `acceptedAt` nor `dismissedAt` (mirrors
+   *  `AgentStats.pending`, `contracts/observability.ts`) — same source the
+   *  row-expand's "Pending" figure reads. */
+  pending: z.number().int(),
   /** headline quality signal: accepted / (accepted + dismissed), 0..1 or null. */
   accept_rate: z.number().nullable(),
   dismiss_rate: z.number().nullable(),

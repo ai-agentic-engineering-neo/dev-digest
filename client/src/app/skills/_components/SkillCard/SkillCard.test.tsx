@@ -27,7 +27,7 @@ describe("SkillCard", () => {
     expect(screen.getByText("pull 42% · accept —")).toBeInTheDocument();
   });
 
-  it("Delete opens the confirm modal (not the preview) and deletes on confirm", async () => {
+  it("Delete opens the confirm modal (does not open the editor) and deletes on confirm", async () => {
     const api = mockFetch({
       "GET /skills": [makeSkill()],
       "GET /skills/sk1/agents": [{ id: "ag1", name: "Security Reviewer", enabled: true }],

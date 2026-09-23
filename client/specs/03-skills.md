@@ -7,8 +7,9 @@ Status: **approved** (2026-09-22). The client questions are closed (see **Decisi
 
 1. **/skills**: a **grid of skill cards** with search and an **Add Skill** menu
    (Create / Import from file / Import from URL / Search community). Clicking a card
-   opens a **side preview drawer**. "Edit" in the drawer goes to the editor.
-2. **/skills/[id]**: the editor with tabs Config · Preview · Versions · Stats.
+   opens the editor for that skill.
+2. **/skills/[id]**: laid out like the agent editor — the skill list in a left
+   sidebar + the editor with tabs Config · Preview · Versions · Stats.
 3. **Import flows**: file (`.md` or `.zip`), URL and community all end in one
    **Import preview** modal. Nothing is saved until the user confirms.
 4. A **Skills tab** in the Agent Editor: tick which skills the agent uses and
@@ -23,16 +24,16 @@ Status: **approved** (2026-09-22). The client questions are closed (see **Decisi
 | C3 | Use the `diff` (jsdiff) package for version diffs. |
 | C4 | Use **`@dnd-kit`** (`core` + `sortable` + `utilities`) for drag and drop. It gives keyboard sensors and touch support. |
 | C5 | The agent card fetches its skill count **per agent** (`useAgentSkillLinks(agent.id)`). |
-| L  | Layout: grid + side preview drawer (lesson brief), not list + editor. |
+| L  | Layout: grid → master-detail like /agents (list sidebar + tabbed editor). Revised 2026-09-23: the side preview drawer (lesson brief) was dropped; the old `/skills?preview=<id>` redirects to the editor. |
 
 ## Routes and structure (`frontend-ui-architecture` conventions)
 
 ```
-app/skills/page.tsx                       → async RSC: ?preview=<id> → <SkillsView previewId/>
-app/skills/_components/SkillsView/        (header, search, type filter chips, grid, drawer host)
+app/skills/page.tsx                       → async RSC: legacy ?preview=<id> → redirect; <SkillsView/>
+app/skills/_components/SkillsView/        (header, search, type filter chips, grid)
 app/skills/_components/SkillCard/         (type icon+badge, name, description, source, toggle,
                                            "N agents", pull % · accept %)
-app/skills/_components/SkillPreviewDrawer/(meta, rendered body, used-by, Edit / Delete)
+app/skills/_components/SkillControls/     (enabled switch + trash, shared by SkillCard and SkillListItem)
 app/skills/_components/AddSkillMenu/      (Dropdown: create · file · url · community)
 app/skills/_components/CreateSkillModal/  (blank form → POST → navigate to editor)
 app/skills/_components/ImportUrlModal/    (URL input → preview)
@@ -40,13 +41,19 @@ app/skills/_components/CommunitySkillsDrawer/ (search + chips + Import buttons �
 app/skills/_components/ImportPreviewModal/(editable name/desc/type, rendered body, included/
                                            ignored files, warnings, trust notice, Confirm)
 app/skills/[id]/page.tsx                  → async RSC: await params/searchParams → <SkillEditorView id tab/>
+app/skills/[id]/_components/SkillEditorView/ (frame; loading / error pane next to the sidebar)
+  _components/SkillWorkspace/             (loaded skill: owns the draft + both leave guards; header + SkillEditor)
+  _components/SkillSidebar/               (Add Skill menu + SkillListItem rows, the open one highlighted)
 app/skills/[id]/_components/SkillEditor/_components/{ConfigTab,PreviewTab,VersionsTab,StatsTab,BodyEditor}
 app/agents/[id]/_components/AgentEditor/_components/SkillsTab/
 lib/hooks/skills.ts + skillKeys in lib/hooks/keys.ts
 ```
 
 - The tab is URL state (`?tab=config|preview|versions|stats`), resolved in `page.tsx`.
-  The drawer is URL state too (`/skills?preview=<id>`). Views never read `useSearchParams`.
+  Switching skills in the sidebar (or opening one just created from its Add Skill menu)
+  keeps the tab and asks first when the draft is dirty: `SkillWorkspace` owns the draft and
+  guards that router.push; links are covered by `useUnsavedChangesGuard`. Views never read
+  `useSearchParams`.
 
 ## Hooks (`lib/hooks/skills.ts`)
 
@@ -139,7 +146,8 @@ Rewrite `messages/en/skills.json` for these flows and delete the unused keys. Ad
 
 1. /skills shows the seeded skills as a grid. Search filters by name and description.
    A disabled card is dimmed. The toggle updates instantly and survives a reload.
-2. Clicking a card opens the drawer with the rendered body and "Used by". Edit → editor.
+2. Clicking a card opens `/skills/:id`: the skill list on the left (the open one
+   highlighted) and the tabs on the right. Clicking another skill switches on the same tab.
 3. Editing only `type` → toast "Saved", version unchanged. Editing the body → `unsaved`,
    footer "…v6". Save → `v6` and a new row at the top of Versions.
 4. Preview shows the unsaved draft. Diff on v4 shows added and removed lines. Restore

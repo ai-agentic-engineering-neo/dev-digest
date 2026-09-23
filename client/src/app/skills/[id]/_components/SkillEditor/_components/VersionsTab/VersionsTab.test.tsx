@@ -10,13 +10,19 @@ import type { Skill } from "@devdigest/shared";
 import type { SkillTab } from "@/app/skills/constants";
 import { useSkill } from "@/lib/hooks";
 import { SkillEditor } from "../../SkillEditor";
+import { useSkillDraft } from "../../useSkillDraft";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }) }));
 
-function Harness({ initialTab }: { initialTab: SkillTab }) {
+function Editor({ skill, initialTab }: { skill: Skill; initialTab: SkillTab }) {
   const [tab, setTab] = React.useState<SkillTab>(initialTab);
+  const draft = useSkillDraft(skill);
+  return <SkillEditor skill={skill} draft={draft} tab={tab} onTab={setTab} />;
+}
+
+function Harness({ initialTab }: { initialTab: SkillTab }) {
   const { data } = useSkill("sk1");
-  return data ? <SkillEditor skill={data} tab={tab} onTab={setTab} /> : null;
+  return data ? <Editor skill={data} initialTab={initialTab} /> : null;
 }
 
 const CURRENT = "## Rule\n\nKeep PRs focused.\nNew line.";

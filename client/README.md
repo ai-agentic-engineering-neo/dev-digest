@@ -29,7 +29,7 @@ flowchart TD
   PULLS --> PR["/pulls/:number<br/>review detail<br/>(overview · diff · findings)"]
 
   AGENTS["/agents"] --> AGENT["/agents/:id<br/>editor (config · skills)"]
-  SKILLS["/skills<br/>grid + ?preview= drawer"] --> SKILL["/skills/:id<br/>editor (config · preview · versions · stats)"]
+  SKILLS["/skills<br/>grid"] --> SKILL["/skills/:id<br/>list sidebar + editor (config · preview · versions · stats)"]
   CONV["/repos/:repoId/conventions<br/>rules + create-skill modal"]
   SETTINGS["/settings/:section<br/>API keys · models"]
 

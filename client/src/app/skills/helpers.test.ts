@@ -18,7 +18,7 @@ describe("skills route helpers", () => {
     expect(resolveSkillTab("evals")).toBe("config");
   });
 
-  it("resolvePreviewId treats an empty value as no drawer", () => {
+  it("resolvePreviewId (legacy ?preview= redirect) treats an empty value as none", () => {
     expect(resolvePreviewId("sk1")).toBe("sk1");
     expect(resolvePreviewId("")).toBeNull();
     expect(resolvePreviewId(undefined)).toBeNull();
@@ -26,7 +26,6 @@ describe("skills route helpers", () => {
 
   it("builds list and editor URLs", () => {
     expect(skillsHref()).toBe("/skills");
-    expect(skillsHref("sk 1")).toBe("/skills?preview=sk+1");
     expect(skillHref("sk1")).toBe("/skills/sk1?tab=config");
     expect(skillHref("sk1", "versions")).toBe("/skills/sk1?tab=versions");
   });

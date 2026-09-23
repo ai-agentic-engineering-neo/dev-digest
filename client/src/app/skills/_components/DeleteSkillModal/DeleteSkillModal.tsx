@@ -1,5 +1,6 @@
 /* DeleteSkillModal — confirm deleting a skill, listing the agents that link it
-   (they lose the link). Used by the preview drawer and the editor danger zone. */
+   (they lose the link). Used by SkillControls (grid card + editor sidebar) and
+   the editor danger zone. */
 "use client";
 
 import { useTranslations } from "next-intl";

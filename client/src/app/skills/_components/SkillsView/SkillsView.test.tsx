@@ -1,8 +1,8 @@
-/* SkillsView — grid, search, type filter and the ?preview= drawer, with the
+/* SkillsView — grid, search, type filter and opening the editor, with the
    real hooks over a stubbed API. AppShell is a passthrough. */
 import type React from "react";
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
-import { renderWithProviders, screen, cleanup, within } from "@/test/render";
+import { renderWithProviders, screen, cleanup } from "@/test/render";
 import { mockFetch } from "@/test/fetch-mock";
 import { makeSkill } from "@/test/skill-fixtures";
 
@@ -26,8 +26,6 @@ beforeEach(() => {
   mockFetch({
     "GET /skills": SKILLS,
     "GET /skills/stats": [],
-    "GET /skills/b": SKILLS[1]!,
-    "GET /skills/b/agents": [{ id: "ag1", name: "Security Reviewer", enabled: true }],
   });
 });
 afterEach(cleanup);
@@ -36,7 +34,7 @@ const cardNames = () => screen.getAllByTestId("skill-card").map((c) => c.getAttr
 
 describe("SkillsView", () => {
   it("renders the seeded skills as cards; a disabled card is dimmed", async () => {
-    renderWithProviders(<SkillsView previewId={null} />);
+    renderWithProviders(<SkillsView />);
     expect(await screen.findByText("no-then-chains")).toBeInTheDocument();
     expect(cardNames()).toEqual(["no-then-chains", "secret-leakage-gate", "phantom-api-gate"]);
     const disabled = screen.getAllByTestId("skill-card")[2]!;
@@ -44,7 +42,7 @@ describe("SkillsView", () => {
   });
 
   it("search filters by name and description", async () => {
-    const { user } = renderWithProviders(<SkillsView previewId={null} />);
+    const { user } = renderWithProviders(<SkillsView />);
     await screen.findByText("no-then-chains");
     const search = screen.getByRole("textbox", { name: "Search skills…" });
     await user.type(search, "tokens");
@@ -58,7 +56,7 @@ describe("SkillsView", () => {
   });
 
   it("the type chips filter the grid", async () => {
-    const { user } = renderWithProviders(<SkillsView previewId={null} />);
+    const { user } = renderWithProviders(<SkillsView />);
     await screen.findByText("no-then-chains");
     await user.click(screen.getByRole("button", { name: "security" }));
     expect(cardNames()).toEqual(["secret-leakage-gate", "phantom-api-gate"]);
@@ -66,19 +64,10 @@ describe("SkillsView", () => {
     expect(cardNames()).toHaveLength(3);
   });
 
-  it("clicking a card puts ?preview=<id> in the URL", async () => {
-    const { user } = renderWithProviders(<SkillsView previewId={null} />);
+  it("clicking a card opens that skill's editor", async () => {
+    const { user } = renderWithProviders(<SkillsView />);
     await user.click(await screen.findByText("secret-leakage-gate"));
-    expect(nav.replace).toHaveBeenCalledWith("/skills?preview=b", { scroll: false });
-  });
-
-  it("?preview= opens the drawer with the body and Used by; Edit goes to the editor", async () => {
-    const { user } = renderWithProviders(<SkillsView previewId="b" />);
-    const drawer = await screen.findByRole("dialog");
-    expect(await within(drawer).findByText("secret-leakage-gate.md")).toBeInTheDocument();
-    expect(within(drawer).getByText("Keep PRs focused.")).toBeInTheDocument();
-    expect(await within(drawer).findByText("Security Reviewer")).toBeInTheDocument();
-    await user.click(within(drawer).getByRole("button", { name: "Edit" }));
     expect(nav.push).toHaveBeenCalledWith("/skills/b?tab=config");
+    expect(nav.replace).not.toHaveBeenCalled();
   });
 });

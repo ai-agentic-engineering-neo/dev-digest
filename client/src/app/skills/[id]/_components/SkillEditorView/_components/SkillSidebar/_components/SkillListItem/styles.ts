@@ -1,16 +1,16 @@
 import type { CSSProperties } from "react";
 
-/** Co-located styles for SkillCard. */
+/** Co-located styles for SkillListItem (compact SkillCard; active = AgentCard's). */
 export const s = {
-  card: (enabled: boolean): CSSProperties => ({
+  item: (active: boolean, enabled: boolean): CSSProperties => ({
     display: "flex",
     flexDirection: "column",
     gap: 10,
     padding: 14,
     borderRadius: 8,
     cursor: "pointer",
-    border: "1px solid var(--border)",
-    background: "var(--bg-elevated)",
+    border: `1px solid ${active ? "var(--border-strong)" : "var(--border)"}`,
+    background: active ? "var(--bg-hover)" : "var(--bg-elevated)",
     opacity: enabled ? 1 : 0.55,
     transition: "opacity .12s",
   }),
@@ -33,7 +33,6 @@ export const s = {
     overflow: "hidden",
     textOverflow: "ellipsis",
   } satisfies CSSProperties,
-  /** Current version chip, next to the name. */
   version: {
     fontSize: 11.5,
     fontWeight: 600,
@@ -47,23 +46,17 @@ export const s = {
   description: {
     fontSize: 13,
     color: "var(--text-secondary)",
-    lineHeight: 1.45,
-    minHeight: 38,
-    display: "-webkit-box",
-    WebkitLineClamp: 2,
-    WebkitBoxOrient: "vertical",
+    whiteSpace: "nowrap",
     overflow: "hidden",
+    textOverflow: "ellipsis",
   } satisfies CSSProperties,
-  meta: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" } satisfies CSSProperties,
-  footer: {
-    display: "flex",
+  meta: { display: "flex", alignItems: "center", gap: 8 } satisfies CSSProperties,
+  agents: {
+    marginLeft: "auto",
+    display: "inline-flex",
     alignItems: "center",
-    gap: 10,
-    paddingTop: 10,
-    borderTop: "1px solid var(--border)",
+    gap: 5,
     fontSize: 12,
     color: "var(--text-muted)",
   } satisfies CSSProperties,
-  footerItem: { display: "inline-flex", alignItems: "center", gap: 5 } satisfies CSSProperties,
-  stats: { marginLeft: "auto" } satisfies CSSProperties,
 } as const;

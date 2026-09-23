@@ -1,10 +1,8 @@
 import type { CSSProperties } from "react";
 
-/** Co-located styles for SkillEditorView. */
+/** Co-located styles for SkillEditorView (the sidebar + pane frame, matching
+ *  AgentEditorView, and the loading / error pane). */
 export const s = {
-  loading: { padding: 28, display: "flex", flexDirection: "column", gap: 16 } satisfies CSSProperties,
-  main: { display: "flex", flexDirection: "column", minHeight: 0 } satisfies CSSProperties,
-  header: { display: "flex", alignItems: "center", gap: 12, padding: "20px 28px 12px" } satisfies CSSProperties,
-  icon: { color: "var(--accent)" } satisfies CSSProperties,
-  title: { fontSize: 18, fontWeight: 700 } satisfies CSSProperties,
+  layout: { display: "flex", height: "calc(100vh - 52px)" } satisfies CSSProperties,
+  pane: { flex: 1, padding: 28, display: "flex", flexDirection: "column", gap: 16 } satisfies CSSProperties,
 } as const;

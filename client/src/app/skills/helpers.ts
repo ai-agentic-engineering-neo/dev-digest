@@ -12,14 +12,15 @@ export function resolveSkillTab(raw: string | string[] | undefined): SkillTab {
   return SKILL_TABS.find((t) => t === value) ?? DEFAULT_SKILL_TAB;
 }
 
-/** Normalize ?preview= on /skills (empty → no drawer). */
+/** Normalize the legacy ?preview= on /skills (empty → none); the route
+ *  redirects a non-empty one to the editor. */
 export function resolvePreviewId(raw: string | string[] | undefined): string | null {
   return first(raw)?.trim() || null;
 }
 
-/** /skills, optionally with the side preview drawer open on a skill. */
-export function skillsHref(previewId?: string | null): string {
-  return previewId ? `/skills?${new URLSearchParams({ preview: previewId }).toString()}` : "/skills";
+/** The skills grid. */
+export function skillsHref(): string {
+  return "/skills";
 }
 
 /** Skill editor URL on a given tab. */

@@ -124,16 +124,6 @@
     "importing": "Importing…",
     "imported": "Imported \"{name}\" (disabled until you enable it)"
   },
-  "drawer": {
-    "edit": "Edit",
-    "delete": "Delete",
-    "usedBy": "Used by",
-    "notUsed": "No agent links this skill yet.",
-    "version": "v{version}",
-    "enabled": "enabled",
-    "disabled": "disabled",
-    "loadError": "Could not load this skill."
-  },
   "imported": {
     "banner": "Imported from {ref}. Read it before enabling: it becomes instructions in your agents' prompts."
   },
@@ -148,6 +138,7 @@
     "deleted": "Deleted \"{name}\""
   },
   "editor": {
+    "listTitle": "Skills",
     "crumbFallback": "Skill",
     "loadErrorTitle": "Couldn’t load this skill",
     "loadErrorBody": "It may have been deleted.",
@@ -157,7 +148,8 @@
       "versions": "Versions",
       "stats": "Stats"
     },
-    "unsavedConfirm": "You have unsaved changes to this skill. Leave anyway?"
+    "unsavedConfirm": "You have unsaved changes to this skill. Leave anyway?",
+    "disabled": "disabled"
   },
   "config": {
     "title": "Configuration",

@@ -15,10 +15,12 @@ Reviewed monthly: stale entries are removed in a dedicated commit.
 
 ## What Doesn't Work
 <!-- dead ends and anti-patterns — the most valuable section -->
+- 2026-09-23 — running the full client vitest suite in parallel with tsc/biome (or another heavy job): CPU starvation makes unrelated CodeMirror/modal tests hit the 5000ms test timeout (seen: ConfigTab, VersionsTab, ConventionsView — 4 fails, pass alone and on a quiet rerun, clean HEAD green) → run the full suite on its own before calling a failure real
 - 2026-09-22 — component tests that assert an optimistic mutation's EFFECT (e.g. Create skill appearing after Accept): mockFetch returns the same GET body every time, so the mutation's onSettled invalidate refetches the ORIGINAL state and the optimistic change is rolled back before the assertion → assert the gated UI on two fixed states (render with the rule pending, unmount, re-render with it accepted), or stub the GET to change between calls
 
 ## Codebase Patterns
 <!-- conventions and architectural decisions not obvious from the code -->
+- 2026-09-23 — vendor/ui Modal (and Drawer) render in place with position:fixed, no portal: inside a dimmed row (opacity 0.55 for a disabled SkillCard) the dialog inherits the opacity, and its clicks bubble to the row's onClick → render confirm modals as a sibling of the clickable row (SkillCard, SkillListItem), not inside it
 - 2026-09-22 — src/app/globals.css .dd-md: the vendored <Markdown> styles only inline marks and Tailwind preflight strips heading sizes and list markers, so block styles for rendered markdown (skill bodies, finding rationales) live in globals.css → add markdown block styling there, not per component
 - 2026-09-22 — src/app/skills/[id]/…/useUnsavedChangesGuard: a document capture-phase click listener that calls preventDefault + stopPropagation blocks next/link navigation (React's root listener never sees the click); it does not catch browser Back → reuse this for other unsaved-draft guards
 - 2026-09-22 — src/lib/providers.tsx + lib/query-meta.ts: the global MutationCache toasts EVERY mutation error; a mutation that shows its own error (409 stale_version, import preview 422) sets meta: { quietErrorCodes: [...] | ['*'] } (typed via TanStack Register) → use it instead of a second toast or swallowing the error
@@ -34,6 +36,8 @@ Reviewed monthly: stale entries are removed in a dedicated commit.
 
 ## Tool & Library Notes
 <!-- dependency quirks, versions, flags -->
+- 2026-09-23 — vitest hooks: a function returned from beforeEach is run as its teardown, and mock.mockClear() returns the mock, so beforeEach(() => redirect.mockClear()) calls the mocked fn after every test (seen: page.test.tsx failing with 'NEXT_REDIRECT undefined') → use a block body: beforeEach(() => { m.mockClear(); })
+- 2026-09-23 — client/tsconfig.json: next build with a new NEXT_DIST_DIR (e.g. .next-verify) appends '<dir>/types/**/*.ts' to include and reorders it, besides the next-env.d.ts rewrite → git checkout -- client/tsconfig.json client/next-env.d.ts after a side build
 - 2026-09-22 — next-intl useFormatter().dateTime without a configured timeZone logs ENVIRONMENT_FALLBACK errors in tests and dev → format dates with toLocaleString like the rest of the codebase
 - 2026-09-22 — diff (jsdiff 9) diffLines: a last line without a trailing newline differs from the same line followed by more text, so appending one line shows the old last line as removed+added → add '\\n' to both texts before diffing (VersionsTab)
 - 2026-09-22 — client/next-env.d.ts is tracked and next dev/build rewrite its routes.d.ts reference to the active NEXT_DIST_DIR (.next vs .next-e2e from scripts/e2e.sh), so every build or e2e run leaves a diff → git checkout -- client/next-env.d.ts before committing
@@ -47,6 +51,7 @@ Reviewed monthly: stale entries are removed in a dedicated commit.
 
 ## Recurring Errors & Fixes
 <!-- error message → cause → fix -->
+- 2026-09-23 — client next build while next dev runs (pgrep -af 'next dev'): they share .next, the build fails with "Cannot find module './666.js'" + 'Failed to collect page data for /' and the dev server (and dev.sh's API) exits → build to a separate dir: NEXT_DIST_DIR=.next-verify pnpm build, then rm -rf .next-verify
 - 2026-09-22 — app/**/loading.tsx|page.tsx|not-found.tsx (server components): importing the @devdigest/ui barrel pulls recharts into the RSC graph → the route 500s at runtime with 'Super expression must either be null or a function', while tsc, vitest AND next build all stay green (seen on repos/[repoId]/pulls/loading.tsx) → route files that render @devdigest/ui directly need "use client" (or render a client View); check with: for f in $(grep -rl @devdigest/ui src/app --include=*.tsx); do grep -q '^"use client"' $f || echo $f; done
 - 2026-09-22 — client next build: 'ENOENT … .next/server/pages-manifest.json' (Build error occurred) when two agents run next build in client/ at the same time — they share .next → check pgrep -af 'next build' and rerun after the other finishes; it is not a code error
 - 2026-09-22 — React warning 'Updating a style property during rerender (borderColor) when a conflicting property is set (borderLeftColor)': borderColor is itself a shorthand of the four side colors, so toggling it next to borderLeftColor warns (FindingCard focus ring) → set borderTopColor/RightColor/BottomColor + borderLeftColor, never borderColor

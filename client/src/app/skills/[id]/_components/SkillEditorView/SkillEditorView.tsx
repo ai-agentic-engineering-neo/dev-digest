@@ -1,24 +1,28 @@
-/* SkillEditorView — /skills/:id: header (name.md, type, version) + the tabbed
-   SkillEditor. The tab comes from ?tab= (resolved by the route). */
+/* SkillEditorView — /skills/:id, laid out like the agent editor: the skill list
+   in a left sidebar + the tabbed editor for the selected skill. Once the skill
+   is loaded, SkillWorkspace (keyed by id) owns the draft and guards leaving it;
+   while loading or on error only the sidebar and a placeholder pane show. The
+   tab comes from ?tab= (resolved by the route) and is kept when switching. */
 "use client";
 
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Badge, ErrorState, Icon, Skeleton } from "@devdigest/ui";
+import { ErrorState, Skeleton } from "@devdigest/ui";
 import { AppShell } from "@/components/app-shell";
-import { SkillTypeBadge } from "@/components/skill-type-badge";
 import { useSkill } from "@/lib/hooks";
 import { ApiError } from "@/lib/api";
 import type { SkillTab } from "@/app/skills/constants";
 import { skillHref, skillsHref } from "@/app/skills/helpers";
-import { SkillEditor } from "../SkillEditor";
+import { SkillSidebar } from "./_components/SkillSidebar";
+import { SkillWorkspace } from "./_components/SkillWorkspace";
 import { s } from "./styles";
 
 export function SkillEditorView({ id, tab }: { id: string; tab: SkillTab }) {
   const t = useTranslations("skills");
   const tc = useTranslations("common");
   const router = useRouter();
-  const { data: skill, isLoading, isError, error, refetch } = useSkill(id);
+  const { data: skill, isLoading, error, refetch } = useSkill(id);
+  const go = (next: string) => router.push(skillHref(next, tab));
 
   const crumb = [
     { label: t("page.crumbLab") },
@@ -26,43 +30,38 @@ export function SkillEditorView({ id, tab }: { id: string; tab: SkillTab }) {
     { label: skill ? `${skill.name}.md` : t("editor.crumbFallback") },
   ];
 
-  if (isError || (!isLoading && !skill)) {
-    return (
-      <AppShell crumb={crumb}>
-        <ErrorState
-          fullScreen
-          title={t("editor.loadErrorTitle")}
-          body={error instanceof ApiError && error.status !== 404 ? error.message : t("editor.loadErrorBody")}
-          onRetry={() => refetch()}
-          retryLabel={tc("actions.retry")}
-        />
-      </AppShell>
-    );
-  }
-
   return (
     <AppShell crumb={crumb}>
-      {isLoading || !skill ? (
-        <div style={s.loading}>
-          <Skeleton height={24} width={240} />
-          <Skeleton height={240} />
-        </div>
-      ) : (
-        <div style={s.main}>
-          <div style={s.header}>
-            <Icon.Sparkles size={18} style={s.icon} />
-            <h1 className="mono" style={s.title}>
-              {skill.name}.md
-            </h1>
-            <SkillTypeBadge type={skill.type} />
-            <Badge color="var(--text-secondary)" mono>
-              v{skill.version}
-            </Badge>
-            {!skill.enabled && <Badge color="var(--text-muted)">{t("drawer.disabled")}</Badge>}
-          </div>
-          <SkillEditor key={skill.id} skill={skill} tab={tab} onTab={(next) => router.replace(skillHref(id, next))} />
-        </div>
-      )}
+      <div style={s.layout}>
+        {skill ? (
+          <SkillWorkspace
+            key={skill.id}
+            skill={skill}
+            tab={tab}
+            onTab={(next) => router.replace(skillHref(id, next))}
+            onGo={go}
+          />
+        ) : (
+          <>
+            <SkillSidebar activeId={id} onOpen={go} />
+            <div style={s.pane}>
+              {isLoading ? (
+                <>
+                  <Skeleton height={24} width={240} />
+                  <Skeleton height={240} />
+                </>
+              ) : (
+                <ErrorState
+                  title={t("editor.loadErrorTitle")}
+                  body={error instanceof ApiError && error.status !== 404 ? error.message : t("editor.loadErrorBody")}
+                  onRetry={() => refetch()}
+                  retryLabel={tc("actions.retry")}
+                />
+              )}
+            </div>
+          </>
+        )}
+      </div>
     </AppShell>
   );
 }

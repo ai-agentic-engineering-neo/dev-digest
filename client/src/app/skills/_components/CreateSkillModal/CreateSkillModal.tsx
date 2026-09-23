@@ -1,5 +1,6 @@
 /* CreateSkillModal — blank form (name, description, type, body) → POST /skills
-   → the new skill's editor. */
+   → the new skill's editor (via onCreated when the host must guard the
+   navigation, e.g. a dirty skill editor). */
 "use client";
 
 import React from "react";
@@ -11,7 +12,13 @@ import { isValidSkillName, skillHref } from "../../helpers";
 import { SkillMetaFields, type SkillMetaValue } from "../SkillMetaFields";
 import { s } from "./styles";
 
-export function CreateSkillModal({ onClose }: { onClose: () => void }) {
+export function CreateSkillModal({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void;
+  onCreated?: (id: string) => void;
+}) {
   const t = useTranslations("skills");
   const router = useRouter();
   const create = useCreateSkill();
@@ -25,7 +32,8 @@ export function CreateSkillModal({ onClose }: { onClose: () => void }) {
       {
         onSuccess: (skill) => {
           onClose();
-          router.push(skillHref(skill.id));
+          if (onCreated) onCreated(skill.id);
+          else router.push(skillHref(skill.id));
         },
       },
     );

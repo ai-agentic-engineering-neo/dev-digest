@@ -1,5 +1,6 @@
-/* SkillsView — /skills: a grid of skill cards with search + type filter, the
-   Add Skill menu (create / import) and the side preview drawer (?preview=). */
+/* SkillsView — /skills: a grid of skill cards with search + type filter and
+   the Add Skill menu (create / import). A card opens the editor at /skills/:id
+   (skill list sidebar + tabs, like the agents screen). */
 "use client";
 
 import React from "react";
@@ -10,14 +11,13 @@ import type { SkillType } from "@devdigest/shared";
 import { AppShell } from "@/components/app-shell";
 import { useSkills, useSkillStatsSummary } from "@/lib/hooks";
 import { SKILL_TYPES } from "../../constants";
-import { skillHref, skillsHref } from "../../helpers";
+import { skillHref } from "../../helpers";
 import { AddSkillMenu } from "../AddSkillMenu";
 import { SkillCard } from "../SkillCard";
-import { SkillPreviewDrawer } from "../SkillPreviewDrawer";
 import { filterSkills, statsById } from "./helpers";
 import { s } from "./styles";
 
-export function SkillsView({ previewId }: { previewId: string | null }) {
+export function SkillsView() {
   const t = useTranslations("skills");
   const tc = useTranslations("common");
   const router = useRouter();
@@ -29,7 +29,6 @@ export function SkillsView({ previewId }: { previewId: string | null }) {
   const all = skills ?? [];
   const list = filterSkills(all, search, type);
   const statsMap = statsById(stats);
-  const openPreview = (id: string | null) => router.replace(skillsHref(id), { scroll: false });
 
   return (
     <AppShell crumb={[{ label: t("page.crumbLab") }, { label: t("page.crumbSkills") }]}>
@@ -90,19 +89,12 @@ export function SkillsView({ previewId }: { previewId: string | null }) {
         {list.length > 0 && (
           <div style={s.grid}>
             {list.map((sk) => (
-              <SkillCard key={sk.id} skill={sk} stats={statsMap.get(sk.id)} onOpen={openPreview} />
+              <SkillCard key={sk.id} skill={sk} stats={statsMap.get(sk.id)} onOpen={(id) => router.push(skillHref(id))} />
             ))}
           </div>
         )}
       </div>
 
-      {previewId && (
-        <SkillPreviewDrawer
-          id={previewId}
-          onClose={() => openPreview(null)}
-          onEdit={(id) => router.push(skillHref(id))}
-        />
-      )}
     </AppShell>
   );
 }

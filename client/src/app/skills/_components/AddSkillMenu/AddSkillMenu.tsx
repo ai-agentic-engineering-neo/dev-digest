@@ -1,7 +1,9 @@
 /* AddSkillMenu — the "Add Skill" dropdown and the flows it opens: create from
    scratch, import from file (.md / .zip, read as base64 in the browser), import
    from URL, community search. Every import ends in ImportPreviewModal; nothing
-   is saved until the user confirms there. */
+   is saved until the user confirms there. The new skill's editor opens via
+   onOpen when given (the skill editor passes its unsaved-draft-guarded open),
+   else the modals navigate themselves. */
 "use client";
 
 import React from "react";
@@ -19,7 +21,7 @@ import { readFileAsBase64 } from "./helpers";
 
 type Mode = "create" | "url" | "community" | null;
 
-export function AddSkillMenu() {
+export function AddSkillMenu({ onOpen }: { onOpen?: (id: string) => void } = {}) {
   const t = useTranslations("skills");
   const toast = useToast();
   const fileRef = React.useRef<HTMLInputElement>(null);
@@ -83,10 +85,10 @@ export function AddSkillMenu() {
           { label: t("menu.community"), icon: "Users", onClick: () => setMode("community") },
         ]}
       />
-      {mode === "create" && <CreateSkillModal onClose={() => setMode(null)} />}
+      {mode === "create" && <CreateSkillModal onClose={() => setMode(null)} onCreated={onOpen} />}
       {mode === "url" && <ImportUrlModal onClose={() => setMode(null)} onPreview={showPreview} />}
       {mode === "community" && <CommunitySkillsDrawer onClose={() => setMode(null)} onPreview={showPreview} />}
-      {preview && <ImportPreviewModal preview={preview} onClose={() => setPreview(null)} />}
+      {preview && <ImportPreviewModal preview={preview} onClose={() => setPreview(null)} onCreated={onOpen} />}
     </>
   );
 }

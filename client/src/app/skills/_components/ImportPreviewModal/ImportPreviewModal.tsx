@@ -2,7 +2,8 @@
    file / URL / community import, BEFORE anything is saved. Shows the source,
    editable name / description / type, the body (rendered or raw), included and
    ignored files, sanitizer warnings and the trust notice. Confirm → POST
-   /skills with source + source_ref (stored disabled) → the editor. */
+   /skills with source + source_ref (stored disabled) → the editor (via
+   onCreated when the host must guard the navigation). */
 "use client";
 
 import React from "react";
@@ -18,7 +19,15 @@ import { SOURCE_LABEL_KEY } from "./constants";
 import { ignoreReasonKey } from "./helpers";
 import { s } from "./styles";
 
-export function ImportPreviewModal({ preview, onClose }: { preview: SkillImportPreview; onClose: () => void }) {
+export function ImportPreviewModal({
+  preview,
+  onClose,
+  onCreated,
+}: {
+  preview: SkillImportPreview;
+  onClose: () => void;
+  onCreated?: (id: string) => void;
+}) {
   const t = useTranslations("skills");
   const toast = useToast();
   const router = useRouter();
@@ -44,7 +53,8 @@ export function ImportPreviewModal({ preview, onClose }: { preview: SkillImportP
         onSuccess: (skill) => {
           toast.success(t("importPreview.imported", { name: skill.name }));
           onClose();
-          router.push(skillHref(skill.id));
+          if (onCreated) onCreated(skill.id);
+          else router.push(skillHref(skill.id));
         },
       },
     );

@@ -103,7 +103,7 @@ export class PullsService {
       });
       return { ...detail, id: pr.id };
     } catch (err) {
-      log.warn({ err }, 'GitHub PR detail refresh skipped (no token / offline); serving persisted detail');
+      log.warn({ err }, 'PR detail refresh failed (GitHub fetch or DB mirror); serving persisted detail');
       const [files, commits] = await Promise.all([
         this.deps.pulls.listFiles(pr.id),
         this.deps.pulls.listCommits(pr.id),

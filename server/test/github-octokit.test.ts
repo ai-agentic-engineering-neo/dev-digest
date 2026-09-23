@@ -8,6 +8,7 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   OctokitGitHubClient,
   MAX_PR_FILES,
+  mergeSamePath,
   type GitHubClientLogger,
 } from '../src/adapters/github/octokit.js';
 
@@ -89,5 +90,36 @@ describe('OctokitGitHubClient.getPullRequest pagination', () => {
       changedFiles: 3500,
       fetched: MAX_PR_FILES,
     });
+  });
+});
+
+describe('mergeSamePath (file ↔ symlink type change)', () => {
+  it('folds the removed + added entries GitHub returns for one path into one file', () => {
+    const merged = mergeSamePath([
+      { path: 'a.ts', additions: 2, deletions: 1, patch: '@@ a' },
+      { path: 'CLAUDE.md', additions: 0, deletions: 51, patch: '@@ -1,51 +0,0 @@' },
+      { path: 'CLAUDE.md', additions: 1, deletions: 0, patch: '@@ -0,0 +1 @@' },
+      { path: 'b.bin', additions: 0, deletions: 0, patch: undefined },
+      { path: 'b.bin', additions: 0, deletions: 0, patch: undefined },
+    ]);
+    expect(merged).toEqual([
+      { path: 'a.ts', additions: 2, deletions: 1, patch: '@@ a' },
+      { path: 'CLAUDE.md', additions: 1, deletions: 51, patch: '@@ -1,51 +0,0 @@\n@@ -0,0 +1 @@' },
+      { path: 'b.bin', additions: 0, deletions: 0, patch: undefined },
+    ]);
+  });
+
+  it('getPullRequest returns unique paths', async () => {
+    const { client, listFiles } = makeClient({ files: 2, commits: 1, changedFiles: 1 });
+    listFiles.mockResolvedValueOnce({
+      data: [
+        { filename: 'CLAUDE.md', additions: 0, deletions: 3, patch: '@@ -1,3 +0,0 @@' },
+        { filename: 'CLAUDE.md', additions: 1, deletions: 0, patch: '@@ -0,0 +1 @@' },
+      ],
+    });
+    const detail = await client.getPullRequest(repo, 7);
+    expect(detail.files).toEqual([
+      { path: 'CLAUDE.md', additions: 1, deletions: 3, patch: '@@ -1,3 +0,0 @@\n@@ -0,0 +1 @@' },
+    ]);
   });
 });

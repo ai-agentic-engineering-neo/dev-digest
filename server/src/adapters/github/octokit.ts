@@ -4,6 +4,7 @@ import type {
   RepoRef,
   PrMeta,
   PrDetail,
+  PrFile,
   PrStatus,
   GitHubReviewPayload,
   CreateReviewCommentInput,
@@ -36,6 +37,28 @@ function mapStatus(state: string, merged: boolean | undefined): PrStatus {
   if (merged) return 'merged';
   if (state === 'closed') return 'closed';
   return 'open';
+}
+
+/**
+ * GitHub lists a type change (file ↔ symlink) as two entries with the same
+ * filename: `removed` (old content) + `added` (new content). One path is one
+ * file downstream (pr_files is UNIQUE (pr_id, path)), so fold them into one
+ * entry: stats summed, patches joined in GitHub's order.
+ */
+export function mergeSamePath(files: PrFile[]): PrFile[] {
+  const byPath = new Map<string, PrFile>();
+  for (const f of files) {
+    const prev = byPath.get(f.path);
+    if (!prev) {
+      byPath.set(f.path, { ...f });
+      continue;
+    }
+    prev.additions += f.additions;
+    prev.deletions += f.deletions;
+    const patches = [prev.patch, f.patch].filter((p): p is string => !!p);
+    if (patches.length > 0) prev.patch = patches.join('\n');
+  }
+  return [...byPath.values()];
 }
 
 /**
@@ -147,12 +170,14 @@ export class OctokitGitHubClient implements GitHubClient {
             opened_at: pr.created_at,
             updated_at: pr.updated_at,
             body: pr.body,
-            files: files.map((f) => ({
-              path: f.filename,
-              additions: f.additions,
-              deletions: f.deletions,
-              patch: f.patch,
-            })),
+            files: mergeSamePath(
+              files.map((f) => ({
+                path: f.filename,
+                additions: f.additions,
+                deletions: f.deletions,
+                patch: f.patch,
+              })),
+            ),
             commits: commits.map((c) => ({
               sha: c.sha,
               message: c.commit.message,

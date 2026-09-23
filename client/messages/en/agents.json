@@ -31,7 +31,6 @@
       "description": "Description",
       "descriptionPlaceholder": "What this agent reviews",
       "provider": "Provider",
-      "model": "Model",
       "systemPrompt": "System prompt"
     }
   },

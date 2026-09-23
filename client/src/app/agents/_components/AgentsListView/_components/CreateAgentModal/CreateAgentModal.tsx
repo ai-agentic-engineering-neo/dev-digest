@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { Button, Modal, FormField, TextInput, SelectInput, Textarea } from "@devdigest/ui";
 import type { Provider } from "@devdigest/shared";
 import { useCreateAgent } from "@/lib/hooks";
+import { ModelSelectField } from "@/app/agents/_components/ModelSelectField";
 import { DEFAULT_AGENT_MODEL, DEFAULT_AGENT_PROVIDER } from "@/lib/model-defaults";
 import { MODAL_WIDTH, PROVIDER_OPTIONS } from "./constants";
 import { s } from "./styles";
@@ -20,6 +21,13 @@ export function CreateAgentModal({ onClose }: { onClose: () => void }) {
   const [provider, setProvider] = React.useState<Provider>(DEFAULT_AGENT_PROVIDER);
   const [model, setModel] = React.useState(DEFAULT_AGENT_MODEL);
   const [systemPrompt, setSystemPrompt] = React.useState(t("create.defaultSystemPrompt"));
+
+  // Model ids are provider-specific (gpt-4.1 vs openai/gpt-4.1), so a provider
+  // switch clears the model and the user picks one from the new list.
+  const changeProvider = (next: Provider) => {
+    setProvider(next);
+    setModel(next === DEFAULT_AGENT_PROVIDER ? DEFAULT_AGENT_MODEL : "");
+  };
 
   const submit = async () => {
     const agent = await create.mutateAsync({
@@ -44,7 +52,7 @@ export function CreateAgentModal({ onClose }: { onClose: () => void }) {
           <Button kind="ghost" onClick={onClose}>
             {t("create.cancel")}
           </Button>
-          <Button kind="primary" icon="Plus" onClick={submit} disabled={create.isPending}>
+          <Button kind="primary" icon="Plus" onClick={submit} disabled={create.isPending || !model}>
             {create.isPending ? t("create.creating") : t("create.create")}
           </Button>
         </div>
@@ -64,13 +72,11 @@ export function CreateAgentModal({ onClose }: { onClose: () => void }) {
         <FormField label={t("create.fields.provider")}>
           <SelectInput
             value={provider}
-            onChange={(v) => setProvider(v as Provider)}
+            onChange={(v) => changeProvider(v as Provider)}
             options={[...PROVIDER_OPTIONS]}
           />
         </FormField>
-        <FormField label={t("create.fields.model")}>
-          <TextInput value={model} onChange={setModel} mono />
-        </FormField>
+        <ModelSelectField provider={provider} value={model} onChange={setModel} />
         <FormField label={t("create.fields.systemPrompt")}>
           <Textarea value={systemPrompt} onChange={setSystemPrompt} rows={6} mono />
         </FormField>

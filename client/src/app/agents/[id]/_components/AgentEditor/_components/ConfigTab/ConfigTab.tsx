@@ -2,11 +2,11 @@
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { FormField, TextInput, SelectInput, SearchableSelect, Textarea, Toggle, Button } from "@devdigest/ui";
+import { FormField, TextInput, SelectInput, Textarea, Toggle, Button } from "@devdigest/ui";
 import type { Agent, CiFailOn, Provider, ReviewStrategy } from "@devdigest/shared";
-import { useUpdateAgent, useProviderModels } from "@/lib/hooks";
+import { useUpdateAgent } from "@/lib/hooks";
 import { useToast } from "@/lib/toast";
-import { toModelOptions } from "@/lib/model-label";
+import { ModelSelectField } from "@/app/agents/_components/ModelSelectField";
 import { CI_FAIL_ON_VALUES, PROVIDER_OPTIONS, STRATEGY_VALUES } from "./constants";
 import { s } from "./styles";
 
@@ -35,16 +35,6 @@ export function ConfigTab({ agent }: { agent: Agent }) {
   const systemPrompt = form.system_prompt;
   const ciFailOn = form.ci_fail_on;
   const repoIntel = form.repo_intel;
-
-  const { data: models } = useProviderModels(provider);
-  // Show the price (USD per 1M in/out tokens) in the label when the provider
-  // exposes it (OpenRouter) so a cheap model is easy to pick; value stays the id.
-  const modelOptions = toModelOptions(models);
-  const hasModel = modelOptions.some((o) => (typeof o === "string" ? o : o.value) === model);
-  if (!hasModel) modelOptions.unshift(model);
-  // Empty list after load = provider key missing/invalid (listModels failed) —
-  // guide the user instead of showing a silent one-item dropdown.
-  const noModels = models !== undefined && models.length === 0;
 
   // Friendly labels for the strategy select (values come from constants).
   const strategyOptions = STRATEGY_VALUES.map((v) => ({ value: v, label: t(`config.strategyOptions.${v}`) }));
@@ -86,17 +76,7 @@ export function ConfigTab({ agent }: { agent: Agent }) {
           options={[...PROVIDER_OPTIONS]}
         />
       </FormField>
-      <FormField
-        label={t("config.model")}
-        hint={noModels ? t("config.modelEmptyHint", { provider }) : t("config.modelHint")}
-      >
-        <SearchableSelect
-          value={model}
-          onChange={edit("model")}
-          options={modelOptions}
-          placeholder={t("config.modelSearch")}
-        />
-      </FormField>
+      <ModelSelectField provider={provider} value={model} onChange={edit("model")} />
       <FormField label={t("config.strategy")} hint={t("config.strategyHint")}>
         <SelectInput
           value={strategy}

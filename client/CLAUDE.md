@@ -50,6 +50,8 @@ pnpm test         # vitest + jsdom — no API needed (there is no lint script)
 
 - Read [`INSIGHTS.md`](INSIGHTS.md) before starting; append what you learned at
   the end.
+- Write to `INSIGHTS.md` only through the `engineering-insights` skill — it
+  appends and never edits existing entries.
 - Read [`specs/`](specs/README.md) before building a UI feature.
 - Read [`docs/`](docs/README.md) before changing data fetching, the app shell or i18n.
 - Read [`README.md`](README.md) (UI route map ↔ endpoints) when adding a page or a hook.

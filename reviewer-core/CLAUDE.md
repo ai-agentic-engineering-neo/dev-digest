@@ -38,6 +38,8 @@ npm run typecheck  # this IS the build: the package emits no JS
 
 - Read [`INSIGHTS.md`](INSIGHTS.md) before starting; append what you learned at
   the end.
+- Write to `INSIGHTS.md` only through the `engineering-insights` skill — it
+  appends and never edits existing entries.
 - Read [`specs/`](specs/README.md) before implementing an engine feature.
 - Read [`docs/`](docs/README.md) before changing prompt assembly, grounding or scoring.
 - Read [`README.md`](README.md) for the pipeline diagram and public API.

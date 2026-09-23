@@ -52,11 +52,15 @@ pnpm db:seed                                      # idempotent demo data
 
 - Read [`INSIGHTS.md`](INSIGHTS.md) before starting; append what you learned at
   the end.
+- Write to `INSIGHTS.md` only through the `engineering-insights` skill — it
+  appends and never edits existing entries.
 - Read [`specs/`](specs/README.md) before implementing a feature or endpoint.
 - Read [`docs/`](docs/README.md) before changing the run lifecycle, DI or secrets.
 - Read [`README.md`](README.md) (API map, DI flow, env) when adding or changing a route.
 - Read [`src/modules/repo-intel/README.md`](src/modules/repo-intel/README.md) when
   touching indexing or the repo map.
+- Read [`src/modules/repo-intel/INSIGHTS.md`](src/modules/repo-intel/INSIGHTS.md)
+  before touching indexing or the repo map; repo-intel findings go there.
 - Read [`../TESTING.md`](../TESTING.md) before adding a test.
 - Read [`../reviewer-core/README.md`](../reviewer-core/README.md) when changing
   how a review run is executed.

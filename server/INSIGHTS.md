@@ -3,12 +3,21 @@
 Things that are true about `server/` but not visible in the code. Append-only:
 when an entry goes stale, add a dated note under it instead of deleting it.
 Cross-package findings go in the [root file](../INSIGHTS.md).
+repo-intel findings go in [`src/modules/repo-intel/INSIGHTS.md`](src/modules/repo-intel/INSIGHTS.md).
+Agents write here only through the `engineering-insights` skill, whose script
+inserts lines and never changes existing ones.
 
 Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
 
-## Decisions
+## What works
 
-## Pitfalls
+## What doesn't work
+
+## Codebase patterns
+
+## Tool & library notes
+
+## Recurring errors & fixes
 
 ## Doc drift
 
@@ -19,6 +28,8 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
 - **2026-09-23** — README mentions "the two built-in agents"; the seed creates
   three (General, Security, Performance). Evidence: `README.md:109`,
   `src/db/seed.ts:22`.
+
+## Session notes
 
 ## Open questions
 

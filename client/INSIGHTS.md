@@ -3,17 +3,25 @@
 Things that are true about `client/` but not visible in the code. Append-only:
 when an entry goes stale, add a dated note under it instead of deleting it.
 Cross-package findings go in the [root file](../INSIGHTS.md).
+Agents write here only through the `engineering-insights` skill, whose script
+inserts lines and never changes existing ones.
 
 Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
 
-## Decisions
+## What works
 
-## Pitfalls
+## What doesn't work
 
 - **2026-09-23** — `src/vendor/shared/` has drifted from the canonical server
   copy: 5 files differ, and the server is ahead in each (`openrouter` provider
   values, `AgentManifest`, `CommitFile`, …). There is no sync script. Evidence:
   `diff -rq server/src/vendor/shared client/src/vendor/shared`.
+
+## Codebase patterns
+
+## Tool & library notes
+
+## Recurring errors & fixes
 
 ## Doc drift
 
@@ -24,6 +32,8 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
 - **2026-09-23** — `src/vendor/ui/README.md` points at a `/showcase` route that
   does not exist; only the smoke test renders the gallery. Evidence:
   `src/vendor/ui/README.md:55`, `ls src/app`.
+
+## Session notes
 
 ## Open questions
 

@@ -39,6 +39,8 @@ npm run typecheck
 
 - Read [`INSIGHTS.md`](INSIGHTS.md) before starting; append what you learned at
   the end.
+- Write to `INSIGHTS.md` only through the `engineering-insights` skill — it
+  appends and never edits existing entries.
 - Read [`docs/`](docs/README.md) for this package's written specs (`specs/` holds
   only executable flows — see [`specs/README.md`](specs/README.md)).
 - Read [`README.md`](README.md) for the flow format, the hermetic runner and coverage.

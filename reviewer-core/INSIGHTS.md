@@ -3,12 +3,20 @@
 Things that are true about `reviewer-core/` but not visible in the code.
 Append-only: when an entry goes stale, add a dated note under it instead of
 deleting it. Cross-package findings go in the [root file](../INSIGHTS.md).
+Agents write here only through the `engineering-insights` skill, whose script
+inserts lines and never changes existing ones.
 
 Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
 
-## Decisions
+## What works
 
-## Pitfalls
+## What doesn't work
+
+## Codebase patterns
+
+## Tool & library notes
+
+## Recurring errors & fixes
 
 ## Doc drift
 
@@ -16,6 +24,8 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
   `toReview()`, `run`, `reduce`. The real exports are `toReviewPayload`,
   `reviewPullRequest`, `reduceReviews`. Evidence: `README.md:33,41-42,48`,
   `src/index.ts`.
+
+## Session notes
 
 ## Open questions
 

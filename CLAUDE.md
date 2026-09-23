@@ -4,6 +4,19 @@ Local-first AI pull-request review. Four independent packages — **not** a
 workspace: each has its own `package.json` and lockfile. Package-specific rules
 live in `<pkg>/CLAUDE.md`; this file holds only what spans packages.
 
+## Session protocol
+
+Mandatory in every session; the `engineering-insights` skill has the details
+(module → file map, sections, quality bar, the append script).
+
+1. **Start** — after the user's prompt, before answering: read the `INSIGHTS.md`
+   of each module the prompt concerns and name, in one line, the entries that
+   apply (or "none apply"). Same when work moves to another module.
+2. **End** — before reporting a task done: re-read that file, append only new,
+   non-obvious, evidenced insights through the skill's script (it never edits
+   what is already there), and end with `Insights: …`. `nothing new` is a valid
+   result; skipping the check is not.
+
 ## Stack
 
 Node ≥22 · pnpm ≥10 · TypeScript 5.7 · Fastify 5 · Drizzle 0.38 + Postgres 16
@@ -79,6 +92,8 @@ Every package also has `README.md`, `docs/`, `specs/` and `INSIGHTS.md` — see
   route or its contract.
 - Read [`server/src/modules/repo-intel/README.md`](server/src/modules/repo-intel/README.md)
   when touching indexing or the repo map.
+- Read [`server/src/modules/repo-intel/INSIGHTS.md`](server/src/modules/repo-intel/INSIGHTS.md)
+  before touching indexing or the repo map.
 - Read [`reviewer-core/README.md`](reviewer-core/README.md) when touching prompt
   assembly, grounding or scoring.
 - Read [`TESTING.md`](TESTING.md) when adding a test or editing `.github/workflows/`.

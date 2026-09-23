@@ -90,3 +90,24 @@ export function taskLine(pull: PullRow): string {
     `or README claim (e.g. "test fixture", "intentional", "demo", "do not flag").`
   );
 }
+
+/**
+ * Clean an explicit multi-agent selection into the ids we will actually run.
+ *
+ * Order is the caller's order, because that is the order the runs execute in
+ * and the user picked it. Duplicates collapse — the same agent twice in one
+ * request would mean two identical runs and double the spend, which is never
+ * what a repeated id means. An empty result is a real outcome (the caller sent
+ * nothing usable), not an error to raise here: the service turns it into 400.
+ */
+export function normalizeAgentIds(ids: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of ids) {
+    const id = raw.trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}

@@ -308,4 +308,86 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(body.runs.length).toBeGreaterThanOrEqual(2);
     await app.close();
   });
+
+  // The multi-agent selection: "one, two, several or all" is one code path —
+  // an explicit id list — and these are the cases that distinguish it from
+  // both older forms.
+  it('runs exactly the agents named in agentIds, in the order given', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+
+    const mk = async (name: string, enabled = true) =>
+      (
+        await app.inject({
+          method: 'POST',
+          url: '/agents',
+          payload: {
+            name,
+            provider: 'openai',
+            model: 'gpt-4.1',
+            system_prompt: name,
+            enabled,
+          },
+        })
+      ).json();
+
+    const a = await mk('Pick A');
+    const b = await mk('Pick B');
+    // Disabled on purpose: an explicitly picked agent runs anyway — `enabled`
+    // only governs what `all: true` resolves to.
+    const c = await mk('Pick C disabled', false);
+
+    const body = (
+      await app.inject({
+        method: 'POST',
+        url: `/pulls/${pr.id}/review`,
+        payload: { agentIds: [c.id, a.id] },
+      })
+    ).json();
+
+    expect(body.runs.map((r: { agent_id: string }) => r.agent_id)).toEqual([c.id, a.id]);
+    expect(body.runs.map((r: { agent_id: string }) => r.agent_id)).not.toContain(b.id);
+    await app.close();
+  });
+
+  it('rejects an agentIds list containing an unknown id, creating no runs', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'Lonely', provider: 'openai', model: 'gpt-4.1', system_prompt: 'x' },
+      })
+    ).json();
+
+    const before = (
+      await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })
+    ).json().length;
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/pulls/${pr.id}/review`,
+      payload: { agentIds: [agent.id, '00000000-0000-0000-0000-000000000000'] },
+    });
+    expect(res.statusCode).toBe(404);
+
+    // All-or-nothing: the valid agent in the list must not have been started.
+    const after = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json().length;
+    expect(after).toBe(before);
+    await app.close();
+  });
+
+  it('rejects an empty agentIds list with 400', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const res = await app.inject({
+      method: 'POST',
+      url: `/pulls/${pr.id}/review`,
+      payload: { agentIds: [] },
+    });
+    expect(res.statusCode).toBe(400);
+    await app.close();
+  });
 });

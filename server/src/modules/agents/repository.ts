@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import type { CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
@@ -60,6 +60,23 @@ export class AgentsRepository {
       .select()
       .from(t.agents)
       .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.enabled, true)));
+  }
+
+  /**
+   * Fetch several agents by id (explicit multi-agent run selection).
+   *
+   * No `enabled` filter — an explicitly picked agent runs even when disabled,
+   * exactly like `getById`. Rows come back in DB order, NOT the requested
+   * order, and ids that don't exist are simply absent; both are the caller's
+   * to deal with. Never call this with an empty array: `inArray(col, [])` is
+   * invalid SQL in Drizzle.
+   */
+  async listByIds(workspaceId: string, ids: string[]): Promise<AgentRow[]> {
+    if (ids.length === 0) return [];
+    return this.db
+      .select()
+      .from(t.agents)
+      .where(and(eq(t.agents.workspaceId, workspaceId), inArray(t.agents.id, ids)));
   }
 
   async getById(workspaceId: string, id: string): Promise<AgentRow | undefined> {

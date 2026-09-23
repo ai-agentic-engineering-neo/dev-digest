@@ -70,6 +70,18 @@ by hand in the same format.
   run failed shows `—` despite real token spend — a known, accepted gap, not an
   oversight to "fix" by dropping the status filter.
   (`server/src/modules/pulls/status.ts:32`)
+- 2026-09-23 — multi-agent fan-out was ALREADY built into the review pipeline
+  long before any UI could ask for it: `runReview()` takes `targets:
+  AgentRow[]`, creates one `agent_runs` row per target and hands the whole
+  list to `executeRuns()`, which loops. The single thing forcing "one agent or
+  all enabled" was the ~10-line `resolveTargets()`, which understood `agentId`
+  or `all: true` and nothing between. Adding an explicit N-agent selection
+  therefore cost one contract field, one new branch and a repository
+  `listByIds` — no migration, no new route, no change to how runs execute.
+  Before estimating any "make X fan out" feature here, read `resolveTargets`
+  first: the expensive-looking part is usually already list-shaped, and the
+  gate is a single resolver. (`server/src/modules/reviews/service.ts:46`,
+  `server/src/modules/reviews/run-executor.ts:107`)
 
 ## Tool & Library Notes
 

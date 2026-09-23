@@ -19,6 +19,23 @@ by hand in the same format.
   or avoid next time, and point at the evidence. (`path/to/file.ts:42`)
 -->
 
+- 2026-09-23 — the vendored `Dropdown` CANNOT host a multi-select menu, and
+  this is structural, not a styling gap: `DropdownItem` calls `onClose()`
+  immediately after `it.onClick?.()` on every row click, so the menu closes
+  before a second box could be ticked, and `DropdownItemDef` has no
+  `checked`/`selected`/`disabled` field to render a checkbox with anyway.
+  The tempting fix — adding `checkbox`/`keepOpen` to `DropdownItemDef` — is
+  wrong twice over: `src/vendor/ui` is a hand-synced copy and do-not-touch
+  (`client/CLAUDE.md`), so the edit is silently lost on the next sync, and it
+  forks the primitive's behaviour for every other caller. Build the popover
+  locally in the feature folder instead, mirroring `Dropdown`'s own mechanics
+  (relative wrapper + absolute panel + `mousedown`-outside close) and its
+  tokens (`--bg-elevated`, `--border-strong`, `--shadow-modal`) so it still
+  reads as the same primitive next to real Dropdowns in the same header.
+  Worked example: the Run Review agent picker.
+  (`client/src/vendor/ui/kit/Dropdown.tsx:12`,
+  `client/src/app/repos/[repoId]/pulls/[number]/_components/RunReviewDropdown/RunReviewDropdown.tsx:1`)
+
 ## Codebase Patterns
 
 - 2026-09-21 — `visibleFindings()` (FindingsPanel/helpers.ts) is the single
@@ -60,6 +77,21 @@ by hand in the same format.
   components read the same URL param, check what they look like side by side
   before defending the split on paper.
   (`client/src/components/severity/SeverityFilterButtons.tsx:28`)
+- 2026-09-23 — the Run Review menu deliberately has NO "Run all enabled agents"
+  row any more, only the checkbox picker with `Select all`. Keeping both was
+  considered and rejected: the row and the boxes carry DIFFERENT semantics —
+  the row means "whatever the server considers enabled when it reads it", the
+  boxes mean "these exact ids" — so they visibly disagree the moment a user
+  unticks one while the row still promises "all". That is the same trap the
+  two 2026-09-23 entries above record for `SeverityPills` +
+  `SeverityFilterButtons`; this feature applied the lesson up front instead of
+  shipping and reverting. The lost one-click path is recovered by seeding the
+  selection with the enabled agents, so "run everything" is still one click.
+  Related invariant worth not re-deriving: an explicitly picked agent runs even
+  when disabled — `enabled` governs what starts TICKED (and what a legacy
+  `all: true` resolves to), never what a user is allowed to run.
+  (`client/src/app/repos/[repoId]/pulls/[number]/_components/RunReviewDropdown/helpers.ts:17`,
+  `client/specs/multi-agent-selection.md`)
 
 ## Tool & Library Notes
 

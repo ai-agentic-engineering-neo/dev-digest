@@ -3,7 +3,7 @@ import type { FindingActionKind, RunEventKind, RunTrace } from '@devdigest/share
 import { AppError, NotFoundError } from '../../platform/errors.js';
 import type { AgentRow } from '../../db/rows.js';
 import { ReviewRepository } from './repository.js';
-import { type ReviewDto, type ReviewDtoFinding } from './helpers.js';
+import { normalizeAgentIds, type ReviewDto, type ReviewDtoFinding } from './helpers.js';
 import { ReviewRunExecutor, type Logger } from './run-executor.js';
 import { actOnFinding as actOnFindingImpl } from './findings.js';
 import { reviewToDto } from './helpers.js';
@@ -37,23 +37,49 @@ export class ReviewService {
   }
 
   // ===========================================================================
-  // Run a review for one or all enabled agents on a PR.
+  // Run a review for an explicit selection, one agent, or all enabled agents.
   // ===========================================================================
 
   /**
-   * Resolve which agents to run. `all` → all enabled agents; else a single agent.
+   * Resolve which agents to run, in the order they will run.
+   *
+   * `agentIds` (an explicit pick — one, two, several or all) wins over the
+   * older `agentId` / `all` forms, which stay for callers that want the
+   * server to decide: `all` means "whatever is enabled RIGHT NOW", which an
+   * id list cannot express.
+   *
+   * Explicitly picked agents run even when disabled — `enabled` governs what
+   * `all` resolves to, not what a caller is allowed to ask for (same rule as
+   * the single-`agentId` branch, which has never filtered on it).
    */
   async resolveTargets(
     workspaceId: string,
-    opts: { agentId?: string; all?: boolean },
+    opts: { agentId?: string; agentIds?: string[]; all?: boolean },
   ): Promise<AgentRow[]> {
+    if (opts.agentIds) {
+      const ids = normalizeAgentIds(opts.agentIds);
+      if (ids.length === 0) {
+        throw new AppError('invalid_run_request', 'agentIds must not be empty', 400);
+      }
+      const rows = await this.agents.listByIds(workspaceId, ids);
+      const byId = new Map(rows.map((a) => [a.id, a]));
+      // Re-order to the requested order — a SQL `IN` doesn't preserve it, and
+      // run order is the order the user picked. A missing id fails the whole
+      // request rather than silently running a subset: the caller asked for
+      // N agents and would otherwise get fewer with no explanation.
+      return ids.map((id) => {
+        const agent = byId.get(id);
+        if (!agent) throw new NotFoundError('Agent not found');
+        return agent;
+      });
+    }
     if (opts.all) return this.agents.listEnabled(workspaceId);
     if (opts.agentId) {
       const agent = await this.agents.getById(workspaceId, opts.agentId);
       if (!agent) throw new NotFoundError('Agent not found');
       return [agent];
     }
-    throw new AppError('invalid_run_request', 'Provide agentId or all:true', 400);
+    throw new AppError('invalid_run_request', 'Provide agentIds, agentId or all:true', 400);
   }
 
   /** Delete a whole review run (one agent's pass) + its findings (cascade). */

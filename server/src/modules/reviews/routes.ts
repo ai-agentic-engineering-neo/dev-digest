@@ -32,6 +32,7 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
     const body = RunRequest.parse(req.body ?? {});
     const targets = await service.resolveTargets(workspaceId, {
       ...(body.agentId !== undefined ? { agentId: body.agentId } : {}),
+      ...(body.agentIds !== undefined ? { agentIds: body.agentIds } : {}),
       ...(body.all !== undefined ? { all: body.all } : {}),
     });
     const { runs, reviews } = await service.runReview(

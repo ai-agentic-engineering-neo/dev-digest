@@ -41,10 +41,17 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
   `.cursor/skills → ../.claude/skills` symlink, but the repo has no `.cursor/`,
   so Cursor sees none of them → create the symlink if Cursor needs the skills.
   Evidence: `.claude/skills/README.md:3`, `ls .cursor` (missing).
+- **2026-09-23** — Three prices for `deepseek/deepseek-v4-flash` disagree: the
+  model guide says 0.09/0.18 $/M, the server's fallback table 0.14/0.28, and a
+  real OpenRouter run billed $0.000173 for 1,642→62 tokens (guide ⇒ $0.000159,
+  table ⇒ $0.000247) → for real spend use `agent_runs.cost_usd`, not either
+  table. Evidence: `docs/agent-prompts/choosing-a-model.md:33`,
+  `server/src/adapters/llm/pricing.ts:31`.
 
 ## Session notes
 
 - **2026-09-23** — Added the engineering-insights skill and the fixed sections: +2 (Doc drift, Open questions)
+- **2026-09-23** — Run Cost Badge (lab task 3): +1 (Doc drift)
 
 ## Open questions
 

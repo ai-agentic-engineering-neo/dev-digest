@@ -19,8 +19,10 @@ export type { FindingRow, PullRow };
 export type ReviewRow = typeof t.reviews.$inferSelect;
 
 import * as reviewRepo from './repository/review.repo.js';
+import type { RunUsage } from './repository/review.repo.js';
 import * as runRepo from './repository/run.repo.js';
 import * as pullRepo from './repository/pull.repo.js';
+export type { RunUsage };
 
 export class ReviewRepository {
   constructor(private db: Db) {}
@@ -59,8 +61,10 @@ export class ReviewRepository {
     return reviewRepo.insertFindings(this.db, reviewId, findings);
   }
 
-  /** Reviews for a PR (newest first), each with its findings. */
-  reviewsForPull(prId: string): Promise<{ review: ReviewRow; findings: FindingRow[] }[]> {
+  /** Reviews for a PR (newest first), each with its findings and its run's usage. */
+  reviewsForPull(
+    prId: string,
+  ): Promise<{ review: ReviewRow; findings: FindingRow[]; usage: RunUsage }[]> {
     return reviewRepo.reviewsForPull(this.db, prId);
   }
 
@@ -155,6 +159,8 @@ export class ReviewRepository {
       durationMs: number;
       tokensIn: number;
       tokensOut: number;
+      /** USD for the run; null/omitted = unknown (failed/cancelled, unpriced model). */
+      costUsd?: number | null;
       findingsCount: number;
       grounding: string;
       /** Review score (0-100); null on failed/cancelled runs. */

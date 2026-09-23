@@ -19,7 +19,18 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
 
 ## Codebase patterns
 
+- **2026-09-23** — The PR list's filter is the `?status=` URL param and
+  defaults to `needs_review`, so a PR drops out of the default view as soon as it
+  is reviewed (clicking "All" from a script did not stick) → open
+  `/repos/:id/pulls?status=all` to check list columns in screenshots or e2e.
+  Evidence: `src/app/repos/[repoId]/pulls/page.tsx:39`.
+
 ## Tool & library notes
+
+- **2026-09-23** — `pnpm exec vitest run <path>` finds nothing when the path
+  has a Next.js segment like `[repoId]`, escaped or not ("No test files
+  found") → filter by a filename substring: `pnpm exec vitest run RunHistory.test`.
+  Evidence: `src/app/repos/[repoId]/pulls/[number]/_components/RunHistory/RunHistory.test.tsx`.
 
 ## Recurring errors & fixes
 
@@ -34,6 +45,8 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
   `src/vendor/ui/README.md:55`, `ls src/app`.
 
 ## Session notes
+
+- **2026-09-23** — Run Cost Badge (lab task 3): +2 (Tool & library notes, Codebase patterns)
 
 ## Open questions
 

@@ -54,7 +54,8 @@ describe("FindingCard (smoke, both themes)", () => {
     renderWithIntl(<FindingCard f={FINDING} defaultExpanded onAction={onAction} />);
     fireEvent.click(screen.getByText("Accept"));
     expect(onAction).toHaveBeenCalledWith("accept");
-    fireEvent.click(screen.getByText("Dismiss"));
+    // The UI says "Reject"; the API action is still `dismiss`.
+    fireEvent.click(screen.getByText("Reject"));
     expect(onAction).toHaveBeenCalledWith("dismiss");
   });
 });

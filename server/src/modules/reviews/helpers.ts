@@ -3,7 +3,7 @@
  * their arguments — no DB / network / `this`).
  */
 import type { Finding } from '@devdigest/shared';
-import type { FindingRow, PullRow, ReviewRow } from './repository.js';
+import type { FindingRow, PullRow, ReviewRow, RunUsage } from './repository.js';
 
 // reduceReviews + sliceDiff live in @devdigest/reviewer-core (pure engine logic
 // shared with the CI runner); re-exported here for backward-compatible imports.
@@ -27,6 +27,9 @@ export interface ReviewDto {
   score: number | null;
   model: string | null;
   grounding?: string | null;
+  cost_usd?: number | null;
+  tokens_in?: number | null;
+  tokens_out?: number | null;
   created_at: string;
   findings: ReviewDtoFinding[];
 }
@@ -56,6 +59,7 @@ export function reviewToDto(
   review: ReviewRow,
   findings: FindingRow[],
   agentName?: string | null,
+  usage?: RunUsage | null,
 ): ReviewDto {
   return {
     id: review.id,
@@ -68,6 +72,9 @@ export function reviewToDto(
     summary: review.summary,
     score: review.score,
     model: review.model,
+    cost_usd: usage?.costUsd ?? null,
+    tokens_in: usage?.tokensIn ?? null,
+    tokens_out: usage?.tokensOut ?? null,
     created_at: review.createdAt.toISOString(),
     findings: findings.map(findingRowToDto),
   };

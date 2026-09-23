@@ -4,10 +4,10 @@ import { waitForPrRuns } from './helpers/runs.js';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/platform/config.js';
 import { seed } from '../src/db/seed.js';
-import { MockLLMProvider, MockEmbedder, MockGitClient } from '../src/adapters/mocks.js';
+import { MockLLMProvider, MockEmbedder, MockGitClient, MockGitHubClient } from '../src/adapters/mocks.js';
 import * as t from '../src/db/schema.js';
 import { eq } from 'drizzle-orm';
-import type { Review } from '@devdigest/shared';
+import type { Review, StructuredRequest, StructuredResult } from '@devdigest/shared';
 
 const hasDocker = await dockerAvailable();
 const d = hasDocker ? describe : describe.skip;
@@ -208,6 +208,209 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(run!.status).toBe('done');
     expect(run!.findingsCount).toBe(1);
     expect(run!.grounding).toBe('1/2 passed');
+
+    await app.close();
+  });
+
+  // ---- Run cost (server/specs/01-run-cost-badge.md) -----------------------
+  /** App whose LLM is the given provider; GitHub mocked so the PR list stays hermetic. */
+  function appWithLlm(llm: MockLLMProvider) {
+    return buildApp({
+      config: config(),
+      db: pg.handle.db,
+      overrides: {
+        embedder: new MockEmbedder(),
+        git: new MockGitClient({ diff: DIFF }),
+        github: new MockGitHubClient(),
+        llm: { openai: llm },
+      },
+    });
+  }
+
+  async function reviewWith(app: Awaited<ReturnType<typeof appWithLlm>>, name: string) {
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name, provider: 'openai', model: 'gpt-4.1', system_prompt: 's' },
+      })
+    ).json();
+    const body = (
+      await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } })
+    ).json();
+    const [run] = await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+    return { repo, pr, runId: body.runs[0].run_id as string, run: run! };
+  }
+
+  it('persists the run cost and exposes it on runs, trace, reviews and the PR list', async () => {
+    const llm = new MockLLMProvider('openai', { structured: REVIEW_FIXTURE });
+    const app = await appWithLlm(llm);
+    const { repo, pr, runId, run } = await reviewWith(app, 'CostAgent');
+
+    // The mock bills $0.001 per structured call; the engine sums them — no extra call.
+    const calls = llm.calls.filter((c) => c.method === 'completeStructured').length;
+    expect(run.status).toBe('done');
+    expect(run.costUsd).toBeCloseTo(calls * 0.001, 10);
+
+    const trace = (await app.inject({ method: 'GET', url: `/runs/${runId}/trace` })).json();
+    expect(trace.stats.cost_usd).toBe(run.costUsd);
+
+    const runs = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(runs[0].cost_usd).toBe(run.costUsd);
+
+    const reviews = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/reviews` })).json();
+    expect(reviews[0].cost_usd).toBe(run.costUsd);
+    expect(reviews[0].tokens_in).toBe(run.tokensIn);
+    expect(reviews[0].tokens_out).toBe(run.tokensOut);
+
+    // One done run: the list's COST is that run's cost; SCORE is the latest review's.
+    const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const row = pulls.find((p: { id: string }) => p.id === pr.id);
+    expect(row.score).toBe(reviews[0].score);
+    expect(row.cost_usd).toBe(run.costUsd);
+
+    await app.close();
+  });
+
+  it("the PR list's COST sums every done run of the PR; a failed run adds nothing", async () => {
+    const good = await appWithLlm(new MockLLMProvider('openai', { structured: REVIEW_FIXTURE }));
+    const { repo, pr, run: first } = await reviewWith(good, 'SumAgentA');
+
+    // A second agent reviews the same PR → a second done run.
+    const agentB = (
+      await good.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'SumAgentB', provider: 'openai', model: 'gpt-4.1', system_prompt: 's' },
+      })
+    ).json();
+    await good.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agentB.id } });
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 2 });
+
+    // `{}` fails the Review schema → a failed run on the same PR, cost NULL.
+    const bad = await appWithLlm(new MockLLMProvider('openai', { structured: {} }));
+    await bad.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agentB.id } });
+    const runs = await waitForPrRuns(pg.handle.db, pr.id, { expected: 3 });
+
+    const done = runs.filter((r) => r.status === 'done');
+    const failed = runs.filter((r) => r.status === 'failed');
+    expect(done).toHaveLength(2);
+    expect(failed).toHaveLength(1);
+    expect(failed[0]!.costUsd).toBeNull();
+    const doneSum = done.reduce((sum, r) => sum + r.costUsd!, 0);
+
+    const pulls = (await good.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const row = pulls.find((p: { id: string }) => p.id === pr.id);
+    expect(row.cost_usd).toBeCloseTo(doneSum, 10);
+    expect(row.cost_usd).toBeGreaterThan(first.costUsd!);
+
+    // The same done runs the Timeline lists.
+    const timeline = (await good.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    const timelineSum = timeline
+      .filter((r: { status: string }) => r.status === 'done')
+      .reduce((sum: number, r: { cost_usd: number }) => sum + r.cost_usd, 0);
+    expect(row.cost_usd).toBeCloseTo(timelineSum, 10);
+
+    // SCORE still describes the latest review, not a sum.
+    const reviews = (await good.inject({ method: 'GET', url: `/pulls/${pr.id}/reviews` })).json();
+    expect(row.score).toBe(reviews[0].score);
+
+    await good.close();
+    await bad.close();
+  });
+
+  it('an unpriced model stores a NULL cost, never 0', async () => {
+    class UnpricedLLM extends MockLLMProvider {
+      override async completeStructured<T>(req: StructuredRequest<T>): Promise<StructuredResult<T>> {
+        return { ...(await super.completeStructured(req)), costUsd: null };
+      }
+    }
+    const app = await appWithLlm(new UnpricedLLM('openai', { structured: REVIEW_FIXTURE }));
+    const { repo, pr, run } = await reviewWith(app, 'UnpricedAgent');
+
+    expect(run.status).toBe('done');
+    expect(run.tokensIn).toBeGreaterThan(0);
+    expect(run.costUsd).toBeNull();
+    const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    expect(pulls.find((p: { id: string }) => p.id === pr.id).cost_usd).toBeNull();
+
+    await app.close();
+  });
+
+  it('a failed run stores a NULL cost', async () => {
+    // `{}` fails the Review schema → the provider throws → the run fails.
+    const app = await appWithLlm(new MockLLMProvider('openai', { structured: {} }));
+    const { pr, runId, run } = await reviewWith(app, 'FailingAgent');
+
+    expect(run.status).toBe('failed');
+    expect(run.costUsd).toBeNull();
+    const runs = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(runs.find((r: { run_id: string }) => r.run_id === runId).cost_usd).toBeNull();
+
+    await app.close();
+  });
+
+  // ---- Findings by severity (server/specs/02-findings-by-severity.md) -----
+  it('the PR list counts findings by severity for the latest review only', async () => {
+    const db = pg.handle.db;
+    const app = await appWithLlm(new MockLLMProvider('openai', { structured: REVIEW_FIXTURE }));
+    const { repo, pr } = await setupRepoAndPr(db, workspaceId);
+    const finding = (reviewId: string, severity: string, dismissedAt: Date | null = null) => ({
+      reviewId,
+      severity,
+      dismissedAt,
+      file: 'src/config.ts',
+      startLine: 11,
+      endLine: 11,
+      category: 'security',
+      title: `${severity} finding`,
+      rationale: 'r',
+      confidence: 0.9,
+    });
+    const at = (msAgo: number) => new Date(Date.now() - msAgo);
+
+    // An older review and a newer `summary` must both be ignored.
+    const [older] = await db
+      .insert(t.reviews)
+      .values({ workspaceId, prId: pr.id, kind: 'review', score: 10, createdAt: at(60_000) })
+      .returning();
+    await db.insert(t.findings).values([1, 2, 3].map(() => finding(older!.id, 'CRITICAL')));
+    const [latest] = await db
+      .insert(t.reviews)
+      .values({ workspaceId, prId: pr.id, kind: 'review', score: 70, createdAt: at(30_000) })
+      .returning();
+    await db
+      .insert(t.findings)
+      .values([
+        finding(latest!.id, 'CRITICAL', new Date()),
+        finding(latest!.id, 'SUGGESTION'),
+        finding(latest!.id, 'SUGGESTION'),
+      ]);
+    const [summary] = await db
+      .insert(t.reviews)
+      .values({ workspaceId, prId: pr.id, kind: 'summary', createdAt: at(0) })
+      .returning();
+    await db.insert(t.findings).values(finding(summary!.id, 'WARNING'));
+
+    const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const row = pulls.find((p: { id: string }) => p.id === pr.id);
+    expect(row.score).toBe(70);
+    // Dismissed CRITICAL still counts; a severity with no findings is 0.
+    expect(row.findings_by_severity).toEqual({ CRITICAL: 1, WARNING: 0, SUGGESTION: 2 });
+
+    // A reviewed PR with no findings reads all zeros; an unreviewed one reads null.
+    const { repo: repo2, pr: empty } = await setupRepoAndPr(db, workspaceId);
+    await db.insert(t.reviews).values({ workspaceId, prId: empty.id, kind: 'review', score: 100 });
+    const { repo: repo3, pr: unreviewed } = await setupRepoAndPr(db, workspaceId);
+    const list2 = (await app.inject({ method: 'GET', url: `/repos/${repo2.id}/pulls` })).json();
+    expect(list2.find((p: { id: string }) => p.id === empty.id).findings_by_severity).toEqual({
+      CRITICAL: 0,
+      WARNING: 0,
+      SUGGESTION: 0,
+    });
+    const list3 = (await app.inject({ method: 'GET', url: `/repos/${repo3.id}/pulls` })).json();
+    expect(list3.find((p: { id: string }) => p.id === unreviewed.id).findings_by_severity).toBeNull();
 
     await app.close();
   });

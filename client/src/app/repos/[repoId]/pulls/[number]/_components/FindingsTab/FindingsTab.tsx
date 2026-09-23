@@ -71,6 +71,16 @@ export function FindingsTab({
     setTarget((p) => ({ runId, n: (p?.n ?? 0) + 1 }));
   }, []);
 
+  // Timeline severity chips: each run's findings, taken from the review that run
+  // produced (already loaded here — no extra request).
+  const findingsByRun = React.useMemo(() => {
+    const byRun = new Map<string, FindingRecord[]>();
+    for (const review of runs) {
+      if (review.kind === "review" && review.run_id) byRun.set(review.run_id, review.findings);
+    }
+    return byRun;
+  }, [runs]);
+
   return (
     <section>
       {liveRunIds.length > 0 && (
@@ -131,6 +141,9 @@ export function FindingsTab({
           <RunHistory
             runs={prRuns ?? []}
             commits={prCommits}
+            findingsByRun={findingsByRun}
+            repoFullName={repoFullName}
+            headSha={headSha}
             onOpenTrace={handleOpenTrace}
             onGoToReview={handleGoToReview}
             onDelete={handleDelete}

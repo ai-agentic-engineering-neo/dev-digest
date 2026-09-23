@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, count, desc, eq, inArray } from 'drizzle-orm';
 import type { PrMeta, PrDetail, GitHubClient, PrReviewComment } from '@devdigest/shared';
 import { PrCommentInput } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
@@ -111,21 +111,53 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
-    // Latest-review SCORE per PR for the list's score ring. Computed on read
-    // from reviews (no FK denorm); the list is small, so one IN-query + JS
-    // grouping is cheap. (The per-severity FINDINGS breakdown is intentionally
-    // not surfaced on the list — findings live on the PR detail page.)
+    // Per-PR SCORE + FINDINGS of the latest review, and COST of all done runs, for
+    // the list. Computed on read (no FK denorm); the list is small, so IN-queries +
+    // JS grouping are cheap. FINDINGS is the latest review's per-severity count,
+    // dismissed included (server/specs/02-findings-by-severity.md). COST is the sum
+    // of `cost_usd` over every `done` run of the PR, the same runs the Timeline
+    // lists; unknown (NULL) costs are skipped, and a PR with no known cost gets
+    // null (server/specs/01-run-cost-badge.md, Amendment).
     const prIds = rows.map((r) => r.id);
-    const latestReviewByPr = new Map<string, { score: number | null }>();
+    const latestReviewByPr = new Map<string, { id: string; score: number | null }>();
+    const countsByReview = new Map<string, NonNullable<PrMeta['findings_by_severity']>>();
+    const costByPr = new Map<string, number>();
     if (prIds.length > 0) {
       const reviewRows = await container.db
-        .select({ prId: t.reviews.prId, score: t.reviews.score })
+        .select({ id: t.reviews.id, prId: t.reviews.prId, score: t.reviews.score })
         .from(t.reviews)
         .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review')))
         .orderBy(desc(t.reviews.createdAt));
       // Rows are newest-first → first seen per PR is the latest review.
       for (const rv of reviewRows) {
-        if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { score: rv.score });
+        if (!latestReviewByPr.has(rv.prId)) {
+          latestReviewByPr.set(rv.prId, { id: rv.id, score: rv.score });
+        }
+      }
+
+      const runCostRows = await container.db
+        .select({ prId: t.agentRuns.prId, costUsd: t.agentRuns.costUsd })
+        .from(t.agentRuns)
+        .where(and(inArray(t.agentRuns.prId, prIds), eq(t.agentRuns.status, 'done')));
+      for (const run of runCostRows) {
+        if (run.prId == null || run.costUsd == null) continue;
+        costByPr.set(run.prId, (costByPr.get(run.prId) ?? 0) + run.costUsd);
+      }
+
+      const latestIds = [...latestReviewByPr.values()].map((rv) => rv.id);
+      if (latestIds.length > 0) {
+        const countRows = await container.db
+          .select({ reviewId: t.findings.reviewId, severity: t.findings.severity, n: count() })
+          .from(t.findings)
+          .where(inArray(t.findings.reviewId, latestIds))
+          .groupBy(t.findings.reviewId, t.findings.severity);
+        for (const id of latestIds) countsByReview.set(id, { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 });
+        for (const c of countRows) {
+          const counts = countsByReview.get(c.reviewId)!;
+          if (c.severity === 'CRITICAL' || c.severity === 'WARNING' || c.severity === 'SUGGESTION') {
+            counts[c.severity] = c.n;
+          }
+        }
       }
     }
 
@@ -153,6 +185,8 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
+        cost_usd: costByPr.get(r.id) ?? null,
+        findings_by_severity: review ? countsByReview.get(review.id) ?? null : null,
       };
     });
   });

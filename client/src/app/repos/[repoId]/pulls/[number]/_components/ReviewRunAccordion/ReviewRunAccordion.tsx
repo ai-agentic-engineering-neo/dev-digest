@@ -8,6 +8,7 @@
 import React from "react";
 import { Icon, Badge } from "@devdigest/ui";
 import type { ReviewRecord, Verdict } from "@devdigest/shared";
+import { RunCostBadge } from "@/components/run-cost-badge";
 import { FindingsPanel } from "../FindingsPanel";
 import { VerdictBanner } from "../VerdictBanner";
 import { useDeleteReview } from "../../../../../../../lib/hooks/reviews";
@@ -98,6 +99,13 @@ export function ReviewRunAccordion({
           {blockers > 0 ? ` · ${blockers} blocker${blockers === 1 ? "" : "s"}` : ""}
         </span>
         <span style={{ flex: 1 }} />
+        <RunCostBadge
+          variant="detailed"
+          costUsd={review.cost_usd}
+          tokensIn={review.tokens_in}
+          tokensOut={review.tokens_out}
+          style={{ fontSize: 12, color: "var(--text-muted)" }}
+        />
         {review.score != null && (
           <Badge mono color="var(--text-secondary)">
             {review.score}

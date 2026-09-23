@@ -2,13 +2,10 @@ import type { CSSProperties } from "react";
 
 /** Co-located styles for FindingsPanel (extracted from inline styles). */
 export const s = {
-  pillsRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 10,
-    minHeight: 22,
-  } satisfies CSSProperties,
+  /* One row: the severity chips (counter + filter in one) on the left, the
+     hide-low-confidence toggle pushed right by its own `marginLeft: auto` —
+     which also keeps the toggle right-aligned when the chips row renders
+     nothing at all (a run with zero findings). */
   toolbar: {
     display: "flex",
     alignItems: "center",

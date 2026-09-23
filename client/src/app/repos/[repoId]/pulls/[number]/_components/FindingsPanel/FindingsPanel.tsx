@@ -6,7 +6,7 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Toggle, EmptyState } from "@devdigest/ui";
 import type { FindingRecord, Severity } from "@devdigest/shared";
-import { SeverityPills, SeverityFilterButtons } from "@/components/severity";
+import { SeverityFilterButtons } from "@/components/severity";
 import { FindingCard } from "../FindingCard";
 import { useFindingAction } from "../../../../../../../lib/hooks/reviews";
 import { KEY_TO_ACTION } from "./constants";
@@ -67,14 +67,17 @@ export function FindingsPanel({
 
   return (
     <div>
-      {(counts.CRITICAL > 0 || counts.WARNING > 0 || counts.SUGGESTION > 0) && (
-        <div style={s.pillsRow}>
-          <SeverityPills counts={counts} />
-        </div>
-      )}
-
+      {/* ONE row that is both the breakdown and the filter: each chip shows a
+          severity's count and toggles the list below. Deliberately not a
+          separate read-only pills row plus a button row — two controls doing
+          the same thing read as a duplicate (see the 2026-09-23 revision in
+          client/specs/severity-filter.md). */}
       <div style={s.toolbar}>
-        <SeverityFilterButtons active={severity} onSelect={(sev) => onSeverityChange?.(sev)} />
+        <SeverityFilterButtons
+          counts={counts}
+          active={severity}
+          onSelect={(sev) => onSeverityChange?.(sev)}
+        />
         <div style={s.toggleGroup}>
           {t("panel.hideLowConfidence")}
           <Toggle on={hideLow} onChange={setHideLow} size={16} />

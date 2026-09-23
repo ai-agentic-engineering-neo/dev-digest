@@ -26,6 +26,21 @@ by hand in the same format.
   the flow goes stale and starts failing (or worse, passes on an unrelated
   string match) without the DB actually being wrong.
   (`e2e/specs/04-pr-findings.flow.json`)
+- 2026-09-23 — precise anchor for the entry above, which cited the flow file
+  but no line (every entry needs `file:line`): the brittle literal is the
+  `wait --text "3 findings"` step at (`e2e/specs/04-pr-findings.flow.json:13`),
+  and the same count is restated in prose in the flow's `description` at `:3`
+  — a seed change has to update BOTH, since the description is what the next
+  reader trusts when deciding whether the assertion is still right.
+- 2026-09-23 — the seed coupling now reaches LOCATORS, not just assertions:
+  the severity filter chips render `label + count`, so a button's accessible
+  name is "Critical 1", and `find role button --name "Critical"` no longer
+  identifies it. A UI change that merely appends a number to a label silently
+  invalidates every `--name` locator pointing at it, and nothing in
+  `pnpm test` catches it — the client unit tests were green while this flow
+  would have failed. After changing any user-visible label, grep `e2e/specs/`
+  for `--name` and `--text` occurrences of the old string before assuming the
+  suite still passes. (`e2e/specs/04-pr-findings.flow.json:11`)
 
 ## Tool & Library Notes
 

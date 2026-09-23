@@ -9,7 +9,8 @@ Details — [README](./README.md).
 
 `./scripts/e2e.sh` (hermetic, recommended — an isolated stack on ports
 5433/3101/3100) · `npm test` (against an already-running `./scripts/dev.sh`,
-only if the dev DB contains ONLY seeded data)
+only if the dev DB contains ONLY seeded data) · `npm run typecheck`
+No lint step exists in this package — the check gate is `npm run typecheck` + the flow suite.
 
 ## Map
 
@@ -36,10 +37,25 @@ only if the dev DB contains ONLY seeded data)
   `devdigest_pgdata` volume along with every real repo and review, not just
   e2e data.
 
+## Naming conventions
+
+Repo-wide rules — [../CLAUDE.md](../CLAUDE.md#naming-conventions). Package-specific:
+
+- Test flows are `specs/NN-name.flow.json` — a two-digit prefix fixing run
+  order, then a kebab-case name for the surface under test
+  (`04-pr-findings.flow.json`). New flow → next free number, never reuse one.
+- Feature specs (prose, written before a flow) are `docs/specs/<feature>.md` —
+  a different folder from `specs/`, on purpose; see the Map above.
+- Assertions inside a flow reference user-visible English text verbatim
+  (`wait --text "3 findings"`), so they read as the spec they enforce.
+
 ## Do-not-touch
 
 - Don't add AI `chat` commands to a flow — it would break determinism and the
   key-free nature of the suite.
+- **`package-lock.json` — never hand-edit, never delete to "fix" an install.**
+  It changes only as the by-product of an npm command (this package is npm,
+  not pnpm).
 
 ## Read when
 

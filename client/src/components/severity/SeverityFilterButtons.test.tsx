@@ -14,32 +14,73 @@ function renderWithIntl(ui: React.ReactElement) {
   );
 }
 
+const MIXED = { CRITICAL: 2, WARNING: 1, SUGGESTION: 0 };
+
 describe("SeverityFilterButtons", () => {
-  it("always renders all three buttons, even when nothing is active", () => {
-    renderWithIntl(<SeverityFilterButtons active={null} onSelect={vi.fn()} />);
-    expect(screen.getByRole("button", { name: "Critical" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Warning" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Suggestion" })).toBeInTheDocument();
+  it("renders one chip per severity the run HAS, and none for a zero count", () => {
+    renderWithIntl(
+      <SeverityFilterButtons counts={MIXED} active={null} onSelect={vi.fn()} />,
+    );
+    expect(screen.getByRole("button", { name: "Critical 2" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Warning 1" })).toBeInTheDocument();
+    // SUGGESTION is 0 — offering it would only lead to an empty list.
+    expect(screen.queryByRole("button", { name: /Suggestion/ })).not.toBeInTheDocument();
+  });
+
+  it("shows the count next to each label", () => {
+    renderWithIntl(
+      <SeverityFilterButtons counts={MIXED} active={null} onSelect={vi.fn()} />,
+    );
+    expect(screen.getByRole("button", { name: "Critical 2" })).toHaveTextContent("Critical2");
+  });
+
+  it("renders nothing at all when the run has no findings", () => {
+    const { container } = renderWithIntl(
+      <SeverityFilterButtons
+        counts={{ CRITICAL: 0, WARNING: 0, SUGGESTION: 0 }}
+        active={null}
+        onSelect={vi.fn()}
+      />,
+    );
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("renders nothing for null counts", () => {
+    const { container } = renderWithIntl(
+      <SeverityFilterButtons counts={null} active={null} onSelect={vi.fn()} />,
+    );
+    expect(container).toBeEmptyDOMElement();
   });
 
   it("marks only the active severity as pressed", () => {
-    renderWithIntl(<SeverityFilterButtons active="WARNING" onSelect={vi.fn()} />);
-    expect(screen.getByRole("button", { name: "Critical" })).toHaveAttribute("aria-pressed", "false");
-    expect(screen.getByRole("button", { name: "Warning" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Suggestion" })).toHaveAttribute("aria-pressed", "false");
+    renderWithIntl(
+      <SeverityFilterButtons counts={MIXED} active="WARNING" onSelect={vi.fn()} />,
+    );
+    expect(screen.getByRole("button", { name: "Critical 2" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    expect(screen.getByRole("button", { name: "Warning 1" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
   });
 
-  it("clicking an inactive button selects it", () => {
+  it("clicking an inactive chip selects it", () => {
     const onSelect = vi.fn();
-    renderWithIntl(<SeverityFilterButtons active={null} onSelect={onSelect} />);
-    fireEvent.click(screen.getByRole("button", { name: "Critical" }));
+    renderWithIntl(
+      <SeverityFilterButtons counts={MIXED} active={null} onSelect={onSelect} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Critical 2" }));
     expect(onSelect).toHaveBeenCalledWith("CRITICAL");
   });
 
-  it("clicking the already-active button clears the filter", () => {
+  it("clicking the already-active chip clears the filter", () => {
     const onSelect = vi.fn();
-    renderWithIntl(<SeverityFilterButtons active="CRITICAL" onSelect={onSelect} />);
-    fireEvent.click(screen.getByRole("button", { name: "Critical" }));
+    renderWithIntl(
+      <SeverityFilterButtons counts={MIXED} active="CRITICAL" onSelect={onSelect} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Critical 2" }));
     expect(onSelect).toHaveBeenCalledWith(null);
   });
 });

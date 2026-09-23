@@ -50,6 +50,13 @@ describe("SeverityPills", () => {
     expect(onSelect).toHaveBeenCalledWith("CRITICAL");
   });
 
+  it("never claims a pressed state — it reports, it does not filter (that's SeverityFilterButtons)", () => {
+    renderWithIntl(
+      <SeverityPills counts={{ CRITICAL: 1, WARNING: 0, SUGGESTION: 0 }} onSelect={vi.fn()} />,
+    );
+    expect(screen.getByRole("button")).not.toHaveAttribute("aria-pressed");
+  });
+
   it("stops the click from bubbling (a parent row's onClick must not also fire)", () => {
     const onSelect = vi.fn();
     const onRowClick = vi.fn();

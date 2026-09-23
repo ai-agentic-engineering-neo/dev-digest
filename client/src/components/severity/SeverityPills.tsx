@@ -1,10 +1,11 @@
-/* SeverityPills — the "N CRITICAL · N WARNING · N SUGGESTION" breakdown row.
-   Shared across the PR list (FINDINGS column, compact) and PR detail (Timeline
-   tiles + each review run's header, both read-only). Never renders a zero
-   count. Never clickable on its own: pass `onSelect` only where a click should
-   DO something (the PR list navigates to the filtered detail view) — every
-   other call site renders plain, non-interactive spans. See
-   client/specs/severity-filter.md. */
+/* SeverityPills — the compact "N CRITICAL · N WARNING · N SUGGESTION" badge row
+   for places that only REPORT a breakdown: the PR-list FINDINGS column and the
+   PR-detail Timeline tiles. Never renders a zero count. Pass `onSelect` only
+   where a click has somewhere to go (the PR list navigates to the filtered
+   detail view); without it these are plain, non-interactive spans.
+   NOT the filter control — inside an opened review run that job belongs to
+   `SeverityFilterButtons`, which is counter and filter in one.
+   See client/specs/severity-filter.md. */
 "use client";
 
 import React from "react";

@@ -8,6 +8,7 @@ react-markdown. Details — [README](./README.md).
 ## Commands
 
 `pnpm dev` (`:3000`) · `pnpm build` · `pnpm test` (vitest + jsdom, `fetch` mocked) · `pnpm typecheck`
+No lint step exists in this package — the check gate is `pnpm typecheck` + `pnpm test`.
 
 ## Map
 
@@ -32,10 +33,28 @@ react-markdown. Details — [README](./README.md).
   a different port, dev/tests break silently, with no clear error.
 - Real browser flows aren't tested here — see [`../e2e`](../e2e/CLAUDE.md).
 
+## Naming conventions
+
+Repo-wide rules — [../CLAUDE.md](../CLAUDE.md#naming-conventions). Client-specific:
+
+- Route-local feature code lives in `_components/<Name>/` (underscore keeps it
+  out of the App Router's route table), with `<Name>.tsx`, `<Name>.test.tsx`
+  and, when needed, `styles.ts` / `helpers.ts` / `constants.ts` / `index.ts`.
+  Cross-route components go in `src/components/<kebab-name>/`.
+- Hooks are `useThing()`, grouped by domain in `src/lib/hooks/<domain>.ts`
+  (`reviews.ts`, `agents.ts`, `trace.ts`) — not one file per hook.
+- Server DTO fields keep their wire spelling (`cost_usd`, `findings_by_severity`)
+  all the way into JSX; only local variables are `camelCase`.
+- i18n keys are `camelCase` and dotted by surface: `prReview.severity.critical`,
+  `runs.trace.stat.cost` (`messages/en/<namespace>.json`).
+
 ## Do-not-touch
 
 - `src/vendor/shared`, `src/vendor/ui` — don't hand-edit; ask before changing
   the vendoring mechanism itself.
+- **`pnpm-lock.yaml` — never hand-edit, never delete to "fix" an install.**
+  It changes only as the by-product of a pnpm command (this package is pnpm,
+  not npm).
 
 ## Read when
 

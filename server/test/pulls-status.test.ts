@@ -6,7 +6,12 @@
  * + age, so it gets unit coverage independent of the route's queries.
  */
 import { describe, it, expect } from 'vitest';
-import { deriveReviewStatus, rollupSeverities, STALE_DAYS } from '../src/modules/pulls/status.js';
+import {
+  deriveReviewStatus,
+  rollupSeverities,
+  sumRunCosts,
+  STALE_DAYS,
+} from '../src/modules/pulls/status.js';
 
 const DAY = 86_400_000;
 const now = Date.UTC(2026, 5, 11);
@@ -64,5 +69,30 @@ describe('rollupSeverities', () => {
 
   it('is all-zero for no findings', () => {
     expect(rollupSeverities([])).toEqual({ CRITICAL: 0, WARNING: 0, SUGGESTION: 0 });
+  });
+});
+
+describe('sumRunCosts', () => {
+  it('sums every run, not just the newest one', () => {
+    expect(sumRunCosts([{ costUsd: 0.002 }, { costUsd: 0.003 }, { costUsd: 0.005 }])).toBeCloseTo(
+      0.01,
+      10,
+    );
+  });
+
+  it('is null (not 0) for a PR with no successful runs — the column renders "—"', () => {
+    expect(sumRunCosts([])).toBeNull();
+  });
+
+  it('is null when runs exist but every cost is unknown — unknown is not free', () => {
+    expect(sumRunCosts([{ costUsd: null }, { costUsd: null }])).toBeNull();
+  });
+
+  it('sums the priced runs and ignores the unpriced ones', () => {
+    expect(sumRunCosts([{ costUsd: 0.004 }, { costUsd: null }])).toBeCloseTo(0.004, 10);
+  });
+
+  it('keeps a genuine zero as 0, distinct from null', () => {
+    expect(sumRunCosts([{ costUsd: 0 }])).toBe(0);
   });
 });

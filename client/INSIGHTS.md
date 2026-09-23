@@ -29,6 +29,37 @@ by hand in the same format.
   number of cards rendered once "hide low confidence" is on. Any new filter
   added to this panel must recompute counts from that same post-hideLow
   base, not from `findings` directly. (`client/src/app/repos/[repoId]/pulls/[number]/_components/FindingsPanel/helpers.ts:5`)
+- 2026-09-23 — `SeverityPills` is one component with three behaviours, selected
+  by which props it gets, and the prop combination IS the contract: `onSelect`
+  + `active` → a filter control with `aria-pressed` (review-run accordion);
+  `onSelect` alone → navigates, deliberately no pressed state (PR-list row);
+  neither → plain non-interactive spans (Timeline tiles). Before changing what
+  a pill does, check all three call sites — an unconditional `aria-pressed` or
+  a pressed outline would make the PR-list pill claim a toggle state it doesn't
+  have. Adding a fourth behaviour should mean a new prop with an explicit
+  meaning, not overloading `onSelect`.
+  (`client/src/components/severity/SeverityPills.tsx:35`)
+- 2026-09-23 — the severity filter has TWO controls writing the same
+  `?severity=` URL state (the pills, and `SeverityFilterButtons` below them),
+  and this is deliberate, not leftover duplication: pills render only
+  severities the run actually has, so without the always-three buttons there
+  is no way to select a severity with zero findings and see the "no findings
+  match" empty state. Deleting either control silently removes a reachable
+  state. (`client/src/app/repos/[repoId]/pulls/[number]/_components/FindingsPanel/FindingsPanel.tsx:77`)
+- 2026-09-23 — SUPERSEDES the entry directly above, after seeing it rendered:
+  two controls bound to one piece of state are read as a bug, however sound
+  the argument for each. On screen it was a row of pills `CRITICAL 3 ·
+  WARNING 1` stacked on a row of buttons `Critical / Warning / Suggestion`,
+  both lighting up together. There is now ONE control inside a review run —
+  `SeverityFilterButtons`, one chip per severity the run HAS, as
+  `icon + label + count`, acting as counter and filter at once; `SeverityPills`
+  is not rendered there any more (it stays for the PR list and Timeline, which
+  have no list to filter). The reachability argument that justified keeping
+  both — being able to pick a zero-count severity and see the empty state —
+  was not worth a duplicated row. General lesson for this panel: whenever two
+  components read the same URL param, check what they look like side by side
+  before defending the split on paper.
+  (`client/src/components/severity/SeverityFilterButtons.tsx:28`)
 
 ## Tool & Library Notes
 
@@ -80,6 +111,32 @@ by hand in the same format.
   passed. Fix: give the scroll handler a ref to the popover's own root and
   skip closing when `event.target` is inside it — only close for scroll
   that's genuinely NOT the popover. (`client/src/components/severity/useFindingsPopoverAnchor.ts`)
+- 2026-09-23 — precise anchors for the three 2026-09-21 entries above, which
+  cited a file but no line (every entry needs `file:line` so the evidence can
+  be checked without re-reading the whole file): the portal escape hatch is
+  `createPortal` at (`client/src/components/severity/FindingsPopover.tsx:68`)
+  with the `position: "fixed"` anchorRect application at `:75`; the
+  capture-phase scroll listener and its 150 ms close debounce are
+  (`client/src/components/severity/useFindingsPopoverAnchor.ts:59`) and `:8`
+  (`CLOSE_DELAY_MS`); the `.next` vendor-chunk poisoning was hit on the PR
+  detail route at (`client/src/app/repos/[repoId]/pulls/[number]/page.tsx:66`),
+  where the `?severity=` URL state is parsed.
+- 2026-09-23 — React's "Updating a style property during rerender
+  (borderColor) when a conflicting property is set (borderLeftColor)" warning
+  fires even when the style object contains NO `border` shorthand, because
+  `borderColor` and `borderWidth` are themselves shorthands for all four
+  sides — so `borderColor` + `borderLeftColor` is already the forbidden mix.
+  The existing comment in this file said "all-longhand (never mix `border`
+  with `borderLeft`)" and still tripped the warning, i.e. the trap is
+  specifically that `borderColor`/`borderWidth` LOOK like longhands. Whenever
+  one side of a border differs, write all four sides explicitly
+  (`borderTopColor`/`borderRightColor`/`borderBottomColor`/`borderLeftColor`);
+  `borderStyle` may stay shorthand only while no `border*Style` competes with
+  it. It surfaces only when the shorthand's value CHANGES on rerender — here
+  `focused` flipping `borderColor` — so a static conflicting pair sits silent
+  until someone makes it dynamic, and vitest/jsdom never reports it (the
+  warning comes from the Next dev overlay, not from React DOM in tests).
+  (`client/src/app/repos/[repoId]/pulls/[number]/_components/FindingCard/styles.ts:9`)
 
 ## Session Notes
 

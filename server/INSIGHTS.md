@@ -53,6 +53,24 @@ by hand in the same format.
   reintroduce a cap here without a concrete payload-size problem to justify
   it. (`server/src/modules/pulls/routes.ts:133`)
 
+- 2026-09-23 — the PR-list route derives score, severity counts and cost as
+  three parallel read-time rollups (IN-query + JS grouping, no FK denorm), and
+  they must stay stylistically the same: each is a `Map` keyed by PR built from
+  one query, resolved with `?? null` in the final `.map()`. When one of them
+  changes semantics the explanatory comment above its block becomes a lie —
+  the "latest completed run wins" comment survived the switch to a SUM in
+  draft and would have actively misled the next reader. Treat the comment as
+  part of the code being changed, not documentation of it.
+  (`server/src/modules/pulls/routes.ts:169`)
+- 2026-09-23 — per-PR cost is the SUM of every `status='done'` run, not the
+  latest one, and the null-vs-zero cases are NOT inline in the route: they live
+  in the pure `sumRunCosts` helper precisely so all four (no runs → null; runs
+  but all costs null → null; mixed → sum of priced; genuine 0 → 0) are unit
+  testable without a DB. Failed runs are excluded by design, so a PR whose only
+  run failed shows `—` despite real token spend — a known, accepted gap, not an
+  oversight to "fix" by dropping the status filter.
+  (`server/src/modules/pulls/status.ts:32`)
+
 ## Tool & Library Notes
 
 ## Recurring Errors & Fixes

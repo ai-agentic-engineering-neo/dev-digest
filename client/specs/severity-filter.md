@@ -1,6 +1,8 @@
 # Severity counters + filter
 
-Status: implemented (2026-09-21).
+Status: implemented (2026-09-21); the pill/filter split revised twice on
+2026-09-23 — read the two "Revision" sections at the bottom in order. The
+second one is what the code does; "Two separate controls" below is history.
 
 ## Goal
 
@@ -99,3 +101,72 @@ on page scroll, since it has no way to reposition mid-scroll anyway.
 - Persisting the filter choice across PRs/sessions (URL-only, resets on
   navigation to a different PR).
 - Changing what counts as "dismissed" or the Accept/Dismiss action itself.
+
+## Revision — 2026-09-23: the pills ARE a filter control
+
+Supersedes "Two separate controls — not one" above. That section stays as the
+record of the original reasoning; this is what the code does now.
+
+**What changed.** Inside an opened `ReviewRunAccordion`, clicking a severity
+pill now filters the findings list to that severity, and clicking the active
+pill clears the filter. `SeverityPills` gained an `active` prop driving
+`aria-pressed` and a pressed outline.
+
+**Why.** The original argument was consistency: a pill on the PR-list row or a
+Timeline tile has no findings list under it to filter, so making pills
+clickable would mean the same control doing different things in different
+places. That reasoning held for the shared component, but it optimised for the
+component's internal consistency over the user's expectation — a count badge
+sitting directly above a filterable list reads as clickable, and users tried to
+click it. The pill is also the only control that shows *which* severities this
+run actually has.
+
+The consistency concern is handled by the prop contract rather than by keeping
+pills inert:
+
+- `onSelect` + `active` → filter control (review-run accordion).
+- `onSelect`, no `active` → navigates, no pressed state (PR list row).
+- neither → plain non-interactive spans (Timeline tiles).
+
+**`SeverityFilterButtons` stays.** It is not redundant: it renders all three
+severities *including ones with count 0*, while pills only render severities
+the run has. Without it there would be no way to select a severity, see "no
+findings match", and confirm the run is clean on that axis. Both controls write
+the same `?severity=` URL state, so they can't disagree.
+
+**Rejected alternative:** removing `SeverityFilterButtons` and letting the
+pills be the only control. Cheaper UI, but it loses the zero-count severities
+and silently changes the meaning of the empty state.
+
+## Revision 2 — 2026-09-23: one control, not two
+
+Supersedes Revision 1 above, which kept both controls. That decision survived
+exactly as long as it took to look at the rendered page: two rows sitting on
+top of each other — read-only pills `CRITICAL 3 · WARNING 1`, then buttons
+`Critical / Warning / Suggestion` — both reflecting the same `?severity=`
+state, both highlighted at once when a filter was active. It read as a bug,
+not as two complementary affordances.
+
+**What the code does now.** Inside an opened `ReviewRunAccordion` there is
+**one** row: `SeverityFilterButtons`, rendering one chip per severity the run
+actually has, as `icon + label + count` ("Critical 2"). The chip is the
+counter and the filter at once. Inactive chips are neutral (`--border`,
+`--text-secondary`); the active one takes the severity's own color for border,
+text and background tint. `SeverityPills` is no longer rendered here at all.
+
+**What this gives up, deliberately.** A severity with zero findings gets no
+chip, so it cannot be selected — the "no findings match" empty state is no
+longer reachable from this control. Revision 1 treated that reachability as
+worth a second row of buttons; it isn't. A control whose only purpose is to
+let you ask for something that isn't there earns its place only if the answer
+is surprising, and "this run has no suggestions" is already visible from the
+absence of the chip. The empty state still occurs via "hide low confidence"
+emptying an active severity, and via a deep link carrying `?severity=` for a
+severity this run lacks — both are handled.
+
+**`SeverityPills` keeps its job**, unchanged: the compact badge row on the PR
+list's FINDINGS column and on Timeline tiles. Those surfaces report a
+breakdown with no list underneath to filter, so they stay non-interactive
+(the PR-list one navigates). The split is now clean: `SeverityPills` reports,
+`SeverityFilterButtons` controls — rather than both doing a bit of each.
+

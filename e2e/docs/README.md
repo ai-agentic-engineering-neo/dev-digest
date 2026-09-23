@@ -6,3 +6,7 @@ Deeper documentation for the e2e suite that we deliberately keep out of
 **Feature specs live in [`specs/`](./specs/) here, inside `docs/`** — to avoid
 colliding with the top-level `e2e/specs/`, which holds the JSON flows for
 agent-browser (same term, different content).
+
+## Contents
+
+- [specs/flow-contract.md](./specs/flow-contract.md) — the flow-file contract.

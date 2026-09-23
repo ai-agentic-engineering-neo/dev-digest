@@ -9,3 +9,9 @@ What belongs here: detailed feature architecture, decisions with rationale
 
 What doesn't belong here: anything already obvious from the code, and
 anything that changes weekly.
+
+## Contents
+
+- [data-flow.md](./data-flow.md) — the single path from the API to a component
+  (`api.ts` → TanStack Query hooks → render), why components never `fetch`, and
+  the `src/vendor/*` drift hazard.

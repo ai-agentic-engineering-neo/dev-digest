@@ -6,3 +6,8 @@ a new prompt slot from a future course lesson: `skills`, `memory`, `specs`,
 
 Keep: the goal, input/output (the contract), acceptance criteria, and what's
 explicitly out of scope.
+
+## Contents
+
+- [grounding.md](./grounding.md) — the citation gate: the intersection rule, the
+  full-file exception, and why it's mechanical rather than a second LLM call.

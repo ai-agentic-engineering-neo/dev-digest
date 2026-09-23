@@ -7,7 +7,7 @@ import * as t from '../../db/schema.js';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { AppError, NotFoundError } from '../../platform/errors.js';
-import { deriveReviewStatus, rollupSeverities, SEVERITY_SORT_ORDER } from './status.js';
+import { deriveReviewStatus, rollupSeverities, sumRunCosts, SEVERITY_SORT_ORDER } from './status.js';
 import { findingRowToDto } from '../reviews/helpers.js';
 
 /**
@@ -166,22 +166,26 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
-    // Latest COMPLETED run's COST per PR for the list's cost column. Same
-    // read-time derivation as the score above: newest-first agent_runs rows,
-    // first seen per PR wins. Only status='done' counts — a failed run has no
-    // meaningful spend to surface, and a null cost stays null ("—", not "$0.00").
-    const latestRunCostByPr = new Map<string, number | null>();
+    // TOTAL COST per PR for the list's cost column = the sum of EVERY
+    // successful run, not just the newest one — a PR reviewed three times has
+    // cost three times as much, and the list is where that adds up. Same
+    // read-time derivation as the score above (one IN-query + JS grouping, no
+    // FK denorm). Only status='done' counts; null vs 0 semantics live in
+    // `sumRunCosts` ("—" for unknown, never "$0.00").
+    const runCostByPr = new Map<string, number | null>();
     if (prIds.length > 0) {
       const runRows = await container.db
         .select({ prId: t.agentRuns.prId, costUsd: t.agentRuns.costUsd })
         .from(t.agentRuns)
-        .where(and(inArray(t.agentRuns.prId, prIds), eq(t.agentRuns.status, 'done')))
-        .orderBy(desc(t.agentRuns.ranAt));
+        .where(and(inArray(t.agentRuns.prId, prIds), eq(t.agentRuns.status, 'done')));
+      const byPr = new Map<string, { costUsd: number | null }[]>();
       for (const run of runRows) {
-        if (run.prId && !latestRunCostByPr.has(run.prId)) {
-          latestRunCostByPr.set(run.prId, run.costUsd);
-        }
+        if (!run.prId) continue;
+        const bucket = byPr.get(run.prId);
+        if (bucket) bucket.push(run);
+        else byPr.set(run.prId, [run]);
       }
+      for (const [prId, runs] of byPr) runCostByPr.set(prId, sumRunCosts(runs));
     }
 
     const now = Date.now();
@@ -208,7 +212,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
-        cost_usd: latestRunCostByPr.get(r.id) ?? null,
+        cost_usd: runCostByPr.get(r.id) ?? null,
         // A reviewed PR with zero findings still gets a zeroed breakdown (not
         // null) — null means "never reviewed", {0,0,0} means "reviewed, clean".
         findings_by_severity: review

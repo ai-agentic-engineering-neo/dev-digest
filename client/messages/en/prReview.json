@@ -91,6 +91,7 @@
       "author": "Author",
       "size": "Size",
       "score": "Score",
+      "findings": "Findings",
       "status": "Status",
       "cost": "Cost",
       "updated": "Updated"
@@ -106,5 +107,16 @@
     "goToReview": "Jump to this run’s findings below",
     "openTrace": "Open run trace & logs",
     "deleteRun": "Delete run"
+  },
+  "severityCounts": {
+    "aria": "{total, plural, one {# finding} other {# findings}}: {breakdown}",
+    "header": "{count, plural, one {# finding} other {# findings}}",
+    "level": {
+      "CRITICAL": "{count} critical",
+      "WARNING": "{count, plural, one {# warning} other {# warnings}}",
+      "SUGGESTION": "{count, plural, one {# suggestion} other {# suggestions}}"
+    },
+    "loading": "Loading findings…",
+    "error": "Couldn’t load findings"
   }
 }

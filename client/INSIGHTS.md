@@ -24,6 +24,19 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
   is reviewed (clicking "All" from a script did not stick) → open
   `/repos/:id/pulls?status=all` to check list columns in screenshots or e2e.
   Evidence: `src/app/repos/[repoId]/pulls/page.tsx:39`.
+- **2026-09-23** — The two "blockers" on the PR page can disagree. The Timeline's
+  `RunSummary.blockers` is fixed when the run finishes and counted against the
+  agent's `ciFailOn` gate. The Review-run header counts CRITICAL minus dismissed,
+  live. → never treat them as one number; per-run severity data comes from
+  `ReviewRecord.findings`. Evidence: `../server/src/modules/reviews/run-executor.ts:240`,
+  `src/app/repos/[repoId]/pulls/[number]/_components/ReviewRunAccordion/ReviewRunAccordion.tsx:57`.
+- **2026-09-23** — `@devdigest/ui` has no popover, tooltip or hover card; its one
+  overlay, `Dropdown`, is click-driven and absolutely positioned inside its
+  wrapper. The PR list's `tableCard` has `overflow: hidden`, which would clip such
+  an overlay in lower rows → build hover cards with a portal and `position: fixed`,
+  and stop click propagation (React bubbles portal events to the row's `onClick`).
+  Evidence: `src/vendor/ui/kit/Dropdown.tsx:83-88`,
+  `src/app/repos/[repoId]/pulls/styles.ts:91`, `server/specs/02-findings-by-severity.md`.
 
 ## Tool & library notes
 
@@ -43,10 +56,16 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
 - **2026-09-23** — `src/vendor/ui/README.md` points at a `/showcase` route that
   does not exist; only the smoke test renders the gallery. Evidence:
   `src/vendor/ui/README.md:55`, `ls src/app`.
+- **2026-09-23** — `RunHistory`'s header comment says "clicking a run row opens
+  its trace", but the row `<div>` has no `onClick`: only the 📄 icon opens the
+  drawer, and the agent name jumps to Review runs. The user confirmed icon-only
+  is intended → don't add row clicks. Evidence:
+  `src/app/repos/[repoId]/pulls/[number]/_components/RunHistory/RunHistory.tsx:13,154,209`.
 
 ## Session notes
 
 - **2026-09-23** — Run Cost Badge (lab task 3): +2 (Tool & library notes, Codebase patterns)
+- **2026-09-23** — Findings-by-severity spec + plan: +3 (Doc drift, Codebase patterns)
 
 ## Open questions
 

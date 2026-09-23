@@ -32,6 +32,9 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
   Docker Hub → `TESTCONTAINERS_RYUK_DISABLED=true pnpm test`; the
   `pgvector/pgvector:pg16` image is cached and `afterAll` still stops the
   containers (133/133 passed). Evidence: `test/helpers/pg.ts:36`.
+  - **2026-09-23** — The same cause can show no ryuk error at all: `beforeAll`
+    just hangs and the suite fails with `Hook timed out in 120000ms`, all tests
+    skipped. The same env var fixes it (135/135). Evidence: `test/reviews.it.test.ts`.
 
 ## Doc drift
 
@@ -46,6 +49,7 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
 ## Session notes
 
 - **2026-09-23** — Run Cost Badge (lab task 3): +2 (Codebase patterns, Recurring errors & fixes)
+- **2026-09-23** — Findings-by-severity implementation: +1 (Recurring errors & fixes, nuance)
 
 ## Open questions
 

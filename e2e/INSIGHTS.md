@@ -16,6 +16,13 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
 
 ## Tool & library notes
 
+- **2026-09-23** — Flows fail with `spawn agent-browser ENOENT` without the global
+  CLI. Instead of `npm i -g agent-browser && agent-browser install`, which downloads
+  Chrome for Testing, point the runner at any install and at the system Chrome:
+  `AGENT_BROWSER_BIN=<path>/agent-browser
+  AGENT_BROWSER_EXECUTABLE_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+  npm run e2e:hermetic` → 7/7 passed. Evidence: `run.ts:40`, `README.md:52-53`.
+
 ## Recurring errors & fixes
 
 ## Doc drift
@@ -26,5 +33,7 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
   02. Evidence: `README.md:21,96`, `specs/01-app-boot.flow.json`.
 
 ## Session notes
+
+- **2026-09-23** — Findings-by-severity implementation: +1 (Tool & library notes)
 
 ## Open questions

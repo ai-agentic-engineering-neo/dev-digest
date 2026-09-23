@@ -4,14 +4,17 @@
  * a settled run is colored/labelled by its denormalized blocker/finding counts,
  * and shows the review score ring.
  */
-import { describe, it, expect, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { render, screen, cleanup, fireEvent, act, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
-import type { RunSummary } from "@devdigest/shared";
+import type { FindingRecord, RunSummary } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/prReview.json";
 import { RunHistory } from "./RunHistory";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 function run(o: Partial<RunSummary>): RunSummary {
   return {
@@ -35,10 +38,10 @@ function run(o: Partial<RunSummary>): RunSummary {
   };
 }
 
-function renderRuns(runs: RunSummary[]) {
+function renderRuns(runs: RunSummary[], findingsByRun?: Map<string, FindingRecord[]>) {
   return render(
     <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
-      <RunHistory runs={runs} onOpenTrace={() => {}} />
+      <RunHistory runs={runs} findingsByRun={findingsByRun} onOpenTrace={() => {}} />
     </NextIntlClientProvider>,
   );
 }
@@ -89,5 +92,67 @@ describe("RunHistory — run cost (server/specs/01-run-cost-badge.md)", () => {
   it("a failed run shows no cost line", () => {
     renderRuns([run({ status: "failed", error: "429 quota", cost_usd: null, tokens_in: 0, tokens_out: 0 })]);
     expect(screen.queryByText(/\$|→/)).not.toBeInTheDocument();
+  });
+});
+
+function finding(o: Partial<FindingRecord>): FindingRecord {
+  return {
+    id: "f",
+    severity: "CRITICAL",
+    category: "security",
+    title: "A finding",
+    file: "src/config.ts",
+    start_line: 12,
+    end_line: 12,
+    rationale: "Why it matters.",
+    suggestion: null,
+    confidence: 0.9,
+    kind: "finding",
+    trifecta_components: null,
+    evidence: null,
+    review_id: "r1",
+    accepted_at: null,
+    dismissed_at: null,
+    ...o,
+  };
+}
+
+describe("RunHistory — severity chips (server/specs/02-findings-by-severity.md)", () => {
+  const SECURITY = [
+    finding({ id: "c1", title: "Hardcoded Stripe secret key in commit" }),
+    finding({ id: "c2", title: "Lethal trifecta: untrusted input reaches exfil path" }),
+    finding({ id: "w1", severity: "WARNING", title: "Retry-After header omitted on 429" }),
+  ];
+  const PERF = [finding({ id: "s1", severity: "SUGGESTION", title: "Cache the rate-limit config" })];
+
+  it("a done run with a linked review shows its chips + blockers instead of 'N finding(s)'", () => {
+    renderRuns([run({ findings_count: 3, blockers: 2, score: 38 })], new Map([["run-1", SECURITY]]));
+    expect(screen.getByLabelText("3 findings: 2 critical, 1 warning")).toBeInTheDocument();
+    expect(screen.getByText(/2 blockers/)).toBeInTheDocument();
+    expect(screen.queryByText(/finding\(s\)/)).not.toBeInTheDocument();
+  });
+
+  it("hovering a run's chips shows that run's findings only", () => {
+    vi.useFakeTimers();
+    renderRuns(
+      [run({ run_id: "run-1", findings_count: 3, blockers: 2 }), run({ run_id: "run-2", findings_count: 1, blockers: 0 })],
+      new Map([
+        ["run-1", SECURITY],
+        ["run-2", PERF],
+      ]),
+    );
+    fireEvent.mouseEnter(screen.getByLabelText("1 finding: 1 suggestion"));
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText("Cache the rate-limit config")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Hardcoded Stripe secret key in commit")).not.toBeInTheDocument();
+  });
+
+  it("a run without a linked review keeps the 'N finding(s)' text", () => {
+    renderRuns([run({ findings_count: 2, blockers: 0 })], new Map());
+    expect(screen.getByText("2 finding(s)")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/findings?:/)).not.toBeInTheDocument();
   });
 });

@@ -17,6 +17,13 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
 
 ## Codebase patterns
 
+- **2026-09-23** — Severity has 3 levels in the contract (`CRITICAL`, `WARNING`,
+  `SUGGESTION`), but 4 in the client UI kit (`SEV`, `Severity`) and in
+  `FindingsPanel`'s sort order, which add `INFO` → iterate the contract's three
+  levels when rendering per-severity counts; a finding is never `INFO`. Evidence:
+  `server/src/vendor/shared/contracts/findings.ts:11`,
+  `client/src/vendor/ui/primitives/tokens.ts:3`.
+
 ## Tool & library notes
 
 ## Recurring errors & fixes
@@ -26,6 +33,13 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
   resolves `openai`/`zod` from `reviewer-core/node_modules`. `dev.sh` does it;
   by hand run `cd reviewer-core && npm ci`. Evidence: `scripts/dev.sh:78-80`,
   `README.md:118-127`.
+- **2026-09-23** — Running `e2e:hermetic` while the dev web is up breaks the dev
+  web: `e2e.sh` runs its own `next dev` in `client/`, which shares `client/.next`,
+  and bakes in `NEXT_PUBLIC_API_BASE=http://localhost:3101`. Afterwards `:3000`
+  shows "Cannot reach the DevDigest engine at http://localhost:3101" → restart the
+  dev web after a hermetic run (touching a route's file only rebuilds that route).
+  A separate `distDir` for the e2e web would fix it for good. Evidence:
+  `scripts/e2e.sh:42,148`, `e2e/README.md:43-44`.
 
 ## Doc drift
 
@@ -52,6 +66,8 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
 
 - **2026-09-23** — Added the engineering-insights skill and the fixed sections: +2 (Doc drift, Open questions)
 - **2026-09-23** — Run Cost Badge (lab task 3): +1 (Doc drift)
+- **2026-09-23** — Findings-by-severity spec + plan: +1 (Codebase patterns)
+- **2026-09-23** — Findings-by-severity implementation: +1 (Recurring errors & fixes)
 
 ## Open questions
 

@@ -304,6 +304,70 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     await app.close();
   });
 
+  // ---- Findings by severity (server/specs/02-findings-by-severity.md) -----
+  it('the PR list counts findings by severity for the latest review only', async () => {
+    const db = pg.handle.db;
+    const app = await appWithLlm(new MockLLMProvider('openai', { structured: REVIEW_FIXTURE }));
+    const { repo, pr } = await setupRepoAndPr(db, workspaceId);
+    const finding = (reviewId: string, severity: string, dismissedAt: Date | null = null) => ({
+      reviewId,
+      severity,
+      dismissedAt,
+      file: 'src/config.ts',
+      startLine: 11,
+      endLine: 11,
+      category: 'security',
+      title: `${severity} finding`,
+      rationale: 'r',
+      confidence: 0.9,
+    });
+    const at = (msAgo: number) => new Date(Date.now() - msAgo);
+
+    // An older review and a newer `summary` must both be ignored.
+    const [older] = await db
+      .insert(t.reviews)
+      .values({ workspaceId, prId: pr.id, kind: 'review', score: 10, createdAt: at(60_000) })
+      .returning();
+    await db.insert(t.findings).values([1, 2, 3].map(() => finding(older!.id, 'CRITICAL')));
+    const [latest] = await db
+      .insert(t.reviews)
+      .values({ workspaceId, prId: pr.id, kind: 'review', score: 70, createdAt: at(30_000) })
+      .returning();
+    await db
+      .insert(t.findings)
+      .values([
+        finding(latest!.id, 'CRITICAL', new Date()),
+        finding(latest!.id, 'SUGGESTION'),
+        finding(latest!.id, 'SUGGESTION'),
+      ]);
+    const [summary] = await db
+      .insert(t.reviews)
+      .values({ workspaceId, prId: pr.id, kind: 'summary', createdAt: at(0) })
+      .returning();
+    await db.insert(t.findings).values(finding(summary!.id, 'WARNING'));
+
+    const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const row = pulls.find((p: { id: string }) => p.id === pr.id);
+    expect(row.score).toBe(70);
+    // Dismissed CRITICAL still counts; a severity with no findings is 0.
+    expect(row.findings_by_severity).toEqual({ CRITICAL: 1, WARNING: 0, SUGGESTION: 2 });
+
+    // A reviewed PR with no findings reads all zeros; an unreviewed one reads null.
+    const { repo: repo2, pr: empty } = await setupRepoAndPr(db, workspaceId);
+    await db.insert(t.reviews).values({ workspaceId, prId: empty.id, kind: 'review', score: 100 });
+    const { repo: repo3, pr: unreviewed } = await setupRepoAndPr(db, workspaceId);
+    const list2 = (await app.inject({ method: 'GET', url: `/repos/${repo2.id}/pulls` })).json();
+    expect(list2.find((p: { id: string }) => p.id === empty.id).findings_by_severity).toEqual({
+      CRITICAL: 0,
+      WARNING: 0,
+      SUGGESTION: 0,
+    });
+    const list3 = (await app.inject({ method: 'GET', url: `/repos/${repo3.id}/pulls` })).json();
+    expect(list3.find((p: { id: string }) => p.id === unreviewed.id).findings_by_severity).toBeNull();
+
+    await app.close();
+  });
+
   it('dual-provider structured output: anthropic provider returns the same Review shape', async () => {
     const app = await appWith(REVIEW_FIXTURE, 'anthropic');
     const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);

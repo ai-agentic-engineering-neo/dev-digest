@@ -56,6 +56,7 @@ end without a wrap-up.
    ```
 
    One insight per bullet; Doc drift cites both the doc line and the code.
+   Outside Session notes the script refuses an entry with no backticked `path:line`.
 4. New nuance for an existing entry, or an entry that is now wrong: the same
    script with `--under "<text unique to that entry>"`. It lands as an indented
    sub-bullet (`superseded: …` for a wrong one); the old entry stays as is.

@@ -35,6 +35,7 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
   - **2026-09-23** — The same cause can show no ryuk error at all: `beforeAll`
     just hangs and the suite fails with `Hook timed out in 120000ms`, all tests
     skipped. The same env var fixes it (135/135). Evidence: `test/reviews.it.test.ts`.
+  - **2026-09-23** — Line evidence for the hang: the 120 s limit is `vitest.config.ts:17` (`hookTimeout: 120_000`), and the hook that hangs is `test/reviews.it.test.ts:104` (`pg = await startPg()`).
 
 ## Doc drift
 
@@ -51,6 +52,7 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
 - **2026-09-23** — Run Cost Badge (lab task 3): +2 (Codebase patterns, Recurring errors & fixes)
 - **2026-09-23** — Findings-by-severity implementation: +1 (Recurring errors & fixes, nuance)
 - **2026-09-23** — HW1 fixes, block C (PR-list COST = sum of done runs): +1 (Open questions)
+- **2026-09-23** — HW1 fixes, block E (path:line in every entry): +1 (Recurring errors & fixes — line evidence)
 
 ## Open questions
 

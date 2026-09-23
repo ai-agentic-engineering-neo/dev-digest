@@ -16,6 +16,7 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
   copy: 5 files differ, and the server is ahead in each (`openrouter` provider
   values, `AgentManifest`, `CommitFile`, …). There is no sync script. Evidence:
   `diff -rq server/src/vendor/shared client/src/vendor/shared`.
+  - **2026-09-23** — Line evidence: `openrouter` is in `../server/src/vendor/shared/adapters.ts:83` and `../server/src/vendor/shared/contracts/productionize.ts:36` but missing from `src/vendor/shared/adapters.ts:77` and `src/vendor/shared/contracts/productionize.ts:36`; `AgentManifest` (`../server/src/vendor/shared/contracts/eval-ci.ts:152`) and `CommitFile` (`../server/src/vendor/shared/adapters.ts:129`) exist only in the server copy. The `Provider` enum itself matches (`src/vendor/shared/contracts/knowledge.ts:155`).
 - **2026-09-23** — `FindingsPanel`'s j/k/a/d shortcuts are a `window` keydown listener per panel instance, and every expanded Review run mounts its own panel → with two runs open, one `a` or `d` press accepts/rejects the focused finding in each of them (read from the code, not reproduced) → keep one run expanded when using the shortcuts; scoping the listener to the focused panel is the fix. Evidence: `src/app/repos/[repoId]/pulls/[number]/_components/FindingsPanel/FindingsPanel.tsx:55-59`, `src/app/repos/[repoId]/pulls/[number]/_components/FindingsTab/FindingsTab.tsx:175`.
 
 ## Codebase patterns
@@ -46,6 +47,7 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
   has a Next.js segment like `[repoId]`, escaped or not ("No test files
   found") → filter by a filename substring: `pnpm exec vitest run RunHistory.test`.
   Evidence: `src/app/repos/[repoId]/pulls/[number]/_components/RunHistory/RunHistory.test.tsx`.
+  - **2026-09-23** — Line evidence: discovery is the single include glob in `vitest.config.ts:18` (`src/**/*.test.{ts,tsx}`), run by `package.json:10` (`vitest run`); a filename substring such as `RunHistory.test` worked again in the HW1 fixes (blocks A–B).
 - **2026-09-23** — `Chip` from `@devdigest/ui` renders a plain `<button>` with no `aria-pressed`, so a toggle-filter's active state is visual only and the vendored kit can't be edited → in tests, assert a filter through the cards it leaves (`[data-finding-id]`), not through the button's state. Evidence: `src/vendor/ui/primitives/Chip.tsx:22`, `src/app/repos/[repoId]/pulls/[number]/_components/FindingsPanel/FindingsPanel.test.tsx`.
 
 ## Recurring errors & fixes
@@ -71,6 +73,7 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
 - **2026-09-23** — Findings-by-severity spec + plan: +3 (Doc drift, Codebase patterns)
 - **2026-09-23** — HW1 fixes, block A (popover header, Reject, Timeline cost): +1 (Codebase patterns)
 - **2026-09-23** — HW1 fixes, block B (Review-run severity pills + filter): +2 (What doesn't work, Tool & library notes)
+- **2026-09-23** — HW1 fixes, block E (path:line in every entry): +2 (What doesn't work, Tool & library notes — line evidence)
 
 ## Open questions
 

@@ -8,6 +8,7 @@
 //   - **YYYY-MM-DD** — claim. Evidence: `path:line`
 //   EOF
 //
+// Every entry outside "Session notes" must cite a `path:line`, or it is refused.
 // <file> is relative to the repo root, wherever this runs from. Without
 // --under the entry goes to the end of the section; with --under it becomes an
 // indented sub-bullet of the one entry in that section containing <text>.
@@ -72,6 +73,13 @@ for (const line of entry.slice(1)) {
 const claimOf = (lines) =>
   squash([lines[0].match(DATED_BULLET)[2], ...lines.slice(1)].join(' '));
 const claim = claimOf(entry);
+// Evidence is a backticked `file.ext:line` (`:12-18`, `:4,22` too). The letter
+// extension keeps `localhost:3101` or `127.0.0.1:5433` from passing as a path.
+// Only "Session notes" lines are exempt.
+const EVIDENCE = /`[^`\s]*\.[A-Za-z][A-Za-z0-9]*:\d+(?:[-,]\d+)*`/;
+if (section !== 'Session notes' && !EVIDENCE.test(claim)) {
+  fail('the entry needs evidence as a backticked `path:line`, e.g. `src/app.ts:42`');
+}
 
 // ── current content ──────────────────────────────────────────────────────────
 const original = readFileSync(file, 'utf8');

@@ -28,6 +28,7 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
 ## Tool & library notes
 
 - **2026-09-23** — `append-insight.mjs` checks only the `**YYYY-MM-DD** —` prefix and never the evidence, so entries without a `path:line` go in unnoticed (4 so far: two in root Open questions, two in `client/INSIGHTS.md`) → before appending, make sure the Evidence has a `path:line`, not a command or a bare file. Evidence: `.claude/skills/engineering-insights/scripts/append-insight.mjs:22`, `client/INSIGHTS.md:18,46`.
+  - **2026-09-23** — superseded: the script now refuses any entry outside Session notes without a backticked `file.ext:line` (a bare file, a command, `localhost:3101` or an IP:port don't count), and the four entries it had let through got line-evidence sub-bullets. Evidence: `.claude/skills/engineering-insights/scripts/append-insight.mjs:76-82`.
 
 ## Recurring errors & fixes
 
@@ -75,6 +76,7 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
 - **2026-09-23** — HW1 check against the grading criteria: +1 (Tool & library notes)
 - **2026-09-23** — HW1 fixes, block B (hermetic e2e vs the dev stack): +1 (Recurring errors & fixes, nuance)
 - **2026-09-23** — HW1 fixes, block D (naming sections + per-package stack): +1 (Codebase patterns)
+- **2026-09-23** — HW1 fixes, block E (path:line in every entry + script check): +3 (Open questions ×2 line evidence, Tool & library notes superseded)
 
 ## Open questions
 
@@ -83,8 +85,10 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
   runtime — an engine-only change skips both suites. Intentional? Evidence:
   `.github/workflows/e2e-web.yml`, `.github/workflows/server-integration.yml`
   (`paths:`).
+  - **2026-09-23** — Line evidence: the `paths:` filters are `.github/workflows/e2e-web.yml:14-24` and `.github/workflows/server-integration.yml:16-22`, and neither lists `reviewer-core/**`, although `.github/workflows/server-integration.yml:53-55` itself says the server source imports reviewer-core.
 - **2026-09-23** — `skills-lock.json` is not the skill inventory: it lists
   `architecture-patterns` and `github-workflow-automation`, which are not in
   `.claude/skills/`, and omits five that are (`engineering-insights`,
   `mermaid-diagram`, `react-*`, `security`) → use `ls .claude/skills` for what is
   installed. Maintained by a tool, or stale? Evidence: `skills-lock.json`.
+  - **2026-09-23** — Line evidence: `skills-lock.json:4` (`architecture-patterns`) and `skills-lock.json:22` (`github-workflow-automation`); neither folder exists under `.claude/skills/`.

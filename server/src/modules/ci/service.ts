@@ -29,8 +29,14 @@ import { listTargetOptions } from './targets.js';
 import { CI_BRANCH, OPENROUTER_SECRET_NAME, WORKFLOW_PATH } from './constants.js';
 import { checkIngestArtifact } from './ingest.js';
 import { RefreshDebounce } from './refresh.js';
+import {
+  computeAgentMetrics,
+  dailyTrend,
+  previousPeriod,
+  resolvePerfRange,
+  type PerfRange,
+} from '../_shared/perf.js';
 
-const PERF_RANGE_PRESETS = [7, 30, 90] as const;
 const RESULT_ARTIFACT_NAME = 'devdigest-result';
 
 /**
@@ -823,65 +829,83 @@ export class CiService {
     await this.repo.insertRunTrace(agentRun.id, trace);
   }
 
-  // ---- Agent Performance (AC-40…AC-46) -------------------------------------
+  // ---- Agent Performance (AC-40…AC-46; specs/16-agent-performance-dashboard.md) ----
 
-  async agentPerformance(workspaceId: string, rangeDays: number): Promise<AgentPerf> {
-    const days = (PERF_RANGE_PRESETS as readonly number[]).includes(rangeDays) ? rangeDays : 30;
-    const from = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  /** `range` is either a fixed preset (`{ days }`, one of `_shared/perf.ts`'s
+   *  `PERF_RANGE_PRESETS`) or a custom `[from, to)` (clarification #5). Also
+   *  computes the immediately-preceding equal-length window for the per-agent
+   *  `*_delta` figures (clarification #6) — pure aggregation over already-
+   *  stored rows, zero model calls (AC-6). */
+  async agentPerformance(workspaceId: string, range: PerfRange): Promise<AgentPerf> {
+    const { from, to, rangeDays } = resolvePerfRange(range);
+    const prev = previousPeriod(from, to);
 
-    const [perfRows, costByModel, agents] = await Promise.all([
-      this.repo.performanceRows(workspaceId, from),
-      this.repo.costByModel(workspaceId, from),
+    const [perfRows, prevPerfRows, costByModel, agents] = await Promise.all([
+      this.repo.performanceRows(workspaceId, from, to),
+      this.repo.performanceRows(workspaceId, prev.from, prev.to),
+      this.repo.costByModel(workspaceId, from, to),
       this.agentLookup.list ? this.agentLookup.list(workspaceId) : Promise.resolve([]),
     ]);
 
     const agentById = new Map(agents.map((a) => [a.id, a] as const));
+    const prevByAgent = new Map(prevPerfRows.map((r) => [r.agentId, r] as const));
 
     const rows: AgentPerfRow[] = perfRows.map((r) => {
       const agent = agentById.get(r.agentId);
-      const denom = r.accepted + r.dismissed;
-      const runs = r.runsLocal + r.runsCi;
+      const metrics = computeAgentMetrics(r, prevByAgent.get(r.agentId));
       return {
         agent_id: r.agentId,
         agent_name: agent?.name ?? 'Unknown agent',
         provider: agent?.provider ?? null,
         model: agent?.model ?? null,
-        runs,
+        runs: metrics.runs,
         runs_local: r.runsLocal,
         runs_ci: r.runsCi,
+        counted_runs: r.countedRuns,
+        costed_runs: r.costedRuns,
         findings_total: r.totalFindings,
         accepted: r.accepted,
         dismissed: r.dismissed,
         // AC-46 — null (never 0) when this agent's runs in range are
         // entirely CI-sourced (no local runs => no reviews/findings => a
         // zero denominator here).
-        accept_rate: denom > 0 ? r.accepted / denom : null,
-        dismiss_rate: denom > 0 ? r.dismissed / denom : null,
-        avg_findings_per_run: runs > 0 ? r.totalFindings / runs : null,
+        accept_rate: metrics.accept_rate,
+        dismiss_rate: metrics.dismiss_rate,
+        avg_findings_per_run: metrics.avg_findings_per_run,
         total_cost_usd: r.totalCostUsd,
-        avg_cost_usd: r.totalCostUsd != null && runs > 0 ? r.totalCostUsd / runs : null,
-        avg_latency_ms: r.totalDurationMs != null && runs > 0 ? r.totalDurationMs / runs : null,
+        avg_cost_usd: metrics.avg_cost_usd,
+        avg_latency_ms: metrics.avg_latency_ms,
+        cost_by_source: metrics.cost_by_source,
         last_run_at: r.lastRunAt ? r.lastRunAt.toISOString() : null,
         // N4 — a CI run never contributes triaged findings by severity;
         // this feature does not attempt per-severity CI attribution.
         findings_by_severity: { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 },
-        trend: [],
+        trend: dailyTrend(r.runsByDay, from, to),
+        decisions: metrics.decisions,
+        low_sample: metrics.low_sample,
+        runs_delta: metrics.runs_delta,
+        accept_rate_delta: metrics.accept_rate_delta,
+        cost_delta: metrics.cost_delta,
       };
     });
 
     const totalRuns = rows.reduce((sum, r) => sum + r.runs, 0);
     const totalCost = rows.reduce((sum, r) => (r.total_cost_usd != null ? sum + r.total_cost_usd : sum), 0);
-    const acceptRates = rows.map((r) => r.accept_rate).filter((v): v is number => v != null);
+    // Clarification #7 — pooled accept rate (sum(accepted)/sum(decisions)),
+    // not an unweighted mean of per-agent rates, so this reconciles with
+    // AC-2's "totals sum correctly" the same way total_cost_usd already does.
+    const acceptedTotal = rows.reduce((sum, r) => sum + r.accepted, 0);
+    const decisionsTotal = rows.reduce((sum, r) => sum + r.decisions, 0);
     const mostActive = rows.slice().sort((a, b) => b.runs - a.runs)[0] ?? null;
 
     return {
       summary: {
         runs: totalRuns,
         total_cost_usd: rows.some((r) => r.total_cost_usd != null) ? totalCost : null,
-        avg_accept_rate:
-          acceptRates.length > 0 ? acceptRates.reduce((s, v) => s + v, 0) / acceptRates.length : null,
+        avg_accept_rate: decisionsTotal > 0 ? acceptedTotal / decisionsTotal : null,
         most_active_agent: mostActive ? mostActive.agent_name : null,
-        range_days: days,
+        range_days: rangeDays,
+        range: { from: from.toISOString(), to: to.toISOString() },
       },
       agents: rows,
       cost_by_agent: rows

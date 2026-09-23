@@ -6,32 +6,35 @@
  * Unifies `agent_runs.source === 'local'` and `'ci'` into one aggregate
  * (the server's `GET /agents/performance`, `modules/ci/service.ts`).
  *
- * AC-42's "accept-rate direction" is NOT rendered: the already-committed
- * `AgentPerfRow` contract (`server/src/vendor/shared/contracts/
- * productionize.ts`) carries no direction/previous-period field — `trend`
- * exists but the server always returns it empty (`trend: []`,
- * `modules/ci/service.ts agentPerformance()`), so there is no data to derive
- * a direction arrow from. Flagged as a gap in Phase D's committed
- * aggregation, not something Phase E can add without a server-side change.
+ * specs/16-agent-performance-dashboard.md — AC-42's accept-rate direction IS
+ * now rendered: `AgentPerfRow.trend`/`*_delta` are populated server-side
+ * (D1-D4 fixes, previous-period comparison), and the range picker supports
+ * a custom `from`/`to` alongside the 1/7/30/90 presets (supersedes
+ * specs/14-export-to-ci.md D12).
  */
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Donut, EmptyState, ErrorState, MetricCard, Skeleton } from "@devdigest/ui";
 import { AppShell } from "@/components/app-shell";
-import { useAgentPerformance } from "@/lib/hooks/agent-performance";
+import { PerfRangePicker } from "@/components/perf-range-picker/PerfRangePicker";
+import { useAgentPerformance, type PerfRangeValue } from "@/lib/hooks/agent-performance";
 import { formatCost } from "@/lib/format";
-import { DEFAULT_RANGE, RANGE_PRESETS, type RangeDays, type SortDir, type SortField } from "./constants";
+import { DEFAULT_RANGE, type SortDir, type SortField } from "./constants";
 import { AgentTable } from "./AgentTable";
+import { formatAcceptRate, totalCostBySource, totalCostDelta, totalTrend } from "./helpers";
 import { s } from "./styles";
 
 const SEGMENT_COLORS = ["var(--accent)", "var(--ok)", "var(--warn, var(--warning))", "var(--crit)", "var(--info, var(--text-secondary))"];
 
 export function AgentPerfView() {
   const t = useTranslations("agentPerformance");
-  const [range, setRange] = React.useState<RangeDays>(DEFAULT_RANGE);
+  const tRange = useTranslations("agentPerformance.range");
+  const [range, setRange] = React.useState<PerfRangeValue>(DEFAULT_RANGE);
   const [sortField, setSortField] = React.useState<SortField>("accept_rate");
   const [sortDir, setSortDir] = React.useState<SortDir>("desc");
 
+  // AC-6 — only ever this ONE read hook; no run-trigger hook is imported
+  // into this file, so reload/sort/range-switch can never trigger a review.
   const { data, isLoading, isError, refetch } = useAgentPerformance(range);
 
   const onSort = (field: SortField) => {
@@ -52,6 +55,13 @@ export function AgentPerfView() {
 
   const noRuns = !isLoading && (!data || data.summary.runs === 0);
   const anyCiOnly = data?.agents.some((a) => a.accept_rate == null && a.runs_ci > 0) ?? false;
+  const mostActiveRow =
+    data && data.summary.most_active_agent
+      ? data.agents.find((a) => a.agent_name === data.summary.most_active_agent)
+      : undefined;
+  const costDelta = data ? totalCostDelta(data.agents) : null;
+  const costBySource = data ? totalCostBySource(data.agents) : { provider: null, estimated: null, unknown: null };
+  const hasCostProvenance = costBySource.provider != null || costBySource.estimated != null || costBySource.unknown != null;
 
   return (
     <AppShell crumb={[{ label: t("title") }]}>
@@ -61,35 +71,24 @@ export function AgentPerfView() {
             <h1 style={s.h1}>{t("title")}</h1>
             <p style={s.subtitle}>{t("subtitle")}</p>
           </div>
-          <div style={s.rangeRow} role="radiogroup" aria-label={t("range.label")}>
-            {RANGE_PRESETS.map((days) => (
-              <button
-                key={days}
-                type="button"
-                role="radio"
-                aria-checked={range === days}
-                onClick={() => setRange(days)}
-                style={{
-                  padding: "5px 12px",
-                  borderRadius: 6,
-                  fontSize: 13,
-                  fontWeight: 500,
-                  border: "1px solid " + (range === days ? "var(--accent)" : "var(--border)"),
-                  background: range === days ? "var(--accent-bg)" : "transparent",
-                  color: range === days ? "var(--accent-text)" : "var(--text-secondary)",
-                  cursor: "pointer",
-                }}
-              >
-                {t(`range.${days}`)}
-              </button>
-            ))}
-          </div>
+          <PerfRangePicker value={range} onChange={setRange} t={tRange} />
         </div>
 
+        {/* D4 — reshaped to match the real layout: four tiles + a table +
+            two donuts, not two bare 90px blocks. */}
         {isLoading && (
-          <div style={s.tiles}>
-            <Skeleton height={90} />
-            <Skeleton height={90} />
+          <div style={s.section}>
+            <div style={s.skeletonTiles}>
+              <Skeleton height={90} />
+              <Skeleton height={90} />
+              <Skeleton height={90} />
+              <Skeleton height={90} />
+            </div>
+            <Skeleton height={260} />
+            <div style={s.cards}>
+              <Skeleton height={220} />
+              <Skeleton height={220} />
+            </div>
           </div>
         )}
 
@@ -98,8 +97,17 @@ export function AgentPerfView() {
         {!isLoading && data && !noRuns && (
           <>
             <div style={s.tiles}>
-              <MetricCard label={t("summary.totalRuns")} value={data.summary.runs} />
-              <MetricCard label={t("summary.totalCost")} value={formatCost(data.summary.total_cost_usd)} />
+              <MetricCard
+                label={t("summary.totalRuns")}
+                value={data.summary.runs}
+                trend={totalTrend(data.agents)}
+              />
+              <MetricCard
+                label={t("summary.totalCost")}
+                value={formatCost(data.summary.total_cost_usd)}
+                delta={costDelta ?? undefined}
+                deltaLabel={costDelta != null ? t("delta.vsPrevious") : undefined}
+              />
               <MetricCard
                 label={t("summary.avgAcceptRate")}
                 value={data.summary.avg_accept_rate != null ? `${Math.round(data.summary.avg_accept_rate * 100)}%` : t("notApplicable")}
@@ -108,12 +116,24 @@ export function AgentPerfView() {
                 label={t("summary.mostActive")}
                 value={data.summary.most_active_agent ?? t("notApplicable")}
                 suffix={
-                  data.summary.most_active_agent
-                    ? ` · ${data.agents.find((a) => a.agent_name === data.summary.most_active_agent)?.runs ?? 0}`
+                  mostActiveRow
+                    ? ` · ${mostActiveRow.runs} · ${formatAcceptRate(mostActiveRow.accept_rate, t("notApplicable"))}`
                     : undefined
                 }
               />
             </div>
+
+            {hasCostProvenance && (
+              <p style={s.provenanceLine} title={t("cost.provenanceNote")}>
+                {[
+                  costBySource.provider != null ? t("cost.reconciled", { amount: formatCost(costBySource.provider) }) : null,
+                  costBySource.estimated != null ? t("cost.estimated", { amount: formatCost(costBySource.estimated) }) : null,
+                  costBySource.unknown != null ? t("cost.unknown", { amount: formatCost(costBySource.unknown) }) : null,
+                ]
+                  .filter((v): v is string => v != null)
+                  .join(" · ")}
+              </p>
+            )}
 
             {anyCiOnly && <p style={s.note}>{t("ciOnlyNote")}</p>}
 

@@ -3,7 +3,7 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { CiExportInput, CiTarget } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
-import { IdParams } from '../_shared/schemas.js';
+import { IdParams, PerfRangeQuery, toPerfRange } from '../_shared/schemas.js';
 
 /**
  * specs/14-export-to-ci.md (P3/P4) — `getContext` first on every route
@@ -32,11 +32,6 @@ const PreviewFileQuery = z.object({
   post_as: z.enum(['github_review', 'pr_comment', 'none']).default('github_review'),
   triggers: z.string().default('opened,synchronize'),
   path: z.string().min(1),
-});
-const PerfQuery = z.object({
-  range_days: z.coerce.number().int().refine((v) => [7, 30, 90].includes(v), {
-    message: 'range_days must be 7, 30 or 90',
-  }).default(30),
 });
 
 export default async function ciRoutes(appBase: FastifyInstance) {
@@ -139,8 +134,8 @@ export default async function ciRoutes(appBase: FastifyInstance) {
 
   // Fastify's static-over-param route precedence keeps this safe next to the
   // agents module's own `/agents/:id` (`modules/agents/routes.ts`).
-  app.get('/agents/performance', { schema: { querystring: PerfQuery } }, async (req) => {
+  app.get('/agents/performance', { schema: { querystring: PerfRangeQuery } }, async (req) => {
     const { workspaceId } = await getContext(container, req);
-    return service.agentPerformance(workspaceId, req.query.range_days);
+    return service.agentPerformance(workspaceId, toPerfRange(req.query));
   });
 }

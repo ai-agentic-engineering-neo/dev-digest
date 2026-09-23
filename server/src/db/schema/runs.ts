@@ -32,6 +32,14 @@ export const agentRuns = pgTable(
     tokensIn: integer('tokens_in'),
     tokensOut: integer('tokens_out'),
     costUsd: doublePrecision('cost_usd'),
+    /**
+     * specs/16-agent-performance-dashboard.md — provenance of `costUsd`:
+     * 'provider' when OpenRouter's own `usage.cost` extension was present on
+     * the call, 'estimated' when it fell back to the price-book. NULL for
+     * every pre-migration row and any run whose cost is itself unknown —
+     * never guessed, surfaced as "unknown provenance".
+     */
+    costSource: text('cost_source', { enum: ['provider', 'estimated'] }),
     status: text('status'),
     /** Failure reason when status='failed' (LLM/API error, timeout, quota, …). */
     error: text('error'),

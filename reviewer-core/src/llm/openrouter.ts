@@ -99,12 +99,23 @@ export class OpenRouterProvider implements LLMProvider {
 
       const parsed = parseWithRepair(req.schema, lastRaw);
       if (parsed.ok) {
+        // specs/16-agent-performance-dashboard.md — provenance of the cost
+        // figure below: 'provider' when OpenRouter's own `usage.cost`
+        // extension fired, 'estimated' when it fell back to the injected
+        // price book, `null` when neither produced a number (costUsd itself
+        // is null — never guess a source for an unknown cost).
+        const estimatedCost =
+          costFromApi == null ? this.estimateCost?.(req.model, tokensIn, tokensOut) ?? null : null;
+        const costUsd = costFromApi ?? estimatedCost;
+        const costSource: 'provider' | 'estimated' | null =
+          costFromApi != null ? 'provider' : estimatedCost != null ? 'estimated' : null;
         return {
           data: parsed.data,
           model: req.model,
           tokensIn,
           tokensOut,
-          costUsd: costFromApi ?? this.estimateCost?.(req.model, tokensIn, tokensOut) ?? null,
+          costUsd,
+          costSource,
           raw: lastRaw,
           attempts: attempt,
         };

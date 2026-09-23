@@ -3,7 +3,7 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
-import { IdParams } from '../_shared/schemas.js';
+import { IdParams, PerfRangeQuery, toPerfRange } from '../_shared/schemas.js';
 import { NotFoundError } from '../../platform/errors.js';
 import { AgentsService } from './service.js';
 
@@ -83,10 +83,15 @@ const UpdateSkillLinkBody = z.object({
 
 export default async function agentsRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
+  // specs/16-agent-performance-dashboard.md — `app.container.ciRepo`'s real
+  // `performanceRows` satisfies `PerformanceRowSource` structurally; wired
+  // here (the composition point) rather than imported by type in service.ts
+  // (`no-cross-module`).
   const service = new AgentsService(
     app.container.agentsRepo,
     (id) => app.container.llm(id),
     app.container.evalRepo,
+    app.container.ciRepo,
   );
 
   app.get('/agents', async (req) => {
@@ -218,4 +223,17 @@ export default async function agentsRoutes(appBase: FastifyInstance) {
     await getContext(app.container, req);
     return service.listModels(req.params.id);
   });
+
+  // specs/16-agent-performance-dashboard.md — the per-agent Stats tab, built
+  // from the SAME query + rules `GET /agents/performance` uses (AC-1).
+  app.get(
+    '/agents/:id/stats',
+    { schema: { params: IdParams, querystring: PerfRangeQuery } },
+    async (req) => {
+      const { workspaceId } = await getContext(app.container, req);
+      const stats = await service.stats(workspaceId, req.params.id, toPerfRange(req.query));
+      if (!stats) throw new NotFoundError('Agent not found');
+      return stats;
+    },
+  );
 }

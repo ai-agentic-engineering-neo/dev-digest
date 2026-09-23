@@ -168,6 +168,8 @@ export class ReviewRepository {
       blockers?: number | null;
       /** Failure reason (status='failed') / cancellation note. Null clears it. */
       error?: string | null;
+      /** specs/16-agent-performance-dashboard.md — provenance of `costUsd`. */
+      costSource?: 'provider' | 'estimated' | null;
     },
   ): Promise<void> {
     return runRepo.completeAgentRun(this.db, runId, values);

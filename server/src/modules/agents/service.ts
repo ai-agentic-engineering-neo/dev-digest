@@ -2,6 +2,7 @@ import type { LLMProvider, Provider as ProviderId } from '@devdigest/shared';
 import type {
   Agent,
   AgentSkillLink,
+  AgentStats,
   AgentVersion,
   CiFailOn,
   ModelInfo,
@@ -10,6 +11,15 @@ import type {
 } from '@devdigest/shared';
 import { AgentsRepository } from './repository.js';
 import { toAgentDto, toAgentVersionDto } from './helpers.js';
+import {
+  computeAgentMetrics,
+  dailyTrendPoints,
+  emptyPerfSourceRow,
+  previousPeriod,
+  resolvePerfRange,
+  type PerfRange,
+  type PerfSourceRow,
+} from '../_shared/perf.js';
 
 /**
  * A2 — agents service. Business logic for the Agents tab + Agent Editor.
@@ -63,11 +73,24 @@ export interface EvalCleanup {
   deleteForOwner(workspaceId: string, ownerKind: 'skill' | 'agent', ownerId: string): Promise<void>;
 }
 
+/**
+ * specs/16-agent-performance-dashboard.md — narrow port onto the `ci`
+ * module's cross-cutting Agent Performance query. `no-cross-module` forbids
+ * importing `CiRepository` directly (even as a type), so this mirrors the
+ * `AgentLookup`/`EvalCleanup` local-port convention: `container.ciRepo`'s
+ * real `performanceRows` satisfies this structurally, wired at
+ * `modules/agents/routes.ts` (the composition point).
+ */
+export interface PerformanceRowSource {
+  performanceRows(workspaceId: string, from: Date, to: Date, agentId?: string): Promise<PerfSourceRow[]>;
+}
+
 export class AgentsService {
   constructor(
     private repo: AgentsRepository,
     private llm: LlmResolver,
     private evalCleanup?: EvalCleanup,
+    private perf?: PerformanceRowSource,
   ) {}
 
   async list(workspaceId: string): Promise<Agent[]> {
@@ -234,5 +257,58 @@ export class AgentsService {
     } catch {
       return [];
     }
+  }
+
+  /**
+   * specs/16-agent-performance-dashboard.md — GET /agents/:id/stats, the
+   * per-agent Stats tab. Backed by the SAME `performanceRows` query (scoped
+   * to this one agent) and the SAME `_shared/perf.ts` derivation rules the
+   * global dashboard uses, so AC-1 ("matches the per-agent Stats view for
+   * the same agent and period") holds by construction, not by convention.
+   * `undefined` when the agent doesn't exist (routes.ts 404s).
+   */
+  async stats(workspaceId: string, agentId: string, range: PerfRange): Promise<AgentStats | undefined> {
+    const agent = await this.repo.getById(workspaceId, agentId);
+    if (!agent) return undefined;
+    if (!this.perf) {
+      throw new Error('AgentsService.stats: no PerformanceRowSource wired');
+    }
+
+    const { from, to } = resolvePerfRange(range);
+    const prevRange = previousPeriod(from, to);
+    const [rows, prevRows] = await Promise.all([
+      this.perf.performanceRows(workspaceId, from, to, agentId),
+      this.perf.performanceRows(workspaceId, prevRange.from, prevRange.to, agentId),
+    ]);
+    const row = rows[0] ?? emptyPerfSourceRow(agentId);
+    const metrics = computeAgentMetrics(row, prevRows[0]);
+
+    return {
+      agent_id: agentId,
+      agent_name: agent.name,
+      runs: metrics.runs,
+      findings_total: row.totalFindings,
+      accepted: row.accepted,
+      dismissed: row.dismissed,
+      pending: row.pending,
+      accept_rate: metrics.accept_rate,
+      dismiss_rate: metrics.dismiss_rate,
+      avg_findings_per_run: metrics.avg_findings_per_run,
+      total_cost_usd: row.totalCostUsd,
+      avg_cost_usd: metrics.avg_cost_usd,
+      avg_latency_ms: metrics.avg_latency_ms,
+      // N4 (mirrors modules/ci/service.ts) — no per-severity attribution yet.
+      findings_by_severity: { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 },
+      trend: dailyTrendPoints(row.runsByDay, from, to),
+      counted_runs: row.countedRuns,
+      costed_runs: row.costedRuns,
+      cost_by_source: metrics.cost_by_source,
+      decisions: metrics.decisions,
+      low_sample: metrics.low_sample,
+      runs_delta: metrics.runs_delta,
+      accept_rate_delta: metrics.accept_rate_delta,
+      cost_delta: metrics.cost_delta,
+      range: { from: from.toISOString(), to: to.toISOString() },
+    };
   }
 }

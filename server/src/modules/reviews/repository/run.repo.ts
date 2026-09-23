@@ -156,6 +156,9 @@ export async function completeAgentRun(
     blockers?: number | null;
     /** Failure reason (status='failed') / cancellation note. Null clears it. */
     error?: string | null;
+    /** specs/16-agent-performance-dashboard.md — provenance of `costUsd`.
+     *  `null`/omitted whenever cost itself is null (never guessed). */
+    costSource?: 'provider' | 'estimated' | null;
   },
 ): Promise<void> {
   await db
@@ -166,6 +169,7 @@ export async function completeAgentRun(
       tokensIn: values.tokensIn,
       tokensOut: values.tokensOut,
       costUsd: values.costUsd,
+      costSource: values.costSource ?? null,
       findingsCount: values.findingsCount,
       grounding: values.grounding,
       score: values.score ?? null,

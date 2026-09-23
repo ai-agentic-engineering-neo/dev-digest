@@ -135,6 +135,19 @@ export type PluginImportResult = z.infer<typeof PluginImportResult>;
 // Agent Performance  (GET /agents/performance)
 // ---------------------------------------------------------------------------
 
+/** Cost sub-totals by provenance (specs/16-agent-performance-dashboard.md
+ *  clarification #1) — `null` when that bucket had zero costed runs
+ *  (null-is-not-zero, never a fabricated $0.00). */
+export const PerfCostBySource = z.object({
+  /** OpenRouter's own `usage.cost` — reconciled billing data. */
+  provider: z.number().nullable(),
+  /** Derived from the price book — DevDigest's own estimate. */
+  estimated: z.number().nullable(),
+  /** Cost known but `cost_source` unset (pre-migration rows). */
+  unknown: z.number().nullable(),
+});
+export type PerfCostBySource = z.infer<typeof PerfCostBySource>;
+
 /** Per-agent performance row (aggregate across agent_runs + findings). */
 export const AgentPerfRow = z.object({
   agent_id: z.string(),
@@ -147,6 +160,12 @@ export const AgentPerfRow = z.object({
    *  contribute no triaged findings) is explainable rather than a bare null. */
   runs_local: z.number().int(),
   runs_ci: z.number().int(),
+  /** specs/16-agent-performance-dashboard.md D1 — runs with status='done';
+   *  the denominator these dashboards actually mean by "N runs", excluding
+   *  still-running/failed rows that never contribute cost or duration. */
+  counted_runs: z.number().int(),
+  /** D1 — runs with a non-null cost; the `avg_cost_usd` denominator. */
+  costed_runs: z.number().int(),
   findings_total: z.number().int(),
   accepted: z.number().int(),
   dismissed: z.number().int(),
@@ -157,6 +176,7 @@ export const AgentPerfRow = z.object({
   total_cost_usd: z.number().nullable(),
   avg_cost_usd: z.number().nullable(),
   avg_latency_ms: z.number().nullable(),
+  cost_by_source: PerfCostBySource,
   last_run_at: z.string().nullable(),
   findings_by_severity: z.object({
     CRITICAL: z.number().int(),
@@ -165,6 +185,17 @@ export const AgentPerfRow = z.object({
   }),
   /** recent findings-per-run trend (oldest→newest) for the sparkline. */
   trend: z.array(z.number()),
+  /** accepted + dismissed — the accept-rate denominator, shown alongside
+   *  the percentage (AC brief: "show the accept-rate denominator"). */
+  decisions: z.number().int(),
+  /** clarification #2 — true when `decisions` is below the low-sample
+   *  threshold; the client marks the rate and sorts it last either way. */
+  low_sample: z.boolean(),
+  /** clarification #6 — vs. the immediately-preceding equal-length period;
+   *  `null` (never 0) when the agent has no prior-period data at all. */
+  runs_delta: z.number().nullable(),
+  accept_rate_delta: z.number().nullable(),
+  cost_delta: z.number().nullable(),
 });
 export type AgentPerfRow = z.infer<typeof AgentPerfRow>;
 
@@ -182,9 +213,12 @@ export const AgentPerf = z.object({
     total_cost_usd: z.number().nullable(),
     avg_accept_rate: z.number().nullable(),
     most_active_agent: z.string().nullable(),
-    /** D12/AC-43 — the selected preset (7/30/90) every figure on the page
-     *  was computed over. */
-    range_days: z.number().int(),
+    /** D12/AC-43 — the selected preset (1/7/30/90), or `null` for a custom
+     *  `range` (clarification #5). */
+    range_days: z.number().int().nullable(),
+    /** clarification #6/#7 — the resolved `[from, to)` window every figure
+     *  on the page was computed over, ISO datetimes. */
+    range: z.object({ from: z.string(), to: z.string() }),
   }),
   agents: z.array(AgentPerfRow),
   /** cost split by agent and by model (for the two cost-breakdown donuts). */

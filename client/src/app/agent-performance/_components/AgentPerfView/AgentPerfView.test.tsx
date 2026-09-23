@@ -4,8 +4,10 @@ import { NextIntlClientProvider } from "next-intl";
 import type { AgentPerf, AgentPerfRow } from "@devdigest/shared/contracts/productionize";
 import perfMessages from "../../../../../messages/en/agentPerformance.json";
 
+const RANGE = { from: "2026-08-24T00:00:00.000Z", to: "2026-09-23T00:00:00.000Z" };
+
 let PERF: AgentPerf = {
-  summary: { runs: 0, total_cost_usd: null, avg_accept_rate: null, most_active_agent: null, range_days: 30 },
+  summary: { runs: 0, total_cost_usd: null, avg_accept_rate: null, most_active_agent: null, range_days: 30, range: RANGE },
   agents: [],
   cost_by_agent: [],
   cost_by_model: [],
@@ -13,6 +15,10 @@ let PERF: AgentPerf = {
 
 vi.mock("@/lib/hooks/agent-performance", () => ({
   useAgentPerformance: () => ({ data: PERF, isLoading: false, isError: false, refetch: vi.fn() }),
+  // `PerfRangePicker` (a real, unmocked component) imports this helper from
+  // the same module — the mock above replaces the whole module, so it must
+  // be re-provided here too.
+  isCustomPerfRange: (v: unknown) => !!v && typeof v === "object" && "from" in (v as object),
 }));
 
 vi.mock("@/components/app-shell", () => ({
@@ -30,6 +36,8 @@ function row(overrides: Partial<AgentPerfRow>): AgentPerfRow {
     runs: 10,
     runs_local: 10,
     runs_ci: 0,
+    counted_runs: 10,
+    costed_runs: 10,
     findings_total: 20,
     accepted: 6,
     dismissed: 2,
@@ -39,9 +47,15 @@ function row(overrides: Partial<AgentPerfRow>): AgentPerfRow {
     total_cost_usd: 1.2,
     avg_cost_usd: 0.12,
     avg_latency_ms: 8000,
+    cost_by_source: { provider: 1.2, estimated: null, unknown: null },
     last_run_at: new Date().toISOString(),
     findings_by_severity: { CRITICAL: 1, WARNING: 2, SUGGESTION: 3 },
-    trend: [],
+    trend: [1, 2, 3],
+    decisions: 8,
+    low_sample: false,
+    runs_delta: null,
+    accept_rate_delta: null,
+    cost_delta: null,
     ...overrides,
   };
 }
@@ -57,7 +71,7 @@ function renderWithIntl(ui: React.ReactElement) {
 
 describe("AgentPerfView", () => {
   it("renders no figures when no agent run exists in range (AC-47)", () => {
-    PERF = { summary: { runs: 0, total_cost_usd: null, avg_accept_rate: null, most_active_agent: null, range_days: 30 }, agents: [], cost_by_agent: [], cost_by_model: [] };
+    PERF = { summary: { runs: 0, total_cost_usd: null, avg_accept_rate: null, most_active_agent: null, range_days: 30, range: RANGE }, agents: [], cost_by_agent: [], cost_by_model: [] };
     renderWithIntl(<AgentPerfView />);
     expect(screen.getByText(perfMessages.empty.title)).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
@@ -67,7 +81,7 @@ describe("AgentPerfView", () => {
     // total_cost_usd (tile) intentionally differs from the single agent's
     // avg_cost_usd (table cell) so the two don't collide in the same assertion.
     PERF = {
-      summary: { runs: 10, total_cost_usd: 3.4, avg_accept_rate: 0.75, most_active_agent: "Security", range_days: 30 },
+      summary: { runs: 10, total_cost_usd: 3.4, avg_accept_rate: 0.75, most_active_agent: "Security", range_days: 30, range: RANGE },
       agents: [row({ total_cost_usd: 1.2, avg_cost_usd: 0.12 })],
       cost_by_agent: [],
       cost_by_model: [],
@@ -80,8 +94,19 @@ describe("AgentPerfView", () => {
 
   it("shows a not-applicable accept rate (never 0%) for a CI-only agent, plus the explanatory note (AC-46)", () => {
     PERF = {
-      summary: { runs: 5, total_cost_usd: 0.5, avg_accept_rate: null, most_active_agent: "CI Bot", range_days: 30 },
-      agents: [row({ agent_id: "a2", agent_name: "CI Bot", runs_local: 0, runs_ci: 5, accept_rate: null })],
+      summary: { runs: 5, total_cost_usd: 0.5, avg_accept_rate: null, most_active_agent: "CI Bot", range_days: 30, range: RANGE },
+      agents: [
+        row({
+          agent_id: "a2",
+          agent_name: "CI Bot",
+          runs_local: 0,
+          runs_ci: 5,
+          accept_rate: null,
+          accepted: 0,
+          dismissed: 0,
+          decisions: 0,
+        }),
+      ],
       cost_by_agent: [],
       cost_by_model: [],
     };
@@ -91,7 +116,7 @@ describe("AgentPerfView", () => {
   });
 
   it("switching the range preset changes the requested range (AC-43)", () => {
-    PERF = { summary: { runs: 3, total_cost_usd: 0.1, avg_accept_rate: 0.5, most_active_agent: "Security", range_days: 30 }, agents: [row({})], cost_by_agent: [], cost_by_model: [] };
+    PERF = { summary: { runs: 3, total_cost_usd: 0.1, avg_accept_rate: 0.5, most_active_agent: "Security", range_days: 30, range: RANGE }, agents: [row({})], cost_by_agent: [], cost_by_model: [] };
     renderWithIntl(<AgentPerfView />);
     const sevenDayBtn = screen.getByRole("radio", { name: "7 days" });
     fireEvent.click(sevenDayBtn);

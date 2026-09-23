@@ -31,6 +31,33 @@ there is the bug the whole format exists to prevent.
 
 ## Codebase Patterns
 
+### 2026-09-23 — a full `vi.mock("@/lib/hooks/x", () => ({...}))` on a hooks module silently strips every OTHER named export from it too, breaking a shared component that imports a plain helper (not a hook) from the same module
+
+Building the Agent Performance dashboard's range picker
+(`specs/16-agent-performance-dashboard.md`), `PerfRangePicker` (`src/
+components/perf-range-picker/PerfRangePicker/`) imports a pure type-guard,
+`isCustomPerfRange`, from `@/lib/hooks/agent-performance` — the same module
+`useAgentPerformance`/`useAgentStats` live in, since it's the one place
+`PerfRangeValue`'s shape is defined. `AgentPerfView.test.tsx` (pre-existing,
+now exercising the real un-mocked `PerfRangePicker`) does `vi.mock("@/lib/
+hooks/agent-performance", () => ({ useAgentPerformance: () => ({...}) }))` —
+a full factory replacement, not `vi.spyOn` on one export — which throws at
+render time with `No "isCustomPerfRange" export is defined on the ... mock`,
+even though the test never touches that function directly; it's `PerfRange
+Picker`'s own import that fails. `vi.mock`'s factory REPLACES the entire
+module's export surface; it does not merge with the real module unless the
+factory explicitly re-exports (or spreads) everything else a consumer might
+need. Fixed by adding `isCustomPerfRange: (v) => !!v && "from" in v` to the
+mock factory alongside `useAgentPerformance`. Generalizes: before wiring a
+NEW shared component into an ALREADY-mocked module's consumer tree, grep that
+component's own imports from the same module path and confirm each one is
+either re-provided in every existing full-factory `vi.mock` of that path, or
+switch those tests to `vi.spyOn(hooks, "theOneExport")` instead (which only
+replaces the named export it targets, per the `useSkillStats`/`StatsTab.
+test.tsx` convention already established elsewhere in this file) — the error
+message names the missing export but gives no hint that the REAL cause is a
+different component's import, several files away from the failing assertion.
+
 ### 2026-08-22 — D21's derived agent identity {color, icon} was NOT wired into `RunReviewDropdown`'s multi-select rows beyond the icon — the Dropdown extension's scope was already closed
 
 Building Phase B2 (plans/13-multi-agent-review.md), `agentIdentity()`

@@ -10,6 +10,7 @@ export function MetricCard({
   color,
   trend,
   suffix,
+  deltaLabel,
 }: {
   label: string;
   value: React.ReactNode;
@@ -17,6 +18,11 @@ export function MetricCard({
   color?: string;
   trend?: number[];
   suffix?: string;
+  /** specs/16-agent-performance-dashboard.md — `delta` alone renders a bare
+   *  unit-less number; this optional label (e.g. "vs. previous period",
+   *  "runs") renders after it. Additive — omitting it keeps the previous
+   *  output byte-for-byte. */
+  deltaLabel?: string;
 }) {
   const up = (delta ?? 0) > 0;
   const flat = delta === 0;
@@ -63,6 +69,7 @@ export function MetricCard({
           >
             <DeltaIcon size={12} />
             <span className="tnum">{Math.abs(delta).toFixed(2)}</span>
+            {deltaLabel && <span style={{ color: "var(--text-muted)", fontWeight: 500 }}>{deltaLabel}</span>}
           </span>
         )}
       </div>

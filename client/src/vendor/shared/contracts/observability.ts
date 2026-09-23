@@ -131,6 +131,27 @@ export const AgentStats = z.object({
   }),
   /** recent runs for a small trend chart (oldest→newest). */
   trend: z.array(StatPoint),
+  /**
+   * specs/16-agent-performance-dashboard.md — built from the SAME
+   * `performanceRows` query + `_shared/perf.ts` rules as
+   * `AgentPerf`/`AgentPerfRow` (`contracts/productionize.ts`), scoped to this
+   * one agent, so AC-1's "same API, same rules" reconciliation is literal.
+   * See `PerfCostBySource`'s doc comment for the null-is-not-zero convention
+   * on `cost_by_source`.
+   */
+  counted_runs: z.number().int(),
+  costed_runs: z.number().int(),
+  cost_by_source: z.object({
+    provider: z.number().nullable(),
+    estimated: z.number().nullable(),
+    unknown: z.number().nullable(),
+  }),
+  decisions: z.number().int(),
+  low_sample: z.boolean(),
+  runs_delta: z.number().nullable(),
+  accept_rate_delta: z.number().nullable(),
+  cost_delta: z.number().nullable(),
+  range: z.object({ from: z.string(), to: z.string() }),
 });
 export type AgentStats = z.infer<typeof AgentStats>;
 

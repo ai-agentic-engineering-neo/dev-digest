@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, lte, sql } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import type { AgentRunRow } from '../../db/rows.js';
@@ -95,16 +95,43 @@ export interface InsertCiAgentRun {
   error: string | null;
 }
 
+/**
+ * specs/16-agent-performance-dashboard.md — widened for D1 (separate counted/
+ * costed/timed denominators), D2 (findings windowed by the run's own ranAt),
+ * cost provenance (`cost_source`) sub-totals, `pending` findings, and a
+ * per-day run count for the trend sparkline. Structurally satisfies
+ * `modules/_shared/perf.ts`'s `PerfSourceRow` — that file's own type is a
+ * LOCAL mirror (not an import of this one; `no-cross-module`), so keep the
+ * two shapes in sync by hand when either changes.
+ */
 export interface PerfRangeRow {
   agentId: string;
   runsLocal: number;
   runsCi: number;
+  /** `status === 'done'` — excludes running/failed from the avg-latency
+   *  denominator (D1). */
+  countedRuns: number;
+  /** Non-null `costUsd` — the `avg_cost_usd` denominator (D1). */
+  costedRuns: number;
+  /** Non-null `durationMs` — the `avg_latency_ms` denominator (D1). */
+  timedRuns: number;
   totalCostUsd: number | null;
   totalDurationMs: number | null;
   totalFindings: number;
   lastRunAt: Date | null;
   accepted: number;
   dismissed: number;
+  /** Findings with neither `acceptedAt` nor `dismissedAt` — previously
+   *  excluded from every denominator and invisible anywhere. */
+  pending: number;
+  /** Dollar sub-totals by `cost_source`; `null` when that bucket had zero
+   *  costed runs (null-is-not-zero, never a fabricated $0.00). */
+  costProvider: number | null;
+  costEstimated: number | null;
+  costUnknown: number | null;
+  /** Run count per UTC day (`YYYY-MM-DD`) — bucketed into the sparkline by
+   *  `_shared/perf.ts`'s `dailyTrend`/`dailyTrendPoints`. */
+  runsByDay: { day: string; count: number }[];
 }
 
 export class CiRepository {
@@ -400,27 +427,47 @@ export class CiRepository {
   // ---- Agent Performance aggregation (AC-41…AC-46) ------------------------
 
   /**
-   * One row per agent with `agent_runs` in `[from, now)`, aggregated WITHOUT
+   * One row per agent with `agent_runs` in `[from, to)`, aggregated WITHOUT
    * filtering on `source` (AC-45 — `local` and `ci` both count for runs,
-   * cost, duration, findings). `accepted`/`dismissed` are joined through
-   * `reviews.run_id` (only local runs ever produce a review, so a CI-only
-   * agent's `accepted`/`dismissed` both land at 0 — the service layer turns
-   * that into `accept_rate: null`, never `0`, per AC-46).
+   * cost, duration, findings). `accepted`/`dismissed`/`pending` are joined
+   * through `reviews.run_id` AND windowed by the RUN's own `ranAt` (via a
+   * join to `agent_runs`, not `reviews.createdAt` — D2: a run just inside the
+   * period whose review committed just outside it must not silently lose its
+   * findings). Only local runs ever produce a review, so a CI-only agent's
+   * `accepted`/`dismissed` both land at 0 — the service layer turns that into
+   * `accept_rate: null`, never `0`, per AC-46.
+   *
+   * `agentId` scopes to a single agent — the per-agent Stats tab
+   * (`GET /agents/:id/stats`) reuses this SAME query rather than a separate
+   * one, so AC-1's "same API, same rules" holds by construction.
    */
-  async performanceRows(workspaceId: string, from: Date): Promise<PerfRangeRow[]> {
+  async performanceRows(workspaceId: string, from: Date, to: Date, agentId?: string): Promise<PerfRangeRow[]> {
+    const runConditions = [
+      eq(t.agentRuns.workspaceId, workspaceId),
+      gte(t.agentRuns.ranAt, from),
+      lte(t.agentRuns.ranAt, to),
+    ];
+    if (agentId) runConditions.push(eq(t.agentRuns.agentId, agentId));
+
     const runRows = await this.db
       .select({
         agentId: t.agentRuns.agentId,
         source: t.agentRuns.source,
+        status: t.agentRuns.status,
         costUsd: t.agentRuns.costUsd,
+        costSource: t.agentRuns.costSource,
         durationMs: t.agentRuns.durationMs,
         findingsCount: t.agentRuns.findingsCount,
         ranAt: t.agentRuns.ranAt,
         runId: t.agentRuns.id,
       })
       .from(t.agentRuns)
-      .where(and(eq(t.agentRuns.workspaceId, workspaceId), gte(t.agentRuns.ranAt, from)));
+      .where(and(...runConditions));
 
+    // D2 — windowed by the RUN's own ranAt (joined via agent_runs), not
+    // reviews.createdAt. The inner join to agent_runs also naturally drops
+    // any review with a null run_id (summary-kind reviews) — same effect as
+    // the pre-existing `if (!f.runId) continue` guard below, kept for safety.
     const findingRows = await this.db
       .select({
         runId: t.reviews.runId,
@@ -429,50 +476,92 @@ export class CiRepository {
       })
       .from(t.findings)
       .innerJoin(t.reviews, eq(t.findings.reviewId, t.reviews.id))
-      .where(and(eq(t.reviews.workspaceId, workspaceId), gte(t.reviews.createdAt, from)));
+      .innerJoin(t.agentRuns, eq(t.reviews.runId, t.agentRuns.id))
+      .where(
+        and(
+          eq(t.reviews.workspaceId, workspaceId),
+          gte(t.agentRuns.ranAt, from),
+          lte(t.agentRuns.ranAt, to),
+        ),
+      );
 
     const acceptedByRun = new Map<string, number>();
     const dismissedByRun = new Map<string, number>();
+    const pendingByRun = new Map<string, number>();
     for (const f of findingRows) {
       if (!f.runId) continue;
       if (f.acceptedAt) acceptedByRun.set(f.runId, (acceptedByRun.get(f.runId) ?? 0) + 1);
-      if (f.dismissedAt) dismissedByRun.set(f.runId, (dismissedByRun.get(f.runId) ?? 0) + 1);
+      else if (f.dismissedAt) dismissedByRun.set(f.runId, (dismissedByRun.get(f.runId) ?? 0) + 1);
+      else pendingByRun.set(f.runId, (pendingByRun.get(f.runId) ?? 0) + 1);
     }
 
     const byAgent = new Map<string, PerfRangeRow>();
+    const dayCounts = new Map<string, Map<string, number>>();
     for (const r of runRows) {
       if (!r.agentId) continue;
       const entry = byAgent.get(r.agentId) ?? {
         agentId: r.agentId,
         runsLocal: 0,
         runsCi: 0,
+        countedRuns: 0,
+        costedRuns: 0,
+        timedRuns: 0,
         totalCostUsd: null,
         totalDurationMs: null,
         totalFindings: 0,
         lastRunAt: null,
         accepted: 0,
         dismissed: 0,
+        pending: 0,
+        costProvider: null,
+        costEstimated: null,
+        costUnknown: null,
+        runsByDay: [],
       };
       if (r.source === 'ci') entry.runsCi += 1;
       else entry.runsLocal += 1;
-      if (r.costUsd != null) entry.totalCostUsd = (entry.totalCostUsd ?? 0) + r.costUsd;
-      if (r.durationMs != null) entry.totalDurationMs = (entry.totalDurationMs ?? 0) + r.durationMs;
+      if (r.status === 'done') entry.countedRuns += 1;
+      if (r.costUsd != null) {
+        entry.costedRuns += 1;
+        entry.totalCostUsd = (entry.totalCostUsd ?? 0) + r.costUsd;
+        if (r.costSource === 'provider') entry.costProvider = (entry.costProvider ?? 0) + r.costUsd;
+        else if (r.costSource === 'estimated') entry.costEstimated = (entry.costEstimated ?? 0) + r.costUsd;
+        else entry.costUnknown = (entry.costUnknown ?? 0) + r.costUsd;
+      }
+      if (r.durationMs != null) {
+        entry.timedRuns += 1;
+        entry.totalDurationMs = (entry.totalDurationMs ?? 0) + r.durationMs;
+      }
       if (r.findingsCount != null) entry.totalFindings += r.findingsCount;
       if (!entry.lastRunAt || (r.ranAt && r.ranAt > entry.lastRunAt)) entry.lastRunAt = r.ranAt;
       entry.accepted += acceptedByRun.get(r.runId) ?? 0;
       entry.dismissed += dismissedByRun.get(r.runId) ?? 0;
+      entry.pending += pendingByRun.get(r.runId) ?? 0;
+      if (r.ranAt) {
+        const byDay = dayCounts.get(r.agentId) ?? new Map<string, number>();
+        const day = r.ranAt.toISOString().slice(0, 10);
+        byDay.set(day, (byDay.get(day) ?? 0) + 1);
+        dayCounts.set(r.agentId, byDay);
+      }
       byAgent.set(r.agentId, entry);
     }
-    return [...byAgent.values()];
+    return [...byAgent.values()].map((entry) => ({
+      ...entry,
+      runsByDay: [...(dayCounts.get(entry.agentId) ?? new Map()).entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([day, count]) => ({ day, count })),
+    }));
   }
 
-  /** Cost broken down by model, over the same range — for AC-44's
-   *  "by model" donut. `local` and `ci` both count (AC-45). */
-  async costByModel(workspaceId: string, from: Date): Promise<{ model: string; cost: number }[]> {
+  /** Cost broken down by model, over `[from, to)` — for AC-44's "by model"
+   *  donut. `local` and `ci` both count (AC-45). */
+  async costByModel(workspaceId: string, from: Date, to: Date): Promise<{ model: string; cost: number }[]> {
     const rows = await this.db
       .select({ model: t.agentRuns.model, costUsd: t.agentRuns.costUsd })
       .from(t.agentRuns)
-      .where(and(eq(t.agentRuns.workspaceId, workspaceId), gte(t.agentRuns.ranAt, from)));
+      .where(
+        and(eq(t.agentRuns.workspaceId, workspaceId), gte(t.agentRuns.ranAt, from), lte(t.agentRuns.ranAt, to)),
+      );
     const byModel = new Map<string, number>();
     for (const r of rows) {
       if (r.costUsd == null) continue;

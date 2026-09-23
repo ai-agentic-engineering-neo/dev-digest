@@ -75,6 +75,18 @@ export interface StructuredResult<T> {
   tokensIn: number;
   tokensOut: number;
   costUsd: number | null;
+  /**
+   * specs/16-agent-performance-dashboard.md — provenance of `costUsd`:
+   * 'provider' when the provider returned a real generation cost (currently
+   * only OpenRouter's `usage.cost` extension), 'estimated' when it was
+   * derived from a price book, `null` when `costUsd` itself is `null`
+   * (unknown). Optional so existing `StructuredResult` literals (test
+   * fixtures, other providers) keep compiling — callers should treat a
+   * missing field alongside a non-null `costUsd` as `'estimated'` (every
+   * non-OpenRouter provider in this codebase only ever prices via the price
+   * book).
+   */
+  costSource?: 'provider' | 'estimated' | null;
   raw: string;
   attempts: number;
 }

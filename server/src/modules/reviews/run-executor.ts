@@ -360,7 +360,7 @@ export class ReviewRunExecutor {
           if (this.container.runBus.isCancelled(runId)) throw new RunCancelledError();
         },
       });
-      const { tokensIn, tokensOut, costUsd, grounding } = outcome;
+      const { tokensIn, tokensOut, costUsd, costSource, grounding } = outcome;
 
       // Local-only, metadata-only prompt-assembly log (PROMPT_ASSEMBLY_DEBUG).
       // Goes straight to the structured stdout logger — deliberately NOT through
@@ -437,6 +437,7 @@ export class ReviewRunExecutor {
         tokensIn,
         tokensOut,
         costUsd,
+        costSource,
         findingsCount: findingRows.length,
         grounding,
         score: outcome.review.score,

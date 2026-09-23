@@ -81,3 +81,13 @@ already are.
 6. Tests: the DB-backed review flow asserts the cost on the row, the trace and all
    four routes; the contract test parses a trace with and without `stats.cost_usd`;
    client tests cover the formatter and each of the four places.
+
+## Amendment (2026-09-23) — HW1 grading criteria
+
+Supersedes the rows above where they disagree; the text above stays as the
+original agreement.
+
+- **Timeline, every run** (was: `done` runs only). Each run row shows its
+  `RunCostBadge`; a run with no cost yet (running, failed, cancelled) reads `—`,
+  never `$0.00`. Test: `RunHistory.test.tsx` ("a failed run reads '—'…",
+  "a running or cancelled run reads '—' too").

@@ -37,6 +37,7 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
   and stop click propagation (React bubbles portal events to the row's `onClick`).
   Evidence: `src/vendor/ui/kit/Dropdown.tsx:83-88`,
   `src/app/repos/[repoId]/pulls/styles.ts:91`, `server/specs/02-findings-by-severity.md`.
+- **2026-09-23** — Review-run finding cards say **Reject** / `rejected` only in copy (HW1 criterion 22); the API action, the `d` shortcut, `FindingActionKind` and `dismissed_at` all keep `dismiss` → grep `dismiss` in code and `Reject` only in `messages/en/prReview.json`; don't rename the API. Evidence: `messages/en/prReview.json:7`, `src/app/repos/[repoId]/pulls/[number]/_components/FindingCard/FindingCard.tsx:110`.
 
 ## Tool & library notes
 
@@ -66,6 +67,7 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
 
 - **2026-09-23** — Run Cost Badge (lab task 3): +2 (Tool & library notes, Codebase patterns)
 - **2026-09-23** — Findings-by-severity spec + plan: +3 (Doc drift, Codebase patterns)
+- **2026-09-23** — HW1 fixes, block A (popover header, Reject, Timeline cost): +1 (Codebase patterns)
 
 ## Open questions
 

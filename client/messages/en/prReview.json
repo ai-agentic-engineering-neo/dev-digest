@@ -1,10 +1,10 @@
 {
   "finding": {
     "accepted": "accepted",
-    "dismissed": "dismissed",
+    "dismissed": "rejected",
     "suggestedFix": "Suggested fix",
     "accept": "Accept",
-    "dismiss": "Dismiss",
+    "dismiss": "Reject",
     "learn": "Learn",
     "replyToAuthor": "Reply to author",
     "replyPlaceholder": "Reply to the author about this finding…",
@@ -110,7 +110,7 @@
   },
   "severityCounts": {
     "aria": "{total, plural, one {# finding} other {# findings}}: {breakdown}",
-    "header": "{count, plural, one {# finding} other {# findings}}",
+    "header": "{count, plural, one {# finding in this run} other {# findings in this run}}",
     "level": {
       "CRITICAL": "{count} critical",
       "WARNING": "{count, plural, one {# warning} other {# warnings}}",

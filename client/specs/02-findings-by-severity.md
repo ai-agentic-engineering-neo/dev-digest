@@ -15,3 +15,6 @@ places:
   load on the first hover.
 
 Display only: no clicks, no filters. The run sidebar and Review runs are unchanged.
+
+Amended 2026-09-23: the popover header reads `N FINDINGS IN THIS RUN`, and
+Review-run finding cards say Accept / Reject — see the Amendment in the server spec.

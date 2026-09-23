@@ -8,3 +8,6 @@ The feature spans the API and the UI, so its single spec lives in
 UI summary: one shared `src/components/run-cost-badge/` (`compact` → `$0.014`,
 `detailed` → `$0.0013 · 8.2K→1.3K`), shown in the PR list (`COST` column), the
 Agent runs timeline, the run drawer's Stats, and the Review runs accordion header.
+
+Amended 2026-09-23: every Timeline run shows its cost (`—` when none) — see the
+Amendment in the server spec.

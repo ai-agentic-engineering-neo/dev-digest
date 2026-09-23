@@ -123,3 +123,16 @@ still parse.
   is one latest review, which belongs to one agent. The popover shows only that
   review's findings, so that `FINDINGS`, `SCORE` and `COST` in a row describe the
   same review. Summing the latest run of every agent would be a separate change.
+
+## Amendment (2026-09-23) — HW1 grading criteria
+
+Supersedes the sections above where they disagree; the text above stays as the
+original agreement.
+
+- **Popover header** reads `ⓘ N FINDINGS IN THIS RUN` (was `ⓘ N FINDINGS`):
+  message `severityCounts.header` = "N finding(s) in this run", uppercased by CSS.
+  Test: `SeverityCounts.test.tsx` ("3 findings in this run").
+- **Finding actions in Review runs** are labelled **Accept** and **Reject**; the
+  status tag reads `rejected`. Copy only (`prReview.json` → `finding.dismiss`,
+  `finding.dismissed`): the API action stays `dismiss`, the field `dismissed_at`.
+  Test: `FindingCard.test.tsx` ("fires accept/dismiss actions").

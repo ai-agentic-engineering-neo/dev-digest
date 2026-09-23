@@ -89,9 +89,18 @@ describe("RunHistory — run cost (server/specs/01-run-cost-badge.md)", () => {
     expect(screen.getByText("— · 8.2K→1.3K")).toBeInTheDocument();
   });
 
-  it("a failed run shows no cost line", () => {
+  it("a failed run reads '—', never '$0.00'", () => {
     renderRuns([run({ status: "failed", error: "429 quota", cost_usd: null, tokens_in: 0, tokens_out: 0 })]);
+    expect(screen.getByText("—")).toBeInTheDocument();
     expect(screen.queryByText(/\$|→/)).not.toBeInTheDocument();
+  });
+
+  it("a running or cancelled run reads '—' too", () => {
+    renderRuns([
+      run({ run_id: "run-1", status: "running", cost_usd: null, tokens_in: null, tokens_out: null }),
+      run({ run_id: "run-2", status: "cancelled", cost_usd: null, tokens_in: 0, tokens_out: 0 }),
+    ]);
+    expect(screen.getAllByText("—")).toHaveLength(2);
   });
 });
 

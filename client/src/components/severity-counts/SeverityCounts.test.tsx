@@ -117,7 +117,7 @@ describe("SeverityCounts — hover popover", () => {
     });
 
     const dialog = screen.getByRole("dialog");
-    expect(within(dialog).getByText("3 findings")).toBeInTheDocument();
+    expect(within(dialog).getByText("3 findings in this run")).toBeInTheDocument();
     const titles = within(dialog).getAllByText(/Hardcoded|Lethal|Retry-After/).map((el) => el.textContent);
     expect(titles).toEqual([
       "Hardcoded Stripe secret key in commit",

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { GitHubClient } from '@devdigest/shared';
 import { CiService, type CiExportOptions } from './service.js';
-import type { CiRepository } from './repository.js';
+import type { CiRepository, PerfRangeRow } from './repository.js';
 import type { AgentLookup, AgentRecord, MemoryReader, RepoLookup, SkillLookup } from './ports.js';
 import { MockSecretsProvider } from '../../adapters/mocks.js';
 import { NotFoundError } from '../../platform/errors.js';
@@ -144,5 +144,220 @@ describe('CiService.previewFile', () => {
     await expect(
       service.previewFile(WORKSPACE_ID, 'no-such-agent', OPTS, WORKFLOW_PATH),
     ).rejects.toBeInstanceOf(NotFoundError);
+  });
+});
+
+/**
+ * plans/16-agent-performance-dashboard.md — `CiService.agentPerformance`,
+ * hermetic (fake `CiRepository`/`AgentLookup`, no DB). Covers range
+ * resolution (AC "same rules for {days} and {from,to}"), AC-3 ("most active"
+ * tracks the SELECTED period, never a synthesized zero-run row, and is null
+ * when nobody ran"), AC-2 (summary totals reconcile with the per-row sums),
+ * and clarification #7 (pooled avg_accept_rate, not an unweighted mean).
+ */
+describe('CiService.agentPerformance', () => {
+  function perfRow(overrides: Partial<PerfRangeRow> & { agentId: string }): PerfRangeRow {
+    return {
+      runsLocal: 0,
+      runsCi: 0,
+      countedRuns: 0,
+      costedRuns: 0,
+      timedRuns: 0,
+      totalCostUsd: null,
+      totalDurationMs: null,
+      totalFindings: 0,
+      lastRunAt: null,
+      accepted: 0,
+      dismissed: 0,
+      pending: 0,
+      costProvider: null,
+      costEstimated: null,
+      costUnknown: null,
+      runsByDay: [],
+      ...overrides,
+    };
+  }
+
+  function agentRecord(id: string, name: string): AgentRecord {
+    return { id, name, provider: 'openai', model: 'gpt-4.1', systemPrompt: '', strategy: 'auto', ciFailOn: 'critical' };
+  }
+
+  /** `agentPerformance` calls `performanceRows` exactly twice, in order:
+   *  the SELECTED period first, then the immediately-preceding period for
+   *  deltas (`CiService.agentPerformance`'s own `Promise.all` array order).
+   *  This fake records every call and serves canned rows by call index so a
+   *  test can assert on exactly what range each call received. */
+  class FakePerfRepo {
+    calls: { from: Date; to: Date; agentId?: string }[] = [];
+    constructor(
+      private responses: PerfRangeRow[][],
+      private costByModelRows: { model: string; cost: number }[] = [],
+    ) {}
+    async performanceRows(_workspaceId: string, from: Date, to: Date, agentId?: string): Promise<PerfRangeRow[]> {
+      const idx = this.calls.length;
+      this.calls.push({ from, to, agentId });
+      return this.responses[idx] ?? [];
+    }
+    async costByModel(): Promise<{ model: string; cost: number }[]> {
+      return this.costByModelRows;
+    }
+  }
+
+  class FakeAgentLookupList implements AgentLookup {
+    constructor(private agents: AgentRecord[]) {}
+    async getById(_workspaceId: string, id: string) {
+      return this.agents.find((a) => a.id === id);
+    }
+    async list() {
+      return this.agents;
+    }
+  }
+
+  function makeService(
+    repo: FakePerfRepo,
+    agentLookup: AgentLookup,
+  ): CiService {
+    return new CiService(
+      repo as unknown as CiRepository,
+      agentLookup,
+      new FakeSkillLookup(),
+      new FakeMemoryReader(),
+      new FakeRepoLookup(),
+      neverCalledGithubClient(),
+      '',
+      new MockSecretsProvider({}),
+    );
+  }
+
+  it('resolves a `{ days }` range to a real [from,to) span and threads it to both the current and prior-period query', async () => {
+    const repo = new FakePerfRepo([[], []]);
+    const service = makeService(repo, new FakeAgentLookupList([]));
+
+    const result = await service.agentPerformance(WORKSPACE_ID, { days: 7 });
+
+    expect(repo.calls).toHaveLength(2); // current period, then prior period
+    const [current, prior] = repo.calls;
+    expect(current!.to.getTime() - current!.from.getTime()).toBe(7 * 24 * 60 * 60 * 1000);
+    // The prior-period call is the immediately-preceding equal-length window.
+    expect(prior!.to.getTime()).toBe(current!.from.getTime());
+    expect(prior!.to.getTime() - prior!.from.getTime()).toBe(current!.to.getTime() - current!.from.getTime());
+    expect(result.summary.range_days).toBe(7);
+  });
+
+  it('resolves a custom `{ from, to }` range verbatim, with range_days null (D12/AC-43)', async () => {
+    const repo = new FakePerfRepo([[], []]);
+    const service = makeService(repo, new FakeAgentLookupList([]));
+    const from = new Date('2026-01-01T00:00:00Z');
+    const to = new Date('2026-01-10T00:00:00Z');
+
+    const result = await service.agentPerformance(WORKSPACE_ID, { from, to });
+
+    expect(repo.calls[0]).toMatchObject({ from, to });
+    expect(result.summary.range_days).toBeNull();
+    expect(result.summary.range).toEqual({ from: from.toISOString(), to: to.toISOString() });
+  });
+
+  it('AC-3 — most_active_agent tracks run count in the SELECTED period, not the prior period, and ignores zero-run agents', async () => {
+    // Agent A: 5 runs THIS period, 1 run last period.
+    // Agent B: 2 runs THIS period, 50 runs last period (would win on an
+    // all-time/prior-period basis, but must NOT win here).
+    // Agent C: in the workspace roster but zero runs in either period — the
+    // service must synthesize a zero row for it (AC-4 gap fix) without ever
+    // letting a zero-run row become "most active".
+    const current: PerfRangeRow[] = [
+      perfRow({ agentId: 'A', runsLocal: 5 }),
+      perfRow({ agentId: 'B', runsLocal: 2 }),
+    ];
+    const prior: PerfRangeRow[] = [
+      perfRow({ agentId: 'A', runsLocal: 1 }),
+      perfRow({ agentId: 'B', runsLocal: 50 }),
+    ];
+    const repo = new FakePerfRepo([current, prior]);
+    const agentLookup = new FakeAgentLookupList([
+      agentRecord('A', 'Agent A'),
+      agentRecord('B', 'Agent B'),
+      agentRecord('C', 'Agent C'),
+    ]);
+    const service = makeService(repo, agentLookup);
+
+    const result = await service.agentPerformance(WORKSPACE_ID, { days: 30 });
+
+    expect(result.summary.most_active_agent).toBe('Agent A');
+    const rowC = result.agents.find((a) => a.agent_id === 'C');
+    expect(rowC?.runs).toBe(0); // synthesized zero row, not missing entirely
+  });
+
+  it('AC-3 — most_active_agent is null (never an arbitrary zero-run agent) when every agent in the workspace had zero runs in period', async () => {
+    const repo = new FakePerfRepo([[], []]);
+    const agentLookup = new FakeAgentLookupList([agentRecord('D', 'Agent D')]);
+    const service = makeService(repo, agentLookup);
+
+    const result = await service.agentPerformance(WORKSPACE_ID, { days: 30 });
+
+    expect(result.summary.most_active_agent).toBeNull();
+    expect(result.summary.runs).toBe(0);
+    expect(result.agents).toHaveLength(1);
+    expect(result.agents[0]!.runs).toBe(0);
+  });
+
+  it('AC-2 — summary.total_cost_usd, cost_by_agent, and cost_by_model each sum to the SAME total as the per-agent rows', async () => {
+    const current: PerfRangeRow[] = [
+      perfRow({ agentId: 'A', runsLocal: 4, countedRuns: 4, costedRuns: 4, totalCostUsd: 10 }),
+      perfRow({ agentId: 'B', runsLocal: 2, countedRuns: 2, costedRuns: 2, totalCostUsd: 5 }),
+    ];
+    const repo = new FakePerfRepo([current, []], [
+      { model: 'gpt-4.1', cost: 9 },
+      { model: 'claude-4', cost: 6 },
+    ]);
+    const agentLookup = new FakeAgentLookupList([agentRecord('A', 'Agent A'), agentRecord('B', 'Agent B')]);
+    const service = makeService(repo, agentLookup);
+
+    const result = await service.agentPerformance(WORKSPACE_ID, { days: 30 });
+
+    const perAgentSum = result.agents.reduce((sum, r) => sum + (r.total_cost_usd ?? 0), 0);
+    const byAgentSum = result.cost_by_agent.reduce((sum, e) => sum + e.value, 0);
+    const byModelSum = result.cost_by_model.reduce((sum, e) => sum + e.value, 0);
+
+    expect(result.summary.total_cost_usd).toBe(15);
+    expect(perAgentSum).toBe(15);
+    expect(byAgentSum).toBe(15);
+    expect(byModelSum).toBe(15);
+    expect(result.summary.runs).toBe(6); // 4 + 2, sums the per-agent `runs`
+  });
+
+  it('clarification #7 — summary.avg_accept_rate is the POOLED rate (sum accepted / sum decisions), not an unweighted mean of per-agent rates', async () => {
+    // Agent A: 1/2 = 0.5. Agent B: 18/20 = 0.9. Unweighted mean = 0.7.
+    // Pooled = (1+18)/(2+20) = 19/22 ≈ 0.8636 — must reconcile with AC-2's
+    // "totals sum correctly" the same way total_cost_usd already does.
+    const current: PerfRangeRow[] = [
+      perfRow({ agentId: 'A', runsLocal: 2, accepted: 1, dismissed: 1 }),
+      perfRow({ agentId: 'B', runsLocal: 20, accepted: 18, dismissed: 2 }),
+    ];
+    const repo = new FakePerfRepo([current, []]);
+    const agentLookup = new FakeAgentLookupList([agentRecord('A', 'Agent A'), agentRecord('B', 'Agent B')]);
+    const service = makeService(repo, agentLookup);
+
+    const result = await service.agentPerformance(WORKSPACE_ID, { days: 30 });
+
+    expect(result.summary.avg_accept_rate).toBeCloseTo(19 / 22, 10);
+    expect(result.summary.avg_accept_rate).not.toBeCloseTo(0.7, 2);
+  });
+
+  it('a row with no prior-period counterpart gets null deltas, while a row with one gets a real delta', async () => {
+    const current: PerfRangeRow[] = [
+      perfRow({ agentId: 'A', runsLocal: 5 }), // no prior row for A at all
+      perfRow({ agentId: 'B', runsLocal: 5 }),
+    ];
+    const prior: PerfRangeRow[] = [perfRow({ agentId: 'B', runsLocal: 2 })];
+    const repo = new FakePerfRepo([current, prior]);
+    const agentLookup = new FakeAgentLookupList([agentRecord('A', 'Agent A'), agentRecord('B', 'Agent B')]);
+    const service = makeService(repo, agentLookup);
+
+    const result = await service.agentPerformance(WORKSPACE_ID, { days: 30 });
+
+    const rowA = result.agents.find((a) => a.agent_id === 'A')!;
+    const rowB = result.agents.find((a) => a.agent_id === 'B')!;
+    expect(rowA.runs_delta).toBeNull();
+    expect(rowB.runs_delta).toBe(3); // 5 - 2
   });
 });

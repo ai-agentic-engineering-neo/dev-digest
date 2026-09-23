@@ -2,6 +2,10 @@
 
 Next.js 15 studio on :3000. **pnpm**.
 
+Stack: TypeScript 5.7 · Next.js 15 (App Router) · React 19 · TanStack Query 5 · next-intl 3 ·
+Zod 3 (types only) · lucide-react · recharts · react-markdown + remark-gfm · mermaid · Tailwind 4
+(loaded by the vendored UI CSS; components style with `style={s.x}`) · Vitest 2 + RTL 16 + jsdom.
+
 ## Commands
 
 ```sh
@@ -28,6 +32,16 @@ pnpm test         # vitest + jsdom — no API needed (there is no lint script)
   webpack build. That is why `src/lib/feature-models.ts` is a hand-synced copy.
 - Aliases are declared twice, in `tsconfig.json` and `vitest.config.ts` — change
   both.
+
+## Naming
+
+- Components: route-local `_components/<Pascal>/<Pascal>.tsx` (may nest `_components/`),
+  shared `src/components/<kebab>/<Pascal>.tsx`; tests `<Pascal>.test.tsx` beside the component.
+- Hooks: `src/lib/hooks/<kebab>.ts`; queries `use<Noun>` (`usePrRuns`), mutations
+  `use<Verb><Noun>` (`useDeleteRun`, `useCancelRun`).
+- i18n: one namespace per `messages/en/<camelCase>.json`; keys are nested camelCase
+  (`prReview` → `finding.suggestedFix`).
+- Styles: each `styles.ts` exports `const s`; a style with arguments is a function (`s.pill(color, bg)`).
 
 ## Gotchas
 

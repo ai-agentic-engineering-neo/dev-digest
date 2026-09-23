@@ -3,6 +3,9 @@
 Pure review engine: diff + repo map → prompt → LLM → grounded findings.
 **npm, not pnpm** — own `package-lock.json`.
 
+Stack: TypeScript 5.7 (ESM, no build step) · runtime deps only `openai` 4 (the OpenRouter
+client) and `zod` 3 · Vitest 2 · tsx.
+
 ## Commands
 
 ```sh
@@ -24,6 +27,13 @@ npm run typecheck  # this IS the build: the package emits no JS
 - Untrusted content (diff, PR description, repo map, specs, callers) goes through
   `wrapUntrusted()`; `INJECTION_GUARD` is appended to every system prompt
   (`src/prompt.ts`).
+
+## Naming
+
+- Files kebab-case, grouped by stage: `src/review/run.ts`, `src/llm/openrouter.ts`,
+  `src/output/to-review.ts`; tests `test/<kebab>.test.ts`.
+- Exports are camelCase verb-first functions (`reviewPullRequest`, `groundFindings`,
+  `sliceDiff`); the one class is the provider, PascalCase + `Provider` (`OpenRouterProvider`).
 
 ## Gotchas
 

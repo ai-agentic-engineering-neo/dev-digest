@@ -2,6 +2,10 @@
 
 Fastify 5 API + Drizzle/Postgres on :3001. **pnpm**.
 
+Stack: TypeScript 5.7 (ESM) · Fastify 5 + cors/helmet/rate-limit, fastify-type-provider-zod,
+fastify-sse-v2 · Drizzle ORM 0.38 + postgres 3 (Postgres 16 + pgvector) · Zod 3 · openai 4 ·
+@anthropic-ai/sdk · octokit 4 · simple-git · @ast-grep/napi · p-queue · Vitest 2 + Testcontainers.
+
 ## Commands
 
 ```sh
@@ -34,6 +38,18 @@ pnpm db:seed                                      # idempotent demo data
   wins over env and is cached until restart.
 - A test that imports `test/helpers/pg.ts` must be named `*.it.test.ts`. Reviews
   are fire-and-forget — `await waitForPrRuns(…)` before asserting.
+
+## Naming
+
+- Modules: `src/modules/<kebab>/` with fixed names `routes.ts` · `service.ts` · `repository.ts`;
+  extra files kebab-case (`run-executor.ts`), per-entity repos `repository/<entity>.repo.ts`;
+  cross-module code in `src/modules/_shared/`.
+- DB: one schema file per domain, `src/db/schema/<kebab>.ts`; Drizzle table vars camelCase
+  plural, SQL snake_case (`agentRuns = pgTable('agent_runs')`, `workspaceId: uuid('workspace_id')`).
+- Routes: plural resources + `:id`, kebab multi-word segments, actions as a sub-path
+  (`/repos/:id/pulls`, `/repos/:id/index-state`, `/runs/:id/cancel`).
+- Errors `<Name>Error extends AppError` (`NotFoundError`, `ConfigError`). Tests
+  `test/<kebab>.test.ts`, DB-backed `*.it.test.ts`. Migrations `NNNN_<name>.sql` are generated.
 
 ## Gotchas
 

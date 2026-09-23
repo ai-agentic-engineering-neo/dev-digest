@@ -3,6 +3,9 @@
 Deterministic browser flows over the real stack, no LLM. **npm, not pnpm** — own
 `package-lock.json`.
 
+Stack: TypeScript 5.7 (ESM) run with tsx · agent-browser CLI (Chrome for Testing; headless per
+`agent-browser.json`) · no runtime dependencies.
+
 ## Commands
 
 ```sh
@@ -22,6 +25,12 @@ npm run typecheck
   the AI `chat` command.
 - Read-only against seeded data (`acme/payments-api`, PR #482, seeded agents):
   no flow may write or trigger a model call.
+
+## Naming
+
+- Flows `specs/NN-kebab.flow.json`: the number sets the run order (take the next free one),
+  and `"name"` is a sentence — it is the PASS/FAIL line in the output.
+- A failing flow's screenshot is `test-results/<NN-kebab>-fail.png`, named after the flow file.
 
 ## Gotchas
 

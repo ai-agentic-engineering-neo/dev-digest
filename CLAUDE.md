@@ -59,6 +59,11 @@ Every package also has `README.md`, `docs/`, `specs/` and `INSIGHTS.md` — see 
   fresh clone run `cd reviewer-core && npm ci`, or the API fails with
   `ERR_MODULE_NOT_FOUND`.
 
+## Naming conventions
+
+- Files and folders kebab-case, except React components (`<Pascal>/<Pascal>.tsx`); feature specs `specs/NN-kebab-name.md`, contract specs `specs/<kebab>.md`, e2e flows `specs/NN-kebab.flow.json`.
+- SQL tables/columns snake_case ↔ Drizzle camelCase; API JSON and `@devdigest/shared` fields snake_case; a Zod schema and its type share one PascalCase name. Package rules: `<pkg>/CLAUDE.md` → **Naming**.
+
 ## Gotchas
 
 - Migrations do **not** run on boot. `relation … does not exist` → `cd server && pnpm db:migrate`.

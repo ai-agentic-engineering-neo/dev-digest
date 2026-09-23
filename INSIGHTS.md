@@ -23,6 +23,7 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
   levels when rendering per-severity counts; a finding is never `INFO`. Evidence:
   `server/src/vendor/shared/contracts/findings.ts:11`,
   `client/src/vendor/ui/primitives/tokens.ts:3`.
+- **2026-09-23** — Every CLAUDE.md must stay under 100 lines (the user's rule; the repo doesn't state it, and `5a759d1` shortened the root from 102 to 94 for it). After HW1 block D the root is at 99 → put new rules in a package `CLAUDE.md` (all are under 85) or a linked doc; merging or shortening existing root lines needs the user's OK, and the structure (headings, block types) must stay. Evidence: `CLAUDE.md:62-66` (Naming conventions, the last 5 lines added).
 
 ## Tool & library notes
 
@@ -73,6 +74,7 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
 - **2026-09-23** — Findings-by-severity implementation: +1 (Recurring errors & fixes)
 - **2026-09-23** — HW1 check against the grading criteria: +1 (Tool & library notes)
 - **2026-09-23** — HW1 fixes, block B (hermetic e2e vs the dev stack): +1 (Recurring errors & fixes, nuance)
+- **2026-09-23** — HW1 fixes, block D (naming sections + per-package stack): +1 (Codebase patterns)
 
 ## Open questions
 

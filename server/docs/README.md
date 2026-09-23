@@ -8,3 +8,8 @@ workflow, SSE run events, rate-limit tiers.
 
 Not here: the API map (`../README.md`), the indexer (`../src/modules/repo-intel/README.md`),
 intent for unbuilt work (`../specs/`), lessons learned (`../INSIGHTS.md`).
+
+Files:
+
+- [`architecture.md`](architecture.md) — boot order, the DI container and adapters,
+  test overrides, module registration, request context, error model, secrets.

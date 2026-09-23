@@ -68,6 +68,9 @@ pnpm test         # vitest + jsdom — no API needed (there is no lint script)
   appends and never edits existing entries.
 - Read [`specs/`](specs/README.md) before building a UI feature.
 - Read [`docs/`](docs/README.md) before changing data fetching, the app shell or i18n.
+- Read [`docs/ui-architecture.md`](docs/ui-architecture.md) before moving a Server/Client
+  Component boundary, adding a hook, or touching providers, i18n or styling.
+- Read [`specs/pages.md`](specs/pages.md) before changing a route, a tab, or copy an e2e flow asserts.
 - Read [`README.md`](README.md) (UI route map ↔ endpoints) when adding a page or a hook.
 - Read [`src/vendor/ui/README.md`](src/vendor/ui/README.md) when using or adding UI primitives.
 - Read [`../server/README.md`](../server/README.md) when you need an endpoint's exact shape.

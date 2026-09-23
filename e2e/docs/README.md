@@ -9,3 +9,11 @@ isolation, how to debug a failing step.
 
 Not here: the flow format and run instructions (`../README.md`), lessons learned
 (`../INSIGHTS.md`).
+
+Files:
+
+- [`hermetic-runner.md`](hermetic-runner.md) — how `scripts/e2e.sh` and `run.ts` work,
+  CI differences, and the clash with a running dev stack.
+
+The flows' written contract is the one exception kept next to them:
+[`../specs/flows.md`](../specs/flows.md) (`run.ts` loads only `*.flow.json`).

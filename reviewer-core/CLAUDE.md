@@ -52,6 +52,10 @@ npm run typecheck  # this IS the build: the package emits no JS
   appends and never edits existing entries.
 - Read [`specs/`](specs/README.md) before implementing an engine feature.
 - Read [`docs/`](docs/README.md) before changing prompt assembly, grounding or scoring.
+- Read [`docs/pipeline.md`](docs/pipeline.md) before changing mode selection, prompt assembly,
+  the provider or structured-output repair.
+- Read [`specs/grounding-and-scoring.md`](specs/grounding-and-scoring.md) before changing
+  grounding, the score formula, the verdict, the gate or cost.
 - Read [`README.md`](README.md) for the pipeline diagram and public API.
 - Read [`../docs/agent-prompts/`](../docs/agent-prompts/README.md) for the prompt,
   severity, score and verdict conventions every built-in agent relies on.

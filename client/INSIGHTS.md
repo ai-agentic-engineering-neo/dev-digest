@@ -18,6 +18,7 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
   `diff -rq server/src/vendor/shared client/src/vendor/shared`.
   - **2026-09-23** — Line evidence: `openrouter` is in `../server/src/vendor/shared/adapters.ts:83` and `../server/src/vendor/shared/contracts/productionize.ts:36` but missing from `src/vendor/shared/adapters.ts:77` and `src/vendor/shared/contracts/productionize.ts:36`; `AgentManifest` (`../server/src/vendor/shared/contracts/eval-ci.ts:152`) and `CommitFile` (`../server/src/vendor/shared/adapters.ts:129`) exist only in the server copy. The `Provider` enum itself matches (`src/vendor/shared/contracts/knowledge.ts:155`).
 - **2026-09-23** — `FindingsPanel`'s j/k/a/d shortcuts are a `window` keydown listener per panel instance, and every expanded Review run mounts its own panel → with two runs open, one `a` or `d` press accepts/rejects the focused finding in each of them (read from the code, not reproduced) → keep one run expanded when using the shortcuts; scoping the listener to the focused panel is the fix. Evidence: `src/app/repos/[repoId]/pulls/[number]/_components/FindingsPanel/FindingsPanel.tsx:55-59`, `src/app/repos/[repoId]/pulls/[number]/_components/FindingsTab/FindingsTab.tsx:175`.
+- **2026-09-23** — On the Agent runs tab, `g a` (go to Agents) also accepts the focused finding: the global chord handler and every mounted `FindingsPanel` listen on `window`, and neither stops the event, so the second key reaches both (read from the code, not reproduced) → don't use `g a` there; the fix is to skip panel shortcuts while a `g` chord is pending. Evidence: `src/components/app-shell/hooks/useGlobalShortcuts.ts:37-50`, `src/app/repos/[repoId]/pulls/[number]/_components/FindingsPanel/FindingsPanel.tsx:55-59`.
 
 ## Codebase patterns
 
@@ -40,6 +41,8 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
   Evidence: `src/vendor/ui/kit/Dropdown.tsx:83-88`,
   `src/app/repos/[repoId]/pulls/styles.ts:91`, `server/specs/02-findings-by-severity.md`.
 - **2026-09-23** — Review-run finding cards say **Reject** / `rejected` only in copy (HW1 criterion 22); the API action, the `d` shortcut, `FindingActionKind` and `dismissed_at` all keep `dismiss` → grep `dismiss` in code and `Reject` only in `messages/en/prReview.json`; don't rename the API. Evidence: `messages/en/prReview.json:7`, `src/app/repos/[repoId]/pulls/[number]/_components/FindingCard/FindingCard.tsx:110`.
+  - **2026-09-23** — The vendored shortcut help still lists `d` as "Dismiss finding"; it can't be edited (`src/vendor/**`), so the two labels differ until the vendored kit changes. Evidence: `src/vendor/ui/nav.ts:58`.
+- **2026-09-23** — `usePulls` is mounted by every `AppShell` for the sidebar's needs-review badge, so `GET /repos/:id/pulls` polls every 60 s (and on window focus) on every screen, not just the list; the PR page reuses that cache to turn `:number` into the PR id → expect that request in any page's network log, and a PR missing from the list means its detail page shows "Couldn't load". Evidence: `src/components/app-shell/hooks/useShellContext.ts:28`, `src/lib/hooks/core.ts:102-112`, `src/app/repos/[repoId]/pulls/[number]/page.tsx:33-36`.
 
 ## Tool & library notes
 
@@ -66,6 +69,7 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
   drawer, and the agent name jumps to Review runs. The user confirmed icon-only
   is intended → don't add row clicks. Evidence:
   `src/app/repos/[repoId]/pulls/[number]/_components/RunHistory/RunHistory.tsx:13,154,209`.
+- **2026-09-23** — `DiffTab` breaks the "no `onError` toasts" rule in `CLAUDE.md`: it calls `notify.error` and rethrows, and the global mutation handler toasts again, so a failed comment post shows two toasts. The PR list's header comment says sort lives in `?sort`, but search and sort are local state (only `?status` is in the URL). Evidence: `src/app/repos/[repoId]/pulls/[number]/_components/DiffTab/DiffTab.tsx:36-39`, `src/lib/providers.tsx:41-43`, `src/app/repos/[repoId]/pulls/page.tsx:2,46-47`.
 
 ## Session notes
 
@@ -74,6 +78,7 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
 - **2026-09-23** — HW1 fixes, block A (popover header, Reject, Timeline cost): +1 (Codebase patterns)
 - **2026-09-23** — HW1 fixes, block B (Review-run severity pills + filter): +2 (What doesn't work, Tool & library notes)
 - **2026-09-23** — HW1 fixes, block E (path:line in every entry): +2 (What doesn't work, Tool & library notes — line evidence)
+- **2026-09-23** — HW1 fixes, block F (docs/ui-architecture.md, specs/pages.md): +4 (What doesn't work, Doc drift, Codebase patterns, Codebase patterns nuance)
 
 ## Open questions
 

@@ -72,6 +72,10 @@ pnpm db:seed                                      # idempotent demo data
   appends and never edits existing entries.
 - Read [`specs/`](specs/README.md) before implementing a feature or endpoint.
 - Read [`docs/`](docs/README.md) before changing the run lifecycle, DI or secrets.
+- Read [`docs/architecture.md`](docs/architecture.md) before adding an adapter or changing the
+  container, boot order, error model or secrets.
+- Read [`specs/review-flow.md`](specs/review-flow.md) before changing how a review run starts,
+  is persisted, streamed, cancelled or deleted.
 - Read [`README.md`](README.md) (API map, DI flow, env) when adding or changing a route.
 - Read [`src/modules/repo-intel/README.md`](src/modules/repo-intel/README.md) when
   touching indexing or the repo map.

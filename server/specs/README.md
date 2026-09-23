@@ -12,3 +12,10 @@ links to it.
 ## API / Data       <!-- routes, @devdigest/shared contracts, migrations -->
 ## Acceptance criteria
 ```
+
+Contract specs have no number: they describe shipped behaviour that must stay
+true (`# <Name> — contract`, then numbered rules, each citing the code and the
+test that checks it). Change the code and the contract in the same commit.
+
+- [`review-flow.md`](review-flow.md) — the review cycle from `POST /pulls/:id/review`
+  to what every read route returns.

@@ -12,3 +12,10 @@ and link it from here.
 ## API / Data       <!-- hook in src/lib/hooks, endpoint, @devdigest/shared types -->
 ## Acceptance criteria
 ```
+
+Contract specs have no number: they describe shipped behaviour that must stay
+true (`# <Name> — contract`, then numbered rules, each citing the code and the
+test that checks it). Change the code and the contract in the same commit.
+
+- [`pages.md`](pages.md) — every route, its data and URL params, the Agent runs tab,
+  and the copy e2e flows assert.

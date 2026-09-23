@@ -43,6 +43,8 @@ npm run typecheck
 
 - Don't put prose in `specs/` — it is the runner's directory. Written specs go in
   `docs/`.
+- Exception: [`specs/flows.md`](specs/flows.md), the prose contract of the flows — `run.ts`
+  loads only `*.flow.json`, so the runner never picks it up.
 
 ## Read when
 
@@ -52,6 +54,9 @@ npm run typecheck
   appends and never edits existing entries.
 - Read [`docs/`](docs/README.md) for this package's written specs (`specs/` holds
   only executable flows — see [`specs/README.md`](specs/README.md)).
+- Read [`docs/hermetic-runner.md`](docs/hermetic-runner.md) before changing `../scripts/e2e.sh` or
+  `run.ts`, or when a hermetic run misbehaves.
+- Read [`specs/flows.md`](specs/flows.md) before changing a flow, the seed, or UI copy a flow asserts.
 - Read [`README.md`](README.md) for the flow format, the hermetic runner and coverage.
 - Read [`../client/README.md`](../client/README.md) when a flow breaks after a UI
   route or copy change.

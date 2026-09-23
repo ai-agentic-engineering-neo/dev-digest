@@ -10,3 +10,6 @@ Adding a flow:
   never the AI `chat` command.
 - Read-only against seeded data; nothing that writes or calls a model.
 - Verify with `npm run e2e:hermetic`, not against your dev DB.
+
+Exception: [`flows.md`](flows.md) is prose — the written contract of these flows
+(journeys, seed data, exact copy asserted). `run.ts` loads only `*.flow.json`.

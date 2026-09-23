@@ -8,3 +8,8 @@ rendering, styling tokens and theming.
 
 Not here: the UI route map (`../README.md`), intent for unbuilt screens
 (`../specs/`), lessons learned (`../INSIGHTS.md`).
+
+Files:
+
+- [`ui-architecture.md`](ui-architecture.md) — Server/Client Component boundaries,
+  providers, the network layer, hooks and query keys, SSE, i18n, styling, app shell.

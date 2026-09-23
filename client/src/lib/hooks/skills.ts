@@ -7,7 +7,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
-import type { Skill, SkillType, SkillVersion } from "@devdigest/shared";
+import type { Skill, SkillSource, SkillType, SkillVersion } from "@devdigest/shared";
 
 /** All skills in the workspace (each includes agents_count). */
 export function useSkills() {
@@ -29,6 +29,8 @@ export interface CreateSkillInput {
   name: string;
   description?: string;
   type: SkillType;
+  /** Defaults server-side to "manual"; the Conventions Extractor passes "extracted". */
+  source?: SkillSource;
   body: string;
   enabled?: boolean;
 }
@@ -87,6 +89,27 @@ export function useRestoreSkillVersion(id: string | null | undefined) {
       qc.invalidateQueries({ queryKey: ["skills"] });
       qc.setQueryData(["skill", data.id], data);
       qc.invalidateQueries({ queryKey: ["skill-versions", data.id] });
+    },
+  });
+}
+
+/**
+ * Link an existing skill to an agent — the ADDITIVE form of
+ * `POST /agents/:id/skills` (`skill_id`, one link) as opposed to the
+ * `skill_ids` form (which REPLACES the agent's whole skill set and would wipe
+ * every other skill already linked to it). Used by the Conventions Extractor's
+ * Create-skill modal when the user opts to attach the new skill to an agent.
+ */
+export function useLinkAgentSkill() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ agentId, skillId }: { agentId: string; skillId: string }) =>
+      api.post<unknown>(`/agents/${agentId}/skills`, { skill_id: skillId }),
+    onSuccess: (_d, { agentId }) => {
+      qc.invalidateQueries({ queryKey: ["agent-skills", agentId] });
+      qc.invalidateQueries({ queryKey: ["agent", agentId] });
+      qc.invalidateQueries({ queryKey: ["agents"] });
+      qc.invalidateQueries({ queryKey: ["skills"] });
     },
   });
 }

@@ -1,0 +1,111 @@
+import type { CSSProperties } from "react";
+import type { ConventionCandidate } from "@devdigest/shared";
+
+/** Co-located styles for the Conventions page + its card/modal. */
+export const s = {
+  page: { display: "flex", flexDirection: "column", gap: 16 } satisfies CSSProperties,
+  headerRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 16,
+    flexWrap: "wrap",
+  } satisfies CSSProperties,
+  heading: { fontSize: 22, fontWeight: 700, margin: 0 } satisfies CSSProperties,
+  repoName: { color: "var(--accent-text)" } satisfies CSSProperties,
+  subtitle: { fontSize: 14, color: "var(--text-secondary)", margin: 0, maxWidth: 720 } satisfies CSSProperties,
+  scanSummary: { fontSize: 13, color: "var(--text-muted)", margin: 0 } satisfies CSSProperties,
+  toolbar: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  } satisfies CSSProperties,
+  toolbarSpacer: { flex: 1 } satisfies CSSProperties,
+  list: { display: "flex", flexDirection: "column", gap: 12 } satisfies CSSProperties,
+
+  // ---- ConventionCard --------------------------------------------------
+  card: (status: ConventionCandidate["status"]): CSSProperties => ({
+    display: "flex",
+    gap: 16,
+    padding: 18,
+    borderRadius: 12,
+    border: "1px solid var(--border)",
+    borderLeft: `3px solid ${status === "accepted" ? "var(--ok)" : status === "rejected" ? "var(--border-strong)" : "var(--accent)"}`,
+    background: "var(--bg-elevated)",
+    opacity: status === "rejected" ? 0.65 : 1,
+  }),
+  cardMain: { flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 10 } satisfies CSSProperties,
+  cardTitleRow: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" } satisfies CSSProperties,
+  rule: { fontSize: 15, fontWeight: 650, color: "var(--text-primary)" } satisfies CSSProperties,
+  rationale: { fontSize: 13, color: "var(--text-secondary)", margin: 0, lineHeight: 1.5 } satisfies CSSProperties,
+  editRow: { display: "flex", gap: 8 } satisfies CSSProperties,
+  evidence: {
+    borderRadius: 8,
+    border: "1px solid var(--border)",
+    background: "var(--bg-surface)",
+    overflow: "hidden",
+  } satisfies CSSProperties,
+  evidenceHeader: {
+    display: "flex",
+    alignItems: "center",
+    padding: "6px 12px",
+    borderBottom: "1px solid var(--border)",
+    fontSize: 12,
+    color: "var(--text-muted)",
+  } satisfies CSSProperties,
+  evidenceLink: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 5,
+    color: "inherit",
+    textDecoration: "none",
+  } satisfies CSSProperties,
+  evidenceCode: {
+    margin: 0,
+    padding: "10px 12px",
+    fontSize: 12.5,
+    lineHeight: 1.5,
+    overflowX: "auto",
+    color: "var(--text-primary)",
+  } satisfies CSSProperties,
+  confidenceRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    fontSize: 12,
+    color: "var(--text-muted)",
+  } satisfies CSSProperties,
+  confidenceBar: { flex: 1, maxWidth: 160 } satisfies CSSProperties,
+  actions: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+    minWidth: 128,
+    alignItems: "stretch",
+  } satisfies CSSProperties,
+
+  // ---- CreateSkillModal --------------------------------------------------
+  modalBody: { padding: 24 } satisfies CSSProperties,
+  mergedBanner: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "12px 14px",
+    borderRadius: 8,
+    background: "var(--accent-bg)",
+    color: "var(--text-secondary)",
+    fontSize: 13,
+    marginBottom: 20,
+  } satisfies CSSProperties,
+  bodyHeader: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    fontSize: 12,
+    color: "var(--text-muted)",
+    marginBottom: 8,
+  } satisfies CSSProperties,
+  bodyFileName: { fontFamily: "var(--font-mono, monospace)" } satisfies CSSProperties,
+  bodyTokens: { marginLeft: "auto" } satisfies CSSProperties,
+};

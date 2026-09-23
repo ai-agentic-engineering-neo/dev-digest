@@ -85,6 +85,20 @@
       "when": 1789962193950,
       "tag": "0011_rare_supreme_intelligence",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1790056030429,
+      "tag": "0012_curious_psynapse",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1790056039737,
+      "tag": "0013_fair_naoko",
+      "breakpoints": true
     }
   ]
 }

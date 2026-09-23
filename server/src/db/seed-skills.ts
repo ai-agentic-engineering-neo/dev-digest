@@ -316,3 +316,232 @@ service, or a stored/serialized value — without an explicit migration path.
 - SUGGESTION for a technically-breaking but clearly intentional, fully
   migrated, low-blast-radius change (e.g. a brand-new route with no
   existing callers yet).`;
+
+export const BREAKING_CHANGE_SKILL = `# Breaking public contract change
+
+Flag a change that removes or alters the *existence or identity* of a
+public contract element — a route, an exported symbol, a required field, an
+enum member — in a way that an existing, unmodified caller would trip over.
+This skill covers contract *surface*; response body shape internals belong
+to the \`response-schema\` skill instead.
+
+## What to flag
+
+- **Route or RPC removed/renamed**: a Fastify route's URL or HTTP verb
+  changed (e.g. \`GET /agents/:id/skills\` renamed or moved) without the old
+  route kept as an alias, or a route deleted while a caller still hits it.
+- **Exported symbol removed/renamed**: a function, class, or type exported
+  from a package another package or the client consumes (\`reviewer-core\`
+  exports, anything under \`vendor/shared/\`) is removed, renamed, or moved
+  without a re-export shim.
+- **HTTP method changed** on an existing route (e.g. \`PUT\` → \`PATCH\`).
+- **Request shape narrowed**: a body/query/param field that was optional
+  becomes required, or is removed, while an unmodified caller still sends
+  the old shape.
+- **Public enum/union member removed**: breaks any caller doing an
+  exhaustive \`switch\`, or persisting/sending the removed value.
+- **Auth/authorization tightened** on a previously less-restricted endpoint
+  with no notice — existing callers that lack the new credential/role start
+  failing.
+- **Meaning changed without a rename**: a parameter or field keeps its name
+  but starts meaning something different (e.g. \`limit\` switches from "item
+  count" to "byte count").
+- **Only one side of a two-sided contract updated**: the server route
+  changed but the client caller — or an OpenAPI spec, if one is generated —
+  wasn't updated in the same diff.
+
+## How to judge
+
+- A change is breaking if an existing, unmodified caller (code not touched
+  by this diff, or an external API consumer) would send/receive data that no
+  longer parses, or would misinterpret a change in meaning.
+- Widening is usually SAFE — don't flag it: a new optional field, a new
+  route, a new enum member accepted (not required) on the request side.
+- A private/internal-only refactor (the symbol has no caller outside this
+  diff, and isn't exported from a package another package or the client
+  consumes) is not a finding, even if its signature changed completely.
+- If the diff updates every caller of the changed surface atomically (route
+  + calling code + both contract copies), this may be an intentional,
+  fully-migrated break rather than a defect — note it but weigh severity
+  down. Still flag it if a caller was clearly missed.
+
+## Severity guidance
+
+- CRITICAL when a removed/renamed route or exported symbol is still used by
+  an unmodified caller with no compatibility shim (alias route, re-export).
+- WARNING when the break is confined to internal/not-yet-released code, or
+  the diff updates callers but not provably all of them.
+- SUGGESTION for a technically-breaking change on a symbol/endpoint with
+  zero real consumers yet (e.g. a brand-new route added and changed again in
+  the same PR).`;
+
+export const RESPONSE_SCHEMA_SKILL = `# Response schema drift
+
+Flag changes to a response *body's shape* — field types, required/optional
+status, nesting, nullability, or envelope structure — that would change how
+an existing, unmodified consumer needs to parse or interpret the response.
+This skill covers the response body's internal shape; whether the route or
+symbol itself still exists belongs to the \`breaking-change\` skill instead.
+
+## What to flag
+
+- **Field removed** from a response object that a consumer might
+  destructure or read.
+- **Field type narrowed**, or a previously-always-present field becomes
+  optional or nullable — a consumer that assumed non-null (e.g. calls
+  \`.toUpperCase()\` on it unconditionally) now crashes. Note the *reverse*
+  (optional/nullable → always-present) is safe and does not need flagging.
+- **Silent semantic type change** without a rename: e.g. a timestamp field
+  switches from unix-seconds to an ISO-8601 string, or a \`Date\` becomes a
+  formatted string — the field name is unchanged but every consumer's
+  parsing breaks.
+- **Envelope shape changed**: a bare array response becomes \`{ data: [...]
+  }\` (or vice versa), or a paginated response's cursor/offset shape changes.
+- **Zod contract narrowed** in \`vendor/shared/contracts/*\`: removing
+  \`.optional()\`/\`.nullish()\`, adding a \`.min()\`/\`.max()\`/regex constraint to
+  an existing field, or removing a value from a response enum.
+- **Hand-mirrored contract drift**: this repo hand-mirrors
+  \`vendor/shared/contracts/*\` between \`server/\` and \`client/\` — only one
+  copy updated to match the new response shape means the wire contract
+  itself disagrees with what the client expects, even though both sides
+  compile.
+- **Error response envelope restructured**: consumers that pattern-match on
+  the error body's shape (not just the status code) break silently.
+
+## How to judge
+
+- A field removal, a type narrowing, or an always-present field becoming
+  optional/nullable is breaking for any consumer that isn't defensively
+  coded for it.
+- A new response enum member is additive "on paper," but flag it as a real
+  risk if the diff or nearby repo context shows a consumer doing an
+  exhaustive \`switch\`/\`if\`-chain over that enum with no \`default\`/fallback
+  case — the new member falls through unhandled.
+- Always check both hand-mirrored contract copies (server + client) actually
+  match after the change, not just that each one individually compiles.
+- A purely additive optional field with no evidence of a strict/closed
+  consumer is safe.
+
+## Severity guidance
+
+- CRITICAL when a field is removed, or a type is narrowed/flipped to
+  nullable, on a response with existing unmodified consumers.
+- WARNING when a new enum member lands near an exhaustive switch with no
+  default case, or when only one of the two hand-mirrored contract copies
+  was updated.
+- SUGGESTION for a purely additive optional field with no known
+  strict-shape consumer.`;
+
+export const SEMVER_DISCIPLINE_SKILL = `# Semver discipline
+
+Flag a mismatch between a change's actual severity — breaking, feature, or
+fix — and the version signal (or lack of one) that ships with it. This
+skill does not itself decide *whether* a change is breaking; it assumes
+that classification (from \`breaking-change\` / \`response-schema\`) and checks
+whether the version story matches it.
+
+## What to flag
+
+- **Breaking change, no major bump**: a diff that removes/renames/narrows a
+  public export, route, or contract field without bumping the *changed
+  package's own* \`package.json\` major version. This repo is explicitly NOT
+  a workspace — each package (\`server/\`, \`client/\`, \`reviewer-core/\`) has
+  its own \`package.json\`/lockfile — so check the version file in the
+  package that actually changed, not a sibling.
+- **Wrong package's version bumped**: the major version moved, but in a
+  different package's \`package.json\` than the one containing the breaking
+  change.
+- **Over-declared bump**: a MAJOR version bump for a change that is actually
+  backward-compatible — forces unnecessary migration work/noise on
+  consumers who trusted the signal.
+- **Pre-1.0 exemption claimed too late**: treating a \`0.x.y\` package as
+  "anything goes, semver doesn't apply yet" when it already has real,
+  external consumers depending on its shape.
+- **Bundled, undifferentiated breaks**: several unrelated breaking changes
+  landed under one version bump with no per-change changelog/release-note
+  entry, leaving consumers unable to tell which part of the bump affects
+  them.
+- **No versioning story for a breaking app-level change**: a breaking change
+  to an internal Fastify route or API with no package version to bump at
+  all, and also no explicit API version (URL/header) or migration note —
+  the absence of any signal is itself the problem.
+
+## How to judge
+
+- First classify whether the diff is breaking (reuse \`breaking-change\` /
+  \`response-schema\` judgment) — a non-breaking change needs no major bump,
+  full stop.
+- If the changed file belongs to a versioned package, the major segment of
+  *that* package's own \`package.json\` must move for a breaking change.
+- If there is no package version in play (an internal app route with no
+  published consumer contract beyond "the client that ships with it"), the
+  finding is the absence of any versioning/migration strategy for the
+  break — not a specific expected version number.
+- Don't flag a version bump that correctly matches the change's severity,
+  even if the changelog entry is terse — that's a SUGGESTION at most.
+
+## Severity guidance
+
+- CRITICAL when the diff is clearly breaking and there is zero version
+  signal anywhere (no major bump, no API version, no changelog note) for a
+  package or route with real consumers.
+- WARNING when a version was bumped but at the wrong severity for the
+  change, or in the wrong package's \`package.json\`.
+- SUGGESTION when the version is handled correctly but the changelog/release
+  note doesn't explain the specific break well enough for a consumer to
+  self-assess impact.`;
+
+export const DEPRECATION_POLICY_SKILL = `# Deprecation policy
+
+Flag a removal or replacement of a public contract element that skips the
+deprecation path — no advance notice, no migration guidance, no grace
+period — in favor of silently pulling it out.
+
+## What to flag
+
+- **Removed and replaced in the same diff**: a route, field, function, or
+  config option is deleted in the very same change that introduces its
+  replacement, with no prior release where it was marked deprecated first.
+- **No deprecation signal before removal**: no \`Deprecation\`/\`Sunset\`
+  response header, no \`@deprecated\` JSDoc tag on an exported function, no
+  \`deprecated: true\` in an OpenAPI/schema annotation, no runtime warning —
+  the item simply stops existing with no prior signal a consumer could have
+  detected.
+- **Insufficient notice period**: a deprecated item removed without a
+  reasonable grace period elapsing (follow this repo's own stated
+  deprecation policy if one exists; otherwise apply the general expectation
+  of at least one release cycle of advance notice).
+- **Deprecation notice with no migration path**: the item is marked
+  deprecated, but the notice doesn't say what to use instead, or gives no
+  concrete replacement example — a consumer sees the warning but has no
+  actionable next step.
+- **Contradicts its own deprecation**: an item is marked deprecated but is
+  still being actively expanded or changed in this same diff — either
+  commit to the removal path or stop deprecating it.
+- **Fake deprecation via silent staleness**: a "deprecated" field is kept in
+  the response but silently stops being populated/updated (returns stale or
+  frozen data) instead of either continuing to work correctly or being
+  clearly documented as unreliable.
+
+## How to judge
+
+- A removal is policy-compliant if there's evidence in this diff or the
+  provided context that the item was previously marked deprecated, with a
+  migration path, and a reasonable notice period elapsed before this
+  removal.
+- Purely internal code, or something deprecated and removed within the same
+  unreleased branch before any consumer could ever have depended on it,
+  doesn't need the full policy — judge blast radius the same way
+  \`breaking-change\` does.
+- A correctly-executed deprecation — marked, documented with a replacement,
+  and still functioning in this diff — is not a finding at all.
+
+## Severity guidance
+
+- CRITICAL for an outright removal of a still-used public contract element
+  with zero prior deprecation notice.
+- WARNING when a deprecation notice exists but is incomplete — no
+  replacement/migration path, or no removal-date (\`Sunset\`) signal.
+- SUGGESTION when the deprecation is done correctly but could be
+  strengthened, e.g. adding a machine-readable \`Sunset\` header alongside an
+  existing docs note.`;

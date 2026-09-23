@@ -7,6 +7,7 @@ import {
   GENERAL_REVIEWER_PROMPT,
   SECURITY_REVIEWER_PROMPT,
   PERFORMANCE_REVIEWER_PROMPT,
+  API_CONTRACT_REVIEWER_PROMPT,
 } from './seed-prompts.js';
 import {
   UNCOVERED_BRANCH_SKILL,
@@ -14,6 +15,10 @@ import {
   MOCK_OVERUSE_SKILL,
   FLAKY_TESTS_SKILL,
   BREAKING_API_CHANGES_SKILL,
+  BREAKING_CHANGE_SKILL,
+  RESPONSE_SCHEMA_SKILL,
+  SEMVER_DISCIPLINE_SKILL,
+  DEPRECATION_POLICY_SKILL,
 } from './seed-skills.js';
 
 /** Default provider/model for the built-in reviewer agents. */
@@ -219,6 +224,18 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       version: 1,
       createdBy: userId,
     },
+    {
+      workspaceId,
+      name: 'API Contract Reviewer',
+      description:
+        'Reviews API and contract changes for breaking changes, response-schema drift, semver discipline, and deprecation policy.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: API_CONTRACT_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
   ];
   const agentIdsByName = new Map<string, string>();
   for (const a of seedAgents) {
@@ -298,6 +315,38 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       source: 'manual',
       body: BREAKING_API_CHANGES_SKILL,
     },
+    {
+      workspaceId,
+      name: 'Breaking public contract change',
+      description: 'Flags removal or alteration of a public route/export/field/enum member.',
+      type: 'convention',
+      source: 'manual',
+      body: BREAKING_CHANGE_SKILL,
+    },
+    {
+      workspaceId,
+      name: 'Response schema drift',
+      description: 'Flags response body shape changes: types, nullability, envelope structure.',
+      type: 'convention',
+      source: 'manual',
+      body: RESPONSE_SCHEMA_SKILL,
+    },
+    {
+      workspaceId,
+      name: 'Semver discipline',
+      description: 'Flags a mismatch between a change severity and its version bump.',
+      type: 'convention',
+      source: 'manual',
+      body: SEMVER_DISCIPLINE_SKILL,
+    },
+    {
+      workspaceId,
+      name: 'Deprecation policy',
+      description: 'Flags removals that skip advance notice, migration path, and grace period.',
+      type: 'convention',
+      source: 'manual',
+      body: DEPRECATION_POLICY_SKILL,
+    },
   ];
   const skillIdsByName = new Map<string, string>();
   for (const s of seedSkills) {
@@ -346,6 +395,23 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       target: [t.agentSkills.agentId, t.agentSkills.skillId],
       set: { order: 0 },
     });
+
+  const apiContractReviewerId = agentIdsByName.get('API Contract Reviewer')!;
+  const apiContractSkillOrder = [
+    'Breaking public contract change',
+    'Response schema drift',
+    'Semver discipline',
+    'Deprecation policy',
+  ];
+  for (const [order, name] of apiContractSkillOrder.entries()) {
+    await db
+      .insert(t.agentSkills)
+      .values({ agentId: apiContractReviewerId, skillId: skillIdsByName.get(name)!, order })
+      .onConflictDoUpdate({
+        target: [t.agentSkills.agentId, t.agentSkills.skillId],
+        set: { order },
+      });
+  }
 
   return { workspaceId, userId };
 }

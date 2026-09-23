@@ -24,11 +24,15 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
   `server/src/vendor/shared/contracts/findings.ts:11`,
   `client/src/vendor/ui/primitives/tokens.ts:3`.
 - **2026-09-23** — Every CLAUDE.md must stay under 100 lines (the user's rule; the repo doesn't state it, and `5a759d1` shortened the root from 102 to 94 for it). After HW1 block D the root is at 99 → put new rules in a package `CLAUDE.md` (all are under 85) or a linked doc; merging or shortening existing root lines needs the user's OK, and the structure (headings, block types) must stay. Evidence: `CLAUDE.md:62-66` (Naming conventions, the last 5 lines added).
+  - **2026-09-23** — superseded: "all are under 85" no longer holds — `server/CLAUDE.md` grew to 86 lines in `faa6678` (packages are now 61–86, root still 99). Evidence: `server/CLAUDE.md:86`.
 
 ## Tool & library notes
 
 - **2026-09-23** — `append-insight.mjs` checks only the `**YYYY-MM-DD** —` prefix and never the evidence, so entries without a `path:line` go in unnoticed (4 so far: two in root Open questions, two in `client/INSIGHTS.md`) → before appending, make sure the Evidence has a `path:line`, not a command or a bare file. Evidence: `.claude/skills/engineering-insights/scripts/append-insight.mjs:22`, `client/INSIGHTS.md:18,46`.
   - **2026-09-23** — superseded: the script now refuses any entry outside Session notes without a backticked `file.ext:line` (a bare file, a command, `localhost:3101` or an IP:port don't count), and the four entries it had let through got line-evidence sub-bullets. Evidence: `.claude/skills/engineering-insights/scripts/append-insight.mjs:76-82`.
+- **2026-09-23** — The machine's pnpm is 12.5.1 (`CLAUDE.md` only asks for ≥10), and it rejects the short `-s` flag with `error: unexpected argument '-s' found`: `pnpm -s typecheck` runs nothing → use `pnpm --silent <script>` or plain `pnpm <script>` in `server/` and `client/`. `npm run -s` in `reviewer-core/` and `e2e/` is fine. Evidence: `CLAUDE.md:22`.
+  - **2026-09-23** — Narrower than it reads: only the shorthand `pnpm -s <script>` fails; `pnpm -s run <script>` works (`pnpm -s run typecheck` in `server/` exits 0), and no file in the repo uses `pnpm -s`. Evidence: `INSIGHTS.md:32`, `server/package.json:6`.
+- **2026-09-23** — A `path:line` that points *into* an `INSIGHTS.md` goes stale on the next append: the script splices lines in mid-file, so every later entry shifts. The `append-insight.mjs` entry's `client/INSIGHTS.md:46` is now a blank line, and a citation of root `:32` written in this session was one line off a minute later → cite the code (or quote the entry's text), never an INSIGHTS line. Evidence: `.claude/skills/engineering-insights/scripts/append-insight.mjs:149`, `client/INSIGHTS.md:46`.
 
 ## Recurring errors & fixes
 
@@ -45,6 +49,7 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
   A separate `distDir` for the e2e web would fix it for good. Evidence:
   `scripts/e2e.sh:42,148`, `e2e/README.md:43-44`.
   - **2026-09-23** — It can also take the whole dev stack down: during a hermetic run (7/7 passed) the dev web on :3000 exited, and because `dev.sh` runs the client in the foreground, its EXIT trap then killed the API on :3001 (Postgres stayed up). The exact reason the dev web exited was not traced → after a hermetic run, check `lsof -iTCP:3000 -sTCP:LISTEN` and `:3001`, and restart with `./scripts/dev.sh --no-seed`. Evidence: `scripts/dev.sh:98-110`, `scripts/e2e.sh:148`.
+  - **2026-09-23** — A third form: the dev web stays up but every route returns HTTP 404 and the page shows "missing required error components, refreshing..." (the hermetic `next dev` rewrote the shared `client/.next`); reloading doesn't help, only a restart. Check `lsof -iTCP:3000 -sTCP:LISTEN` *before* a hermetic run, not only after — the dev stack may have been restarted since you last looked. Evidence: `scripts/e2e.sh:148`, `scripts/dev.sh:108-110`.
 
 ## Doc drift
 
@@ -77,6 +82,8 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
 - **2026-09-23** — HW1 fixes, block B (hermetic e2e vs the dev stack): +1 (Recurring errors & fixes, nuance)
 - **2026-09-23** — HW1 fixes, block D (naming sections + per-package stack): +1 (Codebase patterns)
 - **2026-09-23** — HW1 fixes, block E (path:line in every entry + script check): +3 (Open questions ×2 line evidence, Tool & library notes superseded)
+- **2026-09-23** — HW1 re-check against the 24 grading criteria: +1 (Tool & library notes)
+- **2026-09-23** — PR description + insights audit: +3 (Codebase patterns superseded, Tool & library notes ×2 incl. nuance)
 
 ## Open questions
 

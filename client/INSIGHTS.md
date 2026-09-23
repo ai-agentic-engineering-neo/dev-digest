@@ -69,6 +69,7 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
   drawer, and the agent name jumps to Review runs. The user confirmed icon-only
   is intended → don't add row clicks. Evidence:
   `src/app/repos/[repoId]/pulls/[number]/_components/RunHistory/RunHistory.tsx:13,154,209`.
+  - **2026-09-23** — Evidence has moved (the lines shifted in `ede389e`): the comment is `RunHistory.tsx:14`, the row `<div … style={rowStyle}>` without `onClick` is `:165`, the 📄 icon's `onOpenTrace` is `:229` and the agent name's `onGoToReview` is `:174`. Evidence: `src/app/repos/[repoId]/pulls/[number]/_components/RunHistory/RunHistory.tsx:14,165,174,229`.
 - **2026-09-23** — `DiffTab` breaks the "no `onError` toasts" rule in `CLAUDE.md`: it calls `notify.error` and rethrows, and the global mutation handler toasts again, so a failed comment post shows two toasts. The PR list's header comment says sort lives in `?sort`, but search and sort are local state (only `?status` is in the URL). Evidence: `src/app/repos/[repoId]/pulls/[number]/_components/DiffTab/DiffTab.tsx:36-39`, `src/lib/providers.tsx:41-43`, `src/app/repos/[repoId]/pulls/page.tsx:2,46-47`.
 
 ## Session notes
@@ -79,6 +80,7 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
 - **2026-09-23** — HW1 fixes, block B (Review-run severity pills + filter): +2 (What doesn't work, Tool & library notes)
 - **2026-09-23** — HW1 fixes, block E (path:line in every entry): +2 (What doesn't work, Tool & library notes — line evidence)
 - **2026-09-23** — HW1 fixes, block F (docs/ui-architecture.md, specs/pages.md): +4 (What doesn't work, Doc drift, Codebase patterns, Codebase patterns nuance)
+- **2026-09-23** — PR description + insights audit: +1 (Doc drift — line evidence moved)
 
 ## Open questions
 

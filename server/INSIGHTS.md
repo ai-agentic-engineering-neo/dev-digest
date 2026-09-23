@@ -29,6 +29,7 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
 ## Tool & library notes
 
 - **2026-09-23** — `grep` treats `src/adapters/depgraph/index.ts` as binary (`file` reports it as `data`), so `grep -r` and `grep -I` silently skip it → search it with `grep -a` or the Grep tool. Evidence: `src/adapters/depgraph/index.ts:27`.
+  - **2026-09-23** — Line evidence: the byte that makes it binary is a literal NUL inside the edge key at `src/adapters/depgraph/index.ts:93` (``const key = `${from}\0${to}` `` with a raw `\0`); `:27` is just `export interface DepGraph {`. Evidence: `src/adapters/depgraph/index.ts:93`.
 
 ## Recurring errors & fixes
 
@@ -62,6 +63,7 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
 - **2026-09-23** — HW1 fixes, block C (PR-list COST = sum of done runs): +1 (Open questions)
 - **2026-09-23** — HW1 fixes, block E (path:line in every entry): +1 (Recurring errors & fixes — line evidence)
 - **2026-09-23** — HW1 fixes, block F (docs/architecture.md, specs/review-flow.md): +6 (What doesn't work ×2, Doc drift ×2, Tool & library notes, Open questions nuance)
+- **2026-09-23** — PR description + insights audit: +1 (Tool & library notes — line evidence)
 
 ## Open questions
 

@@ -264,13 +264,60 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(reviews[0].tokens_in).toBe(run.tokensIn);
     expect(reviews[0].tokens_out).toBe(run.tokensOut);
 
-    // The list's COST is the latest review's run — the same review behind SCORE.
+    // One done run: the list's COST is that run's cost; SCORE is the latest review's.
     const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
     const row = pulls.find((p: { id: string }) => p.id === pr.id);
     expect(row.score).toBe(reviews[0].score);
     expect(row.cost_usd).toBe(run.costUsd);
 
     await app.close();
+  });
+
+  it("the PR list's COST sums every done run of the PR; a failed run adds nothing", async () => {
+    const good = await appWithLlm(new MockLLMProvider('openai', { structured: REVIEW_FIXTURE }));
+    const { repo, pr, run: first } = await reviewWith(good, 'SumAgentA');
+
+    // A second agent reviews the same PR → a second done run.
+    const agentB = (
+      await good.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'SumAgentB', provider: 'openai', model: 'gpt-4.1', system_prompt: 's' },
+      })
+    ).json();
+    await good.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agentB.id } });
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 2 });
+
+    // `{}` fails the Review schema → a failed run on the same PR, cost NULL.
+    const bad = await appWithLlm(new MockLLMProvider('openai', { structured: {} }));
+    await bad.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agentB.id } });
+    const runs = await waitForPrRuns(pg.handle.db, pr.id, { expected: 3 });
+
+    const done = runs.filter((r) => r.status === 'done');
+    const failed = runs.filter((r) => r.status === 'failed');
+    expect(done).toHaveLength(2);
+    expect(failed).toHaveLength(1);
+    expect(failed[0]!.costUsd).toBeNull();
+    const doneSum = done.reduce((sum, r) => sum + r.costUsd!, 0);
+
+    const pulls = (await good.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const row = pulls.find((p: { id: string }) => p.id === pr.id);
+    expect(row.cost_usd).toBeCloseTo(doneSum, 10);
+    expect(row.cost_usd).toBeGreaterThan(first.costUsd!);
+
+    // The same done runs the Timeline lists.
+    const timeline = (await good.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    const timelineSum = timeline
+      .filter((r: { status: string }) => r.status === 'done')
+      .reduce((sum: number, r: { cost_usd: number }) => sum + r.cost_usd, 0);
+    expect(row.cost_usd).toBeCloseTo(timelineSum, 10);
+
+    // SCORE still describes the latest review, not a sum.
+    const reviews = (await good.inject({ method: 'GET', url: `/pulls/${pr.id}/reviews` })).json();
+    expect(row.score).toBe(reviews[0].score);
+
+    await good.close();
+    await bad.close();
   });
 
   it('an unpriced model stores a NULL cost, never 0', async () => {

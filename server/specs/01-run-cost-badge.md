@@ -91,3 +91,14 @@ original agreement.
   `RunCostBadge`; a run with no cost yet (running, failed, cancelled) reads `—`,
   never `$0.00`. Test: `RunHistory.test.tsx` ("a failed run reads '—'…",
   "a running or cancelled run reads '—' too").
+- **PR list `COST` = the total of all the PR's successful runs** (was: the cost
+  of the latest review, the one behind `SCORE`; replaces the first table row and
+  acceptance criterion 3). `GET /repos/:id/pulls` returns `cost_usd` = the sum of
+  `agent_runs.cost_usd` over every `status = 'done'` run of the PR — every agent,
+  every re-run, the same runs the Timeline lists. Failed and cancelled runs add
+  nothing (their cost is NULL); a done run with an unknown (NULL) cost is
+  skipped; a PR with no done run of known cost gets `null` and shows `—`.
+  `SCORE` and `FINDINGS` still describe the latest review only. A run whose
+  review was deleted (`DELETE /reviews/:id` keeps the run) still counts, as it
+  still shows in the Timeline. Test: `reviews.it.test.ts` ("the PR list's COST
+  sums every done run of the PR; a failed run adds nothing").

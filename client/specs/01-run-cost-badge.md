@@ -11,3 +11,6 @@ Agent runs timeline, the run drawer's Stats, and the Review runs accordion heade
 
 Amended 2026-09-23: every Timeline run shows its cost (`—` when none) — see the
 Amendment in the server spec.
+
+Amended 2026-09-23 (2): the PR list's `COST` is the total of all the PR's `done`
+runs, not the latest review's — see the Amendment in the server spec.

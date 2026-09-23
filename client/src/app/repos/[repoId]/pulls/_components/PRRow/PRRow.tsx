@@ -73,7 +73,7 @@ export function PRRow({
           {t(`list.status.${st.labelKey}`)}
         </Badge>
       </div>
-      {/* Cost of the same latest review whose score is shown; "—" when unknown. */}
+      {/* Total cost of the PR's done runs (all agents, re-runs); "—" when unknown. */}
       <div style={pr.cost_usd == null ? s.muted : s.costCell}>
         <RunCostBadge variant="compact" costUsd={pr.cost_usd} />
       </div>

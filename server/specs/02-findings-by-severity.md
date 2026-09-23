@@ -136,3 +136,27 @@ original agreement.
   status tag reads `rejected`. Copy only (`prReview.json` → `finding.dismiss`,
   `finding.dismissed`): the API action stays `dismiss`, the field `dismissed_at`.
   Test: `FindingCard.test.tsx` ("fires accept/dismiss actions").
+- **Review runs gets per-severity pills and a severity filter.** This reverses
+  "Display only: no filters" and removes `FindingsPanel` (and its helpers,
+  styles) from the "Unchanged" list; `ReviewRunAccordion`, `VerdictBanner` and
+  `FindingCard` keep their layout. In an expanded run, top to bottom:
+  1. `VerdictBanner` (verdict + PR SCORE), unchanged;
+  2. a pill row `2 CRITICAL · 1 WARNING · 3 SUGGESTION` — one pill per severity
+     that has findings, CRITICAL → WARNING → SUGGESTION, colour and icon from
+     `SEV`; no row when the run has no findings;
+  3. three filter buttons **Critical**, **Warning**, **Suggestion**, always shown,
+     left of "Hide low confidence";
+  4. the finding cards.
+- **Counting**: a pill counts every finding of that run (dismissed and accepted
+  included), with `countBySeverity` over the `ReviewRecord.findings` already on
+  the page — no request, no model call, on open or on filter change. With "Hide
+  low confidence" off (the default) a pill equals the cards of that severity below.
+- **Filter**: one severity at a time. A click shows only that severity's cards;
+  a click on the active filter clears it and restores the full list; a click on
+  another one switches. It stacks with "Hide low confidence". A severity with no
+  cards shows the existing "No findings match" empty state. Each run's filter is
+  its own; nothing is persisted.
+- **Acceptance**: pills only for present severities; pill = card count; each
+  filter narrows and a second click restores; tests in `FindingsPanel.test.tsx`
+  ("severity pills and filter") and `ReviewRunAccordion.test.tsx` (pills sit
+  between PR SCORE and the first card); e2e flow 04 still passes unchanged.

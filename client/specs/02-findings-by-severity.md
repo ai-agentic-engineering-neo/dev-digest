@@ -18,3 +18,7 @@ Display only: no clicks, no filters. The run sidebar and Review runs are unchang
 
 Amended 2026-09-23: the popover header reads `N FINDINGS IN THIS RUN`, and
 Review-run finding cards say Accept / Reject — see the Amendment in the server spec.
+
+Amended 2026-09-23 (2): an expanded Review run now shows `N CRITICAL · N WARNING ·
+N SUGGESTION` pills under the verdict and Critical / Warning / Suggestion filter
+buttons (`FindingsPanel`) — see the Amendment in the server spec.

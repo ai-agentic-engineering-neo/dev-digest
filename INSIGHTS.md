@@ -26,6 +26,8 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
 
 ## Tool & library notes
 
+- **2026-09-23** — `append-insight.mjs` checks only the `**YYYY-MM-DD** —` prefix and never the evidence, so entries without a `path:line` go in unnoticed (4 so far: two in root Open questions, two in `client/INSIGHTS.md`) → before appending, make sure the Evidence has a `path:line`, not a command or a bare file. Evidence: `.claude/skills/engineering-insights/scripts/append-insight.mjs:22`, `client/INSIGHTS.md:18,46`.
+
 ## Recurring errors & fixes
 
 - **2026-09-23** — Following the root README's manual steps crashes the API:
@@ -40,6 +42,7 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
   dev web after a hermetic run (touching a route's file only rebuilds that route).
   A separate `distDir` for the e2e web would fix it for good. Evidence:
   `scripts/e2e.sh:42,148`, `e2e/README.md:43-44`.
+  - **2026-09-23** — It can also take the whole dev stack down: during a hermetic run (7/7 passed) the dev web on :3000 exited, and because `dev.sh` runs the client in the foreground, its EXIT trap then killed the API on :3001 (Postgres stayed up). The exact reason the dev web exited was not traced → after a hermetic run, check `lsof -iTCP:3000 -sTCP:LISTEN` and `:3001`, and restart with `./scripts/dev.sh --no-seed`. Evidence: `scripts/dev.sh:98-110`, `scripts/e2e.sh:148`.
 
 ## Doc drift
 
@@ -68,6 +71,8 @@ Entry format: `- **YYYY-MM-DD** — claim. Evidence: \`path:line\``
 - **2026-09-23** — Run Cost Badge (lab task 3): +1 (Doc drift)
 - **2026-09-23** — Findings-by-severity spec + plan: +1 (Codebase patterns)
 - **2026-09-23** — Findings-by-severity implementation: +1 (Recurring errors & fixes)
+- **2026-09-23** — HW1 check against the grading criteria: +1 (Tool & library notes)
+- **2026-09-23** — HW1 fixes, block B (hermetic e2e vs the dev stack): +1 (Recurring errors & fixes, nuance)
 
 ## Open questions
 

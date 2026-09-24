@@ -12,6 +12,7 @@ coverage/
 .turbo/
 .pnpm-store/
 *.log
+__pycache__/
 .devdigest/cache/
 .devdigest/self-review/
 clones/

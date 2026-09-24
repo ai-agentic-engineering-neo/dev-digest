@@ -1,11 +1,9 @@
-/** Row → contract mapper (timestamps become ISO strings for the response schema). */
-import type {
-  IntentChangeType,
-  IntentConfidence,
-  IntentDerivedFrom,
-  IntentSource,
-  PrIntentRecord,
-} from '@devdigest/shared';
+/** Row → contract mapper (timestamps become ISO strings for the response schema).
+ *  `changeType`/`confidence`/`derivedFrom`/`sources` are already the contract's
+ *  literal unions/shape — the `{ enum: [...] }` column option and `sources`'
+ *  `.$type<IntentSource[]>()` (server/src/db/schema/reviews.ts) give drizzle-kit
+ *  the row type directly, so no `as` cast is needed here. */
+import type { PrIntentRecord } from '@devdigest/shared';
 import type { PrIntentRow } from '../../../db/rows.js';
 
 export function toPrIntentRecord(row: PrIntentRow): PrIntentRecord {
@@ -14,10 +12,10 @@ export function toPrIntentRecord(row: PrIntentRow): PrIntentRecord {
     intent: row.intent,
     in_scope: row.inScope,
     out_of_scope: row.outOfScope,
-    change_type: (row.changeType as IntentChangeType | null) ?? null,
-    confidence: (row.confidence as IntentConfidence | null) ?? null,
-    derived_from: (row.derivedFrom as IntentDerivedFrom | null) ?? 'inferred',
-    sources: (row.sources as IntentSource[] | null) ?? [],
+    change_type: row.changeType,
+    confidence: row.confidence,
+    derived_from: row.derivedFrom,
+    sources: row.sources,
     head_sha: row.headSha ?? '',
     input_hash: row.inputHash ?? '',
     prompt_version: row.promptVersion ?? 0,

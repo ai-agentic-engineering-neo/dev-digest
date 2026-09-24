@@ -179,6 +179,10 @@
       "title": "No intent derived yet",
       "body": "DevDigest hasn’t worked out this PR’s intent yet. Run a review, or derive it now.",
       "cta": "Derive now"
+    },
+    "error": {
+      "title": "Couldn’t load intent",
+      "body": "Something went wrong fetching this PR’s intent."
     }
   },
   "diff": {

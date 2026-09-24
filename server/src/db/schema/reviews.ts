@@ -11,6 +11,7 @@ import {
   boolean,
   index,
 } from 'drizzle-orm/pg-core';
+import type { IntentSource } from '@devdigest/shared';
 import { now, enumCheck } from './_shared';
 import { workspaces } from './core';
 import { pullRequests } from './pulls';
@@ -123,15 +124,15 @@ export const prIntent = pgTable(
     intent: text('intent').notNull(),
     inScope: jsonb('in_scope').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
     outOfScope: jsonb('out_of_scope').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
-    changeType: text('change_type'),
-    confidence: text('confidence'),
+    changeType: text('change_type', { enum: INTENT_CHANGE_TYPES }),
+    confidence: text('confidence', { enum: INTENT_CONFIDENCE }),
     // NOT NULL + a default (never actually read as such — application code
     // always sets it explicitly on upsert; the default only lets drizzle-kit
     // generate the add-column migration without an interactive backfill
     // prompt, since pr_intent is verified empty — server/INSIGHTS.md).
-    derivedFrom: text('derived_from').notNull().default('inferred'),
+    derivedFrom: text('derived_from', { enum: INTENT_DERIVED_FROM }).notNull().default('inferred'),
     /** Every input the layer considered (IntentSource[]); [] until derived. */
-    sources: jsonb('sources').$type<unknown[]>().notNull().default(sql`'[]'::jsonb`),
+    sources: jsonb('sources').$type<IntentSource[]>().notNull().default(sql`'[]'::jsonb`),
     headSha: text('head_sha'),
     /** sha256 of the canonical cache-key input; drives cache hit/miss. */
     inputHash: text('input_hash'),

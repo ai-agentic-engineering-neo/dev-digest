@@ -461,7 +461,7 @@ export class OctokitGitHubClient implements GitHubClient {
       const content = Buffer.from(data.content, data.encoding === 'base64' ? 'base64' : 'utf8').toString('utf8');
       return { path, content, size: data.size };
     } catch (err) {
-      if ((err as { status?: number }).status === 404) return null;
+      if ((err as { status?: number })?.status === 404) return null;
       throw err;
     }
   }

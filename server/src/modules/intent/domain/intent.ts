@@ -123,8 +123,8 @@ function sourceLabel(s: CollectedSource): string {
  */
 export function renderSourcesBlock(sources: readonly CollectedSource[]): string {
   return sources
-    .filter((s) => s.content !== undefined && s.content.trim().length > 0)
-    .map((s) => `${sourceHeading(s)}\n${wrapUntrusted(sourceLabel(s), s.content!)}`)
+    .filter((s): s is CollectedSource & { content: string } => !!s.content && s.content.trim().length > 0)
+    .map((s) => `${sourceHeading(s)}\n${wrapUntrusted(sourceLabel(s), s.content)}`)
     .join('\n\n');
 }
 

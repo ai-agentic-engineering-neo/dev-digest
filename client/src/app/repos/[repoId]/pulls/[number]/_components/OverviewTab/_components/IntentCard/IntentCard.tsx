@@ -5,7 +5,8 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { Badge, Button, EmptyState, Icon, Skeleton } from "@devdigest/ui";
+import { Badge, Button, EmptyState, ErrorState, Icon, Skeleton } from "@devdigest/ui";
+import { ApiError } from "@/lib/api";
 import { usePrIntent, useRefreshIntent } from "@/lib/hooks/intent";
 import { formatUsd } from "@/lib/format-usage";
 import { confidenceColor, isSourceOk, sourceHref, sourceIcon } from "./helpers";
@@ -19,10 +20,25 @@ export interface IntentCardProps {
 
 export function IntentCard({ prId, repoFullName, headSha }: IntentCardProps) {
   const t = useTranslations("prReview");
-  const { data, isLoading } = usePrIntent(prId);
+  const tc = useTranslations("common");
+  const { data, isLoading, isError, error, refetch } = usePrIntent(prId);
   const refresh = useRefreshIntent(prId);
 
   if (isLoading) return <Skeleton height={140} />;
+
+  // Distinct from "never derived": a failed GET must not look like the empty
+  // state (refresh-mutation errors are already toasted by the global
+  // MutationCache — client/INSIGHTS.md — so this is the only error surface here).
+  if (isError) {
+    return (
+      <ErrorState
+        title={t("intent.error.title")}
+        body={error instanceof ApiError ? error.message : t("intent.error.body")}
+        onRetry={() => refetch()}
+        retryLabel={tc("actions.retry")}
+      />
+    );
+  }
 
   const intent = data?.intent ?? null;
   if (!intent) {

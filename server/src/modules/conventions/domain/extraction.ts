@@ -18,7 +18,7 @@ export const ConventionExtraction = z.object({
       rule: z
         .string()
         .describe(
-          'The house rule as ONE imperative sentence a reviewer can check in a diff, e.g. "Route handlers return typed Result<T, ApiError> instead of throwing".',
+          'The house rule as ONE imperative English sentence a reviewer can check in a diff, e.g. "Route handlers return typed Result<T, ApiError> instead of throwing".',
         ),
       confidence: z
         .number()
@@ -55,6 +55,8 @@ Rules for evidence:
 - cite 1 to 3 places; copy the lines VERBATIM from the listing (no line-number prefix, no "…", no edits);
 - path is the exact path from the "=== FILE: <path>" header; line numbers come from the listing;
 - never cite a file that is not in the sample.
+
+Write every rule in English, whatever language the repository's code comments or docs use; evidence lines stay verbatim.
 
 Prefer fewer, stronger rules over many weak ones (at most 15). Lower the confidence when a rule is seen only once. Return an empty list when nothing qualifies.
 

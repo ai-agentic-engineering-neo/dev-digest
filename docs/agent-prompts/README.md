@@ -164,6 +164,13 @@ numbers and gates from what the model returns:
    findings" as a quota and pad the list with repeats to hit N, which also corrupts
    the score. State that the count is free and repeats are forbidden.
 
+Output language is not the agent prompt's job: the trusted task line
+(`server/src/modules/reviews/domain/prompt.ts` `taskLine`) already requires the
+summary and every finding in English, with code quoted verbatim. The system LLM
+features pin it the same way (intent classifier, conventions extraction) —
+cheap models answer in another language otherwise (seen: Chinese intent text
+from `deepseek-v4-flash` on a thin PR).
+
 ## How the engine uses the output (why the conventions matter)
 
 `reviewer-core/src/review/run.ts` + `reduce.ts`:

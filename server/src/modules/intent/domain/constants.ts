@@ -35,7 +35,7 @@ export const LLM_MAX_OUTPUT_TOKENS = 800;
 export const LLM_MAX_RETRIES = 1;
 
 /** Bumping this forces every cached row to miss on the next review (cache key input). */
-export const PROMPT_VERSION = 1;
+export const PROMPT_VERSION = 2; // v2: output language pinned to English
 
 /** Structured-output schema name (also the mock LLM's fixture key). */
 export const INTENT_CLASSIFICATION_SCHEMA_NAME = 'IntentClassification';

@@ -10,11 +10,12 @@ same-named agents in `~/.claude/agents/`.
 | Agent | Role | Model | Writes files? | Input | Output |
 |---|---|---|---|---|---|
 | [researcher](researcher.md) | Finds facts in the repo or outside, with evidence | sonnet | no | a concrete question | Research report · or *Clarification needed* |
-| [planner](planner.md) | Turns a task/spec into an executable plan | opus (effort high) | no | task or `*/specs/NN-*.md` | Development Plan → saved by caller to `docs/plans/` |
+| [planner](planner.md) | Turns a task/spec into an executable plan | opus (effort high) | `docs/plans/` only (2 new files) | task or `*/specs/NN-*.md` | `docs/plans/<date>-<slug>.md` + `.context.md` · short summary |
 | [implementer](implementer.md) | Executes an approved plan, verifies own diff | sonnet (effort high) | yes | `docs/plans/*.md` (or inline plan) | code + tests + Implementation Report |
 | [test-writer](test-writer.md) | Writes tests red-first or backfill, never production code | sonnet (effort high) | tests/fixtures only | plan (+ spec, reports), mode | tests + Test Report |
-| [architecture-reviewer](architecture-reviewer.md) | Checks the diff against architectural boundaries | opus (effort high) | no | branch diff (+ plan base) | Architecture Review · PASS / BLOCK / INCOMPLETE |
-| [plan-verifier](plan-verifier.md) | Checks code against every plan item and acceptance criterion | opus (effort high) | no | plan (+ spec, reports) | Plan Verification · PASS / FAIL / INCOMPLETE |
+| [architecture-reviewer](architecture-reviewer.md) | Checks the diff against architectural boundaries | opus (effort high) | own report in `.devdigest/review/` | branch diff (+ plan base) | short Architecture Review · PASS / BLOCK / INCOMPLETE |
+| [plan-verifier](plan-verifier.md) | Checks code against every plan item and acceptance criterion | opus (effort high) | own report in `.devdigest/review/` | plan (+ spec, reports), mode full/delta | short Plan Verification · PASS / FAIL / INCOMPLETE |
+| [delta-reviewer](delta-reviewer.md) | Fix rounds: re-checks findings, regressions and architecture on the delta only | sonnet (effort high) | own report in `.devdigest/review/` | plan, previous reports, delta label | short Delta Review · PASS / FAIL / ESCALATE |
 | [doc-writer](doc-writer.md) | Documents implemented features, with diagrams | sonnet (effort medium) | README.md, docs/** only | plan / reports / notes | docs + Documentation Report |
 
 Security review is **not** in this set — a separate agent (not built yet).
@@ -23,19 +24,23 @@ Security review is **not** in this set — a separate agent (not built yet).
 
 ```
 task / spec ──► researcher (optional: facts, library docs)
-            ──► planner ──► Development Plan ──► caller saves docs/plans/<date>-<slug>.md
+            ──► planner ──► docs/plans/<date>-<slug>.md + <slug>.context.md
                                   │  user approves
                                   ▼
                [test-writer red-first] ──► failing tests (read-only for implementer)
                                   ▼
                             implementer ──► code + tests + Implementation Report
+                                  │            + gates report (scripts/gates.sh)
                                   ▼
                [test-writer backfill] ──► only if plan items still lack tests
                                   ▼
-          architecture-reviewer ∥ plan-verifier   (read-only, same snapshot, in parallel)
+     round 1: architecture-reviewer ∥ plan-verifier   (full, same snapshot, in parallel)
+                  │ caller: scripts/review-delta.sh save r1
                   │ BLOCK / FAIL rows ──► implementer (code) or test-writer (tests)
-                  │                       ──► re-run the reviewer that failed
-                  ▼ both PASS
+                  ▼
+     round N≥2: delta-reviewer (delta since r<N-1> only)
+                  │ ESCALATE ──► full round again · FAIL ──► fix ──► next round
+                  ▼ PASS
              doc-writer ──► README / docs ──► caller: engineering-insights WRAP-UP
                                               (from "Insight candidates") ──► /pr-self-review
 ```
@@ -46,6 +51,49 @@ output is not re-verified by plan-verifier; `/pr-self-review` covers it.
 Subagents cannot ask the user and return only their final message, so every hand-off
 is a fixed-format artifact; open questions come back in it (`Clarification needed`,
 `Open questions / assumptions`, `STATUS: BLOCKED`).
+
+## Token budget
+
+A full feature run (Intent Layer, 2026-09-24) cost ~1.66M subagent tokens: implementer
+52 %, plan-verifier 20 %, planner 14 %, architecture-reviewer 10 %. The waste was
+repetition, not checks: the same gates ran 2–3× per state, every agent re-read the plan,
+specs, three `INSIGHTS.md` and the whole 70-file diff in every round, and long reports
+were relayed through the lead session. The rules below keep every check and drop the
+repetition. The lead session (caller) follows them when orchestrating:
+
+1. **One gates run per state.** `./scripts/gates.sh` runs drift, typecheck, lint,
+   `arch:check` and tests for the changed packages and caches them in
+   `.devdigest/gates/<state>.json` (state = HEAD + diff + untracked, `*.md` excluded).
+   Agents cite `gates <state>:<id>` instead of re-running; `--show` prints the report.
+2. **Hand over paths, not content.** Plan, context pack, previous report, delta label,
+   gates state. Never paste a diff, a plan or a report into a delegation prompt.
+3. **Short artifacts.** Plan ≤ 8 KB (what to follow) + context pack ≤ 6 KB (what to
+   know: applicable INSIGHTS lines quoted with ids, verified facts, skill map). Specs
+   hold only acceptance criteria. Downstream agents read the pack instead of whole
+   `INSIGHTS.md` files.
+4. **Short hand-backs.** Reviewers write the full tables to
+   `.devdigest/review/<plan-slug>/<agent>-r<N>.md` and return ≤ 40 lines (verdict,
+   counts, non-PASS rows); implementer ≤ 60 lines. The caller relays only non-PASS rows.
+5. **Delta rounds.** After each review round: `./scripts/review-delta.sh save r<N>`.
+   The next round gets `diff r<N>` only. Round 1 = both full reviewers (opus); rounds ≥ 2
+   = one `delta-reviewer` (sonnet), which escalates to a full round when the delta is
+   big or touches contracts, DB, depcruise config or packages.
+6. **Skip what cannot find anything.** No import changes and no new files in the delta
+   + green `server:arch` → no architecture pass for that round (delta-reviewer records it).
+7. **Continue, don't respawn, a reviewer** with SendMessage when it will review the same
+   feature again and its context is still small (≲ 150k): its history is a cached
+   prefix. Prompt caching is prefix-based, so different agent types never share a cache
+   — only a continued agent (or a fork of the lead) reuses one. Implementer fix rounds
+   are the exception: a fresh agent with a precise brief (`file:line`, expected
+   behaviour) is cheaper than continuing a context of several hundred thousand tokens.
+8. **Batch fixes.** Collect all findings of a round (including LOW ones you intend to
+   fix) into one implementer brief; one delta round per batch.
+9. **Models by task.** opus: planner and the first full review (judgement, found the
+   real bugs). sonnet: implementer, test-writer, delta-reviewer, researcher. No model:
+   gates, drift, snapshots (scripts). Cheaper models cut cost, not always tokens —
+   compare `subagent_tokens` in task notifications per run.
+10. **Lead session hygiene.** `grep` INSIGHTS for the relevant paths instead of `cat`
+    of whole files; don't re-read files an agent already summarised.
 
 ## Agents
 
@@ -67,14 +115,16 @@ is a fixed-format artifact; open questions come back in it (`Clarification neede
   checks standing constraints (shared-contract copies, migrations, onion rings, client
   data/i18n rules, do-not-touch list).
 - **Not responsible for:** writing code, running tests/scripts, reviewing diffs.
-- **Permissions:** `Read, Grep, Glob, Bash` only — no `Write/Edit`, no `Skill`
-  (skills are read as files), no `Agent`, no `memory`. Bash read-only by prompt.
+- **Permissions:** `Read, Grep, Glob, Bash, Write` — Write only for the two new plan
+  files in `docs/plans/` (by prompt), no `Edit`, no `Skill` (skills are read as files),
+  no `Agent`, no `memory`. Bash read-only by prompt.
 - **Input:** task description or spec path. Unclear task → returns only
   *Clarification needed* (≤5 questions with defaults).
-- **Output:** `# Development Plan` — Save as · Goal · Out of scope · Context used
-  (applied INSIGHTS lines) · Constraints & decisions (each with a source) · Skill map ·
-  Steps (files, rules, tests, "Done when" command) · Contracts & migrations ·
-  Verification plan · Risks · Open questions · Notes for reviewers. ~1–2k tokens.
+- **Output:** `docs/plans/<date>-<slug>.md` (≤ 8 KB: Goal · Out of scope · Decisions ·
+  Steps with files, rules, tests, "Done when" · Contracts & migrations · Verification ·
+  Open questions) + `<slug>.context.md` (≤ 6 KB: applicable INSIGHTS lines quoted with
+  ids, verified facts, mirrors, skill map, risks, notes for reviewers); returns a
+  ≤ 25-line summary with both paths and the open questions.
 
 ### implementer
 - **Responsible for:** executing the plan step by step in `server/`, `client/`,
@@ -87,11 +137,12 @@ is a fixed-format artifact; open questions come back in it (`Clarification neede
   no worktree isolation (it would branch from `main`). Forbidden commands and
   do-not-touch paths are listed in the prompt; the most dangerous are also denied in
   settings (below).
-- **Input:** approved plan (`docs/plans/*.md` path or inline).
-- **Output:** uncommitted code + tests, and `# Implementation Report` — STATUS
-  (DONE / PARTIAL / BLOCKED) · Steps · Changed files · Skills applied · Verification
-  (commands actually run, exit codes) · Deviations · Blockers · Insight candidates ·
-  For reviewers.
+- **Input:** approved plan (`docs/plans/*.md` path or inline) and its context pack;
+  in a fix round, the plan path plus findings (`file:line`, expected behaviour).
+- **Output:** uncommitted code + tests, a gates report for the final state, and a
+  ≤ 60-line `# Implementation Report` — STATUS (DONE / PARTIAL / BLOCKED) · Gates ·
+  Skills · Steps · Changed files · Deviations · Scenarios (concurrency/caching changes) ·
+  Blockers · Insight candidates · For reviewers.
 
 ### test-writer
 - **Responsible for:** tests in `server/`, `client/`, `reviewer-core/` (e2e flows only
@@ -121,11 +172,13 @@ is a fixed-format artifact; open questions come back in it (`Clarification neede
   compliance, fixes.
 - **Permissions:** `Read, Grep, Glob, Bash`; `Write, Edit, NotebookEdit, Skill`
   disallowed (skills read as files). Never `next build` or the baseline command.
-- **Input:** branch diff; base from the plan or `git merge-base HEAD main`.
-- **Output:** `# Architecture Review` — VERDICT PASS / BLOCK / INCOMPLETE · Deterministic
-  checks · Findings (severity on the `pr-self-review` scale, rule source, file:line,
-  import chain, evidence, confidence, fix) · Pre-existing · Dropped in verification ·
-  Not checked · Next.
+- **Input:** branch diff; base from the plan or `git merge-base HEAD main`; `round`
+  and a delta label for a later full round.
+- **Output:** full `# Architecture Review` in `.devdigest/review/<slug>/arch-r<N>.md` —
+  VERDICT PASS / BLOCK / INCOMPLETE · Deterministic checks (cached gates cited) ·
+  Findings (severity on the `pr-self-review` scale, rule source, file:line, import
+  chain, evidence, confidence, fix) · Pre-existing · Dropped · Not checked · Next;
+  returns a ≤ 40-line short form.
 
 ### plan-verifier
 - **Responsible for:** one row per plan item (`Sx.files/change/tests/done-when/rules`,
@@ -136,9 +189,26 @@ is a fixed-format artifact; open questions come back in it (`Clarification neede
   security, fixes.
 - **Permissions:** as architecture-reviewer; may re-run the plan's hermetic "Done when"
   commands; integration tests only with the `run-integration` flag.
-- **Input:** plan (required), spec, Implementation / Test Report (pointers, not evidence).
-- **Output:** `# Plan Verification` — VERDICT PASS / FAIL / INCOMPLETE · Plan items ·
-  Acceptance criteria · Scope · Commands run · Next.
+- **Input:** plan (required), spec, context pack, Implementation / Test Report
+  (pointers, not evidence); mode `full` or `delta` (+ previous report, delta label).
+- **Output:** full `# Plan Verification` in `.devdigest/review/<slug>/verify-r<N>.md` —
+  VERDICT PASS / FAIL / INCOMPLETE · Plan items · Acceptance criteria · Scope · Commands
+  run · Next (delta: re-verified rows + carried PASS IDs); returns a ≤ 40-line short
+  form with the non-PASS rows only.
+
+### delta-reviewer
+- **Responsible for:** fix rounds after a full review: re-verifies the previous non-PASS
+  rows and findings, re-checks PASS rows whose evidence touches the delta, runs one
+  adversarial scenario per other caller of changed shared code, applies the
+  architecture lens to delta import changes. Replaces both full reviewers for that round.
+- **Not responsible for:** the first review of a feature, big or risky deltas (→
+  `ESCALATE`: > 15 files, new module/package, shared contracts, DB, depcruise config,
+  `package.json`), fixes, security.
+- **Permissions:** as plan-verifier; the only file it creates is its report.
+- **Input:** plan path, `round`, delta label, previous report paths, IDs being fixed.
+- **Output:** `# Delta Review` in `.devdigest/review/<slug>/delta-r<N>.md` — findings
+  being fixed · regression checks · architecture on the delta · new findings · commands;
+  returns ≤ 30 lines. VERDICT PASS / FAIL / ESCALATE / INCOMPLETE.
 
 ### doc-writer
 - **Responsible for:** documenting implemented features in the slot the conventions
@@ -163,7 +233,8 @@ Bash(...)` in frontmatter removes all of Bash.
 
 | Source | Rules taken from it | Applied in |
 |---|---|---|
-| [Sub-agents](https://code.claude.com/docs/en/sub-agents) | `description` = what + when, "use proactively"; `tools` allowlist for least privilege; omit `Agent` to stop nested spawning; `permissionMode` is ignored under auto/acceptEdits; `memory` enables Write/Edit; `skills` preload injects full text; `isolation: worktree` branches from default branch; subagent can't ask the user and returns only its final message | both frontmatters; planner without Write/Edit/memory; no preload, no isolation; fixed output formats; `Clarification needed` / `BLOCKED` |
+| [Sub-agents](https://code.claude.com/docs/en/sub-agents) | `description` = what + when, "use proactively"; `tools` allowlist for least privilege; omit `Agent` to stop nested spawning; `permissionMode` is ignored under auto/acceptEdits; `memory` enables Write/Edit; `skills` preload injects full text; `isolation: worktree` branches from default branch; subagent can't ask the user and returns only its final message | both frontmatters; planner without Edit/memory, Write limited to `docs/plans/` by prompt; no preload, no isolation; fixed output formats; `Clarification needed` / `BLOCKED` |
+| [Prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching) | the cache matches an exact prompt prefix; cached reads cost a fraction of fresh input | Token budget rule 7: continue a reviewer instead of respawning; no reliance on cross-agent caching |
 | [Permissions](https://code.claude.com/docs/en/permissions) | `permissions.deny` applies to subagents, beats allow, matches any subcommand of a compound command | `../settings.json` |
 | [Skills](https://code.claude.com/docs/en/skills) · [Skill authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices) | progressive disclosure (load references only when needed); deterministic steps belong to scripts/data, not model judgement | on-demand skill loading; skill choice via `routing.json`; planner reads `references/` only when a step depends on it |
 | [Claude Code best practices](https://code.claude.com/docs/en/best-practices) | explore → plan → code; give Claude a way to verify and demand evidence; fix root causes, don't suppress errors; independent reviewer in fresh context; nothing outside task scope | planner/implementer split; "Done when" commands; Verification table with exit codes; ban on `@ts-ignore`/`.skip`; review left to separate agents |

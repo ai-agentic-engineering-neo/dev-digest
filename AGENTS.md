@@ -20,6 +20,10 @@ API and web run on the host).
   commented `biome.json` is silently ignored). Never run `biome check --write`
   or enable the formatter — it would rewrite the whole repo.
 - Shared contracts in sync: `./scripts/check-shared-drift.sh` (also in CI).
+- All gates for the changed packages, cached per working-tree state:
+  `./scripts/gates.sh` (`--integration` · `--show` · `--state`). Review rounds see only the
+  delta: `./scripts/review-delta.sh save r1` / `diff r1`. Orchestration rules that keep
+  tokens down: `.claude/agents/README.md` → Token budget.
 
 ## Read when
 - Change spans packages or you need the big picture → read `README.md` (Architecture)
@@ -28,7 +32,9 @@ API and web run on the host).
 - Editing built-in agent prompts or model choice → read `docs/agent-prompts/README.md`
 - Every task, right after the user's request and before planning/editing → read the
   `INSIGHTS.md` of each package it concerns; treat it as high-confidence guidance
-  unless told otherwise (skill `engineering-insights`, step READ)
+  unless told otherwise (skill `engineering-insights`, step READ). Subagents working
+  from a plan read its context pack (`docs/plans/<plan>.context.md`, the planner's
+  READ output) instead of the whole files
 
 ## Per-package layout (convention)
 Every package has the same four knowledge slots:

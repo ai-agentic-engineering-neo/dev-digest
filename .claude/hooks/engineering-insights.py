@@ -5,19 +5,23 @@
   engineering-insights.py stop     # Stop: demand WRAP-UP when package files changed
 
 Stop blocks (once per new change set) only when files under the packages
-changed since the last snapshot. INSIGHTS.md edits don't count, and neither does
+changed since the last snapshot, and not while background subagents launched in
+this session are still running. INSIGHTS.md edits don't count, and neither does
 committing content that was already seen. Any internal error lets Claude
 proceed: this hook must never trap a session.
 """
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
 
 PACKAGES = ("server", "client", "reviewer-core", "e2e")
 STATE_DIR = os.path.join(tempfile.gettempdir(), "claude-engineering-insights")
+AGENT_ID_RE = re.compile(r"agentId: ([A-Za-z0-9_-]+)")
+TASK_DONE_RE = re.compile(r"<task-id>([A-Za-z0-9_-]+)</task-id>.*?<status>([a-z_]+)</status>", re.S)
 
 READ_REMINDER = (
     "engineering-insights READ (AGENTS.md): if this request touches server/, client/, "
@@ -72,6 +76,27 @@ def changed_packages(root, old, new):
     )
 
 
+def background_agents_running(transcript_path):
+    """True while an async subagent launched in this session has not reported back.
+
+    Launches leave `agentId: <id>` in a tool result; completion leaves a
+    `<task-notification>` with `<task-id><id></task-id>` and a terminal `<status>`.
+    WRAP-UP waits for them: the agents' own changes and insight candidates belong in it.
+    """
+    if not transcript_path or not os.path.isfile(transcript_path):
+        return False
+    launched, finished = set(), set()
+    with open(transcript_path, errors="replace") as f:
+        for line in f:
+            if "Async agent launched" in line:
+                launched.update(AGENT_ID_RE.findall(line))
+            if "<task-notification>" in line:
+                for task_id, status in TASK_DONE_RE.findall(line):
+                    if status != "running":
+                        finished.add(task_id)
+    return bool(launched - finished)
+
+
 def state_path(session_id):
     os.makedirs(STATE_DIR, exist_ok=True)
     safe = "".join(c for c in session_id if c.isalnum() or c in "-_") or "default"
@@ -107,6 +132,8 @@ def main():
     if mode == "stop":
         if payload.get("stop_hook_active"):
             return  # already continuing because of this hook: let it stop
+        if background_agents_running(payload.get("transcript_path")):
+            return  # keep the snapshot: WRAP-UP fires once the agents have reported back
         new = snapshot(root)
         old = load(state)
         save(state, new)  # one WRAP-UP per change set, never a loop

@@ -40,12 +40,16 @@ do not perform them, but do leave them a clear trail.
 
 ## Step 0 — load the plan
 
-The delegation message gives a plan path (`docs/plans/*.md`) or the plan inline. Read
-it whole. If there is no plan, or it lacks Steps/Files/"Done when", return
+The delegation message gives a plan path (`docs/plans/*.md`) or the plan inline — or,
+in a fix round, the plan path plus a list of findings (`file:line`, expected behaviour).
+Read the plan whole. If there is no plan, or it lacks Steps/Files/"Done when", return
 `STATUS: BLOCKED` asking for a planned task — do not plan it yourself.
 
-Then read `AGENTS.md` and `INSIGHTS.md` of every package the plan touches; they are
-high-confidence guidance. Check `git status` so you know which changes were already
+Then read `AGENTS.md` of every package the plan touches, and the plan's context pack
+(`docs/plans/<same name>.context.md`, linked in the plan header). The pack quotes every
+`INSIGHTS.md` line the planner found applicable — read it instead of the whole
+`INSIGHTS.md` files, and `grep` a package's `INSIGHTS.md` only for a path you touch that
+the pack does not mention. No pack → read the touched packages' `INSIGHTS.md` whole. Check `git status` so you know which changes were already
 there before you started — you own only your own diff.
 
 ## Step 1 — pick skills per file
@@ -53,7 +57,8 @@ there before you started — you own only your own diff.
 Before editing a file, match its path against
 `.claude/skills/pr-self-review/routing.json` (`rules[].include/exclude`, fnmatch, `**`
 = any depth; `content_rules`: a `.ts/.tsx` importing `zod` → `zod`) and invoke each
-matched skill with the Skill tool once per session. Start from the plan's Skill map,
+matched skill with the Skill tool once per session — all of them in one batch before
+your first edit (the plan's Skill map lists them), not during the self-check. Start from the plan's Skill map,
 but the table decides: a file the plan didn't foresee still gets its skills. Typical
 matches:
 
@@ -88,7 +93,12 @@ Project mechanics you must get right:
 
 ## Step 3 — verify your changes
 
-Run the gates for every package you changed (from inside the package):
+Finish with `./scripts/gates.sh` from the repo root (add `--integration` when DB code or
+`*.it.test.ts` changed and Postgres is up). It runs the table below for the changed
+packages, sequentially, and caches the result per working-tree state in
+`.devdigest/gates/<state>.json`, which the reviewers cite instead of re-running the same
+commands. While iterating on one failure, run just that command; run `gates.sh` again
+once green so the report matches your final diff. The table is what it runs:
 
 | Package | Commands |
 |---|---|
@@ -103,6 +113,14 @@ A failure caused by your change must be fixed. A failure in code you did not tou
 that your diff cannot reach is reported as pre-existing, with the evidence — do not
 fix it, and do not `git stash`/revert to prove it.
 
+If the change touches concurrency, cancellation, caching or shared in-flight work
+(single-flight, abort signals, locks, queues), write a throwaway scenario script in the
+session scratchpad (never in the repo) before reporting, and run at least: two
+concurrent callers; one caller cancels while the other waits; every caller cancels; a
+caller joins after the shared work was already aborted; the shared work fails. Put each
+scenario's one-line outcome in the report. Reviewers found such a race only by running
+exactly these scenarios.
+
 Then self-check your own diff (`git diff`, `git status`), limited to implementation
 quality:
 
@@ -113,33 +131,27 @@ quality:
 
 Do not do an architecture or security review — list what the reviewers should look at.
 
-## Output format (return exactly this)
+## Output format (return exactly this, ≤ 60 lines)
 
 ```
 # Implementation Report: <plan title>
 Plan: <path or "inline"> · Branch: <branch>@<short sha> (uncommitted changes)
 STATUS: DONE | PARTIAL | BLOCKED
+Gates: `.devdigest/gates/<state>.json` — <all green | failed: <gate ids>> · extra: <other commands run, exit>
+Skills: <comma list of skills loaded>
 
 ## Steps
-| Step | Status | Notes |
+| Step | Status | Notes (only if not plainly "done") |
 |---|---|---|
-| S1 | done / partial / not started / blocked | … |
 
 ## Changed files
-- A `path` — S1
-- M `path` — S2
-
-## Skills applied
-| Skill | Why (file / routing rule) | Rules applied |
-|---|---|---|
-
-## Verification (commands actually run)
-| Package | Command | Exit | Result |
-|---|---|---|---|
-| server | `pnpm test:unit` | 0 | 142 passed |
+- A `path` — S1 · M `path` — S2   (group per step, one line per step)
 
 ## Deviations from plan
 - <what> — <why the plan couldn't work as written>   (or "none")
+
+## Scenarios (only for concurrency/cancellation/caching changes)
+- <scenario> → <outcome>
 
 ## Not done / blockers / open questions
 - …   (or "none")
@@ -148,8 +160,7 @@ STATUS: DONE | PARTIAL | BLOCKED
 - <package>: <non-obvious fact verified in this run> — evidence: <command/file:line>   (or "none")
 
 ## For reviewers
-- Architecture: <files/decisions worth checking>
-- Security: <new inputs, external calls, secrets, auth — or "none">
+- Architecture: <files/decisions worth checking> · Security: <new inputs, external calls — or "none">
 ```
 
 Insight candidates are for the caller's `engineering-insights` wrap-up after review;
@@ -159,5 +170,6 @@ do not write INSIGHTS.md yourself.
 
 - STATUS matches reality: DONE only if every step is done and every gate you ran is
   green (or its failure is proven pre-existing).
-- Every command in "Verification" was actually run in this session.
+- The gates report is for your final working tree (`./scripts/gates.sh --state` matches
+  the state in the report path), and every extra command was actually run.
 - The diff contains only plan work plus listed deviations.

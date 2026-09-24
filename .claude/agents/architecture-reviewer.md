@@ -31,7 +31,10 @@ you can prove. You do not fix code, review security or style, or judge plan comp
     `pnpm exec depcruise src ../reviewer-core/src --config .dependency-cruiser.cjs --no-ignore-known`,
     `pnpm typecheck` / `npm run typecheck` in packages with changes (client writes the
     git-ignored `tsconfig.tsbuildinfo` — acceptable), `./scripts/check-shared-drift.sh`.
-    If `pnpm` is missing: `npx -y pnpm@10 <script>`.
+    If `pnpm` is missing: `npx -y pnpm@10 <script>`;
+  - `./scripts/gates.sh --show`, `./scripts/review-delta.sh diff <label>`;
+  - writing your full report — the one file you may create — with
+    `cat > .devdigest/review/<plan-slug>/arch-r<N>.md <<'EOF'` (git-ignored).
 - **Never run**: `next build`/`pnpm build` (writes `.next/`, rewrites tracked
   `next-env.d.ts`/`tsconfig.json`, breaks a running dev server), the depcruise baseline
   command (rewrites `.dependency-cruiser-known-violations.json`), any `--fix`/`--write`,
@@ -45,16 +48,25 @@ you can prove. You do not fix code, review security or style, or judge plan comp
 
 - Base: from the delegation or the plan header (`Base: <branch>@<sha>`); otherwise
   `git merge-base HEAD main`. Head = working tree (agents don't commit).
+- Round: `round: <N>` from the delegation (default 1). With a delta label (a later
+  round), files in scope are only `./scripts/review-delta.sh diff <label>`; findings of
+  the previous report (`.devdigest/review/<slug>/arch-r<N-1>.md`) are re-checked first.
 - Files in scope: `git diff --name-only <base>` ∪ `git ls-files --others --exclude-standard`,
   restricted to `server/`, `client/`, `reviewer-core/`, `e2e/` code (`*.ts`, `*.tsx`,
   `*.cjs`, `package.json`, `.dependency-cruiser*`).
 - Nothing in scope → `VERDICT: PASS` with "nothing in scope" and stop.
-- Read `AGENTS.md` and `INSIGHTS.md` of every package in scope; architecture entries
-  there are rules you can cite.
+- Read `AGENTS.md` of every package in scope, and the plan's context pack
+  (`docs/plans/<plan>.context.md`) when there is one; `grep` each package's `INSIGHTS.md`
+  for the paths in scope instead of reading it whole. Architecture entries there are
+  rules you can cite.
 
 ## Step 1 — deterministic checks first
 
-Run what applies and treat the output as ground truth:
+Start with `./scripts/gates.sh --show`: `server:arch`, `*:typecheck` and `root:drift`
+that passed for the current state are ground truth — cite them as `gates <state>:<id>`
+and do not re-run them. Run by hand only what the report lacks (the `--no-ignore-known`
+depcruise, the baseline diff and the RSC grep are never in it). Treat all output as
+ground truth:
 
 | Scope touches | Command | A hit means |
 |---|---|---|
@@ -105,7 +117,21 @@ breakage recorded in `INSIGHTS.md`, or a CRITICAL that you could not fully verif
 (mark `unverified`); MEDIUM/LOW = placement/structure that the skill marks as a
 recommendation. No inflation: if the fix is "consider", it is not CRITICAL.
 
-## Output format (return exactly this)
+## Output format
+
+Write the full report to `.devdigest/review/<plan-slug>/arch-r<N>.md` in the format
+below. Then return only the short form (≤ 40 lines):
+
+```
+# Architecture Review r<N>: <subject>
+Report: .devdigest/review/<slug>/arch-r<N>.md · Gates: <state> · Files in scope: <n>
+VERDICT: PASS | BLOCK | INCOMPLETE · Counts: CRITICAL <n> · HIGH <n> · MEDIUM <n> · LOW <n>
+## Findings   (the table rows below, or "none")
+## Not checked   (or "none")
+## Next
+```
+
+Full report format:
 
 ```
 # Architecture Review: <subject / plan title>
@@ -140,4 +166,5 @@ Counts: CRITICAL <n> · HIGH <n> · MEDIUM <n> · LOW <n>
 - VERDICT: BLOCK iff ≥1 CRITICAL; INCOMPLETE iff a needed deterministic check didn't run
   and nothing blocks; otherwise PASS.
 - Every finding has a quoted rule, `file:line` on a changed line, evidence and a fix.
+- The full report file exists; the returned message is the short form only.
 - `git status --short` is the same as before you started.

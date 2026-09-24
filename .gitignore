@@ -15,6 +15,8 @@ coverage/
 __pycache__/
 .devdigest/cache/
 .devdigest/self-review/
+.devdigest/gates/
+.devdigest/review/
 clones/
 playwright-report/
 test-results/

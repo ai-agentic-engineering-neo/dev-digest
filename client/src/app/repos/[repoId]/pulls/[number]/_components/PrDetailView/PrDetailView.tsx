@@ -38,7 +38,7 @@ export function PrDetailView({ repoId, number }: PrDetailViewProps) {
   const { data: pr, isLoading: detailLoading, isError, error, refetch } = usePullDetail(prId);
   const { data: reviews } = usePrReviews(prId);
   const { data: activeRuns, isPending: activeRunsPending } = usePrActiveRuns(prId);
-  const { tab, traceRunId, setTab, openTrace, closeTrace } = usePrDetailSearch(repoId, number);
+  const { tab, traceRunId, order, setTab, openTrace, closeTrace, setOrder } = usePrDetailSearch(repoId, number);
 
   // The real "owner/repo" (null until the repo is loaded) — for github.com deep-links.
   const repoFullName = activeRepo?.full_name ?? null;
@@ -96,7 +96,14 @@ export function PrDetailView({ repoId, number }: PrDetailViewProps) {
             />
           )}
           {tab === "diff" && (
-            <DiffTab prId={prId} filesCount={pr.files_count} files={pr.files} canComment={pr.status === "open"} />
+            <DiffTab
+              prId={prId}
+              filesCount={pr.files_count}
+              files={pr.files}
+              canComment={pr.status === "open"}
+              order={order}
+              onSetOrder={setOrder}
+            />
           )}
         </div>
         {traceRunId && !activeRunsPending && (

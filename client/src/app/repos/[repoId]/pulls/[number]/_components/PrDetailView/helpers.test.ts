@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { ReviewRecord } from "@devdigest/shared";
-import { countFindings, findPrId, parseTab, prDetailPath, withSearchParam } from "./helpers";
+import { countFindings, findPrId, parseOrder, parseTab, prDetailPath, withSearchParam } from "./helpers";
 
 describe("findPrId", () => {
   const pulls = [
@@ -31,6 +31,15 @@ describe("parseTab", () => {
     expect(parseTab("findings")).toBe("findings");
     expect(parseTab(null)).toBe("overview");
     expect(parseTab("bogus")).toBe("overview");
+  });
+});
+
+describe("parseOrder", () => {
+  it("accepts smart/original and falls back to smart", () => {
+    expect(parseOrder("smart")).toBe("smart");
+    expect(parseOrder("original")).toBe("original");
+    expect(parseOrder(null)).toBe("smart");
+    expect(parseOrder("bogus")).toBe("smart");
   });
 });
 

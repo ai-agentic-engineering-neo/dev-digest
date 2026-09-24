@@ -89,6 +89,7 @@ flowchart TB
   subgraph Review["Review & runs"]
     reviews["reviews<br/>/pulls/:id/review · /reviews · /findings/:id/(accept|dismiss)<br/>/runs/:id/(events|trace)"]
     intent["intent<br/>/pulls/:id/intent · /pulls/:id/intent/refresh"]
+    smartDiff["smart-diff<br/>/pulls/:id/smart-diff"]
   end
   subgraph Agents["Agents & skills"]
     agents["agents<br/>/agents · /agents/:id · /agents/:id/skills"]
@@ -158,6 +159,19 @@ Cached per PR, keyed by a hash of the title/body/branch/head sha/ticket
 refs/doc paths/model (never the ticket/doc bodies — those need a manual
 refresh). `REVIEW_INTENT_ENABLED=false` turns it off entirely (no call, no
 row, byte-identical prompt).
+
+### Smart Diff (`modules/smart-diff`, spec [`specs/06-smart-diff.md`](specs/06-smart-diff.md))
+
+| Method | Path | Result |
+|---|---|---|
+| GET | `/pulls/:id/smart-diff` | `SmartDiff` = files grouped by role (`core → tests → wiring → docs → boilerplate`, always all 5, each sorted by path), the newest review's finding lines attached, `split_suggestion` |
+
+Pure, model-free: `classifyFile` (fixed glob patterns/order in
+`domain/constants.ts`) sorts every PR file into a role; `finding_lines` come
+from the **newest** `reviews` row only (`desc(created_at)`, dismissed findings
+included). `classifyFile` is exported from the module's `index.ts` so a future
+pre-filter (L08) can reuse it without an HTTP round-trip. A PR from another
+workspace is a 404, same as every other `/pulls/:id/*` route.
 
 ## Environment
 

@@ -7,6 +7,7 @@ import {
   Risks,
   PrHistory,
   SmartDiff,
+  SmartDiffRole,
   Conformance,
   Onboarding,
   EvalRun,
@@ -116,6 +117,12 @@ describe('AI contracts parse fixtures', () => {
       split_suggestion: { too_big: false, total_lines: 285, proposed_splits: [] },
     });
     expect(d.groups[0]!.role).toBe('core');
+  });
+
+  it('SmartDiff parses tests and docs roles', () => {
+    expect(() => SmartDiff.parse({ groups: [], split_suggestion: { too_big: false, total_lines: 0, proposed_splits: [] } })).not.toThrow();
+    expect(SmartDiffRole.parse('tests')).toBe('tests');
+    expect(SmartDiffRole.parse('docs')).toBe('docs');
   });
 
   it('Conformance / Onboarding / EvalRun / MemoryItem', () => {

@@ -29,6 +29,7 @@ describe('Container composition root', () => {
       'reviews',
       'settings',
       'skills',
+      'smartDiff',
       'workspace',
     ]);
   });

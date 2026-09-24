@@ -8,15 +8,19 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import type { PrFile } from "@/lib/types";
 import { type DiffCommentApi } from "../comments";
+import type { DiffFindingApi, DiffFindingItem } from "../findings";
 import { s } from "../styles";
 import { FileCard } from "../FileCard";
 
-export function DiffViewer({
+export function DiffViewer<T extends DiffFindingItem = DiffFindingItem>({
   files,
   commenting,
+  findingApi,
 }: {
   files: PrFile[];
   commenting?: DiffCommentApi;
+  /** Findings slot (server/specs/06-smart-diff.md) — DiffViewer stays feature-agnostic; the caller supplies the data + card. */
+  findingApi?: DiffFindingApi<T>;
 }) {
   const t = useTranslations("shell");
   if (!files || files.length === 0) {
@@ -25,7 +29,7 @@ export function DiffViewer({
   return (
     <div style={s.list}>
       {files.map((f) => (
-        <FileCard key={f.path} file={f} commenting={commenting} />
+        <FileCard key={f.path} file={f} commenting={commenting} findingApi={findingApi} />
       ))}
     </div>
   );

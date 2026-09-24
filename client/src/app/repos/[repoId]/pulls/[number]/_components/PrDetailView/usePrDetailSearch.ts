@@ -2,8 +2,8 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { TAB_PARAM, TRACE_PARAM } from "./constants";
-import { parseTab, prDetailPath, withSearchParam } from "./helpers";
+import { ORDER_PARAM, TAB_PARAM, TRACE_PARAM, type DiffOrder } from "./constants";
+import { parseOrder, parseTab, prDetailPath, withSearchParam } from "./helpers";
 
 export function usePrDetailSearch(repoId: string, number: string) {
   const search = useSearchParams();
@@ -14,8 +14,10 @@ export function usePrDetailSearch(repoId: string, number: string) {
   return {
     tab: parseTab(search.get(TAB_PARAM)),
     traceRunId: search.get(TRACE_PARAM),
+    order: parseOrder(search.get(ORDER_PARAM)),
     setTab: (tab: string) => setParam(TAB_PARAM, tab),
     openTrace: (runId: string) => setParam(TRACE_PARAM, runId),
     closeTrace: () => setParam(TRACE_PARAM, null),
+    setOrder: (order: DiffOrder) => setParam(ORDER_PARAM, order),
   };
 }

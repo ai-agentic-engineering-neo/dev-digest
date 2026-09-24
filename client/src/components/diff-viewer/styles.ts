@@ -1,4 +1,6 @@
 import type { CSSProperties } from "react";
+import { SEV } from "@devdigest/ui";
+import type { Severity } from "@/lib/types";
 import type { Line } from "./helpers";
 
 /** Co-located styles for the DiffViewer (extracted from inline styles). */
@@ -29,6 +31,14 @@ export const s = {
     whiteSpace: "nowrap",
   } satisfies CSSProperties,
   fileStat: { fontSize: 12 } satisfies CSSProperties,
+  /** Dot beside a flagged file's path (server/specs/06-smart-diff.md) — distinct from the comment counter. */
+  findingDot: (severity: Severity): CSSProperties => ({
+    width: 7,
+    height: 7,
+    borderRadius: 99,
+    background: SEV[severity].c,
+    flexShrink: 0,
+  }),
   addText: { color: "var(--code-add-text)" } satisfies CSSProperties,
   delText: { color: "var(--code-del-text)" } satisfies CSSProperties,
   fileBody: {
@@ -75,10 +85,38 @@ export function chevronFor(open: boolean): CSSProperties {
   };
 }
 
-/** Row background per line kind (add/del tinted, others transparent). */
-export function lineRowFor(kind: Line["kind"]): CSSProperties {
+/** Row background per line kind (add/del tinted, others transparent), plus an
+ *  optional left stripe when a finding anchors here (server/specs/06-smart-diff.md).
+ *  Sets `borderLeftColor` alone, never the `border`/`borderColor` shorthand,
+ *  so it never clobbers a sibling border rule (client/INSIGHTS.md). */
+export function lineRowFor(kind: Line["kind"], severity?: Severity | null): CSSProperties {
   const background = kind === "add" ? "var(--code-add)" : kind === "del" ? "var(--code-del)" : "transparent";
-  return { display: "flex", alignItems: "stretch", fontSize: 13, lineHeight: "20px", background };
+  return {
+    display: "flex",
+    alignItems: "stretch",
+    fontSize: 13,
+    lineHeight: "20px",
+    background,
+    borderLeftWidth: 3,
+    borderLeftStyle: "solid",
+    borderLeftColor: severity ? SEV[severity].c : "transparent",
+  };
+}
+
+/** Right-aligned severity label on a finding's line ("blocker" / "warning" / "suggestion"). */
+export function findingLabelFor(severity: Severity): CSSProperties {
+  return {
+    marginLeft: "auto",
+    paddingLeft: 10,
+    paddingRight: 12,
+    fontSize: 11,
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: "0.04em",
+    color: SEV[severity].c,
+    whiteSpace: "nowrap",
+    alignSelf: "center",
+  };
 }
 
 /** Gutter sign colour per line kind. */

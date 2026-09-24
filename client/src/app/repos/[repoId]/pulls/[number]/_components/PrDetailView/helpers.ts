@@ -1,5 +1,5 @@
 import type { PrMeta, ReviewRecord } from "@devdigest/shared";
-import { DEFAULT_TAB, PR_TABS, type PrTab } from "./constants";
+import { DEFAULT_ORDER, DEFAULT_TAB, DIFF_ORDERS, PR_TABS, type DiffOrder, type PrTab } from "./constants";
 
 /** The route is keyed by PR number, every PR API by the row's uuid: resolve it from the pulls list. */
 export function findPrId(pulls: readonly Pick<PrMeta, "id" | "number">[] | undefined, number: string): string | null {
@@ -14,6 +14,11 @@ export function countFindings(reviews: readonly ReviewRecord[] | undefined): num
 /** Unknown / missing ?tab values fall back to the default tab. */
 export function parseTab(raw: string | null): PrTab {
   return (PR_TABS as readonly string[]).includes(raw ?? "") ? (raw as PrTab) : DEFAULT_TAB;
+}
+
+/** Unknown / missing ?order values fall back to "smart" (server/specs/06-smart-diff.md). */
+export function parseOrder(raw: string | null): DiffOrder {
+  return (DIFF_ORDERS as readonly string[]).includes(raw ?? "") ? (raw as DiffOrder) : DEFAULT_ORDER;
 }
 
 /** `search` with `key` set (or removed when `value` is null), as "?…" or "" when empty. */

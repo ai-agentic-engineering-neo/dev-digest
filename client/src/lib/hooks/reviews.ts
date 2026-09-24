@@ -29,6 +29,9 @@ function invalidateRunScoped(qc: QueryClient, prId: string | null | undefined) {
   qc.invalidateQueries({ queryKey: prKeys.reviews(prId) });
   // A review may have derived/refreshed the PR's intent (server/specs/05-intent-layer.md).
   qc.invalidateQueries({ queryKey: prKeys.intent(prId) });
+  // ...and it changes which review is "newest" for Smart Diff's finding_lines
+  // (server/specs/06-smart-diff.md).
+  qc.invalidateQueries({ queryKey: prKeys.smartDiff(prId) });
 }
 
 // ---- Active (in-flight) runs — server-side source of truth ----
@@ -76,6 +79,7 @@ export function useDeleteRun(prId: string | null | undefined) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: prKeys.runs(prId) });
       qc.invalidateQueries({ queryKey: prKeys.reviews(prId) });
+      qc.invalidateQueries({ queryKey: prKeys.smartDiff(prId) });
     },
   });
 }
@@ -96,7 +100,10 @@ export function useDeleteReview(prId: string | null | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (reviewId: string) => api.del<{ ok: boolean }>(`/reviews/${reviewId}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: prKeys.reviews(prId) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: prKeys.reviews(prId) });
+      qc.invalidateQueries({ queryKey: prKeys.smartDiff(prId) });
+    },
   });
 }
 
@@ -185,7 +192,10 @@ export function useFindingAction(prId: string) {
     onError: (_err, _vars, context) => {
       if (context?.previous) qc.setQueryData(key, context.previous);
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: key }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: key });
+      qc.invalidateQueries({ queryKey: prKeys.smartDiff(prId) });
+    },
   });
 }
 
@@ -245,4 +255,17 @@ export function useRunEvents(runIds: string[]): { events: RunEvent[]; running: b
       running: states.some((st) => !st || !st.done),
     };
   }, [ids, snapshot]);
+}
+
+/**
+ * Mounts this PR's active runs' SSE streams so a finished run refreshes
+ * run-scoped queries (Smart Diff's counters/dots included) even on a screen
+ * that renders no run-status UI, e.g. the Files changed tab
+ * (server/specs/06-smart-diff.md, "Live update").
+ */
+export function useLiveRunRefresh(prId: string | null | undefined): void {
+  const { data: activeRuns } = usePrActiveRuns(prId);
+  const key = (activeRuns ?? []).map((r) => r.run_id).join(",");
+  const runIds = React.useMemo(() => (key ? key.split(",") : []), [key]);
+  useRunEvents(runIds);
 }

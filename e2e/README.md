@@ -140,3 +140,4 @@ a CI artifact by `.github/workflows/e2e-web.yml`).
 | `09-run-review-mock` | *(mock LLM)* Run Review ▾ → Security Reviewer → live "Review in progress" → run ends → mock findings + new timeline tile |
 | `10-finding-actions` | *(mock LLM, after 09)* Accept one finding, Dismiss the other → tags shown → reload → tags persisted |
 | `11-skills` | *(mock LLM, after 09)* /skills shows seeded skills → create a skill → link it in Security Reviewer's Skills tab → reload → still linked → run a review → the run trace lists the skill + version |
+| `12-smart-diff` | PR #482 → Files changed → seeded review's findings show as a role-group counter (`Core` `● 2`) → Original order flattens the groups and is kept in `?order=` |

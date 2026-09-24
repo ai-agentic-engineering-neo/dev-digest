@@ -179,6 +179,11 @@ sequenceDiagram
   missing key, timeout or provider error only logs `warning: intent
   unavailable — …` and the run proceeds without it (server/specs/
   05-intent-layer.md).
+- **Smart Diff is independent of a review, and free of a model call.**
+  `GET /pulls/:id/smart-diff` classifies every PR file by role as soon as
+  `pr_files` exists — before any review has run. Once a review exists, it
+  reads only the **newest** row's findings for `finding_lines`; older reviews'
+  findings never appear there (server/specs/06-smart-diff.md).
 
 ## Things that aren't obvious
 
@@ -209,6 +214,7 @@ sequenceDiagram
 | Trigger | `server/src/modules/reviews/routes.ts`, `server/src/modules/reviews/application/review-service.ts` |
 | Execution | `server/src/modules/reviews/application/run-executor.ts` (+ `diff-loader.ts`, `intent-prework.ts`, `prompt-context.ts`), rules in `reviews/domain/` |
 | Intent | `server/src/modules/intent/` (`application/intent-service.ts`, `domain/{links,intent,classification}.ts`, `infrastructure/{doc-source,ticket-source,llm-model,repository}.ts`) — server/specs/05-intent-layer.md |
+| Smart Diff | `server/src/modules/smart-diff/` (`domain/{classify,smart-diff,constants}.ts`, `application/smart-diff-service.ts`, `infrastructure/repository.ts`) — server/specs/06-smart-diff.md |
 | Engine | `reviewer-core/src/review/run.ts`, `reviewer-core/src/prompt.ts` (`renderIntent`, `INTENT_SCOPE_RULE`), `reviewer-core/src/grounding.ts`, `reviewer-core/src/review/scope.ts` (`applyScopePolicy`), `reviewer-core/src/review/reduce.ts` |
 | Live events | `server/src/platform/sse.ts` |
 | Client | `client/src/lib/hooks/reviews.ts`, `client/src/app/repos/[repoId]/pulls/[number]/page.tsx` and its `_components/` |

@@ -9,6 +9,7 @@ import {
   applyFindingAction,
   useCancelRun,
   useCreatePrComment,
+  useDeleteReview,
   useDeleteRun,
   useFindingAction,
   useRunEvents,
@@ -62,6 +63,7 @@ function seededClient(): QueryClient {
     qc.setQueryData(prKeys.runs(pr), []);
     qc.setQueryData(prKeys.reviews(pr), REVIEWS);
     qc.setQueryData(prKeys.comments(pr), []);
+    qc.setQueryData(prKeys.smartDiff(pr), { groups: [], split_suggestion: { too_big: false, total_lines: 0, proposed_splits: [] } });
   }
   return qc;
 }
@@ -75,6 +77,7 @@ function runScopedState(qc: QueryClient) {
       [`${pr}.activeRuns`, invalidated(qc, prKeys.activeRuns(pr))],
       [`${pr}.runs`, invalidated(qc, prKeys.runs(pr))],
       [`${pr}.reviews`, invalidated(qc, prKeys.reviews(pr))],
+      [`${pr}.smartDiff`, invalidated(qc, prKeys.smartDiff(pr))],
       [`${pr}.detail`, invalidated(qc, prKeys.detail(pr))],
     ]),
   );
@@ -84,10 +87,12 @@ const PR1_RUN_SCOPED_ONLY = {
   "pr1.activeRuns": true,
   "pr1.runs": true,
   "pr1.reviews": true,
+  "pr1.smartDiff": true,
   "pr1.detail": false,
   "pr2.activeRuns": false,
   "pr2.runs": false,
   "pr2.reviews": false,
+  "pr2.smartDiff": false,
   "pr2.detail": false,
 };
 
@@ -130,7 +135,21 @@ describe("run mutations own their invalidation", () => {
 
     expect(invalidated(queryClient, prKeys.runs("pr1"))).toBe(true);
     expect(invalidated(queryClient, prKeys.reviews("pr1"))).toBe(true);
+    expect(invalidated(queryClient, prKeys.smartDiff("pr1"))).toBe(true);
     expect(invalidated(queryClient, prKeys.runs("pr2"))).toBe(false);
+  });
+
+  it("useDeleteReview refreshes that PR's reviews and smart-diff, not another PR's", async () => {
+    mockFetch({ "DELETE /reviews/rv1": { ok: true } });
+    const { result, queryClient } = renderHookWithProviders(() => useDeleteReview("pr1"), {
+      queryClient: seededClient(),
+    });
+
+    await act(() => result.current.mutateAsync("rv1"));
+
+    expect(invalidated(queryClient, prKeys.reviews("pr1"))).toBe(true);
+    expect(invalidated(queryClient, prKeys.smartDiff("pr1"))).toBe(true);
+    expect(invalidated(queryClient, prKeys.smartDiff("pr2"))).toBe(false);
   });
 
   it("useCreatePrComment refreshes only that PR's comments", async () => {
@@ -174,6 +193,7 @@ describe("useFindingAction", () => {
     await act(async () => release(jsonResponse({ finding: { id: "f1" } })));
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(invalidated(queryClient, prKeys.reviews("pr1"))).toBe(true);
+    expect(invalidated(queryClient, prKeys.smartDiff("pr1"))).toBe(true);
     expect(invalidated(queryClient, prKeys.reviews("pr2"))).toBe(false);
   });
 
@@ -229,6 +249,7 @@ describe("useRunEvents", () => {
     expect(invalidated(queryClient, prKeys.runs("pr1"))).toBe(true);
     expect(invalidated(queryClient, prKeys.activeRuns("pr1"))).toBe(true);
     expect(invalidated(queryClient, prKeys.reviews("pr1"))).toBe(true);
+    expect(invalidated(queryClient, prKeys.smartDiff("pr1"))).toBe(true);
     expect(invalidated(queryClient, prKeys.comments("pr1"))).toBe(false);
     expect(invalidated(queryClient, prKeys.detail("pr1"))).toBe(false);
   });

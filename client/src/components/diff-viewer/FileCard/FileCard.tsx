@@ -15,9 +15,11 @@ import {
   type CommentThread,
   type DiffCommentApi,
 } from "../comments";
+import { findingKey, partitionFindings, topSeverity, type DiffFindingApi, type DiffFindingItem } from "../findings";
 import { s, chevronFor } from "../styles";
 import { CodeLine } from "../CodeLine";
 import { OutdatedComments } from "../OutdatedComments";
+import { UnmatchedFindings } from "../UnmatchedFindings";
 
 /** Threads anchored to a given parsed line (RIGHT=new, LEFT=old). */
 function threadsForLine(ln: Line, matched: Map<string, CommentThread[]>): CommentThread[] {
@@ -30,7 +32,15 @@ function threadsForLine(ln: Line, matched: Map<string, CommentThread[]>): Commen
   return out;
 }
 
-export function FileCard({ file, commenting }: { file: PrFile; commenting?: DiffCommentApi }) {
+export function FileCard<T extends DiffFindingItem>({
+  file,
+  commenting,
+  findingApi,
+}: {
+  file: PrFile;
+  commenting?: DiffCommentApi;
+  findingApi?: DiffFindingApi<T>;
+}) {
   const t = useTranslations("shell");
   const [open, setOpen] = React.useState(
     (file.additions ?? 0) + (file.deletions ?? 0) <= AUTO_EXPAND_MAX_LINES
@@ -52,6 +62,23 @@ export function FileCard({ file, commenting }: { file: PrFile; commenting?: Diff
     ? commenting.comments.filter((c) => c.path === file.path).length
     : 0;
 
+  // This file's findings, split into ones a rendered line can anchor vs.
+  // "unmatched" (server/specs/06-smart-diff.md) — the dot uses the flagged
+  // set, not this partition, so it stays lit even while collapsed.
+  const { matched: matchedFindings, unmatched: unmatchedFindings } = React.useMemo(() => {
+    if (!findingApi) return { matched: new Map<string, T[]>(), unmatched: [] as T[] };
+    return partitionFindings(findingApi.items, file.path, lines);
+  }, [findingApi, file.path, lines]);
+  const flagged = findingApi?.flagged.has(file.path) ?? false;
+  const dotSeverity = flagged
+    ? topSeverity(findingApi!.items.filter((i) => i.file === file.path))
+    : null;
+
+  const findingsForLine = (ln: Line): T[] => {
+    if (matchedFindings.size === 0 || ln.newNo == null) return [];
+    return matchedFindings.get(findingKey(ln.newNo)) ?? [];
+  };
+
   return (
     <div style={s.fileCard}>
       <div onClick={() => setOpen((o) => !o)} style={s.fileHeader}>
@@ -60,6 +87,7 @@ export function FileCard({ file, commenting }: { file: PrFile; commenting?: Diff
         <span className="mono" style={s.filePath}>
           {file.path}
         </span>
+        {dotSeverity && <span aria-label={t("diffViewer.hasFindings")} style={s.findingDot(dotSeverity)} />}
         <span className="mono tnum" style={s.fileStat}>
           <span style={s.addText}>+{file.additions}</span>{" "}
           <span style={s.delText}>−{file.deletions}</span>
@@ -85,10 +113,13 @@ export function FileCard({ file, commenting }: { file: PrFile; commenting?: Diff
                 path={file.path}
                 threads={threadsForLine(ln, matched)}
                 commenting={commenting}
+                findings={findingsForLine(ln)}
+                findingApi={findingApi}
               />
             ))
           )}
           {commenting && commenting.showComments && <OutdatedComments threads={outdated} />}
+          {findingApi && <UnmatchedFindings items={unmatchedFindings} findingApi={findingApi} />}
         </div>
       )}
     </div>

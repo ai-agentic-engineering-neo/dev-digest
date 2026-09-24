@@ -1,4 +1,16 @@
 {
+  "permissions": {
+    "deny": [
+      "Bash(docker compose down -v*)",
+      "Bash(docker compose down --volumes*)",
+      "Bash(docker-compose down -v*)",
+      "Bash(docker-compose down --volumes*)",
+      "Bash(*biome check --write*)",
+      "Bash(*biome check --fix*)",
+      "Bash(*biome format*)",
+      "Bash(git push*)"
+    ]
+  },
   "hooks": {
     "UserPromptSubmit": [
       {

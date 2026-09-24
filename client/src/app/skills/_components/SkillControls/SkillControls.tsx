@@ -27,7 +27,7 @@ export function SkillControls({
   return (
     <span onClick={stop} onKeyDown={stop} style={s.wrap}>
       {/* The label names the switch. */}
-      <label style={s.wrap}>
+      <label style={s.label}>
         <span style={s.srOnly}>{t("card.enableLabel", { name: skill.name })}</span>
         <Toggle on={skill.enabled} onChange={(enabled) => toggle.mutate({ id: skill.id, enabled })} size={14} />
       </label>

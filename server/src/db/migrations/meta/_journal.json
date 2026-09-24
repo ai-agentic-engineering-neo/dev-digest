@@ -78,6 +78,34 @@
       "when": 1789988160650,
       "tag": "0010_tearful_patch",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1790077537140,
+      "tag": "0011_integrity_indexes_checks",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1790089583346,
+      "tag": "0012_skills",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1790096841809,
+      "tag": "0013_conventions_extractor",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1790096845252,
+      "tag": "0014_conventions_drop_legacy",
+      "breakpoints": true
     }
   ]
 }

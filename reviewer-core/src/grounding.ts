@@ -38,10 +38,18 @@ export function buildLineIndex(diff: UnifiedDiff): Map<string, Set<number>> {
   return idx;
 }
 
+/**
+ * True when some hunk line falls in [start, end] (either order). Iterates the
+ * (small) hunk-line set, never the model-supplied range — a reply with
+ * end_line 1e12 must not turn the gate into a CPU-bound hang. Non-finite
+ * bounds are rejected outright; negative lines simply match nothing.
+ */
 function rangeIntersects(lines: Set<number>, start: number, end: number): boolean {
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return false;
   const lo = Math.min(start, end);
   const hi = Math.max(start, end);
-  for (let n = lo; n <= hi; n++) if (lines.has(n)) return true;
+  if (hi < 1) return false;
+  for (const n of lines) if (n >= lo && n <= hi) return true;
   return false;
 }
 

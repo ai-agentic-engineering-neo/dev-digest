@@ -59,4 +59,3 @@ export function FindingsHover({
     </div>
   );
 }
-export default FindingsHover;

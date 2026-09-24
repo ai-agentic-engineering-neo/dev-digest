@@ -18,3 +18,9 @@ export const severityCounts = countBySeverity;
 export function filterBySeverity(findings: FindingRecord[], severity: Severity | null): FindingRecord[] {
   return severity ? findings.filter((f) => f.severity === severity) : findings;
 }
+
+/** True when a key event comes from a text field — shortcuts must not fire while typing. */
+export function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
+}

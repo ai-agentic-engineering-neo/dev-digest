@@ -38,6 +38,11 @@ export interface CompletionRequest {
   temperature?: number;
   maxTokens?: number;
   timeoutMs?: number;
+  /**
+   * Aborts the in-flight request (e.g. the user cancelled the run). Providers
+   * pass it to the SDK call; an aborted call rejects and is never retried.
+   */
+  signal?: AbortSignal;
 }
 
 export interface CompletionResult {
@@ -68,6 +73,11 @@ export interface StructuredRequest<T> {
    * error it throws.
    */
   onUsage?: (usage: LlmUsage) => void;
+  /**
+   * Aborts the in-flight request (e.g. the user cancelled the run). Providers
+   * pass it to the SDK call; an aborted call rejects and is never retried.
+   */
+  signal?: AbortSignal;
   /**
    * OpenRouter session id — groups related generations (e.g. all map-reduce
    * chunks of one review) into a session in the OpenRouter dashboard. Sent as
@@ -185,6 +195,8 @@ export interface GitHubClient {
 export interface CloneOptions {
   depth?: number;
   branch?: string;
+  /** Kills the git process when aborted (job timeout / shutdown). */
+  signal?: AbortSignal;
 }
 
 export interface DiffHunk {
@@ -226,7 +238,7 @@ export interface GitClient {
    * `fetch` (which only moves remote-tracking refs), this moves local HEAD so a
    * subsequent index reflects the latest code. Returns the new HEAD sha.
    */
-  sync(repo: RepoRef, branch: string): Promise<{ head: string }>;
+  sync(repo: RepoRef, branch: string, opts?: { signal?: AbortSignal }): Promise<{ head: string }>;
   currentHead(repo: RepoRef): Promise<string>;
   diff(repo: RepoRef, base: string, head: string): Promise<UnifiedDiff>;
   /**

@@ -82,3 +82,8 @@ export function parseWithRepair<T>(schema: z.ZodType<T>, raw: string): ParseResu
     repromptMessage: `Your JSON did not match the required schema. Fix these and return ONLY valid JSON:\n${issues}`,
   };
 }
+
+/** Cut `s` to `max` chars, marking the cut with `…` (for error diagnostics). */
+export function truncate(s: string, max: number): string {
+  return s.length <= max ? s : `${s.slice(0, max)}…`;
+}

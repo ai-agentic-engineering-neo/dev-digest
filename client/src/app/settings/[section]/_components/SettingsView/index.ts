@@ -1,1 +1,1 @@
-export { SettingsView, SettingsView as default } from "./SettingsView";
+export { SettingsView } from "./SettingsView";

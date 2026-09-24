@@ -34,7 +34,8 @@
       "memoryPulled": "Memory pulled",
       "specsRead": "Specs read",
       "items": "{count, plural, one {# item} other {# items}}",
-      "none": "none"
+      "none": "none",
+      "skills": "Skills"
     },
     "stat": {
       "duration": "DURATION",
@@ -50,6 +51,7 @@
       "specs": "Project context (dynamic)",
       "callers": "Callers of changed symbols — repo-intel (dynamic)",
       "user": "User / diff (dynamic)",
+      "tokens": "~{tokens} tokens",
       "copy": "Copy",
       "fullscreen": "Open fullscreen",
       "search": "Search in this block…",
@@ -58,7 +60,8 @@
     "tools": {
       "args": "args",
       "result": "result",
-      "previewTruncated": "(preview truncated)"
+      "previewTruncated": "(preview truncated)",
+      "ms": "{ms}ms"
     }
   },
   "drawer": {
@@ -68,10 +71,14 @@
     "running": "running",
     "completed": "completed",
     "copyRawOutput": "Copy raw output",
-  "copied": "Copied!",
+    "copied": "Copied!",
     "tracePending": "Trace is written when the run completes — see the Live log tab.",
     "loadingTrace": "Loading trace…",
-    "noTrace": "No trace available yet."
+    "noTrace": "No trace available yet.",
+    "tabs": {
+      "trace": "trace",
+      "log": "log"
+    }
   },
   "stats": {
     "na": "n/a",

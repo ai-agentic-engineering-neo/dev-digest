@@ -4,10 +4,12 @@ import type { CSSProperties } from "react";
 export const s = {
   card: (focused: boolean, sevColor: string, muted: boolean): CSSProperties => ({
     borderRadius: 8,
-    // All-longhand (never mix `border` shorthand with `borderLeft` — React warns
-    // about updating shorthand + non-shorthand on the same rerender).
+    // Per-side longhands only: `borderColor` is itself a shorthand of the four
+    // side colors, so changing it next to `borderLeftColor` makes React warn.
     borderStyle: "solid",
-    borderColor: focused ? sevColor : "var(--border)",
+    borderTopColor: focused ? sevColor : "var(--border)",
+    borderRightColor: focused ? sevColor : "var(--border)",
+    borderBottomColor: focused ? sevColor : "var(--border)",
     borderWidth: 1,
     borderLeftWidth: 3,
     borderLeftColor: sevColor,
@@ -33,6 +35,12 @@ export const s = {
     flexWrap: "wrap",
   } satisfies CSSProperties,
   title: (muted: boolean, dismissed: boolean): CSSProperties => ({
+    padding: 0,
+    border: "none",
+    background: "none",
+    font: "inherit",
+    textAlign: "left",
+    cursor: "pointer",
     fontSize: 14,
     fontWeight: 600,
     color: muted ? "var(--text-muted)" : "var(--text-primary)",

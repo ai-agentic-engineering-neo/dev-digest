@@ -1,1 +1,1 @@
-export { PrDetailHeader, PrDetailHeader as default } from "./PrDetailHeader";
+export { PrDetailHeader } from "./PrDetailHeader";

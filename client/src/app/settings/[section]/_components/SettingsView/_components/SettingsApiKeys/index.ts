@@ -1,1 +1,1 @@
-export { SettingsApiKeys, SettingsApiKeys as default } from "./SettingsApiKeys";
+export { SettingsApiKeys } from "./SettingsApiKeys";

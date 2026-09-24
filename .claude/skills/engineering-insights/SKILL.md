@@ -39,5 +39,5 @@ When something passes the gate (step 3.2), keep a one-line draft of it. Fixes co
 ## Never
 - Rewrite, reorder, merge, reformat or delete existing entries — pruning is a human review, not this skill.
 - Write the same fact into two packages' files.
-- Record generic knowledge, one-off issues, or what README/CLAUDE.md already say.
+- Record generic knowledge, one-off issues, or what README/AGENTS.md already say.
 - Keep appending when a section passes ~30 bullets: tell the user and propose a split (e.g. `INSIGHTS-db.md`).

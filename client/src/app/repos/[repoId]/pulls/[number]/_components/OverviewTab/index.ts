@@ -1,1 +1,1 @@
-export { OverviewTab, OverviewTab as default } from "./OverviewTab";
+export { OverviewTab } from "./OverviewTab";

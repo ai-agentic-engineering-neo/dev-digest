@@ -1,0 +1,1 @@
+export { PrDetailSkeleton } from "./PrDetailSkeleton";

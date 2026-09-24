@@ -1,8 +1,6 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
-import { NextIntlClientProvider } from "next-intl";
+import { renderWithProviders, screen, cleanup } from "@/test/render";
 import type { FindingRecord } from "@devdigest/shared";
-import messages from "../../../../../../../../messages/en/prReview.json";
 import { FindingCard } from "./FindingCard";
 
 afterEach(cleanup);
@@ -26,18 +24,10 @@ const FINDING: FindingRecord = {
   dismissed_at: null,
 };
 
-function renderWithIntl(ui: React.ReactElement) {
-  return render(
-    <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
-      {ui}
-    </NextIntlClientProvider>,
-  );
-}
-
 describe("FindingCard (smoke, both themes)", () => {
   (["dark", "light"] as const).forEach((theme) => {
     it(`renders severity + file:line + rationale in ${theme}`, () => {
-      renderWithIntl(
+      renderWithProviders(
         <div data-theme={theme}>
           <FindingCard f={FINDING} defaultExpanded onAction={() => {}} />
         </div>,
@@ -49,12 +39,35 @@ describe("FindingCard (smoke, both themes)", () => {
     });
   });
 
-  it("fires accept/dismiss actions", () => {
+  it("fires accept/dismiss actions", async () => {
     const onAction = vi.fn();
-    renderWithIntl(<FindingCard f={FINDING} defaultExpanded onAction={onAction} />);
-    fireEvent.click(screen.getByText("Accept"));
+    const { user } = renderWithProviders(<FindingCard f={FINDING} defaultExpanded onAction={onAction} />);
+    await user.click(screen.getByText("Accept"));
     expect(onAction).toHaveBeenCalledWith("accept");
-    fireEvent.click(screen.getByText("Dismiss"));
+    await user.click(screen.getByText("Dismiss"));
     expect(onAction).toHaveBeenCalledWith("dismiss");
+  });
+});
+
+describe("FindingCard — accessible toggle", () => {
+  it("the title is a button that expands and collapses the details", async () => {
+    const { user } = renderWithProviders(<FindingCard f={FINDING} onAction={() => {}} />);
+    const toggle = screen.getByRole("button", { name: "Hardcoded Stripe secret key" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("Accept")).toBeNull();
+    toggle.focus();
+    await user.keyboard("{Enter}");
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Accept")).toBeInTheDocument();
+    await user.keyboard(" ");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("clicking the header area still toggles (single toggle, not twice)", async () => {
+    const { user } = renderWithProviders(<FindingCard f={FINDING} onAction={() => {}} />);
+    await user.click(screen.getByText("security"));
+    expect(screen.getByRole("button", { name: "Hardcoded Stripe secret key" })).toHaveAttribute("aria-expanded", "true");
+    await user.click(screen.getByRole("button", { name: "Hardcoded Stripe secret key" }));
+    expect(screen.getByRole("button", { name: "Hardcoded Stripe secret key" })).toHaveAttribute("aria-expanded", "false");
   });
 });

@@ -1,1 +1,1 @@
-export { RunReviewDropdown, RunReviewDropdown as default } from "./RunReviewDropdown";
+export { RunReviewDropdown } from "./RunReviewDropdown";

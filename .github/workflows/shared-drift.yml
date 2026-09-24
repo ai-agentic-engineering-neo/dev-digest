@@ -1,0 +1,36 @@
+# Shared-contract drift — @devdigest/shared is vendored twice
+# (server/src/vendor/shared = source of truth, client/src/vendor/shared = copy).
+# Fails when the two copies are not byte-identical. No install needed: the
+# check is a plain `diff -r` (scripts/check-shared-drift.sh).
+name: shared drift
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/src/vendor/shared/**'
+      - 'client/src/vendor/shared/**'
+      - 'scripts/check-shared-drift.sh'
+      - '.github/workflows/shared-drift.yml'
+  pull_request:
+    paths:
+      - 'server/src/vendor/shared/**'
+      - 'client/src/vendor/shared/**'
+      - 'scripts/check-shared-drift.sh'
+      - '.github/workflows/shared-drift.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: shared-drift-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  drift:
+    name: vendored copies identical
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - run: bash scripts/check-shared-drift.sh

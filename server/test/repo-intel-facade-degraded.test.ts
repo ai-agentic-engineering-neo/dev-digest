@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { RepoIntelService } from '../src/modules/repo-intel/service.js';
-import type { RepoBasics } from '../src/modules/repo-intel/repository.js';
+import type { RepoIntelDeps } from '../src/modules/repo-intel/application/ports.js';
+import type { RepoBasics } from '../src/modules/repo-intel/domain/model.js';
 import type { IndexState } from '../src/modules/repo-intel/types.js';
 
 /**
@@ -11,33 +12,44 @@ import type { IndexState } from '../src/modules/repo-intel/types.js';
  * blast, hooks) downgrade to their pre-T1.3 behavior on these returns; if any
  * method threw or returned malformed shape, every consumer would crash.
  *
- * No Postgres, no clone. The service's `repo` (RepoIntelRepository) is patched
- * to return null/[] so we exercise the degraded paths cleanly.
+ * No Postgres, no clone. The service gets in-memory fakes of its ports that
+ * return null/[] so we exercise the degraded paths cleanly.
  */
 
 function buildDegradedService(opts: {
   flag: boolean;
-  basics?: RepoBasics | null;
+  basics?: Omit<RepoBasics, 'defaultBranch'> | null;
   indexStateRow?: IndexState | null;
 }): RepoIntelService {
-  const container = {
-    config: { repoIntelEnabled: opts.flag },
-    db: {} as never,
-    // codeIndex is reached by getBlastRadius; we stub minimal behaviour.
-    codeIndex: {
-      symbols: async () => [],
-      references: async () => [],
-    } as never,
-  } as never;
-  const svc = new RepoIntelService(container);
-  (svc as unknown as { repo: Record<string, unknown> }).repo = {
-    getRepoBasics: async () => opts.basics ?? null,
+  const basics = opts.basics ? { defaultBranch: 'main', ...opts.basics } : null;
+  const reader = {
+    getRepoBasics: async () => basics,
     tryGetIndexState: async () => opts.indexStateRow ?? null,
-    getCachedSymbols: async () => [],
-    getCachedSymbolsForFiles: async () => [],
-    getCachedReferencesTo: async () => [],
+    getSymbolRows: async () => [],
+    getResolvedCallers: async () => [],
+    getFileFacts: async () => [],
+    getFileRankFor: async () => [],
+    getRankedPaths: async () => [],
+    getEdges: async () => [],
+    getRepoMapCache: async () => null,
   };
-  return svc;
+  const noop = async () => {};
+  const deps = {
+    enabled: opts.flag,
+    reader,
+    state: { upsertIndexState: noop, touchIndexState: noop, advanceSha: noop },
+    tx: { run: async () => { throw new Error('no writes expected'); } },
+    git: {} as never,
+    // codeIndex is reached by getBlastRadius; minimal behaviour.
+    codeIndex: { grep: async () => [], symbols: async () => [], references: async () => [] },
+    analyzer: {} as never,
+    files: { walk: async () => ({ files: [], stats: { totalCandidates: 0, skippedTooLarge: 0, bounded: 0 } }), read: async () => { throw new Error('no clone'); } },
+    graph: { buildEdges: async () => [] },
+    tokenizer: { count: () => 0 },
+    jobs: { enqueue: async () => ({ id: 'j1' }) },
+    parseConcurrency: 1,
+  } satisfies RepoIntelDeps;
+  return new RepoIntelService(deps);
 }
 
 describe('RepoIntel facade — degraded contract (flag off)', () => {

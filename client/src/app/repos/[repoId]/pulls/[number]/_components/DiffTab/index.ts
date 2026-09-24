@@ -1,1 +1,1 @@
-export { DiffTab, DiffTab as default } from "./DiffTab";
+export { DiffTab } from "./DiffTab";

@@ -1,4 +1,4 @@
-# Server integration suite — the 12 DB-backed test files (`*.it.test.ts`).
+# Server integration suite — the DB-backed test files (`*.it.test.ts`).
 #
 # Each spins up a real Postgres (pgvector) via testcontainers, builds the
 # Fastify app, migrates + seeds, and exercises the routes end-to-end against
@@ -15,10 +15,14 @@ on:
     branches: [main]
     paths:
       - 'server/**'
+      - 'reviewer-core/src/**'
+      - '.nvmrc'
       - '.github/workflows/server-integration.yml'
   pull_request:
     paths:
       - 'server/**'
+      - 'reviewer-core/src/**'
+      - '.nvmrc'
       - '.github/workflows/server-integration.yml'
 
 permissions:
@@ -36,15 +40,15 @@ jobs:
       run:
         working-directory: server
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
         with:
-          version: 10
+          package_json_file: server/package.json
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: pnpm
           cache-dependency-path: server/pnpm-lock.yaml
 
@@ -57,9 +61,7 @@ jobs:
         working-directory: reviewer-core
         run: npm ci
 
-      # Inlined rather than `pnpm test:integration`: server/package.json is
-      # skip-worktree, so we don't rely on the committed file carrying the split
-      # script. The `.it.test` filter selects exactly the 12 DB-backed files.
-      # vitest's config gives these a 120s timeout for container spin-up; no API
-      # keys needed — LLM/git are mocked.
-      - run: pnpm exec vitest run .it.test
+      # `.it.test` selects exactly the DB-backed files. vitest's config gives
+      # them a 120s timeout for container spin-up; no API keys needed — LLM/git
+      # are mocked.
+      - run: pnpm test:integration

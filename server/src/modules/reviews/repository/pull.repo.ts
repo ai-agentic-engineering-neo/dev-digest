@@ -1,13 +1,14 @@
 import { and, eq } from 'drizzle-orm';
-import type { Db } from '../../../db/client.js';
+import type { DbOrTx } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
-import type { Intent } from '@devdigest/shared';
+import type { Intent, UnifiedDiff } from '@devdigest/shared';
 import type { PullRow } from '../../../db/rows.js';
+import { parseUnifiedDiff } from '../../../adapters/git/diff-parser.js';
 
 // ---- PR lookup (workspace-scoped) -----------------------------------------
 
 export async function getPull(
-  db: Db,
+  db: DbOrTx,
   workspaceId: string,
   prId: string,
 ): Promise<PullRow | undefined> {
@@ -19,25 +20,32 @@ export async function getPull(
 }
 
 export async function getRepo(
-  db: Db,
+  db: DbOrTx,
   repoId: string,
 ): Promise<typeof t.repos.$inferSelect | undefined> {
   const [row] = await db.select().from(t.repos).where(eq(t.repos.id, repoId));
   return row;
 }
 
-export async function getPrFiles(
-  db: Db,
-  prId: string,
-): Promise<(typeof t.prFiles.$inferSelect)[]> {
-  return db.select().from(t.prFiles).where(eq(t.prFiles.prId, prId));
+/** Reconstruct a PR's UnifiedDiff from its persisted pr_files patches. */
+export async function storedDiff(db: DbOrTx, prId: string): Promise<UnifiedDiff> {
+  const files = await db
+    .select({ path: t.prFiles.path, patch: t.prFiles.patch })
+    .from(t.prFiles)
+    .where(eq(t.prFiles.prId, prId));
+  const parts: string[] = [];
+  for (const f of files) {
+    if (!f.patch) continue;
+    parts.push(`diff --git a/${f.path} b/${f.path}`, `--- a/${f.path}`, `+++ b/${f.path}`, f.patch);
+  }
+  return parseUnifiedDiff(parts.join('\n'));
 }
 
 /**
  * Record the commit a review just ran against, so the PR list can derive
  * `reviewed` vs `needs_review` (head moved since the last review) vs `stale`.
  */
-export async function markReviewed(db: Db, prId: string, sha: string): Promise<void> {
+export async function markReviewed(db: DbOrTx, prId: string, sha: string): Promise<void> {
   await db
     .update(t.pullRequests)
     .set({ lastReviewedSha: sha })
@@ -46,7 +54,7 @@ export async function markReviewed(db: Db, prId: string, sha: string): Promise<v
 
 // ---- intent ---------------------------------------------------------------
 
-export async function upsertIntent(db: Db, prId: string, intent: Intent): Promise<void> {
+export async function upsertIntent(db: DbOrTx, prId: string, intent: Intent): Promise<void> {
   await db
     .insert(t.prIntent)
     .values({
@@ -61,7 +69,7 @@ export async function upsertIntent(db: Db, prId: string, intent: Intent): Promis
     });
 }
 
-export async function getIntent(db: Db, prId: string): Promise<Intent | undefined> {
+export async function getIntent(db: DbOrTx, prId: string): Promise<Intent | undefined> {
   const [row] = await db.select().from(t.prIntent).where(eq(t.prIntent.prId, prId));
   if (!row) return undefined;
   return { intent: row.intent, in_scope: row.inScope, out_of_scope: row.outOfScope };

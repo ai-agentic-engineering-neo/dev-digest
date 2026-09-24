@@ -7,9 +7,15 @@
   "scripts": {
     "test": "tsx run.ts",
     "e2e:hermetic": "../scripts/e2e.sh",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "biome lint --error-on-warnings ."
   },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "npm@10.9.7",
   "devDependencies": {
+    "@biomejs/biome": "2.5.14",
     "@types/node": "^22.10.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"

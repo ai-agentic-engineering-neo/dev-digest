@@ -8,7 +8,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { walkClone } from '../src/modules/repo-intel/pipeline/walk.js';
+import { walkClone } from '../src/modules/repo-intel/infrastructure/walk.js';
 import {
   EXCLUDED_DIRS,
   MAX_FILE_SIZE,

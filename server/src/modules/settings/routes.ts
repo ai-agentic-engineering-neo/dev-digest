@@ -1,98 +1,54 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { and, eq } from 'drizzle-orm';
-import {
-  SettingsUpdate,
-  ConnTestRequest,
-  type ConnTestResult,
-  type SecretsStatus,
-} from '@devdigest/shared';
-import * as t from '../../db/schema.js';
+import { z } from 'zod';
+import { ConnTestRequest, ConnTestResult, SecretsStatus, SettingsUpdate } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
-import { GITHUB_PROVIDER, SECRET_KEY_BY_PROVIDER } from './constants.js';
-import { rowsToSettings } from './helpers.js';
 
 /**
- * F1 — settings module.
+ * Settings response: the stored key/value bag as-is. Deliberately NOT the
+ * `Settings` contract — its `.default()`s would inject unset keys, and a stale
+ * stored value (e.g. a retired feature id) would turn GET /settings into a 500.
+ * Writes are validated by `SettingsUpdate` on PUT.
+ */
+const SettingsResponse = z.record(z.string(), z.unknown());
+
+/**
+ * F1 — settings module (http).
  *   GET  /settings                 → current non-secret prefs
+ *   GET  /settings/secrets-status  → which provider keys are configured (booleans)
  *   PUT  /settings                 → upsert prefs (key/value rows)
- *   POST /settings/test-connection → test a provider key (OpenAI/Anthropic/GitHub)
- *
- * Secrets are NOT stored here — only non-secret prefs. test-connection reads
- * the key via SecretsProvider and does a cheap live call (listModels / GET user).
+ *   POST /settings/test-connection → persist an optional key, then test the provider
  */
 export default async function settingsRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
   const { container } = app;
+  const settings = () => container.modules.settings.service;
 
-  app.get('/settings', async (req) => {
+  app.get('/settings', { schema: { response: { 200: SettingsResponse } } }, async (req) => {
     const { workspaceId } = await getContext(container, req);
-    const rows = await container.db
-      .select()
-      .from(t.settings)
-      .where(eq(t.settings.workspaceId, workspaceId));
-    return rowsToSettings(rows);
+    return settings().get(workspaceId);
   });
 
-  // Which provider keys are configured (booleans only — the values are NEVER
-  // returned). Drives the "Configured / Not set" badges in the API Keys panel.
-  app.get('/settings/secrets-status', async (req): Promise<SecretsStatus> => {
+  app.get('/settings/secrets-status', { schema: { response: { 200: SecretsStatus } } }, async (req) => {
     await getContext(container, req);
-    const entries = await Promise.all(
-      (Object.entries(SECRET_KEY_BY_PROVIDER) as [keyof SecretsStatus, string][]).map(
-        async ([provider, key]) => [provider, Boolean(await container.secrets.get(key))] as const,
-      ),
-    );
-    return Object.fromEntries(entries) as SecretsStatus;
+    return settings().secretsStatus();
   });
 
-  app.put('/settings', { schema: { body: SettingsUpdate } }, async (req) => {
-    const { workspaceId, userId } = await getContext(container, req);
-    const body = req.body;
-    for (const [key, value] of Object.entries(body)) {
-      await container.db
-        .insert(t.settings)
-        .values({ workspaceId, userId, key, value })
-        .onConflictDoUpdate({
-          target: [t.settings.workspaceId, t.settings.userId, t.settings.key],
-          set: { value },
-        });
-    }
-    const rows = await container.db
-      .select()
-      .from(t.settings)
-      .where(eq(t.settings.workspaceId, workspaceId));
-    return rowsToSettings(rows);
-  });
+  app.put(
+    '/settings',
+    { schema: { body: SettingsUpdate, response: { 200: SettingsResponse } } },
+    async (req) => {
+      const { workspaceId, userId } = await getContext(container, req);
+      return settings().update(workspaceId, userId, req.body);
+    },
+  );
 
   app.post(
     '/settings/test-connection',
     {
-      schema: { body: ConnTestRequest },
+      schema: { body: ConnTestRequest, response: { 200: ConnTestResult } },
       config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
     },
-    async (req): Promise<ConnTestResult> => {
-    const { provider, key } = req.body;
-    try {
-      // If the UI supplied a key, persist it (BYO key) before testing so the
-      // test reflects — and the rest of the app can use — the new value.
-      if (key) {
-        if (!container.secrets.set) {
-          return { provider, ok: false, message: 'Secrets backend is read-only' };
-        }
-        await container.secrets.set(SECRET_KEY_BY_PROVIDER[provider], key);
-        container.invalidateSecretCaches();
-      }
-      if (provider === GITHUB_PROVIDER) {
-        const gh = await container.github();
-        const login = await gh.currentLogin();
-        return { provider, ok: true, message: `Connected as @${login}` };
-      }
-      const llm = await container.llm(provider);
-      const models = await llm.listModels();
-      return { provider, ok: true, message: `OK — ${models.length} models available` };
-    } catch (err) {
-      return { provider, ok: false, message: (err as Error).message };
-    }
-  });
+    async (req) => settings().testConnection(req.body.provider, req.body.key),
+  );
 }

@@ -12,6 +12,7 @@ import { ThemeProvider } from "./theme";
 import { RepoProvider } from "./repo-context";
 import { ToastProvider, notify } from "./toast";
 import { ApiError } from "./api";
+import { isQuietError } from "./query-meta";
 
 function errorMessage(e: unknown): string {
   if (e instanceof Error) return e.message;
@@ -38,8 +39,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
             if (status === 0 || status >= 500) notify.error(errorMessage(err));
           },
         }),
+        // A mutation may surface some errors itself (meta.quietErrorCodes).
         mutationCache: new MutationCache({
-          onError: (err) => notify.error(errorMessage(err)),
+          onError: (err, _vars, _ctx, mutation) => {
+            if (!isQuietError(err, mutation.meta)) notify.error(errorMessage(err));
+          },
         }),
       })
   );

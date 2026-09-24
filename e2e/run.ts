@@ -13,8 +13,12 @@
  *   AGENT_BROWSER_BIN  binary name/path (default "agent-browser")
  *   E2E_STEP_TIMEOUT   per-command timeout in ms (default 60000)
  *
- * Specs target read-only seeded data, so nothing here triggers an LLM call or
- * needs an API key. Run order is the lexical order of the flow filenames.
+ *   E2E_MOCK_LLM       set when the API runs with LLM_PROVIDER_OVERRIDE=mock;
+ *                      enables flows with "requiresEnv": "E2E_MOCK_LLM"
+ *
+ * Flows use seeded data; the ones that start a review need the mock LLM (they
+ * are skipped without it), so nothing here calls a real model or needs a key.
+ * Run order is the lexical order of the flow filenames.
  */
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -23,6 +27,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import {
   resolveArgs,
+  skipReason,
   stdoutContains,
   summarize,
   type Flow,
@@ -62,6 +67,11 @@ function loadFlows(): { file: string; flow: Flow }[] {
 
 async function runFlow(file: string, flow: Flow): Promise<FlowResult> {
   const id = file.replace(/\.flow\.json$/, "");
+  const skip = skipReason(flow, process.env);
+  if (skip) {
+    console.log(`\n⏭ ${flow.name}  (${file}) — skipped: ${skip}`);
+    return { name: flow.name, ok: true, skipped: skip, steps: [] };
+  }
   console.log(`\n▶ ${flow.name}  (${file})`);
   const steps: StepResult[] = [];
 

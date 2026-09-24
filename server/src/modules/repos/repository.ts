@@ -1,13 +1,31 @@
 import { and, eq } from 'drizzle-orm';
-import type { Db } from '../../db/client.js';
+import type { Repo } from '@devdigest/shared';
+import type { DbOrTx } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 
 /**
  * F1 — repos data-access layer. The ONLY place that touches the `repos`
- * table. Every query is scoped by `workspaceId` (tenancy guard).
+ * table. Every query is scoped by `workspaceId` (tenancy guard) except the
+ * clone-job follow-ups keyed by repo id. Methods the service uses return the
+ * `Repo` DTO; `getById` returns the row (with `fullName`) for the refresh path.
  */
 
 export type RepoRow = typeof t.repos.$inferSelect;
+
+/** Map a persisted repo row to the API `Repo` DTO. */
+export function toRepoDto(row: RepoRow): Repo {
+  return {
+    id: row.id,
+    workspace_id: row.workspaceId,
+    owner: row.owner,
+    name: row.name,
+    full_name: row.fullName,
+    default_branch: row.defaultBranch,
+    clone_path: row.clonePath,
+    last_polled_at: row.lastPolledAt?.toISOString() ?? null,
+    created_by: row.createdBy,
+  };
+}
 
 export interface InsertRepo {
   workspaceId: string;
@@ -18,30 +36,31 @@ export interface InsertRepo {
 }
 
 export class RepoRepository {
-  constructor(private db: Db) {}
+  constructor(private db: DbOrTx) {}
 
   /** Find a repo in a workspace by its `owner/name` full name (dedupe on add). */
-  async findByFullName(workspaceId: string, fullName: string): Promise<RepoRow | undefined> {
+  async findByFullName(workspaceId: string, fullName: string): Promise<Repo | undefined> {
     const [row] = await this.db
       .select()
       .from(t.repos)
       .where(and(eq(t.repos.workspaceId, workspaceId), eq(t.repos.fullName, fullName)));
-    return row;
+    return row ? toRepoDto(row) : undefined;
   }
 
-  async list(workspaceId: string): Promise<RepoRow[]> {
-    return this.db.select().from(t.repos).where(eq(t.repos.workspaceId, workspaceId));
+  async list(workspaceId: string): Promise<Repo[]> {
+    const rows = await this.db.select().from(t.repos).where(eq(t.repos.workspaceId, workspaceId));
+    return rows.map(toRepoDto);
   }
 
-  async getById(workspaceId: string, id: string): Promise<RepoRow | undefined> {
+  async getById(workspaceId: string, id: string): Promise<Repo | undefined> {
     const [row] = await this.db
       .select()
       .from(t.repos)
       .where(and(eq(t.repos.workspaceId, workspaceId), eq(t.repos.id, id)));
-    return row;
+    return row ? toRepoDto(row) : undefined;
   }
 
-  async insert(values: InsertRepo): Promise<RepoRow> {
+  async insert(values: InsertRepo): Promise<Repo> {
     const [row] = await this.db
       .insert(t.repos)
       .values({
@@ -52,7 +71,7 @@ export class RepoRepository {
         createdBy: values.createdBy,
       })
       .returning();
-    return row!;
+    return toRepoDto(row!);
   }
 
   /**

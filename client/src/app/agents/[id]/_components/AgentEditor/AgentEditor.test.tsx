@@ -1,18 +1,12 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
-import { NextIntlClientProvider } from "next-intl";
+import { describe, it, expect, afterEach, beforeEach } from "vitest";
+import { renderWithProviders, screen, cleanup } from "@/test/render";
+import { mockFetch } from "@/test/fetch-mock";
 import type { Agent } from "@devdigest/shared";
-import messages from "../../../../../../messages/en/agents.json";
-import { ToastProvider } from "../../../../../lib/toast";
-
-// Mock the data hooks so the editor renders without a network/query client.
-vi.mock("../../../../../lib/hooks/agents", () => ({
-  useUpdateAgent: () => ({ mutate: vi.fn(), isPending: false, isSuccess: false, data: undefined }),
-  useProviderModels: () => ({ data: [{ id: "gpt-4.1", provider: "openai" }] }),
-}));
-
 import { AgentEditor } from "./AgentEditor";
 
+beforeEach(() => {
+  mockFetch({ "GET /providers/openai/models": [{ id: "gpt-4.1", provider: "openai" }] });
+});
 afterEach(cleanup);
 
 const AGENT: Agent = {
@@ -30,19 +24,21 @@ const AGENT: Agent = {
   version: 1,
 };
 
-function renderWithIntl(ui: React.ReactElement) {
-  return render(
-    <NextIntlClientProvider locale="en" messages={{ agents: messages }}>
-      <ToastProvider>{ui}</ToastProvider>
-    </NextIntlClientProvider>,
-  );
-}
-
 describe("A2 Agent Editor (smoke)", () => {
   it("renders the Config tab fields", () => {
-    renderWithIntl(<AgentEditor agent={AGENT} tab="config" onTab={() => {}} />);
+    renderWithProviders(<AgentEditor agent={AGENT} tab="config" onTab={() => {}} />);
     expect(screen.getByText("Config")).toBeInTheDocument();
     expect(screen.getByText("Configuration")).toBeInTheDocument();
     expect(screen.getByText("Save agent")).toBeInTheDocument();
+  });
+
+  it("drops unsaved edits when switching to another agent", async () => {
+    const { rerender, user } = renderWithProviders(<AgentEditor agent={AGENT} tab="config" onTab={() => {}} />);
+    const name = screen.getByDisplayValue("Security Reviewer");
+    await user.clear(name);
+    await user.type(name, "Unsaved");
+    rerender(<AgentEditor agent={{ ...AGENT, id: "ag2", name: "Perf Reviewer" }} tab="config" onTab={() => {}} />);
+    expect(screen.getByDisplayValue("Perf Reviewer")).toBeInTheDocument();
+    expect(screen.queryByDisplayValue("Unsaved")).toBeNull();
   });
 });

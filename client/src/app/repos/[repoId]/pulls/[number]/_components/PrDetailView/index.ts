@@ -1,0 +1,1 @@
+export { PrDetailView } from "./PrDetailView";

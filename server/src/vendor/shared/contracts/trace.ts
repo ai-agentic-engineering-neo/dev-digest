@@ -71,6 +71,14 @@ export const RunStats = z.object({
 });
 export type RunStats = z.infer<typeof RunStats>;
 
+/** A skill (at an exact version) that was part of a run's prompt. */
+export const SkillUsed = z.object({
+  id: z.string(),
+  name: z.string(),
+  version: z.number().int(),
+});
+export type SkillUsed = z.infer<typeof SkillUsed>;
+
 /** The single-document trace stored in `run_traces.trace`. */
 export const RunTrace = z.object({
   config: z.object({
@@ -88,6 +96,8 @@ export const RunTrace = z.object({
   memory_pulled: z.array(MemoryPulled),
   specs_read: z.array(z.string()),
   log: z.array(RunLogLine),
+  /** Skills in the prompt, in order; body = skill_versions[id, version]. Absent on old traces. */
+  skills_used: z.array(SkillUsed).nullish(),
 });
 export type RunTrace = z.infer<typeof RunTrace>;
 
@@ -119,3 +129,12 @@ export const RunSummary = z.object({
   blockers: z.number().int().nullable(),
 });
 export type RunSummary = z.infer<typeof RunSummary>;
+
+/** One in-flight run of a PR — GET /pulls/:id/runs/active (agent_runs where status='running'). */
+export const ActiveRun = z.object({
+  run_id: z.string(),
+  agent_id: z.string().nullable(),
+  agent_name: z.string().nullable(),
+  ran_at: z.string().nullable(),
+});
+export type ActiveRun = z.infer<typeof ActiveRun>;

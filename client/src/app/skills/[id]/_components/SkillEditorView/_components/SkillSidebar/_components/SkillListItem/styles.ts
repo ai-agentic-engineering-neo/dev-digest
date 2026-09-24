@@ -1,0 +1,62 @@
+import type { CSSProperties } from "react";
+
+/** Co-located styles for SkillListItem (compact SkillCard; active = AgentCard's). */
+export const s = {
+  item: (active: boolean, enabled: boolean): CSSProperties => ({
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+    padding: 14,
+    borderRadius: 8,
+    cursor: "pointer",
+    border: `1px solid ${active ? "var(--border-strong)" : "var(--border)"}`,
+    background: active ? "var(--bg-hover)" : "var(--bg-elevated)",
+    opacity: enabled ? 1 : 0.55,
+    transition: "opacity .12s",
+  }),
+  header: { display: "flex", alignItems: "center", gap: 10 } satisfies CSSProperties,
+  iconBox: (color: string): CSSProperties => ({
+    width: 26,
+    height: 26,
+    borderRadius: 7,
+    background: `${color}1a`,
+    color,
+    display: "grid",
+    placeItems: "center",
+    flexShrink: 0,
+  }),
+  name: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: 600,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  } satisfies CSSProperties,
+  version: {
+    fontSize: 11.5,
+    fontWeight: 600,
+    color: "var(--text-muted)",
+    background: "var(--bg-surface)",
+    border: "1px solid var(--border)",
+    borderRadius: 4,
+    padding: "1px 6px",
+    flexShrink: 0,
+  } satisfies CSSProperties,
+  description: {
+    fontSize: 13,
+    color: "var(--text-secondary)",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  } satisfies CSSProperties,
+  meta: { display: "flex", alignItems: "center", gap: 8 } satisfies CSSProperties,
+  agents: {
+    marginLeft: "auto",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 5,
+    fontSize: 12,
+    color: "var(--text-muted)",
+  } satisfies CSSProperties,
+} as const;

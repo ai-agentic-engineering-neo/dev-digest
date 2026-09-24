@@ -27,4 +27,3 @@ export function PrFindingsCell({ pr, up = false }: { pr: PrMeta; up?: boolean })
   );
 }
 
-export default PrFindingsCell;

@@ -1,2 +1,1 @@
-export { default, default as RunTraceDrawer } from "./RunTraceDrawer";
-export type { RunTraceDrawerProps } from "./RunTraceDrawer";
+export { RunTraceDrawer, type RunTraceDrawerProps } from "./RunTraceDrawer";

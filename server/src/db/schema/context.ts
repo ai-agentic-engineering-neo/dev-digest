@@ -8,8 +8,9 @@ import {
   timestamp,
   vector,
   index,
-  uniqueIndex,
+  unique,
 } from 'drizzle-orm/pg-core';
+import { enumCheck } from './_shared';
 import { workspaces } from './core';
 import { repos } from './repos';
 
@@ -28,6 +29,8 @@ export const MAX_INDEXED_NAME_LEN = 255;
 export const clampIndexedName = (s: string): string =>
   s.length > MAX_INDEXED_NAME_LEN ? s.slice(0, MAX_INDEXED_NAME_LEN) : s;
 
+export const CODE_CHUNK_SOURCES = ['code', 'docs', 'spec'] as const;
+
 export const codeChunks = pgTable(
   'code_chunks',
   {
@@ -41,9 +44,14 @@ export const codeChunks = pgTable(
     path: text('path').notNull(),
     content: text('content').notNull(),
     embedding: vector('embedding', { dimensions: 1536 }),
-    source: text('source', { enum: ['code', 'docs', 'spec'] }).notNull().default('code'),
+    source: text('source', { enum: CODE_CHUNK_SOURCES }).notNull().default('code'),
   },
-  (t) => ({ repoIdx: index('code_chunks_repo_idx').on(t.repoId) }),
+  (t) => [
+    index('code_chunks_repo_idx').on(t.repoId),
+    // ANN search (cosine) over chunk embeddings — pgvector >= 0.5 (image ships 0.8).
+    index('code_chunks_embedding_hnsw_idx').using('hnsw', t.embedding.op('vector_cosine_ops')),
+    enumCheck('code_chunks_source_chk', t.source, CODE_CHUNK_SOURCES),
+  ],
 );
 
 /**
@@ -77,13 +85,10 @@ export const symbols = pgTable(
   (t) => ({
     lookupIdx: index('symbols_repo_path_idx').on(t.repoId, t.path),
     nameIdx: index('symbols_repo_name_idx').on(t.repoId, t.name),
-    uq: uniqueIndex('symbols_repo_path_name_kind_line_uq').on(
-      t.repoId,
-      t.path,
-      t.name,
-      t.kind,
-      t.line,
-    ),
+    // NULLS NOT DISTINCT: a NULL `line` must not let duplicate tuples through.
+    uq: unique('symbols_repo_path_name_kind_line_uq')
+      .on(t.repoId, t.path, t.name, t.kind, t.line)
+      .nullsNotDistinct(),
   }),
 );
 

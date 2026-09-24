@@ -1,16 +1,24 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup, fireEvent, within } from "@testing-library/react";
-import { NextIntlClientProvider } from "next-intl";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
+import { renderWithProviders, screen, cleanup, within, waitFor, act } from "@/test/render";
+import { mockFetch } from "@/test/fetch-mock";
 import type { FindingRecord } from "@devdigest/shared";
-import messages from "../../../../../../../../messages/en/prReview.json";
-
-vi.mock("../../../../../../../lib/hooks/reviews", () => ({
-  useFindingAction: () => ({ mutate: vi.fn(), isPending: false }),
-}));
-
 import { FindingsPanel } from "./FindingsPanel";
 
+// Finding actions hit the real useFindingAction → fetch; the stub records them.
+let api: ReturnType<typeof mockFetch>;
+beforeEach(() => {
+  api = mockFetch({
+    "POST /findings/:id/:action": (req) => ({ finding: { id: req.params.id } }),
+    "GET /pulls/:id/reviews": [],
+  });
+});
 afterEach(cleanup);
+
+/** The finding-action requests sent so far, as "<id>/<action>". */
+const actionsSent = () =>
+  api.requests("POST").map((r) => r.path.replace(/^\/findings\//, ""));
+/** Let a keypress that should be ignored settle before asserting nothing was sent. */
+const settle = () => act(() => new Promise((r) => setTimeout(r, 20)));
 
 const FINDINGS: FindingRecord[] = [
   {
@@ -54,28 +62,20 @@ const MIXED: FindingRecord[] = [
 const cardTitles = () => screen.queryAllByText(/^(CRITICAL|WARNING|SUGGESTION) [a-z]\d$/).map((n) => n.textContent);
 const counters = () => screen.getByRole("group", { name: "Findings by severity" });
 
-function renderWithIntl(ui: React.ReactElement) {
-  return render(
-    <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
-      {ui}
-    </NextIntlClientProvider>,
-  );
-}
-
 describe("FindingsPanel (smoke)", () => {
   it("renders the toolbar + a finding card", () => {
-    renderWithIntl(<FindingsPanel findings={FINDINGS} prId="pr1" />);
+    renderWithProviders(<FindingsPanel findings={FINDINGS} prId="pr1" />);
     expect(screen.getByText("Hide low confidence")).toBeInTheDocument();
     expect(screen.getByText("Hardcoded secret")).toBeInTheDocument();
   });
 
   it("shows the empty state when nothing matches", () => {
-    renderWithIntl(<FindingsPanel findings={[]} prId="pr1" />);
+    renderWithProviders(<FindingsPanel findings={[]} prId="pr1" />);
     expect(screen.getByText("No findings match")).toBeInTheDocument();
   });
 
   it("shows a counter per present severity, number first", () => {
-    renderWithIntl(<FindingsPanel findings={MIXED} prId="pr1" />);
+    renderWithProviders(<FindingsPanel findings={MIXED} prId="pr1" />);
     const row = counters();
     expect(within(row).getByRole("button", { name: "3 critical" })).toHaveTextContent("3CRITICAL");
     expect(within(row).getByRole("button", { name: "2 warning" })).toBeInTheDocument();
@@ -83,42 +83,100 @@ describe("FindingsPanel (smoke)", () => {
   });
 
   it("hides the pill of a severity with no findings, and the whole row with no findings", () => {
-    const { unmount } = renderWithIntl(<FindingsPanel findings={[mk("w1", "WARNING")]} prId="pr1" />);
+    const { unmount } = renderWithProviders(<FindingsPanel findings={[mk("w1", "WARNING")]} prId="pr1" />);
     expect(within(counters()).getAllByRole("button")).toHaveLength(1);
     unmount();
-    renderWithIntl(<FindingsPanel findings={[]} prId="pr1" />);
+    renderWithProviders(<FindingsPanel findings={[]} prId="pr1" />);
     expect(screen.queryByRole("group", { name: "Findings by severity" })).toBeNull();
   });
 
-  it("filter button keeps only that level; a second click restores the full list", () => {
-    renderWithIntl(<FindingsPanel findings={MIXED} prId="pr1" />);
+  it("filter button keeps only that level; a second click restores the full list", async () => {
+    const { user } = renderWithProviders(<FindingsPanel findings={MIXED} prId="pr1" />);
     expect(cardTitles()).toHaveLength(6);
 
-    fireEvent.click(screen.getByRole("button", { name: "Warning" }));
+    await user.click(screen.getByRole("button", { name: "Warning" }));
     expect(cardTitles()).toEqual(["WARNING w1", "WARNING w2"]);
 
-    fireEvent.click(screen.getByRole("button", { name: "Critical" }));
+    await user.click(screen.getByRole("button", { name: "Critical" }));
     expect(cardTitles()).toEqual(["CRITICAL c1", "CRITICAL c2", "CRITICAL c3"]);
 
-    fireEvent.click(screen.getByRole("button", { name: "Critical" }));
+    await user.click(screen.getByRole("button", { name: "Critical" }));
     expect(cardTitles()).toHaveLength(6);
   });
 
-  it("clicking a counter pill filters like the matching button", () => {
-    renderWithIntl(<FindingsPanel findings={MIXED} prId="pr1" />);
+  it("clicking a counter pill filters like the matching button", async () => {
+    const { user } = renderWithProviders(<FindingsPanel findings={MIXED} prId="pr1" />);
     const pill = within(counters()).getByRole("button", { name: "1 suggestion" });
-    fireEvent.click(pill);
+    await user.click(pill);
     expect(pill).toHaveAttribute("aria-pressed", "true");
     expect(cardTitles()).toEqual(["SUGGESTION s1"]);
-    fireEvent.click(pill);
+    await user.click(pill);
     expect(cardTitles()).toHaveLength(6);
   });
 
-  it("counts follow 'hide low confidence' so a pill equals the cards shown", () => {
-    renderWithIntl(<FindingsPanel findings={MIXED} prId="pr1" />);
-    fireEvent.click(screen.getByRole("switch"));
+  it("counts follow 'hide low confidence' so a pill equals the cards shown", async () => {
+    const { user } = renderWithProviders(<FindingsPanel findings={MIXED} prId="pr1" />);
+    await user.click(screen.getByRole("switch"));
     expect(within(counters()).getByRole("button", { name: "2 critical" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Critical" }));
+    await user.click(screen.getByRole("button", { name: "Critical" }));
     expect(cardTitles()).toHaveLength(2);
+  });
+});
+
+describe("FindingsPanel finding actions", () => {
+  it("Accept / Dismiss on a card send the action for that finding", async () => {
+    const { user } = renderWithProviders(<FindingsPanel findings={FINDINGS} prId="pr1" />);
+    await user.click(screen.getByRole("button", { name: /accept/i }));
+    await waitFor(() => expect(actionsSent()).toEqual(["f1/accept"]));
+    await user.click(screen.getByRole("button", { name: /dismiss/i }));
+    await waitFor(() => expect(actionsSent()).toEqual(["f1/accept", "f1/dismiss"]));
+  });
+});
+
+describe("FindingsPanel keyboard shortcuts", () => {
+  it("only the active panel handles a/d when several panels are mounted", async () => {
+    const { user } = renderWithProviders(
+      <>
+        <FindingsPanel findings={[mk("c1", "CRITICAL")]} prId="pr1" active />
+        <FindingsPanel findings={[mk("w1", "WARNING")]} prId="pr1" active={false} />
+      </>,
+    );
+    await user.keyboard("a");
+    await waitFor(() => expect(actionsSent()).toEqual(["c1/accept"]));
+    await settle();
+    expect(actionsSent()).toEqual(["c1/accept"]);
+  });
+
+  it("interacting with an inactive panel asks the parent to make it active", async () => {
+    const onActivate = vi.fn();
+    const { user } = renderWithProviders(
+      <FindingsPanel findings={[mk("w1", "WARNING")]} prId="pr1" active={false} onActivate={onActivate} />,
+    );
+    await user.click(screen.getByText("WARNING w1"));
+    expect(onActivate).toHaveBeenCalled();
+    await user.keyboard("d");
+    await settle();
+    expect(actionsSent()).toEqual([]);
+  });
+
+  it("ignores shortcuts typed into an input", async () => {
+    const { user } = renderWithProviders(
+      <>
+        <input aria-label="search" />
+        <FindingsPanel findings={[mk("c1", "CRITICAL")]} prId="pr1" />
+      </>,
+    );
+    await user.type(screen.getByRole("textbox", { name: "search" }), "a");
+    await settle();
+    expect(actionsSent()).toEqual([]);
+  });
+
+  it("keeps the focus on a real card when the filtered list shrinks", async () => {
+    const { user } = renderWithProviders(<FindingsPanel findings={MIXED} prId="pr1" />);
+    await user.keyboard("jjjjj"); // focus the last of 6 cards
+    await user.click(screen.getByRole("switch")); // hide low confidence → 5 cards
+    await user.keyboard("d");
+    const last = cardTitles().at(-1)!.split(" ")[1];
+    await waitFor(() => expect(actionsSent()).toEqual([`${last}/dismiss`]));
   });
 });

@@ -1,22 +1,12 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
-import { NextIntlClientProvider } from "next-intl";
-import messages from "../../../../../../../../messages/en/prReview.json";
+import { renderWithProviders, screen, cleanup } from "@/test/render";
 import { VerdictBanner } from "./VerdictBanner";
 
 afterEach(cleanup);
 
-function renderWithIntl(ui: React.ReactElement) {
-  return render(
-    <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
-      {ui}
-    </NextIntlClientProvider>,
-  );
-}
-
 describe("VerdictBanner (smoke)", () => {
   it("shows verdict label + score + finding/blocker counts", () => {
-    renderWithIntl(
+    renderWithProviders(
       <VerdictBanner
         verdict="request_changes"
         summary="Hardcoded secret introduced."
@@ -28,7 +18,7 @@ describe("VerdictBanner (smoke)", () => {
     );
     expect(screen.getByText("Request changes")).toBeInTheDocument();
     expect(screen.getByText("42")).toBeInTheDocument();
-    expect(screen.getByText(/1 findings · 1 blockers/)).toBeInTheDocument();
+    expect(screen.getByText(/1 finding · 1 blocker/)).toBeInTheDocument();
   });
 });
 
@@ -42,19 +32,19 @@ describe("VerdictBanner — run cost row", () => {
   };
 
   it("shows cost + tokens under PR SCORE when the review has run usage", () => {
-    renderWithIntl(<VerdictBanner {...base} costUsd={0.0013} tokensIn={9119} tokensOut={1240} />);
+    renderWithProviders(<VerdictBanner {...base} costUsd={0.0013} tokensIn={9119} tokensOut={1240} />);
     expect(screen.getByText("$0.0013")).toBeInTheDocument();
     expect(screen.getByText("9k→1.2k")).toBeInTheDocument();
   });
 
   it("unknown cost shows a dash next to the tokens", () => {
-    renderWithIntl(<VerdictBanner {...base} costUsd={null} tokensIn={9119} tokensOut={1240} />);
+    renderWithProviders(<VerdictBanner {...base} costUsd={null} tokensIn={9119} tokensOut={1240} />);
     expect(screen.getByText("—")).toBeInTheDocument();
     expect(screen.getByText("9k→1.2k")).toBeInTheDocument();
   });
 
   it("no run usage → no cost row", () => {
-    renderWithIntl(<VerdictBanner {...base} />);
+    renderWithProviders(<VerdictBanner {...base} />);
     expect(screen.queryByText(/k→/)).not.toBeInTheDocument();
     expect(screen.queryByText(/\$/)).not.toBeInTheDocument();
   });

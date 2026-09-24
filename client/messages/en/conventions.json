@@ -5,22 +5,97 @@
     "headingPrefix": "Conventions in ",
     "repoFallback": "repo",
     "subtitle": "Scan the cloned repo to surface house-rules — each backed by evidence you can turn into a Skill.",
+    "scanSummary": "Detected from {count, plural, one {# sample file} other {# sample files}} · last scan {when}",
+    "scanningSummary": "Scanning {count, plural, =0 {the repo} one {# sample file} other {# sample files}}…",
     "scanning": "Scanning…",
-    "rescan": "Re-scan",
-    "runExtraction": "Run extraction",
+    "rescan": "ReScan",
     "extractionFailed": "Extraction failed",
     "loadError": "Could not load conventions.",
     "empty": {
       "title": "No conventions extracted yet",
-      "body": "Scan the repo to surface house-rules — naming, error handling, structure — each backed by evidence you can turn into a Skill.",
-      "cta": "Run extraction"
+      "body": "Scan the repo to surface house-rules — naming, error handling, structure — each backed by evidence you can turn into a Skill."
     },
-    "candidateCount": "{count, plural, one {# candidate} other {# candidates}} · grounded against sampled files"
+    "noMatch": "No conventions with this status.",
+    "noneKept": "The last scan found no convention with verified evidence.",
+    "candidateCount": "{count, plural, one {# candidate} other {# candidates}} · grounded against sampled files",
+    "runScan": "Run Scan",
+    "runScanHint": "Run the first conventions scan of this repo",
+    "rescanHint": "Run the scan again and refresh the candidates"
+  },
+  "time": {
+    "justNow": "just now",
+    "minutes": "{count}m ago",
+    "hours": "{count}h ago",
+    "days": "{count}d ago"
+  },
+  "toolbar": {
+    "all": "All",
+    "pending": "Pending",
+    "accepted": "Accepted",
+    "rejected": "Rejected",
+    "acceptedCount": "{accepted} of {total} accepted",
+    "acceptAllPending": "Accept all pending",
+    "deselectAll": "Deselect all",
+    "createSkill": "Create skill"
+  },
+  "category": {
+    "naming": "Naming",
+    "structure": "Structure",
+    "error-handling": "Error handling",
+    "async": "Async",
+    "types": "Types",
+    "imports": "Imports",
+    "testing": "Testing",
+    "api": "API",
+    "data-access": "Data access",
+    "style": "Style",
+    "other": "Other"
   },
   "card": {
     "confidence": "Confidence",
+    "accept": "Accept",
     "accepted": "Accepted",
-    "accepting": "Accepting…",
-    "acceptAsSkill": "Accept as Skill"
+    "reject": "Reject",
+    "rejected": "Rejected",
+    "edit": "Edit",
+    "edited": "edited",
+    "save": "Save",
+    "cancel": "Cancel",
+    "ruleLabel": "Rule",
+    "categoryLabel": "Category",
+    "copy": "Copy snippet",
+    "morePlaces": "{count, plural, one {+# more place} other {+# more places}}",
+    "fewerPlaces": "Show less",
+    "inSkill": "in skill {name}",
+    "editLabel": "Edit rule"
+  },
+  "dropped": {
+    "toggle": "{count, plural, one {# candidate dropped} other {# candidates dropped}} by the evidence check",
+    "reason": {
+      "file_not_found": "file not found",
+      "line_out_of_range": "lines out of range",
+      "snippet_mismatch": "snippet not in the file",
+      "duplicate": "duplicate of an existing rule",
+      "invalid": "invalid candidate"
+    }
+  },
+  "skillModal": {
+    "title": "Create skill from conventions",
+    "banner": "Merged from <b>{count, plural, one {# accepted convention} other {# accepted conventions}}</b> in <hl>{repo}</hl>. Everything below is editable before you save.",
+    "defaultDescription": "{count, plural, one {# house convention} other {# house conventions}} extracted from {repo}",
+    "enabled": "Enabled",
+    "enabledHint": "Whether this block is added to agents' prompts.",
+    "body": "Skill body",
+    "agents": "Link to agents",
+    "agentsHint": "The skill is appended to each selected agent's skill list.",
+    "noAgents": "No agents yet.",
+    "agentDisabled": "disabled",
+    "footer": "Saved as <b>v1</b> · added to Skills Lab",
+    "cancel": "Cancel",
+    "create": "Create skill",
+    "creating": "Creating…",
+    "conflict": "A skill with this name already exists — pick another name.",
+    "created": "Skill {name} created",
+    "createdLinked": "Skill {name} created and linked to {count, plural, one {# agent} other {# agents}}"
   }
 }

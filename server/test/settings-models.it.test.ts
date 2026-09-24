@@ -5,10 +5,6 @@ import { loadConfig } from '../src/platform/config.js';
 import { seed } from '../src/db/seed.js';
 import * as t from '../src/db/schema.js';
 import type { SecretsProvider } from '@devdigest/shared';
-import {
-  resolveFeatureModel,
-  getFeatureModelOverride,
-} from '../src/modules/settings/feature-models.js';
 
 const hasDocker = await dockerAvailable();
 const d = hasDocker ? describe : describe.skip;
@@ -30,10 +26,11 @@ d('Settings: feature models + secrets status (Testcontainers pg)', () => {
 
   it('resolveFeatureModel: registry default until overridden, then the workspace choice', async () => {
     const app = await buildApp({ config: config(), db: pg.handle.db, overrides: {} });
+    const settings = app.container.modules.settings.service;
 
     // No override yet → registry default; getFeatureModelOverride is undefined.
-    expect(await getFeatureModelOverride(app.container, workspaceId, 'onboarding')).toBeUndefined();
-    expect(await resolveFeatureModel(app.container, workspaceId, 'onboarding')).toEqual({
+    expect(await settings.getFeatureModelOverride(workspaceId, 'onboarding')).toBeUndefined();
+    expect(await settings.resolveFeatureModel(workspaceId, 'onboarding')).toEqual({
       provider: 'openrouter',
       model: 'deepseek/deepseek-v4-flash',
     });
@@ -46,12 +43,12 @@ d('Settings: feature models + secrets status (Testcontainers pg)', () => {
     });
     expect(put.statusCode).toBe(200);
 
-    expect(await resolveFeatureModel(app.container, workspaceId, 'onboarding')).toEqual({
+    expect(await settings.resolveFeatureModel(workspaceId, 'onboarding')).toEqual({
       provider: 'openrouter',
       model: 'z-ai/glm-4.7-flash',
     });
     // An unset feature still resolves to its own registry default.
-    expect(await resolveFeatureModel(app.container, workspaceId, 'risk_brief')).toEqual({
+    expect(await settings.resolveFeatureModel(workspaceId, 'risk_brief')).toEqual({
       provider: 'openai',
       model: 'gpt-4.1',
     });

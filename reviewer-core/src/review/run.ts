@@ -12,6 +12,8 @@ import { assemblePrompt } from '../prompt.js';
 import { groundFindings, groundingSummary } from '../grounding.js';
 import { reduceReviews, scoreFromFindings, sliceDiff } from './reduce.js';
 import { addCost } from '../llm/usage.js';
+import { splitOversizeDiff } from './split.js';
+import { mapOrdered } from './pool.js';
 
 /**
  * reviewPullRequest — the review engine entry point.
@@ -32,6 +34,15 @@ import { addCost } from '../llm/usage.js';
 export const DEFAULT_MAP_THRESHOLD_LINES = 400;
 /** Default structured-output reprompt retries (matches REVIEW_MAX_RETRIES). */
 export const DEFAULT_REVIEW_MAX_RETRIES = 2;
+/** Default number of map-reduce chunks reviewed in parallel. */
+export const DEFAULT_MAP_CONCURRENCY = 3;
+/**
+ * Default cap on ONE chunk's diff text (~50k tokens). Larger chunks are split
+ * by hunks; a single hunk above it is truncated with an in-prompt note.
+ */
+export const DEFAULT_MAX_DIFF_CHARS = 200_000;
+/** Default sampling temperature for reviews (deterministic). */
+export const DEFAULT_REVIEW_TEMPERATURE = 0;
 
 export type ReviewStrategy = 'auto' | 'single-pass' | 'map-reduce';
 export type ReviewMode = 'single-pass' | 'map-reduce';
@@ -79,6 +90,15 @@ export interface ReviewInput {
   maxRetries?: number;
   /** Override the map-reduce line threshold. */
   mapThresholdLines?: number;
+  /** Max map-reduce chunks in flight (default DEFAULT_MAP_CONCURRENCY). */
+  concurrency?: number;
+  /** Per-chunk diff size cap in chars (default DEFAULT_MAX_DIFF_CHARS). */
+  maxDiffChars?: number;
+  /**
+   * Sampling temperature (default 0). `null` omits it so the provider/model
+   * default applies; providers also drop it for reasoning models.
+   */
+  temperature?: number | null;
   /**
    * OpenRouter session id — forwarded on every LLM call so all chunks of this
    * review group into one session in the OpenRouter dashboard.
@@ -99,6 +119,11 @@ export interface ReviewInput {
    * type, e.g. the server's RunCancelledError); the engine stays agnostic.
    */
   checkCancelled?: () => void;
+  /**
+   * Aborts the in-flight LLM call when the caller cancels; forwarded to every
+   * call. `checkCancelled` still guards the gaps between calls.
+   */
+  signal?: AbortSignal;
 }
 
 export interface ReviewOutcome {
@@ -150,7 +175,7 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
   // Whole-diff assembly is the trace default; overwritten below for single-pass.
   let assembly: PromptAssembly = assemblePrompt({ ...promptParts, diff: input.diff.raw }).assembly;
 
-  const chunks =
+  const fileChunks =
     mode === 'map-reduce'
       ? input.diff.files.map((f) => ({ label: f.path, diffText: sliceDiff(input.diff, f.path) }))
       : [{ label: 'all files', diffText: input.diff.raw }];
@@ -162,40 +187,48 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
       : `Reviewing ${input.diff.files.length} changed file(s) in one pass`,
   );
 
-  const partials: Review[] = [];
-  let tokensIn = 0;
-  let tokensOut = 0;
-  let costUsd: number | null = 0;
-  const raws: string[] = [];
+  const chunks = guardChunkSize(fileChunks, input.maxDiffChars ?? DEFAULT_MAX_DIFF_CHARS, emit);
+  // An oversize single pass is now several calls → reduce like map-reduce.
+  const effectiveMode: ReviewMode = chunks.length > 1 ? 'map-reduce' : mode;
+  const temperature = input.temperature === undefined ? DEFAULT_REVIEW_TEMPERATURE : input.temperature;
 
-  for (const chunk of chunks) {
+  const results = await mapOrdered(chunks, input.concurrency ?? DEFAULT_MAP_CONCURRENCY, async (chunk) => {
     // Cancellation checkpoint — stop before the next (expensive) LLM call.
     input.checkCancelled?.();
-    // 'map:' prefix only for the map-reduce path (one call per file). In
+    // 'map:' prefix only for the map-reduce path (one call per chunk). In
     // single-pass there is exactly one chunk (the whole diff) — don't mislabel it.
     emit(
       'tool',
-      mode === 'map-reduce' ? `map: reviewing ${chunk.label}` : `Reviewing ${chunk.label} in one pass`,
+      effectiveMode === 'map-reduce' ? `map: reviewing ${chunk.label}` : `Reviewing ${chunk.label} in one pass`,
       { file: chunk.label },
     );
     const a = assemblePrompt({ ...promptParts, diff: chunk.diffText });
-    if (mode === 'single-pass') assembly = a.assembly;
     const res = await input.llm.completeStructured<Review>({
       model: input.model,
       schema: ReviewSchema,
       schemaName: 'Review',
       messages: a.messages,
       maxRetries,
+      ...(temperature !== null ? { temperature } : {}),
       ...(input.sessionId ? { sessionId: input.sessionId } : {}),
       ...(input.onUsage ? { onUsage: input.onUsage } : {}),
+      ...(input.signal ? { signal: input.signal } : {}),
     });
+    emit('result', `${chunk.label}: ${res.data.findings.length} candidate finding(s)`);
+    return { res, assembly: a.assembly };
+  });
+
+  if (effectiveMode === 'single-pass') assembly = results[0]!.assembly;
+  let tokensIn = 0;
+  let tokensOut = 0;
+  let costUsd: number | null = 0;
+  for (const { res } of results) {
     tokensIn += res.tokensIn;
     tokensOut += res.tokensOut;
     costUsd = addCost(costUsd, res.costUsd);
-    raws.push(res.raw);
-    partials.push(res.data);
-    emit('result', `${chunk.label}: ${res.data.findings.length} candidate finding(s)`);
   }
+  const partials = results.map((r) => r.res.data);
+  const raws = results.map((r) => r.res.raw);
 
   const merged = reduceReviews(partials);
   emit(
@@ -218,7 +251,7 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
     review: { ...merged, findings: ground.kept, score: scoreFromFindings(ground.kept) },
     grounding,
     dropped: ground.dropped,
-    mode,
+    mode: effectiveMode,
     assembly,
     chunks: chunks.map((c) => ({ label: c.label })),
     tokensIn,
@@ -226,4 +259,29 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
     costUsd,
     raw: raws.join('\n---\n'),
   };
+}
+
+interface Chunk {
+  label: string;
+  diffText: string;
+}
+
+/** Apply the max-diff-chars guard to every chunk, warning on split/truncation. */
+function guardChunkSize(
+  chunks: Chunk[],
+  maxChars: number,
+  emit: (kind: RunEventKind, msg: string, data?: unknown) => void,
+): Chunk[] {
+  return chunks.flatMap((chunk) => {
+    const { parts, truncated } = splitOversizeDiff(chunk.diffText, maxChars);
+    if (parts.length === 1 && !truncated) return [chunk];
+    emit(
+      'info',
+      `warning: ${chunk.label} diff (${chunk.diffText.length} chars) exceeds maxDiffChars=${maxChars} → ` +
+        `split into ${parts.length} part(s)${truncated ? '; oversize hunk(s) truncated' : ''}`,
+      { warning: 'diff_oversize', file: chunk.label, parts: parts.length, truncated },
+    );
+    if (parts.length === 1) return [{ label: chunk.label, diffText: parts[0]! }];
+    return parts.map((diffText, i) => ({ label: `${chunk.label} (part ${i + 1}/${parts.length})`, diffText }));
+  });
 }

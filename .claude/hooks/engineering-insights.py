@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Hook driver for the `engineering-insights` skill (see CLAUDE.md).
+"""Hook driver for the `engineering-insights` skill (see AGENTS.md).
 
   engineering-insights.py prompt   # UserPromptSubmit: READ reminder + session baseline
   engineering-insights.py stop     # Stop: demand WRAP-UP when package files changed
@@ -20,7 +20,7 @@ PACKAGES = ("server", "client", "reviewer-core", "e2e")
 STATE_DIR = os.path.join(tempfile.gettempdir(), "claude-engineering-insights")
 
 READ_REMINDER = (
-    "engineering-insights READ (CLAUDE.md): if this request touches server/, client/, "
+    "engineering-insights READ (AGENTS.md): if this request touches server/, client/, "
     "reviewer-core/ or e2e/, read that package's INSIGHTS.md before planning or editing "
     "and say in one line which entries apply (or `INSIGHTS: nothing relevant`)."
 )
@@ -115,7 +115,7 @@ def main():
             return
         files = ", ".join(f"{p}/INSIGHTS.md" for p in pkgs)
         print(json.dumps({"decision": "block", "reason": (
-            f"engineering-insights WRAP-UP (CLAUDE.md): this work changed {', '.join(pkgs)}. "
+            f"engineering-insights WRAP-UP (AGENTS.md): this work changed {', '.join(pkgs)}. "
             f"Run the `engineering-insights` skill, step WRAP-UP: re-read {files}, append only "
             "new, verified, non-obvious insights via its append_insight.py script, then run "
             "`verify`. If nothing qualifies, reply `Insights: nothing new worth recording — "

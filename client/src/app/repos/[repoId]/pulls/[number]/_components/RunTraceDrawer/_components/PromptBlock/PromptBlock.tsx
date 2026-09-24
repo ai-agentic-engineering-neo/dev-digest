@@ -6,6 +6,7 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Button, Icon, Modal } from "@devdigest/ui";
 import { s } from "../../styles";
+import { approxTokens, formatApproxTokens, isFromInteractive } from "../../helpers";
 import { PromptModalBody } from "../PromptModalBody";
 
 const miniBtnStyle: React.CSSProperties = {
@@ -20,11 +21,20 @@ const miniBtnStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
+/** Weight of THIS block only — it sits outside the label button, so the
+    toggle's accessible name stays the block name. */
+const tokenChipStyle: React.CSSProperties = {
+  fontSize: 11,
+  color: "var(--text-muted)",
+  whiteSpace: "nowrap",
+};
+
 export function PromptBlock({ label, text, color }: { label: string; text: string; color: string }) {
   const t = useTranslations("runs");
   const [open, setOpen] = React.useState(false);
   const [full, setFull] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
+  const preId = React.useId();
   const copy = () => {
     void navigator.clipboard?.writeText(text || "");
     setCopied(true);
@@ -32,18 +42,28 @@ export function PromptBlock({ label, text, color }: { label: string; text: strin
   };
   return (
     <div style={s.promptRow}>
-      <div onClick={() => setOpen((o) => !o)} style={s.promptHead}>
+      {/* The label button is the accessible toggle; clicking the rest of the row
+          toggles too (pointer convenience), except on the action buttons. */}
+      <div onClick={(e) => !isFromInteractive(e.target) && setOpen((o) => !o)} style={s.promptHead}>
         <span style={s.promptDot(color)} />
-        <span style={s.promptLabel}>{label}</span>
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={preId}
+          onClick={() => setOpen((o) => !o)}
+          style={s.promptLabel}
+        >
+          {label}
+        </button>
         <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={tokenChipStyle}>
+            {t("trace.prompt.tokens", { tokens: formatApproxTokens(approxTokens(text)) })}
+          </span>
           <button
             type="button"
             title={t("trace.prompt.copy")}
             aria-label={t("trace.prompt.copy")}
-            onClick={(e) => {
-              e.stopPropagation();
-              copy();
-            }}
+            onClick={copy}
             style={miniBtnStyle}
           >
             {copied ? <Icon.Check size={12} /> : <Icon.Copy size={12} />}
@@ -52,10 +72,7 @@ export function PromptBlock({ label, text, color }: { label: string; text: strin
             type="button"
             title={t("trace.prompt.fullscreen")}
             aria-label={t("trace.prompt.fullscreen")}
-            onClick={(e) => {
-              e.stopPropagation();
-              setFull(true);
-            }}
+            onClick={() => setFull(true)}
             style={miniBtnStyle}
           >
             <Icon.ExternalLink size={12} />
@@ -66,7 +83,7 @@ export function PromptBlock({ label, text, color }: { label: string; text: strin
         </span>
       </div>
       {open && (
-        <pre className="mono" style={s.promptPre}>
+        <pre id={preId} className="mono" style={s.promptPre}>
           {text || "—"}
         </pre>
       )}

@@ -1,5 +1,5 @@
-import { pgTable, uuid, text, jsonb, uniqueIndex, primaryKey } from 'drizzle-orm/pg-core';
-import { now } from './_shared';
+import { pgTable, uuid, text, jsonb, unique, primaryKey } from 'drizzle-orm/pg-core';
+import { now, enumCheck } from './_shared';
 
 // ============================================================ Tenancy & core
 
@@ -16,6 +16,8 @@ export const workspaces = pgTable('workspaces', {
   createdAt: now(),
 });
 
+export const WORKSPACE_ROLES = ['owner', 'member'] as const;
+
 export const workspaceMembers = pgTable(
   'workspace_members',
   {
@@ -25,9 +27,12 @@ export const workspaceMembers = pgTable(
     userId: uuid('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    role: text('role', { enum: ['owner', 'member'] }).notNull().default('member'),
+    role: text('role', { enum: WORKSPACE_ROLES }).notNull().default('member'),
   },
-  (t) => ({ pk: primaryKey({ columns: [t.workspaceId, t.userId] }) }),
+  (t) => ({
+    pk: primaryKey({ columns: [t.workspaceId, t.userId] }),
+    roleChk: enumCheck('workspace_members_role_chk', t.role, WORKSPACE_ROLES),
+  }),
 );
 
 /** Non-secret prefs/config. Secrets go via SecretsProvider, NOT here. */
@@ -43,6 +48,8 @@ export const settings = pgTable(
     value: jsonb('value'),
   },
   (t) => ({
-    uq: uniqueIndex('settings_ws_user_key_uq').on(t.workspaceId, t.userId, t.key),
+    // NULLS NOT DISTINCT: workspace-level rows (user_id NULL) stay one-per-key,
+    // so ON CONFLICT (workspace_id, user_id, key) upserts them too.
+    uq: unique('settings_ws_user_key_uq').on(t.workspaceId, t.userId, t.key).nullsNotDistinct(),
   }),
 );

@@ -1,7 +1,10 @@
 import { pgTable, uuid, text, integer, boolean, jsonb, timestamp, index } from 'drizzle-orm/pg-core';
+import { enumCheck } from './_shared';
 import { workspaces } from './core';
 
 // ============================================================ Jobs & ops
+
+export const JOB_STATUSES = ['queued', 'running', 'done', 'failed'] as const;
 
 export const jobs = pgTable(
   'jobs',
@@ -12,9 +15,7 @@ export const jobs = pgTable(
       .references(() => workspaces.id, { onDelete: 'cascade' }),
     kind: text('kind').notNull(),
     payload: jsonb('payload'),
-    status: text('status', {
-      enum: ['queued', 'running', 'done', 'failed'],
-    })
+    status: text('status', { enum: JOB_STATUSES })
       .notNull()
       .default('queued'),
     attempts: integer('attempts').notNull().default(0),
@@ -23,7 +24,11 @@ export const jobs = pgTable(
     finishedAt: timestamp('finished_at', { withTimezone: true }),
     error: text('error'),
   },
-  (t) => ({ statusIdx: index('jobs_status_idx').on(t.status) }),
+  (t) => [
+    index('jobs_status_idx').on(t.status),
+    index('jobs_ws_idx').on(t.workspaceId),
+    enumCheck('jobs_status_chk', t.status, JOB_STATUSES),
+  ],
 );
 
 export const installedPlugins = pgTable('installed_plugins', {

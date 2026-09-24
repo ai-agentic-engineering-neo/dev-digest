@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Provider } from './knowledge.js';
+import { FEATURE_MODEL_IDS } from '../constants/feature-models.js';
 
 /**
  * Platform / scaffolding DTOs owned by F1:
@@ -11,13 +12,7 @@ import { Provider } from './knowledge.js';
 
 // ---- Feature → model selection ----
 /** System LLM features whose model is selectable in Settings (per-workspace). */
-export const FeatureModelId = z.enum([
-  'onboarding',
-  'review_intent',
-  'risk_brief',
-  'conformance',
-  'conventions',
-]);
+export const FeatureModelId = z.enum(FEATURE_MODEL_IDS);
 export type FeatureModelId = z.infer<typeof FeatureModelId>;
 
 /** A chosen provider + model for one feature. */
@@ -27,56 +22,9 @@ export const FeatureModelChoice = z.object({
 });
 export type FeatureModelChoice = z.infer<typeof FeatureModelChoice>;
 
-/**
- * Registry of the selectable features: stable id, display label, and the
- * built-in default used when the workspace hasn't overridden the choice. The
- * defaults MIRROR each module's constants, so behaviour is unchanged until a
- * model is explicitly picked.
- */
-export interface FeatureModelDef {
-  id: FeatureModelId;
-  label: string;
-  description: string;
-  defaultProvider: Provider;
-  defaultModel: string;
-}
-export const FEATURE_MODELS: FeatureModelDef[] = [
-  {
-    id: 'onboarding',
-    label: 'Onboarding Tour',
-    description: 'Writes the per-repo onboarding tour.',
-    defaultProvider: 'openrouter',
-    defaultModel: 'deepseek/deepseek-v4-flash',
-  },
-  {
-    id: 'review_intent',
-    label: 'PR Review · Intent',
-    description: 'Derives a PR’s intent and scope before review.',
-    defaultProvider: 'openai',
-    defaultModel: 'gpt-4.1',
-  },
-  {
-    id: 'risk_brief',
-    label: 'Risk Brief',
-    description: 'Assesses merge risks for a pull request.',
-    defaultProvider: 'openai',
-    defaultModel: 'gpt-4.1',
-  },
-  {
-    id: 'conformance',
-    label: 'Conformance',
-    description: 'Checks a PR against the project spec.',
-    defaultProvider: 'openai',
-    defaultModel: 'gpt-4.1',
-  },
-  {
-    id: 'conventions',
-    label: 'Conventions',
-    description: 'Extracts coding conventions from the repo.',
-    defaultProvider: 'openai',
-    defaultModel: 'gpt-5.4',
-  },
-];
+// Registry (FEATURE_MODELS, FeatureModelDef) lives in the zod-free
+// constants/feature-models.ts; re-exported here for compatibility.
+export { FEATURE_MODELS, type FeatureModelDef } from '../constants/feature-models.js';
 
 // ---- Settings ----
 /**
@@ -132,8 +80,35 @@ export const SecretsStatus = z.object({
 export type SecretsStatus = z.infer<typeof SecretsStatus>;
 
 // ---- Repos ----
+/**
+ * Anchored GitHub repo URL: `https://github.com/<owner>/<repo>(.git)(/)` or
+ * `git@github.com:<owner>/<repo>(.git)`. Owner/repo are restricted to
+ * `[A-Za-z0-9_.-]` — the parsed values become clone-path segments on disk.
+ */
+const GITHUB_REPO_URL_REGEX =
+  /^(?:https:\/\/github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?|git@github\.com:([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?)$/;
+
+/** A path segment that is safe as a directory name: not `.`/`..`/`.git`, no leading `-`. */
+function isSafeRepoSegment(s: string): boolean {
+  return s !== '.' && s !== '..' && s.toLowerCase() !== '.git' && !s.startsWith('-');
+}
+
+/** Parse `owner`/`name` from a GitHub repo URL; `null` when it isn't one (or is unsafe). */
+export function parseGitHubRepoUrl(url: string): { owner: string; name: string } | null {
+  const m = GITHUB_REPO_URL_REGEX.exec(url);
+  const owner = m?.[1] ?? m?.[3];
+  const name = m?.[2] ?? m?.[4];
+  if (!owner || !name || !isSafeRepoSegment(owner) || !isSafeRepoSegment(name)) return null;
+  return { owner, name };
+}
+
 export const RepoInput = z.object({
-  url: z.string().url(),
+  url: z
+    .string()
+    .trim()
+    .refine((u) => parseGitHubRepoUrl(u) !== null, {
+      message: 'Must be a GitHub repository URL, e.g. https://github.com/owner/repo',
+    }),
 });
 export type RepoInput = z.infer<typeof RepoInput>;
 
@@ -264,6 +239,30 @@ export const IndexStatus = z.object({
   chunks_indexed: z.number().int().nullish(),
 });
 export type IndexStatus = z.infer<typeof IndexStatus>;
+
+/**
+ * Repo-intel index state — GET /repos/:id/index-state (JSON of the server's
+ * repo-intel `IndexState`). The UI badge + resync completion-poll read it:
+ * completion is detected by `lastIndexedSha`/`updatedAt` advancing, since
+ * `status` only takes terminal values.
+ */
+export const RepoIndexState = z.object({
+  repoId: z.string(),
+  status: z.enum(['full', 'partial', 'degraded', 'failed']),
+  filesIndexed: z.number().int(),
+  filesSkipped: z.number().int(),
+  durationMs: z.number().int(),
+  reason: z.string().optional(),
+  lastIndexedSha: z.string(),
+  indexerVersion: z.number().int(),
+  updatedAt: z.string(),
+  /** True when the layer is running on the ripgrep fallback. */
+  degraded: z.boolean().optional(),
+  degradedReason: z
+    .enum(['flag_off', 'index_failed', 'index_partial', 'repo_too_large', 'no_data'])
+    .optional(),
+});
+export type RepoIndexState = z.infer<typeof RepoIndexState>;
 
 // ---- Run request (review trigger; owned by A2, contract lives here) ----
 export const RunRequest = z.object({

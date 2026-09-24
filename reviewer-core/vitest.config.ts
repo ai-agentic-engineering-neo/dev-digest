@@ -13,5 +13,13 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['test/**/*.test.ts', 'src/**/*.test.ts'],
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.ts'],
+      reporter: ['text', 'text-summary'],
+      // Just below the measured baseline (2026-09-22: 95.09 / 85.38 / 96.29 / 95.09)
+      // so a PR that drops coverage fails `npm run test:coverage`.
+      thresholds: { statements: 94, branches: 84, functions: 95, lines: 94 },
+    },
   },
 });

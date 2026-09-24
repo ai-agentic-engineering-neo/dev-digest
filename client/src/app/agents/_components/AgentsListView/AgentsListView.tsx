@@ -6,8 +6,8 @@ import React from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Button, Dropdown, EmptyState, ErrorState, Skeleton, Icon } from "@devdigest/ui";
-import { AppShell } from "../../../../components/app-shell";
-import { useAgents, useUpdateAgent } from "../../../../lib/hooks/agents";
+import { AppShell } from "@/components/app-shell";
+import { useAgents, useUpdateAgent } from "@/lib/hooks";
 import { AgentCard } from "../AgentCard";
 import { CreateAgentModal } from "./_components/CreateAgentModal";
 import { TEMPLATES } from "./constants";
@@ -16,6 +16,7 @@ import { s } from "./styles";
 
 export function AgentsListView() {
   const t = useTranslations("agents");
+  const tc = useTranslations("common");
   const router = useRouter();
   const { data: agents, isLoading, isError, refetch } = useAgents();
   const update = useUpdateAgent();
@@ -70,7 +71,14 @@ export function AgentsListView() {
             <Skeleton height={120} />
           </div>
         )}
-        {isError && <ErrorState body={t("list.loadError")} onRetry={() => refetch()} />}
+        {isError && (
+          <ErrorState
+            title={tc("states.error")}
+            body={t("list.loadError")}
+            onRetry={() => refetch()}
+            retryLabel={tc("actions.retry")}
+          />
+        )}
         {!isLoading && !isError && list.length === 0 && (
           <EmptyState
             icon="Cpu"

@@ -169,9 +169,9 @@ sequenceDiagram
 | Stage | File |
 | --- | --- |
 | PR import | `server/src/modules/pulls/routes.ts`, `server/src/modules/polling/routes.ts` |
-| Review status | `server/src/modules/pulls/status.ts` |
-| Trigger | `server/src/modules/reviews/routes.ts`, `server/src/modules/reviews/service.ts` |
-| Execution | `server/src/modules/reviews/run-executor.ts`, `server/src/modules/reviews/diff-loader.ts` |
+| Review status | `server/src/modules/pulls/domain.ts` |
+| Trigger | `server/src/modules/reviews/routes.ts`, `server/src/modules/reviews/application/review-service.ts` |
+| Execution | `server/src/modules/reviews/application/run-executor.ts` (+ `diff-loader.ts`, `prompt-context.ts`), rules in `reviews/domain/` |
 | Engine | `reviewer-core/src/review/run.ts`, `reviewer-core/src/prompt.ts`, `reviewer-core/src/grounding.ts`, `reviewer-core/src/review/reduce.ts` |
 | Live events | `server/src/platform/sse.ts` |
 | Client | `client/src/lib/hooks/reviews.ts`, `client/src/app/repos/[repoId]/pulls/[number]/page.tsx` and its `_components/` |

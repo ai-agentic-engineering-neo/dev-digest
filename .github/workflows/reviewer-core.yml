@@ -3,7 +3,9 @@
 # Tests are hermetic units (the LLM is stubbed). Uses npm (package-lock.json).
 #
 # server/src/vendor/shared/** is in the path filter because reviewer-core
-# aliases @devdigest/shared to it at type-check time.
+# aliases @devdigest/shared to it (tsconfig + vitest). That is its ONLY
+# dependency on server/: the tests use local fixtures (test/fixtures), not
+# server mocks.
 name: reviewer-core
 
 on:
@@ -12,11 +14,15 @@ on:
     paths:
       - 'reviewer-core/**'
       - 'server/src/vendor/shared/**'
+      - 'biome.jsonc'
+      - '.nvmrc'
       - '.github/workflows/reviewer-core.yml'
   pull_request:
     paths:
       - 'reviewer-core/**'
       - 'server/src/vendor/shared/**'
+      - 'biome.jsonc'
+      - '.nvmrc'
       - '.github/workflows/reviewer-core.yml'
 
 permissions:
@@ -34,11 +40,11 @@ jobs:
       run:
         working-directory: reviewer-core
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: reviewer-core/package-lock.json
 
@@ -46,4 +52,7 @@ jobs:
 
       - run: npm run typecheck
 
-      - run: npm test
+      - run: npm run lint
+
+      # test:coverage runs the full suite once, with v8 coverage on top.
+      - run: npm run test:coverage

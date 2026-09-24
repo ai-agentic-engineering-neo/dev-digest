@@ -1,12 +1,15 @@
 import 'dotenv/config';
 import { createDb, type Db } from './client.js';
 import * as t from './schema.js';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, isNull } from 'drizzle-orm';
+import { SEED_PR_482_PATCHES } from './seed-diff.js';
 import {
   GENERAL_REVIEWER_PROMPT,
   SECURITY_REVIEWER_PROMPT,
   PERFORMANCE_REVIEWER_PROMPT,
+  TEST_QUALITY_REVIEWER_PROMPT,
 } from './seed-prompts.js';
+import { SEED_AGENT_SKILLS, SEED_SKILLS } from './seed-skills.js';
 
 /** Default provider/model for the built-in reviewer agents. */
 const DEFAULT_PROVIDER = 'openrouter' as const;
@@ -17,12 +20,20 @@ const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
  * workspace/user and the demo fixtures.
  *
  * Seeds: default workspace + system user + membership, default settings,
- * demo repo (acme/payments-api), PR #482 with files/commits, a sample review
- * with a few findings, and the three built-in agents (General + Security +
- * Performance), all on the default openrouter/deepseek-v4-flash provider+model.
+ * demo repo (acme/payments-api), PR #482 with files (incl. their diff patches,
+ * ./seed-diff.ts) and commits, a sample review with a few findings, the four
+ * built-in agents (General + Security + Performance + Test Quality), all on the
+ * default openrouter/deepseek-v4-flash provider+model, the finished agent_run
+ * that produced the sample review (so the Agent runs timeline has a run tile),
+ * and the built-in skills (./seed-skills.ts) linked to those agents.
  *
- * Course lessons populate the other tables (skills, conventions, memory, eval,
- * …) once their features are built — they start empty here.
+ * The patch backfill and the run are keyed on "still missing" (patch IS NULL,
+ * review.run_id IS NULL), so re-seeding an older DB adds them exactly once.
+ * Skills are keyed by name; agent links are written only for an agent with NO
+ * links yet, so re-seeding never overrides the user's choices.
+ *
+ * Course lessons populate the other tables (conventions, memory, eval, …) once
+ * their features are built — they start empty here.
  */
 
 export const DEFAULT_WORKSPACE_NAME = 'default';
@@ -122,7 +133,7 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       { prId: pr!.id, path: 'src/api/public/webhooks.ts', additions: 31, deletions: 6 },
       { prId: pr!.id, path: 'src/config.ts', additions: 4, deletions: 0 },
       { prId: pr!.id, path: 'src/api/users.ts', additions: 7, deletions: 2 },
-    ]);
+    ].map((f) => ({ ...f, patch: SEED_PR_482_PATCHES[f.path] ?? null })));
 
     // pr_commits
     await db.insert(t.prCommits).values({
@@ -211,6 +222,17 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       version: 1,
       createdBy: userId,
     },
+    {
+      workspaceId,
+      name: 'Test Quality Reviewer',
+      description: 'Checks tests for uncovered branches, missing corner cases, over-mocking and flakiness.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: TEST_QUALITY_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
   ];
   for (const a of seedAgents) {
     const [existing] = await db
@@ -220,7 +242,113 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
     if (!existing) await db.insert(t.agents).values(a);
   }
 
+  await seedSkills(db, workspaceId);
+  await seedPr482Diff(db, pr!.id);
+  await seedPr482Run(db, workspaceId, pr!.id);
+
   return { workspaceId, userId };
+}
+
+/**
+ * Built-in skills (idempotent by name; v1 snapshotted with message `Created`)
+ * and their links to the built-in agents — only for an agent with no links yet.
+ */
+async function seedSkills(db: Db, workspaceId: string): Promise<void> {
+  const ids = new Map<string, string>();
+  for (const s of SEED_SKILLS) {
+    const [existing] = await db
+      .select({ id: t.skills.id })
+      .from(t.skills)
+      .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.name, s.name)));
+    if (existing) {
+      ids.set(s.name, existing.id);
+      continue;
+    }
+    await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(t.skills)
+        .values({ workspaceId, ...s, source: 'manual', version: 1 })
+        .returning({ id: t.skills.id });
+      await tx
+        .insert(t.skillVersions)
+        .values({ skillId: row!.id, version: 1, body: s.body, description: s.description, message: 'Created' });
+      ids.set(s.name, row!.id);
+    });
+  }
+
+  for (const [agentName, skillNames] of Object.entries(SEED_AGENT_SKILLS)) {
+    const [agent] = await db
+      .select({ id: t.agents.id })
+      .from(t.agents)
+      .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, agentName)));
+    if (!agent) continue;
+    const [linked] = await db
+      .select({ skillId: t.agentSkills.skillId })
+      .from(t.agentSkills)
+      .where(eq(t.agentSkills.agentId, agent.id))
+      .limit(1);
+    if (linked) continue;
+    const links = skillNames.flatMap((name, order) => {
+      const skillId = ids.get(name);
+      return skillId ? [{ agentId: agent.id, skillId, order }] : [];
+    });
+    if (links.length > 0) await db.insert(t.agentSkills).values(links);
+  }
+}
+
+/** Backfill the demo diff on PR #482's files that still have no patch. */
+async function seedPr482Diff(db: Db, prId: string): Promise<void> {
+  for (const [path, patch] of Object.entries(SEED_PR_482_PATCHES)) {
+    await db
+      .update(t.prFiles)
+      .set({ patch })
+      .where(and(eq(t.prFiles.prId, prId), eq(t.prFiles.path, path), isNull(t.prFiles.patch)));
+  }
+}
+
+/**
+ * The finished run behind the seeded sample review: one `done` agent_run with
+ * realistic usage/cost, linked through reviews.run_id (+ agent_id). Only for
+ * the seed's own review (model='seed') while it has no run yet — idempotent.
+ */
+async function seedPr482Run(db: Db, workspaceId: string, prId: string): Promise<void> {
+  const [review] = await db
+    .select()
+    .from(t.reviews)
+    .where(and(eq(t.reviews.prId, prId), eq(t.reviews.model, 'seed'), isNull(t.reviews.runId)));
+  if (!review) return;
+  const [agent] = await db
+    .select()
+    .from(t.agents)
+    .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, 'General Reviewer')));
+
+  await db.transaction(async (tx) => {
+    const [run] = await tx
+      .insert(t.agentRuns)
+      .values({
+        workspaceId,
+        agentId: agent?.id ?? null,
+        prId,
+        ranAt: review.createdAt,
+        provider: DEFAULT_PROVIDER,
+        model: DEFAULT_MODEL,
+        durationMs: 18_420,
+        tokensIn: 6_214,
+        tokensOut: 842,
+        costUsd: 0.002135,
+        status: 'done',
+        source: 'local',
+        findingsCount: 2,
+        grounding: '2/2 passed',
+        score: review.score,
+        blockers: 1,
+      })
+      .returning();
+    await tx
+      .update(t.reviews)
+      .set({ runId: run!.id, agentId: agent?.id ?? null })
+      .where(eq(t.reviews.id, review.id));
+  });
 }
 
 // CLI entrypoint

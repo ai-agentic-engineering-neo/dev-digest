@@ -1,15 +1,16 @@
 import { describe, it, expect } from 'vitest';
 import type { LLMProvider, StructuredRequest, StructuredResult } from '@devdigest/shared';
-import { MockLLMProvider, MockGitClient } from '../../server/src/adapters/mocks.js';
+import { StubLLM } from './fixtures/llm.js';
+import { configDiff, twoFileDiff as twoFiles } from './fixtures/diff.js';
 import { reviewPullRequest } from '../src/index.js';
 
 /**
  * Engine-level test for reviewPullRequest (the core lifted out of the server's
- * runOneAgent). Uses the server's mock LLM + git so we exercise the real
+ * runOneAgent). Uses local stub LLM + pre-parsed diff fixtures so we exercise the real
  * assemble → completeStructured → reduce → grounding pipeline with no DB/SSE.
  */
 describe('reviewPullRequest (engine)', () => {
-  // One grounded finding (line 11 is in the MockGitClient diff) + one
+  // One grounded finding (line 11 is in the fixture diff) + one
   // hallucinated finding (line 999) the grounding gate must drop.
   const fixture = {
     verdict: 'request_changes',
@@ -44,8 +45,8 @@ describe('reviewPullRequest (engine)', () => {
   };
 
   it('single-pass: assembles, grounds, drops the hallucinated finding', async () => {
-    const llm = new MockLLMProvider('openai', { structured: fixture });
-    const diff = await new MockGitClient().diff();
+    const llm = new StubLLM({ data: fixture });
+    const diff = configDiff();
 
     const events: string[] = [];
     const outcome = await reviewPullRequest({
@@ -73,8 +74,8 @@ describe('reviewPullRequest (engine)', () => {
     // Model "approves" but reports a nonsense low score (the cheap-model bug).
     // The engine must ignore that and score the zero findings as a perfect 100.
     const clean = { verdict: 'approve', summary: 'looks good', score: 10, findings: [] };
-    const llm = new MockLLMProvider('openai', { structured: clean });
-    const diff = await new MockGitClient().diff();
+    const llm = new StubLLM({ data: clean });
+    const diff = configDiff();
 
     const outcome = await reviewPullRequest({
       systemPrompt: 'security reviewer',
@@ -89,8 +90,8 @@ describe('reviewPullRequest (engine)', () => {
   });
 
   it('checkCancelled throwing aborts before the LLM call', async () => {
-    const llm = new MockLLMProvider('openai', { structured: fixture });
-    const diff = await new MockGitClient().diff();
+    const llm = new StubLLM({ data: fixture });
+    const diff = configDiff();
     await expect(
       reviewPullRequest({
         systemPrompt: 's',
@@ -130,7 +131,7 @@ describe('reviewPullRequest (engine)', () => {
         return [];
       },
     };
-    const diff = await new MockGitClient().diff();
+    const diff = configDiff();
     await reviewPullRequest({ systemPrompt: 's', model: 'm', diff, llm: recorder, sessionId: 'sess-abc' });
     expect(seen.length).toBeGreaterThan(0);
     expect(seen.every((s) => s === 'sess-abc')).toBe(true);
@@ -138,16 +139,7 @@ describe('reviewPullRequest (engine)', () => {
 
   describe('onUsage (per-response usage for failed/cancelled runs)', () => {
     // Two changed files + map-reduce ⇒ one LLM call per file.
-    async function twoFileDiff() {
-      const base = await new MockGitClient().diff();
-      const file = base.files[0]!;
-      const second = { ...file, path: 'src/other.ts' };
-      return {
-        ...base,
-        files: [file, second],
-        raw: `${base.raw}\n${base.raw.replaceAll(file.path, second.path)}`,
-      };
-    }
+    const twoFileDiff = async () => twoFiles();
 
     /** Fake provider: every call reports 100/50 tokens at $0.001 via onUsage,
      *  like a real one; from call `failFrom` on it throws AFTER reporting. */

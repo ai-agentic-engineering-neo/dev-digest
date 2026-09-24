@@ -1,29 +1,27 @@
-import type { Db } from '../../db/client.js';
-import * as t from '../../db/schema.js';
-import type { Finding, Intent, RunSummary, RunTrace } from '@devdigest/shared';
-
-/**
- * A2 — review data-access. The ONLY layer touching the DB for the review
- * domain. Owns `reviews`, `findings`, `pr_intent`, and persists the
- * observability rows `agent_runs` + `run_traces` (one trace doc per run).
- * Workspace scoping is enforced via the PR (which carries workspace_id).
- *
- * The query implementations are colocated, split by aggregate, under
- * `./repository/` (review+findings, agent runs, pull/intent). This class
- * composes them so its public API stays identical.
- */
-
-import type { FindingRow, PullRow } from '../../db/rows.js';
-export type { FindingRow, PullRow };
-
-export type ReviewRow = typeof t.reviews.$inferSelect;
-
+import type { DbOrTx } from '../../db/client.js';
+import type { Finding, FindingRecord, Intent, RunSummary, RunTrace, UnifiedDiff, ActiveRun } from '@devdigest/shared';
+import type { PullRow } from '../../db/rows.js';
+import type * as t from '../../db/schema.js';
+import type { AgentSkillsReader, ReviewStore } from './application/ports.js';
+import type { StoredReview } from './domain/review.js';
+import type { NewAgentRun, NewReview, ReviewSkill, RunCompletion, RunState, RunUsage } from './domain/types.js';
 import * as reviewRepo from './repository/review.repo.js';
 import * as runRepo from './repository/run.repo.js';
 import * as pullRepo from './repository/pull.repo.js';
 
-export class ReviewRepository {
-  constructor(private db: Db) {}
+/**
+ * Review data access (infrastructure; implements the ReviewStore port). The
+ * ONLY layer touching the DB for the review domain: `reviews`, `findings`,
+ * `pr_intent`, and the observability rows `agent_runs` + `run_traces` (one
+ * trace doc per run). Workspace scoping is enforced via the PR / run row.
+ *
+ * Queries are colocated by aggregate under `./repository/` (review+findings,
+ * agent runs, pull/intent); row → contract mappers live in `./repository/mappers.ts`.
+ * Transactions are opened by the use case through the TransactionRunner port
+ * (composition.ts binds a ReviewRepository to the tx handle).
+ */
+export class ReviewRepository implements ReviewStore, AgentSkillsReader {
+  constructor(private db: DbOrTx) {}
 
   // ---- PR lookup (workspace-scoped) --------------------------------------
 
@@ -35,98 +33,44 @@ export class ReviewRepository {
     return pullRepo.getRepo(this.db, repoId);
   }
 
-  getPrFiles(prId: string): Promise<(typeof t.prFiles.$inferSelect)[]> {
-    return pullRepo.getPrFiles(this.db, prId);
+  storedDiff(prId: string): Promise<UnifiedDiff> {
+    return pullRepo.storedDiff(this.db, prId);
+  }
+
+  /** Record the head SHA a review ran against (PR-list freshness derivation). */
+  markReviewed(prId: string, sha: string): Promise<void> {
+    return pullRepo.markReviewed(this.db, prId, sha);
   }
 
   // ---- reviews + findings -------------------------------------------------
 
-  insertReview(values: {
-    workspaceId: string;
-    prId: string;
-    agentId: string | null;
-    runId: string | null;
-    kind: 'summary' | 'review';
-    verdict: string | null;
-    summary: string | null;
-    score: number | null;
-    model: string | null;
-  }): Promise<ReviewRow> {
+  insertReview(values: NewReview): Promise<{ id: string }> {
     return reviewRepo.insertReview(this.db, values);
   }
 
-  insertFindings(reviewId: string, findings: Finding[]): Promise<FindingRow[]> {
-    return reviewRepo.insertFindings(this.db, reviewId, findings);
+  insertFindings(reviewId: string, findings: Finding[], skillIds?: ReadonlyMap<string, string>): Promise<FindingRecord[]> {
+    return reviewRepo.insertFindings(this.db, reviewId, findings, skillIds);
   }
 
   /** Reviews for a PR (newest first), each with its findings. */
-  reviewsForPull(prId: string): Promise<{ review: ReviewRow; findings: FindingRow[] }[]> {
+  reviewsForPull(prId: string): Promise<StoredReview[]> {
     return reviewRepo.reviewsForPull(this.db, prId);
   }
 
-  getReview(reviewId: string): Promise<ReviewRow | undefined> {
-    return reviewRepo.getReview(this.db, reviewId);
-  }
-
-  /** In-flight runs for a PR (status='running') — the server-side source of
-   *  truth for "which agents are running now". Joined with the agent name. */
-  activeRunsForPull(
-    workspaceId: string,
-    prId: string,
-  ): Promise<{ run_id: string; agent_id: string | null; agent_name: string | null; ran_at: string | null }[]> {
-    return runRepo.activeRunsForPull(this.db, workspaceId, prId);
-  }
-
-  /** All runs for a PR (any status), newest first — the PR run history. */
-  listRunsForPull(workspaceId: string, prId: string): Promise<RunSummary[]> {
-    return runRepo.listRunsForPull(this.db, workspaceId, prId);
-  }
-
-  /** Token + USD usage per run id, one query (attached to review DTOs). */
-  usageForRuns(runIds: string[]): Promise<Map<string, runRepo.RunUsage>> {
-    return runRepo.usageForRuns(this.db, runIds);
-  }
-
-  /** Delete one agent run (+ its trace via FK cascade). Workspace-scoped. */
-  deleteAgentRun(workspaceId: string, runId: string): Promise<boolean> {
-    return runRepo.deleteAgentRun(this.db, workspaceId, runId);
-  }
-
-  /** Mark a still-running run as cancelled (no-op if it already finished). */
-  cancelRunIfRunning(runId: string): Promise<boolean> {
-    return runRepo.cancelRunIfRunning(this.db, runId);
-  }
-
-  /** On boot: any run still 'running' is orphaned (its process died / restarted),
-   *  so mark it failed. Prevents permanently stuck "running" runs in the UI. */
-  reapStaleRunningRuns(): Promise<number> {
-    return runRepo.reapStaleRunningRuns(this.db);
-  }
-
-  /** Delete a whole review (one agent's run) + its findings (cascade), scoped
-   *  to the workspace. Returns false if not found in the workspace. */
+  /** Delete a whole review + its findings (cascade); false if not in the workspace. */
   deleteReview(workspaceId: string, reviewId: string): Promise<boolean> {
     return reviewRepo.deleteReview(this.db, workspaceId, reviewId);
   }
 
-  // ---- finding actions ----------------------------------------------------
-
-  getFinding(findingId: string): Promise<FindingRow | undefined> {
-    return reviewRepo.getFinding(this.db, findingId);
+  findingWorkspaceId(findingId: string): Promise<string | undefined> {
+    return reviewRepo.findingWorkspaceId(this.db, findingId);
   }
 
-  /** Resolve workspace_id + pr_id for a finding (via review → pr). */
-  findingContext(
-    findingId: string,
-  ): Promise<{ finding: FindingRow; review: ReviewRow; pull: PullRow } | undefined> {
-    return reviewRepo.findingContext(this.db, findingId);
-  }
-
-  setFindingAccepted(findingId: string, at: Date | null): Promise<FindingRow | undefined> {
+  setFindingAccepted(findingId: string, at: Date | null): Promise<FindingRecord | undefined> {
     return reviewRepo.setFindingAccepted(this.db, findingId, at);
   }
 
-  setFindingDismissed(findingId: string, at: Date | null): Promise<FindingRow | undefined> {
+  setFindingDismissed(findingId: string, at: Date | null): Promise<FindingRecord | undefined> {
     return reviewRepo.setFindingDismissed(this.db, findingId, at);
   }
 
@@ -140,44 +84,66 @@ export class ReviewRepository {
     return pullRepo.getIntent(this.db, prId);
   }
 
-  // ---- observability: agent_runs + run_traces ----------------------------
+  // ---- agent runs + run traces --------------------------------------------
 
   /** Create an agent_runs row in `running` state; returns its id (= the runId). */
-  createAgentRun(values: {
-    workspaceId: string;
-    agentId: string | null;
-    prId: string;
-    provider: string | null;
-    model: string | null;
-  }): Promise<string> {
+  createAgentRun(values: NewAgentRun): Promise<string> {
     return runRepo.createAgentRun(this.db, values);
   }
 
-  completeAgentRun(
-    runId: string,
-    values: {
-      status: 'done' | 'failed' | 'cancelled';
-      durationMs: number;
-      tokensIn: number;
-      tokensOut: number;
-      /** USD; null = unpriced model. */
-      costUsd: number | null;
-      findingsCount: number;
-      grounding: string;
-      /** Review score (0-100); null on failed/cancelled runs. */
-      score?: number | null;
-      /** Findings that tripped the agent's gate; 0 on failed/cancelled runs. */
-      blockers?: number | null;
-      /** Failure reason (status='failed') / cancellation note. Null clears it. */
-      error?: string | null;
-    },
-  ): Promise<void> {
-    return runRepo.completeAgentRun(this.db, runId, values);
+  /** agent_run_skills: the skills in the run's prompt at their exact version. */
+  recordRunSkills(runId: string, skills: readonly ReviewSkill[]): Promise<void> {
+    return runRepo.recordRunSkills(this.db, runId, skills);
   }
 
-  /** Record the head SHA a review ran against (PR-list freshness derivation). */
-  markReviewed(prId: string, sha: string): Promise<void> {
-    return pullRepo.markReviewed(this.db, prId, sha);
+  /** The agent's linked, enabled skills in link order (AgentSkillsReader). */
+  enabledForAgent(agentId: string): Promise<ReviewSkill[]> {
+    return runRepo.enabledSkillsForAgent(this.db, agentId);
+  }
+
+  /** In-flight runs for a PR (status='running'), joined with the agent name. */
+  activeRunsForPull(workspaceId: string, prId: string): Promise<ActiveRun[]> {
+    return runRepo.activeRunsForPull(this.db, workspaceId, prId);
+  }
+
+  /** All runs for a PR (any status), newest first — the PR run history. */
+  listRunsForPull(workspaceId: string, prId: string): Promise<RunSummary[]> {
+    return runRepo.listRunsForPull(this.db, workspaceId, prId);
+  }
+
+  /** Token + USD usage per run id, one query (attached to review records). */
+  usageForRuns(runIds: string[]): Promise<Map<string, RunUsage>> {
+    return runRepo.usageForRuns(this.db, runIds);
+  }
+
+  /** Status of one run in the workspace (undefined = not found there). */
+  getRunInWorkspace(workspaceId: string, runId: string): Promise<RunState | undefined> {
+    return runRepo.getRunInWorkspace(this.db, workspaceId, runId);
+  }
+
+  /** Delete one agent run (+ its trace, review and findings via FK cascade). Workspace-scoped. */
+  deleteAgentRun(workspaceId: string, runId: string): Promise<boolean> {
+    return runRepo.deleteAgentRun(this.db, workspaceId, runId);
+  }
+
+  /** Mark a still-running run as cancelled (no-op if it already finished). */
+  cancelRunIfRunning(workspaceId: string, runId: string): Promise<boolean> {
+    return runRepo.cancelRunIfRunning(this.db, workspaceId, runId);
+  }
+
+  /** Mark a run `done` only if it is still `running`; false = a cancel won. */
+  completeAgentRunIfRunning(runId: string, values: RunCompletion): Promise<boolean> {
+    return runRepo.completeAgentRunIfRunning(this.db, runId, values);
+  }
+
+  /** Record a failed/cancelled run; a run already cancelled stays cancelled. */
+  failAgentRun(runId: string, status: 'failed' | 'cancelled', values: RunCompletion): Promise<string | null> {
+    return runRepo.failAgentRun(this.db, runId, status, values);
+  }
+
+  /** On boot: any run still 'running' is orphaned (its process died), so mark it failed. */
+  reapStaleRunningRuns(): Promise<number> {
+    return runRepo.reapStaleRunningRuns(this.db);
   }
 
   /** Persist the WHOLE run log as ONE document. PK = runId → agent_runs. */
@@ -185,7 +151,8 @@ export class ReviewRepository {
     return runRepo.saveRunTrace(this.db, runId, trace);
   }
 
-  getRunTrace(runId: string): Promise<RunTrace | undefined> {
-    return runRepo.getRunTrace(this.db, runId);
+  /** The stored (unvalidated) trace of a run in the workspace. */
+  getRunTraceInWorkspace(workspaceId: string, runId: string): Promise<{ trace: unknown } | undefined> {
+    return runRepo.getRunTraceInWorkspace(this.db, workspaceId, runId);
   }
 }

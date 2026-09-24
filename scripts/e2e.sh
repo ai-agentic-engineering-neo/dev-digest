@@ -31,6 +31,14 @@ PG_USER="${E2E_PG_USER:-devdigest}"
 PG_PASS="${E2E_PG_PASS:-devdigest}"
 API_PORT="${E2E_API_PORT:-3101}"
 WEB_PORT="${E2E_WEB_PORT:-3100}"
+# The hermetic `next dev` gets its OWN build dir (client/next.config.mjs reads
+# NEXT_DIST_DIR). Sharing client/.next with a running dev server made the dev
+# app on :3000 bake in this stack's NEXT_PUBLIC_API_BASE (:3101).
+NEXT_E2E_DIST_DIR="${E2E_NEXT_DIST_DIR:-.next-e2e}"
+# The API runs with the deterministic mock LLM (server/src/adapters/llm/mock.ts)
+# so the run-a-review flows need no key and spend nothing. The delay keeps the
+# "Live review" state on screen long enough to be asserted.
+LLM_MOCK_DELAY_MS="${E2E_LLM_MOCK_DELAY_MS:-4000}"
 
 # Exported BEFORE any tsx/next spawn. dotenv (used by migrate/seed/config) does
 # not override already-set env, so these win over server/.env's :5432 / :3001
@@ -41,6 +49,9 @@ export DATABASE_URL="postgres://${PG_USER}:${PG_PASS}@127.0.0.1:${PG_PORT}/${PG_
 export API_PORT WEB_PORT
 export NEXT_PUBLIC_API_BASE="http://localhost:${API_PORT}"
 export E2E_BASE_URL="http://localhost:${WEB_PORT}"
+# Tells the runner the API has the mock LLM, which enables the flows that start
+# a review (flows with "requiresEnv": "E2E_MOCK_LLM").
+export E2E_MOCK_LLM=1
 
 log()  { printf '\033[1;36m▸ %s\033[0m\n' "$*"; }
 warn() { printf '\033[1;33m! %s\033[0m\n' "$*"; }
@@ -48,8 +59,26 @@ warn() { printf '\033[1;33m! %s\033[0m\n' "$*"; }
 # --- prerequisites -----------------------------------------------------------
 command -v docker >/dev/null || { echo "docker not found"; exit 1; }
 command -v pnpm   >/dev/null || { echo "pnpm not found (npm i -g pnpm)"; exit 1; }
-command -v agent-browser >/dev/null || \
-  warn "agent-browser not found — install once: npm i -g agent-browser && agent-browser install"
+# Fail fast — BEFORE booting anything — when the browser driver is missing.
+AB_BIN="${AGENT_BROWSER_BIN:-agent-browser}"
+if ! command -v "$AB_BIN" >/dev/null; then
+  cat >&2 <<HINT
+agent-browser not found ('$AB_BIN'). Either install it once:
+  npm i -g agent-browser && agent-browser install
+or put an npx shim on PATH (no global install):
+  mkdir -p ~/.local/bin && printf '#!/bin/sh\nexec npx -y agent-browser "\$@"\n' > ~/.local/bin/agent-browser \\
+    && chmod +x ~/.local/bin/agent-browser && agent-browser install
+or point AGENT_BROWSER_BIN at a binary/shim.
+HINT
+  exit 1
+fi
+
+# The runner (tsx run.ts) needs e2e/node_modules; without it the suite dies with
+# 'tsx: command not found' only AFTER the whole stack booted. Install first.
+if [ ! -x e2e/node_modules/.bin/tsx ]; then
+  log "installing deps in e2e"
+  (cd e2e && npm ci)
+fi
 
 # --- teardown trap (installed before we start anything) ----------------------
 SERVER_PID=""
@@ -88,7 +117,7 @@ docker run -d --rm --name "$PG_CONTAINER" \
   -e POSTGRES_USER="$PG_USER" \
   -e POSTGRES_PASSWORD="$PG_PASS" \
   -e POSTGRES_DB="$PG_DB" \
-  -p "${PG_PORT}:5432" \
+  -p "127.0.0.1:${PG_PORT}:5432" \
   --health-cmd="pg_isready -U $PG_USER -d $PG_DB" \
   --health-interval=5s --health-timeout=5s --health-retries=10 \
   "$PG_IMAGE" >/dev/null
@@ -130,8 +159,8 @@ log "seeding demo data (isolated db)"
 # --- API on :$API_PORT -------------------------------------------------------
 # tsx directly (not `pnpm start`, which needs a build; not `tsx watch`, to avoid
 # a mid-suite watcher restart).
-log "starting API on :$API_PORT"
-(cd server && pnpm exec tsx src/server.ts) &
+log "starting API on :$API_PORT (LLM_PROVIDER_OVERRIDE=mock, ${LLM_MOCK_DELAY_MS}ms per call)"
+(cd server && LLM_PROVIDER_OVERRIDE=mock LLM_MOCK_DELAY_MS="$LLM_MOCK_DELAY_MS" pnpm exec tsx src/server.ts) &
 SERVER_PID=$!
 log "waiting for API /health"
 api_up=0
@@ -144,8 +173,8 @@ done
 log "API healthy"
 
 # --- web on :$WEB_PORT (next dev → reads NEXT_PUBLIC_API_BASE from env) -------
-log "starting web on :$WEB_PORT"
-(cd client && pnpm exec next dev -p "$WEB_PORT") &
+log "starting web on :$WEB_PORT (distDir client/$NEXT_E2E_DIST_DIR)"
+(cd client && NEXT_DIST_DIR="$NEXT_E2E_DIST_DIR" pnpm exec next dev -p "$WEB_PORT") &
 WEB_PID=$!
 log "waiting for web :$WEB_PORT"
 web_up=0

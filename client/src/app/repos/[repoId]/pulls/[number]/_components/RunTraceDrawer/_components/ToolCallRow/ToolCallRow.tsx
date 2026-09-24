@@ -10,9 +10,16 @@ import { s } from "../../styles";
 export function ToolCallRow({ tc }: { tc: ToolCall }) {
   const t = useTranslations("runs");
   const [open, setOpen] = React.useState(false);
+  const detailId = React.useId();
   return (
     <div style={s.toolRow}>
-      <div onClick={() => setOpen((o) => !o)} style={s.toolHead}>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={detailId}
+        onClick={() => setOpen((o) => !o)}
+        style={s.toolHead}
+      >
         <Icon.Wrench size={13} style={s.toolIcon} />
         <span className="mono" style={s.toolName}>
           {tc.tool}
@@ -20,11 +27,11 @@ export function ToolCallRow({ tc }: { tc: ToolCall }) {
         </span>
         <span style={s.toolMeta}>{tc.meta}</span>
         <span className="mono tnum" style={s.toolMs}>
-          {tc.ms}ms
+          {t("trace.tools.ms", { ms: tc.ms })}
         </span>
-      </div>
+      </button>
       {open && (
-        <div className="mono" style={s.toolDetail}>
+        <div id={detailId} className="mono" style={s.toolDetail}>
           {t("trace.tools.args")}: {tc.args}
           <br />
           {t("trace.tools.result")}: {tc.meta ?? "—"} {t("trace.tools.previewTruncated")}

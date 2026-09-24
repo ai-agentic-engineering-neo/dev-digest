@@ -8,7 +8,6 @@ import * as t from '../src/db/schema.js';
 import { MockGitClient, MockGitHubClient } from '../src/adapters/mocks.js';
 import { AgentsService } from '../src/modules/agents/service.js';
 import { AgentsRepository } from '../src/modules/agents/repository.js';
-import type { Container } from '../src/platform/container.js';
 
 const hasDocker = await dockerAvailable();
 const d = hasDocker ? describe : describe.skip;
@@ -109,6 +108,21 @@ d('GET /agents/:id/versions', () => {
     await app.close();
   });
 
+  it('an empty PUT is a no-op: 200 with the agent unchanged, no new version', async () => {
+    const app = await makeApp();
+    const agentId = (
+      await app.inject({ method: 'POST', url: '/agents', payload: createBody })
+    ).json().id;
+    const res = await app.inject({ method: 'PUT', url: `/agents/${agentId}`, payload: {} });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ id: agentId, version: 1, name: createBody.name });
+    const versions = (
+      await app.inject({ method: 'GET', url: `/agents/${agentId}/versions` })
+    ).json();
+    expect(versions).toHaveLength(1);
+    await app.close();
+  });
+
   it('GET /agents/:id/versions/:version returns one snapshot', async () => {
     const app = await makeApp();
     const agentId = (
@@ -164,7 +178,12 @@ d('GET /agents/:id/versions', () => {
       systemPrompt: 'x',
     });
 
-    const service = new AgentsService({ db } as unknown as Container);
+    const service = new AgentsService({
+      agents: repo,
+      llm: async () => {
+        throw new Error('no LLM in this test');
+      },
+    });
     const [{ id: defaultWs }] = await db
       .select({ id: t.workspaces.id })
       .from(t.workspaces)

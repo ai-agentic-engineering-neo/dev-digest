@@ -70,7 +70,7 @@ log "Postgres healthy"
 install_if_needed() {
   if [ ! -d "$1/node_modules" ]; then
     log "installing deps in $1"
-    (cd "$1" && pnpm install)
+    (cd "$1" && pnpm install --frozen-lockfile)
   fi
 }
 install_if_needed server
@@ -95,11 +95,29 @@ fi
 
 # --- dev servers -------------------------------------------------------------
 SERVER_PID=""
-cleanup() {
-  log "shutting down dev servers (Postgres stays up; stop it with: docker compose down)"
-  [ -n "$SERVER_PID" ] && kill "$SERVER_PID" 2>/dev/null || true
+CLIENT_PID=""
+# Recursively kill a process and all its descendants (leaves first). `pnpm dev`
+# runs `tsx watch` / `next dev`, whose real listener is a GRANDCHILD of the PID
+# we hold, so a plain `kill $PID` orphans it and :3001/:3000 stay bound.
+# Same approach as scripts/e2e.sh.
+kill_tree() {
+  local pid="$1"
+  [ -n "$pid" ] || return 0
+  local kid
+  for kid in $(pgrep -P "$pid" 2>/dev/null || true); do kill_tree "$kid"; done
+  kill "$pid" 2>/dev/null || true
 }
-trap cleanup EXIT INT TERM
+CLEANED=0
+cleanup() {
+  [ "$CLEANED" -eq 1 ] && return 0
+  CLEANED=1
+  log "shutting down dev servers (Postgres stays up; stop it with: docker compose down)"
+  kill_tree "$CLIENT_PID"
+  kill_tree "$SERVER_PID"
+}
+trap cleanup EXIT
+trap 'cleanup; exit 130' INT
+trap 'cleanup; exit 143' TERM
 
 log "starting API on :3001 (server)"
 (cd server && pnpm dev) &
@@ -107,7 +125,11 @@ SERVER_PID=$!
 
 if [ "$RUN_CLIENT" -eq 1 ]; then
   log "starting web on :3000 (client) — Ctrl-C to stop both"
-  (cd client && pnpm dev)
+  # Backgrounded + waited (not foreground) so the trap knows its PID and can
+  # tear down the whole tree; the client still inherits the terminal output.
+  (cd client && pnpm dev) &
+  CLIENT_PID=$!
+  wait "$CLIENT_PID"
 else
   log "API running (PID $SERVER_PID) — Ctrl-C to stop"
   wait "$SERVER_PID"

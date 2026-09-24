@@ -18,6 +18,12 @@ export interface Step {
 export interface Flow {
   name: string;
   description?: string;
+  /**
+   * Env var that must be set (non-empty) for this flow to run; otherwise it is
+   * SKIPPED, not failed. Used by flows that start a review and therefore need
+   * the API on the mock LLM (`E2E_MOCK_LLM`, set by scripts/e2e.sh).
+   */
+  requiresEnv?: string;
   steps: Step[];
 }
 
@@ -30,7 +36,15 @@ export interface StepResult {
 export interface FlowResult {
   name: string;
   ok: boolean;
+  /** Set when the flow did not run (its `requiresEnv` was unset). */
+  skipped?: string;
   steps: StepResult[];
+}
+
+/** Why a flow must be skipped in this environment, or null to run it. */
+export function skipReason(flow: Flow, env: Record<string, string | undefined>): string | null {
+  if (flow.requiresEnv && !env[flow.requiresEnv]) return `${flow.requiresEnv} is not set`;
+  return null;
 }
 
 /** Substitute `{BASE}` (and trim a trailing slash on BASE) in every arg. */
@@ -46,13 +60,19 @@ export function stdoutContains(stdout: string, needle: string): boolean {
 export function summarize(results: FlowResult[]): string {
   const lines: string[] = [];
   for (const f of results) {
+    if (f.skipped) {
+      lines.push(`SKIP  ${f.name} (${f.skipped})`);
+      continue;
+    }
     lines.push(`${f.ok ? "PASS" : "FAIL"}  ${f.name}`);
     for (const s of f.steps) {
       if (!s.ok) lines.push(`        ✗ ${s.label}${s.detail ? ` — ${s.detail}` : ""}`);
     }
   }
-  const passed = results.filter((r) => r.ok).length;
+  const ran = results.filter((r) => !r.skipped);
+  const passed = ran.filter((r) => r.ok).length;
+  const skipped = results.length - ran.length;
   lines.push("");
-  lines.push(`${passed}/${results.length} flows passed`);
+  lines.push(`${passed}/${ran.length} flows passed${skipped ? `, ${skipped} skipped` : ""}`);
   return lines.join("\n");
 }

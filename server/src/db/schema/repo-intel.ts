@@ -23,6 +23,7 @@ import {
   primaryKey,
   index,
 } from 'drizzle-orm/pg-core';
+import { enumCheck } from './_shared';
 import { repos } from './repos';
 
 /**
@@ -32,20 +33,24 @@ import { repos } from './repos';
  * `indexerVersion` is compared against constants.INDEXER_VERSION; a mismatch
  * forces a full reindex.
  */
-export const repoIndexState = pgTable('repo_index_state', {
-  repoId: uuid('repo_id')
-    .primaryKey()
-    .references(() => repos.id, { onDelete: 'cascade' }),
-  lastIndexedSha: text('last_indexed_sha').notNull(),
-  indexerVersion: integer('indexer_version').notNull(),
-  status: text('status', {
-    enum: ['full', 'partial', 'degraded', 'failed'],
-  }).notNull(),
-  filesIndexed: integer('files_indexed').notNull().default(0),
-  filesSkipped: integer('files_skipped').notNull().default(0),
-  stats: jsonb('stats').notNull().default({}),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-});
+export const INDEX_STATUSES = ['full', 'partial', 'degraded', 'failed'] as const;
+
+export const repoIndexState = pgTable(
+  'repo_index_state',
+  {
+    repoId: uuid('repo_id')
+      .primaryKey()
+      .references(() => repos.id, { onDelete: 'cascade' }),
+    lastIndexedSha: text('last_indexed_sha').notNull(),
+    indexerVersion: integer('indexer_version').notNull(),
+    status: text('status', { enum: INDEX_STATUSES }).notNull(),
+    filesIndexed: integer('files_indexed').notNull().default(0),
+    filesSkipped: integer('files_skipped').notNull().default(0),
+    stats: jsonb('stats').notNull().default({}),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [enumCheck('repo_index_state_status_chk', t.status, INDEX_STATUSES)],
+);
 
 /**
  * Import-graph edges: `fromFile` imports `toFile`. Composite PK keeps inserts

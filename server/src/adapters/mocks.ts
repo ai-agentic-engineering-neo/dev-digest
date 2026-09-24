@@ -83,6 +83,7 @@ export class MockLLMProvider implements LLMProvider {
 
   async complete(req: CompletionRequest): Promise<CompletionResult> {
     this.calls.push({ method: 'complete', req });
+    req.signal?.throwIfAborted();
     return {
       text: this.opts.completionText ?? 'mock completion',
       model: req.model,
@@ -96,6 +97,8 @@ export class MockLLMProvider implements LLMProvider {
 
   async completeStructured<T>(req: StructuredRequest<T>): Promise<StructuredResult<T>> {
     this.calls.push({ method: 'completeStructured', req });
+    // Like a real SDK: an already-aborted signal rejects before any "spend".
+    req.signal?.throwIfAborted();
     this.structuredCalls++;
     // Every mock response "costs" the same; reported per call like a real provider.
     req.onUsage?.({ tokensIn: 100, tokensOut: 50, costUsd: 0.001 });

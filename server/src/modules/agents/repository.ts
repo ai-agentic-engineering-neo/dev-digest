@@ -1,46 +1,32 @@
-import { and, asc, desc, eq } from 'drizzle-orm';
-import type { Db } from '../../db/client.js';
+import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import type { Agent, AgentSkillLink, AgentVersion } from '@devdigest/shared';
+import type { Db, DbOrTx } from '../../db/client.js';
 import * as t from '../../db/schema.js';
-import type { CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
+import type { AgentRow, AgentVersionRow } from '../../db/rows.js';
 import { DEFAULT_AGENT_DESCRIPTION, INITIAL_AGENT_VERSION } from './constants.js';
-import { isConfigChange } from './helpers.js';
+import {
+  isConfigChange,
+  sameSkillOrder,
+  unknownSkillError,
+  unknownSkillIds,
+  withSkillAt,
+  type AgentPatch,
+  type NewAgent,
+} from './domain.js';
+import { toAgentDto, toAgentVersionDto } from './infrastructure/mappers.js';
 
 /**
  * A2 — agents data-access. Owns `agents`, `agent_versions`, and the
  * `agent_skills` link table (shared with A1's skills repository, but A2 owns the
  * agent side: link/reorder/list for an agent). Workspace-scoped throughout.
+ *
+ * Two surfaces: row methods (`list`, `getById`, `insert`, `update`, …) for the
+ * other modules that consume agents through `container.agentsRepo`, and DTO
+ * methods (`listAgents`, `findAgent`, `createAgent`, …) that the agents
+ * service uses — rows never leave this file for it.
  */
 
-import type { AgentRow, AgentVersionRow } from '../../db/rows.js';
 export type { AgentRow, AgentVersionRow };
-
-export interface InsertAgent {
-  workspaceId: string;
-  name: string;
-  description?: string;
-  provider: Provider;
-  model: string;
-  systemPrompt: string;
-  outputSchema?: unknown;
-  strategy?: ReviewStrategy;
-  ciFailOn?: CiFailOn;
-  repoIntel?: boolean;
-  enabled?: boolean;
-  createdBy?: string | null;
-}
-
-export interface UpdateAgent {
-  name?: string;
-  description?: string;
-  provider?: Provider;
-  model?: string;
-  systemPrompt?: string;
-  outputSchema?: unknown;
-  strategy?: ReviewStrategy;
-  ciFailOn?: CiFailOn;
-  repoIntel?: boolean;
-  enabled?: boolean;
-}
 
 /** A skill linked to an agent (with its order), joined from agent_skills. */
 export interface LinkedSkillRow {
@@ -49,7 +35,13 @@ export interface LinkedSkillRow {
 }
 
 export class AgentsRepository {
-  constructor(private db: Db) {}
+  constructor(private db: DbOrTx) {}
+
+  /** Run `work` atomically on a repository bound to one transaction (a savepoint
+   *  when this repository is already transaction-bound). */
+  private atomically<T>(work: (repo: AgentsRepository) => Promise<T>): Promise<T> {
+    return (this.db as Db).transaction((tx) => work(new AgentsRepository(tx)));
+  }
 
   async list(workspaceId: string): Promise<AgentRow[]> {
     return this.db.select().from(t.agents).where(eq(t.agents.workspaceId, workspaceId));
@@ -82,7 +74,11 @@ export class AgentsRepository {
   }
 
   /** Insert an agent AND record version 1 in agent_versions (immutable snapshot). */
-  async insert(values: InsertAgent): Promise<AgentRow> {
+  async insert(values: NewAgent): Promise<AgentRow> {
+    return this.atomically((repo) => repo.insertInTx(values));
+  }
+
+  private async insertInTx(values: NewAgent): Promise<AgentRow> {
     const [row] = await this.db
       .insert(t.agents)
       .values({
@@ -107,37 +103,56 @@ export class AgentsRepository {
 
   /**
    * Update an agent. Any config change bumps the version and snapshots the new
-   * config into agent_versions (reproducibility for eval).
+   * config into agent_versions (reproducibility for eval). One transaction with
+   * the agent row locked (FOR UPDATE), so concurrent edits serialize and each
+   * config change gets its own version + snapshot.
    */
   async update(
     workspaceId: string,
     id: string,
-    patch: UpdateAgent,
+    patch: AgentPatch,
   ): Promise<AgentRow | undefined> {
-    const existing = await this.getById(workspaceId, id);
+    return this.atomically((repo) => repo.updateInTx(workspaceId, id, patch));
+  }
+
+  private async updateInTx(
+    workspaceId: string,
+    id: string,
+    patch: AgentPatch,
+  ): Promise<AgentRow | undefined> {
+    const [existing] = await this.db
+      .select()
+      .from(t.agents)
+      .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.id, id)))
+      .for('update');
     if (!existing) return undefined;
 
     // A config-affecting change (anything except just toggling enabled) bumps version.
     const configChanged = isConfigChange(existing, patch);
     const nextVersion = configChanged ? existing.version + 1 : existing.version;
 
+    const values = {
+      ...(patch.name !== undefined ? { name: patch.name } : {}),
+      ...(patch.description !== undefined ? { description: patch.description } : {}),
+      ...(patch.provider !== undefined ? { provider: patch.provider } : {}),
+      ...(patch.model !== undefined ? { model: patch.model } : {}),
+      ...(patch.systemPrompt !== undefined ? { systemPrompt: patch.systemPrompt } : {}),
+      ...(patch.outputSchema !== undefined
+        ? { outputSchema: patch.outputSchema as object }
+        : {}),
+      ...(patch.strategy !== undefined ? { strategy: patch.strategy } : {}),
+      ...(patch.ciFailOn !== undefined ? { ciFailOn: patch.ciFailOn } : {}),
+      ...(patch.repoIntel !== undefined ? { repoIntel: patch.repoIntel } : {}),
+      ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
+      ...(configChanged ? { version: nextVersion } : {}),
+    };
+    // An empty patch (e.g. Save with nothing edited) is a no-op, not a
+    // Drizzle "No values to set" 500.
+    if (Object.keys(values).length === 0) return existing;
+
     const [row] = await this.db
       .update(t.agents)
-      .set({
-        ...(patch.name !== undefined ? { name: patch.name } : {}),
-        ...(patch.description !== undefined ? { description: patch.description } : {}),
-        ...(patch.provider !== undefined ? { provider: patch.provider } : {}),
-        ...(patch.model !== undefined ? { model: patch.model } : {}),
-        ...(patch.systemPrompt !== undefined ? { systemPrompt: patch.systemPrompt } : {}),
-        ...(patch.outputSchema !== undefined
-          ? { outputSchema: patch.outputSchema as object }
-          : {}),
-        ...(patch.strategy !== undefined ? { strategy: patch.strategy } : {}),
-        ...(patch.ciFailOn !== undefined ? { ciFailOn: patch.ciFailOn } : {}),
-        ...(patch.repoIntel !== undefined ? { repoIntel: patch.repoIntel } : {}),
-        ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
-        ...(configChanged ? { version: nextVersion } : {}),
-      })
+      .set(values)
       .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.id, id)))
       .returning();
 
@@ -204,33 +219,107 @@ export class AgentsRepository {
     return links.map((l) => l.skill.id);
   }
 
-  /** Link a skill to an agent at a given order (idempotent: upserts order). */
-  async linkSkill(agentId: string, skillId: string, order: number): Promise<void> {
-    await this.db
-      .insert(t.agentSkills)
-      .values({ agentId, skillId, order })
-      .onConflictDoUpdate({
-        target: [t.agentSkills.agentId, t.agentSkills.skillId],
-        set: { order },
-      });
-  }
-
-  async unlinkSkill(agentId: string, skillId: string): Promise<void> {
-    await this.db
-      .delete(t.agentSkills)
-      .where(and(eq(t.agentSkills.agentId, agentId), eq(t.agentSkills.skillId, skillId)));
-  }
-
   /**
-   * Replace the full set of linked skills for an agent with `skillIds`, assigning
-   * order = index. Used by the "Skills" editor tab (attach/reorder). Skills not in
-   * the list are unlinked.
+   * Replace the agent's ordered skill links with `skillIds` (order = index).
+   * Hardened (server/specs/03-skills.md Rules §4), all in one transaction with
+   * the agent row locked:
+   *  - every id must be a skill of the agent's workspace, else 422
+   *    `unknown_skill` and the links stay unchanged;
+   *  - a change of the ordered list bumps the agent version and snapshots
+   *    `skills` into agent_versions; the same list again is a no-op.
+   * Returns false when the agent is not in the workspace.
    */
-  async setSkills(agentId: string, skillIds: string[]): Promise<void> {
+  async setSkills(workspaceId: string, agentId: string, skillIds: string[]): Promise<boolean> {
+    return this.atomically((repo) => repo.replaceSkillsInTx(workspaceId, agentId, () => skillIds));
+  }
+
+  /** Link one skill at index `order` (default: append); an already linked skill moves there. */
+  async linkSkill(workspaceId: string, agentId: string, skillId: string, order?: number): Promise<boolean> {
+    return this.atomically((repo) =>
+      repo.replaceSkillsInTx(workspaceId, agentId, (current) => withSkillAt(current, skillId, order)),
+    );
+  }
+
+  private async replaceSkillsInTx(
+    workspaceId: string,
+    agentId: string,
+    next: (current: string[]) => string[],
+  ): Promise<boolean> {
+    const [agent] = await this.db
+      .select()
+      .from(t.agents)
+      .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.id, agentId)))
+      .for('update');
+    if (!agent) return false;
+
+    const current = await this.skillIdsForAgent(agentId);
+    const wanted = [...new Set(next(current))];
+    const known = await this.skillIdsInWorkspace(workspaceId, wanted);
+    const unknown = unknownSkillIds(wanted, known);
+    if (unknown.length > 0) throw unknownSkillError(unknown);
+    if (sameSkillOrder(current, wanted)) return true;
+
     await this.db.delete(t.agentSkills).where(eq(t.agentSkills.agentId, agentId));
-    if (skillIds.length === 0) return;
-    await this.db
-      .insert(t.agentSkills)
-      .values(skillIds.map((skillId, i) => ({ agentId, skillId, order: i })));
+    if (wanted.length > 0) {
+      await this.db.insert(t.agentSkills).values(wanted.map((skillId, i) => ({ agentId, skillId, order: i })));
+    }
+    const version = agent.version + 1;
+    const [row] = await this.db.update(t.agents).set({ version }).where(eq(t.agents.id, agentId)).returning();
+    await this.snapshotVersion(row!, version);
+    return true;
+  }
+
+  private async skillIdsInWorkspace(workspaceId: string, ids: string[]): Promise<Set<string>> {
+    if (ids.length === 0) return new Set();
+    const rows = await this.db
+      .select({ id: t.skills.id })
+      .from(t.skills)
+      .where(and(eq(t.skills.workspaceId, workspaceId), inArray(t.skills.id, ids)));
+    return new Set(rows.map((r) => r.id));
+  }
+
+  /** `id → name` for the given agent ids in one query (workspace-scoped). */
+  async namesByIds(workspaceId: string, ids: string[]): Promise<Map<string, string>> {
+    if (ids.length === 0) return new Map();
+    const rows = await this.db
+      .select({ id: t.agents.id, name: t.agents.name })
+      .from(t.agents)
+      .where(and(eq(t.agents.workspaceId, workspaceId), inArray(t.agents.id, ids)));
+    return new Map(rows.map((r) => [r.id, r.name]));
+  }
+
+  // ---- DTO read/write surface (the agents service) --------------------------
+
+  async listAgents(workspaceId: string): Promise<Agent[]> {
+    return (await this.list(workspaceId)).map(toAgentDto);
+  }
+
+  async findAgent(workspaceId: string, id: string): Promise<Agent | undefined> {
+    const row = await this.getById(workspaceId, id);
+    return row ? toAgentDto(row) : undefined;
+  }
+
+  async createAgent(values: NewAgent): Promise<Agent> {
+    return toAgentDto(await this.insert(values));
+  }
+
+  async updateAgent(workspaceId: string, id: string, patch: AgentPatch): Promise<Agent | undefined> {
+    const row = await this.update(workspaceId, id, patch);
+    return row ? toAgentDto(row) : undefined;
+  }
+
+  async listAgentVersions(agentId: string): Promise<AgentVersion[]> {
+    return (await this.listVersions(agentId)).map(toAgentVersionDto);
+  }
+
+  async findAgentVersion(agentId: string, version: number): Promise<AgentVersion | undefined> {
+    const row = await this.getVersion(agentId, version);
+    return row ? toAgentVersionDto(row) : undefined;
+  }
+
+  /** Linked skills as ordered `AgentSkillLink`s. */
+  async skillLinks(agentId: string): Promise<AgentSkillLink[]> {
+    const links = await this.linkedSkills(agentId);
+    return links.map((l) => ({ agent_id: agentId, skill_id: l.skill.id, order: l.order }));
   }
 }

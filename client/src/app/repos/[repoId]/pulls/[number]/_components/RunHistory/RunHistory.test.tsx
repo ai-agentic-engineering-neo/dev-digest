@@ -4,11 +4,9 @@
  * a settled run is colored/labelled by its denormalized blocker/finding counts,
  * and shows the review score ring.
  */
-import { describe, it, expect, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
-import { NextIntlClientProvider } from "next-intl";
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { renderWithProviders, screen, cleanup } from "@/test/render";
 import type { FindingRecord, RunSummary } from "@devdigest/shared";
-import messages from "../../../../../../../../messages/en/prReview.json";
 import { RunHistory } from "./RunHistory";
 
 afterEach(cleanup);
@@ -36,11 +34,7 @@ function run(o: Partial<RunSummary>): RunSummary {
 }
 
 function renderRuns(runs: RunSummary[]) {
-  return render(
-    <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
-      <RunHistory runs={runs} onOpenTrace={() => {}} />
-    </NextIntlClientProvider>,
-  );
+  return renderWithProviders(<RunHistory runs={runs} onOpenTrace={() => {}} />);
 }
 
 describe("RunHistory — outcome badge", () => {
@@ -127,32 +121,59 @@ describe("RunHistory — per-run severity counters + popover", () => {
       dismissed_at: null,
     }) as FindingRecord;
 
-  it("shows the run's counts; hovering lists that run's findings (no actions)", () => {
+  it("shows the run's counts; hovering lists that run's findings (no actions)", async () => {
     const findings = [f("a", "WARNING", "N+1 query in user list endpoint"), f("b", "SUGGESTION", "Extract magic number")];
-    render(
-      <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
-        <RunHistory
-          runs={[run({ findings_count: 2, score: 64 })]}
-          findingsByRun={new Map([["run-1", findings]])}
-          onOpenTrace={() => {}}
-        />
-      </NextIntlClientProvider>,
+    const { user } = renderWithProviders(
+      <RunHistory
+        runs={[run({ findings_count: 2, score: 64 })]}
+        findingsByRun={new Map([["run-1", findings]])}
+        onOpenTrace={() => {}}
+      />,
     );
     const counters = screen.getByLabelText("1 warning, 1 suggestion");
     expect(screen.queryByRole("tooltip")).toBeNull();
-    fireEvent.mouseEnter(counters);
+    await user.hover(counters);
     const tip = screen.getByRole("tooltip");
     expect(tip).toHaveTextContent("2 findings in this run");
     expect(tip).toHaveTextContent("N+1 query in user list endpoint");
     expect(tip).toHaveTextContent("src/api/users.ts:45-52");
     expect(tip).toHaveTextContent("86%");
     expect(tip.querySelector("button")).toBeNull();
-    fireEvent.mouseLeave(counters);
+    await user.unhover(counters);
     expect(screen.queryByRole("tooltip")).toBeNull();
   });
 
   it("falls back to the plain count when the run's findings are not loaded", () => {
     renderRuns([run({ findings_count: 3 })]);
-    expect(screen.getByText(/3 finding\(s\)/)).toBeInTheDocument();
+    expect(screen.getByText("3 findings")).toBeInTheDocument();
+  });
+});
+
+describe("RunHistory — actions", () => {
+  it("the agent name jumps to the run's review; the icons open the trace and delete", async () => {
+    const onGoToReview = vi.fn();
+    const onOpenTrace = vi.fn();
+    const onDelete = vi.fn();
+    const { user } = renderWithProviders(
+      <RunHistory runs={[run({})]} onOpenTrace={onOpenTrace} onGoToReview={onGoToReview} onDelete={onDelete} />,
+    );
+    await user.click(screen.getByRole("button", { name: "Security Reviewer" }));
+    expect(onGoToReview).toHaveBeenCalledWith("run-1");
+    await user.click(screen.getByRole("button", { name: "Open run trace & logs" }));
+    expect(onOpenTrace).toHaveBeenCalledWith("run-1");
+    screen.getByRole("button", { name: "Delete run" }).focus();
+    await user.keyboard("{Enter}");
+    expect(onDelete).toHaveBeenCalledWith("run-1");
+  });
+
+  it("without onGoToReview the agent name is plain text, not a button", () => {
+    renderRuns([run({})]);
+    expect(screen.getByText("Security Reviewer")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Security Reviewer" })).toBeNull();
+  });
+
+  it("a running run cannot be deleted", () => {
+    renderWithProviders(<RunHistory runs={[run({ status: "running" })]} onOpenTrace={() => {}} onDelete={() => {}} />);
+    expect(screen.queryByRole("button", { name: "Delete run" })).toBeNull();
   });
 });

@@ -1,12 +1,12 @@
 /**
- * PR-list rollup helpers (`modules/pulls/status.ts`) — the pure derivation that
+ * PR-list rollup helpers (`modules/pulls/domain.ts`) — the pure derivation that
  * decides each PR's review STATUS and tallies its FINDINGS for the list. The DB
  * `status` column holds GitHub's merge state; the review status
  * (needs_review / reviewed / stale) is derived here from head vs lastReviewedSha
  * + age, so it gets unit coverage independent of the route's queries.
  */
 import { describe, it, expect } from 'vitest';
-import { deriveReviewStatus, rollupSeverities, STALE_DAYS } from '../src/modules/pulls/status.js';
+import { deriveReviewStatus, rollupSeverities, STALE_DAYS } from '../src/modules/pulls/domain.js';
 
 const DAY = 86_400_000;
 const now = Date.UTC(2026, 5, 11);

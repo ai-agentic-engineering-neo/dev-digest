@@ -1,18 +1,11 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
-import { NextIntlClientProvider } from "next-intl";
-import messages from "../../../messages/en/prReview.json";
+import { renderWithProviders, screen, cleanup } from "@/test/render";
 import { FindingsHover } from "./FindingsHover";
 import { countsFromMap, lineRef, plainText } from "./helpers";
 
 afterEach(cleanup);
 
-const renderHover = (ui: React.ReactElement) =>
-  render(
-    <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
-      {ui}
-    </NextIntlClientProvider>,
-  );
+const renderHover = (ui: React.ReactElement) => renderWithProviders(ui);
 
 describe("findings-hover helpers", () => {
   it("countsFromMap drops zero severities and keeps display order", () => {
@@ -32,16 +25,20 @@ describe("findings-hover helpers", () => {
 
 describe("FindingsHover", () => {
   it("renders nothing without counts", () => {
-    const { container } = renderHover(<FindingsHover counts={[]} items={[]} />);
-    expect(container).toBeEmptyDOMElement();
+    renderHover(
+      <div data-testid="host">
+        <FindingsHover counts={[]} items={[]} />
+      </div>,
+    );
+    expect(screen.getByTestId("host")).toBeEmptyDOMElement();
   });
 
-  it("shows a loading popover and calls onShow on hover", () => {
+  it("shows a loading popover and calls onShow on hover", async () => {
     const onShow = vi.fn();
-    renderHover(
+    const { user } = renderHover(
       <FindingsHover counts={[{ severity: "WARNING", count: 3 }]} items={undefined} loading onShow={onShow} />,
     );
-    fireEvent.mouseEnter(screen.getByLabelText("3 warning"));
+    await user.hover(screen.getByLabelText("3 warning"));
     expect(onShow).toHaveBeenCalledOnce();
     expect(screen.getByRole("tooltip")).toHaveTextContent("3 findings in this run");
     expect(screen.getByRole("tooltip")).toHaveTextContent("Loading findings…");

@@ -11,13 +11,16 @@ Anything scoped to a single package goes in that package's `INSIGHTS.md`.
 - Settled knowledge moves to [docs/](docs/); this file is the draft, not the doc.
 - Captured by the `engineering-insights` skill.
 
-> **Consolidated 2026-09-22 and 2026-09-23**, both with the user's approval:
-> merged parent+correction pairs, condensed long entries, and moved settled
-> knowledge out (the grep baseline to `docs/pr-self-review.md`, the hand-written
-> migration recipe to [docs/hand-written-migrations.md](docs/hand-written-migrations.md)).
-> No finding was dropped. Prior text: `git show HEAD:INSIGHTS.md`.
+> **Consolidated 2026-09-22, -23 and -24** with the user's approval; settled
+> knowledge moved to docs and the `.claude/*/README.md` files, no finding dropped.
+> Prior text: `git show 438513f:INSIGHTS.md` (the 2026-09-24 entries live on in those READMEs).
 
 ## What Works
+
+- 2026-09-24 — A hook cannot be tested end to end through an agent in this repo
+  (it refuses first, citing AGENTS.md) nor via a project agent in `-p` (hooks
+  skipped) → use `--settings` in a throwaway dir with no AGENTS.md, or
+  `--agents '<json>'`. Recipe: `.claude/hooks/README.md` § Testing a hook end to end.
 
 - 2026-09-23 — The course author's own implementation of each lesson is in this
   repo's history, REVERTED (`c6af1e4` "homework belongs in forks" rolled back
@@ -30,45 +33,37 @@ Anything scoped to a single package goes in that package's `INSIGHTS.md`.
   `category` placed first collapsed a live scan to one category and a flat 0.90
   confidence. Tell the user when you use it: it is someone else's homework.
 
-- 2026-09-19 — A drizzle migration can be added WITHOUT `pnpm db:generate`
-  (forbidden by name in AGENTS.md), and the hand-written route is also the safer
-  one — it cannot sweep up unrelated schema drift. Full procedure, including the
-  byte-for-byte snapshot round-trip and the throwaway-database check, is in
-  [docs/hand-written-migrations.md](docs/hand-written-migrations.md). Proven on
-  `0011_add_skill_types` and `0012_add_convention_triage`.
+- 2026-09-19 — A drizzle migration can be added WITHOUT `pnpm db:generate`, and
+  hand-writing it is safer (no unrelated schema drift) → follow
+  [docs/hand-written-migrations.md](docs/hand-written-migrations.md) (proven on 0011, 0012).
 
 ## What Doesn't Work
 
-- 2026-09-21 — A Claude Code `PreToolUse` hook that invokes `node` directly can
-  fail OPEN, the worst outcome for a gate: a non-zero hook exit is treated as an
-  ERROR and the tool RUNS ANYWAY, and `node` here is an asdf shim that
-  `env -i /bin/sh -c 'command -v node'` cannot find → put a POSIX `sh` wrapper in
-  front that resolves node via `command -v` then the asdf/volta/Homebrew/
-  `/usr/local`/nvm/fnm paths, and emits an explicit `{"permissionDecision":"ask"}`
-  and exits 0 when none resolve. Same rule when the gate itself throws: decide
-  `ask`, never stay silent. Assert it under `env -i` in a test.
-  (ref: .claude/hooks/pr-self-review-gate.sh)
+- 2026-09-24 — Writing a markdown file through a Bash heredoc (or `python3 - <<EOF`)
+  gets DENIED by the pr-self-review gate whenever the prose merely mentions a
+  push, e.g. a table cell quoting the command: the gate regex-tests the whole
+  command string before anything else, heredoc body included, and here reported
+  a stale report instead of the real cause → write file content with the
+  Write/Edit tools; keep Bash for commands. (ref: .claude/hooks/pr-self-review-gate.mjs)
+
+- 2026-09-21 — A `PreToolUse` hook that exits non-zero FAILS OPEN (the tool runs
+  anyway), and `node` here is an asdf shim invisible under `env -i` → every hook
+  answers what it cannot handle with `{"permissionDecision":"ask"}` + exit 0, and
+  a test asserts it under `env -i`. Details: `.claude/hooks/README.md` § The `node` resolution problem.
 
 - 2026-09-20 — Do NOT create a `CLAUDE.md` or `CLAUDE.local.md` here: the default
   `instructionFiles` mode (`claude-md-or-agents-md`) drops EVERY `AGENTS.md` the
   moment the project has a `CLAUDE.md` of its own, and the engine counts
   `CLAUDE.md`, `.claude/CLAUDE.md` AND `CLAUDE.local.md` as that — so one
   developer's untracked `CLAUDE.local.md` silently strips the root plus all four
-  package instruction files, with no warning and nothing to debug. Measured, not
-  assumed: a canary in each of the five files, queried via `claude -p`, returned
-  only the `CLAUDE.local.md` one. On 2.1.278 neither
-  `"instructionFiles": "claude-md-and-agents-md"` nor the legacy
-  `projectInstructions: "both"` prevents it — both are NO-OPs (an `env` key in the
-  same file DID reach the agent, so the file itself is read), though the setting
-  is checked in anyway. (ref: .claude/settings.json:2)
+  package instruction files, with no warning (measured with a canary per file via
+  `claude -p`). On 2.1.278 `"instructionFiles": "claude-md-and-agents-md"` and the
+  legacy `projectInstructions: "both"` are both NO-OPs, though the setting is
+  checked in anyway. (ref: .claude/settings.json:2)
 
-- 2026-09-19 — Summing per-run cost with a plain SQL `SUM(cost_usd)` silently
-  understates it, because the two layers disagree on what NULL means:
-  `reviewer-core` treats null as STICKY (one unpriced chunk ⇒ the whole run's
-  cost is null) while `SUM()` just skips NULL rows and returns a confident
-  partial → treat null as "unknown" and never as 0, and decide per surface
-  whether a partial total may be shown as authoritative.
-  (ref: reviewer-core/src/review/run.ts:184, server/src/adapters/llm/pricing.ts:37)
+- 2026-09-19 — A plain SQL `SUM(cost_usd)` silently understates cost (it skips the
+  NULLs that `reviewer-core` treats as sticky "unknown") → never read null as 0;
+  see `server/specs/L01-run-cost.md` § Null semantics.
 
 - 2026-09-19 — A Zod schema in `*/src/vendor/shared/contracts/` does NOT imply a
   route serves it: `AgentColumn.cost_usd`, `MultiAgentRun.total_cost_usd` and
@@ -98,51 +93,30 @@ Anything scoped to a single package goes in that package's `INSIGHTS.md`.
   looks like a passing check → avoid backreferences and match the positive form
   directly. (ref: .claude/skills/onion-architecture/SKILL.md §13)
 
-- 2026-09-20 — `skills-lock.json` is NOT an inventory of installed skills: it
-  lists `architecture-patterns` and `github-workflow-automation`, and neither
-  directory exists anywhere in the repo, while the hand-written
-  `engineering-insights` skill exists and is absent from the lock file → to learn
-  what skills a session actually has, list `.claude/skills/*/SKILL.md`; treat the
-  lock file only as the provenance record of the ones pulled from GitHub, and
-  keep locally authored skills out of it (it is off-limits per AGENTS.md anyway).
-  (ref: skills-lock.json:4)
+- 2026-09-21 — A fresh headless session IS available in a VSCode-extension session
+  with no `claude` on `PATH`: `"$CLAUDE_CODE_EXECPATH" -p '…'` (2.1.281) → use it
+  for anything needing a FRESH session (skill triggering, instruction files,
+  agent loading and models). Recipes and traps: `.claude/agents/README.md` §
+  Changing an agent. It is never a trusted workspace (no frontmatter hooks).
 
-- 2026-09-21 — A nested headless Claude run IS possible from a VSCode-extension
-  session even though no `claude` is on `PATH`: `$CLAUDE_CODE_EXECPATH` points at
-  the extension's `resources/native-binary/claude` (2.1.278) → use
-  `"$CLAUDE_CODE_EXECPATH" -p '…'` to verify anything needing a FRESH session's
-  context (skill triggering, instruction-file loading); it inherits
-  `.claude/settings.json`, hooks included. Never report such a check as done when
-  it could not run.
-
-- 2026-09-20 — The `skill-creator` validator cannot run here: `quick_validate.py`
-  dies on `ModuleNotFoundError: No module named 'yaml'` (system python3 has no
-  PyYAML, and installing it is a dependency change) → validate a new SKILL.md by
-  hand against the same limits (one `SKILL.md` at the folder root, frontmatter
-  parses as a YAML mapping, `name` ≤ 64 chars, `description` ≤ 1024, body < 500
-  lines), e.g. with a throwaway `node -e` regex.
+- 2026-09-20 — Authoring a skill: the `skill-creator` validator dies without
+  PyYAML, and `skills-lock.json` is not the skill inventory → `.claude/skills/README.md`
+  § Authoring a skill in this repo.
 
 ## Recurring Errors & Fixes
 
-- 2026-09-21 — Second instance of "a shipped grep rule must be RUN before it goes
-  into a skill" (the 2026-09-20 ugrep entry above was the first):
-  `frontend-ui-architecture` §15 shipped `grep -rn 'fetch(' src/app src/components`,
-  which also matches **`refetch()`** — four false positives in `client/`, every one
-  a TanStack Query retry handler, and nobody had executed it → fixed to
-  `[^a-zA-Z.]fetch\(` (0 hits). Both instances were in a §-numbered "Enforcement"
-  section authored without running anything; treat those sections as untested code
-  and run every pattern before trusting or shipping it. Ship the EXPECTED output
-  beside each rule too: two of the six onion-architecture rules are heuristics
-  with permanent benign hits (`repo-intel/repository.ts` scopes by `repoId` not
-  `workspaceId`; `adapters/git/simple-git.ts` *sets* `GIT_TERMINAL_PROMPT`), and
-  without that note every future session re-investigates them.
-  (ref: .claude/skills/frontend-ui-architecture/SKILL.md §15)
-  - 2026-09-22 — Third instance, same root cause in a different file type: an
-    e2e flow shipped a command form that does not exist. Details and the fix are
-    in `e2e/INSIGHTS.md` (one insight, one file).
+- 2026-09-21 — A pattern shipped without being RUN, three times: the ugrep
+  backreference (2026-09-20), `frontend-ui-architecture` §15's `fetch(` matching
+  `refetch()`, and an e2e flow command form that does not exist (`e2e/INSIGHTS.md`
+  2026-09-22) → treat every §-numbered "Enforcement" section and new flow as
+  untested code: run it, and ship its EXPECTED output beside it (known benign
+  hits: `.claude/skills/pr-self-review/greps.md` § The patterns).
 
 ## Session Notes
 
+- 2026-09-24 — L02 subagents: test-writer, plan-verifier, architecture-reviewer,
+  doc-writer + `agent-scope-guard.sh`; tests moved from implementer to test-writer
+  (design and sources: .claude/agents/README.md).
 - 2026-09-23 — L02 conventions: cross-package feature (migration 0012 extending
   `conventions`, contracts in both vendored copies, a `SKILLS LAB` nav section,
   one live scan at $0.0029) (spec: server/specs/L02-conventions.md).

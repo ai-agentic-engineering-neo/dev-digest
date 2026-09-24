@@ -41,3 +41,20 @@ Each skill has:
 - `SKILL.md` — Main skill file with rules and conventions (required)
 - `examples.md` — Code examples showing good/bad patterns (recommended)
 - `references.md` — Sources and rationale (optional)
+
+### Authoring a skill in this repo
+
+- **Validate by hand.** The `skill-creator` validator cannot run here:
+  `quick_validate.py` dies on `ModuleNotFoundError: No module named 'yaml'`
+  (system python3 has no PyYAML, and installing it is a dependency change).
+  Check the same limits yourself: one `SKILL.md` at the folder root, frontmatter
+  parses as a YAML mapping, `name` ≤ 64 chars, `description` ≤ 1024, body
+  < 500 lines — e.g. with a throwaway `node -e` regex, or `ruby -ryaml`.
+- **`skills-lock.json` is not the inventory.** It lists
+  `architecture-patterns` and `github-workflow-automation`, which exist nowhere
+  in the repo, and omits the hand-written `engineering-insights`. To learn what
+  skills a session has, list `.claude/skills/*/SKILL.md`. The lock file is only
+  the provenance record of skills pulled from GitHub; keep locally authored
+  skills out of it (it is off-limits per the root `AGENTS.md` anyway).
+- **Run every grep rule before it ships**, and put its expected output beside
+  it — see the root `INSIGHTS.md` § Recurring Errors & Fixes.

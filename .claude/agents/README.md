@@ -12,9 +12,12 @@ same-named agents in `~/.claude/agents/`.
 | [researcher](researcher.md) | Finds facts in the repo or outside, with evidence | sonnet | no | a concrete question | Research report · or *Clarification needed* |
 | [planner](planner.md) | Turns a task/spec into an executable plan | opus (effort high) | no | task or `*/specs/NN-*.md` | Development Plan → saved by caller to `docs/plans/` |
 | [implementer](implementer.md) | Executes an approved plan, verifies own diff | sonnet (effort high) | yes | `docs/plans/*.md` (or inline plan) | code + tests + Implementation Report |
+| [test-writer](test-writer.md) | Writes tests red-first or backfill, never production code | sonnet (effort high) | tests/fixtures only | plan (+ spec, reports), mode | tests + Test Report |
+| [architecture-reviewer](architecture-reviewer.md) | Checks the diff against architectural boundaries | opus (effort high) | no | branch diff (+ plan base) | Architecture Review · PASS / BLOCK / INCOMPLETE |
+| [plan-verifier](plan-verifier.md) | Checks code against every plan item and acceptance criterion | opus (effort high) | no | plan (+ spec, reports) | Plan Verification · PASS / FAIL / INCOMPLETE |
+| [doc-writer](doc-writer.md) | Documents implemented features, with diagrams | sonnet (effort medium) | README.md, docs/** only | plan / reports / notes | docs + Documentation Report |
 
-Architecture and security review are **not** in this set — they are separate agents
-that run after `implementer`.
+Security review is **not** in this set — a separate agent (not built yet).
 
 ## Pipeline
 
@@ -23,12 +26,22 @@ task / spec ──► researcher (optional: facts, library docs)
             ──► planner ──► Development Plan ──► caller saves docs/plans/<date>-<slug>.md
                                   │  user approves
                                   ▼
-                            implementer ──► code + tests + Implementation Report
-                                  │
+               [test-writer red-first] ──► failing tests (read-only for implementer)
                                   ▼
-            architecture & security reviewers ──► caller: engineering-insights WRAP-UP
-                                                  (from "Insight candidates") ──► /pr-self-review
+                            implementer ──► code + tests + Implementation Report
+                                  ▼
+               [test-writer backfill] ──► only if plan items still lack tests
+                                  ▼
+          architecture-reviewer ∥ plan-verifier   (read-only, same snapshot, in parallel)
+                  │ BLOCK / FAIL rows ──► implementer (code) or test-writer (tests)
+                  │                       ──► re-run the reviewer that failed
+                  ▼ both PASS
+             doc-writer ──► README / docs ──► caller: engineering-insights WRAP-UP
+                                              (from "Insight candidates") ──► /pr-self-review
 ```
+
+Agents that write run sequentially so the reviewers read a stable snapshot. doc-writer's
+output is not re-verified by plan-verifier; `/pr-self-review` covers it.
 
 Subagents cannot ask the user and return only their final message, so every hand-off
 is a fixed-format artifact; open questions come back in it (`Clarification needed`,
@@ -80,6 +93,65 @@ is a fixed-format artifact; open questions come back in it (`Clarification neede
   (commands actually run, exit codes) · Deviations · Blockers · Insight candidates ·
   For reviewers.
 
+### test-writer
+- **Responsible for:** tests in `server/`, `client/`, `reviewer-core/` (e2e flows only
+  when planned). Mode `red-first` (before implementer, each test proven red for the
+  right reason) or `backfill` (after implementer, for untested items). Expected values
+  come from spec/plan/contract, each test states "would fail if …". Skills via
+  `routing.json` plus a table for `server/test/**` and `reviewer-core/test/**`; project
+  conventions override skill examples (Vitest not `node:test`, `mockFetch` not MSW).
+- **Not responsible for:** production code, fixing the bugs its tests reveal (→
+  `STATUS: BLOCKED` + "Suspected bugs"), reviews.
+- **Permissions:** `Read, Edit, Write, Grep, Glob, Bash, Skill`; write scope (test files,
+  fixtures, additive helper changes) and forbidden commands (`vitest -u`, `.skip/.only`,
+  installs, state-changing git) are in the prompt.
+- **Input:** mode + plan (+ spec, Implementation Report, plan-verifier FAIL rows).
+- **Output:** `# Test Report` — STATUS · Tests written (source, would fail if) · Red
+  evidence · Verification · Suspected bugs · Not covered · Skills applied · Helpers
+  touched · Insight candidates · Next.
+
+### architecture-reviewer
+- **Responsible for:** architectural boundaries on changed lines: onion rings and
+  dependency-cruiser rules (server, reviewer-core), module wiring, reviewer-core purity
+  and public surface, client layer map and server/client boundary, shared-contract
+  copies. Deterministic checks first (`arch:check`, typecheck, shared drift, RSC barrel
+  grep) as ground truth; judgement only where they don't reach; each candidate verified
+  (re-read, re-trace import chain, line in diff, quoted rule, confidence ≥ 80).
+- **Not responsible for:** security, lint/style, hook correctness, performance, plan
+  compliance, fixes.
+- **Permissions:** `Read, Grep, Glob, Bash`; `Write, Edit, NotebookEdit, Skill`
+  disallowed (skills read as files). Never `next build` or the baseline command.
+- **Input:** branch diff; base from the plan or `git merge-base HEAD main`.
+- **Output:** `# Architecture Review` — VERDICT PASS / BLOCK / INCOMPLETE · Deterministic
+  checks · Findings (severity on the `pr-self-review` scale, rule source, file:line,
+  import chain, evidence, confidence, fix) · Pre-existing · Dropped in verification ·
+  Not checked · Next.
+
+### plan-verifier
+- **Responsible for:** one row per plan item (`Sx.files/change/tests/done-when/rules`,
+  contracts, out-of-scope) and per spec acceptance criterion, each with quoted item,
+  method, evidence it read or ran itself, and verdict PASS / FAIL-missing|partial|wrong /
+  CANNOT_VERIFY; plus scope check (changed − planned files).
+- **Not responsible for:** general review or advice (no "Recommendations"), architecture,
+  security, fixes.
+- **Permissions:** as architecture-reviewer; may re-run the plan's hermetic "Done when"
+  commands; integration tests only with the `run-integration` flag.
+- **Input:** plan (required), spec, Implementation / Test Report (pointers, not evidence).
+- **Output:** `# Plan Verification` — VERDICT PASS / FAIL / INCOMPLETE · Plan items ·
+  Acceptance criteria · Scope · Commands run · Next.
+
+### doc-writer
+- **Responsible for:** documenting implemented features in the slot the conventions
+  assign (package/module README, `<pkg>/docs/`, root `docs/` + README Architecture),
+  every claim checked against current code, Mermaid diagrams in the repo's existing
+  styles (no C4 syntax), links from README and one "Read when" line per new page.
+- **Not responsible for:** `specs/`, `INSIGHTS.md`, plans, ADRs unless asked, code comments.
+- **Permissions:** `Read, Edit, Write, Grep, Glob, Bash, Skill` (`mermaid-diagram`);
+  write scope in the prompt.
+- **Input:** subject + plan / reports / notes.
+- **Output:** `# Documentation Report` — STATUS · Changed files · Placement · Claims
+  verified · Diagrams · Pointers updated · Gaps · Open questions.
+
 ## Shared guardrails
 
 [`../settings.json`](../settings.json) `permissions.deny` applies to every agent and the
@@ -87,7 +159,7 @@ main session: `docker compose down -v`/`--volumes`, `biome check --write|--fix`,
 `biome format`, `git push`. Command-level bans live there because `disallowedTools:
 Bash(...)` in frontmatter removes all of Bash.
 
-## Sources behind planner and implementer
+## Sources behind the agents
 
 | Source | Rules taken from it | Applied in |
 |---|---|---|
@@ -99,11 +171,31 @@ Bash(...)` in frontmatter removes all of Bash.
 | [Multi-agent research system](https://www.anthropic.com/engineering/multi-agent-research-system) (2025-06) | delegation states objective, output format, boundaries; large outputs go through files, not the lead agent | Goal / Out of scope / "Not for…"; plan saved to `docs/plans/` and passed by path |
 | [Effective context engineering](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) (2025-09) | subagents return a condensed summary (~1–2k tokens); keep context lean | plan size target; no skill preload |
 | [Model configuration](https://code.claude.com/docs/en/model-config) | `opusplan`: Opus for planning, Sonnet for execution (main session alias) | opus for planner, sonnet for implementer — by analogy |
+| [Anthropic code-review plugin](https://github.com/anthropics/claude-code/blob/main/plugins/code-review/commands/code-review.md) · [README](https://github.com/anthropics/claude-code/blob/main/plugins/code-review/README.md) | verify each finding separately; confidence threshold; "if you are not certain an issue is real, do not flag it"; skip pre-existing and linter-catchable issues | architecture-reviewer |
+| [Agent SDK permissions](https://code.claude.com/docs/en/agent-sdk/permissions) | bare-name `disallowedTools` removes the tool in every mode; a subagent's `permissionMode` is honoured only under default/dontAsk/plan | architecture-reviewer, plan-verifier |
+| [The Clean Architecture](https://blog.cleancoder.com/uncle-bob/2012/08/13/the-clean-architecture.html) (2012) · [Fitness functions](https://www.oreilly.com/library/view/building-evolutionary-architectures/9781491986356/ch02.html) · [dependency-cruiser rules](https://github.com/sverweij/dependency-cruiser/blob/main/doc/rules-reference.md) | dependencies point inwards; objective checks first, judgement for the rest | architecture-reviewer |
+| [Next.js: Server and Client Boundary](https://nextjs.org/docs/app/guides/server-and-client-boundary) | the compiler catches client code in the server graph, not server code leaking into the client | architecture-reviewer |
+| [Google eng-practices: comments](https://google.github.io/eng-practices/review/reviewer/comments.html) · [Conventional Comments](https://conventionalcomments.org) | required vs nit severity labelling | mapped onto the `pr-self-review` severity scale |
+| [Reduce hallucinations](https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-hallucinations) · [Define success criteria and build evaluations](https://platform.claude.com/docs/en/test-and-evaluate/develop-tests) | allow "can't verify"; claim needs a quote or is retracted; specific, measurable criteria | plan-verifier (`CANNOT_VERIFY`, quoted items, no generic advice) |
+| [NASA SE Handbook](https://www.nasa.gov/reference/systems-engineering-handbook/) · [ISTQB Glossary](https://glossary.istqb.org/) | verification methods (inspection, analysis, demonstration, test); verification ≠ validation | plan-verifier |
+| [GitHub Spec Kit `/analyze`](https://github.github.com/spec-kit) · [Kiro Specs](https://kiro.dev/docs/specs) | read-only cross-artifact check that reports gaps, never edits; acceptance criteria one by one | plan-verifier |
+| [Common workflows](https://code.claude.com/docs/en/common-workflows) · [Anthropic TDD workflow (2025), via DataCamp](https://www.datacamp.com/tutorial/claude-code-best-practices) | match existing test conventions, cover edge cases; "do not modify the tests" | test-writer |
+| [Tautological tests](https://randycoulman.com/blog/2016/12/20/tautological-tests) · [TTDD anti-pattern](https://fabiopereira.me/blog/2010/05/27/ttdd-tautological-test-driven-development-anti-pattern) · [AI tests that don't assert](https://getautonoma.com/blog/ai-generated-tests-pass-but-dont-assert) | expected values from the requirement, not from the code | test-writer |
+| [Fastify v5 Testing](https://fastify.dev/docs/v5.8.x/Guides/Testing/) · [Vitest mocking](https://vitest.dev/guide/mocking.html) · [Vitest environment](https://vitest.dev/guide/environment.html) · [TanStack Query testing](https://tanstack.com/query/latest/docs/framework/react/guides/testing) · [next-intl testing](https://next-intl.dev/docs/environments/testing) | `inject` + `close`; `vi.mock` hoisting; per-file env; fresh `QueryClient` with `retry:false`; provider wrapper | test-writer |
+| [Write tests](https://kentcdodds.com/blog/write-tests) · [Testing Trophy](https://kentcdodds.com/blog/the-testing-trophy-and-testing-classifications) · [Practical Test Pyramid](https://martinfowler.com/articles/practical-test-pyramid.html) | typological, not exhaustive, testing (matches `TESTING.md`) | test-writer |
+| [Diátaxis](https://diataxis.fr/) · [Docs as Code](https://www.writethedocs.org/guide/docs-as-code/) · [Google dev docs style](https://developers.google.com/style/highlights) | doc types as a lens; docs in git; concise active voice | doc-writer |
+| [C4 model](https://c4model.com) · [Mermaid C4 (experimental)](https://mermaid.js.org/syntax/c4.html) · [GitHub discussion #197898](https://github.com/orgs/community/discussions/197898) | C4 zoom levels via flowchart subgraphs; no Mermaid C4 syntax on GitHub | doc-writer |
+| [Nygard: Documenting Architecture Decisions](https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions) (2011) · [MADR](https://adr.github.io/madr/) | ADR format — only on request | doc-writer |
 
 Project rules (forbidden commands, do-not-touch paths, shared-contract sync, migrations,
 test naming) come from [`CLAUDE.md`](../../CLAUDE.md) and each package's `AGENTS.md`,
 not from the sources above. Not backed by an official source: "Not for …" in agent
-descriptions (repo convention from the skills) and "test first where practical".
+descriptions (repo convention from the skills), "test first where practical", the
+plan-verifier scope check as a set difference of changed vs planned files, the
+architecture-reviewer confidence threshold of 80 (borrowed from the code-review plugin
+default), doc-writer's placement table (repo convention) and opus for the reviewers.
+Researched but not adopted: mutation testing with StrykerJS (single-threaded Vitest
+runner — at most a manual, per-module check).
 
 ## Adding or changing an agent
 

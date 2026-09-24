@@ -67,6 +67,19 @@ export const Finding = z.object({
     .describe(
       'If this finding enforces a rule from a skill listed under "## Skills / rules", the exact name from that skill\'s ### heading; otherwise null.',
     ),
+  // Judged by the model AGAINST the `## PR intent` section when one is present
+  // in the prompt (server/specs/05-intent-layer.md); reviewer-core's
+  // applyScopePolicy then enforces the policy (never drops the finding, never
+  // lowers severity) and forces it to null when no intent was supplied.
+  out_of_scope: z
+    .boolean()
+    .nullish()
+    .describe(
+      'true when this finding is outside the "## PR intent" section\'s stated in-scope changes (only ' +
+        'meaningful when that section is present in this prompt — otherwise leave unset). Flagging a ' +
+        'finding this way NEVER means omitting it, downgrading its severity, or softening its rationale: ' +
+        'always report every real defect at its true severity regardless of stated scope.',
+    ),
 });
 export type Finding = z.infer<typeof Finding>;
 

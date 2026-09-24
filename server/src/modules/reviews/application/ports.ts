@@ -8,8 +8,11 @@ import type {
   Finding,
   FindingRecord,
   GitClient,
+  Intent,
+  IntentTrace,
   LLMProvider,
   Provider,
+  RunEventKind,
   RunSummary,
   RunTrace,
   UnifiedDiff,
@@ -101,3 +104,30 @@ export type DiffSource = Pick<GitClient, 'diff'>;
 
 /** Wall clock (injectable for tests). */
 export type Clock = () => Date;
+
+// ---- Intent (server/specs/05-intent-layer.md) ------------------------------
+// Defined locally (never imported from modules/intent/*) — reviews reaches the
+// intent module only through this port, wired in reviews/composition.ts via
+// `c.modules.intent.service` (never a direct file import of its internals).
+
+export interface IntentResolveInput {
+  workspaceId: string;
+  pull: ReviewPull;
+  repo: ReviewRepo;
+  /** Changed file paths — the fallback source, only used when derived_from='inferred'. */
+  changedFiles: string[];
+  /** Raw diff excerpt — same fallback, only when derived_from='inferred'. */
+  diffExcerpt?: string;
+  force?: boolean;
+  onEvent?: (e: { kind: RunEventKind; msg: string; data?: unknown }) => void;
+  signal?: AbortSignal;
+}
+
+export type IntentResolveResult =
+  | { status: 'used'; intent: Intent; trace: IntentTrace }
+  | { status: 'unavailable'; warning: string };
+
+/** Shared review pre-work's view of the intent layer; undefined = kill switch off. */
+export interface IntentResolver {
+  resolveForReview(input: IntentResolveInput): Promise<IntentResolveResult>;
+}

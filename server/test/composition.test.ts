@@ -18,9 +18,19 @@ describe('Container composition root', () => {
     expect(c.modules.agents.service).toBe(c.modules.agents.service);
     expect(c.modules.reviews.service).toBe(c.modules.reviews.service);
     expect(c.repoIntel).toBe(c.modules.repoIntel.service);
-    expect(Object.keys(c.modules).sort()).toEqual(
-      ['agents', 'conventions', 'polling', 'pulls', 'repoIntel', 'repos', 'reviews', 'settings', 'skills', 'workspace'],
-    );
+    expect(Object.keys(c.modules).sort()).toEqual([
+      'agents',
+      'conventions',
+      'intent',
+      'polling',
+      'pulls',
+      'repoIntel',
+      'repos',
+      'reviews',
+      'settings',
+      'skills',
+      'workspace',
+    ]);
   });
 
   it('ContainerOverrides.repoIntel swaps only the read facade', () => {

@@ -30,7 +30,18 @@ import type {
  */
 
 const WS = 'ws-1';
-const PR = { id: 'pr-1', workspaceId: WS, repoId: 'repo-1', number: 7, title: 't', author: 'a', base: 'main', headSha: 'abc', body: null };
+const PR = {
+  id: 'pr-1',
+  workspaceId: WS,
+  repoId: 'repo-1',
+  number: 7,
+  title: 't',
+  author: 'a',
+  branch: 'feat/x',
+  base: 'main',
+  headSha: 'abc',
+  body: null,
+};
 const AGENT: ReviewAgent = {
   id: 'ag-1',
   name: 'Sec',

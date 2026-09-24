@@ -25,6 +25,13 @@ export function buildReviewsModule(c: Container) {
     skills: reviews,
     clock,
     ...(c.config.reviewMapConcurrency !== undefined ? { mapConcurrency: c.config.reviewMapConcurrency } : {}),
+    // Intent layer (server/specs/05-intent-layer.md): reached only through this
+    // port, never a direct import of modules/intent internals. Kill switch off
+    // → no port wired → resolveIntentPrework short-circuits to {} (no call, no
+    // pr_intent row, prompt byte-identical to before this feature).
+    ...(c.config.reviewIntentEnabled
+      ? { intent: { resolveForReview: (input) => c.modules.intent.service.resolveForReview(input) } }
+      : {}),
   });
   return {
     service: new ReviewService({ reviews, agents: c.agentsRepo, runBus: c.runBus, executor, clock }),

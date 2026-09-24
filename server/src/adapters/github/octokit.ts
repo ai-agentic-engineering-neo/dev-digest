@@ -12,6 +12,7 @@ import type {
   OpenPrPayload,
   CommitFilesPayload,
   IssueMeta,
+  FileAtRef,
 } from '@devdigest/shared';
 import { withRetry, withTimeout } from '../../platform/resilience.js';
 
@@ -437,5 +438,31 @@ export class OctokitGitHubClient implements GitHubClient {
       withTimeout(this.octokit.rest.users.getAuthenticated(), TIMEOUT),
     );
     return res.data.login;
+  }
+
+  /**
+   * Contents API fallback for the intent layer's doc source (no local clone,
+   * or `GitClient.readFileAt` failed). Never throws for a "not found" shape —
+   * only a transport/auth error propagates (still through withRetry/withTimeout).
+   * `opts.maxBytes` is checked against the API's reported `data.size` BEFORE
+   * the base64 payload is decoded, so an oversize file is never buffered.
+   */
+  async getFileContent(repo: RepoRef, path: string, ref: string, opts?: { maxBytes?: number }): Promise<FileAtRef | null> {
+    try {
+      const res = await withRetry(() =>
+        withTimeout(
+          this.octokit.rest.repos.getContent({ owner: repo.owner, repo: repo.name, path, ref }),
+          TIMEOUT,
+        ),
+      );
+      const data = res.data;
+      if (Array.isArray(data) || data.type !== 'file' || data.content == null) return null;
+      if (opts?.maxBytes != null && data.size > opts.maxBytes) return null;
+      const content = Buffer.from(data.content, data.encoding === 'base64' ? 'base64' : 'utf8').toString('utf8');
+      return { path, content, size: data.size };
+    } catch (err) {
+      if ((err as { status?: number }).status === 404) return null;
+      throw err;
+    }
   }
 }

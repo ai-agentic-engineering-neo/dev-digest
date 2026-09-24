@@ -9,7 +9,9 @@
     "replyToAuthor": "Reply to author",
     "replyPlaceholder": "Reply to the author about this finding…",
     "sendReply": "Send reply",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "outOfScope": "Out of scope",
+    "outOfScopeCriticalHint": "Reported regardless of scope"
   },
   "trifecta": {
     "lethal": "LETHAL TRIFECTA — ALL 3 PRESENT",
@@ -142,6 +144,42 @@
   },
   "overview": {
     "description": "Description"
+  },
+  "intent": {
+    "title": "PR intent",
+    "refresh": "Refresh",
+    "inferredHint": "Inferred — no substantive PR description or linked ticket/doc; guessed from commits, branch and changed files.",
+    "staleHint": "The PR description changed since this was derived — refresh to update it.",
+    "inScope": "In scope",
+    "outOfScope": "Out of scope",
+    "sources": "Sources",
+    "changeType": {
+      "feature": "feature",
+      "bugfix": "bugfix",
+      "refactor": "refactor",
+      "docs": "docs",
+      "test": "test",
+      "chore": "chore",
+      "security": "security",
+      "perf": "perf",
+      "mixed": "mixed"
+    },
+    "confidence": {
+      "high": "high confidence",
+      "medium": "medium confidence",
+      "low": "low confidence"
+    },
+    "sourceStatus": {
+      "used": "used",
+      "truncated": "truncated",
+      "skipped": "skipped",
+      "failed": "failed"
+    },
+    "empty": {
+      "title": "No intent derived yet",
+      "body": "DevDigest hasn’t worked out this PR’s intent yet. Run a review, or derive it now.",
+      "cta": "Derive now"
+    }
   },
   "diff": {
     "title": "Files changed · {count, plural, one {# file} other {# files}}",

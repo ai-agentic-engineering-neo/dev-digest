@@ -6,10 +6,55 @@ import { z } from 'zod';
  */
 
 // ---- Intent ----
+/** How sure the intent layer is about the derived intent (server/specs/05-intent-layer.md). */
+export const IntentConfidence = z.enum(['high', 'medium', 'low']);
+export type IntentConfidence = z.infer<typeof IntentConfidence>;
+
+/** Whether the intent came from real PR text (title/body/ticket/doc) or was guessed. */
+export const IntentDerivedFrom = z.enum(['explicit', 'inferred']);
+export type IntentDerivedFrom = z.infer<typeof IntentDerivedFrom>;
+
+export const IntentChangeType = z.enum([
+  'feature',
+  'bugfix',
+  'refactor',
+  'docs',
+  'test',
+  'chore',
+  'security',
+  'perf',
+  'mixed',
+]);
+export type IntentChangeType = z.infer<typeof IntentChangeType>;
+
+export const IntentSourceKind = z.enum(['title', 'body', 'ticket', 'doc', 'commits', 'branch', 'diff']);
+export type IntentSourceKind = z.infer<typeof IntentSourceKind>;
+
+export const IntentSourceStatus = z.enum(['used', 'truncated', 'skipped', 'failed']);
+export type IntentSourceStatus = z.infer<typeof IntentSourceStatus>;
+
+/** One input the intent layer considered — built by the server, never echoed from the model. */
+export const IntentSource = z.object({
+  kind: IntentSourceKind,
+  /** e.g. the ticket number, the doc path, "title", "branch". */
+  ref: z.string(),
+  status: IntentSourceStatus,
+  /** Human-readable reason (why skipped/failed/truncated). */
+  detail: z.string().nullish(),
+});
+export type IntentSource = z.infer<typeof IntentSource>;
+
 export const Intent = z.object({
   intent: z.string(),
   in_scope: z.array(z.string()),
   out_of_scope: z.array(z.string()),
+  /** Dominant kind of change; code-classified by the model. Null on old/legacy rows. */
+  change_type: IntentChangeType.nullish(),
+  /** Set by code (server/specs/05-intent-layer.md), never by the model. */
+  confidence: IntentConfidence.nullish(),
+  derived_from: IntentDerivedFrom.nullish(),
+  /** Every input considered, in the order they were tried. */
+  sources: z.array(IntentSource).nullish(),
 });
 export type Intent = z.infer<typeof Intent>;
 

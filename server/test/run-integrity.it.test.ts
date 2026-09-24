@@ -92,7 +92,9 @@ d('review run integrity (Testcontainers pg)', () => {
 
   function appWith(llm: LLMProvider): Promise<App> {
     return buildApp({
-      config: loadConfig({ ...process.env, NODE_ENV: 'test' } as NodeJS.ProcessEnv),
+      // REVIEW_INTENT_ENABLED: 'false' — only openai is injected below; intent
+      // defaults to openrouter, so leaving it on would make a real, paid call.
+      config: loadConfig({ ...process.env, NODE_ENV: 'test', REVIEW_INTENT_ENABLED: 'false' } as NodeJS.ProcessEnv),
       db: pg.handle.db,
       overrides: {
         embedder: new MockEmbedder(),

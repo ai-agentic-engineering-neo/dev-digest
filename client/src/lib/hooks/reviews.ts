@@ -27,6 +27,8 @@ function invalidateRunScoped(qc: QueryClient, prId: string | null | undefined) {
   qc.invalidateQueries({ queryKey: prKeys.activeRuns(prId) });
   qc.invalidateQueries({ queryKey: prKeys.runs(prId) });
   qc.invalidateQueries({ queryKey: prKeys.reviews(prId) });
+  // A review may have derived/refreshed the PR's intent (server/specs/05-intent-layer.md).
+  qc.invalidateQueries({ queryKey: prKeys.intent(prId) });
 }
 
 // ---- Active (in-flight) runs — server-side source of truth ----

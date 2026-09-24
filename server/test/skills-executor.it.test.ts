@@ -98,7 +98,14 @@ d('skills in review runs (Testcontainers pg)', () => {
 
   function appWith(llm: LLMProvider | undefined, diff: string, env: Record<string, string> = {}) {
     return buildApp({
-      config: loadConfig({ ...process.env, NODE_ENV: 'test', ...env } as NodeJS.ProcessEnv),
+      // REVIEW_INTENT_ENABLED: 'false' — only openai is injected below; intent
+      // defaults to openrouter, so leaving it on would make a real, paid call.
+      config: loadConfig({
+        ...process.env,
+        NODE_ENV: 'test',
+        REVIEW_INTENT_ENABLED: 'false',
+        ...env,
+      } as NodeJS.ProcessEnv),
       db: pg.handle.db,
       overrides: {
         git: new MockGitClient({ diff }),

@@ -13,7 +13,10 @@ const hasDocker = await dockerAvailable();
 const d = hasDocker ? describe : describe.skip;
 
 const config = (env: Record<string, string> = {}) =>
-  loadConfig({ ...process.env, NODE_ENV: 'test', ...env } as NodeJS.ProcessEnv);
+  // REVIEW_INTENT_ENABLED: 'false' — these tests inject only openai (server/INSIGHTS.md:
+  // overrides.llm must cover every provider id); intent defaults to openrouter, so leaving
+  // it on would make a real, paid openrouter call.
+  loadConfig({ ...process.env, NODE_ENV: 'test', REVIEW_INTENT_ENABLED: 'false', ...env } as NodeJS.ProcessEnv);
 
 /**
  * A unified diff touching src/config.ts (line 11 added) so grounding can keep a

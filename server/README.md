@@ -88,6 +88,7 @@ flowchart TB
   end
   subgraph Review["Review & runs"]
     reviews["reviews<br/>/pulls/:id/review · /reviews · /findings/:id/(accept|dismiss)<br/>/runs/:id/(events|trace)"]
+    intent["intent<br/>/pulls/:id/intent · /pulls/:id/intent/refresh"]
   end
   subgraph Agents["Agents & skills"]
     agents["agents<br/>/agents · /agents/:id · /agents/:id/skills"]
@@ -140,6 +141,24 @@ the sample (configs + repo-intel top 12, or a walk of the clone) and checks ever
 cited line against the clone. A rule without verified evidence is dropped and listed in
 `scan.dropped`. `LLM_PROVIDER_OVERRIDE=mock` gives a key-free scan.
 
+### Intent (`modules/intent`, spec [`specs/05-intent-layer.md`](specs/05-intent-layer.md))
+
+| Method | Path | Result |
+|---|---|---|
+| GET | `/pulls/:id/intent` | `PrIntentResponse` = `{intent: PrIntentRecord \| null, stale: boolean}` |
+| POST | `/pulls/:id/intent/refresh` | Forces re-derivation (ignores the cache); rate limited 10/min |
+
+Derivation itself is **not** a route — it runs as shared pre-work of `POST
+/pulls/:id/review` (`reviews/application/intent-prework.ts`), once per
+request, feeding every queued agent's prompt and trace. The model (Settings →
+Feature models → `review_intent`, default `openrouter` /
+`deepseek/deepseek-v4-flash`) only classifies `intent` / `in_scope` /
+`out_of_scope` / `change_type`; confidence and the sources list are code-owned.
+Cached per PR, keyed by a hash of the title/body/branch/head sha/ticket
+refs/doc paths/model (never the ticket/doc bodies — those need a manual
+refresh). `REVIEW_INTENT_ENABLED=false` turns it off entirely (no call, no
+row, byte-identical prompt).
+
 ## Environment
 
 `server/.env` (copied from `.env.example`):
@@ -154,6 +173,7 @@ cited line against the clone. A rule without verified evidence is dropped and li
 | `EMBEDDINGS_ENABLED` | `false` | memory/RAG embeddings (OpenAI); off → **zero** OpenAI calls |
 | `REPO_INTEL_ENABLED` | `true` | repo skeleton + callers in the prompt; `false` → ripgrep-only |
 | `REVIEW_MAP_CONCURRENCY` | reviewer-core default (3) | map-reduce chunks sent to the LLM in parallel (1–16); cancel aborts the in-flight ones |
+| `REVIEW_INTENT_ENABLED` | `true` | intent layer kill switch (spec [`05-intent-layer.md`](specs/05-intent-layer.md)); `false` → no derivation, no `pr_intent` row, byte-identical prompt |
 | `LLM_PROVIDER_OVERRIDE` | — | **dev/e2e only**: `mock` → every provider is the deterministic mock (`src/adapters/llm/mock.ts`, fixed review grounded on the seeded PR #482); refused with `NODE_ENV=production`, loud warning at boot |
 | `LLM_MOCK_DELAY_MS` | `0` | latency of each mock LLM call (abortable), so the live-run UI is observable |
 | `DEVDIGEST_CLONE_DIR` | `./clones` | imported-repo checkouts (git-ignored) |
@@ -193,6 +213,13 @@ What the reviewer actually sends to the model is assembled in
 - **Grounding is mandatory.** Every finding must cite a line that exists in the
   diff or it is dropped (`groundFindings`), and the score is recomputed from the
   surviving findings — the model's self-reported score is ignored.
+- **The intent layer is shared pre-work, billed separately.** One derivation
+  (or cache hit) per `POST /pulls/:id/review` request feeds every queued
+  agent's `## PR intent` section (spec [`05-intent-layer.md`](specs/05-intent-layer.md)).
+  Its usage is stored on `pr_intent` and in each run's `trace.intent`, **never**
+  added to `agent_runs.cost_usd`. A finding the model judges out of that scope
+  gets `out_of_scope: true` — `reviewer-core`'s `applyScopePolicy` guarantees
+  this never drops the finding or changes its severity.
 
 ## Testing
 

@@ -39,6 +39,9 @@ export async function insertFindings(
         // A cited name that is not one of the run's skills stays unresolved.
         skillName: f.skill ?? null,
         skillId: (f.skill && skillIds.get(f.skill)) || null,
+        // Set by reviewer-core's applyScopePolicy (server/specs/05-intent-layer.md);
+        // the DB column is NOT NULL, so an absent intent (→ null) stores as false.
+        outOfScope: f.out_of_scope ?? false,
       })),
     )
     .returning();

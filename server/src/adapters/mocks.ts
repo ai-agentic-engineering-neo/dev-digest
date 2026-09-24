@@ -22,6 +22,7 @@ import type {
   UnifiedDiff,
   BlameLine,
   GitCommit,
+  FileAtRef,
   CodeIndex,
   CodeMatch,
   CodeSymbol,
@@ -143,6 +144,8 @@ export interface MockGitHubOptions {
   login?: string;
   /** Existing inline review comments returned by listReviewComments. */
   comments?: PrReviewComment[];
+  /** Files served by getFileContent, keyed by `path@ref` then plain `path` (any ref). */
+  files?: Record<string, string>;
 }
 
 export class MockGitHubClient implements GitHubClient {
@@ -255,6 +258,11 @@ export class MockGitHubClient implements GitHubClient {
   async currentLogin(): Promise<string> {
     return this.opts.login ?? 'mock-user';
   }
+
+  async getFileContent(_repo: RepoRef, path: string, ref: string): Promise<FileAtRef | null> {
+    const content = this.opts.files?.[`${path}@${ref}`] ?? this.opts.files?.[path];
+    return content === undefined ? null : { path, content, size: content.length };
+  }
 }
 
 // ---------- Mock Git ----------
@@ -310,6 +318,11 @@ export class MockGitClient implements GitClient {
   }
   async readFile(_repo: RepoRef, path: string): Promise<string> {
     return this.opts.files?.[path] ?? '';
+  }
+  async readFileAt(_repo: RepoRef, _sha: string, path: string): Promise<FileAtRef> {
+    const content = this.opts.files?.[path];
+    if (content === undefined) throw new Error(`Object not found: ${path}`);
+    return { path, content, size: content.length };
   }
 }
 

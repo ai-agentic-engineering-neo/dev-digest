@@ -33,6 +33,13 @@ const EnvSchema = z.object({
     (v) => (v === '' ? undefined : v),
     z.coerce.number().int().min(1).max(16).optional(),
   ),
+  // Kill switch for the intent layer (server/specs/05-intent-layer.md).
+  // Default ON; 'false' → the executor's shared pre-work skips intent
+  // derivation entirely (no call, no pr_intent row, prompt byte-identical to
+  // before this feature). String compare (like REPO_INTEL_ENABLED below), NOT
+  // z.coerce.boolean() — Boolean('false') is true, which would silently invert
+  // every test/env that sets it to the string 'false'.
+  REVIEW_INTENT_ENABLED: z.string().optional(),
   // DEV/E2E ONLY: `mock` resolves EVERY LLM provider to the deterministic
   // MockReviewLLMProvider (adapters/llm/mock.ts) — no network, no keys, no
   // spend. Refused in production; the server logs a loud warning at boot.
@@ -84,6 +91,8 @@ export type AppConfig = {
   repoIntelEnabled: boolean;
   /** Max map-reduce chunks in flight per review; undefined = reviewer-core default. */
   reviewMapConcurrency?: number;
+  /** Kill switch for the intent layer (server/specs/05-intent-layer.md). Default true. */
+  reviewIntentEnabled: boolean;
   /** DEV/E2E ONLY — 'mock' routes every LLM provider to the deterministic mock. */
   llmProviderOverride?: 'mock';
   /** Latency of each mock LLM call (ms); only used with llmProviderOverride. */
@@ -110,6 +119,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     webOrigin: `http://localhost:${parsed.WEB_PORT}`,
     embeddingsEnabled: parsed.EMBEDDINGS_ENABLED === 'true',
     repoIntelEnabled: parsed.REPO_INTEL_ENABLED !== 'false',
+    reviewIntentEnabled: parsed.REVIEW_INTENT_ENABLED !== 'false',
     ...(parsed.REVIEW_MAP_CONCURRENCY !== undefined ? { reviewMapConcurrency: parsed.REVIEW_MAP_CONCURRENCY } : {}),
     ...(parsed.LLM_PROVIDER_OVERRIDE ? { llmProviderOverride: parsed.LLM_PROVIDER_OVERRIDE } : {}),
     ...(parsed.LLM_MOCK_DELAY_MS !== undefined ? { llmMockDelayMs: parsed.LLM_MOCK_DELAY_MS } : {}),

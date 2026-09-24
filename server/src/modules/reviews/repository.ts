@@ -1,5 +1,5 @@
 import type { DbOrTx } from '../../db/client.js';
-import type { Finding, FindingRecord, Intent, RunSummary, RunTrace, UnifiedDiff, ActiveRun } from '@devdigest/shared';
+import type { Finding, FindingRecord, RunSummary, RunTrace, UnifiedDiff, ActiveRun } from '@devdigest/shared';
 import type { PullRow } from '../../db/rows.js';
 import type * as t from '../../db/schema.js';
 import type { AgentSkillsReader, ReviewStore } from './application/ports.js';
@@ -72,16 +72,6 @@ export class ReviewRepository implements ReviewStore, AgentSkillsReader {
 
   setFindingDismissed(findingId: string, at: Date | null): Promise<FindingRecord | undefined> {
     return reviewRepo.setFindingDismissed(this.db, findingId, at);
-  }
-
-  // ---- intent -------------------------------------------------------------
-
-  upsertIntent(prId: string, intent: Intent): Promise<void> {
-    return pullRepo.upsertIntent(this.db, prId, intent);
-  }
-
-  getIntent(prId: string): Promise<Intent | undefined> {
-    return pullRepo.getIntent(this.db, prId);
   }
 
   // ---- agent runs + run traces --------------------------------------------

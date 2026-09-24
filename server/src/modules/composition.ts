@@ -1,5 +1,6 @@
 import { buildAgentsModule } from './agents/composition.js';
 import { buildConventionsModule } from './conventions/composition.js';
+import { buildIntentModule } from './intent/composition.js';
 import { buildPollingModule } from './polling/composition.js';
 import { buildPullsModule } from './pulls/composition.js';
 import { buildRepoIntelModule } from './repo-intel/composition.js';
@@ -30,4 +31,5 @@ export const moduleFactories = {
   repoIntel: buildRepoIntelModule,
   skills: buildSkillsModule,
   conventions: buildConventionsModule,
+  intent: buildIntentModule,
 };

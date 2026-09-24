@@ -1,0 +1,103 @@
+import type { CSSProperties } from "react";
+
+export const s = {
+  card: {
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    background: "var(--bg-elevated)",
+    padding: 18,
+    display: "flex",
+    flexDirection: "column",
+    gap: 12,
+  } satisfies CSSProperties,
+  header: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  } satisfies CSSProperties,
+  headerIcon: { color: "var(--text-muted)" } satisfies CSSProperties,
+  headerTitle: {
+    fontSize: 12,
+    fontWeight: 700,
+    letterSpacing: "0.07em",
+    textTransform: "uppercase",
+    color: "var(--text-muted)",
+  } satisfies CSSProperties,
+  headerRight: {
+    marginLeft: "auto",
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+  } satisfies CSSProperties,
+  hint: {
+    margin: 0,
+    fontSize: 12,
+    color: "var(--text-muted)",
+    fontStyle: "italic",
+  } satisfies CSSProperties,
+  text: {
+    margin: 0,
+    fontSize: 14,
+    color: "var(--text-primary)",
+    lineHeight: 1.55,
+  } satisfies CSSProperties,
+  scopeBlock: { display: "flex", flexDirection: "column", gap: 4 } satisfies CSSProperties,
+  scopeLabel: {
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: "0.05em",
+    textTransform: "uppercase",
+    color: "var(--text-muted)",
+  } satisfies CSSProperties,
+  scopeList: {
+    margin: 0,
+    paddingLeft: 18,
+    fontSize: 13,
+    color: "var(--text-secondary)",
+    lineHeight: 1.6,
+  } satisfies CSSProperties,
+  sourcesBlock: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+    paddingTop: 8,
+    borderTop: "1px solid var(--border)",
+  } satisfies CSSProperties,
+  sourceList: {
+    listStyle: "none",
+    margin: 0,
+    padding: 0,
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+  } satisfies CSSProperties,
+  sourceRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    fontSize: 12.5,
+  } satisfies CSSProperties,
+  sourceIcon: { color: "var(--text-muted)", flexShrink: 0 } satisfies CSSProperties,
+  sourceRef: {
+    color: "var(--accent)",
+    textDecoration: "none",
+  } satisfies CSSProperties,
+  sourceRefPlain: {
+    color: "var(--text-secondary)",
+  } satisfies CSSProperties,
+  sourceStatus: (ok: boolean): CSSProperties => ({
+    color: ok ? "var(--text-secondary)" : "var(--text-muted)",
+    fontStyle: ok ? "normal" : "italic",
+  }),
+  footer: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    paddingTop: 8,
+    borderTop: "1px solid var(--border)",
+    fontSize: 12,
+    color: "var(--text-muted)",
+  } satisfies CSSProperties,
+  footerModel: { color: "var(--text-secondary)" } satisfies CSSProperties,
+} as const;

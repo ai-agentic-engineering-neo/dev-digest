@@ -27,6 +27,8 @@ export interface ReviewPull {
   number: number;
   title: string;
   author: string;
+  /** Head branch name — untrusted; fed to the intent layer (server/specs/05-intent-layer.md). */
+  branch: string;
   base: string;
   headSha: string;
   /** PR description — untrusted; null when empty. */

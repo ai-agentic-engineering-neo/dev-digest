@@ -1,5 +1,6 @@
 import type {
   Finding,
+  Intent,
   LLMProvider,
   LlmUsage,
   PromptAssembly,
@@ -8,12 +9,13 @@ import type {
   UnifiedDiff,
 } from '@devdigest/shared';
 import { Review as ReviewSchema } from '@devdigest/shared';
-import { assemblePrompt } from '../prompt.js';
+import { assemblePrompt, renderIntent } from '../prompt.js';
 import { groundFindings, groundingSummary } from '../grounding.js';
 import { reduceReviews, scoreFromFindings, sliceDiff } from './reduce.js';
 import { addCost } from '../llm/usage.js';
 import { splitOversizeDiff } from './split.js';
 import { mapOrdered } from './pool.js';
+import { applyScopePolicy } from './scope.js';
 
 /**
  * reviewPullRequest — the review engine entry point.
@@ -84,6 +86,15 @@ export interface ReviewInput {
   /** PR author's description/body (untrusted; truncated + delimiter-wrapped in
       the prompt). Empty/undefined → section omitted. */
   prDescription?: string;
+  /**
+   * Derived PR intent (server/specs/05-intent-layer.md). Undefined → the `##
+   * PR intent` section is omitted and the prompt is byte-identical to before
+   * this feature; every finding's `out_of_scope` is then forced to `null`
+   * (applyScopePolicy). Present → rendered untrusted, and the model's own
+   * `out_of_scope` judgment on each finding is kept (never used to drop the
+   * finding or change its severity).
+   */
+  intent?: Intent;
   /** Task framing line, e.g. "Review PR #482 …". */
   task?: string;
   /** Override the structured-output retry budget. */
@@ -169,6 +180,7 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
     callers: input.callers,
     repoMap: input.repoMap,
     prDescription: input.prDescription,
+    intent: input.intent ? renderIntent(input.intent) : undefined,
     task: input.task,
   };
 
@@ -244,11 +256,20 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
   }
   emit('result', `Citation grounding: ${grounding}`);
 
+  // Out-of-scope policy (server/specs/05-intent-layer.md): mechanical, like
+  // grounding above — never drops a finding, never changes its severity.
+  const scoped = applyScopePolicy(ground.kept, input.intent);
+  if (input.intent) {
+    emit('info', `scope: ${scoped.outOfScopeCount} out-of-scope finding(s) kept (${scoped.outOfScopeCriticalCount} critical)`);
+  }
+
   // Score is derived from the findings that SURVIVED grounding (not the model's
   // self-reported number, and not the pre-grounding set) so the score, the
-  // findings list, and the deterministic event always agree.
+  // findings list, and the deterministic event always agree. The scope policy
+  // runs after grounding and never touches severity, so the score is identical
+  // with or without an intent.
   return {
-    review: { ...merged, findings: ground.kept, score: scoreFromFindings(ground.kept) },
+    review: { ...merged, findings: scoped.findings, score: scoreFromFindings(scoped.findings) },
     grounding,
     dropped: ground.dropped,
     mode: effectiveMode,

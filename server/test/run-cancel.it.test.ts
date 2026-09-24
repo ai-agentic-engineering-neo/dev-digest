@@ -119,7 +119,14 @@ d('run cancel (Testcontainers pg)', () => {
         return inner.completeStructured(req);
       },
     };
-    const env = { ...process.env, NODE_ENV: 'test', REVIEW_MAP_CONCURRENCY: opts.concurrency ?? '' };
+    // REVIEW_INTENT_ENABLED: 'false' — only openai is injected below; intent
+    // defaults to openrouter, so leaving it on would make a real, paid call.
+    const env = {
+      ...process.env,
+      NODE_ENV: 'test',
+      REVIEW_MAP_CONCURRENCY: opts.concurrency ?? '',
+      REVIEW_INTENT_ENABLED: 'false',
+    };
     app = await buildApp({
       config: loadConfig(env as NodeJS.ProcessEnv),
       db: pg.handle.db,

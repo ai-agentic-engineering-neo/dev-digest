@@ -18,6 +18,15 @@ export function githubPrUrl(repoFullName: string, number: number): string {
 }
 
 /**
+ * https://github.com/{owner}/{repo}/issues/{number} — for the intent layer's
+ * ticket sources (server/specs/05-intent-layer.md). Built from the PR's own
+ * repo, same as every other link here — never from a server-echoed URL.
+ */
+export function githubIssueUrl(repoFullName: string, number: number): string {
+  return `${HOST}/${repoFullName}/issues/${number}`;
+}
+
+/**
  * https://github.com/{owner}/{repo}/blob/{sha}/{file}#L{start}[-L{end}]
  * `sha` pins the link to the PR's head so line numbers stay accurate.
  */

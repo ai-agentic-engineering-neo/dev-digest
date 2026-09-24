@@ -14,6 +14,7 @@ sequenceDiagram
     participant EX as ReviewRunExecutor
     participant GIT as Local clone (git)
     participant RI as RepoIntel
+    participant INT as IntentService
     participant CORE as reviewer-core
     participant LLM as LLM provider
     participant BUS as RunBus (in-memory)
@@ -72,6 +73,28 @@ sequenceDiagram
         EX->>BUS: complete (all runs)
     end
 
+    Note over EX,INT: Shared pre-work: intent (server/specs/05-intent-layer.md), REVIEW_INTENT_ENABLED
+    opt kill switch on
+        EX->>INT: resolveForReview(pull, repo, diff)
+        alt cache hit (input_hash matches)
+            INT->>DB: SELECT pr_intent
+            INT-->>BUS: info: PR intent ready (cached, confidence=…)
+        else miss
+            INT->>INT: extractTicketRefs / extractDocRefs (title, body, commits)
+            INT->>GH: getIssue (same-repo tickets only, max 3)
+            INT->>GIT: readFileAt(headSha, path) (docs, max 5)
+            opt local read fails
+                INT->>GH: getFileContent(path, ref=headSha)
+            end
+            INT->>LLM: completeStructured (IntentClassification)
+            INT->>INT: computeConfidence (code, not the model)
+            INT->>DB: upsert pr_intent (usage billed HERE, not agent_runs)
+        end
+        alt derivation fails/times out (30s budget)
+            INT-->>BUS: info: warning: intent unavailable — …
+        end
+    end
+
     loop each agent SEQUENTIALLY
         EX->>EX: container.llm(provider)
         opt agent.repoIntel enabled (best-effort)
@@ -80,6 +103,7 @@ sequenceDiagram
             EX->>RI: getFileRank (top 5 percent)
         end
         EX->>CORE: reviewPullRequest(systemPrompt, diff, context, task)
+        Note right of CORE: input.intent (when resolved above) → `## PR intent`
         CORE->>CORE: selectMode (single-pass by default)
         loop each chunk (1 in single-pass, N files in map-reduce)
             CORE->>CORE: checkCancelled
@@ -94,11 +118,12 @@ sequenceDiagram
         CORE->>CORE: reduceReviews (worst verdict wins)
         CORE->>CORE: groundFindings (lines must intersect a hunk)
         CORE-->>BUS: grounding dropped ... (info)
-        CORE->>CORE: scoreFromFindings (100 - 35C - 12W - 3S)
+        CORE->>CORE: applyScopePolicy (out_of_scope; never drops/downgrades)
+        CORE->>CORE: scoreFromFindings (100 - 35C - 12W - 3S, unaffected by scope)
         CORE-->>EX: review, grounding, assembly, raw, tokens
 
         EX->>DB: insert reviews
-        EX->>DB: insert findings (grounded only)
+        EX->>DB: insert findings (grounded only; out_of_scope flag persisted)
         EX->>DB: markReviewed (lastReviewedSha = headSha)
         EX->>DB: agent_runs status=done, tokens, grounding, blockers
         EX->>DB: insert run_traces (single JSON document)
@@ -149,6 +174,11 @@ sequenceDiagram
   are persisted. The remaining agents keep running.
 - **Server restart.** `RunBus` is in-memory and reviews don't go through
   `JobRunner`, so runs still `running` at boot are reaped by `reapStaleRuns`.
+- **Intent is shared pre-work, not per-agent.** One derivation (or cache hit)
+  feeds every queued agent's prompt and trace; it never fails the review — a
+  missing key, timeout or provider error only logs `warning: intent
+  unavailable — …` and the run proceeds without it (server/specs/
+  05-intent-layer.md).
 
 ## Things that aren't obvious
 
@@ -163,6 +193,12 @@ sequenceDiagram
   and the model's own `score` is ignored. The verdict still comes from the model.
 - **`{all:true}` runs agents one after another.** Total time is the sum of the
   per-agent times.
+- **The intent call's cost is never in `agent_runs.cost_usd`.** It is billed
+  on `pr_intent` and in each run's `trace.intent` only — the reviewed-PR cost
+  shown in the UI is purely the review calls' cost.
+- **`out_of_scope` never changes what gets reported.** It only adds a badge;
+  the finding is still persisted, still a blocker if CRITICAL, still counted
+  in the score exactly like an in-scope finding.
 
 ## Key files
 
@@ -171,7 +207,8 @@ sequenceDiagram
 | PR import | `server/src/modules/pulls/routes.ts`, `server/src/modules/polling/routes.ts` |
 | Review status | `server/src/modules/pulls/domain.ts` |
 | Trigger | `server/src/modules/reviews/routes.ts`, `server/src/modules/reviews/application/review-service.ts` |
-| Execution | `server/src/modules/reviews/application/run-executor.ts` (+ `diff-loader.ts`, `prompt-context.ts`), rules in `reviews/domain/` |
-| Engine | `reviewer-core/src/review/run.ts`, `reviewer-core/src/prompt.ts`, `reviewer-core/src/grounding.ts`, `reviewer-core/src/review/reduce.ts` |
+| Execution | `server/src/modules/reviews/application/run-executor.ts` (+ `diff-loader.ts`, `intent-prework.ts`, `prompt-context.ts`), rules in `reviews/domain/` |
+| Intent | `server/src/modules/intent/` (`application/intent-service.ts`, `domain/{links,intent,classification}.ts`, `infrastructure/{doc-source,ticket-source,llm-model,repository}.ts`) — server/specs/05-intent-layer.md |
+| Engine | `reviewer-core/src/review/run.ts`, `reviewer-core/src/prompt.ts` (`renderIntent`, `INTENT_SCOPE_RULE`), `reviewer-core/src/grounding.ts`, `reviewer-core/src/review/scope.ts` (`applyScopePolicy`), `reviewer-core/src/review/reduce.ts` |
 | Live events | `server/src/platform/sse.ts` |
 | Client | `client/src/lib/hooks/reviews.ts`, `client/src/app/repos/[repoId]/pulls/[number]/page.tsx` and its `_components/` |

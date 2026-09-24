@@ -7,6 +7,8 @@ import {
   jsonb,
   timestamp,
   doublePrecision,
+  numeric,
+  boolean,
   index,
 } from 'drizzle-orm/pg-core';
 import { now, enumCheck } from './_shared';
@@ -23,6 +25,21 @@ export const REVIEW_KINDS = ['summary', 'review'] as const;
 export const FINDING_SEVERITIES = ['CRITICAL', 'WARNING', 'SUGGESTION'] as const;
 export const FINDING_CATEGORIES = ['bug', 'security', 'perf', 'style', 'test'] as const;
 export const FINDING_KINDS = ['finding', 'secret_leak', 'lethal_trifecta', 'phantom', 'hook'] as const;
+
+/** = IntentChangeType / IntentDerivedFrom in @devdigest/shared (server/specs/05-intent-layer.md). */
+export const INTENT_CHANGE_TYPES = [
+  'feature',
+  'bugfix',
+  'refactor',
+  'docs',
+  'test',
+  'chore',
+  'security',
+  'perf',
+  'mixed',
+] as const;
+export const INTENT_DERIVED_FROM = ['explicit', 'inferred'] as const;
+export const INTENT_CONFIDENCE = ['high', 'medium', 'low'] as const;
 
 export const reviews = pgTable(
   'reviews',
@@ -79,6 +96,9 @@ export const findings = pgTable(
     skillId: uuid('skill_id').references(() => skills.id, { onDelete: 'set null' }),
     /** The skill name exactly as the model cited it (kept even when unresolved). */
     skillName: text('skill_name'),
+    /** Set by reviewer-core's applyScopePolicy (server/specs/05-intent-layer.md);
+     *  never drops the finding or changes its severity. */
+    outOfScope: boolean('out_of_scope').notNull().default(false),
   },
   (t) => [
     index('findings_review_idx').on(t.reviewId),
@@ -89,14 +109,47 @@ export const findings = pgTable(
   ],
 );
 
-export const prIntent = pgTable('pr_intent', {
-  prId: uuid('pr_id')
-    .primaryKey()
-    .references(() => pullRequests.id, { onDelete: 'cascade' }),
-  intent: text('intent').notNull(),
-  inScope: jsonb('in_scope').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
-  outOfScope: jsonb('out_of_scope').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
-});
+/**
+ * One row per PR (server/specs/05-intent-layer.md). `outOfScope` here is the
+ * LEGACY column name (Intent.out_of_scope, a string[]) — unrelated to
+ * `findings.outOfScope` (a per-finding boolean flag) above.
+ */
+export const prIntent = pgTable(
+  'pr_intent',
+  {
+    prId: uuid('pr_id')
+      .primaryKey()
+      .references(() => pullRequests.id, { onDelete: 'cascade' }),
+    intent: text('intent').notNull(),
+    inScope: jsonb('in_scope').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    outOfScope: jsonb('out_of_scope').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    changeType: text('change_type'),
+    confidence: text('confidence'),
+    // NOT NULL + a default (never actually read as such — application code
+    // always sets it explicitly on upsert; the default only lets drizzle-kit
+    // generate the add-column migration without an interactive backfill
+    // prompt, since pr_intent is verified empty — server/INSIGHTS.md).
+    derivedFrom: text('derived_from').notNull().default('inferred'),
+    /** Every input the layer considered (IntentSource[]); [] until derived. */
+    sources: jsonb('sources').$type<unknown[]>().notNull().default(sql`'[]'::jsonb`),
+    headSha: text('head_sha'),
+    /** sha256 of the canonical cache-key input; drives cache hit/miss. */
+    inputHash: text('input_hash'),
+    promptVersion: integer('prompt_version'),
+    provider: text('provider'),
+    model: text('model'),
+    tokensIn: integer('tokens_in'),
+    tokensOut: integer('tokens_out'),
+    /** USD; null = unpriced model. Billed here + the run's trace, never agent_runs.cost_usd. */
+    costUsd: numeric('cost_usd', { precision: 12, scale: 6, mode: 'number' }),
+    derivedAt: timestamp('derived_at', { withTimezone: true }),
+  },
+  (t) => [
+    enumCheck('pr_intent_change_type_chk', t.changeType, INTENT_CHANGE_TYPES),
+    enumCheck('pr_intent_derived_from_chk', t.derivedFrom, INTENT_DERIVED_FROM),
+    enumCheck('pr_intent_confidence_chk', t.confidence, INTENT_CONFIDENCE),
+  ],
+);
 
 export const prBrief = pgTable('pr_brief', {
   prId: uuid('pr_id')

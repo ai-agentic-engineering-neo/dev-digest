@@ -9,6 +9,7 @@ import type {
   UnifiedDiff,
   BlameLine,
   GitCommit,
+  FileAtRef,
 } from '@devdigest/shared';
 import { parseUnifiedDiff } from './diff-parser.js';
 
@@ -27,6 +28,12 @@ const GITHUB_HTTPS_PREFIX = 'https://github.com/';
 
 /** A clone-path segment: non-empty, no separators, not `.`/`..`. */
 const SAFE_SEGMENT = /^[A-Za-z0-9_.-]+$/;
+
+/** `readFileAt` accepts only a full or short commit sha (never a ref/branch name). */
+const COMMIT_SHA_RE = /^[0-9a-f]{7,40}$/i;
+
+/** Default cap on `readFileAt` — matches the intent layer's doc-read budget. */
+const DEFAULT_READ_AT_MAX_BYTES = 64 * 1024;
 
 /** Resolves the GitHub PAT at call time (rotations apply without a restart). */
 export type TokenProvider = () => Promise<string | null | undefined>;
@@ -211,18 +218,62 @@ export class SimpleGitClient implements GitClient {
   }
 
   /**
-   * Read a file of the clone. `path` comes from diffs / model output, so it is
-   * resolved and must stay strictly inside the repo's clone (no `..`, no
-   * absolute path, not the clone dir itself) — otherwise this throws.
+   * Repo-relative path that stays strictly inside the clone (no `..`, no
+   * absolute path, not the clone dir itself); throws the same message `readFile`
+   * always has for a path that resolves outside it.
    */
-  async readFile(repo: RepoRef, path: string): Promise<string> {
+  private repoRelative(repo: RepoRef, path: string): string {
     const root = this.clonePathFor(repo);
     const full = resolve(root, path);
     const rel = relative(root, full);
     if (!rel || rel.split(sep)[0] === '..' || isAbsolute(rel)) {
       throw new Error(`Path '${path}' is outside the clone of ${repo.owner}/${repo.name}`);
     }
-    return readFile(full, 'utf8');
+    return rel.split(sep).join('/');
+  }
+
+  /**
+   * Read a file of the clone. `path` comes from diffs / model output, so it is
+   * resolved and must stay strictly inside the repo's clone (no `..`, no
+   * absolute path, not the clone dir itself) — otherwise this throws.
+   */
+  async readFile(repo: RepoRef, path: string): Promise<string> {
+    const root = this.clonePathFor(repo);
+    const rel = this.repoRelative(repo, path);
+    return readFile(join(root, rel), 'utf8');
+  }
+
+  /**
+   * Read a file at an exact commit (server/specs/05-intent-layer.md): checks
+   * the size with `git cat-file -s` BEFORE reading, then `git show <sha>:<path>`.
+   * Throws on an invalid sha, a path outside the clone, a missing object, or one
+   * over `maxBytes` — callers (the intent layer's doc source) fall back to
+   * `GitHubClient.getFileContent` on a missing object / clone error, but NOT
+   * on `too_large` (re-fetching the same oversize file via GitHub would just
+   * repeat the rejection with an extra network round-trip); the too-large
+   * error carries `.code = 'too_large'` so callers can tell the two apart.
+   */
+  async readFileAt(repo: RepoRef, sha: string, path: string, opts?: { maxBytes?: number }): Promise<FileAtRef> {
+    if (!COMMIT_SHA_RE.test(sha)) throw new Error(`Invalid commit sha '${sha}'`);
+    const rel = this.repoRelative(repo, path);
+    const maxBytes = opts?.maxBytes ?? DEFAULT_READ_AT_MAX_BYTES;
+    const g = this.git(repo);
+    const object = `${sha}:${rel}`;
+    let sizeRaw: string;
+    try {
+      sizeRaw = await g.raw(['cat-file', '-s', object]);
+    } catch {
+      throw new Error(`Object '${object}' not found in ${repo.owner}/${repo.name}`);
+    }
+    const size = Number(sizeRaw.trim());
+    if (!Number.isFinite(size)) throw new Error(`Object '${object}' has no readable size`);
+    if (size > maxBytes) {
+      const err = new Error(`File '${rel}' at ${sha} is too large (${size} bytes > ${maxBytes})`);
+      (err as Error & { code?: string }).code = 'too_large';
+      throw err;
+    }
+    const content = await g.show([object]);
+    return { path: rel, content, size };
   }
 }
 

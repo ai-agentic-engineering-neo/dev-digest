@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import type { DbOrTx } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
-import type { Intent, UnifiedDiff } from '@devdigest/shared';
+import type { UnifiedDiff } from '@devdigest/shared';
 import type { PullRow } from '../../../db/rows.js';
 import { parseUnifiedDiff } from '../../../adapters/git/diff-parser.js';
 
@@ -52,25 +52,6 @@ export async function markReviewed(db: DbOrTx, prId: string, sha: string): Promi
     .where(eq(t.pullRequests.id, prId));
 }
 
-// ---- intent ---------------------------------------------------------------
-
-export async function upsertIntent(db: DbOrTx, prId: string, intent: Intent): Promise<void> {
-  await db
-    .insert(t.prIntent)
-    .values({
-      prId,
-      intent: intent.intent,
-      inScope: intent.in_scope,
-      outOfScope: intent.out_of_scope,
-    })
-    .onConflictDoUpdate({
-      target: t.prIntent.prId,
-      set: { intent: intent.intent, inScope: intent.in_scope, outOfScope: intent.out_of_scope },
-    });
-}
-
-export async function getIntent(db: DbOrTx, prId: string): Promise<Intent | undefined> {
-  const [row] = await db.select().from(t.prIntent).where(eq(t.prIntent.prId, prId));
-  if (!row) return undefined;
-  return { intent: row.intent, in_scope: row.inScope, out_of_scope: row.outOfScope };
-}
+// Intent read/write now lives in modules/intent (server/specs/05-intent-layer.md);
+// these were unused (never seeded, never called — see server/INSIGHTS.md
+// "Verified facts") and incompatible with the expanded pr_intent columns.

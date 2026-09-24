@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { IntentChangeType, IntentConfidence, IntentDerivedFrom, IntentSource } from './brief.js';
 
 /**
  * Run trace. The ENTIRE trace of one run is persisted as a SINGLE
@@ -48,9 +49,38 @@ export const PromptAssembly = z.object({
   repo_map: z.string().nullish(),
   /** PR author's description/body (truncated); null when absent. */
   pr_description: z.string().nullish(),
+  /**
+   * `## PR intent` content (server/specs/05-intent-layer.md), untrusted;
+   * null when the run had no intent (kill switch off, or derivation
+   * unavailable) — the prompt is then byte-identical to before this feature.
+   */
+  intent: z.string().nullish(),
   user: z.string(),
 });
 export type PromptAssembly = z.infer<typeof PromptAssembly>;
+
+/**
+ * The intent layer's contribution to one run's trace: status + the derivation
+ * that fed it (or the reason it didn't). Cost here is informational — it is
+ * NEVER folded into `RunStats.cost_usd` (server/specs/05-intent-layer.md).
+ */
+export const IntentTrace = z.object({
+  status: z.enum(['used', 'unavailable']),
+  /** True when this run reused a cached derivation (no LLM call this run). */
+  cache_hit: z.boolean().nullish(),
+  confidence: IntentConfidence.nullish(),
+  derived_from: IntentDerivedFrom.nullish(),
+  change_type: IntentChangeType.nullish(),
+  provider: z.string().nullish(),
+  model: z.string().nullish(),
+  tokens_in: z.number().int().nullish(),
+  tokens_out: z.number().int().nullish(),
+  cost_usd: z.number().nullish(),
+  sources: z.array(IntentSource).nullish(),
+  /** Reason intent is unavailable (status='unavailable'), e.g. "config_error: …". */
+  warning: z.string().nullish(),
+});
+export type IntentTrace = z.infer<typeof IntentTrace>;
 
 export const MemoryPulled = z.object({
   pr: z.number().int().nullish(),
@@ -98,6 +128,8 @@ export const RunTrace = z.object({
   log: z.array(RunLogLine),
   /** Skills in the prompt, in order; body = skill_versions[id, version]. Absent on old traces. */
   skills_used: z.array(SkillUsed).nullish(),
+  /** Intent layer contribution to this run; null when the run had no intent. */
+  intent: IntentTrace.nullish(),
 });
 export type RunTrace = z.infer<typeof RunTrace>;
 

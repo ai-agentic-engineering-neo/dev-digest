@@ -187,6 +187,14 @@ export interface GitHubClient {
   /** The open PR whose head is `branch`, if any (so re-publish reuses it). */
   findOpenPr(repo: RepoRef, branch: string): Promise<{ url: string } | null>;
   getIssue(repo: RepoRef, n: number): Promise<IssueMeta>;
+  /**
+   * Read a file at `ref` via the Contents API (server/specs/05-intent-layer.md)
+   * — the fallback when there is no local clone (or `GitClient.readFileAt`
+   * failed). Returns null for anything that isn't a small regular file at that
+   * ref (missing, directory, submodule, oversize — checked against
+   * `opts.maxBytes` before the content is decoded) rather than throwing.
+   */
+  getFileContent(repo: RepoRef, path: string, ref: string, opts?: { maxBytes?: number }): Promise<FileAtRef | null>;
   /** GET /user — for "posting as @user". */
   currentLogin(): Promise<string>;
 }
@@ -229,6 +237,15 @@ export interface GitCommit {
   date: string;
 }
 
+/** A file read at an exact commit (server/specs/05-intent-layer.md). */
+export interface FileAtRef {
+  /** Repo-relative POSIX path, as resolved (echoes the input on success). */
+  path: string;
+  content: string;
+  /** Byte size of the content. */
+  size: number;
+}
+
 export interface GitClient {
   clone(repo: RepoRef, url: string, opts?: CloneOptions): Promise<{ path: string }>;
   fetchPullHead(repo: RepoRef, n: number): Promise<void>;
@@ -251,6 +268,14 @@ export interface GitClient {
   blame(repo: RepoRef, path: string): Promise<BlameLine[]>;
   log(repo: RepoRef, path?: string): Promise<GitCommit[]>;
   readFile(repo: RepoRef, path: string): Promise<string>;
+  /**
+   * Read a file at an EXACT commit (not the working tree) — `git cat-file -s`
+   * (size, checked before reading) + `git show <sha>:<path>`. `sha` must match
+   * `^[0-9a-f]{7,40}$`; `path` is checked the same way as `readFile` (must
+   * resolve strictly inside the clone). Throws on an invalid sha/path or a
+   * missing/oversize object — callers fall back to `GitHubClient.getFileContent`.
+   */
+  readFileAt(repo: RepoRef, sha: string, path: string, opts?: { maxBytes?: number }): Promise<FileAtRef>;
   clonePathFor(repo: RepoRef): string;
 }
 

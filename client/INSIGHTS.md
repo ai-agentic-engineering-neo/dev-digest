@@ -20,6 +20,7 @@ Reviewed monthly: stale entries are removed in a dedicated commit.
 
 ## Codebase Patterns
 <!-- conventions and architectural decisions not obvious from the code -->
+- 2026-09-24 — src/vendor/ui/primitives/Badge.tsx: Badge's props are a closed list (children/color/bg/icon/dot/mono/style), no rest-prop spread onto the <span> — passing an HTML attribute like title for a tooltip is a TS excess-property error, not silently ignored → wrap the Badge in a plain <span title=...> when it needs a native tooltip, don't try to pass title/aria-* through Badge itself
 - 2026-09-23 — vendor/ui Modal (and Drawer) render in place with position:fixed, no portal: inside a dimmed row (opacity 0.55 for a disabled SkillCard) the dialog inherits the opacity, and its clicks bubble to the row's onClick → render confirm modals as a sibling of the clickable row (SkillCard, SkillListItem), not inside it
 - 2026-09-22 — src/app/globals.css .dd-md: the vendored <Markdown> styles only inline marks and Tailwind preflight strips heading sizes and list markers, so block styles for rendered markdown (skill bodies, finding rationales) live in globals.css → add markdown block styling there, not per component
 - 2026-09-22 — src/app/skills/[id]/…/useUnsavedChangesGuard: a document capture-phase click listener that calls preventDefault + stopPropagation blocks next/link navigation (React's root listener never sees the click); it does not catch browser Back → reuse this for other unsaved-draft guards

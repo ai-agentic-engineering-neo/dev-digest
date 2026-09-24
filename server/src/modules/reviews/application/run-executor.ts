@@ -1,4 +1,4 @@
-import type { UnifiedDiff } from '@devdigest/shared';
+import type { Intent, IntentTrace, UnifiedDiff } from '@devdigest/shared';
 import { reviewPullRequest, countBlockers, estimateTokens, type ReviewOutcome } from '@devdigest/reviewer-core';
 import { RunLogger } from '../../../platform/run-logger.js';
 import { renderSkillBlock } from '../../skills/index.js';
@@ -11,10 +11,12 @@ import { completedRunTrace, endedRunTrace } from '../domain/trace.js';
 import type { ReviewAgent, ReviewPull, ReviewRepo, ReviewSkill } from '../domain/types.js';
 import { UsageMeter } from '../domain/usage-meter.js';
 import { loadDiff } from './diff-loader.js';
+import { resolveIntentPrework } from './intent-prework.js';
 import type {
   AgentSkillsReader,
   Clock,
   DiffSource,
+  IntentResolver,
   LlmResolver,
   Logger,
   RepoContext,
@@ -36,6 +38,8 @@ export interface RunExecutorDeps {
   clock: Clock;
   /** Max map-reduce chunks in flight; undefined = reviewer-core's default. */
   mapConcurrency?: number;
+  /** Intent layer (server/specs/05-intent-layer.md); undefined = kill switch off. */
+  intent?: IntentResolver;
 }
 
 export interface RunJob {
@@ -83,6 +87,36 @@ export class ReviewRunExecutor {
     }
     runLog.info(`Diff ready — ${diff.files.length} changed file(s); starting ${jobs.length} agent run(s)`);
 
+    // Shared pre-work (server/specs/05-intent-layer.md): derived/cached ONCE
+    // for this request, fanned out to every queued run's prompt/log/trace.
+    // Never throws — a failure degrades to {} (every run proceeds with no intent).
+    // The batch-level signal aborts derivation only once EVERY queued run has
+    // been cancelled — a single run's cancel must not starve the others still
+    // waiting on this shared pre-work.
+    const intentAbort = new AbortController();
+    const cancelledForIntent = new Set<string>();
+    const offIntentCancels = jobs.map(({ runId }) =>
+      this.deps.runBus.onCancel(runId, () => {
+        cancelledForIntent.add(runId);
+        if (cancelledForIntent.size >= jobs.length) intentAbort.abort();
+      }),
+    );
+    let intent: Intent | undefined;
+    let intentTrace: IntentTrace | undefined;
+    try {
+      ({ intent, intentTrace } = await resolveIntentPrework(
+        this.deps.intent,
+        workspaceId,
+        pull,
+        repo,
+        diff,
+        (kind, msg, data) => runLog.event(kind, msg, data),
+        intentAbort.signal,
+      ));
+    } finally {
+      for (const off of offIntentCancels) off();
+    }
+
     for (const { agent, runId } of jobs) {
       const agentStart = this.now();
       logger?.info(
@@ -90,7 +124,7 @@ export class ReviewRunExecutor {
         `review: agent "${agent.name}" started (${agent.provider}/${agent.model})`,
       );
       try {
-        const findings = await this.runOneAgent(workspaceId, pull, repo, diff, agent, runId, runLog);
+        const findings = await this.runOneAgent(workspaceId, pull, repo, diff, agent, runId, runLog, intent, intentTrace);
         logger?.info(
           { runId, agent: agent.name, findings, durationMs: this.now() - agentStart },
           `review: agent "${agent.name}" done — ${findings} finding(s)`,
@@ -136,6 +170,8 @@ export class ReviewRunExecutor {
     agent: ReviewAgent,
     runId: string,
     parentLog: RunLogger,
+    intent: Intent | undefined,
+    intentTrace: IntentTrace | undefined,
   ): Promise<number> {
     const start = this.now();
     const runLog = parentLog.forRun(runId, { agent: agent.name });
@@ -152,7 +188,7 @@ export class ReviewRunExecutor {
     let skills: ReviewSkill[] = [];
     try {
       skills = await this.attachSkills(agent, runId, runLog);
-      const outcome = await this.review(pull, repo, diff, agent, skills, runLog, usage, abort.signal, isCancelled);
+      const outcome = await this.review(pull, repo, diff, agent, skills, runLog, usage, abort.signal, isCancelled, intent);
       // Last in-memory checkpoint: a cancel that arrived DURING the final LLM
       // call must still win. A later one is caught by the conditional status
       // update inside the persist transaction.
@@ -181,6 +217,7 @@ export class ReviewRunExecutor {
         // The run's FULL event buffer (incl. the shared diff pre-work).
         log: runLog.logFor(runId),
         skillsUsed: skillsUsed(skills),
+        intent: intentTrace,
       });
       runLog.info('Run complete; trace persisted');
       await this.deps.reviews.saveRunTrace(runId, trace);
@@ -188,7 +225,7 @@ export class ReviewRunExecutor {
       return findings;
     } catch (err) {
       const cancelled = isCancelled();
-      await this.recordEnd(err, cancelled, runId, pull, agent, runLog, start, usage, skills);
+      await this.recordEnd(err, cancelled, runId, pull, agent, runLog, start, usage, skills, intentTrace);
       // An error raised by an aborted LLM call is reported as the cancel it is.
       throw cancelled && !(err instanceof RunCancelledError) ? new RunCancelledError() : err;
     } finally {
@@ -222,6 +259,7 @@ export class ReviewRunExecutor {
     usage: UsageMeter,
     signal: AbortSignal,
     isCancelled: () => boolean,
+    intent: Intent | undefined,
   ): Promise<ReviewOutcome> {
     // Throws when the provider key is missing → persisted as a failed run.
     const llm = await runLog.step(`Resolving ${agent.provider} provider`, () => this.deps.llm(agent.provider), {
@@ -248,6 +286,9 @@ export class ReviewRunExecutor {
       ...(skills.length > 0 ? { skills: skills.map(renderSkillBlock) } : {}),
       // PR author's body — untrusted; the engine wraps + truncates it.
       ...(pull.body ? { prDescription: pull.body } : {}),
+      // Derived PR intent (server/specs/05-intent-layer.md); undefined → the
+      // `## PR intent` section is omitted, prompt byte-identical to before.
+      ...(intent ? { intent } : {}),
       task: taskLine(pull) + ctx.rankNote,
       sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
       onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
@@ -321,6 +362,7 @@ export class ReviewRunExecutor {
     start: number,
     usage: UsageMeter,
     skills: readonly ReviewSkill[],
+    intentTrace: IntentTrace | undefined,
   ): Promise<void> {
     const { status, note } = runEnding(err, cancelled);
     runLog.error(status === 'cancelled' ? 'Run cancelled by user' : `Run failed: ${note}`);
@@ -346,6 +388,7 @@ export class ReviewRunExecutor {
           durationMs,
           usage,
           skillsUsed: skillsUsed(skills),
+          intent: intentTrace,
         }),
       )
       .catch(() => undefined);

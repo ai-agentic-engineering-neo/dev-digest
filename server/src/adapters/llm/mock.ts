@@ -26,6 +26,8 @@ import { ExternalServiceError } from '../../platform/errors.js';
  *   the first code line of up to 3 sampled source files — real evidence that
  *   passes the evidence gate on any repo — plus one candidate citing a file that
  *   does not exist, which the gate drops (mockConventionsFor).
+ * - `IntentClassification` (intent layer) returns MOCK_INTENT_CLASSIFICATION —
+ *   a plausible intent/scope/change_type for the seeded PR #482 review.
  * - Other structured schemas have no fixture → ExternalServiceError (the
  *   feature under test fails loudly instead of receiving invented data).
  * - `delayMs` makes each call take that long (abortable by the run's signal),
@@ -102,6 +104,23 @@ function mockReviewFor(messages: readonly { content: string }[]): Review {
 
 /** Schema name of the conventions extractor call (modules/conventions). */
 export const CONVENTION_EXTRACTION_SCHEMA = 'ConventionExtraction';
+
+/** Schema name of the intent layer's classification call (modules/intent). */
+export const INTENT_CLASSIFICATION_SCHEMA = 'IntentClassification';
+
+/**
+ * Fixture for the intent layer (server/specs/05-intent-layer.md), matched to
+ * the seeded PR #482 ("Add rate limiting to public API endpoints") so a
+ * `LLM_PROVIDER_OVERRIDE=mock` review derives a plausible, grounded intent —
+ * `change_type` and the scope bullets are deliberately generic prose so they
+ * still read sensibly on any other repo's PR.
+ */
+export const MOCK_INTENT_CLASSIFICATION = {
+  intent: '[mock LLM] Add rate limiting to public API endpoints to prevent abuse from unauthenticated clients.',
+  in_scope: ['Add a rate-limiting middleware', 'Apply it to public, unauthenticated API endpoints'],
+  out_of_scope: ['Authentication or session changes', 'Internal or admin-only endpoints'],
+  change_type: 'feature',
+};
 
 /**
  * Candidates for the conventions extractor built from the sample in the prompt:
@@ -180,7 +199,9 @@ export class MockReviewLLMProvider implements LLMProvider {
         ? mockReviewFor(req.messages)
         : req.schemaName === CONVENTION_EXTRACTION_SCHEMA
           ? mockConventionsFor(req.messages)
-          : undefined;
+          : req.schemaName === INTENT_CLASSIFICATION_SCHEMA
+            ? MOCK_INTENT_CLASSIFICATION
+            : undefined;
     if (fixture === undefined) {
       throw new ExternalServiceError(`Mock LLM provider has no fixture for structured output '${req.schemaName}'`);
     }

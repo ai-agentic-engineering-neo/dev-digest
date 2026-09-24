@@ -1,5 +1,6 @@
 import type { Intent, IntentTrace, UnifiedDiff } from '@devdigest/shared';
 import { reviewPullRequest, countBlockers, estimateTokens, type ReviewOutcome } from '@devdigest/reviewer-core';
+import type { PromptLogPort } from '../../../platform/prompt-log.js';
 import { RunLogger } from '../../../platform/run-logger.js';
 import { renderSkillBlock } from '../../skills/index.js';
 import type { RunBus } from '../../../platform/sse.js';
@@ -40,6 +41,8 @@ export interface RunExecutorDeps {
   mapConcurrency?: number;
   /** Intent layer (server/specs/05-intent-layer.md); undefined = kill switch off. */
   intent?: IntentResolver;
+  /** Structured, content-free prompt-assembly logging (platform/prompt-log.ts); undefined = no-op. */
+  promptLog?: PromptLogPort;
 }
 
 export interface RunJob {
@@ -188,7 +191,7 @@ export class ReviewRunExecutor {
     let skills: ReviewSkill[] = [];
     try {
       skills = await this.attachSkills(agent, runId, runLog);
-      const outcome = await this.review(pull, repo, diff, agent, skills, runLog, usage, abort.signal, isCancelled, intent);
+      const outcome = await this.review(pull, repo, diff, agent, skills, runLog, usage, abort.signal, isCancelled, intent, runId);
       // Last in-memory checkpoint: a cancel that arrived DURING the final LLM
       // call must still win. A later one is caught by the conditional status
       // update inside the persist transaction.
@@ -260,6 +263,7 @@ export class ReviewRunExecutor {
     signal: AbortSignal,
     isCancelled: () => boolean,
     intent: Intent | undefined,
+    runId: string,
   ): Promise<ReviewOutcome> {
     // Throws when the provider key is missing → persisted as a failed run.
     const llm = await runLog.step(`Resolving ${agent.provider} provider`, () => this.deps.llm(agent.provider), {
@@ -293,6 +297,16 @@ export class ReviewRunExecutor {
       sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
       onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
       onUsage: usage.add,
+      onPrompt: (e) =>
+        this.deps.promptLog?.assembled({
+          feature: 'review',
+          correlationId: runId,
+          provider: agent.provider,
+          model: agent.model,
+          chunk: { index: e.chunkIndex, total: e.chunkCount },
+          sections: e.sections,
+          verbose: { chunkLabel: e.chunkLabel },
+        }),
       signal,
       checkCancelled: () => {
         if (isCancelled()) throw new RunCancelledError();

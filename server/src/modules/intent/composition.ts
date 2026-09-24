@@ -27,6 +27,7 @@ export function buildIntentModule(c: Container) {
     }),
     tickets: new GitHubTicketSource({ github: () => c.github() }),
     clock: () => new Date(),
+    promptLog: c.promptLog,
   });
   return { service };
 }

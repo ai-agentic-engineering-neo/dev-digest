@@ -176,6 +176,7 @@ row, byte-identical prompt).
 | `REVIEW_INTENT_ENABLED` | `true` | intent layer kill switch (spec [`05-intent-layer.md`](specs/05-intent-layer.md)); `false` → no derivation, no `pr_intent` row, byte-identical prompt |
 | `LLM_PROVIDER_OVERRIDE` | — | **dev/e2e only**: `mock` → every provider is the deterministic mock (`src/adapters/llm/mock.ts`, fixed review grounded on the seeded PR #482); refused with `NODE_ENV=production`, loud warning at boot |
 | `LLM_MOCK_DELAY_MS` | `0` | latency of each mock LLM call (abortable), so the live-run UI is observable |
+| `PROMPT_LOG_VERBOSE` | — | **dev only**: adds identifiers (file paths, ticket/doc refs — never prompt content) to the structured `prompt_assembled` log line; refused with `NODE_ENV=production`; silently OFF outside development or when `API_HOST` isn't loopback (boot warns once when that happens) |
 | `DEVDIGEST_CLONE_DIR` | `./clones` | imported-repo checkouts (git-ignored) |
 | `LOG_LEVEL` | `info` (`silent` in test) | pino level |
 | `NODE_ENV` | `development` | `test` → silent logs + global rate-limit disabled |
@@ -220,6 +221,14 @@ What the reviewer actually sends to the model is assembled in
   added to `agent_runs.cost_usd`. A finding the model judges out of that scope
   gets `out_of_scope: true` — `reviewer-core`'s `applyScopePolicy` guarantees
   this never drops the finding or changes its severity.
+- **Every prompt sent to a model is logged, without its content.** Reviews
+  (per chunk), intent derivation and conventions extraction each emit one
+  pino `prompt_assembled` line (`platform/prompt-log.ts`, Container-owned
+  `promptLog`): feature, correlation id, provider/model, and per-section
+  name/source/trust/chars/estimated-tokens — the record type has no content
+  field, so the diff, PR body, specs, intent, tickets and docs can never reach
+  it. `PROMPT_LOG_VERBOSE=true` (dev + loopback only) adds identifiers only
+  (a chunk's file path, an intent source's kind/ref/status).
 
 ## Testing
 

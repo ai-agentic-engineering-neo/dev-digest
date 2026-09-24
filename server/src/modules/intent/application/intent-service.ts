@@ -8,6 +8,7 @@
 import { createHash } from 'node:crypto';
 import type { Intent, IntentDerivedFrom, IntentTrace, PrIntentRecord, RunEventKind } from '@devdigest/shared';
 import { ExternalServiceError, NotFoundError } from '../../../platform/errors.js';
+import { sectionMeta, type PromptLogPort } from '../../../platform/prompt-log.js';
 import {
   CHANGED_FILES_MAX,
   COMMITS_MAX,
@@ -21,7 +22,7 @@ import {
   TICKET_MAX_CHARS,
   TITLE_MAX_CHARS,
 } from '../domain/constants.js';
-import { CLASSIFICATION_SYSTEM_PROMPT, classificationUserMessage } from '../domain/classification.js';
+import { CLASSIFICATION_SYSTEM_PROMPT, classificationTaskText, classificationUserMessage } from '../domain/classification.js';
 import {
   buildCacheKeyInput,
   canonicalJson,
@@ -57,6 +58,8 @@ export interface IntentServiceDeps {
   tickets: TicketSource;
   store: IntentStore;
   clock: Clock;
+  /** Structured, content-free prompt-assembly logging (platform/prompt-log.ts); undefined = no-op. */
+  promptLog?: PromptLogPort;
 }
 
 export type IntentLogEvent = { kind: RunEventKind; msg: string; data?: unknown };
@@ -323,6 +326,18 @@ export class IntentService {
     const degraded = hasDegradedTicketOrDoc(sources);
     const confidence = computeConfidence(derivedFrom, degraded);
     const sourcesBlock = renderSourcesBlock(sources);
+    this.deps.promptLog?.assembled({
+      feature: 'intent',
+      correlationId: `intent:${input.pull.id}:${key.hash.slice(0, 12)}`,
+      provider: key.resolved.provider,
+      model: key.resolved.model,
+      sections: [
+        sectionMeta('system', 'engine', 'trusted', CLASSIFICATION_SYSTEM_PROMPT),
+        sectionMeta('task', 'engine', 'trusted', classificationTaskText()),
+        sectionMeta('intent_sources', 'repo', 'untrusted', sourcesBlock, { items: sources.length }),
+      ],
+      verbose: { sources: sources.map((s) => ({ kind: s.kind, ref: s.ref, status: s.status })) },
+    });
     const result = await this.deps.model.classify(
       key.resolved,
       [

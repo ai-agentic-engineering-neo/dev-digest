@@ -34,6 +34,28 @@ describe('logger redaction', () => {
     expect(out).toContain('openai');
   });
 
+  it('censors a raw `messages` array (defense in depth for accidentally-logged prompt content)', async () => {
+    const lines: string[] = [];
+    const stream = new Writable({
+      write(chunk, _enc, cb) {
+        lines.push(String(chunk));
+        cb();
+      },
+    });
+    const config = loadConfig({ ...process.env, NODE_ENV: 'production', LOG_LEVEL: 'info' } as NodeJS.ProcessEnv);
+    const opts = loggerOptions(config);
+    const app = Fastify({ logger: { ...(opts as object), stream } });
+    app.log.info(
+      { messages: [{ role: 'user', content: 'SENTINEL_PROMPT_CONTENT' }], req: { body: { messages: [{ content: 'NESTED_SENTINEL' }] } } },
+      'probe',
+    );
+    await app.close();
+    const out = lines.join('');
+    expect(out).not.toContain('SENTINEL_PROMPT_CONTENT');
+    expect(out).not.toContain('NESTED_SENTINEL');
+    expect(out).toContain('[REDACTED]');
+  });
+
   it('is disabled when LOG_LEVEL is silent', () => {
     const config = loadConfig({ ...process.env, NODE_ENV: 'test', LOG_LEVEL: 'silent' } as NodeJS.ProcessEnv);
     expect(loggerOptions(config)).toBe(false);

@@ -12,6 +12,7 @@ import type {
 } from '../src/modules/conventions/application/ports.js';
 import type { KeptConvention, ScanSummary } from '../src/modules/conventions/domain/types.js';
 import { ConflictError } from '../src/platform/errors.js';
+import type { PromptLogEntry, PromptLogPort } from '../src/platform/prompt-log.js';
 
 let root: string;
 let outside: string;
@@ -115,7 +116,9 @@ function makeStore() {
   };
 }
 
-function makeService(opts: { model?: ConventionModel; ranked?: string[]; clonePath?: string | null } = {}) {
+function makeService(
+  opts: { model?: ConventionModel; ranked?: string[]; clonePath?: string | null; promptLog?: PromptLogPort } = {},
+) {
   const s = makeStore();
   const enqueue = vi.fn(async () => {});
   const createExtracted = vi.fn(async (_ws: string, _repo: string, input: { name: string }) => ({ id: 'skill-1', name: input.name }) as Skill);
@@ -162,6 +165,7 @@ function makeService(opts: { model?: ConventionModel; ranked?: string[]; clonePa
       linkSkill,
     },
     clock: () => new Date(),
+    ...(opts.promptLog ? { promptLog: opts.promptLog } : {}),
   });
   return { service, ...s, enqueue, propose, createExtracted, linkSkill };
 }
@@ -207,6 +211,49 @@ describe('ConventionsService', () => {
       costUsd: 0.001,
       sampledFiles: ['package.json', 'src/api/users.ts'],
     });
+  });
+
+  it('runScan logs prompt assembly (system + repository_sample) via promptLog, correlationId=scanId, never the sampled text', async () => {
+    const entries: PromptLogEntry[] = [];
+    const promptLog: PromptLogPort = { assembled: (e) => entries.push(e) };
+    const model: ConventionModel = {
+      propose: async (_ws, _messages, _signal, onResolved) => {
+        onResolved?.({ provider: 'openai', model: 'gpt-4.1' });
+        return {
+          data: { candidates: [] },
+          model: 'gpt-4.1',
+          tokensIn: 1,
+          tokensOut: 1,
+          costUsd: 0,
+        };
+      },
+    };
+    const { service, propose } = makeService({ model, promptLog });
+    await service.runScan({ scanId: 'scan-log-1', workspaceId: 'ws', repoId: 'repo-1' }, new AbortController().signal);
+
+    expect(entries).toHaveLength(1);
+    const entry = entries[0]!;
+    expect(entry.feature).toBe('conventions');
+    expect(entry.correlationId).toBe('scan-log-1');
+    expect(entry.provider).toBe('openai');
+    expect(entry.model).toBe('gpt-4.1');
+    expect(entry.sections.map((s) => s.name)).toEqual(['system', 'task', 'repository_sample']);
+    const repositorySample = entry.sections.find((s) => s.name === 'repository_sample')!;
+    expect(repositorySample.items).toBe(2); // package.json + src/api/users.ts sampled
+    const json = JSON.stringify(entries);
+    expect(json).not.toContain('return await db.users.find');
+    expect(json).not.toContain('TOP SECRET');
+
+    // F3: summed user-role section chars ≈ the real user message length (the
+    // actual message sent to the model), within a small documented constant —
+    // one '\n\n' join not captured because the framing (`task`) and the
+    // wrapped sample (`repository_sample`) are logged as two separate
+    // sections instead of the real message's 4 joined pieces.
+    const userMessage = propose.mock.calls[0]![1][1]!.content as string;
+    const summedUserChars = entry.sections
+      .filter((s) => s.role === 'user')
+      .reduce((n, s) => n + s.chars, 0);
+    expect(Math.abs(userMessage.length - summedUserChars)).toBeLessThanOrEqual(2);
   });
 
   it('runScan prefers the repo-intel ranking when it has files', async () => {

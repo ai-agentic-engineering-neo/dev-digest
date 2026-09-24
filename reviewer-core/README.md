@@ -45,14 +45,28 @@ derived-hint framing, never a limiter — `prompt.ts`). After grounding,
 the finding list's length, order and severities are never touched, so the
 score is identical with or without an intent.
 
+`assemblePrompt` also returns `sections: PromptSectionMeta[]` — one entry per
+rendered section (`system`, `injection_guard`, `task`, `pr_description`,
+`intent_rule`, `intent`, `skills`, `memory`, `repo_map`, `specs`, `callers`,
+`diff`), in render order, with its `source`/`role`/`trust` and `chars`/`tokens`
+— **never the section's text**, so a consumer can log what went into a prompt
+without ever logging the prompt itself. `ReviewInput.onPrompt` fires with this
+metadata (plus `chunkIndex`/`chunkCount`/`chunkLabel`/`mode`/`model`) once per
+LLM call — single-pass once, map-reduce once per chunk — right before the
+call; like `onUsage`, a throwing hook never breaks the review (the server
+wires it to `platform/prompt-log.ts`, its structured `prompt_assembled` log
+line).
+
 ## Public API
 
 Exported from `src/index.ts`: `assemblePrompt` / `wrapUntrusted` /
-`renderIntent` / `INTENT_SCOPE_RULE` (prompt), `groundFindings` /
+`renderIntent` / `INTENT_SCOPE_RULE` / `PromptSectionMeta` / `PromptSectionName`
+/ `PromptSectionSource` (prompt), `groundFindings` /
 `groundingSummary` (grounding), `applyScopePolicy` (out-of-scope policy,
 `review/scope.ts`), `toJsonSchema` / `extractJson` / `parseWithRepair`
-(structured output), plus the `run` entrypoint and `reduce`. Contracts
-(`Review`, `Finding`, `Intent`, `Verdict`, …) come from `@devdigest/shared`.
+(structured output), plus the `run` entrypoint (incl. `ReviewInput.onPrompt` /
+`PromptAssembledEvent`) and `reduce`. Contracts (`Review`, `Finding`, `Intent`,
+`Verdict`, …) come from `@devdigest/shared`.
 
 Robustness knobs (all optional, sane defaults):
 - `reviewPullRequest`: `concurrency` (map chunks in flight, default 3, result

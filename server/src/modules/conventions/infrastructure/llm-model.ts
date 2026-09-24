@@ -15,8 +15,14 @@ export interface LlmConventionModelDeps {
 export class LlmConventionModel implements ConventionModel {
   constructor(private readonly deps: LlmConventionModelDeps) {}
 
-  async propose(workspaceId: string, messages: Parameters<ConventionModel['propose']>[1], signal: AbortSignal) {
+  async propose(
+    workspaceId: string,
+    messages: Parameters<ConventionModel['propose']>[1],
+    signal: AbortSignal,
+    onResolved?: Parameters<ConventionModel['propose']>[3],
+  ) {
     const choice = await this.deps.resolveModel(workspaceId);
+    onResolved?.({ provider: choice.provider, model: choice.model });
     const llm = await this.deps.llm(choice.provider);
     const res = await llm.completeStructured({
       model: choice.model,

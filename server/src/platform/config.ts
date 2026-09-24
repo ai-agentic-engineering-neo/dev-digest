@@ -64,7 +64,26 @@ const EnvSchema = z.object({
     (v) => (v === '' ? undefined : v),
     z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).optional(),
   ),
+  // DEV ONLY: adds identifiers (never prompt CONTENT) to the structured
+  // `prompt_assembled` log line — e.g. which file a review chunk covers, which
+  // ticket/doc an intent derivation used. String compare (like
+  // REVIEW_INTENT_ENABLED above), NOT z.coerce.boolean(). Refused in
+  // production (loadConfig throws, mirrors LLM_PROVIDER_OVERRIDE); silently
+  // OFF outside development or off loopback (loadConfig warns via
+  // `promptLogVerboseDisabledReason`, server.ts logs it once at boot).
+  PROMPT_LOG_VERBOSE: z.string().optional(),
 });
+
+/** 127.0.0.0/8, `::1`, or `localhost` — the interfaces the API may safely bind
+ *  to without authentication (see API_HOST above). */
+export function isLoopbackHost(host: string): boolean {
+  const normalized = host.trim().toLowerCase();
+  if (normalized === 'localhost' || normalized === '::1') return true;
+  const octets = normalized.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (!octets) return false;
+  const nums = octets.slice(1).map(Number);
+  return nums[0] === 127 && nums.every((n) => n >= 0 && n <= 255);
+}
 
 export type AppConfig = {
   databaseUrl: string;
@@ -97,6 +116,10 @@ export type AppConfig = {
   llmProviderOverride?: 'mock';
   /** Latency of each mock LLM call (ms); only used with llmProviderOverride. */
   llmMockDelayMs?: number;
+  /** Raw PROMPT_LOG_VERBOSE=true request, before the dev+loopback gate below. */
+  promptLogVerboseRequested: boolean;
+  /** Effective verbose gate: requested AND development AND API_HOST is loopback. */
+  promptLogVerbose: boolean;
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -104,6 +127,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   if (parsed.LLM_PROVIDER_OVERRIDE && parsed.NODE_ENV === 'production') {
     throw new Error('LLM_PROVIDER_OVERRIDE is a dev/e2e switch and is refused when NODE_ENV=production');
   }
+  const promptLogVerboseRequested = parsed.PROMPT_LOG_VERBOSE === 'true';
+  if (promptLogVerboseRequested && parsed.NODE_ENV === 'production') {
+    throw new Error('PROMPT_LOG_VERBOSE is a dev-only switch and is refused when NODE_ENV=production');
+  }
+  const promptLogVerbose =
+    promptLogVerboseRequested && parsed.NODE_ENV === 'development' && isLoopbackHost(parsed.API_HOST);
   const cloneDirRaw =
     parsed.DEVDIGEST_CLONE_DIR ?? join(homedir(), '.devdigest', 'workspace');
   const cloneDir = isAbsolute(cloneDirRaw) ? cloneDirRaw : resolve(process.cwd(), cloneDirRaw);
@@ -120,8 +149,41 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     embeddingsEnabled: parsed.EMBEDDINGS_ENABLED === 'true',
     repoIntelEnabled: parsed.REPO_INTEL_ENABLED !== 'false',
     reviewIntentEnabled: parsed.REVIEW_INTENT_ENABLED !== 'false',
+    promptLogVerboseRequested,
+    promptLogVerbose,
     ...(parsed.REVIEW_MAP_CONCURRENCY !== undefined ? { reviewMapConcurrency: parsed.REVIEW_MAP_CONCURRENCY } : {}),
     ...(parsed.LLM_PROVIDER_OVERRIDE ? { llmProviderOverride: parsed.LLM_PROVIDER_OVERRIDE } : {}),
     ...(parsed.LLM_MOCK_DELAY_MS !== undefined ? { llmMockDelayMs: parsed.LLM_MOCK_DELAY_MS } : {}),
   };
+}
+
+/**
+ * `PROMPT_LOG_VERBOSE=true` was requested but the dev+loopback gate turned it
+ * off (production is refused outright by `loadConfig`, above) — null when
+ * there's nothing to warn about. server.ts logs this once at boot (mirrors the
+ * LLM_PROVIDER_OVERRIDE=mock warning). No secrets: only nodeEnv/apiHost.
+ */
+export function promptLogVerboseDisabledReason(config: AppConfig): string | null {
+  if (!config.promptLogVerboseRequested || config.promptLogVerbose) return null;
+  return (
+    `PROMPT_LOG_VERBOSE=true was requested but is disabled: it requires NODE_ENV=development ` +
+    `and API_HOST on loopback (current nodeEnv=${config.nodeEnv}, apiHost=${config.apiHost}).`
+  );
+}
+
+/**
+ * `PROMPT_LOG_VERBOSE` ended up effectively ON (dev + loopback) — null when
+ * it didn't. server.ts logs this once at boot, distinct from
+ * `promptLogVerboseDisabledReason` above (the two are mutually exclusive: a
+ * request is either gated off or on). No secrets: says only that
+ * `prompt_assembled` log lines now also carry IDENTIFIERS (e.g. a review
+ * chunk's file path, an intent source's kind/ref/status) — never prompt
+ * content.
+ */
+export function promptLogVerboseEnabledReason(config: AppConfig): string | null {
+  if (!config.promptLogVerbose) return null;
+  return (
+    `PROMPT_LOG_VERBOSE=true is ON: prompt_assembled log lines now also include IDENTIFIERS ` +
+    `(e.g. a review chunk's file path, an intent source's kind/ref/status) — never prompt content or secrets. Local dev only.`
+  );
 }

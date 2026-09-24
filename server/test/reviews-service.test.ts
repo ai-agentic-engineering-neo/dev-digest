@@ -11,6 +11,7 @@ import type {
 } from '@devdigest/shared';
 import { parseUnifiedDiff } from '../src/adapters/git/diff-parser.js';
 import { RunBus } from '../src/platform/sse.js';
+import type { PromptLogEntry, PromptLogPort } from '../src/platform/prompt-log.js';
 import { ReviewService } from '../src/modules/reviews/application/review-service.js';
 import { ReviewRunExecutor } from '../src/modules/reviews/application/run-executor.js';
 import type { AgentDirectory, ReviewStore } from '../src/modules/reviews/application/ports.js';
@@ -204,7 +205,7 @@ function untilAborted(signal: AbortSignal): Promise<void> {
   });
 }
 
-function setup(llm: LLMProvider, mapConcurrency?: number) {
+function setup(llm: LLMProvider, mapConcurrency?: number, promptLog?: PromptLogPort) {
   const store = new FakeStore();
   const runBus = new RunBus();
   const clock = () => new Date();
@@ -222,6 +223,7 @@ function setup(llm: LLMProvider, mapConcurrency?: number) {
     skills: { enabledForAgent: async () => [] },
     clock,
     ...(mapConcurrency !== undefined ? { mapConcurrency } : {}),
+    ...(promptLog ? { promptLog } : {}),
   });
   const service = new ReviewService({ reviews: store, agents, runBus, executor, clock });
   return { store, runBus, service, executor };
@@ -282,6 +284,21 @@ describe('ReviewRunExecutor cancel (parallel map-reduce)', () => {
     expect(s.store.runs.get(runId)!.status).toBe('done');
     expect(s.store.reviews).toHaveLength(1);
     expect(s.runBus.isComplete(runId)).toBe(true);
+  });
+
+  it('wires promptLog.assembled once per chunk, correlationId=runId, provider/model=the agent’s', async () => {
+    const { llm } = scriptedLlm(async () => undefined);
+    const entries: PromptLogEntry[] = [];
+    const promptLog: PromptLogPort = { assembled: (e) => entries.push(e) };
+    const s = setup(llm, 3, promptLog);
+    const runId = await runAgent(s);
+
+    expect(entries).toHaveLength(4); // one per changed file (map-reduce)
+    expect(entries.every((e) => e.feature === 'review')).toBe(true);
+    expect(entries.every((e) => e.correlationId === runId)).toBe(true);
+    expect(entries.every((e) => e.provider === AGENT.provider && e.model === AGENT.model)).toBe(true);
+    expect(entries.every((e) => e.chunk?.total === 4)).toBe(true);
+    expect(entries.map((e) => e.chunk?.index).sort()).toEqual([0, 1, 2, 3]);
   });
 });
 

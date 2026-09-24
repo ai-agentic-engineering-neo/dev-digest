@@ -9,7 +9,7 @@ import type {
   UnifiedDiff,
 } from '@devdigest/shared';
 import { Review as ReviewSchema } from '@devdigest/shared';
-import { assemblePrompt, renderIntent } from '../prompt.js';
+import { assemblePrompt, renderIntent, type PromptSectionMeta } from '../prompt.js';
 import { groundFindings, groundingSummary } from '../grounding.js';
 import { reduceReviews, scoreFromFindings, sliceDiff } from './reduce.js';
 import { addCost } from '../llm/usage.js';
@@ -54,6 +54,22 @@ export interface ReviewEvent {
   kind: RunEventKind;
   msg: string;
   data?: unknown;
+}
+
+/**
+ * Fired once per LLM call (single-pass: once; map-reduce: once per chunk),
+ * right after `assemblePrompt`. Safe-for-logging metadata only — `sections`
+ * never carries prompt text (see `PromptSectionMeta`).
+ */
+export interface PromptAssembledEvent {
+  /** 0-based position of this call among the review's chunks. */
+  chunkIndex: number;
+  /** Total number of chunks this review makes (1 for single-pass). */
+  chunkCount: number;
+  chunkLabel: string;
+  mode: ReviewMode;
+  model: string;
+  sections: PromptSectionMeta[];
 }
 
 export interface ReviewInput {
@@ -124,6 +140,12 @@ export interface ReviewInput {
    * the returned outcome cannot carry.
    */
   onUsage?: (u: LlmUsage) => void;
+  /**
+   * Prompt-assembly sink — fired once per LLM call (map-reduce: once per
+   * chunk), right after `assemblePrompt`, before the call. Observational: a
+   * throwing hook never breaks the review (swallowed, like `onUsage`).
+   */
+  onPrompt?: (e: PromptAssembledEvent) => void;
   /**
    * Cancellation checkpoint, called before each (expensive) chunk LLM call.
    * Supply a function that THROWS to abort mid-run (the caller owns the error
@@ -204,7 +226,7 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
   const effectiveMode: ReviewMode = chunks.length > 1 ? 'map-reduce' : mode;
   const temperature = input.temperature === undefined ? DEFAULT_REVIEW_TEMPERATURE : input.temperature;
 
-  const results = await mapOrdered(chunks, input.concurrency ?? DEFAULT_MAP_CONCURRENCY, async (chunk) => {
+  const results = await mapOrdered(chunks, input.concurrency ?? DEFAULT_MAP_CONCURRENCY, async (chunk, index) => {
     // Cancellation checkpoint — stop before the next (expensive) LLM call.
     input.checkCancelled?.();
     // 'map:' prefix only for the map-reduce path (one call per chunk). In
@@ -215,6 +237,20 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
       { file: chunk.label },
     );
     const a = assemblePrompt({ ...promptParts, diff: chunk.diffText });
+    if (input.onPrompt) {
+      try {
+        input.onPrompt({
+          chunkIndex: index,
+          chunkCount: chunks.length,
+          chunkLabel: chunk.label,
+          mode: effectiveMode,
+          model: input.model,
+          sections: a.sections,
+        });
+      } catch {
+        // observational — must never break the review (mirrors emitUsage)
+      }
+    }
     const res = await input.llm.completeStructured<Review>({
       model: input.model,
       schema: ReviewSchema,

@@ -12,9 +12,15 @@ import type {
   UpdateConventionInput,
 } from '@devdigest/shared';
 import { NotFoundError, ValidationError } from '../../../platform/errors.js';
+import { sectionMeta, type PromptLogPort } from '../../../platform/prompt-log.js';
 import { SAMPLE_TOP_N, SCAN_STALE_MS } from '../domain/constants.js';
 import { ruleKey } from '../domain/evidence.js';
-import { EXTRACTION_SYSTEM_PROMPT, extractionUserMessage } from '../domain/extraction.js';
+import {
+  EXTRACTION_SYSTEM_PROMPT,
+  extractionTaskText,
+  extractionUserMessage,
+  wrappedRepositorySample,
+} from '../domain/extraction.js';
 import { citedPaths, gateCandidates } from '../domain/gate.js';
 import { pickConfigFiles, pickFallbackSources, renderSample, type SampledFile } from '../domain/sampling.js';
 import type {
@@ -42,6 +48,8 @@ export interface ConventionsServiceDeps {
   skills: SkillCreator;
   agents: AgentLinker;
   clock: Clock;
+  /** Structured, content-free prompt-assembly logging (platform/prompt-log.ts); undefined = no-op. */
+  promptLog?: PromptLogPort;
 }
 
 /** Minimal logger port (the job handler passes its own). */
@@ -104,6 +112,20 @@ export class ConventionsService {
           { role: 'user', content: extractionUserMessage(repo.fullName, sample.text) },
         ],
         signal,
+        (resolved) =>
+          this.deps.promptLog?.assembled({
+            feature: 'conventions',
+            correlationId: scanId,
+            provider: resolved.provider,
+            model: resolved.model,
+            sections: [
+              sectionMeta('system', 'engine', 'trusted', EXTRACTION_SYSTEM_PROMPT),
+              sectionMeta('task', 'engine', 'trusted', extractionTaskText(repo.fullName)),
+              sectionMeta('repository_sample', 'repo', 'untrusted', wrappedRepositorySample(sample.text), {
+                items: sampledFiles.length,
+              }),
+            ],
+          }),
       );
       const candidates = proposal.data.candidates;
 

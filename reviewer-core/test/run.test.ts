@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { LLMProvider, StructuredRequest, StructuredResult } from '@devdigest/shared';
 import { StubLLM } from './fixtures/llm.js';
 import { configDiff, twoFileDiff as twoFiles } from './fixtures/diff.js';
-import { reviewPullRequest } from '../src/index.js';
+import { reviewPullRequest, type PromptAssembledEvent } from '../src/index.js';
 
 /**
  * Engine-level test for reviewPullRequest (the core lifted out of the server's
@@ -135,6 +135,69 @@ describe('reviewPullRequest (engine)', () => {
     await reviewPullRequest({ systemPrompt: 's', model: 'm', diff, llm: recorder, sessionId: 'sess-abc' });
     expect(seen.length).toBeGreaterThan(0);
     expect(seen.every((s) => s === 'sess-abc')).toBe(true);
+  });
+
+  describe('onPrompt (safe structured logging sink)', () => {
+    it('single-pass: fires once, with the assembled sections and chunkCount=1', async () => {
+      const llm = new StubLLM({ data: fixture });
+      const diff = configDiff();
+      const events: PromptAssembledEvent[] = [];
+
+      const outcome = await reviewPullRequest({
+        systemPrompt: 'security reviewer',
+        model: 'gpt-4.1',
+        diff,
+        llm,
+        task: 'Review PR #482',
+        onPrompt: (e) => events.push(e),
+      });
+
+      expect(outcome.mode).toBe('single-pass');
+      expect(events).toHaveLength(1);
+      expect(events[0]!.chunkIndex).toBe(0);
+      expect(events[0]!.chunkCount).toBe(1);
+      expect(events[0]!.mode).toBe('single-pass');
+      expect(events[0]!.model).toBe('gpt-4.1');
+      expect(events[0]!.sections.length).toBeGreaterThan(0);
+      expect(events[0]!.sections.map((s) => s.name)).toContain('diff');
+    });
+
+    it('map-reduce over 2 files: fires once per chunk, chunkCount=2', async () => {
+      const llm = new StubLLM({ data: fixture });
+      const diff = twoFiles();
+      const events: PromptAssembledEvent[] = [];
+
+      const outcome = await reviewPullRequest({
+        systemPrompt: 's',
+        model: 'm',
+        diff,
+        llm,
+        strategy: 'map-reduce',
+        onPrompt: (e) => events.push(e),
+      });
+
+      expect(outcome.mode).toBe('map-reduce');
+      expect(events).toHaveLength(2);
+      expect(events.every((e) => e.chunkCount === 2)).toBe(true);
+      expect(events.map((e) => e.chunkIndex).sort()).toEqual([0, 1]);
+    });
+
+    it('a throwing onPrompt hook never breaks the review', async () => {
+      const llm = new StubLLM({ data: fixture });
+      const diff = configDiff();
+
+      const outcome = await reviewPullRequest({
+        systemPrompt: 's',
+        model: 'm',
+        diff,
+        llm,
+        onPrompt: () => {
+          throw new Error('boom');
+        },
+      });
+
+      expect(outcome.review).toBeDefined();
+    });
   });
 
   describe('onUsage (per-response usage for failed/cancelled runs)', () => {

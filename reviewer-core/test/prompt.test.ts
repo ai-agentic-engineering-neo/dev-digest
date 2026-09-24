@@ -4,7 +4,7 @@
  * truncation, and ordering (before the diff).
  */
 import { describe, it, expect } from 'vitest';
-import { assemblePrompt, wrapUntrusted } from '../src/prompt.js';
+import { assemblePrompt, wrapUntrusted, type PromptSectionName } from '../src/prompt.js';
 
 function userOf(parts: Parameters<typeof assemblePrompt>[0]): string {
   const { messages } = assemblePrompt(parts);
@@ -62,6 +62,108 @@ describe('assemblePrompt — ## PR description', () => {
       prDescription: 'x'.repeat(10_000),
     });
     expect((assembly.pr_description as string).length).toBe(4000);
+  });
+});
+
+describe('assemblePrompt — sections metadata (safe structured logging)', () => {
+  const ALL: Parameters<typeof assemblePrompt>[0] = {
+    system: 'AGENT-SYS',
+    task: "Review PR #482 'rate limit'",
+    prDescription: 'Adds rate limiting to the public /api endpoints.',
+    intent: 'Add rate limiting.\nConfidence: high',
+    skills: ['## skill\nDetect X'],
+    memory: ['Do not flag try/catch around JSON.parse'],
+    repoMap: '### src/api.ts\nfunction handler()',
+    specs: ['# Security baseline\nNo secrets in code.'],
+    callers: '### src/api/public.ts\n- `handler`',
+    diff: '@@ -1 +1 @@\n+stripeKey',
+  };
+
+  it('reports one meta per rendered section, in render order, with the right names', () => {
+    const { sections } = assemblePrompt(ALL);
+    const names = sections.map((s) => s.name);
+    const expected: PromptSectionName[] = [
+      'system',
+      'injection_guard',
+      'task',
+      'pr_description',
+      'intent_rule',
+      'intent',
+      'skills',
+      'memory',
+      'repo_map',
+      'specs',
+      'callers',
+      'diff',
+    ];
+    expect(names).toEqual(expected);
+  });
+
+  it('classifies trust per section (author/repo/model-derived content is untrusted)', () => {
+    const { sections } = assemblePrompt(ALL);
+    const trustOf = (name: PromptSectionName) => sections.find((s) => s.name === name)!.trust;
+    expect(trustOf('system')).toBe('trusted');
+    expect(trustOf('injection_guard')).toBe('trusted');
+    expect(trustOf('intent_rule')).toBe('trusted');
+    expect(trustOf('skills')).toBe('trusted');
+    expect(trustOf('memory')).toBe('trusted');
+    expect(trustOf('task')).toBe('untrusted');
+    expect(trustOf('pr_description')).toBe('untrusted');
+    expect(trustOf('intent')).toBe('untrusted');
+    expect(trustOf('repo_map')).toBe('untrusted');
+    expect(trustOf('specs')).toBe('untrusted');
+    expect(trustOf('callers')).toBe('untrusted');
+    expect(trustOf('diff')).toBe('untrusted');
+  });
+
+  it('reports chars/tokens > 0 and items for skills/memory/specs', () => {
+    const { sections } = assemblePrompt(ALL);
+    for (const s of sections) {
+      expect(s.chars).toBeGreaterThan(0);
+      expect(s.tokens).toBeGreaterThan(0);
+    }
+    expect(sections.find((s) => s.name === 'skills')!.items).toBe(1);
+    expect(sections.find((s) => s.name === 'memory')!.items).toBe(1);
+    expect(sections.find((s) => s.name === 'specs')!.items).toBe(1);
+  });
+
+  it('never carries the section text itself (numbers/enums only)', () => {
+    const { sections } = assemblePrompt(ALL);
+    const json = JSON.stringify(sections);
+    for (const sentinel of [
+      'AGENT-SYS',
+      'Adds rate limiting',
+      'Add rate limiting',
+      'Detect X',
+      'JSON.parse',
+      'src/api.ts',
+      'Security baseline',
+      'src/api/public.ts',
+      'stripeKey',
+    ]) {
+      expect(json).not.toContain(sentinel);
+    }
+  });
+
+  it('omits sections for absent optional slots (minimal prompt = system, injection_guard, diff only)', () => {
+    const { sections } = assemblePrompt({ system: 'sys', diff: 'D' });
+    expect(sections.map((s) => s.name)).toEqual(['system', 'injection_guard', 'diff']);
+  });
+
+  it('marks pr_description truncated only past the 4k cap', () => {
+    const short = assemblePrompt({ system: 's', diff: 'd', prDescription: 'short body' });
+    expect(short.sections.find((s) => s.name === 'pr_description')!.truncated).toBe(false);
+
+    const long = assemblePrompt({ system: 's', diff: 'd', prDescription: 'x'.repeat(10_000) });
+    expect(long.sections.find((s) => s.name === 'pr_description')!.truncated).toBe(true);
+  });
+
+  it('Σ section chars never exceeds the message lengths they were drawn from', () => {
+    const { messages, sections } = assemblePrompt(ALL);
+    const systemChars = sections.filter((s) => s.role === 'system').reduce((n, s) => n + s.chars, 0);
+    const userChars = sections.filter((s) => s.role === 'user').reduce((n, s) => n + s.chars, 0);
+    expect(systemChars).toBeLessThanOrEqual(messages[0]!.content.length);
+    expect(userChars).toBeLessThanOrEqual(messages[1]!.content.length);
   });
 });
 

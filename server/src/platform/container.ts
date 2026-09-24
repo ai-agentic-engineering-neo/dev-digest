@@ -14,6 +14,7 @@ import { RunBus } from './sse.js';
 import { LocalSecretsProvider } from '../adapters/secrets/local.js';
 import { LocalNoAuthProvider } from '../adapters/auth/local.js';
 import { OctokitGitHubClient, type GitHubClientLogger } from '../adapters/github/octokit.js';
+import { PromptLog, type PromptLogPort } from './prompt-log.js';
 import { SimpleGitClient } from '../adapters/git/simple-git.js';
 import { RipgrepCodeIndex } from '../adapters/codeindex/ripgrep.js';
 import { OpenAIProvider } from '../adapters/llm/openai.js';
@@ -98,6 +99,8 @@ export class Container {
   readonly runBus: RunBus;
   /** Feature-module services, built on first access by each module's factory. */
   readonly modules: Modules;
+  /** Structured, content-free prompt-assembly logging (platform/prompt-log.ts). */
+  readonly promptLog: PromptLogPort;
 
   private _git?: GitClient;
   private _github?: GitHubClient;
@@ -115,14 +118,16 @@ export class Container {
   private _priceBook?: PriceBook;
 
   /**
-   * @param log app logger (fastify `app.log`) handed to adapters that warn —
-   *   optional so unit tests can build a bare Container; adapters then fall back to console.
+   * @param log app logger (fastify `app.log`) handed to adapters that warn
+   *   (and, when it exposes `info`, to PromptLog) — optional so unit tests can
+   *   build a bare Container; adapters then fall back to console and PromptLog
+   *   becomes a no-op.
    */
   constructor(
     config: AppConfig,
     db: Db,
     private overrides: ContainerOverrides = {},
-    private readonly log?: GitHubClientLogger,
+    private readonly log?: GitHubClientLogger & { info?: (obj: Record<string, unknown>, msg: string) => void },
   ) {
     this.config = config;
     this.db = db;
@@ -131,6 +136,7 @@ export class Container {
     this.runBus = new RunBus();
     this.jobs = new JobRunner(db);
     this.modules = lazyModules(this);
+    this.promptLog = new PromptLog(config.promptLogVerbose, this.log);
   }
 
   /** Register every module's declared job handlers on the JobRunner. Call once at boot. */

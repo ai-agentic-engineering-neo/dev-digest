@@ -32,6 +32,7 @@ export function buildReviewsModule(c: Container) {
     ...(c.config.reviewIntentEnabled
       ? { intent: { resolveForReview: (input) => c.modules.intent.service.resolveForReview(input) } }
       : {}),
+    promptLog: c.promptLog,
   });
   return {
     service: new ReviewService({ reviews, agents: c.agentsRepo, runBus: c.runBus, executor, clock }),

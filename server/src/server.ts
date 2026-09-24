@@ -1,6 +1,6 @@
 import closeWithGrace from 'close-with-grace';
 import { buildApp } from './app.js';
-import { loadConfig } from './platform/config.js';
+import { loadConfig, promptLogVerboseDisabledReason, promptLogVerboseEnabledReason } from './platform/config.js';
 
 /**
  * Production/dev entrypoint. `pnpm dev` runs `tsx watch src/server.ts`.
@@ -38,6 +38,14 @@ async function main() {
       '!!! LLM_PROVIDER_OVERRIDE=mock — EVERY LLM provider is the deterministic MOCK (adapters/llm/mock.ts). ' +
         'Reviews are fake fixtures, no model is called. Dev/e2e only — unset it for real reviews. !!!',
     );
+  }
+  const promptLogEnabledWarning = promptLogVerboseEnabledReason(config);
+  if (promptLogEnabledWarning) {
+    app.log.warn({ nodeEnv: config.nodeEnv, apiHost: config.apiHost }, promptLogEnabledWarning);
+  }
+  const promptLogWarning = promptLogVerboseDisabledReason(config);
+  if (promptLogWarning) {
+    app.log.warn({ nodeEnv: config.nodeEnv, apiHost: config.apiHost }, promptLogWarning);
   }
 }
 

@@ -38,6 +38,7 @@ export function buildConventionsModule(c: Container) {
         c.modules.agents.service.linkSkill(workspaceId, agentId, skillId),
     },
     clock: () => new Date(),
+    promptLog: c.promptLog,
   });
   const jobs: JobHandlers = {
     [EXTRACT_JOB_KIND]: (payload, { signal }) => service.runScan(payload as ExtractJobPayload, signal),

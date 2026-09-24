@@ -11,6 +11,12 @@ import type { AppConfig } from './config.js';
  */
 const SECRET_KEYS = ['apiKey', 'api_key', 'key', 'token', 'secret', 'password', 'authorization'];
 
+// `prompt_assembled` (platform/prompt-log.ts) never logs prompt text by
+// construction, but a raw `messages` array (ChatMessage[] — full prompt
+// content) is a plausible field on an accidentally-logged LLM request/error
+// object. Redact it as a backstop, same depth as the secret keys above.
+const CONTENT_KEYS = ['messages'];
+
 export const REDACT_PATHS: string[] = [
   'req.headers.authorization',
   'req.headers.cookie',
@@ -19,6 +25,7 @@ export const REDACT_PATHS: string[] = [
   'headers.authorization',
   'headers.cookie',
   ...SECRET_KEYS.flatMap((k) => [k, `*.${k}`, `*.*.${k}`]),
+  ...CONTENT_KEYS.flatMap((k) => [k, `*.${k}`, `*.*.${k}`]),
 ];
 
 export function loggerOptions(config: AppConfig): FastifyServerOptions['logger'] {

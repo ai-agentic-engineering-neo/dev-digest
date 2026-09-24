@@ -11,6 +11,7 @@ import type {
   ConventionStatus,
   ConventionCategory,
   CreateSkillInput,
+  Provider,
   Skill,
 } from '@devdigest/shared';
 import type { ConventionExtraction } from '../domain/extraction.js';
@@ -54,7 +55,17 @@ export interface ProposalResult {
 
 /** The workspace's `conventions` feature model (throws when its key is missing). */
 export interface ConventionModel {
-  propose(workspaceId: string, messages: ChatMessage[], signal: AbortSignal): Promise<ProposalResult>;
+  /**
+   * `onResolved` fires once the feature model choice is known, BEFORE the SDK
+   * call — lets the caller log prompt assembly (provider/model) even if the
+   * call itself later fails. Optional/trailing so existing fakes stay valid.
+   */
+  propose(
+    workspaceId: string,
+    messages: ChatMessage[],
+    signal: AbortSignal,
+    onResolved?: (resolved: { provider: Provider; model: string }) => void,
+  ): Promise<ProposalResult>;
 }
 
 export interface ConventionPatch {

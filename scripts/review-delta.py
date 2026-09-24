@@ -3,12 +3,15 @@
 
   scripts/review-delta.sh save <label>     # after a round: remember every changed file's hash
   scripts/review-delta.sh diff <label>     # before the next round: what changed since <label>
-  scripts/review-delta.sh diff <label> --patch   # the same, as a diff of those files vs base
+  scripts/review-delta.sh diff <label> --patch   # only what changed since <label>, as a diff
 
-Works without commits: the snapshot is the content hash of every file that differs from
-the base (tracked diff + untracked), stored in .devdigest/review/<label>.json. `diff`
-prints one `<status> <path>` per line: M (changed again), A (newly changed),
-R (back to the base version or deleted since the snapshot).
+Works without commits and whether or not the round's changes were committed since:
+`save` records the content hash of every file that differs from the base (tracked diff +
+untracked) in .devdigest/review/<label>.json, and the whole working tree as a git tree
+built through a temporary index (the real index and working tree are untouched), kept
+reachable by refs/devdigest/review/<label>. `diff` prints one `<status> <path>` per line:
+M (changed again), A (newly changed), R (back to the base version or deleted since the
+snapshot); `--patch` diffs the saved tree against the current working tree.
 """
 import argparse
 import hashlib
@@ -16,13 +19,29 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT_DIR = os.path.join(ROOT, ".devdigest", "review")
 
 
-def git(*args):
-    return subprocess.run(["git", "-C", ROOT, *args], capture_output=True, text=True, check=False).stdout
+def git(*args, env=None):
+    return subprocess.run(
+        ["git", "-C", ROOT, *args], capture_output=True, text=True, check=False, env=env
+    ).stdout
+
+
+def worktree_tree():
+    """Tree object of the current working tree (tracked + untracked, .gitignore honoured)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        env = {**os.environ, "GIT_INDEX_FILE": os.path.join(tmp, "index")}
+        git("read-tree", "HEAD", env=env)
+        git("add", "-A", "--", ".", env=env)
+        return git("write-tree", env=env).strip()
+
+
+def ref_for(label):
+    return f"refs/devdigest/review/{label}"
 
 
 def default_base():
@@ -59,9 +78,14 @@ def main():
         base = args.base or default_base()
         os.makedirs(OUT_DIR, exist_ok=True)
         files = snapshot(base)
+        tree = worktree_tree()
+        commit = git("commit-tree", tree, "-m", f"review-delta snapshot {args.label}").strip()
+        if commit:
+            git("update-ref", ref_for(args.label), commit)
         with open(path, "w") as f:
-            json.dump({"base": base, "head": git("rev-parse", "HEAD").strip(), "files": files}, f, indent=2)
-        print(f"saved {len(files)} changed files as '{args.label}' (base {base[:10]})")
+            json.dump({"base": base, "head": git("rev-parse", "HEAD").strip(), "tree": tree,
+                       "files": files}, f, indent=2)
+        print(f"saved {len(files)} changed files as '{args.label}' (base {base[:10]}, tree {tree[:10]})")
         return 0
 
     try:
@@ -81,11 +105,14 @@ def main():
         elif old[p] != new[p]:
             delta.append(("M", p))
     if args.patch:
-        tracked = [p for s, p in delta if s != "A" or git("ls-files", p).strip()]
-        sys.stdout.write(git("diff", base, "--", *tracked) if tracked else "")
-        for s, p in delta:
-            if s == "A" and not git("ls-files", p).strip():
-                print(f"--- untracked file: {p} (read it whole)")
+        tree = saved.get("tree")
+        if not tree or git("cat-file", "-t", tree).strip() != "tree":
+            print(f"snapshot '{args.label}' has no saved tree (made by an older version): "
+                  "re-run `save` after the next round; showing the delta files vs base", file=sys.stderr)
+            paths = [p for _, p in delta]
+            sys.stdout.write(git("diff", base, "--", *paths) if paths else "")
+            return 0
+        sys.stdout.write(git("diff", tree, worktree_tree()))
         return 0
     for s, p in delta:
         print(f"{s} {p}")

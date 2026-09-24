@@ -44,7 +44,8 @@ round's report paths (`verify-r<N-1>.md`, `arch-r<N-1>.md` and/or `delta-r<N-1>.
 `.devdigest/review/<plan-slug>/`), plus the IDs being fixed. Missing → `VERDICT:
 INCOMPLETE` naming what is missing.
 
-1. `./scripts/review-delta.sh diff <label>` → the delta files.
+1. `./scripts/review-delta.sh diff <label>` → the delta files; `… diff <label> --patch` →
+   the delta itself (never `git diff <base>`: it shows the whole feature).
 2. `./scripts/gates.sh --show`; no report for this state → `./scripts/gates.sh` (it caches).
 3. Return `VERDICT: ESCALATE` with the reason — and review nothing — when the delta:
    has more than 15 files; creates a new module, package or top-level folder; touches
@@ -70,8 +71,9 @@ per caller keeps working (this is how a cross-request cancellation race was caug
 ## Step 3 — architecture on the delta
 
 - Gates `server:arch`, `*:typecheck`, `root:drift` for this state must be green.
-- `git diff <base> -- <delta files>` adds or changes an `import`/`export … from` line, or
-  the delta has new files → check those lines against the lens table of
+- `./scripts/review-delta.sh diff <label> --patch` (only what changed since the last
+  round, committed or not) adds or changes an `import`/`export … from` line, or the
+  delta has new files → check those lines against the lens table of
   `.claude/agents/architecture-reviewer.md` Step 2 (read it as a file) and run the
   `--no-ignore-known` depcruise. Otherwise record "no import changes".
 

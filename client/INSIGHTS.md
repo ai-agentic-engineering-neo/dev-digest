@@ -18,6 +18,7 @@ Reviewed monthly: stale entries are removed in a dedicated commit.
 
 ## Tool & Library Notes
 <!-- dependency quirks, versions, flags -->
+- 2026-09-21 — client vitest: a path filter with Next route brackets (`vitest run 'src/app/repos/[repoId]/...'`) is mangled into a pattern and reports 'No test files found' → filter by a plain substring of the file name instead (`npx vitest run FindingsPanel`)
 - 2026-09-21 — client/.npmrc has node-linker=hoisted, so node_modules/.bin (tsc, vitest) is created only at the very END of pnpm install. A hung install (one stalled registry socket, no output for 10+ min) looks like a filled node_modules with no tsc → kill it and rerun `npx -y pnpm@10 install --frozen-lockfile --fetch-timeout 60000`; with the store warm it finishes in ~16s
 - 2026-09-21 — design/DevDigest Design (standalone).html: screen sources (jsx mocks, e.g. CostBadge, ScreenDashboard grid) are gzip+base64 blobs in <script type="__bundler/manifest"> JSON (keys data/compressed), so plain grep finds nothing → decode with python (json.loads → b64decode → gzip.decompress) into the scratchpad, then grep the JS for exact columns and formats
 

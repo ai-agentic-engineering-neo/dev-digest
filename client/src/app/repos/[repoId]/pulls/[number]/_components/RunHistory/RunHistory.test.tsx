@@ -5,9 +5,9 @@
  * and shows the review score ring.
  */
 import { describe, it, expect, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
-import type { RunSummary } from "@devdigest/shared";
+import type { FindingRecord, RunSummary } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/prReview.json";
 import { RunHistory } from "./RunHistory";
 
@@ -103,5 +103,56 @@ describe("RunHistory — usage line (tokens · cost)", () => {
   it("a running run shows no usage line", () => {
     renderRuns([run({ status: "running", tokens_in: null, tokens_out: null, cost_usd: null })]);
     expect(screen.queryByText(/tok/)).not.toBeInTheDocument();
+  });
+});
+
+describe("RunHistory — per-run severity counters + popover", () => {
+  const f = (id: string, severity: FindingRecord["severity"], title: string): FindingRecord =>
+    ({
+      id,
+      severity,
+      category: "perf",
+      title,
+      file: "src/api/users.ts",
+      start_line: 45,
+      end_line: 52,
+      rationale: "The loop calls findMany once per user.",
+      suggestion: null,
+      confidence: 0.86,
+      kind: "finding",
+      trifecta_components: null,
+      evidence: null,
+      review_id: "rv",
+      accepted_at: null,
+      dismissed_at: null,
+    }) as FindingRecord;
+
+  it("shows the run's counts; hovering lists that run's findings (no actions)", () => {
+    const findings = [f("a", "WARNING", "N+1 query in user list endpoint"), f("b", "SUGGESTION", "Extract magic number")];
+    render(
+      <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
+        <RunHistory
+          runs={[run({ findings_count: 2, score: 64 })]}
+          findingsByRun={new Map([["run-1", findings]])}
+          onOpenTrace={() => {}}
+        />
+      </NextIntlClientProvider>,
+    );
+    const counters = screen.getByLabelText("1 warning, 1 suggestion");
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    fireEvent.mouseEnter(counters);
+    const tip = screen.getByRole("tooltip");
+    expect(tip).toHaveTextContent("2 findings in this run");
+    expect(tip).toHaveTextContent("N+1 query in user list endpoint");
+    expect(tip).toHaveTextContent("src/api/users.ts:45-52");
+    expect(tip).toHaveTextContent("86%");
+    expect(tip.querySelector("button")).toBeNull();
+    fireEvent.mouseLeave(counters);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("falls back to the plain count when the run's findings are not loaded", () => {
+    renderRuns([run({ findings_count: 3 })]);
+    expect(screen.getByText(/3 finding\(s\)/)).toBeInTheDocument();
   });
 });

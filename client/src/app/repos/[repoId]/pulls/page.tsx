@@ -127,7 +127,14 @@ export default function PullsPage() {
             }
           />
         ) : (
-          filtered.map((pr) => <PRRow key={pr.number} pr={pr} repoId={repoId} />)
+          filtered.map((pr, i) => (
+            <PRRow
+              key={pr.number}
+              pr={pr}
+              repoId={repoId}
+              popoverUp={filtered.length > 3 && i >= filtered.length - 2}
+            />
+          ))
         )}
       </div>
     </AppShell>

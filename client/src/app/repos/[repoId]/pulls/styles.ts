@@ -88,7 +88,8 @@ export const s = {
     margin: "14px 32px 44px",
     border: "1px solid var(--border)",
     borderRadius: 10,
-    overflow: "hidden",
+    // Not "hidden": the FINDINGS hover popover must be able to leave the card.
+    overflow: "visible",
     background: "var(--bg-elevated)",
   } satisfies CSSProperties,
   headRow: {
@@ -98,6 +99,7 @@ export const s = {
     padding: "10px 20px",
     borderBottom: "1px solid var(--border)",
     background: "var(--bg-surface)",
+    borderRadius: "10px 10px 0 0",
     fontSize: 12,
     fontWeight: 700,
     letterSpacing: "0.06em",

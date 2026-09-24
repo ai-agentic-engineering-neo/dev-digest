@@ -41,6 +41,12 @@ export function FindingsTab({
   onDelete,
   onRunDone,
 }: FindingsTabProps) {
+  // run_id → that run's findings, for the timeline tiles' severity counters and
+  // hover popover (same data as the Review runs below — no extra request).
+  const findingsByRun = React.useMemo(
+    () => new Map(runs.flatMap((r) => (r.run_id ? [[r.run_id, r.findings] as const] : []))),
+    [runs],
+  );
   const handleCancelAll = useCallback(() => {
     liveRunIds.forEach((id) => cancelMutation.mutate(id));
   }, [liveRunIds, cancelMutation]);
@@ -130,6 +136,7 @@ export function FindingsTab({
           </SectionLabel>
           <RunHistory
             runs={prRuns ?? []}
+            findingsByRun={findingsByRun}
             commits={prCommits}
             onOpenTrace={handleOpenTrace}
             onGoToReview={handleGoToReview}

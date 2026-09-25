@@ -8,4 +8,4 @@ Data model changes · Acceptance criteria · Open questions.
 
 ## Index
 
-_No specs yet. Add one file per feature and list it here._
+- [`review-contract.md`](./review-contract.md): the `reviewPullRequest` contract: `ReviewInput` fields, `ReviewOutcome` shape, numbered invariants with the code and tests that pin them, and what is explicitly not guaranteed.

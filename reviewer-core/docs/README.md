@@ -14,4 +14,4 @@ What goes where:
 
 ## Index
 
-_No documents yet. Add one file per topic and list it here._
+- [`pipeline.md`](./pipeline.md): how `reviewPullRequest` runs, stage by stage (prompt slots, injection guard, strategy selection, strict structured output, reduce and score weights, grounding gate, cost aggregation, `OpenRouterProvider`) and why each piece is shaped that way.

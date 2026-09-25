@@ -18,6 +18,7 @@ const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
  *
  * Seeds: default workspace + system user + membership, default settings,
  * demo repo (acme/payments-api), PR #482 with files/commits, a sample review
+ * (+ one completed, priced agent run behind it)
  * with a few findings, and the three built-in agents (General + Security +
  * Performance), all on the default openrouter/deepseek-v4-flash provider+model.
  *
@@ -218,6 +219,84 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       .from(t.agents)
       .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, a.name)));
     if (!existing) await db.insert(t.agents).values(a);
+  }
+
+  // ---- one completed agent run behind the seeded review ----
+  // Gives the demo PR a priced run so the COST column, the timeline badge, the
+  // trace drawer Stats and the review-run header all show a number on a fresh
+  // DB (and the e2e run-cost flow stays deterministic — no model call).
+  // Idempotent: only runs while the seeded review has no run yet.
+  const [seededReview] = await db
+    .select()
+    .from(t.reviews)
+    .where(and(eq(t.reviews.prId, pr!.id), eq(t.reviews.kind, 'review'), eq(t.reviews.model, 'seed')));
+  if (seededReview && !seededReview.runId) {
+    const [agent] = await db
+      .select()
+      .from(t.agents)
+      .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, 'General Reviewer')));
+    const seededFindings = await db
+      .select({ severity: t.findings.severity })
+      .from(t.findings)
+      .where(eq(t.findings.reviewId, seededReview.id));
+    const findingsCount = seededFindings.length;
+    const blockers = seededFindings.filter((f) => f.severity === 'CRITICAL').length;
+    const stats = {
+      duration_ms: 8_200,
+      tokens_in: 8_190,
+      tokens_out: 929,
+      cost_usd: 0.0013,
+      findings: findingsCount,
+      grounding: `${findingsCount}/${findingsCount} passed`,
+    };
+    const [run] = await db
+      .insert(t.agentRuns)
+      .values({
+        workspaceId,
+        agentId: agent?.id ?? null,
+        prId: pr!.id,
+        provider: DEFAULT_PROVIDER,
+        model: DEFAULT_MODEL,
+        status: 'done',
+        source: 'local',
+        durationMs: stats.duration_ms,
+        tokensIn: stats.tokens_in,
+        tokensOut: stats.tokens_out,
+        costUsd: stats.cost_usd,
+        findingsCount,
+        grounding: stats.grounding,
+        score: seededReview.score,
+        blockers,
+        error: null,
+      })
+      .returning();
+    await db.insert(t.runTraces).values({
+      runId: run!.id,
+      trace: {
+        config: {
+          agent: agent?.name ?? 'General Reviewer',
+          version: '1',
+          provider: DEFAULT_PROVIDER,
+          model: DEFAULT_MODEL,
+          pr: 482,
+          source: 'local',
+        },
+        stats,
+        prompt_assembly: { system: agent?.systemPrompt ?? '', user: '(seeded run — no prompt recorded)' },
+        tool_calls: [{ tool: 'review_file', args: 'all files', meta: 'single-pass', ms: stats.duration_ms }],
+        raw_output: '',
+        memory_pulled: [],
+        specs_read: [],
+        log: [
+          { t: '00.00', kind: 'info', msg: 'Seeded demo run' },
+          { t: '08.20', kind: 'result', msg: `Persisted review with ${findingsCount} finding(s)` },
+        ],
+      },
+    });
+    await db
+      .update(t.reviews)
+      .set({ runId: run!.id, agentId: agent?.id ?? seededReview.agentId })
+      .where(eq(t.reviews.id, seededReview.id));
   }
 
   return { workspaceId, userId };

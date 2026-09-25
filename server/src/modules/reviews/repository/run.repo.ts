@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import type { Db } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
 import type { RunSummary, RunTrace } from '@devdigest/shared';
@@ -59,12 +59,51 @@ export async function listRunsForPull(
     duration_ms: run.durationMs,
     tokens_in: run.tokensIn,
     tokens_out: run.tokensOut,
+    cost_usd: run.costUsd,
     findings_count: run.findingsCount,
     grounding: run.grounding,
     ran_at: run.ranAt ? run.ranAt.toISOString() : null,
     score: run.score,
     blockers: run.blockers,
   }));
+}
+
+/** Per-PR cost rollup for the PR list: what the PR's completed runs cost. */
+export type PrCostRollup = { cost_usd: number; cost_runs: number };
+
+/**
+ * Sum `cost_usd` over the PR's runs with `status='done'` AND a known cost
+ * (null-cost runs — unpriced models, rows that predate the column — are left
+ * out, as are failed/cancelled runs). PRs with no such run are absent from
+ * the map, which the list route renders as "—" (never "$0.00").
+ */
+export async function costRollupForPulls(
+  db: Db,
+  workspaceId: string,
+  prIds: string[],
+): Promise<Map<string, PrCostRollup>> {
+  const out = new Map<string, PrCostRollup>();
+  if (prIds.length === 0) return out;
+  const rows = await db
+    .select({
+      prId: t.agentRuns.prId,
+      costUsd: sql<number>`sum(${t.agentRuns.costUsd})`.mapWith(Number),
+      costRuns: sql<number>`count(*)`.mapWith(Number),
+    })
+    .from(t.agentRuns)
+    .where(
+      and(
+        eq(t.agentRuns.workspaceId, workspaceId),
+        inArray(t.agentRuns.prId, prIds),
+        eq(t.agentRuns.status, 'done'),
+        isNotNull(t.agentRuns.costUsd),
+      ),
+    )
+    .groupBy(t.agentRuns.prId);
+  for (const r of rows) {
+    if (r.prId) out.set(r.prId, { cost_usd: r.costUsd, cost_runs: r.costRuns });
+  }
+  return out;
 }
 
 /**
@@ -146,6 +185,8 @@ export async function completeAgentRun(
     durationMs: number;
     tokensIn: number;
     tokensOut: number;
+    /** USD cost; null when unknown or on failed/cancelled runs. */
+    costUsd: number | null;
     findingsCount: number;
     grounding: string;
     /** Review score (0-100); null on failed/cancelled runs. */
@@ -163,6 +204,7 @@ export async function completeAgentRun(
       durationMs: values.durationMs,
       tokensIn: values.tokensIn,
       tokensOut: values.tokensOut,
+      costUsd: values.costUsd,
       findingsCount: values.findingsCount,
       grounding: values.grounding,
       score: values.score ?? null,

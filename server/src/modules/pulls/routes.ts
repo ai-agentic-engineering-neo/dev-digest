@@ -129,9 +129,15 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
+    // Total cost of each PR's completed runs (COST column). Sum of
+    // agent_runs.cost_usd over done runs with a known cost; absent → null →
+    // the list renders "—", never "$0.00".
+    const costByPr = await container.reviewRepo.costRollupForPulls(workspaceId, prIds);
+
     const now = Date.now();
     return rows.map((r) => {
       const review = latestReviewByPr.get(r.id);
+      const cost = costByPr.get(r.id);
       return {
         id: r.id,
         number: r.number,
@@ -153,6 +159,8 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
+        cost_usd: cost ? cost.cost_usd : null,
+        cost_runs: cost ? cost.cost_runs : null,
       };
     });
   });

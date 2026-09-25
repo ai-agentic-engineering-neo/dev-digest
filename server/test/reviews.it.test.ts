@@ -209,6 +209,48 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(run!.findingsCount).toBe(1);
     expect(run!.grounding).toBe('1/2 passed');
 
+    // Run cost: the mock LLM prices every structured call at $0.001, so the
+    // persisted cost is exactly one price per chunk (no extra model call), and
+    // the trace + run history carry the same number.
+    const expectedCost = 0.001 * trace.tool_calls.length;
+    expect(run!.tokensIn).toBe(100 * trace.tool_calls.length);
+    expect(run!.costUsd).toBeCloseTo(expectedCost, 6);
+    expect(trace.stats.cost_usd).toBeCloseTo(expectedCost, 6);
+    const history = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(history).toHaveLength(1);
+    expect(history[0].run_id).toBe(runId);
+    expect(history[0].cost_usd).toBeCloseTo(expectedCost, 6);
+
+    await app.close();
+  });
+
+  it('a failed run persists a null cost (never $0.00) and a null-cost trace', async () => {
+    // A fixture that fails the Review schema makes the mock provider throw →
+    // the run is persisted as failed with no usage.
+    const app = await appWith({ not: 'a review' });
+    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'Broken', provider: 'openai', model: 'gpt-4.1', system_prompt: 's' },
+      })
+    ).json();
+    const body = (
+      await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } })
+    ).json();
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+
+    const runId = body.runs[0].run_id;
+    const [run] = await pg.handle.db.select().from(t.agentRuns).where(eq(t.agentRuns.id, runId));
+    expect(run!.status).toBe('failed');
+    expect(run!.costUsd).toBeNull();
+    const history = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(history[0].status).toBe('failed');
+    expect(history[0].cost_usd).toBeNull();
+    const trace = (await app.inject({ method: 'GET', url: `/runs/${runId}/trace` })).json();
+    expect(trace.stats.cost_usd).toBeNull();
+
     await app.close();
   });
 

@@ -57,6 +57,7 @@
     "largeTitle": "This PR is large ({lines} changed lines)",
     "largeBody": "Consider splitting it into smaller, focused PRs for easier review:",
     "filesCount": "{count} files",
+    "costRuns": "{count, plural, one {# run} other {# runs}}",
     "findingLines": "{count} finding-lines",
     "groupedByRole": "Smart Diff · grouped by role"
   },
@@ -91,10 +92,12 @@
       "author": "Author",
       "size": "Size",
       "score": "Score",
+      "cost": "Cost",
       "status": "Status",
       "updated": "Updated"
     },
     "filesCount": "{count} files",
+    "costRuns": "{count, plural, one {# run} other {# runs}}",
     "errorTitle": "Couldn’t load pull requests",
     "errorBody": "The engine returned an error.",
     "emptyTitle": "No pull requests",

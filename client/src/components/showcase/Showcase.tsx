@@ -43,6 +43,7 @@ import {
   ExportWizardSteps,
   AutoTriggerStatus,
 } from "@devdigest/ui";
+import { RunCostBadge } from "@/components/run-cost-badge";
 import { s } from "./styles";
 import { SEVERITIES, CATEGORIES, MODEL_OPTIONS } from "./constants";
 
@@ -98,6 +99,13 @@ export function Gallery() {
         {CATEGORIES.map((c) => (
           <CategoryTag key={c} category={c} />
         ))}
+      </Group>
+
+      <Group title="Run cost badge (compact · full · no data · free model)">
+        <RunCostBadge variant="compact" costUsd={0.012} title="3 runs" />
+        <RunCostBadge variant="full" costUsd={0.0013} tokensIn={8190} tokensOut={929} />
+        <RunCostBadge variant="full" costUsd={null} tokensIn={100} tokensOut={50} />
+        <RunCostBadge variant="compact" costUsd={0} />
       </Group>
 
       <Group title="Chips, Avatars, Confidence, MonoLink, Kbd">

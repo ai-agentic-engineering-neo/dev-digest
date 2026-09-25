@@ -2,7 +2,7 @@
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { Badge, Icon, CircularScore, type IconName } from "@devdigest/ui";
+import { Badge, Icon, CircularScore, SEV, type IconName, type Severity } from "@devdigest/ui";
 import type { RunSummary, PrCommit } from "@devdigest/shared";
 import { RunCostBadge } from "@/components/run-cost-badge";
 
@@ -19,6 +19,10 @@ import { RunCostBadge } from "@/components/run-cost-badge";
  */
 
 type Outcome = { key: string; color: string; bg: string; icon: IconName };
+
+/** Per-severity finding counts of one run (grouped from persisted findings). */
+export type SeverityCounts = Partial<Record<Severity, number>>;
+const TILE_SEVERITIES: Severity[] = ["CRITICAL", "WARNING", "SUGGESTION"];
 
 function outcomeOf(run: RunSummary): Outcome {
   const status = run.status ?? "";
@@ -91,9 +95,12 @@ export function RunHistory({
   onOpenTrace,
   onGoToReview,
   onDelete,
+  severityByRun = {},
 }: {
   runs: RunSummary[];
   commits?: PrCommit[];
+  /** run_id → severity counts, so each tile shows its severity icons (display only). */
+  severityByRun?: Record<string, SeverityCounts>;
   /** Open the trace + log drawer for a run (the logs icon). */
   onOpenTrace: (runId: string) => void;
   /** Jump to this run's inline review accordion below (clicking the agent name). */
@@ -190,9 +197,27 @@ export function RunHistory({
                 </div>
               )}
               {settled && (
-                <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                  {t("runStatus.findings", { count: r.findings_count ?? 0 })}
-                  {(r.blockers ?? 0) > 0 ? t("runStatus.blockers", { count: r.blockers ?? 0 }) : ""}
+                <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "var(--text-muted)" }}>
+                  {TILE_SEVERITIES.map((sev) => {
+                    const n = severityByRun[r.run_id]?.[sev] ?? 0;
+                    if (!n) return null;
+                    const SIcon = Icon[SEV[sev].icon];
+                    return (
+                      <span
+                        key={sev}
+                        className="tnum"
+                        title={SEV[sev].label}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 3, color: SEV[sev].c }}
+                      >
+                        <SIcon size={13} />
+                        {n}
+                      </span>
+                    );
+                  })}
+                  <span>
+                    {t("runStatus.findings", { count: r.findings_count ?? 0 })}
+                    {(r.blockers ?? 0) > 0 ? t("runStatus.blockers", { count: r.blockers ?? 0 }) : ""}
+                  </span>
                 </div>
               )}
             </div>

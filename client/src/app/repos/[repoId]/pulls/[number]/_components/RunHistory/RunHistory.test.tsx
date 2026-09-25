@@ -35,10 +35,10 @@ function run(o: Partial<RunSummary>): RunSummary {
   };
 }
 
-function renderRuns(runs: RunSummary[]) {
+function renderRuns(runs: RunSummary[], severityByRun?: Record<string, Partial<Record<string, number>>>) {
   return render(
     <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
-      <RunHistory runs={runs} onOpenTrace={() => {}} />
+      <RunHistory runs={runs} onOpenTrace={() => {}} severityByRun={severityByRun as never} />
     </NextIntlClientProvider>,
   );
 }
@@ -94,5 +94,17 @@ describe("RunHistory — run cost badge", () => {
       run({ run_id: "r", status: "running", cost_usd: null }),
     ]);
     expect(screen.queryByTestId("run-cost-badge")).not.toBeInTheDocument();
+  });
+});
+
+/** Timeline tiles show severity icons with counts (display only, no click). */
+describe("RunHistory — severity icons on the tile", () => {
+  it("renders one icon+count per severity present", () => {
+    renderRuns([run({ run_id: "r1", status: "done", findings_count: 3, blockers: 2, score: 30 })], {
+      r1: { CRITICAL: 2, WARNING: 1 },
+    });
+    expect(screen.getByTitle("Critical")).toHaveTextContent("2");
+    expect(screen.getByTitle("Warning")).toHaveTextContent("1");
+    expect(screen.queryByTitle("Suggestion")).not.toBeInTheDocument();
   });
 });

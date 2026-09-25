@@ -16,3 +16,7 @@ export const KEY_TO_ACTION: Record<string, FindingActionKind> = {
   a: "accept",
   d: "dismiss",
 };
+
+/** Severities that get a counter pill + a filter button (in display order). */
+export const FILTERABLE_SEVERITIES = ["CRITICAL", "WARNING", "SUGGESTION"] as const;
+export type FilterableSeverity = (typeof FILTERABLE_SEVERITIES)[number];

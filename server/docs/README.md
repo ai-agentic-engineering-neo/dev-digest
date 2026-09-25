@@ -14,4 +14,4 @@ What goes where:
 
 ## Index
 
-_No documents yet. Add one file per topic and list it here._
+- [`architecture.md`](architecture.md) — boot sequence, DI `Container` and overrides, the routes/service/repository trio, `JobRunner`, SSE `RunBus` + `RunLogger`, secrets, the Drizzle schema and migrations, and how `reviewer-core` is consumed through a path alias.

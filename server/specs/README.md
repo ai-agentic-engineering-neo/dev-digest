@@ -8,4 +8,5 @@ Data model changes · Acceptance criteria · Open questions.
 
 ## Index
 
+- [`review-flow.md`](review-flow.md) — behavioural contract of a review run: trigger, run rows, background execution, persistence, SSE, read routes, cancel and delete semantics, failure states, as numbered invariants with the enforcing symbol.
 - [`run-cost-badge.md`](run-cost-badge.md) — L01 Run Cost Badge: cost + tokens per run on the PR list, timeline, run drawer, and review runs (implemented 2026-09-25, both halves).

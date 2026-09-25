@@ -1,13 +1,14 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { and, desc, eq, inArray } from 'drizzle-orm';
-import type { PrMeta, PrDetail, GitHubClient, PrReviewComment } from '@devdigest/shared';
+import type { PrMeta, PrDetail, GitHubClient, PrReviewComment, PrFindingPreview } from '@devdigest/shared';
 import { PrCommentInput } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { AppError, NotFoundError } from '../../platform/errors.js';
-import { deriveReviewStatus } from './status.js';
+import { deriveReviewStatus, rollupSeverities, type SeverityCounts } from './status.js';
+import { PREVIEW_LIMIT, previewExcerpt } from './helpers.js';
 
 /**
  * F1 — pulls module. PR import via Octokit (list + per-PR detail).
@@ -111,21 +112,65 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
-    // Latest-review SCORE per PR for the list's score ring. Computed on read
-    // from reviews (no FK denorm); the list is small, so one IN-query + JS
-    // grouping is cheap. (The per-severity FINDINGS breakdown is intentionally
-    // not surfaced on the list — findings live on the PR detail page.)
+    // Latest-review rollup per PR (score + findings severity counts + read-only
+    // finding previews), so the list can show the SCORE ring and the FINDINGS
+    // column with its hover popover. Computed on read from reviews/findings
+    // (no FK denorm) by plain grouping — never a model call; the list is
+    // small, so two IN-queries + JS grouping is cheap.
     const prIds = rows.map((r) => r.id);
-    const latestReviewByPr = new Map<string, { score: number | null }>();
+    const latestReviewByPr = new Map<string, { id: string; score: number | null }>();
+    const sevByReview = new Map<string, SeverityCounts>();
+    const previewsByReview = new Map<string, PrFindingPreview[]>();
     if (prIds.length > 0) {
       const reviewRows = await container.db
-        .select({ prId: t.reviews.prId, score: t.reviews.score })
+        .select({ id: t.reviews.id, prId: t.reviews.prId, score: t.reviews.score })
         .from(t.reviews)
         .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review')))
         .orderBy(desc(t.reviews.createdAt));
       // Rows are newest-first → first seen per PR is the latest review.
       for (const rv of reviewRows) {
-        if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { score: rv.score });
+        if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { id: rv.id, score: rv.score });
+      }
+      const latestIds = [...latestReviewByPr.values()].map((v) => v.id);
+      if (latestIds.length > 0) {
+        const findingRows = await container.db
+          .select({
+            id: t.findings.id,
+            reviewId: t.findings.reviewId,
+            severity: t.findings.severity,
+            category: t.findings.category,
+            title: t.findings.title,
+            file: t.findings.file,
+            startLine: t.findings.startLine,
+            endLine: t.findings.endLine,
+            confidence: t.findings.confidence,
+            rationale: t.findings.rationale,
+          })
+          .from(t.findings)
+          .where(inArray(t.findings.reviewId, latestIds));
+        const byReview = new Map<string, typeof findingRows>();
+        for (const f of findingRows) {
+          const list = byReview.get(f.reviewId) ?? [];
+          list.push(f);
+          byReview.set(f.reviewId, list);
+        }
+        for (const [reviewId, fs] of byReview) {
+          sevByReview.set(reviewId, rollupSeverities(fs));
+          previewsByReview.set(
+            reviewId,
+            fs.slice(0, PREVIEW_LIMIT).map((f) => ({
+              id: f.id,
+              severity: f.severity as PrFindingPreview['severity'],
+              category: f.category as PrFindingPreview['category'],
+              title: f.title,
+              file: f.file,
+              start_line: f.startLine,
+              end_line: f.endLine,
+              confidence: f.confidence,
+              excerpt: previewExcerpt(f.rationale),
+            })),
+          );
+        }
       }
     }
 
@@ -137,6 +182,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
     const now = Date.now();
     return rows.map((r) => {
       const review = latestReviewByPr.get(r.id);
+      const sev = review ? sevByReview.get(review.id) : undefined;
       const cost = costByPr.get(r.id);
       return {
         id: r.id,
@@ -161,6 +207,10 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         score: review ? review.score : null,
         cost_usd: cost ? cost.cost_usd : null,
         cost_runs: cost ? cost.cost_runs : null,
+        findings_critical: review ? (sev?.critical ?? 0) : null,
+        findings_warning: review ? (sev?.warning ?? 0) : null,
+        findings_suggestion: review ? (sev?.suggestion ?? 0) : null,
+        latest_findings: review ? (previewsByReview.get(review.id) ?? []) : null,
       };
     });
   });

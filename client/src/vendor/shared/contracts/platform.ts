@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Provider } from './knowledge.js';
+import { Severity, FindingCategory } from './findings.js';
 
 /**
  * Platform / scaffolding DTOs owned by F1:
@@ -154,6 +155,21 @@ export type Repo = z.infer<typeof Repo>;
 export const PrStatus = z.enum(['needs_review', 'reviewed', 'stale', 'open', 'closed', 'merged']);
 export type PrStatus = z.infer<typeof PrStatus>;
 
+/** Read-only preview of one finding of a PR's latest review (PR list popover). */
+export const PrFindingPreview = z.object({
+  id: z.string(),
+  severity: Severity,
+  category: FindingCategory,
+  title: z.string(),
+  file: z.string(),
+  start_line: z.number().int(),
+  end_line: z.number().int(),
+  confidence: z.number().min(0).max(1),
+  /** First ~200 chars of the rationale, plain text. */
+  excerpt: z.string(),
+});
+export type PrFindingPreview = z.infer<typeof PrFindingPreview>;
+
 export const PrMeta = z.object({
   id: z.string().nullish(),
   number: z.number().int(),
@@ -175,6 +191,13 @@ export const PrMeta = z.object({
   // that sum (for the list tooltip).
   cost_usd: z.number().nullish(),
   cost_runs: z.number().int().nullish(),
+  // Latest-review findings rollup (list endpoint only): per-severity counts for
+  // the FINDINGS column and read-only previews for its hover popover. Counted
+  // by grouping persisted findings — never a model call. Null until reviewed.
+  findings_critical: z.number().int().nullish(),
+  findings_warning: z.number().int().nullish(),
+  findings_suggestion: z.number().int().nullish(),
+  latest_findings: z.array(PrFindingPreview).nullish(),
 });
 export type PrMeta = z.infer<typeof PrMeta>;
 

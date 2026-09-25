@@ -44,7 +44,10 @@ code is shared through tsconfig path aliases, not published modules.
 ./scripts/e2e.sh     # hermetic e2e stack on alternate ports, then teardown
 ```
 
-Per-package scripts are listed in each package's `CLAUDE.md`.
+Checks, per package (`pnpm` in `server/` and `client/`, `npm run` in
+`reviewer-core/` and `e2e/`): `typecheck` · `test` · `lint` (ESLint flat
+config, `eslint.config.mjs`). Full per-package script list in each
+package's `CLAUDE.md`.
 
 ## Rules that apply everywhere
 
@@ -55,6 +58,19 @@ Per-package scripts are listed in each package's `CLAUDE.md`.
 - Never run `docker compose down -v`. It deletes the dev volume with every imported repo.
 - Tests are typological, not exhaustive. Server DB-backed tests end in `.it.test.ts`.
 - Commit messages: conventional prefix with scope, e.g. `feat(reviews): …`, `fix(dev): …`, `ci(server): …`.
+
+## Naming conventions
+
+- **Packages:** `@devdigest/<folder>` (`api`, `web`, `reviewer-core`, `e2e`, `shared`). Folders are kebab-case.
+- **Server modules:** `server/src/modules/<kebab-name>/` with the fixed trio `routes.ts` · `service.ts` · `repository.ts`, plus `helpers.ts` / `constants.ts` when needed. Classes are PascalCase and suffixed by role (`ReviewService`, `ReviewRepository`, `ReviewRunExecutor`); adapters implement a `@devdigest/shared` interface and are named by vendor (`SimpleGitClient`, `OpenRouterProvider`).
+- **Database:** tables are snake_case plural (`agent_runs`, `pull_requests`), columns snake_case (`cost_usd`); the Drizzle property is the camelCase twin (`costUsd`). Migrations keep the drizzle-kit name (`0010_huge_marten_broadcloak.sql`) and are never renamed.
+- **API JSON:** snake_case fields end to end (`tokens_in`, `cost_usd`, `run_id`), matching the Zod contracts. A route path is plural resource then id: `/pulls/:id/runs`, `/runs/:id/trace`.
+- **Contracts (`@devdigest/shared`):** a Zod schema and its inferred type share one PascalCase name (`export const RunSummary = z.object(…)` + `export type RunSummary = z.infer<…>`), grouped per file under `contracts/`.
+- **Client components:** one PascalCase folder per component under `_components/`, `<Name>.tsx` + `index.ts`, with colocated `styles.ts`, `constants.ts`, `helpers.ts`, `<Name>.test.tsx`. Cross-page components live in `client/src/components/<kebab-name>/`. Hooks are `use<Thing>` in `src/lib/hooks/<domain>.ts`. i18n keys are camelCase under a dotted namespace (`prReview.list.columns.cost`).
+- **Styles:** CSS variables are `--kebab-case` (`--text-muted`, `--crit-bg`); severity and category tokens are the upper-case `SEV` / `CAT` maps from `@devdigest/ui`.
+- **Tests:** `<name>.test.ts(x)` beside the code; server DB-backed tests end in `.it.test.ts`; e2e flows are `NN-kebab-name.flow.json`.
+- **Env and secrets:** `UPPER_SNAKE_CASE` (`API_PORT`, `OPENROUTER_API_KEY`); the secret name in `~/.devdigest/secrets.json` equals the env var name.
+- **Git:** branches `feat/<kebab>` · `fix/<kebab>`; commits `type(scope): imperative summary` (`feat(reviews): …`).
 
 ## Do not touch
 

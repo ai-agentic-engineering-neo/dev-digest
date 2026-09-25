@@ -9,6 +9,7 @@ diagram: `README.md`.
 ```sh
 npm test            # vitest, stubbed LLMProvider, no network
 npm run typecheck   # also the build; the package never emits JS
+npm run lint        # eslint .
 ```
 
 ## Layout
@@ -31,4 +32,7 @@ npm run typecheck   # also the build; the package never emits JS
 
 ## Read when relevant
 
-- `README.md` · `../docs/agent-prompts/README.md` · `docs/` · `specs/` · `INSIGHTS.md`
+- `README.md` · `../docs/agent-prompts/README.md`
+- `docs/pipeline.md`: before changing any stage of the engine (prompt slots, strategy, structured output, reduce, grounding, cost).
+- `specs/review-contract.md`: before changing `ReviewInput`, `ReviewOutcome`, or any behaviour a caller or test relies on.
+- `INSIGHTS.md`: at the start of every task here; non-obvious gotchas and rejected approaches.

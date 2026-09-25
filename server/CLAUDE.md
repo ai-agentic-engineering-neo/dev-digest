@@ -9,6 +9,7 @@ repos (`repo-intel`), stores agents, runs reviews through
 ```sh
 pnpm dev          # tsx watch, :3001
 pnpm typecheck    # tsc --noEmit
+pnpm lint         # eslint . (flat config, no type-checked rules)
 pnpm db:migrate   # apply src/db/migrations (not run on boot)
 pnpm db:seed      # idempotent demo data
 pnpm db:generate  # drizzle-kit: new migration from schema changes
@@ -47,4 +48,7 @@ raw TypeScript source through a path alias.
 - `README.md` — request/DI flow, API map, env vars, review-context notes.
 - `src/modules/repo-intel/README.md` — indexer pipeline and facade.
 - `../docs/agent-prompts/` — prompt assembly rules before editing any agent prompt.
-- `docs/` · `specs/` · `INSIGHTS.md`
+- `docs/architecture.md` — boot, DI container, module trio, jobs, SSE, secrets, DB layer; read before a structural change.
+- `specs/review-flow.md` — the invariants of a review run; read before touching `modules/reviews/`.
+- `specs/run-cost-badge.md` — L01 cost and tokens per run; read when changing cost or the PR-list rollup.
+- `INSIGHTS.md` — non-obvious gotchas; read at the start of every task here.

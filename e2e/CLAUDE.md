@@ -11,6 +11,7 @@ npm i -g agent-browser && agent-browser install   # once
 npm test               # tsx run.ts against a running stack
 npm run e2e:hermetic   # ../scripts/e2e.sh: isolated stack on :5433/:3101/:3100
 npm run typecheck
+npm run lint           # eslint .
 ```
 
 ## Layout
@@ -28,4 +29,7 @@ npm run typecheck
 
 ## Read when relevant
 
-- `README.md` · `docs/` · `INSIGHTS.md` · `../TESTING.md`
+- `docs/runner.md`: how `run.ts` runs a flow, the command families, hermetic runner vs CI.
+- `specs/flows.md`: the per-flow contract, seeded facts and locators each flow depends on. Read before adding or editing a flow.
+- `INSIGHTS.md`: gotchas, e.g. why flows fail against a dev DB with extra repos.
+- `../TESTING.md`: where this suite sits among the other packages' suites.

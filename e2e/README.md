@@ -100,3 +100,4 @@ a CI artifact by `.github/workflows/e2e-web.yml`).
 | `05-pr-diff` | PR #482 → Files changed tab → seeded file renders in the diff viewer |
 | `06-onboarding` | `/onboarding` → add-repository form renders (no submit) |
 | `07-settings` | `/settings/api-keys` + `/settings/models` → section titles render |
+| `08-run-cost` | PR list COST column → PR #482 Agent runs timeline badge (`9,119 tok · $0.0013`) → trace drawer COST stat |

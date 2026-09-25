@@ -24,7 +24,14 @@ export const SIZE_COLOR: Record<string, string> = {
 };
 
 /** Grid template for both the header row and PR rows. */
-export const GRID = "1fr 132px 92px 60px 72px 118px 78px";
+export const GRID = "1fr 132px 92px 60px 120px 72px 118px 78px";
+
+/** PrMeta severity-count field per severity bucket (for the FINDINGS column). */
+export const FINDINGS_FIELDS = [
+  { sev: "CRITICAL", field: "findings_critical" },
+  { sev: "WARNING", field: "findings_warning" },
+  { sev: "SUGGESTION", field: "findings_suggestion" },
+] as const;
 
 /** Line-count thresholds for the S/M/L size bucket. */
 export const SIZE_SMALL_MAX = 100;
@@ -44,6 +51,7 @@ export const COLUMN_KEYS: string[] = [
   "author",
   "size",
   "score",
+  "findings",
   "cost",
   "status",
   "updated",

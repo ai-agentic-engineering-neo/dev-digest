@@ -14,4 +14,4 @@ What goes where:
 
 ## Index
 
-_No documents yet. Add one file per topic and list it here._
+- [`runner.md`](runner.md): how `run.ts` executes a flow (child process per command, failure screenshots, exit codes), the allowed command families, and the hermetic `scripts/e2e.sh` stack versus the CI workflow.

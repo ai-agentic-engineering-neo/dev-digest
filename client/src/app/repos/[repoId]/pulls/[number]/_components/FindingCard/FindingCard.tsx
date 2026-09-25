@@ -101,9 +101,12 @@ export function FindingCard({
           </div>
           {f.suggestion && (
             <div style={s.suggestionWrap}>
-              <div style={s.suggestionLabel}>{t("finding.suggestedFix")}</div>
-              <div style={s.prose}>
-                <Markdown>{f.suggestion}</Markdown>
+              <Icon.Lightbulb size={15} aria-hidden style={s.suggestionIcon} />
+              <div style={s.suggestionMain}>
+                <div style={s.suggestionLabel}>{t("finding.suggestedFix")}</div>
+                <div style={s.suggestionProse}>
+                  <Markdown>{f.suggestion}</Markdown>
+                </div>
               </div>
             </div>
           )}

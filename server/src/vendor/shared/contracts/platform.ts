@@ -148,10 +148,14 @@ export const PrMeta = z.object({
   // Total USD cost of ALL runs of the PR (list endpoint only). Unknown run costs
   // are skipped; null when no run has a known cost.
   cost_usd: z.number().nullish(),
-  // Latest review (the one `score` comes from) and its findings per severity
-  // (list endpoint only). Null until the PR has a review. The breakdown counts
-  // every finding of that review, i.e. what GET /pulls/:id/reviews returns for it.
+  // Latest review (the one `score` comes from) and its date (list endpoint
+  // only). Null until the PR has a review.
   latest_review_id: z.string().nullish(),
+  last_reviewed_at: z.string().nullish(),
+  // The newest review of EACH agent and their findings per severity, summed
+  // (list endpoint only). The breakdown counts every finding of those reviews,
+  // i.e. what GET /pulls/:id/reviews returns for them. Null until reviewed.
+  latest_review_ids: z.array(z.string()).nullish(),
   findings_counts: z
     .object({ CRITICAL: z.number().int(), WARNING: z.number().int(), SUGGESTION: z.number().int() })
     .nullish(),

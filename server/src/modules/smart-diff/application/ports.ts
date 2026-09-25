@@ -9,6 +9,6 @@ export interface SmartDiffSource {
   /** Workspace-scoped existence check — a PR from another workspace is a 404. */
   pullExists(workspaceId: string, prId: string): Promise<boolean>;
   listFiles(prId: string): Promise<SmartDiffFileInput[]>;
-  /** start_line of every finding (dismissed too) on the newest review of this PR; [] when there is no review. */
+  /** start_line of every finding (dismissed too) on each agent's newest review of this PR; [] when there is no review. */
   latestReviewFindings(prId: string): Promise<SmartDiffFindingInput[]>;
 }

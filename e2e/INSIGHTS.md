@@ -8,6 +8,7 @@ Reviewed monthly: stale entries are removed in a dedicated commit.
 
 ## What Works
 <!-- approaches and solutions that worked here -->
+- 2026-09-25 — e2e/flows 10/11/12 (agent-browser 0.27): the PR-list status chips now read 'All · N' / 'Needs review · N' (count varies per run), so find role button --name All --exact no longer matches → click with find role button click --name 'All ·' (no --exact = substring match; verified 12/12 flows green) and match any count in wait --fn with a regex (/● \d/.test(document.body.innerText)) instead of fixed numbers
 - 2026-09-22 — scripts/e2e.sh: the hermetic API runs with LLM_PROVIDER_OVERRIDE=mock (server adapters/llm/mock.ts, LLM_MOCK_DELAY_MS=4000) and exports E2E_MOCK_LLM=1; flows with "requiresEnv": "E2E_MOCK_LLM" run a real review end to end (POST → SSE live → persisted findings) with no key, and are SKIPped by run.ts elsewhere; next dev uses NEXT_DIST_DIR=.next-e2e so the dev server's client/.next is untouched (fixes the 2026-09-21 shared-.next entry) → verified 10/10 twice
 
 ## What Doesn't Work

@@ -16,11 +16,14 @@ export function DiffViewer<T extends DiffFindingItem = DiffFindingItem>({
   files,
   commenting,
   findingApi,
+  defaultOpen,
 }: {
   files: PrFile[];
   commenting?: DiffCommentApi;
   /** Findings slot (server/specs/06-smart-diff.md) — DiffViewer stays feature-agnostic; the caller supplies the data + card. */
   findingApi?: DiffFindingApi<T>;
+  /** Which files start expanded; omitted → files up to AUTO_EXPAND_MAX_LINES changed lines. */
+  defaultOpen?: (file: PrFile) => boolean;
 }) {
   const t = useTranslations("shell");
   if (!files || files.length === 0) {
@@ -29,7 +32,13 @@ export function DiffViewer<T extends DiffFindingItem = DiffFindingItem>({
   return (
     <div style={s.list}>
       {files.map((f) => (
-        <FileCard key={f.path} file={f} commenting={commenting} findingApi={findingApi} />
+        <FileCard
+          key={f.path}
+          file={f}
+          commenting={commenting}
+          findingApi={findingApi}
+          defaultOpen={defaultOpen?.(f)}
+        />
       ))}
     </div>
   );

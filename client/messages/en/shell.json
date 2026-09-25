@@ -44,6 +44,8 @@
     "addComment": "Add a comment on this line",
     "hasFindings": "Has findings",
     "unmatchedTitle": "Findings not shown inline",
+    "hideFinding": "Hide finding",
+    "showFinding": "Show finding",
     "severity": {
       "critical": "blocker",
       "warning": "warning",

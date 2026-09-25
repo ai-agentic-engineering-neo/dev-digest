@@ -103,19 +103,31 @@ export function lineRowFor(kind: Line["kind"], severity?: Severity | null): CSSP
   };
 }
 
-/** Right-aligned severity label on a finding's line ("blocker" / "warning" / "suggestion"). */
-export function findingLabelFor(severity: Severity): CSSProperties {
+/** Right-aligned severity badge on a finding's line ("blocker" / "warning" /
+ *  "suggestion"): outlined pill in the severity colour, tinted over an opaque
+ *  surface so the add/del row tint doesn't bleed through. It is a button that
+ *  shows/hides the line's finding cards. */
+export function findingBadgeFor(severity: Severity, interactive: boolean): CSSProperties {
+  const { c, bg } = SEV[severity];
   return {
     marginLeft: "auto",
-    paddingLeft: 10,
-    paddingRight: 12,
-    fontSize: 11,
-    fontWeight: 700,
-    textTransform: "uppercase",
-    letterSpacing: "0.04em",
-    color: SEV[severity].c,
-    whiteSpace: "nowrap",
+    marginRight: 10,
     alignSelf: "center",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 4,
+    padding: "0 7px",
+    fontSize: 11.5,
+    fontWeight: 600,
+    lineHeight: "17px",
+    whiteSpace: "nowrap",
+    color: c,
+    border: `1px solid ${c}`,
+    borderRadius: 5,
+    backgroundColor: "var(--bg-surface)",
+    backgroundImage: `linear-gradient(${bg}, ${bg})`,
+    cursor: interactive ? "pointer" : "default",
+    flexShrink: 0,
   };
 }
 

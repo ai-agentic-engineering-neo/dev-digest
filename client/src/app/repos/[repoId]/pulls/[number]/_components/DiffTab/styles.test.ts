@@ -13,7 +13,6 @@ describe("DiffTab sticky header ancestors", () => {
   });
 
   it("roleHeader stays sticky regardless of open state", () => {
-    expect(s.roleHeader(true).position).toBe("sticky");
-    expect(s.roleHeader(false).position).toBe("sticky");
+    expect(s.roleHeader.position).toBe("sticky");
   });
 });

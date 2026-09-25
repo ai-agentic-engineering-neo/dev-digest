@@ -39,8 +39,17 @@ describe("PRRow — cost column", () => {
 
   it("shows a dash when no run has a known cost", () => {
     renderRow(pr({ cost_usd: null }));
-    // score "—" + findings "—" + cost "—"
-    expect(screen.getAllByText("—")).toHaveLength(3);
+    // score "—" + findings "—" + cost "—" + last review "—"
+    expect(screen.getAllByText("—")).toHaveLength(4);
+  });
+});
+
+describe("PRRow — last review column", () => {
+  it("shows the latest review's date, full date-time on hover", () => {
+    const iso = "2025-03-05T14:30:00Z"; // a past year, so the label carries it
+    renderRow(pr({ last_reviewed_at: iso }));
+    const cell = screen.getByText(new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }));
+    expect(cell).toHaveAttribute("title", `Latest review: ${new Date(iso).toLocaleString()}`);
   });
 });
 
@@ -69,7 +78,7 @@ describe("PRRow — findings column", () => {
     expect(screen.getByLabelText("2 critical, 1 suggestion")).toBeInTheDocument();
     cleanup();
     renderRow(pr({ id: "p1", findings_counts: null, cost_usd: 0.01 }));
-    expect(screen.getAllByText("—")).toHaveLength(2); // score + findings
+    expect(screen.getAllByText("—")).toHaveLength(3); // score + findings + last review
   });
 
   it("hover loads the latest review and lists its findings read-only", async () => {

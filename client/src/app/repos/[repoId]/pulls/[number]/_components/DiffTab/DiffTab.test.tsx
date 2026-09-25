@@ -4,7 +4,7 @@
    TanStack hooks against a stubbed fetch (client/INSIGHTS.md). */
 import React from "react";
 import { describe, it, expect, afterEach } from "vitest";
-import { renderWithProviders, screen, cleanup, waitFor } from "@/test/render";
+import { renderWithProviders, screen, cleanup, waitFor, within } from "@/test/render";
 import { mockFetch, type RouteHandler } from "@/test/fetch-mock";
 import type { FindingRecord, PrFile, ReviewRecord, SmartDiffResponse } from "@devdigest/shared";
 import { DiffTab } from "./DiffTab";
@@ -32,6 +32,16 @@ const SMART_DIFF: SmartDiffResponse = {
     { role: "boilerplate", files: [{ path: "pnpm-lock.yaml", additions: 40, deletions: 0, finding_lines: [] }] },
   ],
   split_suggestion: { too_big: false, total_lines: 42, proposed_splits: [] },
+};
+
+/** A small core file with no comment or finding (Smart order starts it collapsed). */
+const UTIL: PrFile = { path: "src/util.ts", additions: 1, deletions: 0, patch: "@@ -1,1 +1,2 @@\n ctx\n+util line" };
+
+const SMART_DIFF_WITH_UTIL: SmartDiffResponse = {
+  ...SMART_DIFF,
+  groups: SMART_DIFF.groups.map((g) =>
+    g.role === "core" ? { ...g, files: [...g.files, { path: UTIL.path, additions: 1, deletions: 0, finding_lines: [] }] } : g,
+  ),
 };
 
 const FINDING: FindingRecord = {
@@ -105,7 +115,7 @@ describe("DiffTab — Smart order groups", () => {
     expect(await screen.findByText("pnpm-lock.yaml")).toBeInTheDocument();
   });
 
-  it("shows the group's flagged-file count and an inline Accept posts to the API", async () => {
+  it("shows the group's finding count and an inline Accept posts to the API", async () => {
     const api = routes();
     const { user } = renderWithProviders(<Wrapper />);
 
@@ -114,6 +124,64 @@ describe("DiffTab — Smart order groups", () => {
 
     await user.click(screen.getByRole("button", { name: "Accept" }));
     await waitFor(() => expect(api.requests("POST", "/findings/f1/accept")).toHaveLength(1));
+  });
+
+  it("counts and shows findings of every agent's newest review, not an agent's replaced one", async () => {
+    const other: FindingRecord = { ...FINDING, id: "f2", severity: "WARNING", title: "Slow query", review_id: "rv2" };
+    const replaced: FindingRecord = { ...FINDING, id: "f0", title: "Old finding", review_id: "rv0" };
+    routes({
+      "GET /pulls/pr1/reviews": [
+        REVIEW,
+        { ...REVIEW, id: "rv2", agent_id: "a2", agent_name: "Perf", findings: [other] },
+        { ...REVIEW, id: "rv0", findings: [replaced] }, // agent a1's older run
+      ],
+    });
+    renderWithProviders(<Wrapper />);
+
+    expect(await screen.findByText("Slow query")).toBeInTheDocument();
+    expect(screen.getByText("Hardcoded secret")).toBeInTheDocument();
+    expect(screen.queryByText("Old finding")).not.toBeInTheDocument();
+    // One critical + one warning on Core, each in its own counter.
+    expect(screen.getByTitle("1 critical")).toHaveTextContent("● 1");
+    expect(screen.getByTitle("1 warning")).toHaveTextContent("● 1");
+  });
+
+  it("puts the comments toggle next to the order switch and colours the +/− totals", async () => {
+    routes();
+    renderWithProviders(<Wrapper />);
+    const toggle = await screen.findByRole("button", { name: /Hide comments/ });
+    const smart = screen.getByRole("button", { name: "Smart order" });
+    expect(toggle.parentElement).toBe(smart.parentElement!.parentElement);
+    expect(smart).toHaveAttribute("aria-pressed", "true");
+    const summary = screen.getByText(/^3 files/);
+    expect(within(summary).getByText("+42")).toHaveStyle({ color: "var(--code-add-text)" });
+    expect(within(summary).getByText("−0")).toHaveStyle({ color: "var(--code-del-text)" });
+  });
+
+  it("the toggle label counts GitHub comments and current findings together", async () => {
+    const comment = {
+      id: 7,
+      path: "src/config.ts",
+      line: 2,
+      original_line: 2,
+      side: "RIGHT",
+      body: "nit",
+      user: "octo",
+      created_at: "2026-09-01T00:00:00Z",
+      html_url: "https://github.com/acme/api/pull/1#r7",
+      in_reply_to_id: null,
+      is_outdated: false,
+    };
+    routes({ "GET /pulls/pr1/comments": [comment] });
+    const { user } = renderWithProviders(<Wrapper />);
+    await user.click(await screen.findByRole("button", { name: "Hide comments (2)" }));
+    expect(screen.getByRole("button", { name: "Show comments (2)" })).toBeInTheDocument();
+  });
+
+  it("counts findings when there are no GitHub comments", async () => {
+    routes();
+    renderWithProviders(<Wrapper />);
+    expect(await screen.findByRole("button", { name: "Hide comments (1)" })).toBeInTheDocument();
   });
 
   it("the comments/findings toggle hides the inline card", async () => {
@@ -137,6 +205,54 @@ describe("DiffTab — Smart order groups", () => {
     reviews = [{ ...REVIEW, id: "rv2", findings: [FINDING] }];
     await queryClient.invalidateQueries();
     expect(await screen.findByText("Hardcoded secret")).toBeInTheDocument();
+  });
+
+  it("Smart order opens only files with comments or findings; a click opens the others", async () => {
+    routes({ "GET /pulls/pr1/smart-diff": SMART_DIFF_WITH_UTIL });
+    const { user } = renderWithProviders(
+      <DiffTab prId="pr1" filesCount={4} files={[...FILES, UTIL]} canComment order="smart" onSetOrder={() => {}} />,
+    );
+
+    // src/config.ts has a finding → open; src/util.ts is small but uncommented → collapsed.
+    expect(await screen.findByText("Hardcoded secret")).toBeInTheDocument();
+    expect(screen.getByText("src/util.ts")).toBeInTheDocument();
+    expect(screen.queryByText("util line")).not.toBeInTheDocument();
+
+    await user.click(screen.getByText("src/util.ts"));
+    expect(screen.getByText("util line")).toBeInTheDocument();
+  });
+
+  it("Smart order opens a file that has only a GitHub comment", async () => {
+    routes({
+      "GET /pulls/pr1/smart-diff": SMART_DIFF_WITH_UTIL,
+      "GET /pulls/pr1/comments": [
+        {
+          id: 3,
+          path: "src/util.ts",
+          line: 2,
+          original_line: 2,
+          side: "RIGHT",
+          body: "rename this",
+          user: "octocat",
+          created_at: "2026-06-01T00:00:00Z",
+          html_url: "https://github.com/x",
+          in_reply_to_id: null,
+          is_outdated: false,
+        },
+      ],
+    });
+    renderWithProviders(
+      <DiffTab prId="pr1" filesCount={4} files={[...FILES, UTIL]} canComment order="smart" onSetOrder={() => {}} />,
+    );
+    expect(await screen.findByText("util line")).toBeInTheDocument();
+  });
+
+  it("Original order keeps opening small files regardless of comments", async () => {
+    routes();
+    renderWithProviders(
+      <DiffTab prId="pr1" filesCount={4} files={[...FILES, UTIL]} canComment order="original" onSetOrder={() => {}} />,
+    );
+    expect(await screen.findByText("util line")).toBeInTheDocument();
   });
 
   it("Original order renders one flat DiffViewer (no role groups)", async () => {

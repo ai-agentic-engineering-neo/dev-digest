@@ -182,8 +182,9 @@ sequenceDiagram
 - **Smart Diff is independent of a review, and free of a model call.**
   `GET /pulls/:id/smart-diff` classifies every PR file by role as soon as
   `pr_files` exists — before any review has run. Once a review exists, it
-  reads only the **newest** row's findings for `finding_lines`; older reviews'
-  findings never appear there (server/specs/06-smart-diff.md).
+  reads the findings of **each agent's newest** review for `finding_lines`: a
+  re-run of an agent replaces its older findings, other agents' stay. The PR
+  list's FINDINGS counters sum the same set (server/specs/06-smart-diff.md).
 
 ## Things that aren't obvious
 

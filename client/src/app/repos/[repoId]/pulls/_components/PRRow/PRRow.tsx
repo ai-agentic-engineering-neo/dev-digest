@@ -9,7 +9,7 @@ import type { PrMeta } from "@/lib/types";
 import { CostText } from "@/components/cost-text";
 import { PrFindingsCell } from "../PrFindingsCell";
 import { SIZE_COLOR, STATUS_META } from "../../constants";
-import { relativeTime, sizeOf } from "../../helpers";
+import { relativeTime, shortDate, sizeOf } from "../../helpers";
 import { s } from "../../styles";
 
 export function PRRow({
@@ -76,6 +76,12 @@ export function PRRow({
       {/* Total cost of ALL runs of this PR (server-summed); "—" when unknown. */}
       <div style={s.costCell}>
         <CostText usd={pr.cost_usd} />
+      </div>
+      <div
+        style={s.lastReviewCell}
+        title={pr.last_reviewed_at ? t("list.lastReviewTitle", { date: new Date(pr.last_reviewed_at).toLocaleString() }) : undefined}
+      >
+        {pr.last_reviewed_at ? shortDate(pr.last_reviewed_at) : <span style={s.muted}>—</span>}
       </div>
       <div style={s.updatedCell}>{relativeTime(pr.updated_at)}</div>
     </div>

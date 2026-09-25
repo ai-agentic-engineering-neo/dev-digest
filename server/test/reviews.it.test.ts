@@ -476,9 +476,10 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
       await app.close();
     });
 
-    it('PR list: findings_counts + latest_review_id come from the LATEST review only; null when unreviewed', async () => {
+    it("PR list: findings_counts sum each agent's newest review; latest_review_id/score/last_reviewed_at from the newest; null when unreviewed", async () => {
       const app = await appWith(REVIEW_FIXTURE);
       const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+      const [agentA, agentB] = await pg.handle.db.select({ id: t.agents.id }).from(t.agents).limit(2);
       const finding = (reviewId: string, severity: string) => ({
         reviewId,
         file: 'src/a.ts',
@@ -490,26 +491,31 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
         rationale: 'r',
         confidence: 0.9,
       });
-      const [older] = await pg.handle.db
-        .insert(t.reviews)
-        .values({ workspaceId, prId: pr.id, kind: 'review', score: 10, createdAt: new Date('2026-01-01') })
-        .returning();
-      const [latest] = await pg.handle.db
-        .insert(t.reviews)
-        .values({ workspaceId, prId: pr.id, kind: 'review', score: 61, createdAt: new Date('2026-02-01') })
-        .returning();
+      const review = (agentId: string, score: number, createdAt: string) =>
+        pg.handle.db
+          .insert(t.reviews)
+          .values({ workspaceId, prId: pr.id, agentId, kind: 'review', score, createdAt: new Date(createdAt) })
+          .returning()
+          .then((rows) => rows[0]!);
+      const replaced = await review(agentA!.id, 10, '2026-01-01'); // superseded by A's re-run
+      const other = await review(agentB!.id, 70, '2026-01-15'); // B's only review — still current
+      const latest = await review(agentA!.id, 61, '2026-02-01');
       await pg.handle.db.insert(t.findings).values([
-        finding(older!.id, 'CRITICAL'),
-        finding(latest!.id, 'CRITICAL'),
-        finding(latest!.id, 'CRITICAL'),
-        finding(latest!.id, 'SUGGESTION'),
+        finding(replaced.id, 'CRITICAL'),
+        finding(other.id, 'WARNING'),
+        finding(other.id, 'SUGGESTION'),
+        finding(latest.id, 'CRITICAL'),
+        finding(latest.id, 'CRITICAL'),
+        finding(latest.id, 'SUGGESTION'),
       ]);
 
       const list = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
       const row = list.find((p: { number: number }) => p.number === 482);
-      expect(row.latest_review_id).toBe(latest!.id);
-      expect(row.findings_counts).toEqual({ CRITICAL: 2, WARNING: 0, SUGGESTION: 1 });
+      expect(row.latest_review_id).toBe(latest.id);
+      expect([...row.latest_review_ids].sort()).toEqual([latest.id, other.id].sort());
+      expect(row.findings_counts).toEqual({ CRITICAL: 2, WARNING: 1, SUGGESTION: 2 });
       expect(row.score).toBe(61);
+      expect(row.last_reviewed_at).toBe(new Date('2026-02-01').toISOString());
       await app.close();
 
       // A PR with no review has no breakdown.
@@ -519,6 +525,8 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
       const row2 = list2.find((p: { number: number }) => p.number === 482);
       expect(row2.findings_counts).toBeNull();
       expect(row2.latest_review_id).toBeNull();
+      expect(row2.latest_review_ids).toEqual([]);
+      expect(row2.last_reviewed_at).toBeNull();
       await app2.close();
     });
   });

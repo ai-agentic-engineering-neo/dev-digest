@@ -79,16 +79,17 @@
     "findingLines": "{count} finding-lines",
     "groupedByRole": "Smart Diff · grouped by role",
     "heading": "Reviewer-ordered diff",
-    "summary": "{files, plural, one {# file} other {# files}} · +{additions} −{deletions}",
+    "summary": "{files, plural, one {# file} other {# files}} · <add>+{additions}</add> <del>−{deletions}</del>",
     "smartOrder": "Smart order",
     "originalOrder": "Original order",
     "filesWithFindings": "{count} {count, plural, one {file} other {files}} with findings",
-    "noReview": "Run a review to see findings here."
+    "noReview": "Run a review to see findings here.",
+    "severityCount": "{count} {severity}"
   },
   "list": {
     "breadcrumb": "Pull Requests",
     "title": "Pull Requests",
-    "summary": "{open} open · {needsReview} need review",
+    "summary": "{open} open · {needsReview} need review · {merged} merged",
     "loading": "Loading pull requests…",
     "status": {
       "open": "Open",
@@ -102,7 +103,9 @@
       "all": "All",
       "needs_review": "Needs review",
       "reviewed": "Reviewed",
-      "stale": "Stale"
+      "stale": "Stale",
+      "merged": "Merged",
+      "closed": "Closed"
     },
     "refresh": "Refresh",
     "refreshing": "Refreshing…",
@@ -119,6 +122,7 @@
       "findings": "Findings",
       "status": "Status",
       "cost": "Cost",
+      "lastReview": "Last review",
       "updated": "Updated"
     },
     "filesCount": "{count} files",
@@ -126,7 +130,9 @@
     "errorBody": "The engine returned an error.",
     "emptyTitle": "No pull requests",
     "emptyAllBody": "No open PRs found for this repo yet. Refresh to sync from GitHub.",
-    "emptyStatusBody": "No PRs with status “{status}”."
+    "emptyStatusBody": "No PRs with status “{status}”.",
+    "filterCount": "{label} · {count}",
+    "lastReviewTitle": "Latest review: {date}"
   },
   "timeline": {
     "goToReview": "Jump to this run’s findings below",

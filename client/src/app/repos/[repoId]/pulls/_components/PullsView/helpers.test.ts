@@ -67,7 +67,7 @@ describe("filterPulls", () => {
 });
 
 describe("countPulls", () => {
-  it("counts open (derived review statuses) and needs-review PRs", () => {
-    expect(countPulls(PULLS)).toEqual({ open: 3, needsReview: 2 });
+  it("counts open (derived review statuses), needs-review and merged PRs", () => {
+    expect(countPulls(PULLS)).toEqual({ open: 3, needsReview: 2, merged: 1 });
   });
 });

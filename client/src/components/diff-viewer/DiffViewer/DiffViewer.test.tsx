@@ -39,6 +39,24 @@ describe("DiffViewer findings slot", () => {
     expect(screen.getByText("blocker")).toBeInTheDocument();
   });
 
+  it("clicking the severity badge hides that line's card, clicking again shows it", async () => {
+    const { user } = renderWithProviders(
+      <DiffViewer
+        files={[FILE]}
+        findingApi={findingApi([{ id: "f1", file: "a.ts", start_line: 2, severity: "SUGGESTION" }])}
+      />,
+    );
+    const badge = screen.getByRole("button", { name: "suggestion" });
+    expect(badge).toHaveAttribute("aria-expanded", "true");
+
+    await user.click(badge);
+    expect(screen.queryByTestId("card-f1")).not.toBeInTheDocument();
+    expect(badge).toHaveAttribute("aria-expanded", "false");
+
+    await user.click(badge);
+    expect(screen.getByTestId("card-f1")).toBeInTheDocument();
+  });
+
   it("puts a finding anchored to a deleted (old-side) line into the unmatched block", () => {
     renderWithProviders(
       <DiffViewer

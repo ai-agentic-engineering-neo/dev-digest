@@ -36,15 +36,20 @@ export function FileCard<T extends DiffFindingItem>({
   file,
   commenting,
   findingApi,
+  defaultOpen,
 }: {
   file: PrFile;
   commenting?: DiffCommentApi;
   findingApi?: DiffFindingApi<T>;
+  /** Overrides the AUTO_EXPAND_MAX_LINES rule; followed live until the user toggles the card. */
+  defaultOpen?: boolean;
 }) {
   const t = useTranslations("shell");
-  const [open, setOpen] = React.useState(
-    (file.additions ?? 0) + (file.deletions ?? 0) <= AUTO_EXPAND_MAX_LINES
-  );
+  // null until the user clicks the header, so a caller's default that changes
+  // after mount (findings arriving) still opens or closes the card.
+  const [openOverride, setOpenOverride] = React.useState<boolean | null>(null);
+  const open =
+    openOverride ?? defaultOpen ?? (file.additions ?? 0) + (file.deletions ?? 0) <= AUTO_EXPAND_MAX_LINES;
   const lines = React.useMemo(() => parsePatch(file.patch), [file.patch]);
 
   // Group this file's comments into threads, then split into ones we can anchor
@@ -81,7 +86,7 @@ export function FileCard<T extends DiffFindingItem>({
 
   return (
     <div style={s.fileCard}>
-      <div onClick={() => setOpen((o) => !o)} style={s.fileHeader}>
+      <div onClick={() => setOpenOverride(!open)} style={s.fileHeader}>
         <Icon.ChevronRight size={13} style={chevronFor(open)} />
         <Icon.FileText size={14} style={s.fileIcon} />
         <span className="mono" style={s.filePath}>

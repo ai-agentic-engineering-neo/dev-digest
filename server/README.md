@@ -164,12 +164,15 @@ row, byte-identical prompt).
 
 | Method | Path | Result |
 |---|---|---|
-| GET | `/pulls/:id/smart-diff` | `SmartDiff` = files grouped by role (`core → tests → wiring → docs → boilerplate`, always all 5, each sorted by path), the newest review's finding lines attached, `split_suggestion` |
+| GET | `/pulls/:id/smart-diff` | `SmartDiff` = files grouped by role (`core → tests → wiring → docs → boilerplate`, always all 5, each sorted by path), the finding lines of each agent's newest review attached, `split_suggestion` |
 
 Pure, model-free: `classifyFile` (fixed glob patterns/order in
 `domain/constants.ts`) sorts every PR file into a role; `finding_lines` come
-from the **newest** `reviews` row only (`desc(created_at)`, dismissed findings
-included). `classifyFile` is exported from the module's `index.ts` so a future
+from the newest `kind='review'` row **of each agent** (`DISTINCT ON agent_id`,
+`desc(created_at)`, dismissed findings included) — re-running an agent replaces
+its earlier lines, other agents' lines stay. The PR list (`GET /repos/:id/pulls`)
+sums `findings_counts` over the same set (`latest_review_ids`); `score`,
+`latest_review_id` and `last_reviewed_at` come from the newest of them. `classifyFile` is exported from the module's `index.ts` so a future
 pre-filter (L08) can reuse it without an HTTP round-trip. A PR from another
 workspace is a 404, same as every other `/pulls/:id/*` route.
 

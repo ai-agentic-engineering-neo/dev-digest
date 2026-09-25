@@ -72,14 +72,32 @@ export const s = {
     lineHeight: 1.6,
     color: "var(--text-secondary)",
   } satisfies CSSProperties,
-  suggestionWrap: { marginTop: 14 } satisfies CSSProperties,
+  /* Suggested fix: its own bordered box with a lightbulb, apart from the rationale. */
+  suggestionWrap: {
+    marginTop: 14,
+    display: "flex",
+    gap: 10,
+    padding: "10px 14px",
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    background: "var(--bg-surface)",
+  } satisfies CSSProperties,
+  suggestionIcon: { color: "var(--text-muted)", flexShrink: 0, marginTop: 1 } satisfies CSSProperties,
+  suggestionMain: { flex: 1, minWidth: 0 } satisfies CSSProperties,
   suggestionLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: 700,
-    letterSpacing: "0.05em",
+    letterSpacing: "0.06em",
     color: "var(--text-muted)",
-    marginBottom: 8,
+    marginBottom: 4,
     textTransform: "uppercase",
+  } satisfies CSSProperties,
+  /* The Markdown's last paragraph keeps a 10px bottom margin — drop it inside the box. */
+  suggestionProse: {
+    fontSize: 14,
+    lineHeight: 1.6,
+    color: "var(--text-secondary)",
+    marginBottom: -10,
   } satisfies CSSProperties,
   actions: {
     display: "flex",

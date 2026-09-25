@@ -52,10 +52,26 @@ export type FindingsCounts = { CRITICAL: number; WARNING: number; SUGGESTION: nu
 
 /** Review/cost rollup of one PR for the list (all null until reviewed / priced). */
 export interface PullRollup {
+  /** The PR's newest review — the source of `score` and `lastReviewedAt`. */
   latestReviewId: string | null;
+  /** The newest review of each agent — the reviews `findingsCounts` sums; [] until reviewed. */
+  latestReviewIds: string[];
+  lastReviewedAt: Date | null;
   score: number | null;
   findingsCounts: FindingsCounts | null;
   costUsd: number | null;
+}
+
+/** Severity counts summed over several reviews (a review with no findings is `undefined`). */
+export function sumCounts(parts: (FindingsCounts | undefined)[]): FindingsCounts {
+  const total: FindingsCounts = { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 };
+  for (const c of parts) {
+    if (!c) continue;
+    total.CRITICAL += c.CRITICAL;
+    total.WARNING += c.WARNING;
+    total.SUGGESTION += c.SUGGESTION;
+  }
+  return total;
 }
 
 export interface SeverityCounts {
@@ -104,7 +120,14 @@ export function needsDiffStats(pr: DiffStats): boolean {
   return pr.additions === 0 && pr.deletions === 0 && pr.filesCount === 0;
 }
 
-const EMPTY_ROLLUP: PullRollup = { latestReviewId: null, score: null, findingsCounts: null, costUsd: null };
+const EMPTY_ROLLUP: PullRollup = {
+  latestReviewId: null,
+  latestReviewIds: [],
+  lastReviewedAt: null,
+  score: null,
+  findingsCounts: null,
+  costUsd: null,
+};
 
 /** One row of GET /repos/:id/pulls. */
 export function toPrListItem(pr: PullRecord, rollup: PullRollup | undefined, now: number): PrMeta {
@@ -132,6 +155,8 @@ export function toPrListItem(pr: PullRecord, rollup: PullRollup | undefined, now
     score: r.score,
     cost_usd: r.costUsd,
     latest_review_id: r.latestReviewId,
+    latest_review_ids: r.latestReviewIds,
+    last_reviewed_at: r.lastReviewedAt?.toISOString() ?? null,
     findings_counts: r.findingsCounts,
   };
 }

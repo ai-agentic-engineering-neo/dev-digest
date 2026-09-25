@@ -1,20 +1,25 @@
-/* OrderToggle — Smart order / Original order (server/specs/06-smart-diff.md). */
+/* OrderToggle — Smart order / Original order as one segmented control
+   (server/specs/06-smart-diff.md, design/ diff.jsx). */
 "use client";
 
 import { useTranslations } from "next-intl";
-import { Button } from "@devdigest/ui";
-import type { DiffOrder } from "../../constants";
+import { DIFF_ORDERS, type DiffOrder } from "../../constants";
+import { s } from "../../styles";
+
+const LABEL_KEY: Record<DiffOrder, string> = {
+  smart: "smartDiff.smartOrder",
+  original: "smartDiff.originalOrder",
+};
 
 export function OrderToggle({ order, onSetOrder }: { order: DiffOrder; onSetOrder: (order: DiffOrder) => void }) {
   const t = useTranslations("prReview");
   return (
-    <div style={{ display: "inline-flex", gap: 4 }}>
-      <Button kind="ghost" size="sm" active={order === "smart"} onClick={() => onSetOrder("smart")}>
-        {t("smartDiff.smartOrder")}
-      </Button>
-      <Button kind="ghost" size="sm" active={order === "original"} onClick={() => onSetOrder("original")}>
-        {t("smartDiff.originalOrder")}
-      </Button>
+    <div style={s.segmented}>
+      {DIFF_ORDERS.map((o) => (
+        <button key={o} type="button" aria-pressed={order === o} onClick={() => onSetOrder(o)} style={s.segment(order === o)}>
+          {t(LABEL_KEY[o])}
+        </button>
+      ))}
     </div>
   );
 }

@@ -38,13 +38,22 @@ export function filterPulls(pulls: readonly PrMeta[], { status, sort }: PullsSea
     .sort((a, b) => (sort === "oldest" ? updatedAt(a) - updatedAt(b) : updatedAt(b) - updatedAt(a)));
 }
 
-/** Header counters: open PRs and those still waiting for review. */
-export function countPulls(pulls: readonly PrMeta[]): { open: number; needsReview: number } {
+/** Header counters: open PRs, those still waiting for review, and merged ones. */
+export function countPulls(pulls: readonly PrMeta[]): { open: number; needsReview: number; merged: number } {
   let open = 0;
   let needsReview = 0;
+  let merged = 0;
   for (const p of pulls) {
     if (OPEN_STATUSES.has(p.status)) open++;
     if (p.status === "needs_review") needsReview++;
+    if (p.status === "merged") merged++;
   }
-  return { open, needsReview };
+  return { open, needsReview, merged };
+}
+
+/** Filter-chip counters: every PR under "all", plus one entry per status. */
+export function statusCounts(pulls: readonly PrMeta[]): Record<string, number> {
+  const out: Record<string, number> = { all: pulls.length };
+  for (const p of pulls) out[p.status] = (out[p.status] ?? 0) + 1;
+  return out;
 }

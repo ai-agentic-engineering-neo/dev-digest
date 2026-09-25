@@ -247,10 +247,9 @@
         "button",
         "click",
         "--name",
-        "All",
-        "--exact"
+        "All ·"
       ],
-      "label": "PR list: show All (flow 09 left the PR 'reviewed')"
+      "label": "PR list: show All (chip reads 'All · N'; flow 09 left the PR 'reviewed')"
     },
     {
       "cmd": [

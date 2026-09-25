@@ -77,7 +77,7 @@ d('pulls sync routes (Testcontainers pg)', () => {
       [
         'id', 'number', 'title', 'author', 'branch', 'base', 'head_sha', 'additions', 'deletions',
         'files_count', 'status', 'opened_at', 'updated_at', 'score', 'cost_usd',
-        'latest_review_id', 'findings_counts',
+        'latest_review_id', 'latest_review_ids', 'last_reviewed_at', 'findings_counts',
       ].sort(),
     );
     // Backfill is capped at 10 detail fetches per request (mock detail: 247/38/9).

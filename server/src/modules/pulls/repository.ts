@@ -2,7 +2,7 @@ import { and, count, desc, eq, inArray, notInArray, sql } from 'drizzle-orm';
 import type { PrCommit, PrFile, PrMeta } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
 import type { DbOrTx } from '../../db/client.js';
-import type { DiffStats, FindingsCounts, PullRecord, PullRollup, RepoCoords } from './domain.js';
+import { sumCounts, type DiffStats, type FindingsCounts, type PullRecord, type PullRollup, type RepoCoords } from './domain.js';
 
 type PullRow = typeof t.pullRequests.$inferSelect;
 
@@ -208,7 +208,10 @@ export class PullsRepository {
   /**
    * List rollups per PR, computed on read (no FK denorm; the list is small, so
    * IN-queries + grouping are cheap):
-   *  - the latest review (`kind='review'`): its score and findings per severity;
+   *  - the current reviews (`kind='review'`): the newest review of EACH agent —
+   *    a re-run replaces that agent's earlier findings instead of adding to them;
+   *    findings per severity are summed over them;
+   *  - the newest of those: its score, id and date (`last_reviewed_at`);
    *  - total USD cost = SUM over ALL the PR's runs (any status, local + ci).
    *    SUM skips NULL (unpriced runs) and is NULL only when no run has a cost.
    */
@@ -216,29 +219,39 @@ export class PullsRepository {
     const out = new Map<string, PullRollup>();
     if (prIds.length === 0) return out;
 
+    // DISTINCT ON keeps the first row per (PR, agent) in ORDER BY order, i.e.
+    // each agent's newest review; reviews with no agent collapse into one.
     const reviewRows = await this.db
-      .select({ id: t.reviews.id, prId: t.reviews.prId, score: t.reviews.score })
+      .selectDistinctOn([t.reviews.prId, t.reviews.agentId], {
+        id: t.reviews.id,
+        prId: t.reviews.prId,
+        score: t.reviews.score,
+        createdAt: t.reviews.createdAt,
+      })
       .from(t.reviews)
       .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review')))
-      .orderBy(desc(t.reviews.createdAt));
-    const latestByPr = new Map<string, { id: string; score: number | null }>();
-    // Rows are newest-first → the first seen per PR is the latest review.
+      .orderBy(t.reviews.prId, t.reviews.agentId, desc(t.reviews.createdAt));
+    const currentByPr = new Map<string, typeof reviewRows>();
     for (const rv of reviewRows) {
-      if (!latestByPr.has(rv.prId)) latestByPr.set(rv.prId, { id: rv.id, score: rv.score });
+      const list = currentByPr.get(rv.prId) ?? [];
+      list.push(rv);
+      currentByPr.set(rv.prId, list);
     }
+    // Newest first within each PR: [0] is the PR's latest review overall.
+    for (const list of currentByPr.values()) list.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
     const countsByReview = new Map<string, FindingsCounts>();
-    const latestIds = [...latestByPr.values()].map((rv) => rv.id);
-    for (const id of latestIds) countsByReview.set(id, { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 });
-    if (latestIds.length > 0) {
+    const currentIds = reviewRows.map((rv) => rv.id);
+    if (currentIds.length > 0) {
       const countRows = await this.db
         .select({ reviewId: t.findings.reviewId, severity: t.findings.severity, n: count() })
         .from(t.findings)
-        .where(inArray(t.findings.reviewId, latestIds))
+        .where(inArray(t.findings.reviewId, currentIds))
         .groupBy(t.findings.reviewId, t.findings.severity);
       for (const c of countRows) {
-        const counts = countsByReview.get(c.reviewId);
-        if (counts && c.severity in counts) counts[c.severity as keyof FindingsCounts] = Number(c.n);
+        const counts = countsByReview.get(c.reviewId) ?? { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 };
+        if (c.severity in counts) counts[c.severity as keyof FindingsCounts] = Number(c.n);
+        countsByReview.set(c.reviewId, counts);
       }
     }
 
@@ -254,11 +267,14 @@ export class PullsRepository {
     }
 
     for (const prId of prIds) {
-      const review = latestByPr.get(prId);
+      const current = currentByPr.get(prId) ?? [];
+      const latest = current[0];
       out.set(prId, {
-        latestReviewId: review?.id ?? null,
-        score: review ? review.score : null,
-        findingsCounts: review ? (countsByReview.get(review.id) ?? null) : null,
+        latestReviewId: latest?.id ?? null,
+        latestReviewIds: current.map((rv) => rv.id),
+        lastReviewedAt: latest?.createdAt ?? null,
+        score: latest ? latest.score : null,
+        findingsCounts: latest ? sumCounts(current.map((rv) => countsByReview.get(rv.id))) : null,
         costUsd: costByPr.get(prId) ?? null,
       });
     }

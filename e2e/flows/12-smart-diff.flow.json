@@ -1,11 +1,11 @@
 {
   "name": "Smart Diff groups Files changed by role and Original order returns GitHub's order",
-  "description": "PR #482 → Files changed tab: the latest review's findings show as a role-group counter (Core has at least one flagged file), then Original order flattens the groups and is kept in ?order=. Runs last (lexical order): if flows 09/11 already ran (E2E_MOCK_LLM), their review — findings on src/middleware/ratelimit.ts — is the newest and Core shows '● 1'; otherwise the seeded review (findings on src/config.ts + src/api/users.ts) is still newest and Core shows '● 2'. The counter assertion accepts either so the flow doesn't depend on run order. The PR list defaults to 'Needs review', which flows 09/11 make it fail (PR now 'reviewed'), so this flow clicks 'All' first, like flows 10/11. Read-only for this flow (no model call of its own).",
+  "description": "PR #482 → Files changed tab: each agent's newest review's findings show as per-severity role-group counters on Core, then Original order flattens the groups and is kept in ?order=. Runs last (lexical order): flows 09/11 (E2E_MOCK_LLM) may add a review, which changes the counts, so the counter assertion accepts any '● N' and the flow doesn't depend on run order. The PR list defaults to 'Needs review', which flows 09/11 make it fail (PR now 'reviewed'), so this flow clicks 'All' first, like flows 10/11. Read-only for this flow (no model call of its own).",
   "steps": [
     { "cmd": ["set", "viewport", "1280", "2000"], "label": "tall viewport: the PR page scrolls inside <main>, which agent-browser's click does not scroll" },
     { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
     { "cmd": ["wait", "--url", "/pulls"], "label": "land on the PR list" },
-    { "cmd": ["find", "role", "button", "click", "--name", "All", "--exact"], "label": "PR list: show All (flows 09/11 may have left the PR 'reviewed', hidden by the default 'Needs review' filter)" },
+    { "cmd": ["find", "role", "button", "click", "--name", "All ·"], "label": "PR list: show All (chip reads 'All · N'; flows 09/11 may have left the PR 'reviewed', hidden by the default 'Needs review' filter)" },
     { "cmd": ["find", "text", "Add rate limiting to public API endpoints", "click"], "label": "open the PR row" },
     { "cmd": ["wait", "--url", "/pulls/482"], "label": "navigate to the PR detail route" },
     { "cmd": ["wait", "--load", "networkidle"], "label": "PR detail data settles" },
@@ -13,8 +13,8 @@
     { "cmd": ["wait", "--url", "tab=diff"], "label": "diff tab is active in the URL" },
     { "cmd": ["wait", "--text", "Core"], "label": "the Core role group renders (all 4 seeded files classify as core)" },
     {
-      "cmd": ["wait", "--fn", "document.body.innerText.toLowerCase().includes('● 1') || document.body.innerText.toLowerCase().includes('● 2')"],
-      "label": "Core shows a flagged-file counter: '● 1' if the mock review (flows 09/11, all findings on ratelimit.ts) is newest, '● 2' if only the seeded review (findings on config.ts + users.ts) has run"
+      "cmd": ["wait", "--fn", "/● \\d/.test(document.body.innerText)"],
+      "label": "Core shows per-severity finding counters ('● N'); the numbers depend on whether flows 09/11 added a mock review, so any count passes"
     },
     { "cmd": ["find", "role", "button", "click", "--name", "Original order"], "label": "switch to Original order" },
     { "cmd": ["wait", "--url", "order=original"], "label": "the order choice is kept in the URL" },

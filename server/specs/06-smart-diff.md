@@ -8,7 +8,7 @@ Status: **in progress** (2026-09-24).
 ## Goal
 
 Group a PR's files by role (core, tests, wiring, docs, boilerplate) and attach
-the newest review's finding lines, so the client can render the diff sorted by
+the finding lines of each agent's newest review, so the client can render the diff sorted by
 what matters first — no model call.
 
 ## Out of scope
@@ -29,8 +29,9 @@ what matters first — no model call.
    (`core | tests | wiring | docs | boilerplate`) in both `vendor/shared`
    copies, byte-identical. **[B9]**
 3. Grouping works before any review has run (every file's `finding_lines` is
-   `[]`), and after a review, only the **newest** review's findings (by
-   `desc(createdAt)`) feed `finding_lines` — an older review's lines never
-   appear. The route makes 0 LLM calls in either case. **[B2] [B10]**
+   `[]`), and after a review, the findings of **each agent's newest** review
+   (by `desc(createdAt)`) feed `finding_lines` — an agent's older review's
+   lines never appear, another agent's current review's lines do
+   (changed 2026-09-25: was the single newest review). The route makes 0 LLM calls in either case. **[B2] [B10]**
 4. A PR from another workspace, or an unknown PR id, is a 404 — the same
    workspace-scoped lookup every other `/pulls/:id/*` route uses.

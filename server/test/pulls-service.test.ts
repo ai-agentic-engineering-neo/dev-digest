@@ -140,7 +140,11 @@ describe('PullsService.listForRepo', () => {
       status: 'open',
     }));
     const { svc, repo, batches } = build({ github: new MockGitHubClient({ pulls: listed }) });
-    repo.rollupByPr.set('pr-1', { latestReviewId: 'rv-1', score: 80, findingsCounts: { CRITICAL: 1, WARNING: 0, SUGGESTION: 2 }, costUsd: 0.5 });
+    repo.rollupByPr.set('pr-1', {
+      latestReviewId: 'rv-1',
+      latestReviewIds: ['rv-1', 'rv-0'],
+      lastReviewedAt: new Date('2026-02-01T00:00:00Z'),
+      score: 80, findingsCounts: { CRITICAL: 1, WARNING: 0, SUGGESTION: 2 }, costUsd: 0.5 });
 
     const out = await svc.listForRepo(WS, REPO.id, logger().log);
 
@@ -149,8 +153,22 @@ describe('PullsService.listForRepo', () => {
     expect(batches).toEqual([BACKFILL_LIMIT]);
     // Mock detail = 247/38/9; the response reflects the backfilled stats.
     expect(out.filter((p) => p.additions === 247 && p.files_count === 9)).toHaveLength(BACKFILL_LIMIT);
-    expect(out[0]).toMatchObject({ score: 80, cost_usd: 0.5, latest_review_id: 'rv-1', status: 'needs_review' });
-    expect(out[1]).toMatchObject({ score: null, cost_usd: null, latest_review_id: null, findings_counts: null });
+    expect(out[0]).toMatchObject({
+      score: 80,
+      cost_usd: 0.5,
+      latest_review_id: 'rv-1',
+      latest_review_ids: ['rv-1', 'rv-0'],
+      last_reviewed_at: '2026-02-01T00:00:00.000Z',
+      status: 'needs_review',
+    });
+    expect(out[1]).toMatchObject({
+      score: null,
+      cost_usd: null,
+      latest_review_id: null,
+      latest_review_ids: [],
+      last_reviewed_at: null,
+      findings_counts: null,
+    });
   });
 
   it('serves persisted PRs (no sync, no backfill) when GitHub is unavailable', async () => {

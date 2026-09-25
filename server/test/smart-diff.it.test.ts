@@ -1,6 +1,6 @@
 /**
  * GET /pulls/:id/smart-diff (server/specs/06-smart-diff.md). Groups the PR's
- * files by role and attaches the newest review's finding lines — no model
+ * files by role and attaches the finding lines of each agent's newest review — no model
  * call, so a MockLLMProvider whose `.calls` stays empty proves it
  * (server/INSIGHTS.md: overrides.llm covers every provider id used).
  */
@@ -62,10 +62,11 @@ async function insertReviewWithFindings(
   prId: string,
   createdAt: Date,
   findings: Array<{ file: string; startLine: number }>,
+  agentId: string | null = null,
 ) {
   const [review] = await db
     .insert(t.reviews)
-    .values({ workspaceId, prId, kind: 'review', verdict: 'approve', summary: 's', createdAt })
+    .values({ workspaceId, prId, agentId, kind: 'review', verdict: 'approve', summary: 's', createdAt })
     .returning();
   if (findings.length > 0) {
     await db.insert(t.findings).values(
@@ -138,6 +139,23 @@ d('GET /pulls/:id/smart-diff (Testcontainers pg)', () => {
     expect(byRole.boilerplate).toEqual([{ path: 'pnpm-lock.yaml', additions: 40, deletions: 0, finding_lines: [] }]);
 
     expect(llm.calls).toHaveLength(0);
+  });
+
+  it("attaches every agent's newest review; an agent's older review is replaced", async () => {
+    const { appPromise } = appWith();
+    const app = await appPromise;
+    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const [a, b] = await pg.handle.db.select({ id: t.agents.id }).from(t.agents).limit(2);
+
+    // Agent A: older review (line 5) replaced by its newer one (line 11).
+    await insertReviewWithFindings(pg.handle.db, workspaceId, pr.id, new Date('2026-01-01T00:00:00Z'), [{ file: 'src/config.ts', startLine: 5 }], a!.id);
+    await insertReviewWithFindings(pg.handle.db, workspaceId, pr.id, new Date('2026-03-01T00:00:00Z'), [{ file: 'src/config.ts', startLine: 11 }], a!.id);
+    // Agent B reviewed between them — still current, not hidden by A's newer run.
+    await insertReviewWithFindings(pg.handle.db, workspaceId, pr.id, new Date('2026-02-01T00:00:00Z'), [{ file: 'src/config.ts', startLine: 7 }], b!.id);
+
+    const body = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/smart-diff` })).json() as SmartDiffResponse;
+    const core = body.groups.find((g) => g.role === 'core')!;
+    expect(core.files[0]!.finding_lines).toEqual([7, 11]);
   });
 
   it('no review yet -> every file has an empty finding_lines', async () => {

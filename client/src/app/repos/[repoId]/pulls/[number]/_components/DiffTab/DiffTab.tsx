@@ -9,7 +9,7 @@ import { notify } from "@/lib/toast";
 import type { FindingRecord } from "@devdigest/shared";
 import type { PrFile } from "@/lib/types";
 import { DEFAULT_COLLAPSED_ROLES, type DiffOrder } from "./constants";
-import { groupFiles, totals } from "./helpers";
+import { commentedPaths, currentFindings, groupFiles, totals } from "./helpers";
 import { RoleGroup } from "./_components/RoleGroup";
 import { InlineFindingCard } from "./_components/InlineFindingCard";
 import { OrderToggle } from "./_components/OrderToggle";
@@ -35,16 +35,18 @@ export function DiffTab({ prId, filesCount, files, canComment, order, onSetOrder
   // even though no run-status UI is rendered here (server/specs/06-smart-diff.md).
   useLiveRunRefresh(prId);
 
-  const latestReview = reviews?.[0];
+  // Each agent's newest review — the same findings the PR list counts.
+  const findings = React.useMemo(() => currentFindings(reviews), [reviews]);
   const hasReview = !!reviews && reviews.length > 0;
-  const commentCount = comments?.length ?? 0;
+  // The toggle hides GitHub comments and finding cards alike, so its label counts both.
+  const toggleCount = (comments?.length ?? 0) + findings.length;
 
   // One toggle hides GitHub comments, finding cards and the unmatched block
-  // together. Until the user flips it, it follows the latest review (on when it
-  // has findings), so a finished Run review reveals its findings live
+  // together. Until the user flips it, it follows the current findings (on when
+  // there are any), so a finished Run review reveals its findings live
   // (server/specs/06-smart-diff.md, "Live update"/toggle decision).
   const [showOverride, setShowOverride] = React.useState<boolean | null>(null);
-  const show = showOverride ?? (latestReview?.findings.length ?? 0) > 0;
+  const show = showOverride ?? findings.length > 0;
 
   const commenting: DiffCommentApi = {
     comments: comments ?? [],
@@ -72,35 +74,47 @@ export function DiffTab({ prId, filesCount, files, canComment, order, onSetOrder
   }, [smartDiff]);
 
   const findingApi: DiffFindingApi<FindingRecord> = {
-    items: latestReview?.findings ?? [],
+    items: findings,
     flagged,
     show,
     renderCard: (f) => <InlineFindingCard f={f} prId={prId} />,
   };
 
-  const groups = React.useMemo(() => groupFiles(files, smartDiff), [files, smartDiff]);
+  const groups = React.useMemo(() => groupFiles(files, smartDiff, findings), [files, smartDiff, findings]);
+  // Smart order opens only the files someone commented on or a finding points at.
+  const commented = React.useMemo(() => commentedPaths(comments, findings), [comments, findings]);
+  const fileDefaultOpen = React.useCallback((f: PrFile) => commented.has(f.path), [commented]);
   const { additions, deletions } = totals(files);
+  const canToggle = hasReview && toggleCount > 0;
 
   return (
     <section>
-      <SectionLabel icon="Code" right={<OrderToggle order={order} onSetOrder={onSetOrder} />}>
+      <SectionLabel
+        icon="Code"
+        right={
+          <div style={s.headerActions}>
+            {canToggle && (
+              <Button kind="ghost" size="sm" icon={show ? "EyeOff" : "Eye"} onClick={() => setShowOverride(!show)}>
+                {t(show ? "diff.hideComments" : "diff.showComments", { count: toggleCount })}
+              </Button>
+            )}
+            <OrderToggle order={order} onSetOrder={onSetOrder} />
+          </div>
+        }
+      >
         {t("smartDiff.heading")}
       </SectionLabel>
       <div style={s.summaryRow}>
-        <span style={s.summaryText}>{t("smartDiff.summary", { files: filesCount, additions, deletions })}</span>
-        {!hasReview ? (
-          <span style={s.noReviewHint}>{t("smartDiff.noReview")}</span>
-        ) : commentCount > 0 || (latestReview?.findings.length ?? 0) > 0 ? (
-          <Button
-            kind="ghost"
-            size="sm"
-            icon={show ? "EyeOff" : "Eye"}
-            style={s.toggleButton}
-            onClick={() => setShowOverride(!show)}
-          >
-            {t(show ? "diff.hideComments" : "diff.showComments", { count: commentCount })}
-          </Button>
-        ) : null}
+        <span className="tnum" style={s.summaryText}>
+          {t.rich("smartDiff.summary", {
+            files: filesCount,
+            additions,
+            deletions,
+            add: (chunks) => <span style={s.addText}>{chunks}</span>,
+            del: (chunks) => <span style={s.delText}>{chunks}</span>,
+          })}
+        </span>
+        {!hasReview && <span style={s.noReviewHint}>{t("smartDiff.noReview")}</span>}
       </div>
 
       {order === "original" ? (
@@ -112,10 +126,11 @@ export function DiffTab({ prId, filesCount, files, canComment, order, onSetOrder
               key={g.role}
               role={g.role}
               files={g.files}
-              flaggedCount={g.flaggedCount}
+              counts={g.counts}
               defaultCollapsed={DEFAULT_COLLAPSED_ROLES.has(g.role)}
               commenting={commenting}
               findingApi={findingApi}
+              fileDefaultOpen={fileDefaultOpen}
             />
           ))}
         </div>

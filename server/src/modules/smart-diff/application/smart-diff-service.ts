@@ -1,6 +1,6 @@
 /**
  * smart-diff use case (server/specs/06-smart-diff.md): group a PR's files by
- * role and attach the newest review's finding lines. No model call.
+ * role and attach the finding lines of each agent's newest review. No model call.
  */
 import type { SmartDiff } from '@devdigest/shared';
 import { NotFoundError } from '../../../platform/errors.js';

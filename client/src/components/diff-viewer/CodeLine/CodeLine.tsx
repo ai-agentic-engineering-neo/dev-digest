@@ -4,11 +4,12 @@
 
 import React from "react";
 import { useTranslations } from "next-intl";
+import { Icon, SEV } from "@devdigest/ui";
 import { commentTargetFor, type CommentThread, type DiffCommentApi, cs } from "../comments";
 import { topSeverity, type DiffFindingApi, type DiffFindingItem } from "../findings";
 import { SEVERITY_LABEL_KEY } from "../constants";
 import { type Line } from "../helpers";
-import { s, lineRowFor, lineSignFor, findingLabelFor } from "../styles";
+import { s, lineRowFor, lineSignFor, findingBadgeFor } from "../styles";
 import { CommentThreadView } from "../CommentThreadView";
 import { InlineComposer } from "../InlineComposer";
 
@@ -30,6 +31,9 @@ export function CodeLine<T extends DiffFindingItem>({
   const t = useTranslations("shell");
   const [hover, setHover] = React.useState(false);
   const [composing, setComposing] = React.useState(false);
+  // The line's severity badge collapses/expands its finding cards (the global
+  // comments/findings toggle still hides every card).
+  const [cardsOpen, setCardsOpen] = React.useState(true);
 
   if (ln.kind === "hunk") {
     return (
@@ -44,6 +48,8 @@ export function CodeLine<T extends DiffFindingItem>({
   const showAdd = hover && !!target && !composing;
   const lineFindings = findings ?? [];
   const sev = topSeverity(lineFindings);
+  const cardsShown = !!findingApi?.show && lineFindings.length > 0;
+  const SevIcon = sev ? Icon[SEV[sev].icon] : null;
 
   return (
     <div
@@ -72,7 +78,24 @@ export function CodeLine<T extends DiffFindingItem>({
         <span className="mono" style={s.lineText}>
           {ln.text || " "}
         </span>
-        {sev && <span style={findingLabelFor(sev)}>{t(SEVERITY_LABEL_KEY[sev])}</span>}
+        {sev && SevIcon &&
+          (cardsShown ? (
+            <button
+              type="button"
+              aria-expanded={cardsOpen}
+              title={t(cardsOpen ? "diffViewer.hideFinding" : "diffViewer.showFinding")}
+              onClick={() => setCardsOpen((o) => !o)}
+              style={findingBadgeFor(sev, true)}
+            >
+              <SevIcon size={12} aria-hidden />
+              {t(SEVERITY_LABEL_KEY[sev])}
+            </button>
+          ) : (
+            <span style={findingBadgeFor(sev, false)}>
+              <SevIcon size={12} aria-hidden />
+              {t(SEVERITY_LABEL_KEY[sev])}
+            </span>
+          ))}
       </div>
 
       {commenting &&
@@ -81,7 +104,7 @@ export function CodeLine<T extends DiffFindingItem>({
           <CommentThreadView key={th.rootId} thread={th} commenting={commenting} path={path} />
         ))}
 
-      {findingApi && findingApi.show && lineFindings.length > 0 && (
+      {findingApi && cardsShown && cardsOpen && (
         <div style={cs.thread}>{lineFindings.map((item) => <React.Fragment key={item.id}>{findingApi.renderCard(item)}</React.Fragment>)}</div>
       )}
 

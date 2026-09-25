@@ -16,7 +16,7 @@ import { COLUMN_KEYS, SKELETON_ROWS } from "../../constants";
 import { s } from "../../styles";
 import { PRRow } from "../PRRow";
 import { FilterBar } from "../FilterBar";
-import { countPulls, filterPulls, pullsHref, type PullsSearch } from "./helpers";
+import { countPulls, filterPulls, pullsHref, statusCounts, type PullsSearch } from "./helpers";
 import type { PullsSort } from "./constants";
 
 export function PullsView({ repoId, status, sort }: { repoId: string } & PullsSearch) {
@@ -37,6 +37,7 @@ export function PullsView({ repoId, status, sort }: { repoId: string } & PullsSe
     [pulls, status, sort, query],
   );
   const counts = countPulls(pulls ?? []);
+  const chipCounts = React.useMemo(() => (pulls ? statusCounts(pulls) : undefined), [pulls]);
   const crumb = [{ label: activeRepo?.full_name ?? repoId, mono: true }, { label: t("list.breadcrumb") }];
 
   // Stale/unknown :repoId → friendly empty state instead of a 404 error.
@@ -65,6 +66,7 @@ export function PullsView({ repoId, status, sort }: { repoId: string } & PullsSe
       <div style={s.tableCard}>
         <FilterBar
           active={status}
+          counts={chipCounts}
           onActive={(next) => navigate({ status: next })}
           query={query}
           onQuery={setQuery}

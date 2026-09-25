@@ -34,10 +34,9 @@
         "button",
         "click",
         "--name",
-        "All",
-        "--exact"
+        "All ·"
       ],
-      "label": "PR list: show All (the reviewed PR is hidden by the default 'Needs review' filter)"
+      "label": "PR list: show All (chip reads 'All · N'; the reviewed PR is hidden by the default 'Needs review' filter)"
     },
     {
       "cmd": [

@@ -8,6 +8,7 @@
 #   insight.sh add <module> <section> "<text>" [--evidence <file:line>] [--force]
 #   insight.sh check <module> "<text>"                → exit 2 if a similar entry exists
 #   insight.sh list <module> [section]
+#   insight.sh evidence <module> <line-number> "<file:line-or-symbol>"  → add Evidence to an entry lacking it
 #   insight.sh sections
 #
 # modules:  server | client | reviewer-core | e2e
@@ -121,6 +122,28 @@ cmd_add() {
   echo "added to $file under $heading"
 }
 
+# Append `Evidence:` to ONE existing entry that has none. Append-only in spirit:
+# the entry text is never rewritten, only its evidence suffix is added. Used to
+# backfill early entries so every line carries a date AND a file:line/symbol.
+cmd_evidence() {
+  local module="$1" lineno="$2" evidence="$3"
+  local file; file="$(file_for "$module")"
+  [ -f "$file" ] || { echo "missing $file" >&2; exit 1; }
+  local line; line="$(sed -n "${lineno}p" "$file")"
+  case "$line" in
+    "- ["*) ;;
+    *) echo "line $lineno of $file is not an entry" >&2; exit 2 ;;
+  esac
+  case "$line" in
+    *"Evidence:"*) echo "line $lineno already has evidence" >&2; exit 2 ;;
+  esac
+  local suffix=" Evidence: \`$evidence\`."
+  local tmp; tmp="$(mktemp)"
+  awk -v n="$lineno" -v sfx="$suffix" 'NR == n { sub(/[[:space:]]+$/, ""); $0 = $0 sfx } { print }' "$file" > "$tmp"
+  mv "$tmp" "$file"
+  echo "evidence added to $file:$lineno"
+}
+
 cmd_list() {
   local file; file="$(file_for "$1")"
   if [ $# -ge 2 ]; then
@@ -136,6 +159,7 @@ case "${1:-}" in
   add)      [ $# -ge 4 ] || { echo "usage: insight.sh add <module> <section> \"<text>\" [--evidence <file:line>] [--force]" >&2; exit 2; }; shift; cmd_add "$@" ;;
   check)    [ $# -eq 3 ] || { echo "usage: insight.sh check <module> \"<text>\"" >&2; exit 2; }; cmd_check "$2" "$3" ;;
   list)     [ $# -ge 2 ] || { echo "usage: insight.sh list <module> [section]" >&2; exit 2; }; shift; cmd_list "$@" ;;
+  evidence) [ $# -eq 4 ] || { echo "usage: insight.sh evidence <module> <line-number> \"<file:line-or-symbol>\"" >&2; exit 2; }; cmd_evidence "$2" "$3" "$4" ;;
   sections) printf '%s\n' works doesnt patterns tools errors session questions ;;
   *) sed -n '3,16p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac

@@ -14,17 +14,17 @@ see it, do not write it.
 ## What Doesn't Work
 
 - [2026-09-25] Running `npm test` against a dev DB that has more than the seeded repo. Flows 02, 04, 05 follow the home redirect to the first repo and land on the wrong one. Use `npm run e2e:hermetic`. Evidence: `e2e/specs/02-repo-pulls-detail.flow.json:6`.
-- [2026-09-25] Resetting the dev DB with `docker compose down -v`. It deletes the volume with every imported repo and review.
+- [2026-09-25] Resetting the dev DB with `docker compose down -v`. It deletes the volume with every imported repo and review. Evidence: `docker-compose.yml`.
 
 ## Codebase Patterns
 
 - [2026-09-25] `wait --url` and `wait --text` are the assertions: agent-browser exits non-zero on timeout and the runner fails the step on any non-zero exit. Evidence: `e2e/run.ts:43`.
-- [2026-09-25] `specs/` holds flow JSON, not feature specs; it is the one package without a `specs/README.md` placeholder.
-- [2026-09-25] Only deterministic locators (`--url`, `--text`, `find role|text|label`); the AI `chat` command is never used, so runs need no key.
+- [2026-09-25] `specs/` holds flow JSON, not feature specs; it is the one package without a `specs/README.md` placeholder. Evidence: `e2e/specs/`.
+- [2026-09-25] Only deterministic locators (`--url`, `--text`, `find role|text|label`); the AI `chat` command is never used, so runs need no key. Evidence: `e2e/run.ts:resolveArgs`.
 
 ## Tool & Library Notes
 
-- [2026-09-25] This package uses npm (`package-lock.json`), not pnpm. `agent-browser` is a global CLI, installed once with `npm i -g agent-browser && agent-browser install`.
+- [2026-09-25] This package uses npm (`package-lock.json`), not pnpm. `agent-browser` is a global CLI, installed once with `npm i -g agent-browser && agent-browser install`. Evidence: `e2e/package.json`.
 
 ## Recurring Errors & Fixes
 
@@ -32,8 +32,9 @@ _None yet._
 
 ## Session Notes
 
-- [2026-09-25] Initial capture from a read-through of the runner and flows. No code changed.
+- [2026-09-25] Initial capture from a read-through of the runner and flows. No code changed. Evidence: `e2e/CLAUDE.md`.
 - [2026-09-25] Added 08-run-cost flow; full hermetic run 8/8 green after the seed gained a completed priced run (flow 04's '2 findings' text now matches twice, which wait --text tolerates). Evidence: `e2e/README.md:coverage table`.
+- [2026-09-25] HW1 criteria pass: added 09-findings-severity (pills, Accept/Reject, Warning filter round-trip); hermetic run 9/9 green; docs/runner.md + specs/flows.md written by a subagent and extended for flow 09. Evidence: `e2e/specs/09-findings-severity.flow.json`.
 
 ## Open Questions
 

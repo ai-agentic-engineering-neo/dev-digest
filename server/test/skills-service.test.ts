@@ -8,6 +8,7 @@ import { SkillsService } from '../src/modules/skills/service.js';
 import type {
   CreateSkillInput,
   SkillDto,
+  SkillVersionDto,
   SkillsRepositoryPort,
   UpdateSkillInput,
 } from '../src/modules/skills/ports.js';
@@ -15,6 +16,17 @@ import type {
 class InMemorySkillsRepo implements SkillsRepositoryPort {
   rows: Array<SkillDto & { ws: string }> = [];
   versions: Array<{ id: string; version: number; body: string }> = [];
+
+  async listVersions(workspaceId: string, id: string): Promise<SkillVersionDto[]> {
+    if (!(await this.getById(workspaceId, id))) return [];
+    return this.versions
+      .filter((v) => v.id === id)
+      .sort((a, b) => b.version - a.version)
+      .map((v) => ({ skill_id: id, version: v.version, body: v.body, created_at: new Date(0).toISOString() }));
+  }
+  async getVersion(workspaceId: string, id: string, version: number) {
+    return (await this.listVersions(workspaceId, id)).find((v) => v.version === version);
+  }
 
   async list(workspaceId: string) {
     return this.rows.filter((r) => r.ws === workspaceId);
@@ -31,6 +43,7 @@ class InMemorySkillsRepo implements SkillsRepositoryPort {
       id: `sk-${this.rows.length + 1}`,
       version: 1,
       evidence_files: null,
+      agent_count: 0,
       ...input,
       source: input.source ?? ('manual' as const),
       enabled: input.enabled ?? true,
@@ -127,6 +140,26 @@ describe('SkillsService', () => {
     expect(imported).toMatchObject({ source: 'imported_file', enabled: false });
     const manual = await svc.create(WS, { ...input, name: 'manual-one', enabled: true });
     expect(manual.enabled).toBe(true);
+  });
+
+  it('versions: history newest first, diff against current, restore appends a new version', async () => {
+    const repo = new InMemorySkillsRepo();
+    const svc = new SkillsService({ repo });
+    const created = await svc.create(WS, input);
+    await svc.update(WS, created.id, { body: 'Check nulls.\nAnd undefined.' });
+    const versions = await svc.listVersions(WS, created.id);
+    expect(versions.map((v) => v.version)).toEqual([2, 1]);
+
+    const diff = await svc.diffVersion(WS, created.id, 1);
+    expect(diff).toMatchObject({ from_version: 1, to_version: 2, additions: 1, deletions: 0 });
+    expect(diff.patch).toContain('+And undefined.');
+
+    const restored = await svc.restoreVersion(WS, created.id, 1);
+    expect(restored).toMatchObject({ version: 3, body: 'Check nulls.' });
+    expect((await svc.listVersions(WS, created.id)).map((v) => v.version)).toEqual([3, 2, 1]);
+    // restoring the current body changes nothing
+    expect((await svc.restoreVersion(WS, created.id, 3)).version).toBe(3);
+    await expect(svc.diffVersion(WS, created.id, 9)).rejects.toMatchObject({ statusCode: 404 });
   });
 
   it('rejects an oversized body with a 422 AppError', async () => {

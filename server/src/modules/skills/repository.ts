@@ -5,15 +5,28 @@
  * `SkillsRepositoryPort`, maps rows to DTOs before they leave, scopes every
  * query by `workspaceId`, and owns the transaction for the versioned writes.
  */
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, sql } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
+import { ConflictError } from '../../platform/errors.js';
+
+/** Postgres unique_violation on `skills_ws_name_uidx` (a concurrent create won the race). */
+const isNameClash = (err: unknown): boolean =>
+  typeof err === 'object' && err !== null && (err as { code?: string }).code === '23505' &&
+  String((err as { constraint_name?: string }).constraint_name ?? '').includes('skills_ws_name');
 import { INITIAL_SKILL_VERSION } from './constants.js';
-import type { CreateSkillInput, SkillDto, SkillsRepositoryPort, UpdateSkillInput } from './ports.js';
+import type {
+  CreateSkillInput,
+  SkillDto,
+  SkillVersionDto,
+  SkillsRepositoryPort,
+  UpdateSkillInput,
+} from './ports.js';
 
 type SkillRow = typeof t.skills.$inferSelect;
+type SkillVersionRow = typeof t.skillVersions.$inferSelect;
 
-const toDto = (row: SkillRow): SkillDto => ({
+const toDto = (row: SkillRow, agentCount = 0): SkillDto => ({
   id: row.id,
   name: row.name,
   description: row.description,
@@ -23,10 +36,29 @@ const toDto = (row: SkillRow): SkillDto => ({
   enabled: row.enabled,
   version: row.version,
   evidence_files: row.evidenceFiles ?? null,
+  agent_count: agentCount,
+});
+
+const toVersionDto = (row: SkillVersionRow): SkillVersionDto => ({
+  skill_id: row.skillId,
+  version: row.version,
+  body: row.body,
+  created_at: row.createdAt.toISOString(),
 });
 
 export class SkillsRepository implements SkillsRepositoryPort {
   constructor(private readonly db: Db) {}
+
+  /** `skill_id → number of agents linking it`, one grouped query. */
+  private async agentCounts(skillIds: string[]): Promise<Map<string, number>> {
+    if (skillIds.length === 0) return new Map();
+    const rows = await this.db
+      .select({ skillId: t.agentSkills.skillId, n: count() })
+      .from(t.agentSkills)
+      .where(sql`${t.agentSkills.skillId} in ${skillIds}`)
+      .groupBy(t.agentSkills.skillId);
+    return new Map(rows.map((r) => [r.skillId, Number(r.n)]));
+  }
 
   async list(workspaceId: string): Promise<SkillDto[]> {
     const rows = await this.db
@@ -34,7 +66,8 @@ export class SkillsRepository implements SkillsRepositoryPort {
       .from(t.skills)
       .where(eq(t.skills.workspaceId, workspaceId))
       .orderBy(asc(t.skills.name));
-    return rows.map(toDto);
+    const counts = await this.agentCounts(rows.map((r) => r.id));
+    return rows.map((r) => toDto(r, counts.get(r.id) ?? 0));
   }
 
   async getById(workspaceId: string, id: string): Promise<SkillDto | undefined> {
@@ -42,7 +75,30 @@ export class SkillsRepository implements SkillsRepositoryPort {
       .select()
       .from(t.skills)
       .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.id, id)));
-    return row ? toDto(row) : undefined;
+    if (!row) return undefined;
+    const counts = await this.agentCounts([row.id]);
+    return toDto(row, counts.get(row.id) ?? 0);
+  }
+
+  async listVersions(workspaceId: string, id: string): Promise<SkillVersionDto[]> {
+    const rows = await this.db
+      .select({ v: t.skillVersions })
+      .from(t.skillVersions)
+      .innerJoin(t.skills, eq(t.skillVersions.skillId, t.skills.id))
+      .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.id, id)))
+      .orderBy(desc(t.skillVersions.version));
+    return rows.map((r) => toVersionDto(r.v));
+  }
+
+  async getVersion(workspaceId: string, id: string, version: number): Promise<SkillVersionDto | undefined> {
+    const [row] = await this.db
+      .select({ v: t.skillVersions })
+      .from(t.skillVersions)
+      .innerJoin(t.skills, eq(t.skillVersions.skillId, t.skills.id))
+      .where(
+        and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.id, id), eq(t.skillVersions.version, version)),
+      );
+    return row ? toVersionDto(row.v) : undefined;
   }
 
   async findByName(workspaceId: string, name: string): Promise<SkillDto | undefined> {
@@ -50,10 +106,21 @@ export class SkillsRepository implements SkillsRepositoryPort {
       .select()
       .from(t.skills)
       .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.name, name)));
-    return row ? toDto(row) : undefined;
+    if (!row) return undefined;
+    const counts = await this.agentCounts([row.id]);
+    return toDto(row, counts.get(row.id) ?? 0);
   }
 
   async create(workspaceId: string, input: CreateSkillInput): Promise<SkillDto> {
+    try {
+      return await this.createInTx(workspaceId, input);
+    } catch (err) {
+      if (isNameClash(err)) throw new ConflictError(`A skill named "${input.name}" already exists`, { name: input.name });
+      throw err;
+    }
+  }
+
+  private async createInTx(workspaceId: string, input: CreateSkillInput): Promise<SkillDto> {
     return this.db.transaction(async (tx) => {
       const [row] = await tx
         .insert(t.skills)
@@ -101,7 +168,11 @@ export class SkillsRepository implements SkillsRepositoryPort {
           .values({ skillId: row.id, version: row.version, body: row.body })
           .onConflictDoNothing();
       }
-      return toDto(row);
+      const [n] = await tx
+        .select({ n: count() })
+        .from(t.agentSkills)
+        .where(eq(t.agentSkills.skillId, row.id));
+      return toDto(row, Number(n?.n ?? 0));
     });
   }
 

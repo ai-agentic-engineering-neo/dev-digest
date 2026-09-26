@@ -130,8 +130,32 @@ export const Skill = z.object({
   enabled: z.boolean(),
   version: z.number().int(),
   evidence_files: z.array(z.string()).nullish(),
+  // Number of agents linking this skill (read model, from `agent_skills`).
+  agent_count: z.number().int().default(0),
 });
 export type Skill = z.infer<typeof Skill>;
+
+// One immutable body snapshot from `skill_versions`; every body edit and every
+// restore appends one. `GET /skills/:id/versions` lists them newest first.
+export const SkillVersion = z.object({
+  skill_id: z.string(),
+  version: z.number().int(),
+  body: z.string(),
+  created_at: z.string(),
+});
+export type SkillVersion = z.infer<typeof SkillVersion>;
+
+// `GET /skills/:id/versions/:version/diff`: unified diff from that version to
+// the current body, produced server-side so every client renders the same hunks.
+export const SkillVersionDiff = z.object({
+  skill_id: z.string(),
+  from_version: z.number().int(),
+  to_version: z.number().int(),
+  patch: z.string(),
+  additions: z.number().int(),
+  deletions: z.number().int(),
+});
+export type SkillVersionDiff = z.infer<typeof SkillVersionDiff>;
 
 // What `POST /skills/import/preview` returns: the parsed core of an uploaded
 // .md/.zip plus the archive entries that were listed but never opened. Nothing
@@ -156,16 +180,81 @@ export const CommunitySkill = z.object({
 });
 export type CommunitySkill = z.infer<typeof CommunitySkill>;
 
-// ---- Conventions ----
+// ---- Conventions (HW2 extractor) ----
+export const ConventionCategory = z.enum([
+  'naming', 'structure', 'imports', 'async', 'error-handling', 'api', 'testing', 'style', 'security', 'other',
+]);
+export type ConventionCategory = z.infer<typeof ConventionCategory>;
+
+export const ConventionStatus = z.enum(['candidate', 'accepted', 'rejected']);
+export type ConventionStatus = z.infer<typeof ConventionStatus>;
+
+// A candidate as stored after evidence verification: the model's
+// {category, rule, evidence file+line, confidence} plus the user's decision.
 export const ConventionCandidate = z.object({
   id: z.string(),
+  repo_id: z.string(),
+  scan_id: z.string().nullable(),
+  category: ConventionCategory,
   rule: z.string(),
   evidence_path: z.string(),
+  evidence_line: z.number().int(),
   evidence_snippet: z.string(),
   confidence: z.number().min(0).max(1),
-  accepted: z.boolean(),
+  status: ConventionStatus,
+  updated_at: z.string(),
 });
 export type ConventionCandidate = z.infer<typeof ConventionCandidate>;
+
+export const ConventionScan = z.object({
+  id: z.string(),
+  repo_id: z.string(),
+  status: z.enum(['running', 'done', 'failed']),
+  provider: z.string().nullable(),
+  model: z.string().nullable(),
+  sample_count: z.number().int(),
+  candidates_found: z.number().int(),
+  candidates_kept: z.number().int(),
+  error: z.string().nullable(),
+  started_at: z.string(),
+  finished_at: z.string().nullable(),
+});
+export type ConventionScan = z.infer<typeof ConventionScan>;
+
+// `GET /repos/:id/conventions`: the latest scan (or null) and every candidate of the repo.
+export const ConventionsView = z.object({
+  scan: ConventionScan.nullable(),
+  candidates: z.array(ConventionCandidate),
+});
+export type ConventionsView = z.infer<typeof ConventionsView>;
+
+// `GET /repos/:id/conventions/skill-draft`: the skill the accepted candidates
+// would become, fully editable in the Create-skill modal before saving.
+export const ConventionSkillDraft = z.object({
+  name: z.string(),
+  description: z.string(),
+  type: SkillType,
+  body: z.string(),
+  accepted_count: z.number().int(),
+  /** Existing skill with that name in the workspace (a save updates it as a new version). */
+  existing_skill_id: z.string().nullable(),
+});
+export type ConventionSkillDraft = z.infer<typeof ConventionSkillDraft>;
+
+// What the LLM returns for one extraction call; verified before storage.
+export const ConventionExtraction = z.object({
+  candidates: z.array(
+    z.object({
+      category: ConventionCategory.describe('The area of the codebase the rule governs'),
+      rule: z.string().min(8).describe('One directive sentence a reviewer can enforce, e.g. "Always use async/await instead of .then() chains"'),
+      evidence_path: z.string().describe('Repo-relative path of ONE sample file that shows the rule being followed'),
+      evidence_line: z.number().int().positive().describe('1-based line in that file where the rule is visible'),
+      evidence_snippet: z.string().min(1).describe('The exact text of that line (or up to 3 lines starting there), copied verbatim'),
+      confidence: z.number().min(0).max(1).describe('How consistently the samples follow the rule'),
+    }),
+  ),
+});
+export type ConventionExtraction = z.infer<typeof ConventionExtraction>;
 
 // ---- Agents ----
 // 'openrouter' routes through the OpenAI-compatible API (OpenAIProvider with a

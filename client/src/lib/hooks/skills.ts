@@ -4,7 +4,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
-import type { AgentSkillLink, Skill, SkillImportPreview, SkillType } from "@devdigest/shared";
+import type { AgentSkillLink, Skill, SkillImportPreview, SkillType, SkillVersion, SkillVersionDiff } from "@devdigest/shared";
 
 export function useSkills() {
   return useQuery({
@@ -54,6 +54,8 @@ export function useUpdateSkill() {
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["skills"] });
       qc.setQueryData(["skill", data.id], data);
+      qc.invalidateQueries({ queryKey: ["skill-versions", data.id] });
+      qc.invalidateQueries({ queryKey: ["skill-version-diff", data.id] });
     },
   });
 }
@@ -65,6 +67,7 @@ export function useDeleteSkill() {
     onSuccess: (_d, id) => {
       qc.invalidateQueries({ queryKey: ["skills"] });
       qc.removeQueries({ queryKey: ["skill", id] });
+      qc.removeQueries({ queryKey: ["skill-versions", id] });
       // Links cascade server-side: agent skill counts and tabs must refetch.
       qc.invalidateQueries({ queryKey: ["agents"] });
       qc.invalidateQueries({ queryKey: ["agent-skills"] });
@@ -115,6 +118,39 @@ export function useSetAgentSkills() {
       qc.setQueryData(["agent-skills", agentId], links);
       qc.invalidateQueries({ queryKey: ["agents"] });
       qc.invalidateQueries({ queryKey: ["agent", agentId] });
+    },
+  });
+}
+
+/** Body history of a skill, newest first (`GET /skills/:id/versions`). */
+export function useSkillVersions(id: string | null | undefined) {
+  return useQuery({
+    queryKey: ["skill-versions", id],
+    queryFn: () => api.get<SkillVersion[]>(`/skills/${id}/versions`),
+    enabled: !!id,
+  });
+}
+
+/** Unified diff from one version to the current body; fetched only when `version` is set. */
+export function useSkillVersionDiff(id: string | null | undefined, version: number | null) {
+  return useQuery({
+    queryKey: ["skill-version-diff", id, version],
+    queryFn: () => api.get<SkillVersionDiff>(`/skills/${id}/versions/${version}/diff`),
+    enabled: !!id && version != null,
+  });
+}
+
+/** Restore: the chosen version's body becomes a new current version. */
+export function useRestoreSkillVersion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, version }: { id: string; version: number }) =>
+      api.post<Skill>(`/skills/${id}/versions/${version}/restore`),
+    onSuccess: (data) => {
+      qc.setQueryData(["skill", data.id], data);
+      qc.invalidateQueries({ queryKey: ["skills"] });
+      qc.invalidateQueries({ queryKey: ["skill-versions", data.id] });
+      qc.invalidateQueries({ queryKey: ["skill-version-diff", data.id] });
     },
   });
 }

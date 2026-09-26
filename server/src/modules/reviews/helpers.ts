@@ -100,5 +100,28 @@ export function taskLine(pull: PullRow): string {
 export function renderSkillsForPrompt(
   skills: ReadonlyArray<{ name: string; body: string; enabled: boolean }>,
 ): string[] {
-  return skills.filter((s) => s.enabled).map((s) => `### ${s.name}\n\n${s.body.trim()}`);
+  return skills.filter((s) => s.enabled).map((s) => renderSkill(s));
+}
+
+/** One skill as it appears in the prompt: a `### <name>` heading over the trimmed body. */
+export function renderSkill(skill: { name: string; body: string }): string {
+  return `### ${skill.name}\n\n${skill.body.trim()}`;
+}
+
+/**
+ * Per-skill trace blocks for the enabled, linked skills in link order, each
+ * with its token count from `count` (the server tokenizer). The prompt slot is
+ * the block texts joined; the trace keeps them apart so the drawer can show one
+ * block per skill (and none for a disabled one) plus the block's weight.
+ */
+export function skillBlocksForTrace(
+  skills: ReadonlyArray<{ name: string; version: number; body: string; enabled: boolean }>,
+  count: (text: string) => number,
+): Array<{ name: string; version: number; tokens: number; text: string }> {
+  return skills
+    .filter((s) => s.enabled)
+    .map((s) => {
+      const text = renderSkill(s);
+      return { name: s.name, version: s.version, tokens: count(text), text };
+    });
 }

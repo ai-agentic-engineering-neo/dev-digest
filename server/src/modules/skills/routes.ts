@@ -7,6 +7,9 @@
  *   PUT    /skills/:id      → update metadata and/or body (body change = new version)
  *   DELETE /skills/:id      → delete (agent links cascade)
  *   POST   /skills/import/preview → parse an uploaded .md/.zip into a preview (nothing saved)
+ *   GET    /skills/:id/versions                  → body history, newest first
+ *   GET    /skills/:id/versions/:version/diff    → unified diff from that version to the current body
+ *   POST   /skills/:id/versions/:version/restore → that body becomes a new current version
  *
  * Validation is the Zod route schema; every handler resolves `getContext`
  * first and then calls the service. No Drizzle, no repository import.
@@ -16,21 +19,11 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
-import {
-  CREATABLE_SKILL_SOURCES,
-  MAX_BODY_CHARS,
-  MAX_IMPORT_BYTES,
-  MAX_NAME_CHARS,
-  SKILL_NAME_PATTERN,
-  SKILL_TYPES,
-} from './constants.js';
+import { SkillNameSchema } from '../_shared/skill-limits.js';
+import { CREATABLE_SKILL_SOURCES, MAX_BODY_CHARS, MAX_IMPORT_BYTES, SKILL_TYPES } from './constants.js';
 import { SkillsService } from './service.js';
 
-const SkillName = z
-  .string()
-  .min(1)
-  .max(MAX_NAME_CHARS)
-  .regex(SKILL_NAME_PATTERN, 'Skill name must be a kebab-case slug, e.g. pr-quality-rubric');
+const SkillName = SkillNameSchema;
 
 const CreateSkillBody = z.object({
   name: SkillName,
@@ -47,6 +40,12 @@ const ImportPreviewBody = z.object({
   content_base64: z.string().min(1).base64(),
 });
 const IMPORT_BODY_LIMIT = Math.ceil(MAX_IMPORT_BYTES * 1.4) + 1024;
+
+/** `/skills/:id/versions/:version` — id is a uuid, version a positive integer. */
+const VersionParams = z.object({
+  id: z.string().uuid(),
+  version: z.coerce.number().int().positive(),
+});
 
 const UpdateSkillBody = z.object({
   name: SkillName.optional(),
@@ -90,6 +89,21 @@ export default async function skillsRoutes(appBase: FastifyInstance) {
       return service.previewImport(req.body.filename, req.body.content_base64);
     },
   );
+
+  app.get('/skills/:id/versions', { schema: { params: IdParams } }, async (req) => {
+    const { workspaceId } = await getContext(app.container, req);
+    return service.listVersions(workspaceId, req.params.id);
+  });
+
+  app.get('/skills/:id/versions/:version/diff', { schema: { params: VersionParams } }, async (req) => {
+    const { workspaceId } = await getContext(app.container, req);
+    return service.diffVersion(workspaceId, req.params.id, req.params.version);
+  });
+
+  app.post('/skills/:id/versions/:version/restore', { schema: { params: VersionParams } }, async (req) => {
+    const { workspaceId } = await getContext(app.container, req);
+    return service.restoreVersion(workspaceId, req.params.id, req.params.version);
+  });
 
   app.delete('/skills/:id', { schema: { params: IdParams } }, async (req) => {
     const { workspaceId } = await getContext(app.container, req);

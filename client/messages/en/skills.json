@@ -43,7 +43,10 @@
       "imported_url": "imported",
       "extracted": "extracted",
       "community": "community"
-    }
+    },
+    "agentCount": "{count, plural, =1 {1 agent} other {# agents}}",
+    "delete": "Delete",
+    "deleteTitle": "Delete skill"
   },
   "panel": {
     "close": "Close preview",
@@ -62,7 +65,8 @@
     },
     "savedToast": "Skill saved (v{version})",
     "deletedToast": "Skill deleted",
-    "importedNotice": "Imported from a file. Read the body before enabling: a foreign skill is foreign instructions in your agent's prompt."
+    "importedNotice": "Imported from a file. Read the body before enabling: a foreign skill is foreign instructions in your agent's prompt.",
+    "open": "Open editor"
   },
   "form": {
     "name": "Name",
@@ -103,5 +107,49 @@
     "confirm": "Import skill",
     "importing": "Importing…",
     "success": "Imported \"{name}\""
+  },
+  "confirm": {
+    "title": "Delete skill \"{name}\"?",
+    "body": "Agents that link it lose the rule at their next run. Its version history is deleted too. This cannot be undone.",
+    "confirm": "Delete skill",
+    "cancel": "Cancel"
+  },
+  "editor": {
+    "crumb": "Skill",
+    "back": "All skills",
+    "tabs": {
+      "config": "Config",
+      "preview": "Preview",
+      "versioning": "Versioning"
+    },
+    "config": {
+      "title": "Configuration",
+      "save": "Save skill",
+      "saving": "Saving…",
+      "saved": "Saved (v{version})",
+      "delete": "Delete skill"
+    },
+    "preview": {
+      "title": "Preview",
+      "hint": "How the body reads once it is appended to an agent's prompt under \"## Skills / rules\"."
+    },
+    "versioning": {
+      "title": "Versions",
+      "hint": "Every body edit and every restore appends a version. Diff compares a version with the current body; Restore makes that body current again as a new version.",
+      "current": "current",
+      "version": "v{version}",
+      "diff": "Diff",
+      "hideDiff": "Hide diff",
+      "restore": "Restore",
+      "restoring": "Restoring…",
+      "restoredToast": "Restored v{from} as v{to}",
+      "diffSummary": "{additions} added · {deletions} removed against v{to}",
+      "noChanges": "Identical to the current body.",
+      "confirmTitle": "Restore v{version}?",
+      "confirmBody": "The current body is kept in history as v{current}; the restored text becomes a new version.",
+      "confirm": "Restore",
+      "cancel": "Cancel",
+      "empty": "No versions yet."
+    }
   }
 }

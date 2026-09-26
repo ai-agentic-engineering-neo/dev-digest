@@ -10,7 +10,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), replace: 
 const updateMutate = vi.fn();
 const SKILL: Skill = {
   id: "s1", name: "pr-quality-rubric", description: "Baseline bar.", type: "rubric", source: "imported_file",
-  body: "# Rubric\n\nCite lines.", enabled: false, version: 2, evidence_files: null,
+  body: "# Rubric\n\nCite lines.", enabled: false, version: 2, evidence_files: null, agent_count: 0,
 };
 vi.mock("../../../../lib/hooks/skills", () => ({
   useSkill: () => ({ data: SKILL, isLoading: false, isError: false, refetch: vi.fn() }),

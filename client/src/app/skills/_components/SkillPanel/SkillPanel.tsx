@@ -5,21 +5,13 @@ import React from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Badge, Button, ErrorState, IconBtn, Markdown, SectionLabel, Skeleton } from "@devdigest/ui";
-import type { Skill } from "@devdigest/shared";
 import { useDeleteSkill, useSkill, useUpdateSkill } from "../../../../lib/hooks/skills";
 import { useToast } from "../../../../lib/toast";
 import { SkillTypeTag } from "../../../../components/skill-type-tag";
-import { SkillForm, type SkillFormValue } from "../SkillForm";
+import { ConfirmDialog } from "../../../../components/confirm-dialog";
+import { SkillForm, toSkillFormValue, type SkillFormValue } from "../SkillForm";
 import { needsVetting } from "../../helpers";
 import { s } from "./styles";
-
-const toForm = (sk: Skill): SkillFormValue => ({
-  name: sk.name,
-  description: sk.description,
-  type: sk.type,
-  body: sk.body,
-  enabled: sk.enabled,
-});
 
 export function SkillPanel({ id, onClose }: { id: string; onClose: () => void }) {
   const t = useTranslations("skills");
@@ -32,10 +24,11 @@ export function SkillPanel({ id, onClose }: { id: string; onClose: () => void })
   // panel and drops edit mode without an effect.
   const [editing, setEditing] = React.useState(false);
   const [form, setForm] = React.useState<SkillFormValue | null>(null);
+  const [confirming, setConfirming] = React.useState(false);
 
   const startEdit = () => {
     if (!skill) return;
-    setForm(toForm(skill));
+    setForm(toSkillFormValue(skill));
     setEditing(true);
   };
   const save = () => {
@@ -52,9 +45,9 @@ export function SkillPanel({ id, onClose }: { id: string; onClose: () => void })
   };
   const remove = () => {
     if (!skill) return;
-    if (!window.confirm(t("panel.deleteConfirm", { name: skill.name }))) return;
     del.mutate(skill.id, {
       onSuccess: () => {
+        setConfirming(false);
         toast.success(t("panel.deletedToast"));
         router.replace("/skills");
       },
@@ -76,6 +69,17 @@ export function SkillPanel({ id, onClose }: { id: string; onClose: () => void })
           onRetry={() => refetch()}
         />
       )}
+      {skill && confirming && (
+        <ConfirmDialog
+          title={t("confirm.title", { name: skill.name })}
+          body={t("confirm.body")}
+          confirmLabel={t("confirm.confirm")}
+          cancelLabel={t("confirm.cancel")}
+          pending={del.isPending}
+          onConfirm={remove}
+          onCancel={() => setConfirming(false)}
+        />
+      )}
       {skill && (
         <>
           <div style={s.header}>
@@ -88,6 +92,7 @@ export function SkillPanel({ id, onClose }: { id: string; onClose: () => void })
             <SkillTypeTag type={skill.type} />
             <Badge mono>{t("card.version", { version: skill.version })}</Badge>
             <Badge>{t(`card.source.${skill.source}`)}</Badge>
+            <Badge>{t("card.agentCount", { count: skill.agent_count })}</Badge>
             {needsVetting(skill) && (
               <Badge color="var(--warn)" bg="var(--warn-bg)" icon="AlertTriangle">
                 {t("card.needsVetting")}
@@ -97,10 +102,13 @@ export function SkillPanel({ id, onClose }: { id: string; onClose: () => void })
             <span style={s.spacer} />
             {!editing ? (
               <div style={s.actions}>
+                <Button kind="primary" size="sm" icon="ExternalLink" onClick={() => router.push(`/skills/${skill.id}`)}>
+                  {t("panel.open")}
+                </Button>
                 <Button kind="secondary" size="sm" icon="Edit" onClick={startEdit}>
                   {t("panel.edit")}
                 </Button>
-                <IconBtn icon="Trash" label={t("panel.delete")} danger onClick={remove} />
+                <IconBtn icon="Trash" label={t("panel.delete")} danger onClick={() => setConfirming(true)} />
               </div>
             ) : (
               <div style={s.actions}>

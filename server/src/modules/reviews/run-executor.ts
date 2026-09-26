@@ -6,7 +6,7 @@ import * as schema from '../../db/schema.js';
 import type { AgentRow } from '../../db/rows.js';
 import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './repository.js';
 import { REVIEW_STRATEGY } from './constants.js';
-import { renderSkillsForPrompt, taskLine } from './helpers.js';
+import { skillBlocksForTrace, taskLine } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
 
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
@@ -192,15 +192,19 @@ export class ReviewRunExecutor {
         async () => (await this.agents.linkedSkills(agent.id)).map((l) => l.skill),
         { kind: 'tool' },
       );
-      // One log line per linked skill so the Live Log / trace shows exactly which
-      // rule sets shaped this run — and which were skipped because they are
-      // disabled globally on the Skills page.
-      for (const sk of linked) {
-        if (sk.enabled) runLog.info(`Skill attached: ${sk.name} (v${sk.version}, ${sk.body.length} chars)`, { skill: sk.name });
-        else runLog.info(`Skill skipped (disabled on the Skills page): ${sk.name}`, { skill: sk.name });
-      }
-      const skills = renderSkillsForPrompt(linked);
-      runLog.info(skills.length > 0 ? `${skills.length} skill(s) attached to the prompt` : 'No skills attached to the prompt');
+      // One block per enabled skill (name, version, tokenizer count) for the log
+      // and the trace; a skill disabled on the Skills page gets no block at all,
+      // only a count in the summary line.
+      const skillBlocks = skillBlocksForTrace(linked, (text) => this.container.tokenizer.count(text));
+      for (const b of skillBlocks) runLog.info(`Skill attached: ${b.name} (v${b.version}, ${b.tokens} tokens)`, { skill: b.name, tokens: b.tokens });
+      const skills = skillBlocks.map((b) => b.text);
+      const skillsTokens = skillBlocks.reduce((n, b) => n + b.tokens, 0);
+      const disabledCount = linked.length - skillBlocks.length;
+      runLog.info(
+        skills.length > 0
+          ? `Skills block: ${skills.length} skill(s), ${skillsTokens} tokens${disabledCount > 0 ? ` (${disabledCount} linked skill(s) disabled and left out)` : ''}`
+          : `No skills attached to the prompt${disabledCount > 0 ? ` (${disabledCount} linked skill(s) disabled and left out)` : ''}`,
+      );
 
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
@@ -291,7 +295,10 @@ export class ReviewRunExecutor {
           findings: findingRows.length,
           grounding,
         },
-        prompt_assembly: outcome.assembly,
+        prompt_assembly: {
+          ...outcome.assembly,
+          ...(skillBlocks.length > 0 ? { skills_tokens: skillsTokens, skill_blocks: skillBlocks } : {}),
+        },
         tool_calls: outcome.chunks.map((c) => ({
           tool: 'review_file',
           args: c.label,

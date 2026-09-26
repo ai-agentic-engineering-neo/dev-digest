@@ -44,6 +44,7 @@ import {
   AutoTriggerStatus,
 } from "@devdigest/ui";
 import { RunCostBadge } from "@/components/run-cost-badge";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { s } from "./styles";
 import { SEVERITIES, CATEGORIES, MODEL_OPTIONS } from "./constants";
 
@@ -64,6 +65,7 @@ export function Gallery() {
   const [sel, setSel] = React.useState("gpt-4.1");
   const [drawer, setDrawer] = React.useState(false);
   const [modal, setModal] = React.useState(false);
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
 
   return (
     <div style={s.gallery}>
@@ -106,6 +108,23 @@ export function Gallery() {
         <RunCostBadge variant="full" costUsd={0.0013} tokensIn={8190} tokensOut={929} />
         <RunCostBadge variant="full" costUsd={null} tokensIn={100} tokensOut={50} />
         <RunCostBadge variant="compact" costUsd={0} />
+      </Group>
+
+      <Group title="Confirm dialog (destructive action)">
+        {confirmOpen ? (
+          <ConfirmDialog
+            title='Delete skill "pr-quality-rubric"?'
+            body="Agents that link it lose the rule at their next run. This cannot be undone."
+            confirmLabel="Delete skill"
+            cancelLabel="Cancel"
+            onConfirm={() => setConfirmOpen(false)}
+            onCancel={() => setConfirmOpen(false)}
+          />
+        ) : (
+          <Button kind="danger" icon="Trash" onClick={() => setConfirmOpen(true)}>
+            Open confirm dialog
+          </Button>
+        )}
       </Group>
 
       <Group title="Chips, Avatars, Confidence, MonoLink, Kbd">

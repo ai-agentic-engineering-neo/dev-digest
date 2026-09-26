@@ -3,7 +3,7 @@ import type { Skill } from "@devdigest/shared";
 import { filterRows, linkedIds, mergeRows, moveId } from "./helpers";
 
 const sk = (id: string, name: string, type: Skill["type"] = "custom"): Skill => ({
-  id, name, type, description: "", source: "manual", body: "b", enabled: true, version: 1, evidence_files: null,
+  id, name, type, description: "", source: "manual", body: "b", enabled: true, version: 1, evidence_files: null, agent_count: 0,
 });
 const skills = [sk("c", "corner-cases"), sk("a", "api-gate"), sk("b", "breaking-change", "rubric")];
 

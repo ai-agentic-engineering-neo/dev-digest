@@ -11,7 +11,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push, replace: vi.fn() }
 
 const setMutate = vi.fn();
 const sk = (id: string, name: string, extra: Partial<Skill> = {}): Skill => ({
-  id, name, type: "custom", description: "", source: "manual", body: "b", enabled: true, version: 1, evidence_files: null, ...extra,
+  id, name, type: "custom", description: "", source: "manual", body: "b", enabled: true, version: 1, evidence_files: null, agent_count: 0, ...extra,
 });
 const SKILLS = [sk("s1", "pr-quality-rubric", { type: "rubric" }), sk("s2", "no-then-chains", { enabled: false }), sk("s3", "secret-leakage-gate", { type: "security" })];
 const LINKS = [

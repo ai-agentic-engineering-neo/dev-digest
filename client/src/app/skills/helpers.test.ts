@@ -3,7 +3,7 @@ import type { Skill } from "@devdigest/shared";
 import { needsVetting } from "./helpers";
 
 const sk = (extra: Partial<Skill>): Skill => ({
-  id: "s", name: "n", description: "", type: "custom", source: "manual", body: "b", enabled: true, version: 1, evidence_files: null, ...extra,
+  id: "s", name: "n", description: "", type: "custom", source: "manual", body: "b", enabled: true, version: 1, evidence_files: null, agent_count: 0, ...extra,
 });
 
 describe("needsVetting", () => {

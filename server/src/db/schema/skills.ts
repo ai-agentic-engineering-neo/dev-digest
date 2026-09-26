@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, integer, boolean, jsonb, primaryKey } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, integer, boolean, jsonb, primaryKey, uniqueIndex } from 'drizzle-orm/pg-core';
 import { now } from './_shared';
 import { workspaces } from './core';
 
@@ -18,7 +18,10 @@ export const skills = pgTable('skills', {
   version: integer('version').notNull().default(1),
   evidenceFiles: jsonb('evidence_files').$type<string[]>(),
   createdAt: now(),
-});
+}, (t) => ({
+  // Names are the prompt headings and the import/extract lookup key: unique per workspace.
+  wsNameUidx: uniqueIndex('skills_ws_name_uidx').on(t.workspaceId, t.name),
+}));
 
 export const skillVersions = pgTable(
   'skill_versions',

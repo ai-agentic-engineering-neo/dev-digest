@@ -5,8 +5,8 @@ prompt renders under `## Skills / rules`. This file owns the data model, the
 API, versioning, the import parser and the prompt/trace contract. The UI half
 lives in [`client/specs/skills.md`](../../client/specs/skills.md).
 
-Status: **implemented 2026-09-25** (module `modules/skills/`, seed, tests; no
-new migration). Written 2026-09-25.
+Status: **implemented 2026-09-25**, extended 2026-09-26 for HW2 (versions,
+diff, restore, `agent_count`, per-skill trace blocks). No new migration.
 
 ## Data model (already in the schema)
 
@@ -28,7 +28,13 @@ type-only (`drizzle-kit generate` reports no changes).
 | `POST /skills` | `{ name, description?, type, body, enabled?, source? }` | 201 `Skill` (v1 snapshotted); 409 on a duplicate name; 422 on a non-slug name, unknown type, empty or >50 000-char body |
 | `PUT /skills/:id` | any subset of `{ name, description, type, body, enabled }` | `Skill`; a **meaningful** body change (not whitespace-only) bumps `version` and snapshots it; metadata never bumps |
 | `DELETE /skills/:id` | — | `{ ok: true }`; `agent_skills` and `skill_versions` cascade |
-| `POST /skills/import/preview` | `{ filename, content_base64 }` (≤ 5 MB decoded) | `SkillImportPreview` — nothing is saved |
+| `POST /skills/import/preview` | `{ filename, content_base64 }` (≤ 5 MB decoded, base64 validated at the edge) | `SkillImportPreview` — nothing is saved |
+| `GET /skills/:id/versions` | — | `SkillVersion[]` newest first (every body edit and restore appends one) |
+| `GET /skills/:id/versions/:version/diff` | — | `SkillVersionDiff { patch, additions, deletions }`: unified diff from that version to the current body (jsdiff, trailing newline normalised) |
+| `POST /skills/:id/versions/:version/restore` | — | that body becomes the current one as a **new** version; restoring the current body is a no-op |
+
+`Skill.agent_count` (HW2 §22) counts the agents linking the skill, computed
+per list/get from `agent_skills`.
 
 Agent side (`modules/agents`, pre-existing routes, new behaviour):
 
@@ -71,14 +77,18 @@ cannot expand beyond the cap in memory.
 
 ## Prompt and trace contract
 
-`ReviewRunExecutor.runOneAgent` loads `agentsRepo.linkedSkills(agent.id)`,
-logs one line per link (`Skill attached: <name> (vN, N chars)` or
-`Skill skipped (disabled on the Skills page): <name>`), renders the enabled
-ones with `renderSkillsForPrompt` (`### <name>` + body, link order) and passes
-them as `skills` to `reviewPullRequest`. `assemblePrompt` places them under
-`## Skills / rules` in the user message, unwrapped (trusted text config), and
-records the block in `prompt_assembly.skills`; with no enabled links the slot
-and the trace field are absent.
+`ReviewRunExecutor.runOneAgent` loads `agentsRepo.linkedSkills(agent.id)` and
+builds one block per **enabled** link (`skillBlocksForTrace`): `### <name>` +
+body, in link order, each counted with the server tokenizer. Per block it
+logs `Skill attached: <name> (vN, T tokens)`; a skill disabled on the Skills
+page gets **no block and no line**, only a count in the summary line
+(`Skills block: N skill(s), T tokens (K linked skill(s) disabled and left
+out)`). The block texts go to `reviewPullRequest` as `skills`; `assemblePrompt`
+places them under `## Skills / rules` in the user message, unwrapped (trusted
+text config). The trace records `prompt_assembly.skills` (the joined block),
+`skills_tokens` (its tokenizer count) and `skill_blocks[]` (`{ name, version,
+tokens, text }`) so the drawer shows the skills block with its weight and one
+sub-block per skill (HW2 §19-20). With no enabled links all three are absent.
 
 ## Seed (`db/seed-skills.ts`)
 

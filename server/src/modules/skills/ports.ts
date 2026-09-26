@@ -6,10 +6,16 @@
  * assembles `SkillsDeps` from the container. Plain types only: no drizzle,
  * no `Db`, no fastify, no `Container`.
  */
-import type { Skill, SkillImportPreview as SharedSkillImportPreview, SkillType } from '@devdigest/shared';
+import type {
+  Skill,
+  SkillImportPreview as SharedSkillImportPreview,
+  SkillType,
+  SkillVersion,
+} from '@devdigest/shared';
 import type { CREATABLE_SKILL_SOURCES } from './constants.js';
 
-export type CreatableSkillSource = (typeof CREATABLE_SKILL_SOURCES)[number];
+/** Sources the HTTP API may set; internal callers (conventions extractor) may also set `extracted`. */
+export type CreatableSkillSource = (typeof CREATABLE_SKILL_SOURCES)[number] | 'extracted';
 
 /** DTO that crosses the port: the shared `Skill` contract, snake_case like the API. */
 export type SkillDto = Skill;
@@ -26,6 +32,9 @@ export interface CreateSkillInput {
 
 /** What the import preview shows before anything is saved: the shared contract. */
 export type SkillImportPreview = SharedSkillImportPreview;
+
+/** One `skill_versions` row: the shared contract. */
+export type SkillVersionDto = SkillVersion;
 
 export interface UpdateSkillInput {
   name?: string;
@@ -54,6 +63,10 @@ export interface SkillsRepositoryPort {
   ): Promise<SkillDto | undefined>;
   /** Delete the skill; agent links and versions cascade. False when absent. */
   delete(workspaceId: string, id: string): Promise<boolean>;
+  /** All body snapshots of a skill, newest first; [] for an unknown skill. */
+  listVersions(workspaceId: string, id: string): Promise<SkillVersionDto[]>;
+  /** One snapshot, or undefined when the skill or that version does not exist. */
+  getVersion(workspaceId: string, id: string, version: number): Promise<SkillVersionDto | undefined>;
 }
 
 /** Everything the service needs, by constructor. Tests pass fakes here. */

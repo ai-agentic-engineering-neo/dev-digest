@@ -9,15 +9,28 @@
  */
 import { ConflictError, NotFoundError, ValidationError } from '../../platform/errors.js';
 import { MAX_BODY_CHARS } from './constants.js';
-import { isMeaningfulChange } from './helpers.js';
+import { diffSkillBodies, isMeaningfulChange } from './helpers.js';
 import { extractSkillFromUpload } from './import.js';
-import type { CreateSkillInput, SkillDto, SkillImportPreview, SkillsDeps, UpdateSkillInput } from './ports.js';
+import type { SkillVersionDiff } from '@devdigest/shared';
+import type {
+  CreateSkillInput,
+  SkillDto,
+  SkillImportPreview,
+  SkillVersionDto,
+  SkillsDeps,
+  UpdateSkillInput,
+} from './ports.js';
 
 export class SkillsService {
   constructor(private readonly deps: SkillsDeps) {}
 
   list(workspaceId: string): Promise<SkillDto[]> {
     return this.deps.repo.list(workspaceId);
+  }
+
+  /** Lookup by name (workspace-scoped); undefined when absent. Used by the conventions extractor. */
+  findByName(workspaceId: string, name: string): Promise<SkillDto | undefined> {
+    return this.deps.repo.findByName(workspaceId, name);
   }
 
   async get(workspaceId: string, id: string): Promise<SkillDto> {
@@ -70,6 +83,31 @@ export class SkillsService {
   previewImport(filename: string, contentBase64: string): SkillImportPreview {
     // The route schema already guarantees well-formed base64.
     return extractSkillFromUpload(filename, new Uint8Array(Buffer.from(contentBase64, 'base64')));
+  }
+
+  /** Body history, newest first (404 for an unknown skill). */
+  async listVersions(workspaceId: string, id: string): Promise<SkillVersionDto[]> {
+    await this.get(workspaceId, id);
+    return this.deps.repo.listVersions(workspaceId, id);
+  }
+
+  /** Unified diff from `version` to the current body. */
+  async diffVersion(workspaceId: string, id: string, version: number): Promise<SkillVersionDiff> {
+    const current = await this.get(workspaceId, id);
+    const from = await this.deps.repo.getVersion(workspaceId, id, version);
+    if (!from) throw new NotFoundError('Skill version not found');
+    const d = diffSkillBodies(current.name, from, current);
+    return { skill_id: id, from_version: version, to_version: current.version, ...d };
+  }
+
+  /**
+   * Restore: the chosen version's body becomes the current body as a NEW
+   * version (history is never rewritten). Restoring the current body is a no-op.
+   */
+  async restoreVersion(workspaceId: string, id: string, version: number): Promise<SkillDto> {
+    const from = await this.deps.repo.getVersion(workspaceId, id, version);
+    if (!from) throw new NotFoundError('Skill version not found');
+    return this.update(workspaceId, id, { body: from.body });
   }
 
   async delete(workspaceId: string, id: string): Promise<void> {

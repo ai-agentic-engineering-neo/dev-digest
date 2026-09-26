@@ -1,7 +1,12 @@
 {
   "card": {
     "noDescription": "No description",
-    "skillCount": "{count} skills"
+    "skillCount": "{count} skills",
+    "delete": "Delete agent",
+    "confirmTitle": "Delete agent \"{name}\"?",
+    "confirmBody": "Its runs keep their history; the agent, its versions and its skill links are removed. This cannot be undone.",
+    "confirm": "Delete agent",
+    "cancel": "Cancel"
   },
   "list": {
     "breadcrumbLab": "Skills Lab",

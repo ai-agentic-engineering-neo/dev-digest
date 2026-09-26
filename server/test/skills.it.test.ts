@@ -73,11 +73,13 @@ d('L02 skills (Testcontainers pg)', () => {
 
   it('seed: every skill present, links per agent in prompt order, skill_count on the agent', async () => {
     const app = await makeApp();
-    const skills = (await app.inject({ method: 'GET', url: '/skills' })).json() as Array<{ id: string; name: string }>;
+    const skills = (await app.inject({ method: 'GET', url: '/skills' })).json() as Array<{ id: string; name: string; agent_count: number }>;
     expect(skills.map((s) => s.name).sort()).toEqual([...SEED_SKILLS.map((s) => s.name)].sort());
 
     const sec = await securityReviewer(app);
     expect(sec.skill_count).toBe(3);
+    // agent_count on the skill side: pr-quality-rubric is linked by Security Reviewer only
+    expect(skills.find((s) => s.name === 'pr-quality-rubric')).toMatchObject({ agent_count: 1 });
     const links = (await app.inject({ method: 'GET', url: `/agents/${sec.id}/skills` })).json() as Array<{
       skill_id: string;
       order: number;
@@ -132,6 +134,16 @@ d('L02 skills (Testcontainers pg)', () => {
       [1, 'Original.'],
       [2, 'Changed.'],
     ]);
+
+    // versions: newest first; diff v1 → current; restore v1 appends v3 with the old body
+    const versionsRes = (await app.inject({ method: 'GET', url: `/skills/${skill.id}/versions` })).json();
+    expect(versionsRes.map((v: { version: number }) => v.version)).toEqual([2, 1]);
+    const diffRes = (await app.inject({ method: 'GET', url: `/skills/${skill.id}/versions/1/diff` })).json();
+    expect(diffRes).toMatchObject({ from_version: 1, to_version: 2, additions: 1, deletions: 1 });
+    expect(diffRes.patch).toContain('-Original.');
+    expect(diffRes.patch).toContain('+Changed.');
+    const restored = (await app.inject({ method: 'POST', url: `/skills/${skill.id}/versions/1/restore` })).json();
+    expect(restored).toMatchObject({ version: 3, body: 'Original.' });
 
     const del = await app.inject({ method: 'DELETE', url: `/skills/${skill.id}` });
     expect(del.statusCode).toBe(200);
@@ -237,6 +249,14 @@ d('L02 skills (Testcontainers pg)', () => {
 
     const trace = (await app.inject({ method: 'GET', url: `/runs/${runId}/trace` })).json();
     const block = trace.prompt_assembly.skills as string;
+    // per-skill trace blocks with tokenizer counts, in link order, disabled one absent
+    expect(trace.prompt_assembly.skill_blocks.map((b: { name: string }) => b.name)).toEqual(['lethal-trifecta', 'pr-quality-rubric']);
+    expect(trace.prompt_assembly.skill_blocks.every((b: { tokens: number }) => b.tokens > 0)).toBe(true);
+    expect(trace.prompt_assembly.skills_tokens).toBe(
+      trace.prompt_assembly.skill_blocks.reduce((n: number, b: { tokens: number }) => n + b.tokens, 0),
+    );
+    expect(trace.log.some((l: { msg: string }) => /Skill attached: lethal-trifecta \(v\d+, \d+ tokens\)/.test(l.msg))).toBe(true);
+    expect(trace.log.some((l: { msg: string }) => l.msg.includes('secret-leakage-gate'))).toBe(false);
     expect(block).toContain('### lethal-trifecta');
     expect(block).toContain('### pr-quality-rubric');
     expect(block).not.toContain('secret-leakage-gate');
@@ -256,6 +276,7 @@ d('L02 skills (Testcontainers pg)', () => {
     await waitForPrRuns(pg.handle.db, pr!.id, { expected: 2 });
     const trace2 = (await app.inject({ method: 'GET', url: `/runs/${res2.json().runs[0].run_id}/trace` })).json();
     expect(trace2.prompt_assembly.skills ?? null).toBeNull();
+    expect(trace2.prompt_assembly.skill_blocks ?? null).toBeNull();
     expect(trace2.prompt_assembly.user).not.toContain('## Skills / rules');
 
     // Restore for any later test.

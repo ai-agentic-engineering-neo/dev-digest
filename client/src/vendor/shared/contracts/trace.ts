@@ -36,9 +36,23 @@ export const ToolCall = z.object({
 });
 export type ToolCall = z.infer<typeof ToolCall>;
 
+// One linked, enabled skill as it went into the prompt: its own block in the
+// trace with a token count from the server tokenizer (L02/HW2 criterion 19-20).
+export const PromptSkillBlock = z.object({
+  name: z.string(),
+  version: z.number().int(),
+  tokens: z.number().int(),
+  text: z.string(),
+});
+export type PromptSkillBlock = z.infer<typeof PromptSkillBlock>;
+
 export const PromptAssembly = z.object({
   system: z.string(),
   skills: z.string().nullish(),
+  /** Tokens of the whole `## Skills / rules` block (tokenizer count); null when absent. */
+  skills_tokens: z.number().int().nullish(),
+  /** Per-skill blocks in prompt order; absent when no enabled skill is linked. */
+  skill_blocks: z.array(PromptSkillBlock).nullish(),
   memory: z.string().nullish(),
   specs: z.string().nullish(),
   /** Callers-of-changed-symbols digest (T1.3); null when absent. */

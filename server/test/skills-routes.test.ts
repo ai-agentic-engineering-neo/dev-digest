@@ -20,6 +20,7 @@ const skill: SkillDto = {
   enabled: true,
   version: 1,
   evidence_files: null,
+  agent_count: 0,
 };
 const fake: SkillsRepositoryPort = {
   list: async () => [skill],
@@ -29,6 +30,10 @@ const fake: SkillsRepositoryPort = {
   update: async (_w, id, patch, opts) =>
     id === skill.id ? { ...skill, ...patch, version: opts.bumpVersion ? 2 : 1 } : undefined,
   delete: async (_w, id) => id === skill.id,
+  listVersions: async (_w, id) =>
+    id === skill.id ? [{ skill_id: id, version: 1, body: 'b', created_at: '1970-01-01T00:00:00.000Z' }] : [],
+  getVersion: async (_w, id, v) =>
+    id === skill.id && v === 1 ? { skill_id: id, version: 1, body: 'b', created_at: '1970-01-01T00:00:00.000Z' } : undefined,
 };
 
 const makeApp = () => buildApp({ config, overrides: { auth: new MockAuthProvider(), skillsRepo: fake } });
@@ -92,6 +97,19 @@ describe('skills routes (no DB)', () => {
       payload: { filename: 'x.md', content_base64: 'not base64!!' },
     });
     expect(notB64.statusCode).toBe(422);
+    await app.close();
+  });
+
+  it('GET /skills/:id/versions and the diff/restore routes go through the port', async () => {
+    const app = await makeApp();
+    const list = await app.inject({ method: 'GET', url: `/skills/${skill.id}/versions` });
+    expect(list.statusCode).toBe(200);
+    expect(list.json()).toHaveLength(1);
+    const diff = await app.inject({ method: 'GET', url: `/skills/${skill.id}/versions/1/diff` });
+    expect(diff.statusCode).toBe(200);
+    expect(diff.json()).toMatchObject({ from_version: 1, to_version: 1, additions: 0, deletions: 0 });
+    const bad = await app.inject({ method: 'GET', url: `/skills/${skill.id}/versions/0/diff` });
+    expect(bad.statusCode).toBe(422);
     await app.close();
   });
 

@@ -3,19 +3,21 @@
 Manage reusable review rules and attach them to agents. Data model and API are
 in [`server/specs/skills.md`](../../server/specs/skills.md).
 
-Status: **implemented 2026-09-25** (`/skills`, `/skills/[id]`, agent editor
-Skills tab, import drawer, sidebar section, unit tests, e2e flow `10-skills`).
-Written 2026-09-25.
+Status: **implemented 2026-09-25**, extended 2026-09-26 for HW2: delete
+buttons with a confirm modal, `agent_count` on cards, the `/skills/:id`
+editor with Config / Preview / Versioning tabs (diff + restore), per-skill
+token blocks in the run trace.
 
 ## Surfaces
 
 | # | Where | Hooks | What |
 |---|---|---|---|
-| 1 | `/skills` (`SkillsView`) | `useSkills`, `useUpdateSkill` | card grid: mono name, type tag, description, `vN · source`, «needs vetting» badge (imported and still disabled), enabled toggle; search; **Add Skill** dropdown → *Create from scratch* (modal) / *Import from file* (drawer) |
-| 2 | `/skills/[id]` | `useSkill`, `useUpdateSkill`, `useDeleteSkill` | same grid with the selected card outlined and `SkillPanel` on the right: badges, description, Markdown body, Edit → `SkillForm` inline, Delete (confirm) |
+| 1 | `/skills` (`SkillsView`) | `useSkills`, `useUpdateSkill`, `useDeleteSkill` | card grid: mono name, type tag, description, `vN · source · N agents`, «needs vetting» badge (imported and still disabled), enabled toggle, **Delete** (icon button → one `ConfirmDialog` owned by the grid, with confirm / cancel / × / Escape); the card's open surface is a real `<button>`; search; **Add Skill** dropdown → *Create from scratch* (modal) / *Import from file* (drawer). Clicking a card sets `?skill=<id>` and opens `SkillPanel` on the right (badges incl. agent count, description, Markdown body, **Open editor**, Edit inline, Delete with the same modal) |
+| 2 | `/skills/[id]` (`SkillEditor`) | `useSkill`, `useUpdateSkill`, `useDeleteSkill`, `useSkillVersions`, `useSkillVersionDiff`, `useRestoreSkillVersion` | full page with badges and `?tab=config\|preview\|versioning`: **Config** = `SkillForm` + Save + Delete (modal); **Preview** = the body rendered as Markdown; **Versioning** = every version newest first with a `current` badge, **Diff** (server unified patch rendered by `PatchView`, with «N added · M removed against vX») and **Restore** (confirm modal, then a new version) on previous versions |
 | 3 | `/agents/[id]?tab=skills` (`SkillsTab`) | `useSkills`, `useAgentSkills`, `useSetAgentSkills` | one row per workspace skill, derived in render from the two queries: drag grip, checkbox (= linked), name, `disabled` badge when disabled globally, type tag, ↑/↓ for linked rows; «N of M enabled» badge; filter; every change saves at once through an optimistic write to the `["agent-skills", id]` cache (rolled back on error) and bumps the agent version |
 | 4 | Sidebar | — | new **SKILLS LAB** section: Skills (`g s`), Agents (`g a`); `nav.ts` in `vendor/ui` was edited for this |
-| 5 | Agent cards | — | «N skills» badge from `Agent.skill_count` |
+| 5 | Agent cards | `useDeleteAgent` | «N skills» badge from `Agent.skill_count`; Delete opens `ConfirmDialog` (no more `window.confirm`) |
+| 6 | Run trace drawer → Prompt assembly | — | the Skills block label carries «N skills · T tokens» (`prompt_assembly.skills_tokens`) and one collapsible sub-block per enabled skill, «↳ Skill · name (vN) · T tokens» (`skill_blocks`); a disabled skill has no block |
 
 `SkillForm` (name, description, type, body, enabled) is shared by the create
 modal, the import drawer and the panel's edit mode. The description field's

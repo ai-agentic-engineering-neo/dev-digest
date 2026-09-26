@@ -71,7 +71,9 @@ case "$TOOL" in
     # and db checks read BARE, so vitest -t 'rolls up costs' is not a dependency
     # change. git state, --frozen-lockfile and the write-path checks read the raw
     # command, where a quoted path still counts.
-    BARE=$(printf '%s' "$CMD" | sed -e "s/'[^']*'//g" -e 's/"[^"]*"//g')
+    # One left-to-right pass: the FIRST quote decides the span's kind, so an
+    # apostrophe inside "isn't" cannot open a '...' span that swallows && sed -i.
+    BARE=$(printf '%s' "$CMD" | sed -E "s/'[^']*'|\"[^\"]*\"//g")
     if matches "$CMD" "${B}git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+(commit|push|reset|rebase|merge|pull|clean|stash|checkout|restore|switch|cherry-pick|revert|am|apply|tag|branch[[:space:]]+-[dDmM])([[:space:]]|$)"; then
       decide deny "git history and working-tree state are not the implementer's to change (no commit, push, reset, checkout, stash...). Leave the diff uncommitted and report."
     fi

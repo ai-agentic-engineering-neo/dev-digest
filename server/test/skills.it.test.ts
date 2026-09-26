@@ -256,6 +256,28 @@ d('skills module', () => {
     expect(liveJson.body).toBe(byVersion.get(3));
   });
 
+  // The bump rule (`isBodyChange`) must be applied to the LOCKED row: decided on
+  // an earlier unlocked read, both PUTs of the same new body see "changed" and
+  // the second snapshots an identical body as a duplicate version.
+  it('two concurrent PUTs of the SAME new body bump the version only once', async () => {
+    const app = await makeApp();
+    const created = await create(app);
+
+    const same = '# Rule\n\nThe same new body, sent twice at once.';
+    const results = await Promise.all([
+      app.inject({ method: 'PUT', url: `/skills/${created.id}`, payload: { body: same } }),
+      app.inject({ method: 'PUT', url: `/skills/${created.id}`, payload: { body: same } }),
+    ]);
+    expect(results.map((r) => r.statusCode)).toEqual([200, 200]);
+
+    const list = await app.inject({ method: 'GET', url: `/skills/${created.id}/versions` });
+    const versions = (list.json() as { version: number }[]).map((r) => r.version).sort();
+    expect(versions).toEqual([1, 2]);
+
+    const live = await app.inject({ method: 'GET', url: `/skills/${created.id}` });
+    expect((live.json() as { version: number }).version).toBe(2);
+  });
+
   // ---- the type catalogue -------------------------------------------------
 
   it('a brand-new type name joins the catalogue on save', async () => {
@@ -304,11 +326,16 @@ d('skills module', () => {
   // like the id/version param checks above — this API never uses bare 400s).
   it('trims a submitted type at the boundary and rejects a blank one', async () => {
     const app = await makeApp();
-    const created = await create(app, { type: ' security ' });
-    expect(created.type).toBe('security');
+    // A fresh name, not a seeded built-in: 'security' is always in the
+    // catalogue, so asserting on it could never fail.
+    const typeName = `a11y-${Math.random().toString(36).slice(2, 8)}`;
+    const created = await create(app, { type: `  ${typeName} ` });
+    expect(created.type).toBe(typeName);
 
     const types = await app.inject({ method: 'GET', url: '/skill-types' });
-    expect((types.json() as { name: string }[]).map((x) => x.name)).toContain('security');
+    const names = (types.json() as { name: string }[]).map((x) => x.name);
+    expect(names).toContain(typeName);
+    expect(names).not.toContain(`  ${typeName} `);
 
     const blank = await app.inject({ method: 'POST', url: '/skills', payload: body({ type: '   ' }) });
     expect(blank.statusCode).toBe(422);

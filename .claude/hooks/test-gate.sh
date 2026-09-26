@@ -108,10 +108,12 @@ expect_message() { # needle in systemMessage
 
 printf '\nPR Self Review — hook contract\n\n'
 
-mk_report "$CLEAN" pass
+# A FAILING report, so silence in 1-4 can only mean "ungated" or "exempt" — with a
+# passing one the gate is silent either way and these cases could never fail.
+mk_report "$CRIT_ONE" fail
 rm_override
 
-start "1  ungated command is ignored";              run 'ls -la';                    expect_silent
+start "1  ungated command is ignored";             run 'ls -la';                    expect_silent
 start "2  git status is not a push";                run 'git status';                expect_silent
 start "3  --dry-run is exempt";                     run 'git push --dry-run';        expect_silent
 start "4  git push --tags is exempt";               run 'git push origin --tags';    expect_silent
@@ -162,7 +164,12 @@ start "14c --tags WITH a refspec is gated";        run 'git push origin HEAD --t
 start "14d --dry-run in another command is gated"; run 'git push origin main && echo --dry-run'; expect_decision deny 'BLOCKED'
 start "14e -n is a dry run, exempt";               run 'git push -n origin main';              expect_silent
 start "14f --delete is exempt";                    run 'git push origin --delete old-branch';  expect_silent
-start "14g git commit mentioning push is ignored"; run 'git commit -m "fix push gate"';        expect_silent
+start "14g git commit mentioning push is ignored"; run 'git commit -m \"fix push gate\"';      expect_silent
+# run() builds JSON with printf: write a double quote as \" or the hook gets
+# unparseable input and stays silent, which passes an expect_silent vacuously.
+start "14h --dry-run in a comment is gated";        run 'git push origin HEAD # --dry-run';     expect_decision deny 'BLOCKED'
+start "14i --dry-run beside a \$(...) is gated";    run 'git push --dry-run origin HEAD $(git push origin HEAD)'; expect_decision deny 'BLOCKED'
+start "14j -n passed to bash -c, not git, is gated"; run 'bash -c \"git push origin HEAD\" -n'; expect_decision deny 'BLOCKED'
 
 start "15 valid waiver -> pass, announced"
 mk_report "$CRIT_ONE" fail

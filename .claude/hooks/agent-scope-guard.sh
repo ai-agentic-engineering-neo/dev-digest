@@ -133,7 +133,9 @@ case "$TOOL" in
     # commands or redirects: strip it before looking for dependency, db, snapshot
     # and write verbs, so grep -n '</div>' and vitest -t 'rolls up costs' pass.
     # git-state checks and --frozen-lockfile still read the raw command.
-    BARE=$(printf '%s' "$CMD" | sed -e "s/'[^']*'//g" -e 's/"[^"]*"//g')
+    # One left-to-right pass: the FIRST quote decides the span's kind, so an
+    # apostrophe inside "isn't" cannot open a '...' span that swallows && sed -i.
+    BARE=$(printf '%s' "$CMD" | sed -E "s/'[^']*'|\"[^\"]*\"//g")
     HAS_MARK=0; matches "$CMD" "$MARK" && HAS_MARK=1
 
     if matches "$CMD" "${B}git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+(commit|push|reset|rebase|merge|pull|clean|stash|checkout|restore|switch|cherry-pick|revert|am|apply|tag|branch[[:space:]]+-[dDmM])([[:space:]]|$)"; then

@@ -48,12 +48,18 @@ const GATED = [GIT_PUSH, GH_PR];
  *  pushes the branch too, so it is gated. Any `gh pr …` in the command is gated. */
 function isExempt(command) {
   if (GH_PR.test(command)) return false;
+  // Fail closed on shell constructs this tokenizer does not model: a flag inside
+  // `$(…)`, backticks, a nested `sh -c` or `eval` is not a flag git receives,
+  // so `bash -c "git push origin HEAD" -n` must not read as a dry run.
+  if (/\$\(|`|\b(?:ba|z|da)?sh\s+-c\b|\beval\b/.test(command)) return false;
   const pushes = command.split(/[;&|\n]+/).filter((seg) => GIT_PUSH.test(seg));
   return pushes.length > 0 && pushes.every(isExemptPush);
 }
 
 function isExemptPush(segment) {
-  const args = segment.slice(segment.search(/\bpush\b/) + 'push'.length).trim().split(/\s+/).filter(Boolean);
+  // A shell comment passes nothing to git: `git push origin HEAD # --dry-run`.
+  const code = segment.replace(/(^|\s)#.*$/, '');
+  const args = code.slice(code.search(/\bpush\b/) + 'push'.length).trim().split(/\s+/).filter(Boolean);
   if (args.some((a) => a === '--dry-run' || a === '-n' || a === '--delete')) return true;
   // Positional args are the remote, then refspecs. An option's value would count
   // as positional too, which errs towards gating — the safe direction.

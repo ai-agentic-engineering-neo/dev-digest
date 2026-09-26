@@ -145,6 +145,13 @@ dw deny  "tee a doc"                   "$(bash_ 'echo x | tee docs/b.md')"
 dw deny  "git add"                     "$(bash_ 'git add docs/b.md')"
 dw deny  "mermaid-cli via npx"         "$(bash_ 'npx -y @mermaid-js/mermaid-cli -i a.mmd -o a.svg')"
 dw deny  "worktree add"                "$(bash_ "git worktree add --detach $RP HEAD")"
+# An apostrophe inside double quotes must not open a '...' span that hides the
+# write after it (2026-09-26 self-review, generic-1-1). Heredoc: both quote kinds.
+APOS_SED=$(cat <<'JSON'
+{"tool_name":"Bash","tool_input":{"command":"grep -n \"isn't\" docs/a.md && sed -i '' 's/a/b/' docs/a.md","description":"x"}}
+JSON
+)
+dw deny  "apostrophe then sed -i"      "$APOS_SED"
 
 # ================================================================ read-only
 # ---- Edit / Write: everything denied
@@ -184,6 +191,11 @@ ro deny  "frozen install"              "$(bash_ 'pnpm install --frozen-lockfile'
 ro deny  "npx"                         "$(bash_ 'npx tsc --noEmit')"
 ro allow "git grep for db:generate"    "$(bash_ "git grep -n 'db:generate' -- docs")"
 ro allow "grep for quoted yarn"        "$(bash_ "grep -rn 'yarn' docs")"
+APOS_RM=$(cat <<'JSON'
+{"tool_name":"Bash","tool_input":{"command":"grep -n \"don't\" docs/a.md && rm -rf server/test && echo 'x'","description":"x"}}
+JSON
+)
+ro deny  "apostrophe then rm"          "$APOS_RM"
 ro deny  "node -e"                     "$(bash_ 'node -e 1')"
 ro deny  "sh -c"                       "$(bash_ "sh -c 'echo x'")"
 ro deny  "curl"                        "$(bash_ 'curl https://example.com')"

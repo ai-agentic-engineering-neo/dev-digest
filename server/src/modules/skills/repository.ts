@@ -115,12 +115,16 @@ export class SkillsRepository {
    * Update a skill. A BODY change bumps `version` and snapshots the new body
    * into `skill_versions`; a name/description/type-only edit does not (see
    * `isBodyChange`). A submitted type joins the catalogue either way.
+   *
+   * `shouldBump` is the service's product rule, applied here to the LOCKED row:
+   * decided on an unlocked earlier read, two concurrent PUTs of the same new
+   * body would both bump and snapshot an identical body twice.
    */
   async update(
     workspaceId: string,
     id: string,
     patch: UpdateSkill,
-    bumpVersion: boolean,
+    shouldBump: (locked: SkillRow) => boolean,
   ): Promise<SkillRow | undefined> {
     return this.db.transaction(async (tx) => {
       // Locked so two concurrent body edits can't both read the same
@@ -133,6 +137,7 @@ export class SkillsRepository {
         .for('update');
       if (!existing) return undefined;
 
+      const bumpVersion = shouldBump(existing);
       const nextVersion = bumpVersion ? existing.version + 1 : existing.version;
 
       const [row] = await tx

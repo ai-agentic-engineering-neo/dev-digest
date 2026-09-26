@@ -102,6 +102,14 @@ See also — settled recipes, one line each:
 
 ## Recurring Errors & Fixes
 
+- 2026-09-26 — Hook tests that could NOT fail, three in one day: `test-gate.sh`
+  cases 1–4 asserted silence against a PASSING report (silent either way), and
+  its `run()` builds JSON with `printf '%s'`, so a command holding `"` becomes
+  unparseable input the hook answers with silence — an `expect_silent` case passes
+  vacuously → assert silence only against a FAILING report, write `"` as `\"` in
+  `run '…'` (or build the JSON in a quoted heredoc), and prove each new case red
+  against `git show HEAD:<hook>` before trusting it. (ref: .claude/hooks/test-gate.sh:72)
+
 - 2026-09-21 — A pattern shipped without being RUN, three times: the ugrep
   backreference (2026-09-20), `frontend-ui-architecture` §15's `fetch(` matching
   `refetch()`, and an e2e flow command form that does not exist (`e2e/INSIGHTS.md`

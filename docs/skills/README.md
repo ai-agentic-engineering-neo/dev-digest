@@ -19,6 +19,7 @@ source of truth; the seeded set lives in `server/src/db/seed-skills.ts`.
 | `test-naming-convention.md` | a single Markdown skill with frontmatter (`name`, `description`, `type`) |
 | `async-test-hygiene.zip` | an archive: `SKILL.md` is the core; `scripts/check-await.sh` and `references/notes.md` are listed as ignored and never opened |
 | `async-test-hygiene/` | the unzipped source of that archive |
+| `deprecation-policy.zip` (+ folder) | the fourth API Contract Reviewer skill; it is deliberately **not seeded** so it enters through the import path and carries the "imported" origin — import it, enable it after reading, and link it on the API Contract Reviewer's Skills tab |
 
 Import either on `/skills` → Add Skill → Import from file. The preview shows the
 derived name, description, type and body, the ignored entries, and a trust

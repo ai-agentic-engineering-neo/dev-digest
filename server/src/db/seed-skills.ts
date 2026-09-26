@@ -132,43 +132,84 @@ Flag as WARNING any test in the diff that:
 Cite the line with the time, sleep, shared state, or network call, and say what makes it non-deterministic.`,
   },
 
-  // ---- API Contract Reviewer ----
+  // ---- API Contract Reviewer (HW2 §43: directive description + good/bad example each) ----
+  // The fourth skill, `deprecation-policy`, is NOT seeded: it ships as
+  // docs/skills/examples/deprecation-policy.zip and is imported through the UI so
+  // at least one linked skill has the "imported" origin (§16).
   {
-    name: 'breaking-change-gate',
-    description: 'Detect route, schema and response changes an existing client cannot survive.',
+    name: 'breaking-change',
+    description: 'Flag any change or removal of a public contract that an already-shipped client cannot survive.',
     type: 'rubric',
-    body: `# Breaking change gate
+    body: `# Breaking change
 
-A change is CRITICAL (breaking) when an already-shipped client request would now be rejected or would receive a differently shaped response. Cite the diff line and name the route and field. Breaking:
+A change is CRITICAL when a request that worked yesterday is rejected today, or a client that parsed yesterday's response cannot parse today's. Cite the diff line and name the route, parameter or field. Breaking:
 
 - a route path or HTTP method is renamed or removed
-- a request parameter, query or body field becomes required, is renamed, or its type is tightened (string → uuid, number → integer, enum loses a value)
-- a response field is removed, renamed, becomes nullable, or changes type; an enum value clients switch on is removed
-- a status code or the error envelope shape changes
+- a request parameter, query or body field becomes required, is renamed, or its type is tightened (string → uuid, number → integer, an enum loses a value)
+- a status code changes, or the error envelope shape changes
 
-Not breaking (no finding): adding an optional request field, adding a response field, adding an enum value, loosening validation. A breaking change accompanied in the same diff by a versioned route (\`/v2/…\`) or a documented migration is downgraded to WARNING.`,
+Not breaking (no finding): adding an optional request field, adding a response field, adding an enum value, loosening validation. A breaking change shipped together with a versioned route (\`/v2/…\`) and a migration note is a WARNING instead.
+
+**Bad**
+\`\`\`ts
+// was: GET /agents/:id/skills
+app.get('/agents/:id/linked-skills', …)          // old path gone, every client 404s
+\`\`\`
+
+**Good**
+\`\`\`ts
+app.get('/agents/:id/skills', …)                 // kept
+app.get('/v2/agents/:id/linked-skills', …)       // new shape beside the old one, old one deprecated
+\`\`\``,
   },
   {
-    name: 'contract-copy-sync',
-    description: 'A contract edit under server/src/vendor/shared must appear identically in client/src/vendor/shared.',
-    type: 'convention',
-    body: `# Contract copy sync
+    name: 'response-schema',
+    description: 'Flag changes to the shape of a response: removed or renamed fields, changed types, fields that become nullable or optional.',
+    type: 'rubric',
+    body: `# Response schema
 
-The Zod contracts live in \`server/src/vendor/shared\` and are copied verbatim to \`client/src/vendor/shared\`. When the diff edits a file under the server copy and the same relative path under the client copy is not in the diff with the same change, report one WARNING citing the server-side line and naming the client path that must be updated. If both copies change but differ, report a WARNING citing the first divergent line. Do not report anything when neither copy is touched.`,
+Compare every response schema, DTO mapper and shared contract the diff touches against what a client already parses. Report CRITICAL when a field a client reads is removed, renamed, changes type, or becomes nullable/optional without a default; WARNING when a field's meaning changes while its name and type stay (a count that now excludes disabled rows, a timestamp that switches timezone). Cite the contract line and the route that serves it.
+
+**Bad**
+\`\`\`ts
+export const Agent = z.object({
+  skills_count: z.number(),   // renamed from skill_count — cards render "undefined skills"
+});
+\`\`\`
+
+**Good**
+\`\`\`ts
+export const Agent = z.object({
+  skill_count: z.number(),                    // kept
+  skills_count: z.number().optional(),        // alias added; remove skill_count in the next major
+});
+\`\`\``,
   },
   {
-    name: 'error-envelope-rule',
-    description: 'Every error a route returns must use the { error: { code, message, details } } envelope.',
+    name: 'semver-discipline',
+    description: 'Decide, from the diff alone, whether the change needs a major, minor or patch bump and say so.',
     type: 'convention',
-    body: `# Error envelope rule
+    body: `# Semver discipline
 
-API errors are always \`{ error: { code, message, details? } }\` with a stable snake_case \`code\`. Flag as WARNING, citing the line, any route or handler in the diff that:
+Every contract change carries a version consequence. State it in one finding per PR (WARNING when the bump the diff implies is missing or too low):
 
-- replies with a bare string, a \`{ message }\` object, or a thrown plain \`Error\` that would serialise without a code
-- returns a 200 with an \`error\` field instead of a 4xx/5xx status
-- introduces a new error code that is not snake_case or that reuses an existing code for a different meaning
+- **major**: anything the breaking-change or response-schema rule flags as CRITICAL
+- **minor**: a new route, a new optional field, a new enum value, a loosened validation
+- **patch**: behaviour fixed without a contract change
 
-Throwing an \`AppError\` subclass is the compliant pattern and is not a finding.`,
+Look for the bump where this repo keeps it (\`package.json\` version, an API version header, a \`/vN\` path prefix, a CHANGELOG entry). No bump anywhere with a major-class change is a WARNING that names the file that should carry it.
+
+**Bad**
+\`\`\`
+- "version": "1.4.2"
++ "version": "1.4.3"          // patch bump, but the diff removes GET /runs/:id/events
+\`\`\`
+
+**Good**
+\`\`\`
+- "version": "1.4.2"
++ "version": "2.0.0"          // major bump; CHANGELOG lists the removed route and the replacement
+\`\`\``,
   },
 ];
 
@@ -180,5 +221,6 @@ Throwing an \`AppError\` subclass is the compliant pattern and is not a finding.
 export const AGENT_SKILL_LINKS: Readonly<Record<string, readonly string[]>> = {
   'Security Reviewer': ['pr-quality-rubric', 'secret-leakage-gate', 'lethal-trifecta'],
   'Test Quality Reviewer': ['uncovered-branch-gate', 'corner-case-checklist', 'over-mocking-rule', 'flaky-test-gate'],
-  'API Contract Reviewer': ['breaking-change-gate', 'contract-copy-sync', 'error-envelope-rule'],
+  // `deprecation-policy` is linked after being imported from docs/skills/examples (§16).
+  'API Contract Reviewer': ['breaking-change', 'response-schema', 'semver-discipline'],
 };

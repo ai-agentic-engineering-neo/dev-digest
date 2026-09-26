@@ -10,11 +10,13 @@ see it, do not write it.
 
 - [2026-09-25] The hermetic runner starts an ephemeral Postgres with no named volume, so every run is empty and seeded fresh; it never touches `devdigest_pgdata`. Evidence: `scripts/e2e.sh:84`.
 - [2026-09-25] `wait --text` accepts literal `$` and `·` (e.g. `"9,119 tok · $0.0013"`); the drawer is opened deterministically via `find role button click --name "Open run trace & logs"` (the timeline icon button's aria-label). Evidence: `e2e/specs/08-run-cost.flow.json`.
+- [2026-09-25] A flow that passed twice can fail on `find text … click` when a heavy job (the pr-self-review precheck running every package's tests) shares the CPU; the hermetic run went 10/10 as soon as the machine was idle. Re-run before hunting a locator bug. Evidence: `e2e/specs/09-findings-severity.flow.json:open the PR row`.
 
 ## What Doesn't Work
 
 - [2026-09-25] Running `npm test` against a dev DB that has more than the seeded repo. Flows 02, 04, 05 follow the home redirect to the first repo and land on the wrong one. Use `npm run e2e:hermetic`. Evidence: `e2e/specs/02-repo-pulls-detail.flow.json:6`.
 - [2026-09-25] Resetting the dev DB with `docker compose down -v`. It deletes the volume with every imported repo and review. Evidence: `docker-compose.yml`.
+- [2026-09-25] `find text <name> click` on a card that sits below the fold of a page-internal scroll pane (`overflow: auto` main column, e.g. the /skills grid) does not navigate: the click lands outside the viewport. Click an element in the first visible row instead, or scroll first. Evidence: `e2e/specs/10-skills.flow.json:open the first skill card's preview`.
 
 ## Codebase Patterns
 
@@ -35,6 +37,7 @@ _None yet._
 - [2026-09-25] Initial capture from a read-through of the runner and flows. No code changed. Evidence: `e2e/CLAUDE.md`.
 - [2026-09-25] Added 08-run-cost flow; full hermetic run 8/8 green after the seed gained a completed priced run (flow 04's '2 findings' text now matches twice, which wait --text tolerates). Evidence: `e2e/README.md:coverage table`.
 - [2026-09-25] HW1 criteria pass: added 09-findings-severity (pills, Accept/Reject, Warning filter round-trip); hermetic run 9/9 green; docs/runner.md + specs/flows.md written by a subagent and extended for flow 09. Evidence: `e2e/specs/09-findings-severity.flow.json`.
+- [2026-09-25] L02: added 10-skills flow (skills grid → side preview → agent Skills tab); locators had to move to the first visible card and to `find role button --name Skills`; hermetic run 10/10 green. Evidence: `e2e/specs/10-skills.flow.json`.
 
 ## Open Questions
 

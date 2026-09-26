@@ -1,0 +1,39 @@
+import type { CSSProperties } from "react";
+
+/** Co-located styles for SkillCard. */
+export const s = {
+  card: (active: boolean, enabled: boolean): CSSProperties => ({
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+    padding: 14,
+    borderRadius: 10,
+    border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
+    background: "var(--bg-surface)",
+    cursor: "pointer",
+    opacity: enabled ? 1 : 0.6,
+    minWidth: 0,
+  }),
+  headerRow: { display: "flex", alignItems: "center", gap: 8, minWidth: 0 } satisfies CSSProperties,
+  name: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: 600,
+    color: "var(--text-primary)",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  } satisfies CSSProperties,
+  description: {
+    fontSize: 12.5,
+    color: "var(--text-secondary)",
+    lineHeight: 1.45,
+    minHeight: 36,
+    display: "-webkit-box",
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: "vertical",
+    overflow: "hidden",
+  } satisfies CSSProperties,
+  footer: { display: "flex", alignItems: "center", gap: 8, fontSize: 11.5, color: "var(--text-muted)" } satisfies CSSProperties,
+  spacer: { flex: 1 } satisfies CSSProperties,
+} as const;

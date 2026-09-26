@@ -6,7 +6,7 @@ import * as schema from '../../db/schema.js';
 import type { AgentRow } from '../../db/rows.js';
 import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './repository.js';
 import { REVIEW_STRATEGY } from './constants.js';
-import { taskLine } from './helpers.js';
+import { renderSkillsForPrompt, taskLine } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
 
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
@@ -184,6 +184,24 @@ export class ReviewRunExecutor {
 
       const task = taskLine(pull) + rankNote;
 
+      // L02 — skills. The agent's linked skills (Agent editor → Skills tab), in
+      // link order, minus any skill disabled globally on the Skills page. They
+      // fill the `## Skills / rules` slot; assemblePrompt omits it when empty.
+      const linked = await runLog.step(
+        'Loading linked skills',
+        async () => (await this.agents.linkedSkills(agent.id)).map((l) => l.skill),
+        { kind: 'tool' },
+      );
+      // One log line per linked skill so the Live Log / trace shows exactly which
+      // rule sets shaped this run — and which were skipped because they are
+      // disabled globally on the Skills page.
+      for (const sk of linked) {
+        if (sk.enabled) runLog.info(`Skill attached: ${sk.name} (v${sk.version}, ${sk.body.length} chars)`, { skill: sk.name });
+        else runLog.info(`Skill skipped (disabled on the Skills page): ${sk.name}`, { skill: sk.name });
+      }
+      const skills = renderSkillsForPrompt(linked);
+      runLog.info(skills.length > 0 ? `${skills.length} skill(s) attached to the prompt` : 'No skills attached to the prompt');
+
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
       // the CI runner). The service owns only I/O: repo-intel context resolution
@@ -196,6 +214,8 @@ export class ReviewRunExecutor {
         // Per-agent review strategy (configured in the Agent editor); falls back
         // to the studio default. single-pass = whole diff in one call.
         strategy: agent.strategy ?? REVIEW_STRATEGY,
+        // L02 — linked skill bodies; the section is omitted when the list is empty.
+        ...(skills.length > 0 ? { skills } : {}),
         // T1.3 — pass the callers digest only when we built one. assemblePrompt
         // omits the section when this is empty/undefined.
         ...(callersDigest ? { callers: callersDigest } : {}),

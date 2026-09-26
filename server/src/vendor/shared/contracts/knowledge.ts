@@ -115,7 +115,9 @@ export type MemoryItem = z.infer<typeof MemoryItem>;
 export const SkillType = z.enum(['rubric', 'convention', 'security', 'custom']);
 export type SkillType = z.infer<typeof SkillType>;
 
-export const SkillSource = z.enum(['manual', 'imported_url', 'extracted', 'community']);
+// `imported_file`: uploaded .md/.zip (L02). Imported skills start disabled and
+// carry a "needs vetting" badge: a foreign skill is foreign instructions in the prompt.
+export const SkillSource = z.enum(['manual', 'imported_file', 'imported_url', 'extracted', 'community']);
 export type SkillSource = z.infer<typeof SkillSource>;
 
 export const Skill = z.object({
@@ -130,6 +132,20 @@ export const Skill = z.object({
   evidence_files: z.array(z.string()).nullish(),
 });
 export type Skill = z.infer<typeof Skill>;
+
+// What `POST /skills/import/preview` returns: the parsed core of an uploaded
+// .md/.zip plus the archive entries that were listed but never opened. Nothing
+// is saved until the client confirms with POST /skills.
+export const SkillImportPreview = z.object({
+  name: z.string(),
+  description: z.string(),
+  type: SkillType,
+  body: z.string(),
+  source_file: z.string(),
+  ignored_files: z.array(z.string()),
+  warnings: z.array(z.string()),
+});
+export type SkillImportPreview = z.infer<typeof SkillImportPreview>;
 
 export const CommunitySkill = z.object({
   name: z.string(),
@@ -188,6 +204,9 @@ export const Agent = z.object({
   // Inject repo-intel context (repo skeleton + callers + rank note) into this
   // agent's review prompt. Default on; gated again by the global flag.
   repo_intel: z.boolean().default(true),
+  // Number of skills linked through `agent_skills` (any enabled state). Read
+  // model only: links are written via POST /agents/:id/skills.
+  skill_count: z.number().int().default(0),
 });
 export type Agent = z.infer<typeof Agent>;
 

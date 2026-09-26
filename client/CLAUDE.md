@@ -41,5 +41,6 @@ pnpm test        # vitest + jsdom, fetch mocked; no API or browser needed
 - `docs/ui-architecture.md` when touching providers, hooks, `api.ts`, the app shell, the PR detail composition, or the Server/Client boundary.
 - `specs/pages.md` when adding or changing a route, its URL params, states, or which e2e flow covers it.
 - `specs/run-cost-badge.md` when touching `RunCostBadge`, `format-cost.ts`, or any cost surface.
+- `specs/skills.md` when touching `/skills`, the agent editor Skills tab, `hooks/skills.ts` or the import drawer.
 - `INSIGHTS.md` before the first change in this package (toast policy, contract drift, cost threshold, test setup gotchas).
 - `../e2e/` for the browser journeys that exercise this UI.

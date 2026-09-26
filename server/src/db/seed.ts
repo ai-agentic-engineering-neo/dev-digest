@@ -6,7 +6,10 @@ import {
   GENERAL_REVIEWER_PROMPT,
   SECURITY_REVIEWER_PROMPT,
   PERFORMANCE_REVIEWER_PROMPT,
+  TEST_QUALITY_REVIEWER_PROMPT,
+  API_CONTRACT_REVIEWER_PROMPT,
 } from './seed-prompts.js';
+import { SEED_SKILLS, AGENT_SKILL_LINKS } from './seed-skills.js';
 
 /** Default provider/model for the built-in reviewer agents. */
 const DEFAULT_PROVIDER = 'openrouter' as const;
@@ -19,11 +22,13 @@ const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
  * Seeds: default workspace + system user + membership, default settings,
  * demo repo (acme/payments-api), PR #482 with files/commits, a sample review
  * (+ one completed, priced agent run behind it)
- * with a few findings, and the three built-in agents (General + Security +
- * Performance), all on the default openrouter/deepseek-v4-flash provider+model.
+ * with a few findings, and the five built-in agents (General + Security +
+ * Performance + Test Quality + API Contract), all on the default openrouter/deepseek-v4-flash provider+model.
  *
- * Course lessons populate the other tables (skills, conventions, memory, eval,
- * …) once their features are built — they start empty here.
+ * L02 adds the skills in `seed-skills.ts`, linked to Security, Test Quality and
+ * API Contract Reviewer; the last two are the lesson's new agents.
+ * Course lessons populate the other tables (conventions, memory, eval, …) once
+ * their features are built — they start empty here.
  */
 
 export const DEFAULT_WORKSPACE_NAME = 'default';
@@ -176,7 +181,7 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
     ]);
   }
 
-  // ---- built-in agents (the three starter presets) ----
+  // ---- built-in agents (three starter presets + the two L02 skill-driven ones) ----
   // Prompt bodies live in ./seed-prompts.ts (mirrored in docs/agent-prompts/*.md).
   const seedAgents: Array<typeof t.agents.$inferInsert> = [
     {
@@ -212,6 +217,30 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       version: 1,
       createdBy: userId,
     },
+    // L02 — two agents whose checks live entirely in their linked skills, so
+    // the same PR reviewed with and without skills is the control experiment.
+    {
+      workspaceId,
+      name: 'Test Quality Reviewer',
+      description: 'Checks the tests that ship with a PR: uncovered branches, missed corner cases, over-mocking, flakiness.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: TEST_QUALITY_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
+    {
+      workspaceId,
+      name: 'API Contract Reviewer',
+      description: 'Catches breaking route, schema and error-envelope changes before they reach a client.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: API_CONTRACT_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
   ];
   for (const a of seedAgents) {
     const [existing] = await db
@@ -219,6 +248,57 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       .from(t.agents)
       .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, a.name)));
     if (!existing) await db.insert(t.agents).values(a);
+  }
+
+  // ---- skills (L02): text-only rules, linked per agent (AGENT_SKILL_LINKS) ----
+  // Idempotent by name. Links are written only while the agent has none, so a
+  // user's reordering on a dev DB survives a re-seed.
+  const skillIdByName = new Map<string, string>();
+  for (const sk of SEED_SKILLS) {
+    let [existingSkill] = await db
+      .select()
+      .from(t.skills)
+      .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.name, sk.name)));
+    if (!existingSkill) {
+      [existingSkill] = await db
+        .insert(t.skills)
+        .values({
+          workspaceId,
+          name: sk.name,
+          description: sk.description,
+          type: sk.type,
+          source: 'manual',
+          body: sk.body,
+          enabled: true,
+          version: 1,
+        })
+        .returning();
+      await db
+        .insert(t.skillVersions)
+        .values({ skillId: existingSkill!.id, version: 1, body: sk.body })
+        .onConflictDoNothing();
+    }
+    skillIdByName.set(sk.name, existingSkill!.id);
+  }
+  for (const [agentName, skillNames] of Object.entries(AGENT_SKILL_LINKS)) {
+    const [agentRow] = await db
+      .select()
+      .from(t.agents)
+      .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, agentName)));
+    if (!agentRow) continue;
+    const [anyLink] = await db
+      .select({ skillId: t.agentSkills.skillId })
+      .from(t.agentSkills)
+      .where(eq(t.agentSkills.agentId, agentRow.id))
+      .limit(1);
+    if (anyLink) continue;
+    await db.insert(t.agentSkills).values(
+      skillNames.map((name, order) => ({
+        agentId: agentRow.id,
+        skillId: skillIdByName.get(name)!,
+        order,
+      })),
+    );
   }
 
   // ---- one completed agent run behind the seeded review ----

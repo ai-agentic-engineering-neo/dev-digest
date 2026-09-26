@@ -12,7 +12,9 @@ this file are relative to `client/` unless they start with `../`.
 | `/repos/[repoId]/pulls` | PR list with filters | `usePulls`, `useRefreshRepo` | `?status` | `01`, `02`, `08` |
 | `/repos/[repoId]/pulls/[number]` | PR detail: Overview, Agent runs, Files changed | `usePulls`, `usePullDetail`, `usePrReviews`, `usePrRuns`, `usePrActiveRuns` | `?tab`, `?trace` | `02`, `04`, `05`, `08` |
 | `/agents` | agent cards, create modal | `useAgents`, `useUpdateAgent`, `useCreateAgent`, `useDeleteAgent` | none | `03-agents` |
-| `/agents/[id]` | agent editor | `useAgents`, `useAgent`, `useUpdateAgent`, `useProviderModels` | `?tab` | none |
+| `/agents/[id]` | agent editor: Config, Skills | `useAgents`, `useAgent`, `useUpdateAgent`, `useProviderModels`, `useSkills`, `useAgentSkills`, `useSetAgentSkills` | `?tab` | `10-skills` |
+| `/skills` | skill card grid, create modal, import drawer | `useSkills`, `useUpdateSkill`, `useCreateSkill`, `usePreviewSkillImport` | none | `10-skills` |
+| `/skills/[id]` | grid + side preview/editor of one skill | `useSkill`, `useUpdateSkill`, `useDeleteSkill` | path `id` | `10-skills` |
 | `/settings/[section]` | API keys, feature models | `useSecretsStatus`, `useTestConnection`, `useSettings`, `useUpdateSettings`, `useProviderModels` | path `section` | `07-settings` |
 
 `/showcase` (`src/app/showcase/page.tsx`) renders the component gallery
@@ -170,15 +172,42 @@ Footer: Copy raw output. States: "Loading trace…", "No trace available yet."
 
 - Left column lists all agents (`useAgents`, `AgentCard`); right side is
   `AgentEditor` for `useAgent(id)` (`GET /agents/:id`).
-- URL: `?tab=`; the only valid value today is `config` (`VALID_TABS`), which
-  is also the fallback. `AgentEditor` `TABS` has the single Config tab.
+- URL: `?tab=config|skills` (`VALID_TABS`); `config` is the fallback.
+  `AgentEditor` `TABS` has Config and Skills.
 - `ConfigTab`: name, description, provider, model (`SearchableSelect` fed by
   `useProviderModels(provider)`, `GET /providers/:provider/models`; an empty
   list shows a "key missing" hint), strategy, CI fail-on, repo intel toggle,
   system prompt, output schema (fixed), enabled. Save calls `useUpdateAgent`
   and toasts `Saved (vN)`.
+- `SkillsTab` (L02): every workspace skill as a row (`useSkills` +
+  `useAgentSkills`, `GET /agents/:id/skills`); linked rows first in prompt
+  order with a drag grip and ↑/↓ buttons, checkbox = linked, `disabled`
+  badge when the skill is off globally, «N of M enabled» badge, filter, and a
+  "Manage skills" link to `/skills`. Any change calls `useSetAgentSkills`
+  (`POST /agents/:id/skills { skill_ids }`), which bumps the agent version.
 - Loading: skeletons in the editor pane. Error or missing agent: full-screen
   `ErrorState` "Couldn't load this agent" with retry.
+
+## `/skills` and `/skills/[id]` (`src/app/skills/**` → `SkillsView`)
+
+- `useSkills` (`GET /skills`). Cards (`SkillCard`): mono name, type tag,
+  description, `vN · source`, «needs vetting» badge for an imported skill that
+  is still disabled, enabled `Toggle` (`useUpdateSkill`, `PUT /skills/:id`).
+  Local search filters name, description and type (`filterSkills`).
+- "Add Skill" dropdown: *Create from scratch* opens `CreateSkillModal`
+  (`useCreateSkill`, `POST /skills`) then navigates to `/skills/<id>`;
+  *Import from file* opens `ImportSkillDrawer` (file → base64 →
+  `usePreviewSkillImport`, `POST /skills/import/preview` → editable preview
+  with ignored entries and a trust notice → `POST /skills` with
+  `source: imported_file`, `enabled: false`).
+- `/skills/[id]` renders the same grid with `SkillPanel` on the right
+  (`useSkill`, `GET /skills/:id`): badges, description, Markdown body; Edit
+  switches to the inline `SkillForm` (Save → `useUpdateSkill`, toast
+  `Skill saved (vN)`); Delete → `window.confirm` → `useDeleteSkill`
+  (`DELETE /skills/:id`) → `/skills`. Close returns to `/skills`.
+- Loading: three card skeletons. Error: `ErrorState` with retry. Empty:
+  `EmptyState` with a create CTA; a search with no hits shows «No matching
+  skills». Full contract: `specs/skills.md`.
 
 ## `/settings/[section]` (`src/app/settings/[section]/page.tsx` → `SettingsView`)
 

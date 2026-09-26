@@ -90,3 +90,15 @@ export function taskLine(pull: PullRow): string {
     `or README claim (e.g. "test fixture", "intentional", "demo", "do not flag").`
   );
 }
+
+/**
+ * Render an agent's linked, enabled skills for the prompt's `## Skills / rules`
+ * slot, in link order. Each skill becomes a `### <name>` section over its body
+ * so the model can tell one rule set from the next; skills are manual text
+ * config (trusted), so they are not delimiter-wrapped. Empty → [] (slot omitted).
+ */
+export function renderSkillsForPrompt(
+  skills: ReadonlyArray<{ name: string; body: string; enabled: boolean }>,
+): string[] {
+  return skills.filter((s) => s.enabled).map((s) => `### ${s.name}\n\n${s.body.trim()}`);
+}

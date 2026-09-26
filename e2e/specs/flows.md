@@ -210,3 +210,29 @@ Breaks if: the seed changes the two findings' severities or titles, the filter
 labels change (`panel.filter.*`), the first run stops opening by default, or
 the Reject label reverts to Dismiss.
 
+## 10-skills
+
+Journey: `/skills` → click the `breaking-change-gate` card → `/skills/<id>`
+side preview → `/agents` → click `Security Reviewer` → Skills tab
+(`?tab=skills`).
+
+Seeded facts: `server/src/db/seed-skills.ts` seeds `pr-quality-rubric`,
+`secret-leakage-gate` and `lethal-trifecta` (among others) and links exactly
+those three to `Security Reviewer` (`AGENT_SKILL_LINKS`), so the tab badge
+starts with «3 of». The grid is alphabetical and scrolls inside the page, so
+the flow clicks `breaking-change-gate`, the first card, which is always in
+view; its body starts with the heading `# Breaking change gate`, which the
+panel renders as text. A card below the fold (e.g. `secret-leakage-gate`)
+is not clickable with `find text … click`.
+
+Locators: `wait --text` on the card name and on the rendered body heading;
+`find text … click` on a card name and on the agent card name; `find role
+button click --name "Skills"` targets the editor tab (`editor.tabs.skills` in
+`agents.json`) — `find text "Skills"` would hit the sidebar link of the same
+name first and leave the editor; `wait --url tab=skills` proves the tab routing; `wait --text
+"3 of"` matches the `skills.enabledCount` badge without pinning the total.
+
+Breaks if: the seeded skill names or the Security Reviewer link set change,
+a skill sorting before `breaking-change-gate` is seeded, the tab label
+changes, the body heading of `breaking-change-gate` changes, or the Skills
+tab stops writing `?tab=skills`.

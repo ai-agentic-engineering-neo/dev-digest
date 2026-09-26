@@ -10,6 +10,7 @@ repos (`repo-intel`), stores agents, runs reviews through
 pnpm dev          # tsx watch, :3001
 pnpm typecheck    # tsc --noEmit
 pnpm lint         # eslint . (flat config, no type-checked rules)
+pnpm lint:arch    # onion boundaries (dependency-cruiser vs baseline); CI gate
 pnpm db:migrate   # apply src/db/migrations (not run on boot)
 pnpm db:seed      # idempotent demo data
 pnpm db:generate  # drizzle-kit: new migration from schema changes
@@ -34,6 +35,7 @@ raw TypeScript source through a path alias.
 - Every handler calls `getContext()` first. Every repository method takes `workspaceId`.
 - Throw `AppError` subclasses from `platform/errors.ts`. The global handler builds the `{ error: { code, message, details } }` envelope.
 - Services depend on interfaces, resolved through `container.*`. Tests pass `ContainerOverrides` with doubles from `adapters/mocks.ts`.
+- Onion rings and import rules: `.claude/skills/onion-architecture-backend/`. New services take an explicit deps object built in `routes.ts` from `app.container`; `pnpm lint:arch` must stay green with no new baseline entries.
 - New adapter: interface in `vendor/shared/adapters.ts` → implementation in `adapters/` → getter on `Container` → mock in `mocks.ts`.
 - Secrets only via `container.secrets`. Never read keys from `process.env` in feature code.
 - Schema change: edit `src/db/schema/*.ts` → `pnpm db:generate` → commit the SQL and snapshot → `pnpm db:migrate`.
@@ -51,4 +53,6 @@ raw TypeScript source through a path alias.
 - `docs/architecture.md` — boot, DI container, module trio, jobs, SSE, secrets, DB layer; read before a structural change.
 - `specs/review-flow.md` — the invariants of a review run; read before touching `modules/reviews/`.
 - `specs/run-cost-badge.md` — L01 cost and tokens per run; read when changing cost or the PR-list rollup.
+- `specs/skills.md` — L02 skills: API, versioning, import parser, prompt/trace contract, seed; read before touching `modules/skills/`, agent skill links or the skills slot in the executor.
 - `INSIGHTS.md` — non-obvious gotchas; read at the start of every task here.
+- `../.claude/skills/onion-architecture-backend/SKILL.md` — ring map, the 13 boundary rules, new-module checklist, fix recipes; read before adding a module, route, service, repository or adapter.

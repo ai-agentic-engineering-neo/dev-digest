@@ -91,7 +91,19 @@
     "title": "Skills",
     "enabledCount": "{linked} of {total} enabled",
     "filterPlaceholder": "Filter skills…",
-    "orderHint": "Order matters — earlier skills appear earlier in the assembled prompt. Toggle to attach."
+    "orderHint": "Order matters — earlier skills appear earlier in the assembled prompt. Drag to reorder.",
+    "attach": "Attach {name}",
+    "moveUp": "Move {name} up",
+    "moveDown": "Move {name} down",
+    "disabledGlobally": "disabled",
+    "disabledGloballyTitle": "Disabled on the Skills page — linked, but left out of the prompt.",
+    "needsVetting": "needs vetting",
+    "noMatch": "No skills match \"{query}\".",
+    "emptyTitle": "No skills yet",
+    "emptyBody": "Create or import a skill on the Skills page, then attach it here.",
+    "emptyCta": "Open Skills",
+    "manage": "Manage skills",
+    "saved": "Skills saved"
   },
   "mount": {
     "body": "Mount point for {owner}. The Agent Editor shell + tab routing are wired by A2 — {owner} renders this tab."

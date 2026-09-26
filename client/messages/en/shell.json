@@ -40,6 +40,18 @@
     "reply": "Reply",
     "viewOnGitHub": "View on GitHub",
     "postedToGitHub": "Posts to GitHub immediately",
-    "outdatedTitle": "{count} comment(s) on older revisions"
+    "outdatedTitle": "{count} comment(s) on older revisions",
+    "findingLabel": {
+      "critical": "blocker",
+      "warning": "warning",
+      "suggestion": "suggestion"
+    },
+    "findingLabelMore": "{label} +{count}",
+    "findingDot": {
+      "critical": "Highest finding severity: CRITICAL",
+      "warning": "Highest finding severity: WARNING",
+      "suggestion": "Highest finding severity: SUGGESTION"
+    },
+    "unanchoredTitle": "{count} finding(s) not on a line shown in this diff"
   }
 }

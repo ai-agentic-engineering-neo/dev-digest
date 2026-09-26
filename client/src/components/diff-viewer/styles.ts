@@ -64,6 +64,36 @@ export const s = {
     color: "var(--text-primary)",
     paddingRight: 12,
   } satisfies CSSProperties,
+  findingDot: (color: string): CSSProperties => ({
+    display: "inline-block",
+    width: 7,
+    height: 7,
+    borderRadius: 99,
+    background: color,
+    marginLeft: 6,
+    flexShrink: 0,
+  }),
+  findingCardsWrap: {
+    margin: "6px 14px 8px 58px",
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+  } satisfies CSSProperties,
+  unanchoredWrap: {
+    borderTop: "1px solid var(--border)",
+    margin: "4px 14px 4px 14px",
+    paddingTop: 10,
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+  } satisfies CSSProperties,
+  unanchoredTitle: {
+    fontSize: 11,
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: "0.06em",
+    color: "var(--text-muted)",
+  } satisfies CSSProperties,
 } as const;
 
 /** Chevron rotates 90deg when the file card is open. */
@@ -75,10 +105,40 @@ export function chevronFor(open: boolean): CSSProperties {
   };
 }
 
-/** Row background per line kind (add/del tinted, others transparent). */
-export function lineRowFor(kind: Line["kind"]): CSSProperties {
+/** Row background per line kind (add/del tinted, others transparent), plus an
+    optional 3px left stripe (highest-severity finding color) on this line.
+    `muted` (all findings dismissed) fades the stripe's color, not the row —
+    the code text must stay fully readable. */
+export function lineRowFor(kind: Line["kind"], stripeColor?: string, muted = false): CSSProperties {
   const background = kind === "add" ? "var(--code-add)" : kind === "del" ? "var(--code-del)" : "transparent";
-  return { display: "flex", alignItems: "stretch", fontSize: 13, lineHeight: "20px", background };
+  const stripe = stripeColor && muted ? `color-mix(in srgb, ${stripeColor} 40%, transparent)` : stripeColor;
+  return {
+    display: "flex",
+    alignItems: "stretch",
+    fontSize: 13,
+    lineHeight: "20px",
+    background,
+    borderLeftWidth: 3,
+    borderLeftStyle: "solid",
+    borderLeftColor: stripe ?? "transparent",
+  };
+}
+
+/** The clickable severity label on a code line (`FindingMarker`). */
+export function findingMarkerStyle(color: string, muted: boolean): CSSProperties {
+  return {
+    marginLeft: "auto",
+    padding: "0 8px 0 0",
+    border: "none",
+    background: "none",
+    cursor: "pointer",
+    fontSize: 11.5,
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: "0.04em",
+    color,
+    opacity: muted ? 0.5 : 1,
+  };
 }
 
 /** Gutter sign colour per line kind. */

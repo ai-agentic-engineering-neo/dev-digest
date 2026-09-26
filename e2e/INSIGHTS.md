@@ -92,3 +92,10 @@ Non-obvious findings a future session needs. **Read this before working here.**
   the column is clipped, making the text present but not visible. This predates
   the L02 branch (the flow and the header source last changed in `c8be044` /
   `4146608`) and is the only failure in an otherwise 7/8 hermetic run.
+  - 2026-09-26 — Answered: not clipping. The PR list header row has
+    `textTransform: "uppercase"` (`client/src/app/repos/[repoId]/pulls/styles.ts:106`)
+    and `wait --text` matches the RENDERED text, so "Cost" never appears — only
+    "COST". Switching to `COST` passed that step and the next one then failed the
+    same way on "Findings" → assert CSS-transformed text in its displayed case
+    (`COST`, `FINDINGS`); flow 02 now passes, suite 8/8 hermetic.
+    (ref: e2e/specs/02-repo-pulls-detail.flow.json:8-9)

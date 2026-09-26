@@ -64,13 +64,34 @@
   },
   "smartDiff": {
     "coreLabel": "Core",
+    "testsLabel": "Tests",
     "wiringLabel": "Wiring",
+    "docsLabel": "Docs",
     "boilerplateLabel": "Boilerplate",
+    "coreDesc": "Application logic — start here",
+    "testsDesc": "Test files",
+    "wiringDesc": "Config, tooling, entry points",
+    "docsDesc": "Documentation",
+    "boilerplateDesc": "Generated, vendored or lockfile noise",
     "largeTitle": "This PR is large ({lines} changed lines)",
     "largeBody": "Consider splitting it into smaller, focused PRs for easier review:",
     "filesCount": "{count} files",
     "findingLines": "{count} finding-lines",
-    "groupedByRole": "Smart Diff · grouped by role"
+    "groupedByRole": "Smart Diff · grouped by role",
+    "orderSmart": "Smart order",
+    "orderOriginal": "Original order",
+    "orderGroupLabel": "File order",
+    "filesWithSeverity": {
+      "critical": "{count} files with CRITICAL findings",
+      "warning": "{count} files with WARNING findings",
+      "suggestion": "{count} files with SUGGESTION findings"
+    },
+    "unavailable": "Smart order is unavailable — showing the original order."
+  },
+  "diffTab": {
+    "title": "Files changed · {count} files",
+    "showComments": "Show comments ({count})",
+    "hideComments": "Hide comments ({count})"
   },
   "list": {
     "breadcrumb": "Pull Requests",

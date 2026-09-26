@@ -1,6 +1,6 @@
 {
   "name": "PR detail Files changed tab renders the seeded diff",
-  "description": "From PR #482, open the Files changed tab and confirm the unified-diff viewer renders a seeded file path (src/config.ts). Exercises the refactored diff-viewer (DiffViewer → FileCard → CodeLine). Read-only seeded data (no model call). Assumes a freshly-seeded DB (see e2e/README.md).",
+  "description": "From PR #482, open the Files changed tab and confirm the unified-diff viewer renders a seeded file path (src/config.ts). Exercises the refactored diff-viewer (DiffViewer → FileCard → CodeLine). Extended for L03 Smart Order: the Smart/Original order toggle switches the file layout and updates the URL. Read-only seeded data (no model call). Assumes a freshly-seeded DB (see e2e/README.md).",
   "steps": [
     { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
     { "cmd": ["wait", "--url", "/pulls"], "label": "land on the PR list" },
@@ -9,6 +9,10 @@
     { "cmd": ["wait", "--load", "networkidle"], "label": "PR detail data settles" },
     { "cmd": ["find", "role", "button", "click", "--name", "Files changed"], "label": "switch to the Files changed tab" },
     { "cmd": ["wait", "--url", "tab=diff"], "label": "diff tab is active in the URL" },
-    { "cmd": ["wait", "--text", "src/config.ts"], "label": "a seeded changed file renders in the diff viewer" }
+    { "cmd": ["wait", "--text", "src/config.ts"], "label": "a seeded changed file renders in the diff viewer" },
+    { "cmd": ["wait", "--text", "Smart order"], "label": "the Smart/Original order toggle is present, defaulting to Smart" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Original order"], "label": "switch to Original order" },
+    { "cmd": ["wait", "--url", "order=original"], "label": "the URL reflects the original-order param" },
+    { "cmd": ["wait", "--text", "src/config.ts"], "label": "the seeded file still renders in the original-order list" }
   ]
 }

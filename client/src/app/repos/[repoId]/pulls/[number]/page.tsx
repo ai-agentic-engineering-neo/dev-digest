@@ -59,6 +59,7 @@ export default function PRDetailPage() {
     if (prId) {
       qc.invalidateQueries({ queryKey: ["pr-runs", prId] });
       qc.invalidateQueries({ queryKey: ["pr-intent", prId] });
+      qc.invalidateQueries({ queryKey: ["smart-diff", prId] });
     }
   };
 
@@ -172,6 +173,8 @@ export default function PRDetailPage() {
             filesCount={pr.files_count}
             files={pr.files}
             canComment={pr.status === "open"}
+            orderParam={search.get("order")}
+            onOrderParamChange={(v) => setParam("order", v)}
           />
         )}
       </div>

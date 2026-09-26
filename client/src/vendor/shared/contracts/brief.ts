@@ -129,8 +129,11 @@ export const PrHistory = z.object({
 export type PrHistory = z.infer<typeof PrHistory>;
 
 // ---- Smart Diff ----
-export const SmartDiffRole = z.enum(['core', 'wiring', 'boilerplate']);
+export const SmartDiffRole = z.enum(['core', 'tests', 'wiring', 'docs', 'boilerplate']);
 export type SmartDiffRole = z.infer<typeof SmartDiffRole>;
+
+/** Display order of the Smart Diff groups — the enum's own declaration order. */
+export const SMART_DIFF_ROLE_ORDER: readonly SmartDiffRole[] = SmartDiffRole.options;
 
 export const SmartDiffFile = z.object({
   path: z.string(),

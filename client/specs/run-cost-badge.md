@@ -152,4 +152,4 @@ Commits: `feat(reviews): run cost badge on timeline, drawer and review runs`,
 - **Column placement: after SCORE, before STATUS.** Keeps review-derived
   columns together; no list design was provided.
 - **Component outside `vendor/ui`.** Design-system changes are out of scope
-  per the root `CLAUDE.md`.
+  per the root `AGENTS.md`.

@@ -15,7 +15,7 @@ browser session alive between invocations, so consecutive commands act on the
 same page (`run.ts` header comment).
 
 The package therefore has no Playwright, no test runner and no model key.
-`README.md` and `CLAUDE.md` state the trade the package makes: a thin JSON
+`README.md` and `AGENTS.md` state the trade the package makes: a thin JSON
 convention plus a ~120 line runner instead of a framework, in exchange for a
 suite that is deterministic, key-free and cheap to keep green. The one thing
 agent-browser offers that this package deliberately does not use is its AI
@@ -103,7 +103,7 @@ banner; see `INSIGHTS.md`).
 
 The AI `chat` command is never used. It would require a model key, make each
 run non-deterministic, and put an LLM back into the loop that the whole suite
-exists to avoid (`../TESTING.md`, `CLAUDE.md`, `README.md`). A flow that needs
+exists to avoid (`../TESTING.md`, `AGENTS.md`, `README.md`). A flow that needs
 something `wait`/`find` cannot express should get a stable accessible name or
 text in the app instead.
 

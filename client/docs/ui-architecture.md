@@ -156,7 +156,7 @@ component to `Gallery` is the rule.
 `src/vendor/shared` is a copy of `server/src/vendor/shared`, aliased as
 `@devdigest/shared`. Hooks type their responses with it (`PrMeta`,
 `RunSummary`, `ReviewRecord`, `RunTrace`, `Agent`) and `src/lib/types.ts`
-re-exports the platform subset. The rule from the root `CLAUDE.md`: edit the
+re-exports the platform subset. The rule from the root `AGENTS.md`: edit the
 server copy, then copy the changed file over; never edit the client copy. As
 of this writing `diff -rq` shows five files still drifted (`adapters.ts`,
 `eval-ci.ts`, `knowledge.ts`, `platform.ts`, `productionize.ts`); `trace.ts`

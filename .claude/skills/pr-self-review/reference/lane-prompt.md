@@ -5,7 +5,7 @@ they run in parallel. Keep the subagent read-only.
 
 ```
 You are reviewing the <PACKAGE> lane of a pull request before it is opened.
-Repo root: <ROOT>. Read `<PACKAGE>/CLAUDE.md` first, then the "Review checklist"
+Repo root: <ROOT>. Read `<PACKAGE>/AGENTS.md` first, then the "Review checklist"
 or rules sections of each skill below, then the diff. Read the full current
 file for anything you want to flag; a hunk alone is not enough evidence.
 

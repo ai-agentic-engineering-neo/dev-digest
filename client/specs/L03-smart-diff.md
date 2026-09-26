@@ -38,12 +38,18 @@ This file records only what is client-specific.
 - **File card:** a colored dot (highest active-finding severity) right after
   the path, shown only when the file has at least one non-dismissed finding;
   the existing GitHub-comment counter stays a separate element.
-- **Code line:** a 3px left stripe + a clickable severity label
-  ("blocker" / "warning" / "suggestion", `+N` when several), `aria-expanded`;
-  clicking it expands inline `FindingCard`s (via a slot — `diff-viewer` never
-  imports route-local code) sorted by severity, with Accept/Dismiss. Only
-  active (non-dismissed) findings drive the stripe/label color and
-  auto-expand; a line with only dismissed findings shows a muted stripe/label.
+- **Code line:** a 3px left stripe + a clickable severity badge on the right
+  — the `SEV` icon and word ("blocker" / "warning" / "suggestion", `+N` when
+  several) in a pill with the severity's border and `SEV[…].bg` background,
+  `aria-expanded`. Under a line with an active finding the inline cards are
+  OPEN by default; the badge toggles them and each card's ✕ collapses them.
+  The card is `InlineFindingCard` (`DiffTab/_components/`, passed via the
+  `DiffFindingApi.Card` slot — `diff-viewer` never imports route-local code;
+  the Agent runs tab keeps its collapsible `FindingCard`): severity tile +
+  word, title, category, "line N-M", confidence, markdown rationale, a
+  "Suggested fix" box, Accept/Dismiss. Only active (non-dismissed) findings
+  drive the stripe/badge color and auto-expand; a line with only dismissed
+  findings shows a muted stripe/badge and starts collapsed.
 - **Unanchored findings:** a file whose finding doesn't land on a rendered
   RIGHT line (deleted file, `patch: null`, or `start_line` outside the
   rendered hunks) shows that finding in a collapsed block under the file,
@@ -66,7 +72,7 @@ This file records only what is client-specific.
 ## Non-goals (client-specific)
 
 - New locales — only `client/messages/en` exists.
-- Linking the muted `FindingCard` slot to GitHub (no `repoFullName` /
+- Linking the inline finding card to GitHub (no `repoFullName` /
   `headSha` available in `DiffTab`) — accepted.
 
 ## Acceptance criteria
@@ -83,9 +89,12 @@ See the server spec for the route-level criteria. Client-facing:
       chip.
 - [ ] The file dot appears only for a file with an active finding, colored
       by the highest such severity; the comment counter stays separate.
-- [ ] Line label text: CRITICAL → "blocker", WARNING → "warning", SUGGESTION
-      → "suggestion"; clicking it opens an inline card with title, rationale,
-      suggestion and Accept/Dismiss; clicking again closes it.
+- [ ] Line badge text: CRITICAL → "blocker", WARNING → "warning", SUGGESTION
+      → "suggestion", with the severity icon, border and background. Under a
+      line with an active finding the inline card (title, rationale,
+      suggestion, Accept/Dismiss) is open on load; clicking the badge or the
+      card's ✕ closes it, clicking the badge again reopens it. A line with
+      only dismissed findings starts collapsed.
 - [ ] A finding whose `start_line` isn't among the rendered RIGHT lines (or
       whose file has `patch: null`) appears only in the unanchored block, with
       no line label anywhere.

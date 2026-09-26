@@ -124,19 +124,26 @@ export function lineRowFor(kind: Line["kind"], stripeColor?: string, muted = fal
   };
 }
 
-/** The clickable severity label on a code line (`FindingMarker`). */
-export function findingMarkerStyle(color: string, muted: boolean): CSSProperties {
+/** The clickable severity badge on a code line (`FindingMarker`): icon + word
+    in a pill with the severity's border and tinted background (`SEV` tokens). */
+export function findingMarkerStyle(color: string, muted: boolean, bg = "transparent"): CSSProperties {
   return {
     marginLeft: "auto",
-    padding: "0 8px 0 0",
-    border: "none",
-    background: "none",
+    marginRight: 10,
+    alignSelf: "center",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 5,
+    padding: "0 8px",
+    lineHeight: "18px",
+    borderRadius: 6,
+    border: `1px solid ${color}`,
+    background: bg,
     cursor: "pointer",
-    fontSize: 11.5,
-    fontWeight: 700,
-    textTransform: "uppercase",
-    letterSpacing: "0.04em",
+    fontSize: 12,
+    fontWeight: 600,
     color,
+    flexShrink: 0,
     opacity: muted ? 0.5 : 1,
   };
 }

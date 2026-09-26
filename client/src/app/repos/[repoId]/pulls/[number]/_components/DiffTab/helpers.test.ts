@@ -12,6 +12,7 @@ import {
   findingsByFile,
   layoutSmartGroups,
   filesPerSeverity,
+  lineRange,
 } from "./helpers";
 import { highestSeverity } from "@/lib/severity";
 
@@ -193,6 +194,16 @@ describe("filesPerSeverity", () => {
     ]);
     const counts = filesPerSeverity([file("x.ts")], byFile);
     expect(counts).toEqual({ CRITICAL: 1, WARNING: 0, SUGGESTION: 0 });
+  });
+});
+
+describe("lineRange", () => {
+  it("returns just the number when start and end are the same line", () => {
+    expect(lineRange({ start_line: 5, end_line: 5 })).toBe("5");
+  });
+
+  it("returns start-end when the finding spans multiple lines", () => {
+    expect(lineRange({ start_line: 61, end_line: 74 })).toBe("61-74");
   });
 });
 

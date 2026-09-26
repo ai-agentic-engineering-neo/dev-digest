@@ -34,4 +34,16 @@ describe("findingMarkerStyle", () => {
   it("is at 0.5 opacity when muted (all findings on the line are dismissed)", () => {
     expect(findingMarkerStyle("red", true).opacity).toBe(0.5);
   });
+
+  it("has a 1px solid border in the severity color", () => {
+    expect(findingMarkerStyle("red", false).border).toBe("1px solid red");
+  });
+
+  it("defaults the background to transparent when no bg is given", () => {
+    expect(findingMarkerStyle("red", false).background).toBe("transparent");
+  });
+
+  it("uses the given severity background (SEV[sev].bg) when provided", () => {
+    expect(findingMarkerStyle("red", false, "var(--crit-bg)").background).toBe("var(--crit-bg)");
+  });
 });

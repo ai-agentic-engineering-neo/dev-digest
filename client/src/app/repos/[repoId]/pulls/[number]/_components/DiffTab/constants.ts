@@ -47,3 +47,12 @@ export const SEVERITY_FILES_KEY: Record<Severity, string> = {
 /** Severities shown as group-header chips, in display order (no INFO chip —
     `Severity` has no INFO value; same precedent as `SeverityFilterBar/constants.ts`). */
 export const CHIP_SEVERITIES: readonly Severity[] = ["CRITICAL", "WARNING", "SUGGESTION"];
+
+/** Severity → the one word the inline finding card leads with, under the
+    `shell` namespace — the same words as the line badge (blocker / warning /
+    suggestion), so the two never drift apart. */
+export const SEVERITY_WORD_KEY: Record<Severity, string> = {
+  CRITICAL: "diffViewer.findingLabel.critical",
+  WARNING: "diffViewer.findingLabel.warning",
+  SUGGESTION: "diffViewer.findingLabel.suggestion",
+};

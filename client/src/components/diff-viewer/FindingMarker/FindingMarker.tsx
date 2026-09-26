@@ -5,7 +5,7 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import type { Severity } from "@devdigest/shared";
-import { SEV } from "@devdigest/ui";
+import { Icon, SEV } from "@devdigest/ui";
 import { FINDING_LABEL_KEY } from "../constants";
 import { findingMarkerStyle } from "../styles";
 
@@ -26,14 +26,17 @@ export function FindingMarker({
   const t = useTranslations("shell.diffViewer");
   const label = t(FINDING_LABEL_KEY[severity]);
   const text = count > 1 ? t("findingLabelMore", { label, count: count - 1 }) : label;
+  const sev = SEV[severity];
+  const SevIcon = Icon[sev.icon];
 
   return (
     <button
       type="button"
       aria-expanded={open}
       onClick={onClick}
-      style={findingMarkerStyle(SEV[severity].c, !!muted)}
+      style={findingMarkerStyle(sev.c, !!muted, sev.bg)}
     >
+      <SevIcon size={12} aria-hidden />
       {text}
     </button>
   );

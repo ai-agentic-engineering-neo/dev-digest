@@ -12,6 +12,9 @@ export interface InlineFindingCardProps {
   defaultExpanded?: boolean;
   pending?: boolean;
   onAction?: (a: FindingActionKind) => void;
+  /** Collapse the card back under its line badge. Absent where there is
+      nothing to collapse to (the unanchored block). */
+  onClose?: () => void;
 }
 
 /** What the viewer needs to read + act on findings, anchored per file. */

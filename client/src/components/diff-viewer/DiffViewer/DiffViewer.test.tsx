@@ -1,9 +1,12 @@
 /**
  * DiffViewer — finding markers (Smart Order, L03): line labels ("blocker" /
- * "warning" / "suggestion", +N), inline expand/collapse, accept/dismiss via
- * the `DiffFindingApi.Card` slot, the unanchored-findings block, muted
- * dismissed-only lines, and the file dot. `Card` is a tiny stub — the real
- * `FindingCard` has its own test — rendering `f.title` and an Accept button.
+ * "warning" / "suggestion", +N), the inline card OPEN BY DEFAULT under a line
+ * with an active finding (collapsed when all findings on the line are
+ * dismissed), accept/dismiss via the `DiffFindingApi.Card` slot, the
+ * unanchored-findings block, muted dismissed-only lines, and the file dot.
+ * `Card` is a tiny stub — the real `InlineFindingCard` has its own test —
+ * rendering `f.title`, an Accept button, and a Close button when `onClose`
+ * is passed.
  */
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
@@ -16,13 +19,18 @@ import { DiffViewer } from "./DiffViewer";
 
 afterEach(cleanup);
 
-function Card({ f, onAction }: InlineFindingCardProps) {
+function Card({ f, onAction, onClose }: InlineFindingCardProps) {
   return (
     <div>
       <span>{f.title}</span>
       <button type="button" onClick={() => onAction?.("accept")}>
         Accept {f.id}
       </button>
+      {onClose && (
+        <button type="button" onClick={onClose}>
+          Close {f.id}
+        </button>
+      )}
     </div>
   );
 }
@@ -88,7 +96,7 @@ describe("DiffViewer — finding markers", () => {
     expect(screen.getByText("suggestion")).toBeInTheDocument();
   });
 
-  it("clicking a label expands the inline card (aria-expanded=true, title visible); clicking again collapses it", () => {
+  it("the inline card for an active finding is open by default; clicking the badge collapses it, clicking again reopens it", () => {
     const file: PrFile = { path: "src/config.ts", additions: 3, deletions: 0, patch: THREE_LINE_PATCH };
     const findings = findingApiFor({
       "src/config.ts": [finding({ id: "f1", severity: "CRITICAL", start_line: 1, title: "Hardcoded secret" })],
@@ -96,18 +104,43 @@ describe("DiffViewer — finding markers", () => {
     renderViewer([file], findings);
 
     const label = screen.getByText("blocker");
-    expect(label).toHaveAttribute("aria-expanded", "false");
-
-    fireEvent.click(label);
     expect(label).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("Hardcoded secret")).toBeInTheDocument();
 
     fireEvent.click(label);
     expect(label).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByText("Hardcoded secret")).not.toBeInTheDocument();
+
+    fireEvent.click(label);
+    expect(label).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Hardcoded secret")).toBeInTheDocument();
   });
 
-  it("Accept in the inline card calls findings.onAction with (finding.id, \"accept\")", () => {
+  it("a line whose findings are ALL dismissed starts collapsed; clicking the badge opens it", () => {
+    const file: PrFile = { path: "src/config.ts", additions: 3, deletions: 0, patch: THREE_LINE_PATCH };
+    const findings = findingApiFor({
+      "src/config.ts": [
+        finding({
+          id: "f1",
+          severity: "CRITICAL",
+          start_line: 1,
+          title: "Old, dismissed finding",
+          dismissed_at: "2026-09-01T00:00:00Z",
+        }),
+      ],
+    });
+    renderViewer([file], findings);
+
+    const label = screen.getByText("blocker");
+    expect(label).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("Old, dismissed finding")).not.toBeInTheDocument();
+
+    fireEvent.click(label);
+    expect(label).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Old, dismissed finding")).toBeInTheDocument();
+  });
+
+  it("Accept in the inline card calls findings.onAction with (finding.id, \"accept\") without clicking the badge first", () => {
     const onAction = vi.fn();
     const file: PrFile = { path: "src/config.ts", additions: 3, deletions: 0, patch: THREE_LINE_PATCH };
     const findings = findingApiFor(
@@ -116,10 +149,25 @@ describe("DiffViewer — finding markers", () => {
     );
     renderViewer([file], findings);
 
-    fireEvent.click(screen.getByText("blocker"));
     fireEvent.click(screen.getByText("Accept f1"));
 
     expect(onAction).toHaveBeenCalledWith("f1", "accept");
+  });
+
+  it("the slotted card's onClose collapses it back under the badge", () => {
+    const file: PrFile = { path: "src/config.ts", additions: 3, deletions: 0, patch: THREE_LINE_PATCH };
+    const findings = findingApiFor({
+      "src/config.ts": [finding({ id: "f1", severity: "CRITICAL", start_line: 1, title: "Hardcoded secret" })],
+    });
+    renderViewer([file], findings);
+
+    const label = screen.getByText("blocker");
+    expect(label).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.click(screen.getByText("Close f1"));
+
+    expect(label).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("Hardcoded secret")).not.toBeInTheDocument();
   });
 
   it("a finding on a line outside the rendered patch shows in the unanchored block, with no line label", () => {

@@ -8,8 +8,8 @@ import { usePrComments, useCreatePrComment, usePrReviews, useFindingAction } fro
 import { useSmartDiff } from "@/lib/hooks/smart-diff";
 import { notify } from "@/lib/toast";
 import type { PrFile } from "@devdigest/shared";
-import { FindingCard } from "../FindingCard";
 import { findingsByFile, orderFromParam, orderToParam, type DiffOrder } from "./helpers";
+import { InlineFindingCard } from "./_components/InlineFindingCard";
 import { OrderToggle } from "./_components/OrderToggle";
 import { SmartOrderView } from "./_components/SmartOrderView";
 import { s } from "./styles";
@@ -74,7 +74,7 @@ export function DiffTab({
   const byFile = React.useMemo(() => findingsByFile(reviews ?? []), [reviews]);
   const findingApi: DiffFindingApi = {
     byFile,
-    Card: FindingCard,
+    Card: InlineFindingCard,
     pending: findingAction.isPending,
     onAction: (findingId, action) =>
       findingAction.mutate({ findingId, action, prId: prId ?? undefined }),

@@ -42,7 +42,11 @@ export function CodeLine({
 }) {
   const [hover, setHover] = React.useState(false);
   const [composing, setComposing] = React.useState(false);
-  const [findingsOpen, setFindingsOpen] = React.useState(false);
+  // A line with an active finding shows its card(s) from the start; a line
+  // whose findings are all dismissed starts collapsed (the badge reopens it).
+  const [findingsOpen, setFindingsOpen] = React.useState(
+    () => (lineFindings ?? []).some(isActiveFinding),
+  );
 
   if (ln.kind === "hunk") {
     return (
@@ -111,6 +115,7 @@ export function CodeLine({
                 defaultExpanded
                 pending={findingApi.pending}
                 onAction={(a) => findingApi.onAction(f.id, a)}
+                onClose={() => setFindingsOpen(false)}
               />
             ))}
         </div>

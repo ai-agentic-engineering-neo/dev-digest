@@ -112,3 +112,8 @@ export function filesPerSeverity(
   }
   return counts;
 }
+
+/** A finding's line range as the inline card shows it: "61" or "61-74". */
+export function lineRange(f: Pick<FindingRecord, "start_line" | "end_line">): string {
+  return f.start_line === f.end_line ? `${f.start_line}` : `${f.start_line}-${f.end_line}`;
+}

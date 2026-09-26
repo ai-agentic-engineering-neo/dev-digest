@@ -86,7 +86,9 @@
       "warning": "{count} files with WARNING findings",
       "suggestion": "{count} files with SUGGESTION findings"
     },
-    "unavailable": "Smart order is unavailable — showing the original order."
+    "unavailable": "Smart order is unavailable — showing the original order.",
+    "findingLine": "line {range}",
+    "collapseFinding": "Collapse finding"
   },
   "diffTab": {
     "title": "Files changed · {count} files",

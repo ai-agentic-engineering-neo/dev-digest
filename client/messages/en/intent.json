@@ -1,0 +1,64 @@
+{
+  "title": "Intent",
+  "inScope": "IN SCOPE",
+  "outOfScope": "OUT OF SCOPE",
+  "noneStated": "None stated",
+  "confidence": {
+    "high": "High confidence",
+    "medium": "Medium confidence",
+    "low": "Low confidence"
+  },
+  "basis": {
+    "linked_spec": "Derived from a linked spec/plan",
+    "issue_and_description": "Derived from a linked issue and the PR description",
+    "description_only": "Derived from the PR description",
+    "issue_only": "Derived from a linked issue",
+    "spec_in_diff": "Derived from a spec changed in this PR",
+    "indirect_only": "Derived from indirect signals"
+  },
+  "lowHint": "Low confidence — inferred from indirect signals (title, branch, commits, changed paths). Treat it as a weak hint.",
+  "downgraded": "The model lowered this confidence after reviewing the sources.",
+  "stale": "Out of date — the PR changed since this intent was derived.",
+  "loading": "Loading intent",
+  "sources": {
+    "label": "SOURCES",
+    "status": {
+      "truncated": "truncated",
+      "unresolved": "not fetched",
+      "skipped": "skipped"
+    },
+    "reason": {
+      "external_host": "external tracker — not fetched",
+      "other_repo": "different repository — not fetched",
+      "not_found": "not found",
+      "fetch_failed": "fetch failed",
+      "github_unavailable": "GitHub not connected",
+      "unsupported_type": "unsupported file type",
+      "limit_reached": "over the source limit",
+      "empty": "nothing to read"
+    },
+    "kind": {
+      "title": "Title",
+      "description": "Description",
+      "branch": "Branch",
+      "commits": "Commits",
+      "changed_paths": "Changed files",
+      "linked_issue": "Linked issue",
+      "linked_spec": "Linked spec",
+      "spec_in_diff": "Spec in diff",
+      "external_link": "External link"
+    }
+  },
+  "empty": {
+    "title": "No intent yet",
+    "body": "Derive the PR's intent and scope from its title, description, linked issue and spec — a quick, cheap model call.",
+    "cta": "Generate intent"
+  },
+  "regenerate": "Regenerate",
+  "regenerateAria": "Regenerate intent",
+  "error": {
+    "title": "Couldn't load the intent",
+    "derive": "Couldn't derive the intent: {message}"
+  },
+  "costUnknown": "cost unknown"
+}

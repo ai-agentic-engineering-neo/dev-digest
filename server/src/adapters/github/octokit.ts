@@ -363,6 +363,33 @@ export class OctokitGitHubClient implements GitHubClient {
     };
   }
 
+  async getFileContent(repo: RepoRef, path: string, ref: string): Promise<string | null> {
+    try {
+      const res = await withRetry(() =>
+        withTimeout(
+          this.octokit.rest.repos.getContent({
+            owner: repo.owner,
+            repo: repo.name,
+            path,
+            ref,
+          }),
+          TIMEOUT,
+        ),
+      );
+      const data = res.data;
+      // Directory listings decode to an array; only a single file has `content`.
+      if (Array.isArray(data) || data.type !== 'file') return null;
+      // A file >1MB comes back with an empty `content` (GitHub omits it above
+      // that size) — treat it the same as "nothing usable here".
+      if (!data.content) return null;
+      return Buffer.from(data.content, 'base64').toString('utf8');
+    } catch (err) {
+      const status = (err as { status?: number })?.status;
+      if (status === 404) return null;
+      throw err;
+    }
+  }
+
   async currentLogin(): Promise<string> {
     const res = await withRetry(() =>
       withTimeout(this.octokit.rest.users.getAuthenticated(), TIMEOUT),

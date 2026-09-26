@@ -7,7 +7,8 @@ Fastify 5 + Drizzle/Postgres (pgvector). Overview & diagrams: [README.md](README
 ## Commands (pnpm)
 - `pnpm dev` (:3001) · `pnpm typecheck`
 - unit: `pnpm exec vitest run --exclude '**/*.it.test.ts'` (no Docker)
-- integration: `pnpm exec vitest run .it.test` (Docker)
+- integration: `../scripts/hermetic.sh pnpm exec vitest run .it.test` (Docker; hermetic = no real provider keys, see INSIGHTS 2026-09-24)
+- everything CI runs, recorded per tree: `../scripts/check-all.sh` (from the repo root: `scripts/check-all.sh`)
 - `pnpm db:migrate` applies existing migrations (NOT applied on boot)
 
 ## Must not break

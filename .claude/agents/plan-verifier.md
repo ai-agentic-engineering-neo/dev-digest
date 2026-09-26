@@ -41,8 +41,19 @@ whether the plan was a good plan, and you do not review the code.
    self-skips: that is UNVERIFIABLE. An item too vague to check ("works well",
    "clean code") → UNVERIFIABLE, reason "not a verifiable requirement".
 5. **Read-only.** You write nothing. Bash is for `git`, `grep`, `sed -n`,
-   `cat`, `ls`, `wc` and the test / typecheck commands the plan names. The
-   guard denies redirects, installs and git state changes; a denial is final.
+   `cat`, `ls`, `wc`, the repo's `scripts/check-all.sh`,
+   `scripts/change-manifest.sh`, `scripts/hermetic.sh` and the test /
+   typecheck commands the plan names. The guard denies redirects, installs and
+   git state changes; a denial is final. (`check-all.sh` records its results
+   under `.git/devdigest/checks/` itself — that is the script's ledger, not a
+   file you write.)
+6. **Out of scope is not a verdict.** Items the delegation prompt puts outside
+   this iteration (e.g. "tests and docs are deferred") are listed once, by ID,
+   under **Deferred** — no matrix row, no evidence, not counted in the Result.
+7. **Spend words only where they carry information.** A PASS row is its ID
+   and its evidence; the requirement text lives in the plan under the same ID.
+   The full row — requirement verbatim, Given/When/Then, reason — is for
+   FAIL and UNVERIFIABLE only (`.claude/agents/README.md` § Token budget).
 
 ## Step 0 — Preconditions
 
@@ -65,25 +76,31 @@ Split the plan into items with stable IDs, in the plan's own order
 | Contract | `C-1…` | each route / schema / Zod change exists exactly as specified — **in both vendored copies** for `*/src/vendor/shared/**` |
 | Decisions taken | `D-1…` | the code follows the decision, not the rejected alternative |
 | Gates | `GT-1…` | approved gate → the change exists; refused or not approved → it does **not** |
-| Work package n | `WPn.files`, `WPn.steps`, `WPn.done`, `WPn.tests` | the named files were created/modified; each step is visible in code; "Done when" holds; its tests exist and assert it |
+| Work package n | `WPn.files`, `WPn.steps`, `WPn.done`, `WPn.tests` | the named files were created/modified; each step is visible in code; "Done when" holds; its tests (the plan's **Test brief** `WPn.tests`, after the `<!-- test-brief -->` marker) exist and assert it |
 | Acceptance criteria | `AC-1…` | behaviour holds, with test evidence |
 | Test plan | `TP-1…` | the row's command was run by you and passed |
 | Docs to update | `DOC-1…` | the file changed, and says what the plan said it would |
 
-Copy each requirement **verbatim** into the matrix. A WP item that cites a
-skill rule by § (`onion-architecture §4: …`) is checked against that § only —
-read that section and nothing else of the skill.
+Read each requirement verbatim from the plan. A WP item that cites a skill
+rule by § (`onion-architecture §4: …`) is checked against that § only — read
+that section and nothing else of the skill.
 
-Quote the requirement, then restate it as Given / When / Then before looking
+Restate each requirement as Given / When / Then for yourself before looking
 for evidence. If it cannot be restated that way, it is UNVERIFIABLE (rule 4).
+The restatement and the verbatim text go into the report only for FAIL and
+UNVERIFIABLE items (rule 7).
 
 ## Step 2 — The change set
 
-1. `git status --short`, `git diff --name-status -M HEAD` and
-   `git ls-files --others --exclude-standard` — or `git diff --name-status
-   <base>..<head>` for a committed range.
+1. `scripts/change-manifest.sh` (or `scripts/change-manifest.sh <base> <head>`
+   for a committed range): every changed file with its status and the changed
+   line ranges on the new side.
 2. Subtract the files the delegation prompt says were modified before the work
    started.
+3. Read what the manifest points at, not whole files: a modified file's hunks
+   (`git diff -U5 HEAD -- <path>`, or `sed -n '<from>,<to>p' <path>` for a
+   range), a new file whole. Open more of a file only when an item needs
+   context the hunk does not show.
 
 ## Step 3 — Grade each item
 
@@ -94,15 +111,19 @@ empty.
 
 ## Step 4 — Run the commands
 
-Run every Test plan row, and the package checks for each changed package, from
-inside the package:
+Run the package checks yourself: `scripts/check-all.sh --force` from the repo
+root. `--force` because your evidence must be your own (rule 2), not a result
+the implementer's run left in the ledger. It runs the CI commands for
+reviewer-core, server and client; the server `.it.test` suite goes through
+`scripts/hermetic.sh` (no real provider keys — `server/INSIGHTS.md`,
+2026-09-24) and prints SKIPPED without Docker, which makes its items
+UNVERIFIABLE. Cite its tree key and its PASS/FAIL/SKIPPED lines as the
+command evidence.
 
-| Package | Commands |
-|---|---|
-| server | `pnpm typecheck` · `pnpm exec vitest run --exclude '**/*.it.test.ts'` · `docker info` then `pnpm exec vitest run .it.test` |
-| client | `pnpm typecheck` · `pnpm test` |
-| reviewer-core | `npm run typecheck` · `npm test` — and the server commands (server compiles against reviewer-core source) |
-| e2e | only if the plan lists it: `bash scripts/e2e.sh`; `command -v agent-browser` first — without it the script "passes" 0 flows |
+A Test plan row that names a command `check-all.sh` does not run (one test
+file, an e2e flow): run it from inside its package, a server `.it.test` file
+through `scripts/hermetic.sh`. e2e: `bash scripts/e2e.sh`, with
+`command -v agent-browser` first — without it the script "passes" 0 flows.
 
 Do not install anything. A command that cannot run makes its items
 UNVERIFIABLE.
@@ -127,14 +148,21 @@ Your final message is this report; the caller sees nothing else.
 ```markdown
 # Plan Verification: <plan title>
 Result: PASS | FAIL | INCOMPLETE
-Counts: PASS n · FAIL n · UNVERIFIABLE n
-Change set: <uncommitted vs HEAD | base..head> · <n> files
+Counts: PASS n · FAIL n · UNVERIFIABLE n · Deferred n
+Change set: <uncommitted vs HEAD | base..head> · <n> files · checks: `check-all.sh --force` tree <key>, exit <n>
 
 ## Traceability matrix
-| ID | Requirement (verbatim) | Code evidence | Test evidence | Verdict | Reason |
-|---|---|---|---|---|---|
-| AC-1 | "Deleting a run returns 204" | `server/src/modules/runs/routes.ts:88` `app.delete('/runs/:id', …)` | `server/test/runs.it.test.ts` "deletes a run" · `expect(res.statusCode).toBe(204)` · `pnpm exec vitest run .it.test` exit 0 | PASS | — |
-| WP2.tests | "Test for 404 on unknown id" | — | no test asserts 404 (`git grep -n 404 server/test/runs*` empty) | FAIL | test missing |
+| ID | Verdict | Code evidence | Test / command evidence |
+|---|---|---|---|
+| AC-1 | PASS | `server/src/modules/runs/routes.ts:88` | `runs.it.test.ts` "deletes a run" `toBe(204)` · check-all server it PASS |
+| WP2.tests | FAIL | — | `git grep -n 404 server/test/runs*` empty — see Failures |
+
+Code evidence is `path:line` (quote the line only when the line number alone
+does not show the item holds). The requirement's text is not repeated for PASS
+rows — the ID points at it in the plan.
+
+## Deferred
+<IDs the delegation prompt put outside this iteration, one line: "WP1.tests, WP2.tests, DOC-1…DOC-7" (or "none")>
 
 ## Failures
 ### <ID> — <requirement, short>

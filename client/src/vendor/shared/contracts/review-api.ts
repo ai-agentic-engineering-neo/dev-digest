@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { Finding, Verdict } from './findings.js';
-import { Intent, SmartDiff } from './brief.js';
+import { Intent, SmartDiff, IntentConfidence, IntentConfidenceBasis, IntentSource } from './brief.js';
 
 /**
  * A2 — Review-Core API surface contracts. These extend the core
@@ -56,9 +56,41 @@ export const ReviewRunResponse = z.object({
 });
 export type ReviewRunResponse = z.infer<typeof ReviewRunResponse>;
 
-/** Intent persisted for a PR (the Intent plus the pr_id it scopes). */
-export const PrIntentRecord = Intent.extend({ pr_id: z.string() });
+/**
+ * Intent persisted for a PR (L03): the Intent plus the pr_id it scopes, its
+ * deterministic confidence, the sources it was derived from, and generation
+ * metadata. `stale` is computed at read time (input_hash vs the PR's current
+ * title/body/head_sha), not stored.
+ */
+export const PrIntentRecord = Intent.extend({
+  pr_id: z.string(),
+  confidence: IntentConfidence,
+  confidence_basis: IntentConfidenceBasis,
+  downgraded: z.boolean(),
+  sources: z.array(IntentSource),
+  head_sha: z.string(),
+  stale: z.boolean(),
+  provider: z.string().nullable(),
+  model: z.string().nullable(),
+  tokens_in: z.number().int().nullable(),
+  tokens_out: z.number().int().nullable(),
+  /** USD spent deriving this intent; null = unknown. Never 0-as-unknown. */
+  cost_usd: z.number().nullable(),
+  generated_at: z.string(),
+});
 export type PrIntentRecord = z.infer<typeof PrIntentRecord>;
+
+/** Response of `GET /pulls/:id/intent`. */
+export const PrIntentResponse = z.object({ intent: PrIntentRecord.nullable() });
+export type PrIntentResponse = z.infer<typeof PrIntentResponse>;
+
+/** Body of `POST /pulls/:id/intent`. */
+export const DeriveIntentRequest = z.object({ force: z.boolean().default(false) });
+export type DeriveIntentRequest = z.infer<typeof DeriveIntentRequest>;
+
+/** Response of `POST /pulls/:id/intent`. */
+export const DeriveIntentResponse = z.object({ intent: PrIntentRecord, cached: z.boolean() });
+export type DeriveIntentResponse = z.infer<typeof DeriveIntentResponse>;
 
 /** Smart-diff response for a PR (the SmartDiff). */
 export const SmartDiffResponse = SmartDiff;

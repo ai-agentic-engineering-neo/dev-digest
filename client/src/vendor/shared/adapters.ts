@@ -133,6 +133,14 @@ export interface GitHubClient {
   ): Promise<PrReviewComment>;
   openPullRequest(repo: RepoRef, payload: OpenPrPayload): Promise<{ url: string }>;
   getIssue(repo: RepoRef, n: number): Promise<IssueMeta>;
+  /**
+   * Fetch one file's raw text content at a specific ref (Contents API). Used
+   * by the intent layer (L03) to read a linked/in-diff spec at the PR's head
+   * SHA. Returns `null` when the path is a 404, a directory, or not a
+   * regular file (e.g. a submodule); throws on other errors (auth, rate
+   * limit, network).
+   */
+  getFileContent(repo: RepoRef, path: string, ref: string): Promise<string | null>;
   /** GET /user — for "posting as @user". */
   currentLogin(): Promise<string>;
 }

@@ -46,6 +46,10 @@ reviewers take it from there.
    are production code and stay yours: a new adapter gets its mock there.
 6. **Report what happened, not what should have happened.** A failing or
    skipped check is reported as failing or skipped, with the output.
+7. **Never run the server `.it.test` suite outside `scripts/hermetic.sh`.**
+   A developer machine may store real provider keys (`~/.devdigest/secrets.json`);
+   a bare run then makes billed LLM calls and times out
+   (`server/INSIGHTS.md`, 2026-09-24). `scripts/check-all.sh` already does this.
 
 ## Step 0 — Preconditions
 
@@ -62,6 +66,12 @@ Stop and return only a `BLOCKED` report (format below, Status: blocked) if:
   the design.
 
 ## Step 1 — Prepare
+
+**Fix round.** When the delegation prompt is a list of verified findings
+(each with `file:line`, the rule and what must hold) rather than a plan, it is
+self-contained: work from it, do not open the plan, load only the skills for
+the files the findings name, and report per finding. Everything else in this
+file still applies.
 
 1. `git status --short` — record files already modified before you start.
    They are not yours: do not edit, revert or include them in your report.
@@ -106,15 +116,26 @@ Stop and return only a `BLOCKED` report (format below, Status: blocked) if:
 
 ## Step 3 — Verify your own change
 
-Run the checks for every package you changed, from inside that package:
+Run `scripts/check-all.sh --force` from the repo root. It runs, per package,
+exactly the commands CI runs, and records them in a ledger keyed by the state
+of the working tree so the stages after you do not re-run them on an unchanged
+tree:
 
-| Package | Commands |
+| Package | Commands it runs |
 |---|---|
-| server | `pnpm typecheck` · `pnpm exec vitest run --exclude '**/*.it.test.ts'` |
-| server, if you changed DB access or `*.it.test.ts` | `docker info` first; if Docker is up: `pnpm exec vitest run .it.test` — these tests **self-skip** without Docker, so a green run without Docker is "skipped", not "passed" |
+| reviewer-core | `npm run typecheck` · `npm test` |
+| server | `pnpm typecheck` · `pnpm exec vitest run --exclude '**/*.it.test.ts'` · `docker info`, then `scripts/hermetic.sh pnpm exec vitest run .it.test` — without Docker it prints **SKIPPED**, never PASS |
 | client | `pnpm typecheck` · `pnpm test` |
-| reviewer-core | `npm run typecheck` · `npm test` — **and** the server commands above, since server compiles against reviewer-core source |
-| e2e | only if the plan asks: `./scripts/e2e.sh` from the repo root; check `command -v agent-browser` first — without it the script "passes" 0 flows |
+
+It runs all three packages by default — server compiles against
+reviewer-core source, so a reviewer-core change needs the server checks
+anyway. While iterating on one package, `--pkg server --no-it` is fine; the
+final run before your report is the full `--force` one. A failing check prints
+the last 30 lines of its log; the whole log is under
+`.git/devdigest/checks/<tree>/<pkg>-<check>.log`.
+
+e2e only if the plan asks: `./scripts/e2e.sh` from the repo root; check
+`command -v agent-browser` first — without it the script "passes" 0 flows.
 
 If dependencies are missing, only `pnpm install --frozen-lockfile` / `npm ci`
 are allowed. On a failure: read the output, fix the cause in your own change,
@@ -128,17 +149,20 @@ wrong — fix the code.
 
 Then check the diff against the plan:
 
-- `git status --short` and `git diff --stat` — every changed file belongs to a
-  work package (or is listed as a deviation); none is a file that was already
-  modified before you started.
+- `scripts/change-manifest.sh` — every changed file belongs to a work
+  package (or is listed as a deviation); none is a file that was already
+  modified before you started. Its line ranges go into your report.
 - Every acceptance criterion in the plan: met, not met, or not verifiable
-  locally — say which and how you know.
+  locally. Report the met ones by ID only; explain the others.
 
 This is the whole of your verification. Do not extend it into a review.
 
 ## Output format
 
-Your final message is this report; the caller sees nothing else.
+Your final message is this report; the caller sees nothing else. It is read
+by the main session, test-writer, plan-verifier and architecture-reviewer, so
+it carries only what they cannot get elsewhere: do not restate the plan, the
+Test brief or passing criteria (`.claude/agents/README.md` § Token budget).
 
 ```markdown
 # Implementation Report: <plan title>
@@ -149,28 +173,28 @@ Status: done | partial | blocked
 
 ## Changes by work package
 ### WP1 — <title> — done | partial | skipped | blocked
-- Files: `path` (created | modified), …
+- Files: `path` (A | M, lines 12-40, 88), … — ranges from `scripts/change-manifest.sh`
 - Skills applied: <skill> (§… where the plan cited one)
-- Notes: <anything the reviewer needs to know>
+- Notes: <only what a reviewer cannot see in the code>
 
 ## Deviations from plan
 - <what> — <why> (or "none")
 
 ## Verification
-| Package | Command | Result | Exit |
-|---|---|---|---|
-| server | `pnpm typecheck` | pass | 0 |
-| server | `pnpm exec vitest run .it.test` | skipped — Docker not running | — |
-<failing output, trimmed to the relevant lines, below the table>
+`scripts/check-all.sh --force` · tree `<key from its first line>` · exit <n>
+<its PASS/FAIL/SKIPPED lines, verbatim; failing output trimmed below>
 
 ## Acceptance criteria
-- [x] <criterion> — <how verified>
-- [ ] <criterion> — <why not met / not verifiable locally>
+Met: AC-1, AC-2, … · Not met / not verifiable locally:
+- [ ] AC-n — <why>
 
 ## Handoff to test-writer
-| Plan item | Behaviour to test (from the plan, verbatim) | Seam | Suggested file |
-|---|---|---|---|
-| WP2.tests / AC-1 | <the plan's words> | `POST /runs` · `RunsService.create` | `server/test/runs.it.test.ts` |
+| Plan item | Seam | Suggested file |
+|---|---|---|
+| WP2.tests / AC-1 | `POST /runs` · `RunsService.create` | `server/test/runs.it.test.ts` |
+The behaviour for each item is in the plan's Test brief — do not copy it here.
+Record here only what the Test brief could not know: a seam that differs from
+the plan, a de-facto value you had to choose (a label, a ref format).
 Intended breaks: `<test file> › <test name>` — fails because <plan item> changes <behaviour> (or "none")
 
 ## Not done / blocked

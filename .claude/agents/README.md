@@ -61,22 +61,24 @@ reports only the name arrives; the four newer agents instead **Read** the
 | Agent | Input (the delegation prompt) | Output (its final message) | Stops early with |
 |---|---|---|---|
 | researcher | A question with scope and an expected answer shape (yes/no, location, list, comparison) | **Repo research** or **External research** report: answer + confidence, findings with `path:line` / URL evidence, inferences, a **Not found** table, open questions | `NEEDS CLARIFICATION` — up to 5 questions and a default assumption |
-| planner | A feature request or change with an outcome and a scope; optionally a researcher report | **Development Plan**: goal, non-goals, what already exists, contract, decisions, **Gates**, work packages (files · skills by § · constraints · steps · done when · tests as Given/When/Then for test-writer), order, acceptance criteria, test plan, docs to update, risks | `NEEDS CLARIFICATION` |
-| implementer | The Development Plan **verbatim**, plus which Gates the user approved | **Implementation Report**: status, changes per work package, deviations, verification table with exit codes, acceptance criteria, **Handoff to test-writer** (plan test items + intended breaks), out-of-scope observations, **Insight candidates**. Code change left **uncommitted** | `BLOCKED` report — no plan, unapproved gate, a plan that breaks a rule |
-| test-writer | The plan (or the WP ids / Test plan rows to cover) + the implementer's handoff; or a target behaviour and its source of truth | **Test Report**: tests with their oracle source, verification (3 runs per new file), **Red-proof** table, suspected defects (left red), not covered, insight candidates. Test files left **uncommitted** | `NEEDS CLARIFICATION` (no behaviour or no source of truth); `blocked` (needs a dependency, config or production change) |
-| plan-verifier | The plan **verbatim** + approved Gates; optionally the implementation and test reports and the files modified before work started | **Plan Verification**: `PASS / FAIL / INCOMPLETE`, a traceability matrix (ID · requirement verbatim · code evidence · test evidence · verdict), failures with "to pass", unverifiable items, scope, commands run | `NEEDS CLARIFICATION` (no plan); `BLOCKED` (no change) |
-| architecture-reviewer | Nothing, a commit range, or paths; optionally the plan | **Architecture Review**: verdict, scope by group, deterministic checks (greps, twin, registration, reviewer-core purity), findings `AR-n` with rule · location · evidence · mechanism, dropped candidates, not checked | `NEEDS CLARIFICATION` (nothing to review) |
+| planner | A feature request or change with an outcome and a scope; optionally a researcher report | **Development Plan**: a ≤12-line **Summary** for the user, goal, non-goals, what already exists, contract, decisions, **Gates**, work packages (files · skills by § · constraints · steps · done when), order, acceptance criteria, test plan, docs to update, risks — then, after a `<!-- test-brief -->` marker, the **Test brief** (`WPn.tests` as Given/When/Then for test-writer) | `NEEDS CLARIFICATION` |
+| implementer | The plan **above the marker** (verbatim, or the path of the saved file), plus which Gates the user approved; or, in a **fix round**, a self-contained list of verified findings | **Implementation Report**: status, changes per work package with changed line ranges, deviations, `check-all.sh --force` lines, unmet acceptance criteria (met ones by ID), **Handoff to test-writer** (Test brief IDs, seams, intended breaks), out-of-scope observations, **Insight candidates**. Code change left **uncommitted** | `BLOCKED` report — no plan, unapproved gate, a plan that breaks a rule |
+| test-writer | The **whole** plan (Test brief included) or the WP ids / Test plan rows to cover + the implementer's handoff; or a target behaviour and its source of truth | **Test Report**: tests with their oracle source, verification (3 runs per new file, hermetic), **Red-proof** table, suspected defects (left red), not covered, insight candidates. Test files left **uncommitted** | `NEEDS CLARIFICATION` (no behaviour or no source of truth); `blocked` (needs a dependency, config or production change) |
+| plan-verifier | The plan above the marker — plus the Test brief when tests are in this iteration — + approved Gates + what is deferred; optionally the implementation and test reports and the files modified before work started | **Plan Verification**: `PASS / FAIL / INCOMPLETE`, a traceability matrix (PASS rows: ID · evidence; FAIL / UNVERIFIABLE rows in full), deferred IDs on one line, failures with "to pass", scope, commands run | `NEEDS CLARIFICATION` (no plan); `BLOCKED` (no change) |
+| architecture-reviewer | Nothing, a commit range, or paths; optionally the plan | **Architecture Review**: verdict, scope counts by group, `fitness-greps.sh` regressions with its reading of each new hit, findings `AR-n` with rule · location · evidence · mechanism, dropped candidates, not checked | `NEEDS CLARIFICATION` (nothing to review) |
 | doc-writer | Material (plan, reports, diff, notes) + what to document; optionally a target file | **Documentation Report**: files with Diátaxis type, diagrams, claims verified (`path:line`), discrepancies, text **needing approval**, INSIGHTS promotion candidates. Docs left **uncommitted** | `NEEDS CLARIFICATION` (no material, or the feature is not built) |
 
 ## The flow
 
 ```
 question ─► researcher ─► report ────────────────────┐   (optional, any stage)
-request  ─► planner ─► Development Plan ─► user approves (plan + Gates)
-         ─► implementer (plan verbatim) ─► Implementation Report + uncommitted code
-         ─► test-writer (plan + handoff) ─► Test Report + uncommitted tests
+request  ─► planner ─► Development Plan ─► user approves (Summary + Gates) ─► "go" for the implementer
+         ─► implementer (plan above the marker) ─► Implementation Report + uncommitted code
+                         └ scripts/check-all.sh --force ─► ledger
+         ─► test-writer (whole plan + handoff) ─► Test Report + uncommitted tests
          ─► plan-verifier ∥ architecture-reviewer (both read-only, on the uncommitted change)
-              FAIL / findings ─► implementer (code) or test-writer (tests) ─► verify again
+              └ check-all.sh --force        └ fitness-greps.sh · change-manifest.sh
+              FAIL / findings ─► implementer (fix round: findings only) or test-writer ─► verify again
          ─► doc-writer (plan + reports) ─► docs
          ─► main session: INSIGHTS.md from every report's "Insight candidates"
          ─► commit ─► /pr-self-review ─► push
@@ -86,7 +88,9 @@ Subagents cannot ask the user anything (`AskUserQuestion` is never given to a
 subagent), so each one returns a `NEEDS CLARIFICATION` or `BLOCKED` block
 instead, and the main session relays it. Subagents do not see the conversation
 either: the plan reaches each agent only through the delegation prompt, so pass
-it **verbatim**, together with which Gates the user approved.
+it **verbatim** or as the path of the file it was saved to, together with which
+Gates the user approved. See [§ Token budget](#token-budget) for which part of
+the plan each agent gets.
 
 **Why tests are a separate agent.** A model that writes the code and its tests
 tends to shape the expected values to whatever the code returns — up to 68% of
@@ -114,6 +118,85 @@ holistic score because it agrees with human judgement markedly better
 (CheckEval, [arXiv 2403.18771](https://arxiv.org/abs/2403.18771); TICK,
 [arXiv 2410.03608](https://arxiv.org/abs/2410.03608); Anthropic,
 [develop tests](https://platform.claude.com/docs/en/test-and-evaluate/develop-tests)).
+
+## Token budget
+
+Measured on the L03 Intent Layer run, 2026-09-24 (subagent totals from the
+harness's task notifications — compare stages with each other, not as bills):
+
+| Stage | Model | Tokens | Tool calls |
+|---|---|---|---|
+| researcher | sonnet | 38k | 14 |
+| planner | opus | 235k | 68 |
+| implementer, WP0–WP8, three packages | sonnet | **417k** | **222** |
+| architecture-reviewer | opus | 108k | 34 |
+| plan-verifier | opus | 155k | 44 |
+| implementer, fix round | sonnet | 192k | 80 |
+
+Where it went: a ~25–30k-token plan, a quarter of it test cases nobody in that
+iteration needed, was read by five agents and the main session; every full
+report landed in the main session's context and rode along on each later turn;
+the same code was explored from scratch five times; the same typecheck and
+tests ran four times on one tree; one implementer carried server **and**
+client reads through 222 calls; and an `.it.test` run against real stored keys
+cost billed calls plus a debugging round. The changes below remove the
+repetition, not a check.
+
+**What each agent reads**
+
+| Agent | Gets | Does not get |
+|---|---|---|
+| implementer | plan above `<!-- test-brief -->`; approved Gates | Test brief; in a fix round, the plan at all — only the findings |
+| test-writer | the whole plan + the implementer's handoff | — |
+| plan-verifier | plan above the marker (+ Test brief when tests are in the iteration), what is deferred | reports as evidence (they are claims) |
+| architecture-reviewer | nothing or a range; `change-manifest.sh` → hunks, `fitness-greps.sh` → hits | whole modified files, typecheck/test runs |
+
+**Rules for the main session**
+
+1. **Do not re-type a plan.** Save it to a file once and hand agents the
+   **paths**. An over-limit message is already saved by the harness. An
+   inline one arrives as the `message` input of the agent's `SubagentHandback`
+   tool call — extract it from the agent's `output_file` with a script that
+   writes the file and prints only its size, never by reading the transcript
+   (measured 2026-09-24: the transcript's last plain assistant text was a
+   3.8k-char fragment, the handback held the 39k-char plan). Relay its
+   `## Summary` (`sed -n '/^## Summary/,/^## Goal/p' <file>`) and cut it at
+   the marker (`awk '/<!-- test-brief -->/{exit} {print}' <file> > plan-core.md`).
+2. **Ask before launching the implementer**, even after the Gates are
+   answered — it is the most expensive stage, and a stop after it started
+   wastes everything it read.
+3. **A fix round gets a self-contained brief** — each finding with `file:line`,
+   the rule and what must hold — and no plan (`implementer.md` Step 1).
+4. **One ledger for checks.** `scripts/check-all.sh --force` runs in the
+   implementer, at the end of test-writer and in plan-verifier (its evidence
+   must be its own). The main session and architecture-reviewer reuse the
+   ledger: `scripts/check-all.sh` without `--force` prints recorded results for
+   an unchanged tree. Editing docs, specs or `.claude/` does not invalidate it.
+5. **Relay, do not re-read.** Report counts and non-PASS items to the user;
+   open the full report only when asked.
+6. **Stable prefix first.** When the same agent type is spawned more than once,
+   start each delegation prompt with the identical constant block (paths,
+   approved Gates, constraints) and put the variable instruction last — the
+   prompt cache matches on prefixes. Whether a subagent's system prompt stays
+   byte-identical between spawns (it may embed git status) is **unverified**:
+   check `cache_read_input_tokens` in the agents' transcripts before relying
+   on it.
+7. **One agent per context.** Split the implementer by package when server and
+   client work do not share files (the client run then does not carry server
+   reads); keep sequential stages that share context in one agent.
+8. **Bundled artifacts:** do not `Artifact read` a bundler page into the main
+   context (it returns base64) — save it and unpack with a script, then grep.
+
+**Deliberately not done**
+
+- **No model downgrades.** plan-verifier stays on opus: its value is
+  re-deriving the implementer's (sonnet) claims on a different model (see
+  "plan-verifier vs the implementer's own check" above). The mechanical work
+  moved to scripts instead, which costs no model tokens at all.
+- **Read-only agents still do not write report files.** Letting planner,
+  plan-verifier or architecture-reviewer write under `.git/devdigest/` would
+  weaken the `read-only` guard; their reports got shorter instead (PASS rows
+  as ID + evidence, deferred items as one line, scope as counts).
 
 ## Where the rules come from
 
@@ -153,6 +236,8 @@ source changes, the agent that restates it is now stale — this table says whic
 | No tests — hand them to test-writer, including intended breaks; `mocks.ts` stays the implementer's | User decision 2026-09-24; [arXiv 2412.14137](https://arxiv.org/abs/2412.14137) (one model writing both validates its own bugs); enforced by `implementer-guard.sh` |
 | Step 3 verification commands per package | `server/AGENTS.md` § Commands, `client/AGENTS.md`, `reviewer-core/AGENTS.md`, `TESTING.md` |
 | A green `.it.test` run without Docker is "skipped", not "passed" | `TESTING.md` § server-integration (the tests self-skip) |
+| Rule 7 + Step 3: checks through `scripts/check-all.sh`, `.it.test` only via `scripts/hermetic.sh` | [`server/INSIGHTS.md`](../../server/INSIGHTS.md) 2026-09-24 (real stored keys → billed calls, 10 s timeouts); [§ Token budget](#token-budget) (one ledger instead of four runs) |
+| Fix round works from the findings, not the plan; report restates nothing | [§ Token budget](#token-budget) |
 | Check `command -v agent-browser` before trusting an e2e run | [`e2e/INSIGHTS.md`](../../e2e/INSIGHTS.md) 2026-09-19 (the script exits 0 with 0 flows run) |
 | reviewer-core change ⇒ run server checks too | Root `AGENTS.md` § Cross-package invariants |
 | No `INSIGHTS.md` writes — report "Insight candidates" | Root `AGENTS.md` § Workflow 3: `engineering-insights` runs in the main session |
@@ -189,7 +274,7 @@ source changes, the agent that restates it is now stale — this table says whic
 | Finding = rule → `file:line` → quoted line → severity | [dependency-cruiser rules](https://github.com/sverweij/dependency-cruiser/blob/main/doc/rules-reference.md) (rule, severity, location); [fitness functions](https://www.oreilly.com/library/view/building-evolutionary-architectures/9781491986356/ch02.html) |
 | Re-verify each finding; drop the unconfirmed | LLM reviewers hallucinate findings ([HalluJudge, arXiv 2601.19072](https://arxiv.org/html/2601.19072), preprint) |
 | Severity, CRITICAL bar, grandfathering, verdict | [`reviewer-prompt.md`](../skills/pr-self-review/reviewer-prompt.md) — borrowed, not reworded |
-| Grep checks by subtraction, severity ceiling | [`greps.md`](../skills/pr-self-review/greps.md) |
+| Grep checks by subtraction, severity ceiling | [`greps.md`](../skills/pr-self-review/greps.md), run by [`scripts/fitness-greps.sh`](../../scripts/fitness-greps.sh) — `greps.md` wins if they disagree |
 | Groups A and C only; twin check | [`routing.md`](../skills/pr-self-review/routing.md) |
 | Server rules §1–12, §11 exceptions | [`onion-architecture`](../skills/onion-architecture/SKILL.md) |
 | Client rules §1–12 | [`frontend-ui-architecture`](../skills/frontend-ui-architecture/SKILL.md) |
@@ -248,7 +333,14 @@ do run their hooks; that is how the guards are verified end to end.)
   - `planner.md` Step 5 ↔ `implementer.md` hard rules ↔ `test-writer.md`
     (who writes tests, and the shape of a WP's Tests line);
   - `planner.md` § Output format ↔ `plan-verifier.md` Step 1 (item IDs per
-    plan section);
+    plan section) ↔ `test-writer.md` Step 0 (the `<!-- test-brief -->`
+    marker and the `WPn.tests` blocks after it);
+  - [`scripts/fitness-greps.sh`](../../scripts/fitness-greps.sh) ↔ `greps.md`
+    § The patterns, `routing.md` § Vendored-contract twin check and
+    `architecture-reviewer.md` Step 3 (reviewer-core purity);
+    [`scripts/check-all.sh`](../../scripts/check-all.sh) ↔ the commands in
+    `.github/workflows/*.yml` ↔ `implementer.md` Step 3, `plan-verifier.md`
+    Step 4, `test-writer.md` Step 4;
   - `implementer.md` report ↔ `test-writer.md` input ("Handoff to
     test-writer") ↔ `plan-verifier.md` rule 2;
   - `implementer.md` skill table, `test-writer.md` Step 1 and

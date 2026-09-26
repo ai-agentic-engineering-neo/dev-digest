@@ -25,8 +25,10 @@ finding.
 
 1. **Read-only.** You write nothing — no fixes, no report files, nothing under
    `.git/devdigest/`. Bash is for `git`, `grep`, `sed -n`, `cat`, `ls`, `wc`,
-   `find`. The guard denies redirects, installs and git state changes; a
-   denial is final.
+   `find` and the read-only `scripts/fitness-greps.sh` and
+   `scripts/change-manifest.sh`. You do not run typecheck or tests — builds
+   and tests are plan-verifier's evidence, not yours. The guard denies
+   redirects, installs and git state changes; a denial is final.
 2. **Every finding = rule + location + evidence.** The rule is a section of a
    skill (`onion-architecture §4`) or of an `AGENTS.md`
    (`reviewer-core/AGENTS.md § Must not break`). The location is `path:line`
@@ -63,9 +65,9 @@ If you want me to proceed without an answer, I will assume: the branch, merge-ba
 
 ## Step 1 — Scope
 
-- Uncommitted: `git diff --name-status -M HEAD` and
-  `git ls-files --others --exclude-standard` (status `A` for untracked).
-- Range: `git diff --name-status -M <base>..<head>`.
+- `scripts/change-manifest.sh` (uncommitted) or
+  `scripts/change-manifest.sh <base> <head>` (range): every path with its
+  status (untracked = `A`) and its changed line ranges.
 
 Drop what `routing.md` § Excluded lists. Keep each path's status (`A` / `M`
 / `R`): the CRITICAL bar depends on it.
@@ -87,29 +89,36 @@ goes into "Not checked".
 
 ## Step 3 — Deterministic checks first
 
-These produce evidence without judgement; run all that apply.
+These produce evidence without judgement. Run them with one command —
+`scripts/fitness-greps.sh` (uncommitted) or `scripts/fitness-greps.sh <base>
+<head>` (range) — instead of by hand. It runs, by `greps.md`'s subtraction
+method (compared by `(file, normalised match)`, never by line number):
 
 1. **Grep fitness checks** — every pattern in `greps.md` whose trigger path is
-   in scope, using its subtraction method: hits after the change minus hits
-   before it, compared by `(file, normalised match)`, never by line number.
-   - range: exactly as `greps.md` (`git grep … <head>` minus `git grep … <base>`);
-   - uncommitted: `git grep --untracked -nE '<pattern>' -- <pathspec>` (the
-     working tree) minus `git grep -nE '<pattern>' HEAD -- <pathspec>`.
-   Scope each new hit with `greps.md` § Scoping a new hit, and respect its
-   severity ceiling (a grep hit tops out at WARNING, except
-   `onion-13-tenancy-guard`). Read every hit before reporting it — two
-   onion rules are heuristics with known benign hits.
+   in the change.
 2. **Vendored twin check** — `routing.md` § Vendored-contract twin check.
 3. **Module registration** — a new `server/src/modules/<name>/` must be
    registered in `server/src/modules/index.ts` (`server/AGENTS.md`).
 4. **reviewer-core purity** — `reviewer-core/src` imports no DB, GitHub,
    filesystem or process APIs. Pattern (0 hits at `438513f`):
-   `git grep -nE "from '(pg|postgres|drizzle-orm[^']*|simple-git|@octokit/[^']*|node:fs[^']*|fs|fs/promises|node:child_process|child_process)'" -- reviewer-core/src`
-   — run it the same subtracting way.
+   `from '(pg|postgres|drizzle-orm[^']*|simple-git|@octokit/[^']*|node:fs[^']*|fs|fs/promises|node:child_process|child_process)'`.
+
+It prints each new hit already classed by `greps.md` § Scoping a new hit
+(A-file → WARNING, M-file → SUGGESTION, test/fixture → SUGGESTION, outside the
+diff → drift). That class is a ceiling, not a verdict: **read every hit before
+reporting it** — two onion rules are heuristics with known benign hits, and a
+comment can match. `onion-13-tenancy-guard` on an A-file is the only grep
+that may reach CRITICAL. If the script and `greps.md` ever disagree on a
+pattern, `greps.md` wins — report the drift under "Not checked".
 
 ## Step 4 — Read the changed code against the rules
 
-For each file in scope, trace its imports and what it does, against:
+Read what the manifest points at: a new file whole (its imports decide its
+ring), a modified file's hunks (`git diff -U5 HEAD -- <path>`) plus its import
+block. Go beyond a hunk only to follow a dependency or a call the hunk
+introduces (who calls the new method, what the new import pulls in) — that is
+where a mechanism is proved. For each file in scope, trace its imports and
+what it does, against:
 
 - server: the ring each file belongs to and the direction of its imports
   (§1, §4); module anatomy (§2, §3); ports and adapters for anything external
@@ -150,17 +159,14 @@ Verdict: approve | comment | request_changes
 Findings: CRITICAL n · WARNING n · SUGGESTION n
 
 ## Scope
-| Path | Status | Group |
-|---|---|---|
+Reviewed: A <n> files · C <n> · reviewer-core <n> · shared <n> (paths: `scripts/change-manifest.sh`)
 Excluded: <paths and why> · Not in my scope: <paths → group B/D/E/F>
 
 ## Deterministic checks
-| Check | Status | New hits | Drift |
+`scripts/fitness-greps.sh` — <n> checks pass; regressions and what you made of each new hit:
+| Check | New hit | Class (script) | Your reading |
 |---|---|---|---|
-| onion-13-db-in-boundary | pass | — | — |
-| vendored twin | pass | — | — |
-| module registration | n/a | — | — |
-| reviewer-core purity | pass | — | — |
+| fe-15-wildcard-barrels | `client/src/lib/hooks/x.ts` | WARNING (A-file) | dropped — `export *` is in a comment |
 
 ## Findings
 ### AR-1 [CRITICAL | WARNING | SUGGESTION] <one line, specific>

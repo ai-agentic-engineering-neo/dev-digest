@@ -15,8 +15,13 @@
 export {
   assemblePrompt,
   wrapUntrusted,
+  estimateTokens,
   type PromptParts,
   type AssembledPrompt,
+  type PromptIntent,
+  type PromptSectionName,
+  type PromptSectionSource,
+  type PromptSection,
 } from './prompt.js';
 
 // Citation grounding — the mandatory mechanical gate for diff findings.
@@ -44,6 +49,8 @@ export {
   type ReviewEvent,
   type ReviewStrategy,
   type ReviewMode,
+  type PromptAssembledInfo,
+  type PromptTelemetryOptions,
 } from './review/run.js';
 
 // Output: grounded Review → GitHubReviewPayload (body + inline comments + event).

@@ -104,7 +104,22 @@ flowchart TB
 | `REPO_INTEL_ENABLED` | `true` | repo skeleton + callers in the prompt; `false` → ripgrep-only |
 | `DEVDIGEST_CLONE_DIR` | `./clones` | imported-repo checkouts (git-ignored) |
 | `LOG_LEVEL` | `info` (`silent` in test) | pino level |
+| `PROMPT_LOG` | `summary` | `verbose` locally adds fingerprints, file paths, skill names; ignored (falls back to `summary`, with a startup warning) when `NODE_ENV=production` — see § Prompt logging |
 | `NODE_ENV` | `development` | `test` → silent logs + global rate-limit disabled |
+
+### Prompt logging
+
+Every assembled LLM prompt (the reviewer's `reviewPullRequest` and the intent
+classifier) writes one structured `logger.info(record, 'prompt: assembled')`
+line: a correlation id, the PR id, provider/model, and per section its
+name/source/role/untrusted flag/chars/`tokens_est` — **never section text**.
+`PROMPT_LOG=verbose` adds a 12-hex sha256 fingerprint per section, the diff's
+file paths with their sizes, skill names, and intent source refs (never the
+title/branch refs — those are the PR author's own text). Grep for it with
+`grep 'prompt: assembled'`.
+
+This server does **not** load `server/.env.local` (`config.ts:1` loads only
+`.env`) — set `PROMPT_LOG=verbose pnpm dev`, or add the line to `server/.env`.
 
 Secrets (API keys, `GITHUB_TOKEN`) are **not** part of `AppConfig` — they go
 through `SecretsProvider` (`~/.devdigest/secrets.json`, mode `0600`, with

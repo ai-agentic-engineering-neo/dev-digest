@@ -11,7 +11,8 @@ import {
 } from 'fastify-type-provider-zod';
 import { sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { loadConfig, type AppConfig } from './platform/config.js';
+import { loadConfig, startupWarnings, type AppConfig } from './platform/config.js';
+import { loggerOptions } from './platform/logger-options.js';
 import { createDb, type Db } from './db/client.js';
 import { Container, type ContainerOverrides } from './platform/container.js';
 import { AppError } from './platform/errors.js';
@@ -47,17 +48,13 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
     // Explicit 1MB cap on request bodies (PR comments, settings payloads are
     // small). Protects against oversized/abusive payloads.
     bodyLimit: 1_048_576,
-    logger:
-      config.logLevel === 'silent'
-        ? false
-        : {
-            level: config.logLevel,
-            transport:
-              config.nodeEnv === 'development'
-                ? { target: 'pino-pretty', options: { colorize: true } }
-                : undefined,
-          },
+    logger: loggerOptions(config),
   });
+
+  // Surface any config-derived warning once at boot (currently: PROMPT_LOG=
+  // verbose ignored in production). Pure `startupWarnings` has no logger of
+  // its own — this is the one place that logs it.
+  for (const w of startupWarnings(config)) app.log.warn(w.obj, w.msg);
 
   // Use zod schemas directly for request validation + response serialization.
   // Routes opt in per-module via `app.withTypeProvider<ZodTypeProvider>()`.

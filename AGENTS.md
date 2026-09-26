@@ -33,7 +33,7 @@ require it, stop and ask the user first.
 - Adding or changing tests, CI → [TESTING.md](TESTING.md)
 - Editing reviewer prompts → [docs/agent-prompts/README.md](docs/agent-prompts/README.md)
 - The pre-PR gate (what blocks a push, how to waive) → [docs/pr-self-review.md](docs/pr-self-review.md)
-- Subagents (researcher → planner → implementer → test-writer → plan-verifier / architecture-reviewer → doc-writer; the agent guards) → [.claude/agents/README.md](.claude/agents/README.md)
+- Subagents (researcher → planner → implementer → test-writer → plan-verifier / architecture-reviewer → doc-writer; the agent guards) → [.claude/agents/README.md](.claude/agents/README.md); before delegating, its § Token budget (what each agent reads, one check ledger via `scripts/check-all.sh`)
 - Per-package: `<pkg>/README.md`, `<pkg>/docs/`, `<pkg>/specs/`, `<pkg>/INSIGHTS.md`
 
 ## Workflow

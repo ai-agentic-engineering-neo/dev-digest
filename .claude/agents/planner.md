@@ -38,6 +38,12 @@ item can be checked by someone who has not seen the conversation.
 4. **Your final message is the plan.** Do not call ExitPlanMode; the calling
    session relays your message to the user and then to the implementer, who
    sees nothing else you did.
+5. **Every token of the plan is read five or six times** — by the main
+   session, the implementer, plan-verifier, architecture-reviewer, test-writer
+   and a fix round (`.claude/agents/README.md` § Token budget). Evidence is
+   `path:line`, not a quoted block; a skill rule is cited by §, not restated;
+   "What already exists" lists each thing once. Tests go only in the
+   **Test brief** at the end (Step 5), never inside a work package.
 
 ## Step 0 — Is the request plannable?
 
@@ -144,12 +150,19 @@ opens a PR, never runs `/pr-self-review` or any review, and never touches
 migrations, lock files, dependencies or `.claude/`. Do not put any of these in
 a work package; they belong in Gates or happen after the implementer is done.
 
-**Tests are written by `test-writer`, after the implementer.** A work
-package's **Tests** line is test-writer's brief, and test-writer derives its
-assertions from it without reading the implementation first — so write the
+**Tests are written by `test-writer`, after the implementer.** Each work
+package's tests are test-writer's brief, and test-writer derives its
+assertions from them without reading the implementation first — so write the
 behaviour, not the code: Given / When / Then with the concrete expected value,
 plus the test file it belongs in (`TESTING.md`, `onion-architecture` §9). A
 test file is never in a work package's **Files**.
+
+Put all of them in the **Test brief** — the last section of the plan, after
+the `<!-- test-brief -->` marker line, one `### WPn.tests` block per work
+package (and `### TP-n` for Test plan rows that need more than their table
+row). The work package itself only says `**Tests:** see Test brief WPn.tests`.
+The calling session cuts the plan at the marker: the implementer and the
+reviewers get the part above it, test-writer gets both.
 
 **Every item is graded on its own by `plan-verifier`** (PASS / FAIL /
 UNVERIFIABLE). Write acceptance criteria, "Done when" and Non-goals so each is
@@ -162,6 +175,11 @@ come back UNVERIFIABLE.
 ```markdown
 # Development Plan: <feature>
 Packages: <server, client, …> · Spec: <pkg>/specs/<file>.md (new | update) · Lesson/ticket: <…>
+
+## Summary
+<≤12 lines for the user: what gets built, the Gates, the open questions with
+your recommended default. The calling session relays this instead of the
+whole plan.>
 
 ## Goal
 ## Non-goals
@@ -181,7 +199,7 @@ Packages: <server, client, …> · Spec: <pkg>/specs/<file>.md (new | update) ·
 - **Constraints:** <AGENTS.md / INSIGHTS.md rule, with source>
 - **Steps:** 1. … 2. …
 - **Done when:** <observable result>
-- **Tests (test-writer):** Given … When … Then <expected value> → `<test file>` · `<command>`
+- **Tests:** see Test brief WP1.tests
 ### WP2 — …
 ## Implementation order
 <WP dependencies; which can be skipped if a gate is refused>
@@ -194,6 +212,13 @@ Packages: <server, client, …> · Spec: <pkg>/specs/<file>.md (new | update) ·
 - <file> — <what changes> (or "none")
 ## Risks & open questions
 - <risk / Assumption> — <how to settle it>
+
+<!-- test-brief -->
+## Test brief
+### WP1.tests
+- Given … When … Then <expected value> → `<test file>` · `<command>`
+### WP2.tests
+- …
 ```
 
 Keep the plan as short as the change allows. A one-package change may have a

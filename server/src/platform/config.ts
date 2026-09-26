@@ -36,6 +36,14 @@ const EnvSchema = z.object({
     (v) => (v === '' ? undefined : v),
     z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).optional(),
   ),
+  // L03 — prompt logging (see docs/agent-prompts/README.md § How a prompt is
+  // assembled). Same '' → undefined pattern as LOG_LEVEL. 'verbose' is gated
+  // to non-production in loadConfig, not here: the schema only validates the
+  // literal value, not the NODE_ENV interaction.
+  PROMPT_LOG: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.enum(['summary', 'verbose']).optional(),
+  ),
 });
 
 export type AppConfig = {
@@ -59,6 +67,15 @@ export type AppConfig = {
    * EXACTLY like the ripgrep-only baseline.
    */
   repoIntelEnabled: boolean;
+  /**
+   * L03 — prompt-log detail level. 'summary' logs one text-free record per
+   * assembled prompt (section name/source/role/untrusted/chars/tokens_est).
+   * 'verbose' (local only — see promptLogVerboseIgnored) adds per-section
+   * fingerprints, diff file paths, skill names and intent source refs.
+   */
+  promptLog: 'summary' | 'verbose';
+  /** True when PROMPT_LOG=verbose was set but ignored because NODE_ENV=production. */
+  promptLogVerboseIgnored: boolean;
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -66,6 +83,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const cloneDirRaw =
     parsed.DEVDIGEST_CLONE_DIR ?? join(homedir(), '.devdigest', 'workspace');
   const cloneDir = isAbsolute(cloneDirRaw) ? cloneDirRaw : resolve(process.cwd(), cloneDirRaw);
+  const promptLogVerboseIgnored =
+    parsed.PROMPT_LOG === 'verbose' && parsed.NODE_ENV === 'production';
+  const promptLog: 'summary' | 'verbose' =
+    parsed.PROMPT_LOG === 'verbose' && parsed.NODE_ENV !== 'production' ? 'verbose' : 'summary';
   return {
     databaseUrl: parsed.DATABASE_URL,
     apiPort: parsed.API_PORT,
@@ -77,5 +98,23 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     webOrigin: `http://localhost:${parsed.WEB_PORT}`,
     embeddingsEnabled: parsed.EMBEDDINGS_ENABLED === 'true',
     repoIntelEnabled: parsed.REPO_INTEL_ENABLED !== 'false',
+    promptLog,
+    promptLogVerboseIgnored,
   };
+}
+
+/**
+ * Pure post-load warnings to surface once at boot. `loadConfig` has no
+ * logger (it may run in scripts/tests too) — `app.ts` calls this after
+ * Fastify is constructed and logs each entry via `app.log.warn`.
+ */
+export function startupWarnings(config: AppConfig): { obj: Record<string, unknown>; msg: string }[] {
+  const warnings: { obj: Record<string, unknown>; msg: string }[] = [];
+  if (config.promptLogVerboseIgnored) {
+    warnings.push({
+      obj: { promptLog: 'verbose', nodeEnv: 'production' },
+      msg: 'PROMPT_LOG=verbose ignored in production; using summary',
+    });
+  }
+  return warnings;
 }

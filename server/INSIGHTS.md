@@ -35,6 +35,30 @@ Non-obvious findings a future session needs. **Read this before working here.**
 
 ## What Doesn't Work
 
+- 2026-09-24 — `waitForPrRuns` proves only that `agent_runs.status` is
+  terminal, and that row is written INSIDE `runOneAgent` — before it returns
+  and `executeRuns` logs `review: agent … done`. A test asserting that log line
+  right after `waitForPrRuns` passed 3/3 alone and failed once under the full
+  parallel `.it.test` suite → for anything emitted after the status write,
+  poll for the log call itself (a local `waitForCall` loop), not for the run.
+  (ref: server/test/helpers/runs.ts:14, server/src/modules/reviews/run-executor.ts:120-130,
+  server/test/prompt-log.it.test.ts)
+
+- 2026-09-24 — A green CI does not prove the `.it.test` suite is hermetic:
+  `reviews.it.test.ts` and `skills-prompt.it.test.ts` override only
+  `llm.openai`, and `LocalSecretsProvider` falls back from
+  `~/.devdigest/secrets.json` (path from `homedir()`) to `process.env`. When
+  L03 added an intent call to `executeRuns` pre-work whose default provider is
+  `openrouter`, every review in those tests hit the REAL OpenRouter on a
+  machine with a stored key — billed calls, and 3 tests failing at
+  `waitForPrRuns`' 10 s default, which reads like a code bug. CI has no keys,
+  so the same code there fails fast with `ConfigError` and passes → run server
+  tests through `scripts/hermetic.sh` (throwaway `HOME`, provider env unset;
+  64/64 green where the bare run failed 3), and treat a new LLM call on a
+  shared path as live in every existing test that does not override
+  `secrets`. (ref: server/src/adapters/secrets/local.ts:36,
+  server/src/platform/config.ts:74, server/test/helpers/runs.ts:16)
+
 - 2026-09-22 — A foreign key proves EXISTENCE, not tenancy: `agent_skills.
   skill_id` references `skills.id` with no workspace predicate, so
   `AgentsRepository.setSkills` happily linked another workspace's skill and its
@@ -120,6 +144,9 @@ Non-obvious findings a future session needs. **Read this before working here.**
 
 ## Session Notes
 
+- 2026-09-24 — L03 intent layer: added `modules/intent/` (link resolution,
+  code-computed confidence tiers, cached cheap-model classification) wired into
+  `executeRuns` pre-work, migration 0013 (spec: server/specs/L03-intent-layer.md).
 - 2026-09-23 — L02 conventions: added `modules/conventions/` (code sampling →
   one structured call → a code-only evidence gate), migration 0012 and the
   three-state triage (spec: server/specs/L02-conventions.md).

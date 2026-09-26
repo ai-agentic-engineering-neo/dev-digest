@@ -65,14 +65,31 @@ cd reviewer-core && npm test
 
 # server — the unit/integration split (see note below)
 cd server && pnpm exec vitest run --exclude '**/*.it.test.ts'   # unit, no Docker
-cd server && pnpm exec vitest run .it.test                      # integration, needs Docker
-cd server && pnpm test                                          # both
+cd server && ../scripts/hermetic.sh pnpm exec vitest run .it.test   # integration, needs Docker
+cd server && ../scripts/hermetic.sh pnpm test                       # both
+
+# everything CI runs (minus e2e), recorded per working-tree state
+./scripts/check-all.sh            # reuses results for an unchanged tree
+./scripts/check-all.sh --force    # re-runs; --pkg server,client · --no-it
 
 # browser e2e (needs the full stack + agent-browser CLI)
 ./scripts/dev.sh
 npm i -g agent-browser && agent-browser install
 cd e2e && npm install && npm test
 ```
+
+**Run server tests through `scripts/hermetic.sh` on a machine with keys.** The
+server reads provider keys from `~/.devdigest/secrets.json`, then the
+environment. A test that does not override `secrets` / `llm.<provider>` then
+calls the **real** provider — billed, and slow enough to trip
+`waitForPrRuns`'s 10 s timeout — while CI, with no keys, stays green.
+`hermetic.sh` runs the command with a throwaway `HOME` and without the
+provider / GitHub variables (details in the script's header).
+
+`scripts/check-all.sh` keys its ledger (`.git/devdigest/checks/<tree>/`) on
+the committed state, diff and untracked files of the three packages, so an
+unchanged tree is not re-checked by the next agent in the pipeline; `SKIPPED`
+(no Docker) is printed as such, never as a pass.
 
 ## Conventions
 

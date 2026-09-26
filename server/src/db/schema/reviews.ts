@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
-import { pgTable, uuid, text, integer, jsonb, timestamp, doublePrecision } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, integer, jsonb, timestamp, doublePrecision, boolean } from 'drizzle-orm/pg-core';
+import type { IntentSource } from '@devdigest/shared';
 import { now } from './_shared';
 import { workspaces } from './core';
 import { pullRequests } from './pulls';
@@ -52,6 +53,33 @@ export const prIntent = pgTable('pr_intent', {
   intent: text('intent').notNull(),
   inScope: jsonb('in_scope').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
   outOfScope: jsonb('out_of_scope').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  // L03 — intent layer: deterministic confidence + sources + generation
+  // metadata (migration 0013). The DEFAULTs below exist only so the ALTER TABLE
+  // is safe on pre-existing rows; IntentService always sets every column on
+  // insert/update, so a default is never actually relied on for a fresh row.
+  confidence: text('confidence', { enum: ['high', 'medium', 'low'] }).notNull().default('low'),
+  confidenceBasis: text('confidence_basis', {
+    enum: [
+      'linked_spec',
+      'issue_and_description',
+      'description_only',
+      'issue_only',
+      'spec_in_diff',
+      'indirect_only',
+    ],
+  })
+    .notNull()
+    .default('indirect_only'),
+  downgraded: boolean('downgraded').notNull().default(false),
+  sources: jsonb('sources').$type<IntentSource[]>().notNull().default(sql`'[]'::jsonb`),
+  inputHash: text('input_hash').notNull().default(''),
+  headSha: text('head_sha').notNull().default(''),
+  provider: text('provider'),
+  model: text('model'),
+  tokensIn: integer('tokens_in'),
+  tokensOut: integer('tokens_out'),
+  costUsd: doublePrecision('cost_usd'),
+  generatedAt: timestamp('generated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const prBrief = pgTable('pr_brief', {

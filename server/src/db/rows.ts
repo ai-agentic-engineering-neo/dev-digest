@@ -14,3 +14,6 @@ export type AgentVersionRow = typeof t.agentVersions.$inferSelect;
 export type FindingRow = typeof t.findings.$inferSelect;
 export type PullRow = typeof t.pullRequests.$inferSelect;
 export type AgentRunRow = typeof t.agentRuns.$inferSelect;
+export type RepoRow = typeof t.repos.$inferSelect;
+export type PrFileRow = typeof t.prFiles.$inferSelect;
+export type PrCommitRow = typeof t.prCommits.$inferSelect;

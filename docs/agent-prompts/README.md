@@ -38,6 +38,7 @@ delimiter-wrapped (`prompt.ts:104-122`):
 ```
 <task line, e.g. "Review PR #7 '…'">
 ## PR description        (untrusted, author-controlled, truncated to 4000 chars)
+## PR intent (derived …) (untrusted, derived from PR body/linked issue/spec)
 ## Skills / rules        (linked skill bodies)
 ## Relevant memory       (curated memory items)
 ## Repo skeleton         (untrusted, repo-derived)
@@ -49,6 +50,15 @@ delimiter-wrapped (`prompt.ts:104-122`):
 Sections with no content are omitted. Everything repo- or author-derived is wrapped
 in `<untrusted source="…">…</untrusted>` so the model can tell instructions
 (system) from data (user).
+
+Each of these sections (`system_prompt`, `injection_guard`, `task`,
+`pr_description`, `intent`, `skills`, `memory`, `repo_map`, `specs`,
+`callers`, `diff`) is also what `PROMPT_LOG` records: set `PROMPT_LOG=verbose`
+locally (`server/README.md` § Prompt logging) to log a `'prompt: assembled'`
+line per prompt with each section's name, source, role, untrusted flag, char
+count and a 12-hex fingerprint — never the section text itself. Comparing
+fingerprints across runs is the fastest way to spot prompt drift (a section
+that changed shape without a code change).
 
 ## Skill ordering
 

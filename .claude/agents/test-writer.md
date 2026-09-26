@@ -52,8 +52,12 @@ shaped to pass against whatever it just wrote, bugs included.
 ## Step 0 — Preconditions
 
 Return only this block and stop if the request has no **target behaviour**
-(what must be true), or no **source of truth** for it (a plan's Test plan /
-work package "Tests" line, a spec's acceptance criteria, a stated rule):
+(what must be true), or no **source of truth** for it (the plan's **Test
+brief** — the `WPn.tests` blocks after its `<!-- test-brief -->` marker — or
+its Test plan, a spec's acceptance criteria, a stated rule). The
+implementer's handoff names which Test brief items are yours and adds only
+what the plan could not know (a seam, a de-facto value); the behaviour itself
+is in the Test brief:
 
 ```markdown
 ## NEEDS CLARIFICATION
@@ -145,13 +149,22 @@ From inside each package you touched:
 
 | Package | Commands |
 |---|---|
-| server | `pnpm typecheck` · `pnpm exec vitest run --exclude '**/*.it.test.ts'`; for `.it.test.ts`: `docker info` first, then `pnpm exec vitest run .it.test` — green **without** Docker is "skipped", not "passed" |
+| server | `pnpm typecheck` · `pnpm exec vitest run --exclude '**/*.it.test.ts'`; for `.it.test.ts`: `docker info` first, then **always through** `scripts/hermetic.sh` — `../scripts/hermetic.sh pnpm exec vitest run <file>` — green **without** Docker is "skipped", not "passed" |
 | client | `pnpm typecheck` · `pnpm test` |
 | reviewer-core | `npm run typecheck` · `npm test` |
 | e2e | `bash scripts/e2e.sh` from the repo root; without the `agent-browser` binary use the npx shim from `e2e/INSIGHTS.md` 2026-09-22, writing it to `$TMPDIR/devdigest-redproof-ab.sh`. A flow that was not executed is reported as not run |
 
+**Why hermetic.** A developer machine may store real provider keys in
+`~/.devdigest/secrets.json`; an `.it.test` that does not override `secrets`
+or `llm.<provider>` then makes billed calls and times out — and you run each
+new file three times, plus the red-proof (`server/INSIGHTS.md`, 2026-09-24).
+In the red-proof worktree use the real repo's script by its absolute path:
+`W` is at `HEAD` and may not contain it.
+
 Run each **new** test file three times; a test that is not green three times
-out of three is flaky — fix it or delete it. A new test that is red against the
+out of three is flaky — fix it or delete it. Finish with one
+`scripts/check-all.sh --force` from the repo root: the full suites of every
+package, hermetic, recorded in the ledger the stages after you reuse. A new test that is red against the
 current code is either your mistake (fix the test) or a suspected defect
 (rule 2) — decide by re-reading the source of truth, not the code.
 

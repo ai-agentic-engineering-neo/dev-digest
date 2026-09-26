@@ -1,20 +1,23 @@
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
-import type { Finding, Intent, RunSummary, RunTrace } from '@devdigest/shared';
+import type { Finding, RunSummary, RunTrace } from '@devdigest/shared';
 
 /**
  * A2 — review data-access. The ONLY layer touching the DB for the review
- * domain. Owns `reviews`, `findings`, `pr_intent`, and persists the
- * observability rows `agent_runs` + `run_traces` (one trace doc per run).
- * Workspace scoping is enforced via the PR (which carries workspace_id).
+ * domain. Owns `reviews` and `findings`, exposes read access to the PR /
+ * files / commits the intent layer (`modules/intent/`) reads via
+ * `container.reviewRepo`, and persists the observability rows `agent_runs` +
+ * `run_traces` (one trace doc per run). `pr_intent` belongs to
+ * `modules/intent/repository.ts`, not here. Workspace scoping is enforced
+ * via the PR (which carries workspace_id).
  *
  * The query implementations are colocated, split by aggregate, under
  * `./repository/` (review+findings, agent runs, pull/intent). This class
  * composes them so its public API stays identical.
  */
 
-import type { FindingRow, PullRow } from '../../db/rows.js';
-export type { FindingRow, PullRow };
+import type { FindingRow, PrCommitRow, PrFileRow, PullRow, RepoRow } from '../../db/rows.js';
+export type { FindingRow, PrCommitRow, PrFileRow, PullRow, RepoRow };
 
 export type ReviewRow = typeof t.reviews.$inferSelect;
 
@@ -31,12 +34,17 @@ export class ReviewRepository {
     return pullRepo.getPull(this.db, workspaceId, prId);
   }
 
-  getRepo(repoId: string): Promise<typeof t.repos.$inferSelect | undefined> {
+  getRepo(repoId: string): Promise<RepoRow | undefined> {
     return pullRepo.getRepo(this.db, repoId);
   }
 
-  getPrFiles(prId: string): Promise<(typeof t.prFiles.$inferSelect)[]> {
+  getPrFiles(prId: string): Promise<PrFileRow[]> {
     return pullRepo.getPrFiles(this.db, prId);
+  }
+
+  /** A PR's commits, oldest first (L03 intent layer signal). */
+  getPrCommits(prId: string): Promise<PrCommitRow[]> {
+    return pullRepo.getPrCommits(this.db, prId);
   }
 
   // ---- reviews + findings -------------------------------------------------
@@ -123,16 +131,6 @@ export class ReviewRepository {
 
   setFindingDismissed(findingId: string, at: Date | null): Promise<FindingRow | undefined> {
     return reviewRepo.setFindingDismissed(this.db, findingId, at);
-  }
-
-  // ---- intent -------------------------------------------------------------
-
-  upsertIntent(prId: string, intent: Intent): Promise<void> {
-    return pullRepo.upsertIntent(this.db, prId, intent);
-  }
-
-  getIntent(prId: string): Promise<Intent | undefined> {
-    return pullRepo.getIntent(this.db, prId);
   }
 
   // ---- observability: agent_runs + run_traces ----------------------------

@@ -42,6 +42,12 @@ Exported from `src/index.ts`: `assemblePrompt` / `wrapUntrusted` (prompt),
 `reduce`. Contracts (`Review`, `Finding`, `Verdict`, …) come from
 `@devdigest/shared`.
 
+`estimateTokens` and the optional `promptTelemetry` on `ReviewInput`
+(L03 — prompt logging) let a caller observe prompt-assembly metadata —
+`PromptSection[]` / `PromptAssembledInfo` (name, source, role, untrusted,
+chars, `tokens_est`) — through `onPrompt`, **never section text**. The engine
+stays I/O-free: a fingerprint hasher, when wanted, is injected by the caller.
+
 ## Testing
 
 `npm test` (vitest) — hermetic units with a stubbed `LLMProvider`: prompt

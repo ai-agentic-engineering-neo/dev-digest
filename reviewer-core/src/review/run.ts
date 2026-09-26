@@ -7,7 +7,12 @@ import type {
   UnifiedDiff,
 } from '@devdigest/shared';
 import { Review as ReviewSchema } from '@devdigest/shared';
-import { assemblePrompt } from '../prompt.js';
+import {
+  assemblePrompt,
+  type AssembledPrompt,
+  type PromptIntent,
+  type PromptSection,
+} from '../prompt.js';
 import { groundFindings, groundingSummary } from '../grounding.js';
 import { reduceReviews, scoreFromFindings, sliceDiff } from './reduce.js';
 
@@ -33,6 +38,43 @@ export const DEFAULT_REVIEW_MAX_RETRIES = 2;
 
 export type ReviewStrategy = 'auto' | 'single-pass' | 'map-reduce';
 export type ReviewMode = 'single-pass' | 'map-reduce';
+
+/**
+ * Prompt-assembly metadata for one call (L03 — prompt logging). Text-free by
+ * construction: it carries `sections` (from `assemblePrompt`), sizes and
+ * scope, never the prompt itself.
+ */
+export interface PromptAssembledInfo {
+  scope: 'run' | 'chunk';
+  mode: ReviewMode;
+  model: string;
+  chunk_count: number;
+  /** chunk scope only. */
+  chunk_index?: number;
+  /** chunk scope only. */
+  chunk_label?: string;
+  system_chars: number;
+  user_chars: number;
+  total_chars: number;
+  tokens_est: number;
+  sections: PromptSection[];
+  /** verbose, run scope only. */
+  diff_files?: { path: string; chars: number }[];
+}
+
+/**
+ * Opt-in telemetry sink for `reviewPullRequest`. `onPrompt` receives
+ * metadata ONLY (never section text) and is invoked once per assembled
+ * prompt: once per review (`scope:'run'`), plus once per map-reduce chunk
+ * when `detail === 'verbose'`. Every invocation is wrapped in try/catch
+ * inside the engine — telemetry must never fail a review.
+ */
+export interface PromptTelemetryOptions {
+  detail: 'summary' | 'verbose';
+  onPrompt: (info: PromptAssembledInfo) => void;
+  /** Only used when `detail === 'verbose'` — reviewer-core never hashes on its own. */
+  fingerprint?: (text: string) => string;
+}
 
 /** Progress event emitted during a review (server → SSE bus, runner → log). */
 export interface ReviewEvent {
@@ -71,6 +113,11 @@ export interface ReviewInput {
   /** PR author's description/body (untrusted; truncated + delimiter-wrapped in
       the prompt). Empty/undefined → section omitted. */
   prDescription?: string;
+  /**
+   * Derived PR intent (L03) — attacker-influenced like `prDescription`, so
+   * it is rendered as an untrusted block too. Undefined → section omitted.
+   */
+  intent?: PromptIntent;
   /** Task framing line, e.g. "Review PR #482 …". */
   task?: string;
   /** Override the structured-output retry budget. */
@@ -90,6 +137,13 @@ export interface ReviewInput {
    * type, e.g. the server's RunCancelledError); the engine stays agnostic.
    */
   checkCancelled?: () => void;
+  /**
+   * Optional prompt-assembly telemetry (L03). METADATA ONLY, NEVER TEXT: the
+   * engine reports section names/sizes/provenance through `onPrompt`, never
+   * the assembled prompt itself. The caller (server) builds and logs a
+   * record from it; reviewer-core stays free of I/O and a logger.
+   */
+  promptTelemetry?: PromptTelemetryOptions;
 }
 
 export interface ReviewOutcome {
@@ -120,6 +174,40 @@ function selectMode(strategy: ReviewStrategy, diff: UnifiedDiff, threshold: numb
   return totalLines > threshold && diff.files.length > 1 ? 'map-reduce' : 'single-pass';
 }
 
+/** Build one PromptAssembledInfo from an AssembledPrompt (never touches text
+ *  beyond measuring its length) — shared by the run-scope and chunk-scope emits. */
+function buildPromptInfo(
+  scope: 'run' | 'chunk',
+  assembled: AssembledPrompt,
+  ctx: {
+    mode: ReviewMode;
+    model: string;
+    chunkCount: number;
+    chunkIndex?: number;
+    chunkLabel?: string;
+    diffFiles?: { path: string; chars: number }[];
+  },
+): PromptAssembledInfo {
+  const systemChars = assembled.messages[0]!.content.length;
+  const userChars = assembled.messages[1]!.content.length;
+  return {
+    scope,
+    mode: ctx.mode,
+    model: ctx.model,
+    chunk_count: ctx.chunkCount,
+    ...(ctx.chunkIndex !== undefined ? { chunk_index: ctx.chunkIndex } : {}),
+    ...(ctx.chunkLabel !== undefined ? { chunk_label: ctx.chunkLabel } : {}),
+    system_chars: systemChars,
+    user_chars: userChars,
+    total_chars: systemChars + userChars,
+    // Same heuristic as estimateTokens (ceil(chars/4)), applied to the
+    // already-computed char totals — no need to re-measure the text.
+    tokens_est: Math.ceil((systemChars + userChars) / 4),
+    sections: assembled.sections,
+    ...(ctx.diffFiles ? { diff_files: ctx.diffFiles } : {}),
+  };
+}
+
 export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutcome> {
   const threshold = input.mapThresholdLines ?? DEFAULT_MAP_THRESHOLD_LINES;
   const maxRetries = input.maxRetries ?? DEFAULT_REVIEW_MAX_RETRIES;
@@ -135,11 +223,20 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
     callers: input.callers,
     repoMap: input.repoMap,
     prDescription: input.prDescription,
+    intent: input.intent,
     task: input.task,
   };
 
+  // Fingerprints are computed only in verbose mode — reviewer-core never
+  // hashes on its own, and summary mode never touches this.
+  const fingerprintOpts =
+    input.promptTelemetry?.detail === 'verbose' && input.promptTelemetry.fingerprint
+      ? { fingerprint: input.promptTelemetry.fingerprint }
+      : undefined;
+
   // Whole-diff assembly is the trace default; overwritten below for single-pass.
-  let assembly: PromptAssembly = assemblePrompt({ ...promptParts, diff: input.diff.raw }).assembly;
+  const wholeDiffAssembled = assemblePrompt({ ...promptParts, diff: input.diff.raw }, fingerprintOpts);
+  let assembly: PromptAssembly = wholeDiffAssembled.assembly;
 
   const chunks =
     mode === 'map-reduce'
@@ -153,13 +250,38 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
       : `Reviewing ${input.diff.files.length} changed file(s) in one pass`,
   );
 
+  // One scope:'run' telemetry record per review, describing the whole-diff
+  // assembly — emitted BEFORE any LLM call so it's there even if every call
+  // fails. Never let a telemetry error break the review (try/catch, swallowed).
+  if (input.promptTelemetry) {
+    try {
+      input.promptTelemetry.onPrompt(
+        buildPromptInfo('run', wholeDiffAssembled, {
+          mode,
+          model: input.model,
+          chunkCount: chunks.length,
+          ...(input.promptTelemetry.detail === 'verbose'
+            ? {
+                diffFiles: input.diff.files.map((f) => ({
+                  path: f.path,
+                  chars: sliceDiff(input.diff, f.path).length,
+                })),
+              }
+            : {}),
+        }),
+      );
+    } catch {
+      // Telemetry must never fail a review.
+    }
+  }
+
   const partials: Review[] = [];
   let tokensIn = 0;
   let tokensOut = 0;
   let costUsd: number | null = 0;
   const raws: string[] = [];
 
-  for (const chunk of chunks) {
+  for (const [chunkIndex, chunk] of chunks.entries()) {
     // Cancellation checkpoint — stop before the next (expensive) LLM call.
     input.checkCancelled?.();
     // 'map:' prefix only for the map-reduce path (one call per file). In
@@ -169,8 +291,25 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
       mode === 'map-reduce' ? `map: reviewing ${chunk.label}` : `Reviewing ${chunk.label} in one pass`,
       { file: chunk.label },
     );
-    const a = assemblePrompt({ ...promptParts, diff: chunk.diffText });
+    const a = assemblePrompt({ ...promptParts, diff: chunk.diffText }, fingerprintOpts);
     if (mode === 'single-pass') assembly = a.assembly;
+    // One scope:'chunk' telemetry record per LLM call, verbose + map-reduce
+    // only (single-pass's one chunk duplicates the run record above).
+    if (input.promptTelemetry?.detail === 'verbose' && mode === 'map-reduce') {
+      try {
+        input.promptTelemetry.onPrompt(
+          buildPromptInfo('chunk', a, {
+            mode,
+            model: input.model,
+            chunkCount: chunks.length,
+            chunkIndex,
+            chunkLabel: chunk.label,
+          }),
+        );
+      } catch {
+        // Telemetry must never fail a review.
+      }
+    }
     const res = await input.llm.completeStructured<Review>({
       model: input.model,
       schema: ReviewSchema,

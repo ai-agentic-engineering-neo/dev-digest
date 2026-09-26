@@ -125,6 +125,42 @@ The junk-drawer check is a path check, not a content grep:
 git ls-tree -r --name-only HEAD -- client/src | grep -E '(^|/)utils(\.ts)?$'
 ```
 
+## Running them in one command
+
+[`scripts/fitness-greps.sh`](../../../scripts/fitness-greps.sh) runs every
+pattern above by this subtraction method — working tree vs `HEAD` with no
+arguments, `<base> <head>` for a range — plus the vendored-twin check
+(`routing.md`), module registration and the reviewer-core purity grep from
+`architecture-reviewer.md`, and prints each new hit with its class from
+§ Scoping a new hit. It is evidence, not a verdict: the hits still have to be
+read. This file stays the source of truth — change a pattern here and there
+together.
+
+Expected output on the L03 intent-layer change (uncommitted vs `91817b4`,
+2026-09-24) — the same numbers architecture-reviewer got by hand:
+
+```
+onion-13-db-in-boundary          pass          4 → 4    new 0
+onion-13-framework-in-service    pass          0 → 0    new 0
+onion-13-rowtype-leak            pass          0 → 0    new 0
+onion-13-cross-module-reach      pass          1 → 1    new 0
+onion-13-config-bypass           pass          5 → 5    new 0
+onion-13-tenancy-guard           pass          1 → 1    new 0
+fe-15-deep-relatives             pass         95 → 95   new 0
+fe-15-fetch-in-ui                pass          0 → 0    new 0
+fe-15-wildcard-barrels           regression    7 → 8    new 1   ← client/src/lib/hooks/intent.ts: "export *" in a comment (benign)
+fe-15-junk-drawer                pass
+reviewer-core-purity             pass          0 → 0    new 0
+vendored-twin                    pass
+module-registration              pass       intent
+```
+
+With a planted `import … from 'fastify'`, `$inferSelect` and `process.env` in
+a new `server/src/modules/zztmp/service.ts` plus a one-sided
+`client/src/vendor/shared/zztmp.ts`, it reports framework-in-service,
+rowtype-leak and config-bypass as WARNING (A-file), vendored-twin as CRITICAL
+and module-registration for `zztmp` — the negative case was run, not assumed.
+
 ## Reporting
 
 Each group that ran greps returns them in its `greps` array:

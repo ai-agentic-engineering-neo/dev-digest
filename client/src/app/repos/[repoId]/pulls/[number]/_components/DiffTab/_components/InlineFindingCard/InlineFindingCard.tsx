@@ -8,6 +8,7 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import {
+  Badge,
   Icon,
   IconBtn,
   CategoryTag,
@@ -41,7 +42,11 @@ export function InlineFindingCard({ f, pending, onAction, onClose }: InlineFindi
             <span style={s.sevWord(sev.c)}>{tShell(SEVERITY_WORD_KEY[f.severity])}</span>
             <span style={s.title(dismissed)}>{f.title}</span>
             <CategoryTag category={f.category as Category} />
-            {accepted && <span style={s.acceptedTag}>{t("finding.accepted")}</span>}
+            {accepted && (
+              <Badge color="var(--ok)" bg="var(--ok-bg)" icon="Check" style={s.acceptedBadge}>
+                {t("finding.accepted")}
+              </Badge>
+            )}
             {dismissed && <span style={s.dismissedTag}>{t("finding.dismissed")}</span>}
           </div>
           <div style={s.metaRow}>

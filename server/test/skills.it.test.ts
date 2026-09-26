@@ -227,6 +227,35 @@ d('skills module', () => {
     expect(res.statusCode).toBe(404);
   });
 
+  it('two concurrent body updates each keep their own version and snapshot (WP8 race)', async () => {
+    const app = await makeApp();
+    const created = await create(app);
+
+    const bodyA = '# Rule\n\nConcurrent body A.';
+    const bodyB = '# Rule\n\nConcurrent body B.';
+    const [resA, resB] = await Promise.all([
+      app.inject({ method: 'PUT', url: `/skills/${created.id}`, payload: { body: bodyA } }),
+      app.inject({ method: 'PUT', url: `/skills/${created.id}`, payload: { body: bodyB } }),
+    ]);
+    expect(resA.statusCode).toBe(200);
+    expect(resB.statusCode).toBe(200);
+
+    const list = await app.inject({ method: 'GET', url: `/skills/${created.id}/versions` });
+    const rows = list.json() as { version: number; body: string }[];
+    const byVersion = new Map(rows.map((r) => [r.version, r.body]));
+
+    // v1 (original) + one bump per concurrent update = 3 distinct snapshots,
+    // v2 and v3 each holding ONE of the two submitted bodies (no drop).
+    expect(byVersion.size).toBe(3);
+    expect([byVersion.get(2), byVersion.get(3)].sort()).toEqual([bodyA, bodyB].sort());
+
+    // The live row is at v+2 (version 3) and its body matches that snapshot.
+    const live = await app.inject({ method: 'GET', url: `/skills/${created.id}` });
+    const liveJson = live.json() as { version: number; body: string };
+    expect(liveJson.version).toBe(3);
+    expect(liveJson.body).toBe(byVersion.get(3));
+  });
+
   // ---- the type catalogue -------------------------------------------------
 
   it('a brand-new type name joins the catalogue on save', async () => {
@@ -267,6 +296,22 @@ d('skills module', () => {
     const res = await app.inject({ method: 'GET', url: '/skill-types' });
     const names = (res.json() as { name: string }[]).map((x) => x.name);
     expect(names).toEqual(expect.arrayContaining(['rubric', 'convention', 'security', 'custom']));
+  });
+
+  // WP9 — SkillType is `z.string().trim().min(1)`: a padded type is trimmed
+  // before it reaches skills.type AND the catalogue, and whitespace-only is
+  // rejected the same way an empty type would be (a schema-validation 422,
+  // like the id/version param checks above — this API never uses bare 400s).
+  it('trims a submitted type at the boundary and rejects a blank one', async () => {
+    const app = await makeApp();
+    const created = await create(app, { type: ' security ' });
+    expect(created.type).toBe('security');
+
+    const types = await app.inject({ method: 'GET', url: '/skill-types' });
+    expect((types.json() as { name: string }[]).map((x) => x.name)).toContain('security');
+
+    const blank = await app.inject({ method: 'POST', url: '/skills', payload: body({ type: '   ' }) });
+    expect(blank.statusCode).toBe(422);
   });
 
   // ---- import preview -----------------------------------------------------
@@ -319,9 +364,21 @@ d('skills module', () => {
         description: 'not yours',
         type: 'custom',
         source: 'manual',
-        body: '# secret',
+        body: '# secret v2',
+        version: 2,
       })
       .returning();
+    // restoreVersion is the one destructive cross-tenant path: it rewrites the
+    // body and deletes every version NEWER than the one restored to. With only
+    // a single version to restore to itself, that delete has nothing to do
+    // either way, so the tenancy assertion below would pass whether or not the
+    // workspace guard exists at all — give the foreign skill a real history (v1
+    // then v2, matching its current row) so restoring to v1 actually exercises
+    // the destructive path this test is meant to protect.
+    await db.insert(t.skillVersions).values([
+      { skillId: foreignSkill!.id, version: 1, body: '# secret' },
+      { skillId: foreignSkill!.id, version: 2, body: '# secret v2' },
+    ]);
 
     const app = await makeApp();
     // The default workspace is the request context, so the foreign row 404s.
@@ -346,5 +403,22 @@ d('skills module', () => {
     expect(await service.get(workspaceId, foreignSkill!.id)).toBeUndefined();
     expect(await service.listVersions(workspaceId, foreignSkill!.id)).toBeUndefined();
     expect(await service.restoreVersion(workspaceId, foreignSkill!.id, 1)).toBeUndefined();
+
+    // The restore attempt must not have touched the foreign skill at all: its
+    // live row stays at v2, and its v1/v2 snapshots are both still there (a
+    // tenant-blind restore would delete the v2 snapshot as "newer than the
+    // version restored to").
+    const foreignAfter = await db
+      .select()
+      .from(t.skills)
+      .where(eq(t.skills.id, foreignSkill!.id));
+    expect(foreignAfter[0]!.body).toBe('# secret v2');
+    expect(foreignAfter[0]!.version).toBe(2);
+
+    const foreignVersions = await db
+      .select()
+      .from(t.skillVersions)
+      .where(eq(t.skillVersions.skillId, foreignSkill!.id));
+    expect(foreignVersions.map((v) => v.version).sort()).toEqual([1, 2]);
   });
 });

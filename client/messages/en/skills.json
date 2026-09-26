@@ -7,6 +7,7 @@
     "addSkill": "Add Skill",
     "searchPlaceholder": "Search skills…",
     "loadError": "Could not load skills.",
+    "noMatch": "No skills match “{search}”.",
     "menu": {
       "create": "Create from scratch",
       "fromFile": "Import from file",

@@ -123,10 +123,14 @@ export class SkillsRepository {
     bumpVersion: boolean,
   ): Promise<SkillRow | undefined> {
     return this.db.transaction(async (tx) => {
+      // Locked so two concurrent body edits can't both read the same
+      // `version`, bump it in memory, and overwrite each other's snapshot
+      // insert — the second commit must see the first's row.
       const [existing] = await tx
         .select()
         .from(t.skills)
-        .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.id, id)));
+        .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.id, id)))
+        .for('update');
       if (!existing) return undefined;
 
       const nextVersion = bumpVersion ? existing.version + 1 : existing.version;
@@ -145,10 +149,10 @@ export class SkillsRepository {
         .returning();
 
       if (bumpVersion && row) {
-        await tx
-          .insert(t.skillVersions)
-          .values({ skillId: row.id, version: nextVersion, body: row.body })
-          .onConflictDoNothing();
+        // No onConflictDoNothing: with the row locked above, a collision here
+        // means two transactions computed the same `nextVersion` and the
+        // locking was bypassed — that must throw, not silently drop a version.
+        await tx.insert(t.skillVersions).values({ skillId: row.id, version: nextVersion, body: row.body });
       }
       if (patch.type !== undefined) await this.registerType(tx, workspaceId, patch.type);
 
@@ -191,10 +195,13 @@ export class SkillsRepository {
     version: number,
   ): Promise<SkillRow | undefined> {
     return this.db.transaction(async (tx) => {
+      // Same lock as `update` — a restore racing a concurrent body edit must
+      // not interleave with it.
       const [existing] = await tx
         .select()
         .from(t.skills)
-        .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.id, skillId)));
+        .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.id, skillId)))
+        .for('update');
       if (!existing) return undefined;
 
       const [snapshot] = await tx

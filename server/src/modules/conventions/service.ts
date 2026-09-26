@@ -5,7 +5,7 @@ import type {
   ConventionStatus,
 } from '@devdigest/shared';
 import type { Container } from '../../platform/container.js';
-import { ValidationError } from '../../platform/errors.js';
+import { NotFoundError, ValidationError } from '../../platform/errors.js';
 import { RepoRepository, type RepoRow } from '../repos/repository.js';
 import { resolveFeatureModel } from '../settings/feature-models.js';
 import {
@@ -183,7 +183,7 @@ export class ConventionsService {
 
   private async requireRepo(workspaceId: string, repoId: string): Promise<RepoRow> {
     const repo = await this.repos.getById(workspaceId, repoId);
-    if (!repo) throw new ValidationError('Unknown repository.', { repo_id: repoId });
+    if (!repo) throw new NotFoundError('Unknown repository.', { repo_id: repoId });
     if (!repo.clonePath) {
       throw new ValidationError('This repository has not been cloned yet.', { repo_id: repoId });
     }

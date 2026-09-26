@@ -1,4 +1,5 @@
 import type { ConventionCandidate, ConventionStatus } from "@devdigest/shared";
+import { githubBlobUrl } from "@/lib/github-urls";
 import { CONFIDENCE_BANDS, type FilterKey } from "./constants";
 
 /** Pure helpers for the Conventions board — filtering, counting, selection. */
@@ -71,5 +72,5 @@ export function evidenceUrl(
   line: number,
 ): string | null {
   if (!fullName || !path) return null;
-  return `https://github.com/${fullName}/blob/${branch || "main"}/${path}#L${line}`;
+  return githubBlobUrl(fullName, branch || "main", path, line);
 }

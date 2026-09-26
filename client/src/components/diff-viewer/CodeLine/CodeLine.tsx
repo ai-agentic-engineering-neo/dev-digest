@@ -42,11 +42,14 @@ export function CodeLine({
 }) {
   const [hover, setHover] = React.useState(false);
   const [composing, setComposing] = React.useState(false);
-  // A line with an active finding shows its card(s) from the start; a line
-  // whose findings are all dismissed starts collapsed (the badge reopens it).
-  const [findingsOpen, setFindingsOpen] = React.useState(
-    () => (lineFindings ?? []).some(isActiveFinding),
-  );
+  // A line with an active finding shows its card(s) by default; a line whose
+  // findings are all dismissed starts collapsed (the badge reopens it). Once
+  // the user has toggled it explicitly, that choice wins over the default —
+  // `override` tracks only the user's choice, not the derived default, so a
+  // finding arriving on a LATER render (e.g. a run that completes after the
+  // diff first painted) still opens the card instead of staying frozen at
+  // whatever `lineFindings` was at mount.
+  const [override, setOverride] = React.useState<boolean | null>(null);
 
   if (ln.kind === "hunk") {
     return (
@@ -58,6 +61,7 @@ export function CodeLine({
 
   const findings = lineFindings ?? [];
   const activeFindings = findings.filter(isActiveFinding);
+  const findingsOpen = override ?? activeFindings.length > 0;
   const muted = findings.length > 0 && activeFindings.length === 0;
   const topSeverity = activeFindings.length > 0 ? topSeverityOf(activeFindings) : topSeverityOf(findings);
   const labelCount = activeFindings.length > 0 ? activeFindings.length : findings.length;
@@ -99,7 +103,7 @@ export function CodeLine({
             count={labelCount}
             muted={muted}
             open={findingsOpen}
-            onClick={() => setFindingsOpen((o) => !o)}
+            onClick={() => setOverride(!findingsOpen)}
           />
         )}
       </div>
@@ -115,7 +119,7 @@ export function CodeLine({
                 defaultExpanded
                 pending={findingApi.pending}
                 onAction={(a) => findingApi.onAction(f.id, a)}
-                onClose={() => setFindingsOpen(false)}
+                onClose={() => setOverride(false)}
               />
             ))}
         </div>

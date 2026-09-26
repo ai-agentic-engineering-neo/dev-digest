@@ -118,7 +118,7 @@ export type MemoryItem = z.infer<typeof MemoryItem>;
 // chip colours in the UI) — never validate a submitted type against them.
 export const BUILTIN_SKILL_TYPES = ['rubric', 'convention', 'security', 'custom'] as const;
 
-export const SkillType = z.string().min(1);
+export const SkillType = z.string().trim().min(1);
 export type SkillType = z.infer<typeof SkillType>;
 
 /** A row of the type catalogue behind that dropdown. */

@@ -150,7 +150,7 @@ d('GET /pulls/:id/smart-diff (Testcontainers pg)', () => {
     // R4 agent null (superseded), R5 agent null (kept) — Test brief TP-1.
     const agentA = randomUUID();
     const agentB = randomUUID();
-    const [r1, r2, r3, , r5] = await pg.handle.db
+    const [r1, r2, r3, r4, r5] = await pg.handle.db
       .insert(t.reviews)
       .values([
         { workspaceId, prId: pr.id, kind: 'review' as const, agentId: agentA, createdAt: new Date('2026-09-01T10:00:00Z') },
@@ -173,6 +173,21 @@ d('GET /pulls/:id/smart-diff (Testcontainers pg)', () => {
         title: 'f1 (superseded)',
         rationale: 'from the superseded run',
         confidence: 0.9,
+      },
+      // R4 (agent null, superseded by R5) — must not leak into finding_lines
+      // either. Without this row the null-agent half of "latest per agent" was
+      // never actually exercised: dropping the grouping entirely would still
+      // have left a.ts at [20, 50].
+      {
+        reviewId: r4!.id,
+        file: 'a.ts',
+        startLine: 40,
+        endLine: 40,
+        severity: 'WARNING',
+        category: 'bug',
+        title: 'f5 (superseded, null agent)',
+        rationale: 'from the superseded null-agent run',
+        confidence: 0.6,
       },
       // R2 (agent A, kept): a.ts:20
       {
@@ -256,5 +271,9 @@ d('GET /pulls/:id/smart-diff (Testcontainers pg)', () => {
     );
     expect(typeof rec.durationMs).toBe('number');
     expect(JSON.stringify(calls)).not.toContain('SECRET_PATCH_SENTINEL');
+    // "no path" is the other half of the title's promise: a regression that
+    // logs `files.map(f => f.path)` carries no patch text but would still leak
+    // the file path, so the sentinel check alone cannot catch it.
+    expect(JSON.stringify(calls)).not.toContain('src/config.ts');
   });
 });

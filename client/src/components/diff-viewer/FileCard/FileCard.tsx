@@ -59,10 +59,16 @@ export function FileCard({
     return keys;
   }, [lines]);
 
-  const [open, setOpen] = React.useState(
+  // Small files (or ones carrying an active finding) auto-expand; the user's
+  // own toggle then wins over that default. `override` tracks only the
+  // explicit choice, so findings that resolve on a LATER render (a run
+  // finishing after the diff first painted) still auto-expand the card
+  // instead of staying frozen at whatever `fileFindings` was at mount.
+  const [override, setOverride] = React.useState<boolean | null>(null);
+  const autoOpen =
     (file.additions ?? 0) + (file.deletions ?? 0) <= AUTO_EXPAND_MAX_LINES ||
-      highestSeverity(fileFindings) !== null,
-  );
+    highestSeverity(fileFindings) !== null;
+  const open = override ?? autoOpen;
 
   // Group this file's comments into threads, then split into ones we can anchor
   // to a rendered line vs. "outdated" (GitHub dropped the line / it's not here).
@@ -85,7 +91,7 @@ export function FileCard({
 
   return (
     <div style={s.fileCard}>
-      <div onClick={() => setOpen((o) => !o)} style={s.fileHeader}>
+      <div onClick={() => setOverride(!open)} style={s.fileHeader}>
         <Icon.ChevronRight size={13} style={chevronFor(open)} />
         <Icon.FileText size={14} style={s.fileIcon} />
         <span className="mono" style={s.filePath}>

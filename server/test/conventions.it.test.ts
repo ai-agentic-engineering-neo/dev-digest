@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { and, eq } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
 import { startPg, dockerAvailable, type PgFixture } from './helpers/pg.js';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/platform/config.js';
@@ -284,6 +285,31 @@ d('conventions module', () => {
     const res = await app.inject({ method: 'POST', url: `/repos/${repoId}/conventions/extract` });
     expect(res.statusCode).toBe(422);
     expect(llm.calls).toHaveLength(0);
+  });
+
+  // WP10 — `requireRepo` backs both routes; a missing/foreign repo row is a
+  // 404 (NotFoundError), matching how the rest of this module 404s a missing
+  // convention id — never the 422 a validation failure (unclonable repo,
+  // empty selection) gets.
+  it('404s extract and skill-draft for an unknown repository id', async () => {
+    const app = await makeApp();
+    const unknownRepoId = randomUUID();
+
+    const extractRes = await app.inject({
+      method: 'POST',
+      url: `/repos/${unknownRepoId}/conventions/extract`,
+    });
+    expect(extractRes.statusCode).toBe(404);
+
+    // convention_ids must be non-empty to pass the route's own body schema
+    // (`.min(1)`, a 422 in its own right) so this exercises `requireRepo`, not
+    // that unrelated check — the id need not exist, requireRepo runs first.
+    const draftRes = await app.inject({
+      method: 'POST',
+      url: `/repos/${unknownRepoId}/conventions/skill`,
+      payload: { convention_ids: [randomUUID()] },
+    });
+    expect(draftRes.statusCode).toBe(404);
   });
 
   it('404s on a convention from another workspace', async () => {

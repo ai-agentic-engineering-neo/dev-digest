@@ -2,7 +2,11 @@
 
    Plain useState per field (no form library is installed); validation is
    server-side and surfaced by the global mutation-error toast. Only a changed
-   body creates a new version — the server decides that, not this component. */
+   body creates a new version — the server decides that, not this component.
+   The `enabled` toggle is not local form state: it saves immediately, same as
+   the rail's SkillCard toggle, so it never goes stale behind an unsaved edit.
+   The rest of the form resets when the rail switches skills or a version
+   changes (restore / body save) by remounting via `key` in SkillEditor. */
 "use client";
 
 import React from "react";
@@ -24,17 +28,6 @@ export function ConfigTab({ skill }: { skill: Skill }) {
   const [description, setDescription] = React.useState(skill.description);
   const [type, setType] = React.useState(skill.type);
   const [body, setBody] = React.useState(skill.body);
-  const [enabled, setEnabled] = React.useState(skill.enabled);
-
-  // Reset the local form when the rail switches to another skill, and after a
-  // restore rewrites the body underneath us.
-  React.useEffect(() => {
-    setName(skill.name);
-    setDescription(skill.description);
-    setType(skill.type);
-    setBody(skill.body);
-    setEnabled(skill.enabled);
-  }, [skill.id, skill.version]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const canSave =
     name.trim().length > 0 && type.trim().length > 0 && body.trim().length > 0;
@@ -49,7 +42,6 @@ export function ConfigTab({ skill }: { skill: Skill }) {
           description: description.trim(),
           type: type.trim(),
           body,
-          enabled,
         },
       },
       { onSuccess: (data) => toast.success(t("config.savedToast", { version: data.version })) },
@@ -62,7 +54,11 @@ export function ConfigTab({ skill }: { skill: Skill }) {
         <h2 style={s.h2}>{t("config.title")}</h2>
         <label style={s.enabledLabel}>
           {t("config.enabled")}
-          <Toggle on={enabled} onChange={setEnabled} size={16} />
+          <Toggle
+            on={skill.enabled}
+            onChange={(on) => update.mutate({ id: skill.id, patch: { enabled: on } })}
+            size={16}
+          />
         </label>
       </div>
 

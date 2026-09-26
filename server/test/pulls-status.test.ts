@@ -115,8 +115,11 @@ describe('previewDescription', () => {
     expect(out.length).toBeLessThanOrEqual(PR_FINDING_DESCRIPTION_MAX + 1); // + the ellipsis
     expect(out.endsWith('…')).toBe(true);
     expect(out).not.toContain('omega');
-    // Word boundary: the character before the ellipsis is not a partial word.
-    expect(out.slice(0, -1).endsWith(' ')).toBe(false);
+    // Word boundary: the text right before the ellipsis is a WHOLE word from
+    // the repeating "alpha bravo " unit, not a partial cut like "alph…". A
+    // `trimEnd()`-only check (dropping the lastSpace branch) would still pass
+    // here since the cut never lands on a space — only the exact word test does.
+    expect(out.slice(0, -1)).toMatch(/(?:alpha|bravo)$/);
   });
 });
 

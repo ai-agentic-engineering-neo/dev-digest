@@ -191,9 +191,13 @@ describe("DiffTab — order toggle + URL", () => {
     expect(onChange).toHaveBeenCalledWith(null);
   });
 
-  it('useSmartDiff is called with null when orderParam="original" (Original never needs it)', () => {
-    renderTab({ orderParam: "original" });
-    expect(state.useSmartDiffSpy).toHaveBeenLastCalledWith(null);
+  it('with orderParam="original", files render directly with no group headers or smart-order skeleton, even while the mocked smart-diff is pending', () => {
+    state.smart = { data: undefined, isPending: true, isError: false };
+    const { container } = renderTab({ orderParam: "original" });
+
+    expect(screen.queryByText("Core")).not.toBeInTheDocument();
+    const positions = FILES.map((f) => container.textContent!.indexOf(f.path));
+    expect(positions.every((p) => p >= 0)).toBe(true);
   });
 });
 

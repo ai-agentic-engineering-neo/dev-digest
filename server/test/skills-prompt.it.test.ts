@@ -34,6 +34,21 @@ const REVIEW_FIXTURE: Review = {
   findings: [],
 };
 
+// L03: `executeRuns` always runs `intent.derive` before the review (title and
+// branch are always sources), and `review_intent`'s default provider is
+// 'openrouter' (contracts/platform.ts). Without an override here that call
+// reaches a REAL OpenRouterProvider on any machine that has the key —
+// hermetic.sh hides it, but a plain `pnpm exec vitest` would not
+// (server/INSIGHTS.md 2026-09-24; prompt-log.it.test.ts maps 'openrouter' to a
+// mock for the same reason). Fixture shape: PrIntentClassificationSchema.
+const CLASSIFICATION_FIXTURE = {
+  evidence: ['S1: adds rate limiting'],
+  intent: 'Add rate limiting to the app.',
+  in_scope: ['Add rate limiting'],
+  out_of_scope: [],
+  ambiguity: 'clear' as const,
+};
+
 /**
  * L02 — the payoff: an agent's attached skills become ordered markdown blocks in
  * the assembled prompt. Asserts against the messages the LLM adapter actually
@@ -54,13 +69,22 @@ d('skills reach the assembled prompt', () => {
   });
 
   function appWith(llm: MockLLMProvider) {
+    // A SEPARATE mock for 'openrouter' (intent pre-work), never `llm` itself:
+    // `userPrompt()` below grabs the FIRST completeStructured call recorded on
+    // the REVIEW mock, and intent classification runs before the review. If
+    // the two shared one mock instance, that first call would be the
+    // classification prompt, not the review's — the "## Skills / rules"
+    // assertions below would silently start asserting on the wrong message.
+    const intentLlm = new MockLLMProvider('openai', {
+      structuredBySchema: { PrIntentClassification: CLASSIFICATION_FIXTURE },
+    });
     return buildApp({
       config: config(),
       db: pg.handle.db,
       overrides: {
         embedder: new MockEmbedder(),
         git: new MockGitClient({ diff: DIFF }),
-        llm: { openai: llm },
+        llm: { openai: llm, openrouter: intentLlm },
       },
     });
   }
@@ -167,6 +191,11 @@ d('skills reach the assembled prompt', () => {
     expect(linked.statusCode).toBe(200);
 
     await runReview(app, pr.id, agent.id);
+
+    // The review mock must have taken exactly the review call: intent
+    // classification is a separate model call on a separate ('openrouter')
+    // mock and must not land here (see the comment on `appWith`).
+    expect(llm.calls.filter((c) => c.method === 'completeStructured')).toHaveLength(1);
 
     const prompt = userPrompt(llm);
     expect(prompt).toContain('## Skills / rules');

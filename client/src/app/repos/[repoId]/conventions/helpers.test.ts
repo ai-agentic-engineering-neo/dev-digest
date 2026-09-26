@@ -118,4 +118,10 @@ describe("evidenceUrl", () => {
     expect(evidenceUrl(undefined, "main", "src/user.ts", 3)).toBeNull();
     expect(evidenceUrl("acme/payments-api", "main", "", 3)).toBeNull();
   });
+
+  // WP7 / frontend-architecture-1-3: an unencoded "#" in the path would be
+  // read as the URL's line-anchor separator, truncating the link.
+  it("percent-encodes a path segment containing '#'", () => {
+    expect(evidenceUrl("a/b", "main", "docs/c#-notes.md", 3)).toContain("c%23-notes.md");
+  });
 });

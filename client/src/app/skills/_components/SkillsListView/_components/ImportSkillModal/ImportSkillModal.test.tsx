@@ -9,7 +9,7 @@ const createMutateAsync = vi.fn();
 const push = vi.fn();
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
-vi.mock("../../../../../../lib/hooks/skills", () => ({
+vi.mock("@/lib/hooks/skills", () => ({
   useImportSkillPreview: () => ({ mutateAsync: previewMutateAsync, isPending: false }),
   useCreateSkill: () => ({ mutateAsync: createMutateAsync, isPending: false }),
   useSkillTypes: () => ({ data: [{ id: "t1", name: "custom" }] }),
@@ -125,5 +125,27 @@ describe("ImportSkillModal", () => {
 
     expect(createMutateAsync).not.toHaveBeenCalled();
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("keeps the modal open and raises no unhandled rejection when create fails", async () => {
+    createMutateAsync.mockReset().mockRejectedValueOnce(new Error("boom"));
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+
+    const onClose = renderModal();
+    pick("secret-gate.md", "# Secret Gate\n\nFlags leaks.\n");
+    await screen.findByText("Preview");
+
+    fireEvent.click(screen.getByRole("button", { name: /Create skill/ }));
+
+    await waitFor(() => expect(createMutateAsync).toHaveBeenCalledTimes(1));
+    // unhandledRejection fires on a later microtask/macrotask than the catch.
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+    expect(unhandled).not.toHaveBeenCalled();
+
+    process.off("unhandledRejection", unhandled);
   });
 });

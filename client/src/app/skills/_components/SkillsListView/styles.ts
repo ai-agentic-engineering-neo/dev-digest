@@ -28,4 +28,9 @@ export const s = {
     color: "var(--text-primary)",
   } satisfies CSSProperties,
   grid: { display: "grid", gridTemplateColumns: CARD_GRID_COLS, gap: 14 } satisfies CSSProperties,
+  noMatch: {
+    fontSize: 13.5,
+    color: "var(--text-muted)",
+    padding: "24px 4px",
+  } satisfies CSSProperties,
 } as const;

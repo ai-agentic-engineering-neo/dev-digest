@@ -13,11 +13,11 @@ const versionsState = {
   refetch: vi.fn(),
 };
 
-vi.mock("../../../../../../../lib/hooks/skills", () => ({
+vi.mock("@/lib/hooks/skills", () => ({
   useSkillVersions: () => versionsState,
   useRestoreSkillVersion: () => ({ mutate: restoreMutate, isPending: false }),
 }));
-vi.mock("../../../../../../../lib/toast", () => ({ useToast: () => ({ success: vi.fn() }) }));
+vi.mock("@/lib/toast", () => ({ useToast: () => ({ success: vi.fn() }) }));
 
 import { VersionsTab } from "./VersionsTab";
 
@@ -57,7 +57,13 @@ beforeEach(() => {
     version(2, "line one\nline three"),
   ];
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  // Several tests spy on window.confirm; restoring only in afterEach (rather
+  // than inline in each test) means a failed assertion can never leave a
+  // stubbed confirm() bleeding into a later test.
+  vi.restoreAllMocks();
+});
 
 describe("VersionsTab", () => {
   it("lists versions newest-first and marks the current one", () => {
@@ -109,7 +115,6 @@ describe("VersionsTab", () => {
     expect(confirm).toHaveBeenCalledOnce();
     expect(confirm.mock.calls[0]![0]).toContain("1");
     expect(restoreMutate).not.toHaveBeenCalled();
-    confirm.mockRestore();
   });
 
   it("restores the chosen version once confirmed", () => {
@@ -121,7 +126,6 @@ describe("VersionsTab", () => {
 
     expect(restoreMutate).toHaveBeenCalledTimes(1);
     expect(restoreMutate.mock.calls[0]![0]).toEqual({ id: "s1", version: 1 });
-    confirm.mockRestore();
   });
 
   it("cannot restore the version that is already current", () => {

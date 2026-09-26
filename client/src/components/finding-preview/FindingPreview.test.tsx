@@ -37,8 +37,10 @@ describe("FindingPreview", () => {
   });
 
   it("is read-only: renders no button, link or input", () => {
-    const { container } = render(<FindingPreview finding={finding()} />);
-    expect(container.querySelectorAll("button, a, input, textarea, select")).toHaveLength(0);
+    render(<FindingPreview finding={finding()} />);
+    for (const role of ["button", "link", "textbox", "combobox", "listbox"]) {
+      expect(screen.queryByRole(role)).not.toBeInTheDocument();
+    }
   });
 
   it("shows a line range only when the finding spans more than one line", () => {
@@ -57,8 +59,9 @@ describe("FindingPreview", () => {
   });
 
   it("omits the description paragraph when there is none", () => {
-    render(<FindingPreview finding={finding({ description: null })} />);
-    expect(screen.getByText("Hardcoded Stripe secret key")).toBeInTheDocument();
-    expect(document.querySelector("p")).toBeNull();
+    const withDescription = finding();
+    render(<FindingPreview finding={{ ...withDescription, description: null }} />);
+    expect(screen.getByText(withDescription.title)).toBeInTheDocument();
+    expect(screen.queryByText(withDescription.description!)).not.toBeInTheDocument();
   });
 });

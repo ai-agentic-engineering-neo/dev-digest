@@ -32,7 +32,9 @@ export function SkillEditor({
       <div style={s.body}>
         {tab === "preview" && <PreviewTab skill={skill} />}
         {tab === "versions" && <VersionsTab skill={skill} />}
-        {tab !== "preview" && tab !== "versions" && <ConfigTab skill={skill} />}
+        {tab !== "preview" && tab !== "versions" && (
+          <ConfigTab key={`${skill.id}:${skill.version}`} skill={skill} />
+        )}
       </div>
     </div>
   );

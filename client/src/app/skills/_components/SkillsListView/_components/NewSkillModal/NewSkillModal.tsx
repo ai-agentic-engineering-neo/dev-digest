@@ -24,14 +24,19 @@ export function NewSkillModal({ onClose }: { onClose: () => void }) {
 
   const submit = async () => {
     if (!canSubmit) return;
-    const skill = await create.mutateAsync({
-      name: name.trim(),
-      description: description.trim(),
-      type: type.trim(),
-      body,
-    });
-    onClose();
-    router.push(`/skills/${skill.id}?tab=config`);
+    try {
+      const skill = await create.mutateAsync({
+        name: name.trim(),
+        description: description.trim(),
+        type: type.trim(),
+        body,
+      });
+      onClose();
+      router.push(`/skills/${skill.id}?tab=config`);
+    } catch {
+      // Keep the modal open so the user can retry — the global mutation-error
+      // toast (client/src/lib/providers.tsx) already reported the failure.
+    }
   };
 
   return (

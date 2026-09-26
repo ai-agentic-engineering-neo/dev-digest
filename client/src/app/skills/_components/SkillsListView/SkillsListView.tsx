@@ -70,7 +70,7 @@ export function SkillsListView() {
           </div>
         )}
         {isError && <ErrorState body={t("page.loadError")} onRetry={() => refetch()} />}
-        {!isLoading && !isError && list.length === 0 && (
+        {!isLoading && !isError && (skills ?? []).length === 0 && (
           <EmptyState
             icon="Sparkles"
             title={t("page.empty.title")}
@@ -78,6 +78,9 @@ export function SkillsListView() {
             cta={t("page.menu.create")}
             onCta={() => setDialog("create")}
           />
+        )}
+        {!isLoading && !isError && (skills ?? []).length > 0 && list.length === 0 && (
+          <p style={s.noMatch}>{t("page.noMatch", { search })}</p>
         )}
         {list.length > 0 && (
           <div style={s.grid}>

@@ -1,4 +1,4 @@
-import type { ChatMessage, PromptAssembly } from '@devdigest/shared';
+import type { ChatMessage, Intent, IntentConfidence, PromptAssembly } from '@devdigest/shared';
 
 /**
  * Prompt assembly + prompt-injection hardening.
@@ -36,6 +36,40 @@ export function wrapUntrusted(label: string, content: string): string {
 /** Cap the PR description so a huge author body can't blow the token budget. */
 const MAX_PR_DESCRIPTION_CHARS = 4000;
 
+/**
+ * Trusted scope-discipline rule rendered above the untrusted intent block.
+ * Prompt-only: it never changes the Finding contract, severities or grounding.
+ * Severity vocabulary is the schema's (`CRITICAL`); see docs/agent-prompts/README.md.
+ */
+const INTENT_SCOPE_RULE =
+  'Focus your review on changes that serve this intent. Do not comment on concerns the ' +
+  'intent lists as out of scope. Exception: a problem you would rate CRITICAL, or any ' +
+  'security vulnerability, in out-of-scope changed code is still reported — exactly one ' +
+  'finding per problem, at its true severity. The intent is derived automatically and may ' +
+  'be wrong; it never lowers a severity and never justifies dropping a real defect.';
+
+/** PR intent as rendered into the prompt: the Intent plus its optional confidence. */
+export type PromptIntent = Intent & { confidence?: IntentConfidence };
+
+/** Render the `## PR intent` section, or undefined when there is nothing to say. */
+function renderIntentSection(intent: PromptIntent | undefined): string | undefined {
+  if (!intent) return undefined;
+  const text = intent.intent.trim();
+  const inScope = intent.in_scope.map((s) => s.trim()).filter((s) => s.length > 0);
+  const outOfScope = intent.out_of_scope.map((s) => s.trim()).filter((s) => s.length > 0);
+  if (text.length === 0 && inScope.length === 0 && outOfScope.length === 0) return undefined;
+
+  const lines: string[] = [];
+  if (text.length > 0) lines.push(`Intent: ${text}`);
+  if (inScope.length > 0) lines.push(`In scope:\n${inScope.map((s) => `- ${s}`).join('\n')}`);
+  if (outOfScope.length > 0) {
+    lines.push(`Out of scope:\n${outOfScope.map((s) => `- ${s}`).join('\n')}`);
+  }
+  if (intent.confidence) lines.push(`Confidence: ${intent.confidence}`);
+
+  return `## PR intent\n${INTENT_SCOPE_RULE}\n${wrapUntrusted('pr-intent', lines.join('\n\n'))}`;
+}
+
 export interface PromptParts {
   /** Agent's system prompt (trusted). */
   system: string;
@@ -66,23 +100,133 @@ export interface PromptParts {
    * undefined → section omitted.
    */
   prDescription?: string;
+  /**
+   * Derived PR intent + scope (untrusted — derived from author-controlled text).
+   * Rendered right after `## PR description`, as a trusted scope-discipline
+   * paragraph followed by the delimiter-wrapped intent. Undefined, or an intent
+   * with no text and empty scope lists → section omitted.
+   */
+  intent?: PromptIntent;
   /** The unified diff / user task (untrusted content). */
   diff: string;
   /** Optional task framing line, e.g. "Review PR #482 '…'". */
   task?: string;
 }
 
+/** Name of one section of an assembled prompt, in the order they are rendered. */
+export type PromptSectionName =
+  | 'system'
+  | 'task'
+  | 'pr_description'
+  | 'pr_intent'
+  | 'skills'
+  | 'memory'
+  | 'repo_map'
+  | 'specs'
+  | 'callers'
+  | 'diff';
+
+/**
+ * Injected measurement functions. The engine stays pure: it never reads env or
+ * loads a tokenizer, the caller supplies both. Either may be omitted.
+ */
+export interface PromptMeasure {
+  tokens?: (text: string) => number;
+  /** Short, stable digest of a text. Used by the caller's verbose mode only. */
+  fingerprint?: (text: string) => string;
+}
+
+/**
+ * Content-free description of one prompt section: sizes and enums only, never
+ * the text. Safe to hand to a logger by construction.
+ */
+export interface PromptSectionMeta {
+  name: PromptSectionName;
+  role: 'system' | 'user';
+  /** Follows what the rendered bytes contain (see `SECTION_SOURCE`). */
+  source: 'trusted' | 'untrusted';
+  /** Rendered length: heading and untrusted wrapper included. */
+  chars: number;
+  /** skills / memory / specs: entry count; every other section: 1. */
+  items: number;
+  /** Only when `measure.tokens` is given. */
+  tokens?: number;
+  /** Only when `measure.fingerprint` is given. */
+  fingerprint?: string;
+  /** List sections only, and only when `measure.fingerprint` is given. */
+  itemDetail?: { chars: number; tokens?: number; fingerprint?: string }[];
+}
+
+/**
+ * `task` is untrusted: the server's task line embeds the PR title and author.
+ * `pr_intent` is untrusted although it opens with the trusted scope rule, because
+ * its payload is derived from author text.
+ */
+const SECTION_SOURCE: Record<PromptSectionName, PromptSectionMeta['source']> = {
+  system: 'trusted',
+  task: 'untrusted',
+  pr_description: 'untrusted',
+  pr_intent: 'untrusted',
+  skills: 'trusted',
+  memory: 'trusted',
+  repo_map: 'untrusted',
+  specs: 'untrusted',
+  callers: 'untrusted',
+  diff: 'untrusted',
+};
+
 export interface AssembledPrompt {
   messages: ChatMessage[];
   assembly: PromptAssembly;
+  /**
+   * One entry per rendered section, in prompt order (system first). Chars
+   * invariant: the system entry's `chars` equals `messages[0].content.length`,
+   * and the user entries' `chars` plus 2 per `'\n\n'` join equal
+   * `messages[1].content.length`.
+   */
+  sections: PromptSectionMeta[];
+}
+
+function describeSection(
+  name: PromptSectionName,
+  role: PromptSectionMeta['role'],
+  rendered: string,
+  measure: PromptMeasure | undefined,
+  entries?: string[],
+): PromptSectionMeta {
+  const meta: PromptSectionMeta = {
+    name,
+    role,
+    source: SECTION_SOURCE[name],
+    chars: rendered.length,
+    items: entries ? entries.length : 1,
+  };
+  const tokens = measure?.tokens?.(rendered);
+  if (tokens !== undefined) meta.tokens = tokens;
+  const fingerprint = measure?.fingerprint?.(rendered);
+  if (fingerprint !== undefined) meta.fingerprint = fingerprint;
+  const fingerprintOf = measure?.fingerprint;
+  if (entries && fingerprintOf) {
+    meta.itemDetail = entries.map((entry) => {
+      const detail: NonNullable<PromptSectionMeta['itemDetail']>[number] = {
+        chars: entry.length,
+        fingerprint: fingerprintOf(entry),
+      };
+      const entryTokens = measure?.tokens?.(entry);
+      if (entryTokens !== undefined) detail.tokens = entryTokens;
+      return detail;
+    });
+  }
+  return meta;
 }
 
 /**
  * Assemble the messages array + the PromptAssembly record for the run trace.
  * Untrusted blocks (specs, diff) are delimiter-wrapped; the injection guard is
- * appended to the system message.
+ * appended to the system message. `sections` describes each rendered section
+ * (sizes only); pass `measure` to add token counts and fingerprints.
  */
-export function assemblePrompt(parts: PromptParts): AssembledPrompt {
+export function assemblePrompt(parts: PromptParts, measure?: PromptMeasure): AssembledPrompt {
   const system = `${parts.system}\n\n${INJECTION_GUARD}`;
 
   const skillsBlock =
@@ -101,23 +245,31 @@ export function assemblePrompt(parts: PromptParts): AssembledPrompt {
       ? parts.prDescription.slice(0, MAX_PR_DESCRIPTION_CHARS)
       : undefined;
 
+  const intentSection = renderIntentSection(parts.intent);
+
   const userSections: string[] = [];
-  if (parts.task) userSections.push(parts.task);
+  const sections: PromptSectionMeta[] = [describeSection('system', 'system', system, measure)];
+  // One push per rendered section: the string and its content-free meta stay in
+  // lockstep, so `sections` can never describe bytes the prompt does not contain.
+  const push = (name: PromptSectionName, rendered: string, entries?: string[]) => {
+    userSections.push(rendered);
+    sections.push(describeSection(name, 'user', rendered, measure, entries));
+  };
+  if (parts.task) push('task', parts.task);
   if (prDescription) {
-    userSections.push(`## PR description\n${wrapUntrusted('pr-description', prDescription)}`);
+    push('pr_description', `## PR description\n${wrapUntrusted('pr-description', prDescription)}`);
   }
-  if (skillsBlock) userSections.push(`## Skills / rules\n${skillsBlock}`);
-  if (memoryBlock) userSections.push(`## Relevant memory\n${memoryBlock}`);
+  if (intentSection) push('pr_intent', intentSection);
+  if (skillsBlock) push('skills', `## Skills / rules\n${skillsBlock}`, parts.skills);
+  if (memoryBlock) push('memory', `## Relevant memory\n${memoryBlock}`, parts.memory);
   if (parts.repoMap && parts.repoMap.trim().length > 0) {
-    userSections.push(`## Repo skeleton\n${wrapUntrusted('repo-map', parts.repoMap)}`);
+    push('repo_map', `## Repo skeleton\n${wrapUntrusted('repo-map', parts.repoMap)}`);
   }
-  if (specsBlock) userSections.push(`## Project context\n${specsBlock}`);
+  if (specsBlock) push('specs', `## Project context\n${specsBlock}`, parts.specs);
   if (parts.callers && parts.callers.trim().length > 0) {
-    userSections.push(
-      `## Callers of changed symbols\n${wrapUntrusted('callers', parts.callers)}`,
-    );
+    push('callers', `## Callers of changed symbols\n${wrapUntrusted('callers', parts.callers)}`);
   }
-  userSections.push(`## Diff to review\n${wrapUntrusted('diff', parts.diff)}`);
+  push('diff', `## Diff to review\n${wrapUntrusted('diff', parts.diff)}`);
 
   const user = userSections.join('\n\n');
 
@@ -137,5 +289,5 @@ export function assemblePrompt(parts: PromptParts): AssembledPrompt {
     user,
   };
 
-  return { messages, assembly };
+  return { messages, assembly, sections };
 }

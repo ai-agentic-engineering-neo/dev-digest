@@ -1,13 +1,25 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { and, desc, eq, inArray } from 'drizzle-orm';
-import type { PrMeta, PrDetail, GitHubClient, PrReviewComment } from '@devdigest/shared';
+import { and, count, desc, eq, inArray, sum } from 'drizzle-orm';
+import type {
+  PrMeta,
+  PrDetail,
+  FindingsBySeverity,
+  GitHubClient,
+  PrReviewComment,
+} from '@devdigest/shared';
 import { PrCommentInput } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { AppError, NotFoundError } from '../../platform/errors.js';
-import { deriveReviewStatus } from './status.js';
+import {
+  deriveReviewStatus,
+  emptySeverityCounts,
+  foldSeverityCounts,
+  parseAggregateCost,
+  pickLatestReviewIds,
+} from './status.js';
 
 /**
  * F1 — pulls module. PR import via Octokit (list + per-PR detail).
@@ -113,19 +125,84 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
 
     // Latest-review SCORE per PR for the list's score ring. Computed on read
     // from reviews (no FK denorm); the list is small, so one IN-query + JS
-    // grouping is cheap. (The per-severity FINDINGS breakdown is intentionally
-    // not surfaced on the list — findings live on the PR detail page.)
+    // grouping is cheap. The same pass records WHICH PRs have a review at all —
+    // the null gate the FINDINGS column below leans on.
     const prIds = rows.map((r) => r.id);
     const latestReviewByPr = new Map<string, { score: number | null }>();
+    const reviewedPrIds = new Set<string>();
+    // Each agent's latest review per PR — the population the FINDINGS tally counts.
+    let latestReviewIds: string[] = [];
     if (prIds.length > 0) {
       const reviewRows = await container.db
-        .select({ prId: t.reviews.prId, score: t.reviews.score })
+        .select({
+          id: t.reviews.id,
+          prId: t.reviews.prId,
+          agentId: t.reviews.agentId,
+          score: t.reviews.score,
+        })
         .from(t.reviews)
         .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review')))
         .orderBy(desc(t.reviews.createdAt));
       // Rows are newest-first → first seen per PR is the latest review.
       for (const rv of reviewRows) {
+        reviewedPrIds.add(rv.prId);
         if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { score: rv.score });
+      }
+      latestReviewIds = pickLatestReviewIds(reviewRows);
+    }
+
+    // Per-severity FINDINGS tally per PR over each agent's LATEST review only: for
+    // every agent that ever ran on the PR, its newest review counts and its older
+    // ones do not, so re-running one agent replaces that agent's contribution
+    // instead of stacking on top of it. Agents that ran once are unaffected.
+    // Deliberately NOT symmetric with the COST column below, which stays a
+    // lifetime sum: cost is money spent, findings are the current picture.
+    // Accepted/dismissed findings still count — the column reports what the
+    // agents found, not what is still open.
+    //
+    // Aggregated in SQL: GROUP BY returns at most three rows per PR. The review
+    // ids come from the score pass above (`pickLatestReviewIds`).
+    //
+    // `findings` carries no workspace_id — tenancy reaches it only through its
+    // review, so this join IS the tenancy boundary.
+    const severityByPr = new Map<string, FindingsBySeverity>();
+    if (latestReviewIds.length > 0) {
+      const severityRows = await container.db
+        .select({ prId: t.reviews.prId, severity: t.findings.severity, n: count() })
+        .from(t.findings)
+        .innerJoin(t.reviews, eq(t.reviews.id, t.findings.reviewId))
+        .where(
+          and(
+            eq(t.reviews.workspaceId, workspaceId),
+            inArray(t.reviews.id, latestReviewIds),
+            eq(t.reviews.kind, 'review'),
+          ),
+        )
+        .groupBy(t.reviews.prId, t.findings.severity);
+      for (const [prId, counts] of foldSeverityCounts(severityRows)) {
+        severityByPr.set(prId, counts);
+      }
+    }
+
+    // LIFETIME cost per PR for the list's COST column: every completed run this
+    // PR has ever had, across every review round. Only status='done' counts — a
+    // failed run never reached a model. Aggregated in SQL, unlike the score
+    // above: `agent_runs` grows without bound as a PR is re-reviewed, so
+    // reading every row back just to add them up would not hold up.
+    //
+    // Postgres `sum()` ignores NULLs and yields NULL when there are none, which
+    // is exactly the rule this column needs: runs on unpriced models contribute
+    // nothing, and "—" means nothing at all is known.
+    const totalCostByPr = new Map<string, number | null>();
+    if (prIds.length > 0) {
+      const costRows = await container.db
+        .select({ prId: t.agentRuns.prId, total: sum(t.agentRuns.costUsd) })
+        .from(t.agentRuns)
+        .where(and(inArray(t.agentRuns.prId, prIds), eq(t.agentRuns.status, 'done')))
+        .groupBy(t.agentRuns.prId);
+      for (const row of costRows) {
+        // prId is nullable (agents/PRs delete with `set null`).
+        if (row.prId) totalCostByPr.set(row.prId, parseAggregateCost(row.total));
       }
     }
 
@@ -153,6 +230,12 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
+        cost_usd: totalCostByPr.get(r.id) ?? null,
+        // null = never reviewed; all-zero = reviewed and clean. Both render an
+        // em dash, but only the payload keeps the two apart.
+        findings_by_severity: reviewedPrIds.has(r.id)
+          ? (severityByPr.get(r.id) ?? emptySeverityCounts())
+          : null,
       };
     });
   });

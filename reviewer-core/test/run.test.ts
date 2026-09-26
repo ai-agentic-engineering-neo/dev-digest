@@ -135,4 +135,54 @@ describe('reviewPullRequest (engine)', () => {
     expect(seen.length).toBeGreaterThan(0);
     expect(seen.every((s) => s === 'sess-abc')).toBe(true);
   });
+
+  it('onPromptAssembled fires once per prompt actually sent: twice for a 2-file map-reduce, once for single-pass (never for the trace-only assembly)', async () => {
+    const twoFiles = [
+      'diff --git a/src/a.ts b/src/a.ts',
+      '--- a/src/a.ts',
+      '+++ b/src/a.ts',
+      '@@ -1,1 +1,2 @@',
+      ' const a = 1;',
+      '+const b = 2;',
+      'diff --git a/src/b.ts b/src/b.ts',
+      '--- a/src/b.ts',
+      '+++ b/src/b.ts',
+      '@@ -1,1 +1,2 @@',
+      ' const c = 3;',
+      '+const d = 4;',
+    ].join('\n');
+    const diff = await new MockGitClient({ diff: twoFiles }).diff();
+    const clean = { verdict: 'approve', summary: 'ok', score: 100, findings: [] };
+
+    const run = async (strategy: 'map-reduce' | 'single-pass') => {
+      const seen: { mode: string; chunkIndex: number; chunkCount: number; names: string[] }[] = [];
+      await reviewPullRequest({
+        systemPrompt: 's',
+        model: 'gpt-4.1',
+        diff,
+        llm: new MockLLMProvider('openai', { structured: clean }),
+        strategy,
+        onPromptAssembled: (info) =>
+          seen.push({
+            mode: info.mode,
+            chunkIndex: info.chunkIndex,
+            chunkCount: info.chunkCount,
+            names: info.sections.map((s) => s.name),
+          }),
+      });
+      return seen;
+    };
+
+    const mapReduce = await run('map-reduce');
+    expect(mapReduce.map(({ mode, chunkIndex, chunkCount }) => ({ mode, chunkIndex, chunkCount }))).toEqual([
+      { mode: 'map-reduce', chunkIndex: 0, chunkCount: 2 },
+      { mode: 'map-reduce', chunkIndex: 1, chunkCount: 2 },
+    ]);
+    expect(mapReduce[0]!.names).toEqual(['system', 'diff']);
+
+    const singlePass = await run('single-pass');
+    expect(singlePass).toEqual([
+      { mode: 'single-pass', chunkIndex: 0, chunkCount: 1, names: ['system', 'diff'] },
+    ]);
+  });
 });

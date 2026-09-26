@@ -13,5 +13,28 @@
   },
   "loadError": {
     "title": "Couldn’t load the onboarding tour"
+  },
+  "home": {
+    "crumb": "DevDigest",
+    "title": "Welcome to DevDigest",
+    "subtitle": "Local-first AI PR review",
+    "emptyTitle": "No repositories yet",
+    "emptyBody": "Add a repository to start reviewing pull requests. Set your API keys once in Settings → API Keys.",
+    "emptyCta": "Add repository",
+    "redirecting": "Taking you to your repository…",
+    "open": "Open {name}"
+  },
+  "addRepo": {
+    "title": "Add a repository",
+    "intro": "Paste a GitHub repository URL — DevDigest clones it locally and imports open PRs. API keys aren’t needed here; set them once in <link>Settings → API Keys</link>.",
+    "urlLabel": "Repository URL",
+    "urlHint": "e.g. https://github.com/acme/payments-api",
+    "urlPlaceholder": "https://github.com/owner/repo",
+    "close": "Close",
+    "cancel": "Cancel",
+    "submit": "Add repository",
+    "cloning": "Cloning…",
+    "failed": "Could not add repository",
+    "footer": "API keys live in Settings · <kbd>esc</kbd> to close"
   }
 }

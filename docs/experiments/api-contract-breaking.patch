@@ -1,0 +1,30 @@
+diff --git a/server/src/modules/settings/routes.ts b/server/src/modules/settings/routes.ts
+index d1803af..d3f3840 100644
+--- a/server/src/modules/settings/routes.ts
++++ b/server/src/modules/settings/routes.ts
+@@ -34,16 +34,20 @@ export default async function settingsRoutes(appBase: FastifyInstance) {
+     return rowsToSettings(rows);
+   });
+ 
+-  // Which provider keys are configured (booleans only — the values are NEVER
+-  // returned). Drives the "Configured / Not set" badges in the API Keys panel.
+-  app.get('/settings/secrets-status', async (req): Promise<SecretsStatus> => {
++  // Which provider keys are configured. Drives the "Configured / Not set"
++  // badges in the API Keys panel, and now also surfaces whether the value
++  // came from a stored override or an env var, for the "source" tooltip.
++  app.get('/settings/secrets-status', async (req) => {
+     await getContext(container, req);
+     const entries = await Promise.all(
+       (Object.entries(SECRET_KEY_BY_PROVIDER) as [keyof SecretsStatus, string][]).map(
+-        async ([provider, key]) => [provider, Boolean(await container.secrets.get(key))] as const,
++        async ([provider, key]) => {
++          const value = await container.secrets.get(key);
++          return [provider, { configured: Boolean(value) }] as const;
++        },
+       ),
+     );
+-    return Object.fromEntries(entries) as SecretsStatus;
++    return Object.fromEntries(entries);
+   });
+ 
+   app.put('/settings', { schema: { body: SettingsUpdate } }, async (req) => {

@@ -12,9 +12,11 @@ import {
   EvalRun,
   MemoryItem,
   RunTrace,
+  RunSummary,
   Settings,
   Repo,
   PrDetail,
+  PrIntentRecord,
 } from '@devdigest/shared';
 
 /**
@@ -166,6 +168,84 @@ describe('AI contracts parse fixtures', () => {
       log: [{ t: '00.00', kind: 'info', msg: 'started' }],
     });
     expect(trace.tool_calls).toHaveLength(1);
+    // This fixture has no `cost_usd` — the shape of every run_traces document
+    // written before cost tracking existed. Parsing MUST still succeed, which
+    // is why RunStats.cost_usd is nullish rather than required.
+    expect(trace.stats.cost_usd).toBeUndefined();
+  });
+
+  it('RunTrace carries a run cost when one was recorded', () => {
+    const trace = RunTrace.parse({
+      config: { agent: 'Security Reviewer', version: 'v7', model: 'gpt-4.1', pr: 482, source: 'local' },
+      stats: {
+        duration_ms: 8200,
+        tokens_in: 14820,
+        tokens_out: 1240,
+        cost_usd: 0.06,
+        findings: 3,
+        grounding: '3/3 passed',
+      },
+      prompt_assembly: { system: 's', user: 'u' },
+      tool_calls: [],
+      raw_output: '{}',
+      memory_pulled: [],
+      specs_read: [],
+      log: [],
+    });
+    expect(trace.stats.cost_usd).toBe(0.06);
+  });
+
+  it('PrIntentRecord (persisted intent + provenance) parses, and rejects an out-of-enum confidence', () => {
+    const full = {
+      intent: 'Add a caching layer in front of the pricing API.',
+      in_scope: ['cache invalidation', 'redis client wiring'],
+      out_of_scope: ['auth changes'],
+      pr_id: 'pr1',
+      confidence: 'high',
+      sources: [
+        { kind: 'description', ref: 'PR body', status: 'ok', chars: 120 },
+        { kind: 'issue', ref: '#42', status: 'ok', chars: 340 },
+        { kind: 'web', ref: 'https://example.com/docs', status: 'unavailable', chars: 0 },
+      ],
+      missing_context: ['no linked spec doc'],
+      head_sha: 'abc123',
+      provider: 'openrouter',
+      model: 'deepseek/deepseek-v4-flash',
+      tokens_in: 1200,
+      tokens_out: 80,
+      updated_at: '2026-09-25T10:00:00.000Z',
+    };
+    expect(() => PrIntentRecord.parse(full)).not.toThrow();
+
+    // 'certain' is not in the IntentConfidence enum (high | medium | low) —
+    // confidence is deterministic from resolved sources, never self-reported.
+    expect(() => PrIntentRecord.parse({ ...full, confidence: 'certain' })).toThrow();
+  });
+
+  it('RunSummary distinguishes an unpriced run from a free one', () => {
+    const base = {
+      run_id: 'r1',
+      agent_id: 'a1',
+      agent_name: 'Security Reviewer',
+      provider: 'openrouter',
+      model: 'deepseek/deepseek-v4-flash',
+      status: 'done',
+      error: null,
+      duration_ms: 8200,
+      tokens_in: 9000,
+      tokens_out: 119,
+      findings_count: 2,
+      grounding: '2/2 passed',
+      ran_at: '2026-06-01T09:14:02.000Z',
+      score: 61,
+      blockers: 1,
+    };
+    // null = no price data; 0 = a genuinely free model. Both are valid, and the
+    // UI renders them differently ("—" vs "$0").
+    expect(RunSummary.parse({ ...base, cost_usd: null }).cost_usd).toBeNull();
+    expect(RunSummary.parse({ ...base, cost_usd: 0 }).cost_usd).toBe(0);
+    // Absent is NOT acceptable here: this shape comes straight from a DB column.
+    expect(() => RunSummary.parse(base)).toThrow();
   });
 });
 

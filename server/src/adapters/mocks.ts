@@ -31,6 +31,9 @@ import type {
   AuthWorkspace,
   SecretsProvider,
   SecretKey,
+  WebFetchClient,
+  WebFetchOptions,
+  WebFetchResult,
 } from '@devdigest/shared';
 import { parseUnifiedDiff } from './git/diff-parser.js';
 
@@ -249,6 +252,8 @@ export interface MockGitOptions {
   head?: string;
   /** Head `currentHead()` returns AFTER `sync()` runs — simulates fetch+reset advancing HEAD. */
   syncedHead?: string;
+  /** Files by path returned by `readFileAt` (any ref); a missing path rejects like git does. */
+  filesAt?: Record<string, string>;
 }
 
 export class MockGitClient implements GitClient {
@@ -292,6 +297,42 @@ export class MockGitClient implements GitClient {
   }
   async readFile(_repo: RepoRef, path: string): Promise<string> {
     return this.opts.files?.[path] ?? '';
+  }
+  async readFileAt(_repo: RepoRef, _ref: string, path: string): Promise<string> {
+    const text = this.opts.filesAt?.[path];
+    if (text === undefined) throw new Error(`fatal: path '${path}' does not exist`);
+    return text;
+  }
+}
+
+// ---------- Mock WebFetch ----------
+export interface MockWebFetchOptions {
+  /**
+   * Per-URL behaviour: a result (defaults filled in), or an Error to throw.
+   * Matched on the exact URL string passed to `fetchText`.
+   */
+  responses?: Record<string, Partial<WebFetchResult> | Error>;
+  /** Returned when a URL has no entry; when unset, an unmatched URL throws. */
+  fallback?: Partial<WebFetchResult>;
+}
+
+export class MockWebFetchClient implements WebFetchClient {
+  public calls: { url: string; opts?: WebFetchOptions }[] = [];
+
+  constructor(private opts: MockWebFetchOptions = {}) {}
+
+  async fetchText(url: string, opts?: WebFetchOptions): Promise<WebFetchResult> {
+    this.calls.push({ url, opts });
+    const entry = this.opts.responses?.[url] ?? this.opts.fallback;
+    if (entry === undefined) throw new Error('blocked');
+    if (entry instanceof Error) throw entry;
+    return {
+      text: 'mock web document',
+      status: 'ok',
+      contentType: 'text/markdown',
+      finalUrl: url,
+      ...entry,
+    };
   }
 }
 

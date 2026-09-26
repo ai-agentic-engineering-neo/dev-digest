@@ -1,0 +1,178 @@
+/* ReviewRunAccordion — one collapsible review RUN (a single agent's pass over
+   the PR). Header shows agent + verdict + counts + score + when it ran; the
+   body holds that run's VerdictBanner summary and its own FindingsPanel. A PR
+   can have many runs (different agents / re-runs over time) — each is separate
+   and collapsible so older runs don't bury the latest. */
+"use client";
+
+import React from "react";
+import { Icon, Badge } from "@devdigest/ui";
+import type { ReviewRecord, Verdict } from "@devdigest/shared";
+import { FindingsPanel } from "./_components/FindingsPanel";
+import { VerdictBanner } from "./_components/VerdictBanner";
+import { useTranslations } from "next-intl";
+import { useDeleteReview } from "@/lib/hooks/reviews";
+import { useConfirm } from "@/components/confirm-dialog";
+
+const VERDICT_COLOR: Record<string, string> = {
+  request_changes: "var(--crit)",
+  comment: "var(--warn)",
+  approve: "var(--ok)",
+};
+
+function formatWhen(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
+}
+
+export function ReviewRunAccordion({
+  review,
+  prId,
+  defaultOpen = false,
+  repoFullName,
+  headSha,
+  targetRunId = null,
+  targetNonce = 0,
+  severityFilter = null,
+}: {
+  review: ReviewRecord;
+  prId: string;
+  defaultOpen?: boolean;
+  repoFullName?: string | null;
+  headSha?: string | null;
+  /** When this matches review.run_id, the accordion opens and scrolls into view
+   *  (driven from the Timeline: clicking an agent name navigates here). */
+  targetRunId?: string | null;
+  targetNonce?: number;
+  /** Page-wide severity filter, applied to this run's findings. */
+  severityFilter?: string | null;
+}) {
+  const [open, setOpen] = React.useState(defaultOpen);
+  const rootRef = React.useRef<HTMLDivElement | null>(null);
+  // An effect on purpose: scrollIntoView needs the DOM AFTER `open` commits, and
+  // `targetNonce` re-fires it when the same run is targeted twice in a row (same
+  // `targetRunId`, so no other dependency changes).
+  React.useEffect(() => {
+    if (review.run_id && review.run_id === targetRunId) {
+      setOpen(true);
+      rootRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [targetRunId, targetNonce, review.run_id]);
+  const t = useTranslations("prReview");
+  const del = useDeleteReview(prId);
+  const { confirm, dialog } = useConfirm();
+  const findings = review.findings;
+  const blockers = findings.filter((f) => f.severity === "CRITICAL" && !f.dismissed_at).length;
+  const verdictColor = review.verdict ? VERDICT_COLOR[review.verdict] ?? "var(--text-muted)" : "var(--text-muted)";
+
+  return (
+    <div
+      ref={rootRef}
+      id={review.run_id ? `review-run-${review.run_id}` : undefined}
+      style={{
+        border: "1px solid var(--border)",
+        borderRadius: 10,
+        background: "var(--bg-surface)",
+        marginBottom: 14,
+        overflow: "hidden",
+        scrollMarginTop: 16,
+      }}
+    >
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => setOpen((o) => !o)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") setOpen((o) => !o);
+        }}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          padding: "13px 16px",
+          cursor: "pointer",
+          color: "var(--text-primary)",
+        }}
+      >
+        <Icon.Cpu size={15} style={{ color: "var(--text-muted)" }} />
+        <span style={{ fontWeight: 600, fontSize: 14 }}>{review.agent_name ?? "Agent"}</span>
+        {review.verdict && (
+          <Badge color={verdictColor} bg="transparent">
+            {review.verdict.replace("_", " ")}
+          </Badge>
+        )}
+        <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
+          {findings.length} finding{findings.length === 1 ? "" : "s"}
+          {blockers > 0 ? ` · ${blockers} blocker${blockers === 1 ? "" : "s"}` : ""}
+        </span>
+        <span style={{ flex: 1 }} />
+        {review.score != null && (
+          <Badge mono color="var(--text-secondary)">
+            {review.score}
+          </Badge>
+        )}
+        <span className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>
+          {formatWhen(review.created_at)}
+        </span>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            confirm(
+              {
+                title: t("panel.deleteReviewConfirm.title"),
+                body: t("panel.deleteReviewConfirm.body", { agent: review.agent_name ?? "agent" }),
+                confirmLabel: t("panel.deleteReviewConfirm.confirm"),
+              },
+              () => del.mutate(review.id),
+            );
+          }}
+          disabled={del.isPending}
+          title="Delete this review run"
+          aria-label="Delete this review run"
+          style={{
+            background: "none",
+            border: "none",
+            cursor: del.isPending ? "not-allowed" : "pointer",
+            color: "var(--text-muted)",
+            display: "inline-flex",
+            padding: 4,
+          }}
+        >
+          <Icon.Trash size={14} style={del.isPending ? { animation: "ddspin 1s linear infinite" } : undefined} />
+        </button>
+        <Icon.ChevronDown
+          size={16}
+          style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .15s", color: "var(--text-muted)" }}
+        />
+      </div>
+
+      {open && (
+        <div style={{ padding: "0 16px 16px" }}>
+          {review.verdict && (
+            <div style={{ marginBottom: 16 }}>
+              <VerdictBanner
+                verdict={review.verdict as Verdict}
+                summary={review.summary}
+                score={review.score}
+                findingsCount={findings.length}
+                blockers={blockers}
+                agentName={review.agent_name}
+              />
+            </div>
+          )}
+          <FindingsPanel
+            findings={findings}
+            prId={prId}
+            repoFullName={repoFullName}
+            headSha={headSha}
+            severityFilter={severityFilter}
+          />
+        </div>
+      )}
+      {dialog}
+    </div>
+  );
+}
+
+export default ReviewRunAccordion;

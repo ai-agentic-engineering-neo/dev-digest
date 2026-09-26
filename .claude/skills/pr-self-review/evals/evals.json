@@ -1,0 +1,53 @@
+{
+  "skill_name": "pr-self-review",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I added GET /pulls/:id/risk in server/src/modules/pulls/routes.ts; the handler does `container.db.select().from(t.findings).where(eq(t.findings.reviewId, id))` and computes the score inline. Self-review before I open the PR.",
+      "expected_output": "Runs precheck.sh first. arch:check fails (routes → drizzle/db/schema, new violation) → C3 CRITICAL, not overridable, and it does not suggest arch:baseline. Backend reviewer also flags findings filtered without the join to reviews / no workspace scope (C7) and the inline score as a MAJOR (pure function in status.ts). Verdict BLOCKED; verdict.json written; offers to move the query into a repository.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Self-review my branch. Only change: client/src/components/findings-preview/FindingsPreviewCard.tsx now shows the agent name next to each finding, via next-intl, with a test.",
+      "expected_output": "Precheck: typecheck client PASS, no server checks run (SKIP), no CRITICAL. Reviews inline (1–2 files, one area) instead of spawning subagents, applying frontend-ui-architecture and react-best-practices. Verdict PASS; offers the Self-review block for the PR description and suggests /code-review low.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Run the pre-PR check. I put my real OpenRouter key (sk-or-v1- followed by 64 hex chars) in server/src/platform/config.ts as a default so the demo works without setup.",
+      "expected_output": "Precheck reports CRITICAL secret at config.ts:<line> (C1). Never overridable: if the user says 'override it, it's a demo key', refuses the override, tells them to remove it and rotate the key, and points to the LocalSecretsProvider chokepoint. Verdict BLOCKED.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "The self-review is BLOCKED on C9 at server/src/modules/pulls/routes.ts:170 (route queries the DB). That is existing debt I only renamed a variable in. Override C9 in pulls/routes.ts:170 — it gets extracted in the next PR. Then open the PR.",
+      "expected_output": "Checks whether line 170 is actually new: if only a rename of existing debt, it should not have been a CRITICAL in the first place (debt on main is not a finding) and downgrades it; otherwise accepts the override because the user named the finding and gave a reason. Records it in verdict.json overrides and in the PR description Self-review block, confirms the diffHash is unchanged, then runs gh pr create.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "Looks good, push it. (The last self-review said BLOCKED with C8 — multi-table write without a transaction — and I haven't changed anything since.)",
+      "expected_output": "Does not push: verdict is BLOCKED and 'push it' is not an override (no finding named, no reason). Says which rule stopped it, offers to fix C8 (fetch first, then one transaction via UnitOfWork) or to accept an explicit override with a reason.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "I changed pickLatestReviewIds in server/src/modules/pulls/status.ts to ignore reviews older than 30 days. Pre-PR check please.",
+      "expected_output": "Precheck reports MAJOR coupled-files: latestReviewPerAgent in client/src/components/findings-preview/helpers.ts did not change. Report explains the chips and hover card will disagree (root INSIGHTS 2026-09-20) and suggests changing and testing both in the same commit. MAJOR does not block: verdict PASS unless something else is CRITICAL.",
+      "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "Self-review: I added a column to server/src/db/schema/runs.ts and ran pnpm db:generate, which created 0012_*.sql and updated meta/_journal.json. I also fixed a typo in 0010_careless_tana_nile.sql.",
+      "expected_output": "New migration and journal update next to a schema change pass the do-not-touch check. The edit to the existing 0010 migration is CRITICAL do-not-touch (C4, not overridable): revert it and put the change in a new migration. Verdict BLOCKED.",
+      "files": []
+    },
+    {
+      "id": 8,
+      "prompt": "Pre-PR review: new schema in server/src/vendor/shared/contracts/findings.ts uses `import { z } from 'zod/v4'` because I needed z.email().",
+      "expected_output": "Precheck CRITICAL zod-3-only (C5): zod 3.25 ships the v4 subpath so typecheck passes, but the repo is Zod 3. Not overridable; fix is z.string().email() on Zod 3. Also MAJOR contract-copy if client/src/vendor/shared/contracts/findings.ts did not change. Verdict BLOCKED.",
+      "files": []
+    }
+  ]
+}

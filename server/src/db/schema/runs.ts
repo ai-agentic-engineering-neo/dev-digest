@@ -1,4 +1,12 @@
-import { pgTable, uuid, text, integer, jsonb, timestamp } from 'drizzle-orm/pg-core';
+import {
+  pgTable,
+  uuid,
+  text,
+  integer,
+  jsonb,
+  timestamp,
+  doublePrecision,
+} from 'drizzle-orm/pg-core';
 import { workspaces } from './core';
 import { agents } from './agents';
 import { pullRequests } from './pulls';
@@ -18,6 +26,12 @@ export const agentRuns = pgTable('agent_runs', {
   durationMs: integer('duration_ms'),
   tokensIn: integer('tokens_in'),
   tokensOut: integer('tokens_out'),
+  /**
+   * USD cost of this run. NULL means "no price data" (unknown model, or the
+   * run never reached the LLM) — distinct from 0, which is a genuinely free
+   * model. The UI renders NULL as an em dash, never "$0.00".
+   */
+  costUsd: doublePrecision('cost_usd'),
   status: text('status'),
   /** Failure reason when status='failed' (LLM/API error, timeout, quota, …). */
   error: text('error'),
@@ -28,6 +42,13 @@ export const agentRuns = pgTable('agent_runs', {
   score: integer('score'),
   /** Findings that tripped the agent's gate (severity ≥ ciFailOn). */
   blockers: integer('blockers'),
+  /**
+   * The review round this run belongs to. Every run created by one
+   * `runReview` call shares it, which is what lets the PR list total a round
+   * instead of showing whichever agent happened to finish last. Null on runs
+   * created before rounds were tracked — those count as a round of one.
+   */
+  roundId: uuid('round_id').references(() => multiAgentRuns.id, { onDelete: 'set null' }),
 });
 
 /** Whole trace of one run as a SINGLE jsonb document. */

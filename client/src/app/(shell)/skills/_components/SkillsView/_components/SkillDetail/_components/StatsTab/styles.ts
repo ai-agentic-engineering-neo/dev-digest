@@ -1,0 +1,41 @@
+import type { CSSProperties } from "react";
+
+export const s = {
+  wrap: { maxWidth: 780 } satisfies CSSProperties,
+  metricsRow: { display: "flex", gap: 14, marginBottom: 28 } satisfies CSSProperties,
+  scoreCard: {
+    flex: 1,
+    background: "var(--bg-elevated)",
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: "var(--border)",
+    borderRadius: 9,
+    padding: 18,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-start",
+    gap: 12,
+  } satisfies CSSProperties,
+  scoreLabel: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: "var(--text-muted)",
+    letterSpacing: "0.03em",
+  } satisfies CSSProperties,
+  section: { marginBottom: 28 } satisfies CSSProperties,
+  sectionTitle: { fontSize: 14, fontWeight: 600, marginBottom: 12 } satisfies CSSProperties,
+  agentList: { display: "flex", flexDirection: "column", gap: 6 } satisfies CSSProperties,
+  agentRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "8px 12px",
+    borderRadius: 7,
+    background: "var(--bg-elevated)",
+    borderWidth: 1,
+    borderStyle: "solid",
+    borderColor: "var(--border)",
+  } satisfies CSSProperties,
+  agentName: { fontSize: 13, fontWeight: 500 } satisfies CSSProperties,
+  noData: { fontSize: 13, color: "var(--text-muted)" } satisfies CSSProperties,
+} as const;

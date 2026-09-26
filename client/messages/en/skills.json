@@ -7,6 +7,7 @@
     "searchPlaceholder": "Search skills…",
     "loadError": "Could not load skills.",
     "menu": {
+      "create": "Create",
       "fromFile": "Import from file",
       "fromUrl": "Import from URL",
       "community": "Search community skills…"
@@ -19,7 +20,18 @@
     "selectPrompt": {
       "title": "Select a skill",
       "body": "Pick a skill on the left to preview its body."
+    },
+    "footer": {
+      "agents": "{count, plural, one {# agent} other {# agents}}",
+      "pull": "{value} pull freq",
+      "accept": "{value} accept"
     }
+  },
+  "deleteConfirm": {
+    "title": "Delete skill?",
+    "body": "Delete skill “{name}”? This cannot be undone.",
+    "confirm": "Delete",
+    "action": "Delete skill"
   },
   "detail": {
     "crumbSkill": "Skill",
@@ -28,6 +40,13 @@
     "notFound": {
       "title": "Skill not found",
       "body": "It may have been deleted."
+    },
+    "versionBadge": "v{version}",
+    "tabs": {
+      "config": "Config",
+      "preview": "Preview",
+      "stats": "Stats",
+      "versions": "Versions"
     }
   },
   "drawer": {
@@ -38,7 +57,20 @@
       "url": "From URL",
       "community": "Community"
     },
-    "importFailed": "Import failed"
+    "importFailed": "Import failed",
+    "fileSubtitle": "Upload a Markdown or zip file — previewed here, saved only when you confirm.",
+    "fileLabel": "File",
+    "chooseFile": "Choose file…",
+    "noFileChosen": "No file chosen",
+    "acceptHint": "Accepts .md or .zip",
+    "trustWarning": "Imported content is untrusted until you review and confirm it below.",
+    "ignoredFilesHeading": "Ignored files",
+    "previewHeading": "Preview — edit before saving",
+    "saveDisabled": "Save (disabled)",
+    "saveDisabledHint": "Saved disabled — enable it once you've vetted the body.",
+    "reading": "Reading file…",
+    "saving": "Saving…",
+    "importSuccess": "Imported \"{name}\" (disabled — vet before enabling)."
   },
   "file": {
     "nameLabel": "Skill name",
@@ -84,7 +116,8 @@
       "manual": "Manual",
       "extracted": "Extracted",
       "community": "Community",
-      "imported_url": "Imported"
+      "imported_url": "Imported",
+      "imported_file": "Imported"
     }
   },
   "preview": {
@@ -97,5 +130,59 @@
     "bodyLabel": "Skill body (Markdown)",
     "bodyHint": "Saving a changed body creates a new immutable version.",
     "version": "v{version}"
+  },
+  "config": {
+    "title": "Configuration",
+    "enabled": "Enabled",
+    "name": "Name",
+    "description": "Description",
+    "descriptionHint": "Write it as a directive — it is the skill's interface.",
+    "type": "Type",
+    "bodyLabel": "Skill body",
+    "unsaved": "unsaved",
+    "tokenCount": "{count} tokens",
+    "countingTokens": "counting…",
+    "noteLabel": "What changed?",
+    "notePlaceholder": "Optional note for this version…",
+    "save": "Save",
+    "cancel": "Cancel",
+    "saving": "Saving…",
+    "saved": "Saved (v{version})",
+    "createTitle": "New skill",
+    "createSubtitle": "A skill is a rule or convention appended to an agent's prompt when linked.",
+    "createSave": "Create skill",
+    "creating": "Creating…"
+  },
+  "rendered": {
+    "heading": "Rendered as the reviewing agent receives it"
+  },
+  "stats": {
+    "usedBy": "Used by",
+    "usedByValue": "{count} agents",
+    "pullFrequency": "Pull frequency",
+    "acceptRate": "Accept rate",
+    "findings30d": "Findings (30d)",
+    "agentsUsing": "Agents using this skill",
+    "open": "Open",
+    "noAgents": "No agents use this skill yet.",
+    "byCategory": "Findings by category",
+    "noCategoryData": "No findings recorded yet."
+  },
+  "versions": {
+    "heading": "Version history",
+    "count": "{count} versions",
+    "current": "Current",
+    "diff": "Diff",
+    "restore": "Restore",
+    "restoring": "Restoring…",
+    "restoreConfirm": {
+      "title": "Restore this version?",
+      "body": "Restore v{version}? This creates a new version with v{version}'s body.",
+      "confirm": "Restore"
+    },
+    "diffModal": {
+      "title": "v{version} → current"
+    },
+    "noNote": "—"
   }
 }

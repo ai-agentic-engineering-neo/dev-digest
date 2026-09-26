@@ -1,0 +1,45 @@
+diff --git a/server/src/modules/pulls/status.ts b/server/src/modules/pulls/status.ts
+index 7e03c78..e3ddb4f 100644
+--- a/server/src/modules/pulls/status.ts
++++ b/server/src/modules/pulls/status.ts
+@@ -106,3 +106,12 @@ export function deriveReviewStatus(args: {
+ export function parseAggregateCost(value: string | number | null): number | null {
+   return value == null ? null : Number(value);
+ }
++
++/**
++ * The most recent of a set of timestamps, or null when there are none — used
++ * by round rollups that may cover a PR with zero runs.
++ */
++export function latestOf(dates: Date[]): Date | null {
++  if (dates.length === 0) return null;
++  return dates.reduce((a, b) => (b > a ? b : a));
++}
+diff --git a/server/test/pulls-status.test.ts b/server/test/pulls-status.test.ts
+index bdb94c6..373ba3f 100644
+--- a/server/test/pulls-status.test.ts
++++ b/server/test/pulls-status.test.ts
+@@ -10,6 +10,7 @@ import {
+   deriveReviewStatus,
+   emptySeverityCounts,
+   foldSeverityCounts,
++  latestOf,
+   parseAggregateCost,
+   pickLatestReviewIds,
+   STALE_DAYS,
+@@ -106,6 +107,15 @@ describe('parseAggregateCost', () => {
+   });
+ });
+ 
++describe('latestOf', () => {
++  it('returns the most recent of several timestamps', () => {
++    const a = new Date(Date.UTC(2026, 5, 1));
++    const b = new Date(Date.UTC(2026, 5, 11));
++    const c = new Date(Date.UTC(2026, 5, 6));
++    expect(latestOf([a, b, c])).toEqual(b);
++  });
++});
++
+ describe('pickLatestReviewIds', () => {
+   // Rows are newest-first, exactly as the route's `ORDER BY created_at DESC` hands them over.
+   const row = (id: string, prId: string, agentId: string | null) => ({ id, prId, agentId });

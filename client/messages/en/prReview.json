@@ -29,7 +29,15 @@
   "panel": {
     "hideLowConfidence": "Hide low confidence",
     "noMatchTitle": "No findings match",
-    "noMatchBody": "Adjust the filters above, or run a review to generate findings."
+    "noMatchBody": "Adjust the filters above, or run a review to generate findings.",
+    "severityCounters": "Filter findings by severity",
+    "showOnlySeverity": "Show only {severity} findings",
+    "showAllSeverities": "Show findings of every severity",
+    "deleteReviewConfirm": {
+      "title": "Delete review run?",
+      "body": "Delete this “{agent}” review run and its findings?",
+      "confirm": "Delete"
+    }
   },
   "runReview": {
     "runAll": "Run all enabled agents",
@@ -91,7 +99,9 @@
       "author": "Author",
       "size": "Size",
       "score": "Score",
+      "findings": "Findings",
       "status": "Status",
+      "cost": "Cost",
       "updated": "Updated"
     },
     "filesCount": "{count} files",
@@ -99,11 +109,71 @@
     "errorBody": "The engine returned an error.",
     "emptyTitle": "No pull requests",
     "emptyAllBody": "No open PRs found for this repo yet. Refresh to sync from GitHub.",
-    "emptyStatusBody": "No PRs with status “{status}”."
+    "emptyStatusBody": "No PRs with status “{status}”.",
+    "findingsBySeverity": "Findings by severity",
+    "severityCount": "{count} {severity} findings",
+    "findingsPreviewTitle": "{count} findings",
+    "noFindings": "No findings"
   },
   "timeline": {
     "goToReview": "Jump to this run’s findings below",
     "openTrace": "Open run trace & logs",
-    "deleteRun": "Delete run"
+    "deleteRun": "Delete run",
+    "findingsInRun": "{count} findings in this run",
+    "deleteRunConfirm": {
+      "title": "Delete run?",
+      "body": "Delete this run from history? Its logs are removed too.",
+      "confirm": "Delete"
+    }
+  },
+  "findingsPreview": {
+    "more": "+{count} more",
+    "loading": "Loading findings…"
+  },
+  "detail": {
+    "loadErrorTitle": "Couldn’t load this pull request",
+    "loadErrorBody": "PR #{number} could not be loaded.",
+    "viewOnGithub": "View on GitHub",
+    "staleBanner": "This PR is already {status} — running a review is informational and won’t affect the merged code.",
+    "tabs": {
+      "overview": "Overview",
+      "findings": "Agent runs",
+      "diff": "Files changed"
+    },
+    "description": "Description",
+    "intent": {
+      "title": "Intent",
+      "errorTitle": "Couldn’t load the intent",
+      "errorBody": "The PR intent could not be loaded or computed. Try again.",
+      "empty": "Intent not derived yet",
+      "compute": "Compute",
+      "recompute": "Recompute",
+      "inScope": "In scope",
+      "outOfScope": "Out of scope",
+      "confidence": "Confidence: {level}",
+      "level": {
+        "high": "High",
+        "medium": "Medium",
+        "low": "Low"
+      },
+      "stale": "PR updated — intent stale",
+      "sources": "Sources",
+      "sourceKind": {
+        "description": "Description",
+        "issue": "Issue",
+        "repo_doc": "Repo doc",
+        "web": "Web page",
+        "diff_outline": "Diff outline"
+      },
+      "sourceStatus": {
+        "unavailable": "unavailable",
+        "truncated": "truncated"
+      },
+      "missingContext": "Missing context"
+    },
+    "hideComments": "Hide comments",
+    "showComments": "Show comments",
+    "noFindingsTitle": "No findings yet",
+    "noFindingsBody": "Run a review to generate findings. Use Run Review ▾ above (run all enabled agents or a specific one)."
   }
 }

@@ -145,7 +145,9 @@ log "API healthy"
 
 # --- web on :$WEB_PORT (next dev → reads NEXT_PUBLIC_API_BASE from env) -------
 log "starting web on :$WEB_PORT"
-(cd client && pnpm exec next dev -p "$WEB_PORT") &
+# Own build dir: sharing client/.next with a running dev stack corrupts both
+# servers' chunks (hydration errors on :3000). See client/next.config.mjs.
+(cd client && NEXT_DIST_DIR=.next-e2e pnpm exec next dev -p "$WEB_PORT") &
 WEB_PID=$!
 log "waiting for web :$WEB_PORT"
 web_up=0

@@ -11,7 +11,9 @@
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
-    "db:seed": "tsx src/db/seed.ts"
+    "db:seed": "tsx src/db/seed.ts",
+    "arch:check": "depcruise src --config .dependency-cruiser.cjs --ignore-known --output-type err",
+    "arch:baseline": "depcruise-baseline src --config .dependency-cruiser.cjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.33.1",
@@ -27,14 +29,17 @@
     "fastify": "^5.2.0",
     "fastify-sse-v2": "^4.2.1",
     "fastify-type-provider-zod": "^4.0.2",
+    "fflate": "^0.8.3",
     "graphology": "^0.26.0",
     "graphology-metrics": "^2.4.0",
+    "ipaddr.js": "^2.5.0",
     "js-tiktoken": "^1.0.21",
     "octokit": "^4.0.3",
     "openai": "^4.77.0",
     "p-queue": "^8.0.1",
     "postgres": "^3.4.5",
     "simple-git": "^3.27.0",
+    "undici": "^8.11.2",
     "zod": "^3.24.1"
   },
   "devDependencies": {

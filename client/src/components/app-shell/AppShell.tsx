@@ -5,6 +5,7 @@
 
 import React from "react";
 import { AppFrame, CommandPalette, ShortcutsHelp, type Crumb } from "@devdigest/ui";
+import { useConfirm } from "@/components/confirm-dialog";
 import { useGlobalShortcuts, useShellCommands, useShellContext } from "./hooks";
 
 export function AppShell({ children, crumb }: { children: React.ReactNode; crumb?: Crumb[] }) {
@@ -17,7 +18,8 @@ export function AppShell({ children, crumb }: { children: React.ReactNode; crumb
 
   useGlobalShortcuts({ onOpenPalette: openPalette, onOpenHelp: openHelp });
   const commands = useShellCommands();
-  const ctx = useShellContext({ onOpenCommandPalette: openPalette });
+  const { confirm, dialog } = useConfirm();
+  const ctx = useShellContext({ onOpenCommandPalette: openPalette, confirm });
 
   return (
     <>
@@ -26,6 +28,7 @@ export function AppShell({ children, crumb }: { children: React.ReactNode; crumb
       </AppFrame>
       <CommandPalette open={paletteOpen} commands={commands} onClose={closePalette} />
       <ShortcutsHelp open={helpOpen} onClose={closeHelp} />
+      {dialog}
     </>
   );
 }

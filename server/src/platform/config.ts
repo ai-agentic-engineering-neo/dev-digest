@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { z } from 'zod';
 import { homedir } from 'node:os';
 import { join, isAbsolute, resolve } from 'node:path';
+import { resolvePromptLogMode, type PromptLogMode } from './prompt-log.js';
 
 /**
  * Central, zod-validated environment config. Loaded once at startup.
@@ -36,6 +37,12 @@ const EnvSchema = z.object({
     (v) => (v === '' ? undefined : v),
     z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).optional(),
   ),
+  // Content-free prompt-assembly logging. `.env.example` ships `PROMPT_LOG=`
+  // empty, so '' → undefined → the default (`summary`), like LOG_LEVEL above.
+  PROMPT_LOG: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.enum(['off', 'summary', 'verbose']).optional(),
+  ),
 });
 
 export type AppConfig = {
@@ -59,6 +66,13 @@ export type AppConfig = {
    * EXACTLY like the ripgrep-only baseline.
    */
   repoIntelEnabled: boolean;
+  /**
+   * Effective prompt-assembly log mode (PROMPT_LOG). `off` emits nothing and
+   * measures nothing; `verbose` is honoured only when NODE_ENV=development.
+   */
+  promptLog: PromptLogMode;
+  /** True when PROMPT_LOG=verbose was requested but downgraded to `summary` (app.ts warns once). */
+  promptLogDowngraded: boolean;
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -66,6 +80,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const cloneDirRaw =
     parsed.DEVDIGEST_CLONE_DIR ?? join(homedir(), '.devdigest', 'workspace');
   const cloneDir = isAbsolute(cloneDirRaw) ? cloneDirRaw : resolve(process.cwd(), cloneDirRaw);
+  const promptLog = resolvePromptLogMode(parsed.PROMPT_LOG ?? 'summary', parsed.NODE_ENV);
   return {
     databaseUrl: parsed.DATABASE_URL,
     apiPort: parsed.API_PORT,
@@ -77,5 +92,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     webOrigin: `http://localhost:${parsed.WEB_PORT}`,
     embeddingsEnabled: parsed.EMBEDDINGS_ENABLED === 'true',
     repoIntelEnabled: parsed.REPO_INTEL_ENABLED !== 'false',
+    promptLog: promptLog.mode,
+    promptLogDowngraded: promptLog.downgraded,
   };
 }

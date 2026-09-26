@@ -15,12 +15,52 @@
       "body": "Scan the repo to surface house-rules — naming, error handling, structure — each backed by evidence you can turn into a Skill.",
       "cta": "Run extraction"
     },
-    "candidateCount": "{count, plural, one {# candidate} other {# candidates}} · grounded against sampled files"
+    "candidateCount": "{count, plural, one {# candidate} other {# candidates}} · grounded against sampled files",
+    "lastScan": "Detected from {files, plural, one {# sample file} other {# sample files}} · last scan {when}",
+    "droppedCount": "{count, plural, one {# candidate} other {# candidates}} dropped (no evidence)",
+    "notReady": {
+      "title": "Repo isn't ready to scan yet",
+      "body": "This repo hasn't finished cloning or indexing. Try again once it has."
+    },
+    "dismissError": "Dismiss"
+  },
+  "toolbar": {
+    "acceptedCount": "{accepted} of {total} accepted",
+    "deselectAll": "Deselect all",
+    "createSkill": "Create skill"
   },
   "card": {
     "confidence": "Confidence",
     "accepted": "Accepted",
     "accepting": "Accepting…",
-    "acceptAsSkill": "Accept as Skill"
+    "acceptAsSkill": "Accept as Skill",
+    "reject": "Reject",
+    "rejecting": "Rejecting…",
+    "edit": "Edit",
+    "save": "Save",
+    "cancel": "Cancel",
+    "categoryPlaceholder": "Category",
+    "rulePlaceholder": "Rule",
+    "detectedIn": "Detected in {location}"
+  },
+  "modal": {
+    "title": "Create skill from conventions",
+    "banner": "Merged from <b>{count, plural, one {# accepted convention} other {# accepted conventions}}</b> in <code>{repo}</code>. Everything below is editable before you save.",
+    "nameLabel": "Name",
+    "descriptionLabel": "Description",
+    "typeLabel": "Type",
+    "enabledLabel": "Enabled",
+    "bodyLabel": "Body",
+    "tokenCount": "{count} tokens",
+    "footerNote": "Saved as v1 · added to Skills Lab",
+    "cancel": "Cancel",
+    "create": "Create",
+    "creating": "Creating…",
+    "nameTaken": "A skill named \"{name}\" already exists.",
+    "saveAsNewVersion": "Save as a new version of the existing skill",
+    "rename": "Rename and create a new skill"
+  },
+  "toast": {
+    "skillCreated": "Skill \"{name}\" created"
   }
 }

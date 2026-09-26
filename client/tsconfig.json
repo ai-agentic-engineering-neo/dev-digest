@@ -21,6 +21,7 @@
     "plugins": [{ "name": "next" }],
     "paths": {
       "@/*": ["./src/*"],
+      "@messages/*": ["./messages/*"],
       "@devdigest/shared": ["./src/vendor/shared/index.ts"],
       "@devdigest/shared/*": ["./src/vendor/shared/*"],
       "@devdigest/ui": ["./src/vendor/ui/index.ts"],

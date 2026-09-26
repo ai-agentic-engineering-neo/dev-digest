@@ -9,13 +9,25 @@ Reusable AI skills that provide specialized knowledge and workflows. Canonical l
 | [fastify-best-practices](fastify-best-practices/SKILL.md) | Backend | Fastify routes, plugins, JSON-schema validation, error handling |
 | [drizzle-orm-patterns](drizzle-orm-patterns/SKILL.md) | Backend | Drizzle schema, queries, relations, transactions, migrations |
 | [postgresql-table-design](postgresql-table-design/SKILL.md) | Backend | Postgres schema design, data types, indexing, constraints |
+| [onion-architecture](onion-architecture/SKILL.md) | Backend | Onion / ports-and-adapters for `server/`: rings, import direction, where queries, rules, transactions live; enforced by `pnpm arch:check` |
 | [next-best-practices](next-best-practices/SKILL.md) | Frontend | Next.js App Router, RSC boundaries, data fetching, optimization |
 | [react-best-practices](react-best-practices/SKILL.md) | Frontend | React anti-patterns, state management, hooks rules |
+| [frontend-ui-architecture](frontend-ui-architecture/SKILL.md) | Frontend | Code organization: where components, hooks, constants, utils and business logic live; layers, splitting, client/server boundary placement |
 | [react-testing-library](react-testing-library/SKILL.md) | Frontend | General-purpose React Testing Library guide with Vitest |
 | [zod](zod/SKILL.md) | Full-stack | Zod schema validation, parsing, error handling, type inference |
 | [typescript-expert](typescript-expert/SKILL.md) | Full-stack | Type-level programming, performance, tooling, migrations |
 | [security](security/SKILL.md) | Full-stack | OWASP Top 10:2025, auth, injection, uploads, secrets |
 | [mermaid-diagram](mermaid-diagram/SKILL.md) | Shared | Mermaid diagrams in markdown (flowcharts, sequence, ERD, …) |
+| [engineering-insights](engineering-insights/SKILL.md) | Shared | Reads `INSIGHTS.md` before a task, appends what was learned after |
+| [pr-self-review](pr-self-review/SKILL.md) | Shared | Local pre-PR gate: typecheck, `arch:check`, secrets, then frontend/backend skills on the diff; any confirmed CRITICAL blocks the PR |
+
+## Agents
+
+Subagents (researcher, planner, implementer, test-writer,
+architecture-reviewer, plan-verifier, doc-writer) are mapped in
+[`.claude/agents/README.md`](../agents/README.md). Planner, implementer,
+test-writer, architecture-reviewer and `pr-self-review` share one
+skill-to-file mapping, `pr-self-review/references/routing.md`.
 
 ## What Are Skills?
 

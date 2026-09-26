@@ -59,6 +59,14 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
           },
   });
 
+  // loadConfig has no logger, so the one-time downgrade warning is emitted here.
+  if (config.promptLogDowngraded) {
+    app.log.warn(
+      { requested: 'verbose', effective: 'summary', nodeEnv: config.nodeEnv },
+      'PROMPT_LOG=verbose is honoured only when NODE_ENV=development; using summary',
+    );
+  }
+
   // Use zod schemas directly for request validation + response serialization.
   // Routes opt in per-module via `app.withTypeProvider<ZodTypeProvider>()`.
   app.setValidatorCompiler(validatorCompiler);

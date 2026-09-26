@@ -1,0 +1,41 @@
+{
+  "skill_name": "onion-architecture",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Add an endpoint GET /pulls/:id/risk that returns a risk score for a PR: blockers count * 3 + files changed / 10, capped at 10, and 'high' if >= 7. Where does each piece go?",
+      "expected_output": "Zod params/response on the route in modules/pulls/routes.ts; route only does getContext + one call; score/level computed by a pure function (e.g. pulls/status.ts or a risk.ts) with unit tests that need no DB; data fetched through a repository method scoped by workspaceId (findings scoped via the reviews join); no drizzle import in routes.ts; mentions pnpm arch:check.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "pnpm arch:check fails with: error application-does-not-know-the-orm: src/modules/agents/service.ts → node_modules/.pnpm/drizzle-orm@0.38.4_postgres@3.4.9/node_modules/drizzle-orm/index.d.ts. Can I just run arch:baseline so CI passes?",
+      "expected_output": "No — the baseline is only for violations that existed when the rules were introduced and must only shrink; explains the service crossed into the ORM; moves the query (and the eq/and import) into AgentsRepository, returns a contract type, service calls the repository method; re-run arch:check.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "The PR refresh in GET /pulls/:id deletes pr_files, inserts new ones, deletes pr_commits, inserts, then updates pull_requests. Make it safe.",
+      "expected_output": "Identifies non-atomic multi-statement write and the catch branch serving possibly-emptied data; moves logic into a PullsService; GitHub call happens before and outside the transaction; writes go through uow.run with an opaque TxScope passed to repository methods that all use the executor; service does not import drizzle or db/client; proposes a unit test with fake deps and an .it.test.ts proving rollback.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "The settings module is just get/put of a few key-values and the route talks to container.db directly. Should I add a SettingsService, a domain layer and a use-case class per endpoint to follow onion architecture?",
+      "expected_output": "No full onion for CRUD (cites Palermo's 'not for small apps' / Seemann's fat adapters); the only required move is getting Drizzle out of routes.ts into a settings repository the route may call directly; add a service only when a rule or a second port appears; update the baseline after the fix.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "I want to post review summaries to Slack after a review completes. How should I wire it in the server?",
+      "expected_output": "Port first in vendor/shared/adapters.ts with use-case-shaped methods (no Slack SDK types); SlackNotifier in adapters/notifier/ as the only SDK importer; MockNotifier in adapters/mocks.ts; lazy getter + ContainerOverrides entry in platform/container.ts; the review service/executor receives the notifier through its deps, not by importing the adapter; no-concrete-adapters-in-modules would catch a direct import.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "Review this change for structure: new file server/src/modules/reviews/scoring.ts imports { FastifyBaseLogger } from 'fastify' and { AgentRow } from '../../db/rows.js', and repos/service.ts now imports it.",
+      "expected_output": "Flags: pure scoring should not know Fastify (use a Logger interface or no logger), should take contract types not AgentRow; repos importing reviews internals violates no-cross-module-imports — share through the container, @devdigest/shared or src/domain; suggests where scoring belongs (src/domain/<topic> or reviewer-core if the CI runner needs it); expects arch:check to report the cross-module import.",
+      "files": []
+    }
+  ]
+}

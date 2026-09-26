@@ -4,10 +4,18 @@ import { waitForPrRuns } from './helpers/runs.js';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/platform/config.js';
 import { seed } from '../src/db/seed.js';
-import { MockLLMProvider, MockEmbedder, MockGitClient } from '../src/adapters/mocks.js';
+import {
+  MockLLMProvider,
+  MockEmbedder,
+  MockGitClient,
+  MockGitHubClient,
+  MockWebFetchClient,
+} from '../src/adapters/mocks.js';
 import * as t from '../src/db/schema.js';
 import { eq } from 'drizzle-orm';
 import type { Review } from '@devdigest/shared';
+import type { IntentUseCases } from '../src/platform/container.js';
+import { ReviewService } from '../src/modules/reviews/service.js';
 
 const hasDocker = await dockerAvailable();
 const d = hasDocker ? describe : describe.skip;
@@ -60,6 +68,19 @@ const REVIEW_FIXTURE: Review = {
   ],
 };
 
+/**
+ * A valid `PrIntentClassification` fixture for the intent classifier's
+ * `completeStructured` call. Every seeded PR here shares the body "Closes
+ * #471" (see `setupRepoAndPr`), so `executeRuns` always derives an intent —
+ * this keeps that derivation hermetic (server INSIGHTS 2026-09-26).
+ */
+const INTENT_FIXTURE = {
+  intent: 'Add rate limiting to public API endpoints.',
+  in_scope: ['Add a rate limiting middleware'],
+  out_of_scope: [],
+  missing_context: [],
+};
+
 let repoSeq = 0;
 async function setupRepoAndPr(db: PgFixture['handle']['db'], workspaceId: string) {
   const name = `payments-api-${repoSeq++}`;
@@ -110,16 +131,43 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     await pg?.stop();
   });
 
-  function appWith(structured: unknown, provider: 'openai' | 'anthropic' = 'openai') {
+  /**
+   * `opts.reviewerLLM` lets a test inject its own reviewer-side MockLLMProvider
+   * instance (so it can inspect `.calls` afterwards) instead of the throwaway
+   * one built from `structured`/`provider`; `opts.intent` overrides
+   * `container.intent` (e.g. with a double whose `getOrDerive` throws), for the
+   * intent non-fatal-path test (T019). Neither option is passed by the existing
+   * cases below, so their behaviour is unchanged.
+   */
+  function appWith(
+    structured: unknown,
+    provider: 'openai' | 'anthropic' = 'openai',
+    opts: { reviewerLLM?: MockLLMProvider; intent?: IntentUseCases } = {},
+  ) {
     return buildApp({
       config: config(),
       db: pg.handle.db,
       overrides: {
         embedder: new MockEmbedder(),
         git: new MockGitClient({ diff: DIFF }),
+        // executeRuns also derives the PR's intent (container.intent.getOrDerive)
+        // before running any agent. The seeded PR body ("Closes #471") makes that
+        // derivation fetch issue #471 and call the `review_intent` feature model
+        // (openrouter by default) — mock both, or the run is a REAL GitHub fetch
+        // plus a REAL OpenRouter call that blows waitForPrRuns's budget (server
+        // INSIGHTS 2026-09-26).
+        github: new MockGitHubClient(),
+        webFetch: new MockWebFetchClient(),
         llm: {
-          [provider]: new MockLLMProvider(provider, { structured }),
+          [provider]: opts.reviewerLLM ?? new MockLLMProvider(provider, { structured }),
+          // MockLLMProvider's constructor id is typed 'openai' | 'anthropic' only
+          // (it never needs to claim 'openrouter' itself); the container looks
+          // this instance up by the 'openrouter' key below, not by its own id.
+          openrouter: new MockLLMProvider('openai', {
+            structuredBySchema: { PrIntentClassification: INTENT_FIXTURE },
+          }),
         },
+        ...(opts.intent ? { intent: opts.intent } : {}),
       },
     });
   }
@@ -201,6 +249,7 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     const trace = (await app.inject({ method: 'GET', url: `/runs/${runId}/trace` })).json();
     expect(trace.config.model).toBe('gpt-4.1');
     expect(trace.stats.grounding).toBe('1/2 passed');
+    expect(trace.stats.cost_usd).toBe(0.001); // MockLLMProvider's per-call cost
     expect(trace.log.length).toBeGreaterThan(0);
 
     // agent_runs row populated for A5 to aggregate
@@ -208,6 +257,10 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(run!.status).toBe('done');
     expect(run!.findingsCount).toBe(1);
     expect(run!.grounding).toBe('1/2 passed');
+    // Cost survives the round-trip to the column, and back out of the API.
+    expect(run!.costUsd).toBe(0.001);
+    const runs = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(runs[0].cost_usd).toBe(0.001);
 
     await app.close();
   });
@@ -297,6 +350,170 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     ).json();
     // seed has 2 enabled agents; we may have created more above in this PR's ws.
     expect(body.runs.length).toBeGreaterThanOrEqual(2);
+
+    // Every run of ONE runReview call shares a round. Set at creation, so no
+    // need to wait for the background reviews to land.
+    const created = await pg.handle.db
+      .select({ roundId: t.agentRuns.roundId })
+      .from(t.agentRuns)
+      .where(eq(t.agentRuns.prId, pr.id));
+    expect(created.length).toBe(body.runs.length);
+    const roundIds = new Set(created.map((r) => r.roundId));
+    expect(roundIds.size).toBe(1);
+    expect([...roundIds][0]).not.toBeNull();
+    await app.close();
+  });
+
+  it('intent derivation failing is non-fatal: the run still finishes done, the review persists, and the trace shows "Intent unavailable" with no error-kind intent line', async () => {
+    // A double whose getOrDerive always throws — get/recompute are unused on
+    // this path but must exist to satisfy `IntentUseCases`; they throw too so
+    // an accidental call fails loudly rather than silently returning junk.
+    const throwingIntent: IntentUseCases = {
+      async get(): Promise<never> {
+        throw new Error('not used by this test');
+      },
+      async getOrDerive(): Promise<never> {
+        throw new Error('intent classifier exploded');
+      },
+      async recompute(): Promise<never> {
+        throw new Error('not used by this test');
+      },
+    };
+    const app = await appWith(REVIEW_FIXTURE, 'openai', { intent: throwingIntent });
+    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'IntentFail', provider: 'openai', model: 'gpt-4.1', system_prompt: 's' },
+      })
+    ).json();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/pulls/${pr.id}/review`,
+      payload: { agentId: agent.id },
+    });
+    const runId = res.json().runs[0].run_id;
+
+    const runs = await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+    // Assert every status is terminal BEFORE asserting on anything the executor
+    // wrote — waitForPrRuns returns on timeout too, not only on completion
+    // (server INSIGHTS 2026-09-19).
+    expect(runs.every((r) => ['done', 'failed', 'cancelled'].includes(r.status ?? ''))).toBe(true);
+    expect(runs[0]!.status).toBe('done');
+
+    const reviews = (
+      await app.inject({ method: 'GET', url: `/pulls/${pr.id}/reviews` })
+    ).json();
+    expect(reviews).toHaveLength(1);
+
+    const trace = (await app.inject({ method: 'GET', url: `/runs/${runId}/trace` })).json();
+    const log: { kind: string; msg: string }[] = trace.log;
+    expect(log.some((l) => l.msg.includes('Intent unavailable'))).toBe(true);
+    // The inner catch in run-executor's "Deriving intent" step keeps `step`
+    // from ever seeing the rejection, so it must never emit an `error`-kind
+    // event for the intent failure (an `error` event is what the SSE layer
+    // toasts to the UI — a best-effort enrichment must not toast).
+    expect(log.some((l) => l.kind === 'error' && /intent/i.test(l.msg))).toBe(false);
+
+    await app.close();
+  });
+
+  it('injected intent: the reviewer\'s completeStructured request carries a "## PR intent" section', async () => {
+    const reviewerLLM = new MockLLMProvider('openai', { structured: REVIEW_FIXTURE });
+    const app = await appWith(REVIEW_FIXTURE, 'openai', { reviewerLLM });
+    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'IntentInjected', provider: 'openai', model: 'gpt-4.1', system_prompt: 's' },
+      })
+    ).json();
+
+    await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } });
+    const runs = await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+    expect(runs.every((r) => ['done', 'failed', 'cancelled'].includes(r.status ?? ''))).toBe(true);
+    expect(runs[0]!.status).toBe('done');
+
+    // The reviewer's own LLM call (not the intent classifier's, which is the
+    // separate `openrouter` mock in appWith) is where the assembled prompt —
+    // and therefore the `## PR intent` slot — must show up.
+    const call = reviewerLLM.calls.find((c) => c.method === 'completeStructured');
+    expect(call).toBeDefined();
+    const req = call!.req as { messages: { role: string; content: string }[] };
+    const userMessage = req.messages.find((m) => m.role === 'user');
+    expect(userMessage?.content).toContain('## PR intent');
+    // Cheap enough to also pin: the derived intent text lands inside the
+    // dedicated `<untrusted source="pr-intent">` wrapper, not loose in the prompt.
+    expect(userMessage?.content).toContain('<untrusted source="pr-intent">');
+    expect(userMessage?.content).toContain(INTENT_FIXTURE.intent);
+
+    await app.close();
+  });
+
+  it('prompt.assembled: one content-free record for the reviewer chunk and one for the intent classifier, sharing the DB round_id', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    // Precondition, not the subject: PROMPT_LOG comes from the ambient env via config().
+    expect(app.container.config.promptLog).not.toBe('off');
+    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'PromptLog', provider: 'openai', model: 'gpt-4.1', system_prompt: 's' },
+      })
+    ).json();
+
+    // The recorded log objects ARE the observable output of this feature.
+    const infos: unknown[] = [];
+    const noop = () => undefined;
+    const spyLogger = { info: (obj: unknown) => void infos.push(obj), warn: noop, error: noop, debug: noop };
+
+    const svc = new ReviewService(app.container);
+    const targets = await svc.resolveTargets(workspaceId, { agentId: agent.id });
+    const { runs } = await svc.runReview(workspaceId, pr.id, targets, spyLogger);
+    const runId = runs[0]!.run_id;
+
+    const rows = await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+    expect(rows.every((r) => ['done', 'failed', 'cancelled'].includes(r.status ?? ''))).toBe(true);
+    expect(rows[0]!.status).toBe('done');
+
+    type Rec = {
+      event?: string;
+      component?: string;
+      model?: string;
+      correlation?: { run_id?: string; run_ids?: string[]; round_id?: string };
+    };
+    const prompts = (infos as Rec[]).filter((o) => o && o.event === 'prompt.assembled');
+    const reviewer = prompts.filter((p) => p.component === 'reviewer');
+    const intent = prompts.filter((p) => p.component === 'intent_classifier');
+    expect(reviewer).toHaveLength(1);
+    expect(reviewer[0]!.correlation?.run_id).toBe(runId);
+    expect(reviewer[0]!.model).toBe('gpt-4.1');
+    expect(intent).toHaveLength(1);
+    expect(intent[0]!.correlation?.run_ids).toContain(runId);
+
+    const [row] = await pg.handle.db
+      .select({ roundId: t.agentRuns.roundId })
+      .from(t.agentRuns)
+      .where(eq(t.agentRuns.id, runId));
+    expect(row!.roundId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    expect(reviewer[0]!.correlation?.round_id).toBe(row!.roundId);
+    expect(intent[0]!.correlation?.round_id).toBe(row!.roundId);
+
+    // Content-free: no diff line (raw or JSON-escaped) and not the seeded PR body.
+    const diffLines = DIFF.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
+    for (const p of prompts) {
+      const json = JSON.stringify(p);
+      expect(json).not.toContain('Add rate limiting. Closes #471.');
+      for (const line of diffLines) {
+        expect(json).not.toContain(line);
+        expect(json).not.toContain(JSON.stringify(line).slice(1, -1));
+      }
+    }
+
     await app.close();
   });
 });

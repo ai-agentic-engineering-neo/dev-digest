@@ -224,7 +224,40 @@ export interface GitClient {
   blame(repo: RepoRef, path: string): Promise<BlameLine[]>;
   log(repo: RepoRef, path?: string): Promise<GitCommit[]>;
   readFile(repo: RepoRef, path: string): Promise<string>;
+  /**
+   * Text of `path` as committed at `ref` (`git show <ref>:<path>`), independent of
+   * the working tree. `ref` must be a commit SHA or a safe ref name and `path` a
+   * repo-relative path with no `..`. Rejects on an unsafe `ref`/`path`, an unknown
+   * ref or a missing file; the error never carries file content.
+   */
+  readFileAt(repo: RepoRef, ref: string, path: string): Promise<string>;
   clonePathFor(repo: RepoRef): string;
+}
+
+// ---------- Web fetch (SSRF-guarded HTTP GET of public text documents) ----------
+export interface WebFetchOptions {
+  /** Wall-clock budget for the whole fetch, redirects included. */
+  timeoutMs?: number;
+  /** Byte cap on the response body; overflow yields `status: 'truncated'`. */
+  maxBytes?: number;
+}
+
+export interface WebFetchResult {
+  text: string;
+  /** `truncated` when the body hit the byte cap and `text` is only the prefix. */
+  status: 'ok' | 'truncated';
+  contentType: string;
+  /** URL of the last hop after redirects (still public and validated). */
+  finalUrl: string;
+}
+
+export interface WebFetchClient {
+  /**
+   * GET a public https text document. Throws (with a short reason code, never the
+   * response body) when the URL is blocked, the request times out, the content
+   * type is not plain/markdown text, or the server answers with an HTTP error.
+   */
+  fetchText(url: string, opts?: WebFetchOptions): Promise<WebFetchResult>;
 }
 
 // ---------- CodeIndex (ripgrep + tree-sitter) ----------

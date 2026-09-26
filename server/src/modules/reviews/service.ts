@@ -116,6 +116,12 @@ export class ReviewService {
     // stream. The actual (slow) review runs in the background below.
     const runs: { run_id: string; agent_id: string; agent_name: string }[] = [];
     const jobs: { agent: AgentRow; runId: string }[] = [];
+    // One round for this whole call, so the PR list can total what a single
+    // review cost across all its agents rather than reporting whichever agent
+    // finished last.
+    // Guarded: `all: true` with zero enabled agents would otherwise leave an
+    // orphan round behind.
+    const roundId = targets.length > 0 ? await this.repo.createRound(workspaceId, prId) : null;
     for (const agent of targets) {
       const runId = await this.repo.createAgentRun({
         workspaceId,
@@ -123,6 +129,7 @@ export class ReviewService {
         prId,
         provider: agent.provider,
         model: agent.model,
+        roundId,
       });
       runs.push({ run_id: runId, agent_id: agent.id, agent_name: agent.name });
       jobs.push({ agent, runId });
@@ -130,7 +137,7 @@ export class ReviewService {
 
     // Fire-and-forget: the HTTP response returns now with the runIds; reviews
     // are persisted as each agent finishes and the client refetches on SSE done.
-    void this.executor.executeRuns(workspaceId, pull, repo, jobs, logger).catch((err) => {
+    void this.executor.executeRuns(workspaceId, pull, repo, jobs, logger, roundId).catch((err) => {
       logger?.error({ prId, err: (err as Error).message }, 'review: background execution crashed');
     });
 

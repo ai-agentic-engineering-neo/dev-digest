@@ -11,6 +11,18 @@ import { z } from 'zod';
 export const Severity = z.enum(['CRITICAL', 'WARNING', 'SUGGESTION']);
 export type Severity = z.infer<typeof Severity>;
 
+/**
+ * Per-severity finding tally. UPPERCASE keys mirror the `Severity` enum values
+ * so a tally can be indexed straight off a finding (`counts[f.severity]`), and
+ * so this matches `AgentStats.findings_by_severity` in observability.ts.
+ */
+export const FindingsBySeverity = z.object({
+  CRITICAL: z.number().int(),
+  WARNING: z.number().int(),
+  SUGGESTION: z.number().int(),
+});
+export type FindingsBySeverity = z.infer<typeof FindingsBySeverity>;
+
 export const FindingCategory = z.enum(['bug', 'security', 'perf', 'style', 'test']);
 export type FindingCategory = z.infer<typeof FindingCategory>;
 

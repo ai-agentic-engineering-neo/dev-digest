@@ -6,6 +6,7 @@ dist/
 !agent-runner/dist/**
 build/
 .next/
+.next-e2e/
 out/
 coverage/
 *.tsbuildinfo
@@ -23,3 +24,6 @@ test-results/
 
 # emdash worktree config (local)
 .emdash.json
+
+# pr-self-review verdict (local, per diff)
+.claude/pr-self-review/

@@ -91,9 +91,19 @@
     "title": "Skills",
     "enabledCount": "{linked} of {total} enabled",
     "filterPlaceholder": "Filter skills…",
-    "orderHint": "Order matters — earlier skills appear earlier in the assembled prompt. Toggle to attach."
+    "orderHint": "Order matters — earlier skills appear earlier in the assembled prompt. Toggle to attach.",
+    "dragHandle": "Drag to reorder",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "loadError": "Could not load this agent's skills.",
+    "empty": "No skills in your workspace yet."
   },
   "mount": {
     "body": "Mount point for {owner}. The Agent Editor shell + tab routing are wired by A2 — {owner} renders this tab."
+  },
+  "deleteConfirm": {
+    "title": "Delete agent?",
+    "body": "Delete agent “{name}”? This cannot be undone.",
+    "confirm": "Delete"
   }
 }

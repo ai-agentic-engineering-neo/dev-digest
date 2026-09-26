@@ -1,0 +1,48 @@
+{
+  "slug": "devdigest-conventions",
+  "projectRoot": "../..",
+  "output": "demo/conventions/devdigest-conventions.mp4",
+  "order": [
+    "s1",
+    "s2",
+    "s3",
+    "s4",
+    "s5",
+    "s6",
+    "s7",
+    "s8",
+    "s9",
+    "s10",
+    "s11"
+  ],
+  "surfaces": [
+    "browser"
+  ],
+  "healthUrls": [
+    "http://localhost:3000",
+    "http://localhost:3001/health"
+  ],
+  "video": {
+    "fps": 30,
+    "zoom": 1.25,
+    "display": "2560x1440"
+  },
+  "tts": {
+    "provider": "elevenlabs",
+    "voiceId": "onwK4e9ZLuTAKqWW03F9",
+    "voiceName": "Daniel",
+    "language": "uk",
+    "model": "eleven_multilingual_v2",
+    "keychainService": "elevenlabs-api",
+    "charsPerSecond": 14
+  },
+  "web": {
+    "baseUrl": "http://localhost:3000"
+  },
+  "neverClick": [
+    "Delete agent",
+    "Delete this review run",
+    "Delete skill",
+    "Remove"
+  ]
+}

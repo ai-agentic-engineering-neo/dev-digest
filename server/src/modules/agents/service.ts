@@ -1,7 +1,7 @@
 import type { Container } from '../../platform/container.js';
 import type {
   Agent,
-  AgentSkillLink,
+  AgentSkillItem,
   AgentVersion,
   CiFailOn,
   ModelInfo,
@@ -57,7 +57,8 @@ export class AgentsService {
 
   async list(workspaceId: string): Promise<Agent[]> {
     const rows = await this.repo.list(workspaceId);
-    return rows.map(toAgentDto);
+    const counts = await this.repo.countSkillsByAgentIds(rows.map((r) => r.id));
+    return rows.map((row) => toAgentDto(row, counts.get(row.id) ?? 0));
   }
 
   async get(workspaceId: string, id: string): Promise<Agent | undefined> {
@@ -135,40 +136,72 @@ export class AgentsService {
     return row ? toAgentVersionDto(row) : undefined;
   }
 
-  /** Linked skills for an agent as AgentSkillLink[] (ordered). */
-  async skillLinks(agentId: string): Promise<AgentSkillLink[]> {
-    const links = await this.repo.linkedSkills(agentId);
-    return links.map((l) => ({ agent_id: agentId, skill_id: l.skill.id, order: l.order }));
+  /**
+   * The Skills tab's row list for an agent: every workspace skill, linked ones
+   * first (in `agent_skills.order`, carrying `linked:true` and their own
+   * `enabled`), then every unlinked workspace skill (`linked:false, enabled:true,
+   * order:null` — their would-be default if linked). Workspace-checks the agent
+   * first; `undefined` → the route 404s.
+   */
+  async agentSkills(workspaceId: string, agentId: string): Promise<AgentSkillItem[] | undefined> {
+    const agent = await this.repo.getById(workspaceId, agentId);
+    if (!agent) return undefined;
+
+    const [links, allSkills] = await Promise.all([
+      this.repo.linkedSkills(agentId),
+      this.repo.allSkillsForWorkspace(workspaceId),
+    ]);
+    const linkedIds = new Set(links.map((l) => l.skill.id));
+
+    const linkedItems: AgentSkillItem[] = links.map((l) => ({
+      id: l.skill.id,
+      name: l.skill.name,
+      description: l.skill.description,
+      type: l.skill.type as AgentSkillItem['type'],
+      linked: true,
+      enabled: l.enabled,
+      order: l.order,
+    }));
+    const unlinkedItems: AgentSkillItem[] = allSkills
+      .filter((s) => !linkedIds.has(s.id))
+      .map((s) => ({
+        id: s.id,
+        name: s.name,
+        description: s.description,
+        type: s.type as AgentSkillItem['type'],
+        linked: false,
+        enabled: true,
+        order: null,
+      }));
+    return [...linkedItems, ...unlinkedItems];
   }
 
   /**
-   * Set / reorder the agent's linked skills. If `skillIds` is provided, replaces
-   * the whole set in that order. Returns the resulting ordered links.
+   * Replace the agent's full linked-skill set from the Skills tab's PUT (every
+   * toggle/reorder sends the whole ordered list). Rejects — as a 404, the same
+   * "resource in another workspace" shape `listVersions`/`getVersion` use — if
+   * any `skill_id` does not belong to this workspace, closing the tenancy hole
+   * where a foreign skill could otherwise get silently linked.
    */
-  async setSkills(
+  async setAgentSkills(
     workspaceId: string,
     agentId: string,
-    skillIds: string[],
-  ): Promise<AgentSkillLink[] | undefined> {
+    items: { skill_id: string; enabled: boolean }[],
+  ): Promise<AgentSkillItem[] | undefined> {
     const agent = await this.repo.getById(workspaceId, agentId);
     if (!agent) return undefined;
-    await this.repo.setSkills(agentId, skillIds);
-    return this.skillLinks(agentId);
-  }
 
-  /** Link a single skill (append or set order) — additive to existing links. */
-  async linkSkill(
-    workspaceId: string,
-    agentId: string,
-    skillId: string,
-    order?: number,
-  ): Promise<AgentSkillLink[] | undefined> {
-    const agent = await this.repo.getById(workspaceId, agentId);
-    if (!agent) return undefined;
-    const existing = await this.repo.linkedSkills(agentId);
-    const resolvedOrder = order ?? existing.length;
-    await this.repo.linkSkill(agentId, skillId, resolvedOrder);
-    return this.skillLinks(agentId);
+    const allExist = await this.repo.skillIdsExistInWorkspace(
+      workspaceId,
+      items.map((i) => i.skill_id),
+    );
+    if (!allExist) return undefined;
+
+    await this.repo.setSkills(
+      agentId,
+      items.map((i) => ({ skillId: i.skill_id, enabled: i.enabled })),
+    );
+    return this.agentSkills(workspaceId, agentId);
   }
 
   /**

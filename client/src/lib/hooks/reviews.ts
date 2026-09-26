@@ -14,6 +14,7 @@ import type {
   RunEvent,
   RunSummary,
 } from "@devdigest/shared";
+import { keys } from "./keys";
 
 // ---- Active (in-flight) runs — server-side source of truth ----
 export interface ActiveRun {
@@ -27,11 +28,19 @@ export interface ActiveRun {
    Survives reloads/devices; polls while anything is running so it self-clears. */
 export function usePrActiveRuns(prId: string | null | undefined) {
   return useQuery({
-    queryKey: ["pr-active-runs", prId],
+    queryKey: keys.prActiveRuns(prId),
     queryFn: () => api.get<ActiveRun[]>(`/pulls/${prId}/runs/active`),
     enabled: !!prId,
     refetchInterval: (query) => ((query.state.data?.length ?? 0) > 0 ? 4000 : false),
   });
+}
+
+/** Refetch the in-flight run list for a PR (no-op without a prId). */
+export function useInvalidateActiveRuns(prId: string | null | undefined) {
+  const qc = useQueryClient();
+  return () => {
+    if (prId) qc.invalidateQueries({ queryKey: keys.prActiveRuns(prId) });
+  };
 }
 
 // ---- Full run history for a PR (every agent_runs row, any status) ----
@@ -39,7 +48,7 @@ export function usePrActiveRuns(prId: string | null | undefined) {
    reload (DB-backed). Polls while anything is running so it self-updates. */
 export function usePrRuns(prId: string | null | undefined) {
   return useQuery({
-    queryKey: ["pr-runs", prId],
+    queryKey: keys.prRuns(prId),
     queryFn: () => api.get<RunSummary[]>(`/pulls/${prId}/runs`),
     enabled: !!prId,
     refetchInterval: (query) =>
@@ -47,10 +56,18 @@ export function usePrRuns(prId: string | null | undefined) {
   });
 }
 
+/** Refetch the full run history for a PR (no-op without a prId). */
+export function useInvalidatePrRuns(prId: string | null | undefined) {
+  const qc = useQueryClient();
+  return () => {
+    if (prId) qc.invalidateQueries({ queryKey: keys.prRuns(prId) });
+  };
+}
+
 // ---- Persisted reviews + findings for a PR ----
 export function usePrReviews(prId: string | null | undefined) {
   return useQuery({
-    queryKey: ["reviews", prId],
+    queryKey: keys.reviews(prId),
     queryFn: () => api.get<ReviewRecord[]>(`/pulls/${prId}/reviews`),
     enabled: !!prId,
   });
@@ -64,8 +81,8 @@ export function useDeleteRun(prId: string | null | undefined) {
     // Deleting a run also deletes the review it produced (server-side), so drop
     // both the timeline and the Review Runs list from cache.
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["pr-runs", prId] });
-      qc.invalidateQueries({ queryKey: ["reviews", prId] });
+      qc.invalidateQueries({ queryKey: keys.prRuns(prId) });
+      qc.invalidateQueries({ queryKey: keys.reviews(prId) });
     },
   });
 }
@@ -82,7 +99,7 @@ export function useDeleteReview(prId: string | null | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (reviewId: string) => api.del<{ ok: boolean }>(`/reviews/${reviewId}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["reviews", prId] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.reviews(prId) }),
   });
 }
 
@@ -90,7 +107,7 @@ export function useDeleteReview(prId: string | null | undefined) {
 /** Existing GitHub PR review comments, fetched live. */
 export function usePrComments(prId: string | null | undefined) {
   return useQuery({
-    queryKey: ["pr-comments", prId],
+    queryKey: keys.prComments(prId),
     queryFn: () => api.get<PrReviewComment[]>(`/pulls/${prId}/comments`),
     enabled: !!prId,
   });
@@ -110,7 +127,7 @@ export function useCreatePrComment(prId: string | null | undefined) {
   return useMutation({
     mutationFn: (input: CreateCommentInput) =>
       api.post<PrReviewComment>(`/pulls/${prId}/comments`, input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["pr-comments", prId] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.prComments(prId) }),
   });
 }
 
@@ -130,7 +147,7 @@ export function useRunReview() {
         ...(all ? { all } : {}),
       }),
     onSuccess: (_d, { prId }) => {
-      qc.invalidateQueries({ queryKey: ["reviews", prId] });
+      qc.invalidateQueries({ queryKey: keys.reviews(prId) });
     },
   });
 }
@@ -155,7 +172,7 @@ export function useFindingAction() {
         reply ? { reply } : undefined,
       ),
     onSuccess: (_d, { prId }) => {
-      if (prId) qc.invalidateQueries({ queryKey: ["reviews", prId] });
+      if (prId) qc.invalidateQueries({ queryKey: keys.reviews(prId) });
     },
   });
 }

@@ -2,11 +2,19 @@ import 'dotenv/config';
 import { createDb, type Db } from './client.js';
 import * as t from './schema.js';
 import { eq, and } from 'drizzle-orm';
+import type { RunTrace } from '@devdigest/shared';
 import {
   GENERAL_REVIEWER_PROMPT,
   SECURITY_REVIEWER_PROMPT,
   PERFORMANCE_REVIEWER_PROMPT,
+  TEST_QUALITY_REVIEWER_PROMPT,
 } from './seed-prompts.js';
+import {
+  BRANCH_COVERAGE_GATE_BODY,
+  CORNER_CASE_CHECKLIST_BODY,
+  MOCK_DISCIPLINE_BODY,
+  FLAKY_TEST_PATTERNS_BODY,
+} from './seed-skills.js';
 
 /** Default provider/model for the built-in reviewer agents. */
 const DEFAULT_PROVIDER = 'openrouter' as const;
@@ -18,11 +26,13 @@ const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
  *
  * Seeds: default workspace + system user + membership, default settings,
  * demo repo (acme/payments-api), PR #482 with files/commits, a sample review
- * with a few findings, and the three built-in agents (General + Security +
- * Performance), all on the default openrouter/deepseek-v4-flash provider+model.
+ * with a few findings, and the four built-in agents (General + Security +
+ * Performance + Test Quality), all on the default openrouter/deepseek-v4-flash
+ * provider+model. Test Quality Reviewer also gets four seeded skills (linked
+ * via agent_skills) — see `seedTestQualitySkills` below.
  *
- * Course lessons populate the other tables (skills, conventions, memory, eval,
- * …) once their features are built — they start empty here.
+ * Course lessons populate the other tables (conventions, memory, eval, …) once
+ * their features are built — they start empty here.
  */
 
 export const DEFAULT_WORKSPACE_NAME = 'default';
@@ -92,6 +102,9 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
   const repoId = repo!.id;
 
   // ---- PR #482 (rate limiting) ----
+  // Set only when this run creates the demo review, so the matching seeded
+  // agent_run below can claim it (see seedAgentRuns).
+  let seedReviewId: string | null = null;
   let [pr] = await db
     .select()
     .from(t.pullRequests)
@@ -172,10 +185,25 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
         suggestion: 'Use a single IN query and group in memory.',
         confidence: 0.86,
       },
+      {
+        // The third severity bucket. Without a SUGGESTION the FINDINGS column
+        // and its hover preview can only ever be demoed two-thirds lit.
+        reviewId: review!.id,
+        file: 'src/middleware/ratelimit.ts',
+        startLine: 28,
+        endLine: 28,
+        severity: 'SUGGESTION',
+        category: 'style',
+        title: 'Extract magic number 3600',
+        rationale: 'The number 3600 appears twice without explanation.',
+        suggestion: 'Name it SECONDS_IN_AN_HOUR.',
+        confidence: 0.62,
+      },
     ]);
+    seedReviewId = review!.id;
   }
 
-  // ---- built-in agents (the three starter presets) ----
+  // ---- built-in agents (the four starter presets) ----
   // Prompt bodies live in ./seed-prompts.ts (mirrored in docs/agent-prompts/*.md).
   const seedAgents: Array<typeof t.agents.$inferInsert> = [
     {
@@ -211,16 +239,372 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       version: 1,
       createdBy: userId,
     },
+    {
+      workspaceId,
+      name: 'Test Quality Reviewer',
+      description:
+        'Reviews test coverage — flags happy-path-only tests, missing edge cases, and mocking that hides real bugs.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: TEST_QUALITY_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
   ];
+  const agentIds: Record<string, string> = {};
   for (const a of seedAgents) {
     const [existing] = await db
       .select()
       .from(t.agents)
       .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, a.name)));
-    if (!existing) await db.insert(t.agents).values(a);
+    if (existing) {
+      agentIds[a.name] = existing.id;
+    } else {
+      const [inserted] = await db.insert(t.agents).values(a).returning();
+      agentIds[a.name] = inserted!.id;
+    }
   }
 
+  // ---- seeded skills for Test Quality Reviewer ----
+  // Independent of the `pr`-exists early-skip above: this block upserts by
+  // (workspace_id, name) / (agent_id, skill_id) on every call, so it takes
+  // effect even against an already-seeded dev DB (see server/INSIGHTS.md).
+  await seedTestQualitySkills(db, workspaceId, agentIds);
+
+  await seedAgentRuns(db, workspaceId, pr!.id, agentIds, seedReviewId);
+
   return { workspaceId, userId };
+}
+
+/**
+ * Four built-in skills (rubric/convention, source 'manual') linked to Test
+ * Quality Reviewer via `agent_skills`, in this array's order.
+ *
+ * Idempotent on its OWN condition — upsert by (workspace_id, name) for skills,
+ * by the `agent_skills` primary key (agent_id, skill_id) for the link — never
+ * gated behind the PR-exists skip in `seed()`, per the seeded-review trap in
+ * `server/INSIGHTS.md` ("editing seeded rows changes NOTHING on an
+ * already-seeded dev DB" unless the addition upserts on its own key).
+ */
+async function seedTestQualitySkills(
+  db: Db,
+  workspaceId: string,
+  agentIds: Record<string, string>,
+): Promise<void> {
+  type SkillInsert = typeof t.skills.$inferInsert;
+  const seedSkills: Array<{
+    name: string;
+    description: string;
+    type: SkillInsert['type'];
+    body: string;
+  }> = [
+    {
+      name: 'branch-coverage-gate',
+      description: 'Flag any changed function with an untested conditional branch.',
+      type: 'rubric',
+      body: BRANCH_COVERAGE_GATE_BODY,
+    },
+    {
+      name: 'corner-case-checklist',
+      description:
+        'Check every new code path for null/undefined, empty collections, boundary offsets, negative numbers, and encoding edge cases.',
+      type: 'rubric',
+      body: CORNER_CASE_CHECKLIST_BODY,
+    },
+    {
+      name: 'mock-discipline',
+      description:
+        'Flag tests whose mocking of the system under test would let real breakage still pass.',
+      type: 'convention',
+      body: MOCK_DISCIPLINE_BODY,
+    },
+    {
+      name: 'flaky-test-patterns',
+      description:
+        'Flag tests whose pass/fail outcome is nondeterministic — timeouts that do not throw, unseeded randomness, real-clock or ordering dependence.',
+      type: 'convention',
+      body: FLAKY_TEST_PATTERNS_BODY,
+    },
+  ];
+
+  const skillIds: Record<string, string> = {};
+  for (const s of seedSkills) {
+    const [existing] = await db
+      .select()
+      .from(t.skills)
+      .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.name, s.name)));
+    if (existing) {
+      skillIds[s.name] = existing.id;
+      continue;
+    }
+    const [inserted] = await db
+      .insert(t.skills)
+      .values({
+        workspaceId,
+        name: s.name,
+        description: s.description,
+        type: s.type,
+        source: 'manual',
+        body: s.body,
+        enabled: true,
+        version: 1,
+      })
+      .returning();
+    skillIds[s.name] = inserted!.id;
+
+    // skill_versions is the append-only history; the skill's own body/version
+    // columns hold the CURRENT text — both must be written (see specs/skills.md S4).
+    await db.insert(t.skillVersions).values({
+      skillId: inserted!.id,
+      version: 1,
+      body: s.body,
+      note: 'Initial',
+    });
+  }
+
+  const testQualityAgentId = agentIds['Test Quality Reviewer'];
+  if (!testQualityAgentId) return;
+
+  for (const [order, s] of seedSkills.entries()) {
+    const skillId = skillIds[s.name];
+    if (!skillId) continue;
+    const [existingLink] = await db
+      .select()
+      .from(t.agentSkills)
+      .where(
+        and(eq(t.agentSkills.agentId, testQualityAgentId), eq(t.agentSkills.skillId, skillId)),
+      );
+    if (existingLink) continue;
+    await db.insert(t.agentSkills).values({
+      agentId: testQualityAgentId,
+      skillId,
+      order,
+      enabled: true,
+    });
+  }
+}
+
+/**
+ * Demo `agent_runs` (+ their traces) for the seeded PR.
+ *
+ * Without these the run timeline and the trace drawer are empty after a fresh
+ * seed, so cost has nothing to render against. The set covers every branch the
+ * PR list's COST column must handle. That column is the PR's LIFETIME total, so
+ * all of these land in one figure ($0.00254 as seeded):
+ *   - several priced runs       → summed, across rounds and outside them
+ *   - a run on an unpriced model → contributes nothing, the sum stays partial
+ *   - a failed run               → ignored, it never reached the model
+ *   - a run with no round        → still counted; rounds do not gate the total
+ * A null cost renders an em dash, NEVER "$0.00".
+ *
+ * One of these runs also CLAIMS the demo review seeded above (`ownsSeedReview`)
+ * by writing its id into `reviews.run_id` — that link is what lets the run
+ * timeline show a per-run severity breakdown on freshly seeded data.
+ *
+ * Idempotent: skipped entirely once the PR has any run.
+ */
+async function seedAgentRuns(
+  db: Db,
+  workspaceId: string,
+  prId: string,
+  agentIds: Record<string, string>,
+  seedReviewId: string | null,
+): Promise<void> {
+  const [existingRun] = await db
+    .select({ id: t.agentRuns.id })
+    .from(t.agentRuns)
+    .where(eq(t.agentRuns.prId, prId));
+  if (existingRun) return;
+
+  const now = Date.now();
+  const [round] = await db
+    .insert(t.multiAgentRuns)
+    .values({ workspaceId, prId })
+    .returning({ id: t.multiAgentRuns.id });
+
+  interface SeedRun {
+    agent: string;
+    model: string;
+    roundId: string | null;
+    minutesAgo: number;
+    status: 'done' | 'failed';
+    durationMs: number;
+    tokensIn: number;
+    tokensOut: number;
+    costUsd: number | null;
+    findings: number;
+    grounding: string;
+    score: number | null;
+    blockers: number | null;
+    error?: string;
+    /** This run produced the demo review seeded above — link the two. */
+    ownsSeedReview?: boolean;
+  }
+
+  // Ordered oldest → newest. Within the round the UNPRICED run is deliberately
+  // the newest completed one: before round totals existed, that single null
+  // blanked the whole PR's cost even though $0.00164 had really been spent.
+  const seedRuns: SeedRun[] = [
+    {
+      agent: 'Performance Reviewer',
+      model: DEFAULT_MODEL,
+      roundId: null, // legacy: predates round tracking
+      minutesAgo: 20,
+      status: 'done',
+      durationMs: 6400,
+      tokensIn: 11_800,
+      tokensOut: 211,
+      costUsd: 0.0009,
+      findings: 1,
+      grounding: '1/1 passed',
+      score: 73,
+      blockers: 0,
+    },
+    {
+      agent: 'Security Reviewer',
+      model: DEFAULT_MODEL,
+      roundId: round!.id,
+      minutesAgo: 5,
+      status: 'done',
+      durationMs: 8200,
+      tokensIn: 9000,
+      tokensOut: 119,
+      costUsd: 0.0013,
+      // Counts mirror the demo review this run claims below — the timeline row
+      // and the findings it links to must not disagree.
+      findings: 3,
+      grounding: '3/3 passed',
+      score: 61,
+      blockers: 1,
+      ownsSeedReview: true,
+    },
+    {
+      agent: 'General Reviewer',
+      model: DEFAULT_MODEL,
+      roundId: round!.id,
+      minutesAgo: 4,
+      status: 'done',
+      durationMs: 4165,
+      tokensIn: 1400,
+      tokensOut: 131,
+      costUsd: 0.00034,
+      findings: 0,
+      grounding: '0/0 passed',
+      score: 100,
+      blockers: 0,
+    },
+    {
+      agent: 'Performance Reviewer',
+      model: 'acme/unpriced-model-v1',
+      roundId: round!.id,
+      minutesAgo: 3,
+      status: 'done',
+      durationMs: 3400,
+      tokensIn: 3300,
+      tokensOut: 147,
+      costUsd: null, // model has no price -> contributes nothing to the sum
+      findings: 0,
+      grounding: '0/0 passed',
+      score: 100,
+      blockers: 0,
+    },
+    {
+      agent: 'General Reviewer',
+      model: DEFAULT_MODEL,
+      roundId: round!.id,
+      minutesAgo: 2,
+      status: 'failed',
+      durationMs: 1400,
+      tokensIn: 0,
+      tokensOut: 0,
+      costUsd: null,
+      findings: 0,
+      grounding: '0/0 passed',
+      score: null,
+      blockers: null,
+      error: '429 You exceeded your current quota, please check your plan and billing details.',
+    },
+  ];
+
+  for (const r of seedRuns) {
+    const stats: RunTrace['stats'] = {
+      duration_ms: r.durationMs,
+      tokens_in: r.tokensIn,
+      tokens_out: r.tokensOut,
+      cost_usd: r.costUsd,
+      findings: r.findings,
+      grounding: r.grounding,
+    };
+    const [run] = await db
+      .insert(t.agentRuns)
+      .values({
+        workspaceId,
+        agentId: agentIds[r.agent] ?? null,
+        prId,
+        roundId: r.roundId,
+        provider: DEFAULT_PROVIDER,
+        model: r.model,
+        ranAt: new Date(now - r.minutesAgo * 60_000),
+        durationMs: r.durationMs,
+        tokensIn: r.tokensIn,
+        tokensOut: r.tokensOut,
+        costUsd: r.costUsd,
+        status: r.status,
+        error: r.error ?? null,
+        findingsCount: r.findings,
+        grounding: r.grounding,
+        score: r.score,
+        blockers: r.blockers,
+      })
+      .returning();
+
+    // Hand the demo review to its run. `reviews.run_id` has no FK, and the
+    // review is written before any agent exists — without this link the run
+    // timeline cannot show the findings it produced.
+    if (r.ownsSeedReview && seedReviewId) {
+      await db
+        .update(t.reviews)
+        .set({ runId: run!.id, agentId: agentIds[r.agent] ?? null })
+        .where(eq(t.reviews.id, seedReviewId));
+    }
+
+    await db.insert(t.runTraces).values({
+      runId: run!.id,
+      trace: {
+        config: {
+          agent: r.agent,
+          version: '1',
+          provider: DEFAULT_PROVIDER,
+          model: r.model,
+          pr: 482,
+          source: 'local',
+        },
+        stats,
+        prompt_assembly: {
+          system: `${r.agent} system prompt (seed)`,
+          skills: null,
+          memory: null,
+          specs: null,
+          user: 'Review PR #482 — Add rate limiting to public API endpoints',
+        },
+        tool_calls:
+          r.status === 'done'
+            ? [{ tool: 'review_file', args: 'all files', meta: 'single-pass', ms: r.durationMs }]
+            : [],
+        raw_output: '',
+        memory_pulled: [],
+        specs_read: [],
+        log:
+          r.status === 'done'
+            ? [
+                { t: '00.10', kind: 'info', msg: `Starting review with agent "${r.agent}"` },
+                { t: '00.90', kind: 'result', msg: `Persisted review with ${r.findings} finding(s)` },
+              ]
+            : [{ t: '00.05', kind: 'error', msg: `Run failed: ${r.error}` }],
+      } satisfies RunTrace,
+    });
+  }
 }
 
 // CLI entrypoint

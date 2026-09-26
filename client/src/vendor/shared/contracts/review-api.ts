@@ -56,8 +56,40 @@ export const ReviewRunResponse = z.object({
 });
 export type ReviewRunResponse = z.infer<typeof ReviewRunResponse>;
 
-/** Intent persisted for a PR (the Intent plus the pr_id it scopes). */
-export const PrIntentRecord = Intent.extend({ pr_id: z.string() });
+/** How trustworthy a derived intent is; computed from the resolved sources, never self-reported by the model. */
+export const IntentConfidence = z.enum(['high', 'medium', 'low']);
+export type IntentConfidence = z.infer<typeof IntentConfidence>;
+
+export const IntentSourceKind = z.enum(['description', 'issue', 'repo_doc', 'web', 'diff_outline']);
+export type IntentSourceKind = z.infer<typeof IntentSourceKind>;
+
+export const IntentSourceStatus = z.enum(['ok', 'unavailable', 'truncated']);
+export type IntentSourceStatus = z.infer<typeof IntentSourceStatus>;
+
+/** One entry of the source ledger: what fed the intent and whether it could be read. */
+export const IntentSource = z.object({
+  kind: IntentSourceKind,
+  /** Redacted: URLs as origin + pathname only, never a query string. */
+  ref: z.string(),
+  status: IntentSourceStatus,
+  /** Chars that reached the prompt (0 when unavailable). */
+  chars: z.number().int(),
+});
+export type IntentSource = z.infer<typeof IntentSource>;
+
+/** Intent persisted for a PR at a head SHA (the Intent plus its provenance). */
+export const PrIntentRecord = Intent.extend({
+  pr_id: z.string(),
+  confidence: IntentConfidence,
+  sources: z.array(IntentSource),
+  missing_context: z.array(z.string()),
+  head_sha: z.string().nullable(),
+  provider: z.string().nullable(),
+  model: z.string().nullable(),
+  tokens_in: z.number().int().nullable(),
+  tokens_out: z.number().int().nullable(),
+  updated_at: z.string(),
+});
 export type PrIntentRecord = z.infer<typeof PrIntentRecord>;
 
 /** Smart-diff response for a PR (the SmartDiff). */

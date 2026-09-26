@@ -5,13 +5,16 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { type ShellContext } from "@devdigest/ui";
-import { useTheme } from "../../../lib/theme";
-import { useActiveRepo } from "../../../lib/repo-context";
-import { usePulls, useDeleteRepo } from "../../../lib/hooks";
+import { useTheme } from "@/lib/theme";
+import { useActiveRepo } from "@/lib/repo-context";
+import { usePulls, useDeleteRepo } from "@/lib/hooks";
+import type { ConfirmOptions } from "@/components/confirm-dialog";
 import { activeKeyFor, toShellRepo } from "../helpers";
 
 interface ShellContextOptions {
   onOpenCommandPalette: () => void;
+  /** From `useConfirm()` in AppShell, which renders the dialog. */
+  confirm: (opts: ConfirmOptions, onConfirm: () => void) => void;
 }
 
 /**
@@ -19,7 +22,7 @@ interface ShellContextOptions {
  * list/active repo (mapped to the shell shape), theme, PR count, and the repo
  * selection / add / removal actions.
  */
-export function useShellContext({ onOpenCommandPalette }: ShellContextOptions): ShellContext {
+export function useShellContext({ onOpenCommandPalette, confirm }: ShellContextOptions): ShellContext {
   const t = useTranslations("shell");
   const pathname = usePathname() ?? "/";
   const router = useRouter();
@@ -41,20 +44,24 @@ export function useShellContext({ onOpenCommandPalette }: ShellContextOptions): 
   const onRemoveRepo = React.useCallback(
     (id: string) => {
       const target = repos.find((r) => r.id === id);
-      const ok = window.confirm(
-        t("removeRepo.confirm", { name: target?.full_name ?? t("removeRepo.fallbackName") }),
-      );
-      if (!ok) return;
-      deleteRepo.mutate(id, {
-        onSuccess: () => {
-          if (repoId === id) {
-            const next = repos.find((r) => r.id !== id);
-            router.push(next ? `/repos/${next.id}/pulls` : "/onboarding");
-          }
+      confirm(
+        {
+          title: t("removeRepo.title"),
+          body: t("removeRepo.confirm", { name: target?.full_name ?? t("removeRepo.fallbackName") }),
+          confirmLabel: t("removeRepo.confirmLabel"),
         },
-      });
+        () =>
+          deleteRepo.mutate(id, {
+            onSuccess: () => {
+              if (repoId === id) {
+                const next = repos.find((r) => r.id !== id);
+                router.push(next ? `/repos/${next.id}/pulls` : "/onboarding");
+              }
+            },
+          }),
+      );
     },
-    [repos, repoId, t, deleteRepo, router],
+    [repos, repoId, t, deleteRepo, router, confirm],
   );
 
   return React.useMemo<ShellContext>(

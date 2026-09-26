@@ -59,6 +59,7 @@ export async function listRunsForPull(
     duration_ms: run.durationMs,
     tokens_in: run.tokensIn,
     tokens_out: run.tokensOut,
+    cost_usd: run.costUsd,
     findings_count: run.findingsCount,
     grounding: run.grounding,
     ran_at: run.ranAt ? run.ranAt.toISOString() : null,
@@ -112,6 +113,19 @@ export async function reapStaleRunningRuns(db: Db): Promise<number> {
 
 // ---- observability: agent_runs + run_traces -------------------------------
 
+/**
+ * Open a review ROUND — one row per `runReview` call, shared by every run it
+ * starts. Without it the PR list cannot tell "three agents reviewed this PR
+ * once" from "one agent reviewed it three times".
+ */
+export async function createRound(db: Db, workspaceId: string, prId: string): Promise<string> {
+  const [row] = await db
+    .insert(t.multiAgentRuns)
+    .values({ workspaceId, prId })
+    .returning({ id: t.multiAgentRuns.id });
+  return row!.id;
+}
+
 /** Create an agent_runs row in `running` state; returns its id (= the runId). */
 export async function createAgentRun(
   db: Db,
@@ -121,6 +135,8 @@ export async function createAgentRun(
     prId: string;
     provider: string | null;
     model: string | null;
+    /** The round this run belongs to; null only for runs created outside one. */
+    roundId?: string | null;
   },
 ): Promise<string> {
   const [row] = await db
@@ -131,6 +147,7 @@ export async function createAgentRun(
       prId: values.prId,
       provider: values.provider,
       model: values.model,
+      roundId: values.roundId ?? null,
       status: 'running',
       source: 'local',
     })
@@ -146,6 +163,8 @@ export async function completeAgentRun(
     durationMs: number;
     tokensIn: number;
     tokensOut: number;
+    /** USD cost; null = no price data (unknown model, or the run never ran). */
+    costUsd?: number | null;
     findingsCount: number;
     grounding: string;
     /** Review score (0-100); null on failed/cancelled runs. */
@@ -163,6 +182,7 @@ export async function completeAgentRun(
       durationMs: values.durationMs,
       tokensIn: values.tokensIn,
       tokensOut: values.tokensOut,
+      costUsd: values.costUsd ?? null,
       findingsCount: values.findingsCount,
       grounding: values.grounding,
       score: values.score ?? null,

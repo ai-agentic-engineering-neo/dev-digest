@@ -1,0 +1,23 @@
+{
+  "skill_name": "frontend-ui-architecture",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I have a Next.js 15 app router project, src/app/dashboard/page.tsx is 450 lines: it fetches /api/orders with useEffect, filters overdue orders, formats currency, has a filter bar with its own state and a table. Where should all these pieces go? Show me the folder structure.",
+      "expected_output": "Keeps page.tsx thin; puts the overdue rule and currency formatting in pure helpers (tier 1); moves fetching to an api/queries module via the single API client instead of useEffect+fetch; filter bar becomes its own component that owns its state; gives a folder tree with _components or features; says when pieces would move to shared.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "we have src/constants.ts with like 300 lines, everything is in there — colors for statuses, polling intervals, api paths, some feature flags from env, button labels. team wants to clean it up. where should each thing live?",
+      "expected_output": "Splits by kind: single-use values back to their file, domain constants per feature or per-domain shared file, API paths into the API layer, env-derived flags into a validated config module, UI text into i18n; advises moving one kind at a time; no single replacement junk drawer.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Review this structure change: features/pulls/components/PRRow.tsx now imports SeverityChips from features/reviews/components/SeverityChips.tsx, and I added 'use client' to app/(dashboard)/layout.tsx because the sidebar has a collapse button. Also moved lineLabel to src/utils and left `export { lineLabel } from '@/utils/lineLabel'` in the old helpers file so imports don't break. Anything wrong?",
+      "expected_output": "Flags the cross-feature import and offers composition at the route / promotion / entity extraction; flags 'use client' on the layout and moves it to a SidebarToggle leaf; flags the re-export shim and says to update import sites; questions whether a domain helper belongs in generic utils.",
+      "files": []
+    }
+  ]
+}

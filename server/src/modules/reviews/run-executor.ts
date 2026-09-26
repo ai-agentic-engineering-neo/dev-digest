@@ -1,5 +1,5 @@
 import type { Container } from '../../platform/container.js';
-import type { Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
+import type { PrIntentRecord, Provider, Review, RunTrace, SkillUsed, UnifiedDiff } from '@devdigest/shared';
 import { reviewPullRequest, countBlockers } from '@devdigest/reviewer-core';
 import { RunLogger } from '../../platform/run-logger.js';
 import * as schema from '../../db/schema.js';
@@ -8,6 +8,7 @@ import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './reposit
 import { REVIEW_STRATEGY } from './constants.js';
 import { taskLine } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
+import { createPromptMeasure, logPromptAssembled } from '../../platform/prompt-log.js';
 
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
 export class RunCancelledError extends Error {
@@ -38,7 +39,8 @@ export type RunOutcome = {
  * Owns the background execution of queued agent runs (extracted from
  * ReviewService; behaviour unchanged). Loads the diff + intent once, then
  * map-reduces each agent, streaming events over the runBus and persisting each
- * review. Per-agent failures are isolated.
+ * review. Per-agent failures are isolated. Intent derivation is best-effort:
+ * if it fails, every agent reviews without an intent section.
  */
 export class ReviewRunExecutor {
   constructor(
@@ -50,7 +52,8 @@ export class ReviewRunExecutor {
   /**
    * Background execution of the queued agent runs (NOT awaited by the route).
    * Loads the diff + intent once, then map-reduces each agent, streaming events
-   * over the runBus and persisting each review. Per-agent failures are isolated.
+   * over the runBus and persisting each review. Per-agent failures are isolated;
+   * an intent failure never fails a run (agents review without it).
    */
   async executeRuns(
     workspaceId: string,
@@ -58,6 +61,8 @@ export class ReviewRunExecutor {
     repo: typeof schema.repos.$inferSelect,
     jobs: { agent: AgentRow; runId: string }[],
     logger?: Logger,
+    /** The review click these runs belong to (`agent_runs.round_id`); ties every prompt record together. */
+    roundId?: string | null,
   ): Promise<void> {
     // ONE logger fanned out over every queued run: shared pre-work (diff +
     // intent) is streamed into each target agent's Live Log and persisted into
@@ -104,6 +109,56 @@ export class ReviewRunExecutor {
     }
     runLog.info(`Diff ready — ${diff.files.length} changed file(s); starting ${jobs.length} agent run(s)`);
 
+    // Intent is best-effort enrichment: it never fails a run. The inner catch
+    // keeps `step` from emitting an SSE `error` event (the UI toasts those); the
+    // failure is surfaced as an info line + a server warn instead.
+    const intent = await runLog.step(
+      'Deriving intent',
+      async (): Promise<PrIntentRecord | null> => {
+        try {
+          return await this.container.intent.getOrDerive(
+            workspaceId,
+            {
+              id: pull.id,
+              title: pull.title,
+              body: pull.body,
+              headSha: pull.headSha,
+              base: pull.base,
+              repo: { owner: repo.owner, name: repo.name },
+            },
+            diff,
+            runLog,
+            // The classifier's prompt record goes to pino only, never through runLog (SSE).
+            logger
+              ? {
+                  logger,
+                  correlation: { round_id: roundId, run_ids: jobs.map((j) => j.runId), pr_id: pull.id },
+                }
+              : undefined,
+          );
+        } catch (err) {
+          // Content-free, bounded reason: service errors carry reason codes only.
+          const reason = (err instanceof Error ? err.message : 'unknown error').slice(0, 200);
+          runLog.info(`Intent unavailable — reviewing without it: ${reason}`);
+          logger?.warn({ prId: pull.id, err: reason }, 'review: intent unavailable — reviewing without it');
+          return null;
+        }
+      },
+      { kind: 'tool' },
+    );
+    if (intent) {
+      const byStatus: Record<string, number> = {};
+      for (const s of intent.sources) byStatus[s.status] = (byStatus[s.status] ?? 0) + 1;
+      const sourceCounts = Object.entries(byStatus)
+        .map(([status, n]) => `${status}=${n}`)
+        .join(' ');
+      runLog.info(
+        `Intent ready — confidence=${intent.confidence}; sources: ${sourceCounts || 'none'}; ` +
+          `${intent.provider ?? '?'}/${intent.model ?? '?'}; ` +
+          `tokens ${intent.tokens_in ?? '?'} in / ${intent.tokens_out ?? '?'} out`,
+      );
+    }
+
     for (const { agent, runId } of jobs) {
       const agentStart = Date.now();
       logger?.info(
@@ -111,7 +166,18 @@ export class ReviewRunExecutor {
         `review: agent "${agent.name}" started (${agent.provider}/${agent.model})`,
       );
       try {
-        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, agent, runId, runLog);
+        const outcome = await this.runOneAgent(
+          workspaceId,
+          pull,
+          repo,
+          diff,
+          intent,
+          agent,
+          runId,
+          runLog,
+          logger,
+          roundId,
+        );
         logger?.info(
           {
             runId,
@@ -140,11 +206,18 @@ export class ReviewRunExecutor {
     pull: PullRow,
     repo: typeof schema.repos.$inferSelect,
     diff: UnifiedDiff,
+    intent: PrIntentRecord | null,
     agent: AgentRow,
     runId: string,
     parentLog: RunLogger,
+    logger?: Logger,
+    roundId?: string | null,
   ): Promise<RunOutcome> {
     const start = Date.now();
+    // Content-free prompt records (`prompt.assembled`): pino only, never runLog
+    // (which publishes to the browser over SSE). `off` measures nothing at all.
+    const promptLogMode = this.container.config.promptLog;
+    const promptMeasure = createPromptMeasure(promptLogMode, this.container.tokenizer);
     // Narrow the fanned-out pre-work logger to THIS run; the shared diff/intent
     // events are already in this run's buffer, so the persisted trace below
     // (built from the buffer) includes them too.
@@ -183,6 +256,10 @@ export class ReviewRunExecutor {
 
       const task = taskLine(pull) + rankNote;
 
+      // Skills — independent of repo-intel. S8: best-effort, never fails the
+      // run; S2: no active skills → prompt is byte-identical to today.
+      const skillsResult = await this.buildSkillBlocks(agent.id, runLog);
+
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
       // the CI runner). The service owns only I/O: repo-intel context resolution
@@ -200,17 +277,51 @@ export class ReviewRunExecutor {
         ...(callersDigest ? { callers: callersDigest } : {}),
         // T3 — repo skeleton, same omit-when-empty contract.
         ...(repoMap ? { repoMap } : {}),
+        // Skills — one prompt block per active skill; assemblePrompt joins and
+        // omits the section when the array is empty/undefined (S2).
+        ...(skillsResult ? { skills: skillsResult.blocks } : {}),
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
+        // Derived PR intent + scope (untrusted; reviewer-core wraps it and never
+        // lets it lower severity). Omitted when derivation failed or came back empty.
+        ...(intent && intent.intent.trim()
+          ? {
+              intent: {
+                intent: intent.intent,
+                in_scope: intent.in_scope,
+                out_of_scope: intent.out_of_scope,
+                confidence: intent.confidence,
+              },
+            }
+          : {}),
         task,
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
         checkCancelled: () => {
           if (this.container.runBus.isCancelled(runId)) throw new RunCancelledError();
         },
+        ...(promptLogMode !== 'off' && logger
+          ? {
+              promptMeasure,
+              onPromptAssembled: (info) =>
+                logPromptAssembled(
+                  logger,
+                  {
+                    component: 'reviewer',
+                    provider: agent.provider,
+                    model: agent.model,
+                    correlation: { round_id: roundId, run_id: runId, pr_id: pull.id, agent: agent.name },
+                    review_mode: info.mode,
+                    chunk: { index: info.chunkIndex, count: info.chunkCount },
+                    sections: info.sections,
+                  },
+                  promptLogMode,
+                ),
+            }
+          : {}),
       });
-      const { tokensIn, tokensOut, grounding } = outcome;
+      const { tokensIn, tokensOut, costUsd, grounding } = outcome;
 
       const keptFindings = outcome.review.findings;
 
@@ -245,6 +356,7 @@ export class ReviewRunExecutor {
         durationMs,
         tokensIn,
         tokensOut,
+        costUsd,
         findingsCount: findingRows.length,
         grounding,
         score: outcome.review.score,
@@ -265,10 +377,17 @@ export class ReviewRunExecutor {
           duration_ms: durationMs,
           tokens_in: tokensIn,
           tokens_out: tokensOut,
+          cost_usd: costUsd,
           findings: findingRows.length,
           grounding,
         },
-        prompt_assembly: outcome.assembly,
+        // S9: the only per-run record of "skill X was in run Y". A disabled
+        // skill never reaches here — buildSkillBlocks only pulls active links.
+        prompt_assembly: {
+          ...outcome.assembly,
+          skills_used: skillsResult?.used ?? null,
+          skills_tokens: skillsResult?.tokens ?? null,
+        },
         tool_calls: outcome.chunks.map((c) => ({
           tool: 'review_file',
           args: c.label,
@@ -300,6 +419,11 @@ export class ReviewRunExecutor {
           durationMs: Date.now() - start,
           tokensIn: 0,
           tokensOut: 0,
+          // null, NOT 0, unlike the token counts above: 0 means "a genuinely
+          // free model", null means "no price data". A run that died before
+          // (or during) the call has no cost to report, so the UI shows an em
+          // dash rather than "$0.00".
+          costUsd: null,
           findingsCount: 0,
           grounding: '0/0 passed',
           error: msg,
@@ -310,6 +434,39 @@ export class ReviewRunExecutor {
         .catch(() => undefined);
       this.container.runBus.complete(runId);
       throw err;
+    }
+  }
+
+  /**
+   * S3/S8/S9 — build one prompt block per skill active on this agent (linked
+   * AND enabled at both levels — `activeSkillLinks` already applies that
+   * filter). Returns `undefined` when there are none, so `reviewPullRequest`
+   * omits the section and the prompt stays byte-identical to the no-skills
+   * baseline (S2). Best-effort: any failure is logged and the run proceeds
+   * with no skills, exactly like the repo-intel enrichments above.
+   */
+  private async buildSkillBlocks(
+    agentId: string,
+    runLog: RunLogger,
+  ): Promise<{ blocks: string[]; used: SkillUsed[]; tokens: number } | undefined> {
+    try {
+      const links = await this.container.agentsRepo.activeSkillLinks(agentId);
+      if (links.length === 0) return undefined;
+
+      const blocks: string[] = [];
+      const used: SkillUsed[] = [];
+      for (const { skill } of links) {
+        const block = `### Skill: ${skill.name}\n${skill.description}\n\n${skill.body}`;
+        const tokens = this.container.tokenizer.count(block);
+        blocks.push(block);
+        used.push({ id: skill.id, name: skill.name, version: skill.version, tokens });
+      }
+      const totalTokens = used.reduce((sum, u) => sum + u.tokens, 0);
+      runLog.info(`Skills: ${used.map((u) => u.name).join(', ')} (+${totalTokens} tokens)`);
+      return { blocks, used, tokens: totalTokens };
+    } catch (err) {
+      runLog.info(`skill blocks: failed — ${(err as Error).message}`);
+      return undefined;
     }
   }
 
@@ -421,8 +578,23 @@ export class ReviewRunExecutor {
         pr: pull.number,
         source: 'local',
       },
-      stats: { duration_ms: durationMs, tokens_in: 0, tokens_out: 0, findings: 0, grounding },
-      prompt_assembly: { system: agent.systemPrompt, skills: null, memory: null, specs: null, user: '' },
+      stats: {
+        duration_ms: durationMs,
+        tokens_in: 0,
+        tokens_out: 0,
+        cost_usd: null,
+        findings: 0,
+        grounding,
+      },
+      prompt_assembly: {
+        system: agent.systemPrompt,
+        skills: null,
+        skills_used: null,
+        skills_tokens: null,
+        memory: null,
+        specs: null,
+        user: '',
+      },
       tool_calls: [],
       raw_output: '',
       memory_pulled: [],

@@ -71,6 +71,48 @@
       "when": 1781464392464,
       "tag": "0009_complex_runaways",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1789849870419,
+      "tag": "0010_careless_tana_nile",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1789852124240,
+      "tag": "0011_quick_inertia",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1790092946691,
+      "tag": "0012_rich_morlun",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1790127651660,
+      "tag": "0013_shallow_sir_ram",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1790127663130,
+      "tag": "0014_giant_warbird",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1790377469283,
+      "tag": "0015_chemical_kronos",
+      "breakpoints": true
     }
   ]
 }

@@ -22,3 +22,93 @@
     transform: translateY(0);
   }
 }
+
+/* Rendered-markdown look for `Markdown` (@devdigest/ui): that vendored
+   component only styles p/strong/code/a, and Tailwind's preflight zeroes
+   h1-h6 font-size/weight and list markers — so headings and lists rendered
+   as flat, undifferentiated paragraphs. Scoped to `.dd-md` (the wrapper class
+   Markdown.tsx applies) so this only shapes rendered markdown output, never
+   headings elsewhere in the app. Kept here rather than in vendor/ui, which is
+   do-not-touch. */
+.dd-md h1,
+.dd-md h2,
+.dd-md h3,
+.dd-md h4,
+.dd-md h5,
+.dd-md h6 {
+  font-weight: 650;
+  color: var(--text-primary);
+  line-height: 1.3;
+  margin: 20px 0 8px;
+}
+.dd-md h1:first-child,
+.dd-md h2:first-child,
+.dd-md h3:first-child,
+.dd-md h4:first-child {
+  margin-top: 0;
+}
+.dd-md h1 {
+  font-size: 1.5em;
+}
+.dd-md h2 {
+  font-size: 1.3em;
+}
+.dd-md h3 {
+  font-size: 1.12em;
+}
+.dd-md h4,
+.dd-md h5,
+.dd-md h6 {
+  font-size: 1em;
+}
+
+.dd-md ul,
+.dd-md ol {
+  margin: 0 0 10px;
+  padding-left: 1.4em;
+}
+.dd-md li {
+  margin: 0 0 4px;
+}
+.dd-md li > ul,
+.dd-md li > ol {
+  margin-top: 4px;
+  margin-bottom: 0;
+}
+
+.dd-md blockquote {
+  margin: 0 0 10px;
+  padding: 2px 12px;
+  border-left: 3px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.dd-md hr {
+  margin: 16px 0;
+  border: none;
+  border-top: 1px solid var(--border);
+}
+
+.dd-md pre {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--bg-hover);
+  overflow-x: auto;
+}
+.dd-md pre code {
+  padding: 0;
+  background: none;
+}
+
+.dd-md table {
+  width: 100%;
+  margin: 0 0 10px;
+  border-collapse: collapse;
+}
+.dd-md th,
+.dd-md td {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  text-align: left;
+}

@@ -129,6 +129,31 @@ export class SimpleGitClient implements GitClient {
   async readFile(repo: RepoRef, path: string): Promise<string> {
     return readFile(join(this.clonePathFor(repo), path), 'utf8');
   }
+
+  /**
+   * `git show <ref>:<path>` — the committed text, never the working tree. `ref`
+   * and `path` may come from PR-body text, so both are validated before they
+   * reach git; the args go through simple-git's argv array, never a shell.
+   */
+  async readFileAt(repo: RepoRef, ref: string, path: string): Promise<string> {
+    if (!isSafeRef(ref)) throw new Error('readFileAt: unsafe ref');
+    if (!isSafeRepoPath(path)) throw new Error('readFileAt: unsafe path');
+    return this.git(repo).raw(['show', `${ref}:${path}`]);
+  }
+}
+
+/** A hex SHA (abbreviated or full) or a plain ref name; never option-like or a range. */
+const SAFE_REF = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$/;
+
+function isSafeRef(ref: string): boolean {
+  return SAFE_REF.test(ref) && !ref.includes('..') && !ref.endsWith('/') && !ref.endsWith('.lock');
+}
+
+/** Repo-relative path: not absolute, no `..` segment, no NUL or backslash. */
+function isSafeRepoPath(path: string): boolean {
+  if (path.length === 0 || path.length > 500) return false;
+  if (path.startsWith('/') || path.includes('\0') || path.includes('\\')) return false;
+  return !path.split('/').some((seg) => seg === '..');
 }
 
 function parseBlamePorcelain(raw: string): BlameLine[] {

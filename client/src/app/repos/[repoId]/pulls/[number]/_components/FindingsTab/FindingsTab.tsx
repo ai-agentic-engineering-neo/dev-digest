@@ -3,7 +3,7 @@
 import React, { useCallback } from "react";
 import { Icon, Badge, Button, SectionLabel, EmptyState } from "@devdigest/ui";
 import { RunStatus } from "../RunStatus";
-import { RunHistory } from "../RunHistory/RunHistory";
+import { RunHistory, type SeverityCounts } from "../RunHistory/RunHistory";
 import { ReviewRunAccordion } from "../ReviewRunAccordion";
 import { s } from "./styles";
 import type { FindingRecord, ReviewRecord, RunSummary, PrCommit } from "@devdigest/shared";
@@ -71,6 +71,19 @@ export function FindingsTab({
     setTarget((p) => ({ runId, n: (p?.n ?? 0) + 1 }));
   }, []);
 
+  // Timeline tiles show severity icons: COUNT of each run's persisted findings
+  // by severity, joined on review.run_id. Pure grouping, no model call.
+  const severityByRun = React.useMemo(() => {
+    const out: Record<string, SeverityCounts> = {};
+    for (const review of runs) {
+      if (!review.run_id) continue;
+      const counts: SeverityCounts = {};
+      for (const f of review.findings) counts[f.severity] = (counts[f.severity] ?? 0) + 1;
+      out[review.run_id] = counts;
+    }
+    return out;
+  }, [runs]);
+
   return (
     <section>
       {liveRunIds.length > 0 && (
@@ -134,6 +147,7 @@ export function FindingsTab({
             onOpenTrace={handleOpenTrace}
             onGoToReview={handleGoToReview}
             onDelete={handleDelete}
+            severityByRun={severityByRun}
           />
         </div>
       )}
@@ -164,6 +178,7 @@ export function FindingsTab({
             headSha={headSha}
             targetRunId={target?.runId ?? null}
             targetNonce={target?.n ?? 0}
+            run={review.run_id ? prRuns?.find((r) => r.run_id === review.run_id) : null}
           />
         ))
       )}

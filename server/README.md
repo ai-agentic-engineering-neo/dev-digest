@@ -6,8 +6,8 @@ grounded structured findings). Fastify 5 + Drizzle ORM over Postgres (pgvector).
 Adapters (LLM, GitHub, git, ast-grep, …) sit behind a DI container so they can be
 swapped for mocks in tests.
 
-> This is the **starter** module set. Later course lessons add their own modules
-> (skills, intent/smart-diff, blast, brief/context/onboarding, eval/ci/hooks,
+> This is the **starter** module set plus L02 `skills`. Later course lessons add
+> their own modules (intent/smart-diff, blast, brief/context/onboarding, eval/ci/hooks,
 > memory, plugins, …) — each is a self-contained `modules/<name>/` plugin plus,
 > usually, a slot it starts feeding the reviewer prompt. The DB schema already
 > contains **every** table; the unused ones simply sit empty until a lesson fills
@@ -71,8 +71,10 @@ flowchart TB
   subgraph Review["Review & runs"]
     reviews["reviews<br/>/pulls/:id/review · /reviews · /findings/:id/(accept|dismiss)<br/>/runs/:id/(events|trace)"]
   end
-  subgraph Agents["Agents"]
-    agents["agents<br/>/agents · /agents/:id"]
+  subgraph Agents["Agents & skills"]
+    agents["agents<br/>/agents · /agents/:id · /agents/:id/skills (skill_ids)"]
+    skills["skills<br/>/skills · /skills/:id · /skills/import/preview<br/>/skills/:id/versions · /versions/:v/(diff|restore)"]
+    conventions["conventions<br/>/repos/:id/conventions · /extract · /skill-draft · /skill<br/>/conventions/:id"]
   end
   subgraph Intel["Repo intelligence"]
     repoIntel["repo-intel<br/>/repos/:id/index-state · /resync"]
@@ -106,7 +108,8 @@ through `SecretsProvider` (`~/.devdigest/secrets.json`, mode `0600`, with
 
 Migrations are **not** applied on boot — run `pnpm db:migrate` (pgvector is
 enabled by migration `0000`). `pnpm db:seed` is idempotent demo data
-(`acme/payments-api`, PR #482, the two built-in agents).
+(`acme/payments-api`, PR #482, five built-in agents, thirteen skills linked to
+three of them — see `specs/skills.md`).
 
 ## Review context (non-obvious)
 

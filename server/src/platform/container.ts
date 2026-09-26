@@ -24,6 +24,15 @@ import { estimateCost } from '../adapters/llm/pricing.js';
 import { PriceBook } from './price-book.js';
 import { ConfigError } from './errors.js';
 import { AgentsRepository } from '../modules/agents/repository.js';
+import type { SkillsRepositoryPort } from '../modules/skills/ports.js';
+import { SkillsRepository } from '../modules/skills/repository.js';
+import type { ConventionsRepositoryPort } from '../modules/conventions/ports.js';
+import { ConventionsRepository } from '../modules/conventions/repository.js';
+import { RepoRepository } from '../modules/repos/repository.js';
+import { SkillsService } from '../modules/skills/service.js';
+import { AgentsService } from '../modules/agents/service.js';
+import { resolveFeatureModel } from '../modules/settings/feature-models.js';
+import type { FeatureModelId, FeatureModelChoice } from '@devdigest/shared';
 import { ReviewRepository } from '../modules/reviews/repository.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
@@ -51,6 +60,10 @@ export interface ContainerOverrides {
   /** repo-intel T3 adapters — only the indexer pipeline reads these. */
   depgraph?: DepGraph;
   tokenizer?: Tokenizer;
+  /** skills module port — route/service tests inject an in-memory fake. */
+  skillsRepo?: SkillsRepositoryPort;
+  /** conventions module port — same idea. */
+  conventionsRepo?: ConventionsRepositoryPort;
 }
 
 export class Container {
@@ -72,6 +85,9 @@ export class Container {
   // `container.agentsRepo` instead of reaching into another module's folder.
   private _agentsRepo?: AgentsRepository;
   private _reviewRepo?: ReviewRepository;
+  private _skillsRepo?: SkillsRepositoryPort;
+  private _conventionsRepo?: ConventionsRepositoryPort;
+  private _reposRepo?: RepoRepository;
   private _repoIntel?: RepoIntel;
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
@@ -98,6 +114,38 @@ export class Container {
 
   get reviewRepo(): ReviewRepository {
     return (this._reviewRepo ??= new ReviewRepository(this.db));
+  }
+
+  /** skills module repository, typed as its port so tests can swap a fake. */
+  get skillsRepo(): SkillsRepositoryPort {
+    return (this._skillsRepo ??= this.overrides.skillsRepo ?? new SkillsRepository(this.db));
+  }
+
+  get conventionsRepo(): ConventionsRepositoryPort {
+    return (this._conventionsRepo ??= this.overrides.conventionsRepo ?? new ConventionsRepository(this.db));
+  }
+
+  /** Repo rows for modules that only need to look a repository up (conventions). */
+  get reposRepo(): RepoRepository {
+    return (this._reposRepo ??= new RepoRepository(this.db));
+  }
+
+  // Sibling-module services for modules that compose them (onion rule 6: modules
+  // never import each other; the composition root hands the instance over).
+  private _skillsService?: SkillsService;
+  private _agentsService?: AgentsService;
+
+  get skillsService(): SkillsService {
+    return (this._skillsService ??= new SkillsService({ repo: this.skillsRepo }));
+  }
+
+  get agentsService(): AgentsService {
+    return (this._agentsService ??= new AgentsService(this));
+  }
+
+  /** Workspace override or registry default for a system LLM feature (settings module). */
+  featureModel(workspaceId: string, id: FeatureModelId): Promise<FeatureModelChoice> {
+    return resolveFeatureModel(this, workspaceId, id);
   }
 
   get codeIndex(): CodeIndex {

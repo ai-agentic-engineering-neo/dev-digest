@@ -1,0 +1,20 @@
+{
+  "name": "Run cost badge shows the seeded run's cost on the PR list, timeline, and trace drawer",
+  "description": "L01 Run Cost Badge. The seed links one completed, priced agent run (8,190→929 tokens, $0.0013) to PR #482's review, so every cost surface has data without a model call. Asserts the COST column on the PR list ($0.0013), the full badge on the Agent runs timeline and review-run header ('9,119 tok · $0.0013'), and the COST stat inside the run trace drawer. Read-only seeded data. Assumes a freshly-seeded DB where acme/payments-api (PR #482) is the first repo — guaranteed by e2e-web.yml; run locally via the hermetic stack (see e2e/README.md).",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "land on the PR list" },
+    { "cmd": ["wait", "--text", "Add rate limiting to public API endpoints"], "label": "seeded PR row is visible" },
+    { "cmd": ["wait", "--text", "$0.0013"], "label": "COST column shows the seeded run's total" },
+    { "cmd": ["find", "text", "Add rate limiting to public API endpoints", "click"], "label": "open the PR row" },
+    { "cmd": ["wait", "--url", "/pulls/482"], "label": "navigate to the PR detail route" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "PR detail data settles" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Agent runs"], "label": "switch to the Agent runs tab" },
+    { "cmd": ["wait", "--url", "tab=findings"], "label": "findings tab is active in the URL" },
+    { "cmd": ["wait", "--text", "9,119 tok · $0.0013"], "label": "timeline row and review-run header show tokens · cost" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Open run trace & logs"], "label": "open the seeded run's trace drawer" },
+    { "cmd": ["wait", "--text", "Stats"], "label": "trace drawer renders its Stats section" },
+    { "cmd": ["wait", "--text", "COST"], "label": "Stats section has the COST tile" },
+    { "cmd": ["wait", "--text", "DURATION"], "label": "Stats section still has DURATION beside it" }
+  ]
+}

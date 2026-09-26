@@ -24,4 +24,14 @@ export const s = {
     color: "var(--text-secondary)",
   } satisfies CSSProperties,
   list: { display: "flex", flexDirection: "column", gap: 12 } satisfies CSSProperties,
+  /** «N CRITICAL · N WARNING · N SUGGESTION» pills under the verdict banner. */
+  severityRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+    marginBottom: 10,
+  } satisfies CSSProperties,
+  severitySep: { color: "var(--text-muted)", fontSize: 12 } satisfies CSSProperties,
+  filterRow: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" } satisfies CSSProperties,
 } as const;

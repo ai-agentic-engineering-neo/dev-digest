@@ -1,0 +1,199 @@
+{
+  "name": "Skills page lists seeded skills; the agent editor Skills tab shows the linked set",
+  "description": "Loads /skills and confirms a seeded skill card (pr-quality-rubric) renders, opens the first card's side preview (breaking-change — alphabetically first, so it sits in the visible first row of the scrolling grid) via ?skill=, opens the full editor at /skills/:id and its Versioning tab, then opens the seeded Security Reviewer's Skills tab and confirms the linked count badge (3 of N enabled) and a linked skill row. Exercises the skills list route, GET /skills/:id, GET /skills/:id/versions, the two tab routers and GET /agents/:id/skills. No writes, no model call.",
+  "steps": [
+    {
+      "cmd": [
+        "open",
+        "{BASE}/skills"
+      ],
+      "label": "load the skills page"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "/skills"
+      ],
+      "label": "skills route reached"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--load",
+        "networkidle"
+      ],
+      "label": "skills fetch settles"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "pr-quality-rubric"
+      ],
+      "label": "seeded skill card is visible"
+    },
+    {
+      "cmd": [
+        "find",
+        "text",
+        "breaking-change",
+        "click"
+      ],
+      "label": "open the first skill card's preview"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "skill="
+      ],
+      "label": "side panel selection is in the URL"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--load",
+        "networkidle"
+      ],
+      "label": "skill fetch settles"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Breaking change"
+      ],
+      "label": "preview renders the skill body heading"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Open editor"
+      ],
+      "label": "open the full skill editor"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "/skills/"
+      ],
+      "label": "editor route reached"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--load",
+        "networkidle"
+      ],
+      "label": "editor fetch settles"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Versioning"
+      ],
+      "label": "switch to the Versioning tab"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "tab=versioning"
+      ],
+      "label": "versioning tab is in the URL"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "current"
+      ],
+      "label": "the current version row renders"
+    },
+    {
+      "cmd": [
+        "open",
+        "{BASE}/agents"
+      ],
+      "label": "load the agents page"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--load",
+        "networkidle"
+      ],
+      "label": "agents fetch settles"
+    },
+    {
+      "cmd": [
+        "find",
+        "text",
+        "Security Reviewer",
+        "click"
+      ],
+      "label": "open the seeded Security Reviewer"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "/agents/"
+      ],
+      "label": "agent editor reached"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Skills"
+      ],
+      "label": "switch to the Skills tab"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "tab=skills"
+      ],
+      "label": "skills tab is in the URL"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--load",
+        "networkidle"
+      ],
+      "label": "links fetch settles"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "3 of"
+      ],
+      "label": "linked count badge renders"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "lethal-trifecta"
+      ],
+      "label": "a linked skill row is visible"
+    }
+  ]
+}

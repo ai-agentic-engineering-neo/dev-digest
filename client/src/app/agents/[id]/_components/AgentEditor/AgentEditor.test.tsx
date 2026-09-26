@@ -26,6 +26,8 @@ const AGENT: Agent = {
   strategy: "single-pass",
   ci_fail_on: "critical",
   repo_intel: true,
+  skill_count: 0,
+  stats: { runs: 0, accept_rate: null, avg_cost_usd: null },
   enabled: true,
   version: 1,
 };

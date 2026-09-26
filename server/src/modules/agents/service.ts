@@ -8,7 +8,8 @@ import type {
   Provider,
   ReviewStrategy,
 } from '@devdigest/shared';
-import { AgentsRepository } from './repository.js';
+import { ValidationError } from '../../platform/errors.js';
+import { AgentsRepository, type AgentRow } from './repository.js';
 import { toAgentDto, toAgentVersionDto } from './helpers.js';
 
 /**
@@ -56,13 +57,25 @@ export class AgentsService {
   }
 
   async list(workspaceId: string): Promise<Agent[]> {
-    const rows = await this.repo.list(workspaceId);
-    return rows.map(toAgentDto);
+    const [rows, counts, stats] = await Promise.all([
+      this.repo.list(workspaceId),
+      this.repo.skillCounts(workspaceId),
+      this.repo.statsByAgent(workspaceId),
+    ]);
+    return rows.map((row) => toAgentDto(row, counts.get(row.id) ?? 0, stats.get(row.id)));
   }
 
   async get(workspaceId: string, id: string): Promise<Agent | undefined> {
     const row = await this.repo.getById(workspaceId, id);
-    return row ? toAgentDto(row) : undefined;
+    return row ? this.withSkillCount(row) : undefined;
+  }
+
+  private async withSkillCount(row: AgentRow): Promise<Agent> {
+    const [skills, stats] = await Promise.all([
+      this.repo.skillIdsForAgent(row.id),
+      this.repo.statsByAgent(row.workspaceId),
+    ]);
+    return toAgentDto(row, skills.length, stats.get(row.id));
   }
 
   /** Delete an agent (and its versions/skill-links, via cascade). */
@@ -105,7 +118,7 @@ export class AgentsService {
       ...(patch.repo_intel !== undefined ? { repoIntel: patch.repo_intel } : {}),
       ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
     });
-    return row ? toAgentDto(row) : undefined;
+    return row ? this.withSkillCount(row) : undefined;
   }
 
   /**
@@ -142,8 +155,9 @@ export class AgentsService {
   }
 
   /**
-   * Set / reorder the agent's linked skills. If `skillIds` is provided, replaces
-   * the whole set in that order. Returns the resulting ordered links.
+   * Set / reorder the agent's linked skills: replaces the whole set in the given
+   * order (a changed set bumps the agent version). Every id must be a skill of
+   * this workspace and appear once; otherwise 422. Returns the ordered links.
    */
   async setSkills(
     workspaceId: string,
@@ -152,11 +166,15 @@ export class AgentsService {
   ): Promise<AgentSkillLink[] | undefined> {
     const agent = await this.repo.getById(workspaceId, agentId);
     if (!agent) return undefined;
-    await this.repo.setSkills(agentId, skillIds);
+    await this.assertLinkableSkills(workspaceId, skillIds);
+    await this.repo.setSkills(workspaceId, agentId, skillIds);
     return this.skillLinks(agentId);
   }
 
-  /** Link a single skill (append or set order) — additive to existing links. */
+  /**
+   * Link a single skill — additive to existing links. `order` is the index to
+   * insert at (default: append). Goes through `setSkills` so it versions too.
+   */
   async linkSkill(
     workspaceId: string,
     agentId: string,
@@ -165,10 +183,21 @@ export class AgentsService {
   ): Promise<AgentSkillLink[] | undefined> {
     const agent = await this.repo.getById(workspaceId, agentId);
     if (!agent) return undefined;
-    const existing = await this.repo.linkedSkills(agentId);
-    const resolvedOrder = order ?? existing.length;
-    await this.repo.linkSkill(agentId, skillId, resolvedOrder);
-    return this.skillLinks(agentId);
+    const ids = (await this.repo.skillIdsForAgent(agentId)).filter((id) => id !== skillId);
+    const at = Math.max(0, Math.min(order ?? ids.length, ids.length));
+    ids.splice(at, 0, skillId);
+    return this.setSkills(workspaceId, agentId, ids);
+  }
+
+  private async assertLinkableSkills(workspaceId: string, skillIds: string[]): Promise<void> {
+    if (new Set(skillIds).size !== skillIds.length) {
+      throw new ValidationError('skill_ids must not repeat a skill');
+    }
+    const known = new Set(await this.repo.existingSkillIds(workspaceId, skillIds));
+    const unknown = skillIds.filter((id) => !known.has(id));
+    if (unknown.length > 0) {
+      throw new ValidationError('Unknown skill id(s) for this workspace', { skill_ids: unknown });
+    }
   }
 
   /**

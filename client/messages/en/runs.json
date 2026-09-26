@@ -39,6 +39,7 @@
     "stat": {
       "duration": "DURATION",
       "tokens": "TOKENS",
+      "cost": "COST",
       "findings": "FINDINGS"
     },
     "prompt": {
@@ -52,7 +53,10 @@
       "copy": "Copy",
       "fullscreen": "Open fullscreen",
       "search": "Search in this block…",
-      "noMatches": "No matches for “{q}”."
+      "noMatches": "No matches for “{q}”.",
+      "skillsTokens": "{count} tokens",
+      "skillBlock": "Skill · {name} (v{version})",
+      "skillsCount": "{count, plural, =1 {1 skill} other {# skills}}"
     },
     "tools": {
       "args": "args",
@@ -67,7 +71,7 @@
     "running": "running",
     "completed": "completed",
     "copyRawOutput": "Copy raw output",
-  "copied": "Copied!",
+    "copied": "Copied!",
     "tracePending": "Trace is written when the run completes — see the Live log tab.",
     "loadingTrace": "Loading trace…",
     "noTrace": "No trace available yet."

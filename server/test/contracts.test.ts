@@ -12,6 +12,8 @@ import {
   EvalRun,
   MemoryItem,
   RunTrace,
+  RunSummary,
+  PrMeta,
   Settings,
   Repo,
   PrDetail,
@@ -157,7 +159,7 @@ describe('AI contracts parse fixtures', () => {
   it('RunTrace (data2.jsx TRACE single-document)', () => {
     const trace = RunTrace.parse({
       config: { agent: 'Security Reviewer', version: 'v7', model: 'gpt-4.1', pr: 482, source: 'local' },
-      stats: { duration_ms: 8200, tokens_in: 14820, tokens_out: 1240, findings: 3, grounding: '3/3 passed' },
+      stats: { duration_ms: 8200, tokens_in: 14820, tokens_out: 1240, cost_usd: 0.06, findings: 3, grounding: '3/3 passed' },
       prompt_assembly: { system: 's', user: 'u' },
       tool_calls: [{ tool: 'read_file', args: "'src/config.ts'", meta: '1,240 bytes', ms: 120 }],
       raw_output: '{}',
@@ -166,6 +168,46 @@ describe('AI contracts parse fixtures', () => {
       log: [{ t: '00.00', kind: 'info', msg: 'started' }],
     });
     expect(trace.tool_calls).toHaveLength(1);
+    expect(trace.stats.cost_usd).toBe(0.06);
+  });
+
+  it('run cost: RunSummary and PrMeta carry a nullable cost_usd (null = unknown, never 0)', () => {
+    const base = {
+      run_id: 'r1',
+      agent_id: null,
+      agent_name: null,
+      provider: 'openrouter',
+      model: 'deepseek/deepseek-v4-flash',
+      status: 'done',
+      error: null,
+      duration_ms: 8200,
+      tokens_in: 8190,
+      tokens_out: 929,
+      findings_count: 2,
+      grounding: '2/2 passed',
+      ran_at: '2026-09-25T10:00:00.000Z',
+      score: 61,
+      blockers: 1,
+    };
+    expect(RunSummary.parse({ ...base, cost_usd: 0.0013 }).cost_usd).toBe(0.0013);
+    expect(RunSummary.parse({ ...base, cost_usd: null }).cost_usd).toBeNull();
+    expect(() => RunSummary.parse(base)).toThrow(); // cost_usd is required (nullable, not optional)
+
+    const pr = {
+      number: 482,
+      title: 't',
+      author: 'a',
+      branch: 'b',
+      base: 'main',
+      head_sha: 'abc',
+      additions: 1,
+      deletions: 0,
+      files_count: 1,
+      status: 'needs_review',
+    };
+    expect(PrMeta.parse({ ...pr, cost_usd: 0.012, cost_runs: 3 })).toMatchObject({ cost_usd: 0.012, cost_runs: 3 });
+    expect(PrMeta.parse({ ...pr, cost_usd: null, cost_runs: null }).cost_usd).toBeNull();
+    expect(PrMeta.parse(pr).cost_usd).toBeUndefined(); // list-only field; absent elsewhere
   });
 });
 

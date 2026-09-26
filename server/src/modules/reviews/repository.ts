@@ -83,6 +83,11 @@ export class ReviewRepository {
   }
 
   /** Delete one agent run (+ its trace via FK cascade). Workspace-scoped. */
+  /** Per-PR sum of completed-run cost for the PR list (see run.repo). */
+  costRollupForPulls(workspaceId: string, prIds: string[]): Promise<Map<string, runRepo.PrCostRollup>> {
+    return runRepo.costRollupForPulls(this.db, workspaceId, prIds);
+  }
+
   deleteAgentRun(workspaceId: string, runId: string): Promise<boolean> {
     return runRepo.deleteAgentRun(this.db, workspaceId, runId);
   }
@@ -155,6 +160,8 @@ export class ReviewRepository {
       durationMs: number;
       tokensIn: number;
       tokensOut: number;
+      /** USD cost; null when unknown or on failed/cancelled runs. */
+      costUsd: number | null;
       findingsCount: number;
       grounding: string;
       /** Review score (0-100); null on failed/cancelled runs. */

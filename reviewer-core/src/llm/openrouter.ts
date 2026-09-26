@@ -63,7 +63,7 @@ export class OpenRouterProvider implements LLMProvider {
     let tokensIn = 0;
     let tokensOut = 0;
     let costFromApi: number | null = null;
-    let lastRaw = '';
+    let lastRaw: string;
 
     for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
       const res = await this.client.chat.completions.create({

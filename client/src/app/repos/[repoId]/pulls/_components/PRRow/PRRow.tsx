@@ -4,9 +4,11 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Icon, Avatar, Badge, CircularScore } from "@devdigest/ui";
+import { Icon, Avatar, Badge, CircularScore, SEV } from "@devdigest/ui";
 import type { PrMeta } from "@/lib/types";
-import { SIZE_COLOR, STATUS_META } from "../../constants";
+import { RunCostBadge } from "@/components/run-cost-badge";
+import { FindingsPopover } from "../FindingsPopover";
+import { FINDINGS_FIELDS, SIZE_COLOR, STATUS_META } from "../../constants";
 import { relativeTime, sizeOf } from "../../helpers";
 import { s } from "../../styles";
 
@@ -17,6 +19,12 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
   const st = STATUS_META[pr.status] ?? STATUS_META.needs_review!;
   const { size, lines } = sizeOf(pr);
   const reviewed = pr.score != null; // null score ⇒ PR has never been reviewed
+  const totalFindings =
+    (pr.findings_critical ?? 0) + (pr.findings_warning ?? 0) + (pr.findings_suggestion ?? 0);
+  // Hover popover for the FINDINGS column («N FINDINGS IN THIS RUN»); read-only.
+  // Anchored to the cell's viewport rect (fixed positioning) so the table
+  // card's overflow: hidden never clips it.
+  const [findingsAnchor, setFindingsAnchor] = React.useState<{ top: number; left: number } | null>(null);
   return (
     <div
       onMouseEnter={() => setH(true)}
@@ -52,6 +60,43 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
         ) : (
           <span style={s.muted}>—</span>
         )}
+      </div>
+      <div
+        style={s.findingsCell}
+        onMouseEnter={(e) => {
+          if (totalFindings === 0) return;
+          const r = e.currentTarget.getBoundingClientRect();
+          setFindingsAnchor({ top: r.bottom + 6, left: r.left });
+        }}
+        onMouseLeave={() => setFindingsAnchor(null)}
+        data-testid="findings-cell"
+      >
+        {!reviewed || totalFindings === 0 ? (
+          <span style={s.muted}>—</span>
+        ) : (
+          FINDINGS_FIELDS.map(({ sev, field }) => {
+            const n = pr[field] ?? 0;
+            if (!n) return null;
+            const meta = SEV[sev];
+            const SIcon = Icon[meta.icon];
+            return (
+              <span key={sev} className="tnum" style={s.findingChip(meta.c)} title={meta.label}>
+                <SIcon size={13} />
+                {n}
+              </span>
+            );
+          })
+        )}
+        {findingsAnchor && totalFindings > 0 && (
+          <FindingsPopover total={totalFindings} findings={pr.latest_findings ?? []} anchor={findingsAnchor} />
+        )}
+      </div>
+      <div>
+        <RunCostBadge
+          variant="compact"
+          costUsd={pr.cost_usd}
+          title={pr.cost_runs ? t("list.costRuns", { count: pr.cost_runs }) : undefined}
+        />
       </div>
       <div>
         <Badge dot color={st.c} bg="transparent">

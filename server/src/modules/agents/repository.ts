@@ -1,4 +1,5 @@
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, avg, count, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
+import type { AgentCardStats } from '@devdigest/shared';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import type { CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
@@ -47,6 +48,9 @@ export interface LinkedSkillRow {
   skill: typeof t.skills.$inferSelect;
   order: number;
 }
+
+/** A Drizzle transaction handle (same query API as `Db`). */
+type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
 export class AgentsRepository {
   constructor(private db: Db) {}
@@ -145,9 +149,14 @@ export class AgentsRepository {
     return row;
   }
 
-  private async snapshotVersion(row: AgentRow, version: number): Promise<void> {
-    const skills = await this.skillIdsForAgent(row.id);
-    await this.db
+  private async snapshotVersion(
+    row: AgentRow,
+    version: number,
+    exec: Db | Tx = this.db,
+    skills?: string[],
+  ): Promise<void> {
+    skills ??= await this.skillIdsForAgent(row.id, exec);
+    await exec
       .insert(t.agentVersions)
       .values({
         agentId: row.id,
@@ -199,9 +208,79 @@ export class AgentsRepository {
     return rows.map((r) => ({ skill: r.skill, order: r.order }));
   }
 
-  async skillIdsForAgent(agentId: string): Promise<string[]> {
-    const links = await this.linkedSkills(agentId);
-    return links.map((l) => l.skill.id);
+  async skillIdsForAgent(agentId: string, exec: Db | Tx = this.db): Promise<string[]> {
+    const rows = await exec
+      .select({ skillId: t.agentSkills.skillId })
+      .from(t.agentSkills)
+      .where(eq(t.agentSkills.agentId, agentId))
+      .orderBy(asc(t.agentSkills.order));
+    return rows.map((r) => r.skillId);
+  }
+
+  /**
+   * `agent_id → { runs, accept_rate, avg_cost_usd }` for the workspace, two
+   * grouped queries: completed runs (count + mean of known costs) from
+   * `agent_runs`, and decided findings (accepted vs dismissed) through
+   * `reviews.agent_id`. Agents with no rows are simply absent from the map.
+   */
+  async statsByAgent(workspaceId: string): Promise<Map<string, AgentCardStats>> {
+    const runRows = await this.db
+      .select({
+        agentId: t.agentRuns.agentId,
+        runs: count(),
+        avgCost: avg(t.agentRuns.costUsd),
+      })
+      .from(t.agentRuns)
+      .where(and(eq(t.agentRuns.workspaceId, workspaceId), eq(t.agentRuns.status, 'done'), isNotNull(t.agentRuns.agentId)))
+      .groupBy(t.agentRuns.agentId);
+    const findingRows = await this.db
+      .select({
+        agentId: t.reviews.agentId,
+        accepted: sql<number>`count(*) filter (where ${t.findings.acceptedAt} is not null)`.mapWith(Number),
+        dismissed: sql<number>`count(*) filter (where ${t.findings.dismissedAt} is not null)`.mapWith(Number),
+      })
+      .from(t.findings)
+      .innerJoin(t.reviews, eq(t.findings.reviewId, t.reviews.id))
+      .where(and(eq(t.reviews.workspaceId, workspaceId), isNotNull(t.reviews.agentId)))
+      .groupBy(t.reviews.agentId);
+
+    const out = new Map<string, AgentCardStats>();
+    for (const r of runRows) {
+      if (!r.agentId) continue;
+      out.set(r.agentId, {
+        runs: Number(r.runs),
+        accept_rate: null,
+        avg_cost_usd: r.avgCost == null ? null : Number(r.avgCost),
+      });
+    }
+    for (const f of findingRows) {
+      if (!f.agentId) continue;
+      const decided = f.accepted + f.dismissed;
+      const cur = out.get(f.agentId) ?? { runs: 0, accept_rate: null, avg_cost_usd: null };
+      out.set(f.agentId, { ...cur, accept_rate: decided > 0 ? f.accepted / decided : null });
+    }
+    return out;
+  }
+
+  /** `agent_id → linked skill count` for every agent in the workspace. */
+  async skillCounts(workspaceId: string): Promise<Map<string, number>> {
+    const rows = await this.db
+      .select({ agentId: t.agentSkills.agentId, n: count() })
+      .from(t.agentSkills)
+      .innerJoin(t.agents, eq(t.agentSkills.agentId, t.agents.id))
+      .where(eq(t.agents.workspaceId, workspaceId))
+      .groupBy(t.agentSkills.agentId);
+    return new Map(rows.map((r) => [r.agentId, Number(r.n)]));
+  }
+
+  /** Of `skillIds`, the ones that exist in this workspace. */
+  async existingSkillIds(workspaceId: string, skillIds: string[]): Promise<string[]> {
+    if (skillIds.length === 0) return [];
+    const rows = await this.db
+      .select({ id: t.skills.id })
+      .from(t.skills)
+      .where(and(eq(t.skills.workspaceId, workspaceId), inArray(t.skills.id, skillIds)));
+    return rows.map((r) => r.id);
   }
 
   /** Link a skill to an agent at a given order (idempotent: upserts order). */
@@ -224,13 +303,37 @@ export class AgentsRepository {
   /**
    * Replace the full set of linked skills for an agent with `skillIds`, assigning
    * order = index. Used by the "Skills" editor tab (attach/reorder). Skills not in
-   * the list are unlinked.
+   * the list are unlinked. The linked skill set is part of the agent's config, so
+   * a changed set (membership OR order) bumps the agent version and snapshots it
+   * like any other config edit; an identical set is a no-op. Returns the agent
+   * row after the write.
    */
-  async setSkills(agentId: string, skillIds: string[]): Promise<void> {
-    await this.db.delete(t.agentSkills).where(eq(t.agentSkills.agentId, agentId));
-    if (skillIds.length === 0) return;
-    await this.db
-      .insert(t.agentSkills)
-      .values(skillIds.map((skillId, i) => ({ agentId, skillId, order: i })));
+  async setSkills(workspaceId: string, agentId: string, skillIds: string[]): Promise<AgentRow | undefined> {
+    return this.db.transaction(async (tx) => {
+      const [existing] = await tx
+        .select()
+        .from(t.agents)
+        .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.id, agentId)));
+      if (!existing) return undefined;
+
+      const current = await this.skillIdsForAgent(agentId, tx);
+      const unchanged =
+        current.length === skillIds.length && current.every((id, i) => id === skillIds[i]);
+      if (unchanged) return existing;
+
+      await tx.delete(t.agentSkills).where(eq(t.agentSkills.agentId, agentId));
+      if (skillIds.length > 0) {
+        await tx
+          .insert(t.agentSkills)
+          .values(skillIds.map((skillId, i) => ({ agentId, skillId, order: i })));
+      }
+      const [row] = await tx
+        .update(t.agents)
+        .set({ version: sql`${t.agents.version} + 1` })
+        .where(eq(t.agents.id, agentId))
+        .returning();
+      await this.snapshotVersion(row!, row!.version, tx, skillIds);
+      return row!;
+    });
   }
 }

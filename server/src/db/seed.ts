@@ -6,7 +6,10 @@ import {
   GENERAL_REVIEWER_PROMPT,
   SECURITY_REVIEWER_PROMPT,
   PERFORMANCE_REVIEWER_PROMPT,
+  TEST_QUALITY_REVIEWER_PROMPT,
+  API_CONTRACT_REVIEWER_PROMPT,
 } from './seed-prompts.js';
+import { SEED_SKILLS, AGENT_SKILL_LINKS } from './seed-skills.js';
 
 /** Default provider/model for the built-in reviewer agents. */
 const DEFAULT_PROVIDER = 'openrouter' as const;
@@ -18,11 +21,14 @@ const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
  *
  * Seeds: default workspace + system user + membership, default settings,
  * demo repo (acme/payments-api), PR #482 with files/commits, a sample review
- * with a few findings, and the three built-in agents (General + Security +
- * Performance), all on the default openrouter/deepseek-v4-flash provider+model.
+ * (+ one completed, priced agent run behind it)
+ * with a few findings, and the five built-in agents (General + Security +
+ * Performance + Test Quality + API Contract), all on the default openrouter/deepseek-v4-flash provider+model.
  *
- * Course lessons populate the other tables (skills, conventions, memory, eval,
- * …) once their features are built — they start empty here.
+ * L02 adds the skills in `seed-skills.ts`, linked to Security, Test Quality and
+ * API Contract Reviewer; the last two are the lesson's new agents.
+ * Course lessons populate the other tables (conventions, memory, eval, …) once
+ * their features are built — they start empty here.
  */
 
 export const DEFAULT_WORKSPACE_NAME = 'default';
@@ -175,7 +181,7 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
     ]);
   }
 
-  // ---- built-in agents (the three starter presets) ----
+  // ---- built-in agents (three starter presets + the two L02 skill-driven ones) ----
   // Prompt bodies live in ./seed-prompts.ts (mirrored in docs/agent-prompts/*.md).
   const seedAgents: Array<typeof t.agents.$inferInsert> = [
     {
@@ -211,6 +217,30 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       version: 1,
       createdBy: userId,
     },
+    // L02 — two agents whose checks live entirely in their linked skills, so
+    // the same PR reviewed with and without skills is the control experiment.
+    {
+      workspaceId,
+      name: 'Test Quality Reviewer',
+      description: 'Checks the tests that ship with a PR: uncovered branches, missed corner cases, over-mocking, flakiness.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: TEST_QUALITY_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
+    {
+      workspaceId,
+      name: 'API Contract Reviewer',
+      description: 'Catches breaking route, schema and error-envelope changes before they reach a client.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: API_CONTRACT_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
   ];
   for (const a of seedAgents) {
     const [existing] = await db
@@ -218,6 +248,135 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       .from(t.agents)
       .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, a.name)));
     if (!existing) await db.insert(t.agents).values(a);
+  }
+
+  // ---- skills (L02): text-only rules, linked per agent (AGENT_SKILL_LINKS) ----
+  // Idempotent by name. Links are written only while the agent has none, so a
+  // user's reordering on a dev DB survives a re-seed.
+  const skillIdByName = new Map<string, string>();
+  for (const sk of SEED_SKILLS) {
+    let [existingSkill] = await db
+      .select()
+      .from(t.skills)
+      .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.name, sk.name)));
+    if (!existingSkill) {
+      [existingSkill] = await db
+        .insert(t.skills)
+        .values({
+          workspaceId,
+          name: sk.name,
+          description: sk.description,
+          type: sk.type,
+          source: 'manual',
+          body: sk.body,
+          enabled: true,
+          version: 1,
+        })
+        .returning();
+      await db
+        .insert(t.skillVersions)
+        .values({ skillId: existingSkill!.id, version: 1, body: sk.body })
+        .onConflictDoNothing();
+    }
+    skillIdByName.set(sk.name, existingSkill!.id);
+  }
+  for (const [agentName, skillNames] of Object.entries(AGENT_SKILL_LINKS)) {
+    const [agentRow] = await db
+      .select()
+      .from(t.agents)
+      .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, agentName)));
+    if (!agentRow) continue;
+    const [anyLink] = await db
+      .select({ skillId: t.agentSkills.skillId })
+      .from(t.agentSkills)
+      .where(eq(t.agentSkills.agentId, agentRow.id))
+      .limit(1);
+    if (anyLink) continue;
+    await db.insert(t.agentSkills).values(
+      skillNames.map((name, order) => ({
+        agentId: agentRow.id,
+        skillId: skillIdByName.get(name)!,
+        order,
+      })),
+    );
+  }
+
+  // ---- one completed agent run behind the seeded review ----
+  // Gives the demo PR a priced run so the COST column, the timeline badge, the
+  // trace drawer Stats and the review-run header all show a number on a fresh
+  // DB (and the e2e run-cost flow stays deterministic — no model call).
+  // Idempotent: only runs while the seeded review has no run yet.
+  const [seededReview] = await db
+    .select()
+    .from(t.reviews)
+    .where(and(eq(t.reviews.prId, pr!.id), eq(t.reviews.kind, 'review'), eq(t.reviews.model, 'seed')));
+  if (seededReview && !seededReview.runId) {
+    const [agent] = await db
+      .select()
+      .from(t.agents)
+      .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, 'General Reviewer')));
+    const seededFindings = await db
+      .select({ severity: t.findings.severity })
+      .from(t.findings)
+      .where(eq(t.findings.reviewId, seededReview.id));
+    const findingsCount = seededFindings.length;
+    const blockers = seededFindings.filter((f) => f.severity === 'CRITICAL').length;
+    const stats = {
+      duration_ms: 8_200,
+      tokens_in: 8_190,
+      tokens_out: 929,
+      cost_usd: 0.0013,
+      findings: findingsCount,
+      grounding: `${findingsCount}/${findingsCount} passed`,
+    };
+    const [run] = await db
+      .insert(t.agentRuns)
+      .values({
+        workspaceId,
+        agentId: agent?.id ?? null,
+        prId: pr!.id,
+        provider: DEFAULT_PROVIDER,
+        model: DEFAULT_MODEL,
+        status: 'done',
+        source: 'local',
+        durationMs: stats.duration_ms,
+        tokensIn: stats.tokens_in,
+        tokensOut: stats.tokens_out,
+        costUsd: stats.cost_usd,
+        findingsCount,
+        grounding: stats.grounding,
+        score: seededReview.score,
+        blockers,
+        error: null,
+      })
+      .returning();
+    await db.insert(t.runTraces).values({
+      runId: run!.id,
+      trace: {
+        config: {
+          agent: agent?.name ?? 'General Reviewer',
+          version: '1',
+          provider: DEFAULT_PROVIDER,
+          model: DEFAULT_MODEL,
+          pr: 482,
+          source: 'local',
+        },
+        stats,
+        prompt_assembly: { system: agent?.systemPrompt ?? '', user: '(seeded run — no prompt recorded)' },
+        tool_calls: [{ tool: 'review_file', args: 'all files', meta: 'single-pass', ms: stats.duration_ms }],
+        raw_output: '',
+        memory_pulled: [],
+        specs_read: [],
+        log: [
+          { t: '00.00', kind: 'info', msg: 'Seeded demo run' },
+          { t: '08.20', kind: 'result', msg: `Persisted review with ${findingsCount} finding(s)` },
+        ],
+      },
+    });
+    await db
+      .update(t.reviews)
+      .set({ runId: run!.id, agentId: agent?.id ?? seededReview.agentId })
+      .where(eq(t.reviews.id, seededReview.id));
   }
 
   return { workspaceId, userId };

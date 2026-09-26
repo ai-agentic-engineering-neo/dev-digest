@@ -62,22 +62,32 @@ the fixture PR and the exact steps are at the end.
 
 ## Control experiments (17, 18)
 
-Fixture: draft PR **test: HW2 control-experiment fixture (do not merge)** on
-the fork (branch `test/hw2-control-experiment`, base `feat/L02-skills`). It
-adds a helper with four failure branches and a test that covers only the
-happy path, renames the `Agent.skill_count` response field, and changes the
-`PUT /skills/:id` request field `body` → `content`.
+Both cases live in the single PR on the fork (#1), so the agents review that
+PR itself:
 
-1. Add the fork (`ira-horobets/dev-digest`) in DevDigest and import its PRs.
-2. **Test Quality Reviewer**: open its Skills tab, uncheck every skill, run it
-   on the fixture PR → expected verdict approve (no rule to apply). Re-check
+- **Test Quality case**: `server/src/modules/_shared/retry-after.ts` is a
+  helper with four failure branches (missing header, empty string, negative
+  seconds, HTTP date in the past); `server/test/retry-after.test.ts` covers
+  **only the happy path** (`"120"` → 120 000 ms).
+- **API Contract case**: `POST /agents/:id/skills` dropped its single-link
+  form (`skill_id` + `order`); `skill_ids` is now required
+  (`server/src/modules/agents/routes.ts`, `SetSkillsBody`). Any outside
+  caller of the old form fails validation: a breaking route signature change
+  with no deprecation window.
+
+Steps:
+
+1. Add the fork (`ira-horobets/dev-digest`) in DevDigest and import its PRs;
+   open PR #1.
+2. **Test Quality Reviewer**: on its Skills tab uncheck every skill, run it on
+   the PR → expected: nothing about `retry-after.ts`. Re-check
    `uncovered-branch-gate` + `corner-case-checklist`, run again → expected:
-   findings on `retry-after.ts` naming the untested branches and the empty /
-   negative / past-date cases.
+   findings naming the untested branches and the empty / negative / past-date
+   cases.
 3. **API Contract Reviewer**: same two runs → without skills nothing about
-   the contract; with `breaking-change`, `response-schema`,
-   `semver-discipline`, `deprecation-policy` linked → the field rename and
-   the `body` → `content` change are flagged as breaking.
+   the route; with `breaking-change`, `response-schema`, `semver-discipline`,
+   `deprecation-policy` linked → the removed `skill_id` form is flagged as a
+   breaking change.
 4. Open each run's trace (Agent runs → trace icon) → Prompt assembly: the
    Skills block with its token count and one block per skill; the run
    without skills has none.

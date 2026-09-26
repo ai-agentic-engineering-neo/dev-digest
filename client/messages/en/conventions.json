@@ -4,23 +4,85 @@
     "crumbConventions": "Conventions",
     "headingPrefix": "Conventions in ",
     "repoFallback": "repo",
-    "subtitle": "Scan the cloned repo to surface house-rules — each backed by evidence you can turn into a Skill.",
-    "scanning": "Scanning…",
+    "subtitle": "Scan the cloned repo to surface house rules, each backed by a file and line you can verify, then turn the ones you accept into a skill.",
+    "meta": "Detected from {count, plural, =1 {1 sample file} other {# sample files}} · last scan {when}",
+    "metaRunning": "Scanning {count, plural, =0 {the repo} =1 {1 sample file} other {# sample files}}…",
+    "metaFailed": "Last scan failed: {error}",
+    "runScan": "Run Scan",
     "rescan": "Re-scan",
-    "runExtraction": "Run extraction",
-    "extractionFailed": "Extraction failed",
+    "scanning": "Scanning…",
+    "deselectAll": "Deselect all",
+    "acceptedCount": "{accepted} of {total} accepted",
+    "createSkill": "Create skill",
+    "showRejected": "Show {count, plural, =1 {1 rejected} other {# rejected}}",
+    "hideRejected": "Hide rejected",
     "loadError": "Could not load conventions.",
+    "noRepo": {
+      "title": "Select a repository",
+      "body": "Conventions are extracted per repository. Pick one in the repo switcher at the top of the sidebar."
+    },
+    "notCloned": {
+      "title": "Repository not cloned yet",
+      "body": "The extractor reads files from the local clone. Wait for the clone and index to finish, then run a scan."
+    },
     "empty": {
       "title": "No conventions extracted yet",
-      "body": "Scan the repo to surface house-rules — naming, error handling, structure — each backed by evidence you can turn into a Skill.",
-      "cta": "Run extraction"
+      "body": "Run a scan: the extractor picks the config files and the top-ranked source files in code, asks the conventions model for rules, and keeps only rules whose evidence line really exists.",
+      "cta": "Run Scan"
     },
-    "candidateCount": "{count, plural, one {# candidate} other {# candidates}} · grounded against sampled files"
+    "allRejected": {
+      "title": "Every candidate is rejected",
+      "body": "Re-scan to look for new rules, or show the rejected ones to reconsider."
+    }
   },
   "card": {
     "confidence": "Confidence",
+    "accept": "Accept",
     "accepted": "Accepted",
-    "accepting": "Accepting…",
-    "acceptAsSkill": "Accept as Skill"
+    "reject": "Reject",
+    "rejected": "Rejected",
+    "unreject": "Reconsider",
+    "edit": "Edit",
+    "save": "Save",
+    "cancel": "Cancel",
+    "ruleLabel": "Rule",
+    "categoryLabel": "Category",
+    "copyEvidence": "Copy evidence location",
+    "copied": "Copied",
+    "category": {
+      "naming": "naming",
+      "structure": "structure",
+      "imports": "imports",
+      "async": "async",
+      "error-handling": "error handling",
+      "api": "api",
+      "testing": "testing",
+      "style": "style",
+      "security": "security",
+      "other": "other"
+    }
+  },
+  "modal": {
+    "title": "Create skill from conventions",
+    "banner": "Merged from {count, plural, =1 {1 accepted convention} other {# accepted conventions}} in {repo}. Everything below is editable before you save.",
+    "existing": "A skill named {name} already exists; saving writes a new version of it instead of a second skill.",
+    "name": "Name",
+    "nameHint": "Kebab-case slug. The criterion name is repo-conventions; rename it to keep several sets side by side.",
+    "description": "Description",
+    "descriptionHint": "The skill's interface, written as a directive for the agent.",
+    "type": "Type",
+    "enabled": "Enabled",
+    "enabledHint": "Whether this block is added to agents' prompts.",
+    "agent": "Link to agent",
+    "agentHint": "The skill is attached to this agent's Skills tab at the end of its list.",
+    "body": "Skill body",
+    "tokens": "≈ {count} tokens",
+    "unsaved": "unsaved",
+    "footerNote": "Saved as a new version · added to Skills Lab",
+    "cancel": "Cancel",
+    "create": "Create skill",
+    "creating": "Creating…",
+    "createdToast": "Skill \"{name}\" saved (v{version}) and linked",
+    "loadError": "Could not build the skill draft."
   }
 }

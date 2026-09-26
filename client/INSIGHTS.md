@@ -18,6 +18,7 @@ see it, do not write it.
 - [2026-09-25] Editing `src/vendor/shared` directly. It is a copy of `server/src/vendor/shared` and has already drifted; edit the server copy and sync. Evidence: `client/src/vendor/shared/index.ts`.
 - [2026-09-25] Rendering a hover popover with `position: absolute` inside a PR-list row: the table card (`s.tableCard`) has `overflow: hidden` and clips it to a thin strip. Anchor it with `position: fixed` from the cell's `getBoundingClientRect()` instead. Evidence: `client/src/app/repos/[repoId]/pulls/_components/PRRow/PRRow.tsx:findingsAnchor`.
 - [2026-09-25] pr-self-review's gate hook greps every Bash command for the literal tokens `git push` / `gh pr create`, including inside quoted strings or heredocs; writing those words into a report from a shell command trips the gate. Reword the text or write it with the Write tool. Evidence: `.claude/skills/pr-self-review/scripts/gate.sh:15`.
+- [2026-09-26] Importing a runtime value (a Zod enum, a schema) from `@devdigest/shared` in client code breaks the dev server with `Module not found: Can't resolve './contracts/findings.js'`: the barrel uses `.js` specifiers that Next's webpack does not map to `.ts`, and it only gets bundled once something imports a value. Import `type` only; mirror enum values in a local constants file. Evidence: `client/src/app/conventions/_components/CandidateCard/constants.ts`.
 
 ## Codebase Patterns
 
@@ -28,6 +29,7 @@ see it, do not write it.
 - [2026-09-25] Cost formatting threshold is `0.10`, not `0.01`: two decimals from ten cents up, two significant digits below (`$0.06`, `$0.012`, `$0.0013`). A `0.01` cut-off rendered the design's `$0.012` as `$0.01`. Evidence: `client/src/lib/format-cost.ts:formatCost`.
 - [2026-09-25] ESLint runs `eslint-plugin-react-hooks` recommended rules but `react-hooks/set-state-in-effect` is switched off in `eslint.config.mjs`: six existing hydration-safe effects (theme, active repo, editor state, mermaid) set state on mount by design. Rejected: refactoring them to `useSyncExternalStore` just to satisfy lint. Evidence: `client/eslint.config.mjs:set-state-in-effect`.
 - [2026-09-25] `src/vendor/ui/nav.ts` was edited (user-approved exception to the do-not-touch rule) to add the SKILLS LAB sidebar section with Skills (`g s`) and Agents; `activeKeyFor` already knew `/skills`. Any further nav change goes there too, not in app-shell. Evidence: `client/src/vendor/ui/nav.ts:SKILLS LAB`.
+- [2026-09-26] A statically rendered page whose client component calls `useSearchParams` must wrap it in `<React.Suspense>` in page.tsx, or `next build` fails with a missing-Suspense error; dynamic routes like /agents/[id] do not need it. Evidence: `client/src/app/skills/page.tsx`.
 
 ## Tool & Library Notes
 
@@ -44,6 +46,7 @@ see it, do not write it.
 - [2026-09-25] L01 run cost badge: `RunCostBadge` (compact/full) in `src/components/run-cost-badge`, `lib/format-cost.ts`, wired into PR list COST column, timeline, review-run header, trace drawer COST stat; showcase group; 39 client tests green. Evidence: `client/specs/run-cost-badge.md`.
 - [2026-09-25] HW1 criteria pass (in progress): FINDINGS column + hover popover on the PR list, severity pills + filter chips in FindingsPanel, severity icons on timeline tiles, Dismiss relabelled Reject, ESLint flat config added (react-hooks plugin still missing); docs/ui-architecture.md + specs/pages.md written by a subagent, columns table still lacks the Findings row. Evidence: `client/src/app/repos/[repoId]/pulls/_components/FindingsPopover/FindingsPopover.tsx`.
 - [2026-09-25] L02 skills UI: /skills card grid + side panel with inline edit/delete, create modal, import drawer with preview and trust notice, agent editor Skills tab (checkbox link, drag + arrows reorder, disabled badge), skill_count on agent cards, SKILLS LAB nav; contracts copy re-synced from server; 54 client tests green. Evidence: `client/specs/skills.md`.
+- [2026-09-26] HW2 (2026-09-26, separate from the L02 line): ConfirmDialog for skill/agent deletes, agent_count on cards, /skills side panel via ?skill= and the /skills/:id editor (Config/Preview/Versioning with diff + restore), per-skill token blocks in the trace, /conventions page with candidate cards, inline edit and the Create-skill modal; 62 client tests green. Evidence: `client/specs/conventions.md`.
 
 ## Open Questions
 

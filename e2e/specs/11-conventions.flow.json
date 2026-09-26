@@ -1,0 +1,70 @@
+{
+  "name": "Conventions page renders for the seeded repo with the scan controls and the not-cloned state",
+  "description": "Loads /conventions with the seeded acme/payments-api as the active repo (home redirect sets it; the seed has no clone), confirms the SKILLS LAB nav item, the heading with the repo name, and the not-cloned empty state that explains why a scan cannot run yet. No scan is started, so no model call. Exercises the conventions route, GET /repos/:id/conventions and the active-repo context.",
+  "steps": [
+    {
+      "cmd": [
+        "open",
+        "{BASE}/"
+      ],
+      "label": "load the app root"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "/pulls"
+      ],
+      "label": "land on the seeded repo's PR list (sets the active repo)"
+    },
+    {
+      "cmd": [
+        "find",
+        "text",
+        "Conventions",
+        "click"
+      ],
+      "label": "open Conventions from the SKILLS LAB section"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "/conventions"
+      ],
+      "label": "conventions route reached"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--load",
+        "networkidle"
+      ],
+      "label": "conventions fetch settles"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Conventions in"
+      ],
+      "label": "heading renders"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "payments-api"
+      ],
+      "label": "heading names the active repo"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Repository not cloned yet"
+      ],
+      "label": "seeded repo has no clone, so the not-cloned state explains the disabled scan"
+    }
+  ]
+}

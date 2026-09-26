@@ -13,8 +13,9 @@ this file are relative to `client/` unless they start with `../`.
 | `/repos/[repoId]/pulls/[number]` | PR detail: Overview, Agent runs, Files changed | `usePulls`, `usePullDetail`, `usePrReviews`, `usePrRuns`, `usePrActiveRuns` | `?tab`, `?trace` | `02`, `04`, `05`, `08` |
 | `/agents` | agent cards, create modal | `useAgents`, `useUpdateAgent`, `useCreateAgent`, `useDeleteAgent` | none | `03-agents` |
 | `/agents/[id]` | agent editor: Config, Skills | `useAgents`, `useAgent`, `useUpdateAgent`, `useProviderModels`, `useSkills`, `useAgentSkills`, `useSetAgentSkills` | `?tab` | `10-skills` |
-| `/skills` | skill card grid, create modal, import drawer | `useSkills`, `useUpdateSkill`, `useCreateSkill`, `usePreviewSkillImport` | none | `10-skills` |
-| `/skills/[id]` | grid + side preview/editor of one skill | `useSkill`, `useUpdateSkill`, `useDeleteSkill` | path `id` | `10-skills` |
+| `/skills` | skill card grid, side preview panel, create modal, import drawer | `useSkills`, `useUpdateSkill`, `useDeleteSkill`, `useCreateSkill`, `usePreviewSkillImport`, `useSkill` | `?skill` | `10-skills` |
+| `/skills/[id]` | skill editor: Config, Preview, Versioning | `useSkill`, `useUpdateSkill`, `useDeleteSkill`, `useSkillVersions`, `useSkillVersionDiff`, `useRestoreSkillVersion` | path `id`, `?tab` | `10-skills` |
+| `/conventions` | conventions extractor for the active repo | `useConventions`, `useExtractConventions`, `useDecideConvention`, `useDeselectConventions`, `useConventionSkillDraft`, `useCreateConventionSkill`, `useAgents` | none | `11-conventions` |
 | `/settings/[section]` | API keys, feature models | `useSecretsStatus`, `useTestConnection`, `useSettings`, `useUpdateSettings`, `useProviderModels` | path `section` | `07-settings` |
 
 `/showcase` (`src/app/showcase/page.tsx`) renders the component gallery
@@ -187,12 +188,17 @@ Footer: Copy raw output. States: "Loading trace…", "No trace available yet."
   (`POST /agents/:id/skills { skill_ids }`), which bumps the agent version.
 - Loading: skeletons in the editor pane. Error or missing agent: full-screen
   `ErrorState` "Couldn't load this agent" with retry.
+- Agent cards (both pages): the trash icon opens `ConfirmDialog` before
+  `useDeleteAgent`.
 
-## `/skills` and `/skills/[id]` (`src/app/skills/**` → `SkillsView`)
+## `/skills` (`src/app/skills/page.tsx` → `SkillsView`)
 
 - `useSkills` (`GET /skills`). Cards (`SkillCard`): mono name, type tag,
-  description, `vN · source`, «needs vetting» badge for an imported skill that
-  is still disabled, enabled `Toggle` (`useUpdateSkill`, `PUT /skills/:id`).
+  description, `vN · source · N agents` (`agent_count`), «needs vetting» badge
+  for an imported skill that is still disabled, enabled `Toggle`
+  (`useUpdateSkill`, `PUT /skills/:id`), and a Delete icon; `SkillsView`
+  owns the single `ConfirmDialog` (Escape cancels) and calls `useDeleteSkill`
+  (`DELETE /skills/:id`) on confirm.
   Local search filters name, description and type (`filterSkills`).
 - "Add Skill" dropdown: *Create from scratch* opens `CreateSkillModal`
   (`useCreateSkill`, `POST /skills`) then navigates to `/skills/<id>`;
@@ -200,14 +206,53 @@ Footer: Copy raw output. States: "Loading trace…", "No trace available yet."
   `usePreviewSkillImport`, `POST /skills/import/preview` → editable preview
   with ignored entries and a trust notice → `POST /skills` with
   `source: imported_file`, `enabled: false`).
-- `/skills/[id]` renders the same grid with `SkillPanel` on the right
-  (`useSkill`, `GET /skills/:id`): badges, description, Markdown body; Edit
-  switches to the inline `SkillForm` (Save → `useUpdateSkill`, toast
-  `Skill saved (vN)`); Delete → `window.confirm` → `useDeleteSkill`
-  (`DELETE /skills/:id`) → `/skills`. Close returns to `/skills`.
+- Clicking a card writes `?skill=<id>` (`router.replace`, so Back leaves the page) and renders
+  `SkillPanel` on the right (`useSkill`, `GET /skills/:id`): badges, the
+  vetting notice for imported skills, description, Markdown body, **Open
+  editor** (→ `/skills/<id>`), Edit inline (`SkillForm`, Save →
+  `useUpdateSkill`, toast `Skill saved (vN)`), Delete → `ConfirmDialog` →
+  `useDeleteSkill` → back to `/skills`. Close clears the param. The page
+  wraps the view in `Suspense` because it reads `useSearchParams`.
 - Loading: three card skeletons. Error: `ErrorState` with retry. Empty:
   `EmptyState` with a create CTA; a search with no hits shows «No matching
   skills». Full contract: `specs/skills.md`.
+
+## `/skills/[id]` (`src/app/skills/[id]/page.tsx` → `SkillEditor`)
+
+- Server page awaits `params`, renders `SkillEditor` (`useSkill`). Header:
+  name, type tag, `vN`, source, agent count, disabled / needs-vetting badges,
+  «All skills» back button. Tabs via `?tab=config|preview|versioning`
+  (`VALID_SKILL_TABS`, default `config`, written with `router.replace`).
+- Config: `SkillForm` keyed by `id:version` (a save or restore remounts it),
+  Save (`useUpdateSkill`, toast `Skill saved (vN)`), Delete (`ConfirmDialog`
+  → `useDeleteSkill` → `/skills`).
+- Preview: the body through the `Markdown` primitive.
+- Versioning: `useSkillVersions` (`GET /skills/:id/versions`), newest first;
+  the current version carries a `current` badge; previous versions offer
+  **Diff** (`useSkillVersionDiff`, `GET …/versions/:v/diff`, rendered by
+  `PatchView` with a «N added · M removed against vX» summary) and **Restore**
+  (`ConfirmDialog` → `useRestoreSkillVersion`, `POST …/versions/:v/restore`,
+  toast `Restored vA as vB`).
+- Loading: skeletons. Error or missing skill: full-screen `ErrorState`
+  «Skill not found» with retry.
+
+## `/conventions` (`src/app/conventions/page.tsx` → `ConventionsView`)
+
+- Repo comes from `useActiveRepo` (switcher / `localStorage`, no URL param).
+  `useConventions(repoId)` (`GET /repos/:id/conventions`) polls every 2 s while
+  a scan runs. **Run Scan** / **Re-scan** → `useExtractConventions`
+  (`POST …/conventions/extract`).
+- Candidate cards (`CandidateCard`): rule, category badge, evidence
+  `path:line` + copy, snippet, confidence bar; Accept / Reject / Edit (inline
+  rule + category form) through `useDecideConvention` (`PUT /conventions/:id`).
+  Rejected cards are hidden unless «Show N rejected» is on. Toolbar: Deselect
+  all (`POST …/conventions/deselect`), «N of M accepted», **Create skill**
+  (visible with ≥ 1 accepted) → `CreateSkillModal` (`useConventionSkillDraft`,
+  editable name / description / type / enabled / agent / body,
+  `useCreateConventionSkill` → `POST …/conventions/skill` → `/skills?skill=`).
+- States: no repos («Select a repository»), repo without clone («Repository
+  not cloned yet»), nothing extracted (empty state with Run Scan CTA), all
+  rejected. Full contract: `specs/conventions.md`.
 
 ## `/settings/[section]` (`src/app/settings/[section]/page.tsx` → `SettingsView`)
 

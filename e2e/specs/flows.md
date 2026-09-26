@@ -212,18 +212,20 @@ the Reject label reverts to Dismiss.
 
 ## 10-skills
 
-Journey: `/skills` → click the `breaking-change-gate` card → `/skills/<id>`
-side preview → `/agents` → click `Security Reviewer` → Skills tab
+Journey: `/skills` → click the `breaking-change` card → side panel
+(`?skill=<id>`) → **Open editor** → `/skills/<id>` → Versioning tab
+(`?tab=versioning`) → `/agents` → click `Security Reviewer` → Skills tab
 (`?tab=skills`).
 
 Seeded facts: `server/src/db/seed-skills.ts` seeds `pr-quality-rubric`,
 `secret-leakage-gate` and `lethal-trifecta` (among others) and links exactly
 those three to `Security Reviewer` (`AGENT_SKILL_LINKS`), so the tab badge
 starts with «3 of». The grid is alphabetical and scrolls inside the page, so
-the flow clicks `breaking-change-gate`, the first card, which is always in
-view; its body starts with the heading `# Breaking change gate`, which the
-panel renders as text. A card below the fold (e.g. `secret-leakage-gate`)
-is not clickable with `find text … click`.
+the flow clicks `breaking-change`, the first card, which is always in view;
+its body starts with the heading `# Breaking change`, which the panel
+renders as text. Every seeded skill has exactly one version, so the
+Versioning tab shows one row with the `current` badge. A card below the fold
+(e.g. `secret-leakage-gate`) is not clickable with `find text … click`.
 
 Locators: `wait --text` on the card name and on the rendered body heading;
 `find text … click` on a card name and on the agent card name; `find role
@@ -233,6 +235,25 @@ name first and leave the editor; `wait --url tab=skills` proves the tab routing;
 "3 of"` matches the `skills.enabledCount` badge without pinning the total.
 
 Breaks if: the seeded skill names or the Security Reviewer link set change,
-a skill sorting before `breaking-change-gate` is seeded, the tab label
-changes, the body heading of `breaking-change-gate` changes, or the Skills
-tab stops writing `?tab=skills`.
+a skill sorting before `breaking-change` is seeded, a tab label changes, the
+body heading of `breaking-change` changes, the panel's «Open editor» button is
+renamed, or the tabs stop writing `?tab=`.
+
+## 11-conventions
+
+Journey: root → PR list (this sets the active repo) → sidebar **Conventions**
+→ `/conventions`.
+
+Seeded facts: `acme/payments-api` is the only repo and has no `clone_path`,
+so the page shows the heading with `payments-api` and the «Repository not
+cloned yet» state; no scan can start, so no model call.
+
+Locators: `find text "Conventions" click` targets the sidebar item (the only
+«Conventions» text on the PR list page); `wait --text` on «Conventions in»,
+`payments-api` and the not-cloned title (`page.notCloned.title` in
+`conventions.json`).
+
+Breaks if: the nav label or the not-cloned copy changes, the seed gains a
+clone path for the demo repo, or the active-repo fallback stops picking the
+first repo.
+

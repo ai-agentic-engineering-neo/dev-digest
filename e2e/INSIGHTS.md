@@ -17,6 +17,7 @@ see it, do not write it.
 - [2026-09-25] Running `npm test` against a dev DB that has more than the seeded repo. Flows 02, 04, 05 follow the home redirect to the first repo and land on the wrong one. Use `npm run e2e:hermetic`. Evidence: `e2e/specs/02-repo-pulls-detail.flow.json:6`.
 - [2026-09-25] Resetting the dev DB with `docker compose down -v`. It deletes the volume with every imported repo and review. Evidence: `docker-compose.yml`.
 - [2026-09-25] `find text <name> click` on a card that sits below the fold of a page-internal scroll pane (`overflow: auto` main column, e.g. the /skills grid) does not navigate: the click lands outside the viewport. Click an element in the first visible row instead, or scroll first. Evidence: `e2e/specs/10-skills.flow.json:open the first skill card's preview`.
+- [2026-09-26] `find role link click --name Conventions` does not find the sidebar nav item although NavItem renders a next/link anchor; `find text Conventions click` does. Prefer text locators for sidebar items. Evidence: `e2e/specs/11-conventions.flow.json`.
 
 ## Codebase Patterns
 
@@ -38,6 +39,7 @@ _None yet._
 - [2026-09-25] Added 08-run-cost flow; full hermetic run 8/8 green after the seed gained a completed priced run (flow 04's '2 findings' text now matches twice, which wait --text tolerates). Evidence: `e2e/README.md:coverage table`.
 - [2026-09-25] HW1 criteria pass: added 09-findings-severity (pills, Accept/Reject, Warning filter round-trip); hermetic run 9/9 green; docs/runner.md + specs/flows.md written by a subagent and extended for flow 09. Evidence: `e2e/specs/09-findings-severity.flow.json`.
 - [2026-09-25] L02: added 10-skills flow (skills grid → side preview → agent Skills tab); locators had to move to the first visible card and to `find role button --name Skills`; hermetic run 10/10 green. Evidence: `e2e/specs/10-skills.flow.json`.
+- [2026-09-26] HW2: flow 10 extended to the side panel (?skill=) and the /skills/:id Versioning tab; flow 11 covers /conventions on the seeded (uncloned) repo. Evidence: `e2e/specs/flows.md:11-conventions`.
 
 ## Open Questions
 

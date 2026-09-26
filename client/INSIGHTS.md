@@ -30,6 +30,7 @@ see it, do not write it.
 - [2026-09-25] ESLint runs `eslint-plugin-react-hooks` recommended rules but `react-hooks/set-state-in-effect` is switched off in `eslint.config.mjs`: six existing hydration-safe effects (theme, active repo, editor state, mermaid) set state on mount by design. Rejected: refactoring them to `useSyncExternalStore` just to satisfy lint. Evidence: `client/eslint.config.mjs:set-state-in-effect`.
 - [2026-09-25] `src/vendor/ui/nav.ts` was edited (user-approved exception to the do-not-touch rule) to add the SKILLS LAB sidebar section with Skills (`g s`) and Agents; `activeKeyFor` already knew `/skills`. Any further nav change goes there too, not in app-shell. Evidence: `client/src/vendor/ui/nav.ts:SKILLS LAB`.
 - [2026-09-26] A statically rendered page whose client component calls `useSearchParams` must wrap it in `<React.Suspense>` in page.tsx, or `next build` fails with a missing-Suspense error; dynamic routes like /agents/[id] do not need it. Evidence: `client/src/app/skills/page.tsx`.
+- [2026-09-26] The `Modal` primitive pads its header and footer only; the body is the caller's job (`body: { padding: 24 }` in a colocated styles.ts, as CreateAgentModal does). `Drawer` pads its body itself. A modal whose content touches the edges is missing that wrapper. Evidence: `client/src/vendor/ui/kit/Modal.tsx:60`.
 
 ## Tool & Library Notes
 

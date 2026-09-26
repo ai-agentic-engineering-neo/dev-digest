@@ -48,12 +48,16 @@ your own edit loop, never for the gate.
 ## 1. Scope
 
 ```bash
-BASE=$(git rev-parse --abbrev-ref origin/HEAD 2>/dev/null | sed 's#^origin/##'); BASE=${BASE:-main}
+BASE=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##'); BASE=${BASE:-main}
 MB=$(git merge-base "$BASE" HEAD)
 git rev-parse HEAD                      # head_sha
 git diff --name-status -M "$MB" HEAD    # the change, with rename detection
 git status --porcelain                  # coverage warning only — never reviewed
 ```
+
+`symbolic-ref`, not `rev-parse --abbrev-ref`: without an `origin/HEAD` (a repo that
+was `git init`ed and pushed rather than cloned) the latter still prints
+`origin/HEAD`, `BASE` becomes `HEAD`, and every run finds nothing to review.
 
 If `HEAD` equals `$MB` there is nothing to review — say so and stop. If the
 worktree is dirty, print a prominent warning naming the uncommitted files and

@@ -32,17 +32,34 @@ const SCHEMA_VERSION = 1;
 const REPORT_REL = join('devdigest', 'pr-self-review.json');
 const OVERRIDE_REL = join('devdigest', 'pr-self-review.override.json');
 
+/** `git push`, allowing git's global options in between — `git -C <dir> push` and
+ *  `git -c k=v push` are pushes too. */
+const GIT_PUSH = /\bgit(?:\s+(?:-C|-c)\s+\S+|\s+--?[\w-]+(?:=\S+)?)*\s+push\b/;
+const GH_PR = /\bgh\s+pr\s+(?:create|merge|ready)\b/;
+
 /** Commands that must not run while the gate is failing. Tested against the WHOLE
  *  command string, so `a && git push` and multi-line scripts are caught too. */
-const GATED = [/\bgit\s+push\b/, /\bgh\s+pr\s+(?:create|merge|ready)\b/];
+const GATED = [GIT_PUSH, GH_PR];
 
-/** Escapes. `--dry-run` proves nothing leaves the machine; deleting a remote branch
- *  and pushing tags publish no reviewable code. */
-const EXEMPT = [
-  /--dry-run\b/,
-  /\bgit\s+push\b[^;&|\n]*--delete\b/,
-  /\bgit\s+push\b[^;&|\n]*--tags\b/,
-];
+/** Escapes, judged per push — never against the whole command string, where
+ *  `git push && echo --dry-run` would match. A push is exempt when it is a dry run
+ *  (`--dry-run`/`-n`: nothing leaves the machine), a `--delete`, or `--tags` with
+ *  no refspec (`git push origin --tags`: tags only). `git push origin HEAD --tags`
+ *  pushes the branch too, so it is gated. Any `gh pr …` in the command is gated. */
+function isExempt(command) {
+  if (GH_PR.test(command)) return false;
+  const pushes = command.split(/[;&|\n]+/).filter((seg) => GIT_PUSH.test(seg));
+  return pushes.length > 0 && pushes.every(isExemptPush);
+}
+
+function isExemptPush(segment) {
+  const args = segment.slice(segment.search(/\bpush\b/) + 'push'.length).trim().split(/\s+/).filter(Boolean);
+  if (args.some((a) => a === '--dry-run' || a === '-n' || a === '--delete')) return true;
+  // Positional args are the remote, then refspecs. An option's value would count
+  // as positional too, which errs towards gating — the safe direction.
+  const positional = args.filter((a) => !a.startsWith('-'));
+  return args.includes('--tags') && positional.length <= 1;
+}
 
 const BYPASS = /\bPR_SELF_REVIEW_BYPASS=(?:1|true|yes)\b/;
 
@@ -328,7 +345,7 @@ const command = input.tool_input?.command ?? '';
 // Cheap first: a pure regex test, before any subprocess. Almost every Bash call in
 // the session exits here without touching git.
 if (!GATED.some((re) => re.test(command))) passSilent();
-if (EXEMPT.some((re) => re.test(command))) passSilent();
+if (isExempt(command)) passSilent();
 
 const cwd = input.cwd || process.cwd();
 

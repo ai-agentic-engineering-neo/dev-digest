@@ -67,22 +67,27 @@ case "$TOOL" in
     CMD=$(field '.tool_input.command' command)
     [ -n "$CMD" ] || decide ask "could not read the Bash command - check it by hand."
     B='(^|[;&|(`[:space:]])'   # start of a command word
+    # Quoted text is data (grep patterns, test names), not commands: the dependency
+    # and db checks read BARE, so vitest -t 'rolls up costs' is not a dependency
+    # change. git state, --frozen-lockfile and the write-path checks read the raw
+    # command, where a quoted path still counts.
+    BARE=$(printf '%s' "$CMD" | sed -e "s/'[^']*'//g" -e 's/"[^"]*"//g')
     if matches "$CMD" "${B}git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+(commit|push|reset|rebase|merge|pull|clean|stash|checkout|restore|switch|cherry-pick|revert|am|apply|tag|branch[[:space:]]+-[dDmM])([[:space:]]|$)"; then
       decide deny "git history and working-tree state are not the implementer's to change (no commit, push, reset, checkout, stash...). Leave the diff uncommitted and report."
     fi
     if matches "$CMD" "${B}gh[[:space:]]+(pr|release|repo)[[:space:]]"; then
       decide deny "the implementer does not open PRs or touch GitHub."
     fi
-    if matches "$CMD" "${B}(pnpm|npm|yarn|npx|pnpx)[[:space:]]+([^;&|]*[[:space:]])?(add|remove|rm|uninstall|un|update|up|upgrade|dedupe|link|unlink)([[:space:]]|$)"; then
+    if matches "$BARE" "${B}(pnpm|npm|yarn|npx|pnpx)[[:space:]]+([^;&|]*[[:space:]])?(add|remove|rm|uninstall|un|update|up|upgrade|dedupe|link|unlink)([[:space:]]|$)"; then
       decide deny "dependency changes are off-limits (root AGENTS.md). Report BLOCKED with the dependency you need."
     fi
-    if matches "$CMD" "${B}(pnpm|npm)[[:space:]]+([^;&|]*[[:space:]])?(i|install)([[:space:]]|$)" && ! matches "$CMD" "--frozen-lockfile"; then
+    if matches "$BARE" "${B}(pnpm|npm)[[:space:]]+([^;&|]*[[:space:]])?(i|install)([[:space:]]|$)" && ! matches "$CMD" "--frozen-lockfile"; then
       decide deny "installs must not touch lock files - use pnpm install --frozen-lockfile or npm ci."
     fi
-    if matches "$CMD" "${B}(yarn)([[:space:]]|$)"; then
+    if matches "$BARE" "${B}(yarn)([[:space:]]|$)"; then
       decide deny "this repo uses pnpm/npm; yarn would write a new lock file."
     fi
-    if matches "$CMD" "db:generate|drizzle-kit[[:space:]]+(generate|push|drop|migrate)"; then
+    if matches "$BARE" "db:generate|drizzle-kit[[:space:]]+(generate|push|drop|migrate)"; then
       decide deny "db:generate / drizzle-kit writes migrations or the DB, both off-limits (root AGENTS.md)."
     fi
     P='(server/src/db/migrations|pnpm-lock\.yaml|package-lock\.json|skills-lock\.json|\.claude/)'

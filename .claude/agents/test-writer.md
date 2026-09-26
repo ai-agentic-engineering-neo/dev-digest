@@ -182,9 +182,16 @@ for p in server client reviewer-core; do ln -s "$PWD/$p/node_modules" "W/$p/node
 
 Write `W` out **literally in every command**: shell variables do not survive
 between Bash calls, and the guard looks for `devdigest-redproof-` in the
-command text itself. The symlinked `node_modules` work for all three packages, and
-`git worktree remove --force` leaves the real ones intact (verified
+command text itself. The symlinked `node_modules` resolve imports for all three
+packages, and `git worktree remove --force` leaves the real ones intact (verified
 2026-09-24). Never run an install inside `W`.
+
+**Inside `W`, run vitest through the binary, not `pnpm exec`:**
+`cd W/<pkg> && ./node_modules/.bin/vitest run <files>`. In `server/` and `client/`,
+`pnpm exec` treats the symlinked `node_modules` as a workspace to reinstall and
+dies with "workspace hoist directory is not a real directory" (verified
+2026-09-26; the binary works in all three packages). For a server `.it.test`,
+wrap it the same way: `../scripts/hermetic.sh ./node_modules/.bin/vitest run <file>`.
 
 - **Method A — the behaviour is new in this change.** `W` is at `HEAD`, i.e.
   without the uncommitted change (if the change is already committed, create

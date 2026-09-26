@@ -30,7 +30,20 @@ it is not invisible.
 | **C · frontend-architecture** | `frontend-ui-architecture`; add `next-best-practices` iff `client/src/app/**` is touched | `client/src/**/*.{ts,tsx}` minus `client/src/vendor/ui/**` |
 | **D · frontend-react** | `react-best-practices`; add `react-testing-library` iff a `client/src/**/*.test.tsx` is in the diff | `client/src/app/**/_components/**/*.tsx`, `client/src/components/**/*.tsx`, `client/src/lib/hooks/**/*.ts` |
 | **E · security** | `docs/agent-prompts/security-reviewer.md` **as the prompt**, `.claude/skills/security/SKILL.md` **as a checklist only** | `server/src/modules/**/routes.ts`, `server/src/app.ts`, `server/src/adapters/{auth,secrets,github,llm}/**`, `server/src/platform/**`, `server/src/vendor/shared/**`, `client/src/lib/api.ts`, `.github/workflows/**`, plus **any** file whose diff adds `process.env`, `exec(`, `spawn(`, `dangerouslySetInnerHTML`, or a secret-shaped literal |
-| **F · generic** | `docs/agent-prompts/general-reviewer.md` | everything routed nowhere else — `reviewer-core/**`, `e2e/**`, `scripts/*.sh`, `docs/**`, `*.md`, `.claude/**`, `.github/**`, `package.json` |
+| **F · generic** | `docs/agent-prompts/general-reviewer.md` | everything no group matched **by path** — `reviewer-core/**`, `e2e/**`, `scripts/*.sh`, `docs/**`, `*.md`, `.claude/**`, `.github/**`, `package.json`. A file that reaches E **only** through the content trigger stays in F too (see below) |
+
+### Group E's content trigger never removes a file from F
+
+The content trigger is a text match on added lines, so it also fires on prose and
+test setup: a skill `.md` that documents `process.env`, a `server/test/*.test.ts`
+that sets `process.env.X`. Such a file is not security code, and if E is its
+**only** route, the E reviewer rightly skips it as noise — and nobody reviews it.
+On 2026-09-26 that silently dropped 14 files (7 skill docs, 7 server tests) from a
+353-file run until the orchestrator caught it.
+
+So a content-only E match **adds** E; it never replaces the path route. Compute
+groups by path first (A–D, the E path globs, else F), then add E for a content
+hit. A file in F that also carries an E content hit goes to both reviewers.
 
 ### Group E — the security stack mismatch
 

@@ -122,8 +122,12 @@ corrected in place.
 The junk-drawer check is a path check, not a content grep:
 
 ```bash
-git ls-tree -r --name-only HEAD -- client/src | grep -E '(^|/)utils(\.ts)?$'
+git ls-tree -r --name-only HEAD -- client/src | grep -E '(^|/)utils(\.ts|/)'
 ```
+
+`ls-tree -r` lists files only, so a `utils/` folder appears as `…/utils/x.ts` —
+the pattern must match `utils/` mid-path, not only at the end. This is the pattern
+`scripts/fitness-greps.sh` runs.
 
 ## Running them in one command
 

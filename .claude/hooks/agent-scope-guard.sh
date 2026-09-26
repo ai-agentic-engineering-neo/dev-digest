@@ -129,8 +129,10 @@ case "$TOOL" in
     CMD=$(field '.tool_input.command' command)
     [ -n "$CMD" ] || decide ask "could not read the Bash command - check it by hand."
     B='(^|[;&|(`[:space:]])'   # start of a command word
-    # Quoted text is data (grep patterns, commit-free messages), not commands or
-    # redirects: strip it before looking for write verbs, so grep -n '</div>' passes.
+    # Quoted text is data (grep patterns, test names, commit-free messages), not
+    # commands or redirects: strip it before looking for dependency, db, snapshot
+    # and write verbs, so grep -n '</div>' and vitest -t 'rolls up costs' pass.
+    # git-state checks and --frozen-lockfile still read the raw command.
     BARE=$(printf '%s' "$CMD" | sed -e "s/'[^']*'//g" -e 's/"[^"]*"//g')
     HAS_MARK=0; matches "$CMD" "$MARK" && HAS_MARK=1
 
@@ -148,11 +150,11 @@ case "$TOOL" in
     if matches "$CMD" "${B}gh[[:space:]]+(pr|release|repo|issue|api)[[:space:]]"; then
       decide deny "agents do not touch GitHub."
     fi
-    if matches "$CMD" "${B}(pnpm|npm|yarn|npx|pnpx)[[:space:]]+([^;&|]*[[:space:]])?(add|remove|rm|uninstall|un|update|up|upgrade|dedupe|link|unlink)([[:space:]]|$)" \
-       || matches "$CMD" "${B}yarn([[:space:]]|$)"; then
+    if matches "$BARE" "${B}(pnpm|npm|yarn|npx|pnpx)[[:space:]]+([^;&|]*[[:space:]])?(add|remove|rm|uninstall|un|update|up|upgrade|dedupe|link|unlink)([[:space:]]|$)" \
+       || matches "$BARE" "${B}yarn([[:space:]]|$)"; then
       decide deny "dependency changes are off-limits (root AGENTS.md). Report BLOCKED with the dependency you need."
     fi
-    if matches "$CMD" "${B}(pnpm|npm)[[:space:]]+([^;&|]*[[:space:]])?(i|install|ci)([[:space:]]|$)"; then
+    if matches "$BARE" "${B}(pnpm|npm)[[:space:]]+([^;&|]*[[:space:]])?(i|install|ci)([[:space:]]|$)"; then
       if [ "$PROFILE" = test-writer ] && { matches "$CMD" "--frozen-lockfile" || matches "$CMD" "${B}npm[[:space:]]+ci([[:space:]]|$)"; }; then :; else
         decide deny "installs are not this agent's job - with missing dependencies, report the check as not run."
       fi
@@ -163,13 +165,13 @@ case "$TOOL" in
     if [ "$PROFILE" != test-writer ] && matches "$BARE" "${B}npx[[:space:]]"; then
       decide deny "npx can fetch and run an arbitrary package - use the package's own scripts (pnpm test, npm test, pnpm typecheck)."
     fi
-    if matches "$CMD" "db:(generate|migrate|seed|push)|drizzle-kit[[:space:]]+(generate|push|drop|migrate)"; then
+    if matches "$BARE" "db:(generate|migrate|seed|push)|drizzle-kit[[:space:]]+(generate|push|drop|migrate)"; then
       decide deny "db:* / drizzle-kit write migrations or the database, both off-limits (root AGENTS.md)."
     fi
     if matches "$CMD" "${B}docker[[:space:]]+(rm|rmi|kill|stop|volume|system|network[[:space:]]+rm)|${B}docker[[:space:]]+compose[^;&|]*[[:space:]]down"; then
       decide deny "agents do not stop or delete containers and volumes."
     fi
-    if matches "$CMD" "(vitest|test)[^;&|]*[[:space:]](-u|--update)([[:space:]]|$)"; then
+    if matches "$BARE" "(vitest|test)[^;&|]*[[:space:]](-u|--update)([[:space:]]|$)"; then
       decide deny "updating snapshots rewrites the expected values to whatever the code does now - assert behaviour instead."
     fi
     if matches "$BARE" "${B}(node|bun|deno)[[:space:]]+(-e|--eval|-p|--print)|${B}python3?[[:space:]]+-c|${B}(ruby|perl)[[:space:]]+-[a-zA-Z]*e|${B}(sh|bash|zsh)[[:space:]]+-c|${B}eval[[:space:]]|${B}(curl|wget)[[:space:]]"; then

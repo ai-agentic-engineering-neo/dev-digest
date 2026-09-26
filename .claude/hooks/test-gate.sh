@@ -155,6 +155,15 @@ run 'gh pr create --fill'; expect_decision deny 'BLOCKED'
 start "14 compound command is caught"
 run 'git add . && git commit -m wip && git push'; expect_decision deny 'BLOCKED'
 
+# Bypasses found by the 2026-09-26 self-review (findings security-1/-2).
+start "14a git -C <dir> push is gated";            run 'git -C /abs/project push origin HEAD';  expect_decision deny 'BLOCKED'
+start "14b git -c k=v push is gated";              run 'git -c core.x=y push origin HEAD';     expect_decision deny 'BLOCKED'
+start "14c --tags WITH a refspec is gated";        run 'git push origin HEAD --tags';          expect_decision deny 'BLOCKED'
+start "14d --dry-run in another command is gated"; run 'git push origin main && echo --dry-run'; expect_decision deny 'BLOCKED'
+start "14e -n is a dry run, exempt";               run 'git push -n origin main';              expect_silent
+start "14f --delete is exempt";                    run 'git push origin --delete old-branch';  expect_silent
+start "14g git commit mentioning push is ignored"; run 'git commit -m "fix push gate"';        expect_silent
+
 start "15 valid waiver -> pass, announced"
 mk_report "$CRIT_ONE" fail
 mk_override a-1 'container.ts is the composition root and onion section 11 already permits importing upward here'

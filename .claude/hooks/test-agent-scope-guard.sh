@@ -108,6 +108,9 @@ tw deny  "worktree add without marker" "$(bash_ 'git worktree add /tmp/x HEAD')"
 tw deny  "npx -y"                      "$(bash_ 'npx -y stryker run')"
 tw deny  "node -e"                     "$(bash_ "node -e 'require(1)'")"
 tw deny  "db:migrate"                  "$(bash_ 'pnpm db:migrate')"
+# Quoted text is data, not a command (2026-09-26 self-review, generic-1-2).
+tw allow "quoted test name with up"    "$(bash_ "cd server && pnpm exec vitest run test/x.test.ts -t 'rolls up costs'")"
+tw deny  "unquoted pnpm up still"      "$(bash_ 'pnpm up zod')"
 
 # ================================================================ doc-writer
 # ---- Edit / Write: allowed
@@ -179,6 +182,8 @@ ro deny  "gh pr create"                "$(bash_ 'gh pr create --fill')"
 ro deny  "npm ci"                      "$(bash_ 'cd e2e && npm ci')"
 ro deny  "frozen install"              "$(bash_ 'pnpm install --frozen-lockfile')"
 ro deny  "npx"                         "$(bash_ 'npx tsc --noEmit')"
+ro allow "git grep for db:generate"    "$(bash_ "git grep -n 'db:generate' -- docs")"
+ro allow "grep for quoted yarn"        "$(bash_ "grep -rn 'yarn' docs")"
 ro deny  "node -e"                     "$(bash_ 'node -e 1')"
 ro deny  "sh -c"                       "$(bash_ "sh -c 'echo x'")"
 ro deny  "curl"                        "$(bash_ 'curl https://example.com')"

@@ -17,6 +17,7 @@ see it, do not write it.
 - [2026-09-25] Running the server with more than one API instance per database. Boot reaps every `agent_runs` row in `running` state, so a second replica would kill the first one's live runs. Evidence: `server/src/app.ts:81`.
 - [2026-09-25] The contract copies server/src/vendor/shared and client/src/vendor/shared already differ on upstream/main in four files (adapters.ts, contracts/eval-ci.ts, contracts/knowledge.ts, contracts/productionize.ts); a drift check that blames the current branch for them is a false positive, so pr-self-review flags drift as critical only in files the branch touched and as a warning otherwise. Evidence: `diff -rq server/src/vendor/shared client/src/vendor/shared at 66727c8`.
 - [2026-09-26] The pr-self-review gate refuses an entire Bash command that contains `git push` when the stamp is stale, even if the same command writes a fresh stamp first: the hook runs before anything executes. Commit and stamp in one command, push in the next. Evidence: `.claude/skills/pr-self-review/scripts/gate.sh:15`.
+- [2026-09-26] Naming a new contract `AgentStats` collides with the L07 placeholder of the same name in contracts/observability.ts; the barrel then fails typecheck with TS2308 while vitest still passes. Grep the shared contracts for the name before adding one (the card read model is `AgentCardStats`). Evidence: `server/src/vendor/shared/contracts/observability.ts:96`.
 
 ## Codebase Patterns
 

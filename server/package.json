@@ -12,7 +12,9 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
     "db:seed": "tsx src/db/seed.ts",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "lint:arch": "depcruise --config .dependency-cruiser.cjs --ignore-known .dependency-cruiser-known-violations.json src",
+    "lint:arch:baseline": "depcruise --config .dependency-cruiser.cjs --output-type baseline --output-to .dependency-cruiser-known-violations.json src"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.33.1",
@@ -28,6 +30,7 @@
     "fastify": "^5.2.0",
     "fastify-sse-v2": "^4.2.1",
     "fastify-type-provider-zod": "^4.0.2",
+    "fflate": "^0.8.3",
     "graphology": "^0.26.0",
     "graphology-metrics": "^2.4.0",
     "js-tiktoken": "^1.0.21",

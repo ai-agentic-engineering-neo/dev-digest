@@ -65,6 +65,11 @@ jobs:
 
       - run: pnpm typecheck
 
+      # Onion-architecture boundaries (dependency-cruiser). Legacy violations
+      # live in .dependency-cruiser-known-violations.json; only new ones fail.
+      # Rules and fixes: .claude/skills/onion-architecture-backend/
+      - run: pnpm lint:arch
+
   unit:
     name: tests
     runs-on: ubuntu-latest

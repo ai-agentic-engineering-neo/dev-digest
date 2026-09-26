@@ -33,7 +33,7 @@ afterEach(() => {
 
 const AGENT: Agent = {
   id: "ag1", name: "Security Reviewer", description: "", provider: "openai", model: "gpt-4.1", system_prompt: "p",
-  output_schema: null, strategy: "single-pass", ci_fail_on: "critical", repo_intel: true, enabled: true, version: 3, skill_count: 2,
+  output_schema: null, strategy: "single-pass", ci_fail_on: "critical", repo_intel: true, enabled: true, version: 3, skill_count: 2, stats: { runs: 142, accept_rate: 0.78, avg_cost_usd: 0.04 },
 };
 
 function renderTab() {

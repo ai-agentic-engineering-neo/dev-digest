@@ -1,5 +1,5 @@
-import type { Agent, AgentVersion, CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
-import { AgentVersionConfig } from '@devdigest/shared';
+import type { Agent, AgentCardStats, AgentVersion, CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
+import { AgentVersionConfig, EMPTY_AGENT_CARD_STATS } from '@devdigest/shared';
 import type { AgentRow, AgentVersionRow } from './repository.js';
 
 /**
@@ -9,7 +9,7 @@ import type { AgentRow, AgentVersionRow } from './repository.js';
  */
 
 /** Map a persisted agent row to the public `Agent` DTO. */
-export function toAgentDto(row: AgentRow, skillCount = 0): Agent {
+export function toAgentDto(row: AgentRow, skillCount = 0, stats: AgentCardStats = EMPTY_AGENT_CARD_STATS): Agent {
   return {
     id: row.id,
     name: row.name,
@@ -24,6 +24,7 @@ export function toAgentDto(row: AgentRow, skillCount = 0): Agent {
     ci_fail_on: row.ciFailOn as CiFailOn,
     repo_intel: row.repoIntel,
     skill_count: skillCount,
+    stats,
   };
 }
 

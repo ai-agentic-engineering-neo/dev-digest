@@ -37,7 +37,7 @@ the fixture PR and the exact steps are at the end.
 | 29 | Restore | **Restore** button → confirm → new version with that body (`POST …/versions/:v/restore`) |
 | 30 | Search in the agent Skills tab | filter input on `/agents/:id?tab=skills` |
 | 31 | Drag & drop only for enabled | only linked (checked) rows are draggable and carry arrows |
-| 32 | Agent card fields | name, description, model, enabled toggle, skill count |
+| 32 | Agent card fields | name, description, model, enabled toggle, skill count, plus a stats row: completed runs, accept rate of decided findings, mean cost per run (`Agent.stats`) |
 | 33 | Delete on the agent card | trash icon on `/agents` and in the editor's left list |
 | 34 | Agent delete confirmation | `ConfirmDialog` |
 | 35 | Exactly two agent tabs | Config, Skills |

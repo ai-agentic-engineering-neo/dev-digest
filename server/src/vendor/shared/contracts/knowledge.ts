@@ -278,6 +278,18 @@ export type ReviewStrategy = z.infer<typeof ReviewStrategy>;
 export const CiFailOn = z.enum(['never', 'critical', 'warning', 'any']);
 export type CiFailOn = z.infer<typeof CiFailOn>;
 
+// Per-agent usage read model for the agent card: completed runs, the share of
+// decided findings that were accepted (null until one finding is decided) and
+// the mean cost of a completed run with a known cost (null until one exists).
+export const AgentCardStats = z.object({
+  runs: z.number().int(),
+  accept_rate: z.number().min(0).max(1).nullable(),
+  avg_cost_usd: z.number().nullable(),
+});
+export type AgentCardStats = z.infer<typeof AgentCardStats>;
+
+export const EMPTY_AGENT_CARD_STATS: AgentCardStats = { runs: 0, accept_rate: null, avg_cost_usd: null };
+
 export const Agent = z.object({
   id: z.string(),
   name: z.string(),
@@ -296,6 +308,7 @@ export const Agent = z.object({
   // Number of skills linked through `agent_skills` (any enabled state). Read
   // model only: links are written via POST /agents/:id/skills.
   skill_count: z.number().int().default(0),
+  stats: AgentCardStats.default(EMPTY_AGENT_CARD_STATS),
 });
 export type Agent = z.infer<typeof Agent>;
 

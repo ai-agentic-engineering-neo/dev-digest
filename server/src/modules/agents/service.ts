@@ -57,11 +57,12 @@ export class AgentsService {
   }
 
   async list(workspaceId: string): Promise<Agent[]> {
-    const [rows, counts] = await Promise.all([
+    const [rows, counts, stats] = await Promise.all([
       this.repo.list(workspaceId),
       this.repo.skillCounts(workspaceId),
+      this.repo.statsByAgent(workspaceId),
     ]);
-    return rows.map((row) => toAgentDto(row, counts.get(row.id) ?? 0));
+    return rows.map((row) => toAgentDto(row, counts.get(row.id) ?? 0, stats.get(row.id)));
   }
 
   async get(workspaceId: string, id: string): Promise<Agent | undefined> {
@@ -70,8 +71,11 @@ export class AgentsService {
   }
 
   private async withSkillCount(row: AgentRow): Promise<Agent> {
-    const skills = await this.repo.skillIdsForAgent(row.id);
-    return toAgentDto(row, skills.length);
+    const [skills, stats] = await Promise.all([
+      this.repo.skillIdsForAgent(row.id),
+      this.repo.statsByAgent(row.workspaceId),
+    ]);
+    return toAgentDto(row, skills.length, stats.get(row.id));
   }
 
   /** Delete an agent (and its versions/skill-links, via cascade). */

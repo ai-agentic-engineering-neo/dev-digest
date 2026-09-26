@@ -159,8 +159,13 @@ Footer: Copy raw output. States: "Loading trace…", "No trace available yet."
 ## `/agents` (`src/app/agents/page.tsx` → `AgentsListView`)
 
 - `useAgents` (`GET /agents`); enable toggle on a card calls `useUpdateAgent`
-  (`PUT /agents/:id`); trash icon calls `useDeleteAgent` (`DELETE
-  /agents/:id`) after `window.confirm`.
+  (`PUT /agents/:id`); trash icon opens `ConfirmDialog`, then `useDeleteAgent`
+  (`DELETE /agents/:id`).
+- `AgentCard` footer (`Agent.stats`, computed server-side per workspace):
+  `N runs` (completed runs), `P% accept` (accepted share of decided findings,
+  «— accept» until one finding is accepted or dismissed) and `$X avg`
+  (`formatCost` of the mean cost of completed runs with a known cost, «— avg»
+  until one exists).
 - Local search filters name + description (`filterAgents`). "Add agent"
   dropdown opens `CreateAgentModal` (`useCreateAgent`, `POST /agents`), then
   navigates to `/agents/<id>?tab=config`. The template entries in that

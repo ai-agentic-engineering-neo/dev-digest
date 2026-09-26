@@ -8,7 +8,8 @@ import { Icon, Badge, Toggle } from "@devdigest/ui";
 import type { Agent } from "@devdigest/shared";
 import { useDeleteAgent } from "../../../../lib/hooks/agents";
 import { ConfirmDialog } from "../../../../components/confirm-dialog";
-import { modelColor } from "./helpers";
+import { formatCost } from "../../../../lib/format-cost";
+import { acceptPercent, modelColor } from "./helpers";
 import { s } from "./styles";
 
 export function AgentCard({
@@ -28,6 +29,7 @@ export function AgentCard({
   const del = useDeleteAgent();
   const color = modelColor(ag.model);
   const [confirming, setConfirming] = React.useState(false);
+  const pct = acceptPercent(ag.stats.accept_rate);
   return (
     <div onClick={onClick} style={s.card(!!active, ag.enabled)}>
       {confirming && (
@@ -83,6 +85,11 @@ export function AgentCard({
             {t("card.skillCount", { count: skillCount })}
           </Badge>
         )}
+      </div>
+      <div className="mono" style={s.statsRow} title={t("card.statsTitle")} data-testid="agent-stats">
+        <span>{t("card.runs", { count: ag.stats.runs })}</span>
+        <span style={pct == null ? undefined : s.statAccept}>{pct == null ? t("card.acceptRateNone") : t("card.acceptRate", { pct })}</span>
+        <span>{t("card.avgCost", { cost: formatCost(ag.stats.avg_cost_usd) })}</span>
       </div>
     </div>
   );

@@ -6,7 +6,12 @@
     "confirmTitle": "Delete agent \"{name}\"?",
     "confirmBody": "Its runs keep their history; the agent, its versions and its skill links are removed. This cannot be undone.",
     "confirm": "Delete agent",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "runs": "{count, plural, =1 {1 run} other {# runs}}",
+    "acceptRate": "{pct}% accept",
+    "acceptRateNone": "— accept",
+    "avgCost": "{cost} avg",
+    "statsTitle": "Completed runs · accepted share of decided findings · mean cost per completed run"
   },
   "list": {
     "breadcrumbLab": "Skills Lab",

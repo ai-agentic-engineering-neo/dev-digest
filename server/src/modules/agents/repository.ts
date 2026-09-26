@@ -1,4 +1,5 @@
-import { and, asc, count, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, avg, count, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
+import type { AgentCardStats } from '@devdigest/shared';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import type { CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
@@ -214,6 +215,51 @@ export class AgentsRepository {
       .where(eq(t.agentSkills.agentId, agentId))
       .orderBy(asc(t.agentSkills.order));
     return rows.map((r) => r.skillId);
+  }
+
+  /**
+   * `agent_id → { runs, accept_rate, avg_cost_usd }` for the workspace, two
+   * grouped queries: completed runs (count + mean of known costs) from
+   * `agent_runs`, and decided findings (accepted vs dismissed) through
+   * `reviews.agent_id`. Agents with no rows are simply absent from the map.
+   */
+  async statsByAgent(workspaceId: string): Promise<Map<string, AgentCardStats>> {
+    const runRows = await this.db
+      .select({
+        agentId: t.agentRuns.agentId,
+        runs: count(),
+        avgCost: avg(t.agentRuns.costUsd),
+      })
+      .from(t.agentRuns)
+      .where(and(eq(t.agentRuns.workspaceId, workspaceId), eq(t.agentRuns.status, 'done'), isNotNull(t.agentRuns.agentId)))
+      .groupBy(t.agentRuns.agentId);
+    const findingRows = await this.db
+      .select({
+        agentId: t.reviews.agentId,
+        accepted: sql<number>`count(*) filter (where ${t.findings.acceptedAt} is not null)`.mapWith(Number),
+        dismissed: sql<number>`count(*) filter (where ${t.findings.dismissedAt} is not null)`.mapWith(Number),
+      })
+      .from(t.findings)
+      .innerJoin(t.reviews, eq(t.findings.reviewId, t.reviews.id))
+      .where(and(eq(t.reviews.workspaceId, workspaceId), isNotNull(t.reviews.agentId)))
+      .groupBy(t.reviews.agentId);
+
+    const out = new Map<string, AgentCardStats>();
+    for (const r of runRows) {
+      if (!r.agentId) continue;
+      out.set(r.agentId, {
+        runs: Number(r.runs),
+        accept_rate: null,
+        avg_cost_usd: r.avgCost == null ? null : Number(r.avgCost),
+      });
+    }
+    for (const f of findingRows) {
+      if (!f.agentId) continue;
+      const decided = f.accepted + f.dismissed;
+      const cur = out.get(f.agentId) ?? { runs: 0, accept_rate: null, avg_cost_usd: null };
+      out.set(f.agentId, { ...cur, accept_rate: decided > 0 ? f.accepted / decided : null });
+    }
+    return out;
   }
 
   /** `agent_id → linked skill count` for every agent in the workspace. */

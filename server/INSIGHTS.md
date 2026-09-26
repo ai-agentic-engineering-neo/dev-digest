@@ -37,6 +37,11 @@ Non-obvious findings a future session needs. **Read this before working here.**
   server tests through `scripts/hermetic.sh` (`TESTING.md` § Running locally), and
   treat a new LLM call on a shared path as LIVE in every existing test that does
   not override `secrets`. (ref: server/src/adapters/secrets/local.ts:36)
+- 2026-09-26 — Correction to the line above: until today `hermetic.sh` was not
+  hermetic when `server/.env` holds a key — `env -u KEY` makes it ABSENT, and
+  `import 'dotenv/config'` refills absent vars from `.env` → the script now sets
+  each key to `''` (dotenv leaves present vars alone; consumers test truthiness).
+  Distrust `.it` "hermetic" results from before this date. (ref: scripts/hermetic.sh:56)
 
 - 2026-09-22 — A foreign key proves EXISTENCE, not tenancy: `agent_skills.skill_id`
   has no workspace predicate, so `setSkills` linked another workspace's skill →

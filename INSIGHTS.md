@@ -30,6 +30,19 @@ Anything scoped to a single package goes in that package's `INSIGHTS.md`.
 
 ## What Doesn't Work
 
+- 2026-09-26 — `main` is frozen at the revert `c6af1e4`, so a `lessons/*` branch
+  diffed against it carries EVERY lesson so far: a full `/pr-self-review` of
+  `lessons/l03-homework` was 353 files → 13 reviewer chunks, ~1.75M sub-agent
+  tokens and ~1 h, 3× the budget in the skill's SKILL.md → tell the user the file count
+  and that cost BEFORE fanning out, and offer a narrower base. (ref:
+  .claude/skills/pr-self-review/SKILL.md § 4 Cost)
+
+- 2026-09-26 — Group E's content trigger (`process.env`, `exec(` in added lines)
+  also matches skill/docs `.md` prose and `server/test` env setup; routed to E
+  alone and then skipped as noise, 14 files went unreviewed until caught →
+  a content-only E match must ALSO keep its F route. (ref:
+  .claude/skills/pr-self-review/routing.md:32)
+
 - 2026-09-26 — A VALUE import from `@devdigest/shared` in `client/` breaks the
   Next.js build while typecheck and vitest stay green: the vendored `index.ts`
   re-exports `./contracts/*.js`, which webpack cannot resolve to `.ts`. In
@@ -73,6 +86,11 @@ Anything scoped to a single package goes in that package's `INSIGHTS.md`.
 
 ## Tool & Library Notes
 
+- 2026-09-26 — The Bash tool's shell is **zsh**: an unquoted `$var` is NOT
+  word-split, so `sh $rest` with `rest="guard.sh read-only"` runs a file named
+  `guard.sh read-only`, gets no output, and a hook comparison read every case as
+  "allow" → run such loops under `bash -c '…'`, or quote each argument separately.
+
 - 2026-09-20 — `grep` here is **ugrep**: a BRE backreference dies with a non-zero
   exit that reads like a passing check → no backreferences
   (`.claude/skills/pr-self-review/greps.md`).
@@ -93,6 +111,8 @@ See also — settled recipes, one line each:
 
 ## Session Notes
 
+- 2026-09-26 — First full `/pr-self-review` of l03-homework (1 CRITICAL, 32 W,
+  24 S) and fixes for batches 1–4, incl. gate bypasses and guard false denials.
 - 2026-09-26 — L03 Smart Order: `GET /pulls/:id/smart-diff` + 5-role grouping and
   inline finding markers on Files changed (spec: server/specs/L03-smart-diff.md).
 - 2026-09-24 — L02 subagents: test-writer, plan-verifier, architecture-reviewer,

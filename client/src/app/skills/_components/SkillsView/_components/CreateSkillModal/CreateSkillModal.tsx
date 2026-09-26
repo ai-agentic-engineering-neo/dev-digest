@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { Button, Modal } from "@devdigest/ui";
 import { useCreateSkill } from "../../../../../../lib/hooks/skills";
 import { SkillForm, type SkillFormValue } from "../../../SkillForm";
+import { s } from "./styles";
 
 const MODAL_WIDTH = 680;
 
@@ -35,7 +36,7 @@ export function CreateSkillModal({ onClose }: { onClose: () => void }) {
       subtitle={t("create.subtitle")}
       onClose={onClose}
       footer={
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+        <div style={s.footer}>
           <Button kind="ghost" onClick={onClose}>
             {t("create.cancel")}
           </Button>
@@ -45,7 +46,7 @@ export function CreateSkillModal({ onClose }: { onClose: () => void }) {
         </div>
       }
     >
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <div style={s.body}>
         <SkillForm value={form} onChange={setForm} />
       </div>
     </Modal>

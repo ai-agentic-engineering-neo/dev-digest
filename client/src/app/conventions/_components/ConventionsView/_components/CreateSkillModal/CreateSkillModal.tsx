@@ -136,7 +136,9 @@ export function CreateSkillModal({ repoId, repoName, onClose }: { repoId: string
         </div>
       }
     >
-      {draft.isError ? <ErrorState body={t("modal.loadError")} onRetry={() => draft.refetch()} /> : <Skeleton height={200} />}
+      <div style={s.loading}>
+        {draft.isError ? <ErrorState body={t("modal.loadError")} onRetry={() => draft.refetch()} /> : <Skeleton height={200} />}
+      </div>
     </Modal>
   );
 }

@@ -51,10 +51,9 @@ export const s = {
     color: "var(--text-primary)",
     textDecoration: dismissed ? "line-through" : "none",
   }),
-  /** Extra style for the `Badge` primitive: a 1px `--ok` border; padding trimmed
-      by 1px so the badge keeps the primitive's height. */
-  acceptedBadge: { border: "1px solid var(--ok)", padding: "1px 9px" } satisfies CSSProperties,
-  dismissedTag: { fontSize: 12, fontWeight: 600, color: "var(--text-muted)" } satisfies CSSProperties,
+  /** Extra style for the accepted / dismissed `Badge`: a 1px border in the
+      badge's own color; padding trimmed by 1px so it keeps the primitive's height. */
+  statusBadge: (color: string): CSSProperties => ({ border: `1px solid ${color}`, padding: "1px 9px" }),
   metaRow: {
     display: "flex",
     alignItems: "center",

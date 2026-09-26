@@ -43,11 +43,20 @@ export function InlineFindingCard({ f, pending, onAction, onClose }: InlineFindi
             <span style={s.title(dismissed)}>{f.title}</span>
             <CategoryTag category={f.category as Category} />
             {accepted && (
-              <Badge color="var(--ok)" bg="var(--ok-bg)" icon="Check" style={s.acceptedBadge}>
+              <Badge color="var(--ok)" bg="var(--ok-bg)" icon="Check" style={s.statusBadge("var(--ok)")}>
                 {t("finding.accepted")}
               </Badge>
             )}
-            {dismissed && <span style={s.dismissedTag}>{t("finding.dismissed")}</span>}
+            {dismissed && (
+              <Badge
+                color="var(--text-muted)"
+                bg="var(--bg-hover)"
+                icon="X"
+                style={s.statusBadge("var(--text-muted)")}
+              >
+                {t("finding.dismissed")}
+              </Badge>
+            )}
           </div>
           <div style={s.metaRow}>
             <span className="mono" style={s.lineRange}>

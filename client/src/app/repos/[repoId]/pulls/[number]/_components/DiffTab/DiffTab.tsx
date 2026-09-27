@@ -42,8 +42,9 @@ export function DiffTab({
   const create = useCreatePrComment(prId);
   const findingAction = useFindingAction();
   const { data: smartDiff } = useSmartDiff(prId, headSha);
-  // Comments start hidden so the diff is clean by default — toggle to reveal.
-  const [showComments, setShowComments] = React.useState(false);
+  // Comments AND findings start visible (P1: a finding must be visible right
+  // after expanding a file, no extra click); toggle off for a clean diff.
+  const [showComments, setShowComments] = React.useState(true);
   const [order, setOrder] = React.useState<DiffOrder>(DEFAULT_ORDER);
 
   const commentCount = comments?.length ?? 0;
@@ -78,15 +79,18 @@ export function DiffTab({
   const showSmart = order === "smart" && !!groups;
   const totals = diffTotals(files);
 
+  // Shown whenever there's something for it to hide — GitHub comments or
+  // findings — so it isn't only reachable when someone has also commented.
   const commentsToggle =
-    commentCount > 0 ? (
+    commentCount > 0 || findingApi.findings.length > 0 ? (
       <Button
         kind="ghost"
         size="sm"
         icon={showComments ? "EyeOff" : "Eye"}
         onClick={() => setShowComments((v) => !v)}
       >
-        {showComments ? "Hide comments" : "Show comments"} ({commentCount})
+        {showComments ? "Hide comments" : "Show comments"}
+        {commentCount > 0 ? ` (${commentCount})` : ""}
       </Button>
     ) : undefined;
 

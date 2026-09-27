@@ -134,6 +134,8 @@
     "findingsInRun": "{count} FINDINGS IN THIS RUN",
     "findingsMore": "+{count} more on the PR page",
     "findingsAria": "{count} findings in the latest run — show preview",
+    "scorePartial": "partial",
+    "scorePartialHint": "Partial run: an agent in the latest run failed or was cancelled, so this score covers only the agents that finished.",
     "filesCount": "{count} files",
     "errorTitle": "Couldn’t load pull requests",
     "errorBody": "The engine returned an error.",

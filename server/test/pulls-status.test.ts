@@ -8,7 +8,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   deriveReviewStatus,
+  isPartialRun,
   rollupSeverities,
+  runScore,
   previewDescription,
   toFindingPreviews,
   PR_FINDING_PREVIEW_LIMIT,
@@ -174,5 +176,39 @@ describe('toFindingPreviews', () => {
       confidence: 0.5,
       description: 'The loop is hot.',
     });
+  });
+});
+
+describe('runScore', () => {
+  const row = (severity: string, dismissedAt: Date | null = null) => ({ severity, dismissedAt });
+
+  it('charges every finding, a duplicate flagged by two agents included', () => {
+    // Engine penalties: CRITICAL 35, WARNING 12, SUGGESTION 3.
+    expect(runScore([row('WARNING'), row('WARNING')])).toBe(76);
+    expect(runScore([row('CRITICAL'), row('SUGGESTION')])).toBe(62);
+  });
+
+  it('skips dismissed findings', () => {
+    expect(runScore([row('CRITICAL', new Date()), row('WARNING')])).toBe(88);
+  });
+
+  it('is 100 for no findings, clamps at 0, and ignores an unknown severity', () => {
+    expect(runScore([])).toBe(100);
+    expect(runScore([row('CRITICAL'), row('CRITICAL'), row('CRITICAL')])).toBe(0);
+    expect(runScore([row('INFO')])).toBe(100);
+  });
+});
+
+describe('isPartialRun', () => {
+  it('is true when any agent of the run failed or was cancelled', () => {
+    expect(isPartialRun(['done', 'failed'])).toBe(true);
+    expect(isPartialRun(['cancelled'])).toBe(true);
+  });
+
+  it('is false for finished, still-running or unknown statuses, and for no runs', () => {
+    expect(isPartialRun(['done', 'done'])).toBe(false);
+    expect(isPartialRun(['done', 'running'])).toBe(false);
+    expect(isPartialRun([null])).toBe(false);
+    expect(isPartialRun([])).toBe(false);
   });
 });

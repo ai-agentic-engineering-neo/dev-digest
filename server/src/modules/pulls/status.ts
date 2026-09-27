@@ -1,9 +1,10 @@
 import type { PrStatus, PrFindingPreview } from '@devdigest/shared';
+import { scoreFromFindings } from '@devdigest/reviewer-core';
 
 /**
  * PR-list rollup helpers (pure — no DB / `this`, so they unit-test cleanly).
  *
- * The Pull Requests list shows, per PR: the latest review's SCORE, a FINDINGS
+ * The Pull Requests list shows, per PR: the latest run's SCORE, a FINDINGS
  * severity breakdown, and a review STATUS. The DB `status` column holds
  * GitHub's merge state (open/merged/closed); the review status
  * (needs_review / reviewed / stale) is DERIVED here for OPEN PRs from the
@@ -29,6 +30,27 @@ export function rollupSeverities(rows: { severity: string }[]): SeverityCounts {
     else if (r.severity === 'SUGGESTION') c.suggestion += 1;
   }
   return c;
+}
+
+/**
+ * The list's SCORE for one run: the engine's own `scoreFromFindings` over the
+ * same findings the FINDINGS counters tally — every agent of the run, so a
+ * problem two agents both flag is charged twice, exactly as it is counted
+ * twice — except dismissed ones: the counters keep showing a dismissed finding,
+ * but it no longer costs points.
+ */
+export function runScore(rows: { severity: string; dismissedAt: Date | null }[]): number {
+  return scoreFromFindings(rows.filter((r) => r.dismissedAt == null));
+}
+
+/** Agent-run statuses that end without the agent's findings. `running` is not
+ *  one: it is transient, and the list refetches until the run settles. */
+const INCOMPLETE_RUN_STATUSES = new Set(['failed', 'cancelled']);
+
+/** True when an agent of the run failed or was cancelled — the score then
+ *  covers only the agents that finished (the list's "partial" marker). */
+export function isPartialRun(statuses: (string | null)[]): boolean {
+  return statuses.some((s) => s != null && INCOMPLETE_RUN_STATUSES.has(s));
 }
 
 /**

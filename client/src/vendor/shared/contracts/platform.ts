@@ -216,16 +216,21 @@ export const PrMeta = z.object({
   status: PrStatus,
   opened_at: z.string().nullish(),
   updated_at: z.string().nullish(),
-  // Latest-review score (list endpoint only; null/absent until reviewed).
+  // Score of the latest RUN (list endpoint only; null/absent until reviewed):
+  // `scoreFromFindings` (reviewer-core) over the same findings as
+  // `latest_findings` below — every agent of that run, or the latest-review
+  // fallback — minus dismissed ones, which the counters still show.
   score: z.number().int().nullish(),
+  // True when an agent of the PR's newest run failed or was cancelled, so
+  // `score` covers only the agents that finished (list endpoint only).
+  score_partial: z.boolean().nullish(),
   // Lifetime run cost in USD — every agent_runs row on this PR, any status
   // (list endpoint only). null = no run has a known cost; NULL-cost runs are
   // skipped by the sum, so a partial total can understate. Never 0-as-unknown.
   cost_usd: z.number().nullish(),
   // Latest-RUN FINDINGS rollup (list endpoint only), summed over every agent of
-  // that run — so it spans more review rows than `score` above, which stays
-  // single-review. The two can legitimately describe different scopes; see
-  // `PrFindingsRollup`. A PR with no `agent_runs`, or whose last run produced no
+  // that run — the same scope as `score` above; see `PrFindingsRollup`. A PR
+  // with no `agent_runs`, or whose last run produced no
   // review at all (every agent failed), falls back to the latest review row, so
   // the column never regresses to "—" on seeded or pre-run data.
   // null/absent = this PR has never been reviewed, which is DISTINCT from a run

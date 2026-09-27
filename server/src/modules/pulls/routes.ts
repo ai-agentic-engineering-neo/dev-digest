@@ -8,7 +8,13 @@ import type { FindingRow } from '../../db/rows.js';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { AppError, NotFoundError } from '../../platform/errors.js';
-import { deriveReviewStatus, rollupSeverities, toFindingPreviews } from './status.js';
+import {
+  deriveReviewStatus,
+  isPartialRun,
+  rollupSeverities,
+  runScore,
+  toFindingPreviews,
+} from './status.js';
 
 /**
  * F1 — pulls module. PR import via Octokit (list + per-PR detail).
@@ -112,28 +118,23 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
-    // Latest-review SCORE per PR for the list's score ring. Computed on read
-    // from reviews (no FK denorm); the list is small, so one IN-query + JS
-    // grouping is cheap.
-    //
-    // SCORE is ONE review's; the FINDINGS rollup below spans every agent of the
-    // last run. They therefore describe different scopes, and on a multi-agent
-    // run the score is the last-finishing agent's while the counters cover all
-    // of them — deliberate for now (see the spec's open question), not a bug.
-    // The review's `id` still comes along: it is the fallback the rollup uses
-    // when a PR has no runs.
+    // Latest review per PR — the FALLBACK the findings rollup (and with it the
+    // score) uses when a PR has no runs, or its last run produced no review.
+    // The stored `reviews.score` is not read: the list's score is computed from
+    // the rollup's findings below, so it spans every agent of the run just like
+    // the counters do. One IN-query + JS grouping, no N+1.
     const prIds = rows.map((r) => r.id);
-    const latestReviewByPr = new Map<string, { id: string; score: number | null }>();
+    const latestReviewByPr = new Map<string, { id: string }>();
     if (prIds.length > 0) {
       const reviewRows = await container.db
-        .select({ id: t.reviews.id, prId: t.reviews.prId, score: t.reviews.score })
+        .select({ id: t.reviews.id, prId: t.reviews.prId })
         .from(t.reviews)
         .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review')))
         .orderBy(desc(t.reviews.createdAt));
       // Rows are newest-first → first seen per PR is the latest review.
       for (const rv of reviewRows) {
         if (!latestReviewByPr.has(rv.prId)) {
-          latestReviewByPr.set(rv.prId, { id: rv.id, score: rv.score });
+          latestReviewByPr.set(rv.prId, { id: rv.id });
         }
       }
     }
@@ -143,10 +144,17 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
     // (see ReviewService.runReview), so exact equality is the grouping key;
     // runs predating that change, and single-agent runs, simply form a batch
     // of one. One IN-query for the whole list, grouped in JS — no N+1.
+    // The batch's statuses ride along for the score's "partial run" marker.
     const lastRunIdsByPr = new Map<string, string[]>();
+    const lastRunStatusesByPr = new Map<string, (string | null)[]>();
     if (prIds.length > 0) {
       const runRows = await container.db
-        .select({ id: t.agentRuns.id, prId: t.agentRuns.prId, ranAt: t.agentRuns.ranAt })
+        .select({
+          id: t.agentRuns.id,
+          prId: t.agentRuns.prId,
+          ranAt: t.agentRuns.ranAt,
+          status: t.agentRuns.status,
+        })
         .from(t.agentRuns)
         .where(and(eq(t.agentRuns.workspaceId, workspaceId), inArray(t.agentRuns.prId, prIds)))
         .orderBy(desc(t.agentRuns.ranAt));
@@ -160,8 +168,10 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         if (newest == null) {
           newestByPr.set(run.prId, ts);
           lastRunIdsByPr.set(run.prId, [run.id]);
+          lastRunStatusesByPr.set(run.prId, [run.status]);
         } else if (ts === newest) {
           lastRunIdsByPr.get(run.prId)!.push(run.id);
+          lastRunStatusesByPr.get(run.prId)!.push(run.status);
         }
       }
     }
@@ -185,10 +195,11 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
-    // FINDINGS per PR, for the list's FINDINGS column and its hover popover.
+    // FINDINGS per PR, for the list's FINDINGS column, its hover popover and
+    // the SCORE (computed from these same rows).
     // ONE IN-query over every review the rollup below might read — the last
     // run's reviews plus the latest-review fallback — then grouped in JS,
-    // exactly like the score above. Not one query per PR: no N+1.
+    // exactly like the latest-review lookup above. Not one query per PR: no N+1.
     //
     // The full findings are NOT shipped to the list: only a severity tally plus
     // a capped, read-only preview. The whole list, the markdown rationale and
@@ -213,7 +224,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
 
     // Lifetime run COST per PR for the list's cost column — every agent_runs
     // row on the PR, any status, because that money was spent either way. Same
-    // one-IN-query + grouping shape as the score above (no N+1).
+    // one-IN-query + grouping shape as the latest-review lookup above (no N+1).
     //
     // NULL-cost runs (unpriced model, or a failure before the first LLM call)
     // are SKIPPED by SUM, so a mixed PR yields a partial total that understates
@@ -271,7 +282,10 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         }),
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
-        score: review ? review.score : null,
+        // Same findings as `latest_findings` (dismissed ones excluded); null
+        // only when there is nothing to score — never reviewed.
+        score: rollupReviewIds.length > 0 ? runScore(runFindings) : null,
+        score_partial: isPartialRun(lastRunStatusesByPr.get(r.id) ?? []),
         cost_usd: costByPr.get(r.id) ?? null,
         // No review at all ⇒ null (the cell renders "—"). A run that found
         // nothing ⇒ an all-zero rollup, which is a different fact and renders 0.

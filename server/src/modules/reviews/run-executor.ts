@@ -28,7 +28,8 @@ export type Logger = {
 };
 
 // A reduced "Review per file" — same schema as Review (the model returns a small
-// Review per file; we merge findings + take the worst verdict / mean score).
+// Review per file; we merge findings + take the worst verdict, and the score is
+// recomputed from the grounded findings — see reviewer-core `scoreFromFindings`).
 export type RunOutcome = {
   review: ReviewRow;
   findings: FindingRow[];

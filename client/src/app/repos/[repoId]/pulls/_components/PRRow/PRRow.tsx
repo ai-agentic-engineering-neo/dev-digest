@@ -51,7 +51,14 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
       </div>
       <div style={s.scoreCell}>
         {reviewed ? (
-          <CircularScore score={pr.score!} size={34} stroke={3} />
+          <div style={s.scoreStack}>
+            <CircularScore score={pr.score!} size={34} stroke={3} />
+            {pr.score_partial && (
+              <span style={s.scorePartial} title={t("list.scorePartialHint")}>
+                {t("list.scorePartial")}
+              </span>
+            )}
+          </div>
         ) : (
           <span style={s.muted}>—</span>
         )}

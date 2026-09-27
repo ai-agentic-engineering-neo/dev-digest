@@ -467,7 +467,10 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
       WARNING: 3,
       SUGGESTION: 2,
     });
-    expect(reviewed.score).toBe(41); // score comes from that same review row
+    // Score is computed from those same findings, not read off the review row
+    // (which stored 41): 100 − 2×35 − 3×12 − 2×3 < 0 → clamped to 0.
+    expect(reviewed.score).toBe(0);
+    expect(reviewed.score_partial).toBe(false);
 
     // Worst-first, with markdown flattened. Seven findings sit under the cap,
     // so all of them ride along — the cap itself is covered by the unit test,
@@ -497,6 +500,10 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     });
     // Never reviewed ⇒ null, so the UI can render "—" instead of a confident 0.
     expect(never.latest_findings).toBeNull();
+    // Same split for the score: clean ⇒ a real 100, never reviewed ⇒ null.
+    expect(clean.score).toBe(100);
+    expect(never.score).toBeNull();
+    expect(never.score_partial).toBe(false);
 
     await app.close();
   });
@@ -637,6 +644,74 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(reviewed.latest_findings.preview.map((f: { title: string }) => f.title)).not.toContain(
       'From the superseded run',
     );
+    // The score spans the same union as the counters — every agent of the run,
+    // not whichever agent's stored score (38 / 44 / 92) happened to be newest:
+    // 100 − 2×35 − 2×12 = 6.
+    expect(reviewed.score).toBe(6);
+    expect(reviewed.score_partial).toBe(false);
+
+    await app.close();
+  });
+
+  it('PR list score skips dismissed findings and flags a run where an agent failed', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+
+    // One batch: agent A finished, agent B failed before persisting a review.
+    const ranAt = new Date('2026-09-02T00:00:00Z');
+    const [runA] = await pg.handle.db
+      .insert(t.agentRuns)
+      .values([
+        { workspaceId, prId: pr.id, ranAt, status: 'done' },
+        { workspaceId, prId: pr.id, ranAt, status: 'failed', error: '429 quota exceeded' },
+      ])
+      .returning();
+    const [reviewA] = await pg.handle.db
+      .insert(t.reviews)
+      .values({
+        workspaceId,
+        prId: pr.id,
+        runId: runA!.id,
+        kind: 'review' as const,
+        verdict: 'request_changes' as const,
+        score: 53,
+        createdAt: ranAt,
+      })
+      .returning();
+    await pg.handle.db.insert(t.findings).values([
+      {
+        reviewId: reviewA!.id,
+        file: 'src/config.ts',
+        startLine: 11,
+        endLine: 11,
+        severity: 'CRITICAL',
+        category: 'security',
+        title: 'Dismissed as a false positive',
+        rationale: 'not real',
+        confidence: 0.9,
+        dismissedAt: new Date('2026-09-03T00:00:00Z'),
+      },
+      {
+        reviewId: reviewA!.id,
+        file: 'src/a.ts',
+        startLine: 2,
+        endLine: 3,
+        severity: 'WARNING',
+        category: 'perf',
+        title: 'Open warning',
+        rationale: 'N+1 query.',
+        confidence: 0.8,
+      },
+    ]);
+
+    const list = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const reviewed = list.find((p: { id: string }) => p.id === pr.id);
+
+    // Counters still show the dismissed CRITICAL; the score does not charge it.
+    expect(reviewed.latest_findings.by_severity).toEqual({ CRITICAL: 1, WARNING: 1, SUGGESTION: 0 });
+    expect(reviewed.score).toBe(88);
+    // Agent B failed, so the 88 covers only part of the run.
+    expect(reviewed.score_partial).toBe(true);
 
     await app.close();
   });
@@ -705,6 +780,11 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
 
     expect(reviewed.latest_findings.total).toBe(1);
     expect(reviewed.latest_findings.by_severity.CRITICAL).toBe(1);
+    // The score falls back with the counters (one CRITICAL ⇒ 65), and is
+    // marked partial: the newest run's agents all failed, so it is not what
+    // that run found.
+    expect(reviewed.score).toBe(65);
+    expect(reviewed.score_partial).toBe(true);
 
     await app.close();
   });

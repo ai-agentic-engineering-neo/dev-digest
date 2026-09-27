@@ -49,7 +49,7 @@ export {
 } from './diff/parse.js';
 
 // Map-reduce helpers (reduce partials, slice a file's diff).
-export { reduceReviews, sliceDiff } from './review/reduce.js';
+export { reduceReviews, scoreFromFindings, sliceDiff } from './review/reduce.js';
 
 // Print each diff line's new-file line number in a gutter (L03 — grounding
 // citations must match a real line, not a hunk-header-counted guess).

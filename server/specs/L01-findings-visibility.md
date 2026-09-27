@@ -105,9 +105,19 @@ run find". It is still a cap, not a promise to ship everything: the list is
 refetched every 60s with one rollup per PR, and overflow is reported as
 "+N more on the PR page".
 
-**SCORE and FINDINGS now describe different scopes.** `score` remains the latest
-single review's while the counters span the run. Left deliberately — see
-*Open questions*.
+**SCORE and FINDINGS describe the same run** (decided 2026-09-27, resolving
+L01-c). `score` is `scoreFromFindings` (reviewer-core, CRITICAL 35 / WARNING 12
+/ SUGGESTION 3 off 100) over the rollup's own findings — every agent of the last
+run, or the latest-review fallback — computed on read; the stored
+`reviews.score` is no longer used by the list. Three rules:
+- **Duplicates count twice.** A problem two agents both flag is charged twice,
+  exactly as the counters count it twice.
+- **Dismissed findings cost nothing** but stay in the counters, so the ring can
+  be higher than the counters alone imply.
+- **`score_partial`** is true when an agent of the PR's newest run `failed` or
+  was `cancelled` (not `running`, which is transient): the list shows a
+  "partial" marker under the ring. It is also true on the all-failed fallback,
+  where the score comes from an older review.
 
 **Counters do not follow the severity filter.** While a filter is active the
 counters still show the run's inventory — they are the filter's own targets,
@@ -233,3 +243,6 @@ hover verb, and deterministic locators are required. Its coverage is in
   of them. Aggregating the score (worst? mean?) is a real decision about what
   the ring means, so it was deliberately left out of L01-c rather than folded
   in. Decide before the next change to the list's score column.
+  **Resolved 2026-09-27:** neither worst nor mean — the score is recomputed from
+  the run's whole finding set, dismissed ones excluded, with a partial-run
+  marker. See "SCORE and FINDINGS describe the same run" above.

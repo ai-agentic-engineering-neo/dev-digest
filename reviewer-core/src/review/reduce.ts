@@ -24,9 +24,16 @@ const SEVERITY_PENALTY: Record<Finding['severity'], number> = {
  * This mirrors how the review *event* is already computed from severities in
  * `to-review.ts`, so the number on screen can never contradict the findings
  * beneath it.
+ *
+ * Takes anything with a `severity`, so the server's PR list can score stored
+ * finding rows (free-text severity) with this same formula; an unknown
+ * severity costs nothing, as it counts in no severity bucket either.
  */
-export function scoreFromFindings(findings: Finding[]): number {
-  const penalty = findings.reduce((sum, f) => sum + (SEVERITY_PENALTY[f.severity] ?? 0), 0);
+export function scoreFromFindings(findings: { severity: string }[]): number {
+  const penalty = findings.reduce(
+    (sum, f) => sum + (SEVERITY_PENALTY[f.severity as Finding['severity']] ?? 0),
+    0,
+  );
   return Math.max(0, Math.min(100, 100 - penalty));
 }
 

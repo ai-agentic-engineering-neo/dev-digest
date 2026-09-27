@@ -122,6 +122,28 @@ describe("PRRow — cost column", () => {
   });
 });
 
+describe("PRRow — score column", () => {
+  it("shows the score ring with no marker when every agent of the last run finished", () => {
+    renderRow(pr({ score: 61, score_partial: false }));
+    expect(screen.getByText("61")).toBeInTheDocument();
+    expect(screen.queryByText(messages.list.scorePartial)).not.toBeInTheDocument();
+  });
+
+  it("marks the score as a partial run, with the reason on hover, when an agent failed", () => {
+    renderRow(pr({ score: 88, score_partial: true }));
+    expect(screen.getByText("88")).toBeInTheDocument();
+    const marker = screen.getByText(messages.list.scorePartial);
+    expect(marker).toHaveAttribute("title", messages.list.scorePartialHint);
+  });
+
+  it("shows neither ring nor marker for a PR that was never reviewed", () => {
+    // Findings and cost stay populated so the score cell is the only "—".
+    renderRow(pr({ score: null, score_partial: false }));
+    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.queryByText(messages.list.scorePartial)).not.toBeInTheDocument();
+  });
+});
+
 describe("PRRow — findings column", () => {
   it("shows one badge per severity actually present in the latest run", () => {
     renderRow(pr());

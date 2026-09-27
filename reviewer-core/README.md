@@ -53,10 +53,9 @@ the file whose path is EXACTLY the requested path, never a substring (a request
 for `x.ts` never also pulls in `sub/b/x.ts`). `run.ts` numbers every diff
 before it reaches the LLM, and `assemblePrompt` adds a trusted rule telling the
 model to cite those printed numbers (see `docs/agent-prompts/README.md` §
-Numbered diff). A file whose hunks cover no new-side line (deleted, or
-deletions-only) gets no map-reduce chunk — no line of it could ever be cited —
-and doesn't count towards the auto-mode size threshold either (AM-1); it is
-still in the single-pass whole-diff text and still slicable.
+Numbered diff). In map-reduce every file gets its own chunk, deleted and
+deletions-only files included: removed code can be the defect, and a hunk with
+no new-side lines still grounds against its declared range.
 
 `estimateTokens` and the optional `promptTelemetry` on `ReviewInput`
 (L03 — prompt logging) let a caller observe prompt-assembly metadata —

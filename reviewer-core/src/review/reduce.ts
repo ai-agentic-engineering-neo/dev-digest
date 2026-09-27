@@ -1,4 +1,4 @@
-import type { DiffHunk, Finding, Review, UnifiedDiff } from '@devdigest/shared';
+import type { Finding, Review, UnifiedDiff } from '@devdigest/shared';
 import { parseDiff } from '../diff/parse.js';
 
 /**
@@ -83,15 +83,4 @@ export function sliceDiff(diff: UnifiedDiff, path: string): string {
   const f = diff.files.find((x) => x.path === path);
   if (!f) return diff.raw;
   return `diff --git a/${path} b/${path}\n--- a/${path}\n+++ b/${path}`;
-}
-
-/**
- * True when at least one hunk of `file` covers a new-side line — i.e. some
- * line in it can actually be cited. False for a deleted file, or a
- * deletions-only file whose hunks all have `newLines === 0` (AM-1): such a
- * file gets no map-reduce chunk and doesn't count towards the auto-mode size
- * threshold, because no line of it could ever ground a finding.
- */
-export function hasNewSideLines(file: { hunks: Pick<DiffHunk, 'newLineNumbers'>[] }): boolean {
-  return file.hunks.some((h) => h.newLineNumbers.length > 0);
 }

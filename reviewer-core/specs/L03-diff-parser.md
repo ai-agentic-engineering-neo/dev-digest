@@ -111,14 +111,15 @@ when `raw` ends in `\n`.
 **Adapter:** `SimpleGitClient.diff` runs
 `git -c core.quotePath=false -c diff.noprefix=false -c diff.mnemonicPrefix=false -c diff.relative=false -c diff.suppressBlankEmpty=false diff --no-color --no-ext-diff --no-textconv --unified=3 --src-prefix=a/ --dst-prefix=b/ <base>...<head>`.
 
-**Map-reduce chunking (AM-1):** a file whose hunks have no new-side lines
-(every hunk's `newLineNumbers` is empty — a deleted file, or a deletions-only
-file whose hunks all have `newLines === 0`) gets no map-reduce chunk (no
-`completeStructured` call) and doesn't count towards the auto-mode size
-threshold, because no line of it can be cited. It still appears in the
-single-pass whole-diff text, and `sliceDiff` still slices it. The predicate is
-named once — `hasNewSideLines` in `reviewer-core/src/review/reduce.ts` — and
-used both for chunk selection and for the threshold sum in `run.ts`.
+**Map-reduce chunking:** every file in `UnifiedDiff.files` gets a chunk and
+counts towards the auto-mode size threshold — a deleted file (now present under
+its old path) and a deletions-only file included. Removed code can be the
+defect, and a hunk with no new-side lines grounds against its declared range
+(`grounding.ts` buildLineIndex fallback).
+*Reverted 2026-09-27:* amendment AM-1 skipped such files. That left a
+deletions-only PR under `strategy: 'map-reduce'` with zero LLM calls and a
+synthesized approve / score 100, and dropped the review of removed code in
+mixed PRs (found by `/pr-self-review`).
 
 **Server-side mismatch detection:** `diffCountMismatches(diff)` in
 `server/src/modules/reviews/helpers.ts` re-parses `diff.raw` and returns every
@@ -156,11 +157,12 @@ file are skipped). `run-executor.ts` logs one `runLog.info` and one
 - [ ] AC-10: Both rewritten `prompt.test.ts` tests fail when
       `DIFF_LINE_NUMBER_RULE` is removed from `prompt.ts:293` or moved into
       the system message.
-- [ ] AC-11 (AM-1): With the WP1 golden fixture and `strategy: 'map-reduce'`,
-      `reviewPullRequest` makes one `completeStructured` call per file
-      **except `gone.ts`** (4 calls, not 5), and no chunk user message
-      contains `-g1`. The auto threshold's line count for the fixture equals
-      the count without `gone.ts`.
+- [ ] AC-11: With the WP1 golden fixture and `strategy: 'map-reduce'`,
+      `reviewPullRequest` makes one `completeStructured` call per file,
+      `gone.ts` included (5 calls), and the auto threshold's line count
+      includes `gone.ts`. A PR whose files are all deleted or deletions-only
+      still makes one call per file and keeps the model's verdict and a
+      finding cited on the deletion's declared line.
 
 ## Test plan
 

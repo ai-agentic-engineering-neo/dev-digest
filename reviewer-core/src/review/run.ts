@@ -16,7 +16,7 @@ import {
 import { groundFindings, groundingSummary } from '../grounding.js';
 import { parseDiff } from '../diff/parse.js';
 import { numberDiff, renderNumberedLines } from './numbered-diff.js';
-import { hasNewSideLines, reduceReviews, scoreFromFindings, sliceDiff } from './reduce.js';
+import { reduceReviews, scoreFromFindings, sliceDiff } from './reduce.js';
 
 /**
  * reviewPullRequest — the review engine entry point.
@@ -172,13 +172,7 @@ function selectMode(strategy: ReviewStrategy, diff: UnifiedDiff, threshold: numb
   if (strategy === 'single-pass') return 'single-pass';
   if (strategy === 'map-reduce') return diff.files.length > 1 ? 'map-reduce' : 'single-pass';
   // auto: map-reduce only when the diff is both large AND multi-file (else 1 call).
-  // A file with no new-side lines (deleted, or deletions-only) gets no chunk
-  // below and can't be cited, so it doesn't count towards the size threshold
-  // either (AM-1) — only towards the multi-file check, since the raw diff
-  // still carries its content in the single-pass whole-diff text.
-  const totalLines = diff.files
-    .filter(hasNewSideLines)
-    .reduce((n, f) => n + f.additions + f.deletions, 0);
+  const totalLines = diff.files.reduce((n, f) => n + f.additions + f.deletions, 0);
   return totalLines > threshold && diff.files.length > 1 ? 'map-reduce' : 'single-pass';
 }
 
@@ -264,14 +258,12 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
   const wholeDiffAssembled = assemblePrompt({ ...promptParts, diff: numberedWhole }, fingerprintOpts);
   let assembly: PromptAssembly = wholeDiffAssembled.assembly;
 
-  // A file with no new-side lines (deleted, or deletions-only) can't be
-  // cited, so it gets no map-reduce chunk / LLM call (AM-1) — it's still in
-  // the single-pass whole-diff text above, and still available to `sliceDiff`.
+  // Every file gets a chunk, deleted and deletions-only ones included: removed
+  // code can be the defect, and a hunk with no new-side lines still grounds
+  // against its declared range (grounding.ts buildLineIndex).
   const chunks =
     mode === 'map-reduce'
-      ? input.diff.files
-          .filter(hasNewSideLines)
-          .map((f) => ({ label: f.path, diffText: numberDiffForPath(f.path) }))
+      ? input.diff.files.map((f) => ({ label: f.path, diffText: numberDiffForPath(f.path) }))
       : [{ label: 'all files', diffText: numberedWhole }];
 
   emit(

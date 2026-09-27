@@ -486,14 +486,15 @@ diff --git a/src/b.ts b/src/b.ts
 });
 
 /**
- * WP2.tests / AC-11 (AM-1) — map-reduce over the WP1 golden fixture. A file
- * whose hunks carry no new-side lines (here, the deleted `gone.ts`) gets no
- * map-reduce chunk and no LLM call, and doesn't count towards the auto-mode
- * size threshold — because no line of it could ever ground a finding. Oracle:
- * plan-amendments.md AM-1 + AC-11 (4 calls, not 5; per-file line counts from
- * the plan's own hunk-math walkthrough, not from running the engine).
+ * WP2.tests / AC-11 — map-reduce over the WP1 golden fixture. EVERY file gets a
+ * chunk, including the deleted `gone.ts`, and every file counts towards the
+ * auto-mode size threshold. A deletions-only hunk still grounds against its
+ * declared range (`grounding.ts` buildLineIndex fallback), so removed code is
+ * reviewable — skipping such files (the reverted AM-1) left a deletions-only PR
+ * with zero LLM calls and a synthesized approve. Oracle: specs/L03-diff-parser.md
+ * AC-11 (per-file line counts from the plan's own hunk-math walkthrough).
  */
-describe('reviewPullRequest — map-reduce on the WP1 golden fixture (AM-1 / AC-11)', () => {
+describe('reviewPullRequest — map-reduce on the WP1 golden fixture (AC-11)', () => {
   const GOLDEN_DIFF = [
     'diff --git a/x.ts b/x.ts',
     'index 1111111..2222222 100644',
@@ -541,7 +542,7 @@ describe('reviewPullRequest — map-reduce on the WP1 golden fixture (AM-1 / AC-
       .map((c) => (c.req as { messages: { content: string }[] }).messages[1]!.content);
   }
 
-  it('AC-11: makes one completeStructured call per file except the deleted gone.ts (4, not 5)', async () => {
+  it('AC-11: makes one completeStructured call per file, the deleted gone.ts included (5)', async () => {
     const llm = new MockLLMProvider('openai', { structured: cleanReview });
     const diff = await new MockGitClient({ diff: GOLDEN_DIFF }).diff();
 
@@ -555,11 +556,10 @@ describe('reviewPullRequest — map-reduce on the WP1 golden fixture (AM-1 / AC-
 
     expect(outcome.mode).toBe('map-reduce');
     expect(outcome.chunks.map((c) => c.label).sort()).toEqual(
-      ['x.ts', 'y.ts', 'sub/b/x.ts', 'ф.ts'].sort(),
+      ['x.ts', 'y.ts', 'sub/b/x.ts', 'ф.ts', 'gone.ts'].sort(),
     );
-    expect(outcome.chunks.map((c) => c.label)).not.toContain('gone.ts');
     const messages = userMessages(llm);
-    expect(messages).toHaveLength(4);
+    expect(messages).toHaveLength(5);
   });
 
   it("AC-11: x.ts's chunk carries its own numbered content and not sub/b/x.ts's", async () => {
@@ -580,18 +580,18 @@ describe('reviewPullRequest — map-reduce on the WP1 golden fixture (AM-1 / AC-
     expect(xMessage).not.toContain('+t');
   });
 
-  it('AC-11: no chunk user message contains the deleted gone.ts content ("-g1")', async () => {
+  it("AC-11: gone.ts's chunk carries its deleted lines with a blank gutter", async () => {
     const llm = new MockLLMProvider('openai', { structured: cleanReview });
     const diff = await new MockGitClient({ diff: GOLDEN_DIFF }).diff();
 
-    await reviewPullRequest({ systemPrompt: 'sys', model: 'm', diff, llm, strategy: 'map-reduce' });
+    const outcome = await reviewPullRequest({ systemPrompt: 'sys', model: 'm', diff, llm, strategy: 'map-reduce' });
 
-    for (const message of userMessages(llm)) {
-      expect(message).not.toContain('-g1');
-    }
+    const goneMessage = userMessages(llm)[outcome.chunks.findIndex((c) => c.label === 'gone.ts')]!;
+    expect(goneMessage).toContain(' '.repeat(7) + '-g1');
+    expect(goneMessage).not.toContain('+b');
   });
 
-  it("AC-11: the auto-mode size threshold excludes gone.ts's lines, so a threshold above the other 4 files' total (5) but below the fixture's real total (7) stays single-pass", async () => {
+  it("AC-11: the auto-mode size threshold counts gone.ts's lines, so a threshold between the other 4 files' total (5) and the fixture's real total (7) goes map-reduce", async () => {
     const llm = new MockLLMProvider('openai', { structured: cleanReview });
     const diff = await new MockGitClient({ diff: GOLDEN_DIFF }).diff();
 
@@ -604,9 +604,64 @@ describe('reviewPullRequest — map-reduce on the WP1 golden fixture (AM-1 / AC-
       mapThresholdLines: 6,
     });
 
-    // x.ts(2) + y.ts(1) + ф.ts(1) + sub/b/x.ts(1) = 5, not > 6 → single-pass.
-    // Only if gone.ts's 2 deletions were (wrongly) counted would the total (7)
-    // exceed the threshold and flip this to map-reduce.
-    expect(outcome.mode).toBe('single-pass');
+    // x.ts(2) + y.ts(1) + ф.ts(1) + sub/b/x.ts(1) + gone.ts(2) = 7 > 6 → map-reduce.
+    // Dropping gone.ts's 2 deletions would leave 5 and keep this single-pass.
+    expect(outcome.mode).toBe('map-reduce');
+  });
+});
+
+/**
+ * A PR that only deletes code must still reach the model under map-reduce: the
+ * removed lines may be the defect (a dropped auth check), and a deletions-only
+ * hunk grounds against its declared range. With every file filtered out of the
+ * chunk list the engine made ZERO calls and returned a synthesized approve / 100.
+ */
+describe('reviewPullRequest — map-reduce on a deletions-only PR', () => {
+  const DELETIONS_ONLY_DIFF = [
+    'diff --git a/auth.ts b/auth.ts',
+    '--- a/auth.ts',
+    '+++ b/auth.ts',
+    '@@ -10,2 +9,0 @@',
+    '-  if (!user) throw new Forbidden();',
+    '-  audit(user);',
+    'diff --git a/old.ts b/old.ts',
+    'deleted file mode 100644',
+    '--- a/old.ts',
+    '+++ /dev/null',
+    '@@ -1 +0,0 @@',
+    '-export const x = 1;',
+  ].join('\n');
+
+  it('reviews every file and keeps the model verdict and a finding cited on the deletion', async () => {
+    const llm = new MockLLMProvider('openai', {
+      structured: {
+        verdict: 'request_changes' as const,
+        summary: 'auth check removed',
+        score: 40,
+        findings: [
+          {
+            id: 'f-auth',
+            severity: 'CRITICAL' as const,
+            category: 'security' as const,
+            title: 'Authorization check removed',
+            file: 'auth.ts',
+            start_line: 9,
+            end_line: 9,
+            rationale: 'The Forbidden guard was deleted.',
+            confidence: 0.95,
+            kind: 'finding',
+          },
+        ],
+      },
+    });
+    const diff = await new MockGitClient({ diff: DELETIONS_ONLY_DIFF }).diff();
+
+    const outcome = await reviewPullRequest({ systemPrompt: 'sys', model: 'm', diff, llm, strategy: 'map-reduce' });
+
+    expect(outcome.mode).toBe('map-reduce');
+    expect(outcome.chunks.map((c) => c.label).sort()).toEqual(['auth.ts', 'old.ts']);
+    expect(llm.calls.filter((c) => c.method === 'completeStructured')).toHaveLength(2);
+    expect(outcome.review.verdict).toBe('request_changes');
+    expect(outcome.review.findings.some((f) => f.file === 'auth.ts' && f.start_line === 9)).toBe(true);
   });
 });

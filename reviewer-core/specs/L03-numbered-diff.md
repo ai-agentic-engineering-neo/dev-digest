@@ -26,8 +26,9 @@ and tell it to cite those numbers.
 - Grounding rules. `grounding.ts` stays as it is; it now receives right numbers.
 - Deduplicating similar findings from different reviewers — intended behaviour.
 - Rewriting findings already stored; old reviews keep their numbers until re-run.
-- The parser's handling of an added line whose content starts with `++ ` (read as a
-  `+++ ` file header) — noted under Open questions, not fixed here.
+- The parser's handling of an added line whose content starts with `++ ` (once
+  misread as a `+++ ` file header) — fixed by the count-driven parser, see
+  [L03-diff-parser.md](L03-diff-parser.md).
 
 ## Contract
 
@@ -78,15 +79,15 @@ checks. The two must never disagree.
   `start_line`/`end_line` must be those printed numbers; never count from the
   `@@` header; never cite a `-` line (it has no number).
 
-### Server parser (`server/src/adapters/git/diff-parser.ts`)
+### Server parser
 
-Three corrections so the invariant holds exactly: a `\ No newline at end of file`
-line does not advance the new-side cursor; the empty string after a final `\n` is
-not a line; and a deleted line whose text starts with `--` (a removed `---` shows
-as `----`) is a deletion, not context — the redundant `!startsWith('---')` /
-`!startsWith('+++')` guards inside hunks go, since real `--- `/`+++ ` headers are
-handled before them (gate G1, approved by the user 2026-09-27). Grounding becomes
-stricter by at most one phantom line per hunk.
+The parser now lives in `reviewer-core/src/diff/parse.ts` (`parseDiff` /
+`parseUnifiedDiff`), not in `server/`. `server/src/adapters/git/diff-parser.ts`
+is a one-line re-export. `numberDiff` renders the very same parse
+`parseUnifiedDiff` maps into `newLineNumbers`, so the invariant below holds **by
+construction** — not by keeping two hand-written state machines in agreement.
+Full contract, the count-driven state machine and the count-mismatch behaviour:
+[L03-diff-parser.md](L03-diff-parser.md).
 
 ## Acceptance criteria
 
@@ -123,5 +124,5 @@ stricter by at most one phantom line per hunk.
 
 ## Open questions
 
-- Should the parser stop treating an added line whose content starts with `++ `
-  as a `+++ ` file header? Out of scope here.
+- None open here — the parser question above moved to
+  [L03-diff-parser.md](L03-diff-parser.md).

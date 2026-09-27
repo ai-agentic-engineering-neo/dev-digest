@@ -20,6 +20,41 @@ import { parseUnifiedDiff } from './diff-parser.js';
 const RESYNC_FETCH_DEPTH = 50;
 
 /**
+ * `-c` overrides for `diff()` ONLY (not the shared `git()` instance other
+ * methods use) — pinned so a host's local/global git config can never change
+ * what the parser sees (L03 AC-5). Each one defeats a config knob that would
+ * otherwise change the header text `parseUnifiedDiff` reads:
+ *  - `core.quotePath=false` — else a non-ASCII path is C-quoted (`"...\NNN"`).
+ *  - `diff.noprefix=false` / `diff.mnemonicPrefix=false` — else `a/`/`b/`
+ *    disappear or become `i/`/`w/`, breaking the fixed `--src-prefix`/`--dst-prefix` below.
+ *  - `diff.relative=false` — else paths are cwd-relative, not repo-root-relative.
+ *  - `diff.suppressBlankEmpty=false` — else a blank context line loses its
+ *    single leading space, which the parser needs to tell it apart from `''`.
+ */
+const DIFF_GIT_CONFIG = [
+  'core.quotePath=false',
+  'diff.noprefix=false',
+  'diff.mnemonicPrefix=false',
+  'diff.relative=false',
+  'diff.suppressBlankEmpty=false',
+];
+
+/**
+ * Flags for `diff()` ONLY, alongside `DIFF_GIT_CONFIG` above — belt-and-braces
+ * against the same host-config drift, plus `--unified=3` so hunk sizes don't
+ * shift with a host's `diff.context`, and no external/textconv/color filter
+ * touching the bytes the parser reads.
+ */
+const DIFF_FLAGS = [
+  '--no-color',
+  '--no-ext-diff',
+  '--no-textconv',
+  '--unified=3',
+  '--src-prefix=a/',
+  '--dst-prefix=b/',
+];
+
+/**
  * GitClient over simple-git. Repos clone to
  * `<cloneDir>/<owner>/<repo>`. We NEVER execute repo code — only git ops.
  */
@@ -92,7 +127,8 @@ export class SimpleGitClient implements GitClient {
   }
 
   async diff(repo: RepoRef, base: string, head: string): Promise<UnifiedDiff> {
-    const raw = await this.git(repo).diff([`${base}...${head}`]);
+    const git = simpleGit({ baseDir: this.clonePathFor(repo), config: DIFF_GIT_CONFIG });
+    const raw = await git.diff([...DIFF_FLAGS, `${base}...${head}`]);
     return parseUnifiedDiff(raw);
   }
 

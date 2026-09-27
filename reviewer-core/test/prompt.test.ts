@@ -4,7 +4,7 @@
  * truncation, and ordering (before the diff).
  */
 import { describe, it, expect } from 'vitest';
-import { assemblePrompt } from '../src/prompt.js';
+import { assemblePrompt, DIFF_LINE_NUMBER_RULE } from '../src/prompt.js';
 
 function userOf(parts: Parameters<typeof assemblePrompt>[0]): string {
   const { messages } = assemblePrompt(parts);
@@ -148,9 +148,13 @@ describe('assemblePrompt — L03 section metadata', () => {
  * and its placement.
  */
 describe('assemblePrompt — ## Diff to review line-number rule', () => {
-  it('ends the user message with the rule then the untrusted diff wrapper', () => {
+  it('AC-10: the user message ends with exactly "## Diff to review" + the rule + the untrusted wrapper', () => {
     const user = assemblePrompt({ system: 'S', diff: 'D' }).messages[1]!.content;
-    expect(user.endsWith('<untrusted source="diff">\nD\n</untrusted>')).toBe(true);
+    expect(
+      user.endsWith(
+        '## Diff to review\n' + DIFF_LINE_NUMBER_RULE + '\n<untrusted source="diff">\nD\n</untrusted>',
+      ),
+    ).toBe(true);
   });
 
   it('states: cite the printed gutter number, never count from the @@ header, never cite a - line', () => {
@@ -171,9 +175,11 @@ describe('assemblePrompt — ## Diff to review line-number rule', () => {
     }
   });
 
-  it('is TRUSTED text: never appended to the system message', () => {
-    const system = assemblePrompt({ system: 'S', diff: 'D' }).messages[0]!.content;
-    expect(system.startsWith('S\n\n')).toBe(true);
-    expect(system).not.toContain('hunk header');
+  it('AC-10: the rule appears exactly once in the user message, and never in the system message', () => {
+    const { messages } = assemblePrompt({ system: 'S', diff: 'D' });
+    const [system, user] = [messages[0]!.content, messages[1]!.content];
+    const occurrences = user.split(DIFF_LINE_NUMBER_RULE).length - 1;
+    expect(occurrences).toBe(1);
+    expect(system).not.toContain(DIFF_LINE_NUMBER_RULE);
   });
 });

@@ -88,10 +88,14 @@ Example (PR #5, `events-map.component.ts`):
 `<untrusted>` wrapper — the model can never be told by diff content to ignore
 it) telling the model to read `start_line`/`end_line` off the printed gutter,
 never the hunk header, and never off a blank (`-`) gutter; followed by the
-**untrusted**, numbered diff. `numberDiff`'s printed numbers are guaranteed to
-equal the server parser's `newLineNumbers` for the same diff
-(`server/src/adapters/git/diff-parser.ts`) — the exact set citation grounding
-checks — so a number the model copies verbatim always survives grounding.
+**untrusted**, numbered diff. `numberDiff` and `parseUnifiedDiff`'s
+`newLineNumbers` — the exact set citation grounding checks — are both derived
+from one parse (`reviewer-core/src/diff/parse.ts`'s `parseDiff`), so they
+cannot disagree with each other by construction, and a number the model copies
+verbatim always survives grounding. A `+++`/`--- ` line inside a hunk is
+content, not a file header — it is classified as a plain addition/deletion
+like any other `+`/`-` line, only real `--- `/`+++ ` headers (outside a hunk)
+are exempt.
 
 ## Skill ordering
 

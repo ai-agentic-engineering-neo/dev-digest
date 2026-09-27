@@ -13,6 +13,15 @@ Non-obvious findings a future session needs. **Read this before working here.**
 
 ## What Doesn't Work
 
+- 2026-09-27 — A test that compares two implementations (the old server parser
+  vs `numberDiff`) proves only that they AGREE: it stayed green while both
+  numbered the line after an added `++ i` wrong, renamed the file to `i` and kept
+  a quoted non-ASCII path escaped — found only by piping real `git diff` output
+  through them → test diff handling against ground truth (line N of the actual
+  head file, `git diff --numstat`), and put several hostile traits in ONE path or
+  line (`ф"q.ts`): each trait alone passed. (ref: server/test/diff-ground-truth.test.ts,
+  src/diff/parse.ts)
+
 ## Codebase Patterns
 
 ## Tool & Library Notes
@@ -20,5 +29,9 @@ Non-obvious findings a future session needs. **Read this before working here.**
 ## Recurring Errors & Fixes
 
 ## Session Notes
+
+- 2026-09-27 — L03 diff-parser follow-up: count-driven `parseDiff` moved here from
+  the server; `numberDiff`, `sliceDiff` and chunking derive from one parse
+  (spec: specs/L03-diff-parser.md).
 
 ## Open Questions

@@ -105,3 +105,42 @@ describe('numberDiff', () => {
     expect(numberDiff('')).toBe('');
   });
 });
+
+/**
+ * L03 — WP2.tests: numberDiff on the WP1 golden fixture (see
+ * `diff-parse.test.ts` for the full parse-level assertions on this same raw
+ * text). A `+++`/`---` line INSIDE an open hunk is content, not a header, so
+ * it gets a real gutter number; a header line and a deleted line stay blank.
+ */
+describe('numberDiff — WP1 golden fixture (a "+++"/"--- " content line inside a hunk)', () => {
+  const GOLDEN_DIFF = [
+    'diff --git a/x.ts b/x.ts',
+    'index 1111111..2222222 100644',
+    '--- a/x.ts',
+    '+++ b/x.ts',
+    '@@ -1 +1,3 @@',
+    ' a',
+    '+++ i',
+    '+b',
+    'diff --git a/y.ts b/y.ts',
+    'index 3333333..4444444 100644',
+    '--- a/y.ts',
+    '+++ b/y.ts',
+    '@@ -1,2 +1 @@',
+    '--- old comment',
+    ' keep',
+  ].join('\n');
+
+  it('numbers the "+++ i" and "+b" content lines with their real new-file line numbers', () => {
+    const out = numberDiff(GOLDEN_DIFF).split('\n');
+    expect(out).toContain(G(2) + '+++ i');
+    expect(out).toContain(G(3) + '+b');
+  });
+
+  it('blanks the gutter for a deleted "--- old comment" line and for the "--- a/x.ts" header', () => {
+    const out = numberDiff(GOLDEN_DIFF).split('\n');
+    expect(out).toContain(B + '--- old comment');
+    const headerLine = out.find((l) => l.endsWith('--- a/x.ts'))!;
+    expect(headerLine.startsWith(B)).toBe(true);
+  });
+});

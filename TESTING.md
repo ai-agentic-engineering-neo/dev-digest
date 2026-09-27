@@ -39,9 +39,12 @@ If a test wouldn't catch a class of regression we care about, we don't write it.
 surface (list, diff, findings, run controls) and the agent editor.
 
 **server-unit** — the DB-free majority: adapters, prompt assembly, grounding,
-repo-intel ranking & indexing, pricing, route smoke. The `typecheck` job also
-runs on Windows, which doubles as the `@ast-grep/napi` prebuilt gate (install
-fails there if the win32 prebuilt is missing).
+repo-intel ranking & indexing, pricing, route smoke. `diff-ground-truth.test.ts`
+spawns the local `git` binary in a temp dir (no network, no Docker) — the one
+unit test where git is not mocked; it diffs generated file pairs and checks
+every numbered/parsed line number against the real file content. The
+`typecheck` job also runs on Windows, which doubles as the `@ast-grep/napi`
+prebuilt gate (install fails there if the win32 prebuilt is missing).
 
 **server-integration** — the `*.it.test.ts` files. Each starts a real Postgres
 (pgvector) via testcontainers, builds the Fastify app, migrates + seeds, and

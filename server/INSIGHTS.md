@@ -110,3 +110,11 @@ Non-obvious findings a future session needs. **Read this before working here.**
   L02 conventions (`modules/conventions/`) — specs: `server/specs/L0{1,2}-*.md`.
 
 ## Open Questions
+
+- 2026-09-27 — `SimpleGitClient.diff` pins prefixes, quoting, color and ext-diff
+  but NOT rename detection: git's default folds an unrelated delete+add with ≥50%
+  similar content into one rename block (only the changed lines reach the
+  reviewer and grounding), and a host `diff.renames` setting still changes the
+  output — the ground-truth test sets `diff.renames=false` to stay deterministic.
+  Pin `--no-renames`, or an explicit `-M`? (ref: src/adapters/git/simple-git.ts:48,
+  test/diff-ground-truth.test.ts:166)

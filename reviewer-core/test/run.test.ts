@@ -484,3 +484,129 @@ diff --git a/src/b.ts b/src/b.ts
     }
   });
 });
+
+/**
+ * WP2.tests / AC-11 (AM-1) — map-reduce over the WP1 golden fixture. A file
+ * whose hunks carry no new-side lines (here, the deleted `gone.ts`) gets no
+ * map-reduce chunk and no LLM call, and doesn't count towards the auto-mode
+ * size threshold — because no line of it could ever ground a finding. Oracle:
+ * plan-amendments.md AM-1 + AC-11 (4 calls, not 5; per-file line counts from
+ * the plan's own hunk-math walkthrough, not from running the engine).
+ */
+describe('reviewPullRequest — map-reduce on the WP1 golden fixture (AM-1 / AC-11)', () => {
+  const GOLDEN_DIFF = [
+    'diff --git a/x.ts b/x.ts',
+    'index 1111111..2222222 100644',
+    '--- a/x.ts',
+    '+++ b/x.ts',
+    '@@ -1 +1,3 @@',
+    ' a',
+    '+++ i',
+    '+b',
+    'diff --git a/y.ts b/y.ts',
+    'index 3333333..4444444 100644',
+    '--- a/y.ts',
+    '+++ b/y.ts',
+    '@@ -1,2 +1 @@',
+    '--- old comment',
+    ' keep',
+    'diff --git "a/\\321\\204.ts" "b/\\321\\204.ts"',
+    'index 5555555..6666666 100644',
+    '--- "a/\\321\\204.ts"',
+    '+++ "b/\\321\\204.ts"',
+    '@@ -1 +1,2 @@',
+    ' z',
+    '+w',
+    'diff --git a/sub/b/x.ts b/sub/b/x.ts',
+    'index 7777777..8888888 100644',
+    '--- a/sub/b/x.ts',
+    '+++ b/sub/b/x.ts',
+    '@@ -1 +1,2 @@',
+    ' s',
+    '+t',
+    'diff --git a/gone.ts b/gone.ts',
+    'deleted file mode 100644',
+    'index 9999999..0000000 100644',
+    '--- a/gone.ts',
+    '+++ /dev/null',
+    '@@ -1,2 +0,0 @@',
+    '-g1',
+    '-g2',
+  ].join('\n');
+  const cleanReview = { verdict: 'approve' as const, summary: 'ok', score: 100, findings: [] };
+
+  function userMessages(llm: MockLLMProvider): string[] {
+    return llm.calls
+      .filter((c) => c.method === 'completeStructured')
+      .map((c) => (c.req as { messages: { content: string }[] }).messages[1]!.content);
+  }
+
+  it('AC-11: makes one completeStructured call per file except the deleted gone.ts (4, not 5)', async () => {
+    const llm = new MockLLMProvider('openai', { structured: cleanReview });
+    const diff = await new MockGitClient({ diff: GOLDEN_DIFF }).diff();
+
+    const outcome = await reviewPullRequest({
+      systemPrompt: 'sys',
+      model: 'm',
+      diff,
+      llm,
+      strategy: 'map-reduce',
+    });
+
+    expect(outcome.mode).toBe('map-reduce');
+    expect(outcome.chunks.map((c) => c.label).sort()).toEqual(
+      ['x.ts', 'y.ts', 'sub/b/x.ts', 'ф.ts'].sort(),
+    );
+    expect(outcome.chunks.map((c) => c.label)).not.toContain('gone.ts');
+    const messages = userMessages(llm);
+    expect(messages).toHaveLength(4);
+  });
+
+  it("AC-11: x.ts's chunk carries its own numbered content and not sub/b/x.ts's", async () => {
+    const llm = new MockLLMProvider('openai', { structured: cleanReview });
+    const diff = await new MockGitClient({ diff: GOLDEN_DIFF }).diff();
+
+    const outcome = await reviewPullRequest({
+      systemPrompt: 'sys',
+      model: 'm',
+      diff,
+      llm,
+      strategy: 'map-reduce',
+    });
+
+    const xIndex = outcome.chunks.findIndex((c) => c.label === 'x.ts');
+    const xMessage = userMessages(llm)[xIndex]!;
+    expect(xMessage).toContain('     3 +b');
+    expect(xMessage).not.toContain('+t');
+  });
+
+  it('AC-11: no chunk user message contains the deleted gone.ts content ("-g1")', async () => {
+    const llm = new MockLLMProvider('openai', { structured: cleanReview });
+    const diff = await new MockGitClient({ diff: GOLDEN_DIFF }).diff();
+
+    await reviewPullRequest({ systemPrompt: 'sys', model: 'm', diff, llm, strategy: 'map-reduce' });
+
+    for (const message of userMessages(llm)) {
+      expect(message).not.toContain('-g1');
+    }
+  });
+
+  it("AC-11: the auto-mode size threshold excludes gone.ts's lines, so a threshold above the other 4 files' total (5) but below the fixture's real total (7) stays single-pass", async () => {
+    const llm = new MockLLMProvider('openai', { structured: cleanReview });
+    const diff = await new MockGitClient({ diff: GOLDEN_DIFF }).diff();
+
+    const outcome = await reviewPullRequest({
+      systemPrompt: 'sys',
+      model: 'm',
+      diff,
+      llm,
+      strategy: 'auto',
+      mapThresholdLines: 6,
+    });
+
+    // x.ts(2) + y.ts(1) + ф.ts(1) + sub/b/x.ts(1) = 5, not > 6 → single-pass.
+    // Only if gone.ts's 2 deletions were (wrongly) counted would the total (7)
+    // exceed the threshold and flip this to map-reduce.
+    expect(outcome.mode).toBe('single-pass');
+  });
+});

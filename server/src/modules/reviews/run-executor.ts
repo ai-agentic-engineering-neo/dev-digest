@@ -7,7 +7,7 @@ import * as schema from '../../db/schema.js';
 import type { AgentRow } from '../../db/rows.js';
 import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './repository.js';
 import { INTENT_REVIEW_BUDGET_MS, REVIEW_STRATEGY } from './constants.js';
-import { taskLine, toPromptIntent, toReviewPromptLogInput } from './helpers.js';
+import { diffCountMismatches, taskLine, toPromptIntent, toReviewPromptLogInput } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
 import { withTimeout } from '../../platform/resilience.js';
 
@@ -109,6 +109,20 @@ export class ReviewRunExecutor {
       return;
     }
     runLog.info(`Diff ready — ${diff.files.length} changed file(s); starting ${jobs.length} agent run(s)`);
+
+    // L03 — a hunk whose body doesn't match its `@@` header count (a truncated
+    // `pr_files` patch, or a hand-written fixture) still gets numbered and
+    // grounded, just against only the lines actually present. Surfaced here,
+    // once per run, rather than failing the run.
+    const mismatches = diffCountMismatches(diff);
+    if (mismatches.length > 0) {
+      const n = mismatches.length;
+      const first = `${mismatches[0]!.path}:${mismatches[0]!.newStart}`;
+      runLog.info(
+        `${n} diff hunk(s) have a line count that doesn't match their header (first: ${first}) — numbering and grounding use only the lines actually present`,
+      );
+      logger?.warn({ prId: pull.id, hunks: n, first }, 'review: diff hunk counts do not match headers');
+    }
 
     const intent = await this.loadIntent(workspaceId, pull, jobs, runLog, logger);
 

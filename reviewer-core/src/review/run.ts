@@ -14,8 +14,9 @@ import {
   type PromptSection,
 } from '../prompt.js';
 import { groundFindings, groundingSummary } from '../grounding.js';
-import { numberDiff } from './numbered-diff.js';
-import { reduceReviews, scoreFromFindings, sliceDiff } from './reduce.js';
+import { parseDiff } from '../diff/parse.js';
+import { numberDiff, renderNumberedLines } from './numbered-diff.js';
+import { hasNewSideLines, reduceReviews, scoreFromFindings, sliceDiff } from './reduce.js';
 
 /**
  * reviewPullRequest — the review engine entry point.
@@ -171,7 +172,13 @@ function selectMode(strategy: ReviewStrategy, diff: UnifiedDiff, threshold: numb
   if (strategy === 'single-pass') return 'single-pass';
   if (strategy === 'map-reduce') return diff.files.length > 1 ? 'map-reduce' : 'single-pass';
   // auto: map-reduce only when the diff is both large AND multi-file (else 1 call).
-  const totalLines = diff.files.reduce((n, f) => n + f.additions + f.deletions, 0);
+  // A file with no new-side lines (deleted, or deletions-only) gets no chunk
+  // below and can't be cited, so it doesn't count towards the size threshold
+  // either (AM-1) — only towards the multi-file check, since the raw diff
+  // still carries its content in the single-pass whole-diff text.
+  const totalLines = diff.files
+    .filter(hasNewSideLines)
+    .reduce((n, f) => n + f.additions + f.deletions, 0);
   return totalLines > threshold && diff.files.length > 1 ? 'map-reduce' : 'single-pass';
 }
 
@@ -236,20 +243,35 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
       : undefined;
 
   // Every diff that reaches the LLM is numbered (L03 — grounding citations
-  // must match a real line, never a hunk-header-counted guess). Computed once
-  // for the whole diff; map-reduce chunks number their own slice below.
-  const numberedWhole = numberDiff(input.diff.raw);
+  // must match a real line, never a hunk-header-counted guess). Parsed ONCE;
+  // the whole-diff text and every map-reduce chunk's text are rendered from
+  // this one parse rather than re-parsed per chunk. For any path this is
+  // byte-identical to `numberDiff(sliceDiff(input.diff, path))` (see
+  // numbered-diff.ts's `renderNumberedLines`) — `numberDiffForPath` below
+  // falls back to that slower, always-correct form if a path from
+  // `input.diff.files` somehow isn't one of THIS parse's files (e.g. a diff
+  // hand-built for a test rather than produced from `raw`).
+  const parsedDiff = parseDiff(input.diff.raw);
+  const numberedWhole = renderNumberedLines(parsedDiff.lines);
+  const numberDiffForPath = (path: string): string => {
+    const pf = parsedDiff.files.find((f) => f.path === path);
+    return pf
+      ? renderNumberedLines(parsedDiff.lines.slice(pf.start, pf.end))
+      : numberDiff(sliceDiff(input.diff, path));
+  };
 
   // Whole-diff assembly is the trace default; overwritten below for single-pass.
   const wholeDiffAssembled = assemblePrompt({ ...promptParts, diff: numberedWhole }, fingerprintOpts);
   let assembly: PromptAssembly = wholeDiffAssembled.assembly;
 
+  // A file with no new-side lines (deleted, or deletions-only) can't be
+  // cited, so it gets no map-reduce chunk / LLM call (AM-1) — it's still in
+  // the single-pass whole-diff text above, and still available to `sliceDiff`.
   const chunks =
     mode === 'map-reduce'
-      ? input.diff.files.map((f) => ({
-          label: f.path,
-          diffText: numberDiff(sliceDiff(input.diff, f.path)),
-        }))
+      ? input.diff.files
+          .filter(hasNewSideLines)
+          .map((f) => ({ label: f.path, diffText: numberDiffForPath(f.path) }))
       : [{ label: 'all files', diffText: numberedWhole }];
 
   emit(
@@ -273,7 +295,7 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
             ? {
                 diffFiles: input.diff.files.map((f) => ({
                   path: f.path,
-                  chars: numberDiff(sliceDiff(input.diff, f.path)).length,
+                  chars: numberDiffForPath(f.path).length,
                 })),
               }
             : {}),

@@ -6,8 +6,10 @@
 The feature spans `reviewer-core/` and `server/`, so it keeps **one** spec:
 [../../reviewer-core/specs/L03-numbered-diff.md](../../reviewer-core/specs/L03-numbered-diff.md).
 
-Server-side change: `src/adapters/git/diff-parser.ts` — a `\ No newline at end of
-file` line and the empty string after a final `\n` no longer advance the new-side
-cursor (AC-4), and a deleted line starting with `--` is a deletion, not context
-(AC-4b, gate G1), so the parser's `newLineNumbers` match the numbers the prompt
-prints (AC-5, asserted in `test/grounding.test.ts`).
+Server-side change: `src/adapters/git/diff-parser.ts` is now a one-line
+re-export of `parseUnifiedDiff` from `@devdigest/reviewer-core` — the parser
+itself moved to `reviewer-core/src/diff/parse.ts`. See
+[L03-diff-parser.md](L03-diff-parser.md) (pointer to
+[../../reviewer-core/specs/L03-diff-parser.md](../../reviewer-core/specs/L03-diff-parser.md))
+for the parser contract, `SimpleGitClient.diff`'s pinned git config/flags, and
+the hunk count-mismatch detection in `modules/reviews/helpers.ts`.

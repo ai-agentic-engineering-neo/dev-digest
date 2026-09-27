@@ -36,6 +36,18 @@ export {
   type ParseResult,
 } from './llm/structured.js';
 
+// Unified-diff parsing — the single count-driven parse `numberDiff`, `sliceDiff`
+// and the engine's map-reduce chunking are all derived from (L03).
+export {
+  parseDiff,
+  parseUnifiedDiff,
+  type DiffLineKind,
+  type ParsedDiffLine,
+  type ParsedHunk,
+  type ParsedFile,
+  type ParsedDiff,
+} from './diff/parse.js';
+
 // Map-reduce helpers (reduce partials, slice a file's diff).
 export { reduceReviews, sliceDiff } from './review/reduce.js';
 

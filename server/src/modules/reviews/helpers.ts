@@ -2,14 +2,33 @@
  * Pure helpers for the review service (side-effect free; operate purely on
  * their arguments — no DB / network / `this`).
  */
-import type { Finding, PrIntentRecord } from '@devdigest/shared';
-import type { PromptAssembledInfo, PromptIntent } from '@devdigest/reviewer-core';
+import type { Finding, PrIntentRecord, UnifiedDiff } from '@devdigest/shared';
+import { parseDiff, type PromptAssembledInfo, type PromptIntent } from '@devdigest/reviewer-core';
 import type { PromptLogInput } from '../../platform/prompt-log.js';
 import type { FindingRow, PullRow, ReviewRow } from './repository.js';
 
 // reduceReviews + sliceDiff live in @devdigest/reviewer-core (pure engine logic
 // shared with the CI runner); re-exported here for backward-compatible imports.
 export { reduceReviews, sliceDiff } from '@devdigest/reviewer-core';
+
+/**
+ * L03 — every hunk whose body has more or fewer lines than its `@@` header
+ * declared, in file order (`parseDiff`'s `countMismatch`). A hunk with no
+ * file (an orphan `@@` with no preceding `diff --git`/`--- `/`+++ `) is
+ * skipped: there's no path to attribute it to. Real `git diff` output never
+ * mismatches — this points at a truncated `pr_files` patch or a hand-written
+ * fixture (`server/src/adapters/mocks.ts:298` among them).
+ */
+export function diffCountMismatches(diff: UnifiedDiff): { path: string; newStart: number }[] {
+  const parsed = parseDiff(diff.raw);
+  const out: { path: string; newStart: number }[] = [];
+  for (const file of parsed.files) {
+    for (const hunk of file.hunks) {
+      if (hunk.countMismatch) out.push({ path: file.path, newStart: hunk.newStart });
+    }
+  }
+  return out;
+}
 
 export interface ReviewDtoFinding extends Finding {
   review_id: string;

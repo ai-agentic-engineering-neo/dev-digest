@@ -42,10 +42,21 @@ Exported from `src/index.ts`: `assemblePrompt` / `wrapUntrusted` (prompt),
 `reduce`. Contracts (`Review`, `Finding`, `Verdict`, …) come from
 `@devdigest/shared`.
 
-`numberDiff` (L03 — `review/numbered-diff.ts`) prints each diff line's
-new-file line number in a fixed gutter; `run.ts` numbers every diff before it
-reaches the LLM, and `assemblePrompt` adds a trusted rule telling the model to
-cite those printed numbers (see `docs/agent-prompts/README.md` § Numbered diff).
+`parseDiff` / `parseUnifiedDiff` (L03 — `diff/parse.ts`) are the count-driven
+unified-diff parser: `parseDiff` returns every line with its kind and new-file
+line number, counting each hunk's body against its `@@` header rather than
+scanning for the next header; `parseUnifiedDiff` maps that onto the
+`@devdigest/shared` `UnifiedDiff` contract. `numberDiff` (`review/numbered-diff.ts`)
+and `sliceDiff` (`review/reduce.ts`) are both rendered from that one parse, so
+they can never disagree with each other or with grounding — `sliceDiff` matches
+the file whose path is EXACTLY the requested path, never a substring (a request
+for `x.ts` never also pulls in `sub/b/x.ts`). `run.ts` numbers every diff
+before it reaches the LLM, and `assemblePrompt` adds a trusted rule telling the
+model to cite those printed numbers (see `docs/agent-prompts/README.md` §
+Numbered diff). A file whose hunks cover no new-side line (deleted, or
+deletions-only) gets no map-reduce chunk — no line of it could ever be cited —
+and doesn't count towards the auto-mode size threshold either (AM-1); it is
+still in the single-pass whole-diff text and still slicable.
 
 `estimateTokens` and the optional `promptTelemetry` on `ReviewInput`
 (L03 — prompt logging) let a caller observe prompt-assembly metadata —

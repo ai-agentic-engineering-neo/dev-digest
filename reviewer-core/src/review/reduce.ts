@@ -1,4 +1,5 @@
-import type { Finding, Review, UnifiedDiff } from '@devdigest/shared';
+import type { DiffHunk, Finding, Review, UnifiedDiff } from '@devdigest/shared';
+import { parseDiff } from '../diff/parse.js';
 
 /**
  * Reduce + slice helpers for map-reduce reviews. Pure (no DB / `this`), so they
@@ -54,19 +55,43 @@ export function reduceReviews(partials: Review[]): Review {
   return { verdict, score, summary, findings };
 }
 
-/** Extract the slice of the unified diff for a single file (for map chunks). */
+/**
+ * Extract the slice of the unified diff for a single file (for map chunks).
+ * Matches the parsed file whose path is EXACTLY `path` — not a substring, so
+ * `x.ts` never also pulls in `sub/b/x.ts` the way matching on `b/${path}`
+ * used to (L03).
+ */
 export function sliceDiff(diff: UnifiedDiff, path: string): string {
-  const lines = diff.raw.split('\n');
-  const out: string[] = [];
-  let capture = false;
-  for (const line of lines) {
-    if (line.startsWith('diff --git'))
-      capture = line.includes(`b/${path}`) || line.includes(` ${path}`);
-    if (capture) out.push(line);
+  const parsed = parseDiff(diff.raw);
+  const file = parsed.files.find((f) => f.path === path);
+  if (file) {
+    const blockLines = parsed.lines.slice(file.start, file.end);
+    const text = blockLines.map((l) => l.text).join('\n');
+    // When the block's own last physical line is itself an empty string (a
+    // real blank context/other line — not the last file in `diff.raw`), that
+    // is otherwise indistinguishable, once re-split by `parseDiff`, from text
+    // that merely ENDS in `\n`: `parseDiff` (parse.ts) deliberately drops that
+    // as the whole-string trailing-newline artifact, silently eating the real
+    // empty line underneath (F3). Appending one more `\n` restores the round
+    // trip — `parseDiff` then drops ITS (correct) artifact instead and
+    // recovers the real one. A non-empty last line is unaffected: `text`
+    // already doesn't end in `\n`, so nothing changes for it.
+    return blockLines.length > 0 && blockLines[blockLines.length - 1]!.text === '' ? text + '\n' : text;
   }
-  if (out.length > 0) return out.join('\n');
-  // fallback: synthesize from the file's hunks
+  // fallback: synthesize from the file's hunks (no matching block in `raw` —
+  // e.g. a hand-built UnifiedDiff in a test)
   const f = diff.files.find((x) => x.path === path);
   if (!f) return diff.raw;
   return `diff --git a/${path} b/${path}\n--- a/${path}\n+++ b/${path}`;
+}
+
+/**
+ * True when at least one hunk of `file` covers a new-side line — i.e. some
+ * line in it can actually be cited. False for a deleted file, or a
+ * deletions-only file whose hunks all have `newLines === 0` (AM-1): such a
+ * file gets no map-reduce chunk and doesn't count towards the auto-mode size
+ * threshold, because no line of it could ever ground a finding.
+ */
+export function hasNewSideLines(file: { hunks: Pick<DiffHunk, 'newLineNumbers'>[] }): boolean {
+  return file.hunks.some((h) => h.newLineNumbers.length > 0);
 }

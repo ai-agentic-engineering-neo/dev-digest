@@ -29,6 +29,8 @@ Only Postgres runs in Docker — the API and the web app run on the host.
 - You need the end-to-end picture or the architecture diagrams → `README.md`.
 - Anything about test suites, the unit/integration split, or CI lanes → `TESTING.md`.
 - Writing or editing a reviewer agent's system prompt → `docs/agent-prompts/`.
+- Delegating to a project subagent (options, plan, implement, tests, verification,
+  architecture / security review, docs) → `.claude/agents/README.md`.
 - The task comes from a written spec or a course lesson → `specs/`, and the
   package-level `*/specs/` for the half that lives in one package.
 - Tooling or the environment behaves inexplicably → `INSIGHTS.md` (§ Recurring Errors).
@@ -54,6 +56,11 @@ Only Postgres runs in Docker — the API and the web app run on the host.
 - CI is path-filtered per package: `.github/workflows/<package>.yml`.
 - Course lessons add features as self-contained modules; the DB schema already
   contains every table, the unused ones simply sit empty.
+- **Tests may be run without asking** — any suite a change needs. They must not touch
+  the dev DB: the server unit lane runs with
+  `DATABASE_URL=postgres://isolated:isolated@127.0.0.1:1/isolated` (`server/INSIGHTS.md`).
+- Project agents and hooks carry their own rules; they must work the same for every
+  developer, whatever their personal `~/.claude` settings (`.claude/agents/README.md`).
 
 ## Naming conventions
 

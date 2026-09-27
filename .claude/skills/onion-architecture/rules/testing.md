@@ -53,5 +53,7 @@ system under test. Mock the port, exercise the real rule.
 
 ## Standing project rule
 
-Tests are written but **not run** unless the user explicitly asks. Write the test, then
-state the exact command and what it would prove.
+Tests may be run without asking (root `AGENTS.md` § Conventions): write the test, run it,
+and report the command with its result. The server unit lane runs with
+`DATABASE_URL=postgres://isolated:isolated@127.0.0.1:1/isolated` so it cannot touch the
+dev DB; `*.it.test.ts` needs Docker and self-skips without it — report the skipped count.

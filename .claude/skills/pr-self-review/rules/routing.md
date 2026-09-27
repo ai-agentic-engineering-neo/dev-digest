@@ -10,12 +10,14 @@ and in neither column here is a routing bug.
 |---|---|
 | `client/**/*.{test,spec}.{ts,tsx}` | `react-testing-library` |
 | `client/src/app/**/{page,layout,route,loading,error,template,not-found,default}.{ts,tsx}` | `next-best-practices`, `react-best-practices`, `frontend-ui-architecture` |
+| `client/src/lib/api.ts`, `client/src/lib/hooks/**` | `react-best-practices`, `frontend-ui-architecture` |
 | `client/**/*.tsx` (non-test) | `react-best-practices`, `frontend-ui-architecture` |
 | `client/src/**/*.ts` (non-test) | `frontend-ui-architecture` |
 | `server/src/modules/*/routes.ts` | `fastify-best-practices`, `onion-architecture`, `security`, `zod` |
 | `server/src/platform/{sse,jobs,http}.ts` | `fastify-best-practices`, `onion-architecture` |
 | `server/src/modules/*/repository.ts` | `onion-architecture`, `drizzle-orm-patterns` |
 | `server/src/{modules,domain,adapters,platform}/**` | `onion-architecture` |
+| `server/test/**`, `reviewer-core/test/**` | `onion-architecture` (`rules/testing.md`: one way to test each ring, the `.it.test.ts` suffix) |
 | `server/src/db/{schema,rows}.ts`, `server/src/db/migrations/**` | `drizzle-orm-patterns`, `postgresql-table-design` |
 | `{server,client}/src/vendor/shared/**` | `zod`, `onion-architecture` + the dual-copy check |
 | `reviewer-core/src/**` | `onion-architecture`, `typescript-expert`, `zod` |
@@ -36,6 +38,7 @@ Path alone misses these, so they are matched against the `+` lines of the diff
 |---|---|
 | `dangerouslySetInnerHTML`, `innerHTML`, `child_process`, `execSync`, `spawn(`, `exec(`, `eval(`, `new Function`, `Authorization`, `password`, `secret`, `token`, `apiKey`, `api_key`, `jwt`, `bcrypt`, `cookie`, `cors`, `helmet`, `.query.`, `.body.`, `.params.`, `redirect(`, `upload` | `security` |
 | `any`, `as unknown as`, `as <Type>`, `@ts-ignore`, `@ts-expect-error`, `infer`, `keyof`, `satisfies`, `declare module`, any `tsconfig*.json` | `typescript-expert` |
+| `.inject(` in a `server/**` file | `fastify-best-practices` (`rules/testing.md` — route tests through `app.inject()`) |
 
 Content triggers are deliberately wide: the lane's own skill decides what is reportable
 (`security` has a confidence table, `typescript-expert` has none — see `../rules/severity.md`).

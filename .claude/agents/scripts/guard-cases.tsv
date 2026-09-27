@@ -1,0 +1,171 @@
+# guard	args	mode	input	expected_exit
+# implementer-guard — behaviour kept from before guard-lib.sh
+implementer-guard	-	cmd	cd server && pnpm typecheck	0
+implementer-guard	-	cmd	git status --short	0
+implementer-guard	-	cmd	git commit -m x	2
+implementer-guard	-	cmd	git -C server push	2
+implementer-guard	-	cmd	git branch -D x	2
+implementer-guard	-	cmd	gh pr create --fill	2
+implementer-guard	-	cmd	pnpm db:generate	0
+implementer-guard	-	cmd	cd server && pnpm db:migrate	2
+implementer-guard	-	cmd	pnpm exec drizzle-kit push	2
+implementer-guard	-	cmd	docker compose down -v	2
+implementer-guard	-	cmd	docker exec devdigest-postgres psql -c "drop table x"	2
+implementer-guard	-	cmd	DATABASE_URL=postgres://isolated:isolated@127.0.0.1:1/isolated pnpm exec vitest run	0
+implementer-guard	-	path	server/src/modules/pulls/service.ts	0
+implementer-guard	-	path	server/pnpm-lock.yaml	2
+implementer-guard	-	path	server/package.json	2
+implementer-guard	-	path	server/src/db/migrations/0015_x.sql	2
+implementer-guard	-	path	server/clones/acme/api/x.ts	2
+implementer-guard	-	path	.claude/settings.json	2
+implementer-guard	-	path	.env	2
+implementer-guard	-	path	server/.env.example	0
+implementer-guard	-	path	/etc/hosts	2
+implementer-guard	-	path	../outside.md	2
+# implementer-guard — new agent definitions writable, the guard mechanism is not
+implementer-guard	-	path	.claude/agents/test-writer.md	0
+implementer-guard	-	path	.claude/agents/implementer.md	2
+implementer-guard	-	path	.claude/agents/README.md	2
+implementer-guard	-	path	.claude/agents/scripts/implementer-guard.sh	2
+implementer-guard	-	path	.claude/agents/scripts/guard-lib.sh	2
+implementer-guard	-	path	.claude/settings.local.json	2
+# readonly-guard — allowed
+readonly-guard	-	cmd	git diff --stat	0
+readonly-guard	-	cmd	git --no-pager log --oneline -5	0
+readonly-guard	-	cmd	git -C server show HEAD:package.json	0
+readonly-guard	-	cmd	git branch --show-current	0
+readonly-guard	-	cmd	git branch -a	0
+readonly-guard	-	cmd	git remote -v	0
+readonly-guard	-	cmd	cd server && pnpm exec depcruise src --config .dependency-cruiser.cjs	0
+readonly-guard	-	cmd	cd server && pnpm exec depcruise src --config .dependency-cruiser.cjs --output-type err	0
+readonly-guard	-	cmd	cd client && pnpm typecheck	0
+readonly-guard	-	cmd	printf 'a\n' | .claude/skills/pr-self-review/scripts/route-skills.sh --files-from - | jq -r '.lanes[].skill'	0
+readonly-guard	-	cmd	"$CLAUDE_PROJECT_DIR"/.claude/skills/pr-self-review/scripts/collect-diff.sh --format list	0
+readonly-guard	-	cmd	diff -r server/src/vendor/shared client/src/vendor/shared 2>/dev/null	0
+readonly-guard	-	cmd	grep -rnE "import (type )?\{|from '@devdigest/shared'" client/src | head -20	0
+readonly-guard	-	cmd	grep -rn '=> ' server/src/modules | wc -l	0
+readonly-guard	-	cmd	sed -n '1,40p' client/src/app/x-intl.ts	0
+readonly-guard	-	cmd	for f in a b; do test -e "$f" || echo "missing $f"; done	0
+readonly-guard	-	cmd	find server/src -name '*.ts' -newer package.json	0
+readonly-guard	-	cmd	git diff --name-only 2>&1 | sort | uniq	0
+# readonly-guard — blocked
+readonly-guard	-	cmd	git stash	2
+readonly-guard	-	cmd	git commit -m x	2
+readonly-guard	-	cmd	git checkout -- file.ts	2
+readonly-guard	-	cmd	git fetch origin	2
+readonly-guard	-	cmd	git branch feature/x	2
+readonly-guard	-	cmd	git branch -D x	2
+readonly-guard	-	cmd	git diff --output=patch.diff	2
+readonly-guard	-	cmd	gh pr create --fill	2
+readonly-guard	-	cmd	pnpm test	2
+readonly-guard	-	cmd	pnpm exec vitest run	2
+readonly-guard	-	cmd	npm test	2
+readonly-guard	-	cmd	./scripts/e2e.sh	2
+readonly-guard	-	cmd	./scripts/dev.sh --no-seed	2
+readonly-guard	-	cmd	pnpm add zod	2
+readonly-guard	-	cmd	.claude/skills/pr-self-review/scripts/write-verdict.sh --base x	2
+readonly-guard	-	cmd	.claude/skills/engineering-insights/scripts/append-insight.sh --module root	2
+readonly-guard	-	cmd	cat a > b	2
+readonly-guard	-	cmd	echo x >> INSIGHTS.md	2
+readonly-guard	-	cmd	tee x	2
+readonly-guard	-	cmd	rm -rf x	2
+readonly-guard	-	cmd	sed -i 's/a/b/' file.ts	2
+readonly-guard	-	cmd	find . -name '*.tmp' -delete	2
+readonly-guard	-	cmd	sort -o out.txt in.txt	2
+readonly-guard	-	cmd	echo "$(rm -rf x)"	2
+readonly-guard	-	cmd	bash -c 'rm x'	2
+readonly-guard	-	cmd	node -e 'require("fs").writeFileSync("x","")'	2
+readonly-guard	-	cmd	xargs rm < list.txt	2
+readonly-guard	-	cmd	pnpm exec tsc -p tsconfig.json	2
+readonly-guard	-	cmd	cd server && pnpm db:migrate	2
+readonly-guard	-	tool	Write	2
+readonly-guard	-	tool	Edit	2
+readonly-guard	-	tool	MultiEdit	2
+readonly-guard	-	path	docs/x.md	2
+# readonly-guard --allow-tests (plan-verifier)
+readonly-guard	--allow-tests	cmd	cd server && DATABASE_URL=postgres://isolated:isolated@127.0.0.1:1/isolated pnpm exec vitest run --exclude '**/*.it.test.ts'	0
+readonly-guard	--allow-tests	cmd	cd client && pnpm test	0
+readonly-guard	--allow-tests	cmd	cd reviewer-core && npx vitest run test/run.test.ts	0
+readonly-guard	--allow-tests	cmd	pnpm exec vitest run -u	2
+readonly-guard	--allow-tests	cmd	pnpm exec vitest --watch	2
+readonly-guard	--allow-tests	cmd	./scripts/e2e.sh	2
+readonly-guard	--allow-tests	cmd	git stash	2
+readonly-guard	--allow-tests	tool	Write	2
+# write-scope-guard --profile tests — allowed
+write-scope-guard	--profile tests	path	client/src/app/skills/_components/SkillCard/SkillCard.test.tsx	0
+write-scope-guard	--profile tests	path	client/src/test/render-with-intl.tsx	0
+write-scope-guard	--profile tests	path	server/test/pulls-cost.it.test.ts	0
+write-scope-guard	--profile tests	path	server/test/fixtures/pr.json	0
+write-scope-guard	--profile tests	path	server/src/modules/pulls/helpers.test.ts	0
+write-scope-guard	--profile tests	path	reviewer-core/test/run.test.ts	0
+write-scope-guard	--profile tests	path	server/tsconfig.test-check.json	0
+write-scope-guard	--profile tests	cmd	rm server/tsconfig.test-check.json	0
+write-scope-guard	--profile tests	cmd	cd server && pnpm exec tsc --noEmit -p tsconfig.test-check.json	0
+write-scope-guard	--profile tests	cmd	cd server && DATABASE_URL=postgres://isolated:isolated@127.0.0.1:1/isolated pnpm exec vitest run test/x.test.ts	0
+write-scope-guard	--profile tests	cmd	cd client && pnpm test	0
+write-scope-guard	--profile tests	cmd	cd reviewer-core && npx vitest run test/run.test.ts	0
+write-scope-guard	--profile tests	cmd	printf 'x\n' | .claude/skills/engineering-insights/scripts/append-insight.sh --module server --section "What Works"	0
+write-scope-guard	--profile tests	cmd	git diff --stat	0
+write-scope-guard	--profile tests	cmd	grep -rn "a|b" server/src > /dev/null	0
+# write-scope-guard --profile tests — blocked
+write-scope-guard	--profile tests	path	server/src/adapters/mocks.ts	2
+write-scope-guard	--profile tests	path	client/src/test/setup.ts	2
+write-scope-guard	--profile tests	path	client/vitest.config.ts	2
+write-scope-guard	--profile tests	path	client/src/app/skills/page.tsx	2
+write-scope-guard	--profile tests	path	e2e/specs/11-x.flow.json	2
+write-scope-guard	--profile tests	path	server/INSIGHTS.md	2
+write-scope-guard	--profile tests	path	server/src/vendor/shared/contracts/findings.ts	2
+write-scope-guard	--profile tests	path	/tmp/x.test.ts	2
+write-scope-guard	--profile tests	cmd	rm -rf server/test	2
+write-scope-guard	--profile tests	cmd	cd server && pnpm add -D x	2
+write-scope-guard	--profile tests	cmd	pnpm exec vitest run -u	2
+write-scope-guard	--profile tests	cmd	pnpm exec vitest	2
+write-scope-guard	--profile tests	cmd	./scripts/e2e.sh	2
+write-scope-guard	--profile tests	cmd	./scripts/dev.sh --no-seed	2
+write-scope-guard	--profile tests	cmd	git commit -am x	2
+write-scope-guard	--profile tests	cmd	cat x > server/src/app.ts	2
+write-scope-guard	--profile tests	cmd	sed -i 's/a/b/' server/src/app.ts	2
+write-scope-guard	--profile tests	cmd	npx prettier --write .	2
+write-scope-guard	--profile tests	cmd	pnpm lint:fix	2
+write-scope-guard	--profile tests	cmd	node -e 'require("fs").writeFileSync("x","")'	2
+write-scope-guard	--profile tests	tool	NotebookEdit	2
+# write-scope-guard --profile docs — allowed
+write-scope-guard	--profile docs	path	docs/agents-pipeline.md	0
+write-scope-guard	--profile docs	path	server/docs/new-topic.md	0
+write-scope-guard	--profile docs	path	README.md	0
+write-scope-guard	--profile docs	path	server/AGENTS.md	0
+write-scope-guard	--profile docs	path	TESTING.md	0
+write-scope-guard	--profile docs	path	server/src/modules/conventions/README.md	0
+write-scope-guard	--profile docs	cmd	cd server && pnpm typecheck	0
+# write-scope-guard --profile docs — blocked
+write-scope-guard	--profile docs	path	CLAUDE.md	2
+write-scope-guard	--profile docs	path	server/CLAUDE.md	2
+write-scope-guard	--profile docs	path	server/INSIGHTS.md	2
+write-scope-guard	--profile docs	path	specs/x.md	2
+write-scope-guard	--profile docs	path	server/specs/x.md	2
+write-scope-guard	--profile docs	path	docs/agent-prompts/security-reviewer.md	2
+write-scope-guard	--profile docs	path	docs/design/x.md	2
+write-scope-guard	--profile docs	path	.claude/agents/README.md	2
+write-scope-guard	--profile docs	path	server/src/app.ts	2
+write-scope-guard	--profile docs	cmd	cd client && pnpm test	2
+write-scope-guard	--profile docs	cmd	pnpm exec vitest run	2
+write-scope-guard	--profile docs	cmd	mv docs/a.md docs/b.md	2
+# write-scope-guard without a profile fails closed
+write-scope-guard	-	cmd	ls	2
+# quote scanner: a quote inside another kind of quote must not hide a command
+readonly-guard	-	cmd	echo "it's" ; rm x ; echo 'y'	2
+readonly-guard	-	cmd	grep -nE "from ['\"]node:|require\(" reviewer-core/src/index.ts	0
+readonly-guard	-	cmd	grep -n "a > b" server/src/app.ts	0
+readonly-guard	-	cmd	echo "unterminated ; rm x	2
+write-scope-guard	--profile tests	cmd	echo "it's" ; rm server/src/app.ts ; echo 'y'	2
+write-scope-guard	--profile tests	cmd	bash -c 'rm -rf server/src'	2
+write-scope-guard	--profile tests	cmd	find server/src -name '*.ts' | xargs rm	2
+write-scope-guard	--profile tests	cmd	echo "$(rm server/src/app.ts)"	2
+# readonly-guard — the validators are read-only and allowed
+readonly-guard	-	cmd	.claude/agents/scripts/check-agents.sh	0
+readonly-guard	-	cmd	.claude/agents/scripts/check-guards.sh --verbose	0
+readonly-guard	-	cmd	bash -n .claude/agents/scripts/guard-lib.sh	0
+readonly-guard	-	cmd	.claude/agents/scripts/implementer-guard.sh --check x	2
+readonly-guard	-	cmd	bash .claude/agents/scripts/x.sh	2
+# awk is not on the read-only allowlist: its quoted program can write files
+readonly-guard	-	cmd	awk '{print $1}' server/src/app.ts	2

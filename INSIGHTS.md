@@ -30,6 +30,12 @@ Approaches and solutions that held up, with the context that made them work.
 Dead ends and anti-patterns: what was tried, why it failed, what to do instead.
 **The highest-value section and the one most often left empty. Fill it.**
 
+- **Regex quote-stripping in an allowlist guard hides commands: in `echo "it's" ; rm x ; echo 'y'` the apostrophe pairs with the later quote.** (2026-09-27) The first `readonly-guard.sh` replaced `'[^']*'` with a placeholder, so the `rm` became quoted data and passed the allowlist; it also broke on `\"` inside double quotes.
+  → Use the character scanner `lib_strip_quotes` in `.claude/agents/scripts/guard-lib.sh` (awk, tracks quote state, keeps double-quoted `$(` visible); add a mixed-quote row to `guard-cases.tsv` for any new guard.
+
+- **A guard hook that exits 1 ALLOWS the tool call, and `block` inside `$(...)` only exits the subshell.** (2026-09-27) With neither `jq` nor `node` on PATH, `tool="$(lib_payload_field tool_name)"` blocked in a subshell, the parent saw an empty tool and exited 0 — every Bash/Edit call passed. Claude Code treats hook exit 1 as a non-blocking error.
+  → Check capabilities in the main shell, write `x="$(…)" || exit 2`, and trap EXIT to turn any code other than 0/2 into 2 (`.claude/agents/scripts/*-guard.sh`). Test hook mode with a PATH lacking the tool, not only `--check`.
+
 - **Corrected 2026-09-24: `guard-pr.sh` still refuses a command that only CONTAINS the PR-create text on its own line, e.g. inside a heredoc.** `GATE_RE` anchors on `^`, and `grep -Eq` is line-based, so every line of a multi-line command is "command position": a Python heredoc that edited `DEMO_SCRIPT-hw2.md` was blocked because one replacement line started with the gh command. Nothing ran, and the refusal reads exactly like a real PR being stopped.
   → Put such text in a file written with the Write tool and run `python3 /tmp/x.py` (the Bash command then carries no match), or split the literal in code. Do not reach for `PR_SELF_REVIEW_OVERRIDE`: that is reserved for an explicit user instruction.
 
@@ -63,6 +69,12 @@ settled enough to move into `CLAUDE.md`.
 
 Quirks of dependencies, versions and tooling — what a library does that its docs
 do not say.
+
+- **`permissionMode` in an agent is not a guard: a session in `bypassPermissions` forces its subagents into it.** (2026-09-27, https://code.claude.com/docs/en/sub-agents) Path-scoped writes are not a frontmatter field either (anthropics/claude-code#31940, closed not planned). A new `.claude/agents/<name>.md` is picked up by the running session (Claude Code 2.1.280) — no restart needed.
+  → Enforce read-only / write scopes with `tools`/`disallowedTools` plus a frontmatter `PreToolUse` hook (`.claude/agents/scripts/`), and state the same rules in the agent text for sessions before workspace trust.
+
+- **A project subagent cannot ask the user anything: `AskUserQuestion` is stripped from every subagent, whatever `tools:` lists.** (2026-09-27) The first `researcher.md` listed it and relied on it for clarifying questions; it was dead weight. Also from the same docs page: `skills:` in agent frontmatter only preloads — the Skill tool still reaches every project skill unless `Skill` is removed — and frontmatter hooks of a `.claude/agents/` agent run only after the workspace-trust dialog is accepted (https://code.claude.com/docs/en/sub-agents).
+  → Agents return a `Clarification needed` / `Blocked` block and the calling session asks; to forbid skills, deny `Skill`, never rely on an empty `skills:` list.
 
 - **`jq` `//` treats `false` as empty, so `.blocked // true` turns a PASSING verdict into a block.** `guard-pr.sh:67` read the gate decision that way; a verdict with `"blocked": false` and matching hashes still refused `gh pr create`, and the failure looks like a stale-artifact bug rather than a JSON read.
   → For any boolean read from JSON use `if has("k") then .k else <default> end`; keep `//` for strings. A gate test that only exercises the deny path will never catch it — assert the allow path too.
@@ -103,6 +115,9 @@ instead of an investigation.
 
 Dated summaries as `### YYYY-MM-DD — topic`: what was worked on and what state it
 was left in. Prune an entry once its content has moved into a section above.
+
+### 2026-09-27 — six project subagents + guards
+Added `brainstorm`, `test-writer`, `plan-verifier`, `architecture-reviewer`, `security-reviewer` (renamed from `appsec-reviewer` by the user) and `doc-writer` per `specs/project-subagents-plan.md`; the guards share `guard-lib.sh`, `check-guards.sh` 157/157, `check-agents.sh` 9/9. Project policy now: tests may be run without asking (`AGENTS.md`); agents must not depend on personal `~/.claude` settings. plan-verifier (run twice) found nothing missing; `awk` is left off the read-only allowlist on purpose. Nothing committed.
 
 ### 2026-09-24 — full HW2 criteria audit against code
 Checked all 53 criteria in code, not in the matrix. Closed five gaps: instruction files moved to `AGENTS.md` with `CLAUDE.md` as a one-line `@AGENTS.md` import (root, server, client, reviewer-core, e2e; Claude Code resolves it); the frontend skill now states pages/components/naming/tests in SKILL.md itself; the onion skill now forbids a route calling an adapter (checklist + grep in `rules/enforcement.md`, tree already clean); pr-self-review declares itself a Workflow dispatcher; the agent Skills tab uses a labelled toggle instead of a checkbox. Client 161 tests, build, arch check green. Left to the demo: 16 (an imported skill linked to a new agent), 17, 18 (A/B runs); the API Contract Reviewer appears only after `pnpm db:seed --no-demo`.

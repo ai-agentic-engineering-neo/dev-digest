@@ -50,6 +50,7 @@ added_lines() {
 }
 
 SECURITY_RE='dangerouslySetInnerHTML|innerHTML|child_process|execSync|spawn\(|\bexec\(|eval\(|new Function|Authorization|password|passwd|secret|token|apiKey|api_key|jwt|bcrypt|cookie|cors|helmet|\.query\.|\.body\.|\.params\.|redirect\(|upload'
+INJECT_RE='\.inject\('
 TS_RE='(^|[^A-Za-z])any([^A-Za-z]|$)|as unknown as|as [A-Z]|@ts-(ignore|expect-error)|\binfer \b|\bkeyof \b|satisfies |declare module'
 
 declare -A LANE
@@ -67,6 +68,8 @@ for f in "${FILES[@]}"; do
   elif [[ "$f" =~ ^client/src/app/.*/(page|layout|route|loading|error|template|not-found|default)\.(ts|tsx)$ ]] \
     || [[ "$f" =~ ^client/src/app/[^/]+\.(ts|tsx)$ ]]; then
     add next-best-practices "$f"; add react-best-practices "$f"; add frontend-ui-architecture "$f"; matched=1
+  elif [[ "$f" =~ ^client/src/lib/(api\.ts|hooks/.*\.(ts|tsx))$ ]]; then
+    add react-best-practices "$f"; add frontend-ui-architecture "$f"; matched=1
   elif [[ "$f" =~ ^client/.*\.tsx$ ]]; then
     add react-best-practices "$f"; add frontend-ui-architecture "$f"; matched=1
   elif [[ "$f" =~ ^client/src/.*\.ts$ ]]; then
@@ -81,6 +84,10 @@ for f in "${FILES[@]}"; do
   elif [[ "$f" =~ ^server/src/modules/[^/]+/repository\.ts$ ]]; then
     add onion-architecture "$f"; add drizzle-orm-patterns "$f"; matched=1
   elif [[ "$f" =~ ^server/src/(modules|domain|adapters|platform)/ ]]; then
+    add onion-architecture "$f"; matched=1
+  fi
+
+  if [[ "$f" =~ ^(server|reviewer-core)/test/ ]]; then
     add onion-architecture "$f"; matched=1
   fi
 
@@ -106,6 +113,9 @@ for f in "${FILES[@]}"; do
     fi
     if [[ -n "$body" ]] && grep -Eq "$TS_RE" <<<"$body"; then
       add typescript-expert "$f"; matched=1
+    fi
+    if [[ "$f" =~ ^server/ ]] && [[ -n "$body" ]] && grep -Eq "$INJECT_RE" <<<"$body"; then
+      add fastify-best-practices "$f"; matched=1
     fi
   fi
   if [[ "$f" =~ tsconfig.*\.json$ ]]; then

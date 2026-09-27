@@ -27,12 +27,16 @@ flowchart TD
   ONB["/onboarding<br/>add repo"] -->|"POST /repos"| API[("Fastify API")]
   PULLS --> PR["/pulls/:number<br/>review detail<br/>(overview · diff · findings)"]
 
-  AGENTS["/agents"] --> AGENT["/agents/:id<br/>editor (config)"]
+  AGENTS["/agents"] --> AGENT["/agents/:id<br/>editor (config · skills)"]
+  SKILLS["/skills<br/>list (layout) + empty pane"] --> SKILL["/skills/:id?tab=<br/>same list + skill in the side pane<br/>(config · preview · stats · versions)"]
+  CONV["/repos/:repoId/conventions<br/>scan · accept/reject/edit · create skill"]
   SETTINGS["/settings/:section<br/>API keys · models"]
 
   PULLS -->|"GET /repos/:id/pulls · /repos/:id/index-state"| API
   PR -->|"GET /pulls/:id · /reviews · /pulls/:id/comments<br/>POST /pulls/:id/review · /findings/:id/(accept|dismiss)"| API
-  AGENTS -->|"/agents · /agents/:id"| API
+  AGENTS -->|"/agents · /agents/:id · /agents/:id/skills"| API
+  SKILLS -->|"/skills · /skills/:id(/versions|/agents)<br/>/skills/community · /skills/import(/preview)"| API
+  CONV -->|"GET /repos/:id/conventions · POST …/extract<br/>PATCH /conventions/:id · POST …/skill(/preview)"| API
   SETTINGS -->|"/settings · /providers"| API
 ```
 

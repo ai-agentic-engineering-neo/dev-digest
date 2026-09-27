@@ -14,11 +14,10 @@
  * `getUnresolvedReferences` and (via T1.3) `getCallerSignatures`. T2 fills in
  * the rank-driven methods. T3 unlocks `getCriticalPaths` etc.
  *
- * The constructor takes ONLY a Container. No astgrep / depgraph / tokenizer
+ * The constructor takes ONLY its RepoIntelDeps port. No astgrep / depgraph / tokenizer
  * deps are imported here — those land later and plug into this same shell.
  */
 import type { CodeSymbol, RepoRef } from '@devdigest/shared';
-import type { Container } from '../../platform/container.js';
 import { extractEndpoints } from '../../adapters/codeindex/extract.js';
 import {
   parseImports,
@@ -33,11 +32,13 @@ import type {
   BlastCallerRow,
   BlastChangedSymbol,
   BlastResult,
+  ConventionFacts,
   FileRankRow,
   IndexResult,
   IndexState,
   RefRow,
   RepoIntel,
+  RepoIntelDeps,
   RepoMapResult,
   SignatureRow,
   SymbolRow,
@@ -54,6 +55,12 @@ import {
 } from './constants.js';
 import { runFullIndex, type IndexPayload } from './pipeline/full.js';
 import { runIncremental } from './pipeline/incremental.js';
+import {
+  chooseStrataDepth,
+  computeConventionFacts,
+  interleaveByStratum,
+  isToolingPath,
+} from './pipeline/convention-facts.js';
 
 /**
  * GLOBALS allowlist — common JS/TS builtins + runtime that appear as bare
@@ -101,15 +108,15 @@ const PHANTOM_GLOBALS_ALLOWLIST: ReadonlySet<string> = new Set([
 export class RepoIntelService implements RepoIntel {
   private readonly repo: RepoIntelRepository;
 
-  constructor(private container: Container) {
-    this.repo = new RepoIntelRepository(container.db);
+  constructor(private deps: RepoIntelDeps) {
+    this.repo = new RepoIntelRepository(deps.db);
   }
 
   // -------------------------------------------------------------------------
   // Indexing — T2.2 worker. The job handlers (registered via
   // registerIndexJobHandlers below) are the ASYNC entry; these methods are
   // SYNC-from-the-handler (they ARE the handler body). HTTP/Repo callers go
-  // through `container.jobs.enqueue(INDEX_JOB_KIND, ...)` so the clone job
+  // through `deps.jobs.enqueue(INDEX_JOB_KIND, ...)` so the clone job
   // closes promptly and the index runs in the background.
   // -------------------------------------------------------------------------
 
@@ -120,7 +127,7 @@ export class RepoIntelService implements RepoIntel {
    * jobs already have their own time budget and don't want a second queue.
    */
   async indexRepo(repoId: string): Promise<IndexResult> {
-    return runFullIndex(this.container, this.repo, { repoId });
+    return runFullIndex(this.deps, this.repo, { repoId });
   }
 
   /**
@@ -129,7 +136,7 @@ export class RepoIntelService implements RepoIntel {
    * delegates to `runFullIndex` internally.
    */
   async refreshIndex(repoId: string): Promise<IndexResult> {
-    return runIncremental(this.container, this.repo, { repoId });
+    return runIncremental(this.deps, this.repo, { repoId });
   }
 
   /**
@@ -148,7 +155,7 @@ export class RepoIntelService implements RepoIntel {
     }
     const ref: RepoRef = { owner: repo.owner, name: repo.name };
     try {
-      await this.container.git.sync(ref, repo.defaultBranch);
+      await this.deps.git.sync(ref, repo.defaultBranch);
     } catch (err) {
       return {
         status: 'degraded',
@@ -158,7 +165,7 @@ export class RepoIntelService implements RepoIntel {
         reason: `sync_failed:${err instanceof Error ? err.message : String(err)}`,
       };
     }
-    return runIncremental(this.container, this.repo, { repoId });
+    return runIncremental(this.deps, this.repo, { repoId });
   }
 
   /**
@@ -170,13 +177,13 @@ export class RepoIntelService implements RepoIntel {
    * `Promise<void>`. Status/progress is observable via `repo_index_state`.
    */
   registerIndexJobHandlers(): void {
-    this.container.jobs.register(INDEX_JOB_KIND, async (payload) => {
+    this.deps.jobs.register(INDEX_JOB_KIND, async (payload) => {
       await this.indexRepo((payload as IndexPayload).repoId);
     });
-    this.container.jobs.register(REFRESH_JOB_KIND, async (payload) => {
+    this.deps.jobs.register(REFRESH_JOB_KIND, async (payload) => {
       await this.refreshIndex((payload as IndexPayload).repoId);
     });
-    this.container.jobs.register(RESYNC_JOB_KIND, async (payload) => {
+    this.deps.jobs.register(RESYNC_JOB_KIND, async (payload) => {
       await this.resyncRepo((payload as IndexPayload).repoId);
     });
   }
@@ -209,7 +216,7 @@ export class RepoIntelService implements RepoIntel {
   // -------------------------------------------------------------------------
 
   /**
-   * Best-effort blast over `container.codeIndex` — a faithful port of
+   * Best-effort blast over `deps.codeIndex` — a faithful port of
    * blast/service.ts mapped into the facade's `BlastResult` shape, then
    * tagged `degraded: true` so consumers can branch.
    *
@@ -220,7 +227,7 @@ export class RepoIntelService implements RepoIntel {
   async getBlastRadius(repoId: string, changedFiles: string[]): Promise<BlastResult> {
     // T3: serve from the persistent index when it's built. Falls through to the
     // ripgrep best-effort below when the flag is off / index is absent.
-    if (this.container.config.repoIntelEnabled && changedFiles.length > 0) {
+    if (this.deps.config.repoIntelEnabled && changedFiles.length > 0) {
       const persistent = await this.tryPersistentBlast(repoId, changedFiles);
       if (persistent) return persistent;
     }
@@ -241,7 +248,7 @@ export class RepoIntelService implements RepoIntel {
 
     let allSymbols: CodeSymbol[];
     try {
-      allSymbols = await this.container.codeIndex.symbols(ref);
+      allSymbols = await this.deps.codeIndex.symbols(ref);
     } catch {
       return empty;
     }
@@ -264,7 +271,7 @@ export class RepoIntelService implements RepoIntel {
     for (const sym of changedSymbols) {
       let refs;
       try {
-        refs = await this.container.codeIndex.references(ref, sym.name);
+        refs = await this.deps.codeIndex.references(ref, sym.name);
       } catch {
         continue;
       }
@@ -403,7 +410,7 @@ export class RepoIntelService implements RepoIntel {
       degraded: true,
       reason: 'no_data',
     };
-    if (!this.container.config.repoIntelEnabled) {
+    if (!this.deps.config.repoIntelEnabled) {
       return { ...degraded, reason: 'flag_off' };
     }
     const state = await this.repo.tryGetIndexState(repoId);
@@ -416,14 +423,14 @@ export class RepoIntelService implements RepoIntel {
 
   /** Percentile per path from `file_rank` (smart-diff / run-executor "top-N%"). */
   async getFileRank(repoId: string, paths: string[]): Promise<FileRankRow[]> {
-    if (!this.container.config.repoIntelEnabled) return [];
+    if (!this.deps.config.repoIntelEnabled) return [];
     if (paths.length === 0) return [];
     return this.repo.getFileRankFor(repoId, paths);
   }
 
   /** Persistent symbol read-model (T2 columns) for the given files. */
   async getSymbolsInFiles(repoId: string, paths: string[]): Promise<SymbolRow[]> {
-    if (!this.container.config.repoIntelEnabled) return [];
+    if (!this.deps.config.repoIntelEnabled) return [];
     if (paths.length === 0) return [];
     const rows = await this.repo.getSymbolRows(repoId, paths);
     return rows.map((r) => ({
@@ -441,7 +448,7 @@ export class RepoIntelService implements RepoIntel {
    * T1.3 — diff-scoped, best-effort callers-in-prompt fuel.
    *
    * For each symbol declared in a changed file (astgrep parseSymbols), find
-   * cross-file callers via the EXISTING ripgrep-backed `container.codeIndex.
+   * cross-file callers via the EXISTING ripgrep-backed `deps.codeIndex.
    * references()` (the same path blast already trusts), then label each caller
    * with its enclosing symbol + signature (astgrep parseSymbols of the caller
    * file). rank=0 until T3 wires file_rank.
@@ -455,7 +462,7 @@ export class RepoIntelService implements RepoIntel {
     changedFiles: string[],
     limit: number = MAX_CALLERS_PER_SYMBOL,
   ): Promise<SignatureRow[]> {
-    if (!this.container.config.repoIntelEnabled) return [];
+    if (!this.deps.config.repoIntelEnabled) return [];
     if (changedFiles.length === 0) return [];
 
     const repo = await this.repo.getRepoBasics(repoId);
@@ -496,7 +503,7 @@ export class RepoIntelService implements RepoIntel {
       if (out.length >= limit) break;
       let refs;
       try {
-        refs = await this.container.codeIndex.references(ref, symbolName);
+        refs = await this.deps.codeIndex.references(ref, symbolName);
       } catch {
         continue;
       }
@@ -576,7 +583,7 @@ export class RepoIntelService implements RepoIntel {
    * NEVER throws — per-file parse errors are swallowed.
    */
   async getUnresolvedReferences(repoId: string, files: string[]): Promise<RefRow[]> {
-    if (!this.container.config.repoIntelEnabled) return [];
+    if (!this.deps.config.repoIntelEnabled) return [];
     if (files.length === 0) return [];
 
     const repo = await this.repo.getRepoBasics(repoId);
@@ -626,9 +633,45 @@ export class RepoIntelService implements RepoIntel {
     return out;
   }
 
-  /** Top-N files by rank, minus tests/configs/migrations — conventions sample. */
+  /**
+   * Conventions sample: ranked files minus tests/configs/migrations/tooling,
+   * interleaved across the repo's top-level parts.
+   *
+   * Plain rank order was the first implementation, and a real scan of this
+   * monorepo sampled seven server files, five client files and nothing from
+   * the two smaller packages — every file the model saw came from the two
+   * places PageRank favours. The interleave keeps rank order inside each part.
+   */
   async getConventionSamples(repoId: string, n: number): Promise<string[]> {
-    return this.getTopFilesByRank(repoId, n);
+    if (!this.deps.config.repoIntelEnabled) return [];
+    if (n <= 0) return [];
+    const rows = await this.repo.getRankedPaths(repoId, CONVENTION_RANK_SCAN_LIMIT);
+    const usable = rows.filter((r) => !isJunkPath(r.path) && !isToolingPath(r.path));
+    if (usable.length === 0) return [];
+    const depth = chooseStrataDepth(usable.map((r) => r.path));
+    return interleaveByStratum(usable, depth)
+      .slice(0, n)
+      .map((r) => r.path);
+  }
+
+  /**
+   * Whole-index counts for a conventions scan. Reads three tables the indexer
+   * already maintains; an unindexed repo yields an empty, `degraded` result
+   * rather than an error, like every other facade read.
+   */
+  async getConventionFacts(repoId: string): Promise<ConventionFacts> {
+    if (!this.deps.config.repoIntelEnabled) {
+      return { ...EMPTY_CONVENTION_FACTS, degraded: true, reason: 'flag_off' };
+    }
+    const [ranked, edges, exportedSymbols] = await Promise.all([
+      this.repo.getRankedPaths(repoId, CONVENTION_RANK_SCAN_LIMIT),
+      this.repo.getEdges(repoId),
+      this.repo.getExportedSymbolKinds(repoId),
+    ]);
+    if (ranked.length === 0) {
+      return { ...EMPTY_CONVENTION_FACTS, degraded: true, reason: 'no_data' };
+    }
+    return computeConventionFacts({ paths: ranked.map((r) => r.path), edges, exportedSymbols });
   }
 
   /**
@@ -641,7 +684,7 @@ export class RepoIntelService implements RepoIntel {
     n: number,
     opts?: { exclude?: string[] },
   ): Promise<string[]> {
-    if (!this.container.config.repoIntelEnabled) return [];
+    if (!this.deps.config.repoIntelEnabled) return [];
     if (n <= 0) return [];
     const exclude = opts?.exclude ?? [];
     const rows = await this.repo.getRankedPaths(repoId, Math.max(n * 10, 100));
@@ -661,7 +704,7 @@ export class RepoIntelService implements RepoIntel {
    * up to BFS_DEPTH hops. Pure read over `file_edges` + `file_rank`.
    */
   async getCriticalPaths(repoId: string): Promise<string[][]> {
-    if (!this.container.config.repoIntelEnabled) return [];
+    if (!this.deps.config.repoIntelEnabled) return [];
     const edges = await this.repo.getEdges(repoId);
     if (edges.length === 0) return [];
 
@@ -704,6 +747,26 @@ export class RepoIntelService implements RepoIntel {
 
 /** How many top-ranked files seed `getCriticalPaths` dependency chains. */
 const CRITICAL_PATH_ROOTS = 5;
+
+/**
+ * Upper bound on the rank rows a conventions read pulls. Comfortably above
+ * MAX_INDEXED_FILES in practice for the repos this runs on, and a hard stop
+ * for the ones where it is not.
+ */
+const CONVENTION_RANK_SCAN_LIMIT = 10_000;
+
+const EMPTY_CONVENTION_FACTS: ConventionFacts = {
+  filesIndexed: 0,
+  edgesIndexed: 0,
+  strataDepth: 1,
+  strata: [],
+  recurringFileNames: [],
+  naming: [],
+  tests: [],
+  exportKinds: [],
+  siblingImports: [],
+  directoryImports: [],
+};
 
 /**
  * Path kinds excluded from rank-driven file samples (conventions/onboarding):

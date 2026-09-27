@@ -10,8 +10,11 @@ export const REFRESH_JOB_KIND = 'repo-intel-refresh';
 export const RESYNC_JOB_KIND = 'repo-intel-resync';
 
 // --- Walk / parse scope -----------------------------------------------------
-/** [T1] Files we parse (diff-scoped in T1; whole walk in T2). */
-export const SUPPORTED_EXT = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'] as const;
+/**
+ * [T1] Files we parse (diff-scoped in T1; whole walk in T2). Owned by the
+ * adapter layer — the parsers decide what they can read — and re-exported here.
+ */
+export { SUPPORTED_EXT, MAX_SIGNATURE_CHARS } from '../../adapters/constants.js';
 
 /** [T1] Directories never walked. `.gitignore` is layered on top in T2 walk. */
 export const EXCLUDED_DIRS = [
@@ -50,4 +53,3 @@ export const BFS_DEPTH = 2;
 export const HOTNESS_WINDOW_DAYS = 180;
 export const DEFAULT_REPO_MAP_TOKEN_BUDGET = 1500;
 /** Signatures are trimmed to this many chars in the parse phase (cache stability). */
-export const MAX_SIGNATURE_CHARS = 120;

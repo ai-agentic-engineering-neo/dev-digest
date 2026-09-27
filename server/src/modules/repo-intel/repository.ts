@@ -13,7 +13,7 @@
  * raw-SQL probes below MUST swallow `undefined_table` (Postgres 42P01) so the
  * facade keeps returning degraded — never throws.
  */
-import { and, asc, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import { clampIndexedName } from '../../db/schema/context.js';
@@ -443,6 +443,24 @@ export class RepoIntelRepository {
       .select({ path: t.fileRank.filePath, percentile: t.fileRank.percentile })
       .from(t.fileRank)
       .where(and(eq(t.fileRank.repoId, repoId), inArray(t.fileRank.filePath, paths)));
+  }
+
+  /**
+   * Every exported symbol's `(path, kind)` — the input to the conventions
+   * facts. Methods are filtered here too: the indexer emits each one twice
+   * (`Class.m` and `m`), and neither is a module-level export.
+   */
+  async getExportedSymbolKinds(repoId: string): Promise<Array<{ path: string; kind: string }>> {
+    return this.db
+      .select({ path: t.symbols.path, kind: t.symbols.kind })
+      .from(t.symbols)
+      .where(
+        and(
+          eq(t.symbols.repoId, repoId),
+          eq(t.symbols.exported, true),
+          ne(t.symbols.kind, 'method'),
+        ),
+      );
   }
 
   /** Top `limit` paths by rank DESC (caller filters tests/configs in JS). */

@@ -1,0 +1,11 @@
+{
+  "name": "devdigest/pr-self-review",
+  "version": "0.1.0",
+  "private": true,
+  "summary": "Self-review of the open local changes before a pull request is opened. Collects the whole open diff, routes every changed file onto the project skills that govern it (UI skills on UI files, backend/architecture skills on backend files), runs each lane, verifies every CRITICAL candidate, and writes a verdict that blocks `gh pr create` while a confirmed CRITICAL stands.",
+  "skills": {
+    "pr-self-review": {
+      "path": "SKILL.md"
+    }
+  }
+}

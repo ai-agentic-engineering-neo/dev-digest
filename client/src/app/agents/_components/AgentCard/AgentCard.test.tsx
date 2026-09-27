@@ -21,6 +21,7 @@ const AGENT: Agent = {
   repo_intel: true,
   enabled: true,
   version: 1,
+  skill_count: 3,
 };
 
 function renderWithIntl(ui: React.ReactElement) {
@@ -36,7 +37,7 @@ function renderWithIntl(ui: React.ReactElement) {
 
 describe("AgentCard (smoke)", () => {
   it("renders the agent name, model chip and skill count", () => {
-    renderWithIntl(<AgentCard ag={AGENT} skillCount={3} />);
+    renderWithIntl(<AgentCard ag={AGENT} skillCount={AGENT.skill_count} />);
     expect(screen.getByText("Security Reviewer")).toBeInTheDocument();
     expect(screen.getByText("gpt-4.1")).toBeInTheDocument();
     expect(screen.getByText("3 skills")).toBeInTheDocument();

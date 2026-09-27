@@ -1,7 +1,10 @@
 {
   "card": {
     "noDescription": "No description",
-    "skillCount": "{count} skills"
+    "skillCount": "{count} skills",
+    "delete": "Delete agent",
+    "deleteTitle": "Delete this agent?",
+    "deleteConfirm": "Delete agent \"{name}\"? Its reviews stay, but the agent and its skill links are gone. This cannot be undone."
   },
   "list": {
     "breadcrumbLab": "Skills Lab",
@@ -91,7 +94,12 @@
     "title": "Skills",
     "enabledCount": "{linked} of {total} enabled",
     "filterPlaceholder": "Filter skills…",
-    "orderHint": "Order matters — earlier skills appear earlier in the assembled prompt. Toggle to attach."
+    "orderHint": "Order matters — earlier skills appear earlier in the assembled prompt. Drag a row, or use ↑ / ↓.",
+    "empty": "No skills yet. Create or import one in Skills Lab → Skills, then attach it here.",
+    "moveUp": "Move {name} earlier in the prompt",
+    "moveDown": "Move {name} later in the prompt",
+    "saveFailed": "Could not save the skill order. Nothing was changed.",
+    "toggleLabel": "Load {name} in this agent"
   },
   "mount": {
     "body": "Mount point for {owner}. The Agent Editor shell + tab routing are wired by A2 — {owner} renders this tab."

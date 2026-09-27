@@ -6,8 +6,8 @@ allowed-tools: Read, Grep, Bash
 
 # Engineering Insights
 
-`INSIGHTS.md` is the evolving half of this project's memory; `CLAUDE.md` is the stable
-half. A fact that has bitten three times graduates to `CLAUDE.md` — everything younger
+`INSIGHTS.md` is the evolving half of this project's memory; `AGENTS.md` is the stable
+half. A fact that has bitten three times graduates to `AGENTS.md` — everything younger
 lives here.
 
 The skill runs in two modes. **Read** comes first and runs almost every session.
@@ -144,7 +144,7 @@ Then show the user the **exact text** that was appended and where, not a summary
 ## Do not capture
 
 - A restatement of the diff, or "fixed bug X" — that is the commit message.
-- Anything already in a `CLAUDE.md`, `README.md`, or `TESTING.md`.
+- Anything already in a `AGENTS.md`, `README.md`, or `TESTING.md`.
 - General truths about TypeScript, React, Fastify or Postgres — the model has those.
 - A one-off that will not recur, or a note whose evidence is "it seemed to work".
 

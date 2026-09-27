@@ -3,24 +3,77 @@
     "crumbLab": "Skills Lab",
     "crumbConventions": "Conventions",
     "headingPrefix": "Conventions in ",
-    "repoFallback": "repo",
-    "subtitle": "Scan the cloned repo to surface house-rules — each backed by evidence you can turn into a Skill.",
-    "scanning": "Scanning…",
+    "repoFallback": "this repo",
+    "subtitle": "Scan the cloned repo to surface house-rules — naming, error handling, structure — each backed by evidence you can turn into a Skill.",
+    "scanning": "Scanning the repository…",
+    "runScan": "Run scan",
     "rescan": "Re-scan",
-    "runExtraction": "Run extraction",
-    "extractionFailed": "Extraction failed",
+    "detectedFrom": "Detected from {count, number} sample files",
+    "discarded": "{count, number} discarded without evidence",
+    "usingModel": "model {model}",
+    "age": {
+      "minute": "last scan {count, number} min ago",
+      "hour": "last scan {count, number}h ago",
+      "day": "last scan {count, number}d ago"
+    },
+    "extractionFailed": "The scan could not finish.",
+    "goToRepo": "Open repository",
     "loadError": "Could not load conventions.",
+    "deselectAll": "Deselect all",
+    "acceptedCount": "{accepted, number} of {total, number} accepted",
+    "showRejected": "Show rejected ({count, number})",
+    "hideRejected": "Hide rejected ({count, number})",
+    "createSkill": "Create skill",
     "empty": {
       "title": "No conventions extracted yet",
-      "body": "Scan the repo to surface house-rules — naming, error handling, structure — each backed by evidence you can turn into a Skill.",
-      "cta": "Run extraction"
+      "body": "Scan the repo to surface house-rules — naming, error handling, structure — each backed by evidence you can turn into a Skill."
     },
-    "candidateCount": "{count, plural, one {# candidate} other {# candidates}} · grounded against sampled files"
+    "allRejected": "Every candidate here was rejected. Show them to restore one, or Re-scan for new proposals."
   },
   "card": {
     "confidence": "Confidence",
+    "confidencePct": "{pct, number}%",
+    "accept": "Accept",
     "accepted": "Accepted",
-    "accepting": "Accepting…",
-    "acceptAsSkill": "Accept as Skill"
+    "reject": "Reject",
+    "restore": "Restore",
+    "edit": "Edit",
+    "save": "Save",
+    "cancel": "Cancel",
+    "copy": "Copy snippet",
+    "openOnGitHub": "Open this code on GitHub",
+    "rulePlaceholder": "Route handlers validate input with a Zod schema",
+    "ruleLabel": "Convention rule",
+    "inSkill": "In a skill",
+    "why": "Why:"
+  },
+  "category": {
+    "naming": "naming",
+    "structure": "structure",
+    "imports": "imports",
+    "types": "types",
+    "async": "async",
+    "error-handling": "error handling",
+    "api": "api",
+    "testing": "testing",
+    "logging": "logging",
+    "other": "other"
+  },
+  "modal": {
+    "title": "Create skill from conventions",
+    "subtitleFallback": "repo-conventions",
+    "mergedFrom": "Merged from {count, number} accepted conventions in {repo}. Everything below is editable before you save.",
+    "body": "Skill body",
+    "bodyHint": "This exact text is what an agent's prompt will carry.",
+    "linkAgent": "Link to agent",
+    "linkAgentHint": "Optional — the skill is added to the end of that agent's list.",
+    "noAgent": "Don't link yet",
+    "enabledHint": "Whether this block is added to agents' prompts.",
+    "savedAs": "Saved as v1 · added to Skills Lab",
+    "cancel": "Cancel",
+    "create": "Create skill",
+    "creating": "Creating…",
+    "previewFailed": "Could not build the skill preview.",
+    "createFailed": "Could not create the skill."
   }
 }

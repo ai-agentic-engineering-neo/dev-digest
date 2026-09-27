@@ -1,4 +1,5 @@
-import type { Container } from '../../platform/container.js';
+import type { Db } from '../../db/client.js';
+import type { LLMProvider } from '@devdigest/shared';
 import type {
   Agent,
   AgentSkillLink,
@@ -10,6 +11,12 @@ import type {
 } from '@devdigest/shared';
 import { AgentsRepository } from './repository.js';
 import { toAgentDto, toAgentVersionDto } from './helpers.js';
+
+/** What the agents use cases need. The DI container satisfies this structurally. */
+export interface AgentsDeps {
+  readonly db: Db;
+  llm(id: 'openai' | 'anthropic' | 'openrouter'): Promise<LLMProvider>;
+}
 
 /**
  * A2 — agents service. Business logic for the Agents tab + Agent Editor.
@@ -51,18 +58,21 @@ export interface UpdateAgentInput {
 export class AgentsService {
   private repo: AgentsRepository;
 
-  constructor(private container: Container) {
-    this.repo = new AgentsRepository(container.db);
+  constructor(private deps: AgentsDeps) {
+    this.repo = new AgentsRepository(deps.db);
   }
 
   async list(workspaceId: string): Promise<Agent[]> {
     const rows = await this.repo.list(workspaceId);
-    return rows.map(toAgentDto);
+    const counts = await this.repo.skillCounts(rows.map((r) => r.id));
+    return rows.map((row) => toAgentDto(row, counts.get(row.id) ?? 0));
   }
 
   async get(workspaceId: string, id: string): Promise<Agent | undefined> {
     const row = await this.repo.getById(workspaceId, id);
-    return row ? toAgentDto(row) : undefined;
+    if (!row) return undefined;
+    const counts = await this.repo.skillCounts([row.id]);
+    return toAgentDto(row, counts.get(row.id) ?? 0);
   }
 
   /** Delete an agent (and its versions/skill-links, via cascade). */
@@ -105,7 +115,9 @@ export class AgentsService {
       ...(patch.repo_intel !== undefined ? { repoIntel: patch.repo_intel } : {}),
       ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
     });
-    return row ? toAgentDto(row) : undefined;
+    if (!row) return undefined;
+    const counts = await this.repo.skillCounts([row.id]);
+    return toAgentDto(row, counts.get(row.id) ?? 0);
   }
 
   /**
@@ -177,7 +189,7 @@ export class AgentsService {
    */
   async listModels(provider: Provider): Promise<ModelInfo[]> {
     try {
-      const llm = await this.container.llm(provider);
+      const llm = await this.deps.llm(provider);
       return await llm.listModels();
     } catch {
       return [];

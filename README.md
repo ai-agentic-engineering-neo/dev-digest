@@ -30,7 +30,7 @@ flowchart LR
     WEB["client/<br/>Next.js · :3000"]
     API["server/<br/>Fastify · :3001"]
     PG[("Postgres<br/>pgvector")]
-    WEB -->|"REST /repos /pulls /agents /runs …"| API
+    WEB -->|"REST /repos /pulls /agents /skills /runs …"| API
     API --> PG
   end
 
@@ -70,7 +70,8 @@ Each package has its own README with deeper diagrams:
 - **Add repository** — paste a repo URL; the server clones and indexes it.
 - **Import pull requests** — pull open PRs and their diff, commits, body, and linked issue.
 - **View diff** — GitHub-like diff in the browser.
-- **Agents** — two built-in reviewers (General + Security); create/edit your own (model + system prompt).
+- **Agents** — four built-in reviewers (General, Security, Performance, Test Quality); create/edit your own (model + system prompt + the skills it loads).
+- **Skills** — reusable instruction blocks shared between agents: write one in the browser, or import a `.md` / `.zip` through a preview that never unpacks anything executable.
 - **Run a review** — single-pass analysis returning structured findings (severity + score), with the grounding gate and repo-map context working from the start.
 
 ## What you build in the course
@@ -80,7 +81,7 @@ These are intentionally **not** in the starter — each lesson adds one back:
 | Lesson | You build |
 |--------|-----------|
 | L01 | Run cost badge · severity filter on findings |
-| L02 | Skills in the product · Conventions extractor |
+| L02 | ~~Skills in the product~~ (built — `specs/skills.md`) · Conventions extractor |
 | L03 | Intent layer · Smart Diff |
 | L04 | `devdigest-mcp` server · Blast Radius (reads `repo-intel`) |
 | L05 | Project Context Folder · Onboarding generator · PR Brief card |

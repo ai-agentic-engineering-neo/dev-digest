@@ -17,3 +17,6 @@ already covered by `../README.md`.
 - [`pr-list-read-model.md`](pr-list-read-model.md) — how `GET /repos/:id/pulls`
   composes SCORE, COST and FINDINGS: one IN-query per column, and why "latest"
   for two of them and "total" for the third.
+- [`skills-in-prompt.md`](skills-in-prompt.md) — the path from `agent_skills` to
+  the model: the two SQL gates, the labelled block, and why skills are NOT
+  wrapped as untrusted data.

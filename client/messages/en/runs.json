@@ -53,6 +53,7 @@
       "copy": "Copy",
       "fullscreen": "Open fullscreen",
       "search": "Search in this block…",
+      "tokens": "≈{count, number} tok",
       "noMatches": "No matches for “{q}”."
     },
     "tools": {

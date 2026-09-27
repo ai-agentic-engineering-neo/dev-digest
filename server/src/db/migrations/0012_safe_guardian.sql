@@ -1,0 +1,1 @@
+CREATE INDEX "agent_skills_skill_idx" ON "agent_skills" USING btree ("skill_id");

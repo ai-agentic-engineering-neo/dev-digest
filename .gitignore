@@ -23,3 +23,6 @@ test-results/
 
 # emdash worktree config (local)
 .emdash.json
+
+# pr-self-review verdict artifacts (local only)
+.claude/pr-self-review/

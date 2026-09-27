@@ -24,7 +24,15 @@ import { estimateCost } from '../adapters/llm/pricing.js';
 import { PriceBook } from './price-book.js';
 import { ConfigError } from './errors.js';
 import { AgentsRepository } from '../modules/agents/repository.js';
+import { SkillsRepository } from '../modules/skills/repository.js';
 import { ReviewRepository } from '../modules/reviews/repository.js';
+import { RepoRepository } from '../modules/repos/repository.js';
+import { PullsRepository } from '../modules/pulls/repository.js';
+import { SettingsRepository } from '../modules/settings/repository.js';
+import { PullsService } from '../modules/pulls/service.js';
+import { PollingService } from '../modules/polling/service.js';
+import { SettingsService } from '../modules/settings/service.js';
+import { WorkspaceService } from '../modules/workspace/service.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
 import { type DepGraph, DepCruiseGraph } from '../adapters/depgraph/index.js';
@@ -53,6 +61,16 @@ export interface ContainerOverrides {
   tokenizer?: Tokenizer;
 }
 
+/**
+ * The logging capability services take. Fastify's `app.log` satisfies it; the
+ * default below keeps a container usable without an app (unit tests, scripts).
+ */
+export interface ContainerLogger {
+  warn(obj: unknown, msg: string): void;
+}
+
+const SILENT_LOGGER: ContainerLogger = { warn: () => {} };
+
 export class Container {
   readonly config: AppConfig;
   readonly db: Db;
@@ -71,7 +89,16 @@ export class Container {
   // runs). Constructed here, in the composition root, so consuming modules use
   // `container.agentsRepo` instead of reaching into another module's folder.
   private _agentsRepo?: AgentsRepository;
+  private _skillsRepo?: SkillsRepository;
   private _reviewRepo?: ReviewRepository;
+  private _repoRepo?: RepoRepository;
+  private _pullsRepo?: PullsRepository;
+  private _settingsRepo?: SettingsRepository;
+  private _pullsService?: PullsService;
+  private _pollingService?: PollingService;
+  private _settingsService?: SettingsService;
+  private _workspaceService?: WorkspaceService;
+  private logger: ContainerLogger = SILENT_LOGGER;
   private _repoIntel?: RepoIntel;
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
@@ -86,6 +113,11 @@ export class Container {
     this.jobs = new JobRunner(db);
   }
 
+  /** Hand the app's logger to services built from here. Called once, at boot. */
+  attachLogger(logger: ContainerLogger): void {
+    this.logger = logger;
+  }
+
   get git(): GitClient {
     if (this.overrides.git) return this.overrides.git;
     this._git ??= new SimpleGitClient(this.config.cloneDir);
@@ -96,8 +128,57 @@ export class Container {
     return (this._agentsRepo ??= new AgentsRepository(this.db));
   }
 
+  get skillsRepo(): SkillsRepository {
+    return (this._skillsRepo ??= new SkillsRepository(this.db));
+  }
+
   get reviewRepo(): ReviewRepository {
     return (this._reviewRepo ??= new ReviewRepository(this.db));
+  }
+
+  get repoRepo(): RepoRepository {
+    return (this._repoRepo ??= new RepoRepository(this.db));
+  }
+
+  get pullsRepo(): PullsRepository {
+    return (this._pullsRepo ??= new PullsRepository(this.db));
+  }
+
+  get settingsRepo(): SettingsRepository {
+    return (this._settingsRepo ??= new SettingsRepository(this.db));
+  }
+
+  // Use cases. Each takes named ports, never this container — the constructor
+  // is the dependency list, and a test can substitute one collaborator.
+
+  get pullsService(): PullsService {
+    return (this._pullsService ??= new PullsService(
+      this.pullsRepo,
+      this.repoRepo,
+      () => this.github(),
+      this.logger,
+    ));
+  }
+
+  get pollingService(): PollingService {
+    return (this._pollingService ??= new PollingService(this.repoRepo, this.pullsRepo, () =>
+      this.github(),
+    ));
+  }
+
+  get settingsService(): SettingsService {
+    return (this._settingsService ??= new SettingsService(this.settingsRepo, this.secrets, {
+      github: () => this.github(),
+      llm: (id) => this.llm(id),
+      invalidateSecretCaches: () => this.invalidateSecretCaches(),
+    }));
+  }
+
+  get workspaceService(): WorkspaceService {
+    return (this._workspaceService ??= new WorkspaceService(
+      this.repoRepo,
+      this.config.cloneDir,
+    ));
   }
 
   get codeIndex(): CodeIndex {

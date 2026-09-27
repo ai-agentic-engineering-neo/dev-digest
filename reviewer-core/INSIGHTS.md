@@ -58,4 +58,5 @@ _None yet._
 Unresolved behaviour, undecided design, unverified assumptions. Delete an entry when
 it is answered — the answer belongs in another section.
 
-_None yet._
+- **Unverified: whether OpenRouter bills a generation the client gave up on — and the provider will give up and RE-SEND a long one up to three times.** (2026-09-23) `src/llm/openrouter.ts:52-55` builds the OpenAI SDK client with `timeout: 90_000, maxRetries: 2` and never reads `StructuredRequest.timeoutMs` (the OpenAI and Anthropic adapters in `server/` do honour it); the SDK retries on timeout, not just on 429/5xx. A real conventions scan took 68s, 75% of that ceiling.
+  → Before changing it, confirm with one deliberately slow call whether the aborted attempts appear as charges in the OpenRouter dashboard. If they do, pass `{ timeout: req.timeoutMs }` per request and disable retry-on-timeout for long calls while keeping 429/5xx retries.

@@ -1,0 +1,58 @@
+diff --git a/server/src/modules/pulls/routes.ts b/server/src/modules/pulls/routes.ts
+index 95ab5b2..afc646e 100644
+--- a/server/src/modules/pulls/routes.ts
++++ b/server/src/modules/pulls/routes.ts
+@@ -1,5 +1,6 @@
+ import type { FastifyInstance } from 'fastify';
+ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
++import { z } from 'zod';
+ import { and, desc, eq, inArray } from 'drizzle-orm';
+ import type { PrMeta, PrDetail, GitHubClient, PrReviewComment } from '@devdigest/shared';
+ import { PrCommentInput } from '@devdigest/shared';
+@@ -19,11 +20,24 @@ import { deriveReviewStatus } from './status.js';
+  * Import is idempotent (unique repo_id+number). Review trigger is MANUAL
+  * and owned by A2 — this module only imports/reads.
+  */
++/** GitHub merge state to list. Filtering server-side keeps the payload small. */
++const ListPullsQuery = z.object({
++  status: z.enum(['open', 'merged', 'closed']),
++});
++
++/**
++ * Slim list row. The head SHA is only needed on the detail page, which gets it
++ * from GET /pulls/:id, and `author_login` matches GitHub's own naming.
++ */
++interface PullListItem extends Omit<PrMeta, 'author' | 'head_sha'> {
++  author_login: string;
++}
++
+ export default async function pullsRoutes(appBase: FastifyInstance) {
+   const app = appBase.withTypeProvider<ZodTypeProvider>();
+   const { container } = app;
+ 
+-  app.get('/repos/:id/pulls', { schema: { params: IdParams } }, async (req): Promise<PrMeta[]> => {
++  app.get('/repos/:id/pulls', { schema: { params: IdParams, querystring: ListPullsQuery } }, async (req): Promise<PullListItem[]> => {
+     const { workspaceId } = await getContext(container, req);
+     const [repo] = await container.db
+       .select()
+@@ -80,7 +94,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
+     const rows = await container.db
+       .select()
+       .from(t.pullRequests)
+-      .where(eq(t.pullRequests.repoId, repo.id));
++      .where(and(eq(t.pullRequests.repoId, repo.id), eq(t.pullRequests.status, req.query.status)));
+ 
+     // Diff stats aren't on GitHub's PR-list payload, so freshly-imported PRs
+     // land with zeroed size/diff. Backfill them once from the detail endpoint
+@@ -136,10 +150,9 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
+         id: r.id,
+         number: r.number,
+         title: r.title,
+-        author: r.author,
++        author_login: r.author,
+         branch: r.branch,
+         base: r.base,
+-        head_sha: r.headSha,
+         additions: r.additions,
+         deletions: r.deletions,
+         files_count: r.filesCount,

@@ -20,3 +20,14 @@ Work contained in a single package gets a spec in that package's `specs/` instea
   findings filter (server + client).
 - [`run-cost.md`](run-cost.md) / [`run-cost-plan.md`](run-cost-plan.md) — run cost on
   the PR list, the run timeline and the trace drawer.
+- [`skills.md`](skills.md) — reusable skills: storage, editor, agent binding, import
+  (server + client), plus
+  [`skills-control-experiment.md`](skills-control-experiment.md) — the with/without
+  procedure, and [`fixtures/`](fixtures/) — the archive used to demo the import.
+- [`conventions-extractor.md`](conventions-extractor.md) — scan a repo for house
+  conventions, verify the evidence in code, accept/reject/edit, build a
+  `repo-conventions` skill (server + client).
+- [`api-contract-reviewer.md`](api-contract-reviewer.md) — the second agent of
+  homework 2: four contract skills (texts in
+  [`fixtures/api-contract-reviewer/`](fixtures/api-contract-reviewer/)) and the
+  A/B experiment.

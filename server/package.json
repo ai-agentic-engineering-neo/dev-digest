@@ -8,6 +8,8 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "arch:check": "depcruise src --config .dependency-cruiser.cjs",
+    "arch:graph": "depcruise src --config .dependency-cruiser.cjs --output-type dot",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",

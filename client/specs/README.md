@@ -15,3 +15,5 @@ One file per unit of work: what we intend to build, written **before** we build 
 
 - [`findings-severity-ui.md`](findings-severity-ui.md) — severity counters on every
   findings surface, and the per-run severity filter.
+- [`skills-ui.md`](skills-ui.md) — the `/skills` two-pane editor, the import drawer
+  and the agent's Skills tab.

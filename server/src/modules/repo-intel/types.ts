@@ -22,6 +22,30 @@
  * while still guaranteeing every consumer can fall back without throwing.
  */
 
+import type { CodeIndex, GitClient } from '@devdigest/shared';
+import type { AppConfig } from '../../platform/config.js';
+import type { Db } from '../../db/client.js';
+import type { JobRunner } from '../../platform/jobs.js';
+import type { DepGraph } from '../../adapters/depgraph/index.js';
+import type { Tokenizer } from '../../adapters/tokenizer/index.js';
+
+/**
+ * What repo-intel needs from the outside, declared here by the consumer.
+ *
+ * The DI container satisfies this structurally, so the module depends on a
+ * capability set rather than on the composition root — which is also what
+ * breaks the repo-intel -> container -> repo-intel import cycle.
+ */
+export interface RepoIntelDeps {
+  readonly config: AppConfig;
+  readonly db: Db;
+  readonly git: GitClient;
+  readonly codeIndex: CodeIndex;
+  readonly jobs: JobRunner;
+  readonly depgraph: DepGraph;
+  readonly tokenizer: Tokenizer;
+}
+
 export type IndexStatus = 'full' | 'partial' | 'degraded' | 'failed';
 
 export type DegradedReason =
@@ -121,6 +145,73 @@ export interface FileRankRow {
   percentile: number;
 }
 
+// ---------------------------------------------------------------------------
+// Convention extraction (L02) — the index read behind a conventions scan.
+// ---------------------------------------------------------------------------
+
+export type NamingStyle =
+  | 'kebab-case'
+  | 'camelCase'
+  | 'PascalCase'
+  | 'snake_case'
+  | 'single-word'
+  | 'other';
+
+/** File-name style of one scope, e.g. `client *.tsx/jsx`: counts per style. */
+export interface NamingFact {
+  scope: string;
+  total: number;
+  styles: Partial<Record<NamingStyle, number>>;
+}
+
+/** Where the tests of one stratum live and how they are suffixed. */
+export interface TestPlacementFact {
+  scope: string;
+  total: number;
+  colocated: number;
+  separateDir: number;
+  suffixes: Record<string, number>;
+}
+
+/** Exported, top-level symbol kinds of one stratum (methods excluded). */
+export interface ExportKindFact {
+  scope: string;
+  total: number;
+  kinds: Record<string, number>;
+}
+
+/** How many import edges run from `from` to `to`. */
+export interface DependencyFact {
+  from: string;
+  to: string;
+  imports: number;
+}
+
+/**
+ * Counts over the WHOLE index, so a model reading a dozen sample files can tell
+ * a repo-wide pattern from a coincidence in its sample. Every field is derived
+ * from tables the indexer already writes — no extra parse, no extra walk.
+ */
+export interface ConventionFacts {
+  filesIndexed: number;
+  edgesIndexed: number;
+  /** 1 for a multi-package repo, 2 for a single package (see chooseStrataDepth). */
+  strataDepth: number;
+  /** The repo's parts, largest first: `server`, `client`… or `src/api`, `src/lib`… */
+  strata: string[];
+  /** File names that recur (`index.ts ×62`, `routes.ts ×10`) — the repo's roles. */
+  recurringFileNames: Array<{ name: string; count: number }>;
+  naming: NamingFact[];
+  tests: TestPlacementFact[];
+  exportKinds: ExportKindFact[];
+  /** Imports between sibling files with recurring names: the layering, as counts. */
+  siblingImports: DependencyFact[];
+  /** Imports between directories two levels below each stratum. */
+  directoryImports: DependencyFact[];
+  degraded?: boolean;
+  reason?: DegradedReason;
+}
+
 export interface RepoMapResult {
   text: string;
   tokens: number;
@@ -159,8 +250,15 @@ export interface RepoIntel {
    * T2/T3: persistent `references.decl_file IS NULL`.
    */
   getUnresolvedReferences(repoId: string, files: string[]): Promise<RefRow[]>;
-  /** Top-N file paths by rank, filtered of tests/configs. */
+  /**
+   * Up to N file paths for a conventions scan: ranked, filtered of tests,
+   * configs and tooling folders, and INTERLEAVED across the repo's top-level
+   * parts so that every prefix of the list is a fair sample (see
+   * pipeline/convention-facts.ts). Callers may over-fetch and skip files.
+   */
   getConventionSamples(repoId: string, n: number): Promise<string[]>;
+  /** Whole-index counts that let a conventions scan judge how widespread a pattern is. */
+  getConventionFacts(repoId: string): Promise<ConventionFacts>;
 
   // --- T3: onboarding reading-path + critical paths (graph required) ------
   getTopFilesByRank(

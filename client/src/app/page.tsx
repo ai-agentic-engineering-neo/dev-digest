@@ -3,12 +3,14 @@
 
 import React from "react";
 import { useRouter } from "next/navigation";
-import { useRepos } from "../lib/hooks";
-import { AppShell } from "../components/app-shell";
-import { PageContainer } from "../components/page-shell";
+import { useTranslations } from "next-intl";
+import { useRepos } from "@/lib/hooks/core";
+import { AppShell } from "@/components/app-shell";
+import { PageContainer } from "@/components/page-shell";
 import { EmptyState, Button, Skeleton } from "@devdigest/ui";
 
 export default function HomePage() {
+  const t = useTranslations("common");
   const router = useRouter();
   const { data: repos, isLoading, isError } = useRepos();
 
@@ -19,8 +21,8 @@ export default function HomePage() {
   }, [repos, router]);
 
   return (
-    <AppShell crumb={[{ label: "DevDigest" }]}>
-      <PageContainer title="Welcome to DevDigest" subtitle="Local-first AI PR review">
+    <AppShell crumb={[{ label: t("home.crumb") }]}>
+      <PageContainer title={t("home.title")} subtitle={t("home.subtitle")}>
         {isLoading ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 12, maxWidth: 480 }}>
             <Skeleton height={20} width={240} />
@@ -30,16 +32,18 @@ export default function HomePage() {
         ) : isError || !repos || repos.length === 0 ? (
           <EmptyState
             icon="GitBranch"
-            title="No repositories yet"
-            body="Add a repository to start reviewing pull requests. Set your API keys once in Settings → API Keys."
-            cta="Add repository"
+            title={t("home.emptyTitle")}
+            body={t("home.emptyBody")}
+            cta={t("home.emptyCta")}
             onCta={() => router.push("/onboarding")}
           />
         ) : (
           <div>
-            <p style={{ color: "var(--text-secondary)", marginBottom: 14 }}>Taking you to your repository…</p>
+            <p style={{ color: "var(--text-secondary)", marginBottom: 14 }}>
+              {t("home.redirecting")}
+            </p>
             <Button kind="primary" onClick={() => router.push(`/repos/${repos[0]!.id}/pulls`)}>
-              Open {repos[0]!.full_name}
+              {t("home.openRepo", { name: repos[0]!.full_name })}
             </Button>
           </div>
         )}

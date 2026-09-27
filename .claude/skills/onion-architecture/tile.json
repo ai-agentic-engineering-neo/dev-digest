@@ -1,0 +1,11 @@
+{
+  "name": "devdigest/onion-architecture",
+  "version": "0.1.0",
+  "private": true,
+  "summary": "Enforces Onion Architecture (ports & adapters) in the DevDigest backend — server/ and reviewer-core/. Use when adding or changing a module, route, service, repository, adapter or DI wiring; when deciding where backend logic belongs; or when reviewing backend code for layering. Covers the dependency rule, the layer map onto this repo, Fastify routes as driving adapters, Drizzle repositories as driven adapters, narrow ports instead of the DI container, Zod at the boundary, domain purity and dependency-cruiser enforcement.",
+  "skills": {
+    "onion-architecture": {
+      "path": "SKILL.md"
+    }
+  }
+}

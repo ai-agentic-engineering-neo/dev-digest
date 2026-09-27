@@ -1,10 +1,11 @@
-/* PromptBlock — one labelled, collapsible prompt segment with copy + fullscreen
-   actions; fullscreen opens PromptModalBody in a Modal. */
+/* PromptBlock — one labelled, collapsible prompt segment with its approximate
+   token cost, copy + fullscreen actions; fullscreen opens PromptModalBody. */
 "use client";
 
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Button, Icon, Modal } from "@devdigest/ui";
+import { approxTokens } from "@/lib/tokens";
 import { s } from "../../styles";
 import { PromptModalBody } from "../PromptModalBody";
 
@@ -36,6 +37,12 @@ export function PromptBlock({ label, text, color }: { label: string; text: strin
         <span style={s.promptDot(color)} />
         <span style={s.promptLabel}>{label}</span>
         <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+          {/* What this slot COSTS. The skills block is the reason it is here:
+              "the agent loaded 3 skills" is only half the story without the
+              tokens they added to every call. */}
+          <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+            {t("trace.prompt.tokens", { count: approxTokens(text) })}
+          </span>
           <button
             type="button"
             title={t("trace.prompt.copy")}

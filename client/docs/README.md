@@ -17,3 +17,6 @@ already covered by `../README.md`.
 - [`findings-surfaces.md`](findings-surfaces.md) — the four screens that render
   findings, which data source each reads, and why the severity pills are counted
   after the confidence filter.
+- [`skills-ui.md`](skills-ui.md) — why `/skills` is one route with query-string
+  state, which tabs exist (and which of the design's tabs deliberately do not),
+  and the two-step import.

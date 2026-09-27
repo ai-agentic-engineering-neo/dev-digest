@@ -1,0 +1,23 @@
+{
+  "name": "Skills Lab lists the seeded skills and previews one",
+  "description": "Loads /skills, filters the list to the seeded pr-quality-rubric and selects it (the URL becomes /skills/:id while the list stays on screen), and walks Config → Preview → Versions. Confirms the list card, the body editor header (filename + token estimate), the rendered preview, and the seeded v1 snapshot. Read-only seeded data — no import, no model call. Assumes a freshly-seeded DB (see e2e/README.md).",
+  "steps": [
+    { "cmd": ["open", "{BASE}/skills"], "label": "load the Skills screen" },
+    { "cmd": ["wait", "--url", "/skills"], "label": "skills route reached" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "skills fetch settles" },
+    { "cmd": ["wait", "--text", "pr-quality-rubric"], "label": "seeded skill card is visible" },
+    { "cmd": ["wait", "--text", "3 agents"], "label": "card shows the derived agent count" },
+    { "cmd": ["find", "placeholder", "Search skills…", "fill", "pr-quality-rubric"], "label": "filter the list so the card is on screen without scrolling" },
+    { "cmd": ["find", "role", "button", "click", "--name", "pr-quality-rubric"], "label": "select the skill" },
+    { "cmd": ["wait", "--url", "/skills/"], "label": "selection lives in the path: /skills/:id, list still beside it" },
+    { "cmd": ["wait", "--text", "Configuration"], "label": "Config tab is the default" },
+    { "cmd": ["wait", "--text", "pr-quality-rubric.md"], "label": "body editor names the skill file" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Preview"], "label": "switch to Preview" },
+    { "cmd": ["wait", "--url", "tab=preview"], "label": "preview tab is active in the URL" },
+    { "cmd": ["wait", "--text", "Rendered as the reviewing agent receives it."], "label": "preview explains what it shows" },
+    { "cmd": ["wait", "--text", "PR Quality Rubric"], "label": "the skill body is rendered as markdown" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Versions"], "label": "switch to Versions" },
+    { "cmd": ["wait", "--text", "Current"], "label": "the live version is marked current" },
+    { "cmd": ["wait", "--text", "Seeded"], "label": "the seeded v1 snapshot carries its note" }
+  ]
+}

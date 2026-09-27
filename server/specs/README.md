@@ -15,3 +15,5 @@ One file per unit of work: what we intend to build, written **before** we build 
 
 - [`pr-list-findings-summary.md`](pr-list-findings-summary.md) — the severity
   breakdown + previews that `GET /repos/:id/pulls` returns per PR.
+- [`skills-module.md`](skills-module.md) — the skills module: CRUD, versions, the
+  import extractor, and the port a review run reads skills through.

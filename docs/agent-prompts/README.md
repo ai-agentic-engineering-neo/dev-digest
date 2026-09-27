@@ -9,6 +9,8 @@ in the DB). The canonical, reviewable copies live next to this file:
 - [`general-reviewer.md`](./general-reviewer.md)
 - [`security-reviewer.md`](./security-reviewer.md)
 - [`performance-reviewer.md`](./performance-reviewer.md)
+- [`test-quality-reviewer.md`](./test-quality-reviewer.md)
+- [`api-contract-reviewer.md`](./api-contract-reviewer.md)
 
 > The DB is the source of truth at run time. These files are the human-readable
 > originals — when you change a prompt, edit the file here **and** push it to the
@@ -38,7 +40,7 @@ delimiter-wrapped (`prompt.ts:104-122`):
 ```
 <task line, e.g. "Review PR #7 '…'">
 ## PR description        (untrusted, author-controlled, truncated to 4000 chars)
-## Skills / rules        (linked skill bodies)
+## Skills / rules        (linked skill bodies, one labelled block each)
 ## Relevant memory       (curated memory items)
 ## Repo skeleton         (untrusted, repo-derived)
 ## Project context       (untrusted spec chunks)
@@ -49,6 +51,15 @@ delimiter-wrapped (`prompt.ts:104-122`):
 Sections with no content are omitted. Everything repo- or author-derived is wrapped
 in `<untrusted source="…">…</untrusted>` so the model can tell instructions
 (system) from data (user).
+
+**Skills are the exception, deliberately.** A linked, enabled skill is rendered as
+`### Skill: <name> (<type> · <source>)` followed by its body, NOT delimiter-wrapped:
+a rule the model must treat as data cannot change how it reviews. The protection is
+that an imported skill lands disabled and enabling it is an explicit act — see
+[`../../server/docs/skills-in-prompt.md`](../../server/docs/skills-in-prompt.md).
+What this means for prompt authors: an agent's system prompt and its skills can
+contradict each other, and the model has no way to tell which one you meant. Keep
+the system prompt about *how this reviewer thinks* and skills about *what to flag*.
 
 ## The output schema is NOT in the prompt
 

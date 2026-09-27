@@ -13,7 +13,7 @@ import { Toggle, EmptyState, Icon, SEV, type Severity as SeverityToken } from "@
 import type { FindingRecord, Severity } from "@devdigest/shared";
 import { FindingCard } from "../FindingCard";
 import { countBySeverity } from "@/components/findings-summary";
-import { useFindingAction } from "../../../../../../../lib/hooks/reviews";
+import { useFindingAction } from "@/lib/hooks/reviews";
 import { KEY_TO_ACTION } from "./constants";
 import { confidentFindings, visibleFindings } from "./helpers";
 import { s } from "./styles";

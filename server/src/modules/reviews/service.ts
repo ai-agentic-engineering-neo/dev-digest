@@ -1,5 +1,5 @@
-import type { Container } from '../../platform/container.js';
 import type { FindingActionKind, RunEventKind, RunTrace } from '@devdigest/shared';
+import type { ReviewsDeps } from './deps.js';
 import { AppError, NotFoundError } from '../../platform/errors.js';
 import type { AgentRow } from '../../db/rows.js';
 import { ReviewRepository } from './repository.js';
@@ -25,15 +25,21 @@ export type { ReviewDto, ReviewDtoFinding } from './helpers.js';
  * Also: the finding accept/dismiss actions. The bulky run execution lives in
  * run-executor; this class keeps the public method surface.
  */
+/** Which agents a run targets: one by id, or every enabled agent. */
+export interface RunTargets {
+  agentId?: string;
+  all?: boolean;
+}
+
 export class ReviewService {
   private repo: ReviewRepository;
-  private agents: Container['agentsRepo'];
+  private agents: ReviewsDeps['agentsRepo'];
   private executor: ReviewRunExecutor;
 
-  constructor(private container: Container) {
-    this.repo = new ReviewRepository(container.db);
-    this.agents = container.agentsRepo;
-    this.executor = new ReviewRunExecutor(container, this.repo, this.agents);
+  constructor(private deps: ReviewsDeps) {
+    this.repo = new ReviewRepository(deps.db);
+    this.agents = deps.agentsRepo;
+    this.executor = new ReviewRunExecutor(deps, this.repo, this.agents);
   }
 
   // ===========================================================================
@@ -42,10 +48,12 @@ export class ReviewService {
 
   /**
    * Resolve which agents to run. `all` → all enabled agents; else a single agent.
+   * Private: the resolved rows are persistence shapes and must not reach the
+   * transport layer — callers ask for a review, not for a list of agent rows.
    */
-  async resolveTargets(
+  private async resolveTargets(
     workspaceId: string,
-    opts: { agentId?: string; all?: boolean },
+    opts: RunTargets,
   ): Promise<AgentRow[]> {
     if (opts.all) return this.agents.listEnabled(workspaceId);
     if (opts.agentId) {
@@ -84,9 +92,9 @@ export class ReviewService {
    */
   async cancelRun(runId: string): Promise<void> {
     this.publish(runId, 'info', 'Cancellation requested — stopping…');
-    this.container.runBus.cancel(runId);
+    this.deps.runBus.cancel(runId);
     await this.repo.cancelRunIfRunning(runId);
-    this.container.runBus.complete(runId);
+    this.deps.runBus.complete(runId);
   }
 
   /** Reap runs left 'running' by a previous (now-dead) process. Called on boot. */
@@ -103,9 +111,10 @@ export class ReviewService {
   async runReview(
     workspaceId: string,
     prId: string,
-    targets: AgentRow[],
+    opts: RunTargets,
     logger?: Logger,
   ): Promise<{ runs: { run_id: string; agent_id: string; agent_name: string }[]; reviews: ReviewDto[] }> {
+    const targets = await this.resolveTargets(workspaceId, opts);
     const pull = await this.repo.getPull(workspaceId, prId);
     if (!pull) throw new NotFoundError('Pull request not found');
     const repo = await this.repo.getRepo(pull.repoId);
@@ -138,7 +147,7 @@ export class ReviewService {
   }
 
   private publish(runId: string, kind: RunEventKind, msg: string, data?: unknown) {
-    return this.container.runBus.publish(runId, kind, msg, data);
+    return this.deps.runBus.publish(runId, kind, msg, data);
   }
 
   // ===========================================================================

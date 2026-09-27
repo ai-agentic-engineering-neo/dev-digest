@@ -1,0 +1,16 @@
+{
+  "name": "Agent editor's Skills tab shows the seeded links in prompt order",
+  "description": "Opens the Test Quality Reviewer agent, switches to its Skills tab, and confirms the three seeded skills are attached and numbered — the numbers ARE the order of the blocks in the assembled prompt. Read-only: no checkbox is clicked, so no link is written and no model call happens. Assumes a freshly-seeded DB (see e2e/README.md).",
+  "steps": [
+    { "cmd": ["open", "{BASE}/agents"], "label": "load the agents list" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "agents fetch settles" },
+    { "cmd": ["find", "text", "Test Quality Reviewer", "click"], "label": "open the seeded test-quality agent" },
+    { "cmd": ["wait", "--url", "/agents/"], "label": "agent editor route reached" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Skills"], "label": "switch to the Skills tab" },
+    { "cmd": ["wait", "--url", "tab=skills"], "label": "skills tab is active in the URL" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "skills + links fetch settles" },
+    { "cmd": ["wait", "--text", "test-coverage-rubric"], "label": "a seeded linked skill is listed" },
+    { "cmd": ["wait", "--text", "#1"], "label": "the first prompt block position is shown" },
+    { "cmd": ["wait", "--text", "Order matters"], "label": "the order hint explains what the position means" }
+  ]
+}

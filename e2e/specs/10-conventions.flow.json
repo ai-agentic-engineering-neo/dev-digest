@@ -1,0 +1,16 @@
+{
+  "name": "Conventions screen offers a scan and lives under Skills Lab",
+  "description": "Loads /repos/:repoId/conventions on a freshly-seeded DB, where no scan has ever run. Confirms the empty state, the single Run scan button (no Re-scan before a first scan), and that Conventions and Agents both sit in the SKILLS LAB section of the sidebar. Deliberately does NOT press Run scan: that calls a model, and these flows are deterministic and key-free.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/skills"], "label": "start from a Skills Lab screen" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "shell and repo list settle" },
+    { "cmd": ["wait", "--text", "SKILLS LAB"], "label": "the Skills Lab sidebar section exists" },
+    { "cmd": ["find", "text", "Conventions", "click"], "label": "open Conventions from the sidebar" },
+    { "cmd": ["wait", "--url", "/conventions"], "label": "conventions route reached" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "conventions fetch settles" },
+    { "cmd": ["wait", "--text", "No conventions extracted yet"], "label": "empty state before the first scan" },
+    { "cmd": ["wait", "--text", "each backed by evidence you can turn into a Skill"], "label": "the empty state explains what a scan produces" },
+    { "cmd": ["find", "role", "button", "text", "--name", "Run scan"], "assert": { "stdoutIncludes": "Run scan" }, "label": "Run scan is offered" },
+    { "cmd": ["wait", "--text", "Agents"], "label": "Agents is reachable from the same section" }
+  ]
+}

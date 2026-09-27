@@ -1,12 +1,9 @@
-import { eq } from 'drizzle-orm';
 import {
   FEATURE_MODELS,
   FeatureModelChoice,
   type FeatureModelId,
 } from '@devdigest/shared';
-import type { Container } from '../../platform/container.js';
-import * as t from '../../db/schema.js';
-import { rowsToSettings } from './helpers.js';
+import { rowsToSettings, type SettingsRow } from './helpers.js';
 
 /**
  * Per-feature model configuration.
@@ -17,6 +14,11 @@ import { rowsToSettings } from './helpers.js';
  * registry default in `FEATURE_MODELS` — which mirrors each module's old
  * constant, so behaviour is unchanged until a model is explicitly picked.
  */
+
+/** The one read this module needs; the container (and the repository) satisfy it. */
+export interface FeatureModelReader {
+  readonly settingsRepo: { listForWorkspace(workspaceId: string): Promise<SettingsRow[]> };
+}
 
 const DEFAULTS = Object.fromEntries(
   FEATURE_MODELS.map((f) => [f.id, { provider: f.defaultProvider, model: f.defaultModel }]),
@@ -34,14 +36,11 @@ export function defaultFeatureModel(id: FeatureModelId): FeatureModelChoice {
  * `resolveFeatureModel` instead.
  */
 export async function getFeatureModelOverride(
-  container: Container,
+  container: FeatureModelReader,
   workspaceId: string,
   id: FeatureModelId,
 ): Promise<FeatureModelChoice | undefined> {
-  const rows = await container.db
-    .select({ key: t.settings.key, value: t.settings.value })
-    .from(t.settings)
-    .where(eq(t.settings.workspaceId, workspaceId));
+  const rows = await container.settingsRepo.listForWorkspace(workspaceId);
   const fm = (rowsToSettings(rows) as { feature_models?: Record<string, unknown> }).feature_models;
   const parsed = FeatureModelChoice.safeParse(fm?.[id]);
   return parsed.success ? parsed.data : undefined;
@@ -49,7 +48,7 @@ export async function getFeatureModelOverride(
 
 /** Resolve `id` to a concrete provider+model: workspace override, else registry default. */
 export async function resolveFeatureModel(
-  container: Container,
+  container: FeatureModelReader,
   workspaceId: string,
   id: FeatureModelId,
 ): Promise<FeatureModelChoice> {

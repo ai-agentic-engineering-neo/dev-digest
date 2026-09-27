@@ -6,6 +6,9 @@
 #    macOS is covered by daily local dev, Windows is not a ship target, and
 #    `@ast-grep/napi` is exact-pinned so its native binary only changes on a
 #    deliberate version bump.
+#    This job also runs the architecture check (dependency-cruiser): the Onion
+#    layering rules in server/.dependency-cruiser.cjs. reviewer-core's purity rules
+#    live there too — its sources are already in the graph via the tsconfig alias.
 #  - unit: the ~19 DB-free test files (everything that is NOT `*.it.test.ts`).
 #    LLM/git/embeddings are mocked via src/adapters/mocks.ts — no Docker.
 #
@@ -64,6 +67,14 @@ jobs:
         run: npm ci
 
       - run: pnpm typecheck
+
+      # Architecture rules (Onion / ports & adapters) — see
+      # .claude/skills/onion-architecture/rules/enforcement.md.
+      # Inlined rather than `pnpm arch:check`: server/package.json is skip-worktree,
+      # so the committed copy may not carry the script. Every rule is at `error`,
+      # so any new layering violation fails the job.
+      - name: Architecture check
+        run: pnpm exec depcruise src --config .dependency-cruiser.cjs
 
   unit:
     name: tests

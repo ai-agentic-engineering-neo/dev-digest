@@ -1,6 +1,6 @@
-/* AgentEditor — basic agent config editor (model + system prompt). Later
-   lessons add Skills/Evals/Stats/CI tabs; the Part-0 starter ships Config only.
-   Tab state still lives in ?tab= for forward-compatibility. */
+/* AgentEditor — the agent's config (model + system prompt) and the skills it
+   loads. Evals/Stats/CI arrive with their own lessons. Tab state lives in ?tab=
+   so a link to a specific tab survives a reload. */
 "use client";
 
 import React from "react";
@@ -8,6 +8,7 @@ import { useTranslations } from "next-intl";
 import { Tabs } from "@devdigest/ui";
 import type { Agent } from "@devdigest/shared";
 import { ConfigTab } from "./_components/ConfigTab";
+import { SkillsTab } from "./_components/SkillsTab";
 import { TABS } from "./constants";
 import { s } from "./styles";
 
@@ -20,7 +21,14 @@ export function AgentEditor({ agent, tab, onTab }: { agent: Agent; tab: string; 
         <Tabs tabs={tabs} value={tab} onChange={onTab} pad="0 24px" />
       </div>
       <div style={s.body}>
-        <ConfigTab agent={agent} />
+        {tab === "skills" ? (
+          // Keyed per agent: switching agents keeps this editor mounted, and a
+          // stale optimistic selection would otherwise be written to the agent
+          // you just switched TO.
+          <SkillsTab key={agent.id} agent={agent} />
+        ) : (
+          <ConfigTab key={agent.id} agent={agent} />
+        )}
       </div>
     </div>
   );

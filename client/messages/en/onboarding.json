@@ -13,5 +13,18 @@
   },
   "loadError": {
     "title": "Couldn’t load the onboarding tour"
+  },
+  "addRepo": {
+    "brand": "DevDigest",
+    "close": "Close",
+    "title": "Add a repository",
+    "intro": "Paste a GitHub repository URL — DevDigest clones it locally and imports open PRs. API keys aren’t needed here; set them once in <settings>Settings → API Keys</settings>.",
+    "urlLabel": "Repository URL",
+    "urlHint": "e.g. https://github.com/acme/payments-api",
+    "urlPlaceholder": "https://github.com/owner/repo",
+    "cancel": "Cancel",
+    "submit": "Add repository",
+    "submitting": "Cloning…",
+    "footer": "API keys live in Settings · <kbd>esc</kbd> to close"
   }
 }

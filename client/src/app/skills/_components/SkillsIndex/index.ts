@@ -1,0 +1,1 @@
+export { SkillsIndex } from "./SkillsIndex";

@@ -4,7 +4,7 @@
 
 import React from "react";
 import { usePathname } from "next/navigation";
-import { useRepos } from "./hooks";
+import { useRepos } from "./hooks/core";
 import type { Repo } from "./types";
 
 const RepoCtx = React.createContext<{

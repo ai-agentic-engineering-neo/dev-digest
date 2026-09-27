@@ -16,7 +16,8 @@
     "components": "TRIFECTA COMPONENTS",
     "privateData": "Private data",
     "untrustedInput": "Untrusted input",
-    "exfilPath": "Exfil path"
+    "exfilPath": "Exfil path",
+    "detected": "Lethal Trifecta detected"
   },
   "verdict": {
     "requestChanges": "Request changes",
@@ -29,7 +30,9 @@
   "panel": {
     "hideLowConfidence": "Hide low confidence",
     "noMatchTitle": "No findings match",
-    "noMatchBody": "Adjust the filters above, or run a review to generate findings."
+    "noMatchBody": "Adjust the filters above, or run a review to generate findings.",
+    "emptyTitle": "No findings yet",
+    "emptyBody": "Run a review to generate findings. Use Run Review ▾ above (run all enabled agents or a specific one)."
   },
   "runReview": {
     "runAll": "Run all enabled agents",
@@ -48,7 +51,9 @@
     "cancelled": "cancelled",
     "running": "running",
     "findings": "{count} finding(s)",
-    "blockers": " · {count} blockers"
+    "blockers": " · {count} blockers",
+    "inProgress": "Review in progress…",
+    "inProgressSub": "the agent is analyzing the diff — this can take a while on large PRs."
   },
   "smartDiff": {
     "coreLabel": "Core",

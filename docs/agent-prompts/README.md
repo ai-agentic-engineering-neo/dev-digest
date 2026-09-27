@@ -44,7 +44,7 @@ delimiter-wrapped (`prompt.ts:104-122`):
 ## Repo skeleton         (untrusted, repo-derived)
 ## Project context       (untrusted spec chunks)
 ## Callers of changed symbols  (untrusted, repo-derived)
-## Diff to review        (untrusted)
+## Diff to review        (trusted line-number rule + untrusted numbered diff)
 ```
 
 Sections with no content are omitted. Everything repo- or author-derived is wrapped
@@ -59,6 +59,39 @@ line per prompt with each section's name, source, role, untrusted flag, char
 count and a 12-hex fingerprint — never the section text itself. Comparing
 fingerprints across runs is the fastest way to spot prompt drift (a section
 that changed shape without a code change).
+
+## Numbered diff (line-number gutter)
+
+The model never has to count down from a `@@ -a,b +c,d @@` hunk header — it
+miscounts, and grounding then keeps the model's wrong line (context lines are
+part of the hunk too). Before the diff reaches `assemblePrompt`, `run.ts` runs
+it through `numberDiff` (`reviewer-core/src/review/numbered-diff.ts`), which
+prints every line's own new-file line number in a 6-column, right-aligned
+gutter plus one space (`"   446 "`); a line with no new-file number — a
+`diff --git`/`---`/`+++` header, a `@@` header itself, a deleted `-` line, or a
+`\ No newline at end of file` marker — gets a blank gutter (7 spaces) instead.
+The counter restarts at each `@@` header, from that hunk's new-file start.
+Example (PR #5, `events-map.component.ts`):
+
+```
+@@ -443,6 +443,8 @@ export class EventsMapComponent
+   443      */
+   444      private eventNamesMapping: EventNamesMap | null = null;
+   445 
+   446 +    private gmapApiKey = '…'; // test issue 1
+   447 +
+   448      get eventsSearchControl() {
+```
+
+`## Diff to review` therefore carries two things: a **trusted** instruction
+(`DIFF_LINE_NUMBER_RULE`, pushed by `assemblePrompt` itself, outside the
+`<untrusted>` wrapper — the model can never be told by diff content to ignore
+it) telling the model to read `start_line`/`end_line` off the printed gutter,
+never the hunk header, and never off a blank (`-`) gutter; followed by the
+**untrusted**, numbered diff. `numberDiff`'s printed numbers are guaranteed to
+equal the server parser's `newLineNumbers` for the same diff
+(`server/src/adapters/git/diff-parser.ts`) — the exact set citation grounding
+checks — so a number the model copies verbatim always survives grounding.
 
 ## Skill ordering
 
@@ -138,7 +171,8 @@ numbers and gates from what the model returns:
   findings list. The model's self-reported score is ignored.
 - **Findings are citation-grounded**: a finding whose line range doesn't intersect a
   real diff hunk is dropped (`grounding.ts`). Cite real `file:line` from the diff or
-  the finding disappears.
+  the finding disappears — the cited line must be the number printed in the
+  diff's gutter (see § Numbered diff), never a line counted from the `@@` header.
 - **`verdict` is currently passed through from the model** (`run.ts:208`). That is
   why a wrong verdict reaches the UI unchanged — and why the verdict convention
   above is load-bearing until/unless the verdict is also derived deterministically.

@@ -14,6 +14,7 @@ import {
   type PromptSection,
 } from '../prompt.js';
 import { groundFindings, groundingSummary } from '../grounding.js';
+import { numberDiff } from './numbered-diff.js';
 import { reduceReviews, scoreFromFindings, sliceDiff } from './reduce.js';
 
 /**
@@ -234,14 +235,22 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
       ? { fingerprint: input.promptTelemetry.fingerprint }
       : undefined;
 
+  // Every diff that reaches the LLM is numbered (L03 — grounding citations
+  // must match a real line, never a hunk-header-counted guess). Computed once
+  // for the whole diff; map-reduce chunks number their own slice below.
+  const numberedWhole = numberDiff(input.diff.raw);
+
   // Whole-diff assembly is the trace default; overwritten below for single-pass.
-  const wholeDiffAssembled = assemblePrompt({ ...promptParts, diff: input.diff.raw }, fingerprintOpts);
+  const wholeDiffAssembled = assemblePrompt({ ...promptParts, diff: numberedWhole }, fingerprintOpts);
   let assembly: PromptAssembly = wholeDiffAssembled.assembly;
 
   const chunks =
     mode === 'map-reduce'
-      ? input.diff.files.map((f) => ({ label: f.path, diffText: sliceDiff(input.diff, f.path) }))
-      : [{ label: 'all files', diffText: input.diff.raw }];
+      ? input.diff.files.map((f) => ({
+          label: f.path,
+          diffText: numberDiff(sliceDiff(input.diff, f.path)),
+        }))
+      : [{ label: 'all files', diffText: numberedWhole }];
 
   emit(
     'info',
@@ -264,7 +273,7 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
             ? {
                 diffFiles: input.diff.files.map((f) => ({
                   path: f.path,
-                  chars: sliceDiff(input.diff, f.path).length,
+                  chars: numberDiff(sliceDiff(input.diff, f.path)).length,
                 })),
               }
             : {}),

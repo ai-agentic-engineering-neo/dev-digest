@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { createHash } from 'node:crypto';
 import type { LLMProvider, StructuredResult } from '@devdigest/shared';
 import { MockLLMProvider, MockGitClient } from '../../server/src/adapters/mocks.js';
-import { reviewPullRequest, sliceDiff, type PromptAssembledInfo } from '../src/index.js';
+import { reviewPullRequest, sliceDiff, numberDiff, type PromptAssembledInfo } from '../src/index.js';
 
 /** 12-hex-char sha256 fingerprint — same shape as the server's `fingerprintText`
  *  (`platform/prompt-log.ts`), used here so verbose-mode telemetry tests exercise
@@ -209,12 +209,18 @@ diff --git a/src/b.ts b/src/b.ts
     expect(infos[2]!.chunk_index).toBe(1);
     expect(infos[1]!.chunk_label).toBe('src/a.ts');
     expect(infos[2]!.chunk_label).toBe('src/b.ts');
-    // diff_files (run scope, verbose only) matches sliceDiff's per-file char
-    // count — the exact computation the § Contract specifies for this field.
+    // diff_files (run scope, verbose only) measures the NUMBERED text that
+    // actually reaches the LLM (L03 § Contract "the verbose telemetry
+    // diffFiles[].chars measures the numbered text") — not the raw slice.
+    // Each file's slice is 7 lines (diff --git/---/+++/@@/3 body lines), each
+    // gutter is a fixed 7 chars, so numbering adds exactly 7*7 = 49 chars.
     expect(infos[0]!.diff_files).toEqual([
-      { path: 'src/a.ts', chars: sliceDiff(diff, 'src/a.ts').length },
-      { path: 'src/b.ts', chars: sliceDiff(diff, 'src/b.ts').length },
+      { path: 'src/a.ts', chars: numberDiff(sliceDiff(diff, 'src/a.ts')).length },
+      { path: 'src/b.ts', chars: numberDiff(sliceDiff(diff, 'src/b.ts')).length },
     ]);
+    expect(infos[0]!.diff_files![0]!.chars).toBe(sliceDiff(diff, 'src/a.ts').length + 49);
+    // sliceDiff itself stays gutter-free — only the prompt-bound copy is numbered.
+    expect(sliceDiff(diff, 'src/a.ts').startsWith('diff --git a/src/a.ts')).toBe(true);
     for (const info of infos) {
       for (const s of info.sections) {
         expect(s.fingerprint).toMatch(/^[0-9a-f]{12}$/);
@@ -367,5 +373,114 @@ diff --git a/src/b.ts b/src/b.ts
       messages: unknown;
     };
     expect(reqTelemetry.messages).toEqual(reqPlain.messages);
+  });
+});
+
+/**
+ * L03 — the diff the LLM actually sees is numbered (AC-6), in both single-pass
+ * and map-reduce, and the trusted line-number rule sits before the untrusted
+ * diff wrapper. Oracle: spec § Contract "Prompt" + plan Test brief WP3.tests.
+ */
+describe('reviewPullRequest — numbered diff reaches the LLM (L03)', () => {
+  const B = ' '.repeat(7);
+  const G = (n: number) => String(n).padStart(6) + ' ';
+  const cleanReview = { verdict: 'approve' as const, summary: 'ok', score: 100, findings: [] };
+
+  const RAW_DIFF_2FILES = `diff --git a/src/a.ts b/src/a.ts
+--- a/src/a.ts
++++ b/src/a.ts
+@@ -1,2 +1,3 @@
+ a
++one
+ c
+diff --git a/src/b.ts b/src/b.ts
+--- a/src/b.ts
++++ b/src/b.ts
+@@ -1,2 +1,3 @@
+ x
++two
+ z`;
+
+  function messageOf(call: { method: string; req: unknown }): string {
+    return (call.req as { messages: { content: string }[] }).messages[1]!.content;
+  }
+
+  it('single-pass: the one user message carries numbered gutters, never the raw diff line', async () => {
+    const llm = new MockLLMProvider('openai', { structured: cleanReview });
+    const diff = await new MockGitClient({ diff: RAW_DIFF_2FILES }).diff();
+
+    const outcome = await reviewPullRequest({
+      systemPrompt: 'sys',
+      model: 'm',
+      diff,
+      llm,
+      task: 'Review PR #9',
+    });
+
+    expect(outcome.mode).toBe('single-pass');
+    const calls = llm.calls.filter((c) => c.method === 'completeStructured');
+    expect(calls).toHaveLength(1);
+    const user = messageOf(calls[0]!);
+
+    expect(user).toContain(G(2) + '+one');
+    expect(user).toContain(G(2) + '+two');
+    expect(user).toContain(B + '@@ -1,2 +1,3 @@');
+    expect(user.split('\n')).not.toContain('+one');
+    expect(outcome.assembly.user).toBe(user);
+  });
+
+  it('map-reduce: each chunk is numbered against its own file, not the neighbour\'s', async () => {
+    const llm = new MockLLMProvider('openai', { structured: cleanReview });
+    const diff = await new MockGitClient({ diff: RAW_DIFF_2FILES }).diff();
+
+    const outcome = await reviewPullRequest({
+      systemPrompt: 'sys',
+      model: 'm',
+      diff,
+      llm,
+      strategy: 'map-reduce',
+      task: 'Review PR #9',
+    });
+
+    expect(outcome.mode).toBe('map-reduce');
+    const calls = llm.calls.filter((c) => c.method === 'completeStructured');
+    expect(calls).toHaveLength(2);
+    const user0 = messageOf(calls[0]!);
+    const user1 = messageOf(calls[1]!);
+
+    expect(user0).toContain(G(1) + ' a');
+    expect(user0).toContain(G(2) + '+one');
+    expect(user0).not.toContain('+two');
+    expect(user1).toContain(G(2) + '+two');
+    expect(user1).not.toContain('+one');
+    expect(outcome.assembly.user).toContain('+one');
+    expect(outcome.assembly.user).toContain('+two');
+  });
+
+  it('the line-number rule sits before the untrusted diff wrapper, in single-pass AND map-reduce', async () => {
+    const diff = await new MockGitClient({ diff: RAW_DIFF_2FILES }).diff();
+
+    const llmSingle = new MockLLMProvider('openai', { structured: cleanReview });
+    await reviewPullRequest({ systemPrompt: 'sys', model: 'm', diff, llm: llmSingle, task: 'x' });
+
+    const llmMap = new MockLLMProvider('openai', { structured: cleanReview });
+    await reviewPullRequest({
+      systemPrompt: 'sys',
+      model: 'm',
+      diff,
+      llm: llmMap,
+      strategy: 'map-reduce',
+      task: 'x',
+    });
+
+    for (const llm of [llmSingle, llmMap]) {
+      for (const call of llm.calls.filter((c) => c.method === 'completeStructured')) {
+        const user = messageOf(call);
+        const ruleIdx = user.indexOf('Never count lines from the @@ hunk header');
+        const wrapperIdx = user.indexOf('<untrusted source="diff">');
+        expect(ruleIdx).toBeGreaterThan(-1);
+        expect(ruleIdx).toBeLessThan(wrapperIdx);
+      }
+    }
   });
 });

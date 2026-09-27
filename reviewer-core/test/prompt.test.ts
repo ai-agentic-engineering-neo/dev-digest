@@ -138,3 +138,42 @@ describe('assemblePrompt — L03 section metadata', () => {
     }
   });
 });
+
+/**
+ * L03 — the trusted line-number rule on `## Diff to review`. Per spec
+ * (L03-numbered-diff.md § Contract "Prompt"): a trusted instruction, OUTSIDE
+ * the untrusted wrapper, telling the model to cite the printed gutter numbers
+ * instead of counting from the `@@` header. `assemblePrompt` never numbers
+ * `parts.diff` itself (that is `run.ts`'s job) — this only checks the rule text
+ * and its placement.
+ */
+describe('assemblePrompt — ## Diff to review line-number rule', () => {
+  it('ends the user message with the rule then the untrusted diff wrapper', () => {
+    const user = assemblePrompt({ system: 'S', diff: 'D' }).messages[1]!.content;
+    expect(user.endsWith('<untrusted source="diff">\nD\n</untrusted>')).toBe(true);
+  });
+
+  it('states: cite the printed gutter number, never count from the @@ header, never cite a - line', () => {
+    const user = assemblePrompt({ system: 'S', diff: 'D' }).messages[1]!.content;
+    const headerIdx = user.indexOf('## Diff to review');
+    const wrapperIdx = user.indexOf('<untrusted source="diff">');
+    expect(headerIdx).toBeGreaterThan(-1);
+    expect(wrapperIdx).toBeGreaterThan(headerIdx);
+
+    for (const phrase of [
+      'its line number in the new file',
+      'Never count lines from the @@ hunk header',
+      'Never cite a - (deleted) line',
+    ]) {
+      const idx = user.indexOf(phrase);
+      expect(idx).toBeGreaterThan(headerIdx);
+      expect(idx).toBeLessThan(wrapperIdx);
+    }
+  });
+
+  it('is TRUSTED text: never appended to the system message', () => {
+    const system = assemblePrompt({ system: 'S', diff: 'D' }).messages[0]!.content;
+    expect(system.startsWith('S\n\n')).toBe(true);
+    expect(system).not.toContain('hunk header');
+  });
+});

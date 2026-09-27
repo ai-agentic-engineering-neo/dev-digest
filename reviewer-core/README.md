@@ -42,6 +42,11 @@ Exported from `src/index.ts`: `assemblePrompt` / `wrapUntrusted` (prompt),
 `reduce`. Contracts (`Review`, `Finding`, `Verdict`, …) come from
 `@devdigest/shared`.
 
+`numberDiff` (L03 — `review/numbered-diff.ts`) prints each diff line's
+new-file line number in a fixed gutter; `run.ts` numbers every diff before it
+reaches the LLM, and `assemblePrompt` adds a trusted rule telling the model to
+cite those printed numbers (see `docs/agent-prompts/README.md` § Numbered diff).
+
 `estimateTokens` and the optional `promptTelemetry` on `ReviewInput`
 (L03 — prompt logging) let a caller observe prompt-assembly metadata —
 `PromptSection[]` / `PromptAssembledInfo` (name, source, role, untrusted,

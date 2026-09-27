@@ -116,7 +116,9 @@ line: a correlation id, the PR id, provider/model, and per section its
 name/source/role/untrusted flag/chars/`tokens_est` — **never section text**.
 `PROMPT_LOG=verbose` adds a 12-hex sha256 fingerprint per section, the diff's
 file paths with their sizes, skill names, and intent source refs (never the
-title/branch refs — those are the PR author's own text). Grep for it with
+title/branch refs — those are the PR author's own text). The diff file sizes
+are the sizes of the **numbered** text actually sent to the model (L03 —
+`numberDiff`), not the raw `sliceDiff` output. Grep for it with
 `grep 'prompt: assembled'`.
 
 This server does **not** load `server/.env.local` (`config.ts:1` loads only

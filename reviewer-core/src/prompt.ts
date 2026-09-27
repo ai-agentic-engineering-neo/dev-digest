@@ -37,6 +37,19 @@ export function wrapUntrusted(label: string, content: string): string {
 const MAX_PR_DESCRIPTION_CHARS = 4000;
 
 /**
+ * Trusted instruction accompanying the (untrusted, numbered) diff — pushed
+ * OUTSIDE the `<untrusted>` wrapper, right after `## Diff to review`, so it is
+ * never data the model could be told to ignore. The caller (`run.ts`) is
+ * responsible for actually numbering `parts.diff` via `numberDiff`; this text
+ * only tells the model how to read the gutter it will see.
+ */
+export const DIFF_LINE_NUMBER_RULE =
+  'Each diff line below starts with its line number in the new file (a 6-column ' +
+  'gutter). Set start_line and end_line to those printed numbers. Never count lines ' +
+  'from the @@ hunk header yourself. Never cite a - (deleted) line: its gutter is ' +
+  'blank because it does not exist in the new file.';
+
+/**
  * A derived PR intent (L03) — the classifier's structured output, deterministic
  * confidence attached by the caller. Rendered as an untrusted block right after
  * `## PR description`: it is attacker-influenced (derived from the PR body /
@@ -181,7 +194,12 @@ export interface PromptParts {
    * `## Skills / rules`. Undefined → section omitted (no behavior change).
    */
   intent?: PromptIntent;
-  /** The unified diff / user task (untrusted content). */
+  /**
+   * The unified diff / user task (untrusted content). The caller (`run.ts`)
+   * passes `numberDiff` output, not the raw diff text — `assemblePrompt` only
+   * adds the trusted `DIFF_LINE_NUMBER_RULE` above it; it never numbers this
+   * itself (it is also used with non-diff text in tests).
+   */
   diff: string;
   /** Optional task framing line, e.g. "Review PR #482 '…'". */
   task?: string;
@@ -270,7 +288,10 @@ export function assemblePrompt(
       `## Callers of changed symbols\n${wrapUntrusted('callers', parts.callers)}`,
     );
   }
-  pushSection('diff', `## Diff to review\n${wrapUntrusted('diff', parts.diff)}`);
+  pushSection(
+    'diff',
+    `## Diff to review\n${DIFF_LINE_NUMBER_RULE}\n${wrapUntrusted('diff', parts.diff)}`,
+  );
 
   const user = userSections.join('\n\n');
 

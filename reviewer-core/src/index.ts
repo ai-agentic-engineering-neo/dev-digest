@@ -39,6 +39,10 @@ export {
 // Map-reduce helpers (reduce partials, slice a file's diff).
 export { reduceReviews, sliceDiff } from './review/reduce.js';
 
+// Print each diff line's new-file line number in a gutter (L03 — grounding
+// citations must match a real line, not a hunk-header-counted guess).
+export { numberDiff } from './review/numbered-diff.js';
+
 // The engine entry point: given (diff + resolved agent inputs + LLM) → grounded Review.
 export {
   reviewPullRequest,

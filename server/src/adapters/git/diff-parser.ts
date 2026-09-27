@@ -10,10 +10,20 @@ import type { UnifiedDiff, DiffHunk } from '@devdigest/shared';
  *   --- a/path
  *   +++ b/path
  *   @@ -oldStart,oldLines +newStart,newLines @@
+ *
+ * Three rules keep `newLineNumbers` exactly equal to what `numberDiff`
+ * (reviewer-core) prints for the same diff (L03 invariant):
+ *  - the empty string produced by splitting on a trailing `\n` is not a line;
+ *  - a `\ No newline at end of file` marker does not advance the cursor;
+ *  - inside a hunk, only a real `--- `/`+++ ` FILE HEADER is exempt from the
+ *    `-`/`+` rules below — those headers are always handled above, before a
+ *    hunk exists, so a line that merely starts with `---`/`+++` INSIDE a hunk
+ *    (e.g. a deleted `---` shown as `----`) is a plain deletion/addition.
  */
 export function parseUnifiedDiff(raw: string): UnifiedDiff {
   const files: UnifiedDiff['files'] = [];
   const lines = raw.split('\n');
+  if (raw.endsWith('\n')) lines.pop();
 
   let current: UnifiedDiff['files'][number] | null = null;
   let hunk: DiffHunk | null = null;
@@ -60,11 +70,12 @@ export function parseUnifiedDiff(raw: string): UnifiedDiff {
       continue;
     }
     if (!current || !hunk) continue;
-    if (line.startsWith('+') && !line.startsWith('+++')) {
+    if (line.startsWith('\\')) continue; // `\ No newline at end of file` — no cursor, not counted
+    if (line.startsWith('+')) {
       current.additions++;
       hunk.newLineNumbers.push(newLineCursor);
       newLineCursor++;
-    } else if (line.startsWith('-') && !line.startsWith('---')) {
+    } else if (line.startsWith('-')) {
       current.deletions++;
       // deletion: no new-side line consumed
     } else {

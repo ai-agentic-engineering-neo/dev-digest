@@ -162,6 +162,7 @@ export default function PRDetailPage() {
               invalidateRunHistory();
               invalidateIntent();
               refetchReviews();
+              qc.invalidateQueries({ queryKey: ["smart-diff", prId] });
             }}
           />
         )}
@@ -172,6 +173,9 @@ export default function PRDetailPage() {
             filesCount={pr.files_count}
             files={pr.files}
             canComment={pr.status === "open"}
+            reviews={runs}
+            repoFullName={repoFullName}
+            headSha={pr.head_sha}
           />
         )}
       </div>

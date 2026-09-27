@@ -40,6 +40,14 @@
     "reply": "Reply",
     "viewOnGitHub": "View on GitHub",
     "postedToGitHub": "Posts to GitHub immediately",
-    "outdatedTitle": "{count} comment(s) on older revisions"
+    "outdatedTitle": "{count} comment(s) on older revisions",
+    "hasFindings": "Has review findings",
+    "findingTag": {
+      "critical": "blocker",
+      "warning": "warning",
+      "suggestion": "suggestion",
+      "info": "info"
+    },
+    "offDiffFindings": "Findings outside the shown lines"
   }
 }

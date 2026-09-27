@@ -90,19 +90,30 @@ export function partitionThreads(
   threads: CommentThread[],
   renderedKeys: Set<string>,
 ): { matched: Map<string, CommentThread[]>; outdated: CommentThread[] } {
-  const matched = new Map<string, CommentThread[]>();
-  const outdated: CommentThread[] = [];
-  for (const th of threads) {
-    const key = th.line != null ? `${th.side}:${th.line}` : null;
+  const { matched, rest } = partitionByKey(threads, (th) => lineKey(th.side, th.line), renderedKeys);
+  return { matched, outdated: rest };
+}
+
+/** Bucket items by a derived key: those whose key is rendered go to `matched`,
+ *  everything else (incl. null keys) to `rest` so nothing is dropped. */
+export function partitionByKey<T>(
+  items: T[],
+  keyOf: (item: T) => string | null,
+  renderedKeys: ReadonlySet<string>,
+): { matched: Map<string, T[]>; rest: T[] } {
+  const matched = new Map<string, T[]>();
+  const rest: T[] = [];
+  for (const item of items) {
+    const key = keyOf(item);
     if (key && renderedKeys.has(key)) {
       const list = matched.get(key) ?? [];
-      list.push(th);
+      list.push(item);
       matched.set(key, list);
     } else {
-      outdated.push(th);
+      rest.push(item);
     }
   }
-  return { matched, outdated };
+  return { matched, rest };
 }
 
 // ---- styles (layout only; cards/inputs/buttons reuse @devdigest/ui) ----

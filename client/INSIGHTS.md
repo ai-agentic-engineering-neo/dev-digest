@@ -163,6 +163,15 @@ _None yet._
 
 ## Recurring Errors & Fixes
 
+- **2026-09-26** — A new PR-scoped query key goes stale unless it is added to
+  the invalidations by hand: `useFindingAction`, `useRunReview`,
+  `useDeleteRun` and `useDeleteReview` in `src/lib/hooks/reviews.ts` each
+  invalidate `["reviews", prId]` only. `["smart-diff", prId]` had to be added
+  next to each, plus in `onRunDone` in the PR `page.tsx`. `useRunReview`
+  fires when the POST returns, before the SSE run finishes, so it is not
+  enough on its own. Also: `@testing-library/user-event` is not installed in
+  `client/`; use `fireEvent`.
+
 - **2026-08-04** — `fireEvent.mouseEnter` on a component whose hover-open
   logic uses `setTimeout` (e.g. an open delay to survive a mouse
   pass-through) needs `vi.useFakeTimers()` **and** the timer advance wrapped

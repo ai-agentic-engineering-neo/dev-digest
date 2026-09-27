@@ -110,6 +110,11 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 ## Recurring Errors & Fixes
 
+- **2026-09-26** — A route test asserting `400` for a bad `:id` fails: zod
+  validation errors return `422` (`validation_error`) in this app, not the
+  Fastify default. Assert `422`, e.g. `GET /pulls/not-a-uuid/smart-diff` in
+  `test/routes-smoke.test.ts`. `server/src/app.ts:122-133`, `src/errors.ts:27`
+
 - **2026-09-25** — Any LLM call added to `ReviewRunExecutor.executeRuns` runs
   before every agent, and `test/reviews.it.test.ts` overrides only the
   `openai` and `anthropic` providers (`appWith`, line 113). The intent step

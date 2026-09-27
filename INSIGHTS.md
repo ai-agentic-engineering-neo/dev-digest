@@ -41,6 +41,17 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 ## Codebase Patterns
 
+- **2026-09-26** — "Latest review per agent" (keep `kind === 'review'`, newest
+  per `agentId ?? 'none'`) is implemented three times on purpose, because a
+  server module may not import another module's helpers: `pickCountedReviews`
+  in `server/src/modules/pulls/helpers.ts`, `pickLatestReviewPerAgent` in
+  `server/src/modules/reviews/smart-diff/helpers.ts`, and
+  `latestFindingsPerAgent` in `client/src/app/repos/[repoId]/pulls/helpers.ts`.
+  Change the rule in one and you must change all three, or list counts, Smart
+  Diff dots and inline cards disagree. They already differ on one point: the
+  server Smart Diff drops dismissed findings (`finding_lines`), the client
+  helper keeps them, so a file with only dismissed findings shows a muted card
+  but no dot.
 - **2026-08-05** — Pre-staged-for-a-lesson goes well beyond the empty tables `server/INSIGHTS.md` lists: for skills, the DB tables, the `@devdigest/shared` contracts, the `## Skills / rules` prompt section, the trace-drawer block + its colour token, and the entire `messages/en/skills.json` i18n namespace all ship in the starter with no module and no screen behind them — search for existing scaffolding before writing any of it. Evidence: `server/src/vendor/shared/contracts/knowledge.ts:114-141`, `reviewer-core/src/prompt.ts:109`, `client/src/app/repos/[repoId]/pulls/[number]/_components/RunTraceDrawer/constants.ts:16`, `client/messages/en/skills.json`.
 
   - **2026-08-05** — Conventions was staged even further than skills — table, `ConventionCandidate` contract, `FEATURE_MODELS.conventions`, `repoIntel.getConventionSamples()`, the whole `messages/en/conventions.json` namespace, `activeKeyFor("/conventions")` AND the mock adapter's schema names all shipped with no module, so the build was assembly, not authoring. Evidence: `server/src/modules/repo-intel/service.ts:630`, `client/src/components/app-shell/helpers.ts:31`, `docs/specs/conventions.md` §2.

@@ -5,6 +5,7 @@ import type {
   PrIntentResponse,
   RunEventKind,
   RunTrace,
+  SmartDiffResponse,
 } from '@devdigest/shared';
 import { AppError, NotFoundError } from '../../platform/errors.js';
 import type { AgentRow } from '../../db/rows.js';
@@ -16,6 +17,7 @@ import { reviewToDto, prIntentRowToDto } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
 import { ensureIntent } from './intent-deriver.js';
 import { REGENERATE_TIMEOUT_MS } from './intent-constants.js';
+import { buildSmartDiff, findingLinesByPath, pickLatestReviewPerAgent } from './smart-diff/helpers.js';
 
 // Re-export DTO types + converters for backward-compatible imports from
 // './service.js' (these previously lived here; logic now in ./helpers.ts).
@@ -180,6 +182,23 @@ export class ReviewService {
     return rows.map(({ review, findings }) =>
       reviewToDto(review, findings, review.agentId ? names.get(review.agentId) : null),
     );
+  }
+
+  // ===========================================================================
+  // Smart Diff
+  // ===========================================================================
+
+  /** PR files grouped by role, with live finding lines from each agent's latest review. */
+  async smartDiff(workspaceId: string, prId: string): Promise<SmartDiffResponse> {
+    const pull = await this.repo.getPull(workspaceId, prId);
+    if (!pull) throw new NotFoundError('Pull request not found');
+    const [files, rows] = await Promise.all([
+      this.repo.getPrFiles(prId),
+      this.repo.reviewsForPull(prId),
+    ]);
+    const latest = new Set(pickLatestReviewPerAgent(rows.map((r) => r.review)).map((r) => r.id));
+    const findings = rows.filter((r) => latest.has(r.review.id)).flatMap((r) => r.findings);
+    return buildSmartDiff(files, findingLinesByPath(findings));
   }
 
   // ===========================================================================

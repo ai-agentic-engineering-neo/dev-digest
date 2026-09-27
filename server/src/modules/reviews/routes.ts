@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { PrIntent, PrIntentResponse, RunRequest } from '@devdigest/shared';
+import { PrIntent, PrIntentResponse, RunRequest, SmartDiffResponse } from '@devdigest/shared';
 import type { RunEvent } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
@@ -14,6 +14,7 @@ import { ReviewService } from './service.js';
  *   GET    /runs/:id/trace                             → the single-document RunTrace
  *   GET    /pulls/:id/reviews                          → persisted reviews + findings for a PR
  *   GET    /pulls/:id/intent                           → derived PR intent + stale flag (no LLM)
+ *   GET    /pulls/:id/smart-diff                       → files grouped by role + live finding lines
  *   POST   /pulls/:id/intent/regenerate                → force a fresh intent (409 intent_unavailable)
  *   POST   /findings/:id/(accept|dismiss)              → finding actions
  */
@@ -140,6 +141,16 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
     async (req) => {
       const { workspaceId } = await getContext(container, req);
       return service.getIntent(workspaceId, req.params.id);
+    },
+  );
+
+  // ---- Smart Diff (deterministic, no LLM) ----
+  app.get(
+    '/pulls/:id/smart-diff',
+    { schema: { params: IdParams, response: { 200: SmartDiffResponse } } },
+    async (req) => {
+      const { workspaceId } = await getContext(container, req);
+      return service.smartDiff(workspaceId, req.params.id);
     },
   );
 

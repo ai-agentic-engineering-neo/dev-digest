@@ -30,8 +30,14 @@ const SEVERITY_PENALTY: Record<Finding['severity'], number> = {
  * severity costs nothing, as it counts in no severity bucket either.
  */
 export function scoreFromFindings(findings: { severity: string }[]): number {
+  // `Object.hasOwn`, not `?? 0`: a free-text severity such as 'constructor'
+  // would otherwise read an inherited Object.prototype function (→ NaN).
   const penalty = findings.reduce(
-    (sum, f) => sum + (SEVERITY_PENALTY[f.severity as Finding['severity']] ?? 0),
+    (sum, f) =>
+      sum +
+      (Object.hasOwn(SEVERITY_PENALTY, f.severity)
+        ? SEVERITY_PENALTY[f.severity as Finding['severity']]
+        : 0),
     0,
   );
   return Math.max(0, Math.min(100, 100 - penalty));

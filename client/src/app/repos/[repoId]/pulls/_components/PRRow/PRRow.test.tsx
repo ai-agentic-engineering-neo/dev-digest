@@ -123,24 +123,31 @@ describe("PRRow — cost column", () => {
 });
 
 describe("PRRow — score column", () => {
+  const hint = messages.list.scorePartialHint;
+
   it("shows the score ring with no marker when every agent of the last run finished", () => {
     renderRow(pr({ score: 61, score_partial: false }));
     expect(screen.getByText("61")).toBeInTheDocument();
-    expect(screen.queryByText(messages.list.scorePartial)).not.toBeInTheDocument();
+    expect(screen.queryByTitle(hint)).not.toBeInTheDocument();
   });
 
-  it("marks the score as a partial run, with the reason on hover, when an agent failed", () => {
+  it("marks the score as a partial run, with the reason in its text, not only on hover", () => {
     renderRow(pr({ score: 88, score_partial: true }));
     expect(screen.getByText("88")).toBeInTheDocument();
-    const marker = screen.getByText(messages.list.scorePartial);
-    expect(marker).toHaveAttribute("title", messages.list.scorePartialHint);
+    const marker = screen.getByTitle(hint);
+    expect(marker).toHaveTextContent(messages.list.scorePartial);
+    // The reason is part of the marker's text (visually hidden), so keyboard,
+    // touch and screen-reader users get it too — `title` alone reaches a mouse.
+    expect(marker).toHaveTextContent(hint);
   });
 
-  it("shows neither ring nor marker for a PR that was never reviewed", () => {
-    // Findings and cost stay populated so the score cell is the only "—".
-    renderRow(pr({ score: null, score_partial: false }));
+  it("shows no marker when there is no score, even if the run that produced nothing was partial", () => {
+    // A PR whose first run failed outright: routes.ts sends score null together
+    // with score_partial true. Findings and cost stay populated so the score
+    // cell is the only "—".
+    renderRow(pr({ score: null, score_partial: true }));
     expect(screen.getByText("—")).toBeInTheDocument();
-    expect(screen.queryByText(messages.list.scorePartial)).not.toBeInTheDocument();
+    expect(screen.queryByTitle(hint)).not.toBeInTheDocument();
   });
 });
 

@@ -56,6 +56,9 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
             {pr.score_partial && (
               <span style={s.scorePartial} title={t("list.scorePartialHint")}>
                 {t("list.scorePartial")}
+                {/* The reason as text, not only `title`, so keyboard, touch and
+                    screen-reader users get it too. */}
+                <span style={s.srOnly}> — {t("list.scorePartialHint")}</span>
               </span>
             )}
           </div>

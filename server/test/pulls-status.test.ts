@@ -196,6 +196,9 @@ describe('runScore', () => {
     expect(runScore([])).toBe(100);
     expect(runScore([row('CRITICAL'), row('CRITICAL'), row('CRITICAL')])).toBe(0);
     expect(runScore([row('INFO')])).toBe(100);
+    // A severity naming an Object.prototype key must not look up an inherited
+    // function (sum → string → NaN).
+    expect(runScore([row('constructor'), row('toString')])).toBe(100);
   });
 });
 

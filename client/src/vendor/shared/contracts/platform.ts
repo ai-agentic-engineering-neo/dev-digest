@@ -222,7 +222,8 @@ export const PrMeta = z.object({
   // fallback — minus dismissed ones, which the counters still show.
   score: z.number().int().nullish(),
   // True when an agent of the PR's newest run failed or was cancelled, so
-  // `score` covers only the agents that finished (list endpoint only).
+  // `score` covers only the agents that finished — or, if none did, comes from
+  // the latest-review fallback of an earlier run (list endpoint only).
   score_partial: z.boolean().nullish(),
   // Lifetime run cost in USD — every agent_runs row on this PR, any status
   // (list endpoint only). null = no run has a known cost; NULL-cost runs are

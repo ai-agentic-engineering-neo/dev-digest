@@ -48,6 +48,18 @@ export const s = {
     color: "var(--warn)",
     cursor: "help",
   } satisfies CSSProperties,
+  /** Read by assistive tech, never painted (same recipe as ConventionCard's). */
+  srOnly: {
+    position: "absolute",
+    width: 1,
+    height: 1,
+    padding: 0,
+    margin: -1,
+    overflow: "hidden",
+    clip: "rect(0 0 0 0)",
+    whiteSpace: "nowrap",
+    border: 0,
+  } satisfies CSSProperties,
   findingsCell: { display: "flex", alignItems: "center", minWidth: 0 } satisfies CSSProperties,
   costCell: { fontSize: 12, color: "var(--text-secondary)" } satisfies CSSProperties,
   updatedCell: {

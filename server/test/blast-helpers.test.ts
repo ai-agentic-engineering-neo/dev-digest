@@ -45,10 +45,14 @@ describe('blast/helpers — toBlastRadius', () => {
     expect(parsed.downstream[1]!.endpoints_affected).toEqual([]);
   });
 
-  it('attributes endpoints reached only via the reverse-import graph (no direct caller)', () => {
-    // `webhooks.ts` never calls `rateLimit` directly, but it's reachable by
-    // walking imports from `public.ts` — this is what dependentFilesByChangedFile
-    // carries, and a symbol should pick up that file's facts too.
+  it('does NOT attribute a file reached only via the reverse-import BFS to a symbol with no real caller there — that would tag every symbol in a busy file with the same unrelated route', () => {
+    // `webhooks.ts` never calls `rateLimit` directly — it's only reachable by
+    // walking imports from `public.ts` (`dependentFilesByChangedFile`). A
+    // composition-root file (e.g. a DI container) sits ~2 import-hops from
+    // almost everything, so folding this into every symbol's
+    // endpoints_affected would make every symbol in a file look like it
+    // touches the same handful of unrelated routes. Per-symbol attribution
+    // stays precise: only a symbol's OWN resolved callers count.
     const result: BlastResult = {
       changedSymbols: [{ file: 'src/api/public.ts', name: 'rateLimit', kind: 'function' }],
       callers: [],
@@ -61,8 +65,25 @@ describe('blast/helpers — toBlastRadius', () => {
     };
 
     const parsed = toBlastRadius(result);
-    expect(parsed.downstream[0]!.endpoints_affected).toEqual(['POST /api/public/webhooks']);
-    expect(parsed.downstream[0]!.crons_affected).toEqual(['job:cleanup']);
+    expect(parsed.downstream[0]!.endpoints_affected).toEqual([]);
+    expect(parsed.downstream[0]!.crons_affected).toEqual([]);
+    // The reverse-import reach isn't discarded — it still shows up PR-wide.
+    expect(parsed.summary).toContain('1 endpoint');
+  });
+
+  it('attributes endpoints/crons only from a symbol\'s own resolved caller files', () => {
+    const result: BlastResult = {
+      changedSymbols: [{ file: 'src/api/public.ts', name: 'rateLimit', kind: 'function' }],
+      callers: [{ file: 'src/api/index.ts', symbol: 'handler', viaSymbol: 'rateLimit', line: 23, rank: 10 }],
+      impactedEndpoints: ['GET /api/public/items'],
+      factsByFile: {
+        'src/api/index.ts': { endpoints: ['GET /api/public/items'], crons: [] },
+      },
+      degraded: false,
+    };
+
+    const parsed = toBlastRadius(result);
+    expect(parsed.downstream[0]!.endpoints_affected).toEqual(['GET /api/public/items']);
   });
 
   it('summary calls out a degraded/partial index instead of masking it as empty', () => {

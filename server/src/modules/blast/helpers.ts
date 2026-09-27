@@ -19,18 +19,26 @@ export function toBlastRadius(result: BlastResult): BlastRadius {
   // One entry per changed symbol, including symbols with zero callers, so
   // `changed_symbols.length === downstream.length` and the client can render
   // one tree row per changed symbol regardless of impact.
+  //
+  // endpoints_affected/crons_affected are attributed ONLY from this symbol's
+  // own resolved callers' files — deliberately NOT from the wider
+  // file-level reverse-import BFS (`dependentFilesByChangedFile`). That BFS
+  // answers a real but file-scoped question ("what does the changed FILE
+  // reach two import-hops out?"), not a per-symbol one: in a composition-root
+  // architecture (a DI container importing every service, itself imported by
+  // the app bootstrap that declares health-check routes inline) almost any
+  // file ends up "2 hops from /health", which would tag every symbol in a
+  // busy file with the same unrelated endpoints — precise-looking but
+  // meaningless. The file-level reach still isn't discarded: it feeds
+  // `BlastResult.impactedEndpoints` / the summary sentence (see
+  // `buildSummary` below), which is the PR-wide view the "reverse import
+  // graph, 2 levels" requirement is actually about.
   const downstream: DownstreamImpact[] = result.changedSymbols.map((sym) => {
     const callers = callersBySymbol.get(sym.name) ?? [];
     const endpoints = new Set<string>();
     const crons = new Set<string>();
-    // Endpoints/crons reached two ways: (a) this symbol's own resolved
-    // callers, and (b) the reverse-import graph walked from the symbol's
-    // declaring file — a file that only imports (never calls) it can still
-    // be the one registering the affected route.
-    const attributedFiles = new Set<string>(callers.map((c) => c.file));
-    for (const f of result.dependentFilesByChangedFile?.[sym.file] ?? []) attributedFiles.add(f);
-    for (const file of attributedFiles) {
-      const facts = result.factsByFile?.[file];
+    for (const c of callers) {
+      const facts = result.factsByFile?.[c.file];
       if (!facts) continue;
       for (const e of facts.endpoints) endpoints.add(e);
       for (const cr of facts.crons) crons.add(cr);

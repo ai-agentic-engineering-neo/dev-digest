@@ -14,6 +14,9 @@ vi.mock("../../../../../../../lib/hooks/intent", () => ({
 vi.mock("../../../../../../../lib/hooks/blast-radius", () => ({
   useBlastRadius: () => ({ data: null, isLoading: false }),
 }));
+vi.mock("../../../../../../../lib/hooks/pr-history", () => ({
+  usePrHistory: () => ({ data: undefined }),
+}));
 
 import { OverviewTab } from "./OverviewTab";
 

@@ -3,11 +3,15 @@
  *
  * Follows the same Testcontainers-backed `startPg`/`buildApp`/`seed` template
  * as `smart-diff.it.test.ts`. This is the one real-Postgres test for the
- * `blast` module + its two facade fixes — the things that only break in SQL:
+ * `blast` module + its facade fixes — the things that only break in SQL:
  *   - a self-file reference (fromPath === declFile) must NOT show up as a
  *     caller (repo-intel/repository.ts `getResolvedCallers`'s new `ne(...)`).
  *   - endpoint impact reaches a file that only imports (never calls) a
- *     changed file, via the reverse-import BFS (repo-intel `getDependentFiles`).
+ *     changed file, via the reverse-import BFS (repo-intel `getDependentFiles`)
+ *     — surfaced PR-wide (`summary`), deliberately NOT folded into any one
+ *     symbol's `endpoints_affected` (see `blast/helpers.ts`'s comment on why:
+ *     a composition-root file sits ~2 import-hops from almost everything, so
+ *     per-symbol attribution would tag unrelated symbols with the same route).
  * The pure caller-cap / mapping logic is covered hermetically in
  * `repo-intel-blast-persistent.test.ts` and `blast-helpers.test.ts`.
  */
@@ -136,7 +140,7 @@ d('Blast Radius (Testcontainers pg)', () => {
     });
   }
 
-  it('returns the real caller, excludes the self-reference, and reaches an endpoint two import-hops away', async () => {
+  it('returns the real caller, excludes the self-reference, and reaches an endpoint two import-hops away (PR-wide, not per-symbol)', async () => {
     const app = await buildApp({ config: config(), db: pg.handle.db });
     const { repoRow, pr } = await setupRepoAndPr();
     await seedIndex(repoRow.id);
@@ -155,8 +159,11 @@ d('Blast Radius (Testcontainers pg)', () => {
     expect(rateLimit.callers).toEqual([{ name: 'handler', file: INDEX_TS, line: 23 }]);
     expect(rateLimit.callers.some((c) => c.file === PUBLIC_TS)).toBe(false);
     // webhooks.ts never calls rateLimit — it's reached only by walking the
-    // reverse import graph two hops (public.ts <- index.ts <- webhooks.ts).
-    expect(rateLimit.endpoints_affected).toEqual(['POST /api/public/webhooks']);
+    // reverse import graph two hops (public.ts <- index.ts <- webhooks.ts),
+    // not through a real caller, so it must NOT show up on this symbol.
+    expect(rateLimit.endpoints_affected).toEqual([]);
+    // The reverse-import reach isn't lost — it still surfaces PR-wide.
+    expect(parsed.summary).toContain('1 endpoint');
 
     expect(parsed.summary.length).toBeGreaterThan(0);
     expect(parsed.summary).not.toMatch(/partial index/i);

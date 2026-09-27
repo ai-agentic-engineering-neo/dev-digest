@@ -148,7 +148,12 @@
     "callers": "callers",
     "endpoints": "endpoints",
     "crons": "cron jobs",
-    "noCallers": "No resolved callers for this symbol."
+    "noCallers": "No resolved callers for this symbol.",
+    "tree": "Tree",
+    "graph": "Graph",
+    "priorPrs": {
+      "title": "Prior PRs touching these files"
+    }
   },
   "prBrief": {
     "sectionLabel": "PR Brief"

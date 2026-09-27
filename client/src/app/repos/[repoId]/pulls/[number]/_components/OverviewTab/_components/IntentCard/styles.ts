@@ -14,6 +14,7 @@ export const s = {
     color: "var(--text-primary)",
     fontStyle: "italic",
     margin: 0,
+    overflowWrap: "anywhere",
   } satisfies CSSProperties,
   emptyBody: {
     fontSize: 14,
@@ -44,6 +45,7 @@ export const s = {
     fontSize: 13.5,
     lineHeight: 1.6,
     color: "var(--text-secondary)",
+    overflowWrap: "anywhere",
   } satisfies CSSProperties,
   meta: {
     marginTop: 14,

@@ -1,5 +1,5 @@
 import type { Container } from '../../platform/container.js';
-import type { Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
+import type { PrIntent, Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
 import { reviewPullRequest, countBlockers, severityCounts } from '@devdigest/reviewer-core';
 import { RunLogger, type PinoLike } from '../../platform/run-logger.js';
 import type * as schema from '../../db/schema.js';
@@ -8,6 +8,10 @@ import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './reposit
 import { REVIEW_STRATEGY } from './constants.js';
 import { taskLine, toSkillPromptBlock } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
+import { ensureIntent } from './intent-deriver.js';
+import { toPromptIntent } from './intent-helpers.js';
+import { RUN_INTENT_TIMEOUT_MS } from './intent-constants.js';
+import { buildPromptLog } from './prompt-log.js';
 
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
 export class RunCancelledError extends Error {
@@ -103,6 +107,28 @@ export class ReviewRunExecutor {
     }
     runLog.info(`Diff ready — ${diff.files.length} changed file(s); starting ${jobs.length} agent run(s)`);
 
+    // Intent is an optional enrichment: a cheap classifier derives what the PR is
+    // for so every agent reviews against it. It must NEVER fail the run —
+    // ensureIntent swallows its own errors, and the catch below is a backstop.
+    let intent: PrIntent | undefined;
+    try {
+      intent = await runLog.step(
+        'Deriving PR intent',
+        () =>
+          ensureIntent(this.container, this.repo, workspaceId, pull, repo, diff, {
+            timeoutMs: RUN_INTENT_TIMEOUT_MS,
+            log: (level, msg, data) => {
+              runLog.info(msg, data);
+              if (level === 'warn') logger?.warn({ prId: pull.id }, msg);
+            },
+          }),
+        { kind: 'tool' },
+      );
+    } catch {
+      intent = undefined;
+    }
+    if (!intent) runLog.info('No PR intent available — reviewing without it');
+
     for (const { agent, runId } of jobs) {
       const agentStart = Date.now();
       logger?.info(
@@ -110,7 +136,7 @@ export class ReviewRunExecutor {
         `review: agent "${agent.name}" started (${agent.provider}/${agent.model})`,
       );
       try {
-        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, agent, runId, runLog);
+        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, agent, runId, runLog, intent);
         logger?.info(
           {
             runId,
@@ -142,6 +168,7 @@ export class ReviewRunExecutor {
     agent: AgentRow,
     runId: string,
     parentLog: RunLogger,
+    intent?: PrIntent,
   ): Promise<RunOutcome> {
     const start = Date.now();
     // Narrow the fanned-out pre-work logger to THIS run; the shared diff/intent
@@ -212,8 +239,28 @@ export class ReviewRunExecutor {
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
+        // Derived intent (a claim to verify, not ground truth) — omitted when
+        // unavailable, which leaves the prompt byte-identical to before.
+        ...(intent ? { intent: toPromptIntent(intent) } : {}),
         task,
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
+        // Prompt composition, before the LLM call: section names, origins and
+        // sizes only (see prompt-log.ts). The summary is streamed + persisted with
+        // the run; the verbose form goes to stdout only and only when enabled.
+        onPromptAssembled: ({ manifest, mode }) => {
+          const ctx = {
+            runId,
+            prId: pull.id,
+            agent: agent.name,
+            provider: agent.provider,
+            model: agent.model,
+            mode,
+          };
+          runLog.info('Prompt assembled', buildPromptLog(manifest, ctx, false));
+          if (this.container.config.promptLogVerbose) {
+            runLog.local('info', 'Prompt assembled (verbose, local only)', buildPromptLog(manifest, ctx, true));
+          }
+        },
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
         checkCancelled: () => {
           if (this.container.runBus.isCancelled(runId)) throw new RunCancelledError();

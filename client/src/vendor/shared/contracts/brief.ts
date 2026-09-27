@@ -13,6 +13,84 @@ export const Intent = z.object({
 });
 export type Intent = z.infer<typeof Intent>;
 
+// ---- Intent Layer (derived, provenance-tracked) ----
+/** Where a piece of intent evidence came from. */
+export const IntentSourceKind = z.enum([
+  'description',
+  'linked_issue',
+  'plan_spec',
+  'commits',
+  'branch',
+  'file_paths',
+]);
+export type IntentSourceKind = z.infer<typeof IntentSourceKind>;
+
+/**
+ * One evidence source consulted (or attempted) for the intent. `unresolved`
+ * records a reference we saw but deliberately never followed (Jira/Linear keys,
+ * cross-repo issues); `skipped_external` a URL outside the repo.
+ */
+export const IntentSourceRef = z.object({
+  kind: IntentSourceKind,
+  ref: z.string(),
+  title: z.string().nullish(),
+  status: z.enum(['used', 'unreadable', 'skipped_external', 'unresolved']),
+  truncated: z.boolean(),
+});
+export type IntentSourceRef = z.infer<typeof IntentSourceRef>;
+
+export const IntentConfidence = z.enum(['low', 'medium', 'high']);
+export type IntentConfidence = z.infer<typeof IntentConfidence>;
+
+export const IntentRiskKind = z.enum([
+  'security',
+  'data',
+  'performance',
+  'compatibility',
+  'behavior',
+  'other',
+]);
+export type IntentRiskKind = z.infer<typeof IntentRiskKind>;
+
+/** A risk area grounded to a changed file (never a free-floating claim). */
+export const IntentRiskArea = z.object({
+  kind: IntentRiskKind,
+  title: z.string(),
+  file: z.string(),
+  line: z.number().int().nullable(),
+  explanation: z.string(),
+});
+export type IntentRiskArea = z.infer<typeof IntentRiskArea>;
+
+/**
+ * What the classifier LLM returns. Deliberately no min/max on numbers (strict
+ * json_schema rejects them): `finalizeIntent` clamps and grounds the result.
+ * Only `nullable` (never `optional`) so the strict schema stays valid.
+ */
+export const IntentClassification = Intent.extend({
+  confidence: z.number(),
+  primary_source: IntentSourceKind,
+  risk_areas: z.array(IntentRiskArea),
+});
+export type IntentClassification = z.infer<typeof IntentClassification>;
+
+/** The persisted, provenance-tracked intent of a PR at a given head commit. */
+export const PrIntent = Intent.extend({
+  pr_id: z.string(),
+  head_sha: z.string(),
+  confidence: z.number().min(0).max(1),
+  confidence_level: IntentConfidence,
+  primary_source: IntentSourceKind,
+  sources_used: z.array(IntentSourceRef),
+  risk_areas: z.array(IntentRiskArea),
+  provider: z.string(),
+  model: z.string(),
+  /** USD spent deriving this intent; null when the model is unpriced. */
+  cost_usd: z.number().nullable(),
+  generated_at: z.string(),
+});
+export type PrIntent = z.infer<typeof PrIntent>;
+
 // ---- Blast radius ----
 export const ChangedSymbol = z.object({
   name: z.string(),

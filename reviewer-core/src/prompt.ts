@@ -36,6 +36,54 @@ export function wrapUntrusted(label: string, content: string): string {
 /** Cap the PR description so a huge author body can't blow the token budget. */
 const MAX_PR_DESCRIPTION_CHARS = 4000;
 
+/** Cap the rendered intent block (it is derived by a cheap model — keep it small). */
+const MAX_INTENT_CHARS = 3000;
+
+const INTENT_UNCERTAIN_NOTE =
+  'Intent is uncertain (inferred from indirect signals); do not assume a motivation and do not narrow the review to it.';
+
+/**
+ * The PR's derived intent, as the reviewer needs it. A local structural type on
+ * purpose: the engine takes plain data and never sees DB or contract-row types
+ * (the server maps its persisted PrIntent onto this).
+ */
+export interface PromptIntent {
+  summary: string;
+  in_scope: string[];
+  out_of_scope: string[];
+  confidence_level: 'low' | 'medium' | 'high';
+  /** Evidence consulted, e.g. `linked_issue #12 (used)`. */
+  sources: string[];
+  risk_areas: { kind: string; title: string; file: string; line: number | null; explanation: string }[];
+}
+
+function intentBody(intent: PromptIntent): string {
+  const list = (xs: string[]) => (xs.length > 0 ? xs.map((x) => `- ${x}`).join('\n') : '- (none stated)');
+  const risks =
+    intent.risk_areas.length > 0
+      ? intent.risk_areas
+          .map(
+            (r) =>
+              `- [${r.kind}] ${r.title} (${r.file}${r.line != null ? `:${r.line}` : ''}): ${r.explanation}`,
+          )
+          .join('\n')
+      : '- (none flagged)';
+  return [
+    `Intent: ${intent.summary}`,
+    `In scope:\n${list(intent.in_scope)}`,
+    `Out of scope:\n${list(intent.out_of_scope)}`,
+    `Confidence: ${intent.confidence_level}`,
+    `Sources: ${intent.sources.length > 0 ? intent.sources.join('; ') : 'none'}`,
+    `Risk areas to look at first:\n${risks}`,
+  ].join('\n');
+}
+
+function renderIntent(intent: PromptIntent): string {
+  const wrapped = wrapUntrusted('intent', intentBody(intent).slice(0, MAX_INTENT_CHARS));
+  const note = intent.confidence_level === 'low' ? `\n${INTENT_UNCERTAIN_NOTE}` : '';
+  return `## Stated intent (claim — verify against the diff)\n${wrapped}${note}`;
+}
+
 export interface PromptParts {
   /** Agent's system prompt (trusted). */
   system: string;
@@ -66,15 +114,96 @@ export interface PromptParts {
    * undefined → section omitted.
    */
   prDescription?: string;
+  /**
+   * The PR's derived intent (a claim, not ground truth). Delimiter-wrapped and
+   * capped; rendered right after the task line, before `## PR description`.
+   * Undefined → section omitted and the prompt is byte-identical to before.
+   */
+  intent?: PromptIntent;
   /** The unified diff / user task (untrusted content). */
   diff: string;
   /** Optional task framing line, e.g. "Review PR #482 '…'". */
   task?: string;
 }
 
+/** Sections of the assembled prompt, in the order they appear. */
+export type PromptSectionName =
+  | 'system'
+  | 'injection_guard'
+  | 'task'
+  | 'intent'
+  | 'pr_description'
+  | 'skills'
+  | 'memory'
+  | 'repo_map'
+  | 'specs'
+  | 'callers'
+  | 'diff';
+
+/** Where a section's content comes from. Generic on purpose: the engine knows no DB tables. */
+export type PromptSectionOrigin =
+  | 'agent'
+  | 'agent_skills'
+  | 'engine'
+  | 'pull_request'
+  | 'derived_intent'
+  | 'memory'
+  | 'repo_intel'
+  | 'project_context';
+
+/**
+ * Size metadata for ONE prompt section — numbers and fixed labels only, so it
+ * is safe to log: it never carries section text (diffs, specs, skill bodies and
+ * the PR body can hold secrets or private content).
+ */
+export interface PromptSectionMeta {
+  name: PromptSectionName;
+  origin: PromptSectionOrigin;
+  /** Characters of the section as rendered into the prompt (heading + wrapper included). */
+  chars: number;
+  /** Rough estimate, `ceil(chars / 4)` — not a tokenizer count. */
+  approx_tokens: number;
+  lines: number;
+  /** Characters of the input before any cap was applied (differs from `chars` only when truncated). */
+  raw_chars: number;
+  truncated: boolean;
+  /** Number of items for list-like sections (skills, memory, specs). */
+  items?: number;
+  /** Per-item characters for list-like sections (first 20). */
+  item_chars?: number[];
+}
+
 export interface AssembledPrompt {
   messages: ChatMessage[];
   assembly: PromptAssembly;
+  /** Per-section sizes for logging; contains no prompt text. */
+  manifest: PromptSectionMeta[];
+}
+
+const MAX_ITEM_CHARS_LISTED = 20;
+
+function sectionMeta(
+  name: PromptSectionName,
+  origin: PromptSectionOrigin,
+  rendered: string,
+  extra: { raw_chars?: number; truncated?: boolean; itemTexts?: string[] } = {},
+): PromptSectionMeta {
+  const chars = rendered.length;
+  return {
+    name,
+    origin,
+    chars,
+    approx_tokens: Math.ceil(chars / 4),
+    lines: rendered.split('\n').length,
+    raw_chars: extra.raw_chars ?? chars,
+    truncated: extra.truncated ?? false,
+    ...(extra.itemTexts
+      ? {
+          items: extra.itemTexts.length,
+          item_chars: extra.itemTexts.slice(0, MAX_ITEM_CHARS_LISTED).map((t) => t.length),
+        }
+      : {}),
+  };
 }
 
 /**
@@ -101,23 +230,63 @@ export function assemblePrompt(parts: PromptParts): AssembledPrompt {
       ? parts.prDescription.slice(0, MAX_PR_DESCRIPTION_CHARS)
       : undefined;
 
+  // Each section is pushed through `add`, which also records its size metadata
+  // (numbers only — never the text) for the prompt log.
+  const manifest: PromptSectionMeta[] = [
+    sectionMeta('system', 'agent', parts.system),
+    sectionMeta('injection_guard', 'engine', INJECTION_GUARD),
+  ];
   const userSections: string[] = [];
-  if (parts.task) userSections.push(parts.task);
+  const add = (
+    name: PromptSectionName,
+    origin: PromptSectionOrigin,
+    rendered: string,
+    extra?: Parameters<typeof sectionMeta>[3],
+  ) => {
+    userSections.push(rendered);
+    manifest.push(sectionMeta(name, origin, rendered, extra));
+  };
+
+  if (parts.task) add('task', 'pull_request', parts.task);
+  const intentSection = parts.intent ? renderIntent(parts.intent) : undefined;
+  if (intentSection && parts.intent) {
+    const rawIntent = intentBody(parts.intent).length;
+    add('intent', 'derived_intent', intentSection, {
+      raw_chars: rawIntent,
+      truncated: rawIntent > MAX_INTENT_CHARS,
+    });
+  }
   if (prDescription) {
-    userSections.push(`## PR description\n${wrapUntrusted('pr-description', prDescription)}`);
+    const rawBody = parts.prDescription?.length ?? prDescription.length;
+    add(
+      'pr_description',
+      'pull_request',
+      `## PR description\n${wrapUntrusted('pr-description', prDescription)}`,
+      { raw_chars: rawBody, truncated: rawBody > MAX_PR_DESCRIPTION_CHARS },
+    );
   }
-  if (skillsBlock) userSections.push(`## Skills / rules\n${skillsBlock}`);
-  if (memoryBlock) userSections.push(`## Relevant memory\n${memoryBlock}`);
+  if (skillsBlock) {
+    add('skills', 'agent_skills', `## Skills / rules\n${skillsBlock}`, { itemTexts: parts.skills });
+  }
+  if (memoryBlock) {
+    add('memory', 'memory', `## Relevant memory\n${memoryBlock}`, { itemTexts: parts.memory });
+  }
   if (parts.repoMap && parts.repoMap.trim().length > 0) {
-    userSections.push(`## Repo skeleton\n${wrapUntrusted('repo-map', parts.repoMap)}`);
+    add('repo_map', 'repo_intel', `## Repo skeleton\n${wrapUntrusted('repo-map', parts.repoMap)}`);
   }
-  if (specsBlock) userSections.push(`## Project context\n${specsBlock}`);
+  if (specsBlock) {
+    add('specs', 'project_context', `## Project context\n${specsBlock}`, { itemTexts: parts.specs });
+  }
   if (parts.callers && parts.callers.trim().length > 0) {
-    userSections.push(
+    add(
+      'callers',
+      'repo_intel',
       `## Callers of changed symbols\n${wrapUntrusted('callers', parts.callers)}`,
     );
   }
-  userSections.push(`## Diff to review\n${wrapUntrusted('diff', parts.diff)}`);
+  add('diff', 'pull_request', `## Diff to review\n${wrapUntrusted('diff', parts.diff)}`, {
+    raw_chars: parts.diff.length,
+  });
 
   const user = userSections.join('\n\n');
 
@@ -134,8 +303,9 @@ export function assemblePrompt(parts: PromptParts): AssembledPrompt {
     callers: parts.callers ?? null,
     repo_map: parts.repoMap ?? null,
     pr_description: prDescription ?? null,
+    intent: intentSection ?? null,
     user,
   };
 
-  return { messages, assembly };
+  return { messages, assembly, manifest };
 }

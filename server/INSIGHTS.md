@@ -80,6 +80,17 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 ## Tool & Library Notes
 
+- **2026-09-25** — `StructuredRequest` (`src/vendor/shared/adapters.ts:55`) has
+  no abort `signal` and neither the server LLM adapters nor reviewer-core's
+  `OpenRouterProvider` read one, so a timeout around `completeStructured` only
+  races the promise: the call stays in flight and is still billed. Callers
+  must guard persistence themselves — `ensureIntent` sets `state.cancelled` in
+  its catch and checks it before `upsertIntent`, and keeps an in-process
+  negative cache (`pr_id:head_sha:input_hash`, 5 min, 200 entries) that
+  `force` bypasses and that resets on restart. Real cancellation needs a
+  `signal` field on the port plus both adapters. Evidence:
+  `src/modules/reviews/intent-deriver.ts:91,124-131,293`.
+
 - **2026-08-05** — Drizzle's `text('col', { enum: [...] })` narrows the TypeScript type only and emits no DB constraint, so `reviews.kind` and every status column are unconstrained free text in Postgres — the boot-time run reaper matching `status='running'` is protected by nothing but convention. Evidence: `src/db/schema/reviews.ts:19`, `src/db/schema/runs.ts:27`, `src/app.ts:81`; the repo has zero `check(` declarations.
   - **2026-08-05** — Partly resolved: `check()` (exported from `drizzle-orm/pg-core` since well before the pinned 0.38.4) now guards the seven live review-pipeline columns. Evidence: `src/db/migrations/0013_condemned_stranger.sql` (was `0012_…` before the journal repair renumbered it). Two caveats — `ADD CONSTRAINT … CHECK` VALIDATES existing rows, so the migration fails outright on a DB holding a legacy value, and a CHECK is satisfied when its expression is NULL, so nullable columns need no explicit `OR IS NULL`.
 
@@ -98,6 +109,23 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 - **2026-07-29** — `pnpm db:migrate` dumps raw Postgres NOTICE objects (`'extension "vector" already exists, skipping'`, code 42710) that read like errors but are idempotent skips — the run is fine iff it ends with `✓ migrations applied`. Evidence: `src/db/migrate.ts` sets no `onnotice` handler, so the `postgres` client logs every notice to stderr.
 
 ## Recurring Errors & Fixes
+
+- **2026-09-25** — Any LLM call added to `ReviewRunExecutor.executeRuns` runs
+  before every agent, and `test/reviews.it.test.ts` overrides only the
+  `openai` and `anthropic` providers (`appWith`, line 113). The intent step
+  resolves `review_intent` to `openrouter`, so on a machine whose
+  `~/.devdigest/secrets.json` holds an OpenRouter key the tests make REAL paid
+  calls and 3 of them (accept/dismiss and both anthropic cases) blow past
+  `waitForPrRuns`' 10 s; in CI there is no key, the call throws and is
+  swallowed, so it stays green. For a hermetic local it-run use an empty
+  `HOME`, and keep the Docker socket explicit — changing `HOME` alone makes
+  `docker info` fail and every it-test silently skips (`8 skipped`):
+  `HOME=$(mktemp -d) DOCKER_HOST=unix:///Users/<you>/.docker/run/docker.sock
+  pnpm exec vitest run .it.test`. The lasting fix is an `openrouter` mock in
+  `appWith`. `MockLLMProvider` also throws "fixture failed schema" for a schema
+  with no `structuredBySchema` entry (`pr_intent`). Evidence:
+  `test/reviews.it.test.ts:113`, `test/helpers/pg.ts:22`,
+  `src/modules/reviews/intent-deriver.ts`.
 
 - **2026-09-19** — `column "cost_usd" does not exist` (500 on run start, 6 `*.it.test.ts` failures) meant the Drizzle schema and migrations had drifted: starter migration `0009` drops `agent_runs.cost_usd`, and the HW-1 cost/findings-count feature re-declared `costUsd` + `criticalCount`/`warningCount`/`suggestionCount` in `src/db/schema/runs.ts` without a migration. Fixed with `0010_worthless_slipstream.sql` (+ `0011_glamorous_night_thrasher.sql` for `agent_skills.enabled`) from `pnpm db:generate`, then hand-edited to `ADD COLUMN IF NOT EXISTS` — a dev DB migrated by another branch already has these columns, `scripts/dev.sh` runs `db:migrate` on every start, and a plain `ADD COLUMN` aborts it with `column "cost_usd" of relation "agent_runs" already exists` (verified: both a fresh DB and a DB whose journal lacks the two rows now migrate cleanly); after any schema edit, run `pnpm db:generate` and expect "No schema changes" before committing. Evidence: `src/db/migrations/0010_worthless_slipstream.sql`.
   - **2026-09-20** — Recurred on `0012_salty_clea.sql` (`conventions.category`

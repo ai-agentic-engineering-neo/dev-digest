@@ -52,6 +52,14 @@ export class RunLogger {
     this.base?.[LEVEL[kind]]({ ...this.ctx, runIds: this.runIds, kind, ...(data !== undefined ? { data } : {}) }, msg);
   }
 
+  /**
+   * Stdout (pino) ONLY — never published to the RunBus and so never streamed to
+   * the UI or persisted in run_traces.log. For local-only diagnostics.
+   */
+  local(level: keyof PinoLike, msg: string, data?: unknown): void {
+    this.base?.[level]({ ...this.ctx, runIds: this.runIds, ...(data !== undefined ? { data } : {}) }, msg);
+  }
+
   info(msg: string, data?: unknown): void {
     this.event('info', msg, data);
   }

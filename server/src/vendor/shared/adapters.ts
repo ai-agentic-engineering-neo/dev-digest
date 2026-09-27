@@ -224,6 +224,12 @@ export interface GitClient {
   blame(repo: RepoRef, path: string): Promise<BlameLine[]>;
   log(repo: RepoRef, path?: string): Promise<GitCommit[]>;
   readFile(repo: RepoRef, path: string): Promise<string>;
+  /**
+   * Read a file as it exists at `ref` (`git show ref:path`, no shell). Rejects
+   * traversal / absolute / `.git/` paths and over-large blobs. Used to read a
+   * plan/spec at the PR head or base without touching the working tree.
+   */
+  readFileAt(repo: RepoRef, ref: string, path: string): Promise<string>;
   clonePathFor(repo: RepoRef): string;
 }
 

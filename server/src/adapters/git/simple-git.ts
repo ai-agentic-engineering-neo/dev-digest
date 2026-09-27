@@ -136,6 +136,40 @@ export class SimpleGitClient implements GitClient {
   async readFile(repo: RepoRef, path: string): Promise<string> {
     return readFile(join(this.clonePathFor(repo), path), 'utf8');
   }
+
+  /**
+   * `git show <ref>:<path>` via an argument array (no shell). The path and ref
+   * come from PR text, so both are validated first, and the blob size is
+   * checked with `cat-file -s` before its content is read.
+   */
+  async readFileAt(repo: RepoRef, ref: string, path: string): Promise<string> {
+    if (!isSafeGitRef(ref)) throw new Error('Refusing unsafe git ref');
+    if (!isSafeRepoPath(path)) throw new Error('Refusing unsafe repo path');
+    const git = this.git(repo);
+    const size = Number((await git.raw(['cat-file', '-s', `${ref}:${path}`])).trim());
+    if (!Number.isFinite(size) || size > MAX_READ_AT_BYTES) {
+      throw new Error(`File too large to read (${size} bytes)`);
+    }
+    return git.raw(['show', `${ref}:${path}`]);
+  }
+}
+
+/** Largest blob `readFileAt` will read (plan/spec docs are small). */
+export const MAX_READ_AT_BYTES = 256 * 1024;
+
+/** A repo-relative path: no traversal, not absolute, not inside `.git/`, no NUL. */
+export function isSafeRepoPath(path: string): boolean {
+  if (!path || path.includes('\0') || path.includes('\\')) return false;
+  if (path.startsWith('/') || /^[A-Za-z]:/.test(path)) return false;
+  const parts = path.split('/');
+  if (parts.some((p) => p === '..' || p === '')) return false;
+  if (parts.some((p) => p.toLowerCase() === '.git')) return false;
+  return true;
+}
+
+/** A conservative commit-ish: SHA or simple ref name; never an option (`-x`). */
+export function isSafeGitRef(ref: string): boolean {
+  return /^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$/.test(ref) && !ref.includes('..');
 }
 
 function parseBlamePorcelain(raw: string): BlameLine[] {

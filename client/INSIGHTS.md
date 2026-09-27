@@ -81,6 +81,14 @@ _None yet._
 
 ## What Doesn't Work
 
+- **2026-09-26** — A flex row with `title { flex: 1; minWidth: 0 }` and a long
+  `file:line` sibling without `whiteSpace: nowrap` + `textOverflow: ellipsis`
+  on both makes the title wrap one word per line beside the path — reads as
+  overlapping text on Risk Areas. Also avoid `all: "unset"` on the row button;
+  reset only the properties you need. Intent must not sit in a half-empty
+  `1fr 1fr` grid while Blast Radius is missing, or paths stay cramped.
+  `client/src/app/repos/[repoId]/pulls/[number]/_components/OverviewTab/IntentCard/RiskAreaRow/`
+
 - **2026-09-18** — A correctly-worded i18n string sitting unused next to the
   wrong one it should have replaced went unnoticed for a whole feature: in
   `messages/en/prReview.json`, `timeline.findingsInRun` ("{count} findings in
@@ -92,6 +100,16 @@ _None yet._
   needs writing — it may already exist, just disconnected.
 
 ## Codebase Patterns
+
+- **2026-09-25** — The Settings → Models picker lists only OpenRouter models
+  (`useProviderModels("openrouter")`) and always saves
+  `{ provider: "openrouter", model }`, so a `FEATURE_MODELS` default on any
+  other provider (e.g. direct `anthropic`) cannot be chosen back in the UI.
+  New feature-model defaults must use `openrouter` (`review_intent` is
+  `deepseek/deepseek-v4-flash`), and the default has to be changed in BOTH
+  registries: `server/src/vendor/shared/contracts/platform.ts` and the
+  hand-mirrored `client/src/lib/feature-models.ts`. Evidence:
+  `client/src/app/settings/[section]/_components/SettingsView/_components/SettingsModels/SettingsModels.tsx:24,32`.
 
 - **2026-09-20** — Vendor `NAV` ships Agents under WORKSPACE. Move it into
   SKILLS LAB by splicing that same item object in

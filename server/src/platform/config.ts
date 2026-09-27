@@ -39,7 +39,16 @@ const EnvSchema = z.object({
     (v) => (v === '' ? undefined : v),
     z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).optional(),
   ),
+  // Local-only detail for the prompt-assembly log (per-section line counts, raw
+  // sizes, per-item sizes — still never prompt text). Honored only in
+  // NODE_ENV=development AND when the API binds loopback; see loadConfig.
+  PROMPT_LOG_VERBOSE: z.string().optional(),
 });
+
+/** True for a loopback bind address (the only place verbose prompt logging may run). */
+export function isLoopbackHost(host: string): boolean {
+  return host === 'localhost' || host === '::1' || host === '127.0.0.1' || host.startsWith('127.');
+}
 
 export type AppConfig = {
   databaseUrl: string;
@@ -63,6 +72,13 @@ export type AppConfig = {
    * EXACTLY like the ripgrep-only baseline.
    */
   repoIntelEnabled: boolean;
+  /**
+   * Verbose prompt-assembly logging (local only). True only when
+   * PROMPT_LOG_VERBOSE is set AND NODE_ENV=development AND API_HOST is loopback.
+   */
+  promptLogVerbose: boolean;
+  /** PROMPT_LOG_VERBOSE was set but refused (non-development or non-loopback bind) — warn at boot. */
+  promptLogVerboseIgnored: boolean;
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -70,7 +86,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const cloneDirRaw =
     parsed.DEVDIGEST_CLONE_DIR ?? join(homedir(), '.devdigest', 'workspace');
   const cloneDir = isAbsolute(cloneDirRaw) ? cloneDirRaw : resolve(process.cwd(), cloneDirRaw);
+  const verboseRequested = parsed.PROMPT_LOG_VERBOSE === '1' || parsed.PROMPT_LOG_VERBOSE === 'true';
+  const verboseAllowed = parsed.NODE_ENV === 'development' && isLoopbackHost(parsed.API_HOST);
   return {
+    promptLogVerbose: verboseRequested && verboseAllowed,
+    promptLogVerboseIgnored: verboseRequested && !verboseAllowed,
     databaseUrl: parsed.DATABASE_URL,
     apiPort: parsed.API_PORT,
     apiHost: parsed.API_HOST,

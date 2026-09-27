@@ -1,6 +1,7 @@
 import type { Db } from '../../db/client.js';
 import type * as t from '../../db/schema.js';
-import type { Finding, Intent, RunSummary, RunTrace } from '@devdigest/shared';
+import type { Finding, RunSummary, RunTrace } from '@devdigest/shared';
+import type { PrIntentWrite } from './helpers.js';
 
 /**
  * A2 — review data-access. The ONLY layer touching the DB for the review
@@ -17,6 +18,7 @@ import type { FindingRow, PullRow } from '../../db/rows.js';
 export type { FindingRow, PullRow };
 
 export type ReviewRow = typeof t.reviews.$inferSelect;
+export type PrIntentRow = typeof t.prIntent.$inferSelect;
 
 import * as reviewRepo from './repository/review.repo.js';
 import * as runRepo from './repository/run.repo.js';
@@ -148,12 +150,17 @@ export class ReviewRepository {
 
   // ---- intent -------------------------------------------------------------
 
-  upsertIntent(prId: string, intent: Intent): Promise<void> {
+  upsertIntent(prId: string, intent: PrIntentWrite): Promise<void> {
     return pullRepo.upsertIntent(this.db, prId, intent);
   }
 
-  getIntent(prId: string): Promise<Intent | undefined> {
+  /** The raw pr_intent row (carries `inputHash` for the cache check). */
+  getIntent(prId: string): Promise<PrIntentRow | undefined> {
     return pullRepo.getIntent(this.db, prId);
+  }
+
+  getPrCommits(prId: string): Promise<(typeof t.prCommits.$inferSelect)[]> {
+    return pullRepo.getPrCommits(this.db, prId);
   }
 
   // ---- observability: agent_runs + run_traces ----------------------------

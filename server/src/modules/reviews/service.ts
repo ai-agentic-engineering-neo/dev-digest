@@ -1,12 +1,21 @@
 import type { Container } from '../../platform/container.js';
-import type { FindingActionKind, RunEventKind, RunTrace } from '@devdigest/shared';
+import type {
+  FindingActionKind,
+  PrIntent,
+  PrIntentResponse,
+  RunEventKind,
+  RunTrace,
+} from '@devdigest/shared';
 import { AppError, NotFoundError } from '../../platform/errors.js';
 import type { AgentRow } from '../../db/rows.js';
 import { ReviewRepository } from './repository.js';
 import { type ReviewDto, type ReviewDtoFinding } from './helpers.js';
 import { ReviewRunExecutor, type Logger } from './run-executor.js';
 import { actOnFinding as actOnFindingImpl } from './findings.js';
-import { reviewToDto } from './helpers.js';
+import { reviewToDto, prIntentRowToDto } from './helpers.js';
+import { loadDiff } from './diff-loader.js';
+import { ensureIntent } from './intent-deriver.js';
+import { REGENERATE_TIMEOUT_MS } from './intent-constants.js';
 
 // Re-export DTO types + converters for backward-compatible imports from
 // './service.js' (these previously lived here; logic now in ./helpers.ts).
@@ -171,6 +180,38 @@ export class ReviewService {
     return rows.map(({ review, findings }) =>
       reviewToDto(review, findings, review.agentId ? names.get(review.agentId) : null),
     );
+  }
+
+  // ===========================================================================
+  // Intent
+  // ===========================================================================
+
+  /**
+   * The stored intent for a PR, or null before one was derived. `stale` means the
+   * PR head moved since it was derived. Pure read: never calls an LLM.
+   */
+  async getIntent(workspaceId: string, prId: string): Promise<PrIntentResponse> {
+    const pull = await this.repo.getPull(workspaceId, prId);
+    if (!pull) throw new NotFoundError('Pull request not found');
+    const row = await this.repo.getIntent(prId);
+    if (!row) return { intent: null, stale: false };
+    return { intent: prIntentRowToDto(row), stale: row.headSha !== pull.headSha };
+  }
+
+  /** Force a fresh derivation. 409 `intent_unavailable` when it cannot be produced. */
+  async regenerateIntent(workspaceId: string, prId: string, logger?: Logger): Promise<PrIntent> {
+    const pull = await this.repo.getPull(workspaceId, prId);
+    if (!pull) throw new NotFoundError('Pull request not found');
+    const repoRow = await this.repo.getRepo(pull.repoId);
+    if (!repoRow) throw new NotFoundError('Repo not found');
+    const diff = await loadDiff(this.container, this.repo, workspaceId, pull, repoRow);
+    const intent = await ensureIntent(this.container, this.repo, workspaceId, pull, repoRow, diff, {
+      force: true,
+      timeoutMs: REGENERATE_TIMEOUT_MS,
+      log: (level, msg, data) => logger?.[level]({ prId, ...(data ? { data } : {}) }, msg),
+    });
+    if (!intent) throw new AppError('intent_unavailable', 'PR intent could not be derived', 409);
+    return intent;
   }
 
   async getRunTrace(runId: string): Promise<RunTrace | undefined> {

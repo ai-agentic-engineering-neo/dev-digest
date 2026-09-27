@@ -7,7 +7,7 @@ import type {
   UnifiedDiff,
 } from '@devdigest/shared';
 import { Review as ReviewSchema } from '@devdigest/shared';
-import { assemblePrompt } from '../prompt.js';
+import { assemblePrompt, type PromptIntent, type PromptSectionMeta } from '../prompt.js';
 import { groundFindings, groundingSummary } from '../grounding.js';
 import { reduceReviews, scoreFromFindings, sliceDiff } from './reduce.js';
 
@@ -71,6 +71,14 @@ export interface ReviewInput {
   /** PR author's description/body (untrusted; truncated + delimiter-wrapped in
       the prompt). Empty/undefined → section omitted. */
   prDescription?: string;
+  /** Derived PR intent (a claim to verify, not ground truth); omitted → no section. */
+  intent?: PromptIntent;
+  /**
+   * Called once, right after the prompt is assembled and before any LLM call,
+   * with per-section SIZE metadata only (never prompt text). Lets the caller log
+   * prompt composition without the engine doing any I/O.
+   */
+  onPromptAssembled?: (info: { manifest: PromptSectionMeta[]; mode: ReviewMode }) => void;
   /** Task framing line, e.g. "Review PR #482 …". */
   task?: string;
   /** Override the structured-output retry budget. */
@@ -135,11 +143,17 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
     callers: input.callers,
     repoMap: input.repoMap,
     prDescription: input.prDescription,
+    intent: input.intent,
     task: input.task,
   };
 
   // Whole-diff assembly is the trace default; overwritten below for single-pass.
-  let assembly: PromptAssembly = assemblePrompt({ ...promptParts, diff: input.diff.raw }).assembly;
+  const wholeDiff = assemblePrompt({ ...promptParts, diff: input.diff.raw });
+  let assembly: PromptAssembly = wholeDiff.assembly;
+  // Size-only metadata (no prompt text), before any LLM call so it is reported
+  // even when the call fails. For map-reduce this is the whole-diff assembly;
+  // each chunk's prompt differs only in its diff section.
+  input.onPromptAssembled?.({ manifest: wholeDiff.manifest, mode });
 
   const chunks =
     mode === 'map-reduce'

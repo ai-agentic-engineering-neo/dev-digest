@@ -25,6 +25,11 @@ export interface ParsedDiffLine {
   text: string;
   kind: DiffLineKind;
   newLine: number | null;
+  /** Only on a `'hunk'` (`@@`) line whose hunk has no new-side line: the
+   *  hunk's declared `newStart` (0 for a deleted file) — the one line a finding
+   *  about those deleted lines can cite, because grounding falls back to the
+   *  declared range for such a hunk (`grounding.ts` buildLineIndex). */
+  anchor?: number;
 }
 
 export interface ParsedHunk extends DiffHunk {
@@ -137,6 +142,8 @@ function parseHeaderPath(text: string, side: 'old' | 'new'): string | null {
 
 interface OpenHunk {
   ph: ParsedHunk;
+  /** The hunk's own `@@` line, so a deletions-only hunk can get its anchor. */
+  header: ParsedDiffLine;
   oldRem: number;
   newRem: number;
   cursor: number;
@@ -168,6 +175,7 @@ export function parseDiff(raw: string): ParsedDiff {
   }
   function finalizeHunk(oh: OpenHunk, forceMismatch: boolean, file: ParsedFile | null): ParsedHunk {
     if (forceMismatch) oh.ph.countMismatch = true;
+    if (oh.ph.newLineNumbers.length === 0) oh.header.anchor = oh.ph.newStart;
     if (file) file.hunks.push(oh.ph);
     return oh.ph;
   }
@@ -247,8 +255,9 @@ export function parseDiff(raw: string): ParsedDiff {
         newLineNumbers: [],
         countMismatch: false,
       };
-      openHunk = { ph, oldRem: oldLines, newRem: newLines, cursor: newStart };
-      lines.push({ text: line, kind: 'hunk', newLine: null });
+      const header: ParsedDiffLine = { text: line, kind: 'hunk', newLine: null };
+      openHunk = { ph, header, oldRem: oldLines, newRem: newLines, cursor: newStart };
+      lines.push(header);
       continue;
     }
 

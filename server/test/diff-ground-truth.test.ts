@@ -15,7 +15,7 @@ import { join, dirname } from 'node:path';
 import { simpleGit } from 'simple-git';
 import { SimpleGitClient } from '../src/adapters/git/simple-git.js';
 import { diffCountMismatches } from '../src/modules/reviews/helpers.js';
-import { parseDiff, parseUnifiedDiff, numberDiff, sliceDiff, type UnifiedDiff } from '@devdigest/reviewer-core';
+import { parseDiff, parseUnifiedDiff, numberDiff, sliceDiff, groundFindings, type UnifiedDiff } from '@devdigest/reviewer-core';
 
 /** mulberry32 — a small, deterministic seeded PRNG (no dependency needed). */
 function mulberry32(seed: number): () => number {
@@ -253,11 +253,40 @@ describe('diff parser — ground truth against real local git', () => {
           for (let i = file.start; i < file.end; i++) {
             const rendered = numbered[i]!;
             const gutter = rendered.slice(0, 7).trim();
-            if (gutter !== '') {
+            // A deletions-only hunk's @@ line carries a citable anchor, not content
+            // (checked in the next case).
+            if (gutter !== '' && !rendered.slice(7).startsWith('@@')) {
               expect(rendered.slice(8)).toBe(lines[Number(gutter) - 1]);
             }
           }
         }
+      });
+
+      it('a number printed on a @@ line marks a deletions-only hunk, and a finding citing it survives grounding', () => {
+        const { diff } = repos[seed]!;
+        const parsed = parseDiff(diff.raw);
+        const numbered = numberDiff(diff.raw).split('\n');
+        let anchors = 0;
+        for (const file of parsed.files) {
+          const hunkLines = parsed.lines
+            .map((l, i) => ({ l, i }))
+            .filter(({ l, i }) => l.kind === 'hunk' && i >= file.start && i < file.end);
+          hunkLines.forEach(({ i }, h) => {
+            const gutter = numbered[i]!.slice(0, 7).trim();
+            const hunk = file.hunks[h]!;
+            if (hunk.newLineNumbers.length > 0) {
+              expect(gutter).toBe('');
+              return;
+            }
+            anchors++;
+            expect(gutter).toBe(String(hunk.newStart));
+            const n = Number(gutter);
+            const finding = { id: 'a', severity: 'WARNING' as const, category: 'bug' as const, title: 't', file: file.path, start_line: n, end_line: n, rationale: 'r', confidence: 0.9, kind: 'finding' as const };
+            expect(groundFindings([finding], diff).kept).toHaveLength(1);
+          });
+        }
+        // The generator deletes whole files, so every seed has at least one.
+        expect(anchors).toBeGreaterThan(0);
       });
 
       it('diff.files lists exactly the paths that were added, modified or deleted', () => {

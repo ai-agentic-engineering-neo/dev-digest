@@ -157,7 +157,7 @@ describe('assemblePrompt — ## Diff to review line-number rule', () => {
     ).toBe(true);
   });
 
-  it('states: cite the printed gutter number, never count from the @@ header, never cite a - line', () => {
+  it('states: cite the printed gutter number, never count from the @@ header, cite deleted code by a printed number', () => {
     const user = assemblePrompt({ system: 'S', diff: 'D' }).messages[1]!.content;
     const headerIdx = user.indexOf('## Diff to review');
     const wrapperIdx = user.indexOf('<untrusted source="diff">');
@@ -167,7 +167,8 @@ describe('assemblePrompt — ## Diff to review line-number rule', () => {
     for (const phrase of [
       'its line number in the new file',
       'Never count lines from the @@ hunk header',
-      'Never cite a - (deleted) line',
+      'cite the nearest printed number in the same hunk',
+      'prints its number on its @@ line (0 when the whole file was deleted)',
     ]) {
       const idx = user.indexOf(phrase);
       expect(idx).toBeGreaterThan(headerIdx);

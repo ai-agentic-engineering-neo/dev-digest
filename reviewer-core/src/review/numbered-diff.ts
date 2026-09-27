@@ -8,7 +8,10 @@
  * parse, two views — so they cannot drift apart the way two hand-written state
  * machines could (see `specs/L03-diff-parser.md`). A `-` (deleted) line, a
  * `+++`/`---`/`diff --git` header, a `\ No newline at end of file` marker, and
- * a stray line all get a blank gutter and no number.
+ * a stray line all get a blank gutter and no number. The `@@` line of a hunk
+ * with no new-side line (deletions only) prints its `anchor` — the hunk's
+ * declared new start, the one line grounding accepts for it — so a finding
+ * about removed code has a printed number to cite.
  */
 
 import { parseDiff, type ParsedDiffLine } from '../diff/parse.js';
@@ -20,7 +23,8 @@ function gutter(n: number): string {
 }
 
 function renderLine(l: ParsedDiffLine): string {
-  return (l.newLine === null ? BLANK_GUTTER : gutter(l.newLine)) + l.text;
+  const n = l.newLine ?? l.anchor ?? null;
+  return (n === null ? BLANK_GUTTER : gutter(n)) + l.text;
 }
 
 /**

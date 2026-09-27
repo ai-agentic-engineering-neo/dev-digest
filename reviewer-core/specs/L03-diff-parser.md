@@ -121,6 +121,18 @@ deletions-only PR under `strategy: 'map-reduce'` with zero LLM calls and a
 synthesized approve / score 100, and dropped the review of removed code in
 mixed PRs (found by `/pr-self-review`).
 
+**Deletions-only anchor:** the body of a hunk with no new-side line has
+nothing numbered, and the prompt forbids counting from the `@@` header, so a
+model had no line it could cite for removed code. `parseDiff` therefore sets
+`anchor = newStart` on the `@@` line of every hunk whose present lines include
+no add/context line (a deletions-only hunk, a deleted file's hunk — `0` — or a
+truncated hunk with only `-` lines), and `numberDiff` prints it in that line's
+gutter (`     9 @@ -10,2 +9,0 @@`). The anchor is always inside the declared
+range grounding falls back to for such a hunk, so a finding citing it
+survives. `newLine` stays `null` on the `@@` line and `newLineNumbers` is
+unchanged; `DIFF_LINE_NUMBER_RULE` tells the model to cite the nearest printed
+number in the hunk for deleted code, and this one when the hunk has no other.
+
 **Server-side mismatch detection:** `diffCountMismatches(diff)` in
 `server/src/modules/reviews/helpers.ts` re-parses `diff.raw` and returns every
 hunk with `countMismatch`, `{ path, newStart }`, in file order (hunks with no

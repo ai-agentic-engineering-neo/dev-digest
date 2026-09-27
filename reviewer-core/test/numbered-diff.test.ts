@@ -144,3 +144,51 @@ describe('numberDiff — WP1 golden fixture (a "+++"/"--- " content line inside 
     expect(headerLine.startsWith(B)).toBe(true);
   });
 });
+
+/**
+ * A hunk with no new-side line has nothing numbered in its body, so its @@
+ * line prints the hunk's declared new start — the one line grounding accepts
+ * for it (grounding.ts buildLineIndex fallback). Spec: specs/L03-diff-parser.md
+ * § Deletions-only anchor.
+ */
+describe('numberDiff — deletions-only hunk anchor on the @@ line', () => {
+  const at = (out: string[], header: string) => out.find((l) => l.endsWith(header))!;
+
+  it('prints the declared new start on a deletions-only hunk and 0 on a deleted file', () => {
+    const out = numberDiff(
+      [
+        'diff --git a/a.ts b/a.ts',
+        '--- a/a.ts',
+        '+++ b/a.ts',
+        '@@ -10,2 +9,0 @@',
+        '-x',
+        '-y',
+        'diff --git a/gone.ts b/gone.ts',
+        'deleted file mode 100644',
+        '--- a/gone.ts',
+        '+++ /dev/null',
+        '@@ -1,2 +0,0 @@',
+        '-g1',
+        '-g2',
+      ].join('\n'),
+    ).split('\n');
+    expect(at(out, '@@ -10,2 +9,0 @@')).toBe(G(9) + '@@ -10,2 +9,0 @@');
+    expect(at(out, '@@ -1,2 +0,0 @@')).toBe(G(0) + '@@ -1,2 +0,0 @@');
+    expect(at(out, '-x')).toBe(B + '-x');
+  });
+
+  it('keeps a blank gutter on the @@ line of any hunk that has a numbered line', () => {
+    const out = numberDiff(
+      ['diff --git a/a.ts b/a.ts', '--- a/a.ts', '+++ b/a.ts', '@@ -4,2 +4,1 @@', '-x', ' keep'].join('\n'),
+    ).split('\n');
+    expect(at(out, '@@ -4,2 +4,1 @@')).toBe(B + '@@ -4,2 +4,1 @@');
+    expect(at(out, ' keep')).toBe(G(4) + ' keep');
+  });
+
+  it('anchors a truncated hunk whose present lines are all deletions to its declared new start', () => {
+    const out = numberDiff(
+      ['diff --git a/a.ts b/a.ts', '--- a/a.ts', '+++ b/a.ts', '@@ -7,3 +7,2 @@', '-x'].join('\n'),
+    ).split('\n');
+    expect(at(out, '@@ -7,3 +7,2 @@')).toBe(G(7) + '@@ -7,3 +7,2 @@');
+  });
+});

@@ -46,8 +46,10 @@ const MAX_PR_DESCRIPTION_CHARS = 4000;
 export const DIFF_LINE_NUMBER_RULE =
   'Each diff line below starts with its line number in the new file (a 6-column ' +
   'gutter). Set start_line and end_line to those printed numbers. Never count lines ' +
-  'from the @@ hunk header yourself. Never cite a - (deleted) line: its gutter is ' +
-  'blank because it does not exist in the new file.';
+  'from the @@ hunk header yourself. A - (deleted) line has a blank gutter because it ' +
+  'does not exist in the new file; to report on deleted code, cite the nearest printed ' +
+  'number in the same hunk. A hunk that only deletes lines prints its number on its @@ ' +
+  'line (0 when the whole file was deleted) — cite that number.';
 
 /**
  * A derived PR intent (L03) — the classifier's structured output, deterministic

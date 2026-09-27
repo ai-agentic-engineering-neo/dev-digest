@@ -70,7 +70,11 @@ prints every line's own new-file line number in a 6-column, right-aligned
 gutter plus one space (`"   446 "`); a line with no new-file number — a
 `diff --git`/`---`/`+++` header, a `@@` header itself, a deleted `-` line, or a
 `\ No newline at end of file` marker — gets a blank gutter (7 spaces) instead.
-The counter restarts at each `@@` header, from that hunk's new-file start.
+The counter restarts at each `@@` header, from that hunk's new-file start. One
+exception: a hunk that only deletes lines has nothing numbered in its body, so
+its `@@` line prints the hunk's new-file start (`     9 @@ -10,2 +9,0 @@`, `0`
+for a deleted file) — the number to cite for that removed code, and the one
+line grounding accepts for such a hunk.
 Example (PR #5, `events-map.component.ts`):
 
 ```
@@ -87,7 +91,8 @@ Example (PR #5, `events-map.component.ts`):
 (`DIFF_LINE_NUMBER_RULE`, pushed by `assemblePrompt` itself, outside the
 `<untrusted>` wrapper — the model can never be told by diff content to ignore
 it) telling the model to read `start_line`/`end_line` off the printed gutter,
-never the hunk header, and never off a blank (`-`) gutter; followed by the
+never the hunk header, and to cite deleted code by the nearest printed number
+in its hunk (the `@@` anchor when the hunk only deletes); followed by the
 **untrusted**, numbered diff. `numberDiff` and `parseUnifiedDiff`'s
 `newLineNumbers` — the exact set citation grounding checks — are both derived
 from one parse (`reviewer-core/src/diff/parse.ts`'s `parseDiff`), so they

@@ -632,7 +632,22 @@ describe('reviewPullRequest — map-reduce on a deletions-only PR', () => {
     '-export const x = 1;',
   ].join('\n');
 
-  it('reviews every file and keeps the model verdict and a finding cited on the deletion', async () => {
+  it('prints a citable number on each deletions-only @@ line: the declared new start, 0 for a deleted file', async () => {
+    const llm = new MockLLMProvider('openai', { structured: { verdict: 'approve' as const, summary: 'ok', score: 100, findings: [] } });
+    const diff = await new MockGitClient({ diff: DELETIONS_ONLY_DIFF }).diff();
+
+    const outcome = await reviewPullRequest({ systemPrompt: 'sys', model: 'm', diff, llm, strategy: 'map-reduce' });
+
+    const messages = llm.calls
+      .filter((c) => c.method === 'completeStructured')
+      .map((c) => (c.req as { messages: { content: string }[] }).messages[1]!.content);
+    const byLabel = (label: string) => messages[outcome.chunks.findIndex((c) => c.label === label)]!;
+    expect(byLabel('auth.ts')).toContain('     9 @@ -10,2 +9,0 @@');
+    expect(byLabel('auth.ts')).toContain(' '.repeat(7) + '-  if (!user) throw new Forbidden();');
+    expect(byLabel('old.ts')).toContain('     0 @@ -1 +0,0 @@');
+  });
+
+  it('reviews every file and keeps the model verdict and findings cited on those printed numbers', async () => {
     const llm = new MockLLMProvider('openai', {
       structured: {
         verdict: 'request_changes' as const,
@@ -651,6 +666,18 @@ describe('reviewPullRequest — map-reduce on a deletions-only PR', () => {
             confidence: 0.95,
             kind: 'finding',
           },
+          {
+            id: 'f-old',
+            severity: 'WARNING' as const,
+            category: 'bug' as const,
+            title: 'Exported constant removed',
+            file: 'old.ts',
+            start_line: 0,
+            end_line: 0,
+            rationale: 'x is still imported elsewhere.',
+            confidence: 0.9,
+            kind: 'finding',
+          },
         ],
       },
     });
@@ -662,6 +689,10 @@ describe('reviewPullRequest — map-reduce on a deletions-only PR', () => {
     expect(outcome.chunks.map((c) => c.label).sort()).toEqual(['auth.ts', 'old.ts']);
     expect(llm.calls.filter((c) => c.method === 'completeStructured')).toHaveLength(2);
     expect(outcome.review.verdict).toBe('request_changes');
-    expect(outcome.review.findings.some((f) => f.file === 'auth.ts' && f.start_line === 9)).toBe(true);
+    // Both findings cite only numbers printed on the @@ lines (9 and 0) and
+    // survive grounding in each file's chunk.
+    const kept = outcome.review.findings.map((f) => `${f.file}:${f.start_line}`);
+    expect(new Set(kept)).toEqual(new Set(['auth.ts:9', 'old.ts:0']));
+    expect(outcome.dropped).toHaveLength(0);
   });
 });

@@ -54,8 +54,10 @@ for `x.ts` never also pulls in `sub/b/x.ts`). `run.ts` numbers every diff
 before it reaches the LLM, and `assemblePrompt` adds a trusted rule telling the
 model to cite those printed numbers (see `docs/agent-prompts/README.md` §
 Numbered diff). In map-reduce every file gets its own chunk, deleted and
-deletions-only files included: removed code can be the defect, and a hunk with
-no new-side lines still grounds against its declared range.
+deletions-only files included: removed code can be the defect. A hunk with no
+new-side line prints its declared new start on its `@@` line (`0` for a deleted
+file) — the number the model cites for that removed code, and the one line
+grounding accepts for such a hunk.
 
 `estimateTokens` and the optional `promptTelemetry` on `ReviewInput`
 (L03 — prompt logging) let a caller observe prompt-assembly metadata —

@@ -41,7 +41,7 @@ gutter. Rules:
 | Input line | Gutter | Cursor |
 |---|---|---|
 | `diff --git …`, `index …`, `--- …`, `+++ …`, anything before the first `@@` of a file | blank | — |
-| `@@ -a,b +c,d @@ …` | blank | reset to `c` |
+| `@@ -a,b +c,d @@ …` | blank — or `c` when the hunk has no new-side line (deletions only; see `L03-diff-parser.md` § Deletions-only anchor) | reset to `c` |
 | `+…` (added) | new-side number | +1 |
 | ` …` or `""` inside a hunk (context) | new-side number | +1 |
 | `-…` (deleted) | blank — the line does not exist in the new file | — |
@@ -77,7 +77,9 @@ checks. The two must never disagree.
 - The `## Diff to review` section gets a **trusted** instruction, outside the
   untrusted wrapper: each line starts with its line number in the new file;
   `start_line`/`end_line` must be those printed numbers; never count from the
-  `@@` header; never cite a `-` line (it has no number).
+  `@@` header; a `-` line has no number, so deleted code is cited by the
+  nearest printed number in its hunk — the `@@` line's anchor when the hunk
+  only deletes (amended 2026-09-27, `L03-diff-parser.md`).
 
 ### Server parser
 

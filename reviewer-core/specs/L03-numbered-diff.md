@@ -62,9 +62,11 @@ including its `+`/`-`/space prefix. Example (PR #5):
    448      get eventsSearchControl() {
 ```
 
-**Invariant:** for every hunk, the numbers `numberDiff` prints equal
-`parseUnifiedDiff(raw).files[i].hunks[j].newLineNumbers` — the set grounding
-checks. The two must never disagree.
+**Invariant:** for every hunk, the numbers `numberDiff` prints on its BODY
+lines equal `parseUnifiedDiff(raw).files[i].hunks[j].newLineNumbers` — the set
+grounding checks — and its `@@` line prints a number (`newStart`) iff that list
+is empty (amended 2026-09-27, `L03-diff-parser.md` § Deletions-only anchor).
+Every printed number survives grounding.
 
 ### Prompt (`reviewPullRequest` / `assemblePrompt`)
 
@@ -102,8 +104,9 @@ Full contract, the count-driven state machine and the count-mismatch behaviour:
 - [ ] AC-4 `\ No newline at end of file` and the trailing empty string get no
       number and do not advance the counter — in `numberDiff` AND the parser.
 - [ ] AC-4b A deleted `----` line is a deletion in the parser (no new-side number).
-- [ ] AC-5 Invariant: for the grounding test fixtures, printed numbers equal the
-      parser's `newLineNumbers` per hunk.
+- [ ] AC-5 Invariant: for the grounding test fixtures, numbers printed on body
+      lines equal the parser's `newLineNumbers` per hunk (a deletions-only
+      hunk's `@@` anchor is checked separately).
 - [ ] AC-6 The prompt the LLM receives contains the numbered diff in single-pass
       and in map-reduce, and the line-number instruction sits outside the
       untrusted delimiters.

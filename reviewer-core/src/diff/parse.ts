@@ -20,7 +20,8 @@ import type { UnifiedDiff, DiffHunk } from '@devdigest/shared';
 export type DiffLineKind = 'meta' | 'hunk' | 'add' | 'del' | 'context' | 'marker' | 'stray';
 
 /** One line of `raw`. `newLine` is the new-file line number iff `kind` is
- *  `'add'` or `'context'` — the exact set citation grounding may cite. */
+ *  `'add'` or `'context'` — exactly the hunk's `newLineNumbers`. A hunk with
+ *  none of those carries `anchor` on its `@@` line instead; both are citable. */
 export interface ParsedDiffLine {
   text: string;
   kind: DiffLineKind;

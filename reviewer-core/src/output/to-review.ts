@@ -1,5 +1,4 @@
 import type { CiFailOn, Finding, GitHubReviewPayload, Review, UnifiedDiff } from '@devdigest/shared';
-import { buildLineIndex } from '../grounding.js';
 
 /**
  * Turn a grounded Review into a GitHubReviewPayload (markdown body + optional
@@ -121,6 +120,18 @@ function resolveCommentLine(lines: Set<number>, start: number, end: number): num
   return best;
 }
 
+/**
+ * file → the new-side lines GitHub shows in the diff: each hunk's real
+ * `newLineNumbers` only. Unlike grounding's `buildLineIndex`, never the
+ * declared-range fallback — that is where a deletions-only hunk's `@@` anchor
+ * lives (line 0 for a deleted file), and GitHub cannot comment there.
+ */
+function commentableLines(diff: UnifiedDiff): Map<string, Set<number>> {
+  const idx = new Map<string, Set<number>>();
+  for (const f of diff.files) idx.set(f.path, new Set(f.hunks.flatMap((h) => h.newLineNumbers)));
+  return idx;
+}
+
 function inlineComments(
   findings: Finding[],
   lineIndex: Map<string, Set<number>> | null,
@@ -149,7 +160,7 @@ export function toReviewPayload(review: Review, opts: ToReviewOptions = {}): Git
   const inline = opts.inline ?? true;
   const title = opts.title ?? 'DevDigest Review';
   const failOn = opts.failOn ?? 'critical';
-  const lineIndex = opts.diff ? buildLineIndex(opts.diff) : null;
+  const lineIndex = opts.diff ? commentableLines(opts.diff) : null;
   const comments = inline ? inlineComments(review.findings, lineIndex) : [];
   // Deterministic event from severities + gate policy (ignores model verdict):
   // no findings → APPROVE; gate tripped → REQUEST_CHANGES; otherwise → COMMENT.

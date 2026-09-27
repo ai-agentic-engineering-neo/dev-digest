@@ -147,6 +147,24 @@ describe('toReviewPayload — inline comment line anchoring', () => {
     expect(p.body).toContain('finding 10-30'); // never silent — still in the summary
   });
 
+  it('never anchors a comment to a deletions-only @@ anchor (not a line GitHub shows; 0 for a deleted file)', () => {
+    // Grounding keeps these via its declared-range fallback, but GitHub can only
+    // comment on a new-side line present in the diff — line 0 or a line of a
+    // hunk with no new-side lines would 422 and sink the WHOLE review.
+    const deletionsOnly = (file: string, newStart: number): UnifiedDiff['files'][number] => ({
+      path: file,
+      additions: 0,
+      deletions: 2,
+      hunks: [{ file, oldStart: newStart + 1, oldLines: 2, newStart, newLines: 0, newLineNumbers: [] }],
+    });
+    const diff = { raw: '', files: [deletionsOnly('old.ts', 0), deletionsOnly('auth.ts', 9)] } as UnifiedDiff;
+    const r = review([findingRange('old.ts', 0, 0), findingRange('auth.ts', 9, 9)]);
+    const p = toReviewPayload(r, { failOn: 'critical', diff });
+    expect(p.comments ?? []).toHaveLength(0);
+    expect(p.body).toContain('finding 0-0');
+    expect(p.body).toContain('finding 9-9');
+  });
+
   it('without a diff, falls back to the legacy end_line anchor', () => {
     const r = review([findingRange('src/x.ts', 10, 30)]);
     const p = toReviewPayload(r, { failOn: 'critical' });

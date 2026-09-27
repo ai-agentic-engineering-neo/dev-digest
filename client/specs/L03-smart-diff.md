@@ -25,7 +25,7 @@ This file records only what is client-specific.
   chevron, a role-colored square, a label + description, per-severity chips
   (files-with-CRITICAL / WARNING / SUGGESTION counts — INFO has no chip, it
   isn't in the `Severity` contract) and "N files". All groups start open
-  except boilerplate. Chips count **files** (a file with two WARNING
+  except docs and boilerplate. Chips count **files** (a file with two WARNING
   findings counts once in the WARNING chip), not findings, and stay visible
   whether the group is open or collapsed.
 - **Finding markers are sourced only from `usePrReviews`**, through one pure
@@ -81,7 +81,7 @@ See the server spec for the route-level criteria. Client-facing:
 
 - [ ] Without `?order`, the tab shows Smart order; with `?order=original`,
       files render in exactly `PrDetail.files` order.
-- [ ] The boilerplate group starts collapsed, the rest start expanded;
+- [ ] The docs and boilerplate groups start collapsed, the rest start expanded;
       clicking a group header toggles its files' visibility; chips and
       "N files" stay visible in both states.
 - [ ] A file with both a CRITICAL and a WARNING finding counts in both

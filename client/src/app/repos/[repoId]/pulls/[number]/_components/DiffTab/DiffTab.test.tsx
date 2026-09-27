@@ -1,5 +1,5 @@
 /**
- * DiffTab — Smart Order (L03): group ordering, boilerplate default-collapsed,
+ * DiffTab — Smart Order (L03): group ordering, docs + boilerplate default-collapsed,
  * severity chips, the order toggle + URL wiring, loading/error fallbacks and
  * the large-PR banner. Hooks are mocked via `vi.mock` on the SAME specifiers
  * `DiffTab.tsx` imports (`@/lib/hooks/reviews`, `@/lib/hooks/smart-diff`) so
@@ -147,6 +147,18 @@ describe("DiffTab — Smart order groups", () => {
 
     fireEvent.click(boilerplateHeader);
     expect(screen.getByText("pnpm-lock.yaml")).toBeInTheDocument();
+  });
+
+  it("docs starts collapsed too (path hidden, count shown); clicking its header reveals the file", () => {
+    state.smart = { data: FIVE_ROLE_SMART_DIFF, isPending: false, isError: false };
+    renderTab();
+    expect(screen.queryByText("README.md")).not.toBeInTheDocument();
+    const docsHeader = screen.getByRole("button", { name: /Docs/i });
+    expect(docsHeader).toHaveAttribute("aria-expanded", "false");
+    expect(docsHeader.textContent).toContain("1 files");
+
+    fireEvent.click(docsHeader);
+    expect(screen.getByText("README.md")).toBeInTheDocument();
   });
 
   it("severity chips count FILES, not findings; no SUGGESTION chip; chips survive collapsing the group", () => {

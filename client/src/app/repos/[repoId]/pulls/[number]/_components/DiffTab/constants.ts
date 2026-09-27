@@ -24,7 +24,7 @@ export const ROLE_META: Record<SmartDiffRole, RoleMeta> = {
   core: { labelKey: "smartDiff.coreLabel", descKey: "smartDiff.coreDesc", color: "var(--accent)", defaultOpen: true },
   tests: { labelKey: "smartDiff.testsLabel", descKey: "smartDiff.testsDesc", color: "var(--ok)", defaultOpen: true },
   wiring: { labelKey: "smartDiff.wiringLabel", descKey: "smartDiff.wiringDesc", color: "var(--orange)", defaultOpen: true },
-  docs: { labelKey: "smartDiff.docsLabel", descKey: "smartDiff.docsDesc", color: "var(--yellow)", defaultOpen: true },
+  docs: { labelKey: "smartDiff.docsLabel", descKey: "smartDiff.docsDesc", color: "var(--yellow)", defaultOpen: false },
   boilerplate: {
     labelKey: "smartDiff.boilerplateLabel",
     descKey: "smartDiff.boilerplateDesc",

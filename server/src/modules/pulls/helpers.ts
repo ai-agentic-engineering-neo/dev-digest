@@ -66,5 +66,6 @@ export function toPrDetail(
       author: c.author,
       committed_at: c.committedAt?.toISOString() ?? null,
     })),
+    labels: r.labels,
   };
 }

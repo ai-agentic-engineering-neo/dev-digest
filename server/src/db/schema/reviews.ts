@@ -45,6 +45,15 @@ export const findings = pgTable('findings', {
   dismissedAt: timestamp('dismissed_at', { withTimezone: true }),
 });
 
+/** Structural shape of a `pr_intent.sources` element — kept inline so the
+    schema imports no module type (the intent module owns the domain type). */
+type PrIntentSourceRow = {
+  kind: string;
+  ref: string;
+  status: string;
+  note?: string | null;
+};
+
 export const prIntent = pgTable('pr_intent', {
   prId: uuid('pr_id')
     .primaryKey()
@@ -52,6 +61,24 @@ export const prIntent = pgTable('pr_intent', {
   intent: text('intent').notNull(),
   inScope: jsonb('in_scope').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
   outOfScope: jsonb('out_of_scope').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  riskAreas: jsonb('risk_areas').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  confidence: text('confidence', { enum: ['high', 'medium', 'low'] }).notNull().default('low'),
+  sources: jsonb('sources').$type<PrIntentSourceRow[]>().notNull().default(sql`'[]'::jsonb`),
+  /** Full cache key (canonical JSON hash of everything the derivation used);
+      null never matches, so a row with no hash always re-derives. */
+  sourceHash: text('source_hash'),
+  /** sha256(title \n body) — drives the GET endpoint's `stale` flag together
+      with `headSha`, independent of the cache key above. */
+  textHash: text('text_hash'),
+  /** Head verified at derive time / the last confirmed cache hit. */
+  headSha: text('head_sha'),
+  provider: text('provider'),
+  model: text('model'),
+  tokensIn: integer('tokens_in'),
+  tokensOut: integer('tokens_out'),
+  costUsd: doublePrecision('cost_usd'),
+  // NOT `now()` — that helper hardcodes the column name `created_at`.
+  derivedAt: timestamp('derived_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const prBrief = pgTable('pr_brief', {

@@ -249,11 +249,16 @@ export interface MockGitOptions {
   head?: string;
   /** Head `currentHead()` returns AFTER `sync()` runs — simulates fetch+reset advancing HEAD. */
   syncedHead?: string;
+  /** `readFileAt(repo, ref, path)` results, keyed by path only (ref is ignored
+      — tests don't need to fake per-commit content). Missing path → null. */
+  filesAt?: Record<string, string>;
 }
 
 export class MockGitClient implements GitClient {
   public cloned: { repo: RepoRef; url: string }[] = [];
   public syncs: { repo: RepoRef; branch: string }[] = [];
+  public readsAt: { repo: RepoRef; ref: string; path: string }[] = [];
+  public pullFetches: { repo: RepoRef; n: number }[] = [];
   private syncedHead?: string;
 
   constructor(private opts: MockGitOptions = {}) {}
@@ -265,7 +270,9 @@ export class MockGitClient implements GitClient {
     this.cloned.push({ repo, url });
     return { path: this.clonePathFor(repo) };
   }
-  async fetchPullHead(): Promise<void> {}
+  async fetchPullHead(repo: RepoRef, n: number): Promise<void> {
+    this.pullFetches.push({ repo, n });
+  }
   async sync(repo: RepoRef, branch: string): Promise<{ head: string }> {
     this.syncs.push({ repo, branch });
     // After a sync, HEAD advances to syncedHead (or stays at head if unset).
@@ -292,6 +299,10 @@ export class MockGitClient implements GitClient {
   }
   async readFile(_repo: RepoRef, path: string): Promise<string> {
     return this.opts.files?.[path] ?? '';
+  }
+  async readFileAt(repo: RepoRef, ref: string, path: string): Promise<string | null> {
+    this.readsAt.push({ repo, ref, path });
+    return this.opts.filesAt?.[path] ?? null;
   }
 }
 

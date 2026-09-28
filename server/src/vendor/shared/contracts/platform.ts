@@ -53,8 +53,10 @@ export const FEATURE_MODELS: FeatureModelDef[] = [
     id: 'review_intent',
     label: 'PR Review · Intent',
     description: 'Derives a PR’s intent and scope before review.',
-    defaultProvider: 'openai',
-    defaultModel: 'gpt-4.1',
+    // A cheap model on purpose: confidence and sources are computed in code
+    // from what was found, not asked of the model — it only classifies.
+    defaultProvider: 'openrouter',
+    defaultModel: 'deepseek/deepseek-v4-flash',
   },
   {
     id: 'risk_brief',
@@ -217,6 +219,9 @@ export const PrDetail = PrMeta.extend({
   files: z.array(PrFile),
   commits: z.array(PrCommit),
   linked_issue: IssueMeta.nullish(),
+  /** GitHub label names; nullish so a payload from before this field existed
+      still parses. */
+  labels: z.array(z.string()).nullish(),
 });
 export type PrDetail = z.infer<typeof PrDetail>;
 

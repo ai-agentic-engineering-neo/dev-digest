@@ -7,7 +7,7 @@ import type {
   UnifiedDiff,
 } from '@devdigest/shared';
 import { Review as ReviewSchema } from '@devdigest/shared';
-import { assemblePrompt } from '../prompt.js';
+import { assemblePrompt, type PromptSectionMeta } from '../prompt.js';
 import { groundFindings, groundingSummary } from '../grounding.js';
 import { reduceReviews, scoreFromFindings, sliceDiff } from './reduce.js';
 
@@ -19,8 +19,11 @@ import { reduceReviews, scoreFromFindings, sliceDiff } from './reduce.js';
  * This is the pure core lifted out of the server's `ReviewService.runOneAgent`:
  * assemble prompt → single-pass OR map-reduce per file → reduce → SHARED
  * citation-grounding gate. It performs NO I/O beyond the injected LLM provider
- * (no DB, GitHub, fs, memory retrieval, intent, or persistence) — those stay in
- * the caller (server persists + streams SSE; runner posts + writes an artifact).
+ * (no DB, GitHub, fs, memory retrieval, intent derivation, or persistence) —
+ * those stay in the caller (server persists + streams SSE; runner posts + writes
+ * an artifact). Intent is no exception: the server derives it and hands this
+ * module a resolved string through `ReviewInput.intent`, exactly like `callers`
+ * and `repoMap` — the core only formats the block it is given.
  *
  * Skill bodies / memory / specs are RESOLVED strings here: the caller turns
  * AgentManifest skill slugs into bodies (DB in the studio, fs in the runner).
@@ -33,6 +36,15 @@ export const DEFAULT_REVIEW_MAX_RETRIES = 2;
 
 export type ReviewStrategy = 'auto' | 'single-pass' | 'map-reduce';
 export type ReviewMode = 'single-pass' | 'map-reduce';
+
+export interface PromptAssembledInfo {
+  mode: ReviewMode;
+  /** `all files` in single-pass, the file path in map-reduce. */
+  chunkLabel: string;
+  chunkIndex: number;
+  chunkCount: number;
+  sections: PromptSectionMeta[];
+}
 
 /** Progress event emitted during a review (server → SSE bus, runner → log). */
 export interface ReviewEvent {
@@ -71,6 +83,9 @@ export interface ReviewInput {
   /** PR author's description/body (untrusted; truncated + delimiter-wrapped in
       the prompt). Empty/undefined → section omitted. */
   prDescription?: string;
+  /** Pre-rendered derived-intent block (untrusted; delimiter-wrapped in the
+      prompt, after `## PR description`). Empty/undefined → section omitted. */
+  intent?: string;
   /** Task framing line, e.g. "Review PR #482 …". */
   task?: string;
   /** Override the structured-output retry budget. */
@@ -84,6 +99,11 @@ export interface ReviewInput {
   sessionId?: string;
   /** Progress sink. */
   onEvent?: (e: ReviewEvent) => void;
+  /**
+   * Called once per prompt actually sent to the model (one per chunk) with
+   * section metadata only — names, sizes, fingerprints, never the text.
+   */
+  onPromptAssembled?: (info: PromptAssembledInfo) => void;
   /**
    * Cancellation checkpoint, called before each (expensive) chunk LLM call.
    * Supply a function that THROWS to abort mid-run (the caller owns the error
@@ -135,6 +155,7 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
     callers: input.callers,
     repoMap: input.repoMap,
     prDescription: input.prDescription,
+    intent: input.intent,
     task: input.task,
   };
 
@@ -159,7 +180,7 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
   let costUsd: number | null = 0;
   const raws: string[] = [];
 
-  for (const chunk of chunks) {
+  for (const [chunkIndex, chunk] of chunks.entries()) {
     // Cancellation checkpoint — stop before the next (expensive) LLM call.
     input.checkCancelled?.();
     // 'map:' prefix only for the map-reduce path (one call per file). In
@@ -171,6 +192,13 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
     );
     const a = assemblePrompt({ ...promptParts, diff: chunk.diffText });
     if (mode === 'single-pass') assembly = a.assembly;
+    input.onPromptAssembled?.({
+      mode,
+      chunkLabel: chunk.label,
+      chunkIndex,
+      chunkCount: chunks.length,
+      sections: a.sections,
+    });
     const res = await input.llm.completeStructured<Review>({
       model: input.model,
       schema: ReviewSchema,

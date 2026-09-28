@@ -29,10 +29,12 @@ recomputed deterministically from the **surviving** findings, not trusted from t
 model. `review/run.ts` orchestrates the run (single-pass by default).
 
 The engine also accepts optional prompt slots the **course lessons** start
-feeding it — `skills` (L02), `memory` (L07), `specs` (L05), `callers` — plus a
-`reduce()`/map-reduce path and a `toReview()` CI payload helper used from L06.
-In the starter the server passes only the diff, system prompt, and repo map; the
-extra slots are omitted, so `assemblePrompt` simply leaves those sections out.
+feeding it — `skills` (L02), `intent` (L03, a pre-rendered untrusted string —
+derivation itself stays in the server, see `server/docs/intent-in-prompt.md`),
+`memory` (L07), `specs` (L05), `callers` — plus a `reduce()`/map-reduce path
+and a `toReview()` CI payload helper used from L06. In the starter the server
+passes only the diff, system prompt, and repo map; the extra slots are omitted,
+so `assemblePrompt` simply leaves those sections out.
 
 ## Public API
 
@@ -43,6 +45,19 @@ Exported from `src/index.ts`: `assemblePrompt` / `wrapUntrusted` (prompt),
 the server reuses for the PR list so a row's SCORE cannot contradict the
 findings counted next to it. Contracts (`Review`, `Finding`, `Verdict`, …) come
 from `@devdigest/shared`.
+
+`PromptParts.intent` and `ReviewInput.intent` (both `string | undefined`) are
+the derived-intent slot: a pre-rendered, already-capped block the caller hands
+in, rendered right after `## PR description` and wrapped `<untrusted
+source="intent">` like every other repo- or author-derived section. This
+package never derives intent itself — no DB, no LLM call for it, no knowledge
+of `pr_intent` — it only formats the string it is given, the same contract as
+`callers` and `repoMap`.
+
+`AssembledPrompt.sections` (`PromptSectionMeta[]`) describes each section —
+name, source, `wrapped`, `chars`, per-item sizes, `promptFingerprint` — without
+its text; `ReviewInput.onPromptAssembled` receives it once per prompt sent. The
+server logs it (`server/docs/prompt-logging.md`); the engine itself logs nothing.
 
 ## Testing
 

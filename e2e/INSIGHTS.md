@@ -67,6 +67,9 @@ _None yet._
 Unresolved behaviour, undecided design, unverified assumptions. Delete an entry when
 it is answered — the answer belongs in another section.
 
+- **Corrected 2026-09-27: the GitHub-sync theory for the local 04/05 failure is ruled out — flow 04 failed at "open the PR row" while the isolated API logged `GitHub PR sync skipped (no token / offline); serving persisted PRs`, and flow 05 passed that exact step in the same run.** The failure screenshot `test-results/04-pr-findings-fail.png` shows the seeded row rendered (title CSS-truncated to "Add rate limiting to …"), so the data was present and unchanged; the failure is intermittent within one run, cause still unknown.
+  → Treat a lone local 04 or 05 failure at that step as the known flake, not a regression; if it needs fixing, try `find role row` / a `wait --text` before the click rather than the token.
+
 - **On this machine an isolated stack (fresh seed, `next start`) fails flows 04 and 05 at "open the PR row" (`find text Add rate limiting to public API endpoints`), while CI passes them.** (2026-09-25) Unverified suspicion: the isolated API still loads `server/.env`, whose real `GITHUB_TOKEN` lets it sync `acme/payments-api` against GitHub after flow 02; CI has no token. `scripts/e2e.sh` loads the same file.
   → Before treating a local 04/05 failure as a regression, rerun with `GITHUB_TOKEN=` exported empty.
 

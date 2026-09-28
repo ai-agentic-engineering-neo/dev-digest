@@ -36,7 +36,13 @@ const EnvSchema = z.object({
     (v) => (v === '' ? undefined : v),
     z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).optional(),
   ),
+  PROMPT_LOG: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.enum(['off', 'summary', 'verbose']).optional(),
+  ),
 });
+
+export type PromptLogMode = 'off' | 'summary' | 'verbose';
 
 export type AppConfig = {
   databaseUrl: string;
@@ -59,6 +65,10 @@ export type AppConfig = {
    * EXACTLY like the ripgrep-only baseline.
    */
   repoIntelEnabled: boolean;
+  /** Prompt-assembly log detail. `verbose` is honoured only when NODE_ENV=development. */
+  promptLog: PromptLogMode;
+  /** PROMPT_LOG=verbose was asked for outside development and downgraded to summary. */
+  promptLogVerboseDenied: boolean;
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -66,6 +76,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const cloneDirRaw =
     parsed.DEVDIGEST_CLONE_DIR ?? join(homedir(), '.devdigest', 'workspace');
   const cloneDir = isAbsolute(cloneDirRaw) ? cloneDirRaw : resolve(process.cwd(), cloneDirRaw);
+  const promptLogRequested = parsed.PROMPT_LOG ?? 'summary';
+  const promptLogVerboseDenied =
+    promptLogRequested === 'verbose' && parsed.NODE_ENV !== 'development';
   return {
     databaseUrl: parsed.DATABASE_URL,
     apiPort: parsed.API_PORT,
@@ -77,5 +90,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     webOrigin: `http://localhost:${parsed.WEB_PORT}`,
     embeddingsEnabled: parsed.EMBEDDINGS_ENABLED === 'true',
     repoIntelEnabled: parsed.REPO_INTEL_ENABLED !== 'false',
+    promptLog: promptLogVerboseDenied ? 'summary' : promptLogRequested,
+    promptLogVerboseDenied,
   };
 }

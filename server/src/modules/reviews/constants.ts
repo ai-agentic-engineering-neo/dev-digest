@@ -10,3 +10,10 @@
  * model's context.
  */
 export const REVIEW_STRATEGY = 'single-pass' as const;
+
+/**
+ * A review never waits longer than this for intent — OpenRouter's own
+ * retries on a slow structured call can take minutes, and a review must
+ * still complete (without an intent section) rather than hang on it.
+ */
+export const INTENT_STEP_DEADLINE_MS = 90_000;

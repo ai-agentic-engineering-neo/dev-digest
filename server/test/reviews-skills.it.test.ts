@@ -4,7 +4,13 @@ import { waitForPrRuns } from './helpers/runs.js';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/platform/config.js';
 import { seed } from '../src/db/seed.js';
-import { MockLLMProvider, MockEmbedder, MockGitClient } from '../src/adapters/mocks.js';
+import {
+  MockLLMProvider,
+  MockEmbedder,
+  MockGitClient,
+  MockGitHubClient,
+  MockSecretsProvider,
+} from '../src/adapters/mocks.js';
 import * as t from '../src/db/schema.js';
 import type { Review } from '@devdigest/shared';
 
@@ -76,6 +82,10 @@ d('skills in the review prompt', () => {
       overrides: {
         embedder: new MockEmbedder(),
         git: new MockGitClient({ diff: DIFF }),
+        // Blocks the intent step (added this iteration) from reaching a real
+        // OpenRouter/GitHub — it degrades to "unavailable" instead (AC7).
+        secrets: new MockSecretsProvider({}),
+        github: new MockGitHubClient(),
         llm: { openai: new MockLLMProvider('openai', { structured: REVIEW_FIXTURE }) },
       },
     });

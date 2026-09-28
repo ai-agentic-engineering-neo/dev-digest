@@ -19,6 +19,24 @@ import { parseUnifiedDiff } from './diff-parser.js';
  */
 const RESYNC_FETCH_DEPTH = 50;
 
+/** `readFileAt` refuses anything above this — reading an author-controlled
+ * blob should never pull a huge file into a prompt. */
+const READ_FILE_AT_MAX_BYTES = 1_048_576;
+
+const HEX_REF_RE = /^[0-9a-f]{7,40}$/i;
+
+/**
+ * Local guard for `readFileAt`'s untrusted `path` argument — duplicated here
+ * rather than imported from the intent module (an adapter never imports a
+ * module; `no-adapter-to-module`).
+ */
+function isRejectedReadPath(path: string): boolean {
+  if (path.length === 0 || path.length > 300) return true;
+  if (path.startsWith('/') || path.startsWith('-')) return true;
+  if (path.includes('\\') || path.includes('\0')) return true;
+  return path.split('/').some((seg) => seg === '..');
+}
+
 /**
  * GitClient over simple-git. Repos clone to
  * `<cloneDir>/<owner>/<repo>`. We NEVER execute repo code — only git ops.
@@ -71,7 +89,14 @@ export class SimpleGitClient implements GitClient {
 
   async fetchPullHead(repo: RepoRef, n: number): Promise<void> {
     // Fetch the PR head ref into a local ref (GitHub exposes pull/<n>/head).
-    await this.git(repo).fetch(['origin', `pull/${n}/head:pr-${n}`]);
+    // Forced (`+`) so the ref advances past a force-push instead of refusing a
+    // non-fast-forward update; `--depth 1` keeps the shallow mirror shallow.
+    await this.git(repo).fetch([
+      '--depth',
+      '1',
+      'origin',
+      `+pull/${n}/head:refs/devdigest/pr/${n}`,
+    ]);
   }
 
   async sync(repo: RepoRef, branch: string): Promise<{ head: string }> {
@@ -128,6 +153,22 @@ export class SimpleGitClient implements GitClient {
 
   async readFile(repo: RepoRef, path: string): Promise<string> {
     return readFile(join(this.clonePathFor(repo), path), 'utf8');
+  }
+
+  async readFileAt(repo: RepoRef, ref: string, path: string): Promise<string | null> {
+    if (!HEX_REF_RE.test(ref)) return null;
+    if (isRejectedReadPath(path)) return null;
+    const g = this.git(repo);
+    try {
+      // Arguments are passed as a list, never through a shell — `ref:path`
+      // reaches git as one argv entry, so it cannot inject a second flag.
+      const sizeRaw = await g.raw(['cat-file', '-s', `${ref}:${path}`]);
+      const size = Number(sizeRaw.trim());
+      if (!Number.isFinite(size) || size > READ_FILE_AT_MAX_BYTES) return null;
+      return await g.show([`${ref}:${path}`]);
+    } catch {
+      return null;
+    }
   }
 }
 

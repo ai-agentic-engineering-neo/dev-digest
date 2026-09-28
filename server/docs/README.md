@@ -20,3 +20,10 @@ already covered by `../README.md`.
 - [`skills-in-prompt.md`](skills-in-prompt.md) — the path from `agent_skills` to
   the model: the two SQL gates, the labelled block, and why skills are NOT
   wrapped as untrusted data.
+- [`intent-in-prompt.md`](intent-in-prompt.md) — the path from a PR's title,
+  linked docs and issues to the cached `pr_intent` row to the prompt's
+  `## PR intent (derived)` block: the content-addressed cache key, why intent
+  IS wrapped as untrusted data (unlike skills), why derivation is lazy, and
+  the cross-repo issue policy.
+- [`prompt-logging.md`](prompt-logging.md) — the `prompt.assembled` log line: fields,
+  `correlationId`, what is never logged, and why `verbose` is development-only.

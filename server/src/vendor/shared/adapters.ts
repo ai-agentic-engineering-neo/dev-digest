@@ -224,6 +224,13 @@ export interface GitClient {
   blame(repo: RepoRef, path: string): Promise<BlameLine[]>;
   log(repo: RepoRef, path?: string): Promise<GitCommit[]>;
   readFile(repo: RepoRef, path: string): Promise<string>;
+  /**
+   * The blob at a commit (`git show <ref>:<path>`); null when missing, larger
+   * than 1 MB, or the ref/path is rejected by the adapter's guard. Unlike
+   * `readFile`, this never touches the working tree — safe for untrusted,
+   * PR-controlled paths read at a specific `head_sha`.
+   */
+  readFileAt(repo: RepoRef, ref: string, path: string): Promise<string | null>;
   clonePathFor(repo: RepoRef): string;
 }
 

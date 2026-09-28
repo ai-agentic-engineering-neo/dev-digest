@@ -31,3 +31,6 @@ Work contained in a single package gets a spec in that package's `specs/` instea
   homework 2: four contract skills (texts in
   [`fixtures/api-contract-reviewer/`](fixtures/api-contract-reviewer/)) and the
   A/B experiment.
+- [`intent-layer-plan.md`](intent-layer-plan.md) — L03 Intent layer: derive a
+  PR's intent from its title, linked docs/issues or indirect data, cache it,
+  and carry it into every agent's prompt as an untrusted block (server + client).

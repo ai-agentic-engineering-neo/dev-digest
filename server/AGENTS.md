@@ -35,6 +35,11 @@ integration `pnpm exec vitest run .it.test` (needs Docker) · both `pnpm test`
 - Touching skills, the prompt's skills block, or the import path →
   `docs/skills-in-prompt.md` (two SQL gates; imported text is NOT wrapped as
   untrusted data, and why).
+- Touching intent derivation or the prompt's intent block →
+  `docs/intent-in-prompt.md` (the cache key, why intent IS wrapped as
+  untrusted data unlike skills, why derivation is lazy, the cross-repo policy).
+- Debugging what went into a prompt, or touching `PROMPT_LOG` →
+  `docs/prompt-logging.md` (never log section text; `verbose` is development-only).
 - Deeper background on a subsystem → `docs/`.
 
 ## Conventions

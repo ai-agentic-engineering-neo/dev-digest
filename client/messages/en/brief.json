@@ -15,5 +15,40 @@
     "blame": "blame",
     "noHistory": "No history available for this line.",
     "noCommits": "No commits found for this line."
+  },
+  "intent": {
+    "empty": "No intent derived yet.",
+    "emptyHint": "Derive it to see why this PR exists and what it claims to cover.",
+    "derive": "Derive intent",
+    "rederive": "Re-derive",
+    "deriving": "Deriving…",
+    "deriveFailed": "Couldn't derive intent: {message}",
+    "inScope": "In scope",
+    "outOfScope": "Out of scope",
+    "riskAreas": "Risk areas",
+    "none": "None stated",
+    "confidence": {
+      "high": "High confidence",
+      "medium": "Medium confidence",
+      "low": "Low confidence"
+    },
+    "lowNotice": "Derived from limited information (no linked doc, issue or substantive description) — treat this as a rough guess.",
+    "staleNotice": "The PR has changed since this was derived — re-derive for an accurate scope.",
+    "derivedFrom": "Derived from",
+    "unresolved": "unresolved",
+    "truncated": "truncated",
+    "sourceKind": {
+      "pr_title": "title",
+      "pr_body": "description",
+      "linked_doc": "linked doc",
+      "linked_issue": "linked issue",
+      "ticket_ref": "ticket reference",
+      "external_link": "external link",
+      "branch_name": "branch",
+      "commit_messages": "commits",
+      "changed_files": "changed files",
+      "labels": "labels"
+    },
+    "meta": "{model} · head {sha}"
   }
 }

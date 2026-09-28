@@ -116,6 +116,7 @@ export class OctokitGitHubClient implements GitHubClient {
               committed_at: c.commit.author?.date,
             })),
             linked_issue: linkedIssue,
+            labels: pr.labels.map((l) => l.name).filter(Boolean),
           };
         })(),
         TIMEOUT,

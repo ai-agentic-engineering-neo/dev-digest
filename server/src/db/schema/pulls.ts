@@ -1,4 +1,5 @@
-import { pgTable, uuid, text, integer, timestamp, uniqueIndex, index } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { pgTable, uuid, text, integer, jsonb, timestamp, uniqueIndex, index } from 'drizzle-orm/pg-core';
 import { workspaces } from './core';
 import { repos } from './repos';
 
@@ -24,6 +25,7 @@ export const pullRequests = pgTable(
     filesCount: integer('files_count').notNull().default(0),
     status: text('status').notNull().default('needs_review'),
     body: text('body'),
+    labels: jsonb('labels').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
     openedAt: timestamp('opened_at', { withTimezone: true }),
     updatedAt: timestamp('updated_at', { withTimezone: true }),
   },

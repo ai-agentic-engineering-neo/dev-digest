@@ -30,6 +30,12 @@ Approaches and solutions that held up, with the context that made them work.
 Dead ends and anti-patterns: what was tried, why it failed, what to do instead.
 **The highest-value section and the one most often left empty. Fill it.**
 
+- **Proving absence with `git grep` passes vacuously for a new, still-untracked module: `git grep` searches tracked files only.** (2026-09-27) plan-verifier "proved" `readFile(`, Jira fetches and `routeModel` absent from `server/src/modules/intent/` with `git grep` → empty, while the whole folder was untracked; the same command missed `FETCH_CROSS_REPO_ISSUES`, declared at `server/src/modules/intent/constants.ts:30`.
+  → Before a feature is committed, prove presence/absence with `grep -rn` (or `git grep --untracked`), never plain `git grep`; re-run any absence claim that used it.
+
+- **pr-self-review runs no drizzle/postgres lane on a table edit: routing matches only `server/src/db/{schema,rows}.ts`, but the tables live in `server/src/db/schema/*.ts`.** (2026-09-27) `.claude/skills/pr-self-review/rules/routing.md:21` and its twin `scripts/route-skills.sh:94` (`^server/src/db/(schema|rows)\.ts$`); `schema.ts` is only the barrel, so editing e.g. `schema/reviews.ts` routes to no DB skill — only a generated migration under `migrations/` triggers the lane.
+  → Apply `drizzle-orm-patterns` / `postgresql-table-design` to schema edits deliberately, or widen both matchers to `server/src/db/schema/` together.
+
 - **Regex quote-stripping in an allowlist guard hides commands: in `echo "it's" ; rm x ; echo 'y'` the apostrophe pairs with the later quote.** (2026-09-27) The first `readonly-guard.sh` replaced `'[^']*'` with a placeholder, so the `rm` became quoted data and passed the allowlist; it also broke on `\"` inside double quotes.
   → Use the character scanner `lib_strip_quotes` in `.claude/agents/scripts/guard-lib.sh` (awk, tracks quote state, keeps double-quoted `$(` visible); add a mixed-quote row to `guard-cases.tsv` for any new guard.
 
@@ -49,6 +55,9 @@ Dead ends and anti-patterns: what was tried, why it failed, what to do instead.
 
 Conventions and architectural decisions found while working here, before they are
 settled enough to move into `CLAUDE.md`.
+
+- **Settings → Models is OpenRouter-only and has no reset: it lists `useProviderModels("openrouter")` and saves every pick as `provider: "openrouter"`.** (2026-09-27) `client/src/app/settings/[section]/_components/SettingsView/_components/SettingsModels/SettingsModels.tsx:24,32`; an OpenAI/Anthropic `FEATURE_MODELS` default (e.g. `review_intent` = `openai/gpt-4.1`) is shown only while unset and cannot be picked again after the first change.
+  → Give a feature an OpenRouter default that is already priced in `server/src/adapters/llm/pricing.ts` (e.g. `deepseek/deepseek-v4-flash`), in all three registry copies.
 
 - **The starter pre-wires a course lesson on both sides before the lesson exists — search for the noun across the whole package before adding anything named after it.** (2026-09-22) For L02 "conventions" there is no `server/src/modules/conventions/` and no `client/src/app/**/conventions` route, yet `client/messages/en/conventions.json` is a full namespace (empty state, "Re-scan", "Run extraction"), `client/src/components/app-shell/helpers.ts` already maps `/conventions` in `activeKeyFor`, `FEATURE_MODELS` carries a `conventions` row in both registry copies (rendered by Settings → Models), `ConventionCandidate` sits in `contracts/knowledge.ts`, `PluginConvention` in `contracts/productionize.ts`, and `server/src/adapters/mocks.ts:49` names the structured schema `ConventionExtraction` the mock expects. A grep under `modules/` or `app/` finds only the repo-intel facade method and a settings comment, so the stubs look absent.
   → Before creating a lesson module, grep `messages/`, `vendor/shared/contracts/`, `lib/feature-models.ts`, `app-shell/helpers.ts`, `vendor/ui/nav.ts` and `adapters/mocks.ts` for the lesson noun and extend those files; a second namespace, contract or feature-model row is the likely duplicate.

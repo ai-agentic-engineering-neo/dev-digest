@@ -70,6 +70,7 @@ flowchart TB
   end
   subgraph Review["Review & runs"]
     reviews["reviews<br/>/pulls/:id/review · /reviews · /findings/:id/(accept|dismiss)<br/>/runs/:id/(events|trace)"]
+    intent["intent<br/>/pulls/:id/intent · /pulls/:id/intent/derive"]
   end
   subgraph Agents["Agents & skills"]
     agents["agents<br/>/agents · /agents/:id · /agents/:id/skills"]
@@ -100,6 +101,7 @@ flowchart TB
 | `REPO_INTEL_ENABLED` | `true` | repo skeleton + callers in the prompt; `false` → ripgrep-only |
 | `DEVDIGEST_CLONE_DIR` | `./clones` | imported-repo checkouts (git-ignored) |
 | `LOG_LEVEL` | `info` (`silent` in test) | pino level |
+| `PROMPT_LOG` | `summary` | `off` \| `summary` \| `verbose` — a `prompt.assembled` log line per prompt sent (section, source, size, model, `correlationId`; never text). `verbose` adds labels and fingerprints, `NODE_ENV=development` only — see `docs/prompt-logging.md` |
 | `NODE_ENV` | `development` | `test` → silent logs + global rate-limit disabled |
 
 Secrets (API keys, `GITHUB_TOKEN`) are **not** part of `AppConfig` — they go
@@ -133,6 +135,14 @@ What the reviewer actually sends to the model is assembled in
 - **Grounding is mandatory.** Every finding must cite a line that exists in the
   diff or it is dropped (`groundFindings`), and the score is recomputed from the
   surviving findings — the model's self-reported score is ignored.
+- **Intent is derived once per review, by a separate cheap model, and cached.**
+  Before the per-agent loop, `run-executor.ts` resolves the PR's intent
+  (`modules/intent/`) from its title/body, linked docs read at `head_sha`, and
+  same-repo issues — or indirect data (branch, commits, files, labels) at low
+  confidence. It is cached by a content hash, so an unchanged PR costs no model
+  call on a second review, and it degrades to no intent section (never an
+  `error`-kind log line) rather than failing the run. See
+  `docs/intent-in-prompt.md`.
 
 ## Testing
 

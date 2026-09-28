@@ -66,6 +66,12 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
 
   const container = new Container(config, db, opts.overrides);
   container.attachLogger(app.log);
+  if (config.promptLogVerboseDenied) {
+    app.log.warn(
+      { nodeEnv: config.nodeEnv },
+      'PROMPT_LOG=verbose is honoured only with NODE_ENV=development — logging prompt summaries instead',
+    );
+  }
   app.decorate('container', container);
 
   // Reap runs left 'running' by a previous (now-dead) process — otherwise they

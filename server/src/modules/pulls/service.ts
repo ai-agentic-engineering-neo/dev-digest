@@ -144,11 +144,16 @@ export class PullsService {
       const detail = await gh.getPullRequest({ owner: repo.owner, name: repo.name }, pr.number);
       await this.pulls.replaceFiles(pr.id, detail.files);
       await this.pulls.replaceCommits(pr.id, detail.commits);
-      await this.pulls.updateDetail(pr.id, detail.body ?? null, {
-        additions: detail.additions,
-        deletions: detail.deletions,
-        filesCount: detail.files_count,
-      });
+      await this.pulls.updateDetail(
+        pr.id,
+        detail.body ?? null,
+        {
+          additions: detail.additions,
+          deletions: detail.deletions,
+          filesCount: detail.files_count,
+        },
+        detail.labels ?? [],
+      );
       return { ...detail, id: pr.id };
     } catch (err) {
       this.log.warn(

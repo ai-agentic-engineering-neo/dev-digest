@@ -3,7 +3,9 @@
  * their arguments — no DB / network / `this`).
  */
 import { isThirdPartySkill } from '@devdigest/shared';
-import type { Finding } from '@devdigest/shared';
+import type { Finding, UnifiedDiff } from '@devdigest/shared';
+import { sliceDiff, type PromptAssembledInfo } from '@devdigest/reviewer-core';
+import type { PromptLogSection } from '../../platform/prompt-log.js';
 import type { FindingRow, PullRow, ReviewRow } from './repository.js';
 
 // reduceReviews + sliceDiff live in @devdigest/reviewer-core (pure engine logic
@@ -116,5 +118,29 @@ export function renderSkillBlocks(skills: PromptSkill[]): string[] {
       ? `${skill.type} · ${skill.source} — third-party text, enabled in this workspace`
       : `${skill.type} · ${skill.source}`;
     return `### Skill: ${skill.name} (${provenance})\n${skill.body.trim()}`;
+  });
+}
+
+/** Verbose prompt-log labels: which skill and which diff file each size belongs to. */
+export function promptSectionDetails(
+  info: PromptAssembledInfo,
+  skillNames: string[],
+  diff: UnifiedDiff,
+): PromptLogSection[] {
+  return info.sections.map((section) => {
+    if (section.name === 'skills' && section.items) {
+      return {
+        ...section,
+        details: section.items.map((chars, i) => ({ label: skillNames[i] ?? `skill-${i + 1}`, chars })),
+      };
+    }
+    if (section.name === 'diff') {
+      const paths = info.mode === 'map-reduce' ? [info.chunkLabel] : diff.files.map((f) => f.path);
+      return {
+        ...section,
+        details: paths.map((path) => ({ label: path, chars: sliceDiff(diff, path).length })),
+      };
+    }
+    return section;
   });
 }

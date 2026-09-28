@@ -1,12 +1,19 @@
-import type { ReviewsDeps } from './deps.js';
+import { randomUUID } from 'node:crypto';
+import type { ReviewsDeps, ReviewIntentOutcome } from './deps.js';
 import type { Provider, RepoRef, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
 import { reviewPullRequest, countBlockers } from '@devdigest/reviewer-core';
 import { RunLogger } from '../../platform/run-logger.js';
+import { logPromptAssembly } from '../../platform/prompt-log.js';
+import { withTimeout } from '../../platform/resilience.js';
 import type { AgentRow } from '../../db/rows.js';
 import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './repository.js';
-import { REVIEW_STRATEGY } from './constants.js';
-import { renderSkillBlocks, taskLine } from './helpers.js';
+import { INTENT_STEP_DEADLINE_MS, REVIEW_STRATEGY } from './constants.js';
+import { promptSectionDetails, renderSkillBlocks, taskLine } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
+
+/** The `status: 'ready'` branch of `ReviewIntentOutcome` — what a successful
+ * resolution actually carries into the per-agent prompt and log line. */
+type ReadyIntent = Extract<ReviewIntentOutcome, { status: 'ready' }>;
 
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
 export class RunCancelledError extends Error {
@@ -61,11 +68,14 @@ export class ReviewRunExecutor {
     // ONE logger fanned out over every queued run: shared pre-work (diff +
     // intent) is streamed into each target agent's Live Log and persisted into
     // each run's trace. Per-agent work below narrows it to a single run.
+    // One id for everything this review click does — the intent derivation
+    // and every agent's prompt — so their log lines can be joined.
+    const correlationId = randomUUID();
     const runLog = new RunLogger(
       this.deps.runBus,
       jobs.map((j) => j.runId),
       logger,
-      { prId: pull.id },
+      { prId: pull.id, correlationId },
     );
 
     // Pre-work failure (e.g. diff load) fails EVERY queued run. The error was
@@ -104,6 +114,11 @@ export class ReviewRunExecutor {
     }
     runLog.info(`Diff ready — ${diff.files.length} changed file(s); starting ${jobs.length} agent run(s)`);
 
+    // Shared pre-work, like the diff: resolved ONCE and reused by every queued
+    // agent. Never fails the run — a missing/misbehaving intent step degrades
+    // to "reviewing without it" (`info`, not `error`; see 4.0's Live Log table).
+    const intent = await this.resolveIntent(workspaceId, pull, runLog, correlationId, logger);
+
     for (const { agent, runId } of jobs) {
       const agentStart = Date.now();
       logger?.info(
@@ -111,7 +126,17 @@ export class ReviewRunExecutor {
         `review: agent "${agent.name}" started (${agent.provider}/${agent.model})`,
       );
       try {
-        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, agent, runId, runLog);
+        const outcome = await this.runOneAgent(
+          workspaceId,
+          pull,
+          repo,
+          diff,
+          agent,
+          runId,
+          runLog,
+          intent,
+          correlationId,
+        );
         logger?.info(
           {
             runId,
@@ -134,6 +159,81 @@ export class ReviewRunExecutor {
     }
   }
 
+  /**
+   * Resolve the PR's derived intent once, shared by every queued agent — the
+   * same fan-out shape as the diff load above. Deliberately does NOT use
+   * `runLog.step`/`runLog.error`: an intent failure degrades the review
+   * (`info`), it never trips the `error` kind that puts a toast on the
+   * screen (§4.0's Live Log table).
+   */
+  private async resolveIntent(
+    workspaceId: string,
+    pull: PullRow,
+    runLog: RunLogger,
+    correlationId: string,
+    logger?: Logger,
+  ): Promise<ReadyIntent | null> {
+    runLog.tool('Resolving PR intent…');
+
+    let outcome: ReviewIntentOutcome;
+    try {
+      outcome = await withTimeout(
+        this.deps.intentService.resolveForReview(workspaceId, pull.id, { correlationId }),
+        INTENT_STEP_DEADLINE_MS,
+      );
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : 'intent step failed';
+      runLog.info(`Intent unavailable — reviewing without it: ${reason}`);
+      logger?.warn({ prId: pull.id, reason }, 'review: intent unavailable');
+      return null;
+    }
+
+    if (outcome.status === 'unavailable') {
+      runLog.info(`Intent unavailable — reviewing without it: ${outcome.reason}`);
+      logger?.warn({ prId: pull.id, reason: outcome.reason }, 'review: intent unavailable');
+      return null;
+    }
+
+    const unresolvedSuffix =
+      outcome.sourcesUnresolved.length > 0
+        ? ` · unresolved: ${outcome.sourcesUnresolved.join(', ')}`
+        : '';
+    runLog.info(`Intent sources — used: ${outcome.sourcesUsed.join(', ')}${unresolvedSuffix}`);
+
+    if (outcome.cache === 'hit') {
+      runLog.result(`Intent reused (no model call) — confidence ${outcome.confidence}`, {
+        phase: 'intent',
+        cache: 'hit',
+        confidence: outcome.confidence,
+      });
+    } else {
+      const usage = [
+        outcome.tokensIn != null && outcome.tokensOut != null
+          ? `${outcome.tokensIn}→${outcome.tokensOut} tok`
+          : null,
+        outcome.costUsd != null ? `$${outcome.costUsd.toFixed(4)}` : null,
+      ]
+        .filter((s): s is string => s != null)
+        .join(' · ');
+      runLog.result(
+        `Intent derived with ${outcome.provider}/${outcome.model} — confidence ${outcome.confidence}` +
+          (usage ? ` · ${usage}` : ''),
+        {
+          phase: 'intent',
+          cache: 'miss',
+          confidence: outcome.confidence,
+          provider: outcome.provider,
+          model: outcome.model,
+          tokensIn: outcome.tokensIn,
+          tokensOut: outcome.tokensOut,
+          costUsd: outcome.costUsd,
+        },
+      );
+    }
+
+    return outcome;
+  }
+
   /** Execute a single agent's review against a PR, streaming progress. */
   private async runOneAgent(
     workspaceId: string,
@@ -143,6 +243,8 @@ export class ReviewRunExecutor {
     agent: AgentRow,
     runId: string,
     parentLog: RunLogger,
+    intent: ReadyIntent | null,
+    correlationId: string,
   ): Promise<RunOutcome> {
     const start = Date.now();
     // Narrow the fanned-out pre-work logger to THIS run; the shared diff/intent
@@ -199,6 +301,12 @@ export class ReviewRunExecutor {
 
       const task = taskLine(pull) + rankNote;
 
+      runLog.info(
+        intent
+          ? `Intent in prompt (confidence ${intent.confidence})`
+          : 'No intent — the prompt carries no intent section',
+      );
+
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
       // the CI runner). The service owns only I/O: repo-intel context resolution
@@ -222,9 +330,31 @@ export class ReviewRunExecutor {
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
+        // Derived intent — untrusted, pre-rendered by the intent module.
+        // Intent's own tokens/cost are NOT folded into this run's usage below;
+        // they were already billed and stored on `pr_intent` when derived.
+        ...(intent ? { intent: intent.promptBlock } : {}),
         task,
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
+        onPromptAssembled: (info) =>
+          logPromptAssembly(
+            this.deps.promptLog,
+            {
+              purpose: 'review',
+              correlationId,
+              prId: pull.id,
+              runId,
+              agent: agent.name,
+              provider: agent.provider,
+              model: agent.model,
+              strategy: info.mode,
+              chunk: { index: info.chunkIndex, count: info.chunkCount, label: info.chunkLabel },
+            },
+            this.deps.promptLog.mode === 'verbose'
+              ? promptSectionDetails(info, skills.map((s) => s.name), diff)
+              : info.sections,
+          ),
         checkCancelled: () => {
           if (this.deps.runBus.isCancelled(runId)) throw new RunCancelledError();
         },

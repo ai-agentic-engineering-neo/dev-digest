@@ -8,6 +8,7 @@ import type {
   LLMProvider,
 } from '@devdigest/shared';
 import type { AppConfig } from './config.js';
+import type { PromptLog } from './prompt-log.js';
 import type { Db } from '../db/client.js';
 import { JobRunner } from './jobs.js';
 import { runBus, type RunBus } from './sse.js';
@@ -33,6 +34,8 @@ import { PullsService } from '../modules/pulls/service.js';
 import { PollingService } from '../modules/polling/service.js';
 import { SettingsService } from '../modules/settings/service.js';
 import { WorkspaceService } from '../modules/workspace/service.js';
+import { IntentRepository } from '../modules/intent/repository.js';
+import { IntentService } from '../modules/intent/service.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
 import { type DepGraph, DepCruiseGraph } from '../adapters/depgraph/index.js';
@@ -67,9 +70,10 @@ export interface ContainerOverrides {
  */
 export interface ContainerLogger {
   warn(obj: unknown, msg: string): void;
+  info(obj: unknown, msg?: string): void;
 }
 
-const SILENT_LOGGER: ContainerLogger = { warn: () => {} };
+const SILENT_LOGGER: ContainerLogger = { warn: () => {}, info: () => {} };
 
 export class Container {
   readonly config: AppConfig;
@@ -94,10 +98,12 @@ export class Container {
   private _repoRepo?: RepoRepository;
   private _pullsRepo?: PullsRepository;
   private _settingsRepo?: SettingsRepository;
+  private _intentRepo?: IntentRepository;
   private _pullsService?: PullsService;
   private _pollingService?: PollingService;
   private _settingsService?: SettingsService;
   private _workspaceService?: WorkspaceService;
+  private _intentService?: IntentService;
   private logger: ContainerLogger = SILENT_LOGGER;
   private _repoIntel?: RepoIntel;
   private _depgraph?: DepGraph;
@@ -116,6 +122,10 @@ export class Container {
   /** Hand the app's logger to services built from here. Called once, at boot. */
   attachLogger(logger: ContainerLogger): void {
     this.logger = logger;
+  }
+
+  get promptLog(): PromptLog {
+    return { mode: this.config.promptLog, sink: this.logger };
   }
 
   get git(): GitClient {
@@ -146,6 +156,10 @@ export class Container {
 
   get settingsRepo(): SettingsRepository {
     return (this._settingsRepo ??= new SettingsRepository(this.db));
+  }
+
+  get intentRepo(): IntentRepository {
+    return (this._intentRepo ??= new IntentRepository(this.db));
   }
 
   // Use cases. Each takes named ports, never this container — the constructor
@@ -179,6 +193,19 @@ export class Container {
       this.repoRepo,
       this.config.cloneDir,
     ));
+  }
+
+  get intentService(): IntentService {
+    return (this._intentService ??= new IntentService({
+      intentRepo: this.intentRepo,
+      pullsRepo: this.pullsRepo,
+      repoRepo: this.repoRepo,
+      settingsRepo: this.settingsRepo,
+      git: this.git,
+      github: () => this.github(),
+      llm: (id) => this.llm(id),
+      promptLog: () => this.promptLog,
+    }));
   }
 
   get codeIndex(): CodeIndex {

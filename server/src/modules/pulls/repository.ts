@@ -31,6 +31,7 @@ export interface PullRecord {
   updatedAt: Date | null;
   lastReviewedSha: string | null;
   body: string | null;
+  labels: string[];
 }
 
 export interface PrFileRecord {
@@ -79,6 +80,7 @@ const toPull = (r: typeof t.pullRequests.$inferSelect): PullRecord => ({
   updatedAt: r.updatedAt,
   lastReviewedSha: r.lastReviewedSha,
   body: r.body,
+  labels: r.labels ?? [],
 });
 
 export class PullsRepository {
@@ -152,7 +154,12 @@ export class PullsRepository {
       .where(eq(t.pullRequests.id, prId));
   }
 
-  async updateDetail(prId: string, body: string | null, stats: DiffStats): Promise<void> {
+  async updateDetail(
+    prId: string,
+    body: string | null,
+    stats: DiffStats,
+    labels: string[],
+  ): Promise<void> {
     await this.db
       .update(t.pullRequests)
       .set({
@@ -160,6 +167,7 @@ export class PullsRepository {
         additions: stats.additions,
         deletions: stats.deletions,
         filesCount: stats.filesCount,
+        labels,
       })
       .where(eq(t.pullRequests.id, prId));
   }

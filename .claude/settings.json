@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Edit(**/INSIGHTS.md)",
+      "Write(**/INSIGHTS.md)"
+    ]
+  }
+}

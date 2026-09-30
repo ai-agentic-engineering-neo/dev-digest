@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import type { PrDetail, PrMeta } from '@devdigest/shared';
@@ -62,6 +62,20 @@ export class PullsRepository {
 
   getCommits(prId: string): Promise<PrCommitRow[]> {
     return this.db.select().from(t.prCommits).where(eq(t.prCommits.prId, prId));
+  }
+
+  /**
+   * `(prId, path)` pairs for every OTHER PR in the repo — the raw material
+   * for "prior PRs touching these files": one query instead of N+1 (list PRs,
+   * then fetch each one's files). Callers group by `prId` and intersect
+   * against the current PR's own changed-file set in JS.
+   */
+  async getOtherPrFiles(repoId: string, excludePrId: string): Promise<{ prId: string; path: string }[]> {
+    return this.db
+      .select({ prId: t.prFiles.prId, path: t.prFiles.path })
+      .from(t.prFiles)
+      .innerJoin(t.pullRequests, eq(t.pullRequests.id, t.prFiles.prId))
+      .where(and(eq(t.pullRequests.repoId, repoId), ne(t.pullRequests.id, excludePrId)));
   }
 
   // ---- writes -------------------------------------------------------------

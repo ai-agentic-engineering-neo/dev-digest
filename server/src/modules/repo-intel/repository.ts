@@ -13,7 +13,7 @@
  * raw-SQL probes below MUST swallow `undefined_table` (Postgres 42P01) so the
  * facade keeps returning degraded — never throws.
  */
-import { and, asc, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import { clampIndexedName } from '../../db/schema/context.js';
@@ -499,7 +499,12 @@ export class RepoIntelRepository {
       .where(and(eq(t.symbols.repoId, repoId), inArray(t.symbols.path, paths)));
   }
 
-  /** Resolved cross-file callers of symbols declared in `declFiles`. */
+  /**
+   * Resolved cross-file callers of symbols declared in `declFiles`. Excludes
+   * self-file references (`fromPath === declFile`) — a symbol calling itself
+   * within its own declaring file is not a "caller" for blast-radius purposes,
+   * matching the exclusion the ripgrep-degraded path already applies.
+   */
   async getResolvedCallers(
     repoId: string,
     declFiles: string[],
@@ -526,8 +531,24 @@ export class RepoIntelRepository {
           eq(t.references.repoId, repoId),
           inArray(t.references.declFile, declFiles),
           inArray(t.references.toSymbol, names),
+          ne(t.references.fromPath, t.references.declFile),
         ),
       );
+  }
+
+  /**
+   * One reverse-import hop: files that import any of `files` directly.
+   * Backed by `file_edges_repo_to_idx (repoId, toFile)` — the index that
+   * exists specifically so blast can walk "who depends on this file?" in
+   * O(degree). Callers BFS this repeatedly to walk multiple hops.
+   */
+  async getDependentFiles(repoId: string, files: string[]): Promise<string[]> {
+    if (files.length === 0) return [];
+    const rows = await this.db
+      .selectDistinct({ fromFile: t.fileEdges.fromFile })
+      .from(t.fileEdges)
+      .where(and(eq(t.fileEdges.repoId, repoId), inArray(t.fileEdges.toFile, files)));
+    return rows.map((r) => r.fromFile);
   }
 
   /** Per-file facts (endpoints/crons) for the given files. */

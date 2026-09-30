@@ -1,46 +1,54 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { ApiClient } from '../client.js';
+import { ApiCallError } from '../client.js';
+import { resolvePr, resolveRepo, ToolInputError } from '../resolve.js';
+import type { BlastRadius } from '../types.js';
 
 /**
- * INTENTIONAL STUB. `repoIntel.getBlastRadius()` already exists server-side
- * (`server/src/modules/repo-intel/service.ts`) but has no HTTP route yet —
- * wrapping it for real is a later lesson's homework. This handler makes zero
- * network calls; it only validates input and returns a typed
- * "not implemented" result. `isError: true` (not a protocol-level error) so
- * the calling agent gets a normal tool result it can reason about, per the
- * "errors lead forward" principle: don't retry, don't infer.
- *
- * The `client` param is unused on purpose — it's kept in the signature so
- * every tool's `register*` function has the same shape (see `tools/index.ts`).
+ * Wraps `GET /pulls/:id/blast` — the `blast/` server module's mapping of
+ * `repoIntel.getBlastRadius()` into the shared `BlastRadius` shape (changed
+ * symbols -> callers -> impacted endpoints/crons). Deterministic and
+ * read-only: no run to wait on, no LLM call. Same resolve-then-fetch shape as
+ * `get_findings` and `get_conventions`.
  */
 const inputSchema = {
   repo: z.string().describe("Repo full name, e.g. 'owner/name'"),
   pr: z.number().int().positive().describe('PR number'),
 };
 
-export function registerGetBlastRadiusTool(server: McpServer, _client: ApiClient): void {
+export function registerGetBlastRadiusTool(server: McpServer, client: ApiClient): void {
   server.registerTool(
     'get_blast_radius',
     {
       description:
-        'NOT IMPLEMENTED YET — reserved for a future lesson. Always returns an error result; ' +
-        'do not call this expecting real blast-radius data.',
+        'Returns changed symbols for a PR, their resolved callers (file:line), and the HTTP ' +
+        'endpoints/cron jobs reachable from those changes — sourced from the repo index, not the ' +
+        'model. Requires the repo to be indexed; a partial index is called out in `summary` rather ' +
+        'than silently returning an empty result.',
       inputSchema,
     },
-    async () => {
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text:
-              'get_blast_radius is not implemented yet (planned for a later lesson). ' +
-              'Do not retry this call and do not infer blast-radius data from ' +
-              'list_agents, get_findings, or get_conventions — none of them carry it.',
-          },
-        ],
-        isError: true,
-      };
+    async ({ repo, pr }) => {
+      try {
+        const repoRow = await resolveRepo(client, repo);
+        const prRow = await resolvePr(client, repoRow.id, pr);
+
+        const result = await client.get<BlastRadius>(`/pulls/${prRow.id}/blast`);
+
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(result) }],
+          structuredContent: { ...result },
+        };
+      } catch (err) {
+        if (err instanceof ToolInputError) {
+          return { content: [{ type: 'text' as const, text: err.message }], isError: true };
+        }
+        const message =
+          err instanceof ApiCallError
+            ? `DevDigest API error (${err.code}): ${err.message}`
+            : 'DevDigest API unreachable — is ./scripts/dev.sh running?';
+        return { content: [{ type: 'text' as const, text: message }], isError: true };
+      }
     },
   );
 }

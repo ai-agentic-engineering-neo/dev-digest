@@ -143,7 +143,17 @@
   },
   "blastRadius": {
     "sectionLabel": "Blast radius",
-    "comingSoon": "Coming soon — downstream callers, endpoints, and cron jobs touched by this PR."
+    "empty": "No downstream impact detected for this PR's changed files.",
+    "symbols": "symbols",
+    "callers": "callers",
+    "endpoints": "endpoints",
+    "crons": "cron jobs",
+    "noCallers": "No resolved callers for this symbol.",
+    "tree": "Tree",
+    "graph": "Graph",
+    "priorPrs": {
+      "title": "Prior PRs touching these files"
+    }
   },
   "prBrief": {
     "sectionLabel": "PR Brief"

@@ -113,6 +113,35 @@ export interface ConventionScan {
   scanned_at: string | null;
 }
 
+/** mirrors @devdigest/shared, contracts/brief.ts — ChangedSymbol */
+export interface ChangedSymbol {
+  name: string;
+  file: string;
+  kind: string;
+}
+
+/** mirrors @devdigest/shared, contracts/brief.ts — BlastCaller */
+export interface BlastCaller {
+  name: string;
+  file: string;
+  line: number;
+}
+
+/** mirrors @devdigest/shared, contracts/brief.ts — DownstreamImpact */
+export interface DownstreamImpact {
+  symbol: string;
+  callers: BlastCaller[];
+  endpoints_affected: string[];
+  crons_affected: string[];
+}
+
+/** mirrors @devdigest/shared, contracts/brief.ts — BlastRadius */
+export interface BlastRadius {
+  changed_symbols: ChangedSymbol[];
+  downstream: DownstreamImpact[];
+  summary: string;
+}
+
 /** Trimmed shape every tool returns for a finding — concise per the "no raw dumps" principle. */
 export interface TrimmedFinding {
   id: string;

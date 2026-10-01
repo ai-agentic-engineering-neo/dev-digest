@@ -6,7 +6,10 @@ import { prField, repoField } from './schemas.js';
 
 export const GET_BLAST_RADIUS_NAME = 'get_blast_radius';
 export const GET_BLAST_RADIUS_DESCRIPTION =
-  'Get the blast radius of a pull request: changed symbols, downstream callers (file:line), affected endpoints and crons, and whether the repo index was degraded.';
+  'Get the blast radius of a pull request: what else in the repo the diff can affect. ' +
+  'Call it when reviewing or judging a PR, especially one that changes a shared function or module, before deciding how risky it is. ' +
+  'Returns the changed-symbol count, downstream callers per symbol as file:line, affected HTTP endpoints and crons, and whether the repo index was degraded ' +
+  '(if degraded, missing callers are not proof the change is safe). Long results are trimmed; the "omitted" counts say what was cut.';
 
 export function registerGetBlastRadius(
   server: McpServer,

@@ -17,7 +17,7 @@ errors) and [`specs/02-development-plan.md`](specs/02-development-plan.md)
 | `get_conventions` | Returns a repo's accepted coding conventions with evidence. |
 | `get_findings` | Returns the verdict and findings of a completed run (`repo`, `pr`, `run_id`). |
 | `run_agent_on_pr` | Runs an agent on a PR and returns its findings when the run finishes (up to ~2 min; the only write tool). |
-| `get_blast_radius` | Returns the PR's blast radius (same data as the browser): changed symbols, downstream callers as `file:line`, affected endpoints/crons, and the degraded status of the repo index. No LLM. |
+| `get_blast_radius` | Returns the PR's blast radius (same map as the browser, trimmed to the symbols something depends on): downstream callers as `file:line`, affected endpoints/crons, the degraded status of the repo index, and `omitted` counts for anything cut. Call it when judging how risky a diff is. No LLM. |
 
 ## Environment
 

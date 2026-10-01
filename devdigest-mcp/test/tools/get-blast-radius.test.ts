@@ -36,7 +36,46 @@ describe('get_blast_radius tool', () => {
     const res = await client.callTool({ name: 'get_blast_radius', arguments: { repo: 'acme/api', pr: 42 } });
     expect(res.isError).toBeFalsy();
     expect(getBlast).toHaveBeenCalledWith(PR_ID);
-    expect(JSON.parse(textOf(res))).toEqual({ repo: 'acme/api', pr: 42, ...blast });
+    expect(JSON.parse(textOf(res))).toEqual({
+      repo: 'acme/api',
+      pr: 42,
+      summary: blast.summary,
+      degraded: false,
+      reason: null,
+      changed_symbol_count: 1,
+      downstream: blast.downstream,
+      impacted_endpoints: ['GET /things'],
+      omitted: { symbols_without_impact: 0, groups: 0, callers: 0, endpoints: 0 },
+    });
+  });
+
+  it('says when to call it', async () => {
+    const client = await connectClient(fakePort({ ...base, getBlast: async () => blast }));
+    const tool = (await client.listTools()).tools.find((t) => t.name === 'get_blast_radius')!;
+    expect(tool.description).toMatch(/Call it when reviewing/);
+  });
+
+  it('trims a large payload and reports what was omitted', async () => {
+    const many = Array.from({ length: 15 }, (_, i) => ({
+      symbol: `s${i}`,
+      callers: Array.from({ length: 12 }, (_, j) => ({ name: `c${j}`, file: `src/f${j}.ts`, line: j + 1 })),
+      endpoints_affected: [],
+      crons_affected: [],
+    }));
+    const big: BlastRadiusResponse = {
+      ...blast,
+      changed_symbols: many.map((d) => ({ name: d.symbol, file: 'src/a.ts', kind: 'function' })),
+      downstream: [...many, { symbol: 'idle', callers: [], endpoints_affected: [], crons_affected: [] }],
+      impacted_endpoints: Array.from({ length: 35 }, (_, i) => `GET /e${i}`),
+    };
+    const client = await connectClient(fakePort({ ...base, getBlast: async () => big }));
+    const res = await client.callTool({ name: 'get_blast_radius', arguments: { repo: 'acme/api', pr: 42 } });
+    const out = JSON.parse(textOf(res));
+    expect(out.downstream).toHaveLength(12);
+    expect(out.downstream[0].callers).toHaveLength(10);
+    expect(out.impacted_endpoints).toHaveLength(30);
+    expect(out.changed_symbol_count).toBe(15);
+    expect(out.omitted).toEqual({ symbols_without_impact: 1, groups: 3, callers: 3 * 12 + 12 * 2, endpoints: 5 });
   });
 
   it('surfaces resolver errors without calling the API', async () => {

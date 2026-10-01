@@ -68,10 +68,10 @@ time**, together with its name, annotations and argument shape.
 
 ### 5. `get_blast_radius`
 > **Amended 2026-10-01:** implemented (previously a stub). Text below is the current behaviour.
-- **Description:** `Get the blast radius of a pull request: changed symbols, downstream callers (file:line), affected endpoints and crons, and whether the repo index was degraded.`
+- **Description:** (amended 2026-10-01) `Get the blast radius of a pull request: what else in the repo the diff can affect. Call it when reviewing or judging a PR, especially one that changes a shared function or module, before deciding how risky it is. Returns the changed-symbol count, downstream callers per symbol as file:line, affected HTTP endpoints and crons, and whether the repo index was degraded (if degraded, missing callers are not proof the change is safe). Long results are trimmed; the "omitted" counts say what was cut.`
 - **Annotations:** `{ readOnlyHint: true, idempotentHint: true, destructiveHint: false, openWorldHint: true }`
 - **Args (flat):** `repo: string`, `pr: number` — resolved via the shared resolver to `pr_id`.
-- **Flow:** resolve → `GET /pulls/:pr_id/blast` (parsed with the shared `BlastRadiusResponse`) → return `{ repo, pr, ...response }`. No LLM, same data as the browser.
+- **Flow:** resolve → `GET /pulls/:pr_id/blast` (parsed with the shared `BlastRadiusResponse`) → return a compact `{ repo, pr, summary, degraded, reason, changed_symbol_count, downstream, impacted_endpoints, omitted }`: only symbols with an impact, ≤12 groups, ≤10 callers per group, ≤30 endpoints (amended 2026-10-01 after the full payload for a large PR reached ~29k chars). No LLM.
 - **Output:** `{ repo, pr, changed_symbols[{name,file,kind}], downstream[{symbol, callers[{name,file,line}], endpoints_affected[], crons_affected[]}], summary, degraded: boolean, reason: 'flag_off'|'index_failed'|'index_partial'|'repo_too_large'|'no_data'|null, impacted_endpoints[] }`. A degraded index is a normal result (`isError: false`); API failures map to tool errors like the sibling tools (404 -> not found, contract mismatch -> contract error).
 
 ## Error messages ("error leads forward" — one sentence what happened + one sentence what to call next)

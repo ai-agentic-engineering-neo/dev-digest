@@ -2,7 +2,7 @@
 // a text block; every failure is isError:true with a message from
 // domain/errors.ts. The last-resort catch never exposes a stack or raw message.
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { apiErrorMessage, type ErrorContext } from '../domain/errors.js';
+import { apiErrorMessage, ToolError, type ErrorContext } from '../domain/errors.js';
 import { ApiError } from '../domain/ports.js';
 import { log } from '../log.js';
 
@@ -19,6 +19,7 @@ export async function toolResult(ctx: ErrorContext, fn: () => Promise<unknown>):
   try {
     return ok(await fn());
   } catch (err) {
+    if (err instanceof ToolError) return fail(err.message);
     if (err instanceof ApiError) return fail(apiErrorMessage(err, ctx));
     // Unknown failure: log only the error class to stderr, keep the model's text generic.
     log.error(`${ctx.tool}: unexpected ${err instanceof Error ? err.name : typeof err}`);

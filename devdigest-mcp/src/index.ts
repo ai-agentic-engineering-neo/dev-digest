@@ -18,7 +18,11 @@ async function main(): Promise<void> {
   const { config } = parsed;
 
   const client = new DevDigestClient({ baseUrl: config.apiBaseUrl, httpTimeoutMs: config.httpTimeoutMs });
-  const server = createMcpServer({ api: withHealthGate(client), baseUrl: config.apiBaseUrl });
+  const server = createMcpServer({
+    api: withHealthGate(client),
+    baseUrl: config.apiBaseUrl,
+    runTimeoutMs: config.runTimeoutMs,
+  });
 
   await server.connect(new StdioServerTransport());
   log.info(`ready; API ${config.apiBaseUrl}`);

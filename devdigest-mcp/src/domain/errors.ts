@@ -44,3 +44,75 @@ export function apiErrorMessage(err: ApiError, ctx: ErrorContext): string {
       return `DevDigest returned an unexpected response from ${err.endpoint}. The MCP server and the API are probably on different commits — update both, then retry.`;
   }
 }
+
+/**
+ * A failure whose message is already model-safe (built by the helpers below).
+ * Services throw it; tools/result.ts renders it as isError:true verbatim.
+ */
+export class ToolError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ToolError';
+  }
+}
+
+export function repoNotFoundMessage(repo: string): string {
+  return `No repo matching "${repo}" was found. Check the "owner/name" spelling; this tool does not add new repos, only the DevDigest UI/API does.`;
+}
+
+export function prNotFoundMessage(repo: string, pr: number): string {
+  return `PR #${pr} was not found in repo "${repo}". Check the PR number, or that the repo has been polled recently enough to have indexed it.`;
+}
+
+export function agentNotFoundMessage(agent: string): string {
+  return `Agent "${agent}" was not found (or is disabled) in this workspace. Call list_agents to get a valid, enabled agent id.`;
+}
+
+export function runNotFoundMessage(runId: string, repo: string, pr: number): string {
+  return `No review found for run_id "${runId}" on PR #${pr} in "${repo}". Check the run_id against the one run_agent_on_pr returned.`;
+}
+
+export function runInProgressMessage(runId: string): string {
+  return `Run "${runId}" is still in progress and has no findings yet. Wait and call get_findings again.`;
+}
+
+export function runFailedMessage(runId: string, error: string | null | undefined): string {
+  const detail = error ? clip(error, 300) : 'no error detail was recorded';
+  return `Run "${runId}" failed: ${detail}. Call list_agents to confirm the agent is still valid, or try run_agent_on_pr again.`;
+}
+
+export function runCancelledMessage(runId: string): string {
+  return `Run "${runId}" was cancelled before it produced findings. Call run_agent_on_pr again to start a new run.`;
+}
+
+export function runDoneWithoutReviewMessage(runId: string, repo: string, pr: number): string {
+  return `Run "${runId}" finished but no review was persisted for it. Call get_findings(repo="${repo}", pr=${pr}, run_id="${runId}") in a moment; if it is still missing, call run_agent_on_pr again.`;
+}
+
+function formatDuration(ms: number): string {
+  if (ms % 60_000 === 0) {
+    const m = ms / 60_000;
+    return `${m} minute${m === 1 ? '' : 's'}`;
+  }
+  return `${Math.round(ms / 1000)} seconds`;
+}
+
+/** The run keeps going on the server (never cancelled); tell the model how to fetch it later. */
+export function runLeftRunningMessage(
+  runId: string,
+  repo: string,
+  pr: number,
+  why: { kind: 'timeout'; ms: number } | { kind: 'dropped' } | { kind: 'client_abort' },
+): string {
+  const lead =
+    why.kind === 'timeout'
+      ? `Run "${runId}" is still running after ${formatDuration(why.ms)} and was left running (not cancelled).`
+      : why.kind === 'dropped'
+        ? `Lost contact with run "${runId}" before it finished (the API connection dropped); it may still be running and was not cancelled.`
+        : `This call was aborted while run "${runId}" was in progress; the run was left running (not cancelled).`;
+  return `${lead} Call get_findings(repo="${repo}", pr=${pr}, run_id="${runId}") again later to fetch the result.`;
+}
+
+export function runStartTimeoutMessage(repo: string, pr: number): string {
+  return `Timed out before the agent run on PR #${pr} in "${repo}" could start; no run was created. Call run_agent_on_pr again.`;
+}

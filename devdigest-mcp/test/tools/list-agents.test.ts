@@ -46,11 +46,10 @@ function textOf(result: Awaited<ReturnType<Client['callTool']>>): string {
 }
 
 describe('list_agents tool', () => {
-  it('registers verbatim description and annotations, with no input fields', async () => {
+  it('registers verbatim description and annotations, ', async () => {
     const client = await connect(fakePort({}));
     const { tools } = await client.listTools();
-    expect(tools.map((t) => t.name)).toEqual(['list_agents']);
-    const tool = tools[0]!;
+    const tool = tools.find((t) => t.name === 'list_agents')!;
     expect(tool.description).toBe(
       'List the review agents configured in this workspace, with the agent id other tools need.',
     );

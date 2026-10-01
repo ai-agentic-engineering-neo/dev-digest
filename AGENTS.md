@@ -33,6 +33,7 @@ Drizzle ORM + Postgres (pgvector) · Zod · Vitest · agent-browser (e2e)
 | Migrations      | `cd server && pnpm db:generate` then `pnpm db:migrate`     |
 | Client          | `cd client && pnpm dev \| build \| typecheck \| test`      |
 | Engine          | `cd reviewer-core && npm test \| npm run typecheck`        |
+| MCP server      | `cd devdigest-mcp && npm test \| npm run typecheck`        |
 | E2E (hermetic)  | `cd e2e && npm run e2e:hermetic`                            |
 
 Flags for `dev.sh`: `--no-seed` · `--no-client` · `--db-only` · `--help`.
@@ -45,14 +46,15 @@ Flags for `dev.sh`: `--no-seed` · `--no-client` · `--db-only` · `--help`.
 | `client/`                   | Next.js studio, App Router                                |
 | `reviewer-core/`            | Pure engine: diff + repo map → prompt → LLM → findings    |
 | `e2e/`                      | Deterministic browser flows, no LLM                       |
+| `devdigest-mcp/`            | Local stdio MCP server: 5 PR-review tools over the API    |
 | `server/src/vendor/shared/` | `@devdigest/shared` — Zod contracts for every package     |
 | `client/src/vendor/ui/`     | `@devdigest/ui` — vendored UI primitives                  |
 
 ## Conventions (non-default — you cannot infer these from the code)
 
 - **Not a monorepo workspace.** Each package has its own `package.json` and its
-  own lockfile. `server/` + `client/` use **pnpm**; `reviewer-core/` + `e2e/` use
-  **npm**. Never run the wrong package manager in a package.
+  own lockfile. `server/` + `client/` use **pnpm**; `reviewer-core/` + `e2e/` +
+  `devdigest-mcp/` use **npm**. Never run the wrong package manager in a package.
 - Cross-package imports resolve through **tsconfig path aliases**, not published
   modules. `reviewer-core` is consumed as TypeScript **source** and never emits
   JS — its `build` is a typecheck.

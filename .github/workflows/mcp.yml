@@ -1,0 +1,51 @@
+# devdigest-mcp suite — local stdio MCP server (@devdigest/mcp), a thin HTTP
+# adapter over the DevDigest API. Tests are hermetic (fake API / SSE server on
+# node:http, no real network, no keys). Uses npm (package-lock.json).
+#
+# server/src/vendor/shared/** is in the path filter because devdigest-mcp
+# aliases @devdigest/shared to it. Do NOT install server deps here: the
+# `zod` alias in tsconfig/vitest must resolve to devdigest-mcp/node_modules,
+# and this job is what catches a second zod copy sneaking in.
+name: mcp
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'devdigest-mcp/**'
+      - 'server/src/vendor/shared/**'
+      - '.github/workflows/mcp.yml'
+  pull_request:
+    paths:
+      - 'devdigest-mcp/**'
+      - 'server/src/vendor/shared/**'
+      - '.github/workflows/mcp.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mcp-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: devdigest-mcp
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: devdigest-mcp/package-lock.json
+
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      - run: npm test

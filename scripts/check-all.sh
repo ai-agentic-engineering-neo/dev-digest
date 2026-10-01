@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run typecheck + hermetic tests for server, reviewer-core and client ONCE per
+# Run typecheck + hermetic tests for server, reviewer-core, devdigest-mcp and client ONCE per
 # working-tree state, and cache the result keyed by a hash of that state.
 #
 #   scripts/check-all.sh            # reuse the cached result when the tree is unchanged
@@ -68,6 +68,8 @@ step "server typecheck"       server        pnpm typecheck
 step "server unit tests"      server        pnpm exec vitest run --exclude '**/*.it.test.ts'
 step "reviewer-core typecheck" reviewer-core npm run typecheck
 step "reviewer-core tests"    reviewer-core npm test
+step "devdigest-mcp typecheck" devdigest-mcp npm run typecheck
+step "devdigest-mcp tests"    devdigest-mcp npm test
 step "client typecheck"       client        pnpm typecheck
 step "client tests"           client        pnpm test
 [ "$build" = 1 ] && step "client build" client pnpm build

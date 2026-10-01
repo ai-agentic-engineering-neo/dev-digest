@@ -45,6 +45,22 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 ## Codebase Patterns
 
+- **2026-10-01** — `POST /pulls/:id/review` is fire-and-forget: it returns
+  `{ runs, reviews: [] }` as soon as the run rows exist, and the executor runs
+  detached (`void this.executor.executeRuns(...)`). The `ReviewRunResponse`
+  doc comment saying persisted reviews come back "once the (synchronous) run
+  completes" is wrong. A caller that wants the result must follow
+  `GET /runs/:id/events` (SSE) until it closes, then read
+  `GET /pulls/:id/reviews`. `src/modules/reviews/service.ts:144-148`,
+  `src/vendor/shared/contracts/review-api.ts:41-43`
+
+- **2026-10-01** — A run requested with `{agentId}` starts even when that agent
+  is disabled: `resolveTargets` uses `agents.getById`, which filters by
+  workspace and id but not `enabled`; only the `{all:true}` path
+  (`listEnabled`) honours the switch. A client that must not run disabled
+  agents has to check `GET /agents` itself. `src/modules/reviews/service.ts:62-65`,
+  `src/modules/agents/repository.ts:89-95`
+
 - **2026-09-19** — Skill stats (`GET /skills/stats`, `/skills/:id/stats`) are derived at read time, never stored: a run "pulled" a skill iff a line of `run_traces.trace->'prompt_assembly'->>'skills'` equals `### <skill name>` exactly (line-anchored, no regex/LIKE), over done runs of the linked agents in the last 30 days, and findings come through `reviews.run_id`. Consequences to know before "fixing" a number: a renamed skill starts a fresh history under its new name, runs from before the skill was linked or before traces existed count as not pulled, and a skill body that itself contains a `### <other-skill-name>` line would count as a pull of that other skill. Evidence: `src/modules/skills/helpers.ts` (`skillWasPulled`, `computeSkillStats`), `test/skills-stats.test.ts`.
 
 - **2026-09-19** — A skill reaches an agent's prompt only when BOTH switches are on — `skills.enabled` and `agent_skills.enabled` — and in `agent_skills.order`; `AgentsRepository.enabledSkillsForPrompt` is the single place that decides, and `POST /agents/:id/skills` (reorder) keeps each link's `enabled` (delete-not-in-list + upsert of `order`, one transaction) instead of the older delete-all/insert-all that reset every switch to on. Imports never store: `POST /skills/import/preview` parses `.md`/`.zip` (only the markdown core is inflated, with a size cap taken from the zip directory; other entries are listed as ignored and never read) and the caller confirms with `POST /skills` (`source: 'imported_file'`); third-party sources get a `> Third-party skill…` line in their prompt block. Evidence: `src/modules/agents/repository.ts` (`enabledSkillsForPrompt`, `setSkills`), `src/modules/skills/helpers.ts` (`extractFromArchive`), `test/skills.it.test.ts`.

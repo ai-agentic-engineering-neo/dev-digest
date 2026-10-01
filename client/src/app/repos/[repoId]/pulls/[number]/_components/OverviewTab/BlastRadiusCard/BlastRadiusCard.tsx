@@ -129,7 +129,7 @@ export function BlastRadiusCard({ prId, repoId, repoFullName, headSha }: BlastRa
           </div>
           {otherHidden > 0 && (
             <Button size="sm" kind="ghost" onClick={() => setShowAllOther((v) => !v)}>
-              {showAllOther ? t("card.showLess") : t("card.showMore", { count: otherHidden })}
+              {showAllOther ? t("card.showFewerEndpoints") : t("card.showMoreEndpoints", { count: otherHidden })}
             </Button>
           )}
         </div>
@@ -137,7 +137,7 @@ export function BlastRadiusCard({ prId, repoId, repoFullName, headSha }: BlastRa
 
       {hidden > 0 && (
         <Button size="sm" kind="ghost" onClick={() => setShowAll((v) => !v)}>
-          {showAll ? t("card.showLess") : t("card.showMore", { count: hidden })}
+          {showAll ? t("card.showFewerSymbols") : t("card.showMoreSymbols", { count: hidden })}
         </Button>
       )}
     </div>

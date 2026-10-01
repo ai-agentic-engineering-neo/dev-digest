@@ -67,9 +67,9 @@ describe("BlastRadiusCard", () => {
     expect(await screen.findByText("sym11")).toBeInTheDocument();
     expect(screen.queryByText("sym12")).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "Show 2 more" }));
+    await userEvent.click(screen.getByRole("button", { name: "Show 2 more symbols" }));
     expect(screen.getByText("sym13")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Show less" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Show fewer symbols" })).toBeInTheDocument();
   });
 
   it("lists endpoints that no symbol card claims, so the stat matches the page", async () => {
@@ -100,7 +100,7 @@ describe("BlastRadiusCard", () => {
 
     expect(await screen.findByText("GET /e5")).toBeInTheDocument();
     expect(screen.queryByText("GET /e6")).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Show 3 more" }));
+    await userEvent.click(screen.getByRole("button", { name: "Show 3 more endpoints" }));
     expect(screen.getByText("GET /e8")).toBeInTheDocument();
   });
 

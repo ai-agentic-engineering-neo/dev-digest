@@ -101,6 +101,15 @@ _None yet._
 
 ## Codebase Patterns
 
+- **2026-10-01** — A new `messages/en/*.json` namespace is auto-loaded by the
+  app (`i18n/request.ts` reads the folder) but NOT by tests:
+  `renderWithProviders` only registers the namespaces listed in
+  `src/test/render.tsx`, so a component under test fails with missing-message
+  errors until the namespace is added there. Related: ICU plural labels
+  (`{count, plural, one {…} other {…}}`) only work if the call site passes
+  `t(key, { count })`; a bare `t(key)` silently keeps "1 callers".
+  `src/test/render.tsx`, `messages/en/blast.json`
+
 - **2026-09-25** — The Settings → Models picker lists only OpenRouter models
   (`useProviderModels("openrouter")`) and always saves
   `{ provider: "openrouter", model }`, so a `FEATURE_MODELS` default on any

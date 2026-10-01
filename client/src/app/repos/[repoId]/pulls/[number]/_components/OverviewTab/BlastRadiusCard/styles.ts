@@ -1,0 +1,50 @@
+import type { CSSProperties } from "react";
+
+const ellipsis = {
+  minWidth: 0,
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+} satisfies CSSProperties;
+
+export const s = {
+  card: {
+    border: "1px solid var(--border)",
+    borderRadius: 10,
+    background: "var(--bg-elevated)",
+    padding: 18,
+    display: "flex",
+    flexDirection: "column",
+    gap: 16,
+    minWidth: 0,
+  } satisfies CSSProperties,
+  title: { fontSize: 13, fontWeight: 700, margin: 0 } satisfies CSSProperties,
+  hint: { fontSize: 12.5, color: "var(--text-muted)", margin: 0, lineHeight: 1.45 } satisfies CSSProperties,
+  center: { display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-start" } satisfies CSSProperties,
+  stats: { display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8 } satisfies CSSProperties,
+  stat: { display: "flex", flexDirection: "column", gap: 2, minWidth: 0 } satisfies CSSProperties,
+  statValue: { fontSize: 20, fontWeight: 700, lineHeight: 1.1 } satisfies CSSProperties,
+  statLabel: { fontSize: 11, color: "var(--text-muted)", ...ellipsis } satisfies CSSProperties,
+  banner: {
+    fontSize: 12.5,
+    color: "var(--warn)",
+    background: "var(--warn-bg)",
+    borderRadius: 6,
+    padding: "8px 10px",
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+    alignItems: "flex-start",
+  } satisfies CSSProperties,
+  bannerTitle: { display: "flex", alignItems: "center", gap: 8, fontWeight: 600 } satisfies CSSProperties,
+  list: { margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 12 } satisfies CSSProperties,
+  symbolHead: { display: "flex", alignItems: "baseline", gap: 8, minWidth: 0 } satisfies CSSProperties,
+  symbolName: { fontSize: 13, fontWeight: 600, flex: 1, ...ellipsis } satisfies CSSProperties,
+  symbolCount: { fontSize: 12, color: "var(--text-muted)", flexShrink: 0, whiteSpace: "nowrap" } satisfies CSSProperties,
+  callers: { margin: "6px 0 0", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 3 } satisfies CSSProperties,
+  caller: { display: "flex", alignItems: "baseline", gap: 8, fontSize: 12, minWidth: 0 } satisfies CSSProperties,
+  callerName: { color: "var(--text-secondary)", flexShrink: 0, maxWidth: "40%", ...ellipsis } satisfies CSSProperties,
+  callerPath: { flex: 1, color: "var(--text-muted)", textDecoration: "none", ...ellipsis } satisfies CSSProperties,
+  chips: { display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 } satisfies CSSProperties,
+  chipText: { maxWidth: 220, ...ellipsis, display: "inline-block", verticalAlign: "bottom" } satisfies CSSProperties,
+} as const;

@@ -1,11 +1,12 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Badge, Button, Icon, Skeleton } from "@devdigest/ui";
+import { Button, Icon, Skeleton } from "@devdigest/ui";
 import { usePrBlast, useResyncBlast } from "@/lib/hooks/blast";
 import { githubBlobUrl } from "@/lib/github-urls";
-import { blastStats, degradedReasonKey, symbolRows } from "./helpers";
+import { MAX_OTHER_ENDPOINTS, MAX_VISIBLE_SYMBOLS, STAT_ICON } from "./constants";
+import { blastStats, degradedReasonKey, hasImpact, symbolRows, unattributedEndpoints, type SymbolRow } from "./helpers";
 import { s } from "./styles";
 
 interface BlastRadiusCardProps {
@@ -21,6 +22,8 @@ export function BlastRadiusCard({ prId, repoId, repoFullName, headSha }: BlastRa
   const tBrief = useTranslations("brief");
   const { data, isLoading, isError, refetch } = usePrBlast(prId, headSha);
   const resync = useResyncBlast(repoId, prId);
+  const [showAll, setShowAll] = useState(false);
+  const [showAllOther, setShowAllOther] = useState(false);
 
   if (isLoading) {
     return (
@@ -44,7 +47,13 @@ export function BlastRadiusCard({ prId, repoId, repoFullName, headSha }: BlastRa
   }
 
   const stats = blastStats(data);
-  const rows = symbolRows(data);
+  // The summary counts every changed symbol; the list shows only those with an impact.
+  const rows = symbolRows(data).filter(hasImpact);
+  const visible = showAll ? rows : rows.slice(0, MAX_VISIBLE_SYMBOLS);
+  const hidden = rows.length - MAX_VISIBLE_SYMBOLS;
+  const otherEndpoints = unattributedEndpoints(data);
+  const otherVisible = showAllOther ? otherEndpoints : otherEndpoints.slice(0, MAX_OTHER_ENDPOINTS);
+  const otherHidden = otherEndpoints.length - MAX_OTHER_ENDPOINTS;
   const reasonKey = degradedReasonKey(data.reason);
   const statItems = [
     { key: "symbols", value: stats.symbols },
@@ -55,15 +64,22 @@ export function BlastRadiusCard({ prId, repoId, repoFullName, headSha }: BlastRa
 
   return (
     <div style={s.card}>
-      <h3 style={s.title}>{tBrief("block.blast")}</h3>
+      <h3 style={s.title}>
+        <Icon.Target size={14} aria-hidden />
+        {tBrief("block.blast")}
+      </h3>
 
       <div style={s.stats}>
-        {statItems.map((it) => (
-          <div key={it.key} style={s.stat}>
-            <span style={s.statValue}>{it.value}</span>
-            <span style={s.statLabel}>{t(`stat.${it.key}`, { count: it.value })}</span>
-          </div>
-        ))}
+        {statItems.map((it) => {
+          const StatIcon = Icon[STAT_ICON[it.key]];
+          return (
+            <span key={it.key} style={s.stat}>
+              <StatIcon size={14} aria-hidden />
+              <strong style={s.statValue}>{it.value}</strong>
+              <span style={s.statLabel}>{t(`stat.${it.key}`, { count: it.value })}</span>
+            </span>
+          );
+        })}
       </div>
 
       {data.degraded && (
@@ -88,53 +104,116 @@ export function BlastRadiusCard({ prId, repoId, repoFullName, headSha }: BlastRa
 
       {rows.length > 0 && (
         <ul style={s.list}>
-          {rows.map((row) => (
-            <li key={row.name} style={{ minWidth: 0 }}>
-              <div style={s.symbolHead}>
-                <span className="mono" style={s.symbolName} title={row.name}>{row.name}</span>
-                <span style={s.symbolCount}>{t("callerCount", { count: row.callers.length })}</span>
-              </div>
-              {row.callers.length > 0 && (
-                <ul style={s.callers}>
-                  {row.callers.map((c) => {
-                    const label = `${c.file}:${c.line}`;
-                    return (
-                      <li key={`${c.file}:${c.line}:${c.name}`} style={s.caller}>
-                        <span className="mono" style={s.callerName} title={c.name}>{c.name}</span>
-                        {repoFullName ? (
-                          <a
-                            className="mono"
-                            style={s.callerPath}
-                            href={githubBlobUrl(repoFullName, headSha, c.file, c.line)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title={label}
-                            aria-label={t("card.openOnGithub", { file: c.file, line: c.line })}
-                          >
-                            {label}
-                          </a>
-                        ) : (
-                          <span className="mono" style={s.callerPath} title={label}>{label}</span>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-              {(row.endpoints.length > 0 || row.crons.length > 0) && (
-                <div style={s.chips}>
-                  {row.endpoints.map((e) => (
-                    <Badge key={`e:${e}`} mono><span style={s.chipText} title={e}>{e}</span></Badge>
-                  ))}
-                  {row.crons.map((c) => (
-                    <Badge key={`c:${c}`} mono icon="Clock"><span style={s.chipText} title={c}>{c}</span></Badge>
-                  ))}
-                </div>
-              )}
-            </li>
+          {visible.map((row, i) => (
+            <SymbolCard
+              key={row.name}
+              row={row}
+              defaultOpen={i === 0}
+              repoFullName={repoFullName}
+              headSha={headSha}
+            />
           ))}
         </ul>
       )}
+
+      {otherEndpoints.length > 0 && (
+        <div style={s.other}>
+          <span style={s.otherLabel}>{t("card.otherEndpoints", { count: otherEndpoints.length })}</span>
+          <div style={s.chips}>
+            {otherVisible.map((e) => (
+              <span key={e} className="mono" style={s.endpointChip} title={e}>
+                <Icon.Globe size={12} aria-hidden />
+                <span style={s.chipText}>{e}</span>
+              </span>
+            ))}
+          </div>
+          {otherHidden > 0 && (
+            <Button size="sm" kind="ghost" onClick={() => setShowAllOther((v) => !v)}>
+              {showAllOther ? t("card.showLess") : t("card.showMore", { count: otherHidden })}
+            </Button>
+          )}
+        </div>
+      )}
+
+      {hidden > 0 && (
+        <Button size="sm" kind="ghost" onClick={() => setShowAll((v) => !v)}>
+          {showAll ? t("card.showLess") : t("card.showMore", { count: hidden })}
+        </Button>
+      )}
     </div>
+  );
+}
+
+interface SymbolCardProps {
+  row: SymbolRow;
+  defaultOpen: boolean;
+  repoFullName: string | null;
+  headSha: string;
+}
+
+/** One changed symbol: a collapsible header, its callers as GitHub links, then endpoint/cron chips. */
+function SymbolCard({ row, defaultOpen, repoFullName, headSha }: SymbolCardProps) {
+  const t = useTranslations("blast");
+  const [open, setOpen] = useState(defaultOpen);
+  const Chevron = open ? Icon.ChevronDown : Icon.ChevronRight;
+
+  return (
+    <li style={s.symbolCard}>
+      <button type="button" style={s.symbolHead} aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+        <Chevron size={14} aria-hidden />
+        <span style={s.symbolIcon}><Icon.Code size={14} aria-hidden /></span>
+        <span className="mono" style={s.symbolName} title={row.name}>{row.name}</span>
+        <span style={s.symbolCount}>{t("callerCount", { count: row.callers.length })}</span>
+      </button>
+
+      {open && (
+        <div style={s.symbolBody}>
+          {row.callers.length > 0 && (
+            <ul style={s.callers}>
+              {row.callers.map((c) => {
+                const label = `${c.file}:${c.line}`;
+                return (
+                  <li key={`${c.file}:${c.line}:${c.name}`} style={s.caller}>
+                    <span style={s.connector}><Icon.CornerDownRight size={13} aria-hidden /></span>
+                    {repoFullName ? (
+                      <a
+                        className="mono"
+                        style={s.callerPath}
+                        href={githubBlobUrl(repoFullName, headSha, c.file, c.line)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={label}
+                        aria-label={t("card.openOnGithub", { file: c.file, line: c.line })}
+                      >
+                        {label}
+                      </a>
+                    ) : (
+                      <span className="mono" style={s.callerPath} title={label}>{label}</span>
+                    )}
+                    <span className="mono" style={s.callerName} title={c.name}>{c.name}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {(row.endpoints.length > 0 || row.crons.length > 0) && (
+            <div style={s.chips}>
+              {row.endpoints.map((e) => (
+                <span key={`e:${e}`} className="mono" style={s.endpointChip} title={e}>
+                  <Icon.Globe size={12} aria-hidden />
+                  <span style={s.chipText}>{e}</span>
+                </span>
+              ))}
+              {row.crons.map((c) => (
+                <span key={`c:${c}`} className="mono" style={s.cronChip} title={c}>
+                  <Icon.Clock size={12} aria-hidden />
+                  <span style={s.chipText}>{c}</span>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </li>
   );
 }

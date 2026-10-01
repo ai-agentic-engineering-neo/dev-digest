@@ -19,6 +19,9 @@
     "loading": "Loading blast radius",
     "loadFailed": "Could not load the blast radius.",
     "retry": "Retry",
+    "otherEndpoints": "{count, plural, one {# more endpoint} other {# more endpoints}} reached through callers not listed above",
+    "showMore": "Show {count} more",
+    "showLess": "Show less",
     "openOnGithub": "Open {file} line {line} on GitHub"
   },
   "degraded": {

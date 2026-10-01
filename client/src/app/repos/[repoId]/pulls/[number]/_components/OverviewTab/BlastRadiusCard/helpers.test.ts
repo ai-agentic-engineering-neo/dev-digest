@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blastStats, degradedReasonKey, symbolRows } from "./helpers";
+import { blastStats, degradedReasonKey, hasImpact, symbolRows, unattributedEndpoints } from "./helpers";
 
 const data = {
   changed_symbols: [
@@ -47,6 +47,18 @@ describe("blast helpers", () => {
     };
     expect(blastStats(dup).symbols).toBe(1);
     expect(symbolRows(dup)).toHaveLength(1);
+  });
+
+  it("lists only symbols with an impact, while the stat still counts all", () => {
+    const rows = symbolRows(data);
+    expect(rows.map((r) => r.name)).toEqual(["a", "b", "c"]);
+    expect(rows.filter(hasImpact).map((r) => r.name)).toEqual(["a", "c"]);
+    expect(blastStats(data).symbols).toBe(3);
+  });
+
+  it("returns flat endpoints that no group claims", () => {
+    const d = { ...data, impacted_endpoints: ["GET /a", "GET /x"] };
+    expect(unattributedEndpoints(d)).toEqual(["GET /x"]);
   });
 
   it("maps wire reasons to i18n keys", () => {

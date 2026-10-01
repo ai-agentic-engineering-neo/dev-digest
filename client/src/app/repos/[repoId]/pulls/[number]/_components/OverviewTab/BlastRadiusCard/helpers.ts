@@ -60,6 +60,22 @@ export function symbolRows(data: BlastData): SymbolRow[] {
   });
 }
 
+/**
+ * Endpoints the facade reports that are not attached to any symbol card (their
+ * callers fell outside the facade's caller cap). Listed separately so the
+ * endpoints stat never counts something the page does not show.
+ */
+export function unattributedEndpoints(data: BlastData): string[] {
+  const attributed = new Set<string>();
+  for (const d of data.downstream) for (const e of d.endpoints_affected) attributed.add(e);
+  return data.impacted_endpoints.filter((e) => !attributed.has(e));
+}
+
+/** A symbol earns a card in the list only when something downstream depends on it. */
+export function hasImpact(row: SymbolRow): boolean {
+  return row.callers.length > 0 || row.endpoints.length > 0 || row.crons.length > 0;
+}
+
 export function degradedReasonKey(reason: BlastDegradedReason | null): string | null {
   return reason ? DEGRADED_REASON_KEY[reason] : null;
 }

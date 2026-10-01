@@ -47,11 +47,69 @@ describe("BlastRadiusCard", () => {
     expect(screen.getByText("nightly-billing")).toBeInTheDocument();
   });
 
+  it("collapses symbols past the cap behind a show-more button", async () => {
+    const names = Array.from({ length: 14 }, (_, i) => `sym${String(i).padStart(2, "0")}`);
+    mockFetch({
+      "GET /pulls/pr1/blast": {
+        ...base,
+        changed_symbols: names.map((name) => ({ name, file: "src/a.ts", kind: "function" })),
+        downstream: names.map((symbol) => ({
+          symbol,
+          callers: [{ name: "caller", file: "src/c.ts", line: 1 }],
+          endpoints_affected: [],
+          crons_affected: [],
+        })),
+        impacted_endpoints: [],
+      },
+    });
+    renderWithProviders(<BlastRadiusCard {...props} />);
+
+    expect(await screen.findByText("sym11")).toBeInTheDocument();
+    expect(screen.queryByText("sym12")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Show 2 more" }));
+    expect(screen.getByText("sym13")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Show less" })).toBeInTheDocument();
+  });
+
+  it("lists endpoints that no symbol card claims, so the stat matches the page", async () => {
+    mockFetch({
+      "GET /pulls/pr1/blast": {
+        ...base,
+        downstream: [
+          {
+            symbol: "chargeCard",
+            callers: [{ name: "checkout", file: "src/checkout.ts", line: 42 }],
+            endpoints_affected: ["POST /orders"],
+            crons_affected: [],
+          },
+        ],
+        impacted_endpoints: ["POST /orders", "GET /health"],
+      },
+    });
+    renderWithProviders(<BlastRadiusCard {...props} />);
+
+    expect(await screen.findByText(/1 more endpoint reached through callers/)).toBeInTheDocument();
+    expect(screen.getByText("GET /health")).toBeInTheDocument();
+  });
+
+  it("collapses a long list of unattributed endpoints", async () => {
+    const eps = Array.from({ length: 9 }, (_, i) => `GET /e${i}`);
+    mockFetch({ "GET /pulls/pr1/blast": { ...base, impacted_endpoints: eps } });
+    renderWithProviders(<BlastRadiusCard {...props} />);
+
+    expect(await screen.findByText("GET /e5")).toBeInTheDocument();
+    expect(screen.queryByText("GET /e6")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Show 3 more" }));
+    expect(screen.getByText("GET /e8")).toBeInTheDocument();
+  });
+
   it("shows the empty message when not degraded and no callers", async () => {
     mockFetch({ "GET /pulls/pr1/blast": base });
     renderWithProviders(<BlastRadiusCard {...props} />);
     expect(await screen.findByText(/no downstream callers found/)).toBeInTheDocument();
-    expect(screen.getByText("chargeCard")).toBeInTheDocument();
+    // A symbol with no downstream impact gets no card; the empty message stands in.
+    expect(screen.queryByText("chargeCard")).not.toBeInTheDocument();
   });
 
   it("shows the degraded banner (not the empty claim) and resyncs", async () => {

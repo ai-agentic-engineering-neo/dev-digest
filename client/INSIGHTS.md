@@ -172,6 +172,12 @@ _None yet._
 
 ## Recurring Errors & Fixes
 
+- **2026-10-01** — Running `pnpm build` while `next dev` is up overwrites the
+  shared `client/.next`, and the dev server then answers every page with 500:
+  `Cannot find module './vendor-chunks/@formatjs+icu-messageformat-parser@…js'`
+  (from `.next/server/webpack-runtime.js`). Stop the dev server, `rm -rf
+  .next`, start it again — or run builds only when dev is down.
+
 - **2026-09-26** — A new PR-scoped query key goes stale unless it is added to
   the invalidations by hand: `useFindingAction`, `useRunReview`,
   `useDeleteRun` and `useDeleteReview` in `src/lib/hooks/reviews.ts` each

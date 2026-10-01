@@ -38,8 +38,17 @@ export function buildSummary(
 export function toBlastRadiusResponse(result: BlastResult): BlastRadiusResponse {
   // Known limitation: BlastCallerRow.viaSymbol is a bare name, so same-named symbols in different files merge into one group.
   const groups = new Map<string, BlastCallerRow[]>();
-  for (const s of result.changedSymbols) if (!groups.has(s.name)) groups.set(s.name, []);
-  for (const c of result.callers) {
+  const declFiles = new Map<string, Set<string>>();
+  for (const s of result.changedSymbols) {
+    if (!groups.has(s.name)) groups.set(s.name, []);
+    const files = declFiles.get(s.name);
+    if (files) files.add(s.file);
+    else declFiles.set(s.name, new Set([s.file]));
+  }
+  // A symbol's own declaring file is never one of its callers. The facade only
+  // enforces this on its ripgrep path, so the persistent path is filtered here.
+  const callerRows = result.callers.filter((c) => !declFiles.get(c.viaSymbol)?.has(c.file));
+  for (const c of callerRows) {
     const g = groups.get(c.viaSymbol);
     if (g) g.push(c);
     else groups.set(c.viaSymbol, [c]);
@@ -58,7 +67,7 @@ export function toBlastRadiusResponse(result: BlastResult): BlastRadiusResponse 
     });
   }
 
-  const uniqueCallers = new Set(result.callers.map((c) => `${c.file}:${c.symbol}`)).size;
+  const uniqueCallers = new Set(callerRows.map((c) => `${c.file}:${c.symbol}`)).size;
   const crons = new Set(downstream.flatMap((d) => d.crons_affected)).size;
 
   return {

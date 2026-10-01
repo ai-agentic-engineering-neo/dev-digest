@@ -31,6 +31,14 @@ describe('BlastService.getBlast', () => {
     expect(res.degraded).toBe(false);
   });
 
+  it('logs one info line saying where the map came from', async () => {
+    const { service } = make({ repoId: 'r1', headSha: 'sha' });
+    const info = vi.fn();
+    await service.getBlast('w1', 'p1', { info } as never);
+    expect(info).toHaveBeenCalledTimes(1);
+    expect(info.mock.calls[0]![0]).toMatchObject({ prId: 'p1', repoId: 'r1', degraded: false, source: 'repo-intel-index' });
+  });
+
   it('throws NotFoundError and never calls the facade for a missing PR', async () => {
     const { service, getBlastRadius } = make(undefined);
     await expect(service.getBlast('w1', 'p1')).rejects.toBeInstanceOf(NotFoundError);

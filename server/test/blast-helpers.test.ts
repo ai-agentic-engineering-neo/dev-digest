@@ -49,6 +49,16 @@ describe('toBlastRadiusResponse', () => {
     expect(r.impacted_endpoints).toEqual(['GET /y', 'POST /x']);
   });
 
+  it("never lists a symbol's own declaring file among its callers", () => {
+    const r = toBlastRadiusResponse({
+      changedSymbols: [sym('a')],
+      callers: [caller('src/a.ts', 'self', 'a', 1), caller('y.ts', 'fy', 'a', 2)],
+      impactedEndpoints: [],
+    });
+    expect(r.downstream[0]!.callers).toEqual([{ name: 'fy', file: 'y.ts', line: 2 }]);
+    expect(r.summary).toContain('1 downstream caller,');
+  });
+
   it('falls back to empty facts when factsByFile is absent', () => {
     const { factsByFile: _f, ...rest } = result;
     const r = toBlastRadiusResponse(rest);

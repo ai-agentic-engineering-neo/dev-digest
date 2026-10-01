@@ -1,5 +1,6 @@
 import type { BlastRadiusResponse } from '@devdigest/shared';
 import type { Container } from '../../platform/container.js';
+import type { PinoLike as Logger } from '../../platform/run-logger.js';
 import { NotFoundError } from '../../platform/errors.js';
 import type { RepoIntel } from '../repo-intel/types.js';
 import { BlastRepository, type BlastRepo } from './repository.js';
@@ -26,11 +27,30 @@ export class BlastService {
     });
   }
 
-  async getBlast(workspaceId: string, prId: string): Promise<BlastRadiusResponse> {
+  async getBlast(workspaceId: string, prId: string, logger?: Logger): Promise<BlastRadiusResponse> {
     const scope = await this.deps.repo.getPullScope(workspaceId, prId);
     if (!scope) throw new NotFoundError('Pull request not found');
     const paths = await this.deps.repo.getChangedPaths(prId);
+    const startedAt = Date.now();
     const result = await this.deps.repoIntel.getBlastRadius(scope.repoId, paths);
-    return toBlastRadiusResponse(result);
+    const response = toBlastRadiusResponse(result);
+    // Read-only over the precomputed index: nothing is parsed or rebuilt here.
+    // When the facade degrades it falls back to ripgrep instead, and says so.
+    logger?.info(
+      {
+        prId,
+        repoId: scope.repoId,
+        changedFiles: paths.length,
+        symbols: response.changed_symbols.length,
+        groups: response.downstream.length,
+        endpoints: response.impacted_endpoints.length,
+        degraded: response.degraded,
+        reason: response.reason,
+        source: response.degraded ? 'ripgrep-fallback' : 'repo-intel-index',
+        ms: Date.now() - startedAt,
+      },
+      'blast radius served',
+    );
+    return response;
   }
 }

@@ -19,7 +19,7 @@ export default async function blastRoutes(appBase: FastifyInstance) {
     { schema: { params: IdParams, response: { 200: BlastRadiusResponse } } },
     async (req) => {
       const { workspaceId } = await getContext(container, req);
-      return service.getBlast(workspaceId, req.params.id);
+      return service.getBlast(workspaceId, req.params.id, req.log);
     },
   );
 }

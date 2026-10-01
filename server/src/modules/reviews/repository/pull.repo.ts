@@ -1,8 +1,8 @@
 import { and, eq } from 'drizzle-orm';
 import type { Db } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
-import type { Intent } from '@devdigest/shared';
 import type { PullRow } from '../../../db/rows.js';
+import { prIntentWriteToValues, type PrIntentWrite } from '../helpers.js';
 
 // ---- PR lookup (workspace-scoped) -----------------------------------------
 
@@ -44,25 +44,23 @@ export async function markReviewed(db: Db, prId: string, sha: string): Promise<v
     .where(eq(t.pullRequests.id, prId));
 }
 
-// ---- intent ---------------------------------------------------------------
-
-export async function upsertIntent(db: Db, prId: string, intent: Intent): Promise<void> {
-  await db
-    .insert(t.prIntent)
-    .values({
-      prId,
-      intent: intent.intent,
-      inScope: intent.in_scope,
-      outOfScope: intent.out_of_scope,
-    })
-    .onConflictDoUpdate({
-      target: t.prIntent.prId,
-      set: { intent: intent.intent, inScope: intent.in_scope, outOfScope: intent.out_of_scope },
-    });
+/** A PR's commit messages, oldest-first is not guaranteed — callers cap and order. */
+export async function getPrCommits(
+  db: Db,
+  prId: string,
+): Promise<(typeof t.prCommits.$inferSelect)[]> {
+  return db.select().from(t.prCommits).where(eq(t.prCommits.prId, prId));
 }
 
-export async function getIntent(db: Db, prId: string): Promise<Intent | undefined> {
+// ---- intent ---------------------------------------------------------------
+
+export async function upsertIntent(db: Db, prId: string, w: PrIntentWrite): Promise<void> {
+  const values = prIntentWriteToValues(prId, w);
+  const { prId: _pk, ...set } = values;
+  await db.insert(t.prIntent).values(values).onConflictDoUpdate({ target: t.prIntent.prId, set });
+}
+
+export async function getIntent(db: Db, prId: string): Promise<typeof t.prIntent.$inferSelect | undefined> {
   const [row] = await db.select().from(t.prIntent).where(eq(t.prIntent.prId, prId));
-  if (!row) return undefined;
-  return { intent: row.intent, in_scope: row.inScope, out_of_scope: row.outOfScope };
+  return row;
 }

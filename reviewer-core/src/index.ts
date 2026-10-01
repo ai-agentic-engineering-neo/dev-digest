@@ -16,7 +16,11 @@ export {
   assemblePrompt,
   wrapUntrusted,
   type PromptParts,
+  type PromptIntent,
   type AssembledPrompt,
+  type PromptSectionMeta,
+  type PromptSectionName,
+  type PromptSectionOrigin,
 } from './prompt.js';
 
 // Citation grounding — the mandatory mechanical gate for diff findings.

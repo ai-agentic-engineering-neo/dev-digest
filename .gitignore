@@ -26,3 +26,6 @@ test-results/
 
 # pr-self-review output (per-run report + marker)
 .claude/pr-self-review/
+
+# check-all.sh result cache (keyed by working-tree hash)
+.claude/cache/

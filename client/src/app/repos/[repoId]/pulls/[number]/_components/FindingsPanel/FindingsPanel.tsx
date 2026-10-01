@@ -7,7 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Toggle, EmptyState, SeverityBadge, type Severity } from "@devdigest/ui";
 import type { FindingRecord } from "@devdigest/shared";
-import { FindingCard } from "../FindingCard";
+import { FindingCard } from "@/components/finding-card";
 import { useFindingAction } from "../../../../../../../lib/hooks/reviews";
 import { KEY_TO_ACTION, SEVERITY_ORDER } from "./constants";
 import { severityCounts, visibleFindings } from "./helpers";

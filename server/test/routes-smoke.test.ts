@@ -64,4 +64,11 @@ describe('routes (no DB)', () => {
     expect(res.json().error.code).toBe('validation_error');
     await app.close();
   });
+
+  it('GET /pulls/:id/smart-diff with a non-uuid id → 422 before touching the DB', async () => {
+    const app = await buildApp({ config });
+    const res = await app.inject({ method: 'GET', url: '/pulls/not-a-uuid/smart-diff' });
+    expect(res.statusCode).toBe(422);
+    await app.close();
+  });
 });

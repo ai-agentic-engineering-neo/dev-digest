@@ -5,7 +5,12 @@
 import React from "react";
 import { commentTargetFor, type CommentThread, type DiffCommentApi, cs } from "../comments";
 import { type Line } from "../helpers";
-import { s, lineRowFor, lineSignFor } from "../styles";
+import type { FindingRecord } from "@devdigest/shared";
+import type { DiffFindingApi } from "../findings";
+import { FindingCard } from "@/components/finding-card";
+import { SEV_COLOR, SEV_COLOR_FALLBACK } from "@/components/finding-card/constants";
+import { FindingLineTag, topSeverity } from "../FindingLineTag";
+import { s, lineRowFor, lineSignFor, findingBarFor } from "../styles";
 import { CommentThreadView } from "../CommentThreadView";
 import { InlineComposer } from "../InlineComposer";
 
@@ -14,11 +19,15 @@ export function CodeLine({
   path,
   threads,
   commenting,
+  findings = [],
+  findingApi,
 }: {
   ln: Line;
   path: string;
   threads: CommentThread[];
   commenting?: DiffCommentApi;
+  findings?: FindingRecord[];
+  findingApi?: DiffFindingApi;
 }) {
   const [hover, setHover] = React.useState(false);
   const [composing, setComposing] = React.useState(false);
@@ -34,6 +43,9 @@ export function CodeLine({
   const sign = ln.kind === "add" ? "+" : ln.kind === "del" ? "−" : "";
   const target = commenting?.canComment ? commentTargetFor(ln) : null;
   const showAdd = hover && !!target && !composing;
+  const hasFindings = !!findingApi && findings.length > 0;
+  const top = hasFindings ? topSeverity(findings) : undefined;
+  const barColor = top ? (SEV_COLOR[top] ?? SEV_COLOR_FALLBACK) : null;
 
   return (
     <div
@@ -41,7 +53,7 @@ export function CodeLine({
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
-      <div style={lineRowFor(ln.kind)}>
+      <div style={{ ...lineRowFor(ln.kind), ...(barColor ? findingBarFor(barColor) : null) }}>
         <span className="mono tnum" style={{ ...s.lineNo, position: "relative" }}>
           {showAdd && target && (
             <button
@@ -62,7 +74,22 @@ export function CodeLine({
         <span className="mono" style={s.lineText}>
           {ln.text || " "}
         </span>
+        {hasFindings && <FindingLineTag findings={findings} />}
       </div>
+
+      {findingApi &&
+        findings.map((f) => (
+          <div key={f.id} style={s.findingRail}>
+            <FindingCard
+              f={f}
+              defaultExpanded
+              onAction={(a) => findingApi.onAction(f.id, a)}
+              pending={findingApi.pendingFindingId === f.id}
+              repoFullName={findingApi.repoFullName}
+              headSha={findingApi.headSha}
+            />
+          </div>
+        ))}
 
       {commenting &&
         commenting.showComments &&

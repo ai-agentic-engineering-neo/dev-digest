@@ -64,6 +64,15 @@ export const s = {
     color: "var(--text-primary)",
     paddingRight: 12,
   } satisfies CSSProperties,
+  findingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: "50%",
+    background: "var(--crit)",
+    flexShrink: 0,
+  } satisfies CSSProperties,
+  /** Indented rail for finding cards, aligned under the code (past gutter). */
+  findingRail: { margin: "6px 14px 8px 58px" } satisfies CSSProperties,
 } as const;
 
 /** Chevron rotates 90deg when the file card is open. */
@@ -79,6 +88,11 @@ export function chevronFor(open: boolean): CSSProperties {
 export function lineRowFor(kind: Line["kind"]): CSSProperties {
   const background = kind === "add" ? "var(--code-add)" : kind === "del" ? "var(--code-del)" : "transparent";
   return { display: "flex", alignItems: "stretch", fontSize: 13, lineHeight: "20px", background };
+}
+
+/** Coloured left bar for a row that carries findings. */
+export function findingBarFor(color: string): CSSProperties {
+  return { boxShadow: `inset 3px 0 0 ${color}` };
 }
 
 /** Gutter sign colour per line kind. */

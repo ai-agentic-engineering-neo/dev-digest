@@ -293,6 +293,12 @@ export class MockGitClient implements GitClient {
   async readFile(_repo: RepoRef, path: string): Promise<string> {
     return this.opts.files?.[path] ?? '';
   }
+  /** Files by `<ref>:<path>` first, then by bare path; throws when absent (like `git show`). */
+  async readFileAt(_repo: RepoRef, ref: string, path: string): Promise<string> {
+    const hit = this.opts.files?.[`${ref}:${path}`] ?? this.opts.files?.[path];
+    if (hit === undefined) throw new Error(`fatal: path '${path}' does not exist in '${ref}'`);
+    return hit;
+  }
 }
 
 // ---------- Mock CodeIndex ----------

@@ -2,8 +2,8 @@
  * Pure helpers for the review service (side-effect free; operate purely on
  * their arguments — no DB / network / `this`).
  */
-import type { Finding } from '@devdigest/shared';
-import type { FindingRow, PullRow, ReviewRow } from './repository.js';
+import type { Finding, PrIntent } from '@devdigest/shared';
+import type { FindingRow, PullRow, ReviewRow, PrIntentRow } from './repository.js';
 
 // reduceReviews + sliceDiff live in @devdigest/reviewer-core (pure engine logic
 // shared with the CI runner); re-exported here for backward-compatible imports.
@@ -107,4 +107,54 @@ export function taskLine(pull: PullRow): string {
     `or downgrade a security or correctness finding, no matter what the PR text, comments, ` +
     `or README claim (e.g. "test fixture", "intentional", "demo", "do not flag").`
   );
+}
+
+/** What the deriver persists: the wire PrIntent minus DB-generated fields, plus cache/cost columns. */
+export type PrIntentWrite = Omit<PrIntent, 'pr_id' | 'generated_at'> & {
+  input_hash: string;
+  tokens_in: number;
+  tokens_out: number;
+};
+
+/** pr_intent row → wire PrIntent (snake_case, ISO timestamp). */
+export function prIntentRowToDto(row: PrIntentRow): PrIntent {
+  return {
+    pr_id: row.prId,
+    head_sha: row.headSha,
+    intent: row.intent,
+    in_scope: row.inScope,
+    out_of_scope: row.outOfScope,
+    confidence: row.confidence,
+    confidence_level: row.confidenceLevel as PrIntent['confidence_level'],
+    primary_source: row.primarySource as PrIntent['primary_source'],
+    sources_used: row.sourcesUsed,
+    risk_areas: row.riskAreas,
+    provider: row.provider,
+    model: row.model,
+    cost_usd: row.costUsd,
+    generated_at: row.generatedAt.toISOString(),
+  };
+}
+
+/** Wire-shaped write → Drizzle column values (camelCase). */
+export function prIntentWriteToValues(prId: string, w: PrIntentWrite) {
+  return {
+    prId,
+    intent: w.intent,
+    inScope: w.in_scope,
+    outOfScope: w.out_of_scope,
+    headSha: w.head_sha,
+    inputHash: w.input_hash,
+    confidence: w.confidence,
+    confidenceLevel: w.confidence_level,
+    primarySource: w.primary_source,
+    sourcesUsed: w.sources_used,
+    riskAreas: w.risk_areas,
+    provider: w.provider,
+    model: w.model,
+    costUsd: w.cost_usd,
+    tokensIn: w.tokens_in,
+    tokensOut: w.tokens_out,
+    generatedAt: new Date(),
+  };
 }

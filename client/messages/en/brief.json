@@ -15,5 +15,61 @@
     "blame": "blame",
     "noHistory": "No history available for this line.",
     "noCommits": "No commits found for this line."
+  },
+  "prBrief": {
+    "title": "PR Brief"
+  },
+  "intentCard": {
+    "title": "Intent",
+    "loading": "Deriving intent…",
+    "loadFailed": "Couldn't load the PR intent.",
+    "retry": "Retry",
+    "empty": "No intent derived yet.",
+    "emptyHint": "It is derived automatically when a review starts, or you can generate it now.",
+    "generate": "Generate intent",
+    "regenerate": "Regenerate",
+    "regenerateFailed": "Couldn't regenerate the intent. Try again.",
+    "stale": "This intent was derived from an earlier commit of the PR.",
+    "inScope": "In scope",
+    "outOfScope": "Out of scope",
+    "noneStated": "None stated",
+    "riskAreas": "Risk areas",
+    "noRisks": "No risk areas flagged.",
+    "showDetails": "Show explanation",
+    "hideDetails": "Hide explanation",
+    "sources": "Sources",
+    "confidence": {
+      "low": "Low confidence",
+      "medium": "Medium confidence",
+      "high": "High confidence"
+    },
+    "lowHint": "Inferred from indirect signals — treat it as a guess, not the author's stated purpose.",
+    "sourceKind": {
+      "description": "Description",
+      "linkedIssue": "Issue",
+      "planSpec": "Plan / spec",
+      "commits": "Commits",
+      "branch": "Branch",
+      "filePaths": "File paths"
+    },
+    "sourceStatus": {
+      "used": "used",
+      "unreadable": "unreadable",
+      "skippedExternal": "external, not fetched",
+      "unresolved": "not resolved"
+    },
+    "riskKind": {
+      "security": "Security",
+      "data": "Data",
+      "performance": "Performance",
+      "compatibility": "Compatibility",
+      "behavior": "Behavior",
+      "other": "Other"
+    },
+    "footer": "Derived by {model}",
+    "cost": "Cost {cost}",
+    "truncated": "truncated",
+    "sourceTitle": "{ref} — {status}",
+    "sourceTitleTruncated": "{ref} — {status} (truncated)"
   }
 }

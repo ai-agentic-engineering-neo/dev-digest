@@ -41,6 +41,17 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 ## Codebase Patterns
 
+- **2026-09-26** — "Latest review per agent" (keep `kind === 'review'`, newest
+  per `agentId ?? 'none'`) is implemented three times on purpose, because a
+  server module may not import another module's helpers: `pickCountedReviews`
+  in `server/src/modules/pulls/helpers.ts`, `pickLatestReviewPerAgent` in
+  `server/src/modules/reviews/smart-diff/helpers.ts`, and
+  `latestFindingsPerAgent` in `client/src/app/repos/[repoId]/pulls/helpers.ts`.
+  Change the rule in one and you must change all three, or list counts, Smart
+  Diff dots and inline cards disagree. They already differ on one point: the
+  server Smart Diff drops dismissed findings (`finding_lines`), the client
+  helper keeps them, so a file with only dismissed findings shows a muted card
+  but no dot.
 - **2026-08-05** — Pre-staged-for-a-lesson goes well beyond the empty tables `server/INSIGHTS.md` lists: for skills, the DB tables, the `@devdigest/shared` contracts, the `## Skills / rules` prompt section, the trace-drawer block + its colour token, and the entire `messages/en/skills.json` i18n namespace all ship in the starter with no module and no screen behind them — search for existing scaffolding before writing any of it. Evidence: `server/src/vendor/shared/contracts/knowledge.ts:114-141`, `reviewer-core/src/prompt.ts:109`, `client/src/app/repos/[repoId]/pulls/[number]/_components/RunTraceDrawer/constants.ts:16`, `client/messages/en/skills.json`.
 
   - **2026-08-05** — Conventions was staged even further than skills — table, `ConventionCandidate` contract, `FEATURE_MODELS.conventions`, `repoIntel.getConventionSamples()`, the whole `messages/en/conventions.json` namespace, `activeKeyFor("/conventions")` AND the mock adapter's schema names all shipped with no module, so the build was assembly, not authoring. Evidence: `server/src/modules/repo-intel/service.ts:630`, `client/src/components/app-shell/helpers.ts:31`, `docs/specs/conventions.md` §2.
@@ -50,6 +61,34 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 - **2026-07-29** — `.gitignore` carries un-ignore rules for an `agent-runner/dist/` that does not exist yet; they are pre-staged for the Export-to-CI lesson (L06), not leftovers to clean up. Evidence: `.gitignore:3-6`, `reviewer-core/README.md:7-9`.
 
 ## Tool & Library Notes
+
+- **2026-09-25** — A `tools` allowlist does not make a subagent read-only
+  while it has `Bash`: `> file`, `tee` and `sed -i` still write, and
+  `permissionMode: plan` does not close that gap. `architecture-reviewer`
+  is read-only only because it has no Bash; `test-writer`, `plan-verifier`
+  and `doc-writer` are fenced by inline `PreToolUse` hooks that run
+  `.claude/hooks/agent-guard.sh <profile>` (exit 2 blocks). Test the script
+  with synthetic input: `printf '%s' '{"tool_name":"Write","tool_input":
+  {"file_path":"'$PWD'/server/src/x.ts"}}' | CLAUDE_PROJECT_DIR=$PWD
+  .claude/hooks/agent-guard.sh test-writer; echo $?` prints `2`.
+  `planner` and `researcher` still rely on their prompt alone.
+  `.claude/hooks/agent-guard.sh`
+
+- **2026-09-25** — An agent file added to `.claude/agents/` is not callable in
+  the session that created it: `Agent` with `subagent_type: "researcher"`
+  fails with `Agent type 'researcher' not found. Available agents: claude,
+  claude-code-guide, Explore, general-purpose, Plan, statusline-setup`.
+  Restart Claude Code, then check `/agents`; until then, delegate to
+  `general-purpose` with a prompt that says to read the agent file first.
+  `.claude/agents/researcher.md`
+
+- **2026-09-25** — Subagents can spawn subagents by default (up to three
+  layers below the main conversation), so "single-level" is not automatic:
+  omit `Agent` from the agent's `tools` list (or set
+  `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1`). `planner`, `implementer` and
+  `researcher` all rely on the omission. Source:
+  https://code.claude.com/docs/en/sub-agents (read through a summarizing
+  fetch, so verify before quoting). `.claude/agents/planner.md:4`
 
 - **2026-07-29** — Half this repo is pnpm and half is npm, so running `pnpm install` in `reviewer-core/` or `e2e/` would create a second competing lockfile — match the lockfile already in the directory, not the root README's pnpm prerequisite.
 
@@ -80,6 +119,22 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 - **2026-08-05** — Built the Conventions Extractor (spec + roadmap in `docs/specs/conventions.md`): `modules/conventions/`, migration 0015, the `/repos/[repoId]/conventions` page and the skill-draft modal. The design premise — a model proposes, code samples and code verifies — is the same grounding-gate shape `reviewer-core` already uses for findings.
 
 ## Open Questions
+
+- **2026-09-25** — Do inline `hooks:` in a subagent's frontmatter really
+  fire and block for `test-writer`, `plan-verifier` and `doc-writer`?
+  `agent-guard.sh` is verified only against synthetic hook JSON, not inside
+  a running subagent. After a restart, ask `test-writer` to write a file
+  under `server/src/`; it must be refused with `agent-guard(test-writer)`.
+  If it is not, move the hooks to `.claude/settings.json` with a matcher.
+  `.claude/agents/test-writer.md:11-17`
+
+- **2026-09-25** — Does `skills:` in agent frontmatter really preload
+  `onion-architecture` and `frontend-ui-architecture` for `planner` and
+  `implementer`? The rule comes from the subagent docs, not from a run in
+  this repo. After a restart, delegate one step from
+  `docs/improvement-plan.md` and check that the report cites layering rules;
+  if it does not, move the skills into the delegation prompt.
+  `.claude/agents/implementer.md:6-8`
 
 - **2026-08-05** — Is `repoIntel.getConventionSamples()` filtering tests out right for this feature? It reuses the review-context rank filter (`isJunkPath` drops `.test.`/`.spec.`), so testing conventions — some of the most useful house rules — are structurally invisible to the extractor. Evidence: `server/src/modules/repo-intel/service.ts:629-630,709-728`.
   **Fixed 2026-09-20** — `isJunkPath` is unchanged; extract adds

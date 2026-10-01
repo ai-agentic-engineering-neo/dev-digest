@@ -66,11 +66,13 @@ time**, together with its name, annotations and argument shape.
      - `failed`/`cancelled` → error built from `RunSummary.error`.
   6. Timeout → `isError: true`, message names `run_id` and tells the caller to retrieve the result later via `get_findings(repo, pr, run_id)`. The run is **left running** server-side (sunk LLM cost is not thrown away).
 
-### 5. `get_blast_radius` (stub — real implementation is future homework)
-- **Description:** `Get the blast radius (impact map) of a pull request — which modules/consumers it affects. Not yet implemented.`
+### 5. `get_blast_radius`
+> **Amended 2026-10-01:** implemented (previously a stub). Text below is the current behaviour.
+- **Description:** `Get the blast radius of a pull request: changed symbols, downstream callers (file:line), affected endpoints and crons, and whether the repo index was degraded.`
 - **Annotations:** `{ readOnlyHint: true, idempotentHint: true, destructiveHint: false, openWorldHint: true }`
-- **Args (flat):** `repo: string`, `pr: number` — already resolved via the shared resolver (validates repo/PR exist now, so the real implementation starts from a working input path).
-- **Output (stable, future-proof shape):** `{ status: 'not_implemented', repo, pr, message, affected_files?: string[], affected_modules?: string[], risk_level?: 'low'|'medium'|'high' }` — returned as a **normal result** (`isError: false`); this is a known, permanent-for-now capability gap, not a transient failure a model should retry.
+- **Args (flat):** `repo: string`, `pr: number` — resolved via the shared resolver to `pr_id`.
+- **Flow:** resolve → `GET /pulls/:pr_id/blast` (parsed with the shared `BlastRadiusResponse`) → return `{ repo, pr, ...response }`. No LLM, same data as the browser.
+- **Output:** `{ repo, pr, changed_symbols[{name,file,kind}], downstream[{symbol, callers[{name,file,line}], endpoints_affected[], crons_affected[]}], summary, degraded: boolean, reason: 'flag_off'|'index_failed'|'index_partial'|'repo_too_large'|'no_data'|null, impacted_endpoints[] }`. A degraded index is a normal result (`isError: false`); API failures map to tool errors like the sibling tools (404 -> not found, contract mismatch -> contract error).
 
 ## Error messages ("error leads forward" — one sentence what happened + one sentence what to call next)
 
@@ -125,7 +127,7 @@ Hermetic only (`vitest`), no `*.it.test.ts` tier — nothing here duplicates wha
 - `domain/matching.test.ts` — repo/PR match + both not-found paths, once (reused by three tools).
 - `tools/list-agents.test.ts`, `get-conventions.test.ts` (accepted/pending filter), `get-findings.test.ts` (success + run-not-found).
 - `tools/run-agent-on-pr.test.ts` — needs a small local fake SSE server (`node:http`), not a plain `fetch` stub, to exercise stream-close-success, stream-close-failed, and the 120s-timeout path (`RUN_TIMEOUT_MS` injectable via `config.ts` so tests use e.g. 50ms) — and assert `POST /runs/:id/cancel` is **never** called on timeout.
-- `tools/get-blast-radius.test.ts` — trivial, asserts `status: 'not_implemented'`, `isError: false`.
+- `tools/get-blast-radius.test.ts` — (amended 2026-10-01) happy path returns the server payload, resolver errors surface, ApiError 404 -> tool error; adapter `getBlast` covered in `adapters/devdigest-client.test.ts` incl. contract mismatch.
 
 ## Implementation order (milestones)
 
@@ -134,7 +136,7 @@ Hermetic only (`vitest`), no `*.it.test.ts` tier — nothing here duplicates wha
 3. `domain/matching.ts` + `services/*-service.ts` wiring for repo/PR resolution — shared by 3 of 5 tools, built once.
 4. `get_findings` — full resolver + `ReviewRecord` trimming, reused later by `run_agent_on_pr`.
 5. `run_agent_on_pr` — hardest: write + SSE + 120s timeout + 3-way outcome branch. Build `adapters/sse.ts` here.
-6. `get_blast_radius` stub — trivial, last.
+6. `get_blast_radius` — stub at first; implemented 2026-10-01 (see §5).
 
 ## Changes outside this package (tracked here, not yet applied)
 
@@ -148,7 +150,7 @@ Hermetic only (`vitest`), no `*.it.test.ts` tier — nothing here duplicates wha
 - All 5 tools registered on a stdio `McpServer`, discoverable from Claude Desktop/Code.
 - Each tool's `name`, `description` (verbatim from this doc) and annotation set match this spec exactly.
 - `run_agent_on_pr` blocks ≤120s, never calls `POST /runs/:id/cancel` on timeout, and the timeout error names `run_id`.
-- `get_blast_radius` returns `isError: false` with `status: 'not_implemented'`.
+- (amended 2026-10-01) `get_blast_radius` returns the server's `BlastRadiusResponse` plus `repo`/`pr` with `isError: false`; it is no longer a stub.
 - Hermetic test suite passes; `run_agent_on_pr`'s timeout/cancel-avoidance behavior is covered by a test against a fake SSE server, not asserted by inspection only.
 
 ## Open questions

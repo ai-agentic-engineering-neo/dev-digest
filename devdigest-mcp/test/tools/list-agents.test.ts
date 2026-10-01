@@ -22,6 +22,7 @@ function fakePort(over: Partial<DevDigestApi>): DevDigestApi {
     startReview: nope,
     listRuns: nope,
     listReviews: nope,
+    getBlast: nope,
     waitForRunEnd: nope,
     ...over,
   };

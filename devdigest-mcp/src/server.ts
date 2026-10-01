@@ -29,6 +29,6 @@ export function createMcpServer(deps: {
   registerGetConventions(server, { conventions: new ConventionsService(api, resolver), baseUrl });
   registerGetFindings(server, { reviews, baseUrl });
   registerRunAgentOnPr(server, { reviews, baseUrl });
-  registerGetBlastRadius(server, { blast: new BlastRadiusService(resolver), baseUrl });
+  registerGetBlastRadius(server, { blast: new BlastRadiusService(api, resolver), baseUrl });
   return server;
 }

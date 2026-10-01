@@ -5,6 +5,7 @@ import { z } from 'zod';
 import {
   Agent,
   ApiErrorBody,
+  BlastRadiusResponse,
   ConventionCandidate,
   PrMeta,
   Repo,
@@ -153,6 +154,10 @@ export class DevDigestClient implements DevDigestApi {
 
   listReviews(prId: string): Promise<ReviewRecord[]> {
     return this.request('GET', `/pulls/${encodeURIComponent(prId)}/reviews`, z.array(ReviewRecord));
+  }
+
+  getBlast(prId: string): Promise<BlastRadiusResponse> {
+    return this.request('GET', `/pulls/${encodeURIComponent(prId)}/blast`, BlastRadiusResponse);
   }
 
   async waitForRunEnd(

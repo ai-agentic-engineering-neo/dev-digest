@@ -2,6 +2,7 @@
 // lives in adapters/devdigest-client.ts.
 import type {
   Agent,
+  BlastRadiusResponse,
   ConventionCandidate,
   PrMeta,
   Repo,
@@ -69,6 +70,8 @@ export interface DevDigestApi {
   startReview(prId: string, agentId: string): Promise<ReviewRunResponse>;
   listRuns(prId: string): Promise<RunSummary[]>;
   listReviews(prId: string): Promise<ReviewRecord[]>;
+  /** `GET /pulls/:id/blast`: the same blast-radius payload the browser shows. */
+  getBlast(prId: string): Promise<BlastRadiusResponse>;
   /**
    * Reads `GET /runs/:id/events` until the stream closes or `signal` aborts.
    * Never cancels the run on the server.

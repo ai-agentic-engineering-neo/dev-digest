@@ -30,6 +30,7 @@ export function withHealthGate(api: DevDigestApi): DevDigestApi {
     startReview: async (prId, agentId) => (await ensure(), api.startReview(prId, agentId)),
     listRuns: async (prId) => (await ensure(), api.listRuns(prId)),
     listReviews: async (prId) => (await ensure(), api.listReviews(prId)),
+    getBlast: async (prId) => (await ensure(), api.getBlast(prId)),
     waitForRunEnd: async (runId, signal, onEvent) => (await ensure(), api.waitForRunEnd(runId, signal, onEvent)),
   };
 }

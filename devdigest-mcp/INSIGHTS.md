@@ -14,6 +14,12 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 ## Codebase Patterns
 
+- **2026-10-01** — Adding a method to the `DevDigestApi` port touches four
+  places, not one: the adapter, the `withHealthGate` wrapper
+  (`src/services/health-gate.ts`), `fakePort` in `test/helpers/fixtures.ts`,
+  and the duplicate local `fakePort` in `test/tools/list-agents.test.ts`.
+  Typecheck finds them, but only one at a time.
+
 - **2026-10-01** — Services throw `ToolError` (a model-safe message) next to
   the adapter's `ApiError`; `toolResult` renders both and turns anything else
   into a generic message, which keeps `tools/*` thin. Evidence:

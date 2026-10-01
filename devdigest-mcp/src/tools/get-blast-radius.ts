@@ -1,4 +1,4 @@
-// Ring 4. Thin stub: validates repo/PR, returns a normal not_implemented result.
+// Ring 4. Thin: resolves repo/PR and returns the server's blast-radius payload.
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { BlastRadiusService } from '../services/blast-radius-service.js';
 import { toolResult } from './result.js';
@@ -6,7 +6,7 @@ import { prField, repoField } from './schemas.js';
 
 export const GET_BLAST_RADIUS_NAME = 'get_blast_radius';
 export const GET_BLAST_RADIUS_DESCRIPTION =
-  'Get the blast radius (impact map) of a pull request — which modules/consumers it affects. Not yet implemented.';
+  'Get the blast radius of a pull request: changed symbols, downstream callers (file:line), affected endpoints and crons, and whether the repo index was degraded.';
 
 export function registerGetBlastRadius(
   server: McpServer,

@@ -30,7 +30,7 @@ const SPEC: Record<string, { description: string; annotations: Record<string, bo
   },
   get_blast_radius: {
     description:
-      'Get the blast radius (impact map) of a pull request — which modules/consumers it affects. Not yet implemented.',
+      'Get the blast radius of a pull request: changed symbols, downstream callers (file:line), affected endpoints and crons, and whether the repo index was degraded.',
     annotations: READ_ONLY,
     required: ['repo', 'pr'],
   },

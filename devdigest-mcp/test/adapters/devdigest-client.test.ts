@@ -129,6 +129,25 @@ describe('DevDigestClient', () => {
     expect(`${err.message} ${apiErrorMessage(err, { baseUrl: api.baseUrl, tool: 't' })}`).not.toContain(SECRET);
   });
 
+  it('getBlast: parses the blast payload and a bad body is a contract error', async () => {
+    const ok = {
+      changed_symbols: [{ name: 'f', file: 'a.ts', kind: 'function' }],
+      downstream: [{ symbol: 'f', callers: [{ name: 'g', file: 'b.ts', line: 3 }], endpoints_affected: [], crons_affected: [] }],
+      summary: 's',
+      degraded: true,
+      reason: 'index_partial',
+      impacted_endpoints: [],
+    };
+    api = await startFakeApi({ 'GET /pulls/pr-1/blast': { body: ok } });
+    await expect(client(api.baseUrl).getBlast('pr-1')).resolves.toEqual(ok);
+    await api.close();
+    api = await startFakeApi({ 'GET /pulls/pr-1/blast': { body: { ...ok, degraded: 'yes', secret: SECRET } } });
+    expect((await failure(client(api.baseUrl).getBlast('pr-1'))).kind).toBe('contract');
+    await api.close();
+    api = await startFakeApi({ 'GET /pulls/pr-1/blast': { status: 404, body: { error: { code: 'not_found', message: 'nope' } } } });
+    expect((await failure(client(api.baseUrl).getBlast('pr-1'))).kind).toBe('not_found');
+  });
+
   it('health with a wrong body is a contract error', async () => {
     api = await startFakeApi({ 'GET /health': { body: { status: 'nope' } } });
     expect((await failure(client(api.baseUrl).health())).kind).toBe('contract');

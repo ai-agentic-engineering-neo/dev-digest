@@ -138,6 +138,13 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 ## Recurring Errors & Fixes
 
+- **2026-10-01** — `GET /pulls/:id/blast` on a PR that was only polled, never
+  opened, answers `0 changed symbols … degraded: true`: `pr_files` is filled by
+  the PR-detail GET (`GET /pulls/:id`), not by the poll, so the route sees no
+  changed paths. Open the PR once (UI or `GET /pulls/:id`) and ask again.
+  `src/modules/blast/repository.ts` (`getChangedPaths`),
+  `src/modules/pulls/routes.ts`
+
 - **2026-10-01** — `test/reviews.it.test.ts` fails on a clean tree too (2–3 of
   6 tests, varying between runs): `reviews[0].findings[0].id` throws because
   `GET /pulls/:id/reviews` comes back empty. Not caused by feature work —

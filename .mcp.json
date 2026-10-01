@@ -1,0 +1,1 @@
+{"mcpServers":{"devdigest":{"type":"stdio","command":"npm","args":["run","--silent","--prefix","devdigest-mcp","start"],"env":{"DEVDIGEST_API_URL":"http://127.0.0.1:3001"}}}}

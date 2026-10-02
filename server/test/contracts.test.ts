@@ -15,6 +15,9 @@ import {
   Settings,
   Repo,
   PrDetail,
+  PrMeta,
+  RunSummary,
+  ReviewRecord,
 } from '@devdigest/shared';
 
 /**
@@ -157,7 +160,7 @@ describe('AI contracts parse fixtures', () => {
   it('RunTrace (data2.jsx TRACE single-document)', () => {
     const trace = RunTrace.parse({
       config: { agent: 'Security Reviewer', version: 'v7', model: 'gpt-4.1', pr: 482, source: 'local' },
-      stats: { duration_ms: 8200, tokens_in: 14820, tokens_out: 1240, findings: 3, grounding: '3/3 passed' },
+      stats: { duration_ms: 8200, tokens_in: 14820, tokens_out: 1240, cost_usd: 0.06, findings: 3, grounding: '3/3 passed' },
       prompt_assembly: { system: 's', user: 'u' },
       tool_calls: [{ tool: 'read_file', args: "'src/config.ts'", meta: '1,240 bytes', ms: 120 }],
       raw_output: '{}',
@@ -166,10 +169,76 @@ describe('AI contracts parse fixtures', () => {
       log: [{ t: '00.00', kind: 'info', msg: 'started' }],
     });
     expect(trace.tool_calls).toHaveLength(1);
+    expect(trace.stats.cost_usd).toBe(0.06);
+  });
+
+  it('RunSummary carries the run cost, and tolerates an unpriced run', () => {
+    const base = {
+      run_id: 'r1',
+      agent_id: 'a1',
+      agent_name: 'Security Reviewer',
+      provider: 'openrouter',
+      model: 'deepseek-v4-flash',
+      status: 'done',
+      error: null,
+      duration_ms: 8200,
+      tokens_in: 9119,
+      tokens_out: 1240,
+      findings_count: 3,
+      grounding: '3/3 passed',
+      ran_at: '2026-06-13T20:52:51.000Z',
+      score: 38,
+      blockers: 2,
+    };
+    expect(RunSummary.parse({ ...base, cost_usd: 0.0013 }).cost_usd).toBe(0.0013);
+    expect(RunSummary.parse({ ...base, cost_usd: null }).cost_usd).toBeNull();
+    // cost is required on the wire — an omitted field is a server bug, not an unpriced run
+    expect(() => RunSummary.parse(base)).toThrow();
+  });
+
+  it('ReviewRecord carries the run cost + token usage', () => {
+    const rec = ReviewRecord.parse({
+      id: 'rv1',
+      pr_id: 'pr1',
+      agent_id: 'a1',
+      run_id: 'r1',
+      agent_name: 'Security Reviewer',
+      kind: 'review',
+      verdict: 'request_changes',
+      summary: 'two blockers',
+      score: 38,
+      model: 'deepseek-v4-flash',
+      cost_usd: 0.014,
+      tokens_in: 8200,
+      tokens_out: 1300,
+      created_at: '2026-06-13T20:52:51.000Z',
+      findings: [],
+    });
+    expect(rec.cost_usd).toBe(0.014);
+    expect(rec.tokens_out).toBe(1300);
   });
 });
 
 describe('platform DTOs', () => {
+  it('PrMeta carries the latest run cost, and omits it on an unreviewed PR', () => {
+    const base = {
+      number: 482,
+      title: 'Add rate limiting to public API endpoints',
+      author: 'marisa.koch',
+      branch: 'feat/ratelimit',
+      base: 'main',
+      head_sha: 'e694ac8',
+      additions: 240,
+      deletions: 45,
+      files_count: 7,
+      status: 'needs_review' as const,
+    };
+    expect(PrMeta.parse({ ...base, score: 61, cost_usd: 0.014 }).cost_usd).toBe(0.014);
+    expect(PrMeta.parse({ ...base, cost_usd: null }).cost_usd).toBeNull();
+    // never reviewed: the field is absent, not zero
+    expect(PrMeta.parse(base).cost_usd).toBeUndefined();
+  });
+
   it('Settings defaults + passthrough', () => {
     const s = Settings.parse({ extra_key: 'x' });
     expect(s.theme).toBe('dark');

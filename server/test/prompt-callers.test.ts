@@ -17,7 +17,10 @@ const COMMON = {
   system: 'You are a reviewer.',
   skills: ['## skill\nDetect X'],
   memory: ['Do not flag try/catch around JSON.parse'],
-  specs: ['# Security baseline\nNo secrets in code.'],
+  // specs/09-project-context-folder.md widened this slot from bare strings to
+  // { path, content } pairs (the path travels with the content as the
+  // untrusted-wrapper label — AC-15).
+  specs: [{ path: 'specs/security-baseline.md', content: '# Security baseline\nNo secrets in code.' }],
   diff: '@@ -1 +1 @@\n+stripeKey',
   task: "Review PR #482 'rate limit'",
 } as const;

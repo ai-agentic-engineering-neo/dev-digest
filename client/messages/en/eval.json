@@ -21,14 +21,22 @@
     },
     "table": {
       "ranAt": "Ran at",
+      "status": "Status",
+      "agent": "Agent",
       "recall": "Recall",
       "precision": "Precision",
       "citation": "Citation",
       "pass": "Pass",
-      "cost": "Cost"
+      "cost": "Cost",
+      "select": "Select for comparison"
     },
     "pass": "pass",
-    "fail": "fail"
+    "fail": "fail",
+    "perAgentNote": "Each agent's metrics are computed over its own case set — scores are not comparable across agents.",
+    "trendTableCaption": "{agent} metric trend by run, in table form",
+    "openAgent": "Open {agent}",
+    "started": "started",
+    "refused": "refused"
   },
   "caseEditor": {
     "newCase": "New eval case",
@@ -60,6 +68,7 @@
   "evalsTab": {
     "metricsTitle": "Eval metrics",
     "metricsSubtitle": "Recall / Precision / Citation for this agent's eval cases",
+    "casesPassed": "Cases passed",
     "casesHeading": "Eval cases",
     "newCase": "New case",
     "loadingCases": "Loading cases…",
@@ -67,11 +76,33 @@
     "neverRun": "never run",
     "passed": "passed",
     "failed": "failed",
+    "errored": "errored",
     "recallSuffix": " · recall {recall}%",
     "run": "Run",
     "running": "Running…",
     "edit": "Edit",
-    "delete": "Delete"
+    "delete": "Delete",
+    "deleteConfirm": "Delete this eval case? This does not affect past run results.",
+    "matchedCount": "{matched} of {total} findings matched",
+    "runStatus": "Eval run status: {status}"
+  },
+  "caseEditorPanel": {
+    "close": "Close",
+    "notesLabel": "Notes",
+    "expectationTitle": "Expectation",
+    "expectationType": "Type",
+    "expectationFile": "File",
+    "expectationStartLine": "Start line",
+    "expectationEndLine": "End line",
+    "expectationSeverity": "Severity",
+    "expectationCategory": "Category",
+    "frozenInputTitle": "Frozen input",
+    "filesLabel": "Files (comma-separated)",
+    "prTitleLabel": "PR title",
+    "prBodyLabel": "PR body",
+    "outcomeTitle": "Latest outcome",
+    "outcomeNone": "This case has not been covered by a completed run yet.",
+    "outcomeErrored": "This case errored on its last run: {reason}"
   },
   "page": {
     "crumbSkillsLab": "Skills Lab",
@@ -80,5 +111,119 @@
     "crumbEvals": "Evals",
     "crumbNewCase": "New case",
     "crumbEvalCase": "Eval case"
+  },
+  "expectation": {
+    "mustFind": "Must find",
+    "mustNotFlag": "Must not flag"
+  },
+  "notApplicable": "n/a",
+  "status": {
+    "running": "Running",
+    "completed": "Completed",
+    "errored": "Errored"
+  },
+  "cost": {
+    "total": "Total cost",
+    "duration": "Duration"
+  },
+  "run": {
+    "confirmAll": {
+      "title": "Run every agent's eval set?",
+      "body": "This runs {agents, plural, one {# agent} other {# agents}} across {executions, plural, one {# case execution} other {# case executions}}. Cost and duration vary by provider.",
+      "confirm": "Run all",
+      "cancel": "Cancel",
+      "trigger": "Run all agents"
+    },
+    "refused": {
+      "no_cases": "This agent has no eval cases to run.",
+      "run_in_flight": "An eval run is already in progress for this agent.",
+      "provider_not_configured": "No API key is configured for this agent's provider.",
+      "generic": "Could not start this eval run."
+    }
+  },
+  "compare": {
+    "title": "Compare runs",
+    "selectTwo": "Select two runs to compare.",
+    "oldRun": "Older run",
+    "newRun": "Newer run",
+    "caseSetChanged": "{onlyOld, plural, =0 {} other {# case(s) only in the older run. }}{onlyNew, plural, =0 {} other {# case(s) only in the newer run. }}Deltas below are computed over the {common} case(s) common to both.",
+    "promptDiff": "System prompt diff",
+    "noPromptDiff": "No prompt diff is available for this pair.",
+    "close": "Close",
+    "open": "Compare"
+  },
+  "callout": {
+    "metric": {
+      "recall": "Recall",
+      "precision": "Precision",
+      "citationAccuracy": "Citation accuracy"
+    },
+    "direction": {
+      "up": "up",
+      "down": "down"
+    },
+    "withTransitions": "{metric} moved {direction} {magnitude}% since v{version} — cases that changed outcome: {cases}.",
+    "withoutTransitions": "{metric} moved {direction} {magnitude}% since v{version}."
+  },
+  "empty": {
+    "noCases": "No eval cases yet. Accept or dismiss a finding on a pull request, then use “Turn into eval case” there.",
+    "neverRun": "This agent's cases have never been run. Run the eval set to see recall, precision and citation accuracy.",
+    "oneRun": "Only one completed run exists yet — metrics are shown, but a second run is needed before deltas or a comparison are available."
+  },
+  "skill": {
+    "metricsSubtitle": "Recall / Precision / Citation lift for this skill's eval cases — with the skill present, minus without it.",
+    "tokensPerRun": "{count} tokens per run",
+    "gatesBypassedNotice": "This run injected the skill's body even though it is currently disabled, or not enabled for its carrier, in real reviews.",
+    "withArm": "With this skill",
+    "withoutArm": "Without this skill",
+    "origin": {
+      "finding": "from a finding",
+      "hand": "hand-authored"
+    },
+    "effect": {
+      "title": "Effect",
+      "helped": "helped",
+      "hurt": "hurt",
+      "noEffectPass": "no effect (passed either way)",
+      "noEffectFail": "no effect (failed either way)",
+      "none": "not run",
+      "helpedCount": "{count} helped",
+      "hurtCount": "{count} hurt",
+      "unaffectedCount": "{count} unaffected"
+    },
+    "lift": {
+      "allZero": "This skill changed no outcome on this case set in its latest run."
+    },
+    "empty": {
+      "noCases": "No eval cases yet. Create one by hand, or accept/dismiss a finding this skill was injected into and use “Turn into skill eval case” there.",
+      "neverRun": "This skill's cases have never been run. Run the eval set to see recall, precision, citation accuracy and lift."
+    },
+    "run": {
+      "title": "Run this skill's eval set",
+      "carrierLabel": "Carrier agent",
+      "carrierBypassOption": "{agent} (gate off — unvetted body)",
+      "noCarriers": "No agent is currently linked to this skill, so a run cannot be started.",
+      "estimate": "{cases, plural, one {# case} other {# cases}} → {executions, plural, one {# case execution} other {# case executions}} (once with this skill present, once without).",
+      "gatesBypassedWarning": "This skill or its link to the chosen carrier is currently disabled — running will still inject its body, which is not what a real review does today.",
+      "confirm": "Run",
+      "runAllTrigger": "Run all skills",
+      "confirmAllTitle": "Run every skill's eval set?",
+      "confirmAllBody": "This runs {skills, plural, one {# skill} other {# skills}} across {executions, plural, one {# case execution} other {# case executions}} (twice per case — once with, once without). Cost and duration vary by provider.",
+      "autoCarrierNote": "Each skill's carrier is auto-selected: the linked agent with the lowest order, ties broken by name."
+    },
+    "compare": {
+      "title": "Compare skill runs",
+      "liftDeltaTitle": "Lift delta",
+      "carrierDiffers": "These two runs used different carrier agents — the deltas above are still computed over their common cases, but the carrier itself also changed.",
+      "bodyDiff": "Skill body diff"
+    },
+    "summary": {
+      "heading": "Skills",
+      "caption": "Each skill's numbers are computed over its own case set inside a chosen carrier — not a ranking, and not merged into the agent list above.",
+      "carrier": "Carrier: {carrier}",
+      "noCarrier": "none",
+      "helpedHurt": "{helped} helped · {hurt} hurt",
+      "empty": "No skill owns an eval case yet."
+    }
   }
 }

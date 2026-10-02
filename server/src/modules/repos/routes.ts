@@ -4,6 +4,7 @@ import { RepoInput } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { RepoService } from './service.js';
+import { RepoRepository } from './repository.js';
 
 /**
  * F1 — repos module. Transport layer only: parses requests, maps status
@@ -18,7 +19,7 @@ import { RepoService } from './service.js';
  */
 export default async function reposRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
-  const service = new RepoService(app.container);
+  const service = new RepoService(new RepoRepository(app.container.db), app.container.jobs, app.container.secrets, app.container.git);
 
   // Register the clone job handler once.
   service.registerCloneJobHandler();

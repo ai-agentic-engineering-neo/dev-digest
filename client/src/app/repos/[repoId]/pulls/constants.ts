@@ -16,6 +16,12 @@ export const STATUS_META: Record<string, { c: string; labelKey: string }> = {
   closed: { c: "var(--stale)", labelKey: "closed" },
 };
 
+/**
+ * Which review statuses count as "open" for the header summary. Open PRs carry
+ * a derived review status; everything else is merged/closed.
+ */
+export const OPEN_STATUSES = new Set(["needs_review", "reviewed", "stale"]);
+
 /** Size bucket → colour token. */
 export const SIZE_COLOR: Record<string, string> = {
   S: "var(--ok)",
@@ -23,8 +29,9 @@ export const SIZE_COLOR: Record<string, string> = {
   L: "var(--crit)",
 };
 
-/** Grid template for both the header row and PR rows. */
-export const GRID = "1fr 132px 92px 60px 118px 78px";
+/** Grid template for both the header row and PR rows.
+ *  Track order must stay in sync with COLUMN_KEYS below. */
+export const GRID = "1fr 132px 92px 60px 150px 118px 76px 78px";
 
 /** Line-count thresholds for the S/M/L size bucket. */
 export const SIZE_SMALL_MAX = 100;
@@ -44,7 +51,9 @@ export const COLUMN_KEYS: string[] = [
   "author",
   "size",
   "score",
+  "findings",
   "status",
+  "cost",
   "updated",
 ];
 

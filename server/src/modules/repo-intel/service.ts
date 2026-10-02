@@ -28,7 +28,7 @@ import {
 } from '../../adapters/astgrep/index.js';
 import { readFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
-import { RepoIntelRepository, type FullSymbolRow } from './repository.js';
+import { RepoIntelRepository, type FullSymbolRow, type IndexerEdgeRow } from './repository.js';
 import type {
   BlastCallerRow,
   BlastChangedSymbol,
@@ -41,6 +41,7 @@ import type {
   RepoMapResult,
   SignatureRow,
   SymbolRow,
+  WeightedFileRow,
 } from './types.js';
 import {
   BFS_DEPTH,
@@ -48,6 +49,7 @@ import {
   INDEX_JOB_KIND,
   INDEXER_VERSION,
   MAX_CALLERS_PER_SYMBOL,
+  MAX_INDEXED_FILES,
   REFRESH_JOB_KIND,
   RESYNC_JOB_KIND,
   SUPPORTED_EXT,
@@ -334,12 +336,15 @@ export class RepoIntelService implements RepoIntel {
       }
       nameSet.add(s.name);
     }
-    if (nameSet.size === 0) {
-      return { changedSymbols, callers: [], impactedEndpoints: [], degraded: false };
-    }
 
-    // Resolved cross-file callers.
-    const callerRows = await this.repo.getResolvedCallers(repoId, changedFiles, [...nameSet]);
+    // Resolved cross-file callers — empty when the changed files declare no
+    // (bare-name) symbols at all, but that alone doesn't mean zero impact:
+    // the reverse-import walk below still runs off the changed FILES, not the
+    // symbols, so file-level (endpoint/cron) impact is still detected.
+    const callerRows =
+      nameSet.size > 0
+        ? await this.repo.getResolvedCallers(repoId, changedFiles, [...nameSet])
+        : [];
     const callerFiles = [...new Set(callerRows.map((c) => c.fromPath))];
 
     // Enclosing caller symbol from the callers' persistent symbol rows.
@@ -369,11 +374,32 @@ export class RepoIntelService implements RepoIntel {
         rank: c.rank,
       });
     }
-    callers.sort((a, b) => b.rank - a.rank);
 
-    // Precomputed facts per caller file (endpoints + crons), so consumers can
+    // Per-symbol caller cap: group by viaSymbol and cap EACH group, instead of
+    // one global rank-sorted slice — otherwise one hot symbol starves every
+    // other changed symbol of caller slots.
+    const byViaSymbol = new Map<string, BlastCallerRow[]>();
+    for (const c of callers) {
+      const arr = byViaSymbol.get(c.viaSymbol);
+      if (arr) arr.push(c);
+      else byViaSymbol.set(c.viaSymbol, [c]);
+    }
+    const cappedCallers: BlastCallerRow[] = [];
+    for (const group of byViaSymbol.values()) {
+      group.sort((a, b) => b.rank - a.rank);
+      cappedCallers.push(...group.slice(0, MAX_CALLERS_PER_SYMBOL));
+    }
+
+    // 2-hop reverse-import-graph impact: files that import (transitively, up
+    // to BFS_DEPTH hops) any changed file — not just the changed files'
+    // direct symbol-callers — so endpoint/cron facts cover the wider blast
+    // radius a route/cron file two imports away from the change can still sit in.
+    const reverseImpact = await this.reverseImportImpact(repoId, changedFiles);
+    const factFiles = [...new Set([...callerFiles, ...reverseImpact])];
+
+    // Precomputed facts per impacted file (endpoints + crons), so consumers can
     // attribute them to the changed symbol whose callers live in that file.
-    const facts = await this.repo.getFileFacts(repoId, callerFiles);
+    const facts = await this.repo.getFileFacts(repoId, factFiles);
     const endpoints = new Set<string>();
     const factsByFile: Record<string, { endpoints: string[]; crons: string[] }> = {};
     for (const f of facts) {
@@ -383,11 +409,51 @@ export class RepoIntelService implements RepoIntel {
 
     return {
       changedSymbols,
-      callers: callers.slice(0, MAX_CALLERS_PER_SYMBOL),
+      callers: cappedCallers,
       impactedEndpoints: [...endpoints],
       factsByFile,
       degraded: false,
     };
+  }
+
+  /**
+   * 2-hop reverse-import-graph walk (T4/blast): builds a `toFile → fromFile[]`
+   * adjacency from `getEdges` — the INVERSE direction of `getCriticalPaths`'s
+   * forward (importer → imported) adjacency — then BFS's the FULL frontier set
+   * (not one greedy best-rank chain) up to `BFS_DEPTH` hops from each changed
+   * file. Returns the union of every file reachable within that walk (changed
+   * files themselves are excluded from the result). Private: `RepoIntel`'s
+   * public interface is unchanged — this stays an implementation detail of
+   * `tryPersistentBlast`.
+   */
+  private async reverseImportImpact(
+    repoId: string,
+    changedFiles: string[],
+  ): Promise<Set<string>> {
+    const edges = await this.repo.getEdges(repoId);
+    const reverseAdj = new Map<string, string[]>();
+    for (const e of edges) {
+      const arr = reverseAdj.get(e.toFile);
+      if (arr) arr.push(e.fromFile);
+      else reverseAdj.set(e.toFile, [e.fromFile]);
+    }
+
+    const changedSet = new Set(changedFiles);
+    const reached = new Set<string>();
+    let frontier = new Set<string>(changedFiles);
+    for (let depth = 0; depth < BFS_DEPTH; depth += 1) {
+      const next = new Set<string>();
+      for (const file of frontier) {
+        for (const importer of reverseAdj.get(file) ?? []) {
+          if (reached.has(importer) || changedSet.has(importer)) continue;
+          reached.add(importer);
+          next.add(importer);
+        }
+      }
+      if (next.size === 0) break;
+      frontier = next;
+    }
+    return reached;
   }
 
   /**
@@ -659,77 +725,169 @@ export class RepoIntelService implements RepoIntel {
    * Dependency chains from the highest-ranked files (onboarding reading-path).
    * For each of the top roots, greedily follow the highest-ranked import target
    * up to BFS_DEPTH hops. Pure read over `file_edges` + `file_rank`.
+   *
+   * `opts` is additive (D7): omitted, it reproduces today's behavior exactly
+   * (`order: 'rank'`, `roots: CRITICAL_PATH_ROOTS`) — the AC-11 regression
+   * surface. `order: 'weighted'` seeds roots from the read-time
+   * `pagerank * (1 + hotness)` score instead, for the onboarding module only.
    */
-  async getCriticalPaths(repoId: string): Promise<string[][]> {
+  async getCriticalPaths(
+    repoId: string,
+    opts?: { order?: 'rank' | 'weighted'; roots?: number },
+  ): Promise<string[][]> {
     if (!this.container.config.repoIntelEnabled) return [];
     const edges = await this.repo.getEdges(repoId);
     if (edges.length === 0) return [];
 
+    const rootCount = opts?.roots ?? CRITICAL_PATH_ROOTS;
+
+    if (opts?.order === 'weighted') {
+      const weighted = await this.getWeightedRankRows(repoId);
+      const rankOf = new Map(weighted.map((r) => [r.path, r.weighted]));
+      return chainsFrom(edges, weighted, rankOf, rootCount);
+    }
+
     const ranked = await this.repo.getRankedPaths(repoId, 100_000);
     const rankOf = new Map(ranked.map((r) => [r.path, r.rank]));
-
-    // Adjacency importer → imported.
-    const adj = new Map<string, string[]>();
-    for (const e of edges) {
-      const arr = adj.get(e.fromFile);
-      if (arr) arr.push(e.toFile);
-      else adj.set(e.fromFile, [e.toFile]);
-    }
-
-    const roots = ranked.slice(0, CRITICAL_PATH_ROOTS).map((r) => r.path);
-    const paths: string[][] = [];
-    const seenPaths = new Set<string>();
-    for (const root of roots) {
-      const chain = [root];
-      const inChain = new Set(chain);
-      let cur = root;
-      for (let depth = 0; depth < BFS_DEPTH; depth += 1) {
-        const next = (adj.get(cur) ?? [])
-          .filter((t) => !inChain.has(t))
-          .sort((a, b) => (rankOf.get(b) ?? 0) - (rankOf.get(a) ?? 0))[0];
-        if (!next) break;
-        chain.push(next);
-        inChain.add(next);
-        cur = next;
-      }
-      if (chain.length < 2) continue;
-      const key = chain.join('>');
-      if (seenPaths.has(key)) continue;
-      seenPaths.add(key);
-      paths.push(chain);
-    }
-    return paths;
+    return chainsFrom(edges, ranked, rankOf, rootCount);
   }
+
+  /**
+   * Descending by `pagerank * (1 + hotness)` (D7's read-time weighted score),
+   * filtered through the same junk-path + caller-`exclude` rules as
+   * `getTopFilesByRank`. `[]` when the flag is off, `n <= 0`, or nothing is
+   * ranked — the array-degraded contract (`types.ts`).
+   */
+  async getWeightedRankedFiles(
+    repoId: string,
+    n: number,
+    opts?: { exclude?: string[] },
+  ): Promise<WeightedFileRow[]> {
+    if (!this.container.config.repoIntelEnabled) return [];
+    if (n <= 0) return [];
+    const exclude = opts?.exclude ?? [];
+    const rows = await this.getWeightedRankRows(repoId);
+    const out: WeightedFileRow[] = [];
+    for (const r of rows) {
+      if (isJunkPath(r.path)) continue;
+      if (exclude.some((e) => r.path.includes(e))) continue;
+      out.push(r);
+      if (out.length >= n) break;
+    }
+    return out;
+  }
+
+  /**
+   * All `file_rank` rows for a repo, mapped to the read-time weighted score
+   * and sorted desc by it. Unfiltered (no junk-path drop) — callers that need
+   * a display-ready list filter themselves (`getWeightedRankedFiles`);
+   * `getCriticalPaths`'s weighted order deliberately mirrors its `rank` order
+   * sibling, which also takes roots unfiltered.
+   */
+  private async getWeightedRankRows(repoId: string): Promise<WeightedFileRow[]> {
+    const rows = await this.repo.getFileRankRows(repoId, MAX_INDEXED_FILES);
+    return rows
+      .map((r) => ({
+        path: r.path,
+        pagerank: r.pagerank,
+        hotness: r.hotness,
+        weighted: r.pagerank * (1 + r.hotness),
+        percentile: r.percentile,
+      }))
+      .sort((a, b) => b.weighted - a.weighted);
+  }
+
+  /** Thin passthrough to the repository's per-file endpoint/cron facts. */
+  async getFileFacts(
+    repoId: string,
+    paths: string[],
+  ): Promise<Array<{ file: string; endpoints: string[]; crons: string[] }>> {
+    if (!this.container.config.repoIntelEnabled) return [];
+    if (paths.length === 0) return [];
+    const rows = await this.repo.getFileFacts(repoId, paths);
+    return rows.map((r) => ({ file: r.filePath, endpoints: r.endpoints, crons: r.crons }));
+  }
+}
+
+/**
+ * Shared BFS chain-builder for `getCriticalPaths`: greedily walks the
+ * highest-`rankOf` import target up to BFS_DEPTH hops from each of the top
+ * `rootCount` entries in `ranked` (already sorted desc by whatever score the
+ * caller wants — plain `rank` or the D7 weighted score). Extracted so the two
+ * orderings share one adjacency/BFS implementation rather than duplicating it.
+ */
+function chainsFrom(
+  edges: IndexerEdgeRow[],
+  ranked: Array<{ path: string }>,
+  rankOf: Map<string, number>,
+  rootCount: number,
+): string[][] {
+  const adj = new Map<string, string[]>();
+  for (const e of edges) {
+    const arr = adj.get(e.fromFile);
+    if (arr) arr.push(e.toFile);
+    else adj.set(e.fromFile, [e.toFile]);
+  }
+
+  const roots = ranked.slice(0, rootCount).map((r) => r.path);
+  const paths: string[][] = [];
+  const seenPaths = new Set<string>();
+  for (const root of roots) {
+    const chain = [root];
+    const inChain = new Set(chain);
+    let cur = root;
+    for (let depth = 0; depth < BFS_DEPTH; depth += 1) {
+      const next = (adj.get(cur) ?? [])
+        .filter((t) => !inChain.has(t))
+        .sort((a, b) => (rankOf.get(b) ?? 0) - (rankOf.get(a) ?? 0))[0];
+      if (!next) break;
+      chain.push(next);
+      inChain.add(next);
+      cur = next;
+    }
+    if (chain.length < 2) continue;
+    const key = chain.join('>');
+    if (seenPaths.has(key)) continue;
+    seenPaths.add(key);
+    paths.push(chain);
+  }
+  return paths;
 }
 
 /** How many top-ranked files seed `getCriticalPaths` dependency chains. */
 const CRITICAL_PATH_ROOTS = 5;
 
 /**
- * Path kinds excluded from rank-driven file samples (conventions/onboarding):
- * tests, configs, declaration files, migrations, generated dirs. Substring
- * match on the repo-relative path (kept deliberately simple + deterministic).
+ * Directory kinds excluded from rank-driven file samples: tests, migrations,
+ * fixtures. Substring match on the repo-relative path — safe because every
+ * pattern here is slash-delimited, so it can't match inside an unrelated
+ * filename or directory name.
  */
-const JUNK_PATH_PATTERNS = [
-  '.test.',
-  '.spec.',
-  '.d.ts',
-  '__tests__/',
-  '__mocks__/',
-  '/test/',
-  '/tests/',
-  '/migrations/',
-  '/__fixtures__/',
-  '.config.',
-  'vitest.',
-  'jest.',
-  'eslint',
-  'prettier',
+const JUNK_DIR_PATTERNS = ['__tests__/', '__mocks__/', '/test/', '/tests/', '/migrations/', '/__fixtures__/'] as const;
+
+/**
+ * File kinds excluded from rank-driven file samples: tests, tool configs,
+ * declaration files. Matched against the basename only (not the full path)
+ * so a real source file merely living under/next to a tool-named directory
+ * or file — e.g. `src/eslint-plugin-custom/index.ts`, `src/jest.utils.ts` —
+ * isn't misclassified as junk.
+ */
+const JUNK_BASENAME_PATTERNS = [
+  /\.test\./,
+  /\.spec\./,
+  /\.d\.ts$/,
+  /\.config\./,
+  /^\.?eslint(rc)?(\.|$)/,
+  /^\.?prettier(rc)?(\.|$)/,
+  /^jest\.(config|setup)\./,
+  /^vitest\.(config|setup)\./,
 ] as const;
 
 function isJunkPath(path: string): boolean {
   const lower = path.toLowerCase();
-  return JUNK_PATH_PATTERNS.some((p) => lower.includes(p));
+  if (JUNK_DIR_PATTERNS.some((p) => lower.includes(p))) return true;
+  const basename = lower.slice(lower.lastIndexOf('/') + 1);
+  return JUNK_BASENAME_PATTERNS.some((re) => re.test(basename));
 }
 
 /** Enclosing top-level (bare-name) symbol for a line, from persistent rows. */

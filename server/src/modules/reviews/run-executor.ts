@@ -6,8 +6,11 @@ import * as schema from '../../db/schema.js';
 import type { AgentRow } from '../../db/rows.js';
 import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './repository.js';
 import { REVIEW_STRATEGY } from './constants.js';
-import { taskLine } from './helpers.js';
+import { promptAssemblySections, taskLine } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
+// THE one skill renderer, shared with `GET /skills/:id/preview`. Never
+// re-implement this formatting here — a second copy makes the Preview tab lie.
+import { renderSkillBlock } from '../_shared/skill-render.js';
 
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
 export class RunCancelledError extends Error {
@@ -80,6 +83,7 @@ export class ReviewRunExecutor {
             durationMs: 0,
             tokensIn: 0,
             tokensOut: 0,
+            costUsd: null,
             findingsCount: 0,
             grounding: '0/0 passed',
             error: msg,
@@ -104,34 +108,107 @@ export class ReviewRunExecutor {
     }
     runLog.info(`Diff ready — ${diff.files.length} changed file(s); starting ${jobs.length} agent run(s)`);
 
-    for (const { agent, runId } of jobs) {
-      const agentStart = Date.now();
-      logger?.info(
-        { runId, agent: agent.name, provider: agent.provider, model: agent.model, prId: pull.id },
-        `review: agent "${agent.name}" started (${agent.provider}/${agent.model})`,
+    // L03 — resolve PR intent ONCE per run batch (not per agent), right after
+    // the diff load, exactly as this class's own docstring has always framed
+    // it. Best-effort: any failure here degrades the prompt back to the
+    // pre-L03 baseline (reviewPullRequest omits the `intent` slot when
+    // undefined) — unlike a diff-load failure, it never fails the queued runs.
+    let resolvedIntent: string | undefined;
+    let resolvedInScope: string[] | undefined;
+    let resolvedOutOfScope: string[] | undefined;
+    try {
+      const intent = await runLog.step(
+        'Resolving PR intent',
+        () =>
+          this.container.intentService.resolve({
+            workspaceId,
+            pull: { id: pull.id, title: pull.title, body: pull.body },
+            repo: { owner: repo.owner, name: repo.name, clonePath: repo.clonePath },
+            diffFiles: diff.files.map((f) => ({
+              path: f.path,
+              hunks: f.hunks.map((h) => ({
+                oldStart: h.oldStart,
+                oldLines: h.oldLines,
+                newStart: h.newStart,
+                newLines: h.newLines,
+              })),
+            })),
+            onSignal: (msg) => runLog.info(msg),
+          }),
+        { kind: 'tool' },
       );
-      try {
-        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, agent, runId, runLog);
-        logger?.info(
-          {
-            runId,
-            agent: agent.name,
-            findings: outcome.findings.length,
-            grounding: outcome.grounding,
-            durationMs: Date.now() - agentStart,
-          },
-          `review: agent "${agent.name}" done — ${outcome.findings.length} finding(s)`,
-        );
-      } catch (err) {
-        // runOneAgent already persisted the failure/cancel (status + error +
-        // trace) and completed the bus; here we only log at the run level.
-        const cancelled = err instanceof RunCancelledError;
-        logger?.[cancelled ? 'info' : 'error'](
-          { runId, agent: agent.name, err: (err as Error).message, durationMs: Date.now() - agentStart },
-          `review: agent "${agent.name}" ${cancelled ? 'cancelled' : 'failed'}`,
-        );
-      }
+      resolvedIntent = intent.rendered;
+      resolvedInScope = intent.inScope;
+      resolvedOutOfScope = intent.outOfScope;
+      logger?.info(
+        {
+          prId: pull.id,
+          provider: intent.provider ?? null,
+          model: intent.model ?? null,
+          promptTokensEstimate: intent.userMessageText
+            ? this.container.tokenizer.count(intent.userMessageText)
+            : null,
+          inScope: intent.inScope?.length ?? 0,
+          outOfScope: intent.outOfScope?.length ?? 0,
+          contextGaps: intent.contextGaps?.length ?? 0,
+        },
+        'review: intent resolved',
+      );
+    } catch (err) {
+      runLog.info(`intent: resolution failed — ${(err as Error).message}`);
     }
+
+    // specs/13-multi-agent-review.md (D16) — the per-agent job loop runs
+    // concurrently rather than sequentially. `Promise.allSettled`, not
+    // `Promise.all`: the body already swallows its own errors (try/catch
+    // below), so nothing should reject — but `allSettled` makes "one job
+    // cannot abort the batch" (AC-17) structural rather than dependent on
+    // that. Everything inside one iteration is unchanged and reads only
+    // values computed before this loop and never mutated by it; nothing in
+    // one iteration reads another's outcome. See server/LEARNINGS.md for the
+    // provider-throttling note this change entails.
+    await Promise.allSettled(
+      jobs.map(async ({ agent, runId }) => {
+        const agentStart = Date.now();
+        logger?.info(
+          { runId, agent: agent.name, provider: agent.provider, model: agent.model, prId: pull.id },
+          `review: agent "${agent.name}" started (${agent.provider}/${agent.model})`,
+        );
+        try {
+          const outcome = await this.runOneAgent(
+            workspaceId,
+            pull,
+            repo,
+            diff,
+            agent,
+            runId,
+            runLog,
+            resolvedIntent,
+            resolvedInScope,
+            resolvedOutOfScope,
+            logger,
+          );
+          logger?.info(
+            {
+              runId,
+              agent: agent.name,
+              findings: outcome.findings.length,
+              grounding: outcome.grounding,
+              durationMs: Date.now() - agentStart,
+            },
+            `review: agent "${agent.name}" done — ${outcome.findings.length} finding(s)`,
+          );
+        } catch (err) {
+          // runOneAgent already persisted the failure/cancel (status + error +
+          // trace) and completed the bus; here we only log at the run level.
+          const cancelled = err instanceof RunCancelledError;
+          logger?.[cancelled ? 'info' : 'error'](
+            { runId, agent: agent.name, err: (err as Error).message, durationMs: Date.now() - agentStart },
+            `review: agent "${agent.name}" ${cancelled ? 'cancelled' : 'failed'}`,
+          );
+        }
+      }),
+    );
   }
 
   /** Execute a single agent's review against a PR, streaming progress. */
@@ -143,6 +220,15 @@ export class ReviewRunExecutor {
     agent: AgentRow,
     runId: string,
     parentLog: RunLogger,
+    /** L03 — the already-resolved intent string (resolved once per run batch
+     *  in `executeRuns`, not here). `undefined` when resolution was skipped/
+     *  failed — reviewPullRequest omits the slot in that case. */
+    resolvedIntent?: string,
+    /** Revision 2 (specs/05-intent-layer.md) — the already-resolved structured
+     *  scope, alongside `resolvedIntent`. Same omit-when-undefined contract. */
+    resolvedInScope?: string[],
+    resolvedOutOfScope?: string[],
+    logger?: Logger,
   ): Promise<RunOutcome> {
     const start = Date.now();
     // Narrow the fanned-out pre-work logger to THIS run; the shared diff/intent
@@ -183,6 +269,53 @@ export class ReviewRunExecutor {
 
       const task = taskLine(pull) + rankNote;
 
+      // L02 — skills into the prompt. Resolve the agent's enabled skills, in
+      // link order, into prompt blocks. BOTH gates must pass: the skill is
+      // active in the workspace (vetted) AND enabled on this agent.
+      const linkedSkills = await runLog.step(
+        'Loading skills',
+        () => this.agents.enabledSkills(agent.id),
+        { kind: 'tool' },
+      );
+      // ONE renderer, shared with GET /skills/:id/preview — if this ever
+      // formats differently from `renderSkillBlock`, the Preview tab is lying
+      // about what the model actually receives.
+      const skillBlocks = linkedSkills.map(renderSkillBlock);
+      if (linkedSkills.length > 0) {
+        runLog.info(
+          `Loaded ${linkedSkills.length} skill(s): ${linkedSkills.map((s) => s.name).join(', ')}`,
+        );
+      }
+
+      // specs/09-project-context-folder.md — resolve agent-direct + enabled-
+      // skill-inherited documents, deduped, budgeted, read from the repo's
+      // SYNCED DEFAULT-BRANCH checkout (never the PR branch head — D4/AC-14).
+      // repoId is always known on this (PR-triggered) path, so a document
+      // pinned to a different repo is dropped with `repo_mismatch` (AC-33).
+      const projectContext = await runLog.step(
+        'Loading project context',
+        () => this.container.projectContextService.resolveForRun(workspaceId, agent.id, pull.repoId),
+        { kind: 'tool' },
+      );
+      const specsRead: RunTrace['specs_read'] = projectContext.entries.map((e) => ({
+        path: e.path,
+        tokens: e.tokens,
+        origin: e.origin,
+        skill: e.skill,
+        status: e.status,
+        reason: e.reason,
+      }));
+      const includedTokens = specsRead
+        .filter((e) => e.status === 'included')
+        .reduce((sum, e) => sum + e.tokens, 0);
+      const omittedCount = specsRead.filter((e) => e.status !== 'included').length;
+      if (specsRead.length > 0) {
+        runLog.info(
+          `Project context: ${projectContext.documents.length} document(s), ` +
+            `${includedTokens} token(s); ${omittedCount} omitted`,
+        );
+      }
+
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
       // the CI runner). The service owns only I/O: repo-intel context resolution
@@ -195,6 +328,10 @@ export class ReviewRunExecutor {
         // Per-agent review strategy (configured in the Agent editor); falls back
         // to the studio default. single-pass = whole diff in one call.
         strategy: agent.strategy ?? REVIEW_STRATEGY,
+        // L02 — linked skill BODIES (not slugs), in link order. Omit-when-empty:
+        // an agent with zero enabled skills produces a prompt byte-identical to
+        // the pre-skills baseline, with PromptAssembly.skills === null.
+        ...(skillBlocks.length > 0 ? { skills: skillBlocks } : {}),
         // T1.3 — pass the callers digest only when we built one. assemblePrompt
         // omits the section when this is empty/undefined.
         ...(callersDigest ? { callers: callersDigest } : {}),
@@ -203,6 +340,19 @@ export class ReviewRunExecutor {
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
+        // L03 — derived PR intent, resolved once per run batch. Omit-when-
+        // empty: a skipped/failed resolution produces a prompt identical to
+        // the pre-L03 baseline.
+        ...(resolvedIntent ? { intent: resolvedIntent } : {}),
+        // Revision 2 (specs/05-intent-layer.md) — structured declared scope,
+        // alongside the free-text intent summary above. Same omit-when-empty
+        // contract.
+        ...(resolvedInScope?.length ? { intentInScope: resolvedInScope } : {}),
+        ...(resolvedOutOfScope?.length ? { intentOutOfScope: resolvedOutOfScope } : {}),
+        // specs/09 — resolved project-context documents. Omit-when-empty:
+        // zero attached/inherited documents produces a prompt byte-identical
+        // to the pre-feature baseline (AC-16).
+        ...(projectContext.documents.length > 0 ? { specs: projectContext.documents } : {}),
         task,
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
@@ -210,7 +360,48 @@ export class ReviewRunExecutor {
           if (this.container.runBus.isCancelled(runId)) throw new RunCancelledError();
         },
       });
-      const { tokensIn, tokensOut, grounding } = outcome;
+      const { tokensIn, tokensOut, costUsd, grounding } = outcome;
+
+      // Local-only, metadata-only prompt-assembly log (PROMPT_ASSEMBLY_DEBUG).
+      // Goes straight to the structured stdout logger — deliberately NOT through
+      // `runLog`, which fans out to the SSE Live Log every viewer of this run
+      // can see; this data is for local debugging only. Section CONTENT is
+      // never included (see promptAssemblySections's contract), only name,
+      // origin, and char length, alongside the model and runId (correlation).
+      if (this.container.config?.promptAssemblyDebugEnabled) {
+        logger?.debug(
+          {
+            runId,
+            prId: pull.id,
+            agent: agent.name,
+            provider: agent.provider,
+            model: agent.model,
+            mode: outcome.mode,
+            sections: promptAssemblySections(outcome.assembly, diff.raw.length),
+          },
+          'review: prompt assembled (debug)',
+        );
+      }
+
+      // One row per injected skill — the Stats tab's only source of truth, and
+      // the reason it can say "this skill was pulled into 71% of runs" after the
+      // links have since been toggled. Tokenized with the SAME counter the skill
+      // editor uses (container.tokenizer), never an estimate, so the number in
+      // the editor and the number in Stats can't disagree.
+      // Best-effort, like the other observability writes: never fail a review
+      // that already produced findings because a metrics row didn't land.
+      if (linkedSkills.length > 0) {
+        await this.repo
+          .recordRunSkills(
+            runId,
+            linkedSkills.map((s, i) => ({
+              skillId: s.id,
+              order: i,
+              tokens: this.container.tokenizer.count(skillBlocks[i]!),
+            })),
+          )
+          .catch(() => undefined);
+      }
 
       const keptFindings = outcome.review.findings;
 
@@ -245,6 +436,7 @@ export class ReviewRunExecutor {
         durationMs,
         tokensIn,
         tokensOut,
+        costUsd,
         findingsCount: findingRows.length,
         grounding,
         score: outcome.review.score,
@@ -265,6 +457,7 @@ export class ReviewRunExecutor {
           duration_ms: durationMs,
           tokens_in: tokensIn,
           tokens_out: tokensOut,
+          cost_usd: costUsd,
           findings: findingRows.length,
           grounding,
         },
@@ -277,7 +470,7 @@ export class ReviewRunExecutor {
         })),
         raw_output: outcome.raw,
         memory_pulled: [],
-        specs_read: [],
+        specs_read: specsRead,
         // Persisted log = the run's FULL event buffer (incl. shared pre-work:
         // diff load + intent), not just events recorded inside this method.
         log: runLog.logFor(runId),
@@ -300,6 +493,7 @@ export class ReviewRunExecutor {
           durationMs: Date.now() - start,
           tokensIn: 0,
           tokensOut: 0,
+          costUsd: null,
           findingsCount: 0,
           grounding: '0/0 passed',
           error: msg,
@@ -421,8 +615,16 @@ export class ReviewRunExecutor {
         pr: pull.number,
         source: 'local',
       },
-      stats: { duration_ms: durationMs, tokens_in: 0, tokens_out: 0, findings: 0, grounding },
-      prompt_assembly: { system: agent.systemPrompt, skills: null, memory: null, specs: null, user: '' },
+      stats: { duration_ms: durationMs, tokens_in: 0, tokens_out: 0, cost_usd: null, findings: 0, grounding },
+      prompt_assembly: {
+        system: agent.systemPrompt,
+        skills: null,
+        memory: null,
+        specs: null,
+        intent: null,
+        intent_scope: null,
+        user: '',
+      },
       tool_calls: [],
       raw_output: '',
       memory_pulled: [],

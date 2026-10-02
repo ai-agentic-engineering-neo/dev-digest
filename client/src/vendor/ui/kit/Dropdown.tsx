@@ -5,13 +5,19 @@ import { type DropdownItemDef } from "./types";
 function DropdownItem({ it, onClose }: { it: DropdownItemDef; onClose: () => void }) {
   const [h, setH] = React.useState(false);
   const I = it.icon ? Icon[it.icon] : null;
+  // specs/13-multi-agent-review.md §8 — `checked` (not `keepOpen`) is what
+  // marks a row as multi-select; a plain row (both undefined) renders and
+  // behaves byte-for-byte as before this extension.
+  const isMultiSelect = it.checked !== undefined;
   return (
     <button
+      role={isMultiSelect ? "menuitemcheckbox" : undefined}
+      aria-checked={isMultiSelect ? it.checked : undefined}
       onMouseEnter={() => setH(true)}
       onMouseLeave={() => setH(false)}
       onClick={() => {
         it.onClick?.();
-        onClose();
+        if (!it.keepOpen) onClose();
       }}
       style={{
         display: "flex",
@@ -29,6 +35,23 @@ function DropdownItem({ it, onClose }: { it: DropdownItemDef; onClose: () => voi
         cursor: "pointer",
       }}
     >
+      {isMultiSelect && (
+        <span
+          aria-hidden="true"
+          style={{
+            width: 14,
+            height: 14,
+            borderRadius: 4,
+            border: "1.5px solid " + (it.checked ? "var(--accent)" : "var(--border-strong)"),
+            background: it.checked ? "var(--accent)" : "transparent",
+            display: "grid",
+            placeItems: "center",
+            flexShrink: 0,
+          }}
+        >
+          {it.checked && <Icon.Check size={10} style={{ color: "#fff" }} />}
+        </span>
+      )}
       {I && <I size={14} style={{ color: "var(--text-muted)", flexShrink: 0 }} />}
       <span style={{ flex: 1 }}>{it.label}</span>
       {it.hint && <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{it.hint}</span>}

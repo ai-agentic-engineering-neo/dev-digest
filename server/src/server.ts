@@ -6,6 +6,17 @@ async function main() {
   const config = loadConfig();
   const app = await buildApp({ config });
 
+  // specs/12-eval-pipeline.md D19 — reconcile any eval run left `running` by
+  // a previous (now-dead) process, mirroring `app.ts`'s `agent_runs` reaper
+  // for the same failure mode. Best-effort: a DB hiccup here must never
+  // block boot.
+  try {
+    const reconciled = await app.container.evalService.reconcileStaleRuns();
+    if (reconciled > 0) app.log.info({ reconciled }, 'reconciled stale running eval_runs on boot');
+  } catch (err) {
+    app.log.warn({ err: (err as Error).message }, 'eval stale-run reconciliation failed (non-fatal)');
+  }
+
   // Graceful shutdown: on SIGTERM/SIGINT close the server, which runs the
   // onClose hooks (drains in-flight requests/SSE, closes the postgres pool).
   // Guarded so a second signal during shutdown doesn't double-close.

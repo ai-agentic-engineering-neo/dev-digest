@@ -47,6 +47,14 @@ export const PromptAssembly = z.object({
   repo_map: z.string().nullish(),
   /** PR author's description/body (truncated); null when absent. */
   pr_description: z.string().nullish(),
+  /** L03 — derived PR intent (free-text summary), rendered as one string;
+      null when intent resolution was skipped/failed. */
+  intent: z.string().nullish(),
+  /** Revision 2 (specs/05-intent-layer.md) — the composed "## Declared PR
+      scope" block (in_scope/out_of_scope, one rendered string, mirroring how
+      every other slot here stores exactly one rendered section's raw text);
+      null when both arrays were empty/undefined. */
+  intent_scope: z.string().nullish(),
   user: z.string(),
 });
 export type PromptAssembly = z.infer<typeof PromptAssembly>;
@@ -57,10 +65,51 @@ export const MemoryPulled = z.object({
 });
 export type MemoryPulled = z.infer<typeof MemoryPulled>;
 
+/**
+ * specs/09-project-context-folder.md — one document the project-context
+ * resolver considered for a run, whatever the outcome. Replaces the old
+ * bare-path `specs_read: string[]` (always `[]` — the slot shipped empty
+ * since the skills lesson). Every persisted trace from before this feature
+ * has `specs_read: []`, which still parses cleanly against this widened type.
+ *
+ *  - `status: 'included'`  — actually injected into the assembled prompt.
+ *    `tokens` is its real token count; `reason` is null.
+ *  - `status: 'omitted'`   — could not be read (missing / unreadable /
+ *    not a regular file / oversize at read time / the pinned repo has no
+ *    synced checkout / pinned to a different repo than this run's). `reason`
+ *    names which; `tokens` is 0 (never read).
+ *  - `status: 'refused'`   — the recorded path resolved outside the pinned
+ *    repo's checkout (`..`, an absolute path, or a symlink escape) and was
+ *    never read (AC-27). `reason` is `'refused_containment'`; `tokens` is 0.
+ *  - `status: 'dropped'`   — read successfully, but cut by the token-budget
+ *    reduction (AC-21/AC-32). `tokens` is its real count; `reason` is
+ *    `'budget_drop'`.
+ *
+ * `origin`/`skill` record whether the document reached the agent directly or
+ * was inherited from an enabled skill (AC-18) — `skill` is the skill's name
+ * when `origin === 'skill'`, null otherwise.
+ */
+export const SpecReadOrigin = z.enum(['agent', 'skill']);
+export type SpecReadOrigin = z.infer<typeof SpecReadOrigin>;
+
+export const SpecReadStatus = z.enum(['included', 'omitted', 'refused', 'dropped']);
+export type SpecReadStatus = z.infer<typeof SpecReadStatus>;
+
+export const SpecRead = z.object({
+  path: z.string(),
+  tokens: z.number().int(),
+  origin: SpecReadOrigin,
+  skill: z.string().nullish(),
+  status: SpecReadStatus,
+  reason: z.string().nullish(),
+});
+export type SpecRead = z.infer<typeof SpecRead>;
+
 export const RunStats = z.object({
   duration_ms: z.number().int(),
   tokens_in: z.number().int(),
   tokens_out: z.number().int(),
+  cost_usd: z.number().nullable(),
   findings: z.number().int(),
   grounding: z.string(),
 });
@@ -81,7 +130,7 @@ export const RunTrace = z.object({
   tool_calls: z.array(ToolCall),
   raw_output: z.string(),
   memory_pulled: z.array(MemoryPulled),
-  specs_read: z.array(z.string()),
+  specs_read: z.array(SpecRead),
   log: z.array(RunLogLine),
 });
 export type RunTrace = z.infer<typeof RunTrace>;
@@ -101,6 +150,7 @@ export const RunSummary = z.object({
   duration_ms: z.number().int().nullable(),
   tokens_in: z.number().int().nullable(),
   tokens_out: z.number().int().nullable(),
+  cost_usd: z.number().nullable(),
   findings_count: z.number().int().nullable(),
   grounding: z.string().nullable(),
   ran_at: z.string().nullable(),

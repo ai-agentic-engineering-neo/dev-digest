@@ -1,0 +1,31 @@
+{
+  "fixture": "eval-3-validation-lib-contracts",
+  "diff_file": "diff/src/validation/postalCodeValidator.ts",
+  "note": "This is the complete diff: one new file added, nothing else changed — in particular, no postalCodeValidator.test.ts was added.",
+  "planted_violations": [
+    {
+      "id": "v1",
+      "line": 1,
+      "convention": "contract",
+      "description": "validatePostalCode returns a bare boolean instead of { valid, errors }"
+    },
+    {
+      "id": "v2",
+      "line": 2,
+      "convention": "config-access",
+      "description": "process.env.DEFAULT_COUNTRY accessed directly instead of via getEnv('DEFAULT_COUNTRY')"
+    },
+    {
+      "id": "v3",
+      "line": null,
+      "convention": "testing",
+      "description": "no co-located postalCodeValidator.test.ts was added alongside the new validator — detectable only by absence, since the diff adds no test file"
+    }
+  ],
+  "control_conventions_not_violated": [
+    {
+      "convention": "exports",
+      "reason": "the diff doesn't touch src/validation/index.ts and postalCodeValidator isn't exported from it — nothing to flag here"
+    }
+  ]
+}

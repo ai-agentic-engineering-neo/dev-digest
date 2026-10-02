@@ -21,6 +21,10 @@ export type ReviewRow = typeof t.reviews.$inferSelect;
 import * as reviewRepo from './repository/review.repo.js';
 import * as runRepo from './repository/run.repo.js';
 import * as pullRepo from './repository/pull.repo.js';
+import * as multiAgentRepo from './repository/multi-agent.repo.js';
+import * as memoryRepo from './repository/memory.repo.js';
+export type { MultiAgentRunRow, AgentRunRow } from './repository/multi-agent.repo.js';
+export type { MemoryRow } from './repository/memory.repo.js';
 
 export class ReviewRepository {
   constructor(private db: Db) {}
@@ -155,6 +159,7 @@ export class ReviewRepository {
       durationMs: number;
       tokensIn: number;
       tokensOut: number;
+      costUsd: number | null;
       findingsCount: number;
       grounding: string;
       /** Review score (0-100); null on failed/cancelled runs. */
@@ -166,6 +171,19 @@ export class ReviewRepository {
     },
   ): Promise<void> {
     return runRepo.completeAgentRun(this.db, runId, values);
+  }
+
+  /**
+   * Record which skills were injected into a run's prompt (one row each, with
+   * the real tokenizer count of the rendered block). Called by the run executor
+   * right after prompt assembly; best-effort at the call site — a failure here
+   * must never fail the review.
+   */
+  recordRunSkills(
+    runId: string,
+    rows: { skillId: string; order: number; tokens: number }[],
+  ): Promise<void> {
+    return runRepo.recordRunSkills(this.db, runId, rows);
   }
 
   /** Record the head SHA a review ran against (PR-list freshness derivation). */
@@ -180,5 +198,46 @@ export class ReviewRepository {
 
   getRunTrace(runId: string): Promise<RunTrace | undefined> {
     return runRepo.getRunTrace(this.db, runId);
+  }
+
+  // ---- specs/13 — multi-agent run grouping -------------------------------
+
+  createMultiAgentRun(values: { workspaceId: string; prId: string }): Promise<string> {
+    return multiAgentRepo.createMultiAgentRun(this.db, values);
+  }
+
+  attachRunsToMultiAgentRun(multiAgentRunId: string, runIds: string[]): Promise<void> {
+    return multiAgentRepo.attachRunsToMultiAgentRun(this.db, multiAgentRunId, runIds);
+  }
+
+  latestMultiAgentRunForPull(workspaceId: string, prId: string) {
+    return multiAgentRepo.latestMultiAgentRunForPull(this.db, workspaceId, prId);
+  }
+
+  inFlightMultiAgentRunForPull(workspaceId: string, prId: string) {
+    return multiAgentRepo.inFlightMultiAgentRunForPull(this.db, workspaceId, prId);
+  }
+
+  groupedRuns(multiAgentRunId: string) {
+    return multiAgentRepo.groupedRuns(this.db, multiAgentRunId);
+  }
+
+  agentRunEstimates(workspaceId: string) {
+    return multiAgentRepo.agentRunEstimates(this.db, workspaceId);
+  }
+
+  // ---- specs/13 — Learn action (D24, D-P5) -------------------------------
+
+  findLearningForFinding(workspaceId: string, findingId: string) {
+    return memoryRepo.findLearningForFinding(this.db, workspaceId, findingId);
+  }
+
+  insertLearningFromFinding(values: {
+    workspaceId: string;
+    repoId: string | null;
+    content: string;
+    sources: { finding_id: string; review_id: string; run_id: string | null; agent_id: string | null };
+  }) {
+    return memoryRepo.insertLearningFromFinding(this.db, values);
   }
 }

@@ -66,6 +66,13 @@ export function FindingsTab({
   // Timeline → Review-runs navigation: clicking an agent name in the timeline
   // opens + scrolls to that run's accordion below. The nonce re-triggers the
   // scroll even when the same run is clicked twice.
+  // Timeline tiles show each run's severity icons from its already-loaded review.
+  const reviewsByRunId = React.useMemo(() => {
+    const m = new Map<string, ReviewRecord>();
+    for (const r of runs) if (r.run_id) m.set(r.run_id, r);
+    return m;
+  }, [runs]);
+
   const [target, setTarget] = React.useState<{ runId: string; n: number } | null>(null);
   const handleGoToReview = useCallback((runId: string) => {
     setTarget((p) => ({ runId, n: (p?.n ?? 0) + 1 }));
@@ -134,6 +141,7 @@ export function FindingsTab({
             onOpenTrace={handleOpenTrace}
             onGoToReview={handleGoToReview}
             onDelete={handleDelete}
+            reviewsByRunId={reviewsByRunId}
           />
         </div>
       )}

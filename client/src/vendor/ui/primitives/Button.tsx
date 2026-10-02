@@ -5,7 +5,6 @@ import { type ButtonProps } from "./tokens";
 export type { ButtonProps };
 
 type ButtonKind = "primary" | "secondary" | "tertiary" | "ghost" | "danger";
-type Size = "sm" | "md" | "lg";
 
 export function Button({
   kind = "secondary",

@@ -1,6 +1,4 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { sql } from 'drizzle-orm';
-import { eq } from 'drizzle-orm';
 import { startPg, dockerAvailable, type PgFixture } from './helpers/pg.js';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/platform/config.js';

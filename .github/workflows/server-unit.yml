@@ -63,6 +63,8 @@ jobs:
         working-directory: reviewer-core
         run: npm ci
 
+      - run: pnpm lint
+
       - run: pnpm typecheck
 
   unit:

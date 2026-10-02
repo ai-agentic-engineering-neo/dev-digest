@@ -33,9 +33,16 @@ export function rollupSeverities(rows: { severity: string }[]): SeverityCounts {
 /**
  * Review-freshness status for the PR list. Merged/closed PRs keep their GitHub
  * merge state; open PRs map to:
- *  - `needs_review` — never reviewed, OR head moved since the last review
- *  - `stale`        — current head was reviewed but the PR is older than STALE_DAYS
- *  - `reviewed`     — current head reviewed and recent
+ *  - `changes_requested` — ANY completed run on this PR has a `request_changes`
+ *    verdict. Checked BEFORE head-freshness, deliberately unscoped to the
+ *    current head — consistent with how cost/score already aggregate across
+ *    the PR's whole run history rather than just the latest head. A
+ *    `request_changes` verdict is a stronger, more actionable signal than mere
+ *    staleness and shouldn't be hidden by `needs_review`/`stale` once any run
+ *    has ever raised it.
+ *  - `needs_review`      — never reviewed, OR head moved since the last review
+ *  - `stale`              — current head was reviewed but the PR is older than STALE_DAYS
+ *  - `reviewed`           — current head reviewed and recent
  */
 export function deriveReviewStatus(args: {
   /** DB `status` column = GitHub merge state (open/merged/closed). */
@@ -45,9 +52,13 @@ export function deriveReviewStatus(args: {
   updatedAt: Date | null;
   now: number;
   staleDays?: number;
+  /** Worst verdict (`request_changes` < `comment` < `approve`) among all of
+   *  this PR's completed runs, or null if none has a verdict yet. */
+  worstVerdict?: string | null;
 }): PrStatus {
-  const { ghStatus, lastReviewedSha, headSha, updatedAt, now } = args;
+  const { ghStatus, lastReviewedSha, headSha, updatedAt, now, worstVerdict } = args;
   if (ghStatus === 'merged' || ghStatus === 'closed') return ghStatus as PrStatus;
+  if (worstVerdict === 'request_changes') return 'changes_requested';
   if (!lastReviewedSha || lastReviewedSha !== headSha) return 'needs_review';
   const staleMs = (args.staleDays ?? STALE_DAYS) * 86_400_000;
   if (updatedAt && now - updatedAt.getTime() > staleMs) return 'stale';

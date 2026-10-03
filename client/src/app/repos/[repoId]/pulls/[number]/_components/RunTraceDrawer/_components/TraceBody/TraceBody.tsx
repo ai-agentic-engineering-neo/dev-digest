@@ -7,7 +7,7 @@ import { useTranslations } from "next-intl";
 import { Badge } from "@devdigest/ui";
 import type { RunTrace, FindingRecord } from "@devdigest/shared";
 import { PROMPT_COLORS } from "../../constants";
-import { formatSeconds, formatTokens } from "../../helpers";
+import { formatSeconds, formatTokens, specEntries } from "../../helpers";
 import { formatCostUsd } from "@/lib/format";
 import { s } from "../../styles";
 import { TraceSection } from "../TraceSection";
@@ -19,6 +19,10 @@ import { Row, Stat } from "../atoms";
 export function TraceBody({ trace, findings }: { trace: RunTrace; findings: FindingRecord[] }) {
   const t = useTranslations("runs");
   const stats = trace.stats;
+  const specs = specEntries(trace);
+  // Clicking a "Specs read" path opens the project-context block's modal at
+  // that document; the nonce re-triggers when the same path is clicked again.
+  const [specFocus, setSpecFocus] = React.useState<{ path: string; nonce: number } | null>(null);
   return (
     <>
       <TraceSection icon="Settings" title={t("trace.configuration")}>
@@ -38,12 +42,34 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
           </Row>
           <Row label={t("trace.config.specsRead")}>
             <div style={s.specsWrap}>
-              {trace.specs_read.length === 0 ? (
+              {specs.length === 0 ? (
                 <span style={s.specsNone}>{t("trace.config.none")}</span>
               ) : (
-                trace.specs_read.map((sp, i) => (
-                  <span key={i} className="mono" style={s.spec}>
-                    {sp}
+                specs.map((sp, i) => (
+                  <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    {sp.status === "included" && trace.prompt_assembly.specs ? (
+                      <button
+                        type="button"
+                        className="mono"
+                        style={s.specBtn}
+                        onClick={() => setSpecFocus({ path: sp.path, nonce: Date.now() })}
+                        aria-label={t("trace.config.specOpenAria", { path: sp.path })}
+                      >
+                        {sp.path}
+                      </button>
+                    ) : (
+                      <span className="mono" style={s.spec}>
+                        {sp.path}
+                      </span>
+                    )}
+                    {sp.tokens != null && (
+                      <span className="mono" style={s.specTok}>
+                        {t("trace.config.specTokens", { tokens: sp.tokens })}
+                      </span>
+                    )}
+                    {sp.status !== "included" && (
+                      <span style={s.specWarn}>{t(`trace.config.specStatus.${sp.status}`)}</span>
+                    )}
                   </span>
                 ))
               )}
@@ -83,7 +109,12 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
           <PromptBlock label={t("trace.prompt.repoMap")} text={trace.prompt_assembly.repo_map} color={PROMPT_COLORS.repoMap} />
         )}
         {trace.prompt_assembly.specs != null && (
-          <PromptBlock label={t("trace.prompt.specs")} text={trace.prompt_assembly.specs} color={PROMPT_COLORS.specs} />
+          <PromptBlock
+            label={t("trace.prompt.specs")}
+            text={trace.prompt_assembly.specs}
+            color={PROMPT_COLORS.specs}
+            focusRequest={specFocus}
+          />
         )}
         {trace.prompt_assembly.callers != null && (
           <PromptBlock label={t("trace.prompt.callers")} text={trace.prompt_assembly.callers} color={PROMPT_COLORS.callers} />

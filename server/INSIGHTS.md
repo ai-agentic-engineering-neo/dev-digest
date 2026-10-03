@@ -165,6 +165,18 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 
 ## Recurring Errors & Fixes
 
+- **2026-10-03** — When a run fails at the provider (`400 Provider returned
+  error`), its persisted trace comes from `traceFromBuffer`. That trace has an
+  empty `prompt_assembly`, so the trace drawer can't show what the model would
+  have received. Only `specs_read`, `skills_used` and the log survive. A live
+  Security Reviewer run on merged PR #3 of `serhii-bilous/dev-digest` (80 lines,
+  3 files) failed this way. After a clone resync, `git diff main...<headSha>`
+  returned 236 files instead of 3, which most likely overflowed the context.
+  Earlier runs of the same PR had seen an empty diff. To exercise prompt
+  assembly, use the hermetic `test/project-context.test.ts` instead of a merged
+  PR. `src/modules/reviews/run-executor.ts` (`traceFromBuffer`),
+  `src/modules/reviews/diff-loader.ts`.
+
 - **2026-08-22** — A non-uuid string as `agentId` in `POST /pulls/:id/review`
   does **not** produce `ReviewService.resolveTargets`' clean 404
   `not_found` — it fails earlier at the Drizzle query (`agents.getById`)

@@ -9,6 +9,7 @@ export interface SkillTab {
 
 export const TABS: readonly SkillTab[] = [
   { key: "config", labelKey: "tabs.config", icon: "Settings" },
+  { key: "context", labelKey: "tabs.context", icon: "Folder" },
   { key: "preview", labelKey: "tabs.preview", icon: "Eye" },
   { key: "evals", labelKey: "tabs.evals", icon: "FlaskConical" },
   { key: "stats", labelKey: "tabs.stats", icon: "Gauge" },

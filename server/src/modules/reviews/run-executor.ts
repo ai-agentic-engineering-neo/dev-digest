@@ -1,7 +1,13 @@
 import PQueue from 'p-queue';
 import type { Container } from '../../platform/container.js';
-import type { Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
-import { reviewPullRequest, countBlockers, severityCounts } from '@devdigest/reviewer-core';
+import type { Provider, Review, RunTrace, SpecReadEntry, UnifiedDiff } from '@devdigest/shared';
+import {
+  reviewPullRequest,
+  countBlockers,
+  severityCounts,
+  type ContextSpec,
+} from '@devdigest/reviewer-core';
+import { DEFAULT_CONTEXT_BUDGET_TOKENS } from '../../platform/config.js';
 import { RunLogger, type PinoLike } from '../../platform/run-logger.js';
 import type * as schema from '../../db/schema.js';
 import type { AgentRow } from '../../db/rows.js';
@@ -9,6 +15,16 @@ import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './reposit
 import { taskLine, toSkillPromptBlock } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
 import { resolveEnabledSkills } from '../agents/helpers.js';
+import {
+  applyContextBudget,
+  contextLogLine,
+  effectiveContextList,
+  invalidContextPathReason,
+  type ReadContextDoc,
+} from '../../platform/project-context.js';
+
+/** `git show` messages meaning "the ref is fine, the path isn't in it". */
+const MISSING_AT_REF = /does not exist in|exists on disk, but not in/i;
 
 /**
  * Bounds how many agents run their reviews at once (see the comment at the
@@ -176,6 +192,9 @@ export class ReviewRunExecutor {
 
     runLog.info(`Starting review with agent "${agent.name}" (${agent.provider}/${agent.model})`);
 
+    // Hoisted so a failure AFTER context resolution still records what was read.
+    let specsRead: SpecReadEntry[] = [];
+
     try {
       // Resolve the agent's LLM provider. (container.llm throws if the provider
       // key is missing — caught below and persisted as a failed run.)
@@ -219,6 +238,13 @@ export class ReviewRunExecutor {
       // section when the array is empty.
       const skillBlocks = await this.buildSkillBlocks(agent.id, runLog);
 
+      // Project Context — attached repo documents (agent's own, then inherited
+      // from enabled skills), read from the PR's target branch so the PR can't
+      // rewrite the rules it is judged by. Independent of repo-intel; best-
+      // effort (a read failure drops the section, never the run).
+      const projectContext = await this.buildProjectContext(agent, repo, pull, runLog);
+      specsRead = projectContext.entries;
+
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
       // the CI runner). The service owns only I/O: repo-intel context resolution
@@ -245,6 +271,9 @@ export class ReviewRunExecutor {
         // Stated PR intent/scope digest, when computed. Same omit-when-empty
         // contract as the other digests.
         ...(intentDigest ? { intent: intentDigest } : {}),
+        // Project Context — path-labelled untrusted blocks behind a trusted
+        // framing rule. Omitted when nothing was included.
+        ...(projectContext.specs.length > 0 ? { specs: projectContext.specs } : {}),
         task,
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
@@ -329,7 +358,7 @@ export class ReviewRunExecutor {
         tool_calls: [{ tool: 'review_file', args: 'all files', meta: 'single-pass', ms: durationMs }],
         raw_output: outcome.raw,
         memory_pulled: [],
-        specs_read: [],
+        specs_read: specsRead,
         skills_used: skillIds.length > 0 ? skillIds : null,
         // Persisted log = the run's FULL event buffer (incl. shared pre-work:
         // diff load + intent), not just events recorded inside this method.
@@ -360,7 +389,10 @@ export class ReviewRunExecutor {
         })
         .catch(() => undefined);
       await this.repo
-        .saveRunTrace(runId, this.traceFromBuffer(runId, pull, agent, '0/0 passed', Date.now() - start))
+        .saveRunTrace(
+          runId,
+          this.traceFromBuffer(runId, pull, agent, '0/0 passed', Date.now() - start, specsRead),
+        )
         .catch(() => undefined);
       this.container.runBus.complete(runId);
       throw err;
@@ -393,6 +425,70 @@ export class ReviewRunExecutor {
     } catch (err) {
       runLog.info(`skills: skipped — ${(err as Error).message}`);
       return [];
+    }
+  }
+
+  /**
+   * Resolve the agent's Project Context: its own attached paths in saved order,
+   * then each linked + enabled skill's paths, deduplicated by first occurrence.
+   * Each document is read at the PR's target branch (`pull.base`, falling back
+   * to `origin/<base>`), counted with the shared tokenizer and admitted until
+   * the configured budget is reached. No LLM call.
+   *
+   * Never fails the run: a path missing on the target branch is logged and
+   * marked `missing`; any other read failure (no clone, bad ref) drops the
+   * whole section with one log line, and the prompt matches the no-context
+   * baseline.
+   */
+  private async buildProjectContext(
+    agent: AgentRow,
+    repo: typeof schema.repos.$inferSelect,
+    pull: PullRow,
+    runLog: RunLogger,
+  ): Promise<{ specs: ContextSpec[]; entries: SpecReadEntry[] }> {
+    const none = { specs: [], entries: [] };
+    try {
+      const links = await this.container.agentsRepo.enabledSkillsForPrompt(agent.id);
+      const effective = effectiveContextList(
+        agent.contextPaths ?? [],
+        links.map((l) => ({
+          skillId: l.skill.id,
+          skillName: l.skill.name,
+          paths: l.skill.contextPaths ?? [],
+        })),
+      );
+      if (effective.length === 0) return none;
+
+      const repoRef = { owner: repo.owner, name: repo.name };
+      const refs = [pull.base, `origin/${pull.base}`];
+      const readAtBase = async (path: string): Promise<string | null> => {
+        if (invalidContextPathReason(path)) return null;
+        let lastErr: unknown;
+        for (const ref of refs) {
+          try {
+            return await this.container.git.readFileAtRef(repoRef, ref, path);
+          } catch (err) {
+            if (MISSING_AT_REF.test((err as Error).message)) return null;
+            lastErr = err;
+          }
+        }
+        throw new Error(`cannot read ${path} at ${pull.base}: ${(lastErr as Error)?.message ?? 'unknown error'}`);
+      };
+
+      const docs: ReadContextDoc[] = [];
+      for (const e of effective) {
+        const content = await readAtBase(e.path);
+        if (content == null) runLog.info(`project context: ${e.path} not found in ${repo.fullName}@${pull.base} — skipped`);
+        docs.push({ ...e, content, tokens: content == null ? null : this.container.tokenizer.count(content) });
+      }
+
+      const budget = this.container.config?.context?.budgetTokens ?? DEFAULT_CONTEXT_BUDGET_TOKENS;
+      const { included, entries, totalTokens } = applyContextBudget(docs, budget);
+      runLog.info(contextLogLine(entries, totalTokens));
+      return { specs: included, entries };
+    } catch (err) {
+      runLog.info(`project context: skipped — ${(err as Error).message}`);
+      return none;
     }
   }
 
@@ -535,6 +631,7 @@ export class ReviewRunExecutor {
     agent: AgentRow,
     grounding: string,
     durationMs = 0,
+    specsRead: SpecReadEntry[] = [],
   ): RunTrace {
     return {
       config: {
@@ -550,7 +647,7 @@ export class ReviewRunExecutor {
       tool_calls: [],
       raw_output: '',
       memory_pulled: [],
-      specs_read: [],
+      specs_read: specsRead,
       log: this.container.runBus.buffer(runId).map((e) => ({ t: e.t, kind: e.kind, msg: e.msg })),
     };
   }

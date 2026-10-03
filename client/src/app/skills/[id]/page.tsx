@@ -13,7 +13,7 @@ import { useSkills, useSkill, useUpdateSkill } from "../../../lib/hooks/skills";
 import { useRunAllEvalCases } from "../../../lib/hooks/evals";
 import { ApiError } from "../../../lib/api";
 
-const VALID_TABS = ["config", "preview", "evals", "stats", "versions"];
+const VALID_TABS = ["config", "context", "preview", "evals", "stats", "versions"];
 
 export default function SkillDetailPage() {
   const t = useTranslations("skills");

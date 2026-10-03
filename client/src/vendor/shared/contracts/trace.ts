@@ -75,6 +75,25 @@ export const RunStats = z.object({
 });
 export type RunStats = z.infer<typeof RunStats>;
 
+/**
+ * One Project Context document considered for a run. `included` = its text is
+ * in `prompt_assembly.specs`; `missing` = the path didn't exist on the PR's
+ * target branch; `skipped_budget` = it would have pushed the context past the
+ * configured token budget. `source` says whether the agent attached it
+ * directly or inherited it from a linked skill.
+ */
+export const SpecReadStatus = z.enum(['included', 'missing', 'skipped_budget']);
+export type SpecReadStatus = z.infer<typeof SpecReadStatus>;
+
+export const SpecReadEntry = z.object({
+  path: z.string(),
+  tokens: z.number().int().nullable(),
+  status: SpecReadStatus,
+  source: z.enum(['agent', 'skill']),
+  skill_name: z.string().nullish(),
+});
+export type SpecReadEntry = z.infer<typeof SpecReadEntry>;
+
 /** The single-document trace stored in `run_traces.trace`. */
 export const RunTrace = z.object({
   config: z.object({
@@ -90,7 +109,9 @@ export const RunTrace = z.object({
   tool_calls: z.array(ToolCall),
   raw_output: z.string(),
   memory_pulled: z.array(MemoryPulled),
-  specs_read: z.array(z.string()),
+  /** Project Context documents. Traces recorded before the feature stored
+   *  bare path strings — readers must accept both shapes. */
+  specs_read: z.array(z.union([z.string(), SpecReadEntry])),
   /** Skill ids actually attached (linked + enabled) at run time; null/absent
    *  on runs recorded before this field existed — treat as no skills used,
    *  no backfill. Feeds the Stats tab's "most-used skills" aggregation. */

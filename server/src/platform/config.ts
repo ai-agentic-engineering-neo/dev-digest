@@ -26,6 +26,11 @@ const EnvSchema = z.object({
   // Note: even when on, sections only populate once the repo is indexed; an
   // unindexed repo degrades gracefully. Per-agent override: agents.repo_intel.
   REPO_INTEL_ENABLED: z.string().optional(),
+  // Project Context discovery: comma-separated repo-relative roots (default the
+  // repo root), the glob matched under each root, and the per-run token budget.
+  CONTEXT_ROOTS: z.string().optional(),
+  CONTEXT_GLOB: z.string().optional(),
+  CONTEXT_BUDGET_TOKENS: z.coerce.number().int().positive().optional(),
   API_PORT: z.coerce.number().int().default(3001),
   WEB_PORT: z.coerce.number().int().default(3000),
   DEVDIGEST_CLONE_DIR: z.string().optional(),
@@ -59,7 +64,14 @@ export type AppConfig = {
    * EXACTLY like the ripgrep-only baseline.
    */
   repoIntelEnabled: boolean;
+  /** Project Context discovery + run-time budget. */
+  context: { roots: string[]; glob: string; budgetTokens: number };
 };
+
+// Only specifications: markdown under any `specs/` directory (README index
+// files are excluded by discovery, not by the glob).
+export const DEFAULT_CONTEXT_GLOB = '**/specs/**/*.md';
+export const DEFAULT_CONTEXT_BUDGET_TOKENS = 24_000;
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const parsed = EnvSchema.parse(env);
@@ -77,5 +89,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     webOrigin: `http://localhost:${parsed.WEB_PORT}`,
     embeddingsEnabled: parsed.EMBEDDINGS_ENABLED === 'true',
     repoIntelEnabled: parsed.REPO_INTEL_ENABLED !== 'false',
+    context: {
+      roots: (parsed.CONTEXT_ROOTS ?? '.')
+        .split(',')
+        .map((r) => r.trim())
+        .filter((r) => r.length > 0),
+      glob: parsed.CONTEXT_GLOB || DEFAULT_CONTEXT_GLOB,
+      budgetTokens: parsed.CONTEXT_BUDGET_TOKENS ?? DEFAULT_CONTEXT_BUDGET_TOKENS,
+    },
   };
 }

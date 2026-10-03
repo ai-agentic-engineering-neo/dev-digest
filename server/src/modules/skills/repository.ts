@@ -112,11 +112,45 @@ export class SkillsRepository {
     return row;
   }
 
-  private async snapshotVersion(row: SkillRow, version: number): Promise<void> {
+  private async snapshotVersion(
+    row: SkillRow,
+    version: number,
+    message?: string,
+  ): Promise<void> {
     await this.db
       .insert(t.skillVersions)
-      .values({ skillId: row.id, version, body: row.body })
+      .values({
+        skillId: row.id,
+        version,
+        body: row.body,
+        contextPaths: row.contextPaths ?? [],
+        ...(message !== undefined ? { message } : {}),
+      })
       .onConflictDoNothing();
+  }
+
+  /**
+   * Replace the skill's ordered Project Context paths. A real change bumps the
+   * skill's version and snapshots it, so two runs of one skill version always
+   * inherited the same documents. A no-op write does not bump.
+   */
+  async setContextPaths(
+    workspaceId: string,
+    id: string,
+    paths: string[],
+  ): Promise<SkillRow | undefined> {
+    const existing = await this.getById(workspaceId, id);
+    if (!existing) return undefined;
+    const prev = existing.contextPaths ?? [];
+    const changed = prev.length !== paths.length || prev.some((p, i) => p !== paths[i]);
+    if (!changed) return existing;
+    const [row] = await this.db
+      .update(t.skills)
+      .set({ contextPaths: paths, version: existing.version + 1 })
+      .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.id, id)))
+      .returning();
+    if (row) await this.snapshotVersion(row, row.version, 'Project context changed');
+    return row;
   }
 
   // ---- skill_versions (immutable body snapshots) ---------------------------

@@ -266,6 +266,65 @@ export const IndexStatus = z.object({
 });
 export type IndexStatus = z.infer<typeof IndexStatus>;
 
+/** Document type = the deepest `specs` / `docs` / `insights` dir in its path. */
+export const ContextDocType = z.enum(['specs', 'docs', 'insights', 'other']);
+export type ContextDocType = z.infer<typeof ContextDocType>;
+
+/** One discovered markdown document in a repo clone (list item). */
+export const ContextDocument = z.object({
+  path: z.string(),
+  dir: z.string(),
+  name: z.string(),
+  type: ContextDocType,
+  size_bytes: z.number().int(),
+  tokens: z.number().int(),
+  used_by: z.object({ agents: z.number().int(), skills: z.number().int() }),
+  updated_at: z.string().nullish(),
+});
+export type ContextDocument = z.infer<typeof ContextDocument>;
+
+/** GET /repos/:id/context — every discovered document for the repo. */
+export const ContextList = z.object({
+  roots: z.array(z.string()),
+  glob: z.string(),
+  documents: z.array(ContextDocument),
+  scanned_at: z.string(),
+  truncated: z.boolean(),
+  budget_tokens: z.number().int(),
+});
+export type ContextList = z.infer<typeof ContextList>;
+
+/** GET /repos/:id/context/file?path= — one document with its markdown. */
+export const ContextDocumentDetail = ContextDocument.extend({
+  content: z.string(),
+  used_by_names: z.object({
+    agents: z.array(z.object({ id: z.string(), name: z.string() })),
+    skills: z.array(z.object({ id: z.string(), name: z.string() })),
+  }),
+});
+export type ContextDocumentDetail = z.infer<typeof ContextDocumentDetail>;
+
+/** PUT /agents/:id/context and /skills/:id/context — replaces the ordered set. */
+export const ContextPathsInput = z.object({
+  paths: z.array(z.string()).max(200),
+});
+export type ContextPathsInput = z.infer<typeof ContextPathsInput>;
+
+/** A skill-inherited document as shown in the agent's Context tab. */
+export const InheritedContextPath = z.object({
+  path: z.string(),
+  skill_id: z.string(),
+  skill_name: z.string(),
+});
+export type InheritedContextPath = z.infer<typeof InheritedContextPath>;
+
+/** GET /agents/:id/context — own (ordered) + inherited paths. */
+export const AgentContext = z.object({
+  own: z.array(z.string()),
+  inherited: z.array(InheritedContextPath),
+});
+export type AgentContext = z.infer<typeof AgentContext>;
+
 // ---- Run request (review trigger; owned by A2, contract lives here) ----
 export const RunRequest = z.object({
   agentId: z.string().optional(),

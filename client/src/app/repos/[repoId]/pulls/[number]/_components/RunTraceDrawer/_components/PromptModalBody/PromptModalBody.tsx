@@ -31,12 +31,21 @@ function highlightLine(line: string, q: string): React.ReactNode {
   return parts;
 }
 
-export function PromptModalBody({ text }: { text: string }) {
+export function PromptModalBody({ text, focusSource }: { text: string; focusSource?: string | null }) {
   const t = useTranslations("runs");
   const [q, setQ] = React.useState("");
   const lines = React.useMemo(() => (text || "—").split("\n"), [text]);
   const ql = q.trim().toLowerCase();
   const shown = ql ? lines.filter((l) => l.toLowerCase().includes(ql)) : lines;
+  // Line that opens the focused document's untrusted block (Specs read → click).
+  const focusIdx = React.useMemo(
+    () => (focusSource ? lines.findIndex((l) => l.startsWith(`<untrusted source="${focusSource}">`)) : -1),
+    [lines, focusSource],
+  );
+  const focusRef = React.useRef<HTMLDivElement | null>(null);
+  React.useEffect(() => {
+    if (focusIdx >= 0 && !ql) focusRef.current?.scrollIntoView({ block: "start" });
+  }, [focusIdx, ql]);
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "70vh" }}>
       <div style={{ padding: "12px 24px", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
@@ -63,7 +72,23 @@ export function PromptModalBody({ text }: { text: string }) {
             className="mono"
             style={{ margin: 0, padding: "16px 24px", whiteSpace: "pre-wrap", fontSize: 12.5, lineHeight: 1.6 }}
           >
-            {ql ? shown.map((l, i) => <div key={i}>{highlightLine(l, q)}</div>) : text || "—"}
+            {ql
+              ? shown.map((l, i) => <div key={i}>{highlightLine(l, q)}</div>)
+              : focusIdx >= 0
+                ? lines.map((l, i) => (
+                    <div
+                      key={i}
+                      ref={i === focusIdx ? focusRef : undefined}
+                      style={
+                        i === focusIdx
+                          ? { background: "var(--accent-bg)", color: "var(--accent-text)", borderRadius: 3 }
+                          : undefined
+                      }
+                    >
+                      {l || "\u00a0"}
+                    </div>
+                  ))
+                : text || "—"}
           </pre>
         )}
       </div>

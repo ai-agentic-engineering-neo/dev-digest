@@ -128,6 +128,9 @@ export const Skill = z.object({
   enabled: z.boolean(),
   version: z.number().int(),
   evidence_files: z.array(z.string()).nullish(),
+  // Project Context — ordered repo-relative markdown paths attached to this
+  // skill. Every agent that links (and enables) the skill inherits them.
+  context_paths: z.array(z.string()).optional(),
   // Lightweight usage stats attached by `SkillsService.list()` for the list
   // cards ("N agents · NN% pull · NN% accept") — computed once per request
   // across all skills, not per-card. Absent/undefined wherever a caller
@@ -152,6 +155,8 @@ export const SkillVersion = z.object({
   version: z.number().int(),
   body: z.string(),
   message: z.string().nullish(),
+  /** Attached Project Context paths at snapshot time; absent on old versions. */
+  context_paths: z.array(z.string()).nullish(),
   created_at: z.string(),
 });
 export type SkillVersion = z.infer<typeof SkillVersion>;
@@ -256,6 +261,9 @@ export const Agent = z.object({
   // Inject repo-intel context (repo skeleton + callers + rank note) into this
   // agent's review prompt. Default on; gated again by the global flag.
   repo_intel: z.boolean().default(true),
+  // Project Context — ordered repo-relative markdown paths attached directly
+  // to this agent (paths only, never text). Read at run time.
+  context_paths: z.array(z.string()).default([]),
 });
 export type Agent = z.infer<typeof Agent>;
 
@@ -296,6 +304,8 @@ export const AgentVersionConfig = z.object({
   ci_fail_on: CiFailOn,
   repo_intel: z.boolean(),
   skills: z.array(z.string()),
+  /** Ordered Project Context paths; absent on snapshots taken before the feature. */
+  context_paths: z.array(z.string()).default([]),
 });
 export type AgentVersionConfig = z.infer<typeof AgentVersionConfig>;
 

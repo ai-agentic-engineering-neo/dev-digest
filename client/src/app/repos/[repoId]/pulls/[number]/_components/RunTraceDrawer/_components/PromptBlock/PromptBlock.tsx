@@ -20,10 +20,27 @@ const miniBtnStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
-export function PromptBlock({ label, text, color }: { label: string; text: string; color: string }) {
+export function PromptBlock({
+  label,
+  text,
+  color,
+  focusRequest,
+}: {
+  label: string;
+  text: string;
+  color: string;
+  /** Open the fullscreen modal scrolled to the `<untrusted source="path">` block. */
+  focusRequest?: { path: string; nonce: number } | null;
+}) {
   const t = useTranslations("runs");
   const [open, setOpen] = React.useState(false);
   const [full, setFull] = React.useState(false);
+  const [focus, setFocus] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    if (!focusRequest) return;
+    setFocus(focusRequest.path);
+    setFull(true);
+  }, [focusRequest]);
   const [copied, setCopied] = React.useState(false);
   const copy = () => {
     void navigator.clipboard?.writeText(text || "");
@@ -74,14 +91,17 @@ export function PromptBlock({ label, text, color }: { label: string; text: strin
         <Modal
           width={1200}
           title={label}
-          onClose={() => setFull(false)}
+          onClose={() => {
+            setFull(false);
+            setFocus(null);
+          }}
           footer={
             <Button kind="secondary" size="sm" icon={copied ? "Check" : "Copy"} onClick={copy}>
               {copied ? t("drawer.copied") : t("trace.prompt.copy")}
             </Button>
           }
         >
-          <PromptModalBody text={text} />
+          <PromptModalBody text={text} focusSource={focus} />
         </Modal>
       )}
     </div>

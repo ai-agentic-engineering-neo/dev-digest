@@ -22,3 +22,64 @@
     transform: translateY(0);
   }
 }
+
+/* Project Context document preview — Tailwind preflight strips heading sizes
+   and list markers, so rendered repo markdown needs them back. */
+.pc-doc h1 {
+  font-size: 1.75em;
+  font-weight: 700;
+  margin: 0 0 0.9em;
+  color: var(--text-primary);
+}
+.pc-doc h2 {
+  font-size: 1.25em;
+  font-weight: 650;
+  margin: 1.4em 0 0.6em;
+  color: var(--text-primary);
+}
+.pc-doc h3,
+.pc-doc h4 {
+  font-size: 1.05em;
+  font-weight: 650;
+  margin: 1.2em 0 0.5em;
+  color: var(--text-primary);
+}
+.pc-doc ul,
+.pc-doc ol {
+  padding-left: 1.4em;
+  margin: 0 0 12px;
+}
+.pc-doc ul {
+  list-style: disc;
+}
+.pc-doc ol {
+  list-style: decimal;
+}
+.pc-doc li {
+  margin: 4px 0;
+  color: var(--text-secondary);
+}
+.pc-doc li::marker {
+  color: var(--text-muted);
+}
+.pc-doc p {
+  color: var(--text-secondary);
+}
+.pc-doc pre {
+  background: var(--bg-hover);
+  border-radius: 6px;
+  padding: 10px 12px;
+  overflow: auto;
+  margin: 0 0 12px;
+}
+.pc-doc table {
+  border-collapse: collapse;
+  margin: 0 0 12px;
+  font-size: 0.92em;
+}
+.pc-doc th,
+.pc-doc td {
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+  text-align: left;
+}

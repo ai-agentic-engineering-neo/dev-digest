@@ -1,24 +1,63 @@
 {
   "title": "Project Context",
-  "chunks": "{count} chunks",
-  "reindex": "Re-index",
-  "indexing": "Indexing…",
-  "resync": "Resync",
-  "resyncing": "Resyncing…",
-  "indexStatus": "Index status: {status}",
-  "loadError": "Couldn’t load specs",
-  "kb": "{kb}kb",
+  "sectionLabel": "PROJECT CONTEXT",
+  "filterPlaceholder": "Filter documents…",
+  "refresh": "Refresh",
+  "refreshing": "Scanning…",
+  "footer": "Indexed: {count} files · last {ago}",
+  "truncated": "Showing the first {count} documents — narrow the discovery roots to see the rest.",
+  "loadError": "Couldn’t load project documents",
+  "retry": "Retry",
+  "selectPrompt": "Select a document to preview it.",
+  "previewError": "Couldn’t load this document",
+  "usedBy": "Used by {agents, plural, one {# agent} other {# agents}} · {skills, plural, one {# skill} other {# skills}}",
+  "tokens": "{tokens} tokens",
+  "approxTokens": "≈ {tokens} tokens",
+  "readOnly": "Read-only — documents come from the repository; edit them in git.",
+  "notCloned": {
+    "title": "Repository not cloned",
+    "body": "{repo} has no clone on disk yet, so its documents can’t be discovered. Refresh the repository once it has been cloned."
+  },
   "empty": {
-    "title": "No spec files yet",
-    "body": "Drop your PRDs, tech specs, and acceptance criteria under .devdigest/specs/. Every agent and the PR brief read them as grounding context."
+    "title": "No specifications found",
+    "body": "Nothing under {roots} matches {glob}. Add markdown specs (not README files) under a specs/ directory."
   },
-  "mode": {
-    "preview": "preview",
-    "edit": "edit"
+  "noMatches": "No documents match “{q}”.",
+  "noRepo": "Select a repository to see its project documents.",
+  "type": {
+    "specs": "specs",
+    "docs": "docs",
+    "insights": "insights",
+    "other": "other"
   },
-  "editor": {
-    "loadError": "Couldn’t load spec",
-    "save": "Save",
-    "saving": "Saving…"
+  "picker": {
+    "agentTitle": "Project context",
+    "skillTitle": "Project context to use",
+    "attachedCount": "{attached} of {total} attached",
+    "skillAttachedCount": "{attached} attached",
+    "agentHint": "Order matters — earlier docs appear earlier in the assembled ## Project context block. Toggle to attach.",
+    "skillHint": "Any agent using this skill inherits these documents.",
+    "preview": "Preview",
+    "previewAria": "Preview {path}",
+    "attachAria": "Attach {path}",
+    "dragAria": "Drag to reorder {path}",
+    "moveUp": "Move {path} up",
+    "moveDown": "Move {path} down",
+    "remove": "Remove",
+    "inheritedFrom": "inherited from {skill}",
+    "notFound": "not found in {repo}",
+    "willSkip": "will be skipped: budget",
+    "untrustedNote": "Injected as an untrusted block (## Project context) into every run.",
+    "warnLarge": "Large context: ≈ {tokens} tokens added to every run{cost}.",
+    "warnCost": " (~{cost} per run)",
+    "overBudget": "Over the {budget}-token budget — documents marked below will be skipped at run time.",
+    "serializesAs": "SERIALIZES AS",
+    "noRepo": "Select a repository (top left) to choose documents from it.",
+    "noAttached": "No documents attached."
+  },
+  "drawer": {
+    "attached": "Attached",
+    "attach": "Attach",
+    "inherited": "Inherited from {skill}"
   }
 }

@@ -30,6 +30,8 @@ export const skills = pgTable(
     enabled: boolean('enabled').notNull().default(true),
     version: integer('version').notNull().default(1),
     evidenceFiles: jsonb('evidence_files').$type<string[]>(),
+    // Project Context paths every agent linking this skill inherits.
+    contextPaths: jsonb('context_paths').$type<string[]>().notNull().default([]),
     createdAt: now(),
   },
   (t) => ({
@@ -58,6 +60,8 @@ export const skillVersions = pgTable(
     // Nullable by design: a save without one still snapshots, and the UI falls
     // back to a diff-derived summary rather than inventing a message.
     message: text('message'),
+    // Attached Project Context paths at snapshot time (null on old versions).
+    contextPaths: jsonb('context_paths').$type<string[]>(),
     createdAt: now(),
   },
   (t) => ({ pk: primaryKey({ columns: [t.skillId, t.version] }) }),

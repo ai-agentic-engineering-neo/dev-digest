@@ -1,5 +1,5 @@
 import type { LogLine } from "@devdigest/ui";
-import type { RunTrace } from "@devdigest/shared";
+import type { RunTrace, SpecReadEntry } from "@devdigest/shared";
 
 interface RawEvent {
   t: string;
@@ -15,6 +15,16 @@ export function eventsToLog(events: RawEvent[]): LogLine[] {
 /** Map a persisted trace's log to the LiveLogStream LogLine shape. */
 export function traceLog(trace: RunTrace | undefined): LogLine[] {
   return trace?.log.map((l) => ({ t: l.t, k: l.kind as LogLine["k"], m: l.msg })) ?? [];
+}
+
+/**
+ * Normalise `specs_read` — traces recorded before Project Context stored bare
+ * path strings (no token count, implicitly included).
+ */
+export function specEntries(trace: RunTrace): SpecReadEntry[] {
+  return trace.specs_read.map((sp) =>
+    typeof sp === "string" ? { path: sp, tokens: null, status: "included", source: "agent" } : sp,
+  );
 }
 
 /** Seconds-formatted duration. */

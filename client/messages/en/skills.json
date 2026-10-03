@@ -1,6 +1,7 @@
 {
   "tabs": {
     "config": "Config",
+    "context": "Context",
     "preview": "Preview",
     "evals": "Evals",
     "stats": "Stats",

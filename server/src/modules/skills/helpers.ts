@@ -18,6 +18,7 @@ export function toSkillDto(row: SkillRow): Skill {
     enabled: row.enabled,
     version: row.version,
     evidence_files: row.evidenceFiles ?? undefined,
+    context_paths: row.contextPaths ?? [],
   };
 }
 
@@ -27,6 +28,8 @@ export function toSkillVersionDto(row: SkillVersionRow): SkillVersion {
     skill_id: row.skillId,
     version: row.version,
     body: row.body,
+    message: row.message ?? null,
+    context_paths: row.contextPaths ?? null,
     created_at: row.createdAt.toISOString(),
   };
 }

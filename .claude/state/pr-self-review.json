@@ -1,0 +1,63 @@
+{
+  "diffHash": "c6a734587a7f6d8da5ae854b66253f678699b95239bcfe75397dec6abcd12f35",
+  "verdict": "PASS",
+  "timestamp": "2026-09-28T00:00:00Z",
+  "findings": [
+    {
+      "severity": "high",
+      "file": "server/src/modules/pulls/repository.ts",
+      "line": 53,
+      "skill": "onion-architecture",
+      "rule": "onion-architecture SKILL.md §3 (repository split threshold)",
+      "summary": "PullsRepository spans multiple distinct aggregates in one file (pull_requests/pr_files/pr_commits CRUD plus cross-module rollup reads over reviews/findings/agent_runs) — the same shape reviews/ already split into repository/{pull,review,run}.repo.ts.",
+      "verified": false
+    },
+    {
+      "severity": "medium",
+      "file": "server/src/db/schema/reviews.ts",
+      "line": 21,
+      "skill": "postgresql-table-design",
+      "rule": "Create indexes for access paths you actually query",
+      "summary": "Migration 0011 adds an index on reviews.pr_id but not run_id, even though run.repo.ts's deleteAgentRun filters reviews by eq(reviews.runId, runId) — that delete does a full table scan."
+    },
+    {
+      "severity": "medium",
+      "file": "client/src/vendor/shared/contracts/eval-ci.ts",
+      "line": 249,
+      "skill": "zod",
+      "rule": "compose-shared-schemas",
+      "summary": "ConformanceInput.provider hand-rolls z.enum(['openai','anthropic','openrouter']) instead of reusing the shared Provider enum from knowledge.ts, which this file already imports."
+    },
+    {
+      "severity": "medium",
+      "file": "client/src/vendor/shared/contracts/productionize.ts",
+      "line": 36,
+      "skill": "zod",
+      "rule": "compose-shared-schemas",
+      "summary": "PluginAgent.provider duplicates the same three-value provider enum by hand instead of importing the shared Provider schema; this PR hand-edited three separate copies of this enum to add 'openrouter'."
+    },
+    {
+      "severity": "medium",
+      "file": "reviewer-core/src/output/to-review.ts",
+      "line": 109,
+      "skill": "typescript-expert",
+      "rule": "no-shadow / naming clarity",
+      "summary": "Inside composeBody's findings.map callback, const title = sanitizeFindingText(f.title) shadows the outer function parameter title (the report heading)."
+    },
+    {
+      "severity": "medium",
+      "file": "client/src/app/repos/[repoId]/pulls/[number]/_components/RunHistory/RunHistory.test.tsx",
+      "line": 150,
+      "skill": "react-testing-library",
+      "rule": "anti-pattern: fireEvent → userEvent",
+      "summary": "Pre-existing fireEvent.mouseEnter instead of userEvent.hover in the popover test; not touched by this diff, flagged for awareness only."
+    },
+    {
+      "severity": "medium",
+      "file": "(diff-wide)",
+      "skill": "hard-rules",
+      "rule": "diff-too-big guard",
+      "summary": "61 files changed across 4 packages (34 modified + 27 untracked, including a routes→service→repository split across 4 server modules plus 3 new skill packages and a planning doc) — plausibly several separate PRs; consider splitting the skill-authoring changes from the server refactor and schema/migration work."
+    }
+  ]
+}

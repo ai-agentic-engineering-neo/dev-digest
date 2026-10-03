@@ -1,11 +1,11 @@
 ---
 name: react-best-practices
-description: "Modern React best practices and anti-pattern catalog (2025-26). Use when writing, reviewing, or refactoring React components, hooks, and state management. Covers component design, state patterns, hooks misuse, performance, data fetching, and code organization."
+description: "Modern React best practices and anti-pattern catalog (2025-26). Use when writing, reviewing, or refactoring React components, hooks, and state management. Covers component behaviour: purity, state/hooks misuse, performance, data fetching. Does NOT cover component placement, folder structure, or where constants/helpers/types live — use frontend-ui-architecture for that."
 ---
 
 # React Best Practices & Anti-Patterns
 
-Modern React conventions (2025-26). Covers what to do and what to avoid. For code examples, see [examples.md](examples.md).
+Modern React conventions (2025-26). Covers what to do and what to avoid. For code examples, see [examples.md](examples.md). For component *placement* and folder structure (where a component goes, when to split one, where constants/helpers/types live), see [frontend-ui-architecture](../frontend-ui-architecture/SKILL.md) instead.
 
 ## Severity Levels
 
@@ -22,10 +22,10 @@ Each rule is tagged with a severity for use by consuming agents:
 - Components must be pure — same inputs = same outputs, no side effects during render
 - Business logic in hooks/helpers, NOT in component bodies
 - Container components fetch data; presentational components receive props and render UI
-- Helper functions extracted OUTSIDE the component body
-- Max 200 lines per component — split if larger
-- Max 5-7 props — more suggests the component does too much
-- One component per file (small colocated internal helpers are fine)
+
+For file/folder structure, when to split a component, prop-count guidance,
+and where extracted helpers live, see
+[frontend-ui-architecture](../frontend-ui-architecture/SKILL.md#3-when-to-split-a-component-high).
 
 ### Composition Patterns
 
@@ -164,12 +164,8 @@ New arrays, objects, and functions created inline in JSX props break `React.memo
 - Accept `ref` as a regular prop instead of using `forwardRef` (React 19+)
 - With React Compiler enabled, avoid adding `memo`/`useMemo`/`useCallback` unless measured
 
-## Code Organization (MEDIUM)
+## Code Organization
 
-### Feature-Based Structure
-- Colocate component + hook + helpers + tests per feature
-- Shared utilities go in `utils/` or `components/ui/`
-
-### File Quality
-- Order: imports, constants, helpers, component, exports
-- Reuse existing types and constants over creating new ones
+See [frontend-ui-architecture](../frontend-ui-architecture/SKILL.md) for
+where a component/constant/helper/type belongs, when to split a component,
+and folder structure generally — this skill covers React behaviour only.

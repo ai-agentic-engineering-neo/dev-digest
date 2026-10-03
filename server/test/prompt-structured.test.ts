@@ -14,7 +14,7 @@ describe('prompt assembly + injection hardening', () => {
   it('assembles system + skills + memory + specs + diff with the guard', () => {
     const { messages, assembly } = assemblePrompt({
       system: 'You are a reviewer.',
-      skills: ['## secret-gate\nDetect sk_live'],
+      skills: [{ name: 'secret-gate', body: 'Detect sk_live', tokens: 4, untrusted: false }],
       memory: ['Do not flag try/catch around JSON.parse'],
       specs: ['# Security baseline\nNo secrets in code.'],
       diff: '@@ -1 +1 @@\n+ stripeKey',
@@ -23,7 +23,10 @@ describe('prompt assembly + injection hardening', () => {
     expect(messages).toHaveLength(2);
     expect(messages[0]!.role).toBe('system');
     expect(messages[0]!.content).toMatch(/Everything inside/); // injection guard appended
-    expect(assembly.skills).toContain('secret-gate');
+    expect(assembly.skills).toEqual([
+      { name: 'secret-gate', body: 'Detect sk_live', tokens: 4, untrusted: false },
+    ]);
+    expect(messages[0]!.content).toContain('## Skill: secret-gate');
     expect(messages[1]!.content).toContain('## Diff to review');
     expect(messages[1]!.content).toContain('<untrusted source="diff">');
   });

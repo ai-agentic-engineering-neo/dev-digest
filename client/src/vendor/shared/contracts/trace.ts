@@ -36,14 +36,23 @@ export const ToolCall = z.object({
 });
 export type ToolCall = z.infer<typeof ToolCall>;
 
+export const PromptAssemblySkill = z.object({
+  name: z.string(),
+  body: z.string(),
+  tokens: z.number().int(),
+  untrusted: z.boolean(),
+});
+export type PromptAssemblySkill = z.infer<typeof PromptAssemblySkill>;
+
 export const PromptAssembly = z.object({
   system: z.string(),
-  skills: z.string().nullish(),
+  skills: z.array(PromptAssemblySkill).nullish(),
   memory: z.string().nullish(),
   specs: z.string().nullish(),
-  /** Callers-of-changed-symbols digest (repo-intel); null when absent. */
+  /** Callers-of-changed-symbols digest (T1.3); null when absent. */
   callers: z.string().nullish(),
-  /** Repo skeleton / map (repo-intel); null when absent. */
+  /** Repo skeleton / map (T3); null when absent. Enables per-slot token
+      attribution in the run trace. */
   repo_map: z.string().nullish(),
   /** PR author's description/body (truncated); null when absent. */
   pr_description: z.string().nullish(),
@@ -113,5 +122,9 @@ export const RunSummary = z.object({
   // findings that trip the agent's gate. Null on failed/cancelled runs.
   score: z.number().int().nullable(),
   blockers: z.number().int().nullable(),
+  // True when this run's repo-intel context (repo map / callers digest) was
+  // degraded (repo unindexed/disabled/errored), so the review ran diff-only.
+  // Lets a client detect that WITHOUT reading the run's Live Log/trace.
+  repo_intel_degraded: z.boolean(),
 });
 export type RunSummary = z.infer<typeof RunSummary>;

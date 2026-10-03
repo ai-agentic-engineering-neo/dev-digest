@@ -165,6 +165,8 @@ export class ReviewRepository {
       blockers?: number | null;
       /** Failure reason (status='failed') / cancellation note. Null clears it. */
       error?: string | null;
+      /** True when repo-intel context was degraded for this run (ran diff-only). */
+      repoIntelDegraded?: boolean;
     },
   ): Promise<void> {
     return runRepo.completeAgentRun(this.db, runId, values);

@@ -73,9 +73,22 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
 
       <TraceSection icon="FileText" title={t("trace.promptAssembly")} defaultOpen={false}>
         <PromptBlock label={t("trace.prompt.system")} text={trace.prompt_assembly.system} color={PROMPT_COLORS.system} />
-        {trace.prompt_assembly.skills != null && (
-          <PromptBlock label={t("trace.prompt.skills")} text={trace.prompt_assembly.skills} color={PROMPT_COLORS.skills} />
-        )}
+        {trace.prompt_assembly.skills?.map((skill, i) => (
+          <PromptBlock
+            key={`${skill.name}-${i}`}
+            label={t("trace.prompt.skill", { name: skill.name })}
+            text={skill.body}
+            color={PROMPT_COLORS.skills}
+            tokens={skill.tokens}
+            badge={
+              skill.untrusted ? (
+                <Badge color="var(--warn)" bg="var(--warn-bg)" icon="AlertTriangle">
+                  {t("trace.prompt.imported")}
+                </Badge>
+              ) : undefined
+            }
+          />
+        ))}
         {trace.prompt_assembly.memory != null && (
           <PromptBlock label={t("trace.prompt.memory")} text={trace.prompt_assembly.memory} color={PROMPT_COLORS.memory} />
         )}

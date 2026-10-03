@@ -15,4 +15,10 @@ export const s = {
   } satisfies CSSProperties,
   actions: { display: "flex", gap: 10, marginTop: 10 } satisfies CSSProperties,
   savedNote: { alignSelf: "center", fontSize: 13, color: "var(--ok)" } satisfies CSSProperties,
+  systemPromptCaption: {
+    fontSize: 12,
+    color: "var(--text-muted)",
+    marginTop: 8,
+    lineHeight: 1.45,
+  } satisfies CSSProperties,
 } as const;

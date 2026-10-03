@@ -112,6 +112,22 @@ one alone. Lesson: a prior implementation (even a validated one) encodes
 actual spec/rubric line, don't assume the reference commit already got it
 right for your case.
 
+### 2026-10-03 — a breaking shape change in `reviewer-core` silently fails a server test that imports it via a re-export shim
+`reviewer-core`'s `PromptParts.skills` changed from `string[]` to
+`SkillBlock[]` (`{ name, body, tokens, untrusted }`, `prompt.ts:39-45`), and
+`PromptAssembly.skills` changed from a joined string to
+`PromptAssemblySkill[] | null` in lockstep (both server's and client's
+vendored `contracts/trace.ts`). `server/test/prompt-structured.test.ts:16-27`
+still calls `assemblePrompt` (via the `platform/prompt.ts` re-export shim)
+with the old `skills: ['## secret-gate\n...']` string-array shape and asserts
+`assembly.skills).toContain('secret-gate')` — both now fail, because `tsc`
+doesn't typecheck `server/test/**` (see the Tool & Library Notes entry on
+`tsconfig.json`'s `include`) so the shape mismatch only surfaces at
+*runtime*, in vitest, not at `pnpm typecheck`. Not caused by any change in
+`server/src/modules/reviews/` — fix belongs with whoever owns the
+`SkillBlock` migration, by updating this test's fixture + assertion to the
+new shape.
+
 ## Session Notes
 
 ### 2026-09-20 — added `agent_runs.cost_usd` end-to-end
@@ -142,6 +158,25 @@ three test files) and zero errors — this codebase was already clean by
 construction, not because of any prior lint tool. All fixed same session.
 `src/vendor/**`, `src/db/migrations/**`, and `dist/**` are excluded from
 lint (vendored/generated, not this package's own style to enforce).
+
+### 2026-10-03 — wired linked agent skills into the review prompt
+`run-executor.ts`'s `runOneAgent` called `reviewPullRequest(...)` with no
+`skills` key, so `AgentsRepository.linkedSkills()` (`agents/repository.ts:207`,
+already joins `agent_skills ⋈ skills` ordered by `agent_skills.order`) was
+never consulted for a review run — every agent's linked skills were dead
+weight. Added `resolveAgentSkills(agentId)` (`run-executor.ts:432-447`):
+calls `this.agents.linkedSkills(agentId)`, filters to `skill.enabled` (the
+repo method intentionally does NOT filter this — by design, so the Skills
+editor can still list/toggle disabled links), maps to reviewer-core's
+`SkillBlock` (`{ name, body, tokens: this.container.tokenizer.count(body),
+untrusted: source !== 'manual' }`), and passes the result as `skills` into
+`reviewPullRequest`. No DB-backed test exists for `run-executor.ts` (there
+never was one before this) — added
+`test/run-executor-skills.test.ts`, a hermetic unit test that builds a
+`ReviewRunExecutor` with minimal fakes for `container.tokenizer` and
+`agents.linkedSkills` (no real `Container`/`Db` needed) and calls the private
+`resolveAgentSkills` via a cast, asserting enabled-only/ordered/`untrusted`
+derivation.
 
 ## Open Questions
 

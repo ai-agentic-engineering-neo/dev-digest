@@ -65,6 +65,7 @@ export async function listRunsForPull(
     ran_at: run.ranAt ? run.ranAt.toISOString() : null,
     score: run.score,
     blockers: run.blockers,
+    repo_intel_degraded: run.repoIntelDegraded,
   }));
 }
 
@@ -157,6 +158,8 @@ export async function completeAgentRun(
     blockers?: number | null;
     /** Failure reason (status='failed') / cancellation note. Null clears it. */
     error?: string | null;
+    /** True when repo-intel context was degraded for this run (ran diff-only). */
+    repoIntelDegraded?: boolean;
   },
 ): Promise<void> {
   await db
@@ -172,6 +175,7 @@ export async function completeAgentRun(
       score: values.score ?? null,
       blockers: values.blockers ?? null,
       error: values.error ?? null,
+      repoIntelDegraded: values.repoIntelDegraded ?? false,
     })
     .where(eq(t.agentRuns.id, runId));
 }

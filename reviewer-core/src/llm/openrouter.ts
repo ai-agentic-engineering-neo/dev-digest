@@ -24,6 +24,19 @@ import { toJsonSchema, parseWithRepair } from './structured.js';
 
 const NOT_SUPPORTED = 'OpenRouterProvider only implements completeStructured';
 
+/**
+ * OpenRouter is OpenAI-compatible but the response carries two
+ * OpenRouter-specific extras the OpenAI SDK's `ChatCompletion` type doesn't
+ * know about: a top-level `error` (present when a 200 response has no
+ * `choices` — an upstream provider error), and `usage.cost` (real USD spend,
+ * returned when the request sets `usage: { include: true }`). One cast to
+ * this type replaces the two separate `as unknown as {...}` double-casts.
+ */
+interface OpenRouterCompletion extends OpenAI.ChatCompletion {
+  error?: { message?: string };
+  usage?: (OpenAI.CompletionUsage & { cost?: number }) | undefined;
+}
+
 export interface OpenRouterProviderOptions {
   /** OpenAI-compatible base URL (default: OpenRouter). */
   baseURL?: string;
@@ -66,7 +79,7 @@ export class OpenRouterProvider implements LLMProvider {
     let lastRaw: string;
 
     for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
-      const res = await this.client.chat.completions.create({
+      const res = (await this.client.chat.completions.create({
         model: req.model,
         messages,
         temperature: req.temperature ?? 0,
@@ -81,20 +94,19 @@ export class OpenRouterProvider implements LLMProvider {
         // OpenRouter usage accounting — ask it to return the REAL generation
         // cost (USD) in `usage.cost`, instead of estimating from a price book.
         ...(this.id === 'openrouter' ? { usage: { include: true } } : {}),
-      });
+      })) as OpenRouterCompletion;
 
       // OpenRouter can return HTTP 200 with no `choices` (an upstream provider
       // error / moderation / free-tier limit in the body) — surface it.
       const choice = res.choices?.[0];
       if (!choice) {
-        const errMsg = (res as unknown as { error?: { message?: string } }).error?.message;
+        const errMsg = res.error?.message;
         throw new Error(`OpenRouter returned no choices for ${req.schemaName}${errMsg ? `: ${errMsg}` : ''}`);
       }
       lastRaw = choice.message?.content ?? '';
       tokensIn += res.usage?.prompt_tokens ?? 0;
       tokensOut += res.usage?.completion_tokens ?? 0;
-      // `usage.cost` is an OpenRouter extension (USD), absent from the OpenAI SDK type.
-      const apiCost = (res.usage as { cost?: number } | null | undefined)?.cost;
+      const apiCost = res.usage?.cost;
       if (typeof apiCost === 'number') costFromApi = (costFromApi ?? 0) + apiCost;
 
       const parsed = parseWithRepair(req.schema, lastRaw);

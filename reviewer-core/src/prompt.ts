@@ -36,11 +36,24 @@ export function wrapUntrusted(label: string, content: string): string {
 /** Cap the PR description so a huge author body can't blow the token budget. */
 const MAX_PR_DESCRIPTION_CHARS = 4000;
 
+/** A resolved skill, ready to render into the system message. */
+export interface SkillBlock {
+  name: string;
+  body: string;
+  tokens: number;
+  /** True for non-'manual' sources — gets delimiter-wrapped as untrusted. */
+  untrusted: boolean;
+}
+
 export interface PromptParts {
   /** Agent's system prompt (trusted). */
   system: string;
-  /** Linked skill bodies (trusted-ish; community skills should be sanitized upstream). */
-  skills?: string[];
+  /**
+   * Linked skills, rendered into the SYSTEM message as one `## Skill: <name>`
+   * section per entry, after `system` and before `INJECTION_GUARD`. Entries
+   * with `untrusted: true` (non-'manual' sources) are delimiter-wrapped.
+   */
+  skills?: SkillBlock[];
   /** Relevant memory items (trusted, curated). */
   memory?: string[];
   /** Project-context spec chunks (untrusted content). */
@@ -83,10 +96,12 @@ export interface AssembledPrompt {
  * appended to the system message.
  */
 export function assemblePrompt(parts: PromptParts): AssembledPrompt {
-  const system = `${parts.system}\n\n${INJECTION_GUARD}`;
+  const skillSections = (parts.skills ?? []).map(
+    (s) =>
+      `## Skill: ${s.name}\n${s.untrusted ? wrapUntrusted(`skill:${s.name}`, s.body) : s.body}`,
+  );
+  const system = [parts.system, ...skillSections, INJECTION_GUARD].join('\n\n');
 
-  const skillsBlock =
-    parts.skills && parts.skills.length > 0 ? parts.skills.join('\n\n') : undefined;
   const memoryBlock =
     parts.memory && parts.memory.length > 0
       ? parts.memory.map((m) => `- ${m}`).join('\n')
@@ -106,7 +121,6 @@ export function assemblePrompt(parts: PromptParts): AssembledPrompt {
   if (prDescription) {
     userSections.push(`## PR description\n${wrapUntrusted('pr-description', prDescription)}`);
   }
-  if (skillsBlock) userSections.push(`## Skills / rules\n${skillsBlock}`);
   if (memoryBlock) userSections.push(`## Relevant memory\n${memoryBlock}`);
   if (parts.repoMap && parts.repoMap.trim().length > 0) {
     userSections.push(`## Repo skeleton\n${wrapUntrusted('repo-map', parts.repoMap)}`);
@@ -128,7 +142,15 @@ export function assemblePrompt(parts: PromptParts): AssembledPrompt {
 
   const assembly: PromptAssembly = {
     system,
-    skills: skillsBlock ?? null,
+    skills:
+      parts.skills && parts.skills.length > 0
+        ? parts.skills.map((s) => ({
+            name: s.name,
+            body: s.body,
+            tokens: s.tokens,
+            untrusted: s.untrusted,
+          }))
+        : null,
     memory: memoryBlock ?? null,
     specs: specsBlock ?? null,
     callers: parts.callers ?? null,

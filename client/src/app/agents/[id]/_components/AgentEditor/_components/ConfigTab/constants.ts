@@ -11,3 +11,10 @@ export const CI_FAIL_ON_VALUES: readonly CiFailOn[] = ["never", "critical", "war
 
 /** Output-schema options (only one supported in MVP). */
 export const OUTPUT_SCHEMA_VALUE = "Standard findings JSON";
+
+/**
+ * Soft, informational ceiling for the system prompt's live token counter.
+ * Not enforced — the textarea has no hard cap — just a reference point so
+ * the caption can read "x / 8,000 tokens".
+ */
+export const MAX_SYSTEM_PROMPT_TOKENS = 8000;

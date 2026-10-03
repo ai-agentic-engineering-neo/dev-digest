@@ -1,6 +1,7 @@
 /* api.ts — typed fetch client for the F1 Fastify engine (localhost:3001).
    All hooks build on `apiFetch`. Errors are normalized to ApiError so the
    error-UX taxonomy (toast/inline/full-screen) can branch on status. */
+import type { ZodType } from "zod";
 
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:3001";
@@ -18,7 +19,17 @@ export class ApiError extends Error {
   }
 }
 
-export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+/**
+ * `schema`, when passed, runs the JSON body through `safeParse` before
+ * returning it — catches API/contract drift at the fetch boundary instead of
+ * silently trusting a blind `as T` cast. Optional (not every endpoint has a
+ * vendored Zod schema yet) so existing untyped call sites keep working.
+ */
+export async function apiFetch<T>(
+  path: string,
+  init?: RequestInit,
+  schema?: ZodType<T>,
+): Promise<T> {
   let res: Response;
   try {
     res = await fetch(`${API_BASE}${path}`, {
@@ -59,16 +70,28 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   }
 
   if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
+  const json = await res.json();
+  if (!schema) return json as T;
+
+  const parsed = schema.safeParse(json);
+  if (!parsed.success) {
+    throw new ApiError(
+      `Malformed response from ${path} — shape doesn't match the expected contract.`,
+      res.status,
+      "invalid_response",
+      parsed.error.flatten(),
+    );
+  }
+  return parsed.data;
 }
 
 export const api = {
-  get: <T>(path: string) => apiFetch<T>(path),
-  post: <T>(path: string, body?: unknown) =>
-    apiFetch<T>(path, { method: "POST", body: body ? JSON.stringify(body) : undefined }),
-  put: <T>(path: string, body?: unknown) =>
-    apiFetch<T>(path, { method: "PUT", body: body ? JSON.stringify(body) : undefined }),
-  patch: <T>(path: string, body?: unknown) =>
-    apiFetch<T>(path, { method: "PATCH", body: body ? JSON.stringify(body) : undefined }),
-  del: <T>(path: string) => apiFetch<T>(path, { method: "DELETE" }),
+  get: <T>(path: string, schema?: ZodType<T>) => apiFetch<T>(path, undefined, schema),
+  post: <T>(path: string, body?: unknown, schema?: ZodType<T>) =>
+    apiFetch<T>(path, { method: "POST", body: body ? JSON.stringify(body) : undefined }, schema),
+  put: <T>(path: string, body?: unknown, schema?: ZodType<T>) =>
+    apiFetch<T>(path, { method: "PUT", body: body ? JSON.stringify(body) : undefined }, schema),
+  patch: <T>(path: string, body?: unknown, schema?: ZodType<T>) =>
+    apiFetch<T>(path, { method: "PATCH", body: body ? JSON.stringify(body) : undefined }, schema),
+  del: <T>(path: string, schema?: ZodType<T>) => apiFetch<T>(path, { method: "DELETE" }, schema),
 };

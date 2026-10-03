@@ -7,7 +7,7 @@ import type {
   UnifiedDiff,
 } from '@devdigest/shared';
 import { Review as ReviewSchema } from '@devdigest/shared';
-import { assemblePrompt } from '../prompt.js';
+import { assemblePrompt, type SkillBlock } from '../prompt.js';
 import { groundFindings, groundingSummary } from '../grounding.js';
 import { reduceReviews, scoreFromFindings, sliceDiff } from './reduce.js';
 
@@ -52,8 +52,12 @@ export interface ReviewInput {
   llm: LLMProvider;
   /** 'auto' (default) picks single-pass unless the diff is large + multi-file. */
   strategy?: ReviewStrategy;
-  /** Resolved skill bodies (NOT slugs). */
-  skills?: string[];
+  /**
+   * Resolved skills (NOT slugs) — rendered into the SYSTEM message as one
+   * `## Skill: <name>` section per entry, in order. Entries with
+   * `untrusted: true` (non-'manual' sources) are delimiter-wrapped.
+   */
+  skills?: SkillBlock[];
   /** Curated memory items. */
   memory?: string[];
   /** Project-context spec chunks (untrusted; delimiter-wrapped downstream). */

@@ -3,7 +3,10 @@
     "crumbLab": "Skills Lab",
     "crumbSkills": "Skills",
     "heading": "Skills",
+    "subtitle": "Reusable rules agents draw on — a rubric, a convention, a security check. Attach them to an agent's prompt.",
     "addSkill": "Add Skill",
+    "createNew": "Create new",
+    "importSkill": "Import",
     "searchPlaceholder": "Search skills…",
     "loadError": "Could not load skills.",
     "menu": {
@@ -23,6 +26,7 @@
   },
   "detail": {
     "crumbSkill": "Skill",
+    "newSkill": "New skill",
     "back": "← All skills",
     "loadError": "Could not load this skill.",
     "notFound": {
@@ -97,5 +101,38 @@
     "bodyLabel": "Skill body (Markdown)",
     "bodyHint": "Saving a changed body creates a new immutable version.",
     "version": "v{version}"
+  },
+  "editor": {
+    "newTitle": "New skill",
+    "enabledLabel": "Enabled",
+    "nameLabel": "Name",
+    "typeLabel": "Type",
+    "typeOptions": {
+      "rubric": "Rubric",
+      "convention": "Convention",
+      "security": "Security",
+      "custom": "Custom"
+    },
+    "interfaceLabel": "Skill interface",
+    "interfaceHint": "What this skill tells the agent to do — phrase it as a directive (e.g. \"Flag any hardcoded secret or credential\").",
+    "sourceLabel": "Source",
+    "bodyLabel": "Skill body (Markdown)",
+    "evidenceFilesLabel": "Evidence files",
+    "evidenceFilesHint": "Referenced while generating this preview — not executed or parsed.",
+    "importedNotice": "Imported — review before saving",
+    "save": "Save skill",
+    "saving": "Saving…",
+    "saved": "Saved (v{version})",
+    "savedToast": "Skill saved (v{version})",
+    "create": "Create skill",
+    "creating": "Creating…",
+    "createdToast": "Skill created"
+  },
+  "import": {
+    "title": "Import a skill",
+    "subtitle": "Pick a Markdown or zip file — nothing is saved until you review and click Save.",
+    "pick": "Choose file…",
+    "importing": "Reading file…",
+    "importFailed": "Import failed"
   }
 }

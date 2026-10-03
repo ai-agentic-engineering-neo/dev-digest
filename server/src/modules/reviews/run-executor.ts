@@ -1,6 +1,6 @@
 import type { Container } from '../../platform/container.js';
 import type { Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
-import { reviewPullRequest, countBlockers } from '@devdigest/reviewer-core';
+import { reviewPullRequest, countBlockers, type SkillBlock } from '@devdigest/reviewer-core';
 import { RunLogger } from '../../platform/run-logger.js';
 import * as schema from '../../db/schema.js';
 import type { AgentRow } from '../../db/rows.js';
@@ -152,6 +152,11 @@ export class ReviewRunExecutor {
 
     runLog.info(`Starting review with agent "${agent.name}" (${agent.provider}/${agent.model})`);
 
+    // Set once the repo-map digest resolves (or stays false when the agent has
+    // repo-intel turned off — that's a deliberate choice, not a degradation).
+    // Read by both the success and failure/cancel paths below.
+    let repoIntelDegraded = false;
+
     try {
       // Resolve the agent's LLM provider. (container.llm throws if the provider
       // key is missing — caught below and persisted as a failed run.)
@@ -178,10 +183,17 @@ export class ReviewRunExecutor {
       // T3 — repo skeleton + "changed files are top-5%" framing. Both best-
       // effort: when repo-intel is off / unindexed the facade degrades and the
       // prompt is identical to the pre-T3 shape.
-      const repoMap = repoIntelOn ? await this.buildRepoMapDigest(pull.repoId, runLog) : undefined;
+      const repoMapDigest = repoIntelOn
+        ? await this.buildRepoMapDigest(pull.repoId, runLog)
+        : { text: undefined, degraded: false };
+      const repoMap = repoMapDigest.text;
+      repoIntelDegraded = repoMapDigest.degraded;
       const rankNote = repoIntelOn ? await this.buildRankNote(pull.repoId, diff, runLog) : '';
 
       const task = taskLine(pull) + rankNote;
+
+      // Agent's linked skills (Skills tab), filtered to enabled, in link order.
+      const skills = await this.resolveAgentSkills(agent.id);
 
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
@@ -200,6 +212,8 @@ export class ReviewRunExecutor {
         ...(callersDigest ? { callers: callersDigest } : {}),
         // T3 — repo skeleton, same omit-when-empty contract.
         ...(repoMap ? { repoMap } : {}),
+        // Agent's linked skills (Skills tab) — enabled links only, in order.
+        skills,
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
@@ -251,6 +265,7 @@ export class ReviewRunExecutor {
         score: outcome.review.score,
         blockers,
         error: null,
+        repoIntelDegraded,
       });
 
       const trace: RunTrace = {
@@ -305,6 +320,7 @@ export class ReviewRunExecutor {
           findingsCount: 0,
           grounding: '0/0 passed',
           error: msg,
+          repoIntelDegraded,
         })
         .catch(() => undefined);
       await this.repo
@@ -360,21 +376,29 @@ export class ReviewRunExecutor {
 
   /**
    * T3 — fetch the cached repo skeleton for the prompt's `## Repo skeleton`
-   * slot. Returns `undefined` when repo-intel is off / the repo isn't indexed
-   * (the facade degrades), so the prompt stays identical to the pre-T3 shape.
+   * slot. `text` is `undefined` when repo-intel is off / the repo isn't
+   * indexed (the facade degrades) or the map came back empty, so the prompt
+   * stays identical to the pre-T3 shape. `degraded` is true specifically when
+   * the repo isn't indexed / repoIntel errored (as opposed to a legitimately
+   * empty map) — surfaced on the run so a client can tell "this ran
+   * diff-only" without reading the Live Log.
    */
   private async buildRepoMapDigest(
     repoId: string,
     runLog: RunLogger,
-  ): Promise<string | undefined> {
+  ): Promise<{ text: string | undefined; degraded: boolean }> {
     try {
       const map = await this.container.repoIntel.getRepoMap(repoId);
-      if (map.degraded || map.text.trim().length === 0) return undefined;
+      if (map.degraded) {
+        runLog.info('repo map: repo not indexed — running diff-only for this section');
+        return { text: undefined, degraded: true };
+      }
+      if (map.text.trim().length === 0) return { text: undefined, degraded: false };
       runLog.info(`repo map: ${map.tokens} token(s) attached (cached=${map.cached})`);
-      return map.text;
+      return { text: map.text, degraded: false };
     } catch (err) {
       runLog.info(`repo map: repoIntel failed — ${(err as Error).message}`);
-      return undefined;
+      return { text: undefined, degraded: true };
     }
   }
 
@@ -400,6 +424,25 @@ export class ReviewRunExecutor {
     } catch {
       return '';
     }
+  }
+
+  /**
+   * Resolve an agent's linked skills (Skills tab) into prompt-ready blocks:
+   * enabled links only (disabled skills stay linked but are never injected
+   * into the prompt), in `agent_skills.order`. Non-'manual' sources (e.g.
+   * imported/community skills) are marked `untrusted` so the prompt wraps
+   * their body as untrusted data instead of trusted instructions.
+   */
+  private async resolveAgentSkills(agentId: string): Promise<SkillBlock[]> {
+    const links = await this.agents.linkedSkills(agentId);
+    return links
+      .filter((l) => l.skill.enabled)
+      .map((l) => ({
+        name: l.skill.name,
+        body: l.skill.body,
+        tokens: this.container.tokenizer.count(l.skill.body),
+        untrusted: l.skill.source !== 'manual',
+      }));
   }
 
   /**

@@ -7,7 +7,13 @@ import type { Agent, CiFailOn, Provider, ReviewStrategy } from "@devdigest/share
 import { useUpdateAgent, useProviderModels } from "../../../../../../../lib/hooks/agents";
 import { useToast } from "../../../../../../../lib/toast";
 import { toModelOptions } from "../../../../../../../lib/model-label";
-import { CI_FAIL_ON_VALUES, OUTPUT_SCHEMA_VALUE, PROVIDER_OPTIONS, STRATEGY_VALUES } from "./constants";
+import {
+  CI_FAIL_ON_VALUES,
+  MAX_SYSTEM_PROMPT_TOKENS,
+  OUTPUT_SCHEMA_VALUE,
+  PROVIDER_OPTIONS,
+  STRATEGY_VALUES,
+} from "./constants";
 import { s } from "./styles";
 
 /** Config tab — name/description/provider/model/system-prompt + enabled toggle. */
@@ -25,19 +31,6 @@ export function ConfigTab({ agent }: { agent: Agent }) {
   const [repoIntel, setRepoIntel] = React.useState(agent.repo_intel);
   const [enabled, setEnabled] = React.useState(agent.enabled);
 
-  // Reset local form when switching agents.
-  React.useEffect(() => {
-    setName(agent.name);
-    setDescription(agent.description);
-    setProvider(agent.provider);
-    setModel(agent.model);
-    setSystemPrompt(agent.system_prompt);
-    setStrategy(agent.strategy);
-    setCiFailOn(agent.ci_fail_on);
-    setRepoIntel(agent.repo_intel);
-    setEnabled(agent.enabled);
-  }, [agent.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
   const { data: models } = useProviderModels(provider);
   // Show the price (USD per 1M in/out tokens) in the label when the provider
   // exposes it (OpenRouter) so a cheap model is easy to pick; value stays the id.
@@ -47,6 +40,10 @@ export function ConfigTab({ agent }: { agent: Agent }) {
   // Empty list after load = provider key missing/invalid (listModels failed) —
   // guide the user instead of showing a silent one-item dropdown.
   const noModels = models !== undefined && models.length === 0;
+
+  // Cheap client-side estimate (chars/4) — same fallback heuristic as the
+  // server's approxTokens(); informational only, not the authoritative count.
+  const systemPromptTokens = Math.ceil(systemPrompt.length / 4);
 
   // Friendly labels for the strategy select (values come from constants).
   const strategyOptions = STRATEGY_VALUES.map((v) => ({ value: v, label: t(`config.strategyOptions.${v}`) }));
@@ -127,8 +124,14 @@ export function ConfigTab({ agent }: { agent: Agent }) {
           <Toggle on={repoIntel} onChange={setRepoIntel} size={16} />
         </label>
       </FormField>
-      <FormField label={t("config.systemPrompt")} hint={t("config.systemPromptHint")}>
+      <FormField label={t("config.systemPrompt")}>
         <Textarea value={systemPrompt} onChange={setSystemPrompt} rows={8} mono />
+        <div style={s.systemPromptCaption}>
+          <div>
+            {systemPromptTokens.toLocaleString()} / {MAX_SYSTEM_PROMPT_TOKENS.toLocaleString()} tokens
+          </div>
+          <div>Loaded as the static system message. Skills are appended below it.</div>
+        </div>
       </FormField>
       <FormField label={t("config.outputSchema")}>
         <SelectInput value={OUTPUT_SCHEMA_VALUE} options={[OUTPUT_SCHEMA_VALUE]} />

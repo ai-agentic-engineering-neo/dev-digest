@@ -4,12 +4,15 @@
 
 import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { z } from "zod";
 import { api, API_BASE } from "../api";
 import { notify } from "../toast";
+// Value (not `import type`) import — doubles as the runtime schema used to
+// validate the /pulls/:id/reviews response below.
+import { ReviewRecord } from "@devdigest/shared";
 import type {
   FindingActionKind,
   PrReviewComment,
-  ReviewRecord,
   ReviewRunResponse,
   RunEvent,
   RunSummary,
@@ -53,7 +56,7 @@ export function usePrRuns(prId: string | null | undefined) {
 export function usePrReviews(prId: string | null | undefined, opts?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ["reviews", prId],
-    queryFn: () => api.get<ReviewRecord[]>(`/pulls/${prId}/reviews`),
+    queryFn: () => api.get(`/pulls/${prId}/reviews`, z.array(ReviewRecord)),
     enabled: !!prId && (opts?.enabled ?? true),
   });
 }

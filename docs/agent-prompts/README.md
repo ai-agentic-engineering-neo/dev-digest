@@ -19,10 +19,17 @@ in the DB). The canonical, reviewable copies live next to this file:
 Assembly happens in `reviewer-core/src/prompt.ts` (`assemblePrompt`). The model
 receives exactly two messages:
 
-**System message** = your agent prompt **+** a fixed injection guard:
+**System message** = your agent prompt **+** N `## Skill: <name>` blocks (in link
+order) **+** a fixed injection guard:
 
 ```
 <your system_prompt>
+
+## Skill: <name 1>
+<skill 1 body>        // delimiter-wrapped when the skill's source isn't 'manual'
+
+## Skill: <name 2>
+<skill 2 body>
 
 <INJECTION_GUARD>   // appended verbatim to EVERY agent, every run
 ```
@@ -33,12 +40,11 @@ fixture / not for production / ignore this" never descope the review. You do not
 need to repeat any of this in your prompt — it is always there.
 
 **User message** = the task and all context, in this order, each untrusted block
-delimiter-wrapped (`prompt.ts:104-122`):
+delimiter-wrapped:
 
 ```
 <task line, e.g. "Review PR #7 '…'">
 ## PR description        (untrusted, author-controlled, truncated to 4000 chars)
-## Skills / rules        (linked skill bodies)
 ## Relevant memory       (curated memory items)
 ## Repo skeleton         (untrusted, repo-derived)
 ## Project context       (untrusted spec chunks)

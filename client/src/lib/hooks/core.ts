@@ -5,7 +5,11 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { z } from "zod";
 import { api } from "../api";
+// Value (not `import type`) imports — these double as the runtime schemas
+// used to validate the /pulls and /pulls/:id responses below.
+import { PrMeta, PrDetail } from "@devdigest/shared";
 import type {
   Settings,
   SettingsUpdate,
@@ -13,8 +17,6 @@ import type {
   ConnTestResult,
   SecretsStatus,
   Repo,
-  PrMeta,
-  PrDetail,
   SpecFile,
   IndexStatus,
 } from "../types";
@@ -102,7 +104,7 @@ export function useDeleteRepo() {
 export function usePulls(repoId: string | null | undefined) {
   return useQuery({
     queryKey: ["pulls", repoId],
-    queryFn: () => api.get<PrMeta[]>(`/repos/${repoId}/pulls`),
+    queryFn: () => api.get(`/repos/${repoId}/pulls`, z.array(PrMeta)),
     enabled: !!repoId,
     // Auto-refresh PR statuses: re-sync from GitHub every 60s while the page is
     // open, and whenever the window regains focus.
@@ -114,7 +116,7 @@ export function usePulls(repoId: string | null | undefined) {
 export function usePullDetail(prId: string | number | null | undefined) {
   return useQuery({
     queryKey: ["pull", prId],
-    queryFn: () => api.get<PrDetail>(`/pulls/${prId}`),
+    queryFn: () => api.get(`/pulls/${prId}`, PrDetail),
     enabled: prId != null,
   });
 }

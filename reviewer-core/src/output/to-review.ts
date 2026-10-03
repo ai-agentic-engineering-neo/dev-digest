@@ -71,6 +71,24 @@ function severityCounts(findings: Finding[]): string {
   return `${c.CRITICAL} critical · ${c.WARNING} warning · ${c.SUGGESTION} suggestion`;
 }
 
+/**
+ * `title`/`rationale`/`suggestion` are LLM-generated from untrusted diff/PR
+ * content and get interpolated into markdown posted back to a (possibly
+ * public) GitHub PR. A prompt-injection payload could smuggle markdown
+ * link/image syntax (`[text](url)` / `![alt](url)`, incl. reference-style
+ * `[text][id]` + `[id]: url`) to point reviewers at an attacker-controlled
+ * URL, or control characters to corrupt rendering. Escaping every `[`/`]`
+ * defuses all of those (GitHub renders `\[`/`\]` as the literal bracket, so
+ * legitimate text like `array[0]` still displays unchanged) without touching
+ * the rest of the markdown-composition logic.
+ */
+function sanitizeFindingText(s: string): string {
+  return s
+    // eslint-disable-next-line no-control-regex -- intentionally stripping C0/DEL control chars from untrusted text
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+    .replace(/[[\]]/g, (ch) => `\\${ch}`);
+}
+
 function composeBody(
   findings: Finding[],
   event: GitHubReviewPayload['event'],
@@ -88,8 +106,10 @@ function composeBody(
   const lines = findings.map((f) => {
     const emoji = SEV_EMOJI[f.severity] ?? '•';
     const loc = `\`${f.file}:${f.start_line}${f.end_line !== f.start_line ? `-${f.end_line}` : ''}\``;
-    const sugg = f.suggestion ? `\n  - _Suggestion:_ ${f.suggestion}` : '';
-    return `- ${emoji} **${f.title}** (${f.severity.toLowerCase()}, ${f.category}) — ${loc}\n  - ${f.rationale}${sugg}`;
+    const title = sanitizeFindingText(f.title);
+    const rationale = sanitizeFindingText(f.rationale);
+    const sugg = f.suggestion ? `\n  - _Suggestion:_ ${sanitizeFindingText(f.suggestion)}` : '';
+    return `- ${emoji} **${title}** (${f.severity.toLowerCase()}, ${f.category}) — ${loc}\n  - ${rationale}${sugg}`;
   });
 
   const summary = `**${findings.length} finding${findings.length === 1 ? '' : 's'}** · ${severityCounts(findings)}`;
@@ -134,11 +154,13 @@ function inlineComments(
       ? resolveCommentLine(lineIndex.get(f.file) ?? new Set<number>(), f.start_line, f.end_line)
       : f.end_line;
     if (line == null) continue;
+    const title = sanitizeFindingText(f.title);
+    const rationale = sanitizeFindingText(f.rationale);
     out.push({
       path: f.file,
       line,
-      body: `**${f.title}** (${f.severity.toLowerCase()})\n\n${f.rationale}${
-        f.suggestion ? `\n\n_Suggestion:_ ${f.suggestion}` : ''
+      body: `**${title}** (${f.severity.toLowerCase()})\n\n${rationale}${
+        f.suggestion ? `\n\n_Suggestion:_ ${sanitizeFindingText(f.suggestion)}` : ''
       }`,
     });
   }

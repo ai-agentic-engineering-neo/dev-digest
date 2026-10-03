@@ -20,7 +20,32 @@ const miniBtnStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
-export function PromptBlock({ label, text, color }: { label: string; text: string; color: string }) {
+const tokenChipStyle: React.CSSProperties = {
+  fontSize: 11,
+  fontWeight: 600,
+  color: "var(--text-muted)",
+  background: "var(--bg-elevated)",
+  border: "1px solid var(--border)",
+  borderRadius: 4,
+  padding: "1px 6px",
+  whiteSpace: "nowrap",
+};
+
+export function PromptBlock({
+  label,
+  text,
+  color,
+  tokens,
+  badge,
+}: {
+  label: string;
+  text: string;
+  color: string;
+  /** Token count for this block; rendered as a small muted "N tok" chip next to the label. */
+  tokens?: number;
+  /** Extra node rendered next to the label (e.g. an "Imported" badge for untrusted content). */
+  badge?: React.ReactNode;
+}) {
   const t = useTranslations("runs");
   const [open, setOpen] = React.useState(false);
   const [full, setFull] = React.useState(false);
@@ -35,6 +60,8 @@ export function PromptBlock({ label, text, color }: { label: string; text: strin
       <div onClick={() => setOpen((o) => !o)} style={s.promptHead}>
         <span style={s.promptDot(color)} />
         <span style={s.promptLabel}>{label}</span>
+        {badge}
+        {tokens != null && <span style={tokenChipStyle}>{t("trace.prompt.tokenCount", { count: tokens })}</span>}
         <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
           <button
             type="button"

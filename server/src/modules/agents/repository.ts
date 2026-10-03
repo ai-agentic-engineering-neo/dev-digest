@@ -14,6 +14,9 @@ import { isConfigChange } from './helpers.js';
 import type { AgentRow, AgentVersionRow } from '../../db/rows.js';
 export type { AgentRow, AgentVersionRow };
 
+/** The transaction handle `db.transaction(async (tx) => ...)` hands its callback. */
+type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
+
 export interface InsertAgent {
   workspaceId: string;
   name: string;
@@ -81,33 +84,43 @@ export class AgentsRepository {
     return rows.length > 0;
   }
 
-  /** Insert an agent AND record version 1 in agent_versions (immutable snapshot). */
+  /**
+   * Insert an agent AND record version 1 in agent_versions (immutable
+   * snapshot). Both writes happen in one transaction — a snapshot failure
+   * rolls back the agent insert instead of leaving an agent with no version 1
+   * row (which listVersions/getVersion assume always exists).
+   */
   async insert(values: InsertAgent): Promise<AgentRow> {
-    const [row] = await this.db
-      .insert(t.agents)
-      .values({
-        workspaceId: values.workspaceId,
-        name: values.name,
-        description: values.description ?? DEFAULT_AGENT_DESCRIPTION,
-        provider: values.provider,
-        model: values.model,
-        systemPrompt: values.systemPrompt,
-        outputSchema: (values.outputSchema as object | undefined) ?? null,
-        ...(values.strategy !== undefined ? { strategy: values.strategy } : {}),
-        ...(values.ciFailOn !== undefined ? { ciFailOn: values.ciFailOn } : {}),
-        ...(values.repoIntel !== undefined ? { repoIntel: values.repoIntel } : {}),
-        enabled: values.enabled ?? true,
-        version: INITIAL_AGENT_VERSION,
-        createdBy: values.createdBy ?? null,
-      })
-      .returning();
-    await this.snapshotVersion(row!, INITIAL_AGENT_VERSION);
-    return row!;
+    return this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(t.agents)
+        .values({
+          workspaceId: values.workspaceId,
+          name: values.name,
+          description: values.description ?? DEFAULT_AGENT_DESCRIPTION,
+          provider: values.provider,
+          model: values.model,
+          systemPrompt: values.systemPrompt,
+          outputSchema: (values.outputSchema as object | undefined) ?? null,
+          ...(values.strategy !== undefined ? { strategy: values.strategy } : {}),
+          ...(values.ciFailOn !== undefined ? { ciFailOn: values.ciFailOn } : {}),
+          ...(values.repoIntel !== undefined ? { repoIntel: values.repoIntel } : {}),
+          enabled: values.enabled ?? true,
+          version: INITIAL_AGENT_VERSION,
+          createdBy: values.createdBy ?? null,
+        })
+        .returning();
+      await this.snapshotVersion(tx, row!, INITIAL_AGENT_VERSION);
+      return row!;
+    });
   }
 
   /**
    * Update an agent. Any config change bumps the version and snapshots the new
-   * config into agent_versions (reproducibility for eval).
+   * config into agent_versions (reproducibility for eval). The update + its
+   * snapshot happen in one transaction — a snapshot failure rolls back the
+   * version bump instead of leaving `agents.version` pointing at a snapshot
+   * that was never written.
    */
   async update(
     workspaceId: string,
@@ -121,33 +134,35 @@ export class AgentsRepository {
     const configChanged = isConfigChange(existing, patch);
     const nextVersion = configChanged ? existing.version + 1 : existing.version;
 
-    const [row] = await this.db
-      .update(t.agents)
-      .set({
-        ...(patch.name !== undefined ? { name: patch.name } : {}),
-        ...(patch.description !== undefined ? { description: patch.description } : {}),
-        ...(patch.provider !== undefined ? { provider: patch.provider } : {}),
-        ...(patch.model !== undefined ? { model: patch.model } : {}),
-        ...(patch.systemPrompt !== undefined ? { systemPrompt: patch.systemPrompt } : {}),
-        ...(patch.outputSchema !== undefined
-          ? { outputSchema: patch.outputSchema as object }
-          : {}),
-        ...(patch.strategy !== undefined ? { strategy: patch.strategy } : {}),
-        ...(patch.ciFailOn !== undefined ? { ciFailOn: patch.ciFailOn } : {}),
-        ...(patch.repoIntel !== undefined ? { repoIntel: patch.repoIntel } : {}),
-        ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
-        ...(configChanged ? { version: nextVersion } : {}),
-      })
-      .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.id, id)))
-      .returning();
+    return this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(t.agents)
+        .set({
+          ...(patch.name !== undefined ? { name: patch.name } : {}),
+          ...(patch.description !== undefined ? { description: patch.description } : {}),
+          ...(patch.provider !== undefined ? { provider: patch.provider } : {}),
+          ...(patch.model !== undefined ? { model: patch.model } : {}),
+          ...(patch.systemPrompt !== undefined ? { systemPrompt: patch.systemPrompt } : {}),
+          ...(patch.outputSchema !== undefined
+            ? { outputSchema: patch.outputSchema as object }
+            : {}),
+          ...(patch.strategy !== undefined ? { strategy: patch.strategy } : {}),
+          ...(patch.ciFailOn !== undefined ? { ciFailOn: patch.ciFailOn } : {}),
+          ...(patch.repoIntel !== undefined ? { repoIntel: patch.repoIntel } : {}),
+          ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
+          ...(configChanged ? { version: nextVersion } : {}),
+        })
+        .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.id, id)))
+        .returning();
 
-    if (configChanged && row) await this.snapshotVersion(row, nextVersion);
-    return row;
+      if (configChanged && row) await this.snapshotVersion(tx, row, nextVersion);
+      return row;
+    });
   }
 
-  private async snapshotVersion(row: AgentRow, version: number): Promise<void> {
+  private async snapshotVersion(tx: Tx, row: AgentRow, version: number): Promise<void> {
     const skills = await this.skillIdsForAgent(row.id);
-    await this.db
+    await tx
       .insert(t.agentVersions)
       .values({
         agentId: row.id,

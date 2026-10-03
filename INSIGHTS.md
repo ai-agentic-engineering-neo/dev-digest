@@ -17,6 +17,62 @@ that fits; never invent a new heading.
 
 ## Decisions
 
+### 2026-10-02 — `spec-creator` write scope is a frontmatter PreToolUse hook, not prompt wording
+
+**What:** `.claude/agents/spec-creator.md` (opus) is the only agent that writes
+specs. Its `hooks:` frontmatter runs `.claude/hooks/spec-creator-guard.mjs` on
+`Write|Edit|Bash`. `Write`/`Edit` are allowed only for a file named
+`YYYY-MM-DD-<slug>.md` that sits directly in `specs/`, `server/specs/`,
+`client/specs/`, `reviewer-core/specs/` or `mcp-server/specs/`. `Bash` is
+allowed only for `date +%Y-%m-%d`, which the agent uses for the date-based
+Spec ID.
+Paths are canonicalised by running `realpath` on the deepest *existing*
+ancestor, so a spec in a folder that doesn't exist yet still resolves, and
+`specs/../server/x.md` is still caught. The script uses Node rather than shell
+plus `jq`, because Node ≥22 is guaranteed by the stack and `jq` is not. It
+replaced the 2026-10-01 `specreator` draft (global `SPEC-NN`, path-citing
+specs) with a stricter WHAT-not-HOW agent.
+**Why:** an agent that holds `Write` or `Bash` will eventually "just fix the
+component too". A hook blocks that mechanically and tells the agent why. A hook
+in the frontmatter applies only to this subagent, so nobody else is affected.
+**Rejected:** a project-wide hook in `settings.json`, which would block every
+session from editing code. Prompt-only scoping was rejected because it is not
+enforceable. Check the guard with
+`echo '{"tool_name":"Write","tool_input":{"file_path":"client/src/x.tsx"}}' | CLAUDE_PROJECT_DIR=$PWD node .claude/hooks/spec-creator-guard.mjs; echo $?`,
+which should print `2`.
+
+- **Correction, 2026-10-02.** The 2026-10-01 draft of this entry claimed that "a
+  subagent can't spawn subagents". That is false. Per
+  code.claude.com/docs/en/sub-agents, a subagent **can** use `Agent`, up to
+  three layers below the main conversation, and `Agent(type, …)` in `tools:` is
+  an allowlist. What subagents really lose is `AskUserQuestion`: Claude Code
+  removes it even when it is listed in `tools:`. So `spec-creator` fans out
+  `researcher` itself, but still has to return its blocking questions for the
+  caller to relay, unless it runs as the main thread with
+  `claude --agent spec-creator`.
+
+### 2026-10-01 — `planner` → `implementation-planner`: no spec authoring, two-phase Q&A protocol
+
+**What:** `.claude/agents/planner.md` was renamed to
+`.claude/agents/implementation-planner.md` (`name: implementation-planner`;
+references in `implementor.md`, `architecture-reviewer.md`, agents
+`README.md`, `plan-verifier/SKILL.md` updated). It treats `*/specs/**` as
+read-only input and may never draft, edit, or plan a step that touches a
+spec — except `e2e/specs/*.flow.json`, which are browser-flow tests, not
+specs. It runs in two phases: Phase 1 returns a requirements review
+(gaps/conflicts/ambiguities), recommendations, and a mandatory
+multi-agent vs single-agent question, then stops; Phase 2 plans only after
+the calling session relays the user's answers via `SendMessage`.
+**Why:** a subagent cannot converse with the user, so "ask before planning"
+only works if the agent stops and the caller relays — the description
+frontmatter tells the caller to do so. Specs are user-owned intent in the
+spec-driven flow; a planner that fills spec gaps silently redefines *what*
+gets built.
+**Rejected:** letting the caller pick the execution mode on the user's
+behalf — the agent refuses a mode not attributed to the user. The
+2026-08-13 planner entry below still holds for parallelization rules; they
+now apply only in multi-agent mode.
+
 ### 2026-08-14 — Merging upstream/main: kept our own conventions/skills, dropped upstream's duplicates
 
 **What:** `upstream/main`'s "integration/all-features" merge (PR #137) independently
@@ -111,6 +167,14 @@ serialization, and client-side types.
 input but left responses unchecked, so contract drift surfaced in the browser.
 
 ## What Works
+
+- **2026-10-02** — Agents verify through `scripts/verify.sh <pkg> <files>`,
+  not `pnpm test`. In `server/`, `pnpm test` also runs the testcontainers
+  `*.it.test.ts` lane, so N parallel `implementor`s each started a Postgres
+  container and streamed the whole suite into context. The script runs
+  typecheck, depcruise filtered to the passed files, and `vitest related`. It
+  prints only `PASS`/`FAIL` lines plus the failing tail. `--full` runs once,
+  from `/implement-plan`. `scripts/verify.sh server src/modules/x/service.ts`
 
 ## What Doesn't Work
 
@@ -208,11 +272,48 @@ input but left responses unchecked, so contract drift surfaced in the browser.
 
   - **2026-08-05** — Conventions was staged even further than skills — table, `ConventionCandidate` contract, `FEATURE_MODELS.conventions`, `repoIntel.getConventionSamples()`, the whole `messages/en/conventions.json` namespace, `activeKeyFor("/conventions")` AND the mock adapter's schema names all shipped with no module, so the build was assembly, not authoring. Evidence: `server/src/modules/repo-intel/service.ts:630`, `client/src/components/app-shell/helpers.ts:31`, `docs/specs/conventions.md` §2.
 
+  - **2026-10-03** — Project Context is staged but has no server route.
+    Already there: `SpecFile`/`IndexStatus` contracts,
+    `useContextFiles`/`useReindexContext` hooks that call the non-existent
+    `/repos/:repoId/context`, `messages/en/context.json`,
+    `activeKeyFor("/context")` (no `NAV` item), and `PromptParts.specs`. The
+    `## Project context` section is already wrapped with `wrapUntrusted`, and
+    the trace-drawer specs block and `RunTrace.specs_read` exist too. The gap is
+    `run-executor`, which hardcodes `specs_read: []` and never passes `specs`.
+    Don't add editing to the context page: the clone resync runs
+    `git reset --hard origin/<branch>`, which silently wipes any file written
+    there. Evidence: `server/src/modules/reviews/run-executor.ts:332,553`,
+    `reviewer-core/src/prompt.ts:96-99`,
+    `server/src/adapters/git/simple-git.ts:83-91`,
+    `specs/2026-10-03-project-context.md`. **Wired 2026-10-03:** the route
+    (`server/src/modules/context/`) and run-time injection now exist. The pure
+    rules that both `context` and `reviews` need live in
+    `server/src/platform/project-context.ts`, because `no-cross-module-internals`
+    blocks one module from importing another module's `helpers.ts`.
+
 - **2026-08-05** — `POST /agents/:id/skills` is two endpoints in one body schema and picking the wrong shape silently destroys data: `{skills:[…]}` / `{skill_ids:[…]}` REPLACE the agent's whole ordered set (that is what `useSetAgentSkills` sends), while `{skill_id}` appends — so "also give this agent the new skill" must use the single-id form or the agent's other skills vanish. Evidence: `server/src/modules/agents/routes.ts:170-180`, `client/src/lib/hooks/skills.ts` (`useLinkAgentSkill` vs `useSetAgentSkills`).
 
 - **2026-07-29** — `.gitignore` carries un-ignore rules for an `agent-runner/dist/` that does not exist yet; they are pre-staged for the Export-to-CI lesson (L06), not leftovers to clean up. Evidence: `.gitignore:3-6`, `reviewer-core/README.md:7-9`.
 
 ## Tool & Library Notes
+
+- **2026-10-03** — Claude Code sub-agent journals
+  (`~/.claude/projects/<slug>/<session>/subagents/agent-*.jsonl`) write one
+  `assistant` line per content block, each repeating the same `usage` under one
+  `requestId`. Summing `usage` over every line overcounts tokens by the block
+  count — dedupe per `requestId` (last line wins). Parent of a nested agent =
+  the journal holding the `tool_use` whose id equals the child's
+  `.meta.json` `toolUseId`. Sessions started from a subdirectory (e.g.
+  `mcp-server/`) get their own `<slug>`.
+  `.claude/skills/workflow-retro/scripts/analyze_journals.py`
+
+- **2026-10-02** — There is no `arch` script in `server/package.json`, committed
+  or local, yet `pnpm arch` is cited by `.github/workflows/server-unit.yml:72`,
+  `server/.dependency-cruiser.cjs` and `pr-self-review`. Run depcruise
+  directly. `main` already carries 4 `no-cross-module-internals`/cycle errors,
+  so a scoped gate must keep only the violations whose source is a changed
+  file. That filter is `scripts/verify.sh`'s `arch_scoped`.
+  `cd server && pnpm exec depcruise src --config .dependency-cruiser.cjs --output-type err`
 
 - **2026-07-29** — Half this repo is pnpm and half is npm, so running `pnpm install` in `reviewer-core/` or `e2e/` would create a second competing lockfile — match the lockfile already in the directory, not the root README's pnpm prerequisite.
 

@@ -96,5 +96,14 @@ Flags for `dev.sh`: `--no-seed` · `--no-client` · `--db-only` · `--help`.
   output, or the grounding gate.
 - Read `e2e/README.md` before writing or debugging a browser flow.
 - Read `INSIGHTS.md` at repo root for decisions that span more than one package.
+- Use the `spec-creator` agent to write a feature spec before planning. As a
+  subagent it returns `Blocking questions`/`Proposals` and stops — relay them to
+  the user via AskUserQuestion, then resume it with `SendMessage`. Template and
+  rules live in `.claude/agents/spec-creator.md`; short version in `specs/README.md`.
+- Build features through the SDD commands: `/spec` → `/plan-feature` →
+  `/implement-plan` (in a fresh chat). The order of agents and gates lives in
+  `.claude/commands/implement-plan.md`.
+- Verify a package with `scripts/verify.sh <pkg> [files]` (scoped, quiet) or
+  `--full`, not raw `pnpm test` — in `server/` that runs the Docker lane too.
 - Use the `engineering-insights` skill to read or record an insight — it maps a
   touched path to the right `INSIGHTS.md` and holds the format and quality bar.

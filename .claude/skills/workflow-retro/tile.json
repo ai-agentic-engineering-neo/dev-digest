@@ -1,0 +1,11 @@
+{
+  "name": "devdigest/workflow-retro",
+  "version": "0.1.0",
+  "private": true,
+  "summary": "Manual post-mortem for a finished multi-agent run (/spec → /plan-feature → /implement-plan or any sub-agent batch): tokens, cache efficiency, tool calls, parallelism, nested agents, qualitative findings and actionable recommendations, plus one trend row in docs/retros/ledger.md.",
+  "skills": {
+    "workflow-retro": {
+      "path": "SKILL.md"
+    }
+  }
+}

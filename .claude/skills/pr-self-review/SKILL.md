@@ -50,7 +50,7 @@ Run each only for packages that appear in the diff.
 |---|---|---|
 | Typecheck | `pnpm typecheck` (server, client) · `npm run typecheck` (reviewer-core, e2e) | |
 | Lint | `pnpm lint` · `npm run lint` | needs both a `lint` script and an `eslint.config.*`; `e2e/` has neither |
-| Layer rules | `cd server && pnpm arch` | when `server/**` or `reviewer-core/**` changed — depcruise covers both |
+| Layer rules | `cd server && pnpm exec depcruise src ../reviewer-core/src --config .dependency-cruiser.cjs --output-type err` (there is no `arch` script in `package.json`) | when `server/**` or `reviewer-core/**` changed — depcruise covers both |
 | Unit tests | `cd server && pnpm exec vitest run --exclude '**/*.it.test.ts'` · `cd client && pnpm test` · `cd reviewer-core && npm test` | hermetic, no Docker |
 | Integration | `cd server && pnpm exec vitest run .it.test` | needs Docker |
 

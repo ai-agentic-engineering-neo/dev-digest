@@ -20,7 +20,11 @@ This is the step most likely to go wrong, so do it explicitly, in order:
 1. **Before opening the implementation file**, write down — from the task
    description, `specs/`, or acceptance criteria alone — the happy path and
    the edge cases that matter (empty state, error/failure, boundary input,
-   the specific bug being reproduced). This is your test plan.
+   the specific bug being reproduced). This is your test plan. When the task
+   comes from a spec, it hands you `AC-N` IDs with their EARS statement and
+   `observable:` hint plus the plan's "Planned test" row: one test (or
+   `describe`) per AC, named with its ID (`it('AC-3: …')`) so `plan-verifier`
+   can trace it. The spec's edge cases mapped to that AC are in scope too.
 2. Only then read the implementation.
 3. **Never assert on what the current code happens to return** if that
    diverges from the expected behaviour you wrote down in step 1. A test
@@ -59,21 +63,24 @@ guess the suite split. Never read or edit `server/clones/**` or
 
 ## Verify before reporting done
 
+Run only the test files you wrote, quietly, in the right package:
+
 | Package | Command |
 |---|---|
-| `client/` | `pnpm test` (+ `pnpm typecheck` if you touched types) |
-| `server/` (unit) | `pnpm exec vitest run --exclude '**/*.it.test.ts'` |
-| `server/` (integration, `*.it.test.ts`) | `pnpm exec vitest run .it.test` |
-| `reviewer-core/` | `npm test` |
+| `client/` | `pnpm exec vitest run <file> --reporter=dot` (+ `scripts/verify.sh client <file>` if you touched types) |
+| `server/` (unit) | `pnpm exec vitest run <file> --reporter=dot` |
+| `server/` (integration, `*.it.test.ts`) | `pnpm exec vitest run <file> --reporter=dot` — needs Docker |
+| `reviewer-core/` | `npx vitest run <file> --reporter=dot` |
 
-Run the command that actually exercises the test(s) you wrote, in the right
-package, with the right package manager (pnpm for `client/`/`server/`, npm
-for `reviewer-core/`/`e2e/`).
+Never the whole suite and never `pnpm test` in `server/` — the orchestrating
+session runs `scripts/verify.sh <pkg> --full` once after all tests land. Use
+the right package manager (pnpm for `client/`/`server/`, npm for
+`reviewer-core/`/`e2e/`).
 
 **Sanity-check that the test can fail.** A test that cannot go red is not a
 test. Before reporting done, trace through — or briefly invert the expected
-value/mock and re-run — to confirm the test fails against a wrong
-implementation. Revert the inversion before finishing.
+value/mock and re-run that one file — to confirm the test fails against a
+wrong implementation. Revert the inversion before finishing.
 
 ## Hard limits
 
@@ -91,6 +98,7 @@ implementation. Revert the inversion before finishing.
 
 ```markdown
 ## Tests: <what was covered>
+Covers: <AC-N → test name, one per line, or "n/a — no spec">
 
 ### Changed
 - `file:line` — <what test(s) added/changed and why>

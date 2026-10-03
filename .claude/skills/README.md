@@ -22,6 +22,7 @@ Reusable AI skills that provide specialized knowledge and workflows. Canonical l
 | [pr-self-review](pr-self-review/SKILL.md) | Workflow | Gates the local diff before a PR: deterministic gates, repo invariants, skill routing → `PASS`/`WARN`/`BLOCKED` |
 | [plan-verifier](plan-verifier/SKILL.md) | Meta | Requirements-coverage check: maps each item of a plan to `file:line` evidence, verdict covered/partially/missing — not a quality review |
 | [doc-writer](doc-writer/SKILL.md) | Meta | Documents already-implemented functionality into the right `docs/`/`README.md`; writes derivative docs directly, drafts conceptual ones for review |
+| [workflow-retro](workflow-retro/SKILL.md) | Meta | Manual post-mortem of a multi-agent run: tokens, cache hit, parallelism, nested agents, recommendations; appends a trend row to `docs/retros/ledger.md` |
 
 ## What Are Skills?
 

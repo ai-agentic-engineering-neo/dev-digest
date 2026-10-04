@@ -77,6 +77,7 @@ flowchart TB
   end
   subgraph Intel["Repo intelligence"]
     repoIntel["repo-intel<br/>/repos/:id/index-state · /resync"]
+    blast["blast<br/>/pulls/:id/blast (GET)"]
   end
   subgraph Platform["Platform"]
     settings["settings<br/>/settings · /providers"]

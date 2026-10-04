@@ -1,18 +1,43 @@
 {
   "stat": {
-    "symbols": "symbols",
-    "callers": "callers",
-    "endpoints": "endpoints",
-    "crons": "cron/jobs"
+    "symbols": "{count, plural, one {symbol} other {symbols}}",
+    "callers": "{count, plural, one {caller} other {callers}}",
+    "endpoints": "{count, plural, one {endpoint} other {endpoints}}",
+    "crons": "{count, plural, one {cron/job} other {cron/jobs}}"
   },
   "view": {
     "tree": "tree",
     "graph": "graph"
   },
-  "callerCount": "{count} callers",
-  "noDownstream": "{count} changed symbol(s), no downstream callers found.",
+  "callerCount": "{count, plural, one {# caller} other {# callers}}",
+  "noDownstream": "{count, plural, one {# changed symbol} other {# changed symbols}}, no downstream callers found.",
   "graph": {
     "empty": "No downstream callers to graph.",
     "ariaLabel": "Blast radius graph"
+  },
+  "card": {
+    "loading": "Loading blast radius",
+    "loadFailed": "Could not load the blast radius.",
+    "retry": "Retry",
+    "otherEndpoints": "{count, plural, one {# more endpoint} other {# more endpoints}} reached through callers not listed above",
+    "showMoreSymbols": "Show {count} more {count, plural, one {symbol} other {symbols}}",
+    "showFewerSymbols": "Show fewer symbols",
+    "showMoreEndpoints": "Show {count} more {count, plural, one {endpoint} other {endpoints}}",
+    "showFewerEndpoints": "Show fewer endpoints",
+    "openOnGithub": "Open {file} line {line} on GitHub"
+  },
+  "degraded": {
+    "title": "Blast radius is incomplete",
+    "hint": "Results may be missing callers, so absence of callers does not mean the change is safe.",
+    "reason": {
+      "flagOff": "Repository intelligence is turned off.",
+      "indexFailed": "Indexing this repository failed.",
+      "indexPartial": "Only part of the repository was indexed.",
+      "repoTooLarge": "The repository is too large to index.",
+      "noData": "No index data is available yet."
+    },
+    "resync": "Resync",
+    "resyncStarted": "Resync started. Results refresh when indexing finishes.",
+    "resyncFailed": "Could not start the resync."
   }
 }

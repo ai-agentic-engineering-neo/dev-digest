@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { Finding, Verdict } from './findings.js';
-import { PrIntent, SmartDiff } from './brief.js';
+import { BlastDegradedReason, BlastRadius, PrIntent, SmartDiff } from './brief.js';
 
 /**
  * A2 — Review-Core API surface contracts. These extend the core
@@ -73,3 +73,11 @@ export type PrIntentResponse = z.infer<typeof PrIntentResponse>;
 /** Smart-diff response for a PR (the SmartDiff). */
 export const SmartDiffResponse = SmartDiff;
 export type SmartDiffResponse = z.infer<typeof SmartDiffResponse>;
+
+/** Blast-radius response for a PR: the BlastRadius plus degraded status. */
+export const BlastRadiusResponse = BlastRadius.extend({
+  degraded: z.boolean(),
+  reason: BlastDegradedReason.nullable(),
+  impacted_endpoints: z.array(z.string()),
+});
+export type BlastRadiusResponse = z.infer<typeof BlastRadiusResponse>;

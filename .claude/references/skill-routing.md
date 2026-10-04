@@ -6,7 +6,7 @@ Single source of truth for which project skill applies to which change. Read by 
 
 | Touched path / change type | Skills |
 |---|---|
-| `server/**`, `reviewer-core/**`, `e2e/**` (any backend code) | `onion-architecture` |
+| `server/**`, `reviewer-core/**`, `e2e/**`, `devdigest-mcp/**` (any backend code) | `onion-architecture` |
 | Fastify route, plugin, hook, schema, error handling | `fastify-best-practices` |
 | Drizzle query, schema field, relation, transaction | `drizzle-orm-patterns` |
 | Table, column, index, constraint design | `postgresql-table-design` |
@@ -47,11 +47,12 @@ Changing one of these lists means changing this table in the same edit.
 | `server` | pnpm | `pnpm typecheck` | `pnpm test`. Unit only: `pnpm exec vitest run --exclude '**/*.it.test.ts'`. Integration only: `pnpm exec vitest run .it.test` (needs Docker; `*.it.test.ts` self-skip without it). |
 | `client` | pnpm | `pnpm typecheck` | `pnpm test`; `pnpm build` catches webpack-only import errors |
 | `reviewer-core` | npm | `npm run typecheck` | `npm test` |
+| `devdigest-mcp` | npm | `npm run typecheck` | `npm test` (hermetic; fake API/SSE server, no Docker) |
 | `e2e` | npm | `npm run typecheck` | `npm run e2e:hermetic` (needs the full stack and agent-browser; do not run casually) |
 
 `pnpm lint` / `pnpm arch` in `server` may not exist on every branch. Check `package.json` before relying on them.
 
-`scripts/check-all.sh [--build] [--force]` runs typecheck + hermetic tests for `server`, `reviewer-core` and `client` once per working-tree state and caches the result in `.claude/cache/` (gitignored), keyed by a hash of HEAD + tracked diff + untracked files. It never runs `*.it.test.ts`, `e2e` or lint. `scripts/review-input.sh <out-dir>` writes `review.patch`, `manifest.txt` and `tree-hash.txt` once for reviewer agents to read by path.
+`scripts/check-all.sh [--build] [--force]` runs typecheck + hermetic tests for `server`, `reviewer-core`, `devdigest-mcp` and `client` once per working-tree state and caches the result in `.claude/cache/` (gitignored), keyed by a hash of HEAD + tracked diff + untracked files. It never runs `*.it.test.ts`, `e2e` or lint. `scripts/review-input.sh <out-dir>` writes `review.patch`, `manifest.txt` and `tree-hash.txt` once for reviewer agents to read by path.
 
 ## Known traps a plan must account for
 

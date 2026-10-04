@@ -29,6 +29,7 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 - **2026-07-29** — `TESTING.md:83` explains the test-lane invocation by claiming `server/package.json` is `skip-worktree`; it is not, in a fresh clone, so anyone reasoning from that premise is reasoning from a local artifact. Evidence: `git ls-files -v | grep -v '^H'` returns nothing. The consequence it describes still holds — CI calls `pnpm exec vitest run …` because no `test:unit` / `test:integration` scripts are committed.
 
 - **2026-08-05** — Not one route declares `schema.response`, so the zod serializer compiler wired at `app.ts:65` has nothing to compile: the response allowlist that would stop a handler leaking extra fields is inactive, and the `isResponseSerializationError` branch at `app.ts:130-134` is unreachable. Evidence: `grep -rn "response:" src/modules/` returns nothing across 37 routes in 8 modules.
+  - **2026-10-01** — Partly stale: `reviews/routes.ts` (smart-diff etc.) and the new `blast/routes.ts` declare `schema.response`, so the serializer is active for those routes; the rest still have none. Evidence: `grep -rn "response:" src/modules/`.
 
 - **2026-08-05** — Nothing in the server runs inside a DB transaction, so multi-write sequences are non-atomic by construction — a crash mid-`insertReview`→`insertFindings`→`markReviewed` leaves a findings-less review on a PR already marked reviewed, and the `delete`+`insert` of `pr_files`/`pr_commits` inside the PR-detail GET can destroy the persisted diff the offline path falls back to. Evidence: `grep -rn "\.transaction(" src/` returns nothing; `src/modules/reviews/run-executor.ts:218-234`, `src/modules/pulls/routes.ts:240-263,279`.
 
@@ -44,6 +45,33 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 - **2026-08-05** — An import of a package absent from both `package.json` and `pnpm-lock.yaml` passes typecheck, unit, and integration lanes locally because a stray copy sits in `server/node_modules` (`fflate`, imported at `src/modules/skills/service.ts:1`), and only a fresh `pnpm install --frozen-lockfile` exposes it as TS2307 — verify a new import against a clean worktree install, not the dev tree. Evidence: `grep fflate package.json pnpm-lock.yaml` returned nothing while `pnpm typecheck` was green.
 
 ## Codebase Patterns
+
+- **2026-10-01** — `repoIntel.getBlastRadius` is shallower than its types
+  suggest, and `GET /pulls/:id/blast` inherits every gap. `MAX_CALLERS_PER_SYMBOL`
+  (20) is applied as one global cut after the rank sort, so a symbol can lose
+  all its callers; the ripgrep fallback is uncapped and returns no `factsByFile`
+  (empty per-symbol endpoints/crons while `degraded`); only `reason: 'no_data'`
+  is ever emitted; `BlastCallerRow.viaSymbol` is a bare name, so same-named
+  symbols in different files merge into one `downstream` group — take symbol
+  counts from the groups, not `changed_symbols.length`. A real fix needs a
+  `viaFile` on the row. `src/modules/repo-intel/service.ts:233,307,383-387`,
+  `src/modules/blast/helpers.ts`
+
+- **2026-10-01** — `POST /pulls/:id/review` is fire-and-forget: it returns
+  `{ runs, reviews: [] }` as soon as the run rows exist, and the executor runs
+  detached (`void this.executor.executeRuns(...)`). The `ReviewRunResponse`
+  doc comment saying persisted reviews come back "once the (synchronous) run
+  completes" is wrong. A caller that wants the result must follow
+  `GET /runs/:id/events` (SSE) until it closes, then read
+  `GET /pulls/:id/reviews`. `src/modules/reviews/service.ts:144-148`,
+  `src/vendor/shared/contracts/review-api.ts:41-43`
+
+- **2026-10-01** — A run requested with `{agentId}` starts even when that agent
+  is disabled: `resolveTargets` uses `agents.getById`, which filters by
+  workspace and id but not `enabled`; only the `{all:true}` path
+  (`listEnabled`) honours the switch. A client that must not run disabled
+  agents has to check `GET /agents` itself. `src/modules/reviews/service.ts:62-65`,
+  `src/modules/agents/repository.ts:89-95`
 
 - **2026-09-19** — Skill stats (`GET /skills/stats`, `/skills/:id/stats`) are derived at read time, never stored: a run "pulled" a skill iff a line of `run_traces.trace->'prompt_assembly'->>'skills'` equals `### <skill name>` exactly (line-anchored, no regex/LIKE), over done runs of the linked agents in the last 30 days, and findings come through `reviews.run_id`. Consequences to know before "fixing" a number: a renamed skill starts a fresh history under its new name, runs from before the skill was linked or before traces existed count as not pulled, and a skill body that itself contains a `### <other-skill-name>` line would count as a pull of that other skill. Evidence: `src/modules/skills/helpers.ts` (`skillWasPulled`, `computeSkillStats`), `test/skills-stats.test.ts`.
 
@@ -109,6 +137,18 @@ Sections are fixed. Add to the one that fits; never invent a new heading.
 - **2026-07-29** — `pnpm db:migrate` dumps raw Postgres NOTICE objects (`'extension "vector" already exists, skipping'`, code 42710) that read like errors but are idempotent skips — the run is fine iff it ends with `✓ migrations applied`. Evidence: `src/db/migrate.ts` sets no `onnotice` handler, so the `postgres` client logs every notice to stderr.
 
 ## Recurring Errors & Fixes
+
+- **2026-10-01** — `GET /pulls/:id/blast` on a PR that was only polled, never
+  opened, answers `0 changed symbols … degraded: true`: `pr_files` is filled by
+  the PR-detail GET (`GET /pulls/:id`), not by the poll, so the route sees no
+  changed paths. Open the PR once (UI or `GET /pulls/:id`) and ask again.
+  `src/modules/blast/repository.ts` (`getChangedPaths`),
+  `src/modules/pulls/routes.ts`
+
+- **2026-10-01** — `test/reviews.it.test.ts` fails on a clean tree too (2–3 of
+  6 tests, varying between runs): `reviews[0].findings[0].id` throws because
+  `GET /pulls/:id/reviews` comes back empty. Not caused by feature work —
+  confirm with `git stash -u` before chasing it. `test/reviews.it.test.ts:250`
 
 - **2026-09-26** — A route test asserting `400` for a bad `:id` fails: zod
   validation errors return `422` (`validation_error`) in this app, not the

@@ -3,12 +3,11 @@ import type { CSSProperties } from "react";
 export const s = {
   briefGrid: {
     display: "grid",
-    gridTemplateColumns: "minmax(0, 1fr)",
+    gridTemplateColumns: "repeat(auto-fit, minmax(min(360px, 100%), 1fr))",
     gap: 16,
     alignItems: "start",
   } satisfies CSSProperties,
-  /** When Blast Radius lands, switch grid to `1fr 1fr` and drop this span. */
-  intentSlot: { minWidth: 0, gridColumn: "1 / -1" } satisfies CSSProperties,
+  slot: { minWidth: 0 } satisfies CSSProperties,
   descriptionBox: {
     border: "1px solid var(--border)",
     borderRadius: 10,

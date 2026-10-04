@@ -41,6 +41,7 @@ code. This is the order root `CLAUDE.md` already sets out: `specs/` → `docs/` 
 | `client/**`                                                                  | `client/INSIGHTS.md`        |
 | `reviewer-core/**`                                                           | `reviewer-core/INSIGHTS.md` |
 | `e2e/**`, `scripts/e2e.sh`                                                   | `e2e/INSIGHTS.md`           |
+| `devdigest-mcp/**`                                                           | `devdigest-mcp/INSIGHTS.md` |
 | `scripts/`, `.github/`, `docker-compose.yml`, root docs, **or ≥2 packages**  | `INSIGHTS.md` (root)        |
 
 Edge cases that get misfiled:

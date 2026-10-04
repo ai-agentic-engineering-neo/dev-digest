@@ -101,6 +101,15 @@ _None yet._
 
 ## Codebase Patterns
 
+- **2026-10-01** — A new `messages/en/*.json` namespace is auto-loaded by the
+  app (`i18n/request.ts` reads the folder) but NOT by tests:
+  `renderWithProviders` only registers the namespaces listed in
+  `src/test/render.tsx`, so a component under test fails with missing-message
+  errors until the namespace is added there. Related: ICU plural labels
+  (`{count, plural, one {…} other {…}}`) only work if the call site passes
+  `t(key, { count })`; a bare `t(key)` silently keeps "1 callers".
+  `src/test/render.tsx`, `messages/en/blast.json`
+
 - **2026-09-25** — The Settings → Models picker lists only OpenRouter models
   (`useProviderModels("openrouter")`) and always saves
   `{ provider: "openrouter", model }`, so a `FEATURE_MODELS` default on any
@@ -162,6 +171,12 @@ _None yet._
 - **2026-09-19** — `@devdigest/ui` `Textarea`, `SelectInput` and `Toggle` accept no `id`/`aria-label`, and `FormField`'s `<label>` has no `htmlFor`, so `getByLabelText` cannot reach them. The skill Config tab therefore uses native `<input>/<textarea>/<select>` with `useId()` + `<label htmlFor>`, and wraps each `Toggle` in `<span role="group" aria-label>`. For master–detail state in the URL, tests mock `next/navigation` with a `useSyncExternalStore`-backed `useSearchParams` so `router.replace` really re-renders. Evidence: `src/app/skills/_components/SkillDetail/_components/SkillConfigTab/`, `SkillsView.test.tsx`.
 
 ## Recurring Errors & Fixes
+
+- **2026-10-01** — Running `pnpm build` while `next dev` is up overwrites the
+  shared `client/.next`, and the dev server then answers every page with 500:
+  `Cannot find module './vendor-chunks/@formatjs+icu-messageformat-parser@…js'`
+  (from `.next/server/webpack-runtime.js`). Stop the dev server, `rm -rf
+  .next`, start it again — or run builds only when dev is down.
 
 - **2026-09-26** — A new PR-scoped query key goes stale unless it is added to
   the invalidations by hand: `useFindingAction`, `useRunReview`,

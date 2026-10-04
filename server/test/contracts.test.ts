@@ -4,6 +4,8 @@ import {
   Finding,
   Intent,
   BlastRadius,
+  BlastRadiusResponse,
+  BlastDegradedReason,
   Risks,
   PrHistory,
   SmartDiff,
@@ -215,5 +217,26 @@ describe('platform DTOs', () => {
         commits: [],
       }),
     ).not.toThrow();
+  });
+});
+
+describe('BlastRadiusResponse', () => {
+  const base = {
+    changed_symbols: [{ name: 'f', file: 'a.ts', kind: 'function' }],
+    downstream: [],
+    summary: 's',
+    degraded: false,
+    reason: null,
+    impacted_endpoints: ['GET /x'],
+  };
+  it('parses a normal and a degraded response', () => {
+    expect(() => BlastRadiusResponse.parse(base)).not.toThrow();
+    expect(() => BlastRadiusResponse.parse({ ...base, degraded: true, reason: 'no_data' })).not.toThrow();
+  });
+  it('rejects an unknown reason and a missing field', () => {
+    expect(() => BlastRadiusResponse.parse({ ...base, reason: 'bogus' })).toThrow();
+    expect(BlastDegradedReason.safeParse('bogus').success).toBe(false);
+    const { impacted_endpoints: _omit, ...rest } = base;
+    expect(() => BlastRadiusResponse.parse(rest)).toThrow();
   });
 });

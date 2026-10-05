@@ -26,6 +26,12 @@
     "blockers": " · {count} blockers",
     "prScore": "PR SCORE"
   },
+  "cost": {
+    "none": "--",
+    "title": "Cost of this run",
+    "noneTitle": "No cost data",
+    "tokens": "– {tokensIn} → {tokensOut}"
+  },
   "panel": {
     "hideLowConfidence": "Hide low confidence",
     "noMatchTitle": "No findings match",
@@ -92,6 +98,7 @@
       "size": "Size",
       "score": "Score",
       "status": "Status",
+      "cost": "Cost",
       "updated": "Updated"
     },
     "filesCount": "{count} files",

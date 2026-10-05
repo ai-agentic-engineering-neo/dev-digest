@@ -8,6 +8,7 @@ import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { AppError, NotFoundError } from '../../platform/errors.js';
 import { deriveReviewStatus } from './status.js';
+import { costOfLatestReviewRun } from './run-cost.js';
 
 /**
  * F1 — pulls module. PR import via Octokit (list + per-PR detail).
@@ -116,18 +117,30 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
     // grouping is cheap. (The per-severity FINDINGS breakdown is intentionally
     // not surfaced on the list — findings live on the PR detail page.)
     const prIds = rows.map((r) => r.id);
-    const latestReviewByPr = new Map<string, { score: number | null }>();
+    const latestReviewByPr = new Map<string, { score: number | null; runId: string | null }>();
     if (prIds.length > 0) {
       const reviewRows = await container.db
-        .select({ prId: t.reviews.prId, score: t.reviews.score })
+        .select({ prId: t.reviews.prId, score: t.reviews.score, runId: t.reviews.runId })
         .from(t.reviews)
         .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review')))
         .orderBy(desc(t.reviews.createdAt));
       // Rows are newest-first → first seen per PR is the latest review.
       for (const rv of reviewRows) {
-        if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { score: rv.score });
+        if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { score: rv.score, runId: rv.runId });
       }
     }
+
+    // COST = the run behind that same latest review (see run-cost.ts).
+    const latestRunIdByPr = new Map([...latestReviewByPr].map(([prId, v]) => [prId, v.runId]));
+    const runIds = [...new Set([...latestRunIdByPr.values()].filter((id): id is string => id != null))];
+    const runRows =
+      runIds.length > 0
+        ? await container.db
+            .select({ id: t.agentRuns.id, status: t.agentRuns.status, costUsd: t.agentRuns.costUsd })
+            .from(t.agentRuns)
+            .where(inArray(t.agentRuns.id, runIds))
+        : [];
+    const costByPr = costOfLatestReviewRun(latestRunIdByPr, runRows);
 
     const now = Date.now();
     return rows.map((r) => {
@@ -153,6 +166,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
+        cost_usd: costByPr.get(r.id) ?? null,
       };
     });
   });

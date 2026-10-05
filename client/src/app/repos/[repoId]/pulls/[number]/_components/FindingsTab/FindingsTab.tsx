@@ -164,6 +164,7 @@ export function FindingsTab({
             headSha={headSha}
             targetRunId={target?.runId ?? null}
             targetNonce={target?.n ?? 0}
+            run={prRuns?.find((r) => r.run_id === review.run_id) ?? null}
           />
         ))
       )}

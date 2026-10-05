@@ -210,7 +210,7 @@ export class ReviewRunExecutor {
           if (this.container.runBus.isCancelled(runId)) throw new RunCancelledError();
         },
       });
-      const { tokensIn, tokensOut, grounding } = outcome;
+      const { tokensIn, tokensOut, costUsd, grounding } = outcome;
 
       const keptFindings = outcome.review.findings;
 
@@ -245,12 +245,20 @@ export class ReviewRunExecutor {
         durationMs,
         tokensIn,
         tokensOut,
+        costUsd,
         findingsCount: findingRows.length,
         grounding,
         score: outcome.review.score,
         blockers,
         error: null,
       });
+
+      // Logged BEFORE the trace is built: logFor() snapshots the buffer, so this
+      // line is persisted and matches agent_runs.cost_usd exactly.
+      runLog.result(
+        `Run complete · ${tokensIn} in / ${tokensOut} out tokens · ` +
+          (costUsd == null ? 'cost unknown' : `$${costUsd.toFixed(6)}`),
+      );
 
       const trace: RunTrace = {
         config: {
@@ -267,6 +275,7 @@ export class ReviewRunExecutor {
           tokens_out: tokensOut,
           findings: findingRows.length,
           grounding,
+          cost_usd: costUsd,
         },
         prompt_assembly: outcome.assembly,
         tool_calls: outcome.chunks.map((c) => ({

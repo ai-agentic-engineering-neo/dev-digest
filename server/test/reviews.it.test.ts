@@ -4,7 +4,7 @@ import { waitForPrRuns } from './helpers/runs.js';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/platform/config.js';
 import { seed } from '../src/db/seed.js';
-import { MockLLMProvider, MockEmbedder, MockGitClient } from '../src/adapters/mocks.js';
+import { MockLLMProvider, MockEmbedder, MockGitClient, MockGitHubClient } from '../src/adapters/mocks.js';
 import * as t from '../src/db/schema.js';
 import { eq } from 'drizzle-orm';
 import type { Review } from '@devdigest/shared';
@@ -13,6 +13,17 @@ const hasDocker = await dockerAvailable();
 const d = hasDocker ? describe : describe.skip;
 
 const config = () => loadConfig({ ...process.env, NODE_ENV: 'test' } as NodeJS.ProcessEnv);
+
+/** `completeAgentRun` (status done, which ends waitForPrRuns) runs before
+ *  `saveRunTrace`, so poll until the trace document exists. */
+async function fetchTrace(app: { inject: (o: { method: 'GET'; url: string }) => Promise<{ statusCode: number; json: () => any }> }, runId: string) {
+  for (let i = 0; i < 200; i++) {
+    const res = await app.inject({ method: 'GET', url: `/runs/${runId}/trace` });
+    if (res.statusCode === 200 && res.json()?.stats) return res.json();
+    await new Promise((r) => setTimeout(r, 25));
+  }
+  throw new Error(`trace for ${runId} never persisted`);
+}
 
 /**
  * A unified diff touching src/config.ts (line 11 added) so grounding can keep a
@@ -117,6 +128,7 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
       overrides: {
         embedder: new MockEmbedder(),
         git: new MockGitClient({ diff: DIFF }),
+        github: new MockGitHubClient(),
         llm: {
           [provider]: new MockLLMProvider(provider, { structured }),
         },
@@ -159,7 +171,7 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
 
   it('runs a review: map-reduce + grounding drops the hallucinated finding, keeps the valid one', async () => {
     const app = await appWith(REVIEW_FIXTURE);
-    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
 
     const agent = (
       await app.inject({
@@ -198,7 +210,7 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
 
     // a run_traces document was written (single doc)
     const runId = body.runs[0].run_id;
-    const trace = (await app.inject({ method: 'GET', url: `/runs/${runId}/trace` })).json();
+    const trace = await fetchTrace(app, runId);
     expect(trace.config.model).toBe('gpt-4.1');
     expect(trace.stats.grounding).toBe('1/2 passed');
     expect(trace.log.length).toBeGreaterThan(0);
@@ -209,6 +221,47 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(run!.findingsCount).toBe(1);
     expect(run!.grounding).toBe('1/2 passed');
 
+    // cost: MockLLMProvider reports costUsd 0.001 / 100 in / 50 out per call; the
+    // single-file DIFF is one single-pass call, so the run's cost is exactly that.
+    expect(run!.costUsd).toBeCloseTo(0.001, 10);
+    expect(run!.tokensIn).toBe(100);
+    expect(run!.tokensOut).toBe(50);
+    expect(trace.stats.cost_usd).toBeCloseTo(0.001, 10);
+    // the persisted run log carries the same number
+    expect(trace.log.map((l: { msg: string }) => l.msg).join('\n')).toContain('$0.001000');
+
+    const history = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(history[0].cost_usd).toBeCloseTo(0.001, 10);
+
+    const list = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const row = list.find((p: { id: string }) => p.id === pr.id);
+    expect(row.cost_usd).toBeCloseTo(0.001, 10);
+    expect(row.score).toBe(65); // same review → same run as the cost
+
+    await app.close();
+  });
+
+  it('a failed run stores NULL cost (never 0)', async () => {
+    // fixture violates the Review schema → MockLLMProvider throws → run fails
+    const app = await appWith({ not: 'a review' });
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'Failing', provider: 'openai', model: 'gpt-4.1', system_prompt: 'x' },
+      })
+    ).json();
+    await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } });
+    const runs = await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+    expect(runs[0]!.status).toBe('failed');
+    expect(runs[0]!.costUsd).toBeNull();
+
+    const history = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(history[0].cost_usd).toBeNull();
+
+    const list = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    expect(list.find((p: { id: string }) => p.id === pr.id).cost_usd).toBeNull();
     await app.close();
   });
 

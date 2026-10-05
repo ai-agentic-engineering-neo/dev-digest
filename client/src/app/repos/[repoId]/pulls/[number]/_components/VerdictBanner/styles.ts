@@ -47,4 +47,13 @@ export const s = {
     color: "var(--text-muted)",
     letterSpacing: "0.04em",
   } satisfies CSSProperties,
+  costRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 5,
+    marginTop: 5,
+    paddingTop: 6,
+    borderTop: "1px solid var(--border)",
+  } satisfies CSSProperties,
+  costIcon: { color: "var(--text-muted)" } satisfies CSSProperties,
 } as const;

@@ -30,4 +30,21 @@ describe("VerdictBanner (smoke)", () => {
     expect(screen.getByText("42")).toBeInTheDocument();
     expect(screen.getByText(/1 findings · 1 blockers/)).toBeInTheDocument();
   });
+
+  it("shows cost and token usage in the banner row", () => {
+    renderWithIntl(
+      <VerdictBanner verdict="request_changes" summary="s" score={61} findingsCount={6} blockers={2}
+        costUsd={0.014} tokensIn={8200} tokensOut={1300} />,
+    );
+    expect(screen.getByTitle("Cost of this run").textContent).toBe("$0.014 – 8.2K → 1.3K");
+  });
+
+  it("shows -- (not $0.00) when the run has no cost data", () => {
+    renderWithIntl(
+      <VerdictBanner verdict="comment" summary="s" score={90} findingsCount={0} blockers={0}
+        costUsd={null} tokensIn={8200} tokensOut={1300} />,
+    );
+    expect(screen.getByTitle("No cost data").textContent).toBe("--");
+    expect(screen.queryByText(/\$/)).not.toBeInTheDocument();
+  });
 });

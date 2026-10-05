@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  RunStats,
   Review,
   Finding,
   Intent,
@@ -206,5 +207,14 @@ describe('platform DTOs', () => {
         commits: [],
       }),
     ).not.toThrow();
+  });
+});
+
+describe('RunStats cost_usd', () => {
+  it('parses a legacy stats object without cost_usd, and one with null', () => {
+    const base = { duration_ms: 1, tokens_in: 2, tokens_out: 3, findings: 0, grounding: '0/0 passed' };
+    expect(RunStats.parse(base).cost_usd).toBeUndefined();
+    expect(RunStats.parse({ ...base, cost_usd: null }).cost_usd).toBeNull();
+    expect(RunStats.parse({ ...base, cost_usd: 0.014 }).cost_usd).toBe(0.014);
   });
 });

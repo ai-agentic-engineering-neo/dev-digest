@@ -104,6 +104,38 @@ describe('reviewPullRequest (engine)', () => {
     ).rejects.toThrow('cancelled');
   });
 
+  it('onUsage reports running totals per chunk; a later failure keeps the partial usage', async () => {
+    let calls = 0;
+    const flaky: LLMProvider = {
+      id: 'openrouter',
+      async completeStructured<T>(req): Promise<StructuredResult<T>> {
+        calls += 1;
+        if (calls === 2) throw new Error('429 quota');
+        return { data: fixture as unknown as T, model: req.model, tokensIn: 1000, tokensOut: 200, costUsd: 0.0013, raw: '', attempts: 1 };
+      },
+      async listModels() {
+        return [];
+      },
+      async complete() {
+        throw new Error('not used');
+      },
+      async embed() {
+        return [];
+      },
+    };
+    const twoFiles =
+      'diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ b/a.ts\n@@ -1,1 +1,2 @@\n x\n+y\n' +
+      'diff --git a/b.ts b/b.ts\n--- a/b.ts\n+++ b/b.ts\n@@ -1,1 +1,2 @@\n x\n+z\n';
+    const diff = await new MockGitClient({ diff: twoFiles }).diff();
+
+    const usage: { tokensIn: number; tokensOut: number; costUsd: number | null }[] = [];
+    await expect(
+      reviewPullRequest({ systemPrompt: 's', model: 'm', diff, llm: flaky, strategy: 'map-reduce', onUsage: (u) => usage.push(u) }),
+    ).rejects.toThrow('429 quota');
+
+    expect(usage).toEqual([{ tokensIn: 1000, tokensOut: 200, costUsd: 0.0013 }]);
+  });
+
   it('forwards sessionId to every LLM call (OpenRouter session grouping)', async () => {
     const seen: (string | undefined)[] = [];
     const recorder: LLMProvider = {

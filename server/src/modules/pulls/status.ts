@@ -53,3 +53,30 @@ export function deriveReviewStatus(args: {
   if (updatedAt && now - updatedAt.getTime() > staleMs) return 'stale';
   return 'reviewed';
 }
+
+export interface RunCostRow {
+  prId: string | null;
+  agentId: string | null;
+  status: string | null;
+  costUsd: number | null;
+}
+
+/**
+ * PR-list COST: per PR, the sum of the latest FINISHED run's cost of each agent
+ * (reruns replace, not add). `rows` must be newest-first. Running runs are
+ * skipped so that agent's previous finished run counts. Unknown (null) costs are
+ * left out of the sum; a PR with no known cost is absent from the map (→ null).
+ */
+export function rollupCostPerPr(rows: RunCostRow[]): Map<string, number> {
+  const seen = new Set<string>();
+  const totals = new Map<string, number>();
+  for (const r of rows) {
+    if (!r.prId || r.status === 'running') continue;
+    const key = `${r.prId}:${r.agentId ?? ''}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    if (r.costUsd == null) continue;
+    totals.set(r.prId, (totals.get(r.prId) ?? 0) + r.costUsd);
+  }
+  return totals;
+}

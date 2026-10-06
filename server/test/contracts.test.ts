@@ -166,6 +166,9 @@ describe('AI contracts parse fixtures', () => {
       log: [{ t: '00.00', kind: 'info', msg: 'started' }],
     });
     expect(trace.tool_calls).toHaveLength(1);
+    // Traces persisted before cost tracking have no cost_usd → still valid.
+    expect(trace.stats.cost_usd).toBeUndefined();
+    expect(RunTrace.parse({ ...trace, stats: { ...trace.stats, cost_usd: 0.0013 } }).stats.cost_usd).toBe(0.0013);
   });
 });
 

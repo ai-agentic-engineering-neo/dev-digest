@@ -27,6 +27,9 @@ export type Logger = {
 
 // A reduced "Review per file" — same schema as Review (the model returns a small
 // Review per file; we merge findings + take the worst verdict / mean score).
+/** Token/cost totals reported by the engine's `onUsage` (running, per chunk). */
+type RunUsage = { tokensIn: number; tokensOut: number; costUsd: number | null };
+
 export type RunOutcome = {
   review: ReviewRow;
   findings: FindingRow[];
@@ -80,6 +83,7 @@ export class ReviewRunExecutor {
             durationMs: 0,
             tokensIn: 0,
             tokensOut: 0,
+            costUsd: null,
             findingsCount: 0,
             grounding: '0/0 passed',
             error: msg,
@@ -149,6 +153,9 @@ export class ReviewRunExecutor {
     // events are already in this run's buffer, so the persisted trace below
     // (built from the buffer) includes them too.
     const runLog = parentLog.forRun(runId, { agent: agent.name });
+    // Running usage totals from the engine (per chunk) — persisted as PARTIAL
+    // usage/cost if a later chunk fails or the run is cancelled.
+    let usage: RunUsage = { tokensIn: 0, tokensOut: 0, costUsd: null };
 
     runLog.info(`Starting review with agent "${agent.name}" (${agent.provider}/${agent.model})`);
 
@@ -206,11 +213,14 @@ export class ReviewRunExecutor {
         task,
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
+        onUsage: (u) => {
+          usage = u;
+        },
         checkCancelled: () => {
           if (this.container.runBus.isCancelled(runId)) throw new RunCancelledError();
         },
       });
-      const { tokensIn, tokensOut, grounding } = outcome;
+      const { tokensIn, tokensOut, costUsd, grounding } = outcome;
 
       const keptFindings = outcome.review.findings;
 
@@ -245,6 +255,7 @@ export class ReviewRunExecutor {
         durationMs,
         tokensIn,
         tokensOut,
+        costUsd,
         findingsCount: findingRows.length,
         grounding,
         score: outcome.review.score,
@@ -265,6 +276,7 @@ export class ReviewRunExecutor {
           duration_ms: durationMs,
           tokens_in: tokensIn,
           tokens_out: tokensOut,
+          cost_usd: costUsd,
           findings: findingRows.length,
           grounding,
         },
@@ -298,15 +310,18 @@ export class ReviewRunExecutor {
         .completeAgentRun(runId, {
           status,
           durationMs: Date.now() - start,
-          tokensIn: 0,
-          tokensOut: 0,
+          tokensIn: usage.tokensIn,
+          tokensOut: usage.tokensOut,
+          // Partial cost of the chunks that completed before the failure/cancel;
+          // stays null (not 0) when no LLM call finished — "no data", not "free".
+          costUsd: usage.costUsd,
           findingsCount: 0,
           grounding: '0/0 passed',
           error: msg,
         })
         .catch(() => undefined);
       await this.repo
-        .saveRunTrace(runId, this.traceFromBuffer(runId, pull, agent, '0/0 passed', Date.now() - start))
+        .saveRunTrace(runId, this.traceFromBuffer(runId, pull, agent, '0/0 passed', Date.now() - start, usage))
         .catch(() => undefined);
       this.container.runBus.complete(runId);
       throw err;
@@ -411,6 +426,7 @@ export class ReviewRunExecutor {
     agent: AgentRow,
     grounding: string,
     durationMs = 0,
+    usage: RunUsage = { tokensIn: 0, tokensOut: 0, costUsd: null },
   ): RunTrace {
     return {
       config: {
@@ -421,7 +437,14 @@ export class ReviewRunExecutor {
         pr: pull.number,
         source: 'local',
       },
-      stats: { duration_ms: durationMs, tokens_in: 0, tokens_out: 0, findings: 0, grounding },
+      stats: {
+        duration_ms: durationMs,
+        tokens_in: usage.tokensIn,
+        tokens_out: usage.tokensOut,
+        cost_usd: usage.costUsd,
+        findings: 0,
+        grounding,
+      },
       prompt_assembly: { system: agent.systemPrompt, skills: null, memory: null, specs: null, user: '' },
       tool_calls: [],
       raw_output: '',

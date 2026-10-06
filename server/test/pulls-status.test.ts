@@ -6,7 +6,7 @@
  * + age, so it gets unit coverage independent of the route's queries.
  */
 import { describe, it, expect } from 'vitest';
-import { deriveReviewStatus, rollupSeverities, STALE_DAYS } from '../src/modules/pulls/status.js';
+import { deriveReviewStatus, rollupCostPerPr, rollupSeverities, STALE_DAYS } from '../src/modules/pulls/status.js';
 
 const DAY = 86_400_000;
 const now = Date.UTC(2026, 5, 11);
@@ -64,5 +64,50 @@ describe('rollupSeverities', () => {
 
   it('is all-zero for no findings', () => {
     expect(rollupSeverities([])).toEqual({ critical: 0, warning: 0, suggestion: 0 });
+  });
+});
+
+describe('rollupCostPerPr', () => {
+  // Rows are newest-first, as the route queries them.
+  const row = (prId: string, agentId: string | null, status: string, costUsd: number | null) => ({
+    prId,
+    agentId,
+    status,
+    costUsd,
+  });
+
+  it('sums the latest finished run of each agent; reruns replace, not add', () => {
+    const totals = rollupCostPerPr([
+      row('pr1', 'sec', 'done', 0.0013), // latest Security run
+      row('pr1', 'perf', 'done', 0.0014),
+      row('pr1', 'sec', 'done', 0.05), // older Security rerun — ignored
+    ]);
+    expect(totals.get('pr1')).toBeCloseTo(0.0027, 10);
+  });
+
+  it("skips a running run so that agent's previous finished run counts", () => {
+    const totals = rollupCostPerPr([row('pr1', 'sec', 'running', null), row('pr1', 'sec', 'done', 0.002)]);
+    expect(totals.get('pr1')).toBe(0.002);
+  });
+
+  it('counts the partial cost of a failed latest run', () => {
+    const totals = rollupCostPerPr([row('pr1', 'sec', 'failed', 0.0006), row('pr1', 'sec', 'done', 0.002)]);
+    expect(totals.get('pr1')).toBe(0.0006);
+  });
+
+  it('leaves unknown costs out; a PR with no known cost is absent (→ null)', () => {
+    const totals = rollupCostPerPr([
+      row('pr1', 'sec', 'done', null),
+      row('pr1', 'perf', 'done', 0.001),
+      row('pr2', 'sec', 'done', null),
+    ]);
+    expect(totals.get('pr1')).toBe(0.001);
+    expect(totals.has('pr2')).toBe(false);
+  });
+
+  it('keeps PRs apart and treats a deleted agent (null id) as its own group', () => {
+    const totals = rollupCostPerPr([row('pr1', null, 'done', 0.001), row('pr2', 'sec', 'done', 0.003)]);
+    expect(totals.get('pr1')).toBe(0.001);
+    expect(totals.get('pr2')).toBe(0.003);
   });
 });

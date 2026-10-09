@@ -23,3 +23,9 @@ test-results/
 
 # emdash worktree config (local)
 .emdash.json
+
+# stray root package files (not a workspace — each package has its own)
+/package.json
+/pnpm-lock.yaml
+# local pnpm build approvals (pnpm approve-builds)
+pnpm-workspace.yaml

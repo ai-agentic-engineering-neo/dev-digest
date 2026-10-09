@@ -64,4 +64,16 @@ describe('routes (no DB)', () => {
     expect(res.json().error.code).toBe('validation_error');
     await app.close();
   });
+
+  it('POST /pulls/:id/review rejects an invalid body via route schema (before any DB access)', async () => {
+    const app = await buildApp({ config });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/pulls/00000000-0000-4000-8000-000000000000/review',
+      payload: { all: 'yes' },
+    });
+    expect(res.statusCode).toBe(422);
+    expect(res.json().error.code).toBe('validation_error');
+    await app.close();
+  });
 });

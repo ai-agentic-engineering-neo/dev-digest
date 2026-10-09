@@ -164,3 +164,8 @@ Postgres); everything else is hermetic. The browser e2e flows live in
 
 [MIT](LICENSE) — fork it, extend it, run it inside your own company. The only
 requirement is that the copyright notice travels with the copy.
+
+This starter is built for participants of the **AI Agentic Engineering** course:
+you are meant to copy it, keep it in your own fork, and grow it lesson by lesson
+into your own working PR-review tool — including using it for your own projects
+and at work.

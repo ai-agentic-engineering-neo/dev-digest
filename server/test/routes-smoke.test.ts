@@ -2,6 +2,7 @@ import { describe, it, expect, afterAll } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/platform/config.js';
 import { MockGitHubClient, MockLLMProvider } from '../src/adapters/mocks.js';
+import pkg from '../package.json';
 
 /**
  * No-DB route smoke tests via app.inject(). `/health` and the validation/error
@@ -11,11 +12,16 @@ import { MockGitHubClient, MockLLMProvider } from '../src/adapters/mocks.js';
 const config = loadConfig({ ...process.env, NODE_ENV: 'test' } as NodeJS.ProcessEnv);
 
 describe('routes (no DB)', () => {
-  it('GET /health → ok', async () => {
+  it('GET /health → ok, with the build version and uptime', async () => {
     const app = await buildApp({ config });
     const res = await app.inject({ method: 'GET', url: '/health' });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ status: 'ok' });
+    const body = res.json();
+    expect(body.status).toBe('ok');
+    expect(body.version).toBe(pkg.version);
+    // whole seconds — a float here would mean process.uptime() leaked through
+    expect(Number.isInteger(body.uptimeSeconds)).toBe(true);
+    expect(body.uptimeSeconds).toBeGreaterThanOrEqual(0);
     await app.close();
   });
 

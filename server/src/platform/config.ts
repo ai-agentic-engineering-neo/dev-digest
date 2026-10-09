@@ -1,7 +1,8 @@
 import 'dotenv/config';
 import { z } from 'zod';
 import { homedir } from 'node:os';
-import { join, isAbsolute, resolve } from 'node:path';
+import { join, isAbsolute, resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 /**
  * Central, zod-validated environment config. Loaded once at startup.
@@ -26,6 +27,17 @@ const EnvSchema = z.object({
   // Note: even when on, sections only populate once the repo is indexed; an
   // unindexed repo degrades gracefully. Per-agent override: agents.repo_intel.
   REPO_INTEL_ENABLED: z.string().optional(),
+  // Local-only debug: logs prompt-assembly section metadata (section name,
+  // source, length in characters) for every review run — NEVER section
+  // content (no diff, no spec/issue text, no secrets). Default OFF; don't
+  // enable in a shared/hosted environment, only for local prompt debugging.
+  PROMPT_ASSEMBLY_DEBUG: z.string().optional(),
+  // specs/14-export-to-ci.md (AC-14/AC-52/P-2) — absolute path to the
+  // pulled-in agent-runner's committed bundle DIRECTORY (every file ncc
+  // emits there, not one enumerated file). Defaults to the sibling
+  // package's `dist/`; overridable for tests/deployments that lay out
+  // packages differently.
+  CI_RUNNER_BUNDLE_DIR: z.string().optional(),
   API_PORT: z.coerce.number().int().default(3001),
   WEB_PORT: z.coerce.number().int().default(3000),
   DEVDIGEST_CLONE_DIR: z.string().optional(),
@@ -59,13 +71,40 @@ export type AppConfig = {
    * EXACTLY like the ripgrep-only baseline.
    */
   repoIntelEnabled: boolean;
+  /**
+   * Local-only: emit one pino `debug` line per agent run with prompt-assembly
+   * section metadata (name, source, char length) — never section content.
+   * Default false. See PROMPT_ASSEMBLY_DEBUG above.
+   */
+  promptAssemblyDebugEnabled: boolean;
+  /**
+   * Absolute path to the agent-runner's committed bundle DIRECTORY
+   * (`agent-runner/dist/`, P-2 — copied wholesale: `index.js`, the
+   * lazily-loaded `310.index.js` chunk, `package.json`), placed into every
+   * generated CI bundle under `.devdigest/runner/` (AC-14). A missing/empty
+   * directory is an unmet PRECONDITION (AC-52), not a runtime crash —
+   * `modules/ci/bundle.ts` checks this before generating.
+   */
+  ciRunnerBundleDir: string;
 };
+
+// `server/src/platform/config.ts` -> up to the server package root -> the
+// sibling `agent-runner` package (both live at the worktree root).
+const DEFAULT_CI_RUNNER_BUNDLE_DIR = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  '../../../agent-runner/dist',
+);
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const parsed = EnvSchema.parse(env);
   const cloneDirRaw =
     parsed.DEVDIGEST_CLONE_DIR ?? join(homedir(), '.devdigest', 'workspace');
   const cloneDir = isAbsolute(cloneDirRaw) ? cloneDirRaw : resolve(process.cwd(), cloneDirRaw);
+  const ciRunnerBundleDir = parsed.CI_RUNNER_BUNDLE_DIR
+    ? isAbsolute(parsed.CI_RUNNER_BUNDLE_DIR)
+      ? parsed.CI_RUNNER_BUNDLE_DIR
+      : resolve(process.cwd(), parsed.CI_RUNNER_BUNDLE_DIR)
+    : DEFAULT_CI_RUNNER_BUNDLE_DIR;
   return {
     databaseUrl: parsed.DATABASE_URL,
     apiPort: parsed.API_PORT,
@@ -77,5 +116,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     webOrigin: `http://localhost:${parsed.WEB_PORT}`,
     embeddingsEnabled: parsed.EMBEDDINGS_ENABLED === 'true',
     repoIntelEnabled: parsed.REPO_INTEL_ENABLED !== 'false',
+    promptAssemblyDebugEnabled: parsed.PROMPT_ASSEMBLY_DEBUG === 'true',
+    ciRunnerBundleDir,
   };
 }

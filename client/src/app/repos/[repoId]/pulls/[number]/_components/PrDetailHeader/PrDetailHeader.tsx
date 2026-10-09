@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback } from "react";
+import { useTranslations } from "next-intl";
 import { Icon, Avatar, Badge, Button, Tabs } from "@devdigest/ui";
 import { RunReviewDropdown } from "../RunReviewDropdown";
 import { s } from "./styles";
@@ -9,25 +10,39 @@ import type { PrDetail } from "@/lib/types";
 interface PrDetailHeaderProps {
   pr: PrDetail;
   prId: string | null;
+  /** specs/13-multi-agent-review.md D23/AC-68 — repo-scoped routes (the
+   *  multi-agent configure/results surfaces) need the active repo id. */
+  repoId: string;
   tab: string;
-  findingsCount: number;
+  /** Number of agent runs on this PR — the "Agent runs" tab badge. Findings
+   *  are counted per run inside the tab, so the badge counts runs, not
+   *  findings (a 3-agent run with 30 findings is 3, not 30). */
+  runsCount: number;
   /** github.com PR URL; null when the repo's full_name isn't known yet. */
   githubUrl?: string | null;
   onSetTab: (tab: string) => void;
   onRunStart: () => void;
   onRunsStarted: () => void;
+  /** AC-68 — true only when this PR already has a multi-agent run; shows a
+   *  direct affordance to the results surface. Navigation only — starts no run. */
+  hasMultiAgentRun?: boolean;
+  onOpenMultiAgent?: () => void;
 }
 
 export function PrDetailHeader({
   pr,
   prId,
+  repoId,
   tab,
-  findingsCount,
+  runsCount,
   githubUrl,
   onSetTab,
   onRunStart,
   onRunsStarted,
+  hasMultiAgentRun = false,
+  onOpenMultiAgent,
 }: PrDetailHeaderProps) {
+  const t = useTranslations("prReview");
   const handleRunStart = useCallback(() => {
     onRunStart();
   }, [onRunStart]);
@@ -89,9 +104,15 @@ export function PrDetailHeader({
           >
             View on GitHub
           </Button>
+          {hasMultiAgentRun && (
+            <Button kind="ghost" size="sm" icon="Users" onClick={onOpenMultiAgent}>
+              {t("runReview.viewMultiAgentResults")}
+            </Button>
+          )}
           {prId && (
             <RunReviewDropdown
               prId={prId}
+              repoId={repoId}
               warnMerged={pr.status === "merged" || pr.status === "closed"}
               onRunStart={handleRunStart}
               onRunsStarted={handleRunsStarted}
@@ -114,7 +135,7 @@ export function PrDetailHeader({
         pad="0"
         tabs={[
           { key: "overview", label: "Overview", icon: "FileText" },
-          { key: "findings", label: "Agent runs", icon: "AlertOctagon", count: findingsCount || undefined },
+          { key: "findings", label: "Agent runs", icon: "AlertOctagon", count: runsCount || undefined },
           { key: "diff", label: "Files changed", icon: "Code", count: pr.files_count },
         ]}
       />

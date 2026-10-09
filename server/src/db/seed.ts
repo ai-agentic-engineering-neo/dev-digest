@@ -6,7 +6,17 @@ import {
   GENERAL_REVIEWER_PROMPT,
   SECURITY_REVIEWER_PROMPT,
   PERFORMANCE_REVIEWER_PROMPT,
+  TEST_QUALITY_REVIEWER_PROMPT,
+  DATA_SCHEMA_REVIEWER_PROMPT,
+  UI_REVIEWER_PROMPT,
+  DOCS_SPEC_REVIEWER_PROMPT,
+  SPEC_CONFORMANCE_REVIEWER_PROMPT,
+  API_INTEGRATION_REVIEWER_PROMPT,
 } from './seed-prompts.js';
+import { SEED_SKILLS, SEED_AGENT_SKILLS } from './seed-skills.js';
+import { EVAL_FIXTURE_PR, EVAL_FIXTURE_CASES } from './seed-eval-cases.js';
+import { synthesizeFrozenDiff } from '../modules/eval/frozen-input.js';
+import type { EvalCaseMeta, EvalExpectation } from '@devdigest/shared';
 
 /** Default provider/model for the built-in reviewer agents. */
 const DEFAULT_PROVIDER = 'openrouter' as const;
@@ -18,11 +28,13 @@ const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
  *
  * Seeds: default workspace + system user + membership, default settings,
  * demo repo (acme/payments-api), PR #482 with files/commits, a sample review
- * with a few findings, and the three built-in agents (General + Security +
- * Performance), all on the default openrouter/deepseek-v4-flash provider+model.
+ * with a few findings, the five built-in agents (General + Security +
+ * Performance + Test Quality + API Contract), all on the default
+ * openrouter/deepseek-v4-flash provider+model, and the L02/specs-03 skill
+ * catalogue with its agent links.
  *
- * Course lessons populate the other tables (skills, conventions, memory, eval,
- * …) once their features are built — they start empty here.
+ * Course lessons populate the remaining tables (conventions, memory, eval, …)
+ * once their features are built — they start empty here.
  */
 
 export const DEFAULT_WORKSPACE_NAME = 'default';
@@ -175,6 +187,46 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
     ]);
   }
 
+  // ---- fixture PR #491 (specs/12-eval-pipeline.md D22/Q4) ----
+  // A second PR on the SAME demo repo, with REAL `pr_files.patch` text
+  // (unlike PR #482, whose patch is null on every row) — the prerequisite
+  // for the seven fixture eval cases below, each of which needs a real hunk
+  // to ground its expectation against (AC-6).
+  let [evalPr] = await db
+    .select()
+    .from(t.pullRequests)
+    .where(and(eq(t.pullRequests.repoId, repoId), eq(t.pullRequests.number, EVAL_FIXTURE_PR.number)));
+  if (!evalPr) {
+    [evalPr] = await db
+      .insert(t.pullRequests)
+      .values({
+        workspaceId,
+        repoId,
+        number: EVAL_FIXTURE_PR.number,
+        title: EVAL_FIXTURE_PR.title,
+        author: EVAL_FIXTURE_PR.author,
+        branch: EVAL_FIXTURE_PR.branch,
+        base: EVAL_FIXTURE_PR.base,
+        headSha: EVAL_FIXTURE_PR.headSha,
+        additions: EVAL_FIXTURE_PR.files.reduce((n, f) => n + f.additions, 0),
+        deletions: EVAL_FIXTURE_PR.files.reduce((n, f) => n + f.deletions, 0),
+        filesCount: EVAL_FIXTURE_PR.files.length,
+        status: 'needs_review',
+        body: EVAL_FIXTURE_PR.body,
+      })
+      .returning();
+
+    await db.insert(t.prFiles).values(
+      EVAL_FIXTURE_PR.files.map((f) => ({
+        prId: evalPr!.id,
+        path: f.path,
+        additions: f.additions,
+        deletions: f.deletions,
+        patch: f.patch,
+      })),
+    );
+  }
+
   // ---- built-in agents (the three starter presets) ----
   // Prompt bodies live in ./seed-prompts.ts (mirrored in docs/agent-prompts/*.md).
   const seedAgents: Array<typeof t.agents.$inferInsert> = [
@@ -211,6 +263,82 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       version: 1,
       createdBy: userId,
     },
+    {
+      workspaceId,
+      name: 'Test Quality Reviewer',
+      description:
+        'Reviews the tests in a PR: uncovered branches, missed corner cases, over-mocking, flakes.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: TEST_QUALITY_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
+    {
+      workspaceId,
+      name: 'API & Integration Reviewer',
+      description:
+        'Checks the client ↔ server contract: breaking route/field changes, drift between callers and handlers, boundary validation.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: API_INTEGRATION_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
+    {
+      workspaceId,
+      name: 'Data & Schema Reviewer',
+      description:
+        'Reviews migrations, schema, and queries: destructive migrations, missing indexes/constraints, tenant scoping, code↔schema drift.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: DATA_SCHEMA_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
+    {
+      workspaceId,
+      name: 'UI Reviewer',
+      description:
+        'Reviews frontend code: state and effect bugs, missing loading/error states, accessibility, hardcoded copy.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: UI_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
+    {
+      workspaceId,
+      name: 'Docs & Spec Reviewer',
+      description:
+        'Checks the diff against its spec and PR description (missing / extra requirements) and flags documentation that went stale.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: DOCS_SPEC_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
+    {
+      workspaceId,
+      // Deliberately a SECOND spec agent, not a replacement for 'Docs & Spec
+      // Reviewer'. The two answer the same question from opposite directions
+      // (code→spec vs spec→code), so running both on one SHA is the demo:
+      // criteria the diff never touches are only found by this one.
+      name: 'Spec Conformance Reviewer',
+      description:
+        'Walks every acceptance criterion in the attached spec and rules done / diverged / partial / missing, proving absence before claiming it.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: SPEC_CONFORMANCE_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
   ];
   for (const a of seedAgents) {
     const [existing] = await db
@@ -218,6 +346,180 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       .from(t.agents)
       .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, a.name)));
     if (!existing) await db.insert(t.agents).values(a);
+  }
+
+  // ---- skill catalogue (L02 + specs/03) ----
+  // Bodies live in ./seed-skills.ts. Deliberately NOT seeded: `api-contract-guard`
+  // and `deprecation-policy`, both imported through the UI's preview-then-confirm
+  // flow so the import path is exercised end to end.
+  //
+  // No run history is fabricated here. A fresh install shows every stats tile as
+  // "—" (unmeasured, not zero) and the numbers arrive only once real runs happen
+  // — which is the point of the control experiment, not a gap in the seed.
+  for (const s of SEED_SKILLS) {
+    await db
+      .insert(t.skills)
+      .values({
+        workspaceId,
+        name: s.name,
+        description: s.description,
+        type: s.type,
+        source: s.source,
+        body: s.body,
+        enabled: s.enabled,
+        version: 1,
+      })
+      .onConflictDoNothing();
+  }
+
+  // ---- agent ↔ skill links ----
+  // `order` is the order of blocks in the assembled prompt. Links are seeded
+  // enabled; the per-agent gate (`agent_skills.enabled`) is what the editor's
+  // checkbox toggles, and it survives being switched off so `order` is kept.
+  const skillRows = await db
+    .select({ id: t.skills.id, name: t.skills.name })
+    .from(t.skills)
+    .where(eq(t.skills.workspaceId, workspaceId));
+  const skillIdByName = new Map(skillRows.map((r) => [r.name, r.id]));
+
+  for (const [agentName, skillNames] of Object.entries(SEED_AGENT_SKILLS)) {
+    const [agent] = await db
+      .select()
+      .from(t.agents)
+      .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, agentName)));
+    if (!agent) continue;
+    for (const [order, skillName] of skillNames.entries()) {
+      const skillId = skillIdByName.get(skillName);
+      if (!skillId) continue;
+      await db
+        .insert(t.agentSkills)
+        .values({ agentId: agent.id, skillId, order, enabled: true })
+        .onConflictDoNothing();
+    }
+  }
+
+  // ---- eval cases (specs/12-eval-pipeline.md D22/Q4) ----
+  // Seven fixture cases for the Security Reviewer, both expectation types
+  // represented. `source_finding_id` is null — these are fixtures, not
+  // derived from a triaged finding, which leaves the LIVE 8th case free to
+  // be created on camera during the AC-1…AC-7 demonstration. No `eval_runs`
+  // are seeded, consistent with this file's "no run history is fabricated
+  // here" posture above (AC-47's empty state).
+  const [securityReviewer] = await db
+    .select()
+    .from(t.agents)
+    .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, 'Security Reviewer')));
+  if (securityReviewer) {
+    const existingCases = await db
+      .select({ id: t.evalCases.id })
+      .from(t.evalCases)
+      .where(
+        and(
+          eq(t.evalCases.workspaceId, workspaceId),
+          eq(t.evalCases.ownerKind, 'agent'),
+          eq(t.evalCases.ownerId, securityReviewer.id),
+        ),
+      );
+    if (existingCases.length === 0) {
+      const patchByPath = new Map(EVAL_FIXTURE_PR.files.map((f) => [f.path, f.patch]));
+      await db.insert(t.evalCases).values(
+        EVAL_FIXTURE_CASES.map((c) => {
+          const patch = patchByPath.get(c.file)!;
+          const expectation: EvalExpectation = {
+            type: c.type,
+            file: c.file,
+            start_line: c.start_line,
+            end_line: c.end_line,
+            severity: c.severity,
+            category: c.category,
+            title: c.title,
+          };
+          const inputMeta: EvalCaseMeta = {
+            pr_number: EVAL_FIXTURE_PR.number,
+            title: EVAL_FIXTURE_PR.title,
+            body: EVAL_FIXTURE_PR.body,
+          };
+          return {
+            workspaceId,
+            ownerKind: 'agent' as const,
+            ownerId: securityReviewer.id,
+            name: c.name,
+            inputDiff: synthesizeFrozenDiff(c.file, patch),
+            inputFiles: [c.file],
+            inputMeta,
+            expectedOutput: expectation,
+            notes: null,
+            sourceFindingId: null,
+          };
+        }),
+      );
+    }
+  }
+
+  // ---- skill-owned eval cases (specs/15-skill-eval-cases.md AC-30/AC-31, R2) ----
+  // Owner: `secret-leakage-gate` — already linked to `Security Reviewer`
+  // (`SEED_AGENT_SKILLS`), the carrier for AC-31's demonstration (delete the
+  // `sk_live_` bullet from the skill body, re-run, watch recall lift fall).
+  // Four of the seven fixture cases over the SAME fixture PR #491, satisfying
+  // AC-30's "at least four, at least one of each expectation type" with two
+  // of each. `source_finding_id: null`, no `eval_runs` seeded — same
+  // no-fabricated-history / empty-state posture as the agent-owned block above.
+  const [secretLeakageGate] = await db
+    .select()
+    .from(t.skills)
+    .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.name, 'secret-leakage-gate')));
+  if (secretLeakageGate) {
+    const existingSkillCases = await db
+      .select({ id: t.evalCases.id })
+      .from(t.evalCases)
+      .where(
+        and(
+          eq(t.evalCases.workspaceId, workspaceId),
+          eq(t.evalCases.ownerKind, 'skill'),
+          eq(t.evalCases.ownerId, secretLeakageGate.id),
+        ),
+      );
+    if (existingSkillCases.length === 0) {
+      const SKILL_FIXTURE_CASE_NAMES = new Set([
+        'hardcoded-session-signing-secret',
+        'refresh-token-payload-logged-in-plaintext',
+        'crypto-import-is-clean',
+        'rate-limiter-addition-is-clean',
+      ]);
+      const patchByPath = new Map(EVAL_FIXTURE_PR.files.map((f) => [f.path, f.patch]));
+      const skillFixtureCases = EVAL_FIXTURE_CASES.filter((c) => SKILL_FIXTURE_CASE_NAMES.has(c.name));
+      await db.insert(t.evalCases).values(
+        skillFixtureCases.map((c) => {
+          const patch = patchByPath.get(c.file)!;
+          const expectation: EvalExpectation = {
+            type: c.type,
+            file: c.file,
+            start_line: c.start_line,
+            end_line: c.end_line,
+            severity: c.severity,
+            category: c.category,
+            title: c.title,
+          };
+          const inputMeta: EvalCaseMeta = {
+            pr_number: EVAL_FIXTURE_PR.number,
+            title: EVAL_FIXTURE_PR.title,
+            body: EVAL_FIXTURE_PR.body,
+          };
+          return {
+            workspaceId,
+            ownerKind: 'skill' as const,
+            ownerId: secretLeakageGate.id,
+            name: c.name,
+            inputDiff: synthesizeFrozenDiff(c.file, patch),
+            inputFiles: [c.file],
+            inputMeta,
+            expectedOutput: expectation,
+            notes: null,
+            sourceFindingId: null,
+          };
+        }),
+      );
+    }
   }
 
   return { workspaceId, userId };

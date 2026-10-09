@@ -16,7 +16,6 @@ import { createDb, type Db } from './db/client.js';
 import { Container, type ContainerOverrides } from './platform/container.js';
 import { AppError } from './platform/errors.js';
 import { modules } from './modules/index.js';
-import { ReviewService } from './modules/reviews/service.js';
 
 // Attach the DI container to every request/instance.
 declare module 'fastify' {
@@ -77,8 +76,14 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
   // between listening and an async reaper finishing.
   // NOTE: assumes a SINGLE API instance per DB. With multiple replicas this
   // would need per-instance scoping / heartbeats (not this app's deployment).
+  //
+  // Goes straight to the repository, not through ReviewService: reaping is
+  // persistence maintenance, not a domain use case, and app.ts is the
+  // composition root — infrastructure talking to infrastructure. Routing it
+  // through the service would mean constructing the whole service (repo, agents
+  // repo, executor, run bus) for a single delegating call.
   try {
-    const reaped = await new ReviewService(container).reapStaleRuns();
+    const reaped = await container.reviewRepo.reapStaleRunningRuns();
     if (reaped > 0) app.log.info({ reaped }, 'reaped stale running agent_runs on boot');
   } catch (err) {
     app.log.warn({ err: (err as Error).message }, 'stale-run reaping failed (non-fatal)');

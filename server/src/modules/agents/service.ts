@@ -1,4 +1,4 @@
-import type { Container } from '../../platform/container.js';
+import type { LLMProvider, Provider as ProviderId } from '@devdigest/shared';
 import type {
   Agent,
   AgentSkillLink,
@@ -48,12 +48,27 @@ export interface UpdateAgentInput {
   enabled?: boolean;
 }
 
-export class AgentsService {
-  private repo: AgentsRepository;
+/** Resolves an LLM provider by id. Injected so the service never reaches into
+ *  the composition root; the container supplies its own `llm` method. */
+export type LlmResolver = (id: ProviderId) => Promise<LLMProvider>;
 
-  constructor(private container: Container) {
-    this.repo = new AgentsRepository(container.db);
-  }
+/**
+ * D18 (specs/12-eval-pipeline.md) — declared HERE, by the consumer, not
+ * imported from `modules/eval/*` (`no-cross-module`). `container.evalRepo`
+ * satisfies this structurally; wired at `modules/agents/routes.ts`. Optional
+ * so the existing two-argument `new AgentsService(repo, llm)` constructions
+ * in tests keep compiling.
+ */
+export interface EvalCleanup {
+  deleteForOwner(workspaceId: string, ownerKind: 'skill' | 'agent', ownerId: string): Promise<void>;
+}
+
+export class AgentsService {
+  constructor(
+    private repo: AgentsRepository,
+    private llm: LlmResolver,
+    private evalCleanup?: EvalCleanup,
+  ) {}
 
   async list(workspaceId: string): Promise<Agent[]> {
     const rows = await this.repo.list(workspaceId);
@@ -65,8 +80,14 @@ export class AgentsService {
     return row ? toAgentDto(row) : undefined;
   }
 
-  /** Delete an agent (and its versions/skill-links, via cascade). */
+  /**
+   * Delete an agent (and its versions/skill-links, via DB cascade). D18 —
+   * its eval cases (and their runs) are deleted FIRST, application-side:
+   * `eval_cases.owner_id` is polymorphic with no FK to `agents`, so nothing
+   * cascades at the database level for that table.
+   */
   async delete(workspaceId: string, id: string): Promise<boolean> {
+    await this.evalCleanup?.deleteForOwner(workspaceId, 'agent', id);
     return this.repo.deleteById(workspaceId, id);
   }
 
@@ -135,10 +156,19 @@ export class AgentsService {
     return row ? toAgentVersionDto(row) : undefined;
   }
 
-  /** Linked skills for an agent as AgentSkillLink[] (ordered). */
+  /**
+   * Linked skills for an agent as AgentSkillLink[] (ordered). `enabled` is the
+   * PER-AGENT gate only — a link can be enabled here while the skill itself is
+   * disabled workspace-wide, in which case it still doesn't reach the prompt.
+   */
   async skillLinks(agentId: string): Promise<AgentSkillLink[]> {
     const links = await this.repo.linkedSkills(agentId);
-    return links.map((l) => ({ agent_id: agentId, skill_id: l.skill.id, order: l.order }));
+    return links.map((l) => ({
+      agent_id: agentId,
+      skill_id: l.skill.id,
+      order: l.order,
+      enabled: l.enabled,
+    }));
   }
 
   /**
@@ -162,12 +192,34 @@ export class AgentsService {
     agentId: string,
     skillId: string,
     order?: number,
+    enabled?: boolean,
   ): Promise<AgentSkillLink[] | undefined> {
     const agent = await this.repo.getById(workspaceId, agentId);
     if (!agent) return undefined;
     const existing = await this.repo.linkedSkills(agentId);
     const resolvedOrder = order ?? existing.length;
-    await this.repo.linkSkill(agentId, skillId, resolvedOrder);
+    await this.repo.linkSkill(agentId, skillId, resolvedOrder, enabled);
+    return this.skillLinks(agentId);
+  }
+
+  /**
+   * Toggle (or reposition) ONE link without unlinking it. Backs
+   * `PUT /agents/:id/skills/:skillId` — the agent editor's checkbox.
+   *
+   * Unchecking must never delete the row: the `enabled` column exists precisely
+   * so `order` survives, and re-checking restores the skill's place in the
+   * assembled prompt instead of appending it to the end. A skill that was never
+   * linked is inserted on first check.
+   */
+  async setSkillEnabled(
+    workspaceId: string,
+    agentId: string,
+    skillId: string,
+    patch: { enabled?: boolean; order?: number },
+  ): Promise<AgentSkillLink[] | undefined> {
+    const agent = await this.repo.getById(workspaceId, agentId);
+    if (!agent) return undefined;
+    await this.repo.setSkillEnabled(agentId, skillId, patch);
     return this.skillLinks(agentId);
   }
 
@@ -177,7 +229,7 @@ export class AgentsService {
    */
   async listModels(provider: Provider): Promise<ModelInfo[]> {
     try {
-      const llm = await this.container.llm(provider);
+      const llm = await this.llm(provider);
       return await llm.listModels();
     } catch {
       return [];

@@ -1,0 +1,30 @@
+{
+  "fixture": "eval-1-billing-result-pattern",
+  "diff_file": "diff/src/services/refundService.ts",
+  "planted_violations": [
+    {
+      "id": "v1",
+      "line": 11,
+      "convention": "error-handling",
+      "description": "throw new Error(...) instead of returning err(...) from src/lib/result.ts"
+    },
+    {
+      "id": "v2",
+      "line": 14,
+      "convention": "immutability",
+      "description": "order.status is mutated directly instead of returning { ...order, status: 'refunded' }; note return ok(order) on line 16 also returns the mutated original rather than a new object"
+    },
+    {
+      "id": "v3",
+      "line": 20,
+      "convention": "domain-modeling",
+      "description": "calculateRefundFee computes using amountDollars (a float-dollar unit) instead of integer cents"
+    }
+  ],
+  "control_conventions_not_violated": [
+    {
+      "convention": "naming",
+      "reason": "calculateRefundFee correctly uses the calculate prefix for a pure computation; should not be flagged"
+    }
+  ]
+}

@@ -69,7 +69,7 @@ flowchart TB
     polling["polling<br/>/repos/:id/poll"]
   end
   subgraph Review["Review & runs"]
-    reviews["reviews<br/>/pulls/:id/review · /reviews · /findings/:id/(accept|dismiss)<br/>/runs/:id/(events|trace)"]
+    reviews["reviews<br/>/pulls/:id/review · /reviews · /findings/:id/(accept|dismiss)<br/>/runs/:id/(events|trace) · /reviews/adhoc (sync, non-persisting)"]
   end
   subgraph Agents["Agents"]
     agents["agents<br/>/agents · /agents/:id"]
@@ -131,6 +131,16 @@ What the reviewer actually sends to the model is assembled in
 - **Grounding is mandatory.** Every finding must cite a line that exists in the
   diff or it is dropped (`groundFindings`), and the score is recomputed from the
   surviving findings — the model's self-reported score is ignored.
+- **Project Context (specs/09-project-context-folder.md).** Agent-attached and
+  skill-inherited markdown documents are read from a repo's synced default-
+  branch checkout (never the PR branch head) and injected under `## Project
+  context`, untrusted-wrapped per document. Default search roots — used when a
+  repo's `doc_roots` override is unset — are `specs`, `docs`,
+  `.devdigest/specs` (`modules/project-context/constants.ts`'s
+  `DEFAULT_DOC_ROOTS`, editable per-repo via `PUT /repos/:id/context/config`).
+  The assembled block is capped at 8000 tokens; over budget, whole documents
+  are dropped from the end of the resolved (agent-then-skill) order — never
+  truncated mid-document.
 
 ## Testing
 

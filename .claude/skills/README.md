@@ -6,9 +6,11 @@ Reusable AI skills that provide specialized knowledge and workflows. Canonical l
 
 | Skill | Scope | Description |
 |-------|-------|-------------|
+| [onion-architecture](onion-architecture/SKILL.md) | Backend | Ring model for `server/` — dependency rule, ports, DI, routes as adapters |
 | [fastify-best-practices](fastify-best-practices/SKILL.md) | Backend | Fastify routes, plugins, JSON-schema validation, error handling |
 | [drizzle-orm-patterns](drizzle-orm-patterns/SKILL.md) | Backend | Drizzle schema, queries, relations, transactions, migrations |
 | [postgresql-table-design](postgresql-table-design/SKILL.md) | Backend | Postgres schema design, data types, indexing, constraints |
+| [frontend-ui-architecture](frontend-ui-architecture/SKILL.md) | Frontend | Where code lives — folder layout, feature boundaries, thin routes, `use client` boundary |
 | [next-best-practices](next-best-practices/SKILL.md) | Frontend | Next.js App Router, RSC boundaries, data fetching, optimization |
 | [react-best-practices](react-best-practices/SKILL.md) | Frontend | React anti-patterns, state management, hooks rules |
 | [react-testing-library](react-testing-library/SKILL.md) | Frontend | General-purpose React Testing Library guide with Vitest |
@@ -16,6 +18,11 @@ Reusable AI skills that provide specialized knowledge and workflows. Canonical l
 | [typescript-expert](typescript-expert/SKILL.md) | Full-stack | Type-level programming, performance, tooling, migrations |
 | [security](security/SKILL.md) | Full-stack | OWASP Top 10:2025, auth, injection, uploads, secrets |
 | [mermaid-diagram](mermaid-diagram/SKILL.md) | Shared | Mermaid diagrams in markdown (flowcharts, sequence, ERD, …) |
+| [pr-self-review](pr-self-review/SKILL.md) | Project | Pre-PR review of the local diff; routes the skills above, gates on deterministic checks |
+| [repo-conventions-reviewer](repo-conventions-reviewer/SKILL.md) | Project | Extracts a repo's unwritten conventions with file:line evidence, or checks a diff against an accepted list; its skill-creator eval fixtures live in [skill-evals/repo-conventions-reviewer/](../../skill-evals/repo-conventions-reviewer/) |
+| [engineering-insights](engineering-insights/SKILL.md) | Project | Logs non-obvious lessons to the touched module's `LEARNINGS.md` |
+| [implement-plan](implement-plan/SKILL.md) | Project | Runs implementer → plan-verifier (gate) → architecture-reviewer (fix loop) for an existing plan; spec-creator, implementation-planner, test-writer run separately |
+| [workflow-retro](workflow-retro/SKILL.md) | Project | Retrospective on a multi-agent run's orchestration — tokens, agent order, handoffs, recommendations; distinct from engineering-insights, which logs code lessons to LEARNINGS.md |
 
 ## What Are Skills?
 
@@ -37,3 +44,11 @@ Each skill has:
 - `SKILL.md` — Main skill file with rules and conventions (required)
 - `examples.md` — Code examples showing good/bad patterns (recommended)
 - `references.md` — Sources and rationale (optional)
+
+## Testing a Skill (skill-creator evals)
+
+Eval fixtures and run output for skill-creator's with/without or old/new
+comparison harness live in the top-level [skill-evals/](../../skill-evals/)
+directory (parallel to `client/`, `server/`, `e2e/`), not inside each skill's
+own folder — see [skill-evals/README.md](../../skill-evals/README.md) for the
+full convention (layout, `-v-N` round numbering, gitignore rules).

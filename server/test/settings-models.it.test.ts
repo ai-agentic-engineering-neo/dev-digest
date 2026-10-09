@@ -32,8 +32,8 @@ d('Settings: feature models + secrets status (Testcontainers pg)', () => {
     const app = await buildApp({ config: config(), db: pg.handle.db, overrides: {} });
 
     // No override yet → registry default; getFeatureModelOverride is undefined.
-    expect(await getFeatureModelOverride(app.container, workspaceId, 'onboarding')).toBeUndefined();
-    expect(await resolveFeatureModel(app.container, workspaceId, 'onboarding')).toEqual({
+    expect(await getFeatureModelOverride(app.container.db, workspaceId, 'onboarding')).toBeUndefined();
+    expect(await resolveFeatureModel(app.container.db, workspaceId, 'onboarding')).toEqual({
       provider: 'openrouter',
       model: 'deepseek/deepseek-v4-flash',
     });
@@ -46,12 +46,12 @@ d('Settings: feature models + secrets status (Testcontainers pg)', () => {
     });
     expect(put.statusCode).toBe(200);
 
-    expect(await resolveFeatureModel(app.container, workspaceId, 'onboarding')).toEqual({
+    expect(await resolveFeatureModel(app.container.db, workspaceId, 'onboarding')).toEqual({
       provider: 'openrouter',
       model: 'z-ai/glm-4.7-flash',
     });
     // An unset feature still resolves to its own registry default.
-    expect(await resolveFeatureModel(app.container, workspaceId, 'risk_brief')).toEqual({
+    expect(await resolveFeatureModel(app.container.db, workspaceId, 'risk_brief')).toEqual({
       provider: 'openai',
       model: 'gpt-4.1',
     });

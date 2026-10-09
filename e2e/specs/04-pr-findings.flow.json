@@ -9,8 +9,16 @@
     { "cmd": ["wait", "--load", "networkidle"], "label": "PR detail data settles" },
     { "cmd": ["find", "role", "button", "click", "--name", "Agent runs"], "label": "switch to the Agent runs tab" },
     { "cmd": ["wait", "--url", "tab=findings"], "label": "findings tab is active in the URL" },
+    { "cmd": ["wait", "--text", "9,500 tok · $0.014"], "label": "timeline run card shows seeded tokens and cost" },
     { "cmd": ["wait", "--text", "request changes"], "label": "seeded run accordion shows its verdict" },
     { "cmd": ["wait", "--text", "2 findings"], "label": "accordion header shows the seeded finding count" },
-    { "cmd": ["wait", "--text", "Hardcoded Stripe secret key in commit"], "label": "seeded FindingCard is visible (newest run is open by default)" }
+    { "cmd": ["wait", "--text", "Hardcoded Stripe secret key in commit"], "label": "seeded FindingCard is visible (newest run is open by default)" },
+    { "cmd": ["find", "label", "1 Warning", "hover"], "label": "hover the severity icons on the timeline run tile" },
+    { "cmd": ["find", "role", "dialog", "text", "--name", "2 findings"], "assert": { "stdoutIncludes": "N+1 query in user list endpoint" }, "label": "timeline popover previews the run's findings" },
+    { "cmd": ["find", "role", "button", "click", "--name", "1 Warning", "--exact"], "label": "filter the run's findings to WARNING" },
+    { "cmd": ["find", "role", "button", "text", "--name", "1 Warning", "--exact"], "label": "warning pill is present after filtering" },
+    { "cmd": ["wait", "--text", "N+1 query in user list endpoint"], "label": "the warning finding card stays visible" },
+    { "cmd": ["find", "role", "button", "click", "--name", "1 Warning", "--exact"], "label": "click the active pill again to clear the filter" },
+    { "cmd": ["wait", "--text", "Hardcoded Stripe secret key in commit"], "label": "full list is back (critical finding visible again)" }
   ]
 }

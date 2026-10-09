@@ -3,7 +3,9 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Badge, Icon, CircularScore, type IconName } from "@devdigest/ui";
-import type { RunSummary, PrCommit } from "@devdigest/shared";
+import type { RunSummary, PrCommit, ReviewRecord } from "@devdigest/shared";
+import { RunCostBadge } from "@/components/run-cost-badge";
+import { FindingsPopover, SeverityCounts, countBySeverity } from "@/components/finding-severity";
 
 /**
  * PR timeline — every agent run interleaved with the PR's commits, newest-first
@@ -90,6 +92,7 @@ export function RunHistory({
   onOpenTrace,
   onGoToReview,
   onDelete,
+  reviewsByRunId,
 }: {
   runs: RunSummary[];
   commits?: PrCommit[];
@@ -98,6 +101,9 @@ export function RunHistory({
   /** Jump to this run's inline review accordion below (clicking the agent name). */
   onGoToReview?: (runId: string) => void;
   onDelete?: (runId: string) => void;
+  /** The run's persisted review (by run_id) — its findings drive the severity
+   *  icons + hover popover. Runs without one fall back to the plain count. */
+  reviewsByRunId?: Map<string, ReviewRecord>;
 }) {
   const t = useTranslations("prReview");
   if (runs.length === 0 && commits.length === 0) return null;
@@ -149,6 +155,7 @@ export function RunHistory({
         const r = item.run;
         const o = outcomeOf(r);
         const settled = r.status === "done";
+        const review = reviewsByRunId?.get(r.run_id);
         return (
           <div key={`run:${r.run_id}`} style={rowStyle}>
             <Badge color={o.color} bg={o.bg} icon={o.icon}>
@@ -189,14 +196,28 @@ export function RunHistory({
                 </div>
               )}
               {settled && (
-                <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                  {t("runStatus.findings", { count: r.findings_count ?? 0 })}
+                <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "var(--text-muted)" }}>
+                  {review && review.findings.length > 0 ? (
+                    <FindingsPopover findings={review.findings} count={review.findings.length} variant="run">
+                      <SeverityCounts counts={countBySeverity(review.findings)} />
+                    </FindingsPopover>
+                  ) : (
+                    t("runStatus.findings", { count: r.findings_count ?? 0 })
+                  )}
                   {(r.blockers ?? 0) > 0 ? t("runStatus.blockers", { count: r.blockers ?? 0 }) : ""}
                 </div>
               )}
             </div>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, fontSize: 11, color: "var(--text-muted)", flexShrink: 0 }}>
               {r.ran_at && <span>{new Date(r.ran_at).toLocaleTimeString()}</span>}
+              {settled && (
+                <RunCostBadge
+                  variant="detailed"
+                  costUsd={r.cost_usd}
+                  tokens={r.tokens_in != null || r.tokens_out != null ? (r.tokens_in ?? 0) + (r.tokens_out ?? 0) : null}
+                  style={{ fontSize: 11 }}
+                />
+              )}
             </div>
             <button
               type="button"

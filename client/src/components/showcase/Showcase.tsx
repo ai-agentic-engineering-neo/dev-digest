@@ -29,6 +29,7 @@ import {
   Modal,
   Tabs,
   Dropdown,
+  Popover,
   FormField,
   TextInput,
   SelectInput,
@@ -188,9 +189,23 @@ export function Gallery() {
           items={[
             { label: "Run all", icon: "Play" },
             { divider: true },
+            {
+              custom: (close) => (
+                <div style={{ padding: "6px 10px" }}>
+                  <Checkbox checked={check} onChange={setCheck} label="Custom row" />
+                  <Button kind="secondary" size="sm" full onClick={close} style={{ marginTop: 6 }}>
+                    Done
+                  </Button>
+                </div>
+              ),
+            },
+            { divider: true },
             { label: "Configure…", icon: "Settings", muted: true },
           ]}
         />
+        <Popover title="2 FINDING(S) IN THIS RUN" trigger={<Button kind="secondary">Hover me</Button>}>
+          <div style={{ fontSize: 12.5, color: "var(--text-secondary)" }}>Read-only finding preview…</div>
+        </Popover>
         <Button kind="ghost" onClick={() => setDrawer(true)}>
           Open Drawer
         </Button>

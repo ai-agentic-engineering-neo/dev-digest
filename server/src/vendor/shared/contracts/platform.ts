@@ -151,8 +151,23 @@ export const Repo = z.object({
 export type Repo = z.infer<typeof Repo>;
 
 // ---- Pull requests ----
-export const PrStatus = z.enum(['needs_review', 'reviewed', 'stale', 'open', 'closed', 'merged']);
+export const PrStatus = z.enum([
+  'needs_review',
+  'reviewed',
+  'stale',
+  'changes_requested',
+  'open',
+  'closed',
+  'merged',
+]);
 export type PrStatus = z.infer<typeof PrStatus>;
+
+export const PrFindingsSummary = z.object({
+  critical: z.number().int(),
+  warning: z.number().int(),
+  suggestion: z.number().int(),
+});
+export type PrFindingsSummary = z.infer<typeof PrFindingsSummary>;
 
 export const PrMeta = z.object({
   id: z.string().nullish(),
@@ -168,8 +183,16 @@ export const PrMeta = z.object({
   status: PrStatus,
   opened_at: z.string().nullish(),
   updated_at: z.string().nullish(),
-  // Latest-review score (list endpoint only; null/absent until reviewed).
+  // LOWEST score across every COMPLETED run on this PR (list endpoint only;
+  // null/absent until at least one run finishes).
   score: z.number().int().nullish(),
+  // Total USD cost across every COMPLETED run on this PR (list endpoint only;
+  // null/absent until at least one run finishes; unknown if any completed
+  // run's cost is unknown, rather than silently undercounting).
+  cost_usd: z.number().nullish(),
+  // Per-severity finding counts, summed across every COMPLETED run on this PR
+  // (list endpoint only; null/absent until at least one run finishes).
+  findings: PrFindingsSummary.nullish(),
 });
 export type PrMeta = z.infer<typeof PrMeta>;
 

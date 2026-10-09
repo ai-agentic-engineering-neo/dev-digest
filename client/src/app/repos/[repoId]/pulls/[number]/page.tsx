@@ -74,7 +74,11 @@ export default function PRDetailPage() {
     [reviews],
   );
   const lethalTrifecta = allFindings.filter((f) => f.kind === "lethal_trifecta");
-  const findingsCount = allFindings.length;
+  // The "Agent runs" tab badge counts RUNS, not findings — `reviews` has one
+  // entry per run (including re-runs of the same agent), same as `prRuns`
+  // (the Timeline's own list); summing findings across every re-run instead
+  // showed a much larger, confusing number here.
+  const runsCount = prRuns?.length ?? runs.length;
 
   const repoName = activeRepo?.full_name ?? repoId;
   // The real "owner/repo" (null until the repo is loaded) — used to build
@@ -126,7 +130,7 @@ export default function PRDetailPage() {
         pr={pr}
         prId={prId}
         tab={tab}
-        findingsCount={findingsCount}
+        runsCount={runsCount}
         githubUrl={repoFullName ? githubPrUrl(repoFullName, pr.number) : null}
         onSetTab={setTab}
         onRunStart={() => setTab("findings")}

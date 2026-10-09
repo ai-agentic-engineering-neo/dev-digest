@@ -3,6 +3,7 @@ export { Drawer } from "./Drawer";
 export { Modal } from "./Modal";
 export { Tabs } from "./Tabs";
 export { Dropdown } from "./Dropdown";
+export { Popover } from "./Popover";
 export { FormField } from "./FormField";
 export { TextInput } from "./TextInput";
 export { SelectInput } from "./SelectInput";

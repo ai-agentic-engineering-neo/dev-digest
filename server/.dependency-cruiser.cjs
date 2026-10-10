@@ -14,8 +14,8 @@ module.exports = {
       name: 'no-circular',
       comment:
         'Circular imports break module init order and defeat reasoning. ' +
-        '5 cycles exist today; 4 of them run through platform/container.ts and ' +
-        'disappear when no-container-in-services is fixed.',
+        '1 cycle remains today (agents/helpers.ts <-> agents/repository.ts); ' +
+        'the four that ran through platform/container.ts are gone.',
       severity: 'error',
       from: {},
       to: { circular: true },
@@ -41,10 +41,12 @@ module.exports = {
     {
       name: 'no-container-in-services',
       comment:
-        'Inject the ports the service actually uses. Depending on the container ' +
-        'hides dependencies and points outward at the composition root.',
+        'Inject the ports the module actually uses. Depending on the container ' +
+        'hides dependencies and points outward at the composition root. Applies ' +
+        'to every module file except routes.ts (a composition point) and ' +
+        '_shared/ (route-layer helpers such as context.ts).',
       severity: 'error',
-      from: { path: '^src/modules/.+/service\\.ts$' },
+      from: { path: '^src/modules/(?!_shared/)(?!.*routes\\.ts$)' },
       to: { path: '^src/platform/container\\.ts$' },
     },
     {

@@ -1,6 +1,6 @@
 # onion-architecture
 
-**Version 1.0.2** · Onion Architecture for `server/`.
+**Version 1.0.3** · Onion Architecture for `server/`.
 
 | File | Audience | Contents |
 |---|---|---|
@@ -52,7 +52,7 @@ domain-ish code lives in two places, and `reviewer-core` is **not** held to thes
 rings. SKILL.md names that boundary rather than pretending it away.
 
 **3. Ports move to `server/src/domain/ports/`.**
-Settled by measurement, not preference — see V5 below.
+Settled by measurement, not preference — see V5 below. **Done** in SPEC-16: ten port files under `server/src/domain/ports/`; `vendor/shared/adapters.ts` keeps DTOs and a type-only shim.
 
 **4. Enforcement is a ratchet, not a warning.**
 Superseded the original warn-first plan. All six rules are `severity: 'error'`,
@@ -71,23 +71,26 @@ explicitly *not* kept for hypothetical database portability.
 
 ## Violation catalogue
 
-Measured by `pnpm arch:all` on 2026-08-02: **20 violations, 137 modules,
-380 dependencies**. All 20 are baselined, so `pnpm arch` passes; this is the
-backlog, not the gate. Recorded so the skill is honest about the code it ships
-with. Fix opportunistically; do not sweep.
+Measured by `pnpm arch:all` after SPEC-16 (2026-10): **10 violations, 238
+modules, 745 dependencies** (was 20 at first measurement, 19 baselined before
+SPEC-16). All 10 are baselined, so `pnpm arch` passes; this is the backlog, not
+the gate. Recorded so the skill is honest about the code it ships with. Fix
+opportunistically; do not sweep.
 
 | # | Rule | Count | Where |
 |---|---|---|---|
-| V1 | `no-container-in-services` | 4 | `reviews`, `agents`, `repos`, `repo-intel` `service.ts` |
+| V1 | `no-container-in-services` | **0** | resolved — the rule now covers every `src/modules/**` file except `routes.ts` and `_shared/` |
 | V2 | `routes-are-adapters` | 4 | `polling`, `pulls`, `settings`, `workspace` |
-| V3/V4 | `db-only-in-repositories` | 6 | `repos/helpers.ts`, `reviews/{diff-loader,run-executor,service}.ts`, `settings/feature-models.ts` — including two `db/rows.ts` type imports |
-| V5 | Ports in a client-shared vendored copy the client never uses | 7 | `vendor/shared/adapters.ts` — not a dep-cruiser rule |
-| **V7** | `no-circular` | **5** | 4 through `platform/container.ts`, 1 in `agents/` |
-| V8 | `no-cross-module` | 1 | `repos/service.ts` → `repo-intel/constants.ts` |
+| V3/V4 | `db-only-in-repositories` | 4 | `repos/helpers.ts`, `reviews/service.ts`, `settings/feature-models.ts` (two edges: `db/schema`, `db/client`) — including two type-only imports (`db/rows`, `db/client`) |
+| V5 | Ports in a client-shared vendored copy the client never uses | — | ports now live in `server/src/domain/ports/`; `vendor/shared/adapters.ts` keeps the DTOs plus a type-only compat shim for `reviewer-core`/`agent-runner` (removal is a follow-up). Not a dep-cruiser rule |
+| **V7** | `no-circular` | **1** | `agents/helpers.ts` ↔ `agents/repository.ts`; the four cycles through `platform/container.ts` are gone |
+| V8 | `no-cross-module` | 1 | `repos/service.ts` → `repo-intel/constants.ts` (the `blast` → `repo-intel` edge is gone) |
 | V6 | ~~No enforcement~~ | 0 | resolved — `server/.dependency-cruiser.cjs` |
 
-`domain-depends-on-nothing` reports zero because `src/domain/` does not exist
-yet. That is a true zero, not a passing rule.
+`domain-depends-on-nothing` now guards a real directory: `src/domain/ports/`
+holds ten port files that import only `zod` and vendored DTO leaf files. It
+reports zero because nothing in `domain/` reaches outward, not because the
+directory is empty.
 
 **V1 is the headline.** `constructor(private container: Container)` is Service
 Locator: dependencies invisible, failures moved from compile time to run time,
@@ -134,16 +137,15 @@ Cheapest first; each step independently shippable.
 
 1. ~~Add `.dependency-cruiser.cjs` + baseline + CI step~~ — **done**
 2. V2 — routes reaching into `db/` (4 files, mechanical)
-3. **V1 — container out of service constructors** (4 files) — also clears 4 of
-   the 5 cycles in V7; do this before anything else
-4. V5 — move ports; delete the client's dead copy
+3. ~~V1 — container out of service constructors~~ — **done** (SPEC-16); also cleared 4 of the 5 cycles in V7
+4. ~~V5 — move ports~~ — **done** (SPEC-16, server side; the client's dead copy and the shim are follow-ups)
 5. V3 / V4 — extract pure rules out of infrastructure files
 6. V7's remaining cycle — `agents/helpers.ts` ↔ `agents/repository.ts`
 7. After each fix: `pnpm arch:baseline` to shrink the baseline
 
 All rules are already `error`. The baseline — not the severity — is what keeps
 CI green, so nothing needs "flipping" later: new violations fail from day one,
-and the grandfathered 20 shrink as the list above is worked through.
+and the grandfathered 10 shrink as the list above is worked through.
 
 | Command | Does |
 |---|---|
@@ -214,6 +216,15 @@ costs more than it returns.
 - **[eslint-plugin-boundaries](https://github.com/javierbrea/eslint-plugin-boundaries)** — the ESLint-side alternative, also cited by the frontend skill so both name the same toolbox.
 
 ## Changelog
+
+### 1.0.3 — 2026-10
+
+SPEC-16: ports moved to `server/src/domain/ports/`; repo-intel, reviews and
+conventions take their dependencies through constructors/parameters instead of
+`Container`. `no-container-in-services` widened from `modules/*/service.ts` to
+every `src/modules/**` file except `routes.ts` and `_shared/`. Baseline shrank
+from 19 to 10 entries (deletions only). Catalogue recounted from `pnpm arch:all`:
+V1 → 0, V7 → 1, V8 → 1, V5 settled on the server side.
 
 ### 1.0.2 — 2026-08-02
 

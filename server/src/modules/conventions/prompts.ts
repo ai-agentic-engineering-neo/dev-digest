@@ -1,4 +1,4 @@
-import type { ChatMessage } from '@devdigest/shared';
+import type { ChatMessage } from '../../domain/ports/llm.js';
 
 /**
  * System prompt for the Conventions Extractor's one LLM call. There is no

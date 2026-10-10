@@ -1,31 +1,6 @@
-import type {
-  EvalAgentDetail,
-  EvalAgentSummary,
-  EvalCallout,
-  EvalCase,
-  EvalCaseInput,
-  EvalCaseMeta,
-  EvalCaseOutcome,
-  EvalCompare,
-  EvalDashboard,
-  EvalExpectation,
-  EvalLift,
-  EvalOwnerKind,
-  EvalRun,
-  EvalRunAllResult,
-  EvalRunEstimate,
-  EvalRunRecord,
-  EvalSkillCarrier,
-  EvalSkillCaseEffect,
-  EvalSkillCompare,
-  EvalSkillOffer,
-  EvalSkillRunEstimate,
-  EvalSkillRunRecord,
-  EvalSkillSummary,
-  EvalTrendPoint,
-  LLMProvider,
-} from '@devdigest/shared';
-import type { Tokenizer } from '../../adapters/tokenizer/index.js';
+import type { EvalAgentDetail, EvalAgentSummary, EvalCallout, EvalCase, EvalCaseInput, EvalCaseMeta, EvalCaseOutcome, EvalCompare, EvalDashboard, EvalExpectation, EvalLift, EvalOwnerKind, EvalRun, EvalRunAllResult, EvalRunEstimate, EvalRunRecord, EvalSkillCarrier, EvalSkillCaseEffect, EvalSkillCompare, EvalSkillOffer, EvalSkillRunEstimate, EvalSkillRunRecord, EvalSkillSummary, EvalTrendPoint } from '@devdigest/shared';
+import type { LLMProvider } from '../../domain/ports/llm.js';
+import type { Tokenizer } from '../../domain/ports/tokenizer.js';
 import { AppError, ConfigError, NotFoundError } from '../../platform/errors.js';
 import {
   EvalRepository,

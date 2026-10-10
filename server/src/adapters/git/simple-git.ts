@@ -2,14 +2,8 @@ import { simpleGit, type SimpleGit } from 'simple-git';
 import { join } from 'node:path';
 import { mkdir, readFile, access, rm } from 'node:fs/promises';
 import { constants } from 'node:fs';
-import type {
-  GitClient,
-  RepoRef,
-  CloneOptions,
-  UnifiedDiff,
-  BlameLine,
-  GitCommit,
-} from '@devdigest/shared';
+import type { RepoRef, UnifiedDiff } from '@devdigest/shared';
+import type { GitClient, CloneOptions, BlameLine, GitCommit } from '../../domain/ports/git.js';
 import { parseUnifiedDiff } from './diff-parser.js';
 
 /**

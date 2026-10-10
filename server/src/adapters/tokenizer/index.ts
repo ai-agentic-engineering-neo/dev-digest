@@ -12,10 +12,10 @@
  * mock counter (ContainerOverrides.tokenizer).
  */
 import { getEncoding, type Tiktoken } from 'js-tiktoken';
+import type { Tokenizer } from '../../domain/ports/tokenizer.js';
 
-export interface Tokenizer {
-  count(text: string): number;
-}
+// Re-export: the port lives in domain/ports; kept here for back-compat imports.
+export type { Tokenizer };
 
 /** Heuristic fallback used before/instead of a real encoder. */
 export function approxTokens(text: string): number {

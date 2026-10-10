@@ -1,4 +1,5 @@
-import type { AuthProvider, AuthUser, AuthWorkspace } from '@devdigest/shared';
+import type { AuthUser, AuthWorkspace } from '@devdigest/shared';
+import type { AuthProvider } from '../../domain/ports/auth.js';
 import { eq } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';

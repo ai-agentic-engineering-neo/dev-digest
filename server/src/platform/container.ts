@@ -1,14 +1,11 @@
-import type {
-  AuthProvider,
-  SecretsProvider,
-  GitHubClient,
-  GitClient,
-  CodeIndex,
-  Embedder,
-  LLMProvider,
-  FeatureModelId,
-  FeatureModelChoice,
-} from '@devdigest/shared';
+import type { FeatureModelId, FeatureModelChoice } from '@devdigest/shared';
+import type { AuthProvider } from '../domain/ports/auth.js';
+import type { SecretsProvider } from '../domain/ports/secrets.js';
+import type { GitHubClient } from '../domain/ports/github.js';
+import type { GitClient } from '../domain/ports/git.js';
+import type { CodeIndex } from '../domain/ports/code-index.js';
+import type { Embedder } from '../domain/ports/embedder.js';
+import type { LLMProvider } from '../domain/ports/llm.js';
 import type { AppConfig } from './config.js';
 import type { Db } from '../db/client.js';
 import { JobRunner } from './jobs.js';
@@ -40,11 +37,13 @@ import { readSpecFile } from '../modules/brief/clone.js';
 import { EvalRepository } from '../modules/eval/repository.js';
 import { EvalService } from '../modules/eval/service.js';
 import { EvalExecutor } from '../modules/eval/executor.js';
-import type { RepoIntel } from '../modules/repo-intel/types.js';
+import type { RepoIntel } from '../domain/ports/repo-intel.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
 import { resolveFeatureModel as resolveFeatureModelForWorkspace } from '../modules/settings/feature-models.js';
-import { type DepGraph, DepCruiseGraph } from '../adapters/depgraph/index.js';
-import { type Tokenizer, TiktokenTokenizer } from '../adapters/tokenizer/index.js';
+import type { DepGraph } from '../domain/ports/depgraph.js';
+import { DepCruiseGraph } from '../adapters/depgraph/index.js';
+import type { Tokenizer } from '../domain/ports/tokenizer.js';
+import { TiktokenTokenizer } from '../adapters/tokenizer/index.js';
 import { IntentRepository } from '../modules/intent/repository.js';
 import { IntentService } from '../modules/intent/service.js';
 import { readClone } from '../modules/intent/clone.js';

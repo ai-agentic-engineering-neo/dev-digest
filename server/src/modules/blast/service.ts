@@ -1,6 +1,6 @@
 import type { BlastRadius } from '@devdigest/shared';
 import { NotFoundError } from '../../platform/errors.js';
-import type { BlastCallerRow, BlastResult, DegradedReason, IndexStatus, RepoIntel } from '../repo-intel/types.js';
+import type { BlastCallerRow, BlastResult, DegradedReason, IndexStatus, RepoIntel } from '../../domain/ports/repo-intel.js';
 
 /**
  * What blast needs from the PR/file side — declared HERE, not imported from

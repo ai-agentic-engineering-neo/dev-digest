@@ -1,5 +1,7 @@
-import type { FeatureModelChoice, GitHubClient, LLMProvider, Provider as ProviderId } from '@devdigest/shared';
-import type { Tokenizer } from '../../adapters/tokenizer/index.js';
+import type { FeatureModelChoice, Provider as ProviderId } from '@devdigest/shared';
+import type { GitHubClient } from '../../domain/ports/github.js';
+import type { LLMProvider } from '../../domain/ports/llm.js';
+import type { Tokenizer } from '../../domain/ports/tokenizer.js';
 
 /**
  * Narrow local ports (`server/LEARNINGS.md`'s local-port rule) — this module

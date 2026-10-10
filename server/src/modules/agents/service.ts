@@ -1,4 +1,5 @@
-import type { LLMProvider, Provider as ProviderId } from '@devdigest/shared';
+import type { Provider as ProviderId } from '@devdigest/shared';
+import type { LLMProvider } from '../../domain/ports/llm.js';
 import type {
   Agent,
   AgentSkillLink,

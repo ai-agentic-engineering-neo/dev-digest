@@ -1,4 +1,5 @@
-import type { GitClient, SecretsProvider } from '@devdigest/shared';
+import type { GitClient } from '../../domain/ports/git.js';
+import type { SecretsProvider } from '../../domain/ports/secrets.js';
 import type { JobRunner } from '../../platform/jobs.js';
 import { type Repo } from '@devdigest/shared';
 import { NotFoundError } from '../../platform/errors.js';

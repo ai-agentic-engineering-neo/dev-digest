@@ -1,4 +1,5 @@
-import type { CiFailOn, Finding, LLMProvider, Provider, ReviewStrategy } from '@devdigest/shared';
+import type { CiFailOn, Finding, Provider, ReviewStrategy } from '@devdigest/shared';
+import type { LLMProvider } from '../../domain/ports/llm.js';
 import { reviewPullRequest, countBlockers } from '@devdigest/reviewer-core';
 import { AppError, NotFoundError } from '../../platform/errors.js';
 import { parseUnifiedDiff } from '../../adapters/git/diff-parser.js';

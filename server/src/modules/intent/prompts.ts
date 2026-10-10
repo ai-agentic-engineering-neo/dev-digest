@@ -1,4 +1,5 @@
-import type { ChatMessage, IssueMeta } from '@devdigest/shared';
+import type { IssueMeta } from '@devdigest/shared';
+import type { ChatMessage } from '../../domain/ports/llm.js';
 import { wrapUntrusted } from '@devdigest/reviewer-core';
 
 /**

@@ -1,4 +1,5 @@
-import type { Embedder, LLMProvider } from '@devdigest/shared';
+import type { Embedder } from '../../domain/ports/embedder.js';
+import type { LLMProvider } from '../../domain/ports/llm.js';
 
 /**
  * OpenAIEmbedder — text-embedding-3-small, 1536 dims. Delegates to the

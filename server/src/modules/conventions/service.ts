@@ -1,10 +1,5 @@
-import type {
-  ConventionsList,
-  FeatureModelChoice,
-  LLMProvider,
-  Provider as ProviderId,
-  Skill,
-} from '@devdigest/shared';
+import type { ConventionsList, FeatureModelChoice, Provider as ProviderId, Skill } from '@devdigest/shared';
+import type { LLMProvider } from '../../domain/ports/llm.js';
 import { NotFoundError, ValidationError } from '../../platform/errors.js';
 import type { ConventionsRepository } from './repository.js';
 import { readClone, type ConventionsSampleSet } from './samples.js';

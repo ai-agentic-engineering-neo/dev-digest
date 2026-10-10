@@ -1,4 +1,5 @@
-import type { GitHubClient, IssueMeta, RepoRef } from '@devdigest/shared';
+import type { IssueMeta, RepoRef } from '@devdigest/shared';
+import type { GitHubClient } from '../../domain/ports/github.js';
 
 /**
  * Ticket/spec reference parsing, shared by `adapters/github/octokit.ts`

@@ -1,13 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import type {
-  LLMProvider,
-  CompletionRequest,
-  CompletionResult,
-  StructuredRequest,
-  StructuredResult,
-  ModelInfo,
-  UnifiedDiff,
-} from '@devdigest/shared';
+import type { ModelInfo, UnifiedDiff } from '@devdigest/shared';
+import type { LLMProvider, CompletionRequest, CompletionResult, StructuredRequest, StructuredResult } from '../../domain/ports/llm.js';
 import type { AgentRow, PullRow } from '../../db/rows.js';
 import type { Container } from '../../platform/container.js';
 import type { ReviewRepository } from './repository.js';

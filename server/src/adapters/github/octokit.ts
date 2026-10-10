@@ -1,19 +1,6 @@
 import { Octokit } from 'octokit';
-import type {
-  GitHubClient,
-  RepoRef,
-  PrMeta,
-  PrDetail,
-  PrStatus,
-  GitHubReviewPayload,
-  CreateReviewCommentInput,
-  PrReviewComment,
-  OpenPrPayload,
-  CommitFilesPayload,
-  IssueMeta,
-  WorkflowRun,
-  RunArtifact,
-} from '@devdigest/shared';
+import type { RepoRef, PrMeta, PrDetail, PrStatus, GitHubReviewPayload, CreateReviewCommentInput, PrReviewComment, OpenPrPayload, CommitFilesPayload, IssueMeta, WorkflowRun, RunArtifact } from '@devdigest/shared';
+import type { GitHubClient } from '../../domain/ports/github.js';
 import { withRetry, withTimeout } from '../../platform/resilience.js';
 import { resolveLinkedIssue } from '../../modules/_shared/linked-issue.js';
 import { ValidationError } from '../../platform/errors.js';

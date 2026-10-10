@@ -1,13 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
-import type {
-  LLMProvider,
-  ModelInfo,
-  CompletionRequest,
-  CompletionResult,
-  StructuredRequest,
-  StructuredResult,
-  ChatMessage,
-} from '@devdigest/shared';
+import type { ModelInfo } from '@devdigest/shared';
+import type { LLMProvider, CompletionRequest, CompletionResult, StructuredRequest, StructuredResult, ChatMessage } from '../../domain/ports/llm.js';
 import { withRetry, withTimeout } from '../../platform/resilience.js';
 import { toJsonSchema, parseWithRepair } from '../../platform/structured.js';
 import { estimateCost } from './pricing.js';

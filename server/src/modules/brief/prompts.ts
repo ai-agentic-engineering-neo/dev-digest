@@ -1,4 +1,4 @@
-import type { ChatMessage } from '@devdigest/shared';
+import type { ChatMessage } from '../../domain/ports/llm.js';
 import { INJECTION_GUARD, wrapUntrusted } from '../../platform/prompt.js';
 import type { BriefFactSet } from './facts.js';
 import type { Tokenizer } from './ports.js';

@@ -1,4 +1,5 @@
-import type { LLMProvider, Provider, ReviewStrategy } from '@devdigest/shared';
+import type { Provider, ReviewStrategy } from '@devdigest/shared';
+import type { LLMProvider } from '../../domain/ports/llm.js';
 import type { RenderableSkill } from '../_shared/skill-render.js';
 
 /**

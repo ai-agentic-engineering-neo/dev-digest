@@ -1,8 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { AgentRow, PullRow } from '../src/db/rows.js';
-import type { Container } from '../src/platform/container.js';
 import type { ReviewRepository } from '../src/modules/reviews/repository.js';
-import { ReviewRunExecutor } from '../src/modules/reviews/run-executor.js';
+import { ReviewRunExecutor, type RunExecutorDeps } from '../src/modules/reviews/run-executor.js';
 import { renderSkillBlock } from '../src/modules/skills/helpers.js';
 import { RunLogger } from '../src/platform/run-logger.js';
 import { RunBus } from '../src/platform/sse.js';
@@ -79,14 +78,22 @@ async function assembledUserMessage(): Promise<string> {
   const llm = new MockLLMProvider('openai', {
     structured: { verdict: 'approve', summary: 'ok', score: 95, findings: [] },
   });
-  const container = {
+  const deps: Omit<RunExecutorDeps, 'agents'> = {
     runBus: new RunBus(),
     llm: async () => llm,
     tokenizer: { count: (t: string) => t.length },
     // specs/09 — nothing attached in this harness; the preview-parity
     // assertions below are about the SKILLS renderer, not project context.
-    projectContextService: { resolveForRun: async () => ({ documents: [], entries: [] }) },
-  } as unknown as Container;
+    resolveProjectContext: async () => ({ documents: [], entries: [] }),
+    promptAssemblyDebugEnabled: false,
+    git: { diff: async () => { throw new Error('git not used'); } },
+    repoIntel: {
+      getCallerSignatures: async () => [],
+      getRepoMap: async () => ({ degraded: true, text: '', tokens: 0, cached: false }),
+      getFileRank: async () => [],
+    },
+    resolveIntent: async () => ({}),
+  };
   const repo = {
     insertReview: async () => ({ id: 'review-1', score: 95 }),
     insertFindings: async () => [],
@@ -97,9 +104,9 @@ async function assembledUserMessage(): Promise<string> {
   } as unknown as ReviewRepository;
   const agents = {
     enabledSkills: async () => SKILLS,
-  } as unknown as Container['agentsRepo'];
+  } as RunExecutorDeps['agents'];
 
-  const executor = new ReviewRunExecutor(container, repo, agents);
+  const executor = new ReviewRunExecutor(repo, { ...deps, agents });
   await (
     executor as unknown as { runOneAgent: (...a: unknown[]) => Promise<unknown> }
   ).runOneAgent(
@@ -109,7 +116,7 @@ async function assembledUserMessage(): Promise<string> {
     DIFF,
     AGENT,
     'run-preview-1',
-    new RunLogger(container.runBus, ['run-preview-1']),
+    new RunLogger(deps.runBus, ['run-preview-1']),
   );
 
   const call = llm.calls.find((c) => c.method === 'completeStructured');

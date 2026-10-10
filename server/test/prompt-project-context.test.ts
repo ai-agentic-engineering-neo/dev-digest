@@ -9,9 +9,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { assemblePrompt } from '@devdigest/reviewer-core';
 import type { AgentRow, PullRow } from '../src/db/rows.js';
-import type { Container } from '../src/platform/container.js';
 import type { ReviewRepository } from '../src/modules/reviews/repository.js';
-import { ReviewRunExecutor } from '../src/modules/reviews/run-executor.js';
+import { ReviewRunExecutor, type RunExecutorDeps } from '../src/modules/reviews/run-executor.js';
 import { ProjectContextService } from '../src/modules/project-context/service.js';
 import type { ProjectContextRepository } from '../src/modules/project-context/repository.js';
 import { taskLine } from '../src/modules/reviews/helpers.js';
@@ -95,12 +94,20 @@ async function run(
   const log: string[] = [];
   let savedTrace: RunTrace | undefined;
 
-  const container = {
+  const deps: Omit<RunExecutorDeps, 'agents'> = {
     runBus: new RunBus(),
     llm: async () => llm,
     tokenizer: { count: (t: string) => t.length },
-    projectContextService: buildProjectContextService(agentDocs, clonePath),
-  } as unknown as Container;
+    resolveProjectContext: (w, a, r) => (buildProjectContextService(agentDocs, clonePath)).resolveForRun(w, a, r),
+    promptAssemblyDebugEnabled: false,
+    git: { diff: async () => { throw new Error('git not used'); } },
+    repoIntel: {
+      getCallerSignatures: async () => [],
+      getRepoMap: async () => ({ degraded: true, text: '', tokens: 0, cached: false }),
+      getFileRank: async () => [],
+    },
+    resolveIntent: async () => ({}),
+  };
 
   const repo = {
     insertReview: async () => ({ id: 'review-1', score: 95 }),
@@ -113,10 +120,10 @@ async function run(
     recordRunSkills: async () => undefined,
   } as unknown as ReviewRepository;
 
-  const agents = { enabledSkills: async () => [] } as unknown as Container['agentsRepo'];
+  const agents = { enabledSkills: async () => [] } as RunExecutorDeps['agents'];
 
-  const executor = new ReviewRunExecutor(container, repo, agents);
-  const parentLog = new RunLogger(container.runBus, [runId], {
+  const executor = new ReviewRunExecutor(repo, { ...deps, agents });
+  const parentLog = new RunLogger(deps.runBus, [runId], {
     info: (_o, m) => log.push(String(m)),
     warn: () => undefined,
     error: (_o, m) => log.push(String(m)),

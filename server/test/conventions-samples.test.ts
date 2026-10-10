@@ -5,7 +5,6 @@ import { join } from 'node:path';
 import { getConventionsSampleSet } from '../src/modules/conventions/samples.js';
 import { ValidationError } from '../src/platform/errors.js';
 import { CONFIG_SAMPLE_PATTERNS, SOURCE_SAMPLE_COUNT } from '../src/modules/conventions/constants.js';
-import type { Container } from '../src/platform/container.js';
 
 /**
  * Sample selection is code-only — no model call. Config files come straight
@@ -30,7 +29,7 @@ describe('getConventionsSampleSet', () => {
     const container = {
       repoIntel: { getConventionSamples: async () => ['src/foo.ts'] },
       git: { currentHead: async () => 'abc123' },
-    } as unknown as Container;
+    };
 
     const sample = await getConventionsSampleSet(container, {
       id: 'repo-1',
@@ -55,7 +54,7 @@ describe('getConventionsSampleSet', () => {
     const container = {
       repoIntel: { getConventionSamples: async () => [] },
       git: { currentHead: async () => 'abc123' },
-    } as unknown as Container;
+    };
 
     await expect(
       getConventionsSampleSet(container, { id: 'repo-1', owner: 'acme', name: 'demo', clonePath: null }),
@@ -73,7 +72,7 @@ function makeDeps(opts: { sourcePaths?: string[]; head?: string } = {}) {
   return { getConventionSamples, currentHead, repoIntel: { getConventionSamples }, git: { currentHead } };
 }
 function makeContainer(deps: ReturnType<typeof makeDeps>) {
-  return { repoIntel: deps.repoIntel, git: deps.git } as unknown as Container;
+  return { repoIntel: deps.repoIntel, git: deps.git };
 }
 
 describe('getConventionsSampleSet — pins', () => {

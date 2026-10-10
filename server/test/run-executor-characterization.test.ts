@@ -2,9 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { vi } from 'vitest';
 import type { CompletionRequest, UnifiedDiff } from '@devdigest/shared';
 import type { AgentRow, PullRow } from '../src/db/rows.js';
-import type { Container } from '../src/platform/container.js';
 import type { ReviewRepository } from '../src/modules/reviews/repository.js';
-import { ReviewRunExecutor, type Logger } from '../src/modules/reviews/run-executor.js';
+import { ReviewRunExecutor, type Logger, type RunExecutorDeps } from '../src/modules/reviews/run-executor.js';
 import { taskLine } from '../src/modules/reviews/helpers.js';
 import { RunBus } from '../src/platform/sse.js';
 import { MockLLMProvider } from '../src/adapters/mocks.js';
@@ -102,28 +101,27 @@ function makeExecutor(fakes: Fakes = {}) {
       return (fn ?? (notStubbed(name) as unknown as (...a: A) => Promise<R>))(...a);
     };
 
-  const container = {
+  const deps: RunExecutorDeps = {
     runBus,
     llm: async () => {
       if (fakes.llmFails) throw new Error(fakes.llmFails);
       return llm;
     },
     tokenizer: { count: (t: string) => t.length },
-    config: { promptAssemblyDebugEnabled: false },
+    promptAssemblyDebugEnabled: false,
     git: { diff: fakes.gitDiff ?? (async () => fakes.diff ?? diffOf(FILES)) },
     repoIntel: {
       getCallerSignatures: track('getCallerSignatures', fakes.getCallerSignatures),
       getFileRank: track('getFileRank', fakes.getFileRank),
       getRepoMap: track('getRepoMap', fakes.getRepoMap ?? (async () => ({ degraded: true, text: '', tokens: 0, cached: false }))),
     },
-    projectContextService: { resolveForRun: async () => ({ documents: [], entries: [] }) },
-    intentService: {
-      resolve: async (input: unknown) => {
-        intentCalls.push(input);
-        return { rendered: undefined, inScope: undefined, outOfScope: undefined, contextGaps: [] };
-      },
+    resolveProjectContext: async () => ({ documents: [], entries: [] }),
+    resolveIntent: async (input: unknown) => {
+      intentCalls.push(input);
+      return { rendered: undefined, inScope: undefined, outOfScope: undefined, contextGaps: [] };
     },
-  } as unknown as Container;
+    agents: { enabledSkills: async () => [] },
+  };
 
   const repo = {
     insertReview: async (input: Record<string, unknown>) => {
@@ -143,8 +141,7 @@ function makeExecutor(fakes: Fakes = {}) {
     getPrFiles: fakes.prFiles ?? (async () => []),
   } as unknown as ReviewRepository;
 
-  const agents = { enabledSkills: async () => [] } as unknown as Container['agentsRepo'];
-  const executor = new ReviewRunExecutor(container, repo, agents);
+  const executor = new ReviewRunExecutor(repo, deps);
   const logger: Logger = {
     info: () => undefined,
     warn: () => undefined,

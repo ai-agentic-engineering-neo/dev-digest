@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import type { UnifiedDiff } from '@devdigest/shared';
-import type { Container } from '../src/platform/container.js';
 import type { ReviewRepository, PullRow } from '../src/modules/reviews/repository.js';
 import { loadDiff, diffFromPrFiles } from '../src/modules/reviews/diff-loader.js';
 
@@ -22,14 +21,12 @@ function callLoadDiff(opts: {
 }) {
   const gitArgs: unknown[][] = [];
   const prFilesIds: string[] = [];
-  const container = {
-    git: {
-      diff: async (...args: unknown[]) => {
-        gitArgs.push(args);
-        return opts.git();
-      },
+  const git = {
+    diff: async (...args: unknown[]) => {
+      gitArgs.push(args);
+      return opts.git();
     },
-  } as unknown as Container;
+  };
   const repo = {
     getPrFiles: async (prId: string) => {
       prFilesIds.push(prId);
@@ -37,7 +34,7 @@ function callLoadDiff(opts: {
     },
   } as unknown as ReviewRepository;
   return {
-    result: loadDiff(container, repo, 'ws-1', PULL, REPO_ROW),
+    result: loadDiff(git, repo, 'ws-1', PULL, REPO_ROW),
     gitArgs,
     prFilesIds,
   };

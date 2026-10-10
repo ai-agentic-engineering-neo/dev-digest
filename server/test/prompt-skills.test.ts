@@ -1,9 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { assemblePrompt } from '@devdigest/reviewer-core';
 import type { AgentRow, PullRow } from '../src/db/rows.js';
-import type { Container } from '../src/platform/container.js';
 import type { ReviewRepository } from '../src/modules/reviews/repository.js';
-import { ReviewRunExecutor } from '../src/modules/reviews/run-executor.js';
+import { ReviewRunExecutor, type RunExecutorDeps } from '../src/modules/reviews/run-executor.js';
 import { renderSkillBlock } from '../src/modules/skills/helpers.js';
 import { taskLine } from '../src/modules/reviews/helpers.js';
 import { RunLogger } from '../src/platform/run-logger.js';
@@ -144,7 +143,7 @@ async function run(skills: SkillFixture[]): Promise<Harness> {
   const recorded: { skillId: string; order: number; tokens: number }[][] = [];
   const log: string[] = [];
 
-  const container = {
+  const deps: Omit<RunExecutorDeps, 'agents'> = {
     runBus: new RunBus(),
     llm: async () => llm,
     // Real-tokenizer stand-in: deterministic, so the assertion is about WHICH
@@ -152,8 +151,16 @@ async function run(skills: SkillFixture[]): Promise<Harness> {
     tokenizer: { count: (text: string) => text.length },
     // specs/09 — nothing attached in this harness; keeps these skills-only
     // assertions unaffected by the project-context slot.
-    projectContextService: { resolveForRun: async () => ({ documents: [], entries: [] }) },
-  } as unknown as Container;
+    resolveProjectContext: async () => ({ documents: [], entries: [] }),
+    promptAssemblyDebugEnabled: false,
+    git: { diff: async () => { throw new Error('git not used'); } },
+    repoIntel: {
+      getCallerSignatures: async () => [],
+      getRepoMap: async () => ({ degraded: true, text: '', tokens: 0, cached: false }),
+      getFileRank: async () => [],
+    },
+    resolveIntent: async () => ({}),
+  };
 
   const repo = {
     insertReview: async () => ({ id: 'review-1', score: 95 }),
@@ -175,10 +182,10 @@ async function run(skills: SkillFixture[]): Promise<Harness> {
         .filter((s) => s.agentEnabled && s.workspaceEnabled)
         .sort((a, b) => a.order - b.order)
         .map((s) => ({ id: s.id, name: s.name, type: s.type, body: s.body })),
-  } as unknown as Container['agentsRepo'];
+  } as RunExecutorDeps['agents'];
 
-  const executor = new ReviewRunExecutor(container, repo, agents);
-  const parentLog = new RunLogger(container.runBus, [runId], {
+  const executor = new ReviewRunExecutor(repo, { ...deps, agents });
+  const parentLog = new RunLogger(deps.runBus, [runId], {
     info: (_o, m) => log.push(String(m)),
     warn: () => undefined,
     error: (_o, m) => log.push(String(m)),
@@ -262,12 +269,20 @@ describe('run executor → skills in the prompt', () => {
     const llm = new MockLLMProvider('openai', {
       structured: { verdict: 'approve', summary: 'ok', score: 95, findings: [] },
     });
-    const container = {
+    const deps: Omit<RunExecutorDeps, 'agents'> = {
       runBus: new RunBus(),
       llm: async () => llm,
       tokenizer: { count: (t: string) => t.length },
-      projectContextService: { resolveForRun: async () => ({ documents: [], entries: [] }) },
-    } as unknown as Container;
+      resolveProjectContext: async () => ({ documents: [], entries: [] }),
+    promptAssemblyDebugEnabled: false,
+    git: { diff: async () => { throw new Error('git not used'); } },
+    repoIntel: {
+      getCallerSignatures: async () => [],
+      getRepoMap: async () => ({ degraded: true, text: '', tokens: 0, cached: false }),
+      getFileRank: async () => [],
+    },
+    resolveIntent: async () => ({}),
+    };
     const repo = {
       insertReview: async () => ({ id: 'review-1', score: 95 }),
       insertFindings: async () => [],
@@ -282,10 +297,10 @@ describe('run executor → skills in the prompt', () => {
       enabledSkills: async () => [
         { id: 'skill-a', name: 'a', type: 'custom' as const, body: 'BODY_ALPHA' },
       ],
-    } as unknown as Container['agentsRepo'];
+    } as RunExecutorDeps['agents'];
 
-    const executor = new ReviewRunExecutor(container, repo, agents);
-    const parentLog = new RunLogger(container.runBus, [runId]);
+    const executor = new ReviewRunExecutor(repo, { ...deps, agents });
+    const parentLog = new RunLogger(deps.runBus, [runId]);
     await expect(
       (
         executor as unknown as {

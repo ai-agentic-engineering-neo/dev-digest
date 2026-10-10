@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { Container } from '../../platform/container.js';
+import type { GitClient } from '../../domain/ports/git.js';
+import type { RepoIntel } from '../../domain/ports/repo-intel.js';
 import { ValidationError } from '../../platform/errors.js';
 import { CONFIG_SAMPLE_PATTERNS, SOURCE_SAMPLE_COUNT } from './constants.js';
 
@@ -31,7 +32,7 @@ export async function readClone(clonePath: string, file: string): Promise<string
 }
 
 export async function getConventionsSampleSet(
-  container: Container,
+  deps: { git: Pick<GitClient, 'currentHead'>; repoIntel: Pick<RepoIntel, 'getConventionSamples'> },
   repo: { id: string; owner: string; name: string; clonePath: string | null },
 ): Promise<ConventionsSampleSet> {
   if (!repo.clonePath) {
@@ -49,7 +50,7 @@ export async function getConventionsSampleSet(
   );
   const configFiles = configHits.filter((f): f is SampledFile => f !== null);
 
-  const sourcePaths = await container.repoIntel.getConventionSamples(repo.id, SOURCE_SAMPLE_COUNT);
+  const sourcePaths = await deps.repoIntel.getConventionSamples(repo.id, SOURCE_SAMPLE_COUNT);
   const sourceHits = await Promise.all(
     sourcePaths.map(async (path) => {
       const content = await readClone(clonePath, path);
@@ -58,7 +59,7 @@ export async function getConventionsSampleSet(
   );
   const sourceFiles = sourceHits.filter((f): f is SampledFile => f !== null);
 
-  const sourceSha = await container.git.currentHead({ owner: repo.owner, name: repo.name });
+  const sourceSha = await deps.git.currentHead({ owner: repo.owner, name: repo.name });
 
   return { configFiles, sourceFiles, sourceSha };
 }

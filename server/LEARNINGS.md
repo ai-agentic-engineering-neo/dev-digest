@@ -140,6 +140,59 @@ does fs or DB I/O before the check.
 
 ## Codebase Patterns
 
+### 2026-10-10 — SPEC-16: ports live in `src/domain/ports/*`, module classes take `(repo, deps)`, and `test/shared-export-surface.test.ts` pins the `@devdigest/shared` export set
+
+After `refactor/16-server-ports-inward` (commits `f7c4066`..`609e37e`) the
+rules an agent working in `server/src` must know:
+
+- **Port interfaces are declared ONLY in `src/domain/ports/{llm,embedder,github,git,code-index,auth,secrets,tokenizer,depgraph,repo-intel}.ts`.**
+  `vendor/shared/adapters.ts` keeps the DTOs (`ModelInfo`, `RepoRef`,
+  `UnifiedDiff`, …) plus a `@deprecated` type-only re-export shim for the
+  ports, so `import type { LLMProvider } from '@devdigest/shared'` still
+  compiles — but new code imports from `domain/ports/*.js` directly.
+  Declaring a port anywhere else is what the AC-5 grep (`export (interface|type) (Tokenizer|DepGraph|RepoIntel)` outside `domain/`) catches.
+- **`test/shared-export-surface.test.ts` compares the FULL sorted export list of
+  `src/vendor/shared/index.ts` (248 names, type-only included, via
+  `ts.createProgram` + `checker.getExportsOfModule`) against an inline
+  literal.** Adding or renaming ANY export in `vendor/shared` — including a
+  pure `export type` — fails this test until the literal is updated. That is
+  the intended gate, not flakiness; `test/contracts.test.ts` only sees zod
+  values and would miss a type-only drift.
+- **`no-container-in-services` (`.dependency-cruiser.cjs`) now covers every
+  `src/modules/**` file except `routes.ts` and `_shared/`.** `RepoIntelService`
+  is `new RepoIntelService(repo: RepoIntelRepository, deps: RepoIntelDeps)`,
+  `ReviewRunExecutor` is `(repo: RunRepo, deps: RunExecutorDeps)`,
+  `loadDiff(git, repo, …)`, `getConventionsSampleSet({ git, repoIntel }, repo)`.
+  Composition happens in `platform/container.ts` (getter `repoIntelService`,
+  cached, ignores `overrides.repoIntel`; getter `repoIntel` =
+  `overrides.repoIntel ?? repoIntelService`) and in `reviews/routes.ts` /
+  `conventions/routes.ts`. `repo-intel/routes.ts` calls
+  `container.repoIntelService.registerIndexJobHandlers()` — the INDEX/REFRESH/
+  RESYNC job handlers are registered in the service constructor, so if the
+  route stops touching that getter the jobs silently stop running;
+  `test/container-wiring.test.ts` asserts the handlers exist after `buildApp`.
+- **Deps types live in a leaf file** (`modules/repo-intel/deps.ts`, imports only
+  `domain/ports/*`). Declaring `PipelineDeps` in `service.ts` would create a
+  `service.ts → pipeline/full.ts → service.ts` cycle that `no-circular` reports
+  even for type-only edges (`tsPreCompilationDeps: true`). The baseline file
+  forbids new entries, so pick the leaf-file shape for any new module deps.
+- **Characterization tests (`test/*-characterization.test.ts`,
+  `test/container-wiring.test.ts`, `test/reviews-diff-loader.test.ts`) each
+  have ONE factory (`makeService` / `makeDeps` / `makeExecutor`).** When a
+  constructor signature changes, edit the factory only; the `it(...)` bodies
+  are the behavioural contract (`RunTrace` literal, Live Log strings, call
+  order callers → repoMap → rank) and must stay byte-identical.
+- `pnpm typecheck` uses `tsconfig.json` with `include: ["src/**/*.ts"]` — it
+  does NOT type-check `test/**`. A broken type in a `test/*.test.ts` file only
+  surfaces when vitest compiles it, so run the affected test file, not just
+  `pnpm typecheck`, after touching a factory.
+- Known pre-existing failure, unrelated to SPEC-16:
+  `test/integration.it.test.ts:76` expects a seeded agent named
+  `API Contract Reviewer`, but `fc35f3f` replaced the seed with 9 agents
+  (`General Reviewer`, `Security Reviewer`, …, `Spec Conformance Reviewer`).
+  `pnpm test` reports `1 failed` on a clean `main`-derived branch for that
+  reason alone; do not read it as a regression from your change.
+
 ### 2026-08-11 — `parseUnifiedDiff` silently drops binary files, pure renames, and deletions from `diff.files` — `diff.raw` still has them
 
 Building specs/08-pre-push-cli.md's `POST /reviews/adhoc` (a NEW consumer of
@@ -673,6 +726,31 @@ distinguish — left as open follow-up, not fixed here (task scope was "kill
 one").
 
 ## Recurring Errors & Fixes
+
+### 2026-10-10 — fresh git worktree for parallel implementers: `reviewer-core` has no pnpm lockfile, so `pnpm install --frozen-lockfile` fails there and leaves `server` tests unable to resolve `@devdigest/reviewer-core`
+
+Setting up `.worktrees/16-i2` / `.worktrees/16-i3` for two parallel
+`implementer` agents (plan 16, step 3): `cd server && pnpm install
+--frozen-lockfile` works (`server/pnpm-lock.yaml` is tracked), but the same
+command in `reviewer-core/` exits non-zero with the "lockfile needs updates /
+`--no-frozen-lockfile`" hint — `reviewer-core` tracks `package-lock.json`
+(npm), not `pnpm-lock.yaml`. A plain `pnpm install` there succeeds but writes
+an untracked `reviewer-core/pnpm-lock.yaml` into the worktree, which then
+shows up in `git status` and risks being swept into the implementer's commit.
+Fix: `(cd <worktree>/reviewer-core && pnpm install && rm pnpm-lock.yaml)`, then
+confirm `git -C <worktree> status --short` is empty before handing the worktree
+to an agent. Also: `git worktree add` under `.worktrees/` is already
+git-ignored, and the cherry-pick back into the main branch
+(`git cherry-pick <I2> && gates && git cherry-pick <I3> && gates`) applied
+cleanly for non-overlapping owned paths — the root `CLAUDE.md` gotcha about
+"clean merge ≠ cross-file references resolve" is why `pnpm typecheck` in all
+four packages (`server`, `reviewer-core`, `agent-runner`, `client`) runs after
+the SECOND cherry-pick, not just `pnpm test` in `server`.
+
+Related shell trap seen by every subagent this run: in zsh, `cmd | tail` makes
+`$?` the status of `tail`, and `$PIPESTATUS` is bash-only (`$pipestatus` in
+zsh). Use `cmd > "$LOG" 2>&1; rc=$?` on one line — the shape
+`.claude/skills/pr-self-review/SKILL.md` already prescribes.
 
 ### 2026-07-28 — `.nullable()` on a shared contract breaks every fixture that builds it
 

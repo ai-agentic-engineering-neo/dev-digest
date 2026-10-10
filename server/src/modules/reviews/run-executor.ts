@@ -405,6 +405,12 @@ export class ReviewRunExecutor {
 
       const keptFindings = outcome.review.findings;
 
+      // The model is done: close the Live Log stream now so the UI drops the
+      // spinner as early as possible. What follows is bookkeeping (rows +
+      // trace) that no viewer needs to wait on.
+      runLog.info('Run complete');
+      this.container.runBus.complete(runId);
+
       // ---- Persist review + findings ----------------------------------------
       const review = await this.repo.insertReview({
         workspaceId,
@@ -475,9 +481,7 @@ export class ReviewRunExecutor {
         // diff load + intent), not just events recorded inside this method.
         log: runLog.logFor(runId),
       };
-      runLog.info('Run complete; trace persisted');
       await this.repo.saveRunTrace(runId, trace);
-      this.container.runBus.complete(runId);
 
       return { review, findings: findingRows, grounding, raw: outcome.review };
     } catch (err) {

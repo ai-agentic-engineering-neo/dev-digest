@@ -18,7 +18,7 @@ import {
   INDEXER_VERSION,
 } from '../src/modules/repo-intel/constants.js';
 import type { IndexState } from '../src/modules/repo-intel/types.js';
-import type { Container } from '../src/platform/container.js';
+import type { PipelineDeps } from '../src/modules/repo-intel/deps.js';
 
 // ---------------------------------------------------------------------------
 // Recording fakes
@@ -64,7 +64,7 @@ function makeDeps(opts: DepsOpts = {}) {
         return Math.ceil(text.length / 4);
       },
     },
-  } as unknown as Container;
+  } as unknown as PipelineDeps;
   return { deps: container, rec };
 }
 

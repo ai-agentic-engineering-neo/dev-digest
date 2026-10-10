@@ -19,7 +19,7 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import type { RepoRef } from '@devdigest/shared';
-import type { Container } from '../../../platform/container.js';
+import type { PipelineDeps } from '../deps.js';
 import { withTimeout } from '../../../platform/resilience.js';
 import { parseSymbols, parseReferences, langForFile } from '../../../adapters/astgrep/index.js';
 import { extractEndpoints, extractCrons } from '../../../adapters/codeindex/extract.js';
@@ -53,7 +53,7 @@ const INCREMENTAL_FULL_THRESHOLD = 300;
 const SUPPORTED_SET: ReadonlySet<string> = new Set(SUPPORTED_EXT);
 
 export async function runIncremental(
-  container: Container,
+  deps: PipelineDeps,
   repository: RepoIntelRepository,
   payload: IndexPayload,
 ): Promise<IndexResult> {
@@ -79,13 +79,13 @@ export async function runIncremental(
   //     bumps whenever the parser/schema changes shape; mixing rows from two
   //     versions would corrupt downstream consumers (step 1).
   if (!state || state.indexerVersion !== INDEXER_VERSION) {
-    return runFullIndex(container, repository, payload);
+    return runFullIndex(deps, repository, payload);
   }
 
   const ref: RepoRef = { owner: repo.owner, name: repo.name };
   let currentSha: string;
   try {
-    currentSha = await container.git.currentHead(ref);
+    currentSha = await deps.git.currentHead(ref);
   } catch (err) {
     return {
       status: 'degraded',
@@ -111,12 +111,12 @@ export async function runIncremental(
   // (3) Compute changed-file intersection.
   let changedAll: string[];
   try {
-    changedAll = await container.git.diffNameOnly(ref, state.lastIndexedSha, currentSha);
+    changedAll = await deps.git.diffNameOnly(ref, state.lastIndexedSha, currentSha);
   } catch (err) {
     // diff failure (shallow clone, missing base, etc.) — fall back to full.
     // The full path is heavier but correct; degrading silently to "no-op" would
     // leave the index drifted from HEAD.
-    return runFullIndex(container, repository, payload);
+    return runFullIndex(deps, repository, payload);
   }
   const changed = changedAll.filter((p) => SUPPORTED_SET.has(extname(p).toLowerCase()));
 
@@ -135,7 +135,7 @@ export async function runIncremental(
 
   // (4) Large diff → cheaper to redo a full index than to slice.
   if (changed.length > INCREMENTAL_FULL_THRESHOLD) {
-    return runFullIndex(container, repository, payload);
+    return runFullIndex(deps, repository, payload);
   }
 
   // (5) Slice path: delete then reparse the changed files.
@@ -223,7 +223,7 @@ export async function runIncremental(
     const walked = await walkClone(repo.clonePath);
     const allFiles = walked.files;
     walkStats = walked.stats;
-    const edges = await container.depgraph.buildEdges(repo.clonePath, allFiles);
+    const edges = await deps.depgraph.buildEdges(repo.clonePath, allFiles);
     edgeRows = edges.map((e) => ({ fromFile: e.from, toFile: e.to }));
     await repository.replaceEdges(repoId, edgeRows);
     // reset: a changed decl-file can invalidate a prior resolution.
@@ -242,7 +242,7 @@ export async function runIncremental(
     await repository.replaceFileRank(repoId, rankRows);
     // The repo-map is keyed per commit_sha → prior entries are now stale.
     const candidates = await repository.getRepoMapCandidates(repoId);
-    const map = renderRepoMap(candidates, container.tokenizer, DEFAULT_REPO_MAP_TOKEN_BUDGET);
+    const map = renderRepoMap(candidates, deps.tokenizer, DEFAULT_REPO_MAP_TOKEN_BUDGET);
     await repository.deleteRepoMapCache(repoId);
     await repository.putRepoMapCache(
       repoId,

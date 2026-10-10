@@ -24,7 +24,7 @@ import { runIncremental } from '../src/modules/repo-intel/pipeline/incremental.j
 import type { RepoIntelRepository } from '../src/modules/repo-intel/repository.js';
 import { INDEXER_VERSION } from '../src/modules/repo-intel/constants.js';
 import type { IndexState } from '../src/modules/repo-intel/types.js';
-import type { Container } from '../src/platform/container.js';
+import type { PipelineDeps } from '../src/modules/repo-intel/deps.js';
 
 // ---------------------------------------------------------------------------
 // In-memory repository stub — matches RepoIntelRepository's surface.
@@ -122,7 +122,7 @@ function makeRepoStub(opts: {
   };
 }
 
-// Minimal Container — only the fields the pipeline reads.
+// Minimal PipelineDeps — only the fields the pipeline reads.
 interface MiniGit {
   currentHead: () => Promise<string>;
   diffNameOnly: (
@@ -131,13 +131,13 @@ interface MiniGit {
     head: string,
   ) => Promise<string[]>;
 }
-function makeContainer(git: MiniGit): Container {
+function makeContainer(git: MiniGit): PipelineDeps {
   return {
     git,
     // T3 adapters — stubbed: empty graph (rank degrades to flat) + char/4 tokens.
     depgraph: { buildEdges: async () => [] },
     tokenizer: { count: (text: string) => Math.ceil(text.length / 4) },
-  } as unknown as Container;
+  } as unknown as PipelineDeps;
 }
 
 async function writeFileAt(root: string, rel: string, contents: string): Promise<void> {

@@ -24,8 +24,8 @@ import {
   RESYNC_JOB_KIND,
 } from '../src/modules/repo-intel/constants.js';
 import type { RepoIntelRepository } from '../src/modules/repo-intel/repository.js';
+import type { RepoIntelDeps } from '../src/modules/repo-intel/deps.js';
 import type { IndexState } from '../src/modules/repo-intel/types.js';
-import type { Container } from '../src/platform/container.js';
 
 // ---------------------------------------------------------------------------
 // Fakes
@@ -94,10 +94,9 @@ function makeService(fakes: Fakes = {}) {
   const git = fakes.git ?? new MockGitClient({});
   const jobs = fakes.jobs ?? new FakeJobs();
   const calls = { buildEdges: 0, tokenCount: 0 };
-  const container = {
+  const deps = {
     git,
     jobs,
-    db: {}, // never queried — repo is overridden below
     codeIndex: fakes.codeIndex ?? { symbols: async () => [], references: async () => [] },
     depgraph: {
       buildEdges: async () => {
@@ -111,11 +110,10 @@ function makeService(fakes: Fakes = {}) {
         return Math.ceil(text.length / 4);
       },
     },
-    config: { repoIntelEnabled: fakes.repoIntelEnabled ?? true },
-  } as unknown as Container;
+    repoIntelEnabled: fakes.repoIntelEnabled ?? true,
+  } as unknown as RepoIntelDeps;
 
-  const service = new RepoIntelService(container);
-  (service as unknown as { repo: unknown }).repo = fakes.repo ?? throwingRepo();
+  const service = new RepoIntelService((fakes.repo ?? throwingRepo()) as never, deps);
   return { service, git, jobs, calls };
 }
 

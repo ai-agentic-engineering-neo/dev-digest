@@ -39,6 +39,7 @@ import { EvalService } from '../modules/eval/service.js';
 import { EvalExecutor } from '../modules/eval/executor.js';
 import type { RepoIntel } from '../domain/ports/repo-intel.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
+import { RepoIntelRepository } from '../modules/repo-intel/repository.js';
 import { resolveFeatureModel as resolveFeatureModelForWorkspace } from '../modules/settings/feature-models.js';
 import type { DepGraph } from '../domain/ports/depgraph.js';
 import { DepCruiseGraph } from '../adapters/depgraph/index.js';
@@ -104,7 +105,7 @@ export class Container {
   private _briefService?: BriefService;
   private _evalRepo?: EvalRepository;
   private _evalService?: EvalService;
-  private _repoIntel?: RepoIntel;
+  private _repoIntelService?: RepoIntelService;
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
   private _priceBook?: PriceBook;
@@ -368,8 +369,25 @@ export class Container {
    */
   get repoIntel(): RepoIntel {
     if (this.overrides.repoIntel) return this.overrides.repoIntel;
-    this._repoIntel ??= new RepoIntelService(this);
-    return this._repoIntel;
+    return this.repoIntelService;
+  }
+
+  /**
+   * The concrete repo-intel service (composition point, SPEC-16 AC-12). Ignores
+   * `overrides.repoIntel` on purpose: `repo-intel/routes.ts` registers the
+   * INDEX/REFRESH/RESYNC job handlers on the real service even when a test
+   * overrides the facade.
+   */
+  get repoIntelService(): RepoIntelService {
+    this._repoIntelService ??= new RepoIntelService(new RepoIntelRepository(this.db), {
+      git: this.git,
+      codeIndex: this.codeIndex,
+      jobs: this.jobs,
+      depgraph: this.depgraph,
+      tokenizer: this.tokenizer,
+      repoIntelEnabled: this.config.repoIntelEnabled,
+    });
+    return this._repoIntelService;
   }
 
   /** Import-graph builder (dependency-cruiser). T3 indexer pipeline only. */

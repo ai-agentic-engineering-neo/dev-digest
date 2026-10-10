@@ -22,7 +22,7 @@ import * as t from '../src/db/schema.js';
 import { RepoIntelRepository } from '../src/modules/repo-intel/repository.js';
 import { RepoIntelService } from '../src/modules/repo-intel/service.js';
 import { INDEXER_VERSION, MAX_CALLERS_PER_SYMBOL } from '../src/modules/repo-intel/constants.js';
-import type { Container } from '../src/platform/container.js';
+import type { RepoIntelDeps } from '../src/modules/repo-intel/deps.js';
 
 const hasDocker = await dockerAvailable();
 const d = hasDocker ? describe : describe.skip;
@@ -39,11 +39,7 @@ d('RepoIntelService.getBlastRadius — persistent-index fixes', () => {
     const [ws] = await pg.handle.db.select().from(t.workspaces);
     workspaceId = ws!.id;
     repo = new RepoIntelRepository(pg.handle.db);
-    const container = {
-      config: { repoIntelEnabled: true },
-      db: pg.handle.db,
-    } as unknown as Container;
-    service = new RepoIntelService(container);
+    service = new RepoIntelService(repo, { repoIntelEnabled: true } as unknown as RepoIntelDeps);
   });
   afterAll(async () => {
     await pg?.stop();

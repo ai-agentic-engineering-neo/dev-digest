@@ -9,6 +9,8 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "arch:check": "depcruise src --config .dependency-cruiser.cjs --ignore-known --output-type err",
+    "arch:baseline": "depcruise-baseline src --config .dependency-cruiser.cjs",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",

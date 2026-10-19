@@ -7,6 +7,7 @@ Reusable AI skills that provide specialized knowledge and workflows. Canonical l
 | Skill | Scope | Description |
 |-------|-------|-------------|
 | [fastify-best-practices](fastify-best-practices/SKILL.md) | Backend | Fastify routes, plugins, JSON-schema validation, error handling |
+| [onion-architecture](onion-architecture/SKILL.md) | Backend | Layering for server/: ports & adapters, Container DI, dependency-cruiser gate |
 | [drizzle-orm-patterns](drizzle-orm-patterns/SKILL.md) | Backend | Drizzle schema, queries, relations, transactions, migrations |
 | [postgresql-table-design](postgresql-table-design/SKILL.md) | Backend | Postgres schema design, data types, indexing, constraints |
 | [next-best-practices](next-best-practices/SKILL.md) | Frontend | Next.js App Router, RSC boundaries, data fetching, optimization |
@@ -16,6 +17,8 @@ Reusable AI skills that provide specialized knowledge and workflows. Canonical l
 | [typescript-expert](typescript-expert/SKILL.md) | Full-stack | Type-level programming, performance, tooling, migrations |
 | [security](security/SKILL.md) | Full-stack | OWASP Top 10:2025, auth, injection, uploads, secrets |
 | [mermaid-diagram](mermaid-diagram/SKILL.md) | Shared | Mermaid diagrams in markdown (flowcharts, sequence, ERD, …) |
+| [engineering-insights](engineering-insights/SKILL.md) | Shared | Append non-obvious lessons to the module's INSIGHTS.md |
+| [pr-self-review](pr-self-review/SKILL.md) | Shared | Pre-PR gate: routes local changes to the skills above, verifies criticals, blocks `gh pr create/merge` (v1.0.0) |
 
 ## What Are Skills?
 

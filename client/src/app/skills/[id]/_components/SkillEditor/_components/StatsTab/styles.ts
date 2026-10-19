@@ -1,0 +1,63 @@
+import type { CSSProperties } from "react";
+
+const card: CSSProperties = {
+  background: "var(--bg-elevated)",
+  border: "1px solid var(--border)",
+  borderRadius: 9,
+};
+
+export const s = {
+  wrap: { maxWidth: 960 } satisfies CSSProperties,
+  tiles: { display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12 } satisfies CSSProperties,
+  tile: <CSSProperties>{ ...card, padding: 16, minHeight: 110 },
+  tileHead: { display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 34 } satisfies CSSProperties,
+  tileLabel: {
+    fontSize: 11,
+    fontWeight: 600,
+    color: "var(--text-muted)",
+    letterSpacing: "0.06em",
+    textTransform: "uppercase",
+  } satisfies CSSProperties,
+  tileValue: { display: "flex", alignItems: "baseline", gap: 4, marginTop: 6, fontSize: 28, fontWeight: 700 } satisfies CSSProperties,
+  tileSuffix: { fontSize: 15, fontWeight: 500, color: "var(--text-muted)" } satisfies CSSProperties,
+  panels: { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 16, marginTop: 20 } satisfies CSSProperties,
+  panel: <CSSProperties>{ ...card, padding: 16 },
+  panelTitle: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    fontSize: 11,
+    fontWeight: 600,
+    color: "var(--text-muted)",
+    letterSpacing: "0.06em",
+    textTransform: "uppercase",
+    marginBottom: 12,
+  } satisfies CSSProperties,
+  agentRow: (enabled: boolean): CSSProperties => ({
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "9px 10px",
+    marginBottom: 8,
+    borderRadius: 7,
+    border: "1px solid var(--border)",
+    background: "var(--bg-surface)",
+    color: "var(--text-primary)",
+    textDecoration: "none",
+    opacity: enabled ? 1 : 0.6,
+  }),
+  agentIcon: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    display: "grid",
+    placeItems: "center",
+    color: "var(--accent)",
+    background: "var(--accent-bg)",
+  } satisfies CSSProperties,
+  agentName: { flex: 1, fontSize: 13, fontWeight: 600 } satisfies CSSProperties,
+  open: { fontSize: 12, color: "var(--text-muted)" } satisfies CSSProperties,
+  donut: { display: "flex", justifyContent: "center", padding: "4px 0" } satisfies CSSProperties,
+  muted: { fontSize: 13, color: "var(--text-muted)" } satisfies CSSProperties,
+  footnote: { fontSize: 12, color: "var(--text-muted)", marginTop: 14 } satisfies CSSProperties,
+} as const;

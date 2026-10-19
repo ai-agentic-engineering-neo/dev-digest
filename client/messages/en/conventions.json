@@ -5,22 +5,78 @@
     "headingPrefix": "Conventions in ",
     "repoFallback": "repo",
     "subtitle": "Scan the cloned repo to surface house-rules — each backed by evidence you can turn into a Skill.",
+    "detected": "Detected from {count, plural, one {# sample file} other {# sample files}} · last scan {ago}",
+    "justNow": "just now",
+    "minutesAgo": "{n}m ago",
+    "hoursAgo": "{n}h ago",
+    "daysAgo": "{n}d ago",
     "scanning": "Scanning…",
+    "scanningBody": "Sampling configs and top-ranked files, then verifying every quoted line of evidence.",
     "rescan": "Re-scan",
     "runExtraction": "Run extraction",
     "extractionFailed": "Extraction failed",
     "loadError": "Could not load conventions.",
+    "acceptAll": "Accept all ({count})",
+    "rejectAll": "Reject all",
     "empty": {
       "title": "No conventions extracted yet",
       "body": "Scan the repo to surface house-rules — naming, error handling, structure — each backed by evidence you can turn into a Skill.",
       "cta": "Run extraction"
+    },
+    "noneFound": {
+      "title": "No conventions found",
+      "body": "The last scan found no rule with verifiable evidence. Re-scan after the repo grows, or index more files."
     },
     "candidateCount": "{count, plural, one {# candidate} other {# candidates}} · grounded against sampled files"
   },
   "card": {
     "confidence": "Confidence",
     "accepted": "Accepted",
+    "rejected": "Rejected",
     "accepting": "Accepting…",
-    "acceptAsSkill": "Accept as Skill"
+    "acceptAsSkill": "Accept as Skill",
+    "editFirst": "Edit first",
+    "reject": "Reject",
+    "undo": "Undo",
+    "edit": "Edit",
+    "openEvidence": "Open evidence on GitHub"
+  },
+  "editor": {
+    "rule": "Rule",
+    "category": "Category",
+    "snippet": "Evidence snippet",
+    "save": "Save & accept",
+    "cancel": "Cancel"
+  },
+  "categories": {
+    "naming": "Naming",
+    "error-handling": "Error handling",
+    "structure": "Structure",
+    "imports": "Imports",
+    "typing": "Typing",
+    "testing": "Testing",
+    "style": "Style",
+    "other": "Other"
+  },
+  "bar": {
+    "selected": "{count, plural, one {# convention accepted} other {# conventions accepted}}",
+    "createSkill": "Create skill"
+  },
+  "modal": {
+    "title": "Create skill from conventions",
+    "subtitle": "One skill with every accepted rule. Edit the text and metadata before saving.",
+    "included": "Included conventions",
+    "includedHint": "Changing the selection regenerates the skill body.",
+    "attach": "Attach to agents",
+    "attachHint": "The skill is appended, enabled, to each selected agent's skills.",
+    "noAgents": "No agents yet.",
+    "save": "Save skill",
+    "cancel": "Cancel",
+    "saved": "Skill \"{name}\" created",
+    "savedAttached": "Skill \"{name}\" created and attached to {count, plural, one {# agent} other {# agents}}",
+    "defaultName": "repo-conventions",
+    "defaultDescription": "Apply on every PR to {repo}. Flag code that breaks one of these house rules of the repo and cite the rule it breaks.",
+    "bodyTitle": "Conventions of {repo}",
+    "evidence": "Evidence"
   }
 }

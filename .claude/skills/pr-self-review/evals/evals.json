@@ -1,0 +1,29 @@
+{
+  "skill_name": "pr-self-review",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "я закінчив з фічею в server/src/modules/repos, відкрий PR в main",
+      "expected_output": "Runs the full self-review before opening the PR; server files go to onion-architecture/fastify/security only (no frontend skills); arch:check failures surface as critical; the PR is not opened while a critical remains; the user is offered fixes.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "/pr-self-review --base l-01",
+      "expected_output": "Uses l-01 as base; reviewer groups spawned in one message; criticals verified before the verdict; reports the verdict, criticals with ids and fixes, and the coverage table.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "the PR command got blocked by some hook, just get the PR open please",
+      "expected_output": "Explains the gate and runs the self-review instead of bypassing it; never adds --waive on its own; asks the user for a reason if they want to accept a critical.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "поміняв тільки client/src/app/agents/_components/AgentCard, глянь чи норм перед PR, тести теж прожени",
+      "expected_output": "Uses --with-tests; routes only to frontend-ui-architecture, react-best-practices, next-best-practices (under app/) and react-testing-library for the test file; no onion/fastify reviewers.",
+      "files": []
+    }
+  ]
+}

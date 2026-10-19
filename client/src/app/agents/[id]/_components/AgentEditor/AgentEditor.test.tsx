@@ -6,8 +6,10 @@ import messages from "../../../../../../messages/en/agents.json";
 import { ToastProvider } from "../../../../../lib/toast";
 
 // Mock the data hooks so the editor renders without a network/query client.
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }) }));
 vi.mock("../../../../../lib/hooks/agents", () => ({
   useUpdateAgent: () => ({ mutate: vi.fn(), isPending: false, isSuccess: false, data: undefined }),
+  useDeleteAgent: () => ({ mutate: vi.fn(), isPending: false }),
   useProviderModels: () => ({ data: [{ id: "gpt-4.1", provider: "openai" }] }),
 }));
 
@@ -44,5 +46,13 @@ describe("A2 Agent Editor (smoke)", () => {
     expect(screen.getByText("Config")).toBeInTheDocument();
     expect(screen.getByText("Configuration")).toBeInTheDocument();
     expect(screen.getByText("Save agent")).toBeInTheDocument();
+    expect(screen.getByText("~7 / 8,000 tokens")).toBeInTheDocument();
+    // Provider / strategy / CI gate / repo intel live behind "Advanced".
+    expect(screen.queryByText("Review strategy")).not.toBeInTheDocument();
+  });
+
+  it("shows a later-lesson mount point on the Stats tab", () => {
+    renderWithIntl(<AgentEditor agent={AGENT} tab="stats" onTab={() => {}} />);
+    expect(screen.getByText(/Mount point for L07/)).toBeInTheDocument();
   });
 });

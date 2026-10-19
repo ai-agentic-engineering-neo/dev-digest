@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 
-/** Co-located styles for AgentCard (extracted from inline styles). */
+/** Co-located styles for AgentCard. */
 export const s = {
   card: (active: boolean, enabled: boolean): CSSProperties => ({
     padding: 14,
@@ -30,6 +30,14 @@ export const s = {
     overflow: "hidden",
     textOverflow: "ellipsis",
   } satisfies CSSProperties,
+  srOnly: {
+    position: "absolute",
+    width: 1,
+    height: 1,
+    overflow: "hidden",
+    clip: "rect(0 0 0 0)",
+    whiteSpace: "nowrap",
+  } satisfies CSSProperties,
   description: {
     fontSize: 13,
     color: "var(--text-muted)",
@@ -39,13 +47,39 @@ export const s = {
     overflow: "hidden",
     textOverflow: "ellipsis",
   } satisfies CSSProperties,
-  metaRow: { display: "flex", alignItems: "center", gap: 8 } satisfies CSSProperties,
+  metaRow: { display: "flex", alignItems: "center", gap: 8, minWidth: 0 } satisfies CSSProperties,
   modelChip: (color: string): CSSProperties => ({
     fontSize: 12,
     fontWeight: 600,
     color,
-    background: color + "1a",
+    background: color.startsWith("var(") ? "var(--bg-hover)" : color + "1a",
     padding: "1px 8px",
     borderRadius: 4,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    minWidth: 0,
   }),
+  skillChip: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 5,
+    fontSize: 12,
+    fontWeight: 600,
+    color: "var(--text-secondary)",
+    background: "var(--bg-hover)",
+    padding: "1px 8px",
+    borderRadius: 4,
+    whiteSpace: "nowrap",
+    flexShrink: 0,
+  } satisfies CSSProperties,
+  footer: {
+    display: "flex",
+    gap: 12,
+    marginTop: 12,
+    paddingTop: 10,
+    borderTop: "1px solid var(--border)",
+    fontSize: 12,
+    color: "var(--text-muted)",
+  } satisfies CSSProperties,
 } as const;

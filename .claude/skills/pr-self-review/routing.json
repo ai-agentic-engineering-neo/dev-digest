@@ -1,0 +1,118 @@
+{
+  "$comment": "Single source of truth for which skill reviews which changed file. Globs are repo-relative. A file can be routed to several skills. See README.md §Routing.",
+  "version": 1,
+  "maxFilesPerGroup": 40,
+  "exclude": [
+    "**/pnpm-lock.yaml",
+    "**/package-lock.json",
+    "server/src/db/migrations/**",
+    "**/*.{png,jpg,jpeg,gif,svg,ico,webp,woff,woff2,ttf,pdf}",
+    "**/*.snap",
+    "**/*.tsbuildinfo",
+    "**/.dependency-cruiser-known-violations.json"
+  ],
+  "precedence": [
+    "project-rules",
+    "@guard-integrity",
+    "onion-architecture",
+    "frontend-ui-architecture",
+    "security",
+    "next-best-practices",
+    "react-best-practices",
+    "fastify-best-practices",
+    "drizzle-orm-patterns",
+    "postgresql-table-design",
+    "zod",
+    "react-testing-library",
+    "typescript-expert"
+  ],
+  "routes": [
+    {
+      "skill": "frontend-ui-architecture",
+      "include": ["client/src/**/*.{ts,tsx}"],
+      "exclude": ["client/src/vendor/**", "client/src/**/*.test.{ts,tsx}"]
+    },
+    {
+      "skill": "react-best-practices",
+      "include": ["client/src/**/*.tsx", "client/src/**/use-*.ts", "client/src/lib/hooks/**/*.ts"],
+      "exclude": ["client/src/vendor/**", "client/src/**/*.test.tsx"]
+    },
+    {
+      "skill": "next-best-practices",
+      "include": [
+        "client/src/app/**/*.{ts,tsx}",
+        "client/src/middleware.ts",
+        "client/next.config.{js,mjs,ts}"
+      ]
+    },
+    {
+      "skill": "react-testing-library",
+      "include": ["client/src/**/*.test.{ts,tsx}"]
+    },
+    {
+      "skill": "onion-architecture",
+      "include": ["server/src/**/*.ts"],
+      "exclude": ["server/src/vendor/**", "server/src/**/*.test.ts"]
+    },
+    {
+      "skill": "fastify-best-practices",
+      "include": ["server/src/**/routes.ts", "server/src/**/routes/**/*.ts", "server/src/platform/**/*.ts", "server/src/app.ts", "server/src/server.ts"]
+    },
+    {
+      "skill": "drizzle-orm-patterns",
+      "include": ["server/src/db/**/*.ts", "server/src/**/*repository*.ts", "server/src/**/repository/**/*.ts"]
+    },
+    {
+      "skill": "postgresql-table-design",
+      "include": ["server/src/db/schema.ts", "server/src/db/schema/**/*.ts"]
+    },
+    {
+      "skill": "zod",
+      "include": [
+        "server/src/vendor/shared/**/*.ts",
+        "client/src/vendor/shared/**/*.ts",
+        "**/*schema*.ts",
+        "**/contracts/**/*.ts",
+        "reviewer-core/src/**/*.ts"
+      ],
+      "exclude": ["server/src/db/**"]
+    },
+    {
+      "skill": "security",
+      "include": [
+        "server/src/**/*.ts",
+        "reviewer-core/src/**/*.ts",
+        "client/src/lib/api*.ts",
+        "client/src/app/api/**/*.ts",
+        "client/src/middleware.ts",
+        ".github/workflows/**",
+        "**/package.json",
+        ".claude/settings*.json",
+        "**/.env.example",
+        "scripts/**"
+      ],
+      "exclude": ["server/src/**/*.test.ts", "server/src/vendor/**"]
+    },
+    {
+      "skill": "@guard-integrity",
+      "reference": "references/guard-integrity.md",
+      "include": ["reviewer-core/src/prompt.ts", "reviewer-core/src/grounding.ts", "reviewer-core/src/review/**/*.ts"]
+    },
+    {
+      "skill": "typescript-expert",
+      "include": ["reviewer-core/src/**/*.ts", "e2e/**/*.ts"]
+    }
+  ],
+  "fallback": {
+    "$comment": "Applied only to code files that no route above picked up.",
+    "skill": "typescript-expert",
+    "include": ["**/*.{ts,tsx,mts,cts,js,mjs,cjs}"]
+  },
+  "scopeDefaults": {
+    "$comment": "Used for skills found in .claude/skills/README.md catalog but not routed here — so a newly added skill is never silently ignored.",
+    "Backend": ["server/src/**/*.ts"],
+    "Frontend": ["client/src/**/*.{ts,tsx}"],
+    "Full-stack": ["server/src/**/*.ts", "client/src/**/*.{ts,tsx}", "reviewer-core/src/**/*.ts"]
+  },
+  "notReviewers": ["mermaid-diagram", "engineering-insights", "pr-self-review"]
+}

@@ -70,7 +70,8 @@ Each package has its own README with deeper diagrams:
 - **Add repository** — paste a repo URL; the server clones and indexes it.
 - **Import pull requests** — pull open PRs and their diff, commits, body, and linked issue.
 - **View diff** — GitHub-like diff in the browser.
-- **Agents** — two built-in reviewers (General + Security); create/edit your own (model + system prompt).
+- **Agents** — built-in reviewers (General, Security, Performance, Test Quality); create/edit your own (model + system prompt).
+- **Skills (L02)** — reusable, versioned review instructions; create, edit or import (.md / .zip) them and link them to agents in a chosen order.
 - **Run a review** — single-pass analysis returning structured findings (severity + score), with the grounding gate and repo-map context working from the start.
 
 ## What you build in the course

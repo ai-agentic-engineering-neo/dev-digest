@@ -1,0 +1,4 @@
+{
+  "$comment": "Repo-wide suppressions for known false positives. Each needs a reason; add `expires` (YYYY-MM-DD) so they are revisited. Never applies to critical findings — those can only be waived per run with --waive. Fields: rule?, source? (skill), path? (glob or list), reason, expires?",
+  "suppressions": []
+}

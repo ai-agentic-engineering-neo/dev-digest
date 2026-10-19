@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { Button, Icon, Modal } from "@devdigest/ui";
 import { s } from "../../styles";
 import { PromptModalBody } from "../PromptModalBody";
+import { formatTokenCount } from "@/lib/format-cost";
 
 const miniBtnStyle: React.CSSProperties = {
   display: "inline-flex",
@@ -20,7 +21,21 @@ const miniBtnStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
-export function PromptBlock({ label, text, color }: { label: string; text: string; color: string }) {
+export function PromptBlock({
+  label,
+  text,
+  color,
+  tokens,
+  details,
+}: {
+  label: string;
+  text: string;
+  color: string;
+  /** Tokens this block adds to the prompt (L02 traces; absent on legacy ones). */
+  tokens?: number | null;
+  /** Extra breakdown shown under the header (e.g. one line per skill). */
+  details?: React.ReactNode;
+}) {
   const t = useTranslations("runs");
   const [open, setOpen] = React.useState(false);
   const [full, setFull] = React.useState(false);
@@ -35,6 +50,11 @@ export function PromptBlock({ label, text, color }: { label: string; text: strin
       <div onClick={() => setOpen((o) => !o)} style={s.promptHead}>
         <span style={s.promptDot(color)} />
         <span style={s.promptLabel}>{label}</span>
+        {tokens != null && (
+          <span className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>
+            {t("trace.prompt.tokens", { count: formatTokenCount(tokens) })}
+          </span>
+        )}
         <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
           <button
             type="button"
@@ -65,6 +85,7 @@ export function PromptBlock({ label, text, color }: { label: string; text: strin
           </span>
         </span>
       </div>
+      {details}
       {open && (
         <pre className="mono" style={s.promptPre}>
           {text || "—"}

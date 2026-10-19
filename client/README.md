@@ -26,6 +26,7 @@ flowchart TD
   ROOT["/"] -->|"useRepos → GET /repos"| PULLS["/repos/:repoId/pulls<br/>PR list"]
   ONB["/onboarding<br/>add repo"] -->|"POST /repos"| API[("Fastify API")]
   PULLS --> PR["/pulls/:number<br/>review detail<br/>(overview · diff · findings)"]
+  CONV["/repos/:repoId/conventions<br/>extract · accept/reject/edit · compose skill"]
 
   AGENTS["/agents"] --> AGENT["/agents/:id<br/>editor (config)"]
   SETTINGS["/settings/:section<br/>API keys · models"]
@@ -33,6 +34,7 @@ flowchart TD
   PULLS -->|"GET /repos/:id/pulls · /repos/:id/index-state"| API
   PR -->|"GET /pulls/:id · /reviews · /pulls/:id/comments<br/>POST /pulls/:id/review · /findings/:id/(accept|dismiss)"| API
   AGENTS -->|"/agents · /agents/:id"| API
+  CONV -->|"GET /repos/:id/conventions · POST …/extract · …/bulk<br/>PATCH /conventions/:id · POST /skills · PUT /agents/:id/skills"| API
   SETTINGS -->|"/settings · /providers"| API
 ```
 

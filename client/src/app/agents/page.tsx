@@ -1,7 +1,32 @@
-import { AgentsListView } from "./_components/AgentsListView";
+/* Route: /agents — two-pane Agents screen. With agents it opens the first one
+   in the editor; without, the right pane is the "No agents yet" empty state. */
+"use client";
 
-/* Route: /agents (Agents list). Thin route entry — the view, its create modal,
-   styles, constants, helpers and i18n are colocated under _components/AgentsListView. */
+import React from "react";
+import { useRouter } from "next/navigation";
+import { Skeleton } from "@devdigest/ui";
+import { useAgents } from "../../lib/hooks/agents";
+import { AgentsEmptyState, AgentsWorkspace } from "./_components/AgentsWorkspace";
+
 export default function AgentsPage() {
-  return <AgentsListView />;
+  const router = useRouter();
+  const { data: agents, isLoading } = useAgents();
+  const first = agents?.[0];
+
+  React.useEffect(() => {
+    if (first) router.replace(`/agents/${first.id}?tab=config`);
+  }, [first, router]);
+
+  return (
+    <AgentsWorkspace>
+      {isLoading || first ? (
+        <div style={{ padding: 28, display: "flex", flexDirection: "column", gap: 16 }}>
+          <Skeleton height={24} width={240} />
+          <Skeleton height={200} />
+        </div>
+      ) : (
+        <AgentsEmptyState />
+      )}
+    </AgentsWorkspace>
+  );
 }

@@ -1,0 +1,18 @@
+{
+  "name": "Conventions page lists the seeded extraction with evidence",
+  "description": "L02. From the PR list, opens Conventions in the sidebar (repo-scoped route), confirms the seeded extraction summary and candidate cards with verified evidence, then opens a card's inline editor and cancels it. Read-only: nothing is accepted, no extraction runs, no LLM.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "root redirects to the demo repo's PRs" },
+    { "cmd": ["find", "text", "Conventions", "click"], "label": "open Conventions from the sidebar" },
+    { "cmd": ["wait", "--url", "/conventions"], "label": "repo-scoped conventions route reached" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "conventions fetch settles" },
+    { "cmd": ["wait", "--text", "Detected from 84 sample files"], "label": "seeded extraction summary" },
+    { "cmd": ["wait", "--text", "Always use async/await instead of .then() chains"], "label": "seeded candidate card" },
+    { "cmd": ["wait", "--text", "src/lib/redis.ts:1"], "label": "verified evidence link (path:line)" },
+    { "cmd": ["wait", "--text", "Accept all (3)"], "label": "three pending candidates" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Edit first"], "label": "open the inline editor of the first card" },
+    { "cmd": ["wait", "--text", "Save & accept"], "label": "inline editor is shown" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Cancel"], "label": "cancel the edit (nothing saved)" }
+  ]
+}

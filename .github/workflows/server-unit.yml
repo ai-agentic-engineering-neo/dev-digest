@@ -65,6 +65,12 @@ jobs:
 
       - run: pnpm typecheck
 
+      # Onion-architecture boundaries (.dependency-cruiser.cjs). Known legacy
+      # violations are baselined in .dependency-cruiser-known-violations.json;
+      # only NEW ones fail. Inlined for the same reason as vitest below.
+      - name: Architecture boundaries
+        run: pnpm exec depcruise src --config .dependency-cruiser.cjs --ignore-known --output-type err
+
   unit:
     name: tests
     runs-on: ubuntu-latest

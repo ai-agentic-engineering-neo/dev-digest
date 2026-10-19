@@ -1,5 +1,5 @@
 import type { Container } from '../../platform/container.js';
-import type { Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
+import type { PromptAssembly, Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
 import { reviewPullRequest, countBlockers } from '@devdigest/reviewer-core';
 import { RunLogger } from '../../platform/run-logger.js';
 import * as schema from '../../db/schema.js';
@@ -8,6 +8,28 @@ import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './reposit
 import { REVIEW_STRATEGY } from './constants.js';
 import { taskLine } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
+import { formatSkillForPrompt } from '../_shared/skill-prompt.js';
+
+/** A skill as rendered into this run's prompt (L02). */
+interface ResolvedSkill {
+  id: string;
+  name: string;
+  version: number;
+  text: string;
+  tokens: number;
+}
+
+/** Assembly slots that get a token count in the trace. */
+const PROMPT_BLOCKS = [
+  'system',
+  'skills',
+  'memory',
+  'specs',
+  'callers',
+  'repo_map',
+  'pr_description',
+  'user',
+] as const satisfies readonly (keyof PromptAssembly)[];
 
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
 export class RunCancelledError extends Error {
@@ -80,6 +102,7 @@ export class ReviewRunExecutor {
             durationMs: 0,
             tokensIn: 0,
             tokensOut: 0,
+            costUsd: null,
             findingsCount: 0,
             grounding: '0/0 passed',
             error: msg,
@@ -183,6 +206,10 @@ export class ReviewRunExecutor {
 
       const task = taskLine(pull) + rankNote;
 
+      // L02 — the agent's skills, in the order set on its Skills tab. Only
+      // links that are enabled AND whose skill is enabled reach the prompt.
+      const skills = await this.resolveSkills(agent.id, runLog);
+
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
       // the CI runner). The service owns only I/O: repo-intel context resolution
@@ -203,6 +230,7 @@ export class ReviewRunExecutor {
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
+        ...(skills.length > 0 ? { skills: skills.map((sk) => sk.text) } : {}),
         task,
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
@@ -210,7 +238,7 @@ export class ReviewRunExecutor {
           if (this.container.runBus.isCancelled(runId)) throw new RunCancelledError();
         },
       });
-      const { tokensIn, tokensOut, grounding } = outcome;
+      const { tokensIn, tokensOut, costUsd, grounding } = outcome;
 
       const keptFindings = outcome.review.findings;
 
@@ -245,6 +273,7 @@ export class ReviewRunExecutor {
         durationMs,
         tokensIn,
         tokensOut,
+        costUsd,
         findingsCount: findingRows.length,
         grounding,
         score: outcome.review.score,
@@ -265,10 +294,11 @@ export class ReviewRunExecutor {
           duration_ms: durationMs,
           tokens_in: tokensIn,
           tokens_out: tokensOut,
+          cost_usd: costUsd,
           findings: findingRows.length,
           grounding,
         },
-        prompt_assembly: outcome.assembly,
+        prompt_assembly: this.withTokenAttribution(outcome.assembly, skills),
         tool_calls: outcome.chunks.map((c) => ({
           tool: 'review_file',
           args: c.label,
@@ -300,6 +330,7 @@ export class ReviewRunExecutor {
           durationMs: Date.now() - start,
           tokensIn: 0,
           tokensOut: 0,
+          costUsd: null,
           findingsCount: 0,
           grounding: '0/0 passed',
           error: msg,
@@ -401,6 +432,47 @@ export class ReviewRunExecutor {
   }
 
   /**
+   * L02 — load the agent's prompt-active skills and render each one exactly as
+   * it goes into `## Skills / rules`. Logged as one line so the Live Log shows
+   * which skills (and how many tokens) this run carries.
+   */
+  private async resolveSkills(agentId: string, runLog: RunLogger): Promise<ResolvedSkill[]> {
+    const rows = await this.agents.enabledSkillsForRun(agentId);
+    const tokenizer = this.container.tokenizer;
+    const skills = rows.map((r) => {
+      const text = formatSkillForPrompt({ name: r.name, description: r.description, body: r.body });
+      return { id: r.id, name: r.name, version: r.version, text, tokens: tokenizer.count(text) };
+    });
+    if (skills.length === 0) {
+      runLog.info('Skills: none enabled for this agent');
+    } else {
+      const total = skills.reduce((n, sk) => n + sk.tokens, 0);
+      runLog.info(
+        `Skills: ${skills.length} block(s), +${total} tokens — ${skills.map((sk) => `${sk.name} v${sk.version}`).join(', ')}`,
+      );
+    }
+    return skills;
+  }
+
+  /** Per-block token counts (cl100k, approximate per model) for the trace. */
+  private withTokenAttribution(
+    assembly: PromptAssembly,
+    skills: ResolvedSkill[],
+  ): PromptAssembly {
+    const tokenizer = this.container.tokenizer;
+    const blocks: Record<string, number> = {};
+    for (const key of PROMPT_BLOCKS) {
+      const text = assembly[key];
+      if (typeof text === 'string' && text.length > 0) blocks[key] = tokenizer.count(text);
+    }
+    return {
+      ...assembly,
+      block_tokens: blocks,
+      skills_detail: skills.map(({ id, name, version, tokens }) => ({ id, name, version, tokens })),
+    };
+  }
+
+  /**
    * A minimal RunTrace whose `log` is the run's full SSE buffer — persisted on
    * failure/cancel (and pre-work failures) so the events (and WHY it failed)
    * survive a reload, not just the in-memory stream.
@@ -421,7 +493,7 @@ export class ReviewRunExecutor {
         pr: pull.number,
         source: 'local',
       },
-      stats: { duration_ms: durationMs, tokens_in: 0, tokens_out: 0, findings: 0, grounding },
+      stats: { duration_ms: durationMs, tokens_in: 0, tokens_out: 0, cost_usd: null, findings: 0, grounding },
       prompt_assembly: { system: agent.systemPrompt, skills: null, memory: null, specs: null, user: '' },
       tool_calls: [],
       raw_output: '',

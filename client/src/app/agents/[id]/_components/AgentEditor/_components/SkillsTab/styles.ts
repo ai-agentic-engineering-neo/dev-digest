@@ -1,0 +1,52 @@
+import type { CSSProperties } from "react";
+
+/** Co-located styles for the agent editor's Skills tab. */
+export const s = {
+  wrap: { display: "flex", flexDirection: "column", gap: 10, maxWidth: 960 } satisfies CSSProperties,
+  header: { display: "flex", alignItems: "center", gap: 12 } satisfies CSSProperties,
+  h2: { fontSize: 18, fontWeight: 700 } satisfies CSSProperties,
+  filter: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    marginLeft: "auto",
+    padding: "7px 12px",
+    borderRadius: 7,
+    border: "1px solid var(--border)",
+    background: "var(--bg-surface)",
+    width: 240,
+  } satisfies CSSProperties,
+  filterIcon: { color: "var(--text-muted)" } satisfies CSSProperties,
+  filterInput: {
+    flex: 1,
+    fontSize: 13,
+    background: "transparent",
+    border: "none",
+    outline: "none",
+    color: "var(--text-primary)",
+  } satisfies CSSProperties,
+  hint: { fontSize: 13, color: "var(--text-secondary)", margin: "0 0 6px" } satisfies CSSProperties,
+  empty: { fontSize: 14, color: "var(--text-muted)", padding: "16px 0" } satisfies CSSProperties,
+  list: { listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 } satisfies CSSProperties,
+  row: (enabled: boolean, dragging: boolean): CSSProperties => ({
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    padding: "10px 14px",
+    borderRadius: 8,
+    border: "1px solid var(--border)",
+    background: enabled ? "var(--bg-elevated)" : "var(--bg-surface)",
+    opacity: dragging ? 0.5 : 1,
+  }),
+  grip: (on: boolean): CSSProperties => ({
+    color: "var(--text-muted)",
+    cursor: on ? "grab" : "default",
+    display: "inline-flex",
+    padding: 2,
+    border: "none",
+    background: "none",
+    opacity: on ? 1 : 0.3,
+  }),
+  name: { fontSize: 14, color: "var(--text-primary)" } satisfies CSSProperties,
+  spacer: { flex: 1 } satisfies CSSProperties,
+} as const;

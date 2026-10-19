@@ -42,6 +42,22 @@ describe("AgentCard (smoke)", () => {
     expect(screen.getByText("3 skills")).toBeInTheDocument();
   });
 
+  it("renders the stats footer: runs, accept rate and average cost", () => {
+    renderWithIntl(
+      <AgentCard ag={{ ...AGENT, model: "openai/gpt-4.1", stats: { runs: 142, accept_rate: 0.78, avg_cost_usd: 0.04 } }} />,
+    );
+    expect(screen.getByText("gpt-4.1")).toBeInTheDocument();
+    expect(screen.getByText("142 runs")).toBeInTheDocument();
+    expect(screen.getByText("78% accept")).toBeInTheDocument();
+    expect(screen.getByText("$0.04 avg")).toBeInTheDocument();
+  });
+
+  it("hides accept rate and cost when unknown", () => {
+    renderWithIntl(<AgentCard ag={{ ...AGENT, stats: { runs: 0, accept_rate: null, avg_cost_usd: null } }} />);
+    expect(screen.getByText("0 runs")).toBeInTheDocument();
+    expect(screen.queryByText(/accept/)).not.toBeInTheDocument();
+  });
+
   it("falls back to a translated placeholder when description is empty", () => {
     renderWithIntl(<AgentCard ag={{ ...AGENT, description: "" }} />);
     expect(screen.getByText("No description")).toBeInTheDocument();

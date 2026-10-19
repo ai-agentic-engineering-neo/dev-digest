@@ -7,69 +7,29 @@
     "searchPlaceholder": "Search skills…",
     "loadError": "Could not load skills.",
     "menu": {
-      "fromFile": "Import from file",
-      "fromUrl": "Import from URL",
       "community": "Search community skills…"
     },
     "empty": {
       "title": "No skills yet",
-      "body": "Import a skill from a file, a URL, or the community catalog.",
-      "cta": "Import from file"
+      "body": "A skill is a reusable block of review instructions. Create one, or import a SKILL.md / .zip, then link it to agents on their Skills tab.",
+      "cta": "Create skill"
     },
-    "selectPrompt": {
-      "title": "Select a skill",
-      "body": "Pick a skill on the left to preview its body."
-    }
+    "createSkill": "Create skill",
+    "importSkill": "Import .md / .zip",
+    "noMatch": "No skills match \"{query}\"."
   },
   "detail": {
-    "crumbSkill": "Skill",
-    "back": "← All skills",
     "loadError": "Could not load this skill.",
     "notFound": {
       "title": "Skill not found",
       "body": "It may have been deleted."
     }
   },
-  "drawer": {
-    "title": "Add a skill",
-    "subtitle": "Import from a file, a URL, or search vetted community skills",
-    "tabs": {
-      "file": "From file",
-      "url": "From URL",
-      "community": "Community"
-    },
-    "importFailed": "Import failed"
-  },
-  "file": {
-    "nameLabel": "Skill name",
-    "nameHint": "Optional — derived from the first heading if blank.",
-    "namePlaceholder": "pr-quality-rubric",
-    "bodyLabel": "Skill body (Markdown)",
-    "bodyHint": "Pasted content is wrapped as untrusted data — never executed as instructions.",
-    "bodyPlaceholder": "# Rule\nDescribe the rule…",
-    "importing": "Importing…",
-    "import": "Import skill",
-    "success": "Imported \"{name}\" (stored as untrusted data)."
-  },
-  "url": {
-    "label": "Skill URL",
-    "hint": "Fetched server-side, stored as untrusted, and left disabled until vetted.",
-    "placeholder": "https://example.com/skills/security.md",
-    "fetching": "Fetching…",
-    "import": "Import from URL",
-    "success": "Imported \"{name}\". Disabled until you vet + enable it."
-  },
   "community": {
-    "searchPlaceholder": "Search community skills (e.g. security)…",
-    "allLanguages": "All languages",
-    "loadError": "Could not load community skills",
-    "retry": "Retry",
-    "noMatch": {
-      "title": "No matching skills",
-      "body": "Try a different search term."
-    },
-    "importing": "Importing…",
-    "import": "Import"
+    "title": "Search community skills",
+    "subtitle": "Import vetted skills from public repos",
+    "mountTitle": "Community catalog",
+    "mountBody": "Searching vetted community skills ships in a later lesson. Until then, import a SKILL.md or a skill .zip via Add Skill → Import."
   },
   "listItem": {
     "needsVetting": "needs vetting",
@@ -84,18 +44,111 @@
       "manual": "Manual",
       "extracted": "Extracted",
       "community": "Community",
-      "imported_url": "Imported"
-    }
+      "imported_url": "Imported",
+      "imported": "Imported"
+    },
+    "enabledLabel": "Enable {name}",
+    "agents": "{count, plural, one {# agent} other {# agents}}",
+    "pull": "{pct}% pull",
+    "accept": "{pct}% accept"
   },
   "preview": {
-    "untrustedBadge": "untrusted source",
     "enabled": "Enabled",
-    "disabled": "Disabled",
-    "save": "Save",
-    "edit": "Edit",
-    "untrustedNotice": "This skill came from an untrusted source. Its body is stored as data (delimiter-wrapped) and must be vetted before it is enabled for an agent.",
-    "bodyLabel": "Skill body (Markdown)",
+    "version": "v{version}",
+    "delete": "Delete",
+    "deleteConfirm": "Delete skill \"{name}\"? It is unlinked from every agent.",
+    "importedNotice": "Imported skill: these are someone else's instructions that will go straight into your agent's prompt. Read the body before enabling it."
+  },
+  "editor": {
+    "createTitle": "Create skill",
+    "subtitle": "A skill is text-only configuration: it is inserted into the prompt of every agent it is linked to.",
+    "name": "Name",
+    "namePlaceholder": "uncovered-branches",
+    "description": "Description",
+    "descriptionPlaceholder": "Use when … Flag …",
+    "descriptionHint": "This is the skill's interface — the agent reads it to decide when the skill applies. Write it as a directive: \"Use when [condition]. Flag [what].\"",
+    "type": "Type",
+    "body": "Body (Markdown)",
+    "bodyPlaceholder": "# Rule\nWhat to check, how to judge severity, what to suggest…",
     "bodyHint": "Saving a changed body creates a new immutable version.",
-    "version": "v{version}"
+    "write": "Write",
+    "preview": "Preview",
+    "cancel": "Cancel",
+    "save": "Save skill",
+    "create": "Create skill",
+    "saved": "Saved \"{name}\" (v{version}).",
+    "created": "Created \"{name}\".",
+    "tabs": {
+      "config": "Config",
+      "preview": "Preview",
+      "evals": "Evals",
+      "stats": "Stats",
+      "versions": "Versions"
+    },
+    "mountBody": "Mount point for {owner}. Eval cases for this skill are created and run by the eval pipeline.",
+    "runOnEvals": "Run on evals",
+    "runOnEvalsHint": "Available with the L06 eval pipeline"
+  },
+  "import": {
+    "title": "Import skill",
+    "subtitle": "Upload a SKILL.md file or a skill .zip. Only the Markdown core is read; nothing in the archive is executed.",
+    "fileLabel": "Skill file",
+    "fileHint": ".md or .zip, up to 1 MB",
+    "choose": "Choose file…",
+    "parsing": "Reading…",
+    "trustTitle": "You are about to add someone else's instructions to your agents' prompts",
+    "trustBody": "A skill is not data — it is instructions the model follows. Read the whole body below, edit anything you don't agree with, and only then save. The skill is saved disabled; enable it after vetting.",
+    "corePath": "Core taken from {path}",
+    "ignoredTitle": "Not imported ({count})",
+    "reason": {
+      "executable": "executable — not processed",
+      "not-core": "not part of the skill core"
+    },
+    "warnings": "Warnings",
+    "back": "Choose another file",
+    "confirm": "Save as disabled skill",
+    "saved": "Imported \"{name}\" — disabled until you enable it.",
+    "tooLarge": "The file is larger than 1 MB."
+  },
+  "config": {
+    "title": "Configuration",
+    "body": "Skill body",
+    "unsaved": "unsaved",
+    "tokens": "{count} tokens",
+    "changeNote": "Change note",
+    "changeNoteHint": "Optional — becomes the title of v{version} on the Versions tab.",
+    "changeNotePlaceholder": "What changed? e.g. Added a Tests dimension"
+  },
+  "previewTab": {
+    "title": "Preview",
+    "subtitle": "Rendered as the reviewing agent receives it."
+  },
+  "versions": {
+    "title": "Version history",
+    "count": "{count, plural, one {# version} other {# versions}}",
+    "subtitle": "Every save snapshots the body so eval runs stay reproducible against the exact text they scored.",
+    "loadError": "Could not load the version history.",
+    "initial": "Initial version",
+    "lineSummary": "+{added} / −{removed} lines",
+    "current": "Current",
+    "diff": "Diff",
+    "restore": "Restore",
+    "restoredNote": "Restored v{version}",
+    "restored": "Restored v{version} as v{next}.",
+    "diffHead": "v{from} → v{to} (current)"
+  },
+  "stats": {
+    "loadError": "Could not load skill stats.",
+    "usedBy": "Used by",
+    "agentsSuffix": "{count, plural, one {agent} other {agents}}",
+    "pullFrequency": "Pull frequency",
+    "acceptRate": "Accept rate",
+    "findings30d": "Findings (30d)",
+    "agentsUsing": "Agents using this skill",
+    "byCategory": "Findings by category",
+    "noAgents": "No agent has this skill enabled yet — link it on an agent's Skills tab.",
+    "noFindings": "No findings from runs with this skill in the last 30 days.",
+    "open": "Open",
+    "footnote": "Pull frequency = share of the linked agents' completed runs whose prompt included this skill. Accept rate = accepted / (accepted + dismissed) findings of runs that included it."
   }
 }

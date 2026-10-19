@@ -9,6 +9,11 @@ in the DB). The canonical, reviewable copies live next to this file:
 - [`general-reviewer.md`](./general-reviewer.md)
 - [`security-reviewer.md`](./security-reviewer.md)
 - [`performance-reviewer.md`](./performance-reviewer.md)
+- [`test-quality-reviewer.md`](./test-quality-reviewer.md) — deliberately lean: its checklists are
+  linked skills (`docs/skills/`), so it reviews only plainly broken tests without them
+- [`api-contract-reviewer.md`](./api-contract-reviewer.md) — breaking request/response changes,
+  code that violates its declared schema, contract drift; repo-specific rules come as skills
+  (e.g. `api-contract-breaking-change`)
 
 > The DB is the source of truth at run time. These files are the human-readable
 > originals — when you change a prompt, edit the file here **and** push it to the
@@ -38,7 +43,7 @@ delimiter-wrapped (`prompt.ts:104-122`):
 ```
 <task line, e.g. "Review PR #7 '…'">
 ## PR description        (untrusted, author-controlled, truncated to 4000 chars)
-## Skills / rules        (linked skill bodies)
+## Skills / rules        (enabled linked skills, in the agent's order — trusted)
 ## Relevant memory       (curated memory items)
 ## Repo skeleton         (untrusted, repo-derived)
 ## Project context       (untrusted spec chunks)

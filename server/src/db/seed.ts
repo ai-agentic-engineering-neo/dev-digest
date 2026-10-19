@@ -6,7 +6,16 @@ import {
   GENERAL_REVIEWER_PROMPT,
   SECURITY_REVIEWER_PROMPT,
   PERFORMANCE_REVIEWER_PROMPT,
+  TEST_QUALITY_REVIEWER_PROMPT,
 } from './seed-prompts.js';
+import {
+  API_CONTRACT_BREAKING_CHANGE_SKILL,
+  CORNER_CASES_SKILL,
+  OVER_MOCKING_SKILL,
+  UNCOVERED_BRANCHES_SKILL,
+  type SeedSkill,
+} from './seed-skills.js';
+import { SEED_CONVENTIONS, SEED_CONVENTIONS_FILES_SAMPLED } from './seed-conventions.js';
 
 /** Default provider/model for the built-in reviewer agents. */
 const DEFAULT_PROVIDER = 'openrouter' as const;
@@ -18,10 +27,12 @@ const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
  *
  * Seeds: default workspace + system user + membership, default settings,
  * demo repo (acme/payments-api), PR #482 with files/commits, a sample review
- * with a few findings, and the three built-in agents (General + Security +
- * Performance), all on the default openrouter/deepseek-v4-flash provider+model.
+ * with a few findings, and the four built-in agents (General + Security +
+ * Performance + Test Quality), all on the default openrouter/deepseek-v4-flash
+ * provider+model. L02: built-in skills linked to Test Quality (3) and General (1),
+ * and one finished conventions extraction (3 candidates) for the demo repo.
  *
- * Course lessons populate the other tables (skills, conventions, memory, eval,
+ * Course lessons populate the other tables (memory, eval,
  * …) once their features are built — they start empty here.
  */
 
@@ -211,13 +222,74 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       version: 1,
       createdBy: userId,
     },
+    {
+      workspaceId,
+      name: 'Test Quality Reviewer',
+      description:
+        'Checks the tests in a PR: uncovered branches, missed corner cases, over-mocking, flakiness.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: TEST_QUALITY_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
   ];
+  const agentIds = new Map<string, string>();
   for (const a of seedAgents) {
     const [existing] = await db
       .select()
       .from(t.agents)
       .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, a.name)));
-    if (!existing) await db.insert(t.agents).values(a);
+    const row = existing ?? (await db.insert(t.agents).values(a).returning())[0]!;
+    agentIds.set(a.name, row.id);
+  }
+
+  // ---- L02 built-in skills + agent links (idempotent by name / link PK) ----
+  // Links are only created the first time a skill is seeded, so a user who
+  // later unlinks or disables one doesn't get it back on re-seed.
+  const seedLinks: Array<{ agent: string; skills: SeedSkill[] }> = [
+    {
+      agent: 'Test Quality Reviewer',
+      skills: [UNCOVERED_BRANCHES_SKILL, CORNER_CASES_SKILL, OVER_MOCKING_SKILL],
+    },
+    { agent: 'General Reviewer', skills: [API_CONTRACT_BREAKING_CHANGE_SKILL] },
+  ];
+  for (const { agent, skills } of seedLinks) {
+    const agentId = agentIds.get(agent)!;
+    for (const [order, sk] of skills.entries()) {
+      const [existing] = await db
+        .select({ id: t.skills.id })
+        .from(t.skills)
+        .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.name, sk.name)));
+      if (existing) continue;
+      const [skill] = await db
+        .insert(t.skills)
+        .values({ workspaceId, ...sk, source: 'manual', enabled: true, version: 1 })
+        .returning();
+      await db.insert(t.skillVersions).values({ skillId: skill!.id, version: 1, body: sk.body });
+      await db
+        .insert(t.agentSkills)
+        .values({ agentId, skillId: skill!.id, order, enabled: true })
+        .onConflictDoNothing();
+    }
+  }
+
+  // ---- L02 demo conventions extraction (only when the repo has none yet) ----
+  const [scan] = await db
+    .select({ id: t.conventionScans.id })
+    .from(t.conventionScans)
+    .where(eq(t.conventionScans.repoId, repoId))
+    .limit(1);
+  if (!scan) {
+    await db.insert(t.conventionScans).values({
+      workspaceId,
+      repoId,
+      status: 'done',
+      filesSampled: SEED_CONVENTIONS_FILES_SAMPLED,
+      finishedAt: new Date(),
+    });
+    await db.insert(t.conventions).values(SEED_CONVENTIONS.map((c) => ({ workspaceId, repoId, ...c })));
   }
 
   return { workspaceId, userId };

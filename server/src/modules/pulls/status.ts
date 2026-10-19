@@ -53,3 +53,28 @@ export function deriveReviewStatus(args: {
   if (updatedAt && now - updatedAt.getTime() > staleMs) return 'stale';
   return 'reviewed';
 }
+
+/**
+ * Cost of each PR's LATEST review = sum of non-null `costUsd` over the runs of
+ * its newest review batch (one Run Review click → one `reviewBatchId`). Rows
+ * MUST be newest-first. Legacy runs without a batch id count as a batch of one.
+ * A batch with no known cost (all failed / unpriced) maps to null → UI "—".
+ */
+export function latestReviewCostByPr(
+  rows: { prId: string | null; reviewBatchId: string | null; costUsd: number | null }[],
+): Map<string, number | null> {
+  const latestBatch = new Map<string, string | null>();
+  const cost = new Map<string, number | null>();
+  for (const r of rows) {
+    if (!r.prId) continue;
+    if (!latestBatch.has(r.prId)) {
+      latestBatch.set(r.prId, r.reviewBatchId);
+      cost.set(r.prId, r.costUsd);
+      continue;
+    }
+    const batch = latestBatch.get(r.prId);
+    if (batch == null || r.reviewBatchId !== batch || r.costUsd == null) continue;
+    cost.set(r.prId, (cost.get(r.prId) ?? 0) + r.costUsd);
+  }
+  return cost;
+}

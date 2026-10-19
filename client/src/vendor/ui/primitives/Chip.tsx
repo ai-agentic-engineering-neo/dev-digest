@@ -8,6 +8,7 @@ export function Chip({
   icon,
   count,
   color,
+  disabled,
 }: {
   children?: React.ReactNode;
   active?: boolean;
@@ -15,12 +16,16 @@ export function Chip({
   icon?: IconName;
   count?: number;
   color?: string;
+  disabled?: boolean;
 }) {
   const I = icon ? Icon[icon] : null;
   const [h, setH] = React.useState(false);
   return (
     <button
+      type="button"
       onClick={onClick}
+      disabled={disabled}
+      aria-pressed={active}
       onMouseEnter={() => setH(true)}
       onMouseLeave={() => setH(false)}
       style={{
@@ -32,9 +37,11 @@ export function Chip({
         fontSize: 13,
         fontWeight: 500,
         transition: "all .12s",
+        cursor: disabled ? "default" : undefined,
+        opacity: disabled ? 0.5 : 1,
         border: "1px solid " + (active ? "var(--accent)" : "var(--border)"),
-        background: active ? "var(--accent-bg)" : h ? "var(--bg-hover)" : "transparent",
-        color: active ? "var(--accent-text)" : h ? "var(--text-primary)" : "var(--text-secondary)",
+        background: active ? "var(--accent-bg)" : h && !disabled ? "var(--bg-hover)" : "transparent",
+        color: active ? "var(--accent-text)" : h && !disabled ? "var(--text-primary)" : "var(--text-secondary)",
       }}
     >
       {I && <I size={13} style={color ? { color } : undefined} />}

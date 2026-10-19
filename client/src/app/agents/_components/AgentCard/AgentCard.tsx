@@ -1,13 +1,13 @@
-/* AgentCard — model chip, skills count, enabled toggle. Stats are an A5 mount;
-   we render the provider/model + skill count here. */
+/* AgentCard — name + enabled toggle, description, model chip + skill count,
+   and a stats footer (runs · accept rate · avg cost). */
 "use client";
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { Icon, Badge, Toggle } from "@devdigest/ui";
+import { Icon, Toggle } from "@devdigest/ui";
 import type { Agent } from "@devdigest/shared";
-import { useDeleteAgent } from "../../../../lib/hooks/agents";
-import { modelColor } from "./helpers";
+import { formatCost } from "@/lib/format-cost";
+import { acceptColor, modelColor, shortModel } from "./helpers";
 import { s } from "./styles";
 
 export function AgentCard({
@@ -24,51 +24,57 @@ export function AgentCard({
   onToggle?: (enabled: boolean) => void;
 }) {
   const t = useTranslations("agents");
-  const del = useDeleteAgent();
   const color = modelColor(ag.model);
+  const stats = ag.stats;
   return (
-    <div onClick={onClick} style={s.card(!!active, ag.enabled)}>
+    <div
+      role="button"
+      tabIndex={0}
+      aria-current={active ? "page" : undefined}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (onClick && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      style={s.card(!!active, ag.enabled)}
+    >
       <div style={s.headerRow}>
         <div style={s.iconBox}>
           <Icon.Cpu size={15} />
         </div>
         <span style={s.name}>{ag.name}</span>
         {onToggle && (
-          <div onClick={(e) => e.stopPropagation()}>
+          <label onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+            <span style={s.srOnly}>{t("card.enabledLabel", { name: ag.name })}</span>
             <Toggle on={ag.enabled} onChange={onToggle} size={14} />
-          </div>
+          </label>
         )}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            if (window.confirm(`Delete agent "${ag.name}"? This cannot be undone.`)) del.mutate(ag.id);
-          }}
-          disabled={del.isPending}
-          title="Delete agent"
-          aria-label="Delete agent"
-          style={{
-            background: "none",
-            border: "none",
-            cursor: del.isPending ? "not-allowed" : "pointer",
-            color: "var(--text-muted)",
-            display: "inline-flex",
-            padding: 4,
-          }}
-        >
-          <Icon.Trash size={14} style={del.isPending ? { animation: "ddspin 1s linear infinite" } : undefined} />
-        </button>
       </div>
       <div style={s.description}>{ag.description || t("card.noDescription")}</div>
       <div style={s.metaRow}>
-        <span className="mono" style={s.modelChip(color)}>
-          {ag.model}
+        <span className="mono" style={s.modelChip(color)} title={ag.model}>
+          {shortModel(ag.model)}
         </span>
         {skillCount != null && (
-          <Badge color="var(--text-secondary)" icon="Sparkles">
+          <span style={s.skillChip}>
+            <Icon.Sparkles size={11} />
             {t("card.skillCount", { count: skillCount })}
-          </Badge>
+          </span>
         )}
       </div>
+      {stats && (
+        <div className="mono" style={s.footer}>
+          <span>{t("card.runs", { count: stats.runs })}</span>
+          {stats.accept_rate != null && (
+            <span style={{ color: acceptColor(stats.accept_rate) }}>
+              {t("card.accept", { pct: Math.round(stats.accept_rate * 100) })}
+            </span>
+          )}
+          {stats.avg_cost_usd != null && <span>{t("card.avgCost", { cost: formatCost(stats.avg_cost_usd) })}</span>}
+        </div>
+      )}
     </div>
   );
 }

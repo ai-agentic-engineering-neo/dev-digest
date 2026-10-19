@@ -6,7 +6,7 @@
  * + age, so it gets unit coverage independent of the route's queries.
  */
 import { describe, it, expect } from 'vitest';
-import { deriveReviewStatus, rollupSeverities, STALE_DAYS } from '../src/modules/pulls/status.js';
+import { deriveReviewStatus, latestReviewCostByPr, rollupSeverities, STALE_DAYS } from '../src/modules/pulls/status.js';
 
 const DAY = 86_400_000;
 const now = Date.UTC(2026, 5, 11);
@@ -64,5 +64,41 @@ describe('rollupSeverities', () => {
 
   it('is all-zero for no findings', () => {
     expect(rollupSeverities([])).toEqual({ critical: 0, warning: 0, suggestion: 0 });
+  });
+});
+
+describe('latestReviewCostByPr', () => {
+  it('sums only the newest review batch per PR (rows newest-first)', () => {
+    const cost = latestReviewCostByPr([
+      { prId: 'p1', reviewBatchId: 'b2', costUsd: 0.0013 },
+      { prId: 'p1', reviewBatchId: 'b2', costUsd: 0.0014 },
+      { prId: 'p1', reviewBatchId: 'b1', costUsd: 0.5 },
+    ]);
+    expect(cost.get('p1')).toBeCloseTo(0.0027);
+  });
+
+  it('ignores null-cost (failed) runs inside the batch', () => {
+    const cost = latestReviewCostByPr([
+      { prId: 'p1', reviewBatchId: 'b1', costUsd: null },
+      { prId: 'p1', reviewBatchId: 'b1', costUsd: 0.002 },
+    ]);
+    expect(cost.get('p1')).toBe(0.002);
+  });
+
+  it('null when the latest batch has no known cost; absent when the PR has no runs', () => {
+    const cost = latestReviewCostByPr([
+      { prId: 'p1', reviewBatchId: 'b2', costUsd: null },
+      { prId: 'p1', reviewBatchId: 'b1', costUsd: 0.01 },
+    ]);
+    expect(cost.get('p1')).toBeNull();
+    expect(cost.has('p2')).toBe(false);
+  });
+
+  it('legacy runs without a batch id count as a batch of one', () => {
+    const cost = latestReviewCostByPr([
+      { prId: 'p1', reviewBatchId: null, costUsd: 0.003 },
+      { prId: 'p1', reviewBatchId: null, costUsd: 0.004 },
+    ]);
+    expect(cost.get('p1')).toBe(0.003);
   });
 });

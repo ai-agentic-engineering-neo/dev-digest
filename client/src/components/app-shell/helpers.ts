@@ -38,3 +38,13 @@ export function activeKeyFor(pathname: string): string {
   if (pathname.startsWith("/ci-runs")) return "ci-runs";
   return "";
 }
+
+/**
+ * Where to land after switching the active repo: stay on Conventions when the
+ * user is on it (it is repo-scoped too), otherwise the new repo's PR list.
+ */
+export function repoSwitchHref(pathname: string, repoId: string): string {
+  return /^\/repos\/[^/]+\/conventions(\/|$)/.test(pathname)
+    ? `/repos/${repoId}/conventions`
+    : `/repos/${repoId}/pulls`;
+}

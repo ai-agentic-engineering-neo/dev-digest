@@ -11,3 +11,6 @@ export const CI_FAIL_ON_VALUES: readonly CiFailOn[] = ["never", "critical", "war
 
 /** Output-schema options (only one supported in MVP). */
 export const OUTPUT_SCHEMA_VALUE = "Standard findings JSON";
+
+/** Soft budget shown next to the system prompt ("412 / 8,000 tokens"). */
+export const SYSTEM_PROMPT_TOKEN_BUDGET = 8000;

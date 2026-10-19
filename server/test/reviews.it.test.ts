@@ -209,6 +209,13 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(run!.findingsCount).toBe(1);
     expect(run!.grounding).toBe('1/2 passed');
 
+    // Run Cost Badge: the outcome's cost is persisted and surfaced on every read path.
+    expect(run!.costUsd).toBeGreaterThan(0);
+    expect(run!.reviewBatchId).not.toBeNull();
+    expect(trace.stats.cost_usd).toBe(run!.costUsd);
+    const prRuns = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(prRuns[0].cost_usd).toBe(run!.costUsd);
+
     await app.close();
   });
 
@@ -253,12 +260,18 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
       await app.inject({ method: 'POST', url: `/findings/${findingId}/accept` })
     ).json();
     expect(accepted.finding.accepted_at).not.toBeNull();
+    const acceptRate = async () =>
+      (await app.inject({ method: 'GET', url: '/agents' }))
+        .json()
+        .find((a: { id: string }) => a.id === agent.id).stats.accept_rate;
+    expect(await acceptRate()).toBe(1);
 
     const dismissed = (
       await app.inject({ method: 'POST', url: `/findings/${findingId}/dismiss` })
     ).json();
     expect(dismissed.finding.dismissed_at).not.toBeNull();
     expect(dismissed.finding.accepted_at).toBeNull();
+    expect(await acceptRate()).toBe(0);
 
     await app.close();
   });

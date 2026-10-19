@@ -1,0 +1,18 @@
+{
+  "name": "Skills page lists seeded skills; agent Skills tab shows linked skills",
+  "description": "L02. Loads /skills and confirms a seeded skill card renders, then opens the Test Quality Reviewer from /agents and switches to its Skills tab, which lists the linked skills with the enabled counter. Seeded data only — no LLM.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/skills"], "label": "load the skills page" },
+    { "cmd": ["wait", "--url", "/skills"], "label": "skills route reached" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "skills fetch settles" },
+    { "cmd": ["wait", "--text", "uncovered-branches"], "label": "seeded skill card is visible" },
+    { "cmd": ["wait", "--text", "api-contract-breaking-change"], "label": "General Reviewer's skill is visible" },
+    { "cmd": ["open", "{BASE}/agents"], "label": "load the agents page" },
+    { "cmd": ["wait", "--text", "Test Quality Reviewer"], "label": "seeded Test Quality agent is visible" },
+    { "cmd": ["find", "text", "Test Quality Reviewer", "click"], "label": "open the Test Quality agent" },
+    { "cmd": ["wait", "--url", "/agents/"], "label": "agent editor reached" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Skills"], "label": "switch to the Skills tab" },
+    { "cmd": ["wait", "--url", "tab=skills"], "label": "skills tab in the URL" },
+    { "cmd": ["wait", "--text", "3 of 4 enabled"], "label": "linked skills counter (3 of 4 seeded skills)" }
+  ]
+}

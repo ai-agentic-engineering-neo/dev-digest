@@ -71,8 +71,10 @@ flowchart TB
   subgraph Review["Review & runs"]
     reviews["reviews<br/>/pulls/:id/review · /reviews · /findings/:id/(accept|dismiss)<br/>/runs/:id/(events|trace)"]
   end
-  subgraph Agents["Agents"]
-    agents["agents<br/>/agents · /agents/:id"]
+  subgraph Agents["Agents & skills"]
+    agents["agents<br/>/agents · /agents/:id · /agents/:id/skills"]
+    skills["skills (L02)<br/>/skills · /skills/:id(/versions|/stats) · /skills/import/preview"]
+    conventions["conventions (L02)<br/>/repos/:id/conventions(/extract|/bulk) · /conventions/:id"]
   end
   subgraph Intel["Repo intelligence"]
     repoIntel["repo-intel<br/>/repos/:id/index-state · /resync"]
@@ -106,7 +108,8 @@ through `SecretsProvider` (`~/.devdigest/secrets.json`, mode `0600`, with
 
 Migrations are **not** applied on boot — run `pnpm db:migrate` (pgvector is
 enabled by migration `0000`). `pnpm db:seed` is idempotent demo data
-(`acme/payments-api`, PR #482, the two built-in agents).
+(`acme/payments-api`, PR #482, the four built-in agents and the L02 skills
+linked to Test Quality + General).
 
 ## Review context (non-obvious)
 
@@ -128,6 +131,26 @@ What the reviewer actually sends to the model is assembled in
   demo / test / not for production / do not flag" never descope the review — real
   defects are reported at full severity regardless. We deliberately do **not**
   keyword-scan untrusted text (a denylist only catches one phrasing).
+- **Skills (L02) are trusted instructions.** `run-executor` loads the agent's
+  links that are enabled AND whose skill is enabled (`AgentsRepository.enabledSkillsForRun`),
+  in the agent's order, renders each with `formatSkillForPrompt`
+  (`modules/_shared/skill-prompt.ts`) and passes them as `skills` →
+  `## Skills / rules`. They are NOT wrapped in `<untrusted>` — a skill must be
+  followed — so the trust gate is the import: preview → explicit confirm, imported
+  skills start disabled, and archive code is listed but never read or run
+  (`modules/skills/domain.ts`). The trace records `skills_detail` and
+  per-block `block_tokens` (cl100k, approximate), and the Live Log gets one
+  `Skills: N block(s), +T tokens — …` line.
+- **Conventions (L02) are evidence-gated.** `modules/conventions` samples by
+  code only (root tooling configs from `CONFIG_FILES` + the top 12 files of
+  `repoIntel.getConventionSamples`), makes ONE structured call
+  (`ConventionExtraction`, model from Settings → Feature Models → Conventions)
+  with every file in `<untrusted>`, and keeps a candidate only if its verbatim
+  `quote` is in the cited file at `line ± 3` (`domain.verifyEvidence`; paths
+  that escape the clone are dropped, the snippet is cut from the real file).
+  Extraction is fire-and-forget; `convention_scans` holds its status, and a
+  re-scan replaces every candidate of the repo. Accepted candidates become one
+  skill through `POST /skills` with `source: 'extracted'` + `evidence_files`.
 - **Grounding is mandatory.** Every finding must cite a line that exists in the
   diff or it is dropped (`groundFindings`), and the score is recomputed from the
   surviving findings — the model's self-reported score is ignored.

@@ -2,15 +2,24 @@
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { FormField, TextInput, SelectInput, SearchableSelect, Textarea, Toggle, Button } from "@devdigest/ui";
+import { FormField, TextInput, SelectInput, SearchableSelect, Textarea, Toggle, Button, Icon } from "@devdigest/ui";
 import type { Agent, CiFailOn, Provider, ReviewStrategy } from "@devdigest/shared";
-import { useUpdateAgent, useProviderModels } from "../../../../../../../lib/hooks/agents";
+import { useUpdateAgent, useProviderModels, useDeleteAgent } from "../../../../../../../lib/hooks/agents";
+import { useRouter } from "next/navigation";
 import { useToast } from "../../../../../../../lib/toast";
 import { toModelOptions } from "../../../../../../../lib/model-label";
-import { CI_FAIL_ON_VALUES, OUTPUT_SCHEMA_VALUE, PROVIDER_OPTIONS, STRATEGY_VALUES } from "./constants";
+import {
+  CI_FAIL_ON_VALUES,
+  OUTPUT_SCHEMA_VALUE,
+  PROVIDER_OPTIONS,
+  STRATEGY_VALUES,
+  SYSTEM_PROMPT_TOKEN_BUDGET,
+} from "./constants";
+import { approxTokens } from "./helpers";
 import { s } from "./styles";
 
-/** Config tab — name/description/provider/model/system-prompt + enabled toggle. */
+/** Config tab — name/description/model/system prompt/output schema (mockup order),
+    plus an "Advanced" section: provider, review strategy, CI gate, repo intel, delete. */
 export function ConfigTab({ agent }: { agent: Agent }) {
   const t = useTranslations("agents");
   const toast = useToast();
@@ -25,8 +34,12 @@ export function ConfigTab({ agent }: { agent: Agent }) {
   const [repoIntel, setRepoIntel] = React.useState(agent.repo_intel);
   const [enabled, setEnabled] = React.useState(agent.enabled);
 
-  // Reset local form when switching agents.
-  React.useEffect(() => {
+  const [advanced, setAdvanced] = React.useState(false);
+  const router = useRouter();
+  const del = useDeleteAgent();
+
+  // Reset the local form to the saved agent (on agent switch and on Cancel).
+  const reset = () => {
     setName(agent.name);
     setDescription(agent.description);
     setProvider(agent.provider);
@@ -36,7 +49,14 @@ export function ConfigTab({ agent }: { agent: Agent }) {
     setCiFailOn(agent.ci_fail_on);
     setRepoIntel(agent.repo_intel);
     setEnabled(agent.enabled);
-  }, [agent.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  };
+  React.useEffect(reset, [agent.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const remove = () => {
+    if (!window.confirm(t("config.deleteConfirm", { name: agent.name }))) return;
+    del.mutate(agent.id, { onSuccess: () => router.push("/agents") });
+  };
+  const promptTokens = approxTokens(systemPrompt);
 
   const { data: models } = useProviderModels(provider);
   // Show the price (USD per 1M in/out tokens) in the label when the provider
@@ -85,17 +105,10 @@ export function ConfigTab({ agent }: { agent: Agent }) {
         </label>
       </div>
       <FormField label={t("config.name")} required>
-        <TextInput value={name} onChange={setName} />
+        <TextInput value={name} onChange={setName} aria-label={t("config.name")} />
       </FormField>
       <FormField label={t("config.description")}>
-        <TextInput value={description} onChange={setDescription} />
-      </FormField>
-      <FormField label={t("config.provider")}>
-        <SelectInput
-          value={provider}
-          onChange={(v) => setProvider(v as Provider)}
-          options={[...PROVIDER_OPTIONS]}
-        />
+        <TextInput value={description} onChange={setDescription} aria-label={t("config.description")} />
       </FormField>
       <FormField
         label={t("config.model")}
@@ -108,34 +121,68 @@ export function ConfigTab({ agent }: { agent: Agent }) {
           placeholder={t("config.modelSearch")}
         />
       </FormField>
-      <FormField label={t("config.strategy")} hint={t("config.strategyHint")}>
-        <SelectInput
-          value={strategy}
-          onChange={(v) => setStrategy(v as ReviewStrategy)}
-          options={strategyOptions}
-        />
-      </FormField>
-      <FormField label={t("config.ciFailOn")} hint={t("config.ciFailOnHint")}>
-        <SelectInput
-          value={ciFailOn}
-          onChange={(v) => setCiFailOn(v as CiFailOn)}
-          options={ciFailOnOptions}
-        />
-      </FormField>
-      <FormField label={t("config.repoIntel")} hint={t("config.repoIntelHint")}>
-        <label style={s.enabledLabel}>
-          <Toggle on={repoIntel} onChange={setRepoIntel} size={16} />
-        </label>
-      </FormField>
-      <FormField label={t("config.systemPrompt")} hint={t("config.systemPromptHint")}>
-        <Textarea value={systemPrompt} onChange={setSystemPrompt} rows={8} mono />
+      <FormField
+        label={t("config.systemPrompt")}
+        hint={t("config.systemPromptHint")}
+        right={
+          <span className="mono" style={s.tokens(promptTokens > SYSTEM_PROMPT_TOKEN_BUDGET)}>
+            {t("config.promptTokens", {
+              count: promptTokens.toLocaleString("en-US"),
+              budget: SYSTEM_PROMPT_TOKEN_BUDGET.toLocaleString("en-US"),
+            })}
+          </span>
+        }
+      >
+        <Textarea value={systemPrompt} onChange={setSystemPrompt} rows={10} mono />
       </FormField>
       <FormField label={t("config.outputSchema")}>
         <SelectInput value={OUTPUT_SCHEMA_VALUE} options={[OUTPUT_SCHEMA_VALUE]} />
       </FormField>
+
+      <button type="button" aria-expanded={advanced} onClick={() => setAdvanced((v) => !v)} style={s.advancedToggle}>
+        {advanced ? <Icon.ChevronDown size={14} /> : <Icon.ChevronRight size={14} />}
+        {t("config.advanced")}
+      </button>
+      {advanced && (
+        <div style={s.advanced}>
+          <FormField label={t("config.provider")}>
+            <SelectInput
+              value={provider}
+              onChange={(v) => setProvider(v as Provider)}
+              options={[...PROVIDER_OPTIONS]}
+            />
+          </FormField>
+          <FormField label={t("config.strategy")} hint={t("config.strategyHint")}>
+            <SelectInput
+              value={strategy}
+              onChange={(v) => setStrategy(v as ReviewStrategy)}
+              options={strategyOptions}
+            />
+          </FormField>
+          <FormField label={t("config.ciFailOn")} hint={t("config.ciFailOnHint")}>
+            <SelectInput
+              value={ciFailOn}
+              onChange={(v) => setCiFailOn(v as CiFailOn)}
+              options={ciFailOnOptions}
+            />
+          </FormField>
+          <FormField label={t("config.repoIntel")} hint={t("config.repoIntelHint")}>
+            <Toggle on={repoIntel} onChange={setRepoIntel} size={16} />
+          </FormField>
+          <FormField label={t("config.dangerZone")} hint={t("config.deleteHint")}>
+            <Button kind="danger" size="sm" icon="Trash" onClick={remove} loading={del.isPending}>
+              {t("config.delete")}
+            </Button>
+          </FormField>
+        </div>
+      )}
+
       <div style={s.actions}>
         <Button kind="primary" icon="Check" onClick={save} disabled={update.isPending}>
           {update.isPending ? t("config.saving") : t("config.save")}
+        </Button>
+        <Button kind="secondary" onClick={reset} disabled={update.isPending}>
+          {t("config.cancel")}
         </Button>
         {update.isSuccess && (
           <span style={s.savedNote}>{t("config.saved", { version: update.data?.version })}</span>

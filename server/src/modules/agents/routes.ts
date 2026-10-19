@@ -1,10 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
+import { AgentSkillLink, AgentSkillsReplaceBody, CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
-import { NotFoundError } from '../../platform/errors.js';
+import { NotFoundError, ValidationError } from '../../platform/errors.js';
 import { AgentsService } from './service.js';
 
 /** `/providers/:id` addresses a provider by name, not a uuid. */
@@ -26,6 +26,7 @@ const VersionParams = z.object({
  *   GET    /agents/:id/versions/:version → one config snapshot
  *   GET    /agents/:id/skills       → linked skills (ordered)
  *   POST   /agents/:id/skills       → set/reorder linked skills OR link one
+ *   PUT    /agents/:id/skills       → replace ordered links with enabled flags (L02)
  *   GET    /agents/:id/models       → dynamic model list for the agent's provider
  *   GET    /providers/:id/models    → dynamic model list for a provider (editor)
  */
@@ -160,6 +161,24 @@ export default async function agentsRoutes(appBase: FastifyInstance) {
           ? await service.setSkills(workspaceId, req.params.id, body.skill_ids)
           : await service.linkSkill(workspaceId, req.params.id, body.skill_id!, body.order);
       if (!links) throw new NotFoundError('Agent not found');
+      return links;
+    },
+  );
+
+  app.put(
+    '/agents/:id/skills',
+    {
+      schema: {
+        params: IdParams,
+        body: AgentSkillsReplaceBody,
+        response: { 200: z.array(AgentSkillLink) },
+      },
+    },
+    async (req) => {
+      const { workspaceId } = await getContext(app.container, req);
+      const links = await service.replaceSkills(workspaceId, req.params.id, req.body.items);
+      if (links === undefined) throw new NotFoundError('Agent not found');
+      if (links === false) throw new ValidationError('Unknown or duplicate skill id');
       return links;
     },
   );

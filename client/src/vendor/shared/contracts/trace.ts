@@ -48,6 +48,20 @@ export const PromptAssembly = z.object({
   /** PR author's description/body (truncated); null when absent. */
   pr_description: z.string().nullish(),
   user: z.string(),
+  /** L02 — tokens per assembled block (system, skills, …, user); absent on
+      legacy traces. Counted server-side with cl100k (approximate per model). */
+  block_tokens: z.record(z.string(), z.number().int()).nullish(),
+  /** L02 — the skills that went into the prompt, in prompt order. */
+  skills_detail: z
+    .array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        version: z.number().int(),
+        tokens: z.number().int(),
+      }),
+    )
+    .nullish(),
 });
 export type PromptAssembly = z.infer<typeof PromptAssembly>;
 
@@ -61,6 +75,8 @@ export const RunStats = z.object({
   duration_ms: z.number().int(),
   tokens_in: z.number().int(),
   tokens_out: z.number().int(),
+  /** USD cost of the run; null when unknown (failed run, unpriced model, legacy trace). */
+  cost_usd: z.number().nullable(),
   findings: z.number().int(),
   grounding: z.string(),
 });
@@ -101,6 +117,8 @@ export const RunSummary = z.object({
   duration_ms: z.number().int().nullable(),
   tokens_in: z.number().int().nullable(),
   tokens_out: z.number().int().nullable(),
+  /** USD cost of the run; null when unknown (failed run, unpriced model, legacy row). */
+  cost_usd: z.number().nullable(),
   findings_count: z.number().int().nullable(),
   grounding: z.string().nullable(),
   ran_at: z.string().nullable(),

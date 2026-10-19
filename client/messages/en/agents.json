@@ -1,7 +1,11 @@
 {
   "card": {
     "noDescription": "No description",
-    "skillCount": "{count} skills"
+    "skillCount": "{count} skills",
+    "enabledLabel": "Enable {name}",
+    "runs": "{count} runs",
+    "accept": "{pct}% accept",
+    "avgCost": "{cost} avg"
   },
   "list": {
     "breadcrumbLab": "Skills Lab",
@@ -14,7 +18,10 @@
     "loadError": "Could not load agents.",
     "emptyTitle": "No agents yet",
     "emptyBody": "An agent is a configured reviewer — a model, a prompt, and the skills it uses. Create one to start reviewing.",
-    "emptyCta": "Create your first agent"
+    "emptyCta": "Create your first agent",
+    "startFromTemplate": "Start from template",
+    "templateName": "{template} Reviewer",
+    "noMatch": "No agents match the search."
   },
   "create": {
     "title": "Create agent",
@@ -42,14 +49,15 @@
     "add": "Add",
     "createFromScratch": "Create from scratch",
     "disabled": "disabled",
-    "runOnPr": "Run on a PR…",
+    "runOnPr": "Run on a pull request…",
     "tabs": {
       "config": "Config",
       "skills": "Skills",
       "evals": "Evals",
       "stats": "Stats",
       "ci": "CI"
-    }
+    },
+    "runReview": "Run Review"
   },
   "config": {
     "title": "Configuration",
@@ -62,7 +70,7 @@
     "modelEmptyHint": "No models loaded — set the {provider} API key in Settings → API Keys.",
     "modelSearch": "Search models…",
     "systemPrompt": "System prompt",
-    "systemPromptHint": "Loaded as the static system message. Enabled skills are appended below it.",
+    "systemPromptHint": "Loaded as the static system message. Skills are appended below it.",
     "outputSchema": "Output schema",
     "outputSchemaOption": "Standard findings JSON",
     "strategy": "Review strategy",
@@ -85,13 +93,26 @@
     "save": "Save agent",
     "saving": "Saving…",
     "saved": "Saved (v{version})",
-    "savedToast": "Agent saved (v{version})"
+    "savedToast": "Agent saved (v{version})",
+    "promptTokens": "~{count} / {budget} tokens",
+    "advanced": "Advanced",
+    "cancel": "Cancel",
+    "dangerZone": "Delete agent",
+    "deleteHint": "Removes the agent, its versions and skill links. Past runs keep their history.",
+    "delete": "Delete agent",
+    "deleteConfirm": "Delete agent \"{name}\"? This cannot be undone."
   },
   "skills": {
     "title": "Skills",
     "enabledCount": "{linked} of {total} enabled",
     "filterPlaceholder": "Filter skills…",
-    "orderHint": "Order matters — earlier skills appear earlier in the assembled prompt. Toggle to attach."
+    "orderHint": "Order matters — earlier skills appear earlier in the assembled prompt. Drag to reorder.",
+    "empty": "No skills yet — create or import one on the Skills page.",
+    "noMatch": "No skills match the filter.",
+    "drag": "Reorder {name} — drag, or focus and use the arrow keys",
+    "globallyDisabled": "disabled on Skills page",
+    "loadError": "Could not load skills.",
+    "saveError": "Could not save skill links: {message}"
   },
   "mount": {
     "body": "Mount point for {owner}. The Agent Editor shell + tab routing are wired by A2 — {owner} renders this tab."

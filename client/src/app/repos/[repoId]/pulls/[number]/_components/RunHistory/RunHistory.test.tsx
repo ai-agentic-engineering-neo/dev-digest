@@ -25,6 +25,7 @@ function run(o: Partial<RunSummary>): RunSummary {
     duration_ms: 1000,
     tokens_in: 100,
     tokens_out: 50,
+    cost_usd: null,
     findings_count: 0,
     grounding: "0/0 passed",
     ran_at: "2026-06-11T18:44:34.000Z",
@@ -66,6 +67,17 @@ describe("RunHistory — outcome badge", () => {
   it("a failed run reads 'error'", () => {
     renderRuns([run({ status: "failed", error: "boom", score: null, blockers: null })]);
     expect(screen.getByText("error")).toBeInTheDocument();
+  });
+
+  it("a settled run shows its tokens · cost next to the run time", () => {
+    renderRuns([run({ tokens_in: 8000, tokens_out: 1119, cost_usd: 0.0013 })]);
+    expect(screen.getByText("9 119 tok · $0.0013")).toBeInTheDocument();
+  });
+
+  it("a failed run without usage shows no cost badge (and never $0.00)", () => {
+    renderRuns([run({ status: "failed", error: "429 quota", tokens_in: 0, tokens_out: 0, cost_usd: null })]);
+    expect(screen.queryByText(/tok/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\$0\.00/)).not.toBeInTheDocument();
   });
 
   it("a running run reads 'running'", () => {

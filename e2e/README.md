@@ -97,6 +97,14 @@ a CI artifact by `.github/workflows/e2e-web.yml`).
 | `02-repo-pulls-detail` | PR list → open PR #482 → review detail route |
 | `03-agents` | agents list renders the seeded reviewer agents |
 | `04-pr-findings` | PR #482 → Agent runs tab → seeded run verdict + findings; expand → FindingCard |
-| `05-pr-diff` | PR #482 → Files changed tab → seeded file renders in the diff viewer |
+| `05-pr-diff` | PR #482 → Files changed tab → Smart Diff: five role groups, seeded finding inline, finding outside the diff, Original order |
 | `06-onboarding` | `/onboarding` → add-repository form renders (no submit) |
 | `07-settings` | `/settings/api-keys` + `/settings/models` → section titles render |
+| `08-run-cost` | PR list COST column → PR #482 Agent runs timeline badge (`9,119 tok · $0.0013`) → trace drawer COST stat |
+| `09-findings-severity` | PR #482 Agent runs → expanded Review run card: severity pills, Accept / Reject, Warning filter on and off |
+| `10-skills` | `/skills` seeded card → inline editor (`?skill=`) → Versions tab (`?tab=versioning`) → Security Reviewer's Skills tab: «3 of N enabled» and a linked row |
+| `11-conventions` | SKILLS LAB → Conventions: heading with the active repo and the not-cloned state of the seeded repo |
+| `12-pr-intent` | PR #482 Overview → Intent card: seeded intent text, Medium confidence, issue #471 used, external link skipped |
+| `14-project-context` | SKILLS LAB → Project Context: heading and the not-cloned error state with Retry for the seeded repo; Security Reviewer's Context tab shows the same state |
+| `15-onboarding-tour` | Sidebar → Onboarding Tour: heading, the five cards, a seeded run command and the not-cloned note for the seeded repo |
+| `16-pr-brief` | PR #482 Overview → seeded PR Brief card (Request changes verdict, summary, `8.2K→1.3K` cost line), Risk areas chip, Review focus row; reload shows the stored brief with no generation; focus row → Files changed with `tab=diff&line=12` and the file open; cost line → run trace drawer titled "PR Brief". No model call |

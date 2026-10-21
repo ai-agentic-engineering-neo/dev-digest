@@ -17,11 +17,14 @@ import { DiffTab } from "./_components/DiffTab";
 import RunTraceDrawer from "./_components/RunTraceDrawer";
 import { usePullDetail, usePulls } from "../../../../../lib/hooks";
 import { useQueryClient } from "@tanstack/react-query";
+import { prBriefKey } from "@/lib/hooks/brief";
 import { usePrReviews, useCancelRun, usePrActiveRuns, usePrRuns, useDeleteRun } from "../../../../../lib/hooks/reviews";
+import { useRefreshOnRunsSettled } from "@/lib/hooks/reviews";
 import { useActiveRepo, useRepoNotFound } from "../../../../../lib/repo-context";
 import { ApiError } from "../../../../../lib/api";
 import { githubPrUrl } from "../../../../../lib/github-urls";
 import type { FindingRecord } from "@devdigest/shared";
+import { diffDeepLinkSearch } from "./helpers";
 
 export default function PRDetailPage() {
   const params = useParams<{ repoId: string; number: string }>();
@@ -47,6 +50,7 @@ export default function PRDetailPage() {
   const deleteRun = useDeleteRun(prId);
   const liveRunIds = (activeRuns ?? []).map((r) => r.run_id);
   const reviewRunning = liveRunIds.length > 0;
+  useRefreshOnRunsSettled(prId, reviewRunning);
   const cancel = useCancelRun();
   const invalidateActiveRuns = () => {
     if (prId) qc.invalidateQueries({ queryKey: ["pr-active-runs", prId] });
@@ -55,6 +59,14 @@ export default function PRDetailPage() {
   // just-failed run shows up in "Run history" immediately — no page reload.
   const invalidateRunHistory = () => {
     if (prId) qc.invalidateQueries({ queryKey: ["pr-runs", prId] });
+  };
+  // A review derives (or reuses) the PR's intent first, so refresh the card too.
+  const invalidateIntent = () => {
+    if (prId) qc.invalidateQueries({ queryKey: ["pr-intent", prId] });
+  };
+  // A finished review changes the brief card's verdict, score and stale flag.
+  const invalidateBrief = () => {
+    if (prId) qc.invalidateQueries({ queryKey: prBriefKey(prId) });
   };
 
   const tab = search.get("tab") ?? "overview";
@@ -66,12 +78,15 @@ export default function PRDetailPage() {
     router.replace(`/repos/${repoId}/pulls/${number}${sp.toString() ? `?${sp.toString()}` : ""}`);
   };
   const setTab = (t: string) => setParam("tab", t);
+  // Brief deep link: Files changed at a path and optional line, in one navigation.
+  const openDiffAt = (path: string, line: number | null) =>
+    router.replace(`/repos/${repoId}/pulls/${number}?${diffDeepLinkSearch(search, path, line)}`);
 
   // Reviews come newest-first; each is its own run (grouped into accordions).
-  const runs = reviews ?? [];
+  const runs = React.useMemo(() => reviews ?? [], [reviews]);
   const allFindings: FindingRecord[] = React.useMemo(
     () => runs.flatMap((r) => r.findings),
-    [reviews],
+    [runs],
   );
   const lethalTrifecta = allFindings.filter((f) => f.kind === "lethal_trifecta");
   const findingsCount = allFindings.length;
@@ -134,7 +149,16 @@ export default function PRDetailPage() {
       />
 
       <div style={{ padding: "24px 32px 44px", display: "flex", flexDirection: "column", gap: 24, maxWidth: 1080, margin: "0 auto" }}>
-        {tab === "overview" && <OverviewTab prBody={pr.body} />}
+        {tab === "overview" && (
+          <OverviewTab
+            prId={prId}
+            repoId={repoId}
+            repoFullName={repoFullName}
+            prBody={pr.body}
+            onOpenTrace={(id) => setParam("trace", id)}
+            onOpenDiff={openDiffAt}
+          />
+        )}
 
         {tab === "findings" && (
           <FindingsTab
@@ -156,6 +180,8 @@ export default function PRDetailPage() {
             onRunDone={() => {
               invalidateActiveRuns();
               invalidateRunHistory();
+              invalidateIntent();
+              invalidateBrief();
               refetchReviews();
             }}
           />
@@ -167,6 +193,8 @@ export default function PRDetailPage() {
             filesCount={pr.files_count}
             files={pr.files}
             canComment={pr.status === "open"}
+            focusFile={search.get("file")}
+            focusLine={search.get("line")}
           />
         )}
       </div>

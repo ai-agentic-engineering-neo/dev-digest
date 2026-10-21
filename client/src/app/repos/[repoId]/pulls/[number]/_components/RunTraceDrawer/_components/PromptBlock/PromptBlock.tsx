@@ -5,6 +5,7 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Button, Icon, Modal } from "@devdigest/ui";
+import { copyText } from "@/lib/clipboard";
 import { s } from "../../styles";
 import { PromptModalBody } from "../PromptModalBody";
 
@@ -25,8 +26,8 @@ export function PromptBlock({ label, text, color }: { label: string; text: strin
   const [open, setOpen] = React.useState(false);
   const [full, setFull] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
-  const copy = () => {
-    void navigator.clipboard?.writeText(text || "");
+  const copy = async () => {
+    if (!(await copyText(text || ""))) return;
     setCopied(true);
     setTimeout(() => setCopied(false), 1200);
   };

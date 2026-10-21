@@ -1,0 +1,1 @@
+export { BlastTree } from "./BlastTree";

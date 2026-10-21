@@ -1,0 +1,32 @@
+# hook: reviewer-bash-allowlist.sh arch
+# tool: Bash
+ALLOW	PATH=~/.nvm/versions/node/v22.16.0/bin:$PATH pnpm -C server lint:arch	lint:arch with node 22
+ALLOW	pnpm -C server lint:arch	lint:arch
+ALLOW	PATH=$HOME/.nvm/versions/node/v22.16.0/bin:$PATH .claude/skills/onion-architecture-backend/scripts/check-arch.sh --all	check-arch
+ALLOW	bash .claude/skills/onion-architecture-backend/scripts/check-arch.sh	check-arch changed
+ALLOW	.claude/skills/pr-self-review/scripts/changed-files.sh --all list	change set
+ALLOW	.claude/skills/pr-self-review/scripts/changed-files.sh --base abc1234 diff server/src	diff
+ALLOW	.claude/skills/pr-self-review/scripts/changed-files.sh base	base
+ALLOW	.claude/skills/pr-self-review/scripts/route.sh --all --lanes	lanes
+ALLOW	git diff --no-index --stat server/src/vendor/shared client/src/vendor/shared	contract drift
+ALLOW	git log --oneline -n 5	git
+ALLOW	.claude/skills/engineering-insights/scripts/insight.sh list server	insights read
+BLOCK	.claude/skills/onion-architecture-backend/scripts/check-arch.sh --baseline	baseline
+BLOCK	pnpm -C server lint:arch:baseline	baseline
+BLOCK	export PATH=~/.nvm/versions/node/v22.16.0/bin:$PATH && cd server && pnpm lint:arch	chaining
+BLOCK	PATH=/tmp/evil:$PATH pnpm -C server lint:arch	foreign PATH
+BLOCK	PATH=~/.nvm/versions/node/v22.16.0/bin:$PATH cat server/src/app.ts	PATH prefix on non-allowlisted command
+BLOCK	pnpm -C server lint:arch > out.txt	redirect
+BLOCK	pnpm -C server test	verify-only command
+BLOCK	pnpm -C ../x lint:arch	other dir
+BLOCK	.claude/skills/pr-self-review/scripts/changed-files.sh --all tree	writes temp index
+BLOCK	.claude/skills/pr-self-review/scripts/route.sh -	stdin needs a pipe
+BLOCK	.claude/skills/engineering-insights/scripts/insight.sh add server works "x"	insights write
+BLOCK	cat server/src/app.ts	not allowlisted
+BLOCK	git push	push
+ALLOW	.claude/skills/pr-self-review/scripts/verify.sh check	read the verification result
+ALLOW	bash .claude/skills/pr-self-review/scripts/verify.sh check --with-it --e2e	check at it + e2e level
+ALLOW	.claude/skills/pr-self-review/scripts/verify.sh show	show result json
+BLOCK	.claude/skills/pr-self-review/scripts/verify.sh run	reviewers never execute the checks
+BLOCK	.claude/skills/pr-self-review/scripts/verify.sh check --base main	unknown check flag
+BLOCK	.claude/skills/pr-self-review/scripts/verify.sh show extra	show takes no args

@@ -1,24 +1,111 @@
 {
-  "title": "Project Context",
-  "chunks": "{count} chunks",
-  "reindex": "Re-index",
-  "indexing": "Indexing…",
-  "resync": "Resync",
-  "resyncing": "Resyncing…",
-  "indexStatus": "Index status: {status}",
-  "loadError": "Couldn’t load specs",
-  "kb": "{kb}kb",
-  "empty": {
-    "title": "No spec files yet",
-    "body": "Drop your PRDs, tech specs, and acceptance criteria under .devdigest/specs/. Every agent and the PR brief read them as grounding context."
+  "page": {
+    "crumbSection": "Workspace",
+    "crumbContext": "Project Context",
+    "panel": {
+      "title": "Project context",
+      "listLabel": "Documents",
+      "footer": "{count, plural, one {# document} other {# documents}} · ≈ {tokens, number} tokens"
+    },
+    "noRepo": {
+      "title": "No repository yet",
+      "body": "Import a repository to see its documents."
+    },
+    "notCloned": {
+      "title": "Repository not cloned",
+      "body": "This repository has no local clone yet, so its documents cannot be read. Wait for the clone to finish, then retry."
+    },
+    "loadError": "Couldn’t load the documents",
+    "empty": {
+      "title": "No documents found",
+      "body": "No Markdown file under {roots} on the default branch."
+    },
+    "select": {
+      "title": "Select a document",
+      "body": "Pick a document from the list to preview its text."
+    },
+    "previewError": "Couldn’t load this document",
+    "previewTitle": "Preview",
+    "mode": {
+      "label": "Document view",
+      "preview": "Preview",
+      "edit": "Edit"
+    },
+    "tools": {
+      "label": "Document tools",
+      "add": "Add document",
+      "folder": "New folder",
+      "upload": "Upload document",
+      "unavailable": "Not available yet",
+      "refresh": "Refresh the list",
+      "refreshing": "Refreshing…"
+    },
+    "usedBy": "{count, plural, one {Used by # agent} other {Used by # agents}}",
+    "coverage": "Coverage",
+    "coverageTitle": "{used} of {total} enabled agents use this document",
+    "edit": {
+      "label": "Document text",
+      "save": "Save",
+      "saving": "Saving…",
+      "counter": "{count} / {max} characters",
+      "overCap": "The text is over the {max}-character limit; shorten it to save.",
+      "savedToast": "Saved as a local override"
+    },
+    "reset": {
+      "action": "Reset to repository version",
+      "title": "Reset to the repository version?",
+      "body": "The local edits of {path} are deleted and the repository text is used again.",
+      "confirm": "Reset",
+      "cancel": "Cancel",
+      "resetToast": "Back to the repository version"
+    },
+    "unsaved": {
+      "title": "Discard unsaved changes?",
+      "body": "The text of {path} has changes that are not saved.",
+      "discard": "Discard",
+      "cancel": "Cancel"
+    },
+    "notEditable": {
+      "tooLarge": "This document is larger than 200,000 characters and cannot be opened or edited."
+    }
   },
-  "mode": {
-    "preview": "preview",
-    "edit": "edit"
+  "row": {
+    "tokens": "≈ {count} tokens",
+    "kind": {
+      "specs": "specs",
+      "docs": "docs",
+      "insights": "insights",
+      "none": "other"
+    },
+    "missing": "missing",
+    "missingTitle": "This path is no longer in the repository listing",
+    "tooLarge": "too large",
+    "tooLargeTitle": "Larger than the file size cap; it cannot be attached",
+    "usedBy": "used by {agents, plural, one {# agent} other {# agents}} / {skills, plural, one {# skill} other {# skills}}",
+    "preview": "Preview",
+    "previewLabel": "Preview {path}",
+    "attach": "Attach {path}",
+    "moveUp": "Move {path} up",
+    "moveDown": "Move {path} down",
+    "modifiedMarker": "Modified locally"
   },
-  "editor": {
-    "loadError": "Couldn’t load spec",
-    "save": "Save",
-    "saving": "Saving…"
+  "panel": {
+    "repoLabel": "Repository",
+    "filterPlaceholder": "Filter documents",
+    "noMatch": "No document matches “{query}”",
+    "noRepos": "Import a repository to attach its documents.",
+    "notCloned": "This repository is not cloned yet, so its documents cannot be listed.",
+    "empty": "No documents found under {roots}.",
+    "loadError": "Couldn’t load the documents",
+    "overCap": "The attached documents total ≈ {total} tokens, above the {cap}-token limit for one prompt. Later documents will be skipped at run time.",
+    "saved": "Context saved",
+    "previewTitle": "Preview"
+  },
+  "preview": {
+    "close": "Close"
+  },
+  "badge": {
+    "modified": "Modified locally",
+    "modifiedTitle": "Edited locally, last saved {when}"
   }
 }

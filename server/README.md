@@ -6,8 +6,8 @@ grounded structured findings). Fastify 5 + Drizzle ORM over Postgres (pgvector).
 Adapters (LLM, GitHub, git, ast-grep, …) sit behind a DI container so they can be
 swapped for mocks in tests.
 
-> This is the **starter** module set. Later course lessons add their own modules
-> (skills, intent/smart-diff, blast, brief/context/onboarding, eval/ci/hooks,
+> This is the **starter** module set plus L02 `skills`. Later course lessons add
+> their own modules (intent/smart-diff, blast, brief/context/onboarding, eval/ci/hooks,
 > memory, plugins, …) — each is a self-contained `modules/<name>/` plugin plus,
 > usually, a slot it starts feeding the reviewer prompt. The DB schema already
 > contains **every** table; the unused ones simply sit empty until a lesson fills
@@ -66,13 +66,19 @@ flowchart TB
   subgraph Repos_PRs["Repos & PRs"]
     repos["repos<br/>/repos"]
     pulls["pulls<br/>/pulls/:id · /pulls/:id/comments"]
+    smartDiff["smart-diff<br/>/pulls/:id/smart-diff"]
+    blast["blast<br/>/pulls/:id/blast"]
+    prBrief["pr-brief<br/>/pulls/:id/brief · /pulls/:id/brief/generate"]
     polling["polling<br/>/repos/:id/poll"]
   end
   subgraph Review["Review & runs"]
     reviews["reviews<br/>/pulls/:id/review · /reviews · /findings/:id/(accept|dismiss)<br/>/runs/:id/(events|trace)"]
   end
-  subgraph Agents["Agents"]
-    agents["agents<br/>/agents · /agents/:id"]
+  subgraph Agents["Agents & skills"]
+    agents["agents<br/>/agents · /agents/:id · /agents/:id/skills (skill_ids)"]
+    skills["skills<br/>/skills · /skills/:id · /skills/import/preview<br/>/skills/:id/versions · /versions/:v/(diff|restore)"]
+    conventions["conventions<br/>/repos/:id/conventions · /extract · /skill-draft · /skill<br/>/conventions/:id"]
+    projectContext["project-context<br/>/repos/:id/context · /repos/:id/context/file (GET · PUT · DELETE)<br/>/agents/:id/context · /skills/:id/context"]
   end
   subgraph Intel["Repo intelligence"]
     repoIntel["repo-intel<br/>/repos/:id/index-state · /resync"]
@@ -96,6 +102,7 @@ flowchart TB
 | `GITHUB_TOKEN` | — | optional; PAT with repo scope (`GITHUB_PAT` accepted as a fallback) |
 | `EMBEDDINGS_ENABLED` | `false` | memory/RAG embeddings (OpenAI); off → **zero** OpenAI calls |
 | `REPO_INTEL_ENABLED` | `true` | repo skeleton + callers in the prompt; `false` → ripgrep-only |
+| `PROJECT_CONTEXT_GLOB` | `**/{specs,docs,insights}/**/*.md` | discovery glob for project context documents (braces expanded in code); see `specs/project-context.md` |
 | `DEVDIGEST_CLONE_DIR` | `./clones` | imported-repo checkouts (git-ignored) |
 | `LOG_LEVEL` | `info` (`silent` in test) | pino level |
 | `NODE_ENV` | `development` | `test` → silent logs + global rate-limit disabled |
@@ -106,7 +113,8 @@ through `SecretsProvider` (`~/.devdigest/secrets.json`, mode `0600`, with
 
 Migrations are **not** applied on boot — run `pnpm db:migrate` (pgvector is
 enabled by migration `0000`). `pnpm db:seed` is idempotent demo data
-(`acme/payments-api`, PR #482, the two built-in agents).
+(`acme/payments-api`, PR #482, five built-in agents, thirteen skills linked to
+three of them — see `specs/skills.md`).
 
 ## Review context (non-obvious)
 
@@ -128,6 +136,22 @@ What the reviewer actually sends to the model is assembled in
   demo / test / not for production / do not flag" never descope the review — real
   defects are reported at full severity regardless. We deliberately do **not**
   keyword-scan untrusted text (a denylist only catches one phrasing).
+- **Project context is manual.** Markdown documents attached to an agent or a
+  skill (per repository) are read from the PR's base branch and rendered under
+  `## Project context` as untrusted data, capped at 8,000 tokens per document
+  and 24,000 per assembled prompt. Nothing is attached automatically, and a
+  prompt with no attachments is unchanged. A document can be edited and saved as
+  a local override (`context_doc_overrides`, `PUT /repos/:id/context/file`);
+  runs then read the override instead of the repository text, and the run trace
+  marks the block `modified`. Nothing is written to git or GitHub. Details: `specs/project-context.md`,
+  `docs/project-context.md`.
+- **The PR brief is one stored model call.** `POST /pulls/:id/brief/generate`
+  starts a background run (`agent_runs.kind = 'brief'`, one per PR) that makes
+  exactly one structured call on the `risk_brief` feature model, verifies every
+  path and line against the PR patches, and stores the survivors in `pr_brief`;
+  `GET /pulls/:id/brief` reads the database only. Verdict, score and counts come
+  from the newest review at read time. Brief runs are hidden from run history,
+  active runs and agent stats. Details: `specs/pr-brief.md`, `docs/pr-brief.md`.
 - **Grounding is mandatory.** Every finding must cite a line that exists in the
   diff or it is dropped (`groundFindings`), and the score is recomputed from the
   surviving findings — the model's self-reported score is ignored.

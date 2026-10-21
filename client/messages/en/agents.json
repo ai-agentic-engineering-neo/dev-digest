@@ -1,13 +1,22 @@
 {
   "card": {
     "noDescription": "No description",
-    "skillCount": "{count} skills"
+    "skillCount": "{count} skills",
+    "delete": "Delete agent",
+    "confirmTitle": "Delete agent \"{name}\"?",
+    "confirmBody": "Its runs keep their history; the agent, its versions and its skill links are removed. This cannot be undone.",
+    "confirm": "Delete agent",
+    "cancel": "Cancel",
+    "runs": "{count, plural, =1 {1 run} other {# runs}}",
+    "acceptRate": "{pct}% accept",
+    "acceptRateNone": "— accept",
+    "avgCost": "{cost} avg",
+    "statsTitle": "Completed runs · accepted share of decided findings · mean cost per completed run"
   },
   "list": {
     "breadcrumbLab": "Skills Lab",
     "breadcrumb": "Agents",
     "title": "Agents",
-    "subtitle": "User-created reviewers. Each = provider + model + system prompt + linked skills.",
     "searchPlaceholder": "Search agents…",
     "addAgent": "Add Agent",
     "createFromScratch": "Create from scratch",
@@ -42,13 +51,14 @@
     "add": "Add",
     "createFromScratch": "Create from scratch",
     "disabled": "disabled",
-    "runOnPr": "Run on a PR…",
+    "runOnPr": "Run Review",
     "tabs": {
       "config": "Config",
       "skills": "Skills",
       "evals": "Evals",
       "stats": "Stats",
-      "ci": "CI"
+      "ci": "CI",
+      "context": "Context"
     }
   },
   "config": {
@@ -91,9 +101,27 @@
     "title": "Skills",
     "enabledCount": "{linked} of {total} enabled",
     "filterPlaceholder": "Filter skills…",
-    "orderHint": "Order matters — earlier skills appear earlier in the assembled prompt. Toggle to attach."
+    "orderHint": "Order matters — earlier skills appear earlier in the assembled prompt. Drag to reorder.",
+    "attach": "Attach {name}",
+    "moveUp": "Move {name} up",
+    "moveDown": "Move {name} down",
+    "disabledGlobally": "disabled",
+    "disabledGloballyTitle": "Disabled on the Skills page — linked, but left out of the prompt.",
+    "needsVetting": "needs vetting",
+    "noMatch": "No skills match \"{query}\".",
+    "emptyTitle": "No skills yet",
+    "emptyBody": "Create or import a skill on the Skills page, then attach it here.",
+    "emptyCta": "Open Skills",
+    "manage": "Manage skills",
+    "saved": "Skills saved"
   },
   "mount": {
     "body": "Mount point for {owner}. The Agent Editor shell + tab routing are wired by A2 — {owner} renders this tab."
+  },
+  "context": {
+    "title": "Project context",
+    "badge": "{attached} of {total} attached",
+    "hint": "Order matters — earlier documents appear earlier in the assembled ## Project context block. Toggle to attach. Changing the set creates a new agent version.",
+    "footerNote": "Injected as an untrusted block (## Project context) into every run."
   }
 }

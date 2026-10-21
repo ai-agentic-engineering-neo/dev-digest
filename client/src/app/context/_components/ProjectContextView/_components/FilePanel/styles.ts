@@ -1,0 +1,52 @@
+import type { CSSProperties } from "react";
+
+/** Co-located styles for FilePanel. */
+export const s = {
+  panel: {
+    width: 272,
+    flexShrink: 0,
+    display: "flex",
+    flexDirection: "column",
+    minHeight: 0,
+    borderRight: "1px solid var(--border)",
+    background: "var(--bg-surface)",
+  } satisfies CSSProperties,
+  head: { padding: "16px 16px 6px" } satisfies CSSProperties,
+  folder: { fontSize: 12, color: "var(--text-muted)", marginTop: 2, overflowWrap: "anywhere" } satisfies CSSProperties,
+  toolbar: { display: "flex", alignItems: "center", gap: 2, padding: "2px 12px 8px" } satisfies CSSProperties,
+  toolDisabled: { display: "inline-grid", opacity: 0.4, cursor: "not-allowed" } satisfies CSSProperties,
+  list: { flex: 1, minHeight: 0, overflow: "auto", display: "flex", flexDirection: "column", gap: 2, padding: "0 10px 10px" } satisfies CSSProperties,
+  row: (on: boolean): CSSProperties => ({
+    width: "100%",
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "6px 8px",
+    borderRadius: 6,
+    border: "1px solid transparent",
+    background: on ? "var(--bg-hover)" : "transparent",
+    color: on ? "var(--text-primary)" : "var(--text-secondary)",
+    textAlign: "left",
+    cursor: "pointer",
+  }),
+  rowIcon: (on: boolean): CSSProperties => ({ display: "inline-grid", color: on ? "var(--accent)" : "var(--text-muted)", flexShrink: 0 }),
+  rowName: (on: boolean): CSSProperties => ({
+    fontSize: 12.5,
+    fontWeight: on ? 600 : 400,
+    minWidth: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  }),
+  modifiedDot: { width: 7, height: 7, borderRadius: 99, background: "var(--warn)", flexShrink: 0 } satisfies CSSProperties,
+  footer: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "10px 16px",
+    borderTop: "1px solid var(--border)",
+    fontSize: 11.5,
+    color: "var(--text-muted)",
+  } satisfies CSSProperties,
+  footerDot: { width: 6, height: 6, borderRadius: 99, background: "var(--ok)", flexShrink: 0 } satisfies CSSProperties,
+} as const;

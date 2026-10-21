@@ -27,12 +27,18 @@ flowchart TD
   ONB["/onboarding<br/>add repo"] -->|"POST /repos"| API[("Fastify API")]
   PULLS --> PR["/pulls/:number<br/>review detail<br/>(overview · diff · findings)"]
 
-  AGENTS["/agents"] --> AGENT["/agents/:id<br/>editor (config)"]
+  AGENTS["/agents"] --> AGENT["/agents/:id<br/>editor (config · skills)"]
+  SKILLS["/skills<br/>grid + side panel (?skill=)"] --> SKILL["/skills/:id<br/>Config · Preview · Versioning"]
+  CONV["/conventions<br/>extractor for the active repo"]
+  CTX["/context<br/>repo documents, preview, local edit"]
   SETTINGS["/settings/:section<br/>API keys · models"]
 
   PULLS -->|"GET /repos/:id/pulls · /repos/:id/index-state"| API
-  PR -->|"GET /pulls/:id · /reviews · /pulls/:id/comments<br/>POST /pulls/:id/review · /findings/:id/(accept|dismiss)"| API
+  PR -->|"GET /pulls/:id · /reviews · /pulls/:id/comments · /pulls/:id/brief<br/>POST /pulls/:id/review · /pulls/:id/brief/generate · /findings/:id/(accept|dismiss)"| API
   AGENTS -->|"/agents · /agents/:id"| API
+  SKILLS -->|"/skills · /skills/:id · /skills/:id/versions · /skills/import/preview · /agents/:id/skills"| API
+  CONV -->|"/repos/:id/conventions · /extract · /skill-draft · /skill · /conventions/:id"| API
+  CTX -->|"/repos/:id/context · /repos/:id/context/file · /agents/:id/context · /skills/:id/context"| API
   SETTINGS -->|"/settings · /providers"| API
 ```
 

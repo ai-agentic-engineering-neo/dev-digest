@@ -9,7 +9,9 @@ import {
   vector,
   index,
   uniqueIndex,
+  doublePrecision,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { workspaces } from './core';
 import { repos } from './repos';
 
@@ -117,10 +119,51 @@ export const references = pgTable(
   }),
 );
 
+/**
+ * One tour generation attempt. At most one `running` row per repo (partial
+ * unique index): a concurrent POST hits 23505 and gets the existing run back.
+ */
+export const onboardingRuns = pgTable(
+  'onboarding_runs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    repoId: uuid('repo_id')
+      .notNull()
+      .references(() => repos.id, { onDelete: 'cascade' }),
+    status: text('status', { enum: ['running', 'done', 'failed'] }).notNull().default('running'),
+    provider: text('provider'),
+    model: text('model'),
+    tokensIn: integer('tokens_in').notNull().default(0),
+    tokensOut: integer('tokens_out').notNull().default(0),
+    costUsd: doublePrecision('cost_usd'),
+    filesIndexed: integer('files_indexed').notNull().default(0),
+    error: text('error'),
+    startedAt: timestamp('started_at', { withTimezone: true }).defaultNow().notNull(),
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+  },
+  (t) => ({
+    wsRepoStartedIdx: index('onboarding_runs_ws_repo_started_idx').on(t.workspaceId, t.repoId, t.startedAt),
+    oneRunningPerRepo: uniqueIndex('onboarding_runs_one_running_uidx')
+      .on(t.repoId)
+      .where(sql`${t.status} = 'running'`),
+  }),
+);
+
 export const onboarding = pgTable('onboarding', {
   repoId: uuid('repo_id')
     .primaryKey()
     .references(() => repos.id, { onDelete: 'cascade' }),
-  json: jsonb('json').notNull(),
+  json: jsonb('json').notNull(), // { sections }
   generatedAt: timestamp('generated_at', { withTimezone: true }).defaultNow().notNull(),
+  runId: uuid('run_id').references(() => onboardingRuns.id, { onDelete: 'set null' }),
+  provider: text('provider'),
+  model: text('model'),
+  tokensIn: integer('tokens_in'),
+  tokensOut: integer('tokens_out'),
+  costUsd: doublePrecision('cost_usd'),
+  filesIndexed: integer('files_indexed'),
+  limited: boolean('limited').notNull().default(false),
 });

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Provider } from './knowledge.js';
+import { Severity, FindingCategory } from './findings.js';
 
 /**
  * Platform / scaffolding DTOs owned by F1:
@@ -52,15 +53,15 @@ export const FEATURE_MODELS: FeatureModelDef[] = [
     id: 'review_intent',
     label: 'PR Review · Intent',
     description: 'Derives a PR’s intent and scope before review.',
-    defaultProvider: 'openai',
-    defaultModel: 'gpt-4.1',
+    defaultProvider: 'openrouter',
+    defaultModel: 'deepseek/deepseek-v4-flash',
   },
   {
     id: 'risk_brief',
-    label: 'Risk Brief',
-    description: 'Assesses merge risks for a pull request.',
-    defaultProvider: 'openai',
-    defaultModel: 'gpt-4.1',
+    label: 'PR Brief',
+    description: 'Writes the PR brief (summary, risks, review focus).',
+    defaultProvider: 'openrouter',
+    defaultModel: 'deepseek/deepseek-v4-flash',
   },
   {
     id: 'conformance',
@@ -154,6 +155,21 @@ export type Repo = z.infer<typeof Repo>;
 export const PrStatus = z.enum(['needs_review', 'reviewed', 'stale', 'open', 'closed', 'merged']);
 export type PrStatus = z.infer<typeof PrStatus>;
 
+/** Read-only preview of one finding of a PR's latest review (PR list popover). */
+export const PrFindingPreview = z.object({
+  id: z.string(),
+  severity: Severity,
+  category: FindingCategory,
+  title: z.string(),
+  file: z.string(),
+  start_line: z.number().int(),
+  end_line: z.number().int(),
+  confidence: z.number().min(0).max(1),
+  /** First ~200 chars of the rationale, plain text. */
+  excerpt: z.string(),
+});
+export type PrFindingPreview = z.infer<typeof PrFindingPreview>;
+
 export const PrMeta = z.object({
   id: z.string().nullish(),
   number: z.number().int(),
@@ -170,6 +186,18 @@ export const PrMeta = z.object({
   updated_at: z.string().nullish(),
   // Latest-review score (list endpoint only; null/absent until reviewed).
   score: z.number().int().nullish(),
+  // Total USD cost of the PR's completed runs that have a known cost (list
+  // endpoint only); null when there is none. cost_runs = how many runs are in
+  // that sum (for the list tooltip).
+  cost_usd: z.number().nullish(),
+  cost_runs: z.number().int().nullish(),
+  // Latest-review findings rollup (list endpoint only): per-severity counts for
+  // the FINDINGS column and read-only previews for its hover popover. Counted
+  // by grouping persisted findings — never a model call. Null until reviewed.
+  findings_critical: z.number().int().nullish(),
+  findings_warning: z.number().int().nullish(),
+  findings_suggestion: z.number().int().nullish(),
+  latest_findings: z.array(PrFindingPreview).nullish(),
 });
 export type PrMeta = z.infer<typeof PrMeta>;
 
@@ -239,11 +267,30 @@ export const PrCommentInput = z.object({
 export type PrCommentInput = z.infer<typeof PrCommentInput>;
 
 // ---- Project Context ----
+export const SpecKind = z.enum(['specs', 'docs', 'insights']);
+export type SpecKind = z.infer<typeof SpecKind>;
+
 export const SpecFile = z.object({
   path: z.string(),
   content: z.string().nullish(),
   size: z.number().int().nullish(),
   updated_at: z.string().nullish(),
+  /** Nearest ancestor folder among specs, docs, insights; null when none. */
+  kind: SpecKind.nullish(),
+  /** Approximate token count of the text; absent when `too_large`. */
+  tokens: z.number().int().nullish(),
+  /** Larger than the file size cap: listed but not attachable. */
+  too_large: z.boolean().nullish(),
+  /** Agents attaching this document in the selected repository. */
+  agent_count: z.number().int().nullish(),
+  /** Skills attaching this document in the selected repository. */
+  skill_count: z.number().int().nullish(),
+  /** Distinct enabled agents that receive this document at run time: attached
+      directly, or through an enabled skill they link. Feeds "Used by N agents"
+      and the coverage ring (agents_using / enabled agents) on the page. */
+  agents_using: z.number().int().nullish(),
+  /** A local override replaces the repository text of this document; `tokens` counts the override. */
+  modified: z.boolean().nullish(),
 });
 export type SpecFile = z.infer<typeof SpecFile>;
 

@@ -1,0 +1,135 @@
+{
+  "name": "Review run card shows severity counters, filters by severity, and offers Accept / Reject",
+  "description": "HW1 findings criteria. On PR #482's Agent runs tab, the expanded (first) Review run card shows the «N CRITICAL · N WARNING · N SUGGESTION» pills computed from the seeded findings (1 CRITICAL + 1 WARNING), the three severity filter buttons, and Accept / Reject on each finding card. Clicking the Warning filter leaves only the N+1 finding visible; clicking it again restores the Stripe-key finding. Read-only seeded data, no model call. Assumes a freshly-seeded DB (hermetic stack, see e2e/README.md).",
+  "steps": [
+    {
+      "cmd": [
+        "open",
+        "{BASE}/"
+      ],
+      "label": "load the app root"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "/pulls"
+      ],
+      "label": "land on the PR list"
+    },
+    {
+      "cmd": [
+        "find",
+        "text",
+        "Add rate limiting to public API endpoints",
+        "click"
+      ],
+      "label": "open the PR row"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "/pulls/482"
+      ],
+      "label": "navigate to the PR detail route"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--load",
+        "networkidle"
+      ],
+      "label": "PR detail data settles"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Agent runs"
+      ],
+      "label": "switch to the Agent runs tab"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "tab=findings"
+      ],
+      "label": "findings tab is active in the URL"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Hardcoded Stripe secret key in commit"
+      ],
+      "label": "first review run card is expanded with its findings"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "N+1 query in user list endpoint"
+      ],
+      "label": "the second seeded finding is visible too"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Reject"
+      ],
+      "label": "finding cards offer Reject (next to Accept)"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Accept"
+      ],
+      "label": "finding cards offer Accept"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Warning"
+      ],
+      "label": "filter by Warning"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "N+1 query in user list endpoint"
+      ],
+      "label": "the WARNING finding stays visible"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Warning"
+      ],
+      "label": "click Warning again to clear the filter"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Hardcoded Stripe secret key in commit"
+      ],
+      "label": "the CRITICAL finding is back"
+    }
+  ]
+}

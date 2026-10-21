@@ -24,7 +24,31 @@ import { estimateCost } from '../adapters/llm/pricing.js';
 import { PriceBook } from './price-book.js';
 import { ConfigError } from './errors.js';
 import { AgentsRepository } from '../modules/agents/repository.js';
+import type { SkillsRepositoryPort } from '../modules/skills/ports.js';
+import { SkillsRepository } from '../modules/skills/repository.js';
+import type { ConventionsRepositoryPort } from '../modules/conventions/ports.js';
+import { ConventionsRepository } from '../modules/conventions/repository.js';
+import type { OnboardingRepositoryPort } from '../modules/onboarding/ports.js';
+import { OnboardingRepository } from '../modules/onboarding/repository.js';
+import type { PrBriefRepositoryPort } from '../modules/pr-brief/ports.js';
+import { PrBriefRepository } from '../modules/pr-brief/repository.js';
+import { SmartDiffService } from '../modules/smart-diff/service.js';
+import { BlastService } from '../modules/blast/service.js';
+import { RepoRepository } from '../modules/repos/repository.js';
+import { SkillsService } from '../modules/skills/service.js';
+import { AgentsService } from '../modules/agents/service.js';
+import { resolveFeatureModel } from '../modules/settings/feature-models.js';
+import type { FeatureModelId, FeatureModelChoice } from '@devdigest/shared';
 import { ReviewRepository } from '../modules/reviews/repository.js';
+import type { SmartDiffRepositoryPort } from '../modules/smart-diff/ports.js';
+import { SmartDiffRepository } from '../modules/smart-diff/repository.js';
+import type { BlastRepositoryPort } from '../modules/blast/ports.js';
+import { BlastRepository } from '../modules/blast/repository.js';
+import type { ProjectContextRepositoryPort } from '../modules/project-context/ports.js';
+import { ProjectContextRepository } from '../modules/project-context/repository.js';
+import { ProjectContextService } from '../modules/project-context/service.js';
+import type { IntentRepositoryPort } from '../modules/reviews/ports.js';
+import { IntentRepository } from '../modules/reviews/repository/intent.repo.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
 import { type DepGraph, DepCruiseGraph } from '../adapters/depgraph/index.js';
@@ -51,6 +75,24 @@ export interface ContainerOverrides {
   /** repo-intel T3 adapters — only the indexer pipeline reads these. */
   depgraph?: DepGraph;
   tokenizer?: Tokenizer;
+  /** skills module port — route/service tests inject an in-memory fake. */
+  skillsRepo?: SkillsRepositoryPort;
+  /** conventions module port — same idea. */
+  conventionsRepo?: ConventionsRepositoryPort;
+  /** onboarding module port — route/service tests inject an in-memory fake. */
+  onboardingRepo?: OnboardingRepositoryPort;
+  /** pr-brief module port — route/service tests inject an in-memory fake. */
+  prBriefRepo?: PrBriefRepositoryPort;
+  /** reviews intent persistence port — same idea. */
+  intentRepo?: IntentRepositoryPort;
+  /** smart-diff module port — route tests inject an in-memory fake. */
+  smartDiffRepo?: SmartDiffRepositoryPort;
+  /** blast module port — same idea. */
+  blastRepo?: BlastRepositoryPort;
+  /** project-context module port — same idea. */
+  projectContextRepo?: ProjectContextRepositoryPort;
+  /** project-context service — route tests inject one built from in-memory fakes. */
+  projectContext?: ProjectContextService;
 }
 
 export class Container {
@@ -72,6 +114,16 @@ export class Container {
   // `container.agentsRepo` instead of reaching into another module's folder.
   private _agentsRepo?: AgentsRepository;
   private _reviewRepo?: ReviewRepository;
+  private _skillsRepo?: SkillsRepositoryPort;
+  private _conventionsRepo?: ConventionsRepositoryPort;
+  private _onboardingRepo?: OnboardingRepositoryPort;
+  private _intentRepo?: IntentRepositoryPort;
+  private _prBriefRepo?: PrBriefRepositoryPort;
+  private _smartDiffRepo?: SmartDiffRepositoryPort;
+  private _blastRepo?: BlastRepositoryPort;
+  private _projectContextRepo?: ProjectContextRepositoryPort;
+  private _projectContext?: ProjectContextService;
+  private _reposRepo?: RepoRepository;
   private _repoIntel?: RepoIntel;
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
@@ -98,6 +150,86 @@ export class Container {
 
   get reviewRepo(): ReviewRepository {
     return (this._reviewRepo ??= new ReviewRepository(this.db));
+  }
+
+  /** skills module repository, typed as its port so tests can swap a fake. */
+  get skillsRepo(): SkillsRepositoryPort {
+    return (this._skillsRepo ??= this.overrides.skillsRepo ?? new SkillsRepository(this.db));
+  }
+
+  get conventionsRepo(): ConventionsRepositoryPort {
+    return (this._conventionsRepo ??= this.overrides.conventionsRepo ?? new ConventionsRepository(this.db));
+  }
+
+  get onboardingRepo(): OnboardingRepositoryPort {
+    return (this._onboardingRepo ??= this.overrides.onboardingRepo ?? new OnboardingRepository(this.db));
+  }
+
+  get prBriefRepo(): PrBriefRepositoryPort {
+    return (this._prBriefRepo ??= this.overrides.prBriefRepo ?? new PrBriefRepository(this.db));
+  }
+
+  get intentRepo(): IntentRepositoryPort {
+    return (this._intentRepo ??= this.overrides.intentRepo ?? new IntentRepository(this.db));
+  }
+
+  get smartDiffRepo(): SmartDiffRepositoryPort {
+    return (this._smartDiffRepo ??= this.overrides.smartDiffRepo ?? new SmartDiffRepository(this.db));
+  }
+
+  get blastRepo(): BlastRepositoryPort {
+    return (this._blastRepo ??= this.overrides.blastRepo ?? new BlastRepository(this.db));
+  }
+
+  get projectContextRepo(): ProjectContextRepositoryPort {
+    return (this._projectContextRepo ??=
+      this.overrides.projectContextRepo ?? new ProjectContextRepository(this.db));
+  }
+
+  /** Singleton: it holds the per-head-sha listing cache. */
+  get projectContext(): ProjectContextService {
+    if (this.overrides.projectContext) return this.overrides.projectContext;
+    return (this._projectContext ??= new ProjectContextService({
+      repo: this.projectContextRepo,
+      agents: this.agentsRepo,
+      skills: this.skillsRepo,
+      repos: this.reposRepo,
+      git: this.git,
+      tokenizer: this.tokenizer,
+      glob: this.config.projectContextGlob,
+    }));
+  }
+
+  /** Repo rows for modules that only need to look a repository up (conventions). */
+  get reposRepo(): RepoRepository {
+    return (this._reposRepo ??= new RepoRepository(this.db));
+  }
+
+  // Sibling-module services for modules that compose them (onion rule 6: modules
+  // never import each other; the composition root hands the instance over).
+  private _skillsService?: SkillsService;
+  private _agentsService?: AgentsService;
+
+  get skillsService(): SkillsService {
+    return (this._skillsService ??= new SkillsService({ repo: this.skillsRepo }));
+  }
+
+  /** Smart Diff and Blast facades for the pr-brief module (no module imports another). */
+  get smartDiffService(): SmartDiffService {
+    return new SmartDiffService({ repo: this.smartDiffRepo });
+  }
+
+  get blastService(): BlastService {
+    return new BlastService({ repo: this.blastRepo, intel: this.repoIntel });
+  }
+
+  get agentsService(): AgentsService {
+    return (this._agentsService ??= new AgentsService(this));
+  }
+
+  /** Workspace override or registry default for a system LLM feature (settings module). */
+  featureModel(workspaceId: string, id: FeatureModelId): Promise<FeatureModelChoice> {
+    return resolveFeatureModel(this, workspaceId, id);
   }
 
   get codeIndex(): CodeIndex {

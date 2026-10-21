@@ -1,0 +1,22 @@
+# hook: spec-creator-paths.sh
+# tool: Write
+ALLOW	specs/blast-radius.md	spec
+ALLOW	specs/prompt-logging-v2.md	spec with digit
+ALLOW	specs/README.md	spec index
+ALLOW	{ROOT}/specs/run-cost-badge.md	absolute path
+BLOCK	specs/Blast-Radius.md	not kebab-case
+BLOCK	specs/SPEC-07-blast.md	no id prefix in file name
+BLOCK	specs/server/blast.md	subfolder
+BLOCK	specs/blast.png	not markdown
+BLOCK	server/specs/blast-radius.md	package spec (doc-writer)
+BLOCK	client/specs/pages.md	package spec (doc-writer)
+BLOCK	e2e/specs/flows.md	test-writer
+BLOCK	docs/plans/feat-x.md	plan
+BLOCK	server/INSIGHTS.md	insights
+BLOCK	AGENTS.md	agents
+BLOCK	client/AGENTS.md	package agents
+BLOCK	README.md	root readme
+BLOCK	server/src/app.ts	code
+BLOCK	specs/../server/specs/x.md	traversal
+BLOCK	.claude/agents/spec-creator.md	agent config
+BLOCK	/tmp/x.md	outside repo

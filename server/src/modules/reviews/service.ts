@@ -1,10 +1,11 @@
 import type { Container } from '../../platform/container.js';
-import type { FindingActionKind, RunEventKind, RunTrace } from '@devdigest/shared';
+import type { FindingActionKind, RunEventKind, RunFindings, RunTrace } from '@devdigest/shared';
 import { AppError, NotFoundError } from '../../platform/errors.js';
 import type { AgentRow } from '../../db/rows.js';
 import { ReviewRepository } from './repository.js';
 import { type ReviewDto, type ReviewDtoFinding } from './helpers.js';
 import { ReviewRunExecutor, type Logger } from './run-executor.js';
+import type { IntentDeriverPort, ProjectContextResolverPort } from './ports.js';
 import { actOnFinding as actOnFindingImpl } from './findings.js';
 import { reviewToDto } from './helpers.js';
 
@@ -30,10 +31,14 @@ export class ReviewService {
   private agents: Container['agentsRepo'];
   private executor: ReviewRunExecutor;
 
-  constructor(private container: Container) {
+  constructor(
+    private container: Container,
+    intent?: IntentDeriverPort,
+    projectContext?: ProjectContextResolverPort,
+  ) {
     this.repo = new ReviewRepository(container.db);
     this.agents = container.agentsRepo;
-    this.executor = new ReviewRunExecutor(container, this.repo, this.agents);
+    this.executor = new ReviewRunExecutor(container, this.repo, this.agents, intent, projectContext);
   }
 
   // ===========================================================================
@@ -69,6 +74,13 @@ export class ReviewService {
   /** All runs for a PR (any status), newest first — the run history (incl. failures). */
   async listRuns(workspaceId: string, prId: string) {
     return this.repo.listRunsForPull(workspaceId, prId);
+  }
+
+  /** One run with its review verdict and findings (workspace-scoped). */
+  async findingsForRun(workspaceId: string, runId: string): Promise<RunFindings> {
+    const out = await this.repo.findingsForRun(workspaceId, runId);
+    if (!out) throw new NotFoundError('Run not found');
+    return out;
   }
 
   /** Delete one run from the history (+ its trace). */

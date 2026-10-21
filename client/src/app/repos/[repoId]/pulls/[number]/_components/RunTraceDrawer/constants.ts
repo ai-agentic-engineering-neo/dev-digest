@@ -13,6 +13,7 @@ export type TraceTab = (typeof TABS)[number];
 /** Prompt-assembly block accent colours (by leg). */
 export const PROMPT_COLORS = {
   system: "var(--text-muted)",
+  intent: "var(--ok)",
   skills: "var(--accent)",
   memory: "var(--warn)",
   repoMap: "var(--accent)",

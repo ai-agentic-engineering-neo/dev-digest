@@ -1,0 +1,28 @@
+# hook: test-writer-paths.sh
+# tool: Write
+ALLOW	client/src/app/skills/_components/SkillCard/SkillCard.test.tsx	colocated component test
+ALLOW	client/src/lib/format-cost.test.ts	helper test
+ALLOW	client/src/test/setup.ts	test setup
+ALLOW	server/test/agents-stats.it.test.ts	db-backed test
+ALLOW	server/test/helpers/runs.ts	test helper
+ALLOW	{ROOT}/server/test/new.test.ts	absolute path inside repo
+ALLOW	reviewer-core/test/run.test.ts	engine test
+ALLOW	e2e/specs/12-agent-stats.flow.json	new flow
+ALLOW	e2e/specs/flows.md	flow contract
+ALLOW	e2e/README.md	coverage table (D4)
+BLOCK	client/src/app/skills/_components/SkillCard/SkillCard.tsx	source
+BLOCK	client/src/vendor/ui/kit/Modal.test.tsx	vendor ui
+BLOCK	client/src/vendor/shared/contracts/x.test.ts	vendor shared
+BLOCK	server/src/adapters/mocks.ts	mocks belong to implementer
+BLOCK	server/test/../src/app.ts	traversal
+BLOCK	{ROOT}/server/test/../../.claude/hooks/x.sh	absolute traversal
+BLOCK	server/vitest.config.ts	config
+BLOCK	server/test/.env	env file
+BLOCK	server/INSIGHTS.md	insights
+BLOCK	e2e/specs/new.flow.json	flow name without NN- prefix
+BLOCK	e2e/run.ts	runner source
+BLOCK	docs/plans/feat-x.md	plan
+BLOCK	.claude/hooks/test-writer-paths.sh	own guard
+BLOCK	/etc/hosts	outside repo
+ALLOW	.pipeline/feat-intent-layer/test-writer.md	own pipeline report
+BLOCK	.pipeline/feat-intent-layer/implementer.md	other agent's report

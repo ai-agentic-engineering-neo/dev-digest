@@ -1,0 +1,5 @@
+# hook: report-paths.sh security-reviewer
+# tool: Write
+BLOCK	.pipeline/feat-x/security-reviewer.md	own report (read-only agent)
+BLOCK	docs/plans/feat-x.md	plans
+BLOCK	server/src/app.ts	source

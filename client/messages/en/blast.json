@@ -1,18 +1,45 @@
 {
+  "title": "Blast radius",
   "stat": {
-    "symbols": "symbols",
-    "callers": "callers",
-    "endpoints": "endpoints",
-    "crons": "cron/jobs"
+    "symbols": "{count, plural, one {symbol} other {symbols}}",
+    "callers": "{count, plural, one {caller} other {callers}}",
+    "endpoints": "{count, plural, one {endpoint} other {endpoints}}",
+    "crons": "{count, plural, one {cron} other {crons}}"
   },
   "view": {
-    "tree": "tree",
-    "graph": "graph"
+    "tree": "Tree",
+    "graph": "Graph",
+    "label": "Blast radius view"
   },
-  "callerCount": "{count} callers",
-  "noDownstream": "{count} changed symbol(s), no downstream callers found.",
+  "callerCount": "{count, plural, one {# caller} other {# callers}}",
+  "noDownstream": "{count, plural, one {# changed symbol} other {# changed symbols}}, no downstream callers found.",
+  "approximate": "Approximate",
+  "approximateHint": "The repo index is not complete, so this map comes from a text search of the clone.",
+  "loadFailed": "Could not load the blast radius.",
+  "empty": {
+    "title": "No impact map yet",
+    "flag_off": "Repo intelligence is switched off (REPO_INTEL_ENABLED).",
+    "index_failed": "The last index run failed. Rebuild the index to compute the map.",
+    "index_partial": "The index is partial; the changed files are not covered yet.",
+    "repo_too_large": "The repository is too large to index.",
+    "no_data": "The repository is not indexed yet, or none of the changed files declare symbols."
+  },
+  "rebuild": "Rebuild index",
+  "rebuilding": "Rebuilding…",
+  "moreCallers": "+{count} more",
   "graph": {
     "empty": "No downstream callers to graph.",
-    "ariaLabel": "Blast radius graph"
+    "ariaLabel": "Blast radius graph",
+    "legend": {
+      "symbol": "changed symbol",
+      "callers": "callers",
+      "endpoints": "endpoints affected",
+      "crons": "cron jobs affected"
+    }
+  },
+  "history": {
+    "title": "Prior PRs touching these files",
+    "empty": "No prior PRs overlap these files.",
+    "overlap": "{count, plural, one {# file} other {# files}} in common"
   }
 }

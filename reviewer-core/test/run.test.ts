@@ -135,4 +135,32 @@ describe('reviewPullRequest (engine)', () => {
     expect(seen.length).toBeGreaterThan(0);
     expect(seen.every((s) => s === 'sess-abc')).toBe(true);
   });
+
+  it('passes the derived intent into the prompt and the trace assembly', async () => {
+    const llm = new MockLLMProvider('openai', { structured: { verdict: 'approve', summary: 's', score: 100, findings: [] } });
+    const diff = await new MockGitClient().diff();
+    const outcome = await reviewPullRequest({
+      systemPrompt: 'sys',
+      model: 'gpt-4.1',
+      diff,
+      llm,
+      intent: { intent: 'Adds a limiter.', in_scope: [], out_of_scope: [], confidence: 'low', basis: ['title'] },
+    });
+    expect(outcome.assembly.intent).toContain('Adds a limiter.');
+    expect(outcome.assembly.intent_confidence).toBe('low');
+  });
+
+  it('passes attached project documents into the prompt and the trace assembly', async () => {
+    const llm = new MockLLMProvider('openai', { structured: { verdict: 'approve', summary: 's', score: 100, findings: [] } });
+    const diff = await new MockGitClient().diff();
+    const outcome = await reviewPullRequest({
+      systemPrompt: 'sys',
+      model: 'gpt-4.1',
+      diff,
+      llm,
+      specs: [{ path: 'docs/arch.md', text: 'api/ must not import db/' }],
+    });
+    expect(outcome.assembly.specs).toContain('<untrusted source="docs/arch.md">');
+    expect(outcome.assembly.user).toContain('## Project context');
+  });
 });

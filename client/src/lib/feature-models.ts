@@ -22,15 +22,15 @@ export const FEATURE_MODELS: FeatureModelDef[] = [
     id: "review_intent",
     label: "PR Review · Intent",
     description: "Derives a PR’s intent and scope before review.",
-    defaultProvider: "openai",
-    defaultModel: "gpt-4.1",
+    defaultProvider: "openrouter",
+    defaultModel: "deepseek/deepseek-v4-flash",
   },
   {
     id: "risk_brief",
-    label: "Risk Brief",
-    description: "Assesses merge risks for a pull request.",
-    defaultProvider: "openai",
-    defaultModel: "gpt-4.1",
+    label: "PR Brief",
+    description: "Writes the PR brief (summary, risks, review focus).",
+    defaultProvider: "openrouter",
+    defaultModel: "deepseek/deepseek-v4-flash",
   },
   {
     id: "conformance",
@@ -47,3 +47,17 @@ export const FEATURE_MODELS: FeatureModelDef[] = [
     defaultModel: "gpt-5.4",
   },
 ];
+
+/**
+ * The provider/model a feature will use: the workspace override from Settings,
+ * else the registry default. Mirrors the server's `getFeatureModel` resolution.
+ */
+export function featureModelFor(
+  settings: { feature_models?: Partial<Record<string, { provider: string; model: string }>> } | null | undefined,
+  id: string,
+): { provider: string; model: string } | null {
+  const override = settings?.feature_models?.[id];
+  if (override?.provider && override.model) return { provider: override.provider, model: override.model };
+  const def = FEATURE_MODELS.find((f) => f.id === id);
+  return def ? { provider: def.defaultProvider, model: def.defaultModel } : null;
+}

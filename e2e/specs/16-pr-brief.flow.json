@@ -1,0 +1,30 @@
+{
+  "name": "PR Overview shows the seeded PR brief, deep-links a focus row into Files changed and opens the brief's run trace",
+  "description": "From the seeded repo's PR list, open PR #482 and confirm the PR brief card (the review's Request changes verdict, the seeded summary, the cost line), the Risk areas chip in the Intent card and the Review focus rows; reload to confirm the stored brief shows again. Then click a focus row to land on Files changed with file and line in the URL and the file open, return to Overview and click the cost line to open the run trace titled PR Brief. Nothing generates a brief, so no model call. Exercises GET /pulls/:id/brief, the deep link and the run trace of a brief run.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "land on the PR list" },
+    { "cmd": ["find", "text", "Add rate limiting to public API endpoints", "click"], "label": "open the PR row" },
+    { "cmd": ["wait", "--url", "/pulls/482"], "label": "navigate to the PR detail route" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "PR detail data settles" },
+    { "cmd": ["wait", "--text", "Adds a token-bucket rate limiter to the public API"], "label": "seeded brief summary renders" },
+    { "cmd": ["wait", "--text", "Request changes"], "label": "verdict tile comes from the newest review" },
+    { "cmd": ["wait", "--text", "Secret key committed in config"], "label": "risk chip renders inside the Intent card" },
+    { "cmd": ["wait", "--text", "Hard-coded secret key"], "label": "review focus row renders" },
+    { "cmd": ["wait", "--text", "8.2K→1.3K"], "label": "cost line shows the brief call tokens" },
+    { "cmd": ["reload"], "label": "reload the page" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "reloaded data settles" },
+    { "cmd": ["wait", "--text", "Adds a token-bucket rate limiter to the public API"], "label": "the stored brief shows again with no generation" },
+    { "cmd": ["eval", "[...document.querySelectorAll('button')].find((b) => b.textContent.includes('Hard-coded secret key')).scrollIntoView({ block: 'center' })"], "label": "scroll the focus row into view" },
+    { "cmd": ["find", "text", "Hard-coded secret key", "click"], "label": "click the focus row" },
+    { "cmd": ["wait", "--url", "tab=diff"], "label": "Files changed tab opens" },
+    { "cmd": ["wait", "--url", "line=12"], "label": "the line stays in the URL" },
+    { "cmd": ["wait", "--text", "rateLimitMax"], "label": "the target file is open and its patch renders" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Overview"], "label": "return to the Overview tab" },
+    { "cmd": ["wait", "--text", "8.2K→1.3K"], "label": "cost line is back" },
+    { "cmd": ["eval", "[...document.querySelectorAll('button')].find((b) => b.textContent.includes('8.2K')).scrollIntoView({ block: 'center' })"], "label": "scroll the cost line into view" },
+    { "cmd": ["find", "text", "8.2K→1.3K", "click"], "label": "click the cost line" },
+    { "cmd": ["wait", "--url", "trace="], "label": "trace param set" },
+    { "cmd": ["wait", "--text", "PR Brief"], "label": "run trace drawer is titled PR Brief" }
+  ]
+}

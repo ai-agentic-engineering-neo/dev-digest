@@ -15,9 +15,24 @@
 export {
   assemblePrompt,
   wrapUntrusted,
+  MAX_INTENT_CHARS,
   type PromptParts,
   type AssembledPrompt,
+  type IntentPart,
+  type ProjectContextDoc,
 } from './prompt.js';
+
+// PR intent derivation (one structured call before review).
+export {
+  deriveIntent,
+  buildIntentMessages,
+  INTENT_PROMPT_VERSION,
+  INTENT_SYSTEM_PROMPT,
+  type DeriveIntentInput,
+  type DeriveIntentOptions,
+  type DeriveIntentResult,
+  type IntentSourceText,
+} from './intent.js';
 
 // Citation grounding — the mandatory mechanical gate for diff findings.
 export { groundFindings, groundingSummary, type GroundingResult } from './grounding.js';

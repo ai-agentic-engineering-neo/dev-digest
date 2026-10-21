@@ -25,6 +25,15 @@ async function main() {
     });
   }
 
+  // Safety net: a rejected promise nobody awaited (a background job, a
+  // fire-and-forget enqueue) must never take the whole API down — Node's
+  // default for an unhandled rejection is to exit the process. Log it with
+  // the stack and keep serving. (uncaughtException is deliberately NOT
+  // swallowed: a thrown-synchronously bug leaves state unknown.)
+  process.on('unhandledRejection', (reason) => {
+    app.log.error({ err: reason }, 'unhandled promise rejection — process kept alive');
+  });
+
   try {
     await app.listen({ port: config.apiPort, host: '0.0.0.0' });
     app.log.info(`DevDigest API listening on http://localhost:${config.apiPort}`);

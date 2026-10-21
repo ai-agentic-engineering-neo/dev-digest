@@ -36,17 +36,52 @@ export const ToolCall = z.object({
 });
 export type ToolCall = z.infer<typeof ToolCall>;
 
+// One linked, enabled skill as it went into the prompt: its own block in the
+// trace with a token count from the server tokenizer (L02/HW2 criterion 19-20).
+export const PromptSkillBlock = z.object({
+  name: z.string(),
+  version: z.number().int(),
+  tokens: z.number().int(),
+  text: z.string(),
+});
+export type PromptSkillBlock = z.infer<typeof PromptSkillBlock>;
+
+// One attached project document as it went into the prompt (SPEC-01).
+export const PromptContextBlock = z.object({
+  path: z.string(),
+  tokens: z.number().int(),
+  text: z.string(),
+  truncated: z.boolean(),
+  /** 'agent' or 'skill:<name>' (first owner of the path). */
+  source: z.string().regex(/^(agent|skill:.+)$/),
+  /** The block text came from a local override; absent in traces written before it existed. */
+  modified: z.boolean().nullish(),
+});
+export type PromptContextBlock = z.infer<typeof PromptContextBlock>;
+
 export const PromptAssembly = z.object({
   system: z.string(),
   skills: z.string().nullish(),
+  /** Tokens of the whole `## Skills / rules` block (tokenizer count); null when absent. */
+  skills_tokens: z.number().int().nullish(),
+  /** Per-skill blocks in prompt order; absent when no enabled skill is linked. */
+  skill_blocks: z.array(PromptSkillBlock).nullish(),
   memory: z.string().nullish(),
   specs: z.string().nullish(),
-  /** Callers-of-changed-symbols digest (repo-intel); null when absent. */
+  /** Tokens of the whole `## Project context` block; null when absent. */
+  context_tokens: z.number().int().nullish(),
+  /** Per-document blocks in prompt order; absent when no document was attached. */
+  context_blocks: z.array(PromptContextBlock).nullish(),
+  /** Callers-of-changed-symbols digest (T1.3); null when absent. */
   callers: z.string().nullish(),
-  /** Repo skeleton / map (repo-intel); null when absent. */
+  /** Repo skeleton / map (T3); null when absent. Enables per-slot token
+      attribution in the run trace. */
   repo_map: z.string().nullish(),
   /** PR author's description/body (truncated); null when absent. */
   pr_description: z.string().nullish(),
+  /** Rendered PR intent block (derived before review); null when absent. */
+  intent: z.string().nullish(),
+  intent_confidence: z.enum(['high', 'medium', 'low']).nullish(),
   user: z.string(),
 });
 export type PromptAssembly = z.infer<typeof PromptAssembly>;
@@ -61,6 +96,8 @@ export const RunStats = z.object({
   duration_ms: z.number().int(),
   tokens_in: z.number().int(),
   tokens_out: z.number().int(),
+  /** USD cost of the run; null when unknown (unpriced model, failed run). 0 = free model. */
+  cost_usd: z.number().nullable(),
   findings: z.number().int(),
   grounding: z.string(),
 });
@@ -90,8 +127,13 @@ export type RunTrace = z.infer<typeof RunTrace>;
  * One row of a PR's run history (every agent_runs row, any status). Surfaced on
  * the PR page so runs — including FAILED ones with their error — survive reload.
  */
+export const RunKind = z.enum(['review', 'brief']);
+export type RunKind = z.infer<typeof RunKind>;
+
 export const RunSummary = z.object({
   run_id: z.string(),
+  /** What the run produced: a review, or a PR brief (hidden from run history). */
+  kind: RunKind,
   agent_id: z.string().nullable(),
   agent_name: z.string().nullable(),
   provider: z.string().nullable(),
@@ -101,6 +143,8 @@ export const RunSummary = z.object({
   duration_ms: z.number().int().nullable(),
   tokens_in: z.number().int().nullable(),
   tokens_out: z.number().int().nullable(),
+  /** USD cost of the run; null when unknown (unpriced model, failed/cancelled, pre-cost rows). */
+  cost_usd: z.number().nullable(),
   findings_count: z.number().int().nullable(),
   grounding: z.string().nullable(),
   ran_at: z.string().nullable(),

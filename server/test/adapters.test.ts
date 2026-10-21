@@ -105,3 +105,136 @@ describe('pricing / cost discipline', () => {
     expect(estimateCost('some-future-model', 1000, 1000)).toBeNull();
   });
 });
+
+describe('GitClient.showFile (sha-pinned read)', () => {
+  const repo = { owner: 'o', name: 'r' };
+
+  it('mock clients serve configured files and throw on a missing one', async () => {
+    const git = new MockGitClient({ files: { 'a.md': 'hello' } });
+    expect(await git.showFile(repo, 'a1b2c3d', 'a.md')).toBe('hello');
+    await expect(git.showFile(repo, 'a1b2c3d', 'missing.md')).rejects.toThrow();
+
+    const hub = new MockGitHubClient({ closingIssues: [3], fileContents: { 'b.md': 'x' } });
+    expect(await hub.getClosingIssues(repo, 1)).toEqual([3]);
+    expect(await hub.getFileContent(repo, 'b.md', 'sha')).toBe('x');
+    await expect(hub.getFileContent(repo, 'nope.md', 'sha')).rejects.toThrow();
+  });
+
+  it('SimpleGitClient reads the committed blob (not the working tree) and rejects unsafe input', async () => {
+    const { mkdtemp, mkdir, writeFile, rm } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const { simpleGit } = await import('simple-git');
+    const { SimpleGitClient } = await import('../src/adapters/git/simple-git.js');
+
+    const root = await mkdtemp(join(tmpdir(), 'showfile-'));
+    try {
+      const dir = join(root, 'o', 'r');
+      await mkdir(dir, { recursive: true });
+      const g = simpleGit(dir);
+      await g.init();
+      await g.addConfig('user.email', 't@t.t');
+      await g.addConfig('user.name', 't');
+      await writeFile(join(dir, 'plan.md'), 'committed');
+      await g.add('plan.md');
+      await g.commit('init');
+      const sha = (await g.revparse(['HEAD'])).trim();
+      await writeFile(join(dir, 'plan.md'), 'edited after commit');
+
+      const client = new SimpleGitClient(root);
+      expect(await client.showFile(repo, sha, 'plan.md')).toBe('committed');
+      await expect(client.showFile(repo, sha, '../outside.md')).rejects.toThrow(/unsafe path/);
+      await expect(client.showFile(repo, sha, '/etc/passwd')).rejects.toThrow(/unsafe path/);
+      await expect(client.showFile(repo, sha, '-x.md')).rejects.toThrow(/unsafe path/);
+      await expect(client.showFile(repo, '--output=/tmp/x', 'plan.md')).rejects.toThrow(/hex commit sha/);
+      await expect(client.showFile(repo, sha, 'missing.md')).rejects.toThrow();
+
+      await writeFile(join(dir, 'big.md'), 'x'.repeat(200_001));
+      await g.add('big.md');
+      await g.commit('big');
+      const sha2 = (await g.revparse(['HEAD'])).trim();
+      await expect(client.showFile(repo, sha2, 'big.md')).rejects.toThrow(/size cap/);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('GitClient.listFiles (object database listing, SPEC-01)', () => {
+  const repo = { owner: 'o', name: 'r' };
+
+  it('mock lists configured files with byte sizes and records the call', async () => {
+    const git = new MockGitClient({ files: { 'docs/a.md': 'héllo' }, head: 'abcdef1' });
+    const out = await git.listFiles(repo, 'main', ['docs/**/*.md']);
+    // blob = sha1("blob 6\0héllo"), what `git hash-object` reports
+    expect(out).toEqual({
+      sha: 'abcdef1',
+      files: [{ path: 'docs/a.md', size: 6, blob: 'e507eb59f765207ed66c258795260c8bedbee89c' }],
+    });
+    expect(git.listCalls).toEqual([{ ref: 'main', pathspecs: ['docs/**/*.md'] }]);
+  });
+
+  it('SimpleGitClient lists matching blobs only, from the commit, and rejects unsafe refs', async () => {
+    const { mkdtemp, mkdir, writeFile, rm } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const { join, dirname } = await import('node:path');
+    const { simpleGit } = await import('simple-git');
+    const { SimpleGitClient, SHOW_FILE_MAX_CHARS } = await import('../src/adapters/git/simple-git.js');
+    const { globToPathspecs } = await import('../src/modules/project-context/helpers.js');
+    const { loadConfig } = await import('../src/platform/config.js');
+    const { PROJECT_CONTEXT_FILE_MAX_CHARS } = await import('../src/modules/project-context/constants.js');
+
+    expect(PROJECT_CONTEXT_FILE_MAX_CHARS).toBe(SHOW_FILE_MAX_CHARS);
+
+    const root = await mkdtemp(join(tmpdir(), 'listfiles-'));
+    try {
+      const dir = join(root, 'o', 'r');
+      await mkdir(dir, { recursive: true });
+      const g = simpleGit(dir);
+      await g.init(['-b', 'main']);
+      await g.addConfig('user.email', 't@t.t');
+      await g.addConfig('user.name', 't');
+      const files: Record<string, string> = {
+        'specs/a.md': 'spec',
+        'docs/guide/b.md': 'guide',
+        'docs/readme.txt': 'not markdown',
+        'src/c.md': 'outside roots',
+        'node_modules/x/docs/n.md': 'vendor',
+        '.github/docs/d.md': 'dot folder',
+      };
+      for (const [p, c] of Object.entries(files)) {
+        await mkdir(join(dir, dirname(p)), { recursive: true });
+        await writeFile(join(dir, p), c);
+      }
+      await g.add('.');
+      await g.commit('init');
+      const sha = (await g.revparse(['HEAD'])).trim();
+      await writeFile(join(dir, 'docs/new.md'), 'uncommitted');
+
+      const client = new SimpleGitClient(root);
+      const cfg = loadConfig({} as NodeJS.ProcessEnv);
+      expect(cfg.projectContextGlob).toBe('**/{specs,docs,insights}/**/*.md');
+      expect(loadConfig({ PROJECT_CONTEXT_GLOB: 'x/**/*.md' } as NodeJS.ProcessEnv).projectContextGlob).toBe('x/**/*.md');
+
+      const out = await client.listFiles(repo, 'main', globToPathspecs(cfg.projectContextGlob));
+      expect(out.sha).toBe(sha);
+      const paths = out.files.map((f) => f.path).sort();
+      // raw listing: exclusions (node_modules, dot folders) are applied by module helpers
+      expect(paths).toEqual(
+        ['.github/docs/d.md', 'docs/guide/b.md', 'node_modules/x/docs/n.md', 'specs/a.md'].sort(),
+      );
+      expect(out.files.find((f) => f.path === 'specs/a.md')!.size).toBe(4);
+      // TC-6: the blob sha equals `git rev-parse <commit>:<path>` for every listed file
+      for (const f of out.files) {
+        expect(f.blob).toBe((await g.revparse([`${sha}:${f.path}`])).trim());
+      }
+
+      for (const bad of ['--output=/tmp/x', '-x', 'a..b', 'main;ls', 'a b', '']) {
+        await expect(client.listFiles(repo, bad, ['docs/**'])).rejects.toThrow(/unsafe ref/);
+      }
+      await expect(client.listFiles(repo, 'nope', ['docs/**'])).rejects.toThrow(/ref not found/);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});

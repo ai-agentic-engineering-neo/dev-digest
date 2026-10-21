@@ -34,15 +34,19 @@
       "memoryPulled": "Memory pulled",
       "specsRead": "Specs read",
       "items": "{count, plural, one {# item} other {# items}}",
-      "none": "none"
+      "none": "none",
+      "specToken": "{path} · {tokens} tokens"
     },
     "stat": {
       "duration": "DURATION",
       "tokens": "TOKENS",
+      "cost": "COST",
       "findings": "FINDINGS"
     },
     "prompt": {
       "system": "System",
+      "intent": "PR intent (dynamic)",
+      "intentConfidence": "{level} confidence",
       "skills": "Skills (dynamic)",
       "memory": "Memory (dynamic)",
       "repoMap": "Repo skeleton — repo-intel (dynamic)",
@@ -52,7 +56,15 @@
       "copy": "Copy",
       "fullscreen": "Open fullscreen",
       "search": "Search in this block…",
-      "noMatches": "No matches for “{q}”."
+      "noMatches": "No matches for “{q}”.",
+      "skillsTokens": "{count} tokens",
+      "skillBlock": "Skill · {name} (v{version})",
+      "skillsCount": "{count, plural, =1 {1 skill} other {# skills}}",
+      "context": "Project context — attached specs (untrusted)",
+      "contextTokens": "{count} tokens",
+      "contextBlock": "{path} · {tokens} tokens · {source}",
+      "contextTruncated": "truncated",
+      "contextModified": "Modified locally"
     },
     "tools": {
       "args": "args",
@@ -67,7 +79,7 @@
     "running": "running",
     "completed": "completed",
     "copyRawOutput": "Copy raw output",
-  "copied": "Copied!",
+    "copied": "Copied!",
     "tracePending": "Trace is written when the run completes — see the Live log tab.",
     "loadingTrace": "Loading trace…",
     "noTrace": "No trace available yet."

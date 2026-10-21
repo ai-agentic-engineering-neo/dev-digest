@@ -63,7 +63,8 @@ export class OpenRouterProvider implements LLMProvider {
     let tokensIn = 0;
     let tokensOut = 0;
     let costFromApi: number | null = null;
-    let lastRaw = '';
+    let lastRaw: string;
+    let lastIssues = '';
 
     for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
       const res = await this.client.chat.completions.create({
@@ -109,10 +110,14 @@ export class OpenRouterProvider implements LLMProvider {
           attempts: attempt,
         };
       }
+      lastIssues = parsed.error;
       messages.push({ role: 'assistant', content: lastRaw });
       messages.push({ role: 'user', content: parsed.repromptMessage });
     }
-    throw new Error(`OpenRouter structured output failed schema validation for ${req.schemaName}`);
+    // Issues only (paths and rules), never the raw text: it may hold diff content or secrets.
+    throw new Error(
+      `OpenRouter structured output failed schema validation for ${req.schemaName}: ${lastIssues.slice(0, 400)}`,
+    );
   }
 
   /**

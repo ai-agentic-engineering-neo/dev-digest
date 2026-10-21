@@ -1,0 +1,19 @@
+# hook: implementer-protected-paths.sh
+# tool: Edit
+ALLOW	{ROOT}/server/src/modules/agents/service.ts	source
+ALLOW	{ROOT}/client/src/app/agents/_components/AgentCard/AgentCard.tsx	component
+ALLOW	{ROOT}/server/src/vendor/shared/contracts/agents.ts	canonical contracts
+ALLOW	server/src/modules/agents/routes.ts	relative path
+BLOCK	{ROOT}/client/src/vendor/shared/index.ts	contract copy
+BLOCK	{ROOT}/client/src/vendor/ui/nav.ts	design system
+BLOCK	{ROOT}/server/pnpm-lock.yaml	lockfile
+BLOCK	{ROOT}/server/src/db/migrations/0010_x.sql	migration
+BLOCK	{ROOT}/server/x/../src/db/migrations/0010_x.sql	migration via traversal (D2)
+BLOCK	{ROOT}/server/src/../../.claude/agents/implementer.md	agent config via traversal (D2)
+BLOCK	{ROOT}/.claude/agents/implementer.md	agent config
+BLOCK	{ROOT}/server/INSIGHTS.md	insights
+BLOCK	{ROOT}/docs/plans/feat-L02-skills.md	plan
+BLOCK	{ROOT}/server/.env	env
+BLOCK	{ROOT}/server/.dependency-cruiser-known-violations.json	baseline
+BLOCK	/etc/passwd	outside repo
+ALLOW	{ROOT}/.pipeline/feat-intent-layer/implementer.md	own pipeline report

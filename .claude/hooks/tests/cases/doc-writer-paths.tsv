@@ -1,0 +1,31 @@
+# hook: doc-writer-paths.sh
+# tool: Write
+ALLOW	server/specs/agent-stats.md	spec
+ALLOW	server/specs/README.md	spec index
+ALLOW	server/docs/README.md	docs index
+ALLOW	client/docs/ui-architecture.md	design note
+ALLOW	e2e/docs/runner.md	e2e design note
+ALLOW	client/README.md	package readme
+ALLOW	server/src/modules/repo-intel/README.md	module readme
+ALLOW	README.md	root readme
+ALLOW	docs/agent-prompts/README.md	root docs
+ALLOW	{ROOT}/reviewer-core/specs/review-contract.md	absolute path
+ALLOW	specs/blast-radius.md	root feature spec (Status flip)
+ALLOW	specs/README.md	root spec index
+BLOCK	specs/drafts/blast-radius.md	no subfolders under specs/
+BLOCK	specs/Blast_Radius.md	not kebab-case
+BLOCK	server/AGENTS.md	agents (D3)
+BLOCK	CLAUDE.md	claude
+BLOCK	client/INSIGHTS.md	insights
+BLOCK	TESTING.md	humans
+BLOCK	docs/plans/feat-x.md	plan
+BLOCK	docs/skills/examples/deprecation-policy/SKILL.md	import fixture
+BLOCK	e2e/specs/flows.md	test-writer
+BLOCK	client/src/vendor/ui/README.md	vendor
+BLOCK	server/docs/flow.png	not markdown
+BLOCK	server/src/app.ts	code
+BLOCK	server/docs/../src/x.md	traversal
+BLOCK	.claude/agents/README.md	agent config
+BLOCK	/tmp/x.md	outside repo
+ALLOW	.pipeline/feat-intent-layer/doc-writer.md	own pipeline report
+BLOCK	.pipeline/feat-intent-layer/plan-verifier.md	other agent's report

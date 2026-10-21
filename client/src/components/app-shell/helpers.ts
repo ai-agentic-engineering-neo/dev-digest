@@ -26,7 +26,7 @@ export function isTextInput(el: EventTarget | null): boolean {
 export function activeKeyFor(pathname: string): string {
   if (pathname.startsWith("/settings")) return "settings";
   if (pathname.includes("/multi-agent")) return "multi-agent";
-  if (pathname.includes("/onboarding")) return "onboarding-tour";
+  if (/^\/repos\/[^/]+\/tour(\/|$)/.test(pathname)) return "onboarding-tour";
   if (pathname.includes("/context")) return "context";
   if (pathname.includes("/conventions")) return "conventions";
   if (pathname.includes("/pulls")) return "pulls";
@@ -37,4 +37,10 @@ export function activeKeyFor(pathname: string): string {
   if (pathname.startsWith("/agent-performance")) return "agent-performance";
   if (pathname.startsWith("/ci-runs")) return "ci-runs";
   return "";
+}
+
+/** Where the sidebar repo switch lands: the same repo-scoped page, else the PR list. */
+export function repoSwitchTarget(pathname: string, repoId: string): string {
+  if (/^\/repos\/[^/]+\/tour(\/|$)/.test(pathname)) return `/repos/${repoId}/tour`;
+  return `/repos/${repoId}/pulls`;
 }

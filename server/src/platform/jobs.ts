@@ -23,15 +23,23 @@ export interface JobRunnerOptions {
 
 export interface EnqueuedJob {
   id: string;
-  /** Resolves when the job finishes (or rejects if it ultimately fails). */
+  /**
+   * Resolves when the job finishes, rejects if it ultimately fails. Awaiting it
+   * is OPTIONAL: the runner attaches its own handler (log + jobs.error), so a
+   * caller that fires and forgets never leaves an unhandled rejection behind.
+   */
   done: Promise<void>;
 }
+
+/** Minimal pino-compatible logger the runner reports failed jobs through. */
+export type JobLogger = { error: (obj: unknown, msg?: string) => void };
 
 export class JobRunner {
   private queue: PQueue;
   private handlers = new Map<string, JobHandler>();
   private timeoutMs: number;
   private retries: number;
+  private logger: JobLogger | null = null;
 
   constructor(
     private db: Db,
@@ -44,6 +52,12 @@ export class JobRunner {
 
   register(kind: string, handler: JobHandler): void {
     this.handlers.set(kind, handler);
+  }
+
+  /** Where failed jobs are reported (the app's pino logger). Optional; without
+   *  it a failure is only visible in the `jobs` table. */
+  setLogger(logger: JobLogger | null): void {
+    this.logger = logger;
   }
 
   async enqueue(workspaceId: string, kind: string, payload: unknown): Promise<EnqueuedJob> {
@@ -96,6 +110,18 @@ export class JobRunner {
         throw err;
       }
     }) as Promise<void>;
+
+    // Every job failure is observed HERE, so the rejection is never "unhandled"
+    // (which would kill the process under Node's default policy) even when the
+    // caller — refresh, add-repo, index — does not await `done`. Attaching a
+    // catch marks the rejection handled without changing `done` itself: a
+    // caller that does await it still sees the rejection.
+    done.catch((err: unknown) => {
+      this.logger?.error(
+        { err, jobId, kind, workspaceId },
+        `job '${kind}' failed after retries: ${(err as Error)?.message ?? String(err)}`,
+      );
+    });
 
     return { id: jobId, done };
   }

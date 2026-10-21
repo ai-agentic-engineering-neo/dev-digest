@@ -1,4 +1,5 @@
 import { Octokit } from 'octokit';
+import { z } from 'zod';
 import type {
   GitHubClient,
   RepoRef,
@@ -15,6 +16,29 @@ import type {
 import { withRetry, withTimeout } from '../../platform/resilience.js';
 
 const TIMEOUT = 30_000;
+/** Largest file `getFileContent` will decode (bytes). */
+const MAX_FILE_BYTES = 200 * 1024;
+
+const ClosingIssuesResponse = z.object({
+  repository: z
+    .object({
+      pullRequest: z
+        .object({
+          closingIssuesReferences: z.object({
+            nodes: z.array(z.object({ number: z.number().int() }).nullable()),
+          }),
+        })
+        .nullable(),
+    })
+    .nullable(),
+});
+
+const FileContentResponse = z.object({
+  type: z.literal('file'),
+  size: z.number().int(),
+  encoding: z.string(),
+  content: z.string(),
+});
 
 function mapStatus(state: string, merged: boolean | undefined): PrStatus {
   if (merged) return 'merged';
@@ -361,6 +385,41 @@ export class OctokitGitHubClient implements GitHubClient {
       body: res.data.body,
       state: res.data.state,
     };
+  }
+
+  async getClosingIssues(repo: RepoRef, n: number): Promise<number[]> {
+    const raw = await withRetry(() =>
+      withTimeout(
+        this.octokit.graphql(
+          `query($owner: String!, $name: String!, $n: Int!) {
+            repository(owner: $owner, name: $name) {
+              pullRequest(number: $n) {
+                closingIssuesReferences(first: 5) { nodes { number } }
+              }
+            }
+          }`,
+          { owner: repo.owner, name: repo.name, n },
+        ),
+        TIMEOUT,
+      ),
+    );
+    const parsed = ClosingIssuesResponse.parse(raw);
+    const nodes = parsed.repository?.pullRequest?.closingIssuesReferences.nodes ?? [];
+    return nodes.flatMap((node) => (node ? [node.number] : []));
+  }
+
+  async getFileContent(repo: RepoRef, path: string, ref: string): Promise<string> {
+    const res = await withRetry(() =>
+      withTimeout(
+        this.octokit.rest.repos.getContent({ owner: repo.owner, repo: repo.name, path, ref }),
+        TIMEOUT,
+      ),
+    );
+    // A directory comes back as an array; symlinks/submodules have another `type`.
+    const file = FileContentResponse.parse(res.data);
+    if (file.size > MAX_FILE_BYTES) throw new Error('file too large');
+    if (file.encoding !== 'base64') throw new Error('unsupported file encoding');
+    return Buffer.from(file.content, 'base64').toString('utf8');
   }
 
   async currentLogin(): Promise<string> {

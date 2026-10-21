@@ -1,19 +1,53 @@
 {
-  "block": {
-    "intent": "Intent",
-    "blast": "Blast radius",
-    "risks": "Risks",
-    "history": "PR history"
+  "title": "PR brief",
+  "card": {
+    "title": "PR brief",
+    "generate": "Generate brief",
+    "generateHint": "Writes a summary, risks and a reading order with {model}.",
+    "regenerate": "Regenerate brief with {model}",
+    "generating": "Writing the brief…",
+    "notReviewed": "Not reviewed yet",
+    "notReviewedHint": "Run a review to get a verdict and a score.",
+    "counts": "{findings, plural, one {# finding} other {# findings}}{blockers, plural, =0 {} one { · # blocker} other { · # blockers}}",
+    "outOfDate": "Out of date",
+    "staleHint": "The PR or its review changed since this brief was written. Regenerate to refresh it.",
+    "basedOn": "Based on {included} of {total} files",
+    "costLine": "Brief cost and tokens: {cost} · {tokens} · {model}. Open the run.",
+    "score": "PR SCORE",
+    "loadFailed": "Couldn't load the brief.",
+    "retry": "Retry",
+    "runFailed": "The last attempt failed: {error}",
+    "infoLabel": "About this verdict",
+    "info": {
+      "agent": "Verdict from {agent}",
+      "reviewedAt": "Reviewed: {when}",
+      "writtenBy": "Summary written by {model}"
+    }
   },
-  "noRisks": "No notable risks flagged.",
-  "noHistory": "No prior PRs overlap these files.",
-  "overlap": "{count} overlap",
-  "unavailable": "Brief not available yet.",
-  "unavailableHint": "Run a review or open the PR to compute it.",
-  "why": {
-    "title": "git-why",
-    "blame": "blame",
-    "noHistory": "No history available for this line.",
-    "noCommits": "No commits found for this line."
+  "risks": {
+    "title": "Risk areas",
+    "expand": "Show details for {title}",
+    "collapse": "Hide details for {title}",
+    "severity": {
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low"
+    },
+    "kind": {
+      "auth": "Authentication",
+      "dependency": "Dependency",
+      "performance": "Performance",
+      "data": "Data",
+      "api_change": "API change",
+      "config": "Configuration",
+      "other": "Other"
+    },
+    "openRef": "Open {ref} in Files changed"
+  },
+  "focus": {
+    "title": "Review focus — read these first",
+    "empty": "Nothing in particular to flag. Read the diff in the order of the Files changed tab.",
+    "count": "{count}",
+    "openRow": "Open {ref} in Files changed"
   }
 }

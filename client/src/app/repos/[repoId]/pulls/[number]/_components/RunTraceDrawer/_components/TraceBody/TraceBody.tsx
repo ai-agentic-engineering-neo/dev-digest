@@ -8,6 +8,7 @@ import { Badge } from "@devdigest/ui";
 import type { RunTrace, FindingRecord } from "@devdigest/shared";
 import { PROMPT_COLORS } from "../../constants";
 import { formatSeconds, formatTokens } from "../../helpers";
+import { formatCost } from "@/lib/format-cost";
 import { s } from "../../styles";
 import { TraceSection } from "../TraceSection";
 import { ToolCallRow } from "../ToolCallRow";
@@ -18,6 +19,8 @@ import { Row, Stat } from "../atoms";
 export function TraceBody({ trace, findings }: { trace: RunTrace; findings: FindingRecord[] }) {
   const t = useTranslations("runs");
   const stats = trace.stats;
+  const contextBlocks = trace.prompt_assembly.context_blocks ?? [];
+  const contextTokensByPath = new Map(contextBlocks.map((b) => [b.path, b.tokens]));
   return (
     <>
       <TraceSection icon="Settings" title={t("trace.configuration")}>
@@ -42,7 +45,7 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
               ) : (
                 trace.specs_read.map((sp, i) => (
                   <span key={i} className="mono" style={s.spec}>
-                    {sp}
+                    {contextTokensByPath.has(sp) ? t("trace.config.specToken", { path: sp, tokens: contextTokensByPath.get(sp)! }) : sp}
                   </span>
                 ))
               )}
@@ -63,6 +66,7 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
         <div style={s.statsRow}>
           <Stat label={t("trace.stat.duration")} val={formatSeconds(stats.duration_ms)} />
           <Stat label={t("trace.stat.tokens")} val={formatTokens(stats.tokens_in, stats.tokens_out)} />
+          <Stat label={t("trace.stat.cost")} val={formatCost(stats.cost_usd)} />
           <Stat label={t("trace.stat.findings")} val={stats.findings} />
         </div>
       </TraceSection>
@@ -72,7 +76,30 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
       <TraceSection icon="FileText" title={t("trace.promptAssembly")} defaultOpen={false}>
         <PromptBlock label={t("trace.prompt.system")} text={trace.prompt_assembly.system} color={PROMPT_COLORS.system} />
         {trace.prompt_assembly.skills != null && (
-          <PromptBlock label={t("trace.prompt.skills")} text={trace.prompt_assembly.skills} color={PROMPT_COLORS.skills} />
+          <PromptBlock
+            label={
+              trace.prompt_assembly.skills_tokens != null
+                ? `${t("trace.prompt.skills")} · ${t("trace.prompt.skillsCount", { count: trace.prompt_assembly.skill_blocks?.length ?? 0 })} · ${t("trace.prompt.skillsTokens", { count: trace.prompt_assembly.skills_tokens })}`
+                : t("trace.prompt.skills")
+            }
+            text={trace.prompt_assembly.skills}
+            color={PROMPT_COLORS.skills}
+          />
+        )}
+        {(trace.prompt_assembly.skill_blocks ?? []).map((b) => (
+          <PromptBlock
+            key={b.name}
+            label={`↳ ${t("trace.prompt.skillBlock", { name: b.name, version: b.version })} · ${t("trace.prompt.skillsTokens", { count: b.tokens })}`}
+            text={b.text}
+            color={PROMPT_COLORS.skills}
+          />
+        ))}
+        {trace.prompt_assembly.intent != null && (
+          <PromptBlock
+            label={`${t("trace.prompt.intent")}${trace.prompt_assembly.intent_confidence ? ` · ${t("trace.prompt.intentConfidence", { level: trace.prompt_assembly.intent_confidence })}` : ""}`}
+            text={trace.prompt_assembly.intent}
+            color={PROMPT_COLORS.intent}
+          />
         )}
         {trace.prompt_assembly.memory != null && (
           <PromptBlock label={t("trace.prompt.memory")} text={trace.prompt_assembly.memory} color={PROMPT_COLORS.memory} />
@@ -80,7 +107,22 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
         {trace.prompt_assembly.repo_map != null && (
           <PromptBlock label={t("trace.prompt.repoMap")} text={trace.prompt_assembly.repo_map} color={PROMPT_COLORS.repoMap} />
         )}
-        {trace.prompt_assembly.specs != null && (
+        {contextBlocks.length > 0 && trace.prompt_assembly.specs != null && (
+          <PromptBlock
+            label={`${t("trace.prompt.context")}${trace.prompt_assembly.context_tokens != null ? ` · ${t("trace.prompt.contextTokens", { count: trace.prompt_assembly.context_tokens })}` : ""}`}
+            text={trace.prompt_assembly.specs}
+            color={PROMPT_COLORS.specs}
+          />
+        )}
+        {contextBlocks.map((b) => (
+          <PromptBlock
+            key={b.path}
+            label={`↳ ${t("trace.prompt.contextBlock", { path: b.path, tokens: b.tokens, source: b.source })}${b.truncated ? ` · ${t("trace.prompt.contextTruncated")}` : ""}${b.modified === true ? ` · ${t("trace.prompt.contextModified")}` : ""}`}
+            text={b.text}
+            color={PROMPT_COLORS.specs}
+          />
+        ))}
+        {contextBlocks.length === 0 && trace.prompt_assembly.specs != null && (
           <PromptBlock label={t("trace.prompt.specs")} text={trace.prompt_assembly.specs} color={PROMPT_COLORS.specs} />
         )}
         {trace.prompt_assembly.callers != null && (

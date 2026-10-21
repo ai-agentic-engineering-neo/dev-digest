@@ -1,0 +1,1 @@
+export { CandidateCard } from "./CandidateCard";

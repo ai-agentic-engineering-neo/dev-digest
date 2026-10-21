@@ -4,7 +4,13 @@ import { waitForPrRuns } from './helpers/runs.js';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/platform/config.js';
 import { seed } from '../src/db/seed.js';
-import { MockLLMProvider, MockEmbedder, MockGitClient } from '../src/adapters/mocks.js';
+import {
+  MockLLMProvider,
+  MockEmbedder,
+  MockGitClient,
+  MockGitHubClient,
+  MockSecretsProvider,
+} from '../src/adapters/mocks.js';
 import * as t from '../src/db/schema.js';
 import { eq } from 'drizzle-orm';
 import type { Review } from '@devdigest/shared';
@@ -58,6 +64,12 @@ const REVIEW_FIXTURE: Review = {
       kind: 'finding',
     },
   ],
+};
+
+const INTENT_FIXTURE = {
+  intent: 'Adds rate limiting to the public API.',
+  in_scope: ['limiter'],
+  out_of_scope: [],
 };
 
 let repoSeq = 0;
@@ -117,8 +129,15 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
       overrides: {
         embedder: new MockEmbedder(),
         git: new MockGitClient({ diff: DIFF }),
+        // Intent derivation runs before every review: keep it off the real
+        // network and off the developer's ~/.devdigest/secrets.json.
+        secrets: new MockSecretsProvider(),
+        github: new MockGitHubClient(),
         llm: {
           [provider]: new MockLLMProvider(provider, { structured }),
+          openrouter: new MockLLMProvider('openai', {
+            structuredBySchema: { IntentDerivation: INTENT_FIXTURE },
+          }),
         },
       },
     });
@@ -208,6 +227,50 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(run!.status).toBe('done');
     expect(run!.findingsCount).toBe(1);
     expect(run!.grounding).toBe('1/2 passed');
+
+    // Run cost: the mock LLM prices every structured call at $0.001, so the
+    // persisted cost is exactly one price per chunk (no extra model call), and
+    // the trace + run history carry the same number.
+    // (The intent derivation is a separate call, stored on pr_intent, not here.)
+    const reviewCalls = trace.tool_calls.filter((c: { tool: string }) => c.tool === 'review_file').length;
+    const expectedCost = 0.001 * reviewCalls;
+    expect(run!.tokensIn).toBe(100 * reviewCalls);
+    expect(run!.costUsd).toBeCloseTo(expectedCost, 6);
+    expect(trace.stats.cost_usd).toBeCloseTo(expectedCost, 6);
+    const history = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(history).toHaveLength(1);
+    expect(history[0].run_id).toBe(runId);
+    expect(history[0].cost_usd).toBeCloseTo(expectedCost, 6);
+
+    await app.close();
+  });
+
+  it('a failed run persists a null cost (never $0.00) and a null-cost trace', async () => {
+    // A fixture that fails the Review schema makes the mock provider throw →
+    // the run is persisted as failed with no usage.
+    const app = await appWith({ not: 'a review' });
+    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'Broken', provider: 'openai', model: 'gpt-4.1', system_prompt: 's' },
+      })
+    ).json();
+    const body = (
+      await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } })
+    ).json();
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+
+    const runId = body.runs[0].run_id;
+    const [run] = await pg.handle.db.select().from(t.agentRuns).where(eq(t.agentRuns.id, runId));
+    expect(run!.status).toBe('failed');
+    expect(run!.costUsd).toBeNull();
+    const history = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(history[0].status).toBe('failed');
+    expect(history[0].cost_usd).toBeNull();
+    const trace = (await app.inject({ method: 'GET', url: `/runs/${runId}/trace` })).json();
+    expect(trace.stats.cost_usd).toBeNull();
 
     await app.close();
   });

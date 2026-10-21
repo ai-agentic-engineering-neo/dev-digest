@@ -1,11 +1,14 @@
-import { pgTable, uuid, text, integer, jsonb, timestamp } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { pgTable, uuid, text, integer, jsonb, timestamp, doublePrecision, index, uniqueIndex } from 'drizzle-orm/pg-core';
 import { workspaces } from './core';
 import { agents } from './agents';
 import { pullRequests } from './pulls';
 
 // ============================================================ Observability
 
-export const agentRuns = pgTable('agent_runs', {
+export const agentRuns = pgTable(
+  'agent_runs',
+  {
   id: uuid('id').primaryKey().defaultRandom(),
   workspaceId: uuid('workspace_id')
     .notNull()
@@ -18,6 +21,8 @@ export const agentRuns = pgTable('agent_runs', {
   durationMs: integer('duration_ms'),
   tokensIn: integer('tokens_in'),
   tokensOut: integer('tokens_out'),
+  /** USD cost of the run (provider usage.cost or tokens × price book). null = unknown; 0 = free model. */
+  costUsd: doublePrecision('cost_usd'),
   status: text('status'),
   /** Failure reason when status='failed' (LLM/API error, timeout, quota, …). */
   error: text('error'),
@@ -28,7 +33,17 @@ export const agentRuns = pgTable('agent_runs', {
   score: integer('score'),
   /** Findings that tripped the agent's gate (severity ≥ ciFailOn). */
   blockers: integer('blockers'),
-});
+  /** What the run produced. `brief` rows are PR brief generations: no agent, not a review. */
+  kind: text('kind', { enum: ['review', 'brief'] }).notNull().default('review'),
+  },
+  (t) => ({
+    prKindRanAtIdx: index('agent_runs_pr_kind_ran_at_idx').on(t.prId, t.kind, t.ranAt),
+    // One running brief per PR: a concurrent POST hits 23505 and gets the running run back.
+    oneRunningBrief: uniqueIndex('agent_runs_one_running_brief_uidx')
+      .on(t.prId)
+      .where(sql`${t.kind} = 'brief' and ${t.status} = 'running'`),
+  }),
+);
 
 /** Whole trace of one run as a SINGLE jsonb document. */
 export const runTraces = pgTable('run_traces', {

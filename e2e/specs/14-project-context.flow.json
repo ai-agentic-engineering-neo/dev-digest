@@ -1,0 +1,22 @@
+{
+  "name": "Project Context page and the agent editor Context tab show the not-cloned error state for the seeded repo",
+  "description": "Opens Project Context from the sidebar (/context) and confirms the page heading and, because the seeded repository has no clone, the 'Repository not cloned' error state with its retry control (GET /repos/:id/context is not called without a clone). Then opens the seeded Security Reviewer's Context tab and confirms the 'Project context' title and the same not-cloned state. No writes, no model call.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/agents"], "label": "load the agents page" },
+    { "cmd": ["wait", "--url", "/agents"], "label": "agents route reached" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "agents fetch settles" },
+    { "cmd": ["find", "text", "Project Context", "click"], "label": "open Project Context from the sidebar" },
+    { "cmd": ["wait", "--url", "/context"], "label": "context route reached" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "repos fetch settles" },
+    { "cmd": ["wait", "--text", "Repository not cloned"], "label": "seeded repo has no clone: error state" },
+    { "cmd": ["wait", "--text", "Retry"], "label": "the retry control is offered" },
+    { "cmd": ["open", "{BASE}/agents"], "label": "back to the agents page" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "agents fetch settles again" },
+    { "cmd": ["find", "text", "Security Reviewer", "click"], "label": "open the seeded Security Reviewer" },
+    { "cmd": ["wait", "--url", "/agents/"], "label": "agent editor reached" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Context"], "label": "switch to the Context tab" },
+    { "cmd": ["wait", "--url", "tab=context"], "label": "tab state is in the URL" },
+    { "cmd": ["wait", "--text", "Project context"], "label": "tab title is visible" },
+    { "cmd": ["wait", "--text", "Repository not cloned"], "label": "the same not-cloned state in the tab" }
+  ]
+}

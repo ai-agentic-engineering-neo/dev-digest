@@ -1,0 +1,447 @@
+[
+  {
+    "type": "dependency",
+    "from": "src/adapters/astgrep/index.ts",
+    "to": "src/modules/repo-intel/constants.ts",
+    "unresolvedTo": "../../modules/repo-intel/constants.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "adapters-no-modules"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/adapters/depgraph/index.ts",
+    "to": "src/modules/repo-intel/constants.ts",
+    "unresolvedTo": "../../modules/repo-intel/constants.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "adapters-no-modules"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/agents/service.ts",
+    "to": "src/platform/container.ts",
+    "unresolvedTo": "../../platform/container.js",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "application-no-container"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/repo-intel/pipeline/full.ts",
+    "to": "src/platform/container.ts",
+    "unresolvedTo": "../../../platform/container.js",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "application-no-container"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/repo-intel/pipeline/incremental.ts",
+    "to": "src/platform/container.ts",
+    "unresolvedTo": "../../../platform/container.js",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "application-no-container"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/repo-intel/service.ts",
+    "to": "src/platform/container.ts",
+    "unresolvedTo": "../../platform/container.js",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "application-no-container"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/repos/service.ts",
+    "to": "src/platform/container.ts",
+    "unresolvedTo": "../../platform/container.js",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "application-no-container"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/reviews/diff-loader.ts",
+    "to": "src/platform/container.ts",
+    "unresolvedTo": "../../platform/container.js",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "application-no-container"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/reviews/run-executor.ts",
+    "to": "src/platform/container.ts",
+    "unresolvedTo": "../../platform/container.js",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "application-no-container"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/reviews/service.ts",
+    "to": "src/platform/container.ts",
+    "unresolvedTo": "../../platform/container.js",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "application-no-container"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/settings/feature-models.ts",
+    "to": "src/platform/container.ts",
+    "unresolvedTo": "../../platform/container.js",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "application-no-container"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/repos/helpers.ts",
+    "to": "src/db/schema.ts",
+    "unresolvedTo": "../../db/schema.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "application-no-row-types"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/reviews/diff-loader.ts",
+    "to": "src/db/schema.ts",
+    "unresolvedTo": "../../db/schema.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "application-no-row-types"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/reviews/run-executor.ts",
+    "to": "src/db/rows.ts",
+    "unresolvedTo": "../../db/rows.js",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "application-no-row-types"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/reviews/run-executor.ts",
+    "to": "src/db/schema.ts",
+    "unresolvedTo": "../../db/schema.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "application-no-row-types"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/reviews/service.ts",
+    "to": "src/db/rows.ts",
+    "unresolvedTo": "../../db/rows.js",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "application-no-row-types"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/settings/feature-models.ts",
+    "to": "src/db/schema.ts",
+    "unresolvedTo": "../../db/schema.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "application-no-row-types"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/polling/routes.ts",
+    "to": "node_modules/drizzle-orm/index.d.ts",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "drizzle-only-in-driven-ring"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/pulls/routes.ts",
+    "to": "node_modules/drizzle-orm/index.d.ts",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "drizzle-only-in-driven-ring"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/settings/feature-models.ts",
+    "to": "node_modules/drizzle-orm/index.d.ts",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "drizzle-only-in-driven-ring"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/settings/routes.ts",
+    "to": "node_modules/drizzle-orm/index.d.ts",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "drizzle-only-in-driven-ring"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/workspace/routes.ts",
+    "to": "node_modules/drizzle-orm/index.d.ts",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "drizzle-only-in-driven-ring"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/repos/service.ts",
+    "to": "src/modules/repo-intel/constants.ts",
+    "unresolvedTo": "../repo-intel/constants.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-cross-module"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/polling/routes.ts",
+    "to": "node_modules/drizzle-orm/index.d.ts",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "routes-no-persistence"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/polling/routes.ts",
+    "to": "src/db/schema.ts",
+    "unresolvedTo": "../../db/schema.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "routes-no-persistence"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/pulls/routes.ts",
+    "to": "node_modules/drizzle-orm/index.d.ts",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "routes-no-persistence"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/pulls/routes.ts",
+    "to": "src/db/schema.ts",
+    "unresolvedTo": "../../db/schema.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "routes-no-persistence"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/settings/routes.ts",
+    "to": "node_modules/drizzle-orm/index.d.ts",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "routes-no-persistence"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/settings/routes.ts",
+    "to": "src/db/schema.ts",
+    "unresolvedTo": "../../db/schema.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "routes-no-persistence"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/workspace/routes.ts",
+    "to": "node_modules/drizzle-orm/index.d.ts",
+    "unresolvedTo": "drizzle-orm",
+    "dependencyTypes": [
+      "npm",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "routes-no-persistence"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/modules/workspace/routes.ts",
+    "to": "src/db/schema.ts",
+    "unresolvedTo": "../../db/schema.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "routes-no-persistence"
+    }
+  }
+]

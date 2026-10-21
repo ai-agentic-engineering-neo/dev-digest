@@ -1,0 +1,18 @@
+{
+  "name": "Onboarding Tour page shows the seeded tour from the sidebar, with the not-cloned note instead of Regenerate",
+  "description": "Opens Onboarding Tour from the sidebar (/repos/:id/tour) and confirms the page heading, the five section titles, a seeded run command and, because the seeded repository has no clone, the 'Repository not cloned yet' note in place of the Regenerate button. Read-only: no generation, no model call.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/agents"], "label": "load the agents page" },
+    { "cmd": ["wait", "--url", "/agents"], "label": "agents route reached" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "agents fetch settles" },
+    { "cmd": ["find", "text", "Onboarding Tour", "click"], "label": "open Onboarding Tour from the sidebar" },
+    { "cmd": ["wait", "--url", "/tour"], "label": "tour route reached" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "tour fetch settles" },
+    { "cmd": ["wait", "--text", "Onboarding for"], "label": "page heading renders" },
+    { "cmd": ["wait", "--text", "Architecture overview"], "label": "architecture card renders" },
+    { "cmd": ["wait", "--text", "How to run locally"], "label": "run locally card renders" },
+    { "cmd": ["wait", "--text", "First tasks"], "label": "first tasks card renders" },
+    { "cmd": ["wait", "--text", "pnpm dev"], "label": "a seeded run command renders" },
+    { "cmd": ["wait", "--text", "Repository not cloned yet"], "label": "seeded repo has no clone: note in place of Regenerate" }
+  ]
+}

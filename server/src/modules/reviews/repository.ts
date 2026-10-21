@@ -1,15 +1,15 @@
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
-import type { Finding, Intent, RunSummary, RunTrace } from '@devdigest/shared';
+import type { Finding, RunFindings, RunSummary, RunTrace } from '@devdigest/shared';
 
 /**
  * A2 — review data-access. The ONLY layer touching the DB for the review
- * domain. Owns `reviews`, `findings`, `pr_intent`, and persists the
+ * domain. Owns `reviews`, `findings`, and persists the
  * observability rows `agent_runs` + `run_traces` (one trace doc per run).
  * Workspace scoping is enforced via the PR (which carries workspace_id).
  *
  * The query implementations are colocated, split by aggregate, under
- * `./repository/` (review+findings, agent runs, pull/intent). This class
+ * `./repository/` (review+findings, agent runs, pull). This class
  * composes them so its public API stays identical.
  */
 
@@ -82,7 +82,17 @@ export class ReviewRepository {
     return runRepo.listRunsForPull(this.db, workspaceId, prId);
   }
 
+  /** One run + its newest review + findings; undefined when not in the workspace. */
+  findingsForRun(workspaceId: string, runId: string): Promise<RunFindings | undefined> {
+    return runRepo.findingsForRun(this.db, workspaceId, runId);
+  }
+
   /** Delete one agent run (+ its trace via FK cascade). Workspace-scoped. */
+  /** Per-PR sum of completed-run cost for the PR list (see run.repo). */
+  costRollupForPulls(workspaceId: string, prIds: string[]): Promise<Map<string, runRepo.PrCostRollup>> {
+    return runRepo.costRollupForPulls(this.db, workspaceId, prIds);
+  }
+
   deleteAgentRun(workspaceId: string, runId: string): Promise<boolean> {
     return runRepo.deleteAgentRun(this.db, workspaceId, runId);
   }
@@ -125,16 +135,6 @@ export class ReviewRepository {
     return reviewRepo.setFindingDismissed(this.db, findingId, at);
   }
 
-  // ---- intent -------------------------------------------------------------
-
-  upsertIntent(prId: string, intent: Intent): Promise<void> {
-    return pullRepo.upsertIntent(this.db, prId, intent);
-  }
-
-  getIntent(prId: string): Promise<Intent | undefined> {
-    return pullRepo.getIntent(this.db, prId);
-  }
-
   // ---- observability: agent_runs + run_traces ----------------------------
 
   /** Create an agent_runs row in `running` state; returns its id (= the runId). */
@@ -155,6 +155,8 @@ export class ReviewRepository {
       durationMs: number;
       tokensIn: number;
       tokensOut: number;
+      /** USD cost; null when unknown or on failed/cancelled runs. */
+      costUsd: number | null;
       findingsCount: number;
       grounding: string;
       /** Review score (0-100); null on failed/cancelled runs. */

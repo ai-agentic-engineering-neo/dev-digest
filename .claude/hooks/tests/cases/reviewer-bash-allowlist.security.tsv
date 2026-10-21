@@ -1,0 +1,21 @@
+# hook: reviewer-bash-allowlist.sh security
+# tool: Bash
+ALLOW	.claude/skills/pr-self-review/scripts/verify.sh check	read verify result
+ALLOW	.claude/skills/pr-self-review/scripts/changed-files.sh --all diff server/src	diff
+ALLOW	.claude/skills/pr-self-review/scripts/route.sh --all --lanes	lanes
+ALLOW	git grep -n dangerouslySetInnerHTML	sink search
+ALLOW	git log --oneline -n 5	git history
+ALLOW	pnpm -C server audit	server audit
+ALLOW	pnpm -C client audit --prod	client prod audit
+ALLOW	PATH=~/.nvm/versions/node/v22.16.0/bin:$PATH pnpm -C server audit --prod	audit with node 22
+ALLOW	npm --prefix reviewer-core audit	reviewer-core audit
+ALLOW	npm --prefix e2e audit --omit=dev	e2e prod audit
+BLOCK	pnpm -C server audit --fix	audit fix writes the lockfile
+BLOCK	npm --prefix e2e audit fix	npm audit fix
+BLOCK	pnpm -C server audit --json > audit.json	redirect
+BLOCK	curl http://localhost:3001/pulls	no live requests
+BLOCK	pnpm -C server lint:arch:baseline	baseline write
+BLOCK	.claude/skills/pr-self-review/scripts/verify.sh run	reviewers never run checks
+BLOCK	pnpm -C server test	package tests are plan-verifier only
+BLOCK	cat ~/.devdigest/secrets.json	secrets
+BLOCK	node -e "require('fs').writeFileSync('x','y')"	arbitrary code

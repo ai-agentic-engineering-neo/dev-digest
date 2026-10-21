@@ -1,0 +1,13 @@
+# hook: report-paths.sh implementation-planner
+# tool: Write
+ALLOW	docs/plans/feat-intent-layer.md	plan file
+ALLOW	{ROOT}/docs/plans/fix-token-budget.md	absolute plan path
+BLOCK	docs/plans/sub/feat-x.md	nested
+BLOCK	docs/plans/Feat_X.md	not kebab
+BLOCK	docs/plans/../../server/src/app.ts	traversal
+BLOCK	.pipeline/feat-x/implementation-planner.md	the plan is the report
+BLOCK	server/src/app.ts	source
+BLOCK	/tmp/plan.md	outside repo
+BLOCK	server/specs/feature.md	spec: doc-writer owns it
+BLOCK	client/docs/feature.md	design note: doc-writer owns it
+BLOCK	README.md	README: doc-writer owns it

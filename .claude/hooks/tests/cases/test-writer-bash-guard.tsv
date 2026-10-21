@@ -1,0 +1,35 @@
+# hook: test-writer-bash-guard.sh
+# tool: Bash
+ALLOW	export PATH=~/.nvm/versions/node/v22.16.0/bin:$PATH && cd {ROOT}/client && pnpm test	client tests
+ALLOW	export PATH=~/.nvm/versions/node/v22.16.0/bin:$PATH && cd {ROOT}/server && pnpm exec vitest run --exclude '**/*.it.test.ts'	server unit
+ALLOW	export PATH=~/.nvm/versions/node/v22.16.0/bin:$PATH && cd {ROOT}/server && pnpm exec vitest run .it.test	server it
+ALLOW	cd {ROOT}/reviewer-core && npm ci	reviewer-core deps from lockfile
+ALLOW	cd {ROOT}/server && pnpm install --frozen-lockfile	install from lockfile
+ALLOW	export PATH=~/.nvm/versions/node/v22.16.0/bin:$PATH && cd {ROOT}/e2e && npm run e2e:hermetic	e2e
+ALLOW	pnpm test 2>&1	stderr merge
+ALLOW	pnpm test >/dev/null	discard output
+ALLOW	docker compose up -d	postgres for it-tests
+ALLOW	.claude/skills/engineering-insights/scripts/insight.sh add client works "x" --evidence "a.ts:1"	insights
+ALLOW	git diff --stat	read
+ALLOW	git status --short	read
+BLOCK	git commit -m x	commit
+BLOCK	git push origin HEAD	push
+BLOCK	echo x > server/src/app.ts	shell write
+BLOCK	sed -i s/a/b/ client/src/lib/api.ts	in-place edit
+BLOCK	cp /tmp/x server/src/adapters/mocks.ts	copy over source
+BLOCK	pnpm test | tee out.txt	tee
+BLOCK	touch server/src/new.ts	touch
+BLOCK	.claude/skills/engineering-insights/scripts/insight.sh add client works "x" ; rm server/src/app.ts	insight ride-along
+BLOCK	.claude/skills/engineering-insights/scripts/insight.sh add client works "x" && echo y > server/src/a.ts	insight ride-along redirect
+BLOCK	pnpm add msw	dependency
+BLOCK	npm install nock	dependency
+BLOCK	pnpm remove zod	dependency
+BLOCK	pnpm exec vitest run -u	snapshot update
+BLOCK	pnpm exec vitest run --update	snapshot update
+BLOCK	pnpm db:generate	schema
+BLOCK	pnpm db:migrate	dev db
+BLOCK	pnpm db:seed	dev db
+BLOCK	pnpm lint --fix	autofix
+BLOCK	docker compose down -v	inherited
+BLOCK	pnpm lint:arch:baseline	inherited
+ALLOW	export PATH=~/.nvm/versions/node/v22.16.0/bin:$PATH && bash .claude/skills/pr-self-review/scripts/verify.sh run --with-it --e2e	test-writer runs the shared verification

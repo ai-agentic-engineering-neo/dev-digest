@@ -1,0 +1,57 @@
+{
+  "brief": "PR brief",
+  "title": "Intent",
+  "confidence": {
+    "high": "High confidence",
+    "medium": "Medium confidence",
+    "low": "Low confidence",
+    "lowHint": "Inferred only from the title, branch, commit messages and file paths. Treat it as a guess."
+  },
+  "stale": "Stale",
+  "staleHint": "The PR changed since this was derived. Refresh to re-derive it.",
+  "inScope": "In scope",
+  "outOfScope": "Out of scope",
+  "sources": "Sources",
+  "sourcesToggle": "Sources ({count})",
+  "refreshLabel": "Refresh intent",
+  "sourceKind": {
+    "title": "Title",
+    "body": "Description",
+    "branch": "Branch",
+    "commits": "Commits",
+    "files": "Changed files",
+    "github_issue": "GitHub issue",
+    "ticket_key": "Ticket",
+    "repo_doc": "Plan / spec",
+    "github_doc": "Document",
+    "external_url": "External link"
+  },
+  "sourceStatus": {
+    "used": "used",
+    "truncated": "truncated",
+    "skipped": "skipped",
+    "failed": "failed"
+  },
+  "reason": {
+    "external_fetch_disabled": "external links are not fetched",
+    "no_ticket_provider": "no ticket integration",
+    "no_github_token": "no GitHub token",
+    "github_unavailable": "GitHub unavailable",
+    "not_found_or_no_access": "not found or no access",
+    "not_found_at_head": "not found at the PR head",
+    "cross_owner": "different owner",
+    "cross_repo": "different repository",
+    "extension_not_allowed": "file type not allowed",
+    "invalid_path": "invalid path",
+    "not_imported": "not imported yet",
+    "empty": "empty"
+  },
+  "refresh": "Refresh",
+  "refreshing": "Deriving…",
+  "empty": {
+    "title": "No intent yet",
+    "body": "It is derived when a review runs."
+  },
+  "derivedBy": "{model} · derived {when} · {tokens} tokens · {cost}",
+  "loadFailed": "Could not load the intent."
+}

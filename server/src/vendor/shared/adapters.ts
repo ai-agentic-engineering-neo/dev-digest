@@ -162,6 +162,13 @@ export interface GitHubClient {
   /** The open PR whose head is `branch`, if any (so re-publish reuses it). */
   findOpenPr(repo: RepoRef, branch: string): Promise<{ url: string } | null>;
   getIssue(repo: RepoRef, n: number): Promise<IssueMeta>;
+  /** Numbers of the issues GitHub links to PR `n` as closing references (GraphQL, max 5). */
+  getClosingIssues(repo: RepoRef, n: number): Promise<number[]>;
+  /**
+   * Text content of one file at `ref` (REST contents API). Files only, size
+   * capped by the adapter; throws when missing, a directory, or too large.
+   */
+  getFileContent(repo: RepoRef, path: string, ref: string): Promise<string>;
   /** GET /user — for "posting as @user". */
   currentLogin(): Promise<string>;
 }
@@ -224,6 +231,22 @@ export interface GitClient {
   blame(repo: RepoRef, path: string): Promise<BlameLine[]>;
   log(repo: RepoRef, path?: string): Promise<GitCommit[]>;
   readFile(repo: RepoRef, path: string): Promise<string>;
+  /**
+   * Content of `path` as committed at `ref` (`git show <ref>:<path>`), sha-pinned
+   * and independent of the working tree. Rejects unsafe refs/paths; throws when
+   * the object is missing.
+   */
+  showFile(repo: RepoRef, ref: string, path: string): Promise<string>;
+  /**
+   * Blob paths (with byte size and git blob sha) under `ref` matching the globs (`**`, `*`, `?`), read
+   * from the object database only. `ref` is a branch name (remote-tracking
+   * first, then local); `sha` is the commit it resolved to. Rejects unsafe refs.
+   */
+  listFiles(
+    repo: RepoRef,
+    ref: string,
+    globs: string[],
+  ): Promise<{ sha: string; files: { path: string; size: number; blob: string }[] }>;
   clonePathFor(repo: RepoRef): string;
 }
 

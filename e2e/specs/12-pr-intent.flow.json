@@ -1,0 +1,17 @@
+{
+  "name": "PR Overview shows the seeded derived intent with its confidence and sources",
+  "description": "From the seeded repo's PR list, open PR #482 (Overview is the default tab) and confirm the Intent card: the seeded intent text, the Medium confidence badge, then expands the Sources disclosure to show the linked GitHub issue #471 as a used source and the external design link recorded as skipped. Nothing derives an intent, so no model call. Exercises GET /pulls/:id/intent and the Intent card.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "land on the PR list" },
+    { "cmd": ["find", "text", "Add rate limiting to public API endpoints", "click"], "label": "open the PR row" },
+    { "cmd": ["wait", "--url", "/pulls/482"], "label": "navigate to the PR detail route" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "PR detail data settles" },
+    { "cmd": ["wait", "--text", "Medium confidence"], "label": "Intent card shows the confidence badge" },
+    { "cmd": ["wait", "--text", "token-bucket rate limiter"], "label": "seeded intent text renders" },
+    { "cmd": ["eval", "[...document.querySelectorAll('button')].find((b) => b.textContent.includes('Sources (7)')).scrollIntoView({ block: 'center' })"], "label": "scroll the sources disclosure into view (the brief card sits above the Intent card)" },
+    { "cmd": ["find", "text", "Sources (7)", "click"], "label": "expand the collapsed sources disclosure" },
+    { "cmd": ["wait", "--text", "#471"], "label": "linked issue #471 is listed as a source" },
+    { "cmd": ["wait", "--text", "external links are not fetched"], "label": "the external link is recorded as skipped with its reason" }
+  ]
+}

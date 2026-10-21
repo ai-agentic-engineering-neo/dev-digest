@@ -129,6 +129,102 @@ export class SimpleGitClient implements GitClient {
   async readFile(repo: RepoRef, path: string): Promise<string> {
     return readFile(join(this.clonePathFor(repo), path), 'utf8');
   }
+
+  async showFile(repo: RepoRef, ref: string, path: string): Promise<string> {
+    if (!SHA_RE.test(ref)) throw new Error('showFile: ref must be a hex commit sha');
+    if (!isSafeRepoPath(path)) throw new Error('showFile: unsafe path');
+    // One argument `<sha>:<path>`; the sha is hex-only so it can never be an option.
+    const size = Number((await this.git(repo).raw(['cat-file', '-s', `${ref}:${path}`])).trim());
+    if (!Number.isFinite(size) || size > SHOW_FILE_MAX_CHARS) {
+      throw new Error('showFile: blob exceeds the size cap');
+    }
+    return this.git(repo).raw(['show', `${ref}:${path}`]);
+  }
+
+  async listFiles(
+    repo: RepoRef,
+    ref: string,
+    pathspecs: string[],
+  ): Promise<{ sha: string; files: { path: string; size: number; blob: string }[] }> {
+    if (!isSafeRef(ref)) throw new Error('listFiles: unsafe ref');
+    if (pathspecs.some((p) => p.length === 0 || p.length > 500 || p.includes('\0'))) {
+      throw new Error('listFiles: unsafe pathspec');
+    }
+    const g = this.git(repo);
+    let sha = '';
+    for (const full of [`refs/remotes/origin/${ref}`, `refs/heads/${ref}`]) {
+      try {
+        const out = (await g.raw(['rev-parse', '--verify', '--quiet', `${full}^{commit}`])).trim();
+        if (SHA_RE.test(out)) {
+          sha = out;
+          break;
+        }
+      } catch {
+        // --quiet exits 1 when the ref is absent: try the next candidate
+      }
+    }
+    if (!sha) throw new Error('listFiles: ref not found');
+    if (pathspecs.length === 0) return { sha, files: [] };
+    // `ls-tree` rejects pathspec magic, so list every blob once and match globs here.
+    const matchers = pathspecs.map(globToRegExp);
+    const raw = await g.raw(['ls-tree', '-r', '-l', '-z', '--full-tree', sha]);
+    const files: { path: string; size: number; blob: string }[] = [];
+    for (const entry of raw.split('\0')) {
+      if (!entry) continue;
+      // "<mode> <type> <sha> <size>\t<path>"
+      const tab = entry.indexOf('\t');
+      if (tab < 0) continue;
+      const [, type, blob, size] = entry.slice(0, tab).split(/\s+/);
+      if (type !== 'blob' || !blob || !SHA_RE.test(blob)) continue;
+      const path = entry.slice(tab + 1);
+      if (!matchers.some((re) => re.test(path))) continue;
+      files.push({ path, size: Number(size), blob });
+    }
+    return { sha, files };
+  }
+}
+
+const SHA_RE = /^[0-9a-f]{7,40}$/i;
+/** Blob size cap in bytes for `showFile`; the project-context file cap equals it. */
+export const SHOW_FILE_MAX_CHARS = 200_000;
+/** Branch names: no leading dash, no `..`, only a conservative character set. */
+const REF_RE = /^[A-Za-z0-9._/-]+$/;
+
+function isSafeRef(ref: string): boolean {
+  return (
+    ref.length > 0 &&
+    ref.length <= 200 &&
+    REF_RE.test(ref) &&
+    !ref.startsWith('-') &&
+    !ref.includes('..')
+  );
+}
+
+/** Glob to anchored RegExp: `**` crosses folders (`**` + `/` = zero or more), `*` and `?` stay in one segment. */
+function globToRegExp(glob: string): RegExp {
+  let re = '';
+  for (let i = 0; i < glob.length; i++) {
+    const c = glob[i]!;
+    if (c === '*' && glob[i + 1] === '*') {
+      if (glob[i + 2] === '/') {
+        re += '(?:.*/)?';
+        i += 2;
+      } else {
+        re += '.*';
+        i += 1;
+      }
+    } else if (c === '*') re += '[^/]*';
+    else if (c === '?') re += '[^/]';
+    else re += c.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+  }
+  return new RegExp(`^${re}$`);
+}
+
+/** Relative, no traversal, no NUL, no leading dash, bounded length. */
+function isSafeRepoPath(path: string): boolean {
+  if (path.length === 0 || path.length > 300) return false;
+  if (path.includes('\0') || path.startsWith('-') || path.startsWith('/')) return false;
+  return !path.split('/').some((seg) => seg === '..' || seg === '');
 }
 
 function parseBlamePorcelain(raw: string): BlameLine[] {

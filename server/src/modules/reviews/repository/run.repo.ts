@@ -1,7 +1,8 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import type { Db } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
-import type { RunSummary, RunTrace } from '@devdigest/shared';
+import type { RunFindings, RunSummary, RunTrace, Verdict } from '@devdigest/shared';
+import { findingRowToDto } from '../helpers.js';
 
 // ---- in-flight / history --------------------------------------------------
 
@@ -25,6 +26,7 @@ export async function activeRunsForPull(
       and(
         eq(t.agentRuns.workspaceId, workspaceId),
         eq(t.agentRuns.prId, prId),
+        eq(t.agentRuns.kind, 'review'),
         eq(t.agentRuns.status, 'running'),
       ),
     );
@@ -46,10 +48,13 @@ export async function listRunsForPull(
     .select({ run: t.agentRuns, agentName: t.agents.name })
     .from(t.agentRuns)
     .leftJoin(t.agents, eq(t.agents.id, t.agentRuns.agentId))
-    .where(and(eq(t.agentRuns.workspaceId, workspaceId), eq(t.agentRuns.prId, prId)))
+    .where(
+      and(eq(t.agentRuns.workspaceId, workspaceId), eq(t.agentRuns.prId, prId), eq(t.agentRuns.kind, 'review')),
+    )
     .orderBy(desc(t.agentRuns.ranAt));
   return rows.map(({ run, agentName }) => ({
     run_id: run.id,
+    kind: run.kind,
     agent_id: run.agentId,
     agent_name: agentName ?? null,
     provider: run.provider,
@@ -59,12 +64,109 @@ export async function listRunsForPull(
     duration_ms: run.durationMs,
     tokens_in: run.tokensIn,
     tokens_out: run.tokensOut,
+    cost_usd: run.costUsd,
     findings_count: run.findingsCount,
     grounding: run.grounding,
     ran_at: run.ranAt ? run.ranAt.toISOString() : null,
     score: run.score,
     blockers: run.blockers,
   }));
+}
+
+/**
+ * One run (summary + agent name), the newest review it produced and that
+ * review's findings. Workspace-scoped on both `agent_runs` and `reviews`.
+ * Undefined when the run is not in the workspace.
+ */
+export async function findingsForRun(
+  db: Db,
+  workspaceId: string,
+  runId: string,
+): Promise<RunFindings | undefined> {
+  const [row] = await db
+    .select({ run: t.agentRuns, agentName: t.agents.name })
+    .from(t.agentRuns)
+    .leftJoin(t.agents, eq(t.agents.id, t.agentRuns.agentId))
+    .where(and(eq(t.agentRuns.id, runId), eq(t.agentRuns.workspaceId, workspaceId)));
+  if (!row) return undefined;
+  const { run, agentName } = row;
+  const [review] = await db
+    .select()
+    .from(t.reviews)
+    .where(and(eq(t.reviews.runId, runId), eq(t.reviews.workspaceId, workspaceId)))
+    .orderBy(desc(t.reviews.createdAt))
+    .limit(1);
+  const findingRows = review
+    ? await db.select().from(t.findings).where(eq(t.findings.reviewId, review.id))
+    : [];
+  return {
+    run: {
+      run_id: run.id,
+      kind: run.kind,
+      agent_id: run.agentId,
+      agent_name: agentName ?? null,
+      provider: run.provider,
+      model: run.model,
+      status: run.status,
+      error: run.error,
+      duration_ms: run.durationMs,
+      tokens_in: run.tokensIn,
+      tokens_out: run.tokensOut,
+      cost_usd: run.costUsd,
+      findings_count: run.findingsCount,
+      grounding: run.grounding,
+      ran_at: run.ranAt ? run.ranAt.toISOString() : null,
+      score: run.score,
+      blockers: run.blockers,
+    },
+    review: review
+      ? {
+          id: review.id,
+          verdict: review.verdict as Verdict | null,
+          summary: review.summary,
+          score: review.score,
+        }
+      : null,
+    findings: findingRows.map(findingRowToDto),
+  };
+}
+
+/** Per-PR cost rollup for the PR list: what the PR's completed runs cost. */
+export type PrCostRollup = { cost_usd: number; cost_runs: number };
+
+/**
+ * Sum `cost_usd` over the PR's runs with `status='done'` AND a known cost
+ * (null-cost runs — unpriced models, rows that predate the column — are left
+ * out, as are failed/cancelled runs). PRs with no such run are absent from
+ * the map, which the list route renders as "—" (never "$0.00").
+ */
+export async function costRollupForPulls(
+  db: Db,
+  workspaceId: string,
+  prIds: string[],
+): Promise<Map<string, PrCostRollup>> {
+  const out = new Map<string, PrCostRollup>();
+  if (prIds.length === 0) return out;
+  const rows = await db
+    .select({
+      prId: t.agentRuns.prId,
+      costUsd: sql<number>`sum(${t.agentRuns.costUsd})`.mapWith(Number),
+      costRuns: sql<number>`count(*)`.mapWith(Number),
+    })
+    .from(t.agentRuns)
+    .where(
+      and(
+        eq(t.agentRuns.workspaceId, workspaceId),
+        inArray(t.agentRuns.prId, prIds),
+        eq(t.agentRuns.status, 'done'),
+        isNotNull(t.agentRuns.costUsd),
+      ),
+    )
+    .groupBy(t.agentRuns.prId);
+  for (const r of rows) {
+    if (r.prId) out.set(r.prId, { cost_usd: r.costUsd, cost_runs: r.costRuns });
+  }
+  return out;
 }
 
 /**
@@ -146,6 +248,8 @@ export async function completeAgentRun(
     durationMs: number;
     tokensIn: number;
     tokensOut: number;
+    /** USD cost; null when unknown or on failed/cancelled runs. */
+    costUsd: number | null;
     findingsCount: number;
     grounding: string;
     /** Review score (0-100); null on failed/cancelled runs. */
@@ -163,6 +267,7 @@ export async function completeAgentRun(
       durationMs: values.durationMs,
       tokensIn: values.tokensIn,
       tokensOut: values.tokensOut,
+      costUsd: values.costUsd,
       findingsCount: values.findingsCount,
       grounding: values.grounding,
       score: values.score ?? null,

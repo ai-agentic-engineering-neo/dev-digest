@@ -1,0 +1,28 @@
+# hook: reviewer-bash-allowlist.sh verify
+# tool: Bash
+ALLOW	PATH=~/.nvm/versions/node/v22.16.0/bin:$PATH pnpm -C client test	client tests
+ALLOW	PATH=~/.nvm/versions/node/v22.16.0/bin:$PATH pnpm -C server exec vitest run --exclude '**/*.it.test.ts'	server unit
+ALLOW	pnpm -C server exec vitest run skills-routes	one file
+ALLOW	pnpm -C server typecheck	typecheck
+ALLOW	pnpm -C client lint	lint
+ALLOW	pnpm -C server lint:arch	shared with arch
+ALLOW	npm --prefix reviewer-core test	engine tests
+ALLOW	npm --prefix reviewer-core run typecheck	engine typecheck
+ALLOW	npm --prefix e2e run typecheck	e2e typecheck
+ALLOW	.claude/skills/pr-self-review/scripts/changed-files.sh --all list	change set
+ALLOW	git show HEAD --stat	git
+BLOCK	npm --prefix e2e run e2e:hermetic	needs a stack
+BLOCK	npm --prefix e2e test	needs a stack
+BLOCK	pnpm -C client lint --fix	autofix
+BLOCK	pnpm -C server exec vitest run -u	snapshot update
+BLOCK	pnpm -C server db:migrate	dev db
+BLOCK	pnpm -C server exec tsx x.ts	arbitrary exec
+BLOCK	pnpm -C client exec vitest run --outputFile=x	writes a file
+BLOCK	pnpm -C client exec vitest --watch	watch
+BLOCK	pnpm -C server test; rm -rf x	chaining
+ALLOW	.claude/skills/pr-self-review/scripts/verify.sh check	read the verification result
+ALLOW	bash .claude/skills/pr-self-review/scripts/verify.sh check --with-it --e2e	check at it + e2e level
+ALLOW	.claude/skills/pr-self-review/scripts/verify.sh show	show result json
+BLOCK	.claude/skills/pr-self-review/scripts/verify.sh run	reviewers never execute the checks
+BLOCK	.claude/skills/pr-self-review/scripts/verify.sh check --base main	unknown check flag
+BLOCK	.claude/skills/pr-self-review/scripts/verify.sh show extra	show takes no args

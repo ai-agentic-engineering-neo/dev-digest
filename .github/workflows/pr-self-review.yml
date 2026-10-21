@@ -1,0 +1,62 @@
+# PR self review — runs the .claude/skills/pr-self-review skill on the PR's
+# commits and fails on any critical finding. Typecheck, lint and tests are
+# NOT repeated here (--no-toolchain): the per-package workflows are the
+# required checks for those. This job adds the skill-routed review (frontend
+# architecture, onion rings, Fastify/Drizzle/Zod rules, OWASP) and the
+# repo-rule prechecks (contract copy drift, do-not-touch paths, secrets).
+#
+# Needs the ANTHROPIC_API_KEY repository secret. Without it the review step is
+# skipped and the job passes, so forks without the secret are not blocked.
+# To block merges, mark this check as required in branch protection on main.
+name: pr self review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: pr-self-review-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    env:
+      HAS_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve base
+        run: git fetch origin "${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}"
+
+      # Deterministic prechecks run without Claude, so a missing key still
+      # catches drift, do-not-touch edits and secrets.
+      - name: Precheck (repo rules only)
+        run: .claude/skills/pr-self-review/scripts/precheck.sh --branch --base "origin/${{ github.base_ref }}" --no-toolchain
+
+      - name: Skill review
+        if: env.HAS_KEY == 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            /pr-self-review --ci --base origin/${{ github.base_ref }}
+            Post the final report as a PR comment (replace your previous one if present).
+          claude_args: "--allowedTools Bash,Read,Grep,Glob,Agent"
+
+      - name: Gate on verdict
+        if: env.HAS_KEY == 'true'
+        run: |
+          .claude/skills/pr-self-review/scripts/stamp.sh show
+          verdict=$(jq -r .verdict .git/pr-self-review/stamp.json 2>/dev/null || echo missing)
+          if [ "$verdict" != "pass" ]; then
+            echo "pr-self-review: verdict=$verdict — see the report comment"; exit 1
+          fi

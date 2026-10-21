@@ -1,6 +1,6 @@
 {
   "name": "PR detail Files changed tab renders the seeded diff",
-  "description": "From PR #482, open the Files changed tab and confirm the unified-diff viewer renders a seeded file path (src/config.ts). Exercises the refactored diff-viewer (DiffViewer → FileCard → CodeLine). Read-only seeded data (no model call). Assumes a freshly-seeded DB (see e2e/README.md).",
+  "description": "From PR #482, open the Files changed tab and confirm the Smart Diff renders: the five role groups, the seeded CRITICAL finding inline under its src/config.ts line, the finding outside the diff (src/api/users.ts has no patch), and the Original order toggle. Exercises DiffTab, RoleGroup and the diff-viewer (DiffViewer → FileCard → CodeLine → FindingComment). Read-only seeded data (no model call, no Accept/Reject click). Assumes a freshly-seeded DB (see e2e/README.md).",
   "steps": [
     { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
     { "cmd": ["wait", "--url", "/pulls"], "label": "land on the PR list" },
@@ -9,6 +9,16 @@
     { "cmd": ["wait", "--load", "networkidle"], "label": "PR detail data settles" },
     { "cmd": ["find", "role", "button", "click", "--name", "Files changed"], "label": "switch to the Files changed tab" },
     { "cmd": ["wait", "--url", "tab=diff"], "label": "diff tab is active in the URL" },
-    { "cmd": ["wait", "--text", "src/config.ts"], "label": "a seeded changed file renders in the diff viewer" }
+    { "cmd": ["wait", "--text", "src/config.ts"], "label": "a seeded changed file renders in the diff viewer" },
+    { "cmd": ["wait", "--text", "Smart order"], "label": "the Smart/Original toggle is present" },
+    { "cmd": ["wait", "--text", "Core logic"], "label": "core group renders" },
+    { "cmd": ["wait", "--text", "Tests"], "label": "tests group renders" },
+    { "cmd": ["wait", "--text", "Wiring"], "label": "wiring group renders" },
+    { "cmd": ["wait", "--text", "Docs"], "label": "docs group renders" },
+    { "cmd": ["wait", "--text", "Boilerplate"], "label": "boilerplate group renders" },
+    { "cmd": ["wait", "--text", "Hardcoded Stripe secret key in commit"], "label": "the seeded finding renders inline under its line" },
+    { "cmd": ["wait", "--text", "N+1 query in user list endpoint"], "label": "a finding whose line is not in the patch renders in the outside-the-diff block" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Original order"], "label": "switch back to GitHub order" },
+    { "cmd": ["wait", "--text", "src/config.ts"], "label": "files still render in original order" }
   ]
 }

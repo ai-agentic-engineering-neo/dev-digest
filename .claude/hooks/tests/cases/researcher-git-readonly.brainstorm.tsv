@@ -1,0 +1,10 @@
+# hook: researcher-git-readonly.sh brainstorm
+# tool: Bash
+ALLOW	git log --oneline -n 20 -- server/src/modules/smart-diff	history
+ALLOW	git grep -n selectDistinctOn	code search
+ALLOW	git show HEAD:server/src/modules/smart-diff/constants.ts	read at ref
+BLOCK	git checkout -b spike	no branch changes
+BLOCK	git log --output=notes.txt	writes a file
+BLOCK	git diff | head	pipe
+BLOCK	pnpm -C server test	not git
+BLOCK	echo variant > notes.md	redirect

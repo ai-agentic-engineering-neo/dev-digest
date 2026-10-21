@@ -1,0 +1,61 @@
+import type { CSSProperties } from "react";
+
+/** Co-located styles for FindingsPopover. */
+export const s = {
+  popover: {
+    position: "fixed",
+    zIndex: 30,
+    width: 360,
+    maxHeight: 380,
+    overflowY: "auto",
+    padding: 12,
+    borderRadius: 10,
+    border: "1px solid var(--border)",
+    background: "var(--bg-elevated)",
+    boxShadow: "0 12px 32px rgba(0, 0, 0, 0.35)",
+    cursor: "default",
+    textAlign: "left",
+  } satisfies CSSProperties,
+  title: {
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    color: "var(--text-muted)",
+    marginBottom: 10,
+  } satisfies CSSProperties,
+  list: { display: "flex", flexDirection: "column", gap: 10 } satisfies CSSProperties,
+  item: {
+    padding: "8px 10px",
+    borderRadius: 8,
+    border: "1px solid var(--border)",
+    background: "var(--bg-surface)",
+  } satisfies CSSProperties,
+  itemHead: { display: "flex", alignItems: "center", gap: 8, minWidth: 0 } satisfies CSSProperties,
+  itemTitle: {
+    fontSize: 13,
+    fontWeight: 600,
+    color: "var(--text-primary)",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  } satisfies CSSProperties,
+  itemMeta: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 4,
+    fontSize: 12,
+    color: "var(--text-muted)",
+    flexWrap: "wrap",
+  } satisfies CSSProperties,
+  itemFile: { fontSize: 11.5, color: "var(--text-secondary)" } satisfies CSSProperties,
+  itemConfidence: { fontSize: 11.5, color: "var(--text-muted)" } satisfies CSSProperties,
+  itemExcerpt: {
+    margin: "6px 0 0",
+    fontSize: 12.5,
+    lineHeight: 1.45,
+    color: "var(--text-secondary)",
+  } satisfies CSSProperties,
+  more: { marginTop: 8, fontSize: 12, color: "var(--text-muted)" } satisfies CSSProperties,
+} as const;

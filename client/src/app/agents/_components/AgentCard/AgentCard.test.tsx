@@ -19,6 +19,8 @@ const AGENT: Agent = {
   strategy: "single-pass",
   ci_fail_on: "critical",
   repo_intel: true,
+  skill_count: 0,
+  stats: { runs: 0, accept_rate: null, avg_cost_usd: null },
   enabled: true,
   version: 1,
 };
@@ -45,5 +47,17 @@ describe("AgentCard (smoke)", () => {
   it("falls back to a translated placeholder when description is empty", () => {
     renderWithIntl(<AgentCard ag={{ ...AGENT, description: "" }} />);
     expect(screen.getByText("No description")).toBeInTheDocument();
+  });
+
+  it("shows completed runs, the accepted share of decided findings and the mean cost", () => {
+    renderWithIntl(<AgentCard ag={{ ...AGENT, stats: { runs: 142, accept_rate: 0.78, avg_cost_usd: 0.04 } }} />);
+    expect(screen.getByTestId("agent-stats")).toHaveTextContent("142 runs");
+    expect(screen.getByTestId("agent-stats")).toHaveTextContent("78% accept");
+    expect(screen.getByTestId("agent-stats")).toHaveTextContent("$0.04 avg");
+    cleanup();
+    renderWithIntl(<AgentCard ag={AGENT} />);
+    expect(screen.getByTestId("agent-stats")).toHaveTextContent("0 runs");
+    expect(screen.getByTestId("agent-stats")).toHaveTextContent("— accept");
+    expect(screen.getByTestId("agent-stats")).toHaveTextContent("— avg");
   });
 });

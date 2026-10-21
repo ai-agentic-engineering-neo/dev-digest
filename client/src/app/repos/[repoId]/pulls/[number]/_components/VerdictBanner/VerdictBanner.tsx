@@ -6,7 +6,7 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Icon, Badge, CircularScore } from "@devdigest/ui";
 import type { Verdict } from "@devdigest/shared";
-import { VERDICT_META } from "./constants";
+import { VERDICT_META } from "@/app/repos/[repoId]/pulls/[number]/constants";
 import { s } from "./styles";
 
 export function VerdictBanner({

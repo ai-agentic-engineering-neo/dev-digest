@@ -64,21 +64,37 @@ export function parseWithRepair<T>(schema: z.ZodType<T>, raw: string): ParseResu
       parsedJson = JSON.parse(extractJson(raw));
     }
   } catch (e) {
-    const msg = `Output was not valid JSON: ${(e as Error).message}`;
+    // `error` is a fixed string: V8's SyntaxError message quotes an excerpt of
+    // the input, which is model output and may echo diff text. The excerpt is
+    // kept only in the reprompt, which goes back to the model, never to a log.
+    const msg = 'Output was not valid JSON';
     return {
       ok: false,
       error: msg,
-      repromptMessage: `${msg}\nReturn ONLY a single valid JSON object matching the schema, no prose.`,
+      repromptMessage: `${msg}: ${(e as Error).message}\nReturn ONLY a single valid JSON object matching the schema, no prose.`,
     };
   }
   const result = schema.safeParse(parsedJson);
   if (result.success) return { ok: true, data: result.data };
+  const line = (i: z.ZodIssue, text: string) => `- ${i.path.join('.') || '(root)'}: ${text}`;
+  // `error` may be logged or stored by callers, so issue kinds whose message
+  // echoes the received value (model output) are reduced to path + code. The
+  // reprompt keeps the full message because it goes back to the model only.
   const issues = result.error.issues
-    .map((i) => `- ${i.path.join('.') || '(root)'}: ${i.message}`)
+    .map((i) => line(i, ECHOING_ISSUE_CODES.has(i.code) ? i.code : i.message))
     .join('\n');
+  const fullIssues = result.error.issues.map((i) => line(i, i.message)).join('\n');
   return {
     ok: false,
     error: issues,
-    repromptMessage: `Your JSON did not match the required schema. Fix these and return ONLY valid JSON:\n${issues}`,
+    repromptMessage: `Your JSON did not match the required schema. Fix these and return ONLY valid JSON:\n${fullIssues}`,
   };
 }
+
+/** Zod issue codes whose default message quotes the received value or key names. */
+const ECHOING_ISSUE_CODES: ReadonlySet<string> = new Set([
+  'invalid_enum_value',
+  'invalid_literal',
+  'unrecognized_keys',
+  'invalid_union_discriminator',
+]);

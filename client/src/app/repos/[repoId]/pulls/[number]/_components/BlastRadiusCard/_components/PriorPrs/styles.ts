@@ -1,0 +1,48 @@
+import type { CSSProperties } from "react";
+
+export const s = {
+  wrap: {
+    marginTop: 16,
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    background: "var(--bg-elevated)",
+  } satisfies CSSProperties,
+  header: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    width: "100%",
+    padding: "10px 12px",
+    border: "none",
+    background: "transparent",
+    color: "var(--text-primary)",
+    fontSize: 13,
+    fontWeight: 600,
+    textAlign: "left",
+    cursor: "pointer",
+  } satisfies CSSProperties,
+  headIcon: { color: "var(--text-muted)" } satisfies CSSProperties,
+  spacer: { flex: 1 } satisfies CSSProperties,
+  chevron: { color: "var(--text-muted)" } satisfies CSSProperties,
+  list: { listStyle: "none", margin: 0, padding: "0 12px 4px", borderTop: "1px solid var(--border)" } satisfies CSSProperties,
+  item: { padding: "10px 0", borderBottom: "1px solid var(--border)" } satisfies CSSProperties,
+  itemLast: { padding: "10px 0" } satisfies CSSProperties,
+  titleRow: { display: "flex", alignItems: "baseline", gap: 8, fontSize: 13 } satisfies CSSProperties,
+  number: { color: "var(--text-muted)" } satisfies CSSProperties,
+  title: { color: "var(--text-primary)", fontWeight: 600, textDecoration: "none" } satisfies CSSProperties,
+  meta: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 4,
+    fontSize: 12,
+    color: "var(--text-muted)",
+  } satisfies CSSProperties,
+  notes: { marginTop: 6, fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.5 } satisfies CSSProperties,
+  empty: {
+    padding: "10px 12px",
+    borderTop: "1px solid var(--border)",
+    fontSize: 13,
+    color: "var(--text-muted)",
+  } satisfies CSSProperties,
+} as const;

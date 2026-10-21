@@ -43,6 +43,16 @@ import {
   ExportWizardSteps,
   AutoTriggerStatus,
 } from "@devdigest/ui";
+import { RunCostBadge } from "@/components/run-cost-badge";
+import { ConfirmDialog } from "@/components/confirm-dialog";
+import { ContextDocumentRow } from "@/components/context-document-row";
+import { TokenBadge } from "@/components/token-badge";
+import { TourSectionCard } from "@/components/tour-section-card";
+import { TourToc } from "@/components/tour-toc";
+import { TourPathRow } from "@/components/tour-path-row";
+import { TourCommandRow } from "@/components/tour-command-row";
+import { TourReadingStep } from "@/components/tour-reading-step";
+import { ModifiedLocallyBadge } from "@/components/modified-locally-badge";
 import { s } from "./styles";
 import { SEVERITIES, CATEGORIES, MODEL_OPTIONS } from "./constants";
 
@@ -63,6 +73,7 @@ export function Gallery() {
   const [sel, setSel] = React.useState("gpt-4.1");
   const [drawer, setDrawer] = React.useState(false);
   const [modal, setModal] = React.useState(false);
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
 
   return (
     <div style={s.gallery}>
@@ -98,6 +109,58 @@ export function Gallery() {
         {CATEGORIES.map((c) => (
           <CategoryTag key={c} category={c} />
         ))}
+      </Group>
+
+      <Group title="Run cost badge (compact · full · no data · free model)">
+        <RunCostBadge variant="compact" costUsd={0.012} title="3 runs" />
+        <RunCostBadge variant="full" costUsd={0.0013} tokensIn={8190} tokensOut={929} />
+        <RunCostBadge variant="full" costUsd={null} tokensIn={100} tokensOut={50} />
+        <RunCostBadge variant="compact" costUsd={0} />
+      </Group>
+
+      <Group title="Project context (document rows: attached · missing · too large · modified locally · read-only · token badge)">
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, width: 560 }}>
+          <ContextDocumentRow
+            path="docs/architecture.md"
+            kind="docs"
+            tokens={1240}
+            attach={{ checked: true, onToggle: () => {}, draggable: true, dragging: false, onDragStart: () => {}, onDragOver: () => {}, onDrop: () => {}, onDragEnd: () => {}, onMoveUp: () => {}, onMoveDown: () => {} }}
+            onPreview={() => {}}
+          />
+          <ContextDocumentRow
+            path="specs/old-spec.md"
+            kind="specs"
+            missing
+            attach={{ checked: true, onToggle: () => {}, draggable: true, dragging: false, onDragStart: () => {}, onDragOver: () => {}, onDrop: () => {}, onDragEnd: () => {}, onMoveUp: () => {}, onMoveDown: () => {} }}
+          />
+          <ContextDocumentRow
+            path="docs/huge-dump.md"
+            kind="docs"
+            tooLarge
+            attach={{ checked: false, onToggle: () => {}, draggable: false, dragging: false, onDragStart: () => {}, onDragOver: () => {}, onDrop: () => {}, onDragEnd: () => {} }}
+          />
+          <ContextDocumentRow path="insights/gotchas.md" kind="insights" tokens={380} usage={{ agents: 2, skills: 1 }} onSelect={() => {}} />
+          <ContextDocumentRow path="docs/edited-locally.md" kind="docs" tokens={410} usage={{ agents: 1, skills: 0 }} modified onSelect={() => {}} />
+          <ModifiedLocallyBadge updatedAt="2026-10-21T10:00:00Z" />
+          <TokenBadge count={24000} />
+        </div>
+      </Group>
+
+      <Group title="Confirm dialog (destructive action)">
+        {confirmOpen ? (
+          <ConfirmDialog
+            title='Delete skill "pr-quality-rubric"?'
+            body="Agents that link it lose the rule at their next run. This cannot be undone."
+            confirmLabel="Delete skill"
+            cancelLabel="Cancel"
+            onConfirm={() => setConfirmOpen(false)}
+            onCancel={() => setConfirmOpen(false)}
+          />
+        ) : (
+          <Button kind="danger" icon="Trash" onClick={() => setConfirmOpen(true)}>
+            Open confirm dialog
+          </Button>
+        )}
       </Group>
 
       <Group title="Chips, Avatars, Confidence, MonoLink, Kbd">
@@ -148,6 +211,43 @@ export function Gallery() {
       <Group title="Markdown">
         <div style={s.w420}>
           <Markdown>{"A finding with **bold**, `inline code`, and a [link](https://example.com).\n\n- one\n- two"}</Markdown>
+        </div>
+      </Group>
+
+      <Group title="Onboarding tour (section card · TOC · path row · command row · reading step)">
+        <div style={s.w460}>
+          <TourSectionCard id="showcase-tour-open" title="Critical paths" icon="Activity" collapseLabel="Collapse section" expandLabel="Expand section">
+            <TourPathRow
+              path="src/server.ts"
+              why="App bootstrap and middleware chain"
+              repo={{ full_name: "acme/payments-api", default_branch: "main" }}
+              openLabel="Open"
+              copiedLabel="Copied"
+            />
+          </TourSectionCard>
+        </div>
+        <div style={s.w460}>
+          <TourSectionCard id="showcase-tour-closed" title="How to run locally" icon="Command" collapseLabel="Collapse section" expandLabel="Expand section">
+            <TourCommandRow index={1} command="pnpm dev" note="http://localhost:3000" copyLabel="Copy command" copiedLabel="Copied" />
+          </TourSectionCard>
+        </div>
+        <div style={s.w200}>
+          <TourToc
+            title="On this page"
+            items={[
+              { id: "architecture", label: "Architecture overview" },
+              { id: "critical-paths", label: "Critical paths" },
+            ]}
+            activeId="architecture"
+            onSelect={() => {}}
+          />
+        </div>
+        <div style={s.w460}>
+          <TourPathRow path="src/lib/redis.ts" why="Opening without a repo copies the path" openLabel="Open" copiedLabel="Copied" />
+          <TourReadingStep index={1} path="src/server.ts" why="See the whole request lifecycle in one file" />
+        </div>
+        <div style={s.w460}>
+          <Markdown>{"Run it with:\n\n```\npnpm install\npnpm dev\n```\n\nthen open `src/server.ts`."}</Markdown>
         </div>
       </Group>
 

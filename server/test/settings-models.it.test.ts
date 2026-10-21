@@ -50,10 +50,15 @@ d('Settings: feature models + secrets status (Testcontainers pg)', () => {
       provider: 'openrouter',
       model: 'z-ai/glm-4.7-flash',
     });
+    // The intent deriver defaults to a cheap OpenRouter model, not gpt-4.1.
+    expect(await resolveFeatureModel(app.container, workspaceId, 'review_intent')).toEqual({
+      provider: 'openrouter',
+      model: 'deepseek/deepseek-v4-flash',
+    });
     // An unset feature still resolves to its own registry default.
     expect(await resolveFeatureModel(app.container, workspaceId, 'risk_brief')).toEqual({
-      provider: 'openai',
-      model: 'gpt-4.1',
+      provider: 'openrouter',
+      model: 'deepseek/deepseek-v4-flash',
     });
 
     await app.close();

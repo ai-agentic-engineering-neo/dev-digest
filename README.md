@@ -70,7 +70,9 @@ Each package has its own README with deeper diagrams:
 - **Add repository** — paste a repo URL; the server clones and indexes it.
 - **Import pull requests** — pull open PRs and their diff, commits, body, and linked issue.
 - **View diff** — GitHub-like diff in the browser.
-- **Agents** — two built-in reviewers (General + Security); create/edit your own (model + system prompt).
+- **Agents** — built-in reviewers (General, Security, Performance, Test Quality, API Contract); create/edit your own (model + system prompt).
+- **Skills** (L02) — reusable, text-only review rules at `/skills`: create, import a `.md`/`.zip` with a preview, edit with versioning (diff, restore), attach and order per agent; rendered into the prompt under `## Skills / rules` with a per-skill token count in the run trace (`docs/skills/`).
+- **Conventions** (HW2) — `/conventions` scans the active repo's clone (configs + top-ranked files, one cheap model call, evidence-verified candidates), lets you accept / reject / edit them, and turns the accepted ones into the `repo-conventions` skill linked to an agent.
 - **Run a review** — single-pass analysis returning structured findings (severity + score), with the grounding gate and repo-map context working from the start.
 
 ## What you build in the course
@@ -82,7 +84,7 @@ These are intentionally **not** in the starter — each lesson adds one back:
 | L01 | Run cost badge · severity filter on findings |
 | L02 | Skills in the product · Conventions extractor |
 | L03 | Intent layer · Smart Diff |
-| L04 | `devdigest-mcp` server · Blast Radius (reads `repo-intel`) |
+| L04 | `devdigest-mcp` server, see [`mcp/README.md`](mcp/README.md) · Blast Radius (reads `repo-intel`, still homework) |
 | L05 | Project Context Folder · Onboarding generator · PR Brief card |
 | L06 | Eval pipeline · Secret/Phantom gates · Plan Verifier · Export to CI |
 | L07 | Multi-agent review · Run Trace / Live Log · Persistent memory · per-agent stats |

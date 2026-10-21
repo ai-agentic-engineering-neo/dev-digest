@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { Finding, Verdict } from './findings.js';
-import { Intent, SmartDiff } from './brief.js';
+import { BlastRadius, Intent, IntentConfidence, IntentSource, PrHistoryItem, SmartDiff } from './brief.js';
+import { RunSummary } from './trace.js';
 
 /**
  * A2 — Review-Core API surface contracts. These extend the core
@@ -57,9 +58,59 @@ export const ReviewRunResponse = z.object({
 export type ReviewRunResponse = z.infer<typeof ReviewRunResponse>;
 
 /** Intent persisted for a PR (the Intent plus the pr_id it scopes). */
-export const PrIntentRecord = Intent.extend({ pr_id: z.string() });
+export const PrIntentRecord = Intent.extend({
+  pr_id: z.string(),
+  confidence: IntentConfidence,
+  sources: z.array(IntentSource),
+  head_sha: z.string().nullable(),
+  provider: z.string().nullable(),
+  model: z.string().nullable(),
+  tokens_in: z.number().int().nullable(),
+  tokens_out: z.number().int().nullable(),
+  cost_usd: z.number().nullable(),
+  duration_ms: z.number().int().nullable(),
+  derived_at: z.string().nullable(),
+  /** True when the stored source hash no longer matches the PR (body, head sha or model changed). */
+  stale: z.boolean(),
+});
 export type PrIntentRecord = z.infer<typeof PrIntentRecord>;
 
 /** Smart-diff response for a PR (the SmartDiff). */
 export const SmartDiffResponse = SmartDiff;
 export type SmartDiffResponse = z.infer<typeof SmartDiffResponse>;
+
+/** Why a blast radius is incomplete (mirrors repo-intel's DegradedReason). */
+export const BlastDegradedReason = z.enum([
+  'flag_off',
+  'index_failed',
+  'index_partial',
+  'repo_too_large',
+  'no_data',
+]);
+export type BlastDegradedReason = z.infer<typeof BlastDegradedReason>;
+
+/**
+ * Response of `GET /pulls/:id/blast`: the BlastRadius computed from the repo
+ * index at read time (no model call), its degraded flag, the PR head to deep-link
+ * caller lines, and the prior PRs of the repo that touched the same files.
+ */
+export const BlastRadiusResponse = BlastRadius.extend({
+  degraded: z.boolean(),
+  reason: BlastDegradedReason.nullable(),
+  head_sha: z.string(),
+  history: z.array(PrHistoryItem),
+});
+export type BlastRadiusResponse = z.infer<typeof BlastRadiusResponse>;
+
+/**
+ * Response of `GET /runs/:id/findings`: one run's summary (status included, so
+ * callers can poll it), the review it produced (null while running or when the
+ * run failed before persisting one) and that review's findings.
+ */
+export const RunFindings = z.object({
+  run: RunSummary,
+  // Derived from ReviewRecord so the two cannot drift.
+  review: ReviewRecord.pick({ id: true, verdict: true, summary: true, score: true }).nullable(),
+  findings: z.array(FindingRecord),
+});
+export type RunFindings = z.infer<typeof RunFindings>;

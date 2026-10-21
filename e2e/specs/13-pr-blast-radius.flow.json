@@ -1,0 +1,70 @@
+{
+  "name": "PR Overview shows the Blast radius card in its degraded empty state for the seeded PR",
+  "description": "From the seeded repo's PR list, open PR #482 (Overview is the default tab) and confirm the Blast radius card next to the Intent card: the seeded repo has no clone and no repo-intel index, so GET /pulls/:id/blast answers degraded with reason no_data and the card renders the 'No impact map yet' empty state with the not-indexed reason and the Rebuild index action. No model call. Exercises the blast route and the card's degraded branch.",
+  "steps": [
+    {
+      "cmd": [
+        "open",
+        "{BASE}/"
+      ],
+      "label": "load the app root"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "/pulls"
+      ],
+      "label": "land on the PR list"
+    },
+    {
+      "cmd": [
+        "find",
+        "text",
+        "Add rate limiting to public API endpoints",
+        "click"
+      ],
+      "label": "open the PR row"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "/pulls/482"
+      ],
+      "label": "navigate to the PR detail route"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--load",
+        "networkidle"
+      ],
+      "label": "PR detail data settles"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "No impact map yet"
+      ],
+      "label": "degraded, empty map shows the empty state"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "not indexed yet"
+      ],
+      "label": "the no_data reason is explained"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Rebuild index"
+      ],
+      "label": "the resync action is offered"
+    }
+  ]
+}

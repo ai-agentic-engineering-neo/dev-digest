@@ -8,11 +8,14 @@ import { type ShellContext } from "@devdigest/ui";
 import { useTheme } from "../../../lib/theme";
 import { useActiveRepo } from "../../../lib/repo-context";
 import { usePulls, useDeleteRepo } from "../../../lib/hooks";
-import { activeKeyFor, toShellRepo } from "../helpers";
+import { activeKeyFor, repoSwitchTarget, toShellRepo } from "../helpers";
 
 interface ShellContextOptions {
   onOpenCommandPalette: () => void;
 }
+
+/** The one page that follows the sidebar's repo without being under /repos/:id. */
+const CONTEXT_PATH = "/context";
 
 /**
  * Assembles the `ShellContext` consumed by AppFrame: active nav key, the repo
@@ -24,16 +27,21 @@ export function useShellContext({ onOpenCommandPalette }: ShellContextOptions): 
   const pathname = usePathname() ?? "/";
   const router = useRouter();
   const { theme, toggle } = useTheme();
-  const { repoId, repos, activeRepo, setRepoId } = useActiveRepo();
+  const { repoId, repos, activeRepo, setRepoId, requestRepoChange } = useActiveRepo();
   const { data: pulls } = usePulls(repoId);
   const deleteRepo = useDeleteRepo();
 
   const onSelectRepo = React.useCallback(
-    (id: string) => {
-      setRepoId(id);
-      router.push(`/repos/${id}/pulls`);
-    },
-    [setRepoId, router],
+    (id: string) =>
+      // a page with unsaved changes may hold the switch back until the user confirms
+      requestRepoChange(id, () => {
+        setRepoId(id);
+        // Project Context is not repo-scoped in its URL: stay on the page and let
+        // it reload for the new repo (the selected document belongs to the old one).
+        if (pathname.startsWith(CONTEXT_PATH)) router.replace(CONTEXT_PATH);
+        else router.push(repoSwitchTarget(pathname, id));
+      }),
+    [requestRepoChange, setRepoId, router, pathname],
   );
 
   const onAddRepo = React.useCallback(() => router.push("/onboarding"), [router]);

@@ -91,7 +91,17 @@
     "title": "Skills",
     "enabledCount": "{linked} of {total} enabled",
     "filterPlaceholder": "Filter skills…",
-    "orderHint": "Order matters — earlier skills appear earlier in the assembled prompt. Toggle to attach."
+    "orderHint": "Order matters — earlier skills appear earlier in the assembled prompt. Drag attached skills to reorder.",
+    "disabledGlobally": "disabled",
+    "disabledGloballyTitle": "Disabled on the Skills page — attached, but not sent to the model",
+    "dragHandle": "Drag to reorder",
+    "loadError": "Could not load skills.",
+    "noMatch": "No skills match the filter.",
+    "empty": {
+      "title": "No skills yet",
+      "body": "Create or import skills on the Skills page, then attach them here.",
+      "cta": "Go to Skills"
+    }
   },
   "mount": {
     "body": "Mount point for {owner}. The Agent Editor shell + tab routing are wired by A2 — {owner} renders this tab."

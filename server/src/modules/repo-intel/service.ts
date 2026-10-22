@@ -54,6 +54,7 @@ import {
 } from './constants.js';
 import { runFullIndex, type IndexPayload } from './pipeline/full.js';
 import { runIncremental } from './pipeline/incremental.js';
+import { walkClone } from './pipeline/walk.js';
 
 /**
  * GLOBALS allowlist — common JS/TS builtins + runtime that appear as bare
@@ -626,9 +627,19 @@ export class RepoIntelService implements RepoIntel {
     return out;
   }
 
-  /** Top-N files by rank, minus tests/configs/migrations — conventions sample. */
+  /**
+   * Top-N files by rank, minus tests/configs/migrations — conventions sample.
+   * Falls back to an evenly spread pick over the walked clone when there is no
+   * rank yet (repo-intel disabled or the repo not indexed), so extraction still
+   * gets real source files.
+   */
   async getConventionSamples(repoId: string, n: number): Promise<string[]> {
-    return this.getTopFilesByRank(repoId, n);
+    const ranked = await this.getTopFilesByRank(repoId, n);
+    if (ranked.length > 0 || n <= 0) return ranked;
+    const repo = await this.repo.getRepoBasics(repoId);
+    if (!repo?.clonePath) return [];
+    const { files } = await walkClone(repo.clonePath);
+    return spreadPick(files.filter((f) => !isJunkPath(f)), n);
   }
 
   /**
@@ -730,6 +741,13 @@ const JUNK_PATH_PATTERNS = [
 function isJunkPath(path: string): boolean {
   const lower = path.toLowerCase();
   return JUNK_PATH_PATTERNS.some((p) => lower.includes(p));
+}
+
+/** `n` items spread evenly across `items` (sorted paths → a cross-section of the tree, not one folder). */
+export function spreadPick<T>(items: T[], n: number): T[] {
+  if (items.length <= n) return items;
+  const step = items.length / n;
+  return Array.from({ length: n }, (_, i) => items[Math.floor(i * step)]!);
 }
 
 /** Enclosing top-level (bare-name) symbol for a line, from persistent rows. */

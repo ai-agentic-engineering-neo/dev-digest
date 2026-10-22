@@ -1,12 +1,14 @@
 import 'dotenv/config';
 import { createDb, type Db } from './client.js';
 import * as t from './schema.js';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, count } from 'drizzle-orm';
 import {
   GENERAL_REVIEWER_PROMPT,
   SECURITY_REVIEWER_PROMPT,
   PERFORMANCE_REVIEWER_PROMPT,
+  TEST_QUALITY_REVIEWER_PROMPT,
 } from './seed-prompts.js';
+import { SEED_SKILLS, SEED_SKILL_LINKS } from './seed-skills.js';
 
 /** Default provider/model for the built-in reviewer agents. */
 const DEFAULT_PROVIDER = 'openrouter' as const;
@@ -175,7 +177,7 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
     ]);
   }
 
-  // ---- built-in agents (the three starter presets) ----
+  // ---- built-in agents (starter presets + L02 Test Quality Reviewer) ----
   // Prompt bodies live in ./seed-prompts.ts (mirrored in docs/agent-prompts/*.md).
   const seedAgents: Array<typeof t.agents.$inferInsert> = [
     {
@@ -211,6 +213,18 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       version: 1,
       createdBy: userId,
     },
+    {
+      workspaceId,
+      name: 'Test Quality Reviewer',
+      description:
+        'Checks test quality: uncovered branches, missed corner cases, over-mocking and flaky tests.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: TEST_QUALITY_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
   ];
   for (const a of seedAgents) {
     const [existing] = await db
@@ -218,6 +232,43 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       .from(t.agents)
       .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, a.name)));
     if (!existing) await db.insert(t.agents).values(a);
+  }
+
+  // ---- built-in skills (L02) ----
+  // Bodies live in ./seed-skills.ts. Idempotent by name; each new skill gets its
+  // v1 snapshot. Links are made only for skills created in THIS run, so a
+  // re-seed never re-attaches a skill the user detached on purpose.
+  const created = new Map<string, string>();
+  for (const sk of SEED_SKILLS) {
+    const [existing] = await db
+      .select({ id: t.skills.id })
+      .from(t.skills)
+      .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.name, sk.name)));
+    if (existing) continue;
+    const [row] = await db
+      .insert(t.skills)
+      .values({ workspaceId, ...sk, source: 'manual', version: 1 })
+      .returning({ id: t.skills.id });
+    await db.insert(t.skillVersions).values({ skillId: row!.id, version: 1, body: sk.body });
+    created.set(sk.name, row!.id);
+  }
+  for (const [agentName, skillNames] of Object.entries(SEED_SKILL_LINKS)) {
+    const [agent] = await db
+      .select({ id: t.agents.id })
+      .from(t.agents)
+      .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, agentName)));
+    if (!agent) continue;
+    const [linked] = await db
+      .select({ n: count() })
+      .from(t.agentSkills)
+      .where(eq(t.agentSkills.agentId, agent.id));
+    // Append after anything the user already attached.
+    const toLink = skillNames.flatMap((name) => created.get(name) ?? []);
+    if (toLink.length === 0) continue;
+    await db
+      .insert(t.agentSkills)
+      .values(toLink.map((skillId, i) => ({ agentId: agent.id, skillId, order: Number(linked?.n ?? 0) + i })))
+      .onConflictDoNothing();
   }
 
   return { workspaceId, userId };

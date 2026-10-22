@@ -159,7 +159,8 @@ export interface RepoIntel {
    * T2/T3: persistent `references.decl_file IS NULL`.
    */
   getUnresolvedReferences(repoId: string, files: string[]): Promise<RefRow[]>;
-  /** Top-N file paths by rank, filtered of tests/configs. */
+  /** Top-N file paths by rank, filtered of tests/configs; falls back to a
+   *  spread over the walked clone when the repo has no rank yet. */
   getConventionSamples(repoId: string, n: number): Promise<string[]>;
 
   // --- T3: onboarding reading-path + critical paths (graph required) ------

@@ -62,10 +62,21 @@ export const RunStats = z.object({
   duration_ms: z.number().int(),
   tokens_in: z.number().int(),
   tokens_out: z.number().int(),
+  // Nullish: traces are stored as jsonb and older rows predate this field.
+  cost_usd: z.number().nullish(),
   findings: z.number().int(),
   grounding: z.string(),
 });
 export type RunStats = z.infer<typeof RunStats>;
+
+/** One skill appended to the prompt for this run (`skill.enabled` + attached). */
+export const SkillUsed = z.object({
+  id: z.string(),
+  name: z.string(),
+  version: z.number().int(),
+  tokens: z.number().int(),
+});
+export type SkillUsed = z.infer<typeof SkillUsed>;
 
 /** The single-document trace stored in `run_traces.trace`. */
 export const RunTrace = z.object({
@@ -83,6 +94,8 @@ export const RunTrace = z.object({
   raw_output: z.string(),
   memory_pulled: z.array(MemoryPulled),
   specs_read: z.array(z.string()),
+  /** Skills sent with the prompt, in order. Nullish: older traces predate it. */
+  skills_used: z.array(SkillUsed).nullish(),
   log: z.array(RunLogLine),
 });
 export type RunTrace = z.infer<typeof RunTrace>;
@@ -102,6 +115,7 @@ export const RunSummary = z.object({
   duration_ms: z.number().int().nullable(),
   tokens_in: z.number().int().nullable(),
   tokens_out: z.number().int().nullable(),
+  cost_usd: z.number().nullable(),
   findings_count: z.number().int().nullable(),
   grounding: z.string().nullable(),
   ran_at: z.string().nullable(),

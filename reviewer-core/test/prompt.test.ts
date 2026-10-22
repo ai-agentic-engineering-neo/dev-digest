@@ -4,7 +4,7 @@
  * truncation, and ordering (before the diff).
  */
 import { describe, it, expect } from 'vitest';
-import { assemblePrompt } from '../src/prompt.js';
+import { assemblePrompt, formatSkillBlock } from '../src/prompt.js';
 
 function userOf(parts: Parameters<typeof assemblePrompt>[0]): string {
   const { messages } = assemblePrompt(parts);
@@ -62,5 +62,35 @@ describe('assemblePrompt — ## PR description', () => {
       prDescription: 'x'.repeat(10_000),
     });
     expect((assembly.pr_description as string).length).toBe(4000);
+  });
+});
+
+describe('formatSkillBlock + skills slot', () => {
+  const block = formatSkillBlock({
+    name: 'test-coverage',
+    version: 3,
+    description: 'Flag untested branches.',
+    body: '# Rule\nEvery new branch needs a test.\n',
+  });
+
+  it('renders a named, versioned block with the description before the body', () => {
+    expect(block).toBe(
+      '### Skill: test-coverage (v3)\nFlag untested branches.\n\n# Rule\nEvery new branch needs a test.',
+    );
+  });
+
+  it('omits the description line when it is empty', () => {
+    expect(formatSkillBlock({ name: 'x', version: 1, description: '  ', body: 'B' })).toBe(
+      '### Skill: x (v1)\n\nB',
+    );
+  });
+
+  it('places skills under "## Skills / rules" in order, outside untrusted blocks', () => {
+    const second = formatSkillBlock({ name: 'second', version: 1, description: '', body: 'S2' });
+    const { assembly } = assemblePrompt({ system: 'S', diff: 'D', skills: [block, second] });
+    expect(assembly.skills).toBe(`${block}\n\n${second}`);
+    expect(assembly.user).toContain(`## Skills / rules\n${block}`);
+    expect(assembly.user.indexOf('test-coverage')).toBeLessThan(assembly.user.indexOf('second'));
+    expect(assembly.user).not.toMatch(/<untrusted source="skill/);
   });
 });

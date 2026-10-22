@@ -1,0 +1,5 @@
+#!/bin/sh
+# Blocks a push only when pr-self-review already returned BLOCKED for exactly these changes;
+# otherwise just reminds to run it. Enable: git config core.hooksPath .githooks
+command -v node >/dev/null 2>&1 || exit 0
+exec node "$(git rev-parse --show-toplevel)/.claude/skills/pr-self-review/scripts/gate.mjs" check --soft

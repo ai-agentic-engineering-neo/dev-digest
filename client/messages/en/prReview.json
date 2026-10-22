@@ -91,7 +91,9 @@
       "author": "Author",
       "size": "Size",
       "score": "Score",
+      "findings": "Findings",
       "status": "Status",
+      "cost": "Cost",
       "updated": "Updated"
     },
     "filesCount": "{count} files",
@@ -105,5 +107,17 @@
     "goToReview": "Jump to this run’s findings below",
     "openTrace": "Open run trace & logs",
     "deleteRun": "Delete run"
+  },
+  "severityCounts": {
+    "CRITICAL": "Critical",
+    "WARNING": "Warning",
+    "SUGGESTION": "Suggestion",
+    "levelAria": "{count} {level} findings",
+    "filterAria": "Show only {level} findings ({count})",
+    "popoverTitle": "{count, plural, one {# finding} other {# findings}}",
+    "more": "+{count} more",
+    "loading": "Loading findings…",
+    "showAll": "Show all",
+    "filtered": "Showing {level} findings only"
   }
 }

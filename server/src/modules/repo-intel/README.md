@@ -40,7 +40,7 @@ touch the pipeline internals:
 - `getCallerSignatures(repoId, files, limit)` → callers of changed symbols.
 - `getBlastRadius(repoId, files)` → impacted symbols / callers (used by L04).
 - `getUnresolvedReferences(repoId, …)` → phantom-symbol detection (used by L06).
-- `getConventionSamples(repoId)` → top-ranked files for convention extraction (L02).
+- `getConventionSamples(repoId, n)` → top-ranked files for convention extraction (L02); falls back to an evenly spread pick over the walked clone when the repo has no rank yet.
 
 In the starter, only `getRepoMap` / `getFileRank` / `getCallerSignatures` are
 wired — into `modules/reviews/run-executor.ts`, which adds the repo map and a

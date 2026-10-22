@@ -96,6 +96,10 @@ export class JobRunner {
         throw err;
       }
     }) as Promise<void>;
+    // Most callers fire and forget; the failure is already recorded on the job
+    // row. Mark `done` handled so a failed job can't crash the process with an
+    // unhandled rejection — callers that await it still see the error.
+    done.catch(() => {});
 
     return { id: jobId, done };
   }

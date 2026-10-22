@@ -115,7 +115,13 @@ export type MemoryItem = z.infer<typeof MemoryItem>;
 export const SkillType = z.enum(['rubric', 'convention', 'security', 'custom']);
 export type SkillType = z.infer<typeof SkillType>;
 
-export const SkillSource = z.enum(['manual', 'imported_url', 'extracted', 'community']);
+export const SkillSource = z.enum([
+  'manual',
+  'imported_url',
+  'imported_file',
+  'extracted',
+  'community',
+]);
 export type SkillSource = z.infer<typeof SkillSource>;
 
 export const Skill = z.object({
@@ -128,8 +134,65 @@ export const Skill = z.object({
   enabled: z.boolean(),
   version: z.number().int(),
   evidence_files: z.array(z.string()).nullish(),
+  /** Number of agents this skill is attached to (list endpoint only). */
+  agent_count: z.number().int().nullish(),
 });
 export type Skill = z.infer<typeof Skill>;
+
+/** Create body. `source` defaults to `manual`; imports pass `imported_file`. */
+export const SkillInput = z.object({
+  name: z.string().trim().min(1).max(120),
+  description: z.string().max(1000).default(''),
+  type: SkillType,
+  body: z.string().min(1).max(100_000),
+  source: SkillSource.optional(),
+  enabled: z.boolean().optional(),
+});
+export type SkillInput = z.infer<typeof SkillInput>;
+
+/** Update body. A changed `body` bumps the version and snapshots it. */
+export const SkillPatch = SkillInput.omit({ source: true }).partial();
+export type SkillPatch = z.infer<typeof SkillPatch>;
+
+/** Immutable body snapshot from `skill_versions`. */
+export const SkillVersion = z.object({
+  skill_id: z.string(),
+  version: z.number().int(),
+  body: z.string(),
+  created_at: z.string(),
+});
+export type SkillVersion = z.infer<typeof SkillVersion>;
+
+/** The exact block an agent receives for this skill, with its token count. */
+export const SkillPreview = z.object({
+  block: z.string(),
+  tokens: z.number().int(),
+});
+export type SkillPreview = z.infer<typeof SkillPreview>;
+
+/** Upload for import preview — a `.md` or `.zip` file, base64-encoded. */
+export const SkillImportRequest = z.object({
+  filename: z.string().min(1).max(255),
+  content_base64: z.string().min(1),
+});
+export type SkillImportRequest = z.infer<typeof SkillImportRequest>;
+
+export const SkillImportFile = z.object({
+  path: z.string(),
+  status: z.enum(['used', 'skipped']),
+  reason: z.string().nullish(),
+});
+export type SkillImportFile = z.infer<typeof SkillImportFile>;
+
+/** Parsed skill core shown to the user before anything is persisted. */
+export const SkillImportPreview = z.object({
+  name: z.string(),
+  description: z.string(),
+  type: SkillType,
+  body: z.string(),
+  files: z.array(SkillImportFile),
+});
+export type SkillImportPreview = z.infer<typeof SkillImportPreview>;
 
 export const CommunitySkill = z.object({
   name: z.string(),
@@ -141,15 +204,56 @@ export const CommunitySkill = z.object({
 export type CommunitySkill = z.infer<typeof CommunitySkill>;
 
 // ---- Conventions ----
+export const ConventionStatus = z.enum(['pending', 'accepted', 'rejected']);
+export type ConventionStatus = z.infer<typeof ConventionStatus>;
+
+/** A candidate house rule from a scan. Line range is computed server-side by
+ *  matching the snippet against the clone — the model never supplies it. */
 export const ConventionCandidate = z.object({
   id: z.string(),
+  category: z.string(),
   rule: z.string(),
-  evidence_path: z.string(),
-  evidence_snippet: z.string(),
-  confidence: z.number().min(0).max(1),
-  accepted: z.boolean(),
+  evidence_path: z.string().nullable(),
+  evidence_start_line: z.number().int().nullable(),
+  evidence_end_line: z.number().int().nullable(),
+  evidence_snippet: z.string().nullable(),
+  confidence: z.number().min(0).max(1).nullable(),
+  status: ConventionStatus,
 });
 export type ConventionCandidate = z.infer<typeof ConventionCandidate>;
+
+/** One extractor run: what was sampled, at which commit, by which model. */
+export const ConventionScan = z.object({
+  id: z.string(),
+  repo_id: z.string(),
+  sample_file_count: z.number().int(),
+  source_sha: z.string(),
+  model: z.string(),
+  created_at: z.string(),
+});
+export type ConventionScan = z.infer<typeof ConventionScan>;
+
+/** Latest scan for a repo (null before the first one) and its candidates. */
+export const ConventionsList = z.object({
+  scan: ConventionScan.nullable(),
+  candidates: z.array(ConventionCandidate),
+});
+export type ConventionsList = z.infer<typeof ConventionsList>;
+
+/** Accept / reject a candidate, or reset it to `pending` (undo). */
+export const SetConventionStatus = z.object({ status: ConventionStatus });
+export type SetConventionStatus = z.infer<typeof SetConventionStatus>;
+
+/** Merge ACCEPTED candidates into one `convention` skill. `body` is the
+ *  user-edited Markdown; omitted → the server renders the default. */
+export const CreateSkillFromConventionsRequest = z.object({
+  convention_ids: z.array(z.string().uuid()).min(1),
+  name: SkillInput.shape.name,
+  description: SkillInput.shape.description,
+  enabled: z.boolean().default(false),
+  body: SkillInput.shape.body.optional(),
+});
+export type CreateSkillFromConventionsRequest = z.infer<typeof CreateSkillFromConventionsRequest>;
 
 // ---- Agents ----
 // 'openrouter' routes through the OpenAI-compatible API (OpenAIProvider with a

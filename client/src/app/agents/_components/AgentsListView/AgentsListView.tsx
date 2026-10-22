@@ -8,7 +8,7 @@ import { useTranslations } from "next-intl";
 import { Button, Dropdown, EmptyState, ErrorState, Skeleton, Icon } from "@devdigest/ui";
 import { AppShell } from "../../../../components/app-shell";
 import { useAgents, useUpdateAgent } from "../../../../lib/hooks/agents";
-import { AgentCard } from "../AgentCard";
+import { AgentListItem } from "./_components/AgentListItem";
 import { CreateAgentModal } from "./_components/CreateAgentModal";
 import { TEMPLATES } from "./constants";
 import { filterAgents } from "./helpers";
@@ -83,7 +83,7 @@ export function AgentsListView() {
         {list.length > 0 && (
           <div style={s.grid}>
             {list.map((a) => (
-              <AgentCard
+              <AgentListItem
                 key={a.id}
                 ag={a}
                 onClick={() => router.push(`/agents/${a.id}?tab=config`)}

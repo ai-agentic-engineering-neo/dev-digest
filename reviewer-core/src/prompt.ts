@@ -33,6 +33,26 @@ export function wrapUntrusted(label: string, content: string): string {
   return `<untrusted source="${label}">\n${safe}\n</untrusted>`;
 }
 
+/** A skill resolved by the caller (DB in the studio, fs in the runner). */
+export interface SkillBlockInput {
+  name: string;
+  version: number;
+  description: string;
+  body: string;
+}
+
+/**
+ * Render one skill as the block the agent receives under `## Skills / rules`.
+ * Skills are trusted, user-vetted instructions — deliberately NOT wrapped as
+ * untrusted data, otherwise the guard would tell the model to ignore them.
+ */
+export function formatSkillBlock(skill: SkillBlockInput): string {
+  const head = `### Skill: ${skill.name} (v${skill.version})`;
+  const description = skill.description.trim();
+  const body = skill.body.trim();
+  return description ? `${head}\n${description}\n\n${body}` : `${head}\n\n${body}`;
+}
+
 /** Cap the PR description so a huge author body can't blow the token budget. */
 const MAX_PR_DESCRIPTION_CHARS = 4000;
 

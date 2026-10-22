@@ -3,24 +3,57 @@
     "crumbLab": "Skills Lab",
     "crumbConventions": "Conventions",
     "headingPrefix": "Conventions in ",
-    "repoFallback": "repo",
-    "subtitle": "Scan the cloned repo to surface house-rules — each backed by evidence you can turn into a Skill.",
+    "subtitleScanned": "Detected from {count, plural, one {# sample file} other {# sample files}} · last scan {when}",
+    "subtitleNone": "Scan the cloned repo to surface house rules — each backed by evidence you can turn into a Skill.",
     "scanning": "Scanning…",
     "rescan": "Re-scan",
-    "runExtraction": "Run extraction",
+    "deselectAll": "Deselect all",
+    "acceptAll": "Accept all",
+    "acceptedCount": "{accepted} of {total} accepted",
+    "createSkill": "Create skill",
     "extractionFailed": "Extraction failed",
+    "statusFailed": "Could not update the convention",
     "loadError": "Could not load conventions.",
     "empty": {
       "title": "No conventions extracted yet",
-      "body": "Scan the repo to surface house-rules — naming, error handling, structure — each backed by evidence you can turn into a Skill.",
+      "body": "Scan the repo to surface house rules — naming, error handling, structure — each backed by evidence you can turn into a Skill.",
       "cta": "Run extraction"
     },
-    "candidateCount": "{count, plural, one {# candidate} other {# candidates}} · grounded against sampled files"
+    "noCandidates": {
+      "title": "No conventions found",
+      "body": "The last scan found no candidate with verifiable evidence. Re-scan, or try a different model in Settings → Feature Models."
+    },
+    "notCloned": {
+      "title": "This repo isn't cloned yet",
+      "body": "Conventions are read from the local clone of {repo}. Clone it now, or add a repo that exists on GitHub.",
+      "cta": "Clone repo",
+      "cloning": "Cloning…",
+      "addRepo": "Add a repo",
+      "started": "Cloning {repo} — this page updates when it's ready.",
+      "timedOut": "The clone didn't finish. Check that {repo} exists on GitHub and your token can read it."
+    }
   },
   "card": {
     "confidence": "Confidence",
+    "accept": "Accept",
     "accepted": "Accepted",
-    "accepting": "Accepting…",
-    "acceptAsSkill": "Accept as Skill"
+    "reject": "Reject",
+    "rejected": "Rejected",
+    "copy": "Copy snippet",
+    "copied": "Snippet copied",
+    "noEvidence": "No evidence"
+  },
+  "modal": {
+    "title": "Create skill from conventions",
+    "banner": "Merged from <b>{count, plural, one {# accepted convention} other {# accepted conventions}}</b> in <code>{repo}</code>. Everything below is editable before you save.",
+    "enabledLabel": "Enabled",
+    "enabledHint": "Whether this block is added to agents' prompts.",
+    "descriptionDefault": "{count, plural, one {# house convention} other {# house conventions}} extracted from {repo}",
+    "footer": "Saved as v1 · added to Skills Lab",
+    "cancel": "Cancel",
+    "save": "Create skill",
+    "saving": "Creating…",
+    "createdToast": "Created skill \"{name}\".",
+    "failed": "Could not create the skill"
   }
 }

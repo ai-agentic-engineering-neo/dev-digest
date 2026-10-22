@@ -1,11 +1,13 @@
 /* FindingsSection — the persisted findings of THIS run (same data as the
-   "Review runs" list), rendered inside a collapsible TraceSection. */
+   "Review runs" list), rendered inside a collapsible TraceSection. Severity
+   counters on top double as a local filter (click a level; click again resets). */
 "use client";
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { Badge } from "@devdigest/ui";
-import type { FindingRecord } from "@devdigest/shared";
+import { Badge, Button } from "@devdigest/ui";
+import type { FindingRecord, Severity } from "@devdigest/shared";
+import { SeverityCounts, SEVERITIES, countBySeverity } from "@/components/severity-counts";
 import { s } from "../../styles";
 import { TraceSection } from "../TraceSection";
 
@@ -17,6 +19,16 @@ const SEV_COLOR: Record<string, string> = {
 
 export function FindingsSection({ findings }: { findings: FindingRecord[] }) {
   const t = useTranslations("runs");
+  const tSev = useTranslations("prReview.severityCounts");
+  const [sevFilter, setSevFilter] = React.useState<Severity | null>(null);
+  const counts = React.useMemo(() => countBySeverity(findings), [findings]);
+  const shown = React.useMemo(
+    () =>
+      findings
+        .filter((f) => !sevFilter || f.severity === sevFilter)
+        .sort((a, b) => SEVERITIES.indexOf(a.severity) - SEVERITIES.indexOf(b.severity)),
+    [findings, sevFilter],
+  );
   return (
     <TraceSection
       icon="AlertOctagon"
@@ -27,7 +39,21 @@ export function FindingsSection({ findings }: { findings: FindingRecord[] }) {
         <span style={s.noToolCalls}>{t("trace.noFindings")}</span>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {findings.map((f) => (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <SeverityCounts
+              variant="full"
+              counts={counts}
+              findings={findings}
+              active={sevFilter}
+              onSelect={(sev) => setSevFilter((cur) => (cur === sev ? null : sev))}
+            />
+            {sevFilter && (
+              <Button kind="ghost" size="sm" icon="X" onClick={() => setSevFilter(null)}>
+                {tSev("showAll")}
+              </Button>
+            )}
+          </div>
+          {shown.map((f) => (
             <div
               key={f.id}
               style={{

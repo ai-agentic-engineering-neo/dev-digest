@@ -1,0 +1,92 @@
+{
+  "$comment": "Single source of truth for which skill reviews which files. Globs are repo-relative; ** spans folders, {a,b} alternates. Edit here, not in SKILL.md.",
+  "routes": [
+    {
+      "skill": "frontend-ui-architecture",
+      "include": ["client/src/**/*.{ts,tsx}"],
+      "exclude": ["client/src/vendor/**", "**/*.test.{ts,tsx}", "client/src/test/**"]
+    },
+    {
+      "skill": "react-best-practices",
+      "include": ["client/src/**/*.tsx", "client/src/lib/hooks/**/*.ts"],
+      "exclude": ["client/src/vendor/**", "**/*.test.{ts,tsx}", "client/src/test/**"]
+    },
+    {
+      "skill": "next-best-practices",
+      "include": ["client/src/app/**/*.{ts,tsx}", "client/next.config.*", "client/src/middleware.ts"],
+      "exclude": ["**/*.test.{ts,tsx}"]
+    },
+    {
+      "skill": "react-testing-library",
+      "include": ["client/**/*.test.{ts,tsx}", "client/src/test/**"]
+    },
+    {
+      "skill": "onion-architecture",
+      "include": [
+        "server/src/modules/**/*.ts",
+        "server/src/adapters/**/*.ts",
+        "server/src/platform/**/*.ts",
+        "server/src/app.ts",
+        "reviewer-core/src/**/*.ts"
+      ],
+      "exclude": ["**/*.test.ts"]
+    },
+    {
+      "skill": "fastify-best-practices",
+      "include": [
+        "server/src/modules/**/routes.ts",
+        "server/src/modules/**/routes/**/*.ts",
+        "server/src/modules/_shared/**/*.ts",
+        "server/src/platform/**/*.ts",
+        "server/src/app.ts",
+        "server/src/server.ts"
+      ],
+      "exclude": ["**/*.test.ts"]
+    },
+    {
+      "skill": "drizzle-orm-patterns",
+      "include": [
+        "server/src/db/*.ts",
+        "server/src/db/schema/**/*.ts",
+        "server/src/**/repository.ts",
+        "server/src/**/repository/**/*.ts"
+      ],
+      "exclude": ["**/*.test.ts", "server/src/db/seed*.ts"]
+    },
+    {
+      "skill": "postgresql-table-design",
+      "include": ["server/src/db/schema.ts", "server/src/db/schema/**/*.ts", "server/src/db/migrations/*.sql"]
+    },
+    {
+      "skill": "zod",
+      "include": ["server/src/vendor/shared/**/*.ts", "client/src/vendor/shared/**/*.ts"]
+    },
+    {
+      "skill": "typescript-expert",
+      "include": ["reviewer-core/src/**/*.ts", "server/src/vendor/shared/**/*.ts"],
+      "exclude": ["**/*.test.ts"],
+      "fullOnly": true
+    },
+    {
+      "skill": "security",
+      "include": [
+        "server/src/modules/**/routes.ts",
+        "server/src/modules/**/routes/**/*.ts",
+        "server/src/adapters/**/*.ts",
+        "server/src/platform/**/*.ts",
+        "server/src/app.ts",
+        "client/src/lib/api.ts",
+        "client/next.config.*",
+        "**/*{auth,secret,token,credential}*.{ts,tsx}"
+      ],
+      "exclude": ["**/*.test.ts", "**/mocks.ts"]
+    }
+  ],
+  "notReviewers": ["mermaid-diagram", "engineering-insights", "pr-self-review"],
+  "ignorePaths": ["**/*.md", "**/pnpm-lock.yaml", "**/package-lock.json", "server/src/db/migrations/meta/**", ".vscode/**", ".claude/**"],
+  "gate": {
+    "$comment": "publishStatus: after `gh pr create`, post the pr-self-review commit status so a required GitHub check can block merging. Enable together with branch protection on main.",
+    "publishStatus": false
+  },
+  "limits": { "filesPerAgent": 12, "maxAgentsQuick": 8, "maxAgentsFull": 16, "largeDiffLines": 800, "largeDiffPackages": 3 }
+}

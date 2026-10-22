@@ -1,6 +1,6 @@
 import type { Container } from '../../platform/container.js';
-import type { Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
-import { reviewPullRequest, countBlockers } from '@devdigest/reviewer-core';
+import type { Provider, Review, RunTrace, SkillUsed, UnifiedDiff } from '@devdigest/shared';
+import { reviewPullRequest, countBlockers, formatSkillBlock } from '@devdigest/reviewer-core';
 import { RunLogger } from '../../platform/run-logger.js';
 import * as schema from '../../db/schema.js';
 import type { AgentRow } from '../../db/rows.js';
@@ -80,6 +80,7 @@ export class ReviewRunExecutor {
             durationMs: 0,
             tokensIn: 0,
             tokensOut: 0,
+            costUsd: null,
             findingsCount: 0,
             grounding: '0/0 passed',
             error: msg,
@@ -183,6 +184,9 @@ export class ReviewRunExecutor {
 
       const task = taskLine(pull) + rankNote;
 
+      // L02 — attached + globally enabled skills, in the agent's order.
+      const skills = await this.buildSkills(agent, runLog);
+
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
       // the CI runner). The service owns only I/O: repo-intel context resolution
@@ -203,6 +207,8 @@ export class ReviewRunExecutor {
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
+        // Omitted when no enabled skill is attached → no "Skills / rules" section.
+        ...(skills.blocks.length > 0 ? { skills: skills.blocks } : {}),
         task,
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
@@ -210,7 +216,7 @@ export class ReviewRunExecutor {
           if (this.container.runBus.isCancelled(runId)) throw new RunCancelledError();
         },
       });
-      const { tokensIn, tokensOut, grounding } = outcome;
+      const { tokensIn, tokensOut, costUsd, grounding } = outcome;
 
       const keptFindings = outcome.review.findings;
 
@@ -245,6 +251,7 @@ export class ReviewRunExecutor {
         durationMs,
         tokensIn,
         tokensOut,
+        costUsd,
         findingsCount: findingRows.length,
         grounding,
         score: outcome.review.score,
@@ -265,6 +272,7 @@ export class ReviewRunExecutor {
           duration_ms: durationMs,
           tokens_in: tokensIn,
           tokens_out: tokensOut,
+          cost_usd: costUsd,
           findings: findingRows.length,
           grounding,
         },
@@ -278,6 +286,7 @@ export class ReviewRunExecutor {
         raw_output: outcome.raw,
         memory_pulled: [],
         specs_read: [],
+        skills_used: skills.used,
         // Persisted log = the run's FULL event buffer (incl. shared pre-work:
         // diff load + intent), not just events recorded inside this method.
         log: runLog.logFor(runId),
@@ -300,6 +309,7 @@ export class ReviewRunExecutor {
           durationMs: Date.now() - start,
           tokensIn: 0,
           tokensOut: 0,
+          costUsd: null,
           findingsCount: 0,
           grounding: '0/0 passed',
           error: msg,
@@ -311,6 +321,35 @@ export class ReviewRunExecutor {
       this.container.runBus.complete(runId);
       throw err;
     }
+  }
+
+  /**
+   * L02 — resolve the agent's attached skills into prompt blocks. Only skills
+   * that are globally enabled are sent (and logged); order = `agent_skills.order`.
+   * Each sent skill gets its own log line with its token cost.
+   */
+  private async buildSkills(
+    agent: AgentRow,
+    runLog: RunLogger,
+  ): Promise<{ blocks: string[]; used: SkillUsed[] }> {
+    const links = await this.container.agentsRepo.linkedSkills(agent.id);
+    const blocks: string[] = [];
+    const used: SkillUsed[] = [];
+    for (const { skill } of links) {
+      if (!skill.enabled) continue;
+      const block = formatSkillBlock(skill);
+      const tokens = this.container.tokenizer.count(block);
+      blocks.push(block);
+      used.push({ id: skill.id, name: skill.name, version: skill.version, tokens });
+      runLog.info(`skill attached: ${skill.name} v${skill.version} · ${tokens} tok`);
+    }
+    if (used.length === 0) {
+      runLog.info('skills: none attached or enabled');
+    } else {
+      const total = used.reduce((sum, u) => sum + u.tokens, 0);
+      runLog.info(`skills: ${used.length} attached (+${total} tok in prompt)`);
+    }
+    return { blocks, used };
   }
 
   /**
@@ -421,7 +460,7 @@ export class ReviewRunExecutor {
         pr: pull.number,
         source: 'local',
       },
-      stats: { duration_ms: durationMs, tokens_in: 0, tokens_out: 0, findings: 0, grounding },
+      stats: { duration_ms: durationMs, tokens_in: 0, tokens_out: 0, cost_usd: null, findings: 0, grounding },
       prompt_assembly: { system: agent.systemPrompt, skills: null, memory: null, specs: null, user: '' },
       tool_calls: [],
       raw_output: '',

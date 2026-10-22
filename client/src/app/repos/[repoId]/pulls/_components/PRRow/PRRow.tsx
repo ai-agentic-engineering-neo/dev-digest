@@ -6,6 +6,9 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Icon, Avatar, Badge, CircularScore } from "@devdigest/ui";
 import type { PrMeta } from "@/lib/types";
+import { RunCostBadge } from "@/components/run-cost-badge";
+import { SeverityCounts } from "@/components/severity-counts";
+import { usePrReviews } from "@/lib/hooks/reviews";
 import { SIZE_COLOR, STATUS_META } from "../../constants";
 import { relativeTime, sizeOf } from "../../helpers";
 import { s } from "../../styles";
@@ -17,6 +20,11 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
   const st = STATUS_META[pr.status] ?? STATUS_META.needs_review!;
   const { size, lines } = sizeOf(pr);
   const reviewed = pr.score != null; // null score ⇒ PR has never been reviewed
+  // The FINDINGS popover fetches the PR's findings only once it is first opened.
+  const [wantFindings, setWantFindings] = React.useState(false);
+  const { data: reviews, isLoading: findingsLoading } = usePrReviews(wantFindings ? pr.id : null);
+  const findings = React.useMemo(() => (reviews ?? []).flatMap((r) => r.findings), [reviews]);
+  const hasFindings = Object.values(pr.finding_counts ?? {}).some((n) => n > 0);
   return (
     <div
       onMouseEnter={() => setH(true)}
@@ -54,9 +62,24 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
         )}
       </div>
       <div>
+        {hasFindings ? (
+          <SeverityCounts
+            counts={pr.finding_counts}
+            findings={findings}
+            loading={wantFindings && findingsLoading}
+            onOpenChange={(open) => open && setWantFindings(true)}
+          />
+        ) : (
+          <span style={s.muted}>—</span>
+        )}
+      </div>
+      <div>
         <Badge dot color={st.c} bg="transparent">
           {t(`list.status.${st.labelKey}`)}
         </Badge>
+      </div>
+      <div>
+        <RunCostBadge variant="compact" usd={pr.cost_usd} />
       </div>
       <div style={s.updatedCell}>{relativeTime(pr.updated_at)}</div>
     </div>

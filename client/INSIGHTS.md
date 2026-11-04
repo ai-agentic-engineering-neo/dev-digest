@@ -25,14 +25,11 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 
 ## Recurring Errors & Fixes
 <!-- Symptom → root cause → fix -->
-- 2026-11-04 — New UI missing on an already-open PR page although `next dev` had recompiled (`grep countBySeverity .next/static/chunks/app/repos/[repoId]/pulls/[number]/page.js` found it): Fast Refresh didn't patch the stale tab → hard-reload (Ctrl+Shift+R) before debugging code; grep the compiled chunk to tell "not built" from "not reloaded".
 
 ## Session Notes
 <!-- Wrap-up: one dated line per substantive task -->
 - 2026-11-04 — Shipped Run Cost Badge UI (PR-list COST column, timeline tokens·cost, trace COST tile) → specs/run-cost-badge.md.
 - 2026-11-04 — Fixed DevDigest review finding on PR #1: RunTraceDrawer tests no longer mutate the shared TRACE fixture.
-- 2026-11-04 — Severity counters/filter on the PR page via plan mode → spec → impl → tests → manual check on demo PR #5 → specs/severity-counters.md.
 
 ## Open Questions
 <!-- Unresolved items, known gaps -->
-- 2026-11-04 — `SeverityBadge` labels ("Critical", "Warning", …) come from the hard-coded English `SEV` map in `src/vendor/ui/primitives/tokens.ts`, not next-intl → severity counters/badges won't translate; decide whether `SeverityBadge` should accept a `label` prop.

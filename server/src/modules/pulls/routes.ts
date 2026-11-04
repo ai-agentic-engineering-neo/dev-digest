@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { PrMeta, PrDetail, GitHubClient, PrReviewComment } from '@devdigest/shared';
 import { PrCommentInput } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
@@ -129,6 +129,26 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
+    // Total SPEND per PR for the list's COST column = sum of every agent run's
+    // cost (any status — failed runs carry their partial spend). SUM skips NULL
+    // (unpriced) rows and is NULL when none are priced → "—" in the UI.
+    // Scoped by workspace explicitly (no automatic guard).
+    const costByPr = new Map<string, number | null>();
+    if (prIds.length > 0) {
+      const costRows = await container.db
+        .select({
+          prId: t.agentRuns.prId,
+          cost: sql<string | number | null>`sum(${t.agentRuns.costUsd})`,
+        })
+        .from(t.agentRuns)
+        .where(and(eq(t.agentRuns.workspaceId, workspaceId), inArray(t.agentRuns.prId, prIds)))
+        .groupBy(t.agentRuns.prId);
+      for (const c of costRows) {
+        // pg returns SUM(double precision) as a string — coerce, keep NULL.
+        if (c.prId) costByPr.set(c.prId, c.cost == null ? null : Number(c.cost));
+      }
+    }
+
     const now = Date.now();
     return rows.map((r) => {
       const review = latestReviewByPr.get(r.id);
@@ -153,6 +173,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
+        cost_usd: costByPr.get(r.id) ?? null,
       };
     });
   });

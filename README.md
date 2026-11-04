@@ -155,7 +155,18 @@ Postgres); everything else is hermetic. The browser e2e flows live in
   applied. The server does **not** migrate on boot: run `cd server && pnpm db:migrate`.
 - **Port 5432 already in use** — another Postgres is running. Stop it, or change the
   host port in `docker-compose.yml`.
-- **`vector` type errors** — the pgvector extension is enabled by migration `0000`;
-  make sure migrations ran against the Dockerized DB, not a different one.
+- **`vector` type errors** — the pgvector extension is enabled by `runMigrations()`
+  (`server/src/db/migrate.ts`) right before the migrations run, not by a migration file.
+  Migrate via `pnpm db:migrate` (not `drizzle-kit migrate`), against the Dockerized DB.
 - **Reset everything** — `docker compose down -v` drops the volume, then re-run
   `./scripts/dev.sh`.
+
+## License
+
+[MIT](LICENSE) — fork it, extend it, run it inside your own company. The only
+requirement is that the copyright notice travels with the copy.
+
+This starter is built for participants of the **AI Agentic Engineering** course:
+you are meant to copy it, keep it in your own fork, and grow it lesson by lesson
+into your own working PR-review tool — including using it for your own projects
+and at work.

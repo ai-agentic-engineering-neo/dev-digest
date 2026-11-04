@@ -43,6 +43,7 @@ import {
   ExportWizardSteps,
   AutoTriggerStatus,
 } from "@devdigest/ui";
+import { RunCostBadge } from "../run-cost-badge";
 import { s } from "./styles";
 import { SEVERITIES, CATEGORIES, MODEL_OPTIONS } from "./constants";
 
@@ -125,6 +126,12 @@ export function Gallery() {
         </div>
         <CircularScore score={82} />
         <CircularScore score={48} size={36} stroke={3.5} />
+      </Group>
+
+      <Group title="Run cost badge (compact · detailed · no data)">
+        <RunCostBadge variant="compact" costUsd={0.014} />
+        <RunCostBadge variant="detailed" costUsd={0.0013} tokensIn={8200} tokensOut={919} />
+        <RunCostBadge variant="compact" costUsd={null} />
       </Group>
 
       <Group title="Cards & States">

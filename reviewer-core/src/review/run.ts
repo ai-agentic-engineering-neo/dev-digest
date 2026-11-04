@@ -90,6 +90,20 @@ export interface ReviewInput {
    * type, e.g. the server's RunCancelledError); the engine stays agnostic.
    */
   checkCancelled?: () => void;
+  /**
+   * Usage sink, called after EACH successful chunk LLM call with that chunk's
+   * usage. Lets the caller keep the spend of completed chunks when a later
+   * chunk throws (the outcome is never returned then). Usage of a call that
+   * itself throws is not reported.
+   */
+  onUsage?: (u: ChunkUsage) => void;
+}
+
+export interface ChunkUsage {
+  tokensIn: number;
+  tokensOut: number;
+  /** USD; null when the model's price is unknown. */
+  costUsd: number | null;
 }
 
 export interface ReviewOutcome {
@@ -182,6 +196,7 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
     tokensIn += res.tokensIn;
     tokensOut += res.tokensOut;
     costUsd = costUsd == null || res.costUsd == null ? null : costUsd + res.costUsd;
+    input.onUsage?.({ tokensIn: res.tokensIn, tokensOut: res.tokensOut, costUsd: res.costUsd });
     raws.push(res.raw);
     partials.push(res.data);
     emit('result', `${chunk.label}: ${res.data.findings.length} candidate finding(s)`);

@@ -135,4 +135,51 @@ describe('reviewPullRequest (engine)', () => {
     expect(seen.length).toBeGreaterThan(0);
     expect(seen.every((s) => s === 'sess-abc')).toBe(true);
   });
+  it('onUsage reports each completed chunk, so spend survives a later chunk failure', async () => {
+    let calls = 0;
+    const flaky: LLMProvider = {
+      id: 'openrouter',
+      async completeStructured<T>(req): Promise<StructuredResult<T>> {
+        calls++;
+        if (calls === 2) throw new Error('429 quota');
+        return {
+          data: fixture as unknown as T,
+          model: req.model,
+          tokensIn: 1000,
+          tokensOut: 200,
+          costUsd: 0.0021,
+          raw: '',
+          attempts: 1,
+        };
+      },
+      async listModels() {
+        return [];
+      },
+      async complete() {
+        throw new Error('not used');
+      },
+      async embed() {
+        return [];
+      },
+    };
+    const diff = {
+      raw: ['diff --git a/a.ts b/a.ts', '+x', 'diff --git a/b.ts b/b.ts', '+y'].join('\n'),
+      files: [
+        { path: 'a.ts', additions: 1, deletions: 0, hunks: [] },
+        { path: 'b.ts', additions: 1, deletions: 0, hunks: [] },
+      ],
+    };
+    const seen: { tokensIn: number; tokensOut: number; costUsd: number | null }[] = [];
+    await expect(
+      reviewPullRequest({
+        systemPrompt: 's',
+        model: 'm',
+        diff,
+        llm: flaky,
+        strategy: 'map-reduce',
+        onUsage: (u) => seen.push(u),
+      }),
+    ).rejects.toThrow('429 quota');
+    expect(seen).toEqual([{ tokensIn: 1000, tokensOut: 200, costUsd: 0.0021 }]);
+  });
 });

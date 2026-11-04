@@ -40,11 +40,12 @@ describe("SeverityCounters", () => {
     expect(onSelect).toHaveBeenLastCalledWith(null);
   });
 
-  it("disables a level with zero findings", () => {
+  it("hides levels with zero findings", () => {
     render(
       <SeverityCounters counts={{ CRITICAL: 0, WARNING: 2, SUGGESTION: 0 }} active={null} onSelect={() => {}} labels={LABELS} />,
     );
-    expect(screen.getByRole("button", { name: /CRITICAL/ })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /CRITICAL/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /SUGGESTION/ })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /WARNING/ })).toBeEnabled();
   });
 });

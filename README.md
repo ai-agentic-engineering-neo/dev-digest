@@ -92,6 +92,11 @@ These are intentionally **not** in the starter — each lesson adds one back:
 
 - **Node** ≥ 22 · **pnpm** ≥ 10 (`npm i -g pnpm`) · **Docker** (for Postgres)
 
+> **Working with Claude Code:** start it (or open the IDE workspace) **in this repository root** — the
+> folder that contains `CLAUDE.md` and `.claude/`, not a parent folder. Only then are `CLAUDE.md`'s
+> session protocol and the project skills in `.claude/skills/` (incl. `engineering-insights`) loaded and
+> triggered automatically. Started from a parent directory, none of them load and insights are not recorded.
+
 ## Quick start (from zero)
 
 ```sh

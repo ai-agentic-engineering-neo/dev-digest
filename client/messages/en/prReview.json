@@ -93,9 +93,16 @@
       "author": "Author",
       "size": "Size",
       "score": "Score",
+      "findings": "Findings",
       "status": "Status",
       "cost": "Cost",
       "updated": "Updated"
+    },
+    "findings": {
+      "heading": "Findings in this run",
+      "none": "Clean",
+      "more": "+{count} more on the PR page",
+      "chip": "{count} {severity}"
     },
     "filesCount": "{count} files",
     "errorTitle": "Couldn’t load pull requests",

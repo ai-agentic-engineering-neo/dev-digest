@@ -1,0 +1,68 @@
+import type { CSSProperties } from "react";
+import { POPOVER_WIDTH } from "./constants";
+
+export const s = {
+  trigger: {
+    display: "inline-flex",
+    alignItems: "center",
+    borderRadius: 6,
+    outlineOffset: 2,
+    cursor: "default",
+  } satisfies CSSProperties,
+  muted: { color: "var(--text-muted)", fontSize: 13 } satisfies CSSProperties,
+  clean: { color: "var(--ok)", fontSize: 12, fontWeight: 600 } satisfies CSSProperties,
+  popover: (pos: { left: number; top?: number; bottom?: number }): CSSProperties => ({
+    position: "fixed",
+    zIndex: 50,
+    width: POPOVER_WIDTH,
+    ...pos,
+    padding: 12,
+    borderRadius: 10,
+    border: "1px solid var(--border)",
+    background: "var(--bg-elevated)",
+    boxShadow: "0 12px 32px rgba(0,0,0,.28)",
+    cursor: "default",
+  }),
+  heading: {
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    color: "var(--text-muted)",
+    marginBottom: 8,
+  } satisfies CSSProperties,
+  list: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+    margin: 0,
+    padding: 0,
+    listStyle: "none",
+  } satisfies CSSProperties,
+  card: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 8,
+    padding: "7px 9px",
+    borderRadius: 7,
+    border: "1px solid var(--border)",
+    background: "var(--bg-surface)",
+  } satisfies CSSProperties,
+  cardBody: { minWidth: 0, display: "flex", flexDirection: "column", gap: 2 } satisfies CSSProperties,
+  cardTitle: {
+    fontSize: 12.5,
+    fontWeight: 550,
+    color: "var(--text-primary)",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  } satisfies CSSProperties,
+  cardLoc: {
+    fontSize: 11,
+    color: "var(--text-muted)",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  } satisfies CSSProperties,
+  more: { marginTop: 8, fontSize: 11.5, color: "var(--text-muted)" } satisfies CSSProperties,
+};

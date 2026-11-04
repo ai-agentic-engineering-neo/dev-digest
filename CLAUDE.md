@@ -41,6 +41,21 @@ Cross-package code is shared via **tsconfig path aliases to raw `.ts` source**, 
 - Comments mentioning task codes (`T1.3`, `T3`, `F1`, `A2`), "intent", "agent-runner" refer to the full
   product; the feature may not exist in the starter. Trust code over comments.
 
+## Naming conventions (cross-package)
+
+Package-specific rules: `<pkg>/CLAUDE.md` § Naming conventions.
+
+- Non-component files/folders are kebab-case: `run-executor.ts`, `to-review.ts`, `modules/repo-intel/`, `github-urls.ts`.
+  PascalCase files/folders only for React components in `client/`.
+- camelCase functions/vars, PascalCase types/classes, SCREAMING_SNAKE module constants
+  (`REVIEW_STRATEGY`, `DEFAULT_MAP_THRESHOLD_LINES`, `SEV_COLOR_FALLBACK`).
+- Three casings for one field: Postgres `snake_case` (`start_line`) → Drizzle/TS `camelCase` (`startLine`) →
+  Zod contract / API JSON `snake_case` (`start_line`, `run_id`, `cost_usd`). Convert in DTO mappers, not in UI.
+- Zod contracts: `export const Finding = z.object(…)` + `export type Finding = z.infer<typeof Finding>` (same name).
+- Tests `*.test.ts(x)`; server DB-backed tests only `*.it.test.ts`; e2e flows `e2e/specs/NN-kebab.flow.json`.
+- Specs `<pkg>/specs/<feature-kebab>.md` (same filename in each package a feature spans, e.g. `run-cost-badge.md`);
+  docs `<pkg>/docs/<topic-kebab>.md`.
+
 ## Do not touch
 
 - `server/src/vendor/shared/` and `server/src/db/migrations/` — never hand-edit without coordination

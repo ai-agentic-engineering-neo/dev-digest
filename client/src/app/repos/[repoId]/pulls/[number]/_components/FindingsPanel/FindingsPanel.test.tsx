@@ -107,7 +107,7 @@ describe("FindingsPanel severity counters", () => {
     fireEvent.click(counter("CRITICAL"));
     expect(titles()).toEqual(["CRITICAL finding c9"]);
     fireEvent.click(screen.getByRole("switch"));
-    expect(counter("CRITICAL")).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /Show only CRITICAL findings/ })).not.toBeInTheDocument();
     expect(titles()).toEqual(["WARNING finding w9"]);
   });
 

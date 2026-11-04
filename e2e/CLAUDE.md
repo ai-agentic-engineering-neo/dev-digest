@@ -2,7 +2,7 @@
 
 ## Before answering
 
-Search `e2e/docs/`, `e2e/INSIGHTS.md` first. (`e2e/specs/` here = test flows, not documentation.)
+Search `e2e/docs/`, `e2e/INSIGHTS.md` first. (`e2e/specs/` here = test flows, indexed in `specs/README.md`.)
 
 ## Commands (npm, run in `e2e/`)
 
@@ -21,6 +21,15 @@ Search `e2e/docs/`, `e2e/INSIGHTS.md` first. (`e2e/specs/` here = test flows, no
 - Flows read seeded data only (`acme/payments-api`, PR #482, seeded agents) — never trigger a review/LLM call.
 - `wait` is the assertion: a step that times out fails the flow. Use `{BASE}` instead of hard-coded hosts.
 - New flow: next `NN-` prefix, descriptive `label` on every step.
+
+## Naming conventions
+
+- Flow file `specs/NN-kebab-name.flow.json`: two-digit zero-padded, next free number (run order = lexical sort, `run.ts → loadFlows`).
+- `name`: one sentence saying what the user sees ("Agents list renders the seeded reviewer agents"); `description`: why + preconditions.
+- Step `label`: lowercase phrase of the expectation ("seeded agent card is visible", "switch to the Files changed tab").
+- Failure screenshot is auto-named `test-results/<NN-kebab-name>-fail.png` — don't hand-name artifacts.
+- Env vars prefixed `E2E_` (`E2E_BASE_URL`, `E2E_STEP_TIMEOUT`, `E2E_PG_PORT`); placeholder in steps is `{BASE}`.
+- Runner code: camelCase helpers in `lib/assert.ts` (`resolveArgs`, `stdoutContains`), PascalCase types (`Flow`, `Step`, `FlowResult`).
 
 ## Gotchas
 

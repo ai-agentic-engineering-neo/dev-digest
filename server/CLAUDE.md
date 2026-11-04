@@ -37,6 +37,25 @@ Search `server/docs/`, `server/specs/`, `server/INSIGHTS.md` for the topic befor
 - Secrets only via `container.secrets` (never `process.env` directly; never stored in DB).
 - DB-backed test ⇒ filename MUST end in `.it.test.ts`. Mock LLM/GitHub/git via `src/adapters/mocks.ts`.
 
+## Naming conventions
+
+- Module folder kebab-case (`modules/repo-intel/`); registry key camelCase in `modules/index.ts` (`repoIntel`).
+- `routes.ts` default-exports `async function <camelName>Routes(appBase)` (`reviewsRoutes`, `repoIntelRoutes`).
+- Classes: `<Domain>Service` in `service.ts`, `<Domain>Repository` in `repository.ts` (`ReviewService`, `ReviewRepository`;
+  plural is inconsistent — `AgentsRepository` vs `RepoRepository` — copy the module you extend).
+- Large repositories split per aggregate: `repository/<aggregate>.repo.ts` (`reviews/repository/run.repo.ts`), composed by `repository.ts`.
+- Other module files: `helpers.ts`, `constants.ts`, or kebab-case by role (`run-executor.ts`, `diff-loader.ts`, `usage.ts`).
+- Adapters: `adapters/<port>/<tech>.ts` with class `<Tech><Port>` (`github/octokit.ts` → `OctokitGitHubClient`,
+  `git/simple-git.ts` → `SimpleGitClient`); test doubles `Mock<Port>` in `adapters/mocks.ts`.
+- Errors: `<Reason>Error extends AppError` (`NotFoundError`, `ConfigError`); `code` strings snake_case (`invalid_run_request`).
+- REST paths: plural nouns + kebab segments, `:id` params (`/pulls/:id/runs/active`, `/repos/:id/index-state`).
+- DB: domain file `db/schema/<domain>.ts` (kebab, `repo-intel.ts`); table `snake_case` plural (`agent_runs`), export camelCase
+  (`agentRuns`); column `costUsd: doublePrecision('cost_usd')`; timestamps `<verb>_at` (`ran_at`, `accepted_at`, `created_at` via `now()`).
+- Indexes `<table>_<cols>_idx` / unique `_uq` (`symbols_repo_path_idx`, `settings_ws_user_key_uq`); row types `<Entity>Row` in `db/rows.ts`.
+- Migrations: drizzle-kit auto names `NNNN_<random_words>.sql` — don't rename them.
+- Job kinds: `<NAME>_JOB_KIND = 'kebab-string'` (`INDEX_JOB_KIND = 'repo-intel-index'`).
+- Tests: flat `test/<area>-<topic>.test.ts` (`reviews-usage.test.ts`); DB-backed `*.it.test.ts`; shared harness in `test/helpers/`.
+
 ## Gotchas
 
 - Migrations are NOT run on boot; seed is required (no-auth mode resolves the seeded user/workspace).

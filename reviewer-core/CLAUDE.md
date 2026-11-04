@@ -28,6 +28,19 @@ Search `reviewer-core/docs/`, `reviewer-core/specs/`, `reviewer-core/INSIGHTS.md
 - New prompt slot = optional input; empty/undefined ⇒ section omitted (prompt byte-identical to before).
 - Cancellation via `checkCancelled()` callback before each LLM call; the engine never defines error types for it.
 
+## Naming conventions
+
+- One concern per lowercase/kebab file, grouped by pipeline stage: `review/run.ts`, `review/reduce.ts`, `llm/structured.ts`,
+  `output/to-review.ts`; top-level `prompt.ts`, `grounding.ts`. Relative imports end in `.js`.
+- Public functions verb-first camelCase: `assemblePrompt`, `groundFindings`, `reviewPullRequest`, `toReviewPayload`.
+- Entry-point types `<Thing>Input` / `<Thing>Outcome` (`ReviewInput`, `ReviewOutcome`); provider options `<Class>Options`.
+- Tunable defaults exported as `DEFAULT_<WHAT>` (`DEFAULT_MAP_THRESHOLD_LINES`); private constants SCREAMING_SNAKE
+  (`INJECTION_GUARD`, `MAX_PR_DESCRIPTION_CHARS`, `FULL_FILE_KINDS`, `SEVERITY_PENALTY`).
+- Callbacks on inputs: sinks `on<Event>` (`onEvent`, `onUsage`), guards `check<Condition>` (`checkCancelled`).
+- Prompt slots: input field camelCase (`repoMap`, `prDescription`) ↔ `PromptAssembly` key snake_case (`repo_map`,
+  `pr_description`) ↔ `wrapUntrusted` label kebab (`'repo-map'`, `'pr-description'`, `` `spec-${i}` ``) ↔ heading `## Repo skeleton`.
+- Tests: `test/<src-file-name>.test.ts` mirroring the source file (`prompt.test.ts`, `run.test.ts`, `to-review.test.ts`).
+
 ## Gotchas
 
 - Imports `@devdigest/shared` from `../server/src/vendor/shared` (tsconfig alias), and pins `zod` to its own

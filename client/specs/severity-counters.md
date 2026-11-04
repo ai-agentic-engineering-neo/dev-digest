@@ -23,7 +23,9 @@ Props: `{ counts: Record<Severity, number>; active: Severity | null; onSelect: (
   `Severity` enum, in that order), each rendering `SeverityBadge` with `count` (icon + label + number;
   never color alone).
 - Wrapped in `role="group"` with `aria-label={labels.group}`; each button `title`/`aria-label` = `labels.showOnly(...)`.
-- Count `0` → button `disabled` (still shown, so the three levels never jump around).
+- ~~Count `0` → button `disabled` (still shown, so the three levels never jump around).~~
+  **Changed 2026-11-04 (mentor review, see [pr-list-findings.md](pr-list-findings.md)):** levels with count `0`
+  are hidden, so the toolbar shows at a glance what the run found.
 - Active button gets an accent outline; inactive buttons are dimmed only while a filter is active.
 - Inline style objects off CSS variables, no hard-coded colors.
 
@@ -53,7 +55,7 @@ Add `SeverityCounters` (one with an active level, one with a zero level) to `src
 
 ## Acceptance criteria
 1. Each review run with findings shows `CRITICAL n · WARNING n · SUGGESTION n`; numbers equal the cards in its list.
-2. Clicking a level shows only that level; clicking it again shows all; zero levels are disabled.
+2. Clicking a level shows only that level; clicking it again shows all; zero levels are hidden (was: disabled).
 3. "Hide low confidence" updates counters and list together.
 4. Buttons are keyboard-operable, expose `aria-pressed`, and the group has an accessible name.
 5. No new network requests or LLM calls when using the counters.

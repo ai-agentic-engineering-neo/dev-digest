@@ -8,3 +8,4 @@ Add each new spec to the list below with a one-line "read when".
 
 <!-- - [feature.md](feature.md) — read when … -->
 - [run-cost-badge.md](run-cost-badge.md) — read when persisting/exposing agent-run cost (`agent_runs.cost_usd`, PR-list cost sum, partial cost on failed runs)
+- [pr-list-findings.md](pr-list-findings.md) — read when changing what `GET /repos/:id/pulls` returns about findings (`PrMeta.findings`, `topFindings`)

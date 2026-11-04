@@ -6,7 +6,7 @@ Search `client/docs/`, `client/specs/`, `client/INSIGHTS.md` first.
 
 ## Commands (pnpm, run in `client/`)
 
-- `pnpm dev` (`:3000`) · `pnpm test` (vitest + jsdom, fetch mocked) · `pnpm typecheck` · `pnpm build`
+- `pnpm dev` (`:3000`) · `pnpm test` (vitest + jsdom; tests `vi.mock` the hook modules — no global fetch mock) · `pnpm typecheck` · `pnpm build`
 - API base: `NEXT_PUBLIC_API_BASE` (default `http://localhost:3001`).
 
 ## Layout
@@ -29,6 +29,26 @@ Search `client/docs/`, `client/specs/`, `client/INSIGHTS.md` first.
 - Severity/category visuals via `SeverityBadge` / `CategoryTag`, not raw `SEV`/`CAT` maps.
 - User-visible text goes through next-intl messages, not literals.
 - Types come from `@devdigest/shared` (re-exported in `src/lib/types.ts`); don't redefine contracts.
+
+## Naming conventions
+
+- Route folders lowercase; dynamic segments `[camelCase]`: `app/repos/[repoId]/pulls/[number]/`, `app/settings/[section]/`.
+- Page = `page.tsx` default-exporting `<Name>Page` (`PullsPage`, `PRDetailPage`, `AgentEditorPage`).
+- Route-local component: `_components/<PascalCase>/<PascalCase>.tsx` (`FindingsPanel/FindingsPanel.tsx`);
+  sub-components nest as `<Parent>/_components/<Child>/` (`FindingsPanel/_components/SeverityCounters/`).
+- `index.ts` re-exports named + default: `export { FindingCard, FindingCard as default } from "./FindingCard"`.
+- Sibling files keep fixed names: `styles.ts` exports one object `s`; `constants.ts` SCREAMING_SNAKE
+  (`SEV_COLOR_FALLBACK`, `SKELETON_ROWS`); `helpers.ts` camelCase pure fns (`countBySeverity`, `visibleFindings`).
+- Tests colocated: `<Name>.test.tsx` for components, `helpers.test.ts` for helpers; app-wide smoke in `src/test/smoke.test.tsx`.
+- App-level shared components: kebab-case folder, PascalCase file — `src/components/run-cost-badge/RunCostBadge.tsx`.
+- Data hooks: one file per API domain in `src/lib/hooks/<domain>.ts` (kebab: `repo-intel.ts`), re-exported by `index.ts`.
+  Queries `use<Noun>` (`usePrRuns`, `usePullDetail`), mutations `use<Verb><Noun>` (`useCreateAgent`, `useCancelRun`).
+- Component-private hooks: one hook per file `hooks/use<Name>.ts` (`components/app-shell/hooks/useGlobalShortcuts.ts`).
+- TanStack query keys: `[<kebab-string>, id]` — `["pr-runs", prId]`, `["repo-intel-state", repoId]`; reuse the exact
+  key string when invalidating.
+- Other `src/lib/` modules kebab-case (`github-urls.ts`, `repo-context.tsx`, `model-label.ts`).
+- i18n: one namespace per file `messages/en/<camelCase>.json` (`prReview.json`, `agentPerformance.json`) =
+  `useTranslations("prReview")`; keys nested camelCase (`panel.severityFilter`, `finding.suggestedFix`); ICU args `{severity}`.
 
 ## Gotchas
 

@@ -54,14 +54,18 @@ File missing → create it from [TEMPLATE.md](TEMPLATE.md).
 
 ## Entry format
 
-`- YYYY-MM-DD — <what is true / what happened> → <what to do instead> (path/to/file.ts → symbolName)`
+`- YYYY-MM-DD — <what is true / what happened> → <what to do instead> (path/to/file.ts:LINE → symbolName)`
 
-One line, concrete names (files, functions, commands, numbers). Point to code by **file + function /
-symbol, never line numbers** — they rot after the first refactor.
+One line, concrete names (files, functions, commands, numbers). Point to code by **package-relative
+`file:line` AND the function / symbol**: `file:line` lets the next developer jump straight there
+(clickable in the IDE); the symbol is the fallback once the line drifts after a refactor. Take the line
+from the current code (grep -n) right before writing — never guess it. Line refers to the symbol's
+declaration (or the exact statement the insight is about). No single code location (tooling/env
+insight) → name the command or config file instead.
 
-- ❌ `Promises can be tricky` · ❌ `be careful with async`
-- ✅ `Promise.all() on the ingest pipeline times out after ~30 items → use Promise.allSettled() in batches of 10 (src/ingest/run.ts → runIngest)`
-- ✅ `checkout state always goes through Zustand (cartStore.ts) — 3 components share the cart; local state breaks it`
+- ❌ `Promises can be tricky` · ❌ `be careful with async` · ❌ `(src/ingest/run.ts)` — no line, no symbol
+- ✅ `Promise.all() on the ingest pipeline times out after ~30 items → use Promise.allSettled() in batches of 10 (src/ingest/run.ts:48 → runIngest)`
+- ✅ `checkout state always goes through Zustand (src/store/cartStore.ts:12 → useCartStore) — 3 components share the cart; local state breaks it`
 
 ## Procedure (capture)
 
@@ -80,7 +84,7 @@ Copy this checklist into your reply and tick it off:
 2. **Re-read the whole target `INSIGHTS.md` right before writing** — even if it was read at session
    start (it may have changed since). Never write from memory of the file.
 3. **Draft at most 5 candidates per run**, ranked by the signal order in "When to run" (user
-   corrections highest). Each candidate = exact line + target section + `path → symbol`. More than 5
+   corrections highest). Each candidate = exact line + target section + `path:line → symbol`. More than 5
    → keep the top 5, the rest go to the report as skipped.
 4. **Dedup.** Compare by meaning, not wording, across all sections — and against the docs listed in
    "What NOT to record". Already covered → drop it. **Contradicts an existing entry?** Never edit or

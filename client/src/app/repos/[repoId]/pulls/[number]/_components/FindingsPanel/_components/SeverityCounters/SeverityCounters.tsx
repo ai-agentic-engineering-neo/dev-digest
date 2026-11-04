@@ -28,7 +28,10 @@ export interface SeverityCountersProps {
 export function SeverityCounters({ counts, active, onSelect, labels }: SeverityCountersProps) {
   return (
     <div role="group" aria-label={labels.group} style={s.group}>
-      {COUNTER_LEVELS.map((sev) => {
+      {/* Only levels with findings are shown — zero levels are hidden so the toolbar
+          says at a glance what this run found (FindingsPanel resets the filter if the
+          active level drops to 0). */}
+      {COUNTER_LEVELS.filter((sev) => (counts[sev] ?? 0) > 0).map((sev) => {
         const count = counts[sev] ?? 0;
         const pressed = active === sev;
         return (
@@ -36,11 +39,10 @@ export function SeverityCounters({ counts, active, onSelect, labels }: SeverityC
             key={sev}
             type="button"
             aria-pressed={pressed}
-            disabled={count === 0}
             title={labels.showOnly(sev)}
             aria-label={`${labels.showOnly(sev)} (${count})`}
             onClick={() => onSelect(pressed ? null : sev)}
-            style={s.button({ pressed, dimmed: active !== null && !pressed, empty: count === 0 })}
+            style={s.button({ pressed, dimmed: active !== null && !pressed })}
           >
             <SeverityBadge severity={sev} count={count} />
           </button>

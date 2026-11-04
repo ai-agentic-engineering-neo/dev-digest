@@ -1,13 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { PrMeta, PrDetail, GitHubClient, PrReviewComment } from '@devdigest/shared';
 import { PrCommentInput } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { AppError, NotFoundError } from '../../platform/errors.js';
-import { deriveReviewStatus } from './status.js';
+import { deriveReviewStatus, rollupSeverities, topFindings } from './status.js';
 
 /**
  * F1 — pulls module. PR import via Octokit (list + per-PR detail).
@@ -19,6 +19,14 @@ import { deriveReviewStatus } from './status.js';
  * Import is idempotent (unique repo_id+number). Review trigger is MANUAL
  * and owned by A2 — this module only imports/reads.
  */
+type FindingRow = {
+  severity: string;
+  title: string;
+  file: string;
+  startLine: number;
+  confidence: number;
+};
+
 export default async function pullsRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
   const { container } = app;
@@ -111,21 +119,42 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
-    // Latest-review SCORE per PR for the list's score ring. Computed on read
-    // from reviews (no FK denorm); the list is small, so one IN-query + JS
-    // grouping is cheap. (The per-severity FINDINGS breakdown is intentionally
-    // not surfaced on the list — findings live on the PR detail page.)
+    // Latest-review SCORE + FINDINGS per PR for the list's score ring and
+    // FINDINGS column/popover. Computed on read from reviews (no FK denorm);
+    // the list is small, so one IN-query + JS grouping is cheap, then ONE more
+    // IN-query for just the latest reviews' findings (dismissed ones excluded).
     const prIds = rows.map((r) => r.id);
-    const latestReviewByPr = new Map<string, { score: number | null }>();
+    const latestReviewByPr = new Map<string, { id: string; score: number | null }>();
     if (prIds.length > 0) {
       const reviewRows = await container.db
-        .select({ prId: t.reviews.prId, score: t.reviews.score })
+        .select({ id: t.reviews.id, prId: t.reviews.prId, score: t.reviews.score })
         .from(t.reviews)
         .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review')))
         .orderBy(desc(t.reviews.createdAt));
       // Rows are newest-first → first seen per PR is the latest review.
       for (const rv of reviewRows) {
-        if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { score: rv.score });
+        if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { id: rv.id, score: rv.score });
+      }
+    }
+
+    const findingsByReview = new Map<string, FindingRow[]>();
+    const latestReviewIds = [...latestReviewByPr.values()].map((rv) => rv.id);
+    if (latestReviewIds.length > 0) {
+      const findingRows = await container.db
+        .select({
+          reviewId: t.findings.reviewId,
+          severity: t.findings.severity,
+          title: t.findings.title,
+          file: t.findings.file,
+          startLine: t.findings.startLine,
+          confidence: t.findings.confidence,
+        })
+        .from(t.findings)
+        .where(and(inArray(t.findings.reviewId, latestReviewIds), isNull(t.findings.dismissedAt)));
+      for (const f of findingRows) {
+        const list = findingsByReview.get(f.reviewId) ?? [];
+        list.push(f);
+        findingsByReview.set(f.reviewId, list);
       }
     }
 
@@ -174,6 +203,12 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
         cost_usd: costByPr.get(r.id) ?? null,
+        findings: review
+          ? (() => {
+              const fs = findingsByReview.get(review.id) ?? [];
+              return { ...rollupSeverities(fs), top: topFindings(fs) };
+            })()
+          : null,
       };
     });
   });

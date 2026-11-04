@@ -96,6 +96,11 @@ These are intentionally **not** in the starter — each lesson adds one back:
 > folder that contains `CLAUDE.md` and `.claude/`, not a parent folder. Only then are `CLAUDE.md`'s
 > session protocol and the project skills in `.claude/skills/` (incl. `engineering-insights`) loaded and
 > triggered automatically. Started from a parent directory, none of them load and insights are not recorded.
+>
+> Agent instructions live in `AGENTS.md` (root + each package); every `CLAUDE.md` is a **symlink** to
+> the `AGENTS.md` next to it — edit `AGENTS.md`. On Windows clone with symlinks enabled
+> (`git clone -c core.symlinks=true …`, needs Developer Mode or admin); otherwise `CLAUDE.md` checks out
+> as a plain text file containing `AGENTS.md` and Claude Code won't see the instructions.
 
 ## Quick start (from zero)
 

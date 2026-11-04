@@ -44,7 +44,6 @@ import {
   AutoTriggerStatus,
 } from "@devdigest/ui";
 import { RunCostBadge } from "../run-cost-badge";
-import { SeverityCounters } from "../../app/repos/[repoId]/pulls/[number]/_components/FindingsPanel/_components/SeverityCounters";
 import { s } from "./styles";
 import { SEVERITIES, CATEGORIES, MODEL_OPTIONS } from "./constants";
 
@@ -100,21 +99,6 @@ export function Gallery() {
         {CATEGORIES.map((c) => (
           <CategoryTag key={c} category={c} />
         ))}
-      </Group>
-
-      <Group title="SeverityCounters (PR findings filter)">
-        <SeverityCounters
-          counts={{ CRITICAL: 3, WARNING: 5, SUGGESTION: 2 }}
-          active={null}
-          onSelect={() => {}}
-          labels={{ group: "Filter findings by severity", showOnly: (sev) => `Show only ${sev} findings` }}
-        />
-        <SeverityCounters
-          counts={{ CRITICAL: 0, WARNING: 2, SUGGESTION: 1 }}
-          active="WARNING"
-          onSelect={() => {}}
-          labels={{ group: "Filter findings by severity", showOnly: (sev) => `Show only ${sev} findings` }}
-        />
       </Group>
 
       <Group title="Chips, Avatars, Confidence, MonoLink, Kbd">

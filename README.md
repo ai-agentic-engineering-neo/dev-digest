@@ -98,9 +98,40 @@ These are intentionally **not** in the starter — each lesson adds one back:
 > triggered automatically. Started from a parent directory, none of them load and insights are not recorded.
 >
 > Agent instructions live in `AGENTS.md` (root + each package); every `CLAUDE.md` is a **symlink** to
-> the `AGENTS.md` next to it — edit `AGENTS.md`. On Windows clone with symlinks enabled
-> (`git clone -c core.symlinks=true …`, needs Developer Mode or admin); otherwise `CLAUDE.md` checks out
-> as a plain text file containing `AGENTS.md` and Claude Code won't see the instructions.
+> the `AGENTS.md` next to it — edit `AGENTS.md`. On Windows see [Windows setup](#windows-setup).
+
+## Windows setup
+
+Every `CLAUDE.md` (root, `server/`, `client/`, `reviewer-core/`, `e2e/`) is a symlink to the `AGENTS.md`
+next to it. Windows needs two things for git to check these out as real symlinks:
+
+1. **Enable Developer Mode** — Settings → System → For developers → *Developer Mode* (lets you create
+   symlinks without admin rights).
+2. **Clone with symlinks on:**
+
+   ```sh
+   git clone -c core.symlinks=true <repo-url>
+   ```
+
+**Already cloned?** If `CLAUDE.md` opens as a one-line text file reading `AGENTS.md`, symlinks were off.
+Fix it in place (Git Bash, repo root):
+
+```sh
+git config core.symlinks true
+git checkout -- CLAUDE.md server/CLAUDE.md client/CLAUDE.md reviewer-core/CLAUDE.md e2e/CLAUDE.md
+```
+
+Check: `ls -l CLAUDE.md` should print `CLAUDE.md -> AGENTS.md`.
+
+**Creating a new symlink by hand:** PowerShell 5.1 `New-Item -ItemType SymbolicLink` asks for admin even
+in Developer Mode. Use Git Bash instead:
+
+```sh
+MSYS=winsymlinks:nativestrict ln -s AGENTS.md CLAUDE.md
+```
+
+**Can't enable Developer Mode?** Locally replace `CLAUDE.md` with a regular file containing the single line
+`@AGENTS.md` (Claude Code's import syntax), and don't commit that change.
 
 ## Quick start (from zero)
 

@@ -7,6 +7,7 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 
 ## What Works
 <!-- Approaches that proved effective here -->
+- 2026-11-04 — To vary data a `vi.mock`-ed hook returns per test, never mutate the module-level fixture (`TRACE.stats.cost_usd = …` / `delete …` made tests order-dependent; flagged by the General Reviewer) → hook reads a `let current = FIXTURE`, a test assigns a spread copy, `afterEach` resets it; verify with `vitest run --sequence.shuffle` (RunTraceDrawer/RunTraceDrawer.test.tsx → currentTrace).
 
 ## What Doesn't Work
 <!-- Dead ends and antipatterns — the most valuable section -->
@@ -28,6 +29,7 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 ## Session Notes
 <!-- Wrap-up: one dated line per substantive task -->
 - 2026-11-04 — Shipped Run Cost Badge UI (PR-list COST column, timeline tokens·cost, trace COST tile) → specs/run-cost-badge.md.
+- 2026-11-04 — Fixed DevDigest review finding on PR #1: RunTraceDrawer tests no longer mutate the shared TRACE fixture.
 
 ## Open Questions
 <!-- Unresolved items, known gaps -->

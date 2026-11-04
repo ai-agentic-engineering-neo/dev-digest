@@ -25,10 +25,12 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 ## Recurring Errors & Fixes
 <!-- Symptom → root cause → fix -->
 - 2026-11-04 — `test/indexer-pipeline.test.ts` (runIncremental, 6 tests) fails on Windows with ENOENT: its `writeFileAt` helper splits paths on `'/'` only → pre-existing, unrelated to feature work; don't chase it as a regression.
+- 2026-11-04 — On Windows `db:migrate` / `db:seed` exit 0 with NO output and create no tables: the CLI guard `import.meta.url === \`file://${process.argv[1]}\`` never matches (`file:///F:/…` vs `F:\…`) → verify with `docker exec devdigest-postgres psql -U devdigest -d devdigest -c '\dt'`; workaround: a temp `.mts` that imports and awaits `runMigrations(url)` and `seed(createDb(url).db)`, run via `node node_modules/tsx/dist/cli.mjs` (src/db/migrate.ts, src/db/seed.ts → CLI entrypoint).
 
 ## Session Notes
 <!-- Wrap-up: one dated line per substantive task -->
 - 2026-11-04 — Specced + implemented Run Cost Badge (`agent_runs.cost_usd` via migration 0010, `UsageTally` partial spend, PR-list SUM) → specs/run-cost-badge.md.
+- 2026-11-04 — First local launch on Windows (Docker Postgres + migrate/seed workaround), PR #1 reviewed end-to-end via OpenRouter agents.
 
 ## Open Questions
 <!-- Unresolved items, known gaps -->

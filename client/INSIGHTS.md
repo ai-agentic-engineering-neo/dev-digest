@@ -11,6 +11,7 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 
 ## What Doesn't Work
 <!-- Dead ends and antipatterns — the most valuable section -->
+- 2026-11-05 — Closing a hover popover on the trigger's `onMouseLeave` breaks it even when the popover is a DOM child: the 6px gap between cell and popover leaves both, so it vanished before the cursor reached it (DevDigest flagged it, but blamed "not a descendant" — wrong cause) → close after a short delay (`CLOSE_DELAY_MS` 150) that `mouseenter` cancels; blur/Escape close immediately; also cap `maxHeight` to the space in the chosen direction (src/app/repos/[repoId]/pulls/_components/FindingsCell/FindingsCell.tsx:59 → scheduleClose; helpers.ts:24 → placePopover).
 
 ## Codebase Patterns
 <!-- Conventions and architecture decisions, with the reason -->

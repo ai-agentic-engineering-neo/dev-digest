@@ -25,7 +25,11 @@ page already loads — **no extra requests, no model calls**.
   most severe first); footer `+N more on the PR page` when total > cards. Escape / mouse-leave / blur close it.
 - Popover is `position: fixed`, placed by `placePopover()` from the cell rect: the table card has
   `overflow: hidden`, an absolutely positioned popover would be clipped. Flips upward near the
-  viewport bottom; clamped horizontally.
+  viewport bottom; clamped horizontally. `maxHeight` = space available in the chosen direction, the
+  popover scrolls beyond it (never off-screen on a short viewport).
+- Mouse-leave closes after `CLOSE_DELAY_MS` (150 ms): the popover sits 6px from the cell, and crossing
+  that gap must not close it; entering the popover (a DOM child of the trigger) cancels the close.
+  Blur / Escape close immediately. (Fix for DevDigest review findings on the PR, 2026-11-05.)
 - i18n (`messages/en/prReview.json`): `list.columns.findings`, `list.findings.{heading,none,more,chip}`.
 
 ### PR page — Timeline run tiles (`RunHistory`)

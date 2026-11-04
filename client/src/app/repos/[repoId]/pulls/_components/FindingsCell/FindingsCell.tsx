@@ -9,7 +9,8 @@ import React from "react";
 import { SeverityBadge } from "@devdigest/ui";
 import type { Severity } from "@devdigest/shared";
 import { SeverityTally } from "@/components/severity-tally";
-import { placePopover, toCounts, totalOf, type PrFindings } from "./helpers";
+import { placePopover, toCounts, totalOf, type PopoverPlacement, type PrFindings } from "./helpers";
+import { CLOSE_DELAY_MS } from "./constants";
 import { s } from "./styles";
 
 export type FindingsCellLabels = {
@@ -31,18 +32,34 @@ export type FindingsCellProps = {
 
 export function FindingsCell({ findings, labels }: FindingsCellProps) {
   const ref = React.useRef<HTMLSpanElement>(null);
-  const [pos, setPos] = React.useState<ReturnType<typeof placePopover> | null>(null);
+  const [pos, setPos] = React.useState<PopoverPlacement | null>(null);
   const popoverId = React.useId();
+  const closeTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelClose = () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    closeTimer.current = null;
+  };
+  React.useEffect(() => cancelClose, []);
 
   if (!findings) return <span style={s.muted}>—</span>;
   const total = totalOf(findings);
   if (total === 0) return <span style={s.clean}>{labels.none}</span>;
 
   const open = () => {
+    cancelClose();
     const r = ref.current?.getBoundingClientRect();
     if (r) setPos(placePopover(r, { width: window.innerWidth, height: window.innerHeight }));
   };
-  const close = () => setPos(null);
+  const close = () => {
+    cancelClose();
+    setPos(null);
+  };
+  // Mouse-out closes after a short delay so the cursor can cross the gap into the
+  // popover (see CLOSE_DELAY_MS); blur / Escape close immediately.
+  const scheduleClose = () => {
+    cancelClose();
+    closeTimer.current = setTimeout(() => setPos(null), CLOSE_DELAY_MS);
+  };
   const rest = total - findings.top.length;
 
   return (
@@ -51,7 +68,7 @@ export function FindingsCell({ findings, labels }: FindingsCellProps) {
       tabIndex={0}
       aria-describedby={pos ? popoverId : undefined}
       onMouseEnter={open}
-      onMouseLeave={close}
+      onMouseLeave={scheduleClose}
       onFocus={open}
       onBlur={close}
       onKeyDown={(e) => {

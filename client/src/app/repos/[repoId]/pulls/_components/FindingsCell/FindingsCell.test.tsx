@@ -1,9 +1,13 @@
-import { describe, it, expect, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { render, screen, cleanup, fireEvent, act } from "@testing-library/react";
 import { FindingsCell } from "./FindingsCell";
 import { placePopover } from "./helpers";
+import { CLOSE_DELAY_MS } from "./constants";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 const LABELS = {
   heading: "Findings in this run",
@@ -39,6 +43,7 @@ describe("FindingsCell", () => {
   });
 
   it("hover opens the 'Findings in this run' popover with short cards and a +N footer", () => {
+    vi.useFakeTimers();
     render(<FindingsCell findings={FINDINGS} labels={LABELS} />);
     fireEvent.mouseEnter(screen.getByTestId("findings-cell"));
     const tip = screen.getByRole("tooltip");
@@ -47,7 +52,27 @@ describe("FindingsCell", () => {
     expect(tip).toHaveTextContent("src/db.ts:42");
     expect(tip).toHaveTextContent("+2 more on the PR page"); // 4 total − 2 cards
     fireEvent.mouseLeave(screen.getByTestId("findings-cell"));
+    act(() => {
+      vi.advanceTimersByTime(CLOSE_DELAY_MS);
+    });
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  });
+
+  it("stays open while the cursor crosses the gap into the popover", () => {
+    vi.useFakeTimers();
+    render(<FindingsCell findings={FINDINGS} labels={LABELS} />);
+    const cell = screen.getByTestId("findings-cell");
+    fireEvent.mouseEnter(cell);
+    fireEvent.mouseLeave(cell); // cursor in the gap between cell and popover
+    act(() => {
+      vi.advanceTimersByTime(CLOSE_DELAY_MS - 50);
+    });
+    expect(screen.getByRole("tooltip")).toBeInTheDocument();
+    fireEvent.mouseEnter(cell); // reached the popover (a DOM child of the trigger)
+    act(() => {
+      vi.advanceTimersByTime(CLOSE_DELAY_MS * 2);
+    });
+    expect(screen.getByRole("tooltip")).toBeInTheDocument();
   });
 
   it("is keyboard reachable: focus opens, Escape closes", () => {
@@ -64,9 +89,17 @@ describe("FindingsCell", () => {
 describe("placePopover", () => {
   const vp = { width: 1200, height: 800 };
   it("opens below, right-aligned to the cell", () => {
-    expect(placePopover({ top: 100, bottom: 130, right: 900 }, vp)).toEqual({ left: 560, top: 136 });
+    expect(placePopover({ top: 100, bottom: 130, right: 900 }, vp)).toEqual({ left: 560, top: 136, maxHeight: 656 });
   });
   it("flips upward near the bottom edge and clamps inside the viewport", () => {
-    expect(placePopover({ top: 700, bottom: 730, right: 200 }, vp)).toEqual({ left: 8, bottom: 106 });
+    expect(placePopover({ top: 700, bottom: 730, right: 200 }, vp)).toEqual({ left: 8, bottom: 106, maxHeight: 686 });
+  });
+  it("caps height to the space actually available on a short viewport", () => {
+    // 600px tall, cell near the bottom: flips up with only 300 - 6 - 8 px above it.
+    expect(placePopover({ top: 300, bottom: 330, right: 900 }, { width: 1200, height: 600 })).toEqual({
+      left: 560,
+      bottom: 306,
+      maxHeight: 286,
+    });
   });
 });

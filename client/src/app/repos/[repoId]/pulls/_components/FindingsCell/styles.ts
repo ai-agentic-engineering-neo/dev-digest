@@ -11,11 +11,12 @@ export const s = {
   } satisfies CSSProperties,
   muted: { color: "var(--text-muted)", fontSize: 13 } satisfies CSSProperties,
   clean: { color: "var(--ok)", fontSize: 12, fontWeight: 600 } satisfies CSSProperties,
-  popover: (pos: { left: number; top?: number; bottom?: number }): CSSProperties => ({
+  popover: (pos: { left: number; top?: number; bottom?: number; maxHeight: number }): CSSProperties => ({
     position: "fixed",
     zIndex: 50,
     width: POPOVER_WIDTH,
     ...pos,
+    overflowY: "auto",
     padding: 12,
     borderRadius: 10,
     border: "1px solid var(--border)",

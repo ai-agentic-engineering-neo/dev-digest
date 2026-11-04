@@ -44,6 +44,9 @@ import {
   AutoTriggerStatus,
 } from "@devdigest/ui";
 import { RunCostBadge } from "../run-cost-badge";
+import { SeverityTally } from "../severity-tally";
+import { FindingsCell } from "../../app/repos/[repoId]/pulls/_components/FindingsCell";
+import { SeverityCounters } from "../../app/repos/[repoId]/pulls/[number]/_components/FindingsPanel/_components/SeverityCounters";
 import { s } from "./styles";
 import { SEVERITIES, CATEGORIES, MODEL_OPTIONS } from "./constants";
 
@@ -99,6 +102,50 @@ export function Gallery() {
         {CATEGORIES.map((c) => (
           <CategoryTag key={c} category={c} />
         ))}
+      </Group>
+
+      <Group title="SeverityCounters (PR findings filter)">
+        <SeverityCounters
+          counts={{ CRITICAL: 3, WARNING: 5, SUGGESTION: 2 }}
+          active={null}
+          onSelect={() => {}}
+          labels={{ group: "Filter findings by severity", showOnly: (sev) => `Show only ${sev} findings` }}
+        />
+        <SeverityCounters
+          counts={{ CRITICAL: 0, WARNING: 2, SUGGESTION: 1 }}
+          active="WARNING"
+          onSelect={() => {}}
+          labels={{ group: "Filter findings by severity", showOnly: (sev) => `Show only ${sev} findings` }}
+        />
+      </Group>
+
+      <Group title="SeverityTally (timeline tile / PR list — non-zero levels only)">
+        <SeverityTally counts={{ CRITICAL: 2, WARNING: 0, SUGGESTION: 3 }} />
+        <SeverityTally counts={{ WARNING: 1 }} />
+      </Group>
+
+      <Group title="FindingsCell (PR list FINDINGS column — hover for popover)">
+        <FindingsCell
+          findings={{
+            critical: 1,
+            warning: 2,
+            suggestion: 0,
+            top: [
+              { severity: "CRITICAL", title: "SQL built from user input", file: "src/db.ts", start_line: 42 },
+              { severity: "WARNING", title: "Unbounded retry loop", file: "src/sync.ts", start_line: 88 },
+            ],
+          }}
+          labels={{
+            heading: "Findings in this run",
+            none: "Clean",
+            more: (n) => `+${n} more on the PR page`,
+            chip: (sev, n) => `${n} ${sev.toLowerCase()}`,
+          }}
+        />
+        <FindingsCell
+          findings={{ critical: 0, warning: 0, suggestion: 0, top: [] }}
+          labels={{ heading: "Findings in this run", none: "Clean", more: (n) => `+${n}`, chip: (sev, n) => `${n} ${sev}` }}
+        />
       </Group>
 
       <Group title="Chips, Avatars, Confidence, MonoLink, Kbd">

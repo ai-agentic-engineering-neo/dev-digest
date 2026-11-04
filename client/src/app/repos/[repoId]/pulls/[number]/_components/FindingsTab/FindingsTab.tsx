@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useCallback } from "react";
+import React, { useCallback, useMemo } from "react";
 import { Icon, Badge, Button, SectionLabel, EmptyState } from "@devdigest/ui";
 import { RunStatus } from "../RunStatus";
 import { RunHistory } from "../RunHistory/RunHistory";
 import { ReviewRunAccordion } from "../ReviewRunAccordion";
+import { countSeverities } from "@/components/severity-tally";
 import { s } from "./styles";
 import type { FindingRecord, ReviewRecord, RunSummary, PrCommit } from "@devdigest/shared";
 import type { UseMutationResult } from "@tanstack/react-query";
@@ -41,6 +42,16 @@ export function FindingsTab({
   onDelete,
   onRunDone,
 }: FindingsTabProps) {
+  // Timeline tiles show what each run found: severity counts from the run's review
+  // (linked by run_id), computed from data already on the page — no extra request.
+  const severityByRun = useMemo(() => {
+    const out: Record<string, ReturnType<typeof countSeverities>> = {};
+    for (const review of runs) {
+      if (review.run_id) out[review.run_id] = countSeverities(review.findings.filter((f) => !f.dismissed_at));
+    }
+    return out;
+  }, [runs]);
+
   const handleCancelAll = useCallback(() => {
     liveRunIds.forEach((id) => cancelMutation.mutate(id));
   }, [liveRunIds, cancelMutation]);
@@ -134,6 +145,7 @@ export function FindingsTab({
             onOpenTrace={handleOpenTrace}
             onGoToReview={handleGoToReview}
             onDelete={handleDelete}
+            severityByRun={severityByRun}
           />
         </div>
       )}

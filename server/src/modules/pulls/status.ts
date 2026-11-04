@@ -30,6 +30,41 @@ export function rollupSeverities(rows: { severity: string }[]): SeverityCounts {
   return c;
 }
 
+/** Max short finding cards per PR in the list's FINDINGS hover popover. */
+export const FINDINGS_PREVIEW_LIMIT = 5;
+
+const SEVERITY_RANK: Record<string, number> = { CRITICAL: 0, WARNING: 1, SUGGESTION: 2 };
+
+export interface FindingPreviewRow {
+  severity: string;
+  title: string;
+  file: string;
+  startLine: number;
+  confidence: number;
+}
+
+/**
+ * The few findings worth previewing on the PR list: most severe first, then
+ * most confident. Unknown severities are dropped (the contract's enum would
+ * reject them).
+ */
+export function topFindings(
+  rows: FindingPreviewRow[],
+  limit = FINDINGS_PREVIEW_LIMIT,
+): { severity: 'CRITICAL' | 'WARNING' | 'SUGGESTION'; title: string; file: string; start_line: number }[] {
+  return rows
+    .filter((r) => r.severity in SEVERITY_RANK)
+    .slice()
+    .sort((a, b) => SEVERITY_RANK[a.severity]! - SEVERITY_RANK[b.severity]! || b.confidence - a.confidence)
+    .slice(0, limit)
+    .map((r) => ({
+      severity: r.severity as 'CRITICAL' | 'WARNING' | 'SUGGESTION',
+      title: r.title,
+      file: r.file,
+      start_line: r.startLine,
+    }));
+}
+
 /**
  * Review-freshness status for the PR list. Merged/closed PRs keep their GitHub
  * merge state; open PRs map to:

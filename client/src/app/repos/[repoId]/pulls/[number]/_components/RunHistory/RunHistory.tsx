@@ -3,8 +3,9 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Badge, Icon, CircularScore, type IconName } from "@devdigest/ui";
-import type { RunSummary, PrCommit } from "@devdigest/shared";
+import type { RunSummary, PrCommit, Severity } from "@devdigest/shared";
 import { RunCostBadge } from "@/components/run-cost-badge";
+import { SeverityTally } from "@/components/severity-tally";
 
 /**
  * PR timeline — every agent run interleaved with the PR's commits, newest-first
@@ -91,8 +92,11 @@ export function RunHistory({
   onOpenTrace,
   onGoToReview,
   onDelete,
+  severityByRun = {},
 }: {
   runs: RunSummary[];
+  /** Per-run severity counts (from the run's review findings) → severity icons on the tile. */
+  severityByRun?: Record<string, Record<Severity, number>>;
   commits?: PrCommit[];
   /** Open the trace + log drawer for a run (the logs icon). */
   onOpenTrace: (runId: string) => void;
@@ -190,9 +194,19 @@ export function RunHistory({
                 </div>
               )}
               {settled && (
-                <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                  {t("runStatus.findings", { count: r.findings_count ?? 0 })}
-                  {(r.blockers ?? 0) > 0 ? t("runStatus.blockers", { count: r.blockers ?? 0 }) : ""}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 12, color: "var(--text-muted)" }}>
+                  {severityByRun[r.run_id] && (
+                    <SeverityTally
+                      counts={severityByRun[r.run_id]!}
+                      label={(severity, count) =>
+                        t("list.findings.chip", { severity: severity.toLowerCase(), count })
+                      }
+                    />
+                  )}
+                  <span>
+                    {t("runStatus.findings", { count: r.findings_count ?? 0 })}
+                    {(r.blockers ?? 0) > 0 ? t("runStatus.blockers", { count: r.blockers ?? 0 }) : ""}
+                  </span>
                 </div>
               )}
             </div>

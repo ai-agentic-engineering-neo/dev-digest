@@ -94,3 +94,25 @@ describe("RunHistory — outcome badge", () => {
     expect(screen.queryByTestId("run-cost-badge")).not.toBeInTheDocument();
   });
 });
+
+describe("RunHistory — severity icons on run tiles", () => {
+  it("shows only the levels the run found, with counts", () => {
+    render(
+      <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
+        <RunHistory
+          runs={[run({ status: "done", findings_count: 3, blockers: 1 })]}
+          severityByRun={{ "run-1": { CRITICAL: 1, WARNING: 0, SUGGESTION: 2 } }}
+          onOpenTrace={() => {}}
+        />
+      </NextIntlClientProvider>,
+    );
+    expect(screen.getByRole("img", { name: "1 critical" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "2 suggestion" })).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: /warning/ })).not.toBeInTheDocument();
+  });
+
+  it("shows no icons for a run without a linked review", () => {
+    renderRuns([run({ status: "done", findings_count: 0 })]);
+    expect(screen.queryByTestId("severity-tally")).not.toBeInTheDocument();
+  });
+});

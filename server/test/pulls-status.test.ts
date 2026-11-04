@@ -6,7 +6,7 @@
  * + age, so it gets unit coverage independent of the route's queries.
  */
 import { describe, it, expect } from 'vitest';
-import { deriveReviewStatus, rollupSeverities, STALE_DAYS } from '../src/modules/pulls/status.js';
+import { deriveReviewStatus, rollupSeverities, topFindings, STALE_DAYS } from '../src/modules/pulls/status.js';
 
 const DAY = 86_400_000;
 const now = Date.UTC(2026, 5, 11);
@@ -64,5 +64,28 @@ describe('rollupSeverities', () => {
 
   it('is all-zero for no findings', () => {
     expect(rollupSeverities([])).toEqual({ critical: 0, warning: 0, suggestion: 0 });
+  });
+});
+
+describe('topFindings', () => {
+  const f = (severity: string, confidence: number, title = severity) => ({
+    severity,
+    title,
+    file: 'src/a.ts',
+    startLine: 7,
+    confidence,
+  });
+
+  it('orders by severity, then confidence, and maps to the preview shape', () => {
+    const out = topFindings([f('SUGGESTION', 0.9), f('CRITICAL', 0.5, 'low'), f('WARNING', 0.8), f('CRITICAL', 0.9, 'high')]);
+    expect(out.map((x) => x.title)).toEqual(['high', 'low', 'WARNING', 'SUGGESTION']);
+    expect(out[0]).toEqual({ severity: 'CRITICAL', title: 'high', file: 'src/a.ts', start_line: 7 });
+  });
+
+  it('caps at the limit and drops unknown severities', () => {
+    const rows = [f('WEIRD', 1), ...Array.from({ length: 8 }, (_, i) => f('WARNING', i / 10))];
+    expect(topFindings(rows)).toHaveLength(5);
+    expect(topFindings(rows, 2).every((x) => x.severity === 'WARNING')).toBe(true);
+    expect(topFindings([])).toEqual([]);
   });
 });

@@ -19,8 +19,12 @@ const TRACE: RunTrace = {
   ],
 };
 
+// The trace the mocked hook returns. Tests that need a variant assign a fresh
+// object here (never mutate TRACE); afterEach resets it so tests stay order-independent.
+let currentTrace: RunTrace = TRACE;
+
 vi.mock("../../../../../../../lib/hooks/trace", () => ({
-  useRunTrace: () => ({ data: TRACE, isLoading: false }),
+  useRunTrace: () => ({ data: currentTrace, isLoading: false }),
 }));
 vi.mock("../../../../../../../lib/hooks/reviews", () => ({
   useRunEvents: () => ({ events: [], running: false }),
@@ -28,7 +32,10 @@ vi.mock("../../../../../../../lib/hooks/reviews", () => ({
 
 import RunTraceDrawer from "./RunTraceDrawer";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  currentTrace = TRACE;
+});
 
 function renderWithIntl(ui: React.ReactElement) {
   return render(
@@ -45,6 +52,20 @@ describe("A5 Run Trace drawer (smoke)", () => {
     expect(screen.getByText("Stats")).toBeInTheDocument();
     expect(screen.getByText("2/2 passed")).toBeInTheDocument();
     expect(screen.getByText("Tool calls")).toBeInTheDocument();
+  });
+
+  it("shows the run cost as a Stats tile", () => {
+    currentTrace = { ...TRACE, stats: { ...TRACE.stats, cost_usd: 0.06 } };
+    renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    expect(screen.getByText("COST")).toBeInTheDocument();
+    expect(screen.getByText("$0.060")).toBeInTheDocument();
+  });
+
+  it("an old trace without cost shows a dash in the COST tile", () => {
+    // TRACE has no cost_usd — the shape of a trace stored before the cost feature.
+    renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    expect(screen.getByText("COST")).toBeInTheDocument();
+    expect(screen.getByText("—")).toBeInTheDocument();
   });
 
   it("switches to the live log tab", () => {

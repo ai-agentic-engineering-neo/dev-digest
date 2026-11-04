@@ -209,6 +209,39 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(run!.findingsCount).toBe(1);
     expect(run!.grounding).toBe('1/2 passed');
 
+    // Run Cost Badge — cost persisted on the run (MockLLMProvider: $0.001/call,
+    // one chunk) and exposed on trace stats + run history.
+    expect(run!.costUsd).toBeCloseTo(0.001, 10);
+    expect(trace.stats.cost_usd).toBeCloseTo(0.001, 10);
+    const history = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(history[0].cost_usd).toBeCloseTo(0.001, 10);
+
+    await app.close();
+  });
+
+  it('PR list cost_usd = sum of all the PR\'s runs, scoped to the workspace', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const db = pg.handle.db;
+    // done run + failed run with partial spend + unpriced run (ignored by SUM)
+    await db.insert(t.agentRuns).values([
+      { workspaceId, prId: pr.id, status: 'done', costUsd: 0.01 },
+      { workspaceId, prId: pr.id, status: 'failed', costUsd: 0.004 },
+      { workspaceId, prId: pr.id, status: 'done', costUsd: null },
+    ]);
+    // a row from ANOTHER workspace pointing at the same PR must not be counted
+    const [other] = await db.insert(t.workspaces).values({ name: 'other' }).returning();
+    await db.insert(t.agentRuns).values({ workspaceId: other!.id, prId: pr.id, status: 'done', costUsd: 5 });
+
+    const list = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const row = list.find((p: { id: string }) => p.id === pr.id);
+    expect(row.cost_usd).toBeCloseTo(0.014, 10);
+
+    // a PR with no runs → null ("—" in the UI)
+    const { repo: repo2, pr: pr2 } = await setupRepoAndPr(db, workspaceId);
+    const list2 = (await app.inject({ method: 'GET', url: `/repos/${repo2.id}/pulls` })).json();
+    expect(list2.find((p: { id: string }) => p.id === pr2.id).cost_usd).toBeNull();
+
     await app.close();
   });
 

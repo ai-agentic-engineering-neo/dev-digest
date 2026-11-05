@@ -1,6 +1,7 @@
 /* VersionsTab — Versions design: every content save is a version (vN, note,
-   date). The newest is Current; older ones offer Diff (vs current) and Restore
-   (= save that body as a NEW version, "Restored from vN" — history is kept). */
+   date). Every row has View / Hide (its body inline). The newest is Current;
+   older ones also offer Diff (vs current) and Restore (= save that body as a
+   NEW version, "Restored from vN" — history is kept). */
 "use client";
 
 import React from "react";
@@ -21,6 +22,13 @@ export function VersionsTab({ skill }: { skill: Skill }) {
   const { data, isLoading, isError, refetch } = useSkillVersions(skill.id);
   const update = useUpdateSkill();
   const [diffOf, setDiffOf] = React.useState<SkillVersionRecord | null>(null);
+  const [viewing, setViewing] = React.useState<ReadonlySet<number>>(() => new Set());
+  const toggleView = (version: number) =>
+    setViewing((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(version)) next.add(version);
+      return next;
+    });
 
   if (isLoading) {
     return (
@@ -63,29 +71,56 @@ export function VersionsTab({ skill }: { skill: Skill }) {
       <div style={s.list} role="list">
         {data.map((v) => {
           const isCurrent = v.version === current?.version;
+          const open = viewing.has(v.version);
+          const bodyId = `skill-version-body-${v.version}`;
           return (
-            <div key={v.version} role="listitem" style={s.row(isCurrent)} data-testid={`version-v${v.version}`}>
-              <span className="mono" style={s.badge(isCurrent)}>
-                {t("detail.version", { version: v.version })}
-              </span>
-              <div style={s.text}>
-                <div style={s.note}>{v.note ?? t("versions.noteFallback")}</div>
-                <div style={s.date}>{versionDate(v.created_at)}</div>
-              </div>
-              {isCurrent ? (
-                <span style={s.current}>
-                  <span style={s.dot} />
-                  {t("versions.current")}
+            <div key={v.version} role="listitem" style={s.item(isCurrent)} data-testid={`version-v${v.version}`}>
+              <div style={s.row}>
+                <span className="mono" style={s.badge(isCurrent)}>
+                  {t("detail.version", { version: v.version })}
                 </span>
-              ) : (
-                <div style={s.actions}>
-                  <Button size="sm" kind="ghost" icon="Eye" onClick={() => setDiffOf(v)}>
-                    {t("versions.diff")}
-                  </Button>
-                  <Button size="sm" icon="History" onClick={() => restore(v)} disabled={update.isPending}>
-                    {t("versions.restore")}
-                  </Button>
+                <div style={s.text}>
+                  <div style={s.note}>{v.note ?? t("versions.noteFallback")}</div>
+                  <div style={s.date}>{versionDate(v.created_at)}</div>
                 </div>
+                <div style={s.actions}>
+                  {isCurrent && (
+                    <span style={s.current}>
+                      <span style={s.dot} />
+                      {t("versions.current")}
+                    </span>
+                  )}
+                  <Button
+                    size="sm"
+                    kind="ghost"
+                    icon={open ? "EyeOff" : "Eye"}
+                    onClick={() => toggleView(v.version)}
+                    aria-expanded={open}
+                    aria-controls={bodyId}
+                  >
+                    {open ? t("versions.hide") : t("versions.view")}
+                  </Button>
+                  {!isCurrent && (
+                    <>
+                      <Button size="sm" kind="ghost" icon="Code" onClick={() => setDiffOf(v)}>
+                        {t("versions.diff")}
+                      </Button>
+                      <Button size="sm" icon="History" onClick={() => restore(v)} disabled={update.isPending}>
+                        {t("versions.restore")}
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+              {open && (
+                <pre
+                  id={bodyId}
+                  className="mono"
+                  style={s.body}
+                  aria-label={t("versions.bodyLabel", { version: v.version })}
+                >
+                  {v.body}
+                </pre>
               )}
             </div>
           );

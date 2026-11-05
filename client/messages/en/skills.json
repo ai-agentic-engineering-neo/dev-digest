@@ -17,7 +17,10 @@
       "cta": "Create a skill"
     },
     "noMatch": "No skills match \"{query}\".",
-    "selectHint": "Select a skill to see its configuration, stats and versions."
+    "select": {
+      "title": "Select a skill",
+      "body": "Pick a skill on the left to preview its body."
+    }
   },
   "type": {
     "rubric": "rubric",
@@ -37,7 +40,9 @@
       "extracted": "Extracted",
       "community": "Community",
       "imported_url": "Imported"
-    }
+    },
+    "version": "{source} · v{version}",
+    "delete": "Delete skill"
   },
   "import": {
     "title": "Import skill",
@@ -101,7 +106,15 @@
     "delete": "Delete",
     "deleteConfirm": "Delete skill \"{name}\"? It will be unlinked from every agent.",
     "deleted": "Skill deleted",
-    "toggleError": "Could not change the enabled state"
+    "toggleError": "Could not change the enabled state",
+    "typeOptions": {
+      "rubric": "Rubric",
+      "convention": "Convention",
+      "security": "Security",
+      "custom": "Custom"
+    },
+    "bodyLabel": "Skill body (Markdown)",
+    "versionHint": "Saving a changed body creates a new immutable version."
   },
   "previewTab": {
     "title": "Preview",
@@ -144,6 +157,9 @@
     "diffTitle": "Diff: v{from} → v{to} (current)",
     "noChanges": "No differences in the body.",
     "close": "Close",
-    "loadError": "Could not load versions."
+    "loadError": "Could not load versions.",
+    "view": "View",
+    "hide": "Hide",
+    "bodyLabel": "Body of v{version}"
   }
 }

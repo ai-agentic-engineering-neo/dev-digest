@@ -96,21 +96,45 @@ const renderLab = (query = "") => {
 };
 
 describe("SkillsLab — list", () => {
-  it("cards show type, source and the stats row; first skill is selected by default", () => {
+  it("cards show type, source · version and the stats row; nothing is selected by default", () => {
     skills = [RUBRIC, IMPORTED];
     cardStats = { s1: { agents: 3, pull_rate: 0.71, accept_rate: 0.74 } };
     renderLab();
     const card = within(screen.getByTestId("skill-card-pr-quality-rubric"));
-    expect(card.getByText("Manual")).toBeTruthy();
+    expect(card.getByText("Manual · v5")).toBeTruthy();
     expect(card.getByText("3 agents")).toBeTruthy();
     expect(card.getByText("71% pull")).toBeTruthy();
     expect(card.getByText("74% accept")).toBeTruthy();
     const other = within(screen.getByTestId("skill-card-api-versioning"));
-    expect(other.getByText("Community")).toBeTruthy();
+    expect(other.getByText("Community · v1")).toBeTruthy();
     expect(other.getByText("— pull")).toBeTruthy();
-    // detail header of the default (first) skill
-    expect(screen.getAllByText("v5").length).toBeGreaterThan(0);
+    // no default selection → the "Select a skill" panel, no detail header
+    expect(screen.getByText("Select a skill")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Run on evals/ })).toBeNull();
+    expect(screen.getByTestId("skill-card-pr-quality-rubric").getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("a ?id selects that skill (detail header shown)", () => {
+    skills = [RUBRIC, IMPORTED];
+    renderLab("id=s1");
+    expect(screen.queryByText("Select a skill")).toBeNull();
     expect((screen.getByRole("button", { name: /Run on evals/ }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByTestId("skill-card-pr-quality-rubric").getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("card trash asks to confirm, deletes without selecting, and clears the open skill", () => {
+    skills = [RUBRIC, IMPORTED];
+    const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValue(true);
+    renderLab("id=s1&tab=stats");
+    const trash = () => within(screen.getByTestId("skill-card-pr-quality-rubric")).getByRole("button", { name: "Delete skill" });
+    fireEvent.click(trash());
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(deleteMutate).not.toHaveBeenCalled();
+    fireEvent.click(trash());
+    expect(deleteMutate).toHaveBeenCalledWith("s1", expect.anything());
+    expect(replace).not.toHaveBeenCalled(); // the click did not select the card
+    deleteMutate.mock.calls[0]![1].onSuccess();
+    expect(replace).toHaveBeenLastCalledWith("/skills?tab=stats");
   });
 
   it("selecting a card / tab writes the URL; the card toggle does not select", () => {
@@ -141,6 +165,10 @@ describe("SkillsLab — Config", () => {
     updateMutateAsync.mockResolvedValue({ ...RUBRIC, version: 6 });
     renderLab("id=s1");
     expect(screen.queryByText("unsaved")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Discard" })).toBeNull(); // only while dirty
+    expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(true);
+    // Type options are capitalised labels
+    expect(screen.getByRole("option", { name: "Rubric" })).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Skill body"), { target: { value: RUBRIC.body + "\n- New rule" } });
     expect(screen.getByText("unsaved")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Discard" }));
@@ -247,6 +275,15 @@ describe("SkillsLab — Preview / Evals / Stats / Versions", () => {
     expect(screen.getByText("2 versions")).toBeTruthy();
     expect(within(screen.getByTestId("version-v2")).getByText("Current")).toBeTruthy();
     expect(screen.getByText("2026-03-02")).toBeTruthy();
+    // current has View but no Diff / Restore
+    expect(within(screen.getByTestId("version-v2")).queryByRole("button", { name: /Restore/ })).toBeNull();
+
+    // View / Hide shows the version body inline
+    const v1 = within(screen.getByTestId("version-v1"));
+    fireEvent.click(v1.getByRole("button", { name: /View/ }));
+    expect(v1.getByLabelText("Body of v1").textContent).toBe("line a\nline b");
+    fireEvent.click(v1.getByRole("button", { name: /Hide/ }));
+    expect(v1.queryByLabelText("Body of v1")).toBeNull();
 
     fireEvent.click(within(screen.getByTestId("version-v1")).getByRole("button", { name: /Diff/ }));
     const diff = screen.getByTestId("skill-diff").textContent ?? "";

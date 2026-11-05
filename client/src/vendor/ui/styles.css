@@ -8,6 +8,7 @@
 
 :root,
 [data-theme="dark"] {
+  color-scheme: dark;
   --bg-primary: #0a0a0a;
   --bg-surface: #141414;
   --bg-elevated: #1c1c1c;
@@ -54,6 +55,7 @@
 }
 
 [data-theme="light"] {
+  color-scheme: light;
   --bg-primary: #ffffff;
   --bg-surface: #fafafa;
   --bg-elevated: #ffffff;
@@ -209,6 +211,14 @@ input,
 select,
 textarea {
   font-family: inherit;
+}
+/* The opened <select> list is drawn by the OS: without explicit colors it
+   paints a light popup while the option text inherits the theme's light ink
+   (white-on-white in the dark theme). */
+select option,
+select optgroup {
+  background-color: var(--bg-elevated);
+  color: var(--text-primary);
 }
 
 a {

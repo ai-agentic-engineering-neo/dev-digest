@@ -14,16 +14,11 @@ export const s = {
   spacer: { flex: 1 } satisfies CSSProperties,
   enabledLabel: { fontSize: 13, color: "var(--text-secondary)" } satisfies CSSProperties,
   subtitle: { fontSize: 13, color: "var(--text-muted)", margin: "-8px 0 16px" } satisfies CSSProperties,
-  error: { fontSize: 12, color: "var(--crit)", marginBottom: 8 } satisfies CSSProperties,
+  error: { fontSize: 12, color: "var(--crit)", margin: "-8px 0 14px" } satisfies CSSProperties,
   footer: {
     display: "flex",
     alignItems: "center",
-    gap: 8,
     paddingTop: 14,
     borderTop: "1px solid var(--border)",
-    position: "sticky",
-    bottom: 0,
-    background: "var(--bg-primary)",
-    paddingBottom: 4,
   } satisfies CSSProperties,
 } as const;

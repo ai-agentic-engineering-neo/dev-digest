@@ -1,6 +1,6 @@
 /* SkillCard — list-column card (Skills design): name, global enabled toggle,
-   one-line description, type badge, source label, and the stats row
-   "N agents · X% pull · Y% accept". A click selects the skill. */
+   delete (trash), one-line description, type badge, "Source · vN", and the
+   stats row "N agents · X% pull · Y% accept". A click selects the skill. */
 "use client";
 
 import React from "react";
@@ -20,6 +20,7 @@ export function SkillCard({
   active,
   onClick,
   onToggle,
+  onDelete,
 }: {
   skill: Skill;
   stats?: SkillCardStats;
@@ -28,6 +29,7 @@ export function SkillCard({
   active?: boolean;
   onClick: () => void;
   onToggle: (enabled: boolean) => void;
+  onDelete: () => void;
 }) {
   const t = useTranslations("skills");
   const SourceIcon = Icon[SOURCE_ICON[skill.source]];
@@ -54,8 +56,17 @@ export function SkillCard({
         <span className="mono" style={s.name}>
           {skill.name}
         </span>
-        <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} title={t("card.toggleLabel")}>
-          <Toggle on={skill.enabled} onChange={onToggle} size={14} label={t("card.toggleLabel")} />
+        <div
+          style={s.controls}
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+        >
+          <span title={t("card.toggleLabel")} style={s.toggleWrap}>
+            <Toggle on={skill.enabled} onChange={onToggle} size={14} label={t("card.toggleLabel")} />
+          </span>
+          <button type="button" style={s.trash} onClick={onDelete} title={t("card.delete")} aria-label={t("card.delete")}>
+            <Icon.Trash size={14} />
+          </button>
         </div>
       </div>
       <div style={s.description}>{skill.description}</div>
@@ -63,7 +74,7 @@ export function SkillCard({
         <SkillTypeBadge type={skill.type} label={t(`type.${skill.type}`)} />
         <span style={s.source(imported)} title={imported ? t("card.importedTitle") : undefined}>
           <SourceIcon size={12} />
-          {t(`card.sources.${skill.source}`)}
+          {t("card.version", { source: t(`card.sources.${skill.source}`), version: skill.version })}
         </span>
       </div>
       <div style={s.statsRow}>

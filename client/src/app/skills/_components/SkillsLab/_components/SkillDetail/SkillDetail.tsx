@@ -8,7 +8,7 @@ import { useTranslations } from "next-intl";
 import { Button, Icon, Tabs } from "@devdigest/ui";
 import type { Skill } from "@devdigest/shared";
 import { SkillTypeBadge } from "@/components/skill-type-badge";
-import { TAB_KEYS, type SkillTab } from "../../constants";
+import { TAB_ICONS, TAB_KEYS, type SkillTab } from "../../constants";
 import { isImportedSkill } from "../../helpers";
 import { ConfigTab } from "../ConfigTab";
 import { EvalsTab } from "../EvalsTab";
@@ -34,7 +34,11 @@ export function SkillDetail({
 }) {
   const t = useTranslations("skills");
   const imported = skill ? isImportedSkill(skill) : false;
-  const tabs = (skill ? TAB_KEYS : (["config"] as const)).map((k) => ({ key: k, label: t(`detail.tabs.${k}`) }));
+  const tabs = (skill ? TAB_KEYS : (["config"] as const)).map((k) => ({
+    key: k,
+    label: t(`detail.tabs.${k}`),
+    icon: TAB_ICONS[k],
+  }));
   const active: SkillTab = skill ? tab : "config";
 
   return (

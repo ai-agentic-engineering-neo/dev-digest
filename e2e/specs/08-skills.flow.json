@@ -6,6 +6,7 @@
     { "cmd": ["wait", "--url", "/skills"], "label": "skills route reached" },
     { "cmd": ["wait", "--load", "networkidle"], "label": "skills fetch settles" },
     { "cmd": ["wait", "--text", "untested-branches"], "label": "seeded skill card is visible" },
+    { "cmd": ["wait", "--text", "Select a skill"], "label": "nothing is selected by default" },
     { "cmd": ["find", "text", "untested-branches", "click"], "label": "select the skill card" },
     { "cmd": ["wait", "--text", "Configuration"], "label": "Config tab is the default" },
     { "cmd": ["find", "role", "button", "click", "--name", "Preview"], "label": "switch to the Preview tab" },

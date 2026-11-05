@@ -1,8 +1,9 @@
-/* ConfigTab — the skill's configuration (Config design): Enabled toggle (saves
-   at once, no new version), Name, Description (directive hint), Type, the
-   line-numbered body editor, an optional "What changed?" note, and Discard /
-   Save. Without `skill` it is the create form ("New skill"). Dirty state is
-   reported up so the page can guard navigation. */
+/* ConfigTab — the skill's configuration (Config design): a header with the
+   Enabled toggle (saves at once, no new version), Discard (while dirty) and
+   Save; then Name, Description (directive hint), Type, the line-numbered body
+   editor, an optional "What changed?" note and Delete. Without `skill` it is
+   the create form ("New skill"). Dirty state is reported up so the page can
+   guard navigation. */
 "use client";
 
 import React from "react";
@@ -133,7 +134,25 @@ export function ConfigTab({
               : setEnabled(v)
           }
         />
+        {dirty && (
+          <Button kind="ghost" onClick={discard} disabled={pending}>
+            {t("config.discard")}
+          </Button>
+        )}
+        <Button
+          kind="primary"
+          icon="Check"
+          onClick={save}
+          disabled={pending || !dirty || !canSubmitSkill(form)}
+        >
+          {pending ? t("config.saving") : skill ? t("config.save") : t("config.create")}
+        </Button>
       </div>
+      {error && (
+        <div role="alert" style={s.error}>
+          {error}
+        </div>
+      )}
       {!skill && <p style={s.subtitle}>{t("config.subtitle")}</p>}
 
       <FormField label={t("config.name")} hint={t("config.nameHint")} required>
@@ -158,10 +177,11 @@ export function ConfigTab({
         <SelectInput
           value={form.type}
           onChange={(v) => set("type", v as SkillType)}
-          options={SKILL_TYPES.map((ty) => ({ value: ty, label: t(`type.${ty}`) }))}
+          options={SKILL_TYPES.map((ty) => ({ value: ty, label: t(`config.typeOptions.${ty}`) }))}
+          mono={false}
         />
       </FormField>
-      <FormField label={t("config.body")} required>
+      <FormField label={t("config.bodyLabel")} hint={t("config.versionHint")} required>
         <BodyEditor
           fileName={form.name || "skill"}
           value={form.body}
@@ -180,30 +200,13 @@ export function ConfigTab({
         />
       </FormField>
 
-      {error && (
-        <div role="alert" style={s.error}>
-          {error}
-        </div>
-      )}
-      <div style={s.footer}>
-        {skill && (
+      {skill && (
+        <div style={s.footer}>
           <Button kind="ghost" icon="Trash" onClick={del} disabled={remove.isPending}>
             {t("config.delete")}
           </Button>
-        )}
-        <span style={s.spacer} />
-        <Button kind="ghost" onClick={discard} disabled={!dirty || pending}>
-          {t("config.discard")}
-        </Button>
-        <Button
-          kind="primary"
-          icon="Check"
-          onClick={save}
-          disabled={pending || !dirty || !canSubmitSkill(form)}
-        >
-          {pending ? t("config.saving") : skill ? t("config.save") : t("config.create")}
-        </Button>
-      </div>
+        </div>
+      )}
     </div>
   );
 }

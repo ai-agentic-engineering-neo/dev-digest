@@ -1,7 +1,8 @@
 /* /skills — Skills Lab master-detail (Skills designs). Left: search + Add Skill
    (Create → create mode in the panel; Import → ImportSkillModal) + SkillCards
-   with stats. Right: SkillDetail with Config / Preview / Evals / Stats /
-   Versions. Selection + tab live in the URL (?id, ?tab, ?new=1). Unsaved
+   with stats and a delete icon. Right: "Select a skill" until one is picked,
+   then SkillDetail with Config / Preview / Evals / Stats / Versions.
+   Selection + tab live in the URL (?id, ?tab, ?new=1). Unsaved
    Config edits are guarded on navigation. The DB is the source of truth. */
 "use client";
 
@@ -11,7 +12,7 @@ import { useTranslations } from "next-intl";
 import { Button, Dropdown, EmptyState, ErrorState, Icon, Skeleton } from "@devdigest/ui";
 import type { Skill } from "@devdigest/shared";
 import { AppShell } from "@/components/app-shell";
-import { useSkillCardStats, useSkillUsage, useSkills, useUpdateSkill } from "@/lib/hooks/skills";
+import { useDeleteSkill, useSkillCardStats, useSkillUsage, useSkills, useUpdateSkill } from "@/lib/hooks/skills";
 import { useToast } from "@/lib/toast";
 import { ImportSkillModal } from "./_components/ImportSkillModal";
 import { SkillCard } from "./_components/SkillCard";
@@ -31,6 +32,7 @@ export function SkillsLab() {
   const { data: usage } = useSkillUsage();
   const { data: cardStats } = useSkillCardStats();
   const update = useUpdateSkill();
+  const del = useDeleteSkill();
   const toast = useToast();
   const [query, setQuery] = React.useState("");
   const [importing, setImporting] = React.useState(false);
@@ -43,9 +45,8 @@ export function SkillsLab() {
   const list = filterSkills(all, query);
   const creating = search.get("new") === "1";
   const tab = parseTab(search.get("tab"));
-  const selected: Skill | null = creating
-    ? null
-    : (all.find((sk) => sk.id === search.get("id")) ?? all[0] ?? null);
+  // Nothing is pre-selected: without a valid ?id the panel shows "Select a skill".
+  const selected: Skill | null = creating ? null : (all.find((sk) => sk.id === search.get("id")) ?? null);
 
   const go = (target: Target, { force = false } = {}) => {
     if (!force && dirtyRef.current && !window.confirm(t("detail.unsavedConfirm"))) return;
@@ -56,6 +57,19 @@ export function SkillsLab() {
     if (!target.create && target.tab !== DEFAULT_TAB) sp.set("tab", target.tab);
     const qs = sp.toString();
     router.replace(qs ? `/skills?${qs}` : "/skills");
+  };
+
+  // Card trash icon. Deleting the open skill clears the selection (its unsaved
+  // edits go with it, so no dirty prompt).
+  const remove = (sk: Skill) => {
+    if (!window.confirm(t("config.deleteConfirm", { name: sk.name }))) return;
+    del.mutate(sk.id, {
+      onSuccess: () => {
+        toast.success(t("config.deleted"));
+        if (sk.id === selected?.id) go({ id: null, tab, create: false }, { force: true });
+      },
+      onError: (e) => toast.error(errorMessage(e)),
+    });
   };
 
   const crumb = [{ label: t("page.crumbLab") }, { label: t("page.crumbSkills") }];
@@ -117,6 +131,7 @@ export function SkillsLab() {
                 usedBy={usage?.[sk.id] ?? 0}
                 active={!creating && sk.id === selected?.id}
                 onClick={() => go({ id: sk.id, tab, create: false })}
+                onDelete={() => remove(sk)}
                 onToggle={(enabled) =>
                   update.mutate(
                     { id: sk.id, patch: { enabled } },
@@ -146,6 +161,10 @@ export function SkillsLab() {
                 cta={t("page.empty.cta")}
                 onCta={() => go({ id: null, tab: "config", create: true })}
               />
+            </div>
+          ) : !creating && !selected ? (
+            <div style={s.center}>
+              <EmptyState icon="Sparkles"title={t("page.select.title")} body={t("page.select.body")} />
             </div>
           ) : (
             <SkillDetail

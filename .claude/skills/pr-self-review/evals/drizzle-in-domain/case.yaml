@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: drizzle-in-domain
+expected_outcome: |
+  The dependency-cruiser check reports a NEW domain-is-pure violation as critical; verdict BLOCK; fix points to a port/repository.

@@ -23,3 +23,7 @@ test-results/
 
 # emdash worktree config (local)
 .emdash.json
+
+# pr-self-review runtime state (only the waivers are shared)
+.claude/pr-self-review/*
+!.claude/pr-self-review/waivers.json

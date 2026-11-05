@@ -173,6 +173,20 @@ cd ../client && pnpm install && pnpm dev               # web on :3000
 (unit/integration split: `pnpm exec vitest run --exclude '**/*.it.test.ts'` / `pnpm exec vitest run .it.test`)
 `client/`: `dev` · `build` · `start` · `test` · `typecheck`
 
+## Pre-PR self review
+
+Before every push / PR, Claude Code runs the [`pr-self-review`](.claude/skills/pr-self-review/SKILL.md)
+skill (or run `/pr-self-review` yourself): every changed file is reviewed by the repo skills that cover
+it, plus policy / layer / tsc checks. A confirmed **critical** finding blocks `git push`,
+`gh pr create` and `gh pr merge` (Claude Code hook in `.claude/settings.json`). Enable the same gate for
+your own terminal pushes once per clone:
+
+```sh
+git config core.hooksPath .githooks      # pre-push → pr-self-review gate (bypass: --no-verify)
+```
+
+Paste `.claude/pr-self-review/pr-summary.md` into the PR description.
+
 ## Testing & CI
 
 One test suite per package, each gated by its own GitHub Actions workflow with a

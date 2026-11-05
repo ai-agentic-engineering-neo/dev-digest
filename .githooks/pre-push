@@ -1,0 +1,4 @@
+#!/bin/sh
+# pr-self-review merge-gate: blocks the push unless the last review is PASS for the current diff.
+# Enable once per clone: git config core.hooksPath .githooks   ·   bypass (deliberate): git push --no-verify
+exec node "$(git rev-parse --show-toplevel)/.claude/skills/pr-self-review/scripts/gate.mjs" --git-hook

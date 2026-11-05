@@ -1,0 +1,96 @@
+{
+  "$comment": "Source of truth for which skill reviews which changed file. Rationale: routing.md. A file gets the UNION of skills of every rule it matches. `files`/`exclude` are repo-relative globs; `contentMatch` is tested against the whole file, `addedMatch` against added lines only (both case-sensitive JS regex).",
+  "ownSkills": ["engineering-insights", "frontend-ui-architecture", "onion-architecture", "pr-self-review"],
+  "neverRun": ["mermaid-diagram", "engineering-insights", "pr-self-review"],
+  "ignore": [
+    "**/*.md",
+    "docs/**",
+    "**/pnpm-lock.yaml",
+    "**/package-lock.json",
+    "server/src/db/migrations/**",
+    "server/src/vendor/shared/**",
+    "client/src/vendor/shared/**",
+    "server/clones/**",
+    "skills-lock.json",
+    "server/architecture-baseline.json",
+    ".claude/pr-self-review/**",
+    "**/*.{png,jpg,jpeg,gif,svg,ico,webp,avif,woff,woff2,ttf,pdf,zip}"
+  ],
+  "rules": [
+    {
+      "bucket": "ui",
+      "files": ["client/src/**/*.{ts,tsx}"],
+      "exclude": ["client/src/**/*.test.{ts,tsx}", "client/src/test/**", "client/src/vendor/**"],
+      "skills": ["frontend-ui-architecture", "react-best-practices", "next-best-practices"]
+    },
+    {
+      "bucket": "ui-tests",
+      "files": ["client/**/*.test.{ts,tsx}", "client/src/test/**/*.{ts,tsx}"],
+      "skills": ["react-testing-library"]
+    },
+    {
+      "bucket": "backend",
+      "files": ["server/src/modules/**/*.ts", "server/src/platform/**/*.ts", "server/src/adapters/**/*.ts", "server/src/app.ts", "server/src/server.ts"],
+      "skills": ["onion-architecture"]
+    },
+    {
+      "bucket": "backend-http",
+      "files": ["server/src/modules/**/routes.ts", "server/src/modules/**/schemas.ts", "server/src/modules/_shared/**/*.ts", "server/src/platform/**/*.ts", "server/src/app.ts", "server/src/server.ts"],
+      "skills": ["fastify-best-practices"]
+    },
+    {
+      "bucket": "backend-db",
+      "files": ["server/src/db/schema/**/*.ts", "server/src/db/schema.ts"],
+      "skills": ["drizzle-orm-patterns", "postgresql-table-design"]
+    },
+    {
+      "bucket": "backend-db",
+      "files": ["server/src/**/*repository*.ts", "server/src/db/**/*.ts"],
+      "exclude": ["server/src/db/migrations/**"],
+      "skills": ["drizzle-orm-patterns"]
+    },
+    {
+      "bucket": "backend-db",
+      "files": ["server/src/**/*.ts"],
+      "contentMatch": "from\\s+['\"]drizzle-orm",
+      "skills": ["drizzle-orm-patterns"]
+    },
+    {
+      "bucket": "reviewer-core",
+      "files": ["reviewer-core/src/**/*.ts"],
+      "skills": ["typescript-expert", "zod"]
+    },
+    {
+      "bucket": "fullstack",
+      "files": ["**/*.{ts,tsx,mts,cts,js,mjs,cjs}"],
+      "skills": ["security"]
+    },
+    {
+      "bucket": "fullstack",
+      "files": ["**/*.{ts,tsx}"],
+      "contentMatch": "from\\s+['\"]zod['\"]",
+      "skills": ["zod"]
+    },
+    {
+      "bucket": "fullstack",
+      "files": ["**/contracts/**/*.ts"],
+      "skills": ["zod"]
+    },
+    {
+      "bucket": "fullstack",
+      "files": ["**/tsconfig*.json"],
+      "skills": ["typescript-expert"]
+    },
+    {
+      "bucket": "fullstack",
+      "files": ["**/*.{ts,tsx}"],
+      "addedMatch": "^\\s*(export\\s+)?(declare\\s+)?(type|interface)\\s+\\w|<\\s*[A-Z]\\w*\\s+extends\\b|\\bas\\s+unknown\\s+as\\b|\\bsatisfies\\b|:\\s*any\\b|\\bas\\s+any\\b",
+      "skills": ["typescript-expert"]
+    },
+    {
+      "bucket": "ci",
+      "files": [".github/workflows/**", "**/.env*", "**/docker-compose*.yml", "**/Dockerfile*"],
+      "skills": ["security"]
+    }
+  ]
+}

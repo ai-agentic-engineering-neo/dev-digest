@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: add-author-filter-pr-list
+expected_outcome: |
+  Filter state in URL search params; author list and filtering as pure helpers; new UI as a route-local _components folder; reuses usePulls data without copying it into state; texts via next-intl.

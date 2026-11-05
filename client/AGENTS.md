@@ -65,4 +65,5 @@ Search `client/docs/`, `client/specs/`, `client/INSIGHTS.md` first.
 
 - Adding a route/screen → read `README.md` (UI route map).
 - Building or changing UI components → read `src/vendor/ui/README.md`.
+- Deciding where new code goes / splitting a component / structuring a feature → use the `frontend-ui-architecture` skill.
 - Deep-dives → read `docs/` · UI/flow specs → read `specs/` · findings → read `INSIGHTS.md`.

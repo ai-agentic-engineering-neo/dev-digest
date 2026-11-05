@@ -48,7 +48,8 @@ fails there if the win32 prebuilt is missing).
 (`server/.dependency-cruiser.cjs`). It fails only on NEW violations: legacy ones are frozen in
 `server/architecture-baseline.json`. On PRs it also fails if that baseline grew compared to the base
 branch, because it may only shrink. Package versions are stripped from the keys, so dependency bumps
-don't break it.
+don't break it. A `--self-test` step first writes probe files and proves that every rule fires, so a
+dead rule can't pass silently.
 
 **server-integration** — the `*.it.test.ts` files. Each starts a real Postgres
 (pgvector) via testcontainers, builds the Fastify app, migrates + seeds, and
@@ -74,7 +75,7 @@ cd reviewer-core && npm test
 cd server && pnpm exec vitest run --exclude '**/*.it.test.ts'   # unit, no Docker
 cd server && pnpm exec vitest run .it.test                      # integration, needs Docker
 cd server && pnpm test                                          # both
-cd server && node scripts/check-architecture.mjs                # Onion layer check (--update shrinks baseline)
+cd server && node scripts/check-architecture.mjs                # Onion layer check (--update shrinks baseline, --self-test proves rules fire)
 
 # browser e2e (needs the full stack + agent-browser CLI)
 ./scripts/dev.sh

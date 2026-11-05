@@ -7,26 +7,29 @@
  *   node scripts/check-architecture.mjs                 # fail on NEW error-level violations
  *   node scripts/check-architecture.mjs --update        # rewrite the baseline (after FIXING violations)
  *   node scripts/check-architecture.mjs --base <file>   # also fail if the baseline grew vs <file>
+ *   node scripts/check-architecture.mjs --self-test     # prove every rule actually fires (probe files)
  *
  * Why not dependency-cruiser's own `--ignore-known`: it matches on resolved paths, and with pnpm those
  * contain the package version and entry file (`node_modules/.pnpm/drizzle-orm@0.38.4_…/index.d.ts`),
  * so every dependency upgrade would make known violations look new. Here each violation is reduced to
  * a stable key `rule|from|to`, where an npm target is just `node_modules/<package>`.
+ *
+ * Why --self-test: a rule can be silently dead (wrong path, or its target removed from the graph by
+ * `options.exclude` — that happened to `domain-shared-type-only`). A clean run can't tell "no
+ * violations" from "rule never fires", so the self-test writes probe files that MUST trigger each
+ * rule (and negative probes that must NOT), and fails if any rule has no probe.
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const SERVER_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
+const CONFIG = join(SERVER_DIR, '.dependency-cruiser.cjs');
 const BASELINE = join(SERVER_DIR, 'architecture-baseline.json');
 const DEPCRUISE = join(SERVER_DIR, 'node_modules', 'dependency-cruiser', 'bin', 'dependency-cruise.mjs');
-
-const args = process.argv.slice(2);
-const update = args.includes('--update');
-const baseIdx = args.indexOf('--base');
-const baseFile = baseIdx >= 0 ? args[baseIdx + 1] : undefined;
 
 /** `node_modules/.pnpm/x@1.2.3/node_modules/@scope/pkg/dist/index.d.ts` → `node_modules/@scope/pkg` */
 function normalizeTarget(path) {
@@ -43,24 +46,22 @@ function keyOf(v) {
   return `${v.rule.name}|${v.from}|${normalizeTarget(v.to)}`;
 }
 
-function cruise() {
+/** Run dependency-cruiser on `targets` (relative to server/) and return its raw violations. */
+function cruise(targets = ['src']) {
   const dir = mkdtempSync(join(tmpdir(), 'depcruise-'));
   const out = join(dir, 'result.json');
   try {
     try {
       execFileSync(
         process.execPath,
-        [DEPCRUISE, 'src', '--config', '.dependency-cruiser.cjs', '--output-type', 'json', '--output-to', out],
+        [DEPCRUISE, ...targets, '--config', CONFIG, '--output-type', 'json', '--output-to', out],
         { cwd: SERVER_DIR, stdio: ['ignore', 'inherit', 'inherit'] },
       );
     } catch (err) {
       // depcruise exits non-zero when violations exist; the JSON is still written.
       if (!existsSync(out)) throw err;
     }
-    const { summary } = JSON.parse(readFileSync(out, 'utf8'));
-    const bySeverity = new Map();
-    for (const v of summary.violations) bySeverity.set(keyOf(v), v.rule.severity);
-    return bySeverity;
+    return JSON.parse(readFileSync(out, 'utf8')).summary.violations;
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -69,7 +70,113 @@ function cruise() {
 const readKeys = (file) => new Set(JSON.parse(readFileSync(file, 'utf8')));
 const list = (title, keys) => keys.length && console.log(`${title}\n${keys.map((k) => `  - ${k}`).join('\n')}`);
 
-const current = cruise();
+// ---------------------------------------------------------------------------------------------
+// --self-test
+// ---------------------------------------------------------------------------------------------
+
+const PROBE_A = 'src/modules/__onion_probe_a__';
+const PROBE_B = 'src/modules/__onion_probe_b__';
+const PROBE_ADAPTER = 'src/adapters/__onion_probe__';
+
+/** file → content. Paths/imports chosen so each positive probe triggers exactly one rule. */
+const PROBE_FILES = {
+  [`${PROBE_A}/domain.ts`]: `import { sql } from 'drizzle-orm';\nexport const probe = sql;\n`,
+  [`${PROBE_A}/domain/shared-runtime.ts`]: `import { Finding } from '@devdigest/shared';\nexport const probe = Finding;\n`,
+  [`${PROBE_A}/routes.ts`]: `import { sql } from 'drizzle-orm';\nexport const probe = sql;\n`,
+  // routes.ts must sit directly in a module folder, so the routes→adapter probe lives in module B.
+  [`${PROBE_B}/routes.ts`]: `import { MockLLMProvider } from '../../adapters/mocks.js';\nexport const probe = MockLLMProvider;\n`,
+  [`${PROBE_A}/service.ts`]: `import { sql } from 'drizzle-orm';\nexport const probe = sql;\n`,
+  [`${PROBE_A}/rows-user.ts`]: `import type { AgentRow } from '../../db/rows.js';\nexport type Probe = AgentRow;\n`,
+  [`${PROBE_A}/adapter-user.ts`]: `import { MockLLMProvider } from '../../adapters/mocks.js';\nexport const probe = MockLLMProvider;\n`,
+  [`${PROBE_A}/cross-module.ts`]: `import { probe as other } from '../__onion_probe_b__/helpers.js';\nexport const probe = other;\n`,
+  [`${PROBE_A}/helpers.ts`]: `export const helper = 1;\n`,
+  [`${PROBE_B}/helpers.ts`]: `export const probe = 1;\n`,
+  [`${PROBE_B}/cycle-x.ts`]: `import { y } from './cycle-y.js';\nexport const x = () => y;\n`,
+  [`${PROBE_B}/cycle-y.ts`]: `import { x } from './cycle-x.js';\nexport const y = () => x;\n`,
+  [`${PROBE_ADAPTER}/probe.ts`]: `import { helper } from '../../modules/__onion_probe_a__/helpers.js';\nexport const probe = helper;\n`,
+  // Negative probes — must produce NO violation.
+  [`${PROBE_A}/ports.ts`]: `import type { Finding } from '@devdigest/shared';\nexport type Probe = Finding;\n`,
+  [`${PROBE_A}/repository.ts`]: `import { sql } from 'drizzle-orm';\nimport * as t from '../../db/schema.js';\nexport const probe = [sql, t];\n`,
+};
+
+/** rule → probe file that must trigger it. */
+const EXPECTED = {
+  'domain-is-pure': `${PROBE_A}/domain.ts`,
+  'domain-shared-type-only': `${PROBE_A}/domain/shared-runtime.ts`,
+  'routes-no-data-access': `${PROBE_A}/routes.ts`,
+  'routes-no-adapters': `${PROBE_B}/routes.ts`,
+  'application-no-drizzle': `${PROBE_A}/service.ts`,
+  'application-no-db-rows': `${PROBE_A}/rows-user.ts`,
+  'application-no-adapters': `${PROBE_A}/adapter-user.ts`,
+  'no-cross-module-imports': `${PROBE_A}/cross-module.ts`,
+  'adapters-are-outer-ring': `${PROBE_ADAPTER}/probe.ts`,
+  'no-circular': `${PROBE_B}/cycle-x.ts|${PROBE_B}/cycle-y.ts`,
+};
+const MUST_BE_CLEAN = [`${PROBE_A}/ports.ts`, `${PROBE_A}/repository.ts`, `${PROBE_A}/helpers.ts`, `${PROBE_B}/helpers.ts`];
+
+function selfTest() {
+  const probeDirs = [PROBE_A, PROBE_B, PROBE_ADAPTER].map((d) => join(SERVER_DIR, d));
+  if (probeDirs.some(existsSync)) {
+    console.error(`✖ probe folders already exist (${probeDirs.join(', ')}) — remove them first`);
+    process.exit(2);
+  }
+  const cleanup = () => probeDirs.forEach((d) => rmSync(d, { recursive: true, force: true }));
+  process.once('SIGINT', () => (cleanup(), process.exit(130)));
+
+  const failures = [];
+  try {
+    for (const [file, content] of Object.entries(PROBE_FILES)) {
+      const abs = join(SERVER_DIR, file);
+      mkdirSync(dirname(abs), { recursive: true });
+      writeFileSync(abs, content);
+    }
+    const violations = cruise([PROBE_A, PROBE_B, PROBE_ADAPTER]);
+    const fromProbe = violations.filter((v) => v.from.includes('__onion_probe'));
+
+    // 1. every configured rule has a probe
+    const rules = createRequire(import.meta.url)(CONFIG).forbidden.map((r) => r.name);
+    for (const r of rules) if (!EXPECTED[r]) failures.push(`rule "${r}" has no probe in --self-test (add one)`);
+
+    // 2. every probe triggers its rule
+    for (const [rule, files] of Object.entries(EXPECTED)) {
+      const candidates = files.split('|');
+      const hit = fromProbe.some((v) => v.rule.name === rule && candidates.includes(v.from));
+      console.log(`${hit ? '✔' : '✖'} ${rule.padEnd(26)} ← ${candidates.join(' ⇄ ')}`);
+      if (!hit) failures.push(`rule "${rule}" did NOT fire on its probe — it is dead`);
+    }
+
+    // 3. negative probes stay clean, and positive probes trigger only their own rule
+    for (const v of fromProbe) {
+      if (MUST_BE_CLEAN.includes(v.from)) failures.push(`false positive: ${v.rule.name} on ${v.from} (must be allowed)`);
+      const expectedFrom = EXPECTED[v.rule.name]?.split('|') ?? [];
+      if (!MUST_BE_CLEAN.includes(v.from) && !expectedFrom.includes(v.from)) {
+        failures.push(`unexpected: ${v.rule.name} on ${v.from} → ${normalizeTarget(v.to)}`);
+      }
+    }
+  } finally {
+    cleanup();
+  }
+
+  if (failures.length) {
+    list('✖ self-test failed:', failures);
+    process.exit(1);
+  }
+  console.log(`✔ self-test: all ${Object.keys(EXPECTED).length} rules fire, negative probes clean`);
+  process.exit(0);
+}
+
+// ---------------------------------------------------------------------------------------------
+// main
+// ---------------------------------------------------------------------------------------------
+
+const args = process.argv.slice(2);
+if (args.includes('--self-test')) selfTest();
+
+const update = args.includes('--update');
+const baseIdx = args.indexOf('--base');
+const baseFile = baseIdx >= 0 ? args[baseIdx + 1] : undefined;
+
+const current = new Map(cruise().map((v) => [keyOf(v), v.rule.severity]));
 
 if (update) {
   const keys = [...current.keys()].sort();

@@ -92,7 +92,8 @@ module.exports = {
       name: 'application-no-adapters',
       comment: 'Application code depends on ports (@devdigest/shared or ports.ts), never on src/adapters/** implementations.',
       severity: 'error',
-      from: { path: '^src/modules/', pathNot: [INFRA_IN_MODULE] },
+      // routes → routes-no-adapters, domain → domain-is-pure; one violation = one rule.
+      from: { path: '^src/modules/', pathNot: [ROUTES, INFRA_IN_MODULE, DOMAIN] },
       to: { path: ADAPTERS },
     },
     {
@@ -124,8 +125,13 @@ module.exports = {
   options: {
     // reviewer-core is a separate package (its deps aren't installed in every CI job) — don't descend
     // into it, so the graph is identical locally and in CI.
-    doNotFollow: { path: ['node_modules', '^\\.\\./reviewer-core/'] },
-    exclude: { path: ['^src/vendor/', '^src/db/migrations/'] },
+    //
+    // src/vendor/shared (= @devdigest/shared via tsconfig `paths`) is doNotFollow, NOT exclude:
+    // `exclude` removes the module AND every dependency on it from the graph, which silently disabled
+    // `domain-shared-type-only`. doNotFollow keeps edges *to* vendor but doesn't cruise *inside* it.
+    // Every rule is proven to fire by `node scripts/check-architecture.mjs --self-test` (CI runs it).
+    doNotFollow: { path: ['node_modules', '^\\.\\./reviewer-core/', '^src/vendor/'] },
+    exclude: { path: ['^src/db/migrations/'] },
     // Keep pnpm symlink paths (no `.pnpm/<pkg>@<version>/`) — readable output, simple patterns.
     preserveSymlinks: true,
     tsPreCompilationDeps: true,

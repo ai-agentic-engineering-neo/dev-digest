@@ -56,8 +56,8 @@ The old `SkillPreviewDrawer` and `SkillEditorModal` are removed (replaced by the
   M enabled" (plain text, right); hint "Turn a skill on to add it to this agent's prompt. Order
   matters … Drag the handle or use the arrows to reorder."; full-width filter.
 - Every workspace skill is a row: drag handle (linked rows only), **toggle** (on = linked; aria
-  "Use <name> in this agent", tooltip explains on/off), name + one-line description (clicking it
-  toggles too), imported / "disabled globally" markers (with tooltips), ↑/↓ for linked rows
+  "Use <name> in this agent", tooltip explains on/off), name + one-line description (not clickable — only the
+  switch saves, so selecting / double-clicking the name never does), imported / "disabled globally" markers (with tooltips), ↑/↓ for linked rows
   (tooltips "Move up — earlier in the prompt"), type badge, and the prompt position **#1, #2…**
   for linked rows (tooltip "Position N in the assembled prompt"). No unexplained icon.
 - Linked rows first, in prompt order; on appends, off removes, drag/arrows reorder. Each
@@ -69,7 +69,7 @@ Prompt assembly → **Skills** block shows `~N tokens` (chars/4 estimate); exact
 the run log line `Skills: N attached …`.
 
 ## Acceptance criteria
-- `SkillsTab.test.tsx` — order, counter, toggle on/off (+ name click), position / description / tooltips, arrows, drag & drop, markers, filter.
+- `SkillsTab.test.tsx` — order, counter, toggle on/off (name click does nothing), position / description / tooltips, arrows, drag & drop, markers, filter.
 - `SkillsLab.test.tsx` — list + search + card stats row / source · version, no default selection,
   Delete skill modal (cancel / Esc, confirm, locked while deleting, error kept), URL selection/tab, Config save (patch +
   note) / discard / create mode / validation, Preview trust notice, Stats tiles + agents + categories,

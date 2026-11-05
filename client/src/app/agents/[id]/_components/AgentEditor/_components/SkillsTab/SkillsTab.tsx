@@ -141,12 +141,9 @@ export function SkillsTab({ agent }: { agent: Agent }) {
                   label={t("skills.attach", { name: skill.name })}
                 />
               </span>
-              {/* Clicking the name also toggles (mouse convenience); the switch
-                  is the accessible control. */}
-              <div
-                style={{ ...s.nameBlock, ...(skill.enabled ? {} : s.muted) }}
-                onClick={() => save(toggleLinked(ids, skill.id))}
-              >
+              {/* Not clickable: the switch is the only control, so selecting /
+                  double-clicking the name never saves. */}
+              <div style={{ ...s.nameBlock, ...(skill.enabled ? {} : s.muted) }}>
                 <span className="mono" style={s.name(linked)}>
                   {skill.name}
                 </span>

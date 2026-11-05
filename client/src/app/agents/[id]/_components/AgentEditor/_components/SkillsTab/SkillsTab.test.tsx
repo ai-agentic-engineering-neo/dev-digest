@@ -73,7 +73,7 @@ describe("SkillsTab", () => {
     ]);
   });
 
-  it("turning a skill on appends it; off removes it; clicking the name toggles too", () => {
+  it("turning a skill on appends it; off removes it; clicking the name does nothing", () => {
     links = [{ agent_id: "ag1", skill_id: "s1", order: 0 }];
     renderTab();
     const on = screen.getByRole("switch", { name: "Use no-then-chains in this agent" });
@@ -84,8 +84,11 @@ describe("SkillsTab", () => {
     fireEvent.click(screen.getByRole("switch", { name: "Use pr-quality-rubric in this agent" }));
     expect(mutate).toHaveBeenLastCalledWith([], expect.anything());
 
+    // selecting / double-clicking the name must not save (only the switch toggles)
+    mutate.mockClear();
+    fireEvent.doubleClick(screen.getByText("no-then-chains"));
     fireEvent.click(screen.getByText("no-then-chains"));
-    expect(mutate).toHaveBeenLastCalledWith(["s1", "s2"], expect.anything());
+    expect(mutate).not.toHaveBeenCalled();
   });
 
   it("rows explain themselves: description, prompt position and tooltips", () => {
@@ -102,7 +105,8 @@ describe("SkillsTab", () => {
     );
     // unlinked rows have no position, no arrows
     const off = within(screen.getByTestId("skill-row-no-then-chains"));
-    expect(off.queryByText(/^#d/)).toBeNull();
+    expect(off.queryByText(/^#\d+$/)).not.toBeInTheDocument();
+    expect(second.queryByText(/^#\d+$/)).toBeInTheDocument(); // the same matcher does find a real position
     expect(off.queryByRole("button", { name: /Move/ })).toBeNull();
     expect(screen.getByText(/Turn a skill on to add it to this agent's prompt/)).toBeTruthy();
   });

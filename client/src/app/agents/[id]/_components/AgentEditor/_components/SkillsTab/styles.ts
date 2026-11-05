@@ -51,7 +51,6 @@ export const s = {
     display: "flex",
     flexDirection: "column",
     gap: 2,
-    cursor: "pointer",
   } satisfies CSSProperties,
   name: (linked: boolean): CSSProperties => ({
     fontSize: 14,

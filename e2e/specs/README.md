@@ -16,6 +16,6 @@ Each flow is read-only over seeded data (`server/src/db/seed.ts`). A step "asser
 | [05-pr-diff](05-pr-diff.flow.json) | Diff viewer (DiffViewer → FileCard → CodeLine) | open PR #482 → click button "Files changed" → URL `tab=diff` → text "src/config.ts" | **yes** |
 | [06-onboarding](06-onboarding.flow.json) | Onboarding form renders, no submit | `/onboarding` → URL → "Add a repository" → "Repository URL" | no |
 | [07-settings](07-settings.flow.json) | Settings sections render | `/settings/api-keys` → network idle → "API Keys" → `/settings/models` → "Feature Models" | no |
-| [08-skills](08-skills.flow.json) | Skills page + agent Skills tab (read-only) | `/skills` → "untested-branches" → click → body text → Test Quality Reviewer → button "Skills" → "4 of 8 enabled" | no |
+| [08-skills](08-skills.flow.json) | Skills page + agent Skills tab (read-only) | `/skills` → search "untested-branches" → click → Preview / Stats / Versions → Test Quality Reviewer → button "Skills" → "4 of 9 enabled" | no |
 
 When you add a flow, add a row here and to the Coverage table in [`../README.md`](../README.md).

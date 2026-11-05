@@ -13,10 +13,10 @@ import type { Skill, SkillType } from "@devdigest/shared";
 import { SKILL_TYPES } from "@/components/skill-type-badge";
 import {
   useCreateSkill,
-  useDeleteSkill,
   useUpdateSkill,
   type SkillInput,
 } from "@/lib/hooks/skills";
+import { DeleteSkillDialog } from "../DeleteSkillDialog";
 import { useToast } from "@/lib/toast";
 import { MAX_NOTE_CHARS } from "../../constants";
 import { canSubmitSkill, isValidSkillName } from "@/lib/skill-name";
@@ -44,7 +44,7 @@ export function ConfigTab({
   // Separate mutation for the Enabled toggle: it saves at once, and sharing
   // `update` would flip the Save button to "Saving…" on every toggle.
   const toggle = useUpdateSkill();
-  const remove = useDeleteSkill();
+  const [confirmingDelete, setConfirmingDelete] = React.useState(false);
   const [form, setForm] = React.useState<SkillInput>(() => (skill ? formFromSkill(skill) : emptyForm()));
   const [note, setNote] = React.useState("");
   const [enabled, setEnabled] = React.useState(true); // create mode only
@@ -100,20 +100,18 @@ export function ConfigTab({
     setError(null);
   };
 
-  const del = () => {
-    if (!skill || !window.confirm(t("config.deleteConfirm", { name: skill.name }))) return;
-    remove.mutate(skill.id, {
-      onSuccess: () => {
-        toast.success(t("config.deleted"));
-        onDirtyChange(false);
-        onDeleted();
-      },
-      onError: (e) => toast.error(errorMessage(e)),
-    });
-  };
-
   return (
     <div style={s.wrap}>
+      {skill && confirmingDelete && (
+        <DeleteSkillDialog
+          skill={skill}
+          onClose={() => setConfirmingDelete(false)}
+          onDeleted={() => {
+            onDirtyChange(false);
+            onDeleted();
+          }}
+        />
+      )}
       <div style={s.head}>
         <h2 style={s.title}>{skill ? t("config.title") : t("config.createTitle")}</h2>
         {skill && (
@@ -205,7 +203,7 @@ export function ConfigTab({
 
       {skill && (
         <div style={s.footer}>
-          <Button kind="ghost" icon="Trash" onClick={del} disabled={remove.isPending}>
+          <Button kind="ghost" icon="Trash" onClick={() => setConfirmingDelete(true)}>
             {t("config.delete")}
           </Button>
         </div>

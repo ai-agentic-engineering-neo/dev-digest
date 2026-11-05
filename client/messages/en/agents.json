@@ -1,7 +1,8 @@
 {
   "card": {
     "noDescription": "No description",
-    "skillCount": "{count, plural, one {# skill} other {# skills}}"
+    "skillCount": "{count, plural, one {# skill} other {# skills}}",
+    "delete": "Delete agent"
   },
   "list": {
     "breadcrumbLab": "Skills Lab",
@@ -107,5 +108,13 @@
   },
   "mount": {
     "body": "Mount point for {owner}. The Agent Editor shell + tab routing are wired by A2 — {owner} renders this tab."
+  },
+  "deleteDialog": {
+    "title": "Delete agent",
+    "body": "\"{name}\" will be permanently removed. This cannot be undone.",
+    "confirm": "Delete",
+    "pending": "Deleting…",
+    "cancel": "Cancel",
+    "deleted": "Agent deleted"
   }
 }

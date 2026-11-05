@@ -104,7 +104,6 @@
     "saved": "Saved as v{version}",
     "created": "Skill \"{name}\" created",
     "delete": "Delete",
-    "deleteConfirm": "Delete skill \"{name}\"? It will be unlinked from every agent.",
     "deleted": "Skill deleted",
     "toggleError": "Could not change the enabled state",
     "typeOptions": {
@@ -161,5 +160,12 @@
     "view": "View",
     "hide": "Hide",
     "bodyLabel": "Body of v{version}"
+  },
+  "deleteDialog": {
+    "title": "Delete skill",
+    "body": "\"{name}\" will be permanently removed and unlinked from every agent. This cannot be undone.",
+    "confirm": "Delete",
+    "pending": "Deleting…",
+    "cancel": "Cancel"
   }
 }

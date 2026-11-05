@@ -20,6 +20,9 @@ export default function AgentEditorPage() {
   const search = useSearchParams();
   const router = useRouter();
   const { id } = params;
+  // Read when a delete finishes — the user may have opened another agent meanwhile.
+  const currentId = React.useRef(id);
+  currentId.current = id;
 
   const { data: agents } = useAgents();
   const { data: agent, isLoading, isError, error, refetch } = useAgent(id);
@@ -90,6 +93,10 @@ export default function AgentEditorPage() {
                 skillCount={skillCounts[a.id]}
                 onClick={() => router.push(`/agents/${a.id}?tab=${tab}`)}
                 onToggle={(enabled) => update.mutate({ id: a.id, patch: { enabled } })}
+                onDeleted={(deletedId) => {
+                  // the open agent is gone → back to the list
+                  if (deletedId === currentId.current) router.replace("/agents");
+                }}
               />
             ))}
           </div>

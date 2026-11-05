@@ -20,7 +20,7 @@ panel shows "Select a skill — Pick a skill on the left to preview its body."
 
 **Left column** — "Skills" + **Add Skill** dropdown (*Create skill* → create mode in the right panel;
 *Import from file* → `ImportSkillModal`, unchanged) + search. Card (`SkillCard`): icon, name (mono),
-global enabled `Toggle` and a **trash** icon (confirm → delete; neither selects the card; deleting
+global enabled `Toggle` and a **trash** icon (→ **Delete skill** modal; neither selects the card; deleting
 the open skill clears the selection), description (1 line), `SkillTypeBadge`, "Source · vN"
 (Manual · Extracted · Community · Imported, with icon), and a stats row
 "N agents · X% pull · Y% accept" (`—` when no data) from `GET /skills/stats`. Selected card is
@@ -34,7 +34,7 @@ highlighted. Imported (community / imported_url) cards keep the warn marker.
   toast "Saved as vN"). Fields: Name (kebab-case), Description (directive hint), Type (native select,
   capitalised labels); **Skill body (Markdown)** editor: `<name>.md` header, `unsaved` badge while
   dirty, `~N tokens`, line-numbered textarea, hint "Saving a changed body creates a new immutable
-  version."; optional **What changed?** note. Delete (confirm) at the bottom. Switching skills/tabs with unsaved edits asks to discard.
+  version."; optional **What changed?** note. Delete (same modal) at the bottom. Switching skills/tabs with unsaved edits asks to discard.
   Create mode: same form, empty, **Create skill** → selects the new skill.
 - **Preview** — "Rendered as the reviewing agent receives it." + rendered markdown; imported skills
   show the trust notice (wrapped as `<untrusted>` in the prompt).
@@ -66,7 +66,20 @@ the run log line `Skills: N attached …`.
 ## Acceptance criteria
 - `SkillsTab.test.tsx` — order, counter, check/uncheck, arrows, drag & drop, markers, filter.
 - `SkillsLab.test.tsx` — list + search + card stats row / source · version, no default selection,
-  card trash delete, URL selection/tab, Config save (patch +
+  Delete skill modal (cancel / Esc, confirm, locked while deleting, error kept), URL selection/tab, Config save (patch +
   note) / discard / create mode / validation, Preview trust notice, Stats tiles + agents + categories,
   Versions current/view/diff/restore, Evals placeholder, import preview → confirm, parse error.
 - `SkillTypeBadge` on `/showcase` (smoke test).
+
+### Delete confirmation (`components/confirm-dialog`)
+Deleting a skill (card trash, Config → Delete) or an agent (AgentCard trash) opens a compact modal
+instead of `window.confirm`: title "Delete skill" / "Delete agent", body "\"<name>\" will be permanently
+removed… This cannot be undone.", **Cancel** (focused first, so a stray Enter can't delete) and a red
+**Delete**. Esc, ✕ and the backdrop cancel. While the DELETE runs the modal is locked: Delete shows a
+spinner + "Deleting…", Cancel / ✕ / backdrop / Esc do nothing, so a double click can't send a second
+request. Success → modal closes + toast ("Skill deleted" / "Agent deleted"); deleting the open
+skill clears the selection, deleting the open agent returns to `/agents`. Failure → the error is
+shown inside the modal and the user can retry. `ConfirmDialog` takes translated labels from the
+caller (`skills.deleteDialog.*`, `agents.deleteDialog.*`); `DeleteSkillDialog` /
+`DeleteAgentDialog` own the mutation. AgentCard renders the modal next to the card (not inside),
+so modal clicks don't select the card. Tests: `SkillsLab.test.tsx`, `AgentCard.test.tsx`.

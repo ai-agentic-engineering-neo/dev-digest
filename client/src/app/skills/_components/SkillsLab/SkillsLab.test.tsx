@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup, fireEvent, waitFor, within } from "@testing-library/react";
+import { act, render, screen, cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { Skill } from "@devdigest/shared";
 import type { SkillCardStats, SkillImportPreview, SkillStats, SkillVersionRecord } from "@/lib/types";
@@ -14,6 +14,7 @@ const updateMutate = vi.fn();
 const updateMutateAsync = vi.fn();
 const createMutateAsync = vi.fn();
 const deleteMutate = vi.fn();
+let deletePending = false;
 const previewMutateAsync = vi.fn();
 const importMutateAsync = vi.fn();
 const replace = vi.fn();
@@ -53,7 +54,7 @@ vi.mock("../../../../lib/hooks/skills", () => ({
     };
   },
   useCreateSkill: () => ({ mutateAsync: createMutateAsync, isPending: false }),
-  useDeleteSkill: () => ({ mutate: deleteMutate, isPending: false }),
+  useDeleteSkill: () => ({ mutate: deleteMutate, isPending: deletePending }),
   usePreviewSkillImport: () => ({ mutateAsync: previewMutateAsync, isPending: false }),
   useImportSkill: () => ({ mutateAsync: importMutateAsync, isPending: false }),
   fileToUpload: async (f: File) => ({ filename: f.name, content_base64: "QUJD" }),
@@ -90,6 +91,7 @@ afterEach(() => {
   // Undo vi.spyOn stubs (window.confirm) so no test inherits another's stub.
   vi.restoreAllMocks();
   params = new URLSearchParams();
+  deletePending = false;
   skills = [];
   cardStats = {};
   stats = undefined;
@@ -136,19 +138,65 @@ describe("SkillsLab — list", () => {
     expect(screen.getByTestId("skill-card-pr-quality-rubric").getAttribute("aria-pressed")).toBe("true");
   });
 
-  it("card trash asks to confirm, deletes without selecting, and clears the open skill", () => {
+  const trash = () =>
+    within(screen.getByTestId("skill-card-pr-quality-rubric")).getByRole("button", { name: "Delete skill" });
+
+  it("card trash opens the Delete skill modal; Cancel / Esc close it without deleting", () => {
     skills = [RUBRIC, IMPORTED];
-    const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValue(true);
     renderLab("id=s1&tab=stats");
-    const trash = () => within(screen.getByTestId("skill-card-pr-quality-rubric")).getByRole("button", { name: "Delete skill" });
     fireEvent.click(trash());
-    expect(confirm).toHaveBeenCalledTimes(1);
+    const dialog = within(screen.getByRole("dialog"));
+    expect(dialog.getByText(/"pr-quality-rubric" will be permanently removed/)).toBeTruthy();
+    expect(document.activeElement?.textContent).toBe("Cancel"); // a stray Enter can't delete
+    fireEvent.click(dialog.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    fireEvent.click(trash());
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
     expect(deleteMutate).not.toHaveBeenCalled();
+    expect(replace).not.toHaveBeenCalled(); // the trash click did not select the card
+  });
+
+  it("confirming deletes; success closes the modal, toasts and clears the open skill", async () => {
+    skills = [RUBRIC, IMPORTED];
+    renderLab("id=s1&tab=stats");
     fireEvent.click(trash());
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" }));
     expect(deleteMutate).toHaveBeenCalledWith("s1", expect.anything());
-    expect(replace).not.toHaveBeenCalled(); // the click did not select the card
-    deleteMutate.mock.calls[0]![1].onSuccess();
+    act(() => deleteMutate.mock.calls[0]![1].onSuccess());
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(await screen.findByText("Skill deleted")).toBeTruthy();
     expect(replace).toHaveBeenLastCalledWith("/skills?tab=stats");
+  });
+
+  it("while deleting the modal is locked; an error stays in the modal", () => {
+    skills = [RUBRIC];
+    deletePending = true;
+    renderLab("id=s1");
+    fireEvent.click(trash());
+    const dialog = within(screen.getByRole("dialog"));
+    expect((dialog.getByRole("button", { name: /Deleting…/ }) as HTMLButtonElement).disabled).toBe(true);
+    expect((dialog.getByRole("button", { name: "Cancel" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(dialog.queryByRole("button", { name: "Close" })).toBeNull(); // no ✕ while pending
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeNull();
+    cleanup();
+
+    deletePending = false;
+    renderLab("id=s1");
+    fireEvent.click(trash());
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" }));
+    act(() => deleteMutate.mock.calls[0]![1].onError(new Error("Skill is in use")));
+    expect(within(screen.getByRole("dialog")).getByRole("alert").textContent).toContain("Skill is in use");
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("Config Delete opens the same modal", () => {
+    skills = [RUBRIC];
+    renderLab("id=s1");
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(within(screen.getByRole("dialog")).getByText("Delete skill")).toBeTruthy();
   });
 
   it("selecting a card / tab writes the URL; the card toggle does not select", () => {

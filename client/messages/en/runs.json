@@ -53,7 +53,8 @@
       "copy": "Copy",
       "fullscreen": "Open fullscreen",
       "search": "Search in this block…",
-      "noMatches": "No matches for “{q}”."
+      "noMatches": "No matches for “{q}”.",
+      "tokensApprox": "~{count} tokens"
     },
     "tools": {
       "args": "args",

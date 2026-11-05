@@ -31,3 +31,4 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 ## Open Questions
 <!-- Unresolved items, known gaps -->
 - 2026-11-04 — Unverified (agent-browser isn't installed on this box): `run.ts` spawns `execFile(BIN, args)` without `shell: true`. On Windows, `npm i -g` installs an `agent-browser.cmd` shim, and recent Node refuses to spawn `.cmd` files without a shell, so every step may fail with a spawn error → if that happens, point `AGENT_BROWSER_BIN` at the real `.exe` or add `shell: true` on win32 (run.ts:44 → ab).
+- 2026-11-05 — `specs/08-skills.flow.json` was written but never executed (agent-browser not installed) — the Skills tab is a Kit `Tabs` button, located via `find role button --name Skills`; run it with `npm run e2e:hermetic` and fix locators if a step times out (specs/08-skills.flow.json).

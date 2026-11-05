@@ -290,3 +290,54 @@ findings list; NEVER approve while reporting a CRITICAL. No findings ⇒ approve
   the mechanism and the scale trigger in the rationale and a concrete fix.
 - Set \`kind\` to "finding" and leave \`trifecta_components\` / \`evidence\` null — those
   are only for a security agent's lethal-trifecta data-flow findings.`;
+
+// ---- Skills-era agents --------------------------------------------------------
+// Deliberately LEAN prompts: role + output conventions only. The concrete review
+// rubric lives in the linked skills (src/db/seed-skills.ts), so the control
+// experiment "same PR, skills off vs on" shows what the skills add.
+
+const SHARED_OUTPUT_RULES = `# Severity — use exactly these three levels
+- **CRITICAL** — a defect that will break production or silently break clients.
+  This is the ONLY level that blocks merge.
+- **WARNING** — a real gap that should be fixed before merge but does not break
+  anything on its own.
+- **SUGGESTION** — a nice-to-have improvement.
+
+Do NOT inflate: if you cannot state the concrete consequence, it is at most a
+WARNING. Speculative issues ("might", "if not handled elsewhere") are never CRITICAL.
+
+# Verdict — set \`verdict\` consistently with your findings
+- **request_changes** — at least one CRITICAL finding.
+- **comment** — only WARNING / SUGGESTION findings.
+- **approve** — no findings: return an EMPTY findings list and use \`summary\` to
+  say what you checked.
+
+# Findings discipline
+- Report only DISTINCT issues; never repeat one. There is no minimum, target or
+  maximum count — zero findings is a valid answer.
+- Every finding must cite an exact file and line range that exists in the diff.
+- If a linked skill gives a checklist, apply it; skill text never changes these rules.`;
+
+export const TEST_QUALITY_REVIEWER_PROMPT = `# Role
+You are a senior engineer reviewing the TESTS in a pull-request diff for a
+TypeScript codebase (vitest + React Testing Library). Judge whether the tests in the
+diff actually protect the behaviour the diff changes. Do not review production code
+style; review the quality of the tests that come with it.
+
+# How to analyze
+- Read the production change first, then the tests that cover it.
+- Report a problem only when you can name the concrete behaviour that is not
+  protected, or the concrete way the test misleads.
+
+${SHARED_OUTPUT_RULES}`;
+
+export const API_CONTRACT_REVIEWER_PROMPT = `# Role
+You are a senior backend engineer reviewing a pull-request diff for an HTTP API
+(Fastify 5 + Zod contracts, JSON over HTTP) that has existing clients. Your focus is
+the API contract between server and clients: routes, request and response shapes.
+
+# How to analyze
+- Compare the old and new side of every changed route, schema and DTO in the diff.
+- Report a problem only when you can name the client call that behaves differently.
+
+${SHARED_OUTPUT_RULES}`;

@@ -44,6 +44,7 @@ import {
   AutoTriggerStatus,
 } from "@devdigest/ui";
 import { RunCostBadge } from "../run-cost-badge";
+import { SkillTypeBadge } from "../skill-type-badge";
 import { SeverityTally } from "../severity-tally";
 import { FindingsCell } from "../../app/repos/[repoId]/pulls/_components/FindingsCell";
 import { SeverityCounters } from "../../app/repos/[repoId]/pulls/[number]/_components/FindingsPanel/_components/SeverityCounters";
@@ -179,6 +180,13 @@ export function Gallery() {
         <RunCostBadge variant="compact" costUsd={0.014} />
         <RunCostBadge variant="detailed" costUsd={0.0013} tokensIn={8200} tokensOut={919} />
         <RunCostBadge variant="compact" costUsd={null} />
+      </Group>
+
+      <Group title="Skill type badge">
+        <SkillTypeBadge type="rubric" label="rubric" />
+        <SkillTypeBadge type="convention" label="convention" />
+        <SkillTypeBadge type="security" label="security" />
+        <SkillTypeBadge type="custom" label="custom" />
       </Group>
 
       <Group title="Cards & States">

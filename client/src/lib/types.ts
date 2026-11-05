@@ -8,6 +8,8 @@
  * not yet exported, add a placeholder below marked
  * `// TODO: reconcile with @devdigest/shared`.
  */
+import type { SkillType } from "@devdigest/shared";
+
 export type {
   Settings,
   SettingsUpdate,
@@ -45,4 +47,28 @@ export interface PrRowView {
   findings: { CRITICAL: number; WARNING: number; SUGGESTION: number };
   status: "needs_review" | "reviewed" | "stale";
   updated: string;
+}
+
+/**
+ * Skill import preview (POST /skills/import/preview). Not in @devdigest/shared:
+ * vendor/shared is "Do not touch" (AGENTS.md), so this mirrors the server's
+ * module-local type in server/src/modules/skills/domain.ts.
+ * TODO: reconcile with @devdigest/shared when the contracts are next synced.
+ */
+export type SkillImportFileStatus = "used" | "ignored";
+
+export interface SkillImportFile {
+  path: string;
+  size: number;
+  status: SkillImportFileStatus;
+  reason?: string | null;
+}
+
+export interface SkillImportPreview {
+  name: string;
+  description: string;
+  type: SkillType;
+  body: string;
+  files: SkillImportFile[];
+  warnings: string[];
 }

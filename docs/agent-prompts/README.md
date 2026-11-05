@@ -9,6 +9,8 @@ in the DB). The canonical, reviewable copies live next to this file:
 - [`general-reviewer.md`](./general-reviewer.md)
 - [`security-reviewer.md`](./security-reviewer.md)
 - [`performance-reviewer.md`](./performance-reviewer.md)
+- [`test-quality-reviewer.md`](./test-quality-reviewer.md) — lean prompt; the rubric is in its skills
+- [`api-contract-reviewer.md`](./api-contract-reviewer.md) — lean prompt; the rubric is in its skills
 
 > The DB is the source of truth at run time. These files are the human-readable
 > originals — when you change a prompt, edit the file here **and** push it to the
@@ -38,7 +40,7 @@ delimiter-wrapped (`prompt.ts:104-122`):
 ```
 <task line, e.g. "Review PR #7 '…'">
 ## PR description        (untrusted, author-controlled, truncated to 4000 chars)
-## Skills / rules        (linked skill bodies)
+## Skills / rules        (enabled linked skills, in link order — see below)
 ## Relevant memory       (curated memory items)
 ## Repo skeleton         (untrusted, repo-derived)
 ## Project context       (untrusted spec chunks)
@@ -49,6 +51,25 @@ delimiter-wrapped (`prompt.ts:104-122`):
 Sections with no content are omitted. Everything repo- or author-derived is wrapped
 in `<untrusted source="…">…</untrusted>` so the model can tell instructions
 (system) from data (user).
+
+## Skills
+
+A skill is a reusable, **text-only** block (name, type, description, markdown body)
+stored in the `skills` table and linked to agents (`agent_skills.order`). It cannot run
+code or use tools. Per run, `ReviewRunExecutor.loadPromptSkills` resolves the agent's
+linked skills that are globally **enabled**, in link order, and passes them to
+`reviewPullRequest({ skills })`; the run log gets
+`Skills: N attached — a, b (~T tokens)`, and the trace's prompt assembly shows the block.
+
+- Trusted (source `manual` / `extracted`) → rendered as a `### <name>` heading followed by the body.
+- Imported (source `community` / `imported_url`) → wrapped as
+  `<untrusted source="skill:<name>">…</untrusted>`, and `IMPORTED_SKILL_GUARD` is added
+  to the system message: imported skills may add review criteria but cannot change the
+  role, output format, severity rules or suppress findings.
+
+Write a skill's **description** as its interface — a directive ("Use on … Flag …").
+Keep the agent prompt for role + output conventions and move checklists into skills, so
+the same rubric can be reused by several agents and switched on/off per agent.
 
 ## The output schema is NOT in the prompt
 

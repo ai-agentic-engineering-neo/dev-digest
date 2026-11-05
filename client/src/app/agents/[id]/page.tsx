@@ -9,10 +9,11 @@ import { Button, Dropdown, ErrorState, Skeleton, Icon, Badge } from "@devdigest/
 import { AppShell } from "../../../components/app-shell";
 import { AgentCard } from "../_components/AgentCard";
 import { AgentEditor } from "./_components/AgentEditor";
+import { TAB_KEYS } from "./_components/AgentEditor/constants";
 import { useAgents, useAgent, useUpdateAgent } from "../../../lib/hooks/agents";
+import { useAgentSkillCounts } from "../../../lib/hooks/skills";
 import { ApiError } from "../../../lib/api";
 
-const VALID_TABS = ["config"];
 
 export default function AgentEditorPage() {
   const params = useParams<{ id: string }>();
@@ -23,8 +24,9 @@ export default function AgentEditorPage() {
   const { data: agents } = useAgents();
   const { data: agent, isLoading, isError, error, refetch } = useAgent(id);
   const update = useUpdateAgent();
+  const skillCounts = useAgentSkillCounts((agents ?? []).map((a) => a.id));
 
-  const tab = VALID_TABS.includes(search.get("tab") ?? "") ? search.get("tab")! : "config";
+  const tab = TAB_KEYS.includes(search.get("tab") ?? "") ? search.get("tab")! : "config";
   const setTab = (t: string) => {
     const sp = new URLSearchParams(search.toString());
     sp.set("tab", t);
@@ -85,6 +87,7 @@ export default function AgentEditorPage() {
                 key={a.id}
                 ag={a}
                 active={a.id === id}
+                skillCount={skillCounts[a.id]}
                 onClick={() => router.push(`/agents/${a.id}?tab=${tab}`)}
                 onToggle={(enabled) => update.mutate({ id: a.id, patch: { enabled } })}
               />

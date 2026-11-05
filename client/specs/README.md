@@ -10,3 +10,4 @@ Add each new spec to the list below with a one-line "read when".
 - [run-cost-badge.md](run-cost-badge.md) — read when showing run/PR cost (`RunCostBadge`, PR-list COST column, timeline, trace Stats)
 - [severity-counters.md](severity-counters.md) — read when touching the findings list filters on the PR page (`SeverityCounters`, `FindingsPanel`)
 - [pr-list-findings.md](pr-list-findings.md) — read when touching the PR-list FINDINGS column/popover (`FindingsCell`), Timeline severity icons, or `SeverityTally`
+- [skills.md](skills.md) — read when changing the Skills page, skill editor/import modals or the agent Skills tab

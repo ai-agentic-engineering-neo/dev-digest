@@ -1,12 +1,12 @@
 import type { Container } from '../../platform/container.js';
 import type { Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
-import { reviewPullRequest, countBlockers } from '@devdigest/reviewer-core';
+import { reviewPullRequest, countBlockers, type SkillInput } from '@devdigest/reviewer-core';
 import { RunLogger } from '../../platform/run-logger.js';
 import * as schema from '../../db/schema.js';
 import type { AgentRow } from '../../db/rows.js';
 import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './repository.js';
 import { REVIEW_STRATEGY } from './constants.js';
-import { taskLine } from './helpers.js';
+import { taskLine, toSkillInputs } from './helpers.js';
 import { UsageTally } from './usage.js';
 import { loadDiff } from './diff-loader.js';
 
@@ -189,6 +189,12 @@ export class ReviewRunExecutor {
 
       const task = taskLine(pull) + rankNote;
 
+      // Skills — enabled skills linked to this agent, in link order. Text only:
+      // each becomes a block under "## Skills / rules"; imported (community)
+      // skills are untrusted-wrapped by the engine. A disabled skill never
+      // reaches the prompt, so it is absent from this log line and the trace.
+      const skills = await this.loadPromptSkills(workspaceId, agent, runLog);
+
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
       // the CI runner). The service owns only I/O: repo-intel context resolution
@@ -206,6 +212,7 @@ export class ReviewRunExecutor {
         ...(callersDigest ? { callers: callersDigest } : {}),
         // T3 — repo skeleton, same omit-when-empty contract.
         ...(repoMap ? { repoMap } : {}),
+        ...(skills.length > 0 ? { skills } : {}),
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
@@ -455,4 +462,28 @@ export class ReviewRunExecutor {
       log: this.container.runBus.buffer(runId).map((e) => ({ t: e.t, kind: e.kind, msg: e.msg })),
     };
   }
+
+  /** Resolve the agent's prompt skills and log what (and how many tokens) they add. */
+  private async loadPromptSkills(
+    workspaceId: string,
+    agent: AgentRow,
+    runLog: RunLogger,
+  ): Promise<SkillInput[]> {
+    const linked = await this.container.skillsRepo.promptSkillsForAgent(workspaceId, agent.id);
+    if (linked.length === 0) {
+      runLog.info('Skills: none enabled for this agent');
+      return [];
+    }
+    const skills = toSkillInputs(linked);
+    const tokens = this.container.tokenizer.count(
+      skills.map((s) => (typeof s === 'string' ? s : s.body)).join('\n\n'),
+    );
+    const names = linked.map((s) => (s.trusted ? s.name : `${s.name} (imported)`)).join(', ');
+    runLog.info(`Skills: ${linked.length} attached — ${names} (~${tokens} tokens)`, {
+      skills: linked.map((s) => ({ name: s.name, trusted: s.trusted })),
+      tokens,
+    });
+    return skills;
+  }
+
 }

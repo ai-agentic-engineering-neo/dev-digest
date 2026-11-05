@@ -20,6 +20,9 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 - 2026-11-04 — SSE uses `new EventSource(API_BASE + '/runs/:id/events')` in `hooks/reviews.ts` — the one sanctioned bypass of `api.ts` (fetch wrapper can't stream SSE) (src/lib/hooks/reviews.ts:181 → new EventSource).
 - 2026-11-04 — `Gallery` (`src/components/showcase/Showcase.tsx`) is rendered by `src/test/smoke.test.tsx` with NO `NextIntlClientProvider` → components added to `/showcase` must not call `useTranslations`; take translated strings as props (src/test/smoke.test.tsx:4 → Gallery; example: src/components/run-cost-badge/RunCostBadge.tsx:21 → RunCostBadge `tokenUnit`).
 - 2026-11-05 — The PR-list table card has `overflow: hidden` (rounded corners), so an absolutely positioned popover inside a row is clipped on the last rows → render it `position: fixed` from the trigger's `getBoundingClientRect()` and flip upward near the viewport bottom (src/app/repos/[repoId]/pulls/styles.ts:86 → s.tableCard; src/app/repos/[repoId]/pulls/_components/FindingsCell/helpers.ts:20 → placePopover).
+- 2026-11-05 — Kit `Checkbox` is a `<button role="checkbox">` inside a `<label>` and `Toggle` is a `role="switch"` button with NO label prop → in RTL query `getByRole('checkbox')` scoped `within(row)` / `getByRole('switch')`; give a Toggle an accessible hint via a wrapping `title` (src/vendor/ui/kit/Checkbox.tsx → Checkbox; src/app/skills/_components/SkillsListView/_components/SkillCard/SkillCard.tsx:49 → Toggle).
+- 2026-11-05 — Agent-card skill counts use `useQueries` with the SAME key `["agent-skills", id]` as the Skills tab, so linking in the tab updates the cards for free → invalidate exactly that key after any link change (src/lib/hooks/skills.ts:98 → useAgentSkillCounts).
+- 2026-11-05 — `/pr-self-review` blocks ANY edit in `src/vendor/shared/**` as a non-waivable critical (its "approve it yourself" hint doesn't unblock) → API types missing from `@devdigest/shared` go into `src/lib/types.ts` as local mirrors of the server module type (src/lib/types.ts:67 → SkillImportPreview; mirrors server/src/modules/skills/domain.ts).
 
 ## Tool & Library Notes
 <!-- Dependency / tooling quirks -->
@@ -36,6 +39,8 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 - 2026-11-04 — Fixed DevDigest review finding on PR #1: RunTraceDrawer tests no longer mutate the shared TRACE fixture.
 - 2026-11-04 — Severity counters/filter on the PR page via plan mode → spec → impl → tests → manual check on demo PR #5 → specs/severity-counters.md.
 - 2026-11-05 — Mentor follow-ups: PR-list FINDINGS column + "Findings in this run" popover, Timeline severity icons, zero severity levels hidden → specs/pr-list-findings.md.
+- 2026-11-05 — Skills UI: `/skills` (cards, preview drawer, create/edit, .md/.zip import preview→confirm), agent Skills tab (link/order/drag), Skills Lab nav, trace skills token estimate → specs/skills.md.
+- 2026-11-05 — pr-self-review BLOCK fix: `SkillImportPreview`/`SkillImportFile` moved from vendor/shared to `src/lib/types.ts`.
 
 ## Open Questions
 <!-- Unresolved items, known gaps -->

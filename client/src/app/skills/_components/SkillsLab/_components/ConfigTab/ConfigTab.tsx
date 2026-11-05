@@ -41,6 +41,9 @@ export function ConfigTab({
   const toast = useToast();
   const create = useCreateSkill();
   const update = useUpdateSkill();
+  // Separate mutation for the Enabled toggle: it saves at once, and sharing
+  // `update` would flip the Save button to "Saving…" on every toggle.
+  const toggle = useUpdateSkill();
   const remove = useDeleteSkill();
   const [form, setForm] = React.useState<SkillInput>(() => (skill ? formFromSkill(skill) : emptyForm()));
   const [note, setNote] = React.useState("");
@@ -127,7 +130,7 @@ export function ConfigTab({
           on={skill ? skill.enabled : enabled}
           onChange={(v) =>
             skill
-              ? update.mutate(
+              ? toggle.mutate(
                   { id: skill.id, patch: { enabled: v } },
                   { onError: (e) => toast.error(`${t("config.toggleError")}: ${errorMessage(e)}`) },
                 )

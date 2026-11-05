@@ -6,7 +6,7 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Button, Icon, ProgressBar, TextInput } from "@devdigest/ui";
-import type { ConventionCandidate } from "@devdigest/shared";
+import type { Convention } from "@/lib/types";
 import { confidenceColor, evidenceRef, nextStatusOnAccept, nextStatusOnReject } from "../../helpers";
 import { s } from "./styles";
 
@@ -16,8 +16,8 @@ export function ConventionCard({
   onRule,
   onCopied,
 }: {
-  convention: ConventionCandidate;
-  onStatus: (status: ConventionCandidate["status"]) => void;
+  convention: Convention;
+  onStatus: (status: Convention["status"]) => void;
   onRule: (rule: string) => void;
   onCopied: () => void;
 }) {

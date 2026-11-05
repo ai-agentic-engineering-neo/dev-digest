@@ -1,6 +1,6 @@
 import { simpleGit, type SimpleGit } from 'simple-git';
-import { join } from 'node:path';
-import { mkdir, readFile, access, rm } from 'node:fs/promises';
+import { isAbsolute, join, relative } from 'node:path';
+import { mkdir, readFile, realpath, access, rm } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import type {
   GitClient,
@@ -126,8 +126,19 @@ export class SimpleGitClient implements GitClient {
     }));
   }
 
+  /**
+   * Read a file of the clone. The REAL path (symlinks resolved) must stay inside
+   * the clone: a repo can ship `tsconfig.json -> ../../../.env`, and callers send
+   * file contents to an LLM. `..` / absolute paths are refused the same way.
+   */
   async readFile(repo: RepoRef, path: string): Promise<string> {
-    return readFile(join(this.clonePathFor(repo), path), 'utf8');
+    const root = await realpath(this.clonePathFor(repo));
+    const full = await realpath(join(root, path));
+    const rel = relative(root, full);
+    if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) {
+      throw new Error(`Refusing to read outside the clone: ${path}`);
+    }
+    return readFile(full, 'utf8');
   }
 }
 

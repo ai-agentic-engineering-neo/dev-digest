@@ -8,6 +8,12 @@ import { api } from "../api";
 import type { AgentSkillLink, Skill, SkillType } from "@devdigest/shared";
 import type { SkillCardStats, SkillImportPreview, SkillStats, SkillVersionRecord } from "../types";
 
+/** Every cache that shows per-skill stats (cards + Stats tab). */
+function invalidateSkillStats(qc: ReturnType<typeof useQueryClient>): void {
+  qc.invalidateQueries({ queryKey: ["skill-card-stats"] });
+  qc.invalidateQueries({ queryKey: ["skill-stats"] });
+}
+
 export function useSkills() {
   return useQuery({
     queryKey: ["skills"],
@@ -64,7 +70,10 @@ export function useCreateSkill() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: SkillInput) => api.post<Skill>("/skills", input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["skills"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["skills"] });
+      invalidateSkillStats(qc);
+    },
   });
 }
 
@@ -80,6 +89,7 @@ export function useUpdateSkill() {
     onSuccess: (_s, { id }) => {
       qc.invalidateQueries({ queryKey: ["skills"] });
       qc.invalidateQueries({ queryKey: ["skill-versions", id] });
+      invalidateSkillStats(qc);
     },
   });
 }
@@ -92,6 +102,7 @@ export function useDeleteSkill() {
       qc.invalidateQueries({ queryKey: ["skills"] });
       qc.invalidateQueries({ queryKey: ["skill-usage"] });
       qc.invalidateQueries({ queryKey: ["agent-skills"] });
+      invalidateSkillStats(qc);
     },
   });
 }
@@ -115,7 +126,10 @@ export function useImportSkill() {
   return useMutation({
     mutationFn: (input: SkillUpload & Partial<Pick<SkillInput, "name" | "description" | "type">>) =>
       api.post<Skill>("/skills/import", input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["skills"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["skills"] });
+      invalidateSkillStats(qc);
+    },
   });
 }
 
@@ -161,6 +175,7 @@ export function useSetAgentSkills(agentId: string) {
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ["agent-skills", agentId] });
       qc.invalidateQueries({ queryKey: ["skill-usage"] });
+      invalidateSkillStats(qc); // linked-agent counts + pull rate depend on links
     },
   });
 }

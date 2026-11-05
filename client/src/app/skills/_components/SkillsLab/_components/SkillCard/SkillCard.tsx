@@ -55,7 +55,7 @@ export function SkillCard({
           {skill.name}
         </span>
         <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()} title={t("card.toggleLabel")}>
-          <Toggle on={skill.enabled} onChange={onToggle} size={14} />
+          <Toggle on={skill.enabled} onChange={onToggle} size={14} label={t("card.toggleLabel")} />
         </div>
       </div>
       <div style={s.description}>{skill.description}</div>

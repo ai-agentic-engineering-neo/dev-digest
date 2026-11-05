@@ -1,9 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { ConventionStatus, SkillType } from '@devdigest/shared';
+import { SkillType } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
+import { CONVENTION_STATUSES } from './domain.js';
 import { ConventionsService } from './service.js';
 
 /**
@@ -15,6 +16,8 @@ import { ConventionsService } from './service.js';
  *   GET   /repos/:id/conventions/skill-draft  → merged `<repo>-conventions` skill draft
  *   POST  /repos/:id/conventions/skill        → save the edited draft (+ optional agent link)
  */
+
+const ConventionStatus = z.enum(CONVENTION_STATUSES);
 
 const PatchBody = z
   .object({

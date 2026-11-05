@@ -1,9 +1,8 @@
 import type { Skill, SkillSource, SkillType } from '@devdigest/shared';
 import type { Container } from '../../platform/container.js';
 import { AppError, ValidationError } from '../../platform/errors.js';
-import { MAX_SKILL_BODY_CHARS } from './constants.js';
+import { skillBodyProblem, skillNameProblem } from '../_shared/skill-name.js';
 import {
-  SKILL_NAME_PATTERN,
   STATS_WINDOW_DAYS,
   computeSkillStats,
   type SkillCardStats,
@@ -46,16 +45,13 @@ class ConflictError extends AppError {
 }
 
 function assertName(name: string): void {
-  if (!SKILL_NAME_PATTERN.test(name)) {
-    throw new ValidationError('Skill name must be kebab-case (a-z, 0-9, dashes), e.g. "no-then-chains"');
-  }
+  const problem = skillNameProblem(name);
+  if (problem) throw new ValidationError(problem);
 }
 
 function assertBody(body: string): void {
-  if (body.trim().length === 0) throw new ValidationError('Skill body is empty');
-  if (body.length > MAX_SKILL_BODY_CHARS) {
-    throw new ValidationError(`Skill body exceeds ${MAX_SKILL_BODY_CHARS} characters`);
-  }
+  const problem = skillBodyProblem(body);
+  if (problem) throw new ValidationError(problem);
 }
 
 function decodeUpload(contentBase64: string): Buffer {

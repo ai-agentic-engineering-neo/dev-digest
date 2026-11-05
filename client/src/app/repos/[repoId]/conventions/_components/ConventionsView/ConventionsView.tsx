@@ -7,7 +7,7 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Button, EmptyState, ErrorState, Skeleton } from "@devdigest/ui";
-import type { ConventionExtractResult } from "@devdigest/shared";
+import type { ConventionExtractResult } from "@/lib/types";
 import { AppShell } from "../../../../../../components/app-shell";
 import { RepoNotFound } from "../../../../../../components/repo-not-found";
 import {

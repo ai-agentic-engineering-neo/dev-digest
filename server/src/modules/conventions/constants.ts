@@ -24,3 +24,11 @@ export const EXTRACTION_MAX_TOKENS = 4_000;
 
 /** Structured-output schema name (also the MockLLM fixture key in tests). */
 export const EXTRACTION_SCHEMA_NAME = 'ConventionExtraction';
+
+/**
+ * The extractor's own default model (a cheap one). Conventions keeps its own
+ * dynamic default instead of the FEATURE_MODELS registry entry (see
+ * modules/settings/feature-models.ts); a workspace override in Settings →
+ * Feature Models wins. The client mirrors it in client/src/lib/feature-models.ts.
+ */
+export const DEFAULT_CONVENTIONS_MODEL = { provider: 'openai', model: 'gpt-4.1-mini' } as const;

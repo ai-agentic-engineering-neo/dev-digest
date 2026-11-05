@@ -5,21 +5,15 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
-import type {
-  ConventionCandidate,
-  ConventionExtractResult,
-  ConventionStatus,
-  Skill,
-  SkillType,
-} from "@devdigest/shared";
-import type { ConventionsSkillDraft } from "../types";
+import type { Skill, SkillType } from "@devdigest/shared";
+import type { Convention, ConventionExtractResult, ConventionStatus, ConventionsSkillDraft } from "../types";
 
 const key = (repoId: string) => ["conventions", repoId] as const;
 
 export function useConventions(repoId: string | null | undefined) {
   return useQuery({
     queryKey: ["conventions", repoId],
-    queryFn: () => api.get<ConventionCandidate[]>(`/repos/${repoId}/conventions`),
+    queryFn: () => api.get<Convention[]>(`/repos/${repoId}/conventions`),
     enabled: !!repoId,
   });
 }
@@ -42,11 +36,11 @@ export interface ConventionPatchInput {
 export function useUpdateConvention(repoId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, patch }: ConventionPatchInput) => api.patch<ConventionCandidate>(`/conventions/${id}`, patch),
+    mutationFn: ({ id, patch }: ConventionPatchInput) => api.patch<Convention>(`/conventions/${id}`, patch),
     onMutate: async ({ id, patch }) => {
       await qc.cancelQueries({ queryKey: key(repoId) });
-      const prev = qc.getQueryData<ConventionCandidate[]>(key(repoId));
-      qc.setQueryData<ConventionCandidate[]>(key(repoId), (list) =>
+      const prev = qc.getQueryData<Convention[]>(key(repoId));
+      qc.setQueryData<Convention[]>(key(repoId), (list) =>
         list?.map((c) => (c.id === id ? { ...c, ...patch } : c)),
       );
       return { prev };
@@ -63,7 +57,7 @@ export function useSetAllConventions(repoId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (status: ConventionStatus) =>
-      api.post<ConventionCandidate[]>(`/repos/${repoId}/conventions/status`, { status }),
+      api.post<Convention[]>(`/repos/${repoId}/conventions/status`, { status }),
     onSuccess: (list) => qc.setQueryData(key(repoId), list),
   });
 }
@@ -96,6 +90,8 @@ export function useCreateConventionsSkill(repoId: string) {
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ["skills"] });
       qc.invalidateQueries({ queryKey: ["skill-usage"] });
+      qc.invalidateQueries({ queryKey: ["skill-card-stats"] });
+      qc.invalidateQueries({ queryKey: ["skill-stats"] });
       if (res.linked_agent_id) qc.invalidateQueries({ queryKey: ["agent-skills", res.linked_agent_id] });
     },
   });

@@ -119,8 +119,16 @@ export function ConfigTab({
           {t("config.enabled")}
         </span>
         <Toggle
+          label={t("config.enabled")}
           on={skill ? skill.enabled : enabled}
-          onChange={(v) => (skill ? update.mutate({ id: skill.id, patch: { enabled: v } }) : setEnabled(v))}
+          onChange={(v) =>
+            skill
+              ? update.mutate(
+                  { id: skill.id, patch: { enabled: v } },
+                  { onError: (e) => toast.error(`${t("config.toggleError")}: ${(e as Error).message}`) },
+                )
+              : setEnabled(v)
+          }
         />
       </div>
       {!skill && <p style={s.subtitle}>{t("config.subtitle")}</p>}

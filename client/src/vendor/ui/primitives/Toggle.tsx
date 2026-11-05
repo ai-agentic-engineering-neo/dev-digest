@@ -4,16 +4,20 @@ export function Toggle({
   on,
   onChange,
   size = 18,
+  label,
 }: {
   on: boolean;
   onChange: (v: boolean) => void;
   size?: number;
+  /** Accessible name — a switch without a visible <label> needs one. */
+  label?: string;
 }) {
   return (
     <button
       onClick={() => onChange(!on)}
       role="switch"
       aria-checked={on}
+      aria-label={label}
       style={{
         width: size * 1.85,
         height: size + 4,

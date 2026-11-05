@@ -1,12 +1,8 @@
 import { and, asc, desc, eq, ne } from 'drizzle-orm';
-import {
-  FeatureModelChoice,
-  type ConventionCandidate,
-  type ConventionStatus,
-} from '@devdigest/shared';
+import { FeatureModelChoice } from '@devdigest/shared';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
-import type { GroundedConvention } from './domain.js';
+import type { Convention, ConventionStatus, GroundedConvention } from './domain.js';
 import type { ConventionPatch, ConventionsRepoRef, ConventionsRepositoryPort } from './ports.js';
 
 /**
@@ -17,7 +13,7 @@ import type { ConventionPatch, ConventionsRepoRef, ConventionsRepositoryPort } f
 
 type ConventionRow = typeof t.conventions.$inferSelect;
 
-function toCandidate(row: ConventionRow): ConventionCandidate {
+function toCandidate(row: ConventionRow): Convention {
   return {
     id: row.id,
     category: row.category ?? null,
@@ -43,7 +39,7 @@ export class ConventionsRepository implements ConventionsRepositoryPort {
     return { id: row.id, owner: row.owner, name: row.name, fullName: row.fullName, cloned: !!row.clonePath };
   }
 
-  async list(workspaceId: string, repoId: string): Promise<ConventionCandidate[]> {
+  async list(workspaceId: string, repoId: string): Promise<Convention[]> {
     const rows = await this.db
       .select()
       .from(t.conventions)
@@ -95,7 +91,7 @@ export class ConventionsRepository implements ConventionsRepositoryPort {
     });
   }
 
-  async update(workspaceId: string, id: string, patch: ConventionPatch): Promise<ConventionCandidate | undefined> {
+  async update(workspaceId: string, id: string, patch: ConventionPatch): Promise<Convention | undefined> {
     const [row] = await this.db
       .update(t.conventions)
       .set({

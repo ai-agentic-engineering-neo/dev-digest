@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import type { ConventionStatus } from "@devdigest/shared";
+import type { ConventionStatus } from "@/lib/types";
 
 export const s = {
   card: (status: ConventionStatus): CSSProperties => ({

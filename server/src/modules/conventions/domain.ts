@@ -1,4 +1,4 @@
-import type { ConventionCandidate, SkillType } from '@devdigest/shared';
+import type { SkillType } from '@devdigest/shared';
 import { toSkillSlug } from '../_shared/skill-name.js';
 
 /**
@@ -8,8 +8,37 @@ import { toSkillSlug } from '../_shared/skill-name.js';
  * line numbers are computed from that match (never taken from the model).
  */
 
+/**
+ * Contract types of the conventions API. Kept module-local on purpose:
+ * `vendor/shared` is "Do not touch" (AGENTS.md). The client mirrors these in
+ * client/src/lib/types.ts.
+ */
+export const CONVENTION_STATUSES = ['pending', 'accepted', 'rejected'] as const;
+export type ConventionStatus = (typeof CONVENTION_STATUSES)[number];
+
+/** A stored house-rule candidate (API JSON shape). */
+export interface Convention {
+  id: string;
+  category: string | null;
+  rule: string;
+  evidence_path: string;
+  evidence_snippet: string;
+  line_start: number | null;
+  line_end: number | null;
+  confidence: number;
+  status: ConventionStatus;
+}
+
+/** Result of POST /repos/:id/conventions/extract. */
+export interface ConventionExtractResult {
+  candidates: Convention[];
+  sampled_files: string[];
+  /** Model candidates dropped because their evidence could not be verified. */
+  rejected_ungrounded: number;
+}
+
 /** A candidate as the model returns it (before grounding). */
-export interface RawConventionCandidate {
+export interface RawConvention {
   category: string;
   rule: string;
   evidence_path: string;
@@ -54,7 +83,8 @@ export const MIN_SNIPPET_CHARS = 12;
 export function isSafeRelativePath(path: string): boolean {
   if (!path || path.includes('\0')) return false;
   if (path.startsWith('/') || path.startsWith('\\') || /^[a-zA-Z]:/.test(path)) return false;
-  return !path.split(/[\\/]/).some((seg) => seg === '..');
+  // `.git/` holds the remote config (possibly a token in the URL) — never read it.
+  return !path.split(/[\\/]/).some((seg) => seg === '..' || seg.toLowerCase() === '.git');
 }
 
 /** `./src/a.ts` / `src\a.ts` → `src/a.ts`. */
@@ -105,7 +135,7 @@ export function ruleKey(rule: string): string {
  * Returns the verified convention or the reason it was dropped.
  */
 export function groundCandidate(
-  raw: RawConventionCandidate,
+  raw: RawConvention,
   content: string | null,
 ): { ok: true; value: GroundedConvention } | { ok: false; reason: GroundingFailure } {
   const path = normalizeRepoPath(raw.evidence_path);
@@ -146,7 +176,7 @@ export function dedupeConventions(items: GroundedConvention[], acceptedRules: st
 }
 
 /** `src/a.ts:23-31` (or `:23` for one line). */
-export function evidenceRef(c: Pick<ConventionCandidate, 'evidence_path' | 'line_start' | 'line_end'>): string {
+export function evidenceRef(c: Pick<Convention, 'evidence_path' | 'line_start' | 'line_end'>): string {
   if (c.line_start == null) return c.evidence_path;
   const range = c.line_end != null && c.line_end !== c.line_start ? `${c.line_start}-${c.line_end}` : `${c.line_start}`;
   return `${c.evidence_path}:${range}`;
@@ -173,7 +203,7 @@ function fenceFor(text: string): string {
  * "Create skill from conventions"). Each rule becomes a section with its
  * verified evidence, so the reviewer can cite the house pattern.
  */
-export function buildConventionsSkillDraft(repoName: string, accepted: ConventionCandidate[]): ConventionsSkillDraft {
+export function buildConventionsSkillDraft(repoName: string, accepted: Convention[]): ConventionsSkillDraft {
   const repoSlug = toSkillSlug(repoName) || 'repo';
   const name = `${repoSlug}-conventions`.slice(0, 64).replace(/-+$/, '');
   const lines: string[] = [

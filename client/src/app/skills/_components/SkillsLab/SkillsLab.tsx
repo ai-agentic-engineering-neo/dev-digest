@@ -12,6 +12,7 @@ import { Button, Dropdown, EmptyState, ErrorState, Icon, Skeleton } from "@devdi
 import type { Skill } from "@devdigest/shared";
 import { AppShell } from "../../../../components/app-shell";
 import { useSkillCardStats, useSkillUsage, useSkills, useUpdateSkill } from "../../../../lib/hooks/skills";
+import { useToast } from "../../../../lib/toast";
 import { ImportSkillModal } from "./_components/ImportSkillModal";
 import { SkillCard } from "./_components/SkillCard";
 import { SkillDetail } from "./_components/SkillDetail";
@@ -29,6 +30,7 @@ export function SkillsLab() {
   const { data: usage } = useSkillUsage();
   const { data: cardStats } = useSkillCardStats();
   const update = useUpdateSkill();
+  const toast = useToast();
   const [query, setQuery] = React.useState("");
   const [importing, setImporting] = React.useState(false);
   const dirtyRef = React.useRef(false);
@@ -114,7 +116,12 @@ export function SkillsLab() {
                 usedBy={usage?.[sk.id] ?? 0}
                 active={!creating && sk.id === selected?.id}
                 onClick={() => go({ id: sk.id, tab, create: false })}
-                onToggle={(enabled) => update.mutate({ id: sk.id, patch: { enabled } })}
+                onToggle={(enabled) =>
+                  update.mutate(
+                    { id: sk.id, patch: { enabled } },
+                    { onError: (e) => toast.error(`${t("config.toggleError")}: ${(e as Error).message}`) },
+                  )
+                }
               />
             ))}
           </div>

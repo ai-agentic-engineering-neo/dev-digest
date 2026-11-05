@@ -141,33 +141,15 @@ export const CommunitySkill = z.object({
 export type CommunitySkill = z.infer<typeof CommunitySkill>;
 
 // ---- Conventions ----
-// A house-rule surfaced by the Conventions Extractor. Evidence is verified by
-// code before it is stored: the file exists and the snippet is really in it;
-// `line_start`/`line_end` come from that match, not from the model.
-export const ConventionStatus = z.enum(['pending', 'accepted', 'rejected']);
-export type ConventionStatus = z.infer<typeof ConventionStatus>;
-
 export const ConventionCandidate = z.object({
   id: z.string(),
-  category: z.string().nullable(),
   rule: z.string(),
   evidence_path: z.string(),
   evidence_snippet: z.string(),
-  line_start: z.number().int().nullable(),
-  line_end: z.number().int().nullable(),
   confidence: z.number().min(0).max(1),
-  status: ConventionStatus,
+  accepted: z.boolean(),
 });
 export type ConventionCandidate = z.infer<typeof ConventionCandidate>;
-
-/** Result of POST /repos/:id/conventions/extract. */
-export const ConventionExtractResult = z.object({
-  candidates: z.array(ConventionCandidate),
-  sampled_files: z.array(z.string()),
-  /** Model candidates dropped because their evidence could not be verified. */
-  rejected_ungrounded: z.number().int(),
-});
-export type ConventionExtractResult = z.infer<typeof ConventionExtractResult>;
 
 // ---- Agents ----
 export const Provider = z.enum(['openai', 'anthropic', 'openrouter']);

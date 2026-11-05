@@ -83,9 +83,19 @@ Errors:
 - 409: a skill with that name already exists.
 
 ### Contracts
-In `@devdigest/shared` (`knowledge.ts`, both copies): `ConventionStatus`, `ConventionCandidate`
-(with `category`, lines, `status`) and `ConventionExtractResult`. The skill draft type is local to
-the module; the client mirrors it in `src/lib/types.ts`.
+Module-local (`vendor/shared` is "Do not touch"): `Convention`, `ConventionStatus`,
+`ConventionExtractResult`, `ConventionsSkillDraft` in `domain.ts`; the client mirrors them in
+`src/lib/types.ts`. The default model `openai / gpt-4.1-mini` is the module's own
+(`DEFAULT_CONVENTIONS_MODEL`), mirrored in `client/src/lib/feature-models.ts`; the shared
+`FEATURE_MODELS` registry entry is untouched.
+
+### Safety
+- `isSafeRelativePath` also refuses any `.git` segment (remote config may carry a token).
+- `SimpleGitClient.readFile` resolves the **real** path and refuses anything outside the clone, so a
+  repo-shipped symlink (`tsconfig.json -> ../../../.env`) cannot leak files to the model.
+- `conventions_status_check` (migration `0014`) enforces the status enum in the DB.
+- Saving the skill and linking it to the agent happen in **one transaction**
+  (`skillsRepo.insert({ linkAgentId })`), so a failed link leaves no orphan skill.
 
 ## Acceptance criteria
 1. Grounding keeps only real evidence:

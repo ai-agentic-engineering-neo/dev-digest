@@ -115,9 +115,15 @@ describe('ConventionsService', () => {
       llm: async () => llm,
       skillsRepo: {
         getByName: async (_ws: string, name: string) => skills.find((s) => s.name === name),
-        insert: async (v: Omit<Skill, 'id' | 'version'> & { evidenceFiles?: string[] | null }) => {
-          const s = { ...v, id: `s${skills.length + 1}`, version: 1, enabled: v.enabled ?? true } as Skill;
+        insert: async (
+          v: Omit<Skill, 'id' | 'version'> & { evidenceFiles?: string[] | null; linkAgentId?: string | null },
+        ) => {
+          const { linkAgentId, ...rest } = v;
+          const s = { ...rest, id: `s${skills.length + 1}`, version: 1, enabled: v.enabled ?? true } as Skill;
           skills.push(s);
+          if (linkAgentId) {
+            links.push({ agentId: linkAgentId, skillId: s.id, order: links.filter((l) => l.agentId === linkAgentId).length });
+          }
           return s;
         },
       },

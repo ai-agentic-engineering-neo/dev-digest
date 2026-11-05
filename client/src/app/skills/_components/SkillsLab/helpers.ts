@@ -47,10 +47,7 @@ export function formatPct(rate: number | null | undefined): string {
   return rate == null ? "—" : `${Math.round(rate * 100)}%`;
 }
 
-/** Rough token estimate (~4 chars per token), same heuristic as the run trace. */
-export function approxTokens(text: string): number {
-  return Math.ceil(text.length / 4);
-}
+export { approxTokens } from "@/lib/tokens";
 
 export type DiffLine = { kind: "same" | "add" | "del"; text: string };
 

@@ -18,3 +18,19 @@ export function toSkillSlug(raw: string): string {
 
 /** Max skill body length (chars) — a skill is prompt text, keep it bounded. */
 export const MAX_SKILL_BODY_CHARS = 50_000;
+
+/**
+ * Name + body rules for any skill a module creates. Pure: returns the
+ * user-facing problem (callers throw their ValidationError), or null.
+ */
+export function skillNameProblem(name: string): string | null {
+  return SKILL_NAME_PATTERN.test(name)
+    ? null
+    : 'Skill name must be kebab-case (a-z, 0-9, dashes), e.g. "no-then-chains"';
+}
+
+export function skillBodyProblem(body: string): string | null {
+  if (body.trim().length === 0) return 'Skill body is empty';
+  if (body.length > MAX_SKILL_BODY_CHARS) return `Skill body exceeds ${MAX_SKILL_BODY_CHARS} characters`;
+  return null;
+}

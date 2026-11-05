@@ -115,3 +115,28 @@ export interface SkillStats extends SkillCardStats {
   by_category: { category: string; count: number }[];
   window_days: number;
 }
+
+/**
+ * Conventions Extractor API shapes. Not in @devdigest/shared (vendor/shared is
+ * "Do not touch"): mirrors server/src/modules/conventions/domain.ts.
+ * TODO: reconcile with @devdigest/shared when the contracts are next synced.
+ */
+export type ConventionStatus = "pending" | "accepted" | "rejected";
+
+export interface Convention {
+  id: string;
+  category: string | null;
+  rule: string;
+  evidence_path: string;
+  evidence_snippet: string;
+  line_start: number | null;
+  line_end: number | null;
+  confidence: number;
+  status: ConventionStatus;
+}
+
+export interface ConventionExtractResult {
+  candidates: Convention[];
+  sampled_files: string[];
+  rejected_ungrounded: number;
+}

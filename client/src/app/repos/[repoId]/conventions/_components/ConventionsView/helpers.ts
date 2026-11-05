@@ -1,8 +1,8 @@
-import type { ConventionCandidate } from "@devdigest/shared";
+import type { Convention } from "@/lib/types";
 import { CONFIDENCE_OK, CONFIDENCE_WARN } from "./constants";
 
 /** `src/a.ts:23-31` (or `:23` for one line) — same format as the server's skill body. */
-export function evidenceRef(c: Pick<ConventionCandidate, "evidence_path" | "line_start" | "line_end">): string {
+export function evidenceRef(c: Pick<Convention, "evidence_path" | "line_start" | "line_end">): string {
   if (c.line_start == null) return c.evidence_path;
   const range = c.line_end != null && c.line_end !== c.line_start ? `${c.line_start}-${c.line_end}` : `${c.line_start}`;
   return `${c.evidence_path}:${range}`;
@@ -15,15 +15,15 @@ export function confidenceColor(confidence: number): string {
   return "var(--crit)";
 }
 
-export function countAccepted(list: ConventionCandidate[]): number {
+export function countAccepted(list: Convention[]): number {
   return list.filter((c) => c.status === "accepted").length;
 }
 
 /** Clicking the "Accepted" button again un-accepts (back to pending). */
-export function nextStatusOnAccept(c: ConventionCandidate): ConventionCandidate["status"] {
+export function nextStatusOnAccept(c: Convention): Convention["status"] {
   return c.status === "accepted" ? "pending" : "accepted";
 }
 
-export function nextStatusOnReject(c: ConventionCandidate): ConventionCandidate["status"] {
+export function nextStatusOnReject(c: Convention): Convention["status"] {
   return c.status === "rejected" ? "pending" : "rejected";
 }

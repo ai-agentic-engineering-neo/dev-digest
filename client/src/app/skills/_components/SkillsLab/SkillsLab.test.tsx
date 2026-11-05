@@ -120,7 +120,7 @@ describe("SkillsLab — list", () => {
     expect(replace).toHaveBeenLastCalledWith("/skills?id=s1&tab=versions");
     replace.mockClear();
     fireEvent.click(within(screen.getByTestId("skill-card-api-versioning")).getByRole("switch"));
-    expect(updateMutate).toHaveBeenCalledWith({ id: "s2", patch: { enabled: false } });
+    expect(updateMutate).toHaveBeenCalledWith({ id: "s2", patch: { enabled: false } }, expect.anything());
     expect(replace).not.toHaveBeenCalled();
   });
 
@@ -251,8 +251,8 @@ describe("SkillsLab — Preview / Evals / Stats / Versions", () => {
     const diff = screen.getByTestId("skill-diff").textContent ?? "";
     expect(diff).toContain("- line b");
     expect(diff).toContain("+ line c");
-    const closes = screen.getAllByRole("button", { name: "Close" });
-    fireEvent.click(closes[closes.length - 1]!);
+    const dialog = within(screen.getByRole("dialog"));
+    fireEvent.click(dialog.getByText("Close", { selector: "button" }));
     expect(screen.queryByTestId("skill-diff")).toBeNull();
 
     vi.spyOn(window, "confirm").mockReturnValue(true);

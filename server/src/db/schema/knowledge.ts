@@ -1,4 +1,5 @@
-import { pgTable, uuid, text, jsonb, timestamp, doublePrecision, integer, vector, index } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import { pgTable, uuid, text, jsonb, timestamp, doublePrecision, integer, vector, index, check } from 'drizzle-orm/pg-core';
 import { now } from './_shared';
 import { workspaces } from './core';
 import { repos } from './repos';
@@ -45,4 +46,7 @@ export const conventions = pgTable('conventions', {
   lineEnd: integer('line_end'),
   status: text('status', { enum: ['pending', 'accepted', 'rejected'] }).notNull().default('pending'),
   createdAt: now(),
-});
+}, (t) => ({
+  // The text enum is TS-only; enforce it in the DB too.
+  statusCheck: check('conventions_status_check', sql`${t.status} in ('pending', 'accepted', 'rejected')`),
+}));

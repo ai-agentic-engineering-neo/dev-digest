@@ -24,6 +24,7 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 - 2026-11-05 — Agent-card skill counts use `useQueries` with the SAME key `["agent-skills", id]` as the Skills tab, so linking in the tab updates the cards for free → invalidate exactly that key after any link change (src/lib/hooks/skills.ts:98 → useAgentSkillCounts).
 - 2026-11-05 — `/pr-self-review` blocks ANY edit in `src/vendor/shared/**` as a non-waivable critical (its "approve it yourself" hint doesn't unblock) → API types missing from `@devdigest/shared` go into `src/lib/types.ts` as local mirrors of the server module type (src/lib/types.ts:67 → SkillImportPreview; mirrors server/src/modules/skills/domain.ts).
 - 2026-11-05 — Master-detail pages keep selection + tab in the URL (`/skills?id&tab`, `?new=1`) and wrap the page in `<Suspense>` (useSearchParams on a static route); unsaved Config edits are tracked in a ref and guarded with `window.confirm` on navigation (src/app/skills/_components/SkillsLab/SkillsLab.tsx).
+- 2026-11-05 — Every `Toggle` needs an accessible name: pass `label` (→ aria-label) when there is no visible <label>; every mutate from a toggle needs `onError` → toast (src/vendor/ui/primitives/Toggle.tsx).
 
 ## Tool & Library Notes
 <!-- Dependency / tooling quirks -->

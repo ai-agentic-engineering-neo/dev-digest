@@ -91,6 +91,17 @@ export class SkillsRepository implements SkillsRepositoryPort {
           body: row!.body,
           note: versionNote(values.note, true),
         });
+      if (values.linkAgentId) {
+        // Atomic with the insert: a failed link must not leave an orphan skill
+        // whose retry then hits 409 on the name.
+        const [{ n } = { n: 0 }] = await tx
+          .select({ n: count() })
+          .from(t.agentSkills)
+          .where(eq(t.agentSkills.agentId, values.linkAgentId));
+        await tx
+          .insert(t.agentSkills)
+          .values({ agentId: values.linkAgentId, skillId: row!.id, order: Number(n) });
+      }
       return toSkill(row!);
     });
   }

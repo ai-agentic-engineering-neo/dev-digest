@@ -18,6 +18,8 @@ export interface NewSkill extends SkillContent {
   evidenceFiles?: string[] | null;
   /** Note for the v1 row (default "Initial version"). */
   note?: string;
+  /** Also link the new skill to this agent (appended last) in the SAME transaction. */
+  linkAgentId?: string | null;
 }
 
 export interface SkillPatch {

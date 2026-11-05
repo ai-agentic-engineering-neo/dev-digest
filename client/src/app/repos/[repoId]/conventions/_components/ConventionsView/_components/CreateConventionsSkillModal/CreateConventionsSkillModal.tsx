@@ -158,7 +158,7 @@ export function CreateConventionsSkillModal({
             </FormField>
             <FormField label={t("modal.enabled")} hint={t("modal.enabledHint")}>
               <div style={s.toggleRow}>
-                <Toggle on={form.enabled} onChange={(v) => set("enabled", v)} />
+                <Toggle label={t("modal.enabled")} on={form.enabled} onChange={(v) => set("enabled", v)} />
               </div>
             </FormField>
           </div>

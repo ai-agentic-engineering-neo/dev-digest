@@ -26,6 +26,7 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 - 2026-11-05 — Rules shared by two modules go to `modules/_shared/` (allowed by `no-cross-module-imports`), re-exported from the owner for back-compat: skill name/size rules (src/modules/_shared/skill-name.ts).
 - 2026-11-05 — LLM-proposed evidence is never trusted: conventions are kept only if the snippet is found in the real file, and lines/snippet are rewritten from that match (src/modules/conventions/domain.ts → groundCandidate).
 - 2026-11-05 — Per-skill metrics need explicit run attribution: `run_skills` (run, skill, version, position) is written by the executor after prompt assembly, best-effort; stats start at the workspace's first attributed run so pre-attribution runs don't read as 0% pull (src/modules/skills/repository.ts → statsData).
+- 2026-11-05 — `GitClient.readFile` callers may send content to an LLM: the adapter resolves the real path and refuses anything outside the clone (symlink escape); callers also refuse `.git` segments (src/adapters/git/simple-git.ts → readFile).
 
 ## Tool & Library Notes
 <!-- Dependency / tooling quirks -->
@@ -43,6 +44,7 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 - 2026-11-05 — The PR #12 review claimed `@devdigest/shared` resolves to `node_modules/@devdigest/shared` — false: tsconfig `paths` resolves it to `src/vendor/shared/index.ts` (`aliased-tsconfig-paths`) → match rules on `^src/vendor/shared/`; verify reviewer claims with a probe file before applying their suggested fix (tsconfig.json → paths).
 - 2026-11-05 — A skill .zip made with PowerShell 5.1 `Compress-Archive` failed import with "Archive must contain SKILL.md": it stores entries as `dir\SKILL.md`, which the zip-slip guard flagged as unsafe (unit-test zips used `/`, so tests were green) → normalize `\`→`/` when reading the central directory, then reject `..`/absolute/drive paths; test imports with a real Windows-made zip (src/modules/skills/import/zip-reader.ts:80 → listZipEntries; src/modules/skills/import/skill-import.ts:43 → isUnsafePath).
 - 2026-11-05 — CORRECTION of 2026-11-04 entry (indexer-pipeline ENOENT): fixed — `writeFileAt` now does `mkdir(dirname(full))`, all 131 server unit tests pass on Windows → a failure there is now a real regression, not the known Windows issue (test/indexer-pipeline.test.ts:140 → writeFileAt).
+- 2026-11-05 — pr-self-review BLOCK again for editing `vendor/shared` (ConventionCandidate shape + FEATURE_MODELS default): keep new/changed API shapes module-local + mirrored in client/src/lib/types.ts, and keep a feature's own default model in its module (src/modules/conventions/constants.ts → DEFAULT_CONVENTIONS_MODEL).
 
 ## Session Notes
 <!-- Wrap-up: one dated line per substantive task -->
@@ -61,3 +63,5 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 <!-- Unresolved items, known gaps -->
 - 2026-11-04 — `GET /runs/:id/events`, `POST /runs/:id/cancel`, `GET /runs/:id/trace`, `GET /repos/:id/index-state` call `getContext` but ignore `workspaceId` (harmless while single-workspace) → scope them before adding real auth (src/modules/reviews/routes.ts:49/:114/:121, src/modules/repo-intel/routes.ts:33).
 - 2026-11-05 — Conventions sampling is rank-driven and came out client-only on this monorepo (12 of 12 top files under client/); consider per-package quotas so server conventions are sampled too (src/modules/conventions/service.ts → sample).
+- 2026-11-05 — Integration tests intermittently skip (`Docker not available`) or fail when the full suite runs in parallel: `dockerAvailable()` times out under load (test/helpers/pg.ts); consider a longer timeout or running `.it.test.ts` files sequentially.
+- 2026-11-05 — Shared `FEATURE_MODELS` still lists `gpt-5.4` as the conventions default while the module uses `gpt-4.1-mini` (Settings shows the client mirror); reconcile when vendor/shared is next synced.

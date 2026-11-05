@@ -1,16 +1,13 @@
 import {
-  FEATURE_MODELS,
-  type ConventionCandidate,
-  type ConventionExtractResult,
-  type ConventionStatus,
   type FeatureModelChoice,
   type Skill,
   type SkillType,
 } from '@devdigest/shared';
 import type { Container } from '../../platform/container.js';
 import { AppError, NotFoundError, ValidationError } from '../../platform/errors.js';
-import { MAX_SKILL_BODY_CHARS, SKILL_NAME_PATTERN } from '../_shared/skill-name.js';
+import { skillBodyProblem, skillNameProblem } from '../_shared/skill-name.js';
 import {
+  DEFAULT_CONVENTIONS_MODEL,
   EXTRACTION_MAX_TOKENS,
   EXTRACTION_SCHEMA_NAME,
   MAX_CONFIG_FILE_CHARS,
@@ -25,6 +22,9 @@ import {
   groundCandidate,
   isSafeRelativePath,
   normalizeRepoPath,
+  type Convention,
+  type ConventionExtractResult,
+  type ConventionStatus,
   type ConventionsSkillDraft,
   type GroundedConvention,
 } from './domain.js';
@@ -65,10 +65,7 @@ class ConflictError extends AppError {
   }
 }
 
-const DEFAULT_MODEL: FeatureModelChoice = (() => {
-  const def = FEATURE_MODELS.find((f) => f.id === 'conventions');
-  return { provider: def?.defaultProvider ?? 'openai', model: def?.defaultModel ?? 'gpt-4.1-mini' };
-})();
+const DEFAULT_MODEL: FeatureModelChoice = { ...DEFAULT_CONVENTIONS_MODEL };
 
 const looksBinary = (s: string): boolean => s.includes('\0');
 
@@ -90,7 +87,7 @@ export class ConventionsService {
     return repo;
   }
 
-  list(workspaceId: string, repoId: string): Promise<ConventionCandidate[]> {
+  list(workspaceId: string, repoId: string): Promise<Convention[]> {
     return this.requireRepo(workspaceId, repoId).then(() => this.repo.list(workspaceId, repoId));
   }
 
@@ -201,7 +198,7 @@ export class ConventionsService {
     workspaceId: string,
     id: string,
     patch: { status?: ConventionStatus; rule?: string },
-  ): Promise<ConventionCandidate> {
+  ): Promise<Convention> {
     const rule = patch.rule?.trim();
     if (patch.rule !== undefined && !rule) throw new ValidationError('Rule text is empty');
     const updated = await this.repo.update(workspaceId, id, { status: patch.status, rule });
@@ -210,7 +207,7 @@ export class ConventionsService {
   }
 
   /** "Deselect all" (→ pending) / "Accept all" for the repo's candidates. */
-  async setAll(workspaceId: string, repoId: string, status: ConventionStatus): Promise<ConventionCandidate[]> {
+  async setAll(workspaceId: string, repoId: string, status: ConventionStatus): Promise<Convention[]> {
     await this.requireRepo(workspaceId, repoId);
     await this.repo.setAllStatus(workspaceId, repoId, status);
     return this.repo.list(workspaceId, repoId);
@@ -239,13 +236,8 @@ export class ConventionsService {
     input: CreateConventionsSkillInput,
   ): Promise<CreateConventionsSkillResult> {
     const { accepted } = await this.acceptedFor(workspaceId, repoId);
-    if (!SKILL_NAME_PATTERN.test(input.name)) {
-      throw new ValidationError('Skill name must be kebab-case (a-z, 0-9, dashes)');
-    }
-    if (!input.body.trim()) throw new ValidationError('Skill body is empty');
-    if (input.body.length > MAX_SKILL_BODY_CHARS) {
-      throw new ValidationError(`Skill body exceeds ${MAX_SKILL_BODY_CHARS} characters`);
-    }
+    const problem = skillNameProblem(input.name) ?? skillBodyProblem(input.body);
+    if (problem) throw new ValidationError(problem);
     if (await this.deps.skillsRepo.getByName(workspaceId, input.name)) {
       throw new ConflictError(`A skill named "${input.name}" already exists`);
     }
@@ -263,12 +255,8 @@ export class ConventionsService {
       enabled: input.enabled ?? true,
       source: 'extracted',
       evidenceFiles: [...new Set(accepted.map((c) => c.evidence_path))],
+      linkAgentId: agentId, // same transaction as the insert
     });
-
-    if (agentId) {
-      const links = await this.deps.agentsRepo.linkedSkills(agentId);
-      await this.deps.agentsRepo.linkSkill(agentId, skill.id, links.length);
-    }
     return { skill, linked_agent_id: agentId };
   }
 }

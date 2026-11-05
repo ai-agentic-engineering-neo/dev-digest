@@ -1,7 +1,8 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
-import type { Agent, ConventionCandidate } from "@devdigest/shared";
+import type { Agent } from "@devdigest/shared";
+import type { Convention } from "@/lib/types";
 import type { ConventionsSkillDraft } from "@/lib/types";
 import conventionsMessages from "../../../../../../../messages/en/conventions.json";
 import skillsMessages from "../../../../../../../messages/en/skills.json";
@@ -14,7 +15,7 @@ const updateMutate = vi.fn();
 const setAllMutate = vi.fn();
 const extractMutate = vi.fn();
 const createMutateAsync = vi.fn();
-let list: ConventionCandidate[] = [];
+let list: Convention[] = [];
 let draft: ConventionsSkillDraft | undefined;
 
 vi.mock("../../../../../../lib/hooks/conventions", () => ({
@@ -50,7 +51,7 @@ afterEach(() => {
   draft = undefined;
 });
 
-const conv = (over: Partial<ConventionCandidate>): ConventionCandidate => ({
+const conv = (over: Partial<Convention>): Convention => ({
   id: "c1",
   category: "async",
   rule: "Always use async/await instead of .then() chains",

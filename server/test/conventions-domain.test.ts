@@ -62,6 +62,9 @@ describe('isSafeRelativePath', () => {
     ['/etc/passwd', false],
     ['C:\\Windows\\x', false],
     ['', false],
+    ['.git/config', false],
+    ['sub/.GIT/HEAD', false],
+    ['src/.github/workflows/ci.yml', true],
   ])('%s → %s', (p, ok) => expect(isSafeRelativePath(p)).toBe(ok));
 });
 

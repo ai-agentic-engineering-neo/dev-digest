@@ -128,8 +128,9 @@ export class SimpleGitClient implements GitClient {
 
   /**
    * Read a file of the clone. The REAL path (symlinks resolved) must stay inside
-   * the clone: a repo can ship `tsconfig.json -> ../../../.env`, and callers send
-   * file contents to an LLM. `..` / absolute paths are refused the same way.
+   * the clone and outside `.git/`: a repo can ship `tsconfig.json -> ../../../.env`
+   * or `tsconfig.json -> .git/config` (remote URL, possibly with a token), and
+   * callers send file contents to an LLM. `..` / absolute paths are refused too.
    */
   async readFile(repo: RepoRef, path: string): Promise<string> {
     const root = await realpath(this.clonePathFor(repo));
@@ -137,6 +138,9 @@ export class SimpleGitClient implements GitClient {
     const rel = relative(root, full);
     if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) {
       throw new Error(`Refusing to read outside the clone: ${path}`);
+    }
+    if (rel.split(/[\\/]/).some((seg) => seg.toLowerCase() === '.git')) {
+      throw new Error(`Refusing to read git metadata: ${path}`);
     }
     return readFile(full, 'utf8');
   }

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { ChatMessage } from '@devdigest/shared';
+import { wrapUntrusted } from '@devdigest/reviewer-core';
 import { MAX_CANDIDATES } from './constants.js';
 
 /**
@@ -43,18 +44,22 @@ export interface SampledFile {
   truncated: boolean;
 }
 
+/** Neutralize our own `<file>` delimiter inside repo text (same trick as wrapUntrusted). */
+export function neutralizeFileTags(text: string): string {
+  return text.replace(/<(?=\s*\/?\s*file\b)/gi, '<\\');
+}
+
 export function buildExtractionMessages(repoFullName: string, files: SampledFile[]): ChatMessage[] {
   const blocks = files.map(
     (f) =>
-      `<file path="${f.path}" kind="${f.kind}"${f.truncated ? ' truncated="true"' : ''}>\n${f.content}\n</file>`,
+      `<file path="${f.path.replace(/"/g, '&quot;')}" kind="${f.kind}"${f.truncated ? ' truncated="true"' : ''}>\n${neutralizeFileTags(f.content)}\n</file>`,
   );
   return [
     { role: 'system', content: EXTRACTION_SYSTEM_PROMPT },
     {
       role: 'user',
-      content: `Repository: ${repoFullName}\nSampled files (${files.length}):\n\n<untrusted source="repository">\n${blocks.join(
-        '\n\n',
-      )}\n</untrusted>`,
+      // wrapUntrusted neutralizes any `</untrusted>` (any case/spacing) inside repo text.
+      content: `Repository: ${repoFullName}\nSampled files (${files.length}):\n\n${wrapUntrusted('repository', blocks.join('\n\n'))}`,
     },
   ];
 }

@@ -26,6 +26,10 @@ describe('SimpleGitClient.readFile — clone boundary', () => {
     symlinkSync(outside, join(clone, 'linked'), 'junction');
     mkdirSync(join(clone, 'inner'), { recursive: true });
     symlinkSync(join(clone, 'src'), join(clone, 'inner', 'src-link'), 'junction');
+    // git metadata inside the clone, reachable through an in-clone link
+    mkdirSync(join(clone, '.git'), { recursive: true });
+    writeFileSync(join(clone, '.git', 'config'), '[remote "origin"]\n\turl = https://x:ghp_token@github.com/a/b\n');
+    symlinkSync(join(clone, '.git'), join(clone, 'cfg'), 'junction');
     client = new SimpleGitClient(clones);
   });
   afterAll(() => rmSync(base, { recursive: true, force: true }));
@@ -38,5 +42,10 @@ describe('SimpleGitClient.readFile — clone boundary', () => {
   it('refuses a link that resolves outside the clone, and .. paths', async () => {
     await expect(client.readFile(repo, 'linked/secret.env')).rejects.toThrow(/outside the clone/);
     await expect(client.readFile(repo, '../../../outside/secret.env')).rejects.toThrow(/outside the clone/);
+  });
+
+  it('refuses .git metadata, directly or through a link that stays inside the clone', async () => {
+    await expect(client.readFile(repo, '.git/config')).rejects.toThrow(/git metadata/);
+    await expect(client.readFile(repo, 'cfg/config')).rejects.toThrow(/git metadata/);
   });
 });

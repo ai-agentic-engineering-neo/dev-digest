@@ -26,7 +26,7 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 - 2026-11-05 — Rules shared by two modules go to `modules/_shared/` (allowed by `no-cross-module-imports`), re-exported from the owner for back-compat: skill name/size rules (src/modules/_shared/skill-name.ts).
 - 2026-11-05 — LLM-proposed evidence is never trusted: conventions are kept only if the snippet is found in the real file, and lines/snippet are rewritten from that match (src/modules/conventions/domain.ts → groundCandidate).
 - 2026-11-05 — Per-skill metrics need explicit run attribution: `run_skills` (run, skill, version, position) is written by the executor after prompt assembly, best-effort; stats start at the workspace's first attributed run so pre-attribution runs don't read as 0% pull (src/modules/skills/repository.ts → statsData).
-- 2026-11-05 — `GitClient.readFile` callers may send content to an LLM: the adapter resolves the real path and refuses anything outside the clone (symlink escape); callers also refuse `.git` segments (src/adapters/git/simple-git.ts → readFile).
+- 2026-11-05 — `GitClient.readFile` callers may send content to an LLM: the adapter resolves the real path and refuses anything outside the clone (symlink escape); the RESOLVED path must also have no `.git` segment — an in-clone link `x -> .git/config` passes the boundary check (src/adapters/git/simple-git.ts → readFile).
 
 ## Tool & Library Notes
 <!-- Dependency / tooling quirks -->

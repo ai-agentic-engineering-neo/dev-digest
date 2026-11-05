@@ -91,8 +91,11 @@ Module-local (`vendor/shared` is "Do not touch"): `Convention`, `ConventionStatu
 
 ### Safety
 - `isSafeRelativePath` also refuses any `.git` segment (remote config may carry a token).
-- `SimpleGitClient.readFile` resolves the **real** path and refuses anything outside the clone, so a
-  repo-shipped symlink (`tsconfig.json -> ../../../.env`) cannot leak files to the model.
+- `SimpleGitClient.readFile` resolves the **real** path and refuses anything outside the clone **or under
+  `.git/`**, so a repo-shipped symlink (`tsconfig.json -> ../../../.env` or `-> .git/config`) cannot leak
+  files to the model.
+- Repo text goes through reviewer-core `wrapUntrusted()`; `<file>` delimiters inside it are neutralized
+  and quotes in paths escaped, so a file can't close the wrapper or fake another file.
 - `conventions_status_check` (migration `0014`) enforces the status enum in the DB.
 - Saving the skill and linking it to the agent happen in **one transaction**
   (`skillsRepo.insert({ linkAgentId })`), so a failed link leaves no orphan skill.

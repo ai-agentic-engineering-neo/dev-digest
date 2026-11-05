@@ -10,6 +10,7 @@ import {
   API_CONTRACT_REVIEWER_PROMPT,
 } from './seed-prompts.js';
 import { RETIRED_SEED_SKILLS, SEED_AGENT_SKILLS, SEED_SKILLS } from './seed-skills.js';
+import { versionNote } from '../modules/skills/domain.js';
 
 /** Default provider/model for the built-in reviewer agents. */
 const DEFAULT_PROVIDER = 'openrouter' as const;
@@ -284,7 +285,11 @@ async function seedSkills(db: Db, workspaceId: string): Promise<void> {
         .insert(t.skills)
         .values({ workspaceId, ...sk, source: 'manual', enabled: true, version: 1 })
         .returning({ id: t.skills.id });
-      await tx.insert(t.skillVersions).values({ skillId: row!.id, version: 1, body: sk.body });
+      // note: migration 0013 only back-fills rows that already exist, so on a fresh DB
+      // (CI e2e) a null note would render as the 'Updated' fallback, not 'Initial version'.
+      await tx
+        .insert(t.skillVersions)
+        .values({ skillId: row!.id, version: 1, body: sk.body, note: versionNote(null, true) });
       return row!.id;
     });
     created.set(sk.name, skillId);

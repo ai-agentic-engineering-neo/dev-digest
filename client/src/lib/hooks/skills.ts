@@ -9,6 +9,14 @@ import { OWN_ERROR_TOAST } from "../error-message";
 import type { AgentSkillLink, Skill, SkillType } from "@devdigest/shared";
 import type { SkillCardStats, SkillImportPreview, SkillStats, SkillVersionRecord } from "../types";
 
+/** Put a just-saved skill into the ["skills"] list (sorted by name, like the API) so a
+ *  page that selects it by id finds it before the refetch lands. */
+function addToSkillList(qc: ReturnType<typeof useQueryClient>, skill: Skill): void {
+  qc.setQueryData<Skill[]>(["skills"], (list) =>
+    list && [...list.filter((sk) => sk.id !== skill.id), skill].sort((a, b) => a.name.localeCompare(b.name)),
+  );
+}
+
 /** Every cache that shows per-skill stats (cards + Stats tab). */
 function invalidateSkillStats(qc: ReturnType<typeof useQueryClient>): void {
   qc.invalidateQueries({ queryKey: ["skill-card-stats"] });
@@ -72,7 +80,9 @@ export function useCreateSkill() {
   return useMutation({
     meta: OWN_ERROR_TOAST,
     mutationFn: (input: SkillInput) => api.post<Skill>("/skills", input),
-    onSuccess: () => {
+    onSuccess: (created) => {
+      // The caller navigates to ?id=<created.id>; without this the panel falls back to all[0].
+      addToSkillList(qc, created);
       qc.invalidateQueries({ queryKey: ["skills"] });
       invalidateSkillStats(qc);
     },
@@ -138,7 +148,8 @@ export function useImportSkill() {
     meta: OWN_ERROR_TOAST,
     mutationFn: (input: SkillUpload & Partial<Pick<SkillInput, "name" | "description" | "type">>) =>
       api.post<Skill>("/skills/import", input),
-    onSuccess: () => {
+    onSuccess: (imported) => {
+      addToSkillList(qc, imported);
       qc.invalidateQueries({ queryKey: ["skills"] });
       invalidateSkillStats(qc);
     },

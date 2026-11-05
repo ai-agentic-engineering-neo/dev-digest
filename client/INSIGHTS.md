@@ -32,6 +32,7 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 - 2026-11-04 — On this Windows box `pnpm typecheck`/`pnpm test` fail with "Access is denied" (pnpm 12 shim) → run the bins directly: `node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json`, `node node_modules/vitest/vitest.mjs run` (same in server/) (package.json:10 → scripts.typecheck).
 - 2026-11-05 — next-intl `t.rich`: a tag name must not equal a value name (`<repo>{repo}</repo>` collides) — use `<r>{repo}</r>` (messages/en/conventions.json → modal.banner).
 - 2026-11-05 — Categorical chart colors live in `--viz-1..6` (styles.css, dark + light steps, validated with the dataviz validator); never reuse status colors (`--crit/--warn/--ok`) for series. `Donut` gained `formatValue` (counts instead of $) and `gap` (src/vendor/ui/charts/Donut.tsx).
+- 2026-11-05 — `/pr-self-review` caches findings per file+skill content, so fixing a hook does NOT clear findings cached on its unchanged caller files (`OWN_ERROR_TOAST` highs stayed on the modals after the hooks were fixed); also any `client/INSIGHTS.md` edit invalidates every client pair (~10 agents) → verify such findings against the hook, clear them with `--no-cache`, and finish INSIGHTS edits before the final review (.claude/skills/pr-self-review/scripts/collect-diff.mjs → cache lookup).
 
 ## Recurring Errors & Fixes
 <!-- Symptom → root cause → fix -->
@@ -39,6 +40,7 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 - 2026-11-05 — `messages/en/prReview.json` repeats key names across namespaces (`filesCount` in `smartDiff` AND `list`; `findings` in `runStatus`, `list.columns`, `list`), so a text edit anchored on a key (first match) put a block into `smartDiff` and the test failed with `MISSING_MESSAGE prReview.list.findings.chip` → anchor on the namespace's unique neighbour key and verify with `node -e "console.log(require('./messages/en/prReview.json').list.findings)"` (messages/en/prReview.json:61, :107 → filesCount).
 - 2026-11-05 — Modals rendered at the top of a view come BEFORE the page in the DOM, so `getAllByRole(...)[last]` picks the page button; scope with `within(getByRole("dialog"))` (ConventionsView.test.tsx).
 - 2026-11-05 — Skills Lab Config: after Save the editor diffs the form against the `skill` prop taken from the `["skills"]` list cache; with only `invalidateQueries` that prop stays stale until the refetch, so Save re-enabled and a second click stored a duplicate version → in mutations whose result an editor diffs against, `setQueryData` the returned entity BEFORE invalidating (src/lib/hooks/skills.ts:89 → useUpdateSkill onSuccess).
+- 2026-11-05 — Skills Lab picks the selected skill as `all.find(id) ?? all[0]` from the `["skills"]` cache, so ANY mutation that adds/removes a skill and then navigates to `?id=` showed a different skill (or kept a deleted one) until the refetch — hit twice (delete, then create/import) → every create/import/delete hook updates `["skills"]` with `setQueryData` before invalidating (src/app/skills/_components/SkillsLab/SkillsLab.tsx:48 → selected; src/lib/hooks/skills.ts:14 → addToSkillList).
 
 ## Session Notes
 <!-- Wrap-up: one dated line per substantive task -->
@@ -50,6 +52,7 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 - 2026-11-05 — pr-self-review BLOCK fix: `SkillImportPreview`/`SkillImportFile` moved from vendor/shared to `src/lib/types.ts`.
 - 2026-11-05 — Conventions page (`/repos/:repoId/conventions`: cards with verified evidence, accept/reject/inline edit, Accept/Deselect all) + "Create skill from conventions" modal with optional agent attach → specs/conventions.md.
 - 2026-11-05 — Skills Lab v2 UI: master-detail `/skills` (cards with source + "agents · pull · accept"), tabs Config (line-numbered editor, note, discard/save, create mode) · Preview · Evals placeholder · Stats (tiles, agents, category donut) · Versions (diff, restore) → specs/skills.md.
+- 2026-11-05 — pr-self-review follow-ups: useCreateSkill/useImportSkill write the new skill into `["skills"]` before invalidating (+ hook tests).
 
 ## Open Questions
 <!-- Unresolved items, known gaps -->

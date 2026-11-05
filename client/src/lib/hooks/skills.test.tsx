@@ -3,13 +3,16 @@ import React from "react";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Skill } from "@devdigest/shared";
-import { useDeleteSkill, useUpdateSkill } from "./skills";
+import { useCreateSkill, useDeleteSkill, useImportSkill, useUpdateSkill } from "./skills";
 
 const OLD = { id: "s1", name: "rubric", version: 5, body: "old" } as unknown as Skill;
 const OTHER = { id: "s2", name: "other", version: 1, body: "x" } as unknown as Skill;
 const SAVED = { ...OLD, version: 6, body: "new" } as Skill;
+const CREATED = { id: "s3", name: "naming", version: 1, body: "b" } as unknown as Skill;
 
-vi.mock("../api", () => ({ api: { put: vi.fn(async () => SAVED), del: vi.fn(async () => ({ ok: true })) } }));
+vi.mock("../api", () => ({
+  api: { put: vi.fn(async () => SAVED), del: vi.fn(async () => ({ ok: true })), post: vi.fn(async () => CREATED) },
+}));
 
 function setup() {
   // staleTime: Infinity + no queryFn → invalidate cannot refetch; only setQueryData can change the cache.
@@ -40,5 +43,27 @@ describe("useDeleteSkill", () => {
     await result.current.mutateAsync("s1");
 
     await waitFor(() => expect(qc.getQueryData<Skill[]>(["skills"])).toEqual([OTHER]));
+  });
+});
+
+describe("useCreateSkill", () => {
+  it("adds the created skill to the ['skills'] cache in name order before the refetch", async () => {
+    const { qc, wrapper } = setup();
+    const { result } = renderHook(() => useCreateSkill(), { wrapper });
+
+    await result.current.mutateAsync({ name: "naming", description: "d", type: "rubric", body: "b" });
+
+    await waitFor(() => expect(qc.getQueryData<Skill[]>(["skills"])).toEqual([CREATED, OTHER, OLD]));
+  });
+});
+
+describe("useImportSkill", () => {
+  it("adds the imported skill to the ['skills'] cache before the refetch", async () => {
+    const { qc, wrapper } = setup();
+    const { result } = renderHook(() => useImportSkill(), { wrapper });
+
+    await result.current.mutateAsync({ filename: "naming.md", content_base64: "" });
+
+    await waitFor(() => expect(qc.getQueryData<Skill[]>(["skills"])).toEqual([CREATED, OTHER, OLD]));
   });
 });

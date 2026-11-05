@@ -106,7 +106,10 @@ for (const f of files.values()) {
   f.binary = buf.includes(0) || buf.length > MAX_FILE_BYTES;
   f.content = f.binary ? '' : buf.toString('utf8');
   if (f.untracked) {
+    // Count lines the way git does (a trailing newline is not an extra line), so the fileHash — and the
+    // cache — stays the same when the file goes from untracked to staged/committed.
     const lines = f.content.split('\n');
+    if (lines.length && lines.at(-1) === '') lines.pop();
     f.changedLines = f.binary || !f.content ? [] : [[1, lines.length]];
     f.added = f.binary ? [] : lines;
     f.hunk = f.binary ? '' : `new file (untracked)\n${lines.map((l) => `+${l}`).join('\n')}`;

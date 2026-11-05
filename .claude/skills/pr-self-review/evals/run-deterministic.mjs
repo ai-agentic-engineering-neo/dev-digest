@@ -243,6 +243,18 @@ const cases = {
     assert(full.plan.cached.length === 0, '--no-cache must ignore the cache');
   },
 
+  'cache survives untracked → staged → committed'() {
+    const r = makeRepo(BASE);
+    r.write({ 'client/src/components/New.tsx': 'export const New = () => null;\n' });
+    review(r);
+    r.g('add', '-A');
+    const staged = review(r, { agent: () => { throw new Error('no agent expected after git add'); } });
+    assert(staged.plan.tasks.length === 0, `tasks after add: ${staged.plan.tasks.map((t) => t.id)}`);
+    r.g('commit', '-qm', 'wip');
+    const committed = review(r, { agent: () => { throw new Error('no agent expected after commit'); } });
+    assert(committed.plan.tasks.length === 0 && committed.last.verdict === 'PASS', committed.out);
+  },
+
   'cached critical keeps blocking without re-verification'() {
     const r = makeRepo(BASE);
     r.write({ 'client/src/components/Badge.tsx': 'export function Badge() {\n  const [a, setA] = useState(0);\n  return null;\n}\n', 'README.md': '# x\n' });

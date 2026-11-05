@@ -72,3 +72,71 @@ export interface SkillImportPreview {
   files: SkillImportFile[];
   warnings: string[];
 }
+
+/**
+ * Merged `<repo>-conventions` skill draft (GET /repos/:id/conventions/skill-draft).
+ * Mirrors the server's module-local type in server/src/modules/conventions/domain.ts.
+ * TODO: reconcile with @devdigest/shared when the contracts are next synced.
+ */
+export interface ConventionsSkillDraft {
+  name: string;
+  description: string;
+  type: SkillType;
+  body: string;
+  evidence_files: string[];
+  convention_ids: string[];
+}
+
+/**
+ * Skills Lab v2 (Stats / Versions tabs). Mirrors the server's module-local types
+ * in server/src/modules/skills/{domain,ports}.ts.
+ * TODO: reconcile with @devdigest/shared when the contracts are next synced.
+ */
+export interface SkillVersionRecord {
+  skill_id: string;
+  version: number;
+  body: string;
+  note: string | null;
+  created_at: string;
+}
+
+/** GET /skills/stats → per skill (list cards). Rates are 0..1, null = no data. */
+export interface SkillCardStats {
+  agents: number;
+  pull_rate: number | null;
+  accept_rate: number | null;
+}
+
+/** GET /skills/:id/stats — last `window_days` days. */
+export interface SkillStats extends SkillCardStats {
+  used_by: { id: string; name: string }[];
+  runs_30d: number;
+  findings_30d: number;
+  by_category: { category: string; count: number }[];
+  window_days: number;
+}
+
+/**
+ * Conventions Extractor API shapes. Not in @devdigest/shared (vendor/shared is
+ * "Do not touch"): mirrors server/src/modules/conventions/domain.ts.
+ * TODO: reconcile with @devdigest/shared when the contracts are next synced.
+ */
+export type ConventionStatus = "pending" | "accepted" | "rejected";
+
+export interface Convention {
+  id: string;
+  category: string | null;
+  rule: string;
+  evidence_path: string;
+  evidence_snippet: string;
+  line_start: number | null;
+  line_end: number | null;
+  confidence: number;
+  status: ConventionStatus;
+}
+
+export interface ConventionExtractResult {
+  candidates: Convention[];
+  sampled_files: string[];
+  rejected_ungrounded: number;
+}

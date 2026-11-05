@@ -12,11 +12,7 @@ import { ThemeProvider } from "./theme";
 import { RepoProvider } from "./repo-context";
 import { ToastProvider, notify } from "./toast";
 import { ApiError } from "./api";
-
-function errorMessage(e: unknown): string {
-  if (e instanceof Error) return e.message;
-  return "Something went wrong";
-}
+import { errorMessage, hasOwnErrorToast } from "./error-message";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [qc] = React.useState(
@@ -39,7 +35,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
           },
         }),
         mutationCache: new MutationCache({
-          onError: (err) => notify.error(errorMessage(err)),
+          // Skip mutations whose callers show their own contextual error (meta: OWN_ERROR_TOAST).
+          onError: (err, _vars, _ctx, mutation) => {
+            if (!hasOwnErrorToast(mutation.meta)) notify.error(errorMessage(err));
+          },
         }),
       })
   );

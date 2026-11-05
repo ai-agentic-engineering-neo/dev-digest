@@ -36,9 +36,83 @@ export function isSkillContentChange(existing: SkillContent, patch: Partial<Skil
 
 /** A skill resolved for one review run (enabled + linked, in agent order). */
 export interface PromptSkill {
+  /** Skill id + version — recorded per run (run_skills) for the Stats tab. */
+  id: string;
+  version: number;
   name: string;
   body: string;
   trusted: boolean;
+}
+
+// ---- Version notes ----------------------------------------------------------
+
+export const DEFAULT_INITIAL_NOTE = 'Initial version';
+export const DEFAULT_UPDATE_NOTE = 'Updated';
+export const MAX_VERSION_NOTE_CHARS = 200;
+
+/** The note stored on a new version row: the user's "what changed", else a default. */
+export function versionNote(note: string | undefined | null, isInitial: boolean): string {
+  const trimmed = note?.trim().slice(0, MAX_VERSION_NOTE_CHARS);
+  if (trimmed) return trimmed;
+  return isInitial ? DEFAULT_INITIAL_NOTE : DEFAULT_UPDATE_NOTE;
+}
+
+// ---- Stats (Skills · Stats tab) ---------------------------------------------
+
+export const STATS_WINDOW_DAYS = 30;
+
+/** Raw rows the stats are computed from (one workspace, one time window). */
+export interface SkillStatsData {
+  runs: { id: string; agentId: string | null }[];
+  runSkills: { runId: string; skillId: string }[];
+  links: { skillId: string; agentId: string }[];
+  findings: { runId: string; category: string; accepted: boolean; dismissed: boolean }[];
+}
+
+export interface SkillCardStats {
+  /** Agents linked now. */
+  agents: number;
+  /** Share of eligible runs whose prompt included the skill; null = no runs. */
+  pull_rate: number | null;
+  /** accepted ÷ (accepted + dismissed) of findings from those runs; null = no decisions. */
+  accept_rate: number | null;
+}
+
+export interface SkillStats extends SkillCardStats {
+  used_by: { id: string; name: string }[];
+  runs_30d: number;
+  findings_30d: number;
+  by_category: { category: string; count: number }[];
+  window_days: number;
+}
+
+/**
+ * Card numbers for one skill. Eligible runs = runs of agents linked now OR runs
+ * that included the skill (so pull_rate ≤ 1 even after an unlink). Attribution
+ * is correlation: a finding counts for every skill in that run's prompt.
+ */
+export function computeSkillStats(
+  skillId: string,
+  data: SkillStatsData,
+): Omit<SkillStats, 'used_by' | 'window_days'> {
+  const linkedAgents = new Set(data.links.filter((l) => l.skillId === skillId).map((l) => l.agentId));
+  const withSkill = new Set(data.runSkills.filter((r) => r.skillId === skillId).map((r) => r.runId));
+  const eligible = data.runs.filter((r) => withSkill.has(r.id) || (r.agentId !== null && linkedAgents.has(r.agentId)));
+  const findings = data.findings.filter((f) => withSkill.has(f.runId));
+  const accepted = findings.filter((f) => f.accepted).length;
+  const decided = findings.filter((f) => f.accepted || f.dismissed).length;
+  const byCategory = new Map<string, number>();
+  for (const f of findings) byCategory.set(f.category, (byCategory.get(f.category) ?? 0) + 1);
+  return {
+    agents: linkedAgents.size,
+    pull_rate: eligible.length > 0 ? withSkill.size / eligible.length : null,
+    accept_rate: decided > 0 ? accepted / decided : null,
+    runs_30d: withSkill.size,
+    findings_30d: findings.length,
+    by_category: [...byCategory.entries()]
+      .map(([category, count]) => ({ category, count }))
+      .sort((a, b) => b.count - a.count || a.category.localeCompare(b.category)),
+  };
 }
 
 /**
@@ -66,15 +140,5 @@ export interface SkillImportPreview {
   warnings: string[];
 }
 
-/** Skill names are identifiers shown in the prompt and the UI: kebab-case. */
-export const SKILL_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-
-/** Best-effort kebab-case slug from a free-form name / filename. */
-export function toSkillSlug(raw: string): string {
-  return raw
-    .toLowerCase()
-    .replace(/\.(md|markdown|txt|zip)$/i, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 64);
-}
+// Naming rules live in modules/_shared so other skill-creating modules reuse them.
+export { SKILL_NAME_PATTERN, toSkillSlug } from '../_shared/skill-name.js';

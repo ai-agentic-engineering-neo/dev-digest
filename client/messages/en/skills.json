@@ -8,7 +8,7 @@
     "searchPlaceholder": "Search skills…",
     "loadError": "Could not load skills.",
     "menu": {
-      "create": "Create from scratch",
+      "create": "Create skill",
       "import": "Import from file (.md / .zip)"
     },
     "empty": {
@@ -16,7 +16,11 @@
       "body": "Create a skill or import one from a markdown file or a skill archive.",
       "cta": "Create a skill"
     },
-    "noMatch": "No skills match \"{query}\"."
+    "noMatch": "No skills match \"{query}\".",
+    "select": {
+      "title": "Select a skill",
+      "body": "Pick a skill on the left to preview its body."
+    }
   },
   "type": {
     "rubric": "rubric",
@@ -27,50 +31,18 @@
   "card": {
     "imported": "imported",
     "importedTitle": "Imported from a third party — wrapped as untrusted in the prompt",
-    "usedBy": "{count, plural, =0 {not linked} one {# agent} other {# agents}}",
-    "toggleLabel": "Enable skill for all linked agents"
-  },
-  "preview": {
-    "version": "v{version}",
-    "source": "Source: {source}",
+    "toggleLabel": "Enable skill for all linked agents",
+    "agents": "{count, plural, =0 {not linked} one {# agent} other {# agents}}",
+    "pull": "{pct} pull",
+    "accept": "{pct} accept",
     "sources": {
-      "manual": "created here",
-      "extracted": "extracted from the repo",
-      "community": "imported file",
-      "imported_url": "imported URL"
+      "manual": "Manual",
+      "extracted": "Extracted",
+      "community": "Community",
+      "imported_url": "Imported"
     },
-    "enabled": "Enabled",
-    "disabled": "Disabled — not added to any agent's prompt",
-    "description": "Description",
-    "body": "Body",
-    "untrustedNotice": "This skill was imported. Someone else's skill is someone else's instructions in your agent's prompt: it is wrapped as untrusted data and may only add review criteria — it cannot change the agent's role, output or severity rules.",
-    "edit": "Edit",
-    "delete": "Delete",
-    "deleteConfirm": "Delete skill \"{name}\"? It will be unlinked from every agent.",
-    "deleted": "Skill deleted"
-  },
-  "editor": {
-    "createTitle": "Create skill",
-    "editTitle": "Edit skill",
-    "subtitle": "A skill is plain text appended to an agent's prompt. It cannot run code or use tools.",
-    "name": "Name",
-    "nameHint": "kebab-case identifier, shown in the prompt and the agent's Skills tab.",
-    "namePlaceholder": "no-then-chains",
-    "description": "Description",
-    "descriptionHint": "The skill's interface — write it as a directive: when to apply it and what it flags. E.g. \"Use on every PR that touches routes. Flag removed or renamed response fields.\"",
-    "descriptionPlaceholder": "Use when … Flag …",
-    "type": "Type",
-    "body": "Body (Markdown)",
-    "bodyHint": "The rules the reviewer applies. Saving a changed body creates a new version.",
-    "bodyPlaceholder": "# Rule\nDescribe what to check and at which severity…",
-    "write": "Write",
-    "previewTab": "Preview",
-    "cancel": "Cancel",
-    "create": "Create skill",
-    "save": "Save skill",
-    "saving": "Saving…",
-    "created": "Skill \"{name}\" created",
-    "saved": "Skill saved (v{version})"
+    "version": "{source} · v{version}",
+    "delete": "Delete skill"
   },
   "import": {
     "title": "Import skill",
@@ -90,5 +62,104 @@
     "confirm": "Save imported skill",
     "saving": "Saving…",
     "saved": "Imported \"{name}\" — link it to an agent in the agent's Skills tab."
+  },
+  "detail": {
+    "version": "v{version}",
+    "runEvals": "Run on evals",
+    "runEvalsSoon": "Evals arrive with the Eval lesson",
+    "newSkill": "New skill",
+    "unsavedConfirm": "Discard unsaved changes to this skill?",
+    "tabs": {
+      "config": "Config",
+      "preview": "Preview",
+      "evals": "Evals",
+      "stats": "Stats",
+      "versions": "Versions"
+    }
+  },
+  "config": {
+    "title": "Configuration",
+    "createTitle": "New skill",
+    "subtitle": "A skill is plain text appended to an agent's prompt. It cannot run code or use tools.",
+    "enabled": "Enabled",
+    "enabledTitle": "Disabled skills are not added to any agent's prompt",
+    "name": "Name",
+    "nameHint": "kebab-case identifier, shown in the prompt and the agent's Skills tab.",
+    "namePlaceholder": "no-then-chains",
+    "description": "Description",
+    "descriptionHint": "The skill's interface — write it as a directive: when to apply it and what it flags. E.g. \"Use on every PR that touches routes. Flag removed or renamed response fields.\"",
+    "descriptionPlaceholder": "Use when … Flag …",
+    "type": "Type",
+    "body": "Skill body",
+    "bodyPlaceholder": "# Rule\nDescribe what to check and at which severity…",
+    "unsaved": "unsaved",
+    "tokens": "{count, plural, one {# token} other {# tokens}}",
+    "note": "What changed?",
+    "noteHint": "Optional — shown in Versions. Saving a changed name, description, type or body creates a new version.",
+    "notePlaceholder": "e.g. Tightened scope rule",
+    "discard": "Discard",
+    "save": "Save",
+    "saving": "Saving…",
+    "create": "Create skill",
+    "saved": "Saved as v{version}",
+    "created": "Skill \"{name}\" created",
+    "delete": "Delete",
+    "deleteConfirm": "Delete skill \"{name}\"? It will be unlinked from every agent.",
+    "deleted": "Skill deleted",
+    "toggleError": "Could not change the enabled state",
+    "typeOptions": {
+      "rubric": "Rubric",
+      "convention": "Convention",
+      "security": "Security",
+      "custom": "Custom"
+    },
+    "bodyLabel": "Skill body (Markdown)",
+    "versionHint": "Saving a changed body creates a new immutable version."
+  },
+  "previewTab": {
+    "title": "Preview",
+    "subtitle": "Rendered as the reviewing agent receives it.",
+    "untrustedNotice": "This skill was imported. Someone else's skill is someone else's instructions in your agent's prompt: it is wrapped as untrusted data and may only add review criteria — it cannot change the agent's role, output or severity rules.",
+    "empty": "This skill has no body yet."
+  },
+  "evals": {
+    "title": "Evals are coming",
+    "body": "Eval cases score a skill against known PRs (recall, precision, citation accuracy). They arrive with the Eval lesson — until then, compare runs with the skill on and off in the agent's Skills tab."
+  },
+  "stats": {
+    "usedBy": "Used by",
+    "agentsUnit": "{count, plural, one {agent} other {agents}}",
+    "pull": "Pull frequency",
+    "pullHint": "Share of runs (of agents using it) whose prompt included this skill",
+    "accept": "Accept rate",
+    "acceptHint": "Accepted ÷ (accepted + dismissed) findings from runs with this skill",
+    "findings": "Findings (30d)",
+    "agentsUsing": "Agents using this skill",
+    "open": "Open",
+    "noAgents": "Not linked to any agent yet — link it in an agent's Skills tab.",
+    "byCategory": "Findings by category",
+    "noFindings": "No findings from runs with this skill in the last {days} days.",
+    "categoryValue": "{count} · {pct}",
+    "window": "Last {days} days · {runs, plural, one {# run} other {# runs}} with this skill. Runs before run attribution shipped are not counted.",
+    "loadError": "Could not load stats."
+  },
+  "versions": {
+    "title": "Version history",
+    "count": "{count, plural, one {# version} other {# versions}}",
+    "hint": "Every save snapshots the body so eval runs stay reproducible against the exact text they scored.",
+    "current": "Current",
+    "diff": "Diff",
+    "restore": "Restore",
+    "restoreConfirm": "Restore v{version}? Its body becomes a new current version — history is kept.",
+    "restoredNote": "Restored from v{version}",
+    "restored": "Restored as v{version}",
+    "noteFallback": "Updated",
+    "diffTitle": "Diff: v{from} → v{to} (current)",
+    "noChanges": "No differences in the body.",
+    "close": "Close",
+    "loadError": "Could not load versions.",
+    "view": "View",
+    "hide": "Hide",
+    "bodyLabel": "Body of v{version}"
   }
 }

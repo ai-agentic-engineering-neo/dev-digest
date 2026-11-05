@@ -1,11 +1,12 @@
 import type { Skill, SkillSource, SkillType } from '@devdigest/shared';
-import type { PromptSkill, SkillContent } from './domain.js';
+import type { PromptSkill, SkillContent, SkillStatsData } from './domain.js';
 
 /** A recorded body snapshot of a skill (skill_versions). */
 export interface SkillVersionRecord {
   skill_id: string;
   version: number;
   body: string;
+  note: string | null;
   created_at: string;
 }
 
@@ -13,6 +14,12 @@ export interface NewSkill extends SkillContent {
   workspaceId: string;
   source: SkillSource;
   enabled?: boolean;
+  /** Files the skill was derived from (conventions extractor), shown as provenance. */
+  evidenceFiles?: string[] | null;
+  /** Note for the v1 row (default "Initial version"). */
+  note?: string;
+  /** Also link the new skill to this agent (appended last) in the SAME transaction. */
+  linkAgentId?: string | null;
 }
 
 export interface SkillPatch {
@@ -21,6 +28,8 @@ export interface SkillPatch {
   type?: SkillType;
   body?: string;
   enabled?: boolean;
+  /** "What changed" — stored on the version row a content change creates. */
+  note?: string;
 }
 
 /** What the skills service needs from storage. Every call is workspace-scoped. */
@@ -39,4 +48,10 @@ export interface SkillsRepositoryPort {
   promptSkillsForAgent(workspaceId: string, agentId: string): Promise<PromptSkill[]>;
   /** Number of agents each skill is linked to (skill id → count). */
   linkCounts(workspaceId: string): Promise<Record<string, number>>;
+  /** Record which skills (and versions) went into a run's prompt, in prompt order. */
+  recordRunSkills(runId: string, skills: { id: string; version: number }[]): Promise<void>;
+  /** Raw rows for stats: workspace runs since `since`, their skills/findings, current links. */
+  statsData(workspaceId: string, since: Date): Promise<SkillStatsData>;
+  /** Agents linked to a skill now (id + name), by name. */
+  linkedAgents(workspaceId: string, skillId: string): Promise<{ id: string; name: string }[]>;
 }

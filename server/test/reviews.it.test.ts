@@ -6,7 +6,7 @@ import { loadConfig } from '../src/platform/config.js';
 import { seed } from '../src/db/seed.js';
 import { MockLLMProvider, MockEmbedder, MockGitClient } from '../src/adapters/mocks.js';
 import * as t from '../src/db/schema.js';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { Review } from '@devdigest/shared';
 
 const hasDocker = await dockerAvailable();
@@ -272,6 +272,58 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(trace.prompt_assembly.system).toContain('IMPORTED SKILLS');
     const skillLog = trace.log.find((l: { msg: string }) => l.msg.startsWith('Skills:'));
     expect(skillLog.msg).toMatch(/^Skills: 2 attached — trace-ext \(imported\), trace-on \(~\d+ tokens\)$/);
+
+    // ---- v2: run attribution (run_skills) → Stats tab -------------------------
+    const runId = res.runs[0].run_id as string;
+    const attributed = await pg.handle.db
+      .select()
+      .from(t.runSkills)
+      .where(eq(t.runSkills.runId, runId))
+      .orderBy(t.runSkills.position);
+    expect(attributed.map((r) => [r.skillId, r.position, r.skillVersion])).toEqual([
+      [imported.id, 0, 1],
+      [on.id, 1, 1],
+    ]);
+
+    // Decide on the run's findings: first accepted, the rest dismissed.
+    const [review] = await pg.handle.db.select().from(t.reviews).where(eq(t.reviews.runId, runId));
+    const runFindings = await pg.handle.db
+      .select()
+      .from(t.findings)
+      .where(and(eq(t.findings.reviewId, review!.id), eq(t.findings.kind, 'finding')));
+    expect(runFindings.length).toBeGreaterThan(0);
+    await pg.handle.db.update(t.findings).set({ acceptedAt: new Date() }).where(eq(t.findings.id, runFindings[0]!.id));
+    for (const f of runFindings.slice(1)) {
+      await pg.handle.db.update(t.findings).set({ dismissedAt: new Date() }).where(eq(t.findings.id, f.id));
+    }
+
+    const stOn = (await app.inject({ method: 'GET', url: `/skills/${on.id}/stats` })).json();
+    expect(stOn).toMatchObject({
+      agents: 1,
+      used_by: [{ id: agent.id, name: 'Skilled' }],
+      runs_30d: 1,
+      pull_rate: 1,
+      findings_30d: runFindings.length,
+      accept_rate: 1 / runFindings.length,
+      window_days: 30,
+    });
+    expect(stOn.by_category.reduce((n: number, c: { count: number }) => n + c.count, 0)).toBe(runFindings.length);
+
+    // Pre-attribution runs (no run_skills rows, older than the first attributed run) are not counted.
+    await pg.handle.db
+      .insert(t.agentRuns)
+      .values({ workspaceId, agentId: agent.id, prId: pr.id, status: 'done', ranAt: new Date(Date.now() - 86_400_000) });
+    expect((await app.inject({ method: 'GET', url: `/skills/${on.id}/stats` })).json().pull_rate).toBe(1);
+
+    // Linked but globally disabled → in no prompt → pull 0, no findings attributed.
+    const stOff = (await app.inject({ method: 'GET', url: `/skills/${off.id}/stats` })).json();
+    expect(stOff).toMatchObject({ agents: 1, runs_30d: 0, pull_rate: 0, findings_30d: 0, accept_rate: null });
+
+    const cards = (await app.inject({ method: 'GET', url: '/skills/stats' })).json();
+    expect(cards[on.id]).toEqual({ agents: 1, pull_rate: 1, accept_rate: 1 / runFindings.length });
+    expect(
+      (await app.inject({ method: 'GET', url: '/skills/00000000-0000-0000-0000-000000000000/stats' })).statusCode,
+    ).toBe(404);
 
     await app.close();
   });

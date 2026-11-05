@@ -14,6 +14,7 @@ import { useAgentSkills, useSetAgentSkills, useSkills } from "../../../../../../
 import { useToast } from "../../../../../../../lib/toast";
 import { buildSkillRows, linkedIds, matchesFilter, moveLinked, toggleLinked } from "./helpers";
 import { s } from "./styles";
+import { errorMessage } from "@/lib/error-message";
 
 export function SkillsTab({ agent }: { agent: Agent }) {
   const t = useTranslations("agents");
@@ -56,7 +57,7 @@ export function SkillsTab({ agent }: { agent: Agent }) {
   const visible = rows.filter((r) => matchesFilter(r.skill, filter));
 
   const save = (next: string[]) =>
-    setLinks.mutate(next, { onError: (e) => toast.error(`${t("skills.saveError")}: ${(e as Error).message}`) });
+    setLinks.mutate(next, { onError: (e) => toast.error(`${t("skills.saveError")}: ${errorMessage(e)}`) });
 
   const onDrop = (targetId: string) => {
     if (dragId && dragId !== targetId) {

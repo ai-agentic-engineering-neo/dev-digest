@@ -8,6 +8,7 @@
 
 :root,
 [data-theme="dark"] {
+  color-scheme: dark;
   --bg-primary: #0a0a0a;
   --bg-surface: #141414;
   --bg-elevated: #1c1c1c;
@@ -23,6 +24,13 @@
   --accent-text: #93bbfc;
 
   --crit: #ef4444;
+  /* Categorical data-viz slots (fixed order; validated vs the dark surface). */
+  --viz-1: #3987e5;
+  --viz-2: #d95926;
+  --viz-3: #199e70;
+  --viz-4: #c98500;
+  --viz-5: #d55181;
+  --viz-6: #008300;
   --crit-bg: rgba(239, 68, 68, 0.12);
   --warn: #f59e0b;
   --warn-bg: rgba(245, 158, 11, 0.12);
@@ -47,6 +55,7 @@
 }
 
 [data-theme="light"] {
+  color-scheme: light;
   --bg-primary: #ffffff;
   --bg-surface: #fafafa;
   --bg-elevated: #ffffff;
@@ -62,6 +71,13 @@
   --accent-text: #1d4fd0;
 
   --crit: #dc2626;
+  /* Categorical data-viz slots (light steps; pair with visible labels). */
+  --viz-1: #2a78d6;
+  --viz-2: #eb6834;
+  --viz-3: #1baf7a;
+  --viz-4: #eda100;
+  --viz-5: #e87ba4;
+  --viz-6: #008300;
   --crit-bg: rgba(220, 38, 38, 0.08);
   --warn: #d97706;
   --warn-bg: rgba(217, 119, 6, 0.1);
@@ -195,6 +211,14 @@ input,
 select,
 textarea {
   font-family: inherit;
+}
+/* The opened <select> list is drawn by the OS: without explicit colors it
+   paints a light popup while the option text inherits the theme's light ink
+   (white-on-white in the dark theme). */
+select option,
+select optgroup {
+  background-color: var(--bg-elevated);
+  color: var(--text-primary);
 }
 
 a {

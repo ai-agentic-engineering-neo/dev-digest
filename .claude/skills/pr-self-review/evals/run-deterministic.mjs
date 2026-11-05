@@ -289,6 +289,23 @@ const cases = {
     assert(bad.code === 2 && bad.out.includes('fail closed'), 'malformed payload must fail closed');
     assert(script(r.root, 'gate.mjs', ['--git-hook'], 'refs/heads/feat abc refs/heads/feat 000\n').code === 1, 'git hook closed when stale');
   },
+
+  'gate: committing a NEW (untracked) file keeps a PASS fresh'() {
+    // Regression: untracked files used to be hashed raw next to `git diff`, so the commit that
+    // added them changed the hash and the gate called a fresh PASS "stale".
+    const r = makeRepo(BASE);
+    r.write({ 'client/src/lib/new-helper.ts': 'export const x = 1;\r\n', 'client/src/components/Badge.tsx': 'export function Badge() {\n  return <u />;\n}\n' });
+    review(r);
+    const gate = () => script(r.root, 'gate.mjs', ['--git-hook'], 'refs/heads/feat abc refs/heads/feat 000\n');
+    assert(gate().code === 0, 'gate open after PASS');
+    r.g('add', '-A');
+    assert(gate().code === 0, 'staging must not make the PASS stale');
+    r.g('commit', '-qm', 'feat');
+    assert(gate().code === 0, `committing must not make the PASS stale:\n${gate().out}`);
+    assert(r.g('status', '--porcelain') === '', 'the hash must not touch the real index');
+    r.write({ 'client/src/lib/new-helper.ts': 'export const x = 2;\n' });
+    assert(gate().code === 1, 'editing the committed file makes it stale');
+  },
 };
 
 function assert(cond, msg) {

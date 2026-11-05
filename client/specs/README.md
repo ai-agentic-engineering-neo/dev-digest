@@ -11,3 +11,4 @@ Add each new spec to the list below with a one-line "read when".
 - [severity-counters.md](severity-counters.md) — read when touching the findings list filters on the PR page (`SeverityCounters`, `FindingsPanel`)
 - [pr-list-findings.md](pr-list-findings.md) — read when touching the PR-list FINDINGS column/popover (`FindingsCell`), Timeline severity icons, or `SeverityTally`
 - [skills.md](skills.md) — read when changing the Skills page, skill editor/import modals or the agent Skills tab
+- [conventions.md](conventions.md) — read when changing the Conventions page (`ConventionsView`, `ConventionCard`) or the "Create skill from conventions" modal

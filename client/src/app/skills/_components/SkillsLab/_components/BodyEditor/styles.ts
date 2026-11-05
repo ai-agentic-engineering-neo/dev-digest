@@ -1,0 +1,52 @@
+import type { CSSProperties } from "react";
+import { LINE_HEIGHT, MAX_HEIGHT } from "./constants";
+
+export const s = {
+  box: { border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden", background: "var(--code-bg)" } satisfies CSSProperties,
+  head: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "9px 14px",
+    borderBottom: "1px solid var(--border)",
+    background: "var(--bg-surface)",
+    fontSize: 13,
+    color: "var(--text-secondary)",
+  } satisfies CSSProperties,
+  file: { fontWeight: 600, color: "var(--text-primary)" } satisfies CSSProperties,
+  unsaved: {
+    fontSize: 11,
+    padding: "1px 7px",
+    borderRadius: 5,
+    background: "var(--bg-hover)",
+    color: "var(--text-muted)",
+  } satisfies CSSProperties,
+  tokens: { marginLeft: "auto", fontSize: 12, color: "var(--text-muted)" } satisfies CSSProperties,
+  scroll: { display: "flex", maxHeight: MAX_HEIGHT, overflow: "auto" } satisfies CSSProperties,
+  gutter: {
+    padding: "12px 0",
+    minWidth: 44,
+    textAlign: "right",
+    color: "var(--text-muted)",
+    fontSize: 13,
+    userSelect: "none",
+    borderRight: "1px solid var(--border)",
+    flexShrink: 0,
+  } satisfies CSSProperties,
+  lineNo: { height: LINE_HEIGHT, lineHeight: `${LINE_HEIGHT}px`, paddingRight: 12 } satisfies CSSProperties,
+  textarea: {
+    flex: 1,
+    minWidth: 0,
+    padding: "12px 14px",
+    fontSize: 13,
+    lineHeight: `${LINE_HEIGHT}px`,
+    background: "transparent",
+    color: "var(--text-primary)",
+    border: "none",
+    outline: "none",
+    resize: "none",
+    overflowX: "auto",
+    overflowY: "hidden",
+    whiteSpace: "pre",
+  } satisfies CSSProperties,
+} as const;

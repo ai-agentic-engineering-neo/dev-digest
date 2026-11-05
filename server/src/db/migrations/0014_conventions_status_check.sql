@@ -1,0 +1,1 @@
+ALTER TABLE "conventions" ADD CONSTRAINT "conventions_status_check" CHECK ("conventions"."status" in ('pending', 'accepted', 'rejected'));

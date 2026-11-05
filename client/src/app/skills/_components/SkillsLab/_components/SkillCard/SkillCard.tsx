@@ -21,6 +21,7 @@ export function SkillCard({
   onClick,
   onToggle,
   onDelete,
+  deleteDisabled = false,
 }: {
   skill: Skill;
   stats?: SkillCardStats;
@@ -30,6 +31,8 @@ export function SkillCard({
   onClick: () => void;
   onToggle: (enabled: boolean) => void;
   onDelete: () => void;
+  /** True while a delete is in flight — blocks a second DELETE from a double click. */
+  deleteDisabled?: boolean;
 }) {
   const t = useTranslations("skills");
   const SourceIcon = Icon[SOURCE_ICON[skill.source]];
@@ -64,7 +67,12 @@ export function SkillCard({
           <span title={t("card.toggleLabel")} style={s.toggleWrap}>
             <Toggle on={skill.enabled} onChange={onToggle} size={14} label={t("card.toggleLabel")} />
           </span>
-          <button type="button" style={s.trash} onClick={onDelete} title={t("card.delete")} aria-label={t("card.delete")}>
+          <button
+            type="button"
+            style={s.trash}
+            onClick={onDelete}
+            disabled={deleteDisabled}
+            title={t("card.delete")} aria-label={t("card.delete")}>
             <Icon.Trash size={14} />
           </button>
         </div>

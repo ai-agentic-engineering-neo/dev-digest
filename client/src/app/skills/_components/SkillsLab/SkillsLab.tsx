@@ -62,6 +62,7 @@ export function SkillsLab() {
   // Card trash icon. Deleting the open skill clears the selection (its unsaved
   // edits go with it, so no dirty prompt).
   const remove = (sk: Skill) => {
+    if (del.isPending) return; // one DELETE at a time (double click)
     if (!window.confirm(t("config.deleteConfirm", { name: sk.name }))) return;
     del.mutate(sk.id, {
       onSuccess: () => {
@@ -132,6 +133,7 @@ export function SkillsLab() {
                 active={!creating && sk.id === selected?.id}
                 onClick={() => go({ id: sk.id, tab, create: false })}
                 onDelete={() => remove(sk)}
+                deleteDisabled={del.isPending}
                 onToggle={(enabled) =>
                   update.mutate(
                     { id: sk.id, patch: { enabled } },
@@ -164,7 +166,7 @@ export function SkillsLab() {
             </div>
           ) : !creating && !selected ? (
             <div style={s.center}>
-              <EmptyState icon="Sparkles"title={t("page.select.title")} body={t("page.select.body")} />
+              <EmptyState icon="Sparkles" title={t("page.select.title")} body={t("page.select.body")} />
             </div>
           ) : (
             <SkillDetail

@@ -81,7 +81,7 @@ export function SkillDetail({
         {skill && active === "preview" && <PreviewTab skill={skill} />}
         {skill && active === "evals" && <EvalsTab />}
         {skill && active === "stats" && <StatsTab skillId={skill.id} />}
-        {skill && active === "versions" && <VersionsTab skill={skill} />}
+        {skill && active === "versions" && <VersionsTab key={skill.id} skill={skill} />}
       </div>
     </div>
   );

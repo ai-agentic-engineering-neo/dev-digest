@@ -62,7 +62,9 @@ Package-specific rules: `<pkg>/CLAUDE.md` § Naming conventions.
   (stop and ask the user first; migrations are generated with `pnpm db:generate`).
 - `server/clones/**` — runtime git checkouts (contain the GitHub token in `.git/config`).
 - `.claude/skills/**` + `skills-lock.json` — vendored third-party skills, pinned by hash.
-  Exceptions: `.claude/skills/engineering-insights/`, `.claude/skills/frontend-ui-architecture/` and `.claude/skills/onion-architecture/` are our own skills and may be edited.
+  Exceptions: `.claude/skills/engineering-insights/`, `.claude/skills/frontend-ui-architecture/`, `.claude/skills/onion-architecture/`
+  and `.claude/skills/pr-self-review/` are our own skills and may be edited.
+- `.claude/pr-self-review/waivers.json` — only the user adds waivers; never write it to get a PASS.
 - `*/pnpm-lock.yaml`, `*/package-lock.json` — only via the package manager.
 - `server/package.json` is `skip-worktree` locally; don't rely on its scripts in CI changes.
 - Never `docker compose down -v` — it wipes the dev DB volume with all imported repos.
@@ -73,6 +75,8 @@ Package-specific rules: `<pkg>/CLAUDE.md` § Naming conventions.
 - Writing or running tests, touching CI → read `TESTING.md` and `.github/workflows/<suite>.yml`.
 - Editing an agent's system prompt → read `docs/agent-prompts/README.md`.
 - Unsure which skill applies → read `.claude/skills/README.md`.
+- Before `git push` / opening or merging a PR → run the `pr-self-review` skill (the gate hook blocks
+  push/PR/merge without a fresh PASS).
 
 ## Knowledge files (per package)
 

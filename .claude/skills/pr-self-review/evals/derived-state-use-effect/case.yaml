@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: derived-state-use-effect
+expected_outcome: |
+  The react-best-practices reviewer reports derive-dont-store as critical on the changed line, a verifier confirms it, verdict BLOCK, and the user is offered a fix — no waiver is written.

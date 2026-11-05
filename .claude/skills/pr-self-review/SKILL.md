@@ -1,11 +1,13 @@
 ---
 name: pr-self-review
+disable-model-invocation: true
 description: >-
   Pre-PR self review of ALL local changes in DevDigest (branch commits vs origin/main + staged +
   unstaged + untracked). Routes every changed file to the repo skills that cover it (UI skills on
   client/ files, onion/fastify/drizzle on server/ files, security everywhere…), runs them as parallel
   subagents plus deterministic checks (Do-not-touch policy, dependency-cruiser layers, tsc, server tests
   after reviewer-core changes), and BLOCKS push / PR / merge if any confirmed critical finding remains.
+  Manual only (auto-invoke disabled): the user runs it with /pr-self-review.
   Use before every `git push`, `gh pr create`, `gh pr merge` or compare-URL PR, whenever the gate hook
   says "no pr-self-review result" or "stale", and on "/pr-self-review", "self review", "review my
   changes before PR", "перевір зміни перед PR", "самоперевірка", "чи можна відкривати PR".

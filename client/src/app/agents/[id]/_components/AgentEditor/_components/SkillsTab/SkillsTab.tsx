@@ -1,13 +1,16 @@
-/* SkillsTab — the agent's Skills (Agent Editor · Skills design). Every
-   workspace skill is a row; checked = linked to this agent. Linked skills come
-   first in prompt order and can be dragged (or moved with ↑/↓) — order is the
-   order of the skill blocks in the assembled prompt. Each change saves at once. */
+/* SkillsTab — the agent's Skills (Agent Editor · Skills design). One column of
+   bounded width: "Skills" + "N of M enabled", a hint, a full-width filter, and
+   a row per workspace skill: toggle on = linked to this agent. Linked skills
+   come first in prompt order, show their position (#1, #2…) and can be dragged
+   (or moved with ↑/↓) — order is the order of the skill blocks in the
+   assembled prompt. Every control has a visible label or a tooltip, and rows
+   show the skill's description. Each change saves at once. */
 "use client";
 
 import React from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { Badge, Checkbox, ErrorState, Icon, Skeleton } from "@devdigest/ui";
+import { Badge, ErrorState, Icon, Skeleton, Toggle } from "@devdigest/ui";
 import type { Agent } from "@devdigest/shared";
 import { SkillTypeBadge } from "../../../../../../../components/skill-type-badge";
 import { useAgentSkills, useSetAgentSkills, useSkills } from "../../../../../../../lib/hooks/skills";
@@ -69,24 +72,22 @@ export function SkillsTab({ agent }: { agent: Agent }) {
   };
 
   return (
-    <div>
+    <div style={s.column}>
       <div style={s.header}>
         <h2 style={s.title}>{t("skills.title")}</h2>
-        <Badge color="var(--accent)" bg="var(--accent-bg)">
-          {t("skills.enabledCount", { linked: linkedCount, total: skills.length })}
-        </Badge>
-        <div style={s.filter}>
-          <Icon.Search size={13} style={{ color: "var(--text-muted)" }} />
-          <input
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            placeholder={t("skills.filterPlaceholder")}
-            aria-label={t("skills.filterPlaceholder")}
-            style={s.filterInput}
-          />
-        </div>
+        <span style={s.count}>{t("skills.enabledCount", { linked: linkedCount, total: skills.length })}</span>
       </div>
       <p style={s.hint}>{t("skills.orderHint")}</p>
+      <div style={s.filter}>
+        <Icon.Search size={14} style={{ color: "var(--text-muted)" }} />
+        <input
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          placeholder={t("skills.filterPlaceholder")}
+          aria-label={t("skills.filterPlaceholder")}
+          style={s.filterInput}
+        />
+      </div>
 
       {skills.length === 0 ? (
         <p style={s.empty}>
@@ -125,24 +126,38 @@ export function SkillsTab({ agent }: { agent: Agent }) {
                 setOverId(null);
               }}
             >
-              <span style={s.handle(linked)} title={t("skills.dragHandle", { name: skill.name })} aria-hidden>
-                <Icon.Menu size={14} />
+              <span
+                style={s.handle(linked)}
+                title={linked ? t("skills.dragHandle", { name: skill.name }) : undefined}
+                aria-hidden
+              >
+                {linked && <Icon.Menu size={14} />}
               </span>
-              <div style={{ ...s.name, ...(skill.enabled ? {} : s.muted) }}>
-                <Checkbox
-                  checked={linked}
+              <span title={t("skills.attachTitle")} style={s.toggle}>
+                <Toggle
+                  on={linked}
                   onChange={() => save(toggleLinked(ids, skill.id))}
-                  label={
-                    <span className="mono" title={skill.description}>
-                      {skill.name}
-                    </span>
-                  }
+                  size={14}
+                  label={t("skills.attach", { name: skill.name })}
                 />
+              </span>
+              {/* Clicking the name also toggles (mouse convenience); the switch
+                  is the accessible control. */}
+              <div
+                style={{ ...s.nameBlock, ...(skill.enabled ? {} : s.muted) }}
+                onClick={() => save(toggleLinked(ids, skill.id))}
+              >
+                <span className="mono" style={s.name(linked)}>
+                  {skill.name}
+                </span>
+                <span style={s.description}>{skill.description || t("skills.noDescription")}</span>
               </div>
               {(skill.source === "community" || skill.source === "imported_url") && (
-                <Badge color="var(--warn)" bg="var(--warn-bg)">
-                  {t("skills.imported")}
-                </Badge>
+                <span title={t("skills.importedTitle")}>
+                  <Badge color="var(--warn)" bg="var(--warn-bg)">
+                    {t("skills.imported")}
+                  </Badge>
+                </span>
               )}
               {!skill.enabled && (
                 <span title={t("skills.disabledGloballyTitle")}>
@@ -155,6 +170,7 @@ export function SkillsTab({ agent }: { agent: Agent }) {
                     type="button"
                     style={s.arrowBtn}
                     aria-label={t("skills.moveUp", { name: skill.name })}
+                    title={t("skills.moveUpTitle")}
                     disabled={position === 0}
                     onClick={() => save(moveLinked(ids, skill.id, position - 1))}
                   >
@@ -164,6 +180,7 @@ export function SkillsTab({ agent }: { agent: Agent }) {
                     type="button"
                     style={s.arrowBtn}
                     aria-label={t("skills.moveDown", { name: skill.name })}
+                    title={t("skills.moveDownTitle")}
                     disabled={position === linkedCount - 1}
                     onClick={() => save(moveLinked(ids, skill.id, position + 1))}
                   >
@@ -171,7 +188,16 @@ export function SkillsTab({ agent }: { agent: Agent }) {
                   </button>
                 </div>
               )}
-              <SkillTypeBadge type={skill.type} label={tSkills(`type.${skill.type}`)} />
+              <span title={t("skills.typeTitle")}>
+                <SkillTypeBadge type={skill.type} label={tSkills(`type.${skill.type}`)} />
+              </span>
+              <span
+                className="mono"
+                style={s.position}
+                title={linked ? t("skills.positionTitle", { position: position + 1 }) : undefined}
+              >
+                {linked ? t("skills.position", { position: position + 1 }) : ""}
+              </span>
             </div>
           ))}
         </div>

@@ -92,7 +92,7 @@
     "title": "Skills",
     "enabledCount": "{linked} of {total} enabled",
     "filterPlaceholder": "Filter skills…",
-    "orderHint": "Order matters — earlier skills appear earlier in the assembled prompt. Drag to reorder.",
+    "orderHint": "Turn a skill on to add it to this agent's prompt. Order matters — skills higher in the list appear earlier in the assembled prompt. Drag the handle or use the arrows to reorder.",
     "loadError": "Could not load skills.",
     "empty": "No skills in this workspace yet.",
     "manage": "Manage skills",
@@ -100,11 +100,19 @@
     "disabledGlobally": "disabled globally",
     "disabledGloballyTitle": "Turned off on the Skills page — not added to the prompt even when checked",
     "imported": "imported",
-    "attach": "Attach {name}",
+    "attach": "Use {name} in this agent",
     "moveUp": "Move {name} up",
     "moveDown": "Move {name} down",
     "dragHandle": "Drag to reorder {name}",
-    "saveError": "Could not update linked skills"
+    "saveError": "Could not update linked skills",
+    "attachTitle": "On — added to this agent's prompt. Off — not used by this agent.",
+    "moveUpTitle": "Move up — earlier in the prompt",
+    "moveDownTitle": "Move down — later in the prompt",
+    "position": "#{position}",
+    "positionTitle": "Position {position} in the assembled prompt",
+    "typeTitle": "Skill type",
+    "importedTitle": "Imported from a third party — wrapped as untrusted in the prompt",
+    "noDescription": "No description"
   },
   "mount": {
     "body": "Mount point for {owner}. The Agent Editor shell + tab routing are wired by A2 — {owner} renders this tab."

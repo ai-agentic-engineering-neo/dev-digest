@@ -73,15 +73,38 @@ describe("SkillsTab", () => {
     ]);
   });
 
-  it("checking a skill appends it; unchecking removes it", () => {
+  it("turning a skill on appends it; off removes it; clicking the name toggles too", () => {
     links = [{ agent_id: "ag1", skill_id: "s1", order: 0 }];
     renderTab();
-    const row = screen.getByTestId("skill-row-no-then-chains");
-    fireEvent.click(within(row).getByRole("checkbox"));
+    const on = screen.getByRole("switch", { name: "Use no-then-chains in this agent" });
+    expect(on.getAttribute("aria-checked")).toBe("false");
+    fireEvent.click(on);
     expect(mutate).toHaveBeenLastCalledWith(["s1", "s2"], expect.anything());
 
-    fireEvent.click(within(screen.getByTestId("skill-row-pr-quality-rubric")).getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("switch", { name: "Use pr-quality-rubric in this agent" }));
     expect(mutate).toHaveBeenLastCalledWith([], expect.anything());
+
+    fireEvent.click(screen.getByText("no-then-chains"));
+    expect(mutate).toHaveBeenLastCalledWith(["s1", "s2"], expect.anything());
+  });
+
+  it("rows explain themselves: description, prompt position and tooltips", () => {
+    links = [
+      { agent_id: "ag1", skill_id: "s3", order: 0 },
+      { agent_id: "ag1", skill_id: "s1", order: 1 },
+    ];
+    renderTab();
+    const second = within(screen.getByTestId("skill-row-pr-quality-rubric"));
+    expect(second.getByText("Rubric")).toBeTruthy(); // description line
+    expect(second.getByText("#2").getAttribute("title")).toBe("Position 2 in the assembled prompt");
+    expect(second.getByRole("button", { name: "Move pr-quality-rubric up" }).getAttribute("title")).toBe(
+      "Move up — earlier in the prompt",
+    );
+    // unlinked rows have no position, no arrows
+    const off = within(screen.getByTestId("skill-row-no-then-chains"));
+    expect(off.queryByText(/^#d/)).toBeNull();
+    expect(off.queryByRole("button", { name: /Move/ })).toBeNull();
+    expect(screen.getByText(/Turn a skill on to add it to this agent's prompt/)).toBeTruthy();
   });
 
   it("reorders with the arrow buttons", () => {

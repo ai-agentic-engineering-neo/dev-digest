@@ -52,10 +52,15 @@ highlighted. Imported (community / imported_url) cards keep the warn marker.
 The old `SkillPreviewDrawer` and `SkillEditorModal` are removed (replaced by the panel tabs).
 
 ### Agent Editor → **Skills** tab (`?tab=skills`) — `AgentEditor/_components/SkillsTab`
-- "Skills" + "N of M enabled" badge + filter; hint "Order matters … Drag to reorder."
-- Every workspace skill is a row: drag handle, checkbox (checked = linked), name, imported /
-  "disabled globally" markers, ↑/↓ for linked rows, type badge.
-- Linked rows first, in prompt order; check appends, uncheck removes, drag/arrows reorder. Each
+- One column, max 1060px (header, hint, filter and rows line up on wide screens): "Skills" + "N of
+  M enabled" (plain text, right); hint "Turn a skill on to add it to this agent's prompt. Order
+  matters … Drag the handle or use the arrows to reorder."; full-width filter.
+- Every workspace skill is a row: drag handle (linked rows only), **toggle** (on = linked; aria
+  "Use <name> in this agent", tooltip explains on/off), name + one-line description (clicking it
+  toggles too), imported / "disabled globally" markers (with tooltips), ↑/↓ for linked rows
+  (tooltips "Move up — earlier in the prompt"), type badge, and the prompt position **#1, #2…**
+  for linked rows (tooltip "Position N in the assembled prompt"). No unexplained icon.
+- Linked rows first, in prompt order; on appends, off removes, drag/arrows reorder. Each
   change saves immediately (`POST /agents/:id/skills { skill_ids }`, optimistic).
 - Agent cards show the linked-skill count (`useAgentSkillCounts`, shared cache with the tab).
 
@@ -64,7 +69,7 @@ Prompt assembly → **Skills** block shows `~N tokens` (chars/4 estimate); exact
 the run log line `Skills: N attached …`.
 
 ## Acceptance criteria
-- `SkillsTab.test.tsx` — order, counter, check/uncheck, arrows, drag & drop, markers, filter.
+- `SkillsTab.test.tsx` — order, counter, toggle on/off (+ name click), position / description / tooltips, arrows, drag & drop, markers, filter.
 - `SkillsLab.test.tsx` — list + search + card stats row / source · version, no default selection,
   Delete skill modal (cancel / Esc, confirm, locked while deleting, error kept), URL selection/tab, Config save (patch +
   note) / discard / create mode / validation, Preview trust notice, Stats tiles + agents + categories,

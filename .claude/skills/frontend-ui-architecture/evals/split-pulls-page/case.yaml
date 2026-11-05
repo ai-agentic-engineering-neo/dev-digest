@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: split-pulls-page
+expected_outcome: |
+  page.tsx becomes thin composition; filtering/sorting moved to named pure helpers with tests; OPEN_STATUSES moved to constants.ts; extracted UI stays route-local in _components; no new aggregate barrels.

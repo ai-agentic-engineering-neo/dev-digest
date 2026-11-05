@@ -62,7 +62,7 @@ Package-specific rules: `<pkg>/CLAUDE.md` § Naming conventions.
   (stop and ask the user first; migrations are generated with `pnpm db:generate`).
 - `server/clones/**` — runtime git checkouts (contain the GitHub token in `.git/config`).
 - `.claude/skills/**` + `skills-lock.json` — vendored third-party skills, pinned by hash.
-  Exception: `.claude/skills/engineering-insights/` is our own skill and may be edited.
+  Exceptions: `.claude/skills/engineering-insights/` and `.claude/skills/frontend-ui-architecture/` are our own skills and may be edited.
 - `*/pnpm-lock.yaml`, `*/package-lock.json` — only via the package manager.
 - `server/package.json` is `skip-worktree` locally; don't rely on its scripts in CI changes.
 - Never `docker compose down -v` — it wipes the dev DB volume with all imported repos.

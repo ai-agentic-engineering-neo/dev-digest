@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: shared-relative-time-helper
+expected_outcome: |
+  Helper lives in src/lib/<kebab-name>.ts because two routes use it; descriptive name (not utils.ts); pure and unit-tested; no hard-coded English unit strings; neither route imports from the other route's folders.

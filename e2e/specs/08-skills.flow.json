@@ -14,7 +14,7 @@
     { "cmd": ["find", "role", "button", "click", "--name", "Preview"], "label": "switch to the Preview tab" },
     { "cmd": ["wait", "--text", "Only the happy path"], "label": "preview shows the rendered body" },
     { "cmd": ["find", "role", "button", "click", "--name", "Stats"], "label": "switch to the Stats tab" },
-    { "cmd": ["wait", "--text", "Pull frequency"], "label": "stats tiles render" },
+    { "cmd": ["wait", "--text", "Runs before run attribution shipped"], "label": "stats panel renders (tile labels are CSS-uppercased, so wait for the plain footer text)" },
     { "cmd": ["find", "role", "button", "click", "--name", "Versions"], "label": "switch to the Versions tab" },
     { "cmd": ["wait", "--text", "Initial version"], "label": "version history lists v1" },
     { "cmd": ["open", "{BASE}/agents"], "label": "go to the agents list" },

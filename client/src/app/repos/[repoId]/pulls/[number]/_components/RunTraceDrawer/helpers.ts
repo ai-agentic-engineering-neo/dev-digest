@@ -27,5 +27,3 @@ export function formatTokens(tokensIn: number, tokensOut: number): string {
   return `${(tokensIn / 1000).toFixed(0)}k→${(tokensOut / 1000).toFixed(1)}k`;
 }
 
-/** Re-exported for the trace UI; implementation in src/lib/tokens.ts. */
-export { approxTokens } from "@/lib/tokens";

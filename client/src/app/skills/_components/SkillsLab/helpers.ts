@@ -1,6 +1,7 @@
 import type { Skill } from "@devdigest/shared";
 import type { SkillInput } from "../../../../lib/hooks/skills";
-import { DEFAULT_TAB, SKILL_NAME_PATTERN, TAB_KEYS, type SkillTab } from "./constants";
+import { isValidSkillName } from "@/lib/skill-name";
+import { DEFAULT_TAB, TAB_KEYS, type SkillTab } from "./constants";
 
 /** Case-insensitive match on name, description and type. */
 export function filterSkills(skills: Skill[], query: string): Skill[] {
@@ -23,10 +24,6 @@ export function parseTab(raw: string | null): SkillTab {
   return (TAB_KEYS as readonly string[]).includes(raw ?? "") ? (raw as SkillTab) : DEFAULT_TAB;
 }
 
-export function isValidSkillName(name: string): boolean {
-  return SKILL_NAME_PATTERN.test(name);
-}
-
 /** The form can be submitted when every field is present and the name is kebab-case. */
 export function canSubmitSkill(form: Pick<SkillInput, "name" | "description" | "body">): boolean {
   return isValidSkillName(form.name) && form.description.trim().length > 0 && form.body.trim().length > 0;
@@ -47,7 +44,6 @@ export function formatPct(rate: number | null | undefined): string {
   return rate == null ? "—" : `${Math.round(rate * 100)}%`;
 }
 
-export { approxTokens } from "@/lib/tokens";
 
 export type DiffLine = { kind: "same" | "add" | "del"; text: string };
 

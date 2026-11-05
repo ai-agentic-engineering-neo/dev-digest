@@ -29,7 +29,8 @@ import {
 } from "../../../../../../../../lib/hooks/conventions";
 import { useToast } from "../../../../../../../../lib/toast";
 import { BODY_ROWS, MODAL_WIDTH, NO_AGENT } from "./constants";
-import { approxTokens, canCreateSkill } from "./helpers";
+import { approxTokens } from "@/lib/tokens";
+import { canCreateSkill } from "./helpers";
 import { s } from "./styles";
 
 export function CreateConventionsSkillModal({

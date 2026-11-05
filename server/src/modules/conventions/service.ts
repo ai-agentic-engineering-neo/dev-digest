@@ -4,7 +4,7 @@ import {
   type SkillType,
 } from '@devdigest/shared';
 import type { Container } from '../../platform/container.js';
-import { AppError, NotFoundError, ValidationError } from '../../platform/errors.js';
+import { ConflictError, NotFoundError, ValidationError } from '../../platform/errors.js';
 import { skillBodyProblem, skillNameProblem } from '../_shared/skill-name.js';
 import {
   DEFAULT_CONVENTIONS_MODEL,
@@ -59,11 +59,6 @@ export interface CreateConventionsSkillResult {
 
 type Deps = Pick<Container, 'conventionsRepo' | 'skillsRepo' | 'agentsRepo' | 'git' | 'repoIntel' | 'llm'>;
 
-class ConflictError extends AppError {
-  constructor(message: string) {
-    super('conflict', message, 409);
-  }
-}
 
 const DEFAULT_MODEL: FeatureModelChoice = { ...DEFAULT_CONVENTIONS_MODEL };
 

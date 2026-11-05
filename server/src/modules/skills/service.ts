@@ -1,6 +1,6 @@
 import type { Skill, SkillSource, SkillType } from '@devdigest/shared';
 import type { Container } from '../../platform/container.js';
-import { AppError, ValidationError } from '../../platform/errors.js';
+import { ConflictError, ValidationError } from '../../platform/errors.js';
 import { skillBodyProblem, skillNameProblem } from '../_shared/skill-name.js';
 import {
   STATS_WINDOW_DAYS,
@@ -38,11 +38,6 @@ export interface ImportSkillInput {
   type?: SkillType;
 }
 
-class ConflictError extends AppError {
-  constructor(message: string) {
-    super('conflict', message, 409);
-  }
-}
 
 function assertName(name: string): void {
   const problem = skillNameProblem(name);

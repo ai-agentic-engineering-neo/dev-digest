@@ -8,8 +8,5 @@ export const TAB_KEYS = ["config", "preview", "evals", "stats", "versions"] as c
 export type SkillTab = (typeof TAB_KEYS)[number];
 export const DEFAULT_TAB: SkillTab = "config";
 
-/** Same rule as the server (modules/_shared/skill-name.ts → SKILL_NAME_PATTERN). */
-export const SKILL_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-
 /** Max chars of the "What changed?" version note (server caps at 200). */
 export const MAX_NOTE_CHARS = 200;

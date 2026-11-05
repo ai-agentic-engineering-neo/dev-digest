@@ -18,7 +18,8 @@ import {
 } from "../../../../../../lib/hooks/skills";
 import { useToast } from "../../../../../../lib/toast";
 import { MAX_NOTE_CHARS } from "../../constants";
-import { canSubmitSkill, isValidSkillName, skillPatch } from "../../helpers";
+import { isValidSkillName } from "@/lib/skill-name";
+import { canSubmitSkill, skillPatch } from "../../helpers";
 import { BodyEditor } from "../BodyEditor";
 import { emptyForm, formFromSkill } from "./helpers";
 import { s } from "./styles";

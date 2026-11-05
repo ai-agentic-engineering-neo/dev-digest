@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gte, inArray, min } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, min } from 'drizzle-orm';
 import type { Skill, SkillSource, SkillType } from '@devdigest/shared';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
@@ -239,11 +239,14 @@ export class SkillsRepository implements SkillsRepositoryPort {
       .where(eq(t.skills.workspaceId, workspaceId));
     if (runs.length === 0) return { runs: [], runSkills: [], links, findings: [] };
 
-    const runIds = runs.map((r) => r.id);
+    // Same window as `runs`, expressed as a JOIN — never a list of run ids, which
+    // would hit Postgres's 65535 bind-parameter limit on a busy workspace.
+    const inWindow = and(eq(t.agentRuns.workspaceId, workspaceId), gte(t.agentRuns.ranAt, start));
     const runSkills = await this.db
       .select({ runId: t.runSkills.runId, skillId: t.runSkills.skillId })
       .from(t.runSkills)
-      .where(inArray(t.runSkills.runId, runIds));
+      .innerJoin(t.agentRuns, eq(t.runSkills.runId, t.agentRuns.id))
+      .where(inWindow);
     const findingRows = await this.db
       .select({
         runId: t.reviews.runId,
@@ -253,13 +256,8 @@ export class SkillsRepository implements SkillsRepositoryPort {
       })
       .from(t.findings)
       .innerJoin(t.reviews, eq(t.findings.reviewId, t.reviews.id))
-      .where(
-        and(
-          eq(t.reviews.workspaceId, workspaceId),
-          inArray(t.reviews.runId, runIds),
-          eq(t.findings.kind, 'finding'),
-        ),
-      );
+      .innerJoin(t.agentRuns, eq(t.reviews.runId, t.agentRuns.id))
+      .where(and(inWindow, eq(t.reviews.workspaceId, workspaceId), eq(t.findings.kind, 'finding')));
     return {
       runs,
       runSkills,

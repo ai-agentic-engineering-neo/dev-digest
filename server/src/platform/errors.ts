@@ -34,6 +34,13 @@ export class ExternalServiceError extends AppError {
   }
 }
 
+/** 409 — the request conflicts with existing state (e.g. a duplicate name). */
+export class ConflictError extends AppError {
+  constructor(message: string, details?: unknown) {
+    super('conflict', message, 409, details);
+  }
+}
+
 export class ConfigError extends AppError {
   constructor(message: string, details?: unknown) {
     super('config_error', message, 500, details);

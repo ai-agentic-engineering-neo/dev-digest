@@ -7,7 +7,7 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Icon } from "@devdigest/ui";
-import { approxTokens } from "../../helpers";
+import { approxTokens } from "@/lib/tokens";
 import { LINE_HEIGHT, MIN_LINES } from "./constants";
 import { s } from "./styles";
 

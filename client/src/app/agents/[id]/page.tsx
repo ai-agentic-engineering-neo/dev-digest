@@ -22,7 +22,9 @@ export default function AgentEditorPage() {
   const { id } = params;
   // Read when a delete finishes — the user may have opened another agent meanwhile.
   const currentId = React.useRef(id);
-  currentId.current = id;
+  React.useLayoutEffect(() => {
+    currentId.current = id;
+  }, [id]);
 
   const { data: agents } = useAgents();
   const { data: agent, isLoading, isError, error, refetch } = useAgent(id);

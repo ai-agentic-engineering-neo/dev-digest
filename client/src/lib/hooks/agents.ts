@@ -3,6 +3,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
+import { OWN_ERROR_TOAST } from "../error-message";
 import type { Agent, ModelInfo, Provider, ReviewStrategy } from "@devdigest/shared";
 
 export function useAgents() {
@@ -72,6 +73,8 @@ export function useUpdateAgent() {
 export function useDeleteAgent() {
   const qc = useQueryClient();
   return useMutation({
+    // DeleteAgentDialog shows the error inside the modal — no second global toast.
+    meta: OWN_ERROR_TOAST,
     mutationFn: (id: string) => api.del<{ ok: boolean }>(`/agents/${id}`),
     onSuccess: (_d, id) => {
       qc.invalidateQueries({ queryKey: ["agents"] });

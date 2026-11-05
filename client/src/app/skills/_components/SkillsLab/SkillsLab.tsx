@@ -63,7 +63,10 @@ export function SkillsLab() {
   // The URL at the moment a delete finishes (not when it started): the user may
   // have picked another skill while the request ran.
   const current = React.useRef({ id: selected?.id ?? null, tab });
-  current.current = { id: selected?.id ?? null, tab };
+  const selectedId = selected?.id ?? null;
+  React.useLayoutEffect(() => {
+    current.current = { id: selectedId, tab };
+  }, [selectedId, tab]);
 
   // Card trash icon → DeleteSkillDialog. Deleting the open skill clears the
   // selection (its unsaved edits go with it, so no dirty prompt).

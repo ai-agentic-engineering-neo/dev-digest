@@ -1,0 +1,18 @@
+{
+  "name": "Skills page lists the seeded skills and the agent Skills tab shows linked ones in prompt order",
+  "description": "Loads /skills (seeded built-in skills), opens a skill preview, then opens Test Quality Reviewer → Skills tab and checks the linked-count badge. Read-only: no link/edit is saved, no LLM call.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/skills"], "label": "load the skills page" },
+    { "cmd": ["wait", "--url", "/skills"], "label": "skills route reached" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "skills fetch settles" },
+    { "cmd": ["wait", "--text", "untested-branches"], "label": "seeded skill card is visible" },
+    { "cmd": ["find", "text", "untested-branches", "click"], "label": "open the skill preview" },
+    { "cmd": ["wait", "--text", "Only the happy path"], "label": "preview drawer shows the rendered body" },
+    { "cmd": ["open", "{BASE}/agents"], "label": "go to the agents list" },
+    { "cmd": ["wait", "--text", "Test Quality Reviewer"], "label": "new seeded agent is listed" },
+    { "cmd": ["find", "text", "Test Quality Reviewer", "click"], "label": "open the test quality agent" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Skills"], "label": "switch to the Skills tab" },
+    { "cmd": ["wait", "--text", "4 of 8 enabled"], "label": "linked-count badge shows the four linked skills" },
+    { "cmd": ["wait", "--text", "flaky-test-patterns"], "label": "a linked skill row is visible" }
+  ]
+}

@@ -1,12 +1,15 @@
 import 'dotenv/config';
 import { createDb, type Db } from './client.js';
 import * as t from './schema.js';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, count } from 'drizzle-orm';
 import {
   GENERAL_REVIEWER_PROMPT,
   SECURITY_REVIEWER_PROMPT,
   PERFORMANCE_REVIEWER_PROMPT,
+  TEST_QUALITY_REVIEWER_PROMPT,
+  API_CONTRACT_REVIEWER_PROMPT,
 } from './seed-prompts.js';
+import { SEED_AGENT_SKILLS, SEED_SKILLS } from './seed-skills.js';
 
 /** Default provider/model for the built-in reviewer agents. */
 const DEFAULT_PROVIDER = 'openrouter' as const;
@@ -21,8 +24,9 @@ const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
  * with a few findings, and the three built-in agents (General + Security +
  * Performance), all on the default openrouter/deepseek-v4-flash provider+model.
  *
- * Course lessons populate the other tables (skills, conventions, memory, eval,
- * …) once their features are built — they start empty here.
+ * Also seeds the Test Quality + API Contract reviewers and the built-in skills
+ * (src/db/seed-skills.ts) linked to agents. Other course tables (conventions,
+ * memory, eval, …) start empty here.
  */
 
 export const DEFAULT_WORKSPACE_NAME = 'default';
@@ -211,6 +215,28 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       version: 1,
       createdBy: userId,
     },
+    {
+      workspaceId,
+      name: 'Test Quality Reviewer',
+      description: 'Checks test quality: uncovered branches, missed edge cases, over-mocking, flaky tests.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: TEST_QUALITY_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
+    {
+      workspaceId,
+      name: 'API Contract Reviewer',
+      description: 'Catches breaking changes to routes, request/response shapes and Zod contracts.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: API_CONTRACT_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
   ];
   for (const a of seedAgents) {
     const [existing] = await db
@@ -220,7 +246,58 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
     if (!existing) await db.insert(t.agents).values(a);
   }
 
+  await seedSkills(db, workspaceId);
+
   return { workspaceId, userId };
+}
+
+/**
+ * Built-in skills (text-only rubrics) + their links to agents. Idempotent by
+ * name: an existing skill is left untouched (the user may have edited it), and
+ * links are only created for skills inserted in THIS run, so a link the user
+ * removed is not re-added by a later re-seed.
+ */
+async function seedSkills(db: Db, workspaceId: string): Promise<void> {
+  const created = new Map<string, string>(); // skill name → id (new this run)
+  for (const sk of SEED_SKILLS) {
+    const [existing] = await db
+      .select({ id: t.skills.id })
+      .from(t.skills)
+      .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.name, sk.name)));
+    if (existing) continue;
+    // Skill + its v1 history row together: a skill without a version row would
+    // be skipped (by name) on every later re-seed and never repaired.
+    const skillId = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(t.skills)
+        .values({ workspaceId, ...sk, source: 'manual', enabled: true, version: 1 })
+        .returning({ id: t.skills.id });
+      await tx.insert(t.skillVersions).values({ skillId: row!.id, version: 1, body: sk.body });
+      return row!.id;
+    });
+    created.set(sk.name, skillId);
+  }
+
+  for (const [agentName, skillNames] of Object.entries(SEED_AGENT_SKILLS)) {
+    const [agent] = await db
+      .select({ id: t.agents.id })
+      .from(t.agents)
+      .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, agentName)));
+    if (!agent) continue;
+    const [{ n } = { n: 0 }] = await db
+      .select({ n: count() })
+      .from(t.agentSkills)
+      .where(eq(t.agentSkills.agentId, agent.id));
+    let order = Number(n);
+    for (const name of skillNames) {
+      const skillId = created.get(name);
+      if (!skillId) continue;
+      await db
+        .insert(t.agentSkills)
+        .values({ agentId: agent.id, skillId, order: order++ })
+        .onConflictDoNothing();
+    }
+  }
 }
 
 // CLI entrypoint

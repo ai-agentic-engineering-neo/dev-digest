@@ -8,6 +8,7 @@ import type {
   Provider,
   ReviewStrategy,
 } from '@devdigest/shared';
+import { NotFoundError, ValidationError } from '../../platform/errors.js';
 import { AgentsRepository } from './repository.js';
 import { toAgentDto, toAgentVersionDto } from './helpers.js';
 
@@ -152,6 +153,10 @@ export class AgentsService {
   ): Promise<AgentSkillLink[] | undefined> {
     const agent = await this.repo.getById(workspaceId, agentId);
     if (!agent) return undefined;
+    if (new Set(skillIds).size !== skillIds.length) {
+      throw new ValidationError('skill_ids contains duplicates');
+    }
+    await this.assertWorkspaceSkills(workspaceId, skillIds);
     await this.repo.setSkills(agentId, skillIds);
     return this.skillLinks(agentId);
   }
@@ -165,10 +170,18 @@ export class AgentsService {
   ): Promise<AgentSkillLink[] | undefined> {
     const agent = await this.repo.getById(workspaceId, agentId);
     if (!agent) return undefined;
+    await this.assertWorkspaceSkills(workspaceId, [skillId]);
     const existing = await this.repo.linkedSkills(agentId);
     const resolvedOrder = order ?? existing.length;
     await this.repo.linkSkill(agentId, skillId, resolvedOrder);
     return this.skillLinks(agentId);
+  }
+
+  /** Reject skill ids that don't exist in this workspace (no cross-tenant links). */
+  private async assertWorkspaceSkills(workspaceId: string, skillIds: string[]): Promise<void> {
+    const known = await this.repo.workspaceSkillIds(workspaceId, skillIds);
+    const unknown = skillIds.filter((id) => !known.has(id));
+    if (unknown.length > 0) throw new NotFoundError('Skill not found', { skill_ids: unknown });
   }
 
   /**

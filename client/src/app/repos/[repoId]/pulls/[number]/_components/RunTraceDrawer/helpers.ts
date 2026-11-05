@@ -26,3 +26,11 @@ export function formatSeconds(ms: number): string {
 export function formatTokens(tokensIn: number, tokensOut: number): string {
   return `${(tokensIn / 1000).toFixed(0)}k→${(tokensOut / 1000).toFixed(1)}k`;
 }
+
+/**
+ * Rough token estimate for a prompt slot (~4 chars per token). The exact
+ * cl100k count for the skills block is in the run log ("Skills: N attached …").
+ */
+export function approxTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}

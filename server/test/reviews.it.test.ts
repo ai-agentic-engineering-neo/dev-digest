@@ -219,6 +219,63 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     await app.close();
   });
 
+  it('skills: enabled linked skills reach the prompt in link order; disabled ones do not; imported is untrusted', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'Skilled', provider: 'openai', model: 'gpt-4.1', system_prompt: 'sec' },
+      })
+    ).json();
+
+    const mk = async (name: string, body: string) =>
+      (
+        await app.inject({
+          method: 'POST',
+          url: '/skills',
+          payload: { name, description: `Use ${name}.`, type: 'rubric', body },
+        })
+      ).json() as { id: string };
+    const on = await mk('trace-on', 'RULE-ON-BODY');
+    const off = await mk('trace-off', 'RULE-OFF-BODY');
+    await app.inject({ method: 'PUT', url: `/skills/${off.id}`, payload: { enabled: false } });
+    const imported = (
+      await app.inject({
+        method: 'POST',
+        url: '/skills/import',
+        payload: {
+          filename: 'ext.md',
+          content_base64: Buffer.from('---\nname: trace-ext\ndescription: Use ext.\n---\nEXT-BODY').toString('base64'),
+        },
+      })
+    ).json() as { id: string };
+    await app.inject({
+      method: 'POST',
+      url: `/agents/${agent.id}/skills`,
+      payload: { skill_ids: [imported.id, on.id, off.id] },
+    });
+
+    const res = (
+      await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } })
+    ).json();
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+    const trace = (await app.inject({ method: 'GET', url: `/runs/${res.runs[0].run_id}/trace` })).json();
+
+    const skills: string = trace.prompt_assembly.skills;
+    expect(skills).toContain('<untrusted source="skill:trace-ext">');
+    expect(skills).toContain('### trace-on\nRULE-ON-BODY');
+    expect(skills).not.toContain('RULE-OFF-BODY');
+    expect(skills.indexOf('EXT-BODY')).toBeLessThan(skills.indexOf('RULE-ON-BODY'));
+    expect(trace.prompt_assembly.user).toContain('## Skills / rules');
+    expect(trace.prompt_assembly.system).toContain('IMPORTED SKILLS');
+    const skillLog = trace.log.find((l: { msg: string }) => l.msg.startsWith('Skills:'));
+    expect(skillLog.msg).toMatch(/^Skills: 2 attached — trace-ext \(imported\), trace-on \(~\d+ tokens\)$/);
+
+    await app.close();
+  });
+
   it('PR list cost_usd = sum of all the PR\'s runs, scoped to the workspace', async () => {
     const app = await appWith(REVIEW_FIXTURE);
     const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);

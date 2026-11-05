@@ -25,6 +25,8 @@ import { PriceBook } from './price-book.js';
 import { ConfigError } from './errors.js';
 import { AgentsRepository } from '../modules/agents/repository.js';
 import { ReviewRepository } from '../modules/reviews/repository.js';
+import { SkillsRepository } from '../modules/skills/repository.js';
+import type { SkillsRepositoryPort } from '../modules/skills/ports.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
 import { type DepGraph, DepCruiseGraph } from '../adapters/depgraph/index.js';
@@ -51,6 +53,8 @@ export interface ContainerOverrides {
   /** repo-intel T3 adapters — only the indexer pipeline reads these. */
   depgraph?: DepGraph;
   tokenizer?: Tokenizer;
+  /** Skills storage — tests inject an in-memory fake. */
+  skillsRepo?: SkillsRepositoryPort;
 }
 
 export class Container {
@@ -72,6 +76,7 @@ export class Container {
   // `container.agentsRepo` instead of reaching into another module's folder.
   private _agentsRepo?: AgentsRepository;
   private _reviewRepo?: ReviewRepository;
+  private _skillsRepo?: SkillsRepositoryPort;
   private _repoIntel?: RepoIntel;
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
@@ -98,6 +103,12 @@ export class Container {
 
   get reviewRepo(): ReviewRepository {
     return (this._reviewRepo ??= new ReviewRepository(this.db));
+  }
+
+  /** Skills storage — the skills module and the review executor (prompt skills). */
+  get skillsRepo(): SkillsRepositoryPort {
+    if (this.overrides.skillsRepo) return this.overrides.skillsRepo;
+    return (this._skillsRepo ??= new SkillsRepository(this.db));
   }
 
   get codeIndex(): CodeIndex {

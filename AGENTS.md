@@ -75,8 +75,8 @@ Package-specific rules: `<pkg>/CLAUDE.md` § Naming conventions.
 - Writing or running tests, touching CI → read `TESTING.md` and `.github/workflows/<suite>.yml`.
 - Editing an agent's system prompt → read `docs/agent-prompts/README.md`.
 - Unsure which skill applies → read `.claude/skills/README.md`.
-- Before `git push` / opening or merging a PR → run the `pr-self-review` skill (the gate hook blocks
-  push/PR/merge without a fresh PASS).
+- Before `git push` / opening or merging a PR → ask the user to run `/pr-self-review` (manual only — auto-invoke
+  is disabled; the gate hook blocks push/PR/merge without a fresh PASS).
 
 ## Knowledge files (per package)
 

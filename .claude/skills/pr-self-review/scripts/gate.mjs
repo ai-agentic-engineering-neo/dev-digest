@@ -84,7 +84,7 @@ function evaluate() {
   return { open: true, reason: `PASS for the current diff (${current.slice(0, 12)}, ${last.timestamp})` };
 }
 
-const HOW = 'Run /pr-self-review (or ask Claude to "run pr-self-review"), fix the critical findings or add a justified waiver, then retry.';
+const HOW = 'Run /pr-self-review (manual — auto-invoke is disabled), fix the critical findings or add a justified waiver, then retry.';
 
 if (mode === 'claude') {
   let input = {};

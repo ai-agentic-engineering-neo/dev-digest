@@ -1,0 +1,57 @@
+import type { CSSProperties } from "react";
+
+/** Co-located styles for the agent's Skills tab (matches the Agent Editor · Skills design). */
+export const s = {
+  header: { display: "flex", alignItems: "center", gap: 12, marginBottom: 8 } satisfies CSSProperties,
+  title: { fontSize: 18, fontWeight: 700 } satisfies CSSProperties,
+  filter: {
+    marginLeft: "auto",
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "7px 12px",
+    borderRadius: 7,
+    border: "1px solid var(--border)",
+    background: "var(--bg-surface)",
+    width: 260,
+  } satisfies CSSProperties,
+  filterInput: {
+    flex: 1,
+    fontSize: 13,
+    background: "transparent",
+    border: "none",
+    outline: "none",
+    color: "var(--text-primary)",
+  } satisfies CSSProperties,
+  hint: { fontSize: 13, color: "var(--text-muted)", marginBottom: 16 } satisfies CSSProperties,
+  list: { display: "flex", flexDirection: "column", gap: 8, maxWidth: 980 } satisfies CSSProperties,
+  row: (linked: boolean, dragOver: boolean): CSSProperties => ({
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    padding: "10px 14px",
+    borderRadius: 8,
+    border: "1px solid " + (dragOver ? "var(--accent)" : "var(--border)"),
+    background: linked ? "var(--bg-elevated)" : "var(--bg-surface)",
+  }),
+  handle: (enabled: boolean): CSSProperties => ({
+    display: "inline-flex",
+    color: "var(--text-muted)",
+    cursor: enabled ? "grab" : "default",
+    opacity: enabled ? 1 : 0.3,
+  }),
+  name: { fontSize: 14, fontWeight: 500, flex: 1, minWidth: 0 } satisfies CSSProperties,
+  muted: { opacity: 0.55 } satisfies CSSProperties,
+  arrows: { display: "flex", gap: 2 } satisfies CSSProperties,
+  arrowBtn: {
+    display: "inline-flex",
+    padding: 3,
+    borderRadius: 5,
+    border: "none",
+    background: "transparent",
+    color: "var(--text-muted)",
+    cursor: "pointer",
+  } satisfies CSSProperties,
+  empty: { fontSize: 13, color: "var(--text-muted)", padding: "16px 0" } satisfies CSSProperties,
+  link: { color: "var(--accent)", fontSize: 13 } satisfies CSSProperties,
+} as const;

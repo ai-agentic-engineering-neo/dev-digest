@@ -100,6 +100,10 @@ jobs:
           git show "origin/$BASE_REF:server/architecture-baseline.json" > "$RUNNER_TEMP/base-baseline.json" \
             || echo "::notice::base branch has no architecture-baseline.json yet — growth check skipped"
 
+      # Proves every rule actually fires (probe files) — a dead rule would otherwise pass silently.
+      - name: Self-test layer rules
+        run: node scripts/check-architecture.mjs --self-test
+
       - name: Check layers
         run: |
           if [ -s "$RUNNER_TEMP/base-baseline.json" ]; then

@@ -115,6 +115,7 @@ package.json scripts):
 ```bash
 node scripts/check-architecture.mjs            # fails only on NEW error-level violations
 node scripts/check-architecture.mjs --update   # after FIXING violations: shrink the baseline
+node scripts/check-architecture.mjs --self-test  # prove every rule fires (run after editing rules)
 node node_modules/dependency-cruiser/bin/dependency-cruise.mjs src --output-type err   # full raw report
 ```
 
@@ -127,6 +128,11 @@ node node_modules/dependency-cruiser/bin/dependency-cruise.mjs src --output-type
 - Baseline keys are `rule|from|to`, and an npm target is reduced to `node_modules/<package>`. So
   dependency upgrades (pnpm paths carry versions and entry files) don't invalidate the baseline. That's
   why we don't use depcruise's own `--ignore-known`.
+- **Changing rules:** every rule in `.dependency-cruiser.cjs` needs a probe in `--self-test`
+  (`PROBE_FILES` + `EXPECTED` in `scripts/check-architecture.mjs`). The self-test fails if a rule has
+  no probe, if a rule doesn't fire, or if one import triggers two rules. Never put a path that rules
+  target into `options.exclude`: exclude drops the edges too and kills those rules silently. Use
+  `doNotFollow` instead, as `src/vendor/` does.
 
 ## Read when
 

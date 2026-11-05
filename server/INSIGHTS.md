@@ -10,6 +10,7 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 
 ## What Doesn't Work
 <!-- Dead ends and antipatterns — the most valuable section -->
+- 2026-11-05 — `options.exclude` in .dependency-cruiser.cjs removes the module AND all edges to it, so `exclude: ^src/vendor/` silently killed `domain-shared-type-only` (a clean run looked green; caught by the PR #12 AI review) → for paths rules point AT use `doNotFollow`, and prove rules with `node scripts/check-architecture.mjs --self-test` (.dependency-cruiser.cjs → options.doNotFollow).
 
 ## Codebase Patterns
 <!-- Conventions and architecture decisions, with the reason -->
@@ -30,6 +31,7 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 <!-- Symptom → root cause → fix -->
 - 2026-11-04 — `test/indexer-pipeline.test.ts` (runIncremental, 6 tests) fails on Windows with ENOENT: its `writeFileAt` helper splits paths on `'/'` only → pre-existing, unrelated to feature work; don't chase it as a regression (test/indexer-pipeline.test.ts:140 → writeFileAt).
 - 2026-11-04 — On Windows `db:migrate` / `db:seed` exit 0 with NO output and create no tables: the CLI guard `import.meta.url === \`file://${process.argv[1]}\`` never matches (`file:///F:/…` vs `F:\…`) → verify with `docker exec devdigest-postgres psql -U devdigest -d devdigest -c '\dt'`; workaround: a temp `.mts` that imports and awaits `runMigrations(url)` and `seed(createDb(url).db)`, run via `node node_modules/tsx/dist/cli.mjs` (src/db/migrate.ts:37, src/db/seed.ts:227 → CLI entrypoint guard).
+- 2026-11-05 — The PR #12 review claimed `@devdigest/shared` resolves to `node_modules/@devdigest/shared` — false: tsconfig `paths` resolves it to `src/vendor/shared/index.ts` (`aliased-tsconfig-paths`) → match rules on `^src/vendor/shared/`; verify reviewer claims with a probe file before applying their suggested fix (tsconfig.json → paths).
 
 ## Session Notes
 <!-- Wrap-up: one dated line per substantive task -->
@@ -37,6 +39,7 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 - 2026-11-04 — First local launch on Windows (Docker Postgres + migrate/seed workaround), PR #1 reviewed end-to-end via OpenRouter agents.
 - 2026-11-05 — Created the `onion-architecture` skill (ring rules per tool + dependency-cruiser layer check, baseline 24 errors) → .claude/skills/onion-architecture/SKILL.md.
 - 2026-11-05 — Added CI baseline mode for the Onion layer check (version-proof keys, shrink-only vs base branch) → scripts/check-architecture.mjs, .github/workflows/server-unit.yml (architecture).
+- 2026-11-05 — Fixed dead `domain-shared-type-only` rule (exclude → doNotFollow), de-duplicated `application-no-adapters`, added `--self-test` probes for all 10 rules + CI step → scripts/check-architecture.mjs.
 
 ## Open Questions
 <!-- Unresolved items, known gaps -->

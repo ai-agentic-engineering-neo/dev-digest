@@ -16,11 +16,15 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 - 2026-11-04 — There is no base-repository/workspace guard; scoping is manual per query → always add `eq(t.x.workspaceId, workspaceId)` from `getContext` (src/modules/_shared/context.ts:14 → getContext).
 - 2026-11-04 — `ReviewService` builds `new ReviewRepository(container.db)` instead of `container.reviewRepo` → can't be swapped via overrides; prefer the container getter in new code (src/modules/reviews/service.ts:34 → ReviewService constructor).
 - 2026-11-04 — `reviewPullRequest` already returns `costUsd`, but the executor drops it and `agent_runs.cost_usd` was removed in migration 0009; on a thrown chunk all usage is lost and the failure path writes tokens 0 → to persist partial spend, collect per-chunk usage via a callback, not from `outcome` (src/modules/reviews/run-executor.ts:139 → runOneAgent, partial spend via `UsageTally` at :157; spec: specs/run-cost-badge.md).
+- 2026-11-05 — Layering is enforceable with the already-installed dependency-cruiser; baseline is 24 errors (Drizzle in 4 routes, adapters imported by services, `adapters/{astgrep,depgraph}` importing `modules/repo-intel/constants`) → before/after backend changes run `node node_modules/dependency-cruiser/bin/dependency-cruise.mjs src --config ../.claude/skills/onion-architecture/depcruise-rules.cjs --output-type err` and add no new violations (../.claude/skills/onion-architecture/examples.md → Known violations).
+- 2026-11-05 — Correction: layer rules moved to `.dependency-cruiser.cjs` and the check is now `node scripts/check-architecture.mjs` (CI job `architecture` in server-unit.yml); legacy violations frozen in `architecture-baseline.json`, which may only shrink → after fixing a violation run `--update` and commit the smaller baseline; never `--update` to absorb a new one (scripts/check-architecture.mjs → keyOf).
 
 ## Tool & Library Notes
 <!-- Dependency / tooling quirks -->
 - 2026-11-04 — pgvector is enabled only by `runMigrations()` (`src/db/migrate.ts`), no migration .sql does it → migrate via `pnpm db:migrate`, never `drizzle-kit migrate`, or `vector(1536)` columns fail (src/db/migrate.ts:23 → runMigrations).
 - 2026-11-04 — On Windows `pnpm <script>` can fail with "Access is denied" → call bins via node: `node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json`, `node node_modules/vitest/vitest.mjs run --exclude '**/*.it.test.ts'`, `node node_modules/drizzle-kit/bin.cjs generate` (package.json → scripts).
+- 2026-11-05 — dependency-cruiser 17 rejects `to: { circular: true, viaNot: { path: … } }` ("viaNot must be string") → use the string form `viaNot: '^src/platform/container\\.ts$'`; container.ts cycles are expected (services `import type { Container }`) (../.claude/skills/onion-architecture/depcruise-rules.cjs → no-circular).
+- 2026-11-05 — dependency-cruiser's `--ignore-known` baseline matches RESOLVED paths; under pnpm those are `node_modules/.pnpm/drizzle-orm@<ver>_…/…/index.d.ts` → any dependency bump makes known violations "new". `preserveSymlinks` drops the version but not the entry file; `collapse` doesn't help (applied at report time, after known-violation matching — main/report-wrap.mjs) → match on normalized keys `rule|from|node_modules/<pkg>` instead (scripts/check-architecture.mjs → normalizeTarget).
 
 ## Recurring Errors & Fixes
 <!-- Symptom → root cause → fix -->
@@ -31,6 +35,8 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 <!-- Wrap-up: one dated line per substantive task -->
 - 2026-11-04 — Specced + implemented Run Cost Badge (`agent_runs.cost_usd` via migration 0010, `UsageTally` partial spend, PR-list SUM) → specs/run-cost-badge.md.
 - 2026-11-04 — First local launch on Windows (Docker Postgres + migrate/seed workaround), PR #1 reviewed end-to-end via OpenRouter agents.
+- 2026-11-05 — Created the `onion-architecture` skill (ring rules per tool + dependency-cruiser layer check, baseline 24 errors) → .claude/skills/onion-architecture/SKILL.md.
+- 2026-11-05 — Added CI baseline mode for the Onion layer check (version-proof keys, shrink-only vs base branch) → scripts/check-architecture.mjs, .github/workflows/server-unit.yml (architecture).
 
 ## Open Questions
 <!-- Unresolved items, known gaps -->

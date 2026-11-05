@@ -1,6 +1,7 @@
 # Server unit suite — Fastify API (@devdigest/api), hermetic tests only.
 #
-# Two jobs:
+# Three jobs:
+#  - architecture: Onion layer check (dependency-cruiser + version-proof baseline), see the job below.
 #  - typecheck: type-check on Linux only — the platform CI and the exported
 #    agent-runner both run on. We deliberately do NOT matrix over Windows/macOS:
 #    macOS is covered by daily local dev, Windows is not a ship target, and
@@ -64,6 +65,48 @@ jobs:
         run: npm ci
 
       - run: pnpm typecheck
+
+  # Onion Architecture layer check (.claude/skills/onion-architecture). dependency-cruiser rules live in
+  # server/.dependency-cruiser.cjs; legacy violations are frozen in server/architecture-baseline.json.
+  # Fails on NEW error-level violations, and (on PRs) if the baseline grew vs the base branch — the
+  # baseline may only shrink. reviewer-core deps are not needed: the check doesn't descend into it.
+  architecture:
+    name: layer check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: server/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Fetch base-branch baseline (PRs only)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$BASE_REF"
+          git show "origin/$BASE_REF:server/architecture-baseline.json" > "$RUNNER_TEMP/base-baseline.json" \
+            || echo "::notice::base branch has no architecture-baseline.json yet — growth check skipped"
+
+      - name: Check layers
+        run: |
+          if [ -s "$RUNNER_TEMP/base-baseline.json" ]; then
+            node scripts/check-architecture.mjs --base "$RUNNER_TEMP/base-baseline.json"
+          else
+            node scripts/check-architecture.mjs
+          fi
 
   unit:
     name: tests

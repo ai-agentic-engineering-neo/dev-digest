@@ -56,12 +56,19 @@ export function ConfirmDialog({
   const [opener] = React.useState(() =>
     typeof document !== "undefined" && document.activeElement instanceof HTMLElement ? document.activeElement : null,
   );
-  React.useEffect(
-    () => () => {
-      if (opener?.isConnected) opener.focus();
-    },
-    [opener],
-  );
+  // Restore only on a real unmount: StrictMode (dev) runs cleanup + setup back
+  // to back right after mount, which would yank focus off Cancel. The setup
+  // re-marks `mounted` before the deferred check runs, so that case is skipped.
+  const mounted = React.useRef(false);
+  React.useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      queueMicrotask(() => {
+        if (!mounted.current && opener?.isConnected) opener.focus();
+      });
+    };
+  }, [opener]);
 
   // While pending both buttons are disabled, which would drop focus to <body>:
   // park it on the dialog itself so it stays inside. When the request fails

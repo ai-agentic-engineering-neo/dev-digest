@@ -64,7 +64,7 @@ describe("SkillsTab", () => {
       { agent_id: "ag1", skill_id: "s1", order: 1 },
     ];
     renderTab();
-    expect(screen.getByText("2 of 4 enabled")).toBeTruthy();
+    expect(screen.getByText("2 of 4 enabled")).toBeInTheDocument();
     expect(rowNames()).toEqual([
       "skill-row-secret-leakage-gate",
       "skill-row-pr-quality-rubric",
@@ -77,7 +77,7 @@ describe("SkillsTab", () => {
     links = [{ agent_id: "ag1", skill_id: "s1", order: 0 }];
     renderTab();
     const on = screen.getByRole("switch", { name: "Use no-then-chains in this agent" });
-    expect(on.getAttribute("aria-checked")).toBe("false");
+    expect(on).not.toBeChecked();
     fireEvent.click(on);
     expect(mutate).toHaveBeenLastCalledWith(["s1", "s2"], expect.anything());
 
@@ -98,7 +98,7 @@ describe("SkillsTab", () => {
     ];
     renderTab();
     const second = within(screen.getByTestId("skill-row-pr-quality-rubric"));
-    expect(second.getByText("Rubric")).toBeTruthy(); // description line
+    expect(second.getByText("Rubric")).toBeInTheDocument(); // description line
     expect(second.getByText("#2").getAttribute("title")).toBe("Position 2 in the assembled prompt");
     expect(second.getByRole("button", { name: "Move pr-quality-rubric up" }).getAttribute("title")).toBe(
       "Move up — earlier in the prompt",
@@ -108,7 +108,7 @@ describe("SkillsTab", () => {
     expect(off.queryByText(/^#\d+$/)).not.toBeInTheDocument();
     expect(second.queryByText(/^#\d+$/)).toBeInTheDocument(); // the same matcher does find a real position
     expect(off.queryByRole("button", { name: /Move/ })).toBeNull();
-    expect(screen.getByText(/Turn a skill on to add it to this agent's prompt/)).toBeTruthy();
+    expect(screen.getByText(/Turn a skill on to add it to this agent's prompt/)).toBeInTheDocument();
   });
 
   it("reorders with the arrow buttons", () => {
@@ -151,8 +151,8 @@ describe("SkillsTab", () => {
   it("marks imported and globally disabled skills, and filters", () => {
     renderTab();
     const row = screen.getByTestId("skill-row-api-versioning");
-    expect(within(row).getByText("imported")).toBeTruthy();
-    expect(within(row).getByText("disabled globally")).toBeTruthy();
+    expect(within(row).getByText("imported")).toBeInTheDocument();
+    expect(within(row).getByText("disabled globally")).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Filter skills…"), { target: { value: "secret" } });
     expect(rowNames()).toEqual(["skill-row-secret-leakage-gate"]);

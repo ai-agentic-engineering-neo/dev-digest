@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import React from "react";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { ConfirmDialog, type ConfirmDialogProps } from "./ConfirmDialog";
 
 afterEach(cleanup);
@@ -35,7 +35,7 @@ describe("ConfirmDialog — accessible name", () => {
 });
 
 describe("ConfirmDialog — focus", () => {
-  it("focuses Cancel, traps Tab inside, and returns focus to the opener on close", () => {
+  it("focuses Cancel, traps Tab inside, and returns focus to the opener on close", async () => {
     render(<Harness />);
     const opener = screen.getByRole("button", { name: "Open" });
     opener.focus();
@@ -55,7 +55,7 @@ describe("ConfirmDialog — focus", () => {
 
     fireEvent.click(cancel);
     expect(screen.queryByRole("dialog")).toBeNull();
-    expect(opener).toHaveFocus();
+    await waitFor(() => expect(opener).toHaveFocus()); // restored after unmount (deferred)
   });
 
   it("while pending, focus stays on the dialog (not <body>) and Tab can't leave it", () => {
@@ -80,8 +80,20 @@ describe("ConfirmDialog — focus", () => {
     expect(screen.getByRole("button", { name: "Delete" })).toBeEnabled(); // retry is possible
   });
 
-  it("opening without a pending phase keeps Cancel focused (no jump on first render)", () => {
-    render(<ConfirmDialog {...base} />);
+  it("in StrictMode (dev) opening keeps Cancel focused; closing still returns to the opener", async () => {
+    render(
+      <React.StrictMode>
+        <Harness />
+      </React.StrictMode>,
+    );
+    const opener = screen.getByRole("button", { name: "Open" });
+    opener.focus();
+    fireEvent.click(opener);
+    // StrictMode's immediate cleanup + re-setup must not move focus to the opener
+    await Promise.resolve();
     expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(opener).toHaveFocus());
   });
 });

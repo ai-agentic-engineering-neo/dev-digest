@@ -26,6 +26,14 @@ function Harness(props: Partial<ConfirmDialogProps>) {
   );
 }
 
+describe("ConfirmDialog — accessible name", () => {
+  it("the dialog is named by its title and described by its body", () => {
+    render(<ConfirmDialog {...base} />);
+    const dialog = screen.getByRole("dialog", { name: "Delete skill" });
+    expect(dialog).toHaveAccessibleDescription('"x" will be permanently removed.');
+  });
+});
+
 describe("ConfirmDialog — focus", () => {
   it("focuses Cancel, traps Tab inside, and returns focus to the opener on close", () => {
     render(<Harness />);

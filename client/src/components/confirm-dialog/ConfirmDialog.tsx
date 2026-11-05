@@ -54,7 +54,7 @@ export function ConfirmDialog({
   // captured on the first render: by the time an effect runs, autoFocus has
   // already moved focus to Cancel.
   const [opener] = React.useState(() =>
-    typeof document === "undefined" ? null : (document.activeElement as HTMLElement | null),
+    typeof document !== "undefined" && document.activeElement instanceof HTMLElement ? document.activeElement : null,
   );
   React.useEffect(
     () => () => {

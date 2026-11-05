@@ -16,6 +16,11 @@ export function Modal({
   children?: React.ReactNode;
   footer?: React.ReactNode;
 }) {
+  // Accessible name/description: a screen reader announces the title (and
+  // subtitle), not just "dialog".
+  const id = React.useId();
+  const titleId = title ? `${id}-title` : undefined;
+  const subtitleId = subtitle ? `${id}-subtitle` : undefined;
   return (
     <div style={{ position: "fixed", inset: 0, display: "grid", placeItems: "center", zIndex: 50, padding: 28 }}>
       <div
@@ -25,6 +30,8 @@ export function Modal({
       <div
         role="dialog"
         aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={subtitleId}
         style={{
           position: "relative",
           width,
@@ -50,9 +57,13 @@ export function Modal({
           }}
         >
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 16, fontWeight: 700 }}>{title}</div>
+            <div id={titleId} style={{ fontSize: 16, fontWeight: 700 }}>
+              {title}
+            </div>
             {subtitle && (
-              <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 2 }}>{subtitle}</div>
+              <div id={subtitleId} style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 2 }}>
+                {subtitle}
+              </div>
             )}
           </div>
           {onClose && <IconBtn icon="X" label="Close" onClick={onClose} />}

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
@@ -37,7 +38,20 @@ vi.mock("../../../../lib/hooks/skills", () => ({
   useSkillCardStats: () => ({ data: cardStats }),
   useSkillStats: () => ({ data: stats, isLoading: false, isError: false, refetch: vi.fn() }),
   useSkillVersions: () => ({ data: versions, isLoading: false, isError: false, refetch: vi.fn() }),
-  useUpdateSkill: () => ({ mutate: updateMutate, mutateAsync: updateMutateAsync, isPending: false }),
+  // Per-instance pending state, like react-query: `mutate` keeps THIS hook
+  // instance pending (the request never settles in tests), so a component that
+  // shares one instance between two actions shows the wrong one as busy.
+  useUpdateSkill: () => {
+    const [pending, setPending] = useState(false);
+    return {
+      mutate: (...args: unknown[]) => {
+        updateMutate(...args);
+        setPending(true);
+      },
+      mutateAsync: updateMutateAsync,
+      isPending: pending,
+    };
+  },
   useCreateSkill: () => ({ mutateAsync: createMutateAsync, isPending: false }),
   useDeleteSkill: () => ({ mutate: deleteMutate, isPending: false }),
   usePreviewSkillImport: () => ({ mutateAsync: previewMutateAsync, isPending: false }),
@@ -184,6 +198,20 @@ describe("SkillsLab — Config", () => {
       }),
     );
     expect(await screen.findByText("Saved as v6")).toBeTruthy();
+  });
+
+  it("the header Enabled toggle saves at once without making Save look busy", () => {
+    skills = [RUBRIC];
+    renderLab("id=s1");
+    const header = within(screen.getByRole("heading", { name: "Configuration" }).parentElement!);
+    fireEvent.click(header.getByRole("switch", { name: "Enabled" }));
+    expect(updateMutate).toHaveBeenCalledWith({ id: "s1", patch: { enabled: false } }, expect.anything());
+    // the toggle request is still in flight — Save must not show "Saving…"
+    expect(screen.queryByText("Saving…")).toBeNull();
+    expect(header.getByRole("button", { name: "Save" })).toBeTruthy();
+    // and the form stays usable: an edit enables Save
+    fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Changed." } });
+    expect((header.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("guards navigation away from unsaved edits", () => {

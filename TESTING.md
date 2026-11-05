@@ -28,6 +28,7 @@ If a test wouldn't catch a class of regression we care about, we don't write it.
 |-------|---------|------|--------|----------|---------|
 | client | `client/` | component / unit (jsdom) | vitest | `client.yml` | no |
 | server-unit | `server/` | unit (hermetic) | vitest | `server-unit.yml` | no |
+| server architecture | `server/` | Onion layer check (static imports) | dependency-cruiser + `scripts/check-architecture.mjs` | `server-unit.yml` → `architecture` | no |
 | server-integration | `server/` | integration (real Postgres) | vitest | `server-integration.yml` | **yes** |
 | reviewer-core | `reviewer-core/` | unit (engine) | vitest | `reviewer-core.yml` | no |
 | e2e web | `e2e/` | browser e2e (deterministic) | agent-browser + `run.ts` | `e2e-web.yml` | yes (stack) |
@@ -42,6 +43,12 @@ surface (list, diff, findings, run controls) and the agent editor.
 repo-intel ranking & indexing, pricing, route smoke. The `typecheck` job also
 runs on Windows, which doubles as the `@ast-grep/napi` prebuilt gate (install
 fails there if the win32 prebuilt is missing).
+
+**server architecture** — the static layer rules from the `onion-architecture` skill
+(`server/.dependency-cruiser.cjs`). It fails only on NEW violations: legacy ones are frozen in
+`server/architecture-baseline.json`. On PRs it also fails if that baseline grew compared to the base
+branch, because it may only shrink. Package versions are stripped from the keys, so dependency bumps
+don't break it.
 
 **server-integration** — the `*.it.test.ts` files. Each starts a real Postgres
 (pgvector) via testcontainers, builds the Fastify app, migrates + seeds, and
@@ -67,6 +74,7 @@ cd reviewer-core && npm test
 cd server && pnpm exec vitest run --exclude '**/*.it.test.ts'   # unit, no Docker
 cd server && pnpm exec vitest run .it.test                      # integration, needs Docker
 cd server && pnpm test                                          # both
+cd server && node scripts/check-architecture.mjs                # Onion layer check (--update shrinks baseline)
 
 # browser e2e (needs the full stack + agent-browser CLI)
 ./scripts/dev.sh

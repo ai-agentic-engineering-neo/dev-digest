@@ -72,6 +72,8 @@ Search `server/docs/`, `server/specs/`, `server/INSIGHTS.md` for the topic befor
 
 ## Read when
 
+- Creating/changing a module, route, service, repository, adapter or job → use the `onion-architecture` skill
+  (ring rules + dependency-cruiser layer check).
 - Adding/changing a route or env var → read `README.md` (API map, Environment).
 - Touching review prompt context or grounding → read `README.md` § "Review context (non-obvious)".
 - Working in repo-intel → read `src/modules/repo-intel/README.md`.

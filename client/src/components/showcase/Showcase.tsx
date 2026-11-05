@@ -45,6 +45,7 @@ import {
 } from "@devdigest/ui";
 import { RunCostBadge } from "../run-cost-badge";
 import { SkillTypeBadge } from "../skill-type-badge";
+import { ConfirmDialog } from "../confirm-dialog";
 import { SeverityTally } from "../severity-tally";
 import { FindingsCell } from "../../app/repos/[repoId]/pulls/_components/FindingsCell";
 import { SeverityCounters } from "../../app/repos/[repoId]/pulls/[number]/_components/FindingsPanel/_components/SeverityCounters";
@@ -68,6 +69,7 @@ export function Gallery() {
   const [sel, setSel] = React.useState("gpt-4.1");
   const [drawer, setDrawer] = React.useState(false);
   const [modal, setModal] = React.useState(false);
+  const [confirm, setConfirm] = React.useState(false);
 
   return (
     <div style={s.gallery}>
@@ -259,6 +261,9 @@ export function Gallery() {
         <Button kind="ghost" onClick={() => setModal(true)}>
           Open Modal
         </Button>
+        <Button kind="ghost" onClick={() => setConfirm(true)}>
+          Open ConfirmDialog
+        </Button>
       </Group>
 
       <Group title="Charts (Recharts)">
@@ -315,6 +320,17 @@ export function Gallery() {
         <Modal title="Example Modal" subtitle="centered" onClose={() => setModal(false)} width={480}>
           <div style={s.modalBody}>Modal body content.</div>
         </Modal>
+      )}
+      {confirm && (
+        <ConfirmDialog
+          title="Delete skill"
+          body={'"example-skill" will be permanently removed. This cannot be undone.'}
+          confirmLabel="Delete"
+          pendingLabel="Deleting…"
+          cancelLabel="Cancel"
+          onConfirm={() => setConfirm(false)}
+          onCancel={() => setConfirm(false)}
+        />
       )}
     </div>
   );

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup, fireEvent, waitFor, within } from "@testing-library/react";
+import { act, render, screen, cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { Skill } from "@devdigest/shared";
 import type { SkillCardStats, SkillImportPreview, SkillStats, SkillVersionRecord } from "@/lib/types";
@@ -14,6 +14,7 @@ const updateMutate = vi.fn();
 const updateMutateAsync = vi.fn();
 const createMutateAsync = vi.fn();
 const deleteMutate = vi.fn();
+let deletePending = false;
 const previewMutateAsync = vi.fn();
 const importMutateAsync = vi.fn();
 const replace = vi.fn();
@@ -53,7 +54,7 @@ vi.mock("../../../../lib/hooks/skills", () => ({
     };
   },
   useCreateSkill: () => ({ mutateAsync: createMutateAsync, isPending: false }),
-  useDeleteSkill: () => ({ mutate: deleteMutate, isPending: false }),
+  useDeleteSkill: () => ({ mutate: deleteMutate, isPending: deletePending }),
   usePreviewSkillImport: () => ({ mutateAsync: previewMutateAsync, isPending: false }),
   useImportSkill: () => ({ mutateAsync: importMutateAsync, isPending: false }),
   fileToUpload: async (f: File) => ({ filename: f.name, content_base64: "QUJD" }),
@@ -90,6 +91,7 @@ afterEach(() => {
   // Undo vi.spyOn stubs (window.confirm) so no test inherits another's stub.
   vi.restoreAllMocks();
   params = new URLSearchParams();
+  deletePending = false;
   skills = [];
   cardStats = {};
   stats = undefined;
@@ -115,15 +117,15 @@ describe("SkillsLab — list", () => {
     cardStats = { s1: { agents: 3, pull_rate: 0.71, accept_rate: 0.74 } };
     renderLab();
     const card = within(screen.getByTestId("skill-card-pr-quality-rubric"));
-    expect(card.getByText("Manual · v5")).toBeTruthy();
-    expect(card.getByText("3 agents")).toBeTruthy();
-    expect(card.getByText("71% pull")).toBeTruthy();
-    expect(card.getByText("74% accept")).toBeTruthy();
+    expect(card.getByText("Manual · v5")).toBeInTheDocument();
+    expect(card.getByText("3 agents")).toBeInTheDocument();
+    expect(card.getByText("71% pull")).toBeInTheDocument();
+    expect(card.getByText("74% accept")).toBeInTheDocument();
     const other = within(screen.getByTestId("skill-card-api-versioning"));
-    expect(other.getByText("Community · v1")).toBeTruthy();
-    expect(other.getByText("— pull")).toBeTruthy();
+    expect(other.getByText("Community · v1")).toBeInTheDocument();
+    expect(other.getByText("— pull")).toBeInTheDocument();
     // no default selection → the "Select a skill" panel, no detail header
-    expect(screen.getByText("Select a skill")).toBeTruthy();
+    expect(screen.getByText("Select a skill")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Run on evals/ })).toBeNull();
     expect(screen.getByTestId("skill-card-pr-quality-rubric").getAttribute("aria-pressed")).toBe("false");
   });
@@ -132,23 +134,70 @@ describe("SkillsLab — list", () => {
     skills = [RUBRIC, IMPORTED];
     renderLab("id=s1");
     expect(screen.queryByText("Select a skill")).toBeNull();
-    expect((screen.getByRole("button", { name: /Run on evals/ }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole("button", { name: /Run on evals/ })).toBeDisabled();
     expect(screen.getByTestId("skill-card-pr-quality-rubric").getAttribute("aria-pressed")).toBe("true");
   });
 
-  it("card trash asks to confirm, deletes without selecting, and clears the open skill", () => {
+  const trash = () =>
+    within(screen.getByTestId("skill-card-pr-quality-rubric")).getByRole("button", { name: "Delete skill" });
+
+  it("card trash opens the Delete skill modal; Cancel / Esc close it without deleting", () => {
     skills = [RUBRIC, IMPORTED];
-    const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValue(true);
     renderLab("id=s1&tab=stats");
-    const trash = () => within(screen.getByTestId("skill-card-pr-quality-rubric")).getByRole("button", { name: "Delete skill" });
     fireEvent.click(trash());
-    expect(confirm).toHaveBeenCalledTimes(1);
+    const dialog = within(screen.getByRole("dialog"));
+    expect(dialog.getByText(/"pr-quality-rubric" will be permanently removed/)).toBeInTheDocument();
+    expect(dialog.getByRole("button", { name: "Cancel" })).toHaveFocus(); // a stray Enter can't delete
+    fireEvent.click(dialog.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    fireEvent.click(trash());
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
     expect(deleteMutate).not.toHaveBeenCalled();
+    expect(replace).not.toHaveBeenCalled(); // the trash click did not select the card
+  });
+
+  it("confirming deletes; success closes the modal, toasts and clears the open skill", async () => {
+    skills = [RUBRIC, IMPORTED];
+    renderLab("id=s1&tab=stats");
     fireEvent.click(trash());
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" }));
     expect(deleteMutate).toHaveBeenCalledWith("s1", expect.anything());
-    expect(replace).not.toHaveBeenCalled(); // the click did not select the card
-    deleteMutate.mock.calls[0]![1].onSuccess();
+    act(() => deleteMutate.mock.calls[0]![1].onSuccess());
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(await screen.findByText("Skill deleted")).toBeInTheDocument();
     expect(replace).toHaveBeenLastCalledWith("/skills?tab=stats");
+  });
+
+  it("while deleting, the modal is locked (no Cancel / ✕ / Esc)", () => {
+    skills = [RUBRIC];
+    deletePending = true;
+    renderLab("id=s1");
+    fireEvent.click(trash());
+    const dialog = within(screen.getByRole("dialog"));
+    expect(dialog.getByRole("button", { name: /Deleting…/ })).toBeDisabled();
+    expect(dialog.getByRole("button", { name: "Cancel" })).toBeDisabled();
+    expect(dialog.queryByRole("button", { name: "Close" })).not.toBeInTheDocument(); // no ✕ while pending
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("a failed delete keeps the modal open with the error, and nothing navigates", () => {
+    skills = [RUBRIC];
+    renderLab("id=s1");
+    fireEvent.click(trash());
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" }));
+    act(() => deleteMutate.mock.calls[0]![1].onError(new Error("Skill is in use")));
+    expect(within(screen.getByRole("dialog")).getByRole("alert")).toHaveTextContent("Skill is in use");
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("Config Delete opens the same modal", () => {
+    skills = [RUBRIC];
+    renderLab("id=s1");
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(within(screen.getByRole("dialog")).getByText("Delete skill")).toBeInTheDocument();
   });
 
   it("selecting a card / tab writes the URL; the card toggle does not select", () => {
@@ -169,7 +218,7 @@ describe("SkillsLab — list", () => {
     renderLab();
     fireEvent.change(screen.getByLabelText("Search skills…"), { target: { value: "route" } });
     expect(screen.queryByTestId("skill-card-pr-quality-rubric")).toBeNull();
-    expect(screen.getByTestId("skill-card-api-versioning")).toBeTruthy();
+    expect(screen.getByTestId("skill-card-api-versioning")).toBeInTheDocument();
   });
 });
 
@@ -180,11 +229,11 @@ describe("SkillsLab — Config", () => {
     renderLab("id=s1");
     expect(screen.queryByText("unsaved")).toBeNull();
     expect(screen.queryByRole("button", { name: "Discard" })).toBeNull(); // only while dirty
-    expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
     // Type options are capitalised labels
-    expect(screen.getByRole("option", { name: "Rubric" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "Rubric" })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Skill body"), { target: { value: RUBRIC.body + "\n- New rule" } });
-    expect(screen.getByText("unsaved")).toBeTruthy();
+    expect(screen.getByText("unsaved")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Discard" }));
     expect(screen.queryByText("unsaved")).toBeNull();
 
@@ -197,7 +246,7 @@ describe("SkillsLab — Config", () => {
         patch: { body: RUBRIC.body + "\n- New rule", note: "Added a rule" },
       }),
     );
-    expect(await screen.findByText("Saved as v6")).toBeTruthy();
+    expect(await screen.findByText("Saved as v6")).toBeInTheDocument();
   });
 
   it("the header Enabled toggle saves at once without making Save look busy", () => {
@@ -208,10 +257,10 @@ describe("SkillsLab — Config", () => {
     expect(updateMutate).toHaveBeenCalledWith({ id: "s1", patch: { enabled: false } }, expect.anything());
     // the toggle request is still in flight — Save must not show "Saving…"
     expect(screen.queryByText("Saving…")).toBeNull();
-    expect(header.getByRole("button", { name: "Save" })).toBeTruthy();
+    expect(header.getByRole("button", { name: "Save" })).toBeInTheDocument();
     // and the form stays usable: an edit enables Save
     fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Changed." } });
-    expect((header.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(false);
+    expect(header.getByRole("button", { name: "Save" })).toBeEnabled();
   });
 
   it("guards navigation away from unsaved edits", () => {
@@ -229,13 +278,13 @@ describe("SkillsLab — Config", () => {
     createMutateAsync.mockResolvedValue({ ...RUBRIC, id: "s9", name: "no-then-chains" });
     renderLab("new=1");
     expect(screen.getAllByText("New skill").length).toBeGreaterThan(0);
-    const create = screen.getByRole("button", { name: "Create skill" }) as HTMLButtonElement;
+    const create = screen.getByRole("button", { name: "Create skill" });
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Bad Name" } });
     fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Use on TS." } });
     fireEvent.change(screen.getByLabelText("Skill body"), { target: { value: "Use await." } });
-    expect(create.disabled).toBe(true);
+    expect(create).toBeDisabled();
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "no-then-chains" } });
-    expect(create.disabled).toBe(false);
+    expect(create).toBeEnabled();
     fireEvent.click(create);
     await waitFor(() =>
       expect(createMutateAsync).toHaveBeenCalledWith({
@@ -253,15 +302,15 @@ describe("SkillsLab — Preview / Evals / Stats / Versions", () => {
   it("Preview renders the body; imported skills show the trust notice", () => {
     skills = [IMPORTED];
     renderLab("id=s2&tab=preview");
-    expect(screen.getByText("Rendered as the reviewing agent receives it.")).toBeTruthy();
+    expect(screen.getByText("Rendered as the reviewing agent receives it.")).toBeInTheDocument();
     expect(screen.getByRole("note").textContent).toMatch(/wrapped as untrusted/);
-    expect(screen.getByText("/v2")).toBeTruthy();
+    expect(screen.getByText("/v2")).toBeInTheDocument();
   });
 
   it("Evals is a placeholder", () => {
     skills = [RUBRIC];
     renderLab("id=s1&tab=evals");
-    expect(screen.getByText("Evals are coming")).toBeTruthy();
+    expect(screen.getByText("Evals are coming")).toBeInTheDocument();
   });
 
   it("Stats shows the tiles, agents with Open links and category counts", () => {
@@ -283,14 +332,14 @@ describe("SkillsLab — Preview / Evals / Stats / Versions", () => {
       window_days: 30,
     };
     renderLab("id=s1&tab=stats");
-    expect(screen.getByText("Pull frequency")).toBeTruthy();
-    expect(screen.getByText("71")).toBeTruthy();
+    expect(screen.getByText("Pull frequency")).toBeInTheDocument();
+    expect(screen.getByText("71")).toBeInTheDocument();
     expect(screen.getAllByText("74").length).toBeGreaterThan(0); // value + ring
-    expect(screen.getByText("96")).toBeTruthy();
+    expect(screen.getByText("96")).toBeInTheDocument();
     const open = screen.getAllByRole("link", { name: "Open" });
     expect(open[0]!.getAttribute("href")).toBe("/agents/ag1?tab=skills");
-    expect(screen.getByText("60 · 63%")).toBeTruthy();
-    expect(screen.getByText(/12 runs with this skill/)).toBeTruthy();
+    expect(screen.getByText("60 · 63%")).toBeInTheDocument();
+    expect(screen.getByText(/12 runs with this skill/)).toBeInTheDocument();
   });
 
   it("Versions: current badge, diff vs current, restore creates a new version", async () => {
@@ -300,9 +349,9 @@ describe("SkillsLab — Preview / Evals / Stats / Versions", () => {
       { skill_id: "s1", version: 1, body: "line a\nline b", note: "Initial version", created_at: "2026-03-02T10:00:00Z" },
     ];
     renderLab("id=s1&tab=versions");
-    expect(screen.getByText("2 versions")).toBeTruthy();
-    expect(within(screen.getByTestId("version-v2")).getByText("Current")).toBeTruthy();
-    expect(screen.getByText("2026-03-02")).toBeTruthy();
+    expect(screen.getByText("2 versions")).toBeInTheDocument();
+    expect(within(screen.getByTestId("version-v2")).getByText("Current")).toBeInTheDocument();
+    expect(screen.getByText("2026-03-02")).toBeInTheDocument();
     // current has View but no Diff / Restore
     expect(within(screen.getByTestId("version-v2")).queryByRole("button", { name: /Restore/ })).toBeNull();
 
@@ -355,13 +404,13 @@ describe("ImportSkillModal", () => {
     await screen.findByText("You are adding someone else's instructions to your agents");
     expect(previewMutateAsync).toHaveBeenCalledWith({ filename: "api-versioning.zip", content_base64: "QUJD" });
     expect(importMutateAsync).not.toHaveBeenCalled();
-    expect(screen.getByText("api-versioning/scripts/run.sh")).toBeTruthy();
-    expect(screen.getByText(PREVIEW.warnings[0]!)).toBeTruthy();
+    expect(screen.getByText("api-versioning/scripts/run.sh")).toBeInTheDocument();
+    expect(screen.getByText(PREVIEW.warnings[0]!)).toBeInTheDocument();
 
-    const save = screen.getByRole("button", { name: /Save imported skill/ }) as HTMLButtonElement;
-    expect(save.disabled).toBe(true); // description missing
+    const save = screen.getByRole("button", { name: /Save imported skill/ });
+    expect(save).toBeDisabled(); // description missing
     fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Use on route changes." } });
-    expect(save.disabled).toBe(false);
+    expect(save).toBeEnabled();
     fireEvent.click(save);
 
     await waitFor(() => expect(onImported).toHaveBeenCalled());

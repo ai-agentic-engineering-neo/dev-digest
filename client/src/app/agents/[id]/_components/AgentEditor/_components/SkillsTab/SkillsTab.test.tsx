@@ -64,7 +64,7 @@ describe("SkillsTab", () => {
       { agent_id: "ag1", skill_id: "s1", order: 1 },
     ];
     renderTab();
-    expect(screen.getByText("2 of 4 enabled")).toBeTruthy();
+    expect(screen.getByText("2 of 4 enabled")).toBeInTheDocument();
     expect(rowNames()).toEqual([
       "skill-row-secret-leakage-gate",
       "skill-row-pr-quality-rubric",
@@ -73,15 +73,42 @@ describe("SkillsTab", () => {
     ]);
   });
 
-  it("checking a skill appends it; unchecking removes it", () => {
+  it("turning a skill on appends it; off removes it; clicking the name does nothing", () => {
     links = [{ agent_id: "ag1", skill_id: "s1", order: 0 }];
     renderTab();
-    const row = screen.getByTestId("skill-row-no-then-chains");
-    fireEvent.click(within(row).getByRole("checkbox"));
+    const on = screen.getByRole("switch", { name: "Use no-then-chains in this agent" });
+    expect(on).not.toBeChecked();
+    fireEvent.click(on);
     expect(mutate).toHaveBeenLastCalledWith(["s1", "s2"], expect.anything());
 
-    fireEvent.click(within(screen.getByTestId("skill-row-pr-quality-rubric")).getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("switch", { name: "Use pr-quality-rubric in this agent" }));
     expect(mutate).toHaveBeenLastCalledWith([], expect.anything());
+
+    // selecting / double-clicking the name must not save (only the switch toggles)
+    mutate.mockClear();
+    fireEvent.doubleClick(screen.getByText("no-then-chains"));
+    fireEvent.click(screen.getByText("no-then-chains"));
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
+  it("rows explain themselves: description, prompt position and tooltips", () => {
+    links = [
+      { agent_id: "ag1", skill_id: "s3", order: 0 },
+      { agent_id: "ag1", skill_id: "s1", order: 1 },
+    ];
+    renderTab();
+    const second = within(screen.getByTestId("skill-row-pr-quality-rubric"));
+    expect(second.getByText("Rubric")).toBeInTheDocument(); // description line
+    expect(second.getByText("#2").getAttribute("title")).toBe("Position 2 in the assembled prompt");
+    expect(second.getByRole("button", { name: "Move pr-quality-rubric up" }).getAttribute("title")).toBe(
+      "Move up — earlier in the prompt",
+    );
+    // unlinked rows have no position, no arrows
+    const off = within(screen.getByTestId("skill-row-no-then-chains"));
+    expect(off.queryByText(/^#\d+$/)).not.toBeInTheDocument();
+    expect(second.queryByText(/^#\d+$/)).toBeInTheDocument(); // the same matcher does find a real position
+    expect(off.queryByRole("button", { name: /Move/ })).toBeNull();
+    expect(screen.getByText(/Turn a skill on to add it to this agent's prompt/)).toBeInTheDocument();
   });
 
   it("reorders with the arrow buttons", () => {
@@ -92,7 +119,7 @@ describe("SkillsTab", () => {
     renderTab();
     fireEvent.click(screen.getByRole("button", { name: "Move no-then-chains up" }));
     expect(mutate).toHaveBeenLastCalledWith(["s2", "s1"], expect.anything());
-    expect((screen.getByRole("button", { name: "Move pr-quality-rubric up" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole("button", { name: "Move pr-quality-rubric up" })).toBeDisabled();
   });
 
   it("ignores links to deleted skills when reordering and saving", () => {
@@ -124,8 +151,8 @@ describe("SkillsTab", () => {
   it("marks imported and globally disabled skills, and filters", () => {
     renderTab();
     const row = screen.getByTestId("skill-row-api-versioning");
-    expect(within(row).getByText("imported")).toBeTruthy();
-    expect(within(row).getByText("disabled globally")).toBeTruthy();
+    expect(within(row).getByText("imported")).toBeInTheDocument();
+    expect(within(row).getByText("disabled globally")).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Filter skills…"), { target: { value: "secret" } });
     expect(rowNames()).toEqual(["skill-row-secret-leakage-gate"]);

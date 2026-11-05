@@ -1,24 +1,26 @@
-/* SkillsTab — the agent's Skills (Agent Editor · Skills design). Every
-   workspace skill is a row; checked = linked to this agent. Linked skills come
-   first in prompt order and can be dragged (or moved with ↑/↓) — order is the
-   order of the skill blocks in the assembled prompt. Each change saves at once. */
+/* SkillsTab — the agent's Skills (Agent Editor · Skills design). One column of
+   bounded width: "Skills" + "N of M enabled", a hint, a full-width filter, and
+   a row per workspace skill: toggle on = linked to this agent. Linked skills
+   come first in prompt order, show their position (#1, #2…) and can be dragged
+   (or moved with ↑/↓) — order is the order of the skill blocks in the
+   assembled prompt. Every control has a visible label or a tooltip, and rows
+   show the skill's description (see SkillRow). Each change saves at once. */
 "use client";
 
 import React from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { Badge, Checkbox, ErrorState, Icon, Skeleton } from "@devdigest/ui";
+import { ErrorState, Icon, Skeleton } from "@devdigest/ui";
 import type { Agent } from "@devdigest/shared";
-import { SkillTypeBadge } from "../../../../../../../components/skill-type-badge";
 import { useAgentSkills, useSetAgentSkills, useSkills } from "../../../../../../../lib/hooks/skills";
 import { useToast } from "../../../../../../../lib/toast";
 import { buildSkillRows, linkedIds, matchesFilter, moveLinked, toggleLinked } from "./helpers";
 import { s } from "./styles";
+import { SkillRow } from "./_components/SkillRow";
 import { errorMessage } from "@/lib/error-message";
 
 export function SkillsTab({ agent }: { agent: Agent }) {
   const t = useTranslations("agents");
-  const tSkills = useTranslations("skills");
   const toast = useToast();
   const skillsQ = useSkills();
   const linksQ = useAgentSkills(agent.id);
@@ -69,24 +71,22 @@ export function SkillsTab({ agent }: { agent: Agent }) {
   };
 
   return (
-    <div>
+    <div style={s.column}>
       <div style={s.header}>
         <h2 style={s.title}>{t("skills.title")}</h2>
-        <Badge color="var(--accent)" bg="var(--accent-bg)">
-          {t("skills.enabledCount", { linked: linkedCount, total: skills.length })}
-        </Badge>
-        <div style={s.filter}>
-          <Icon.Search size={13} style={{ color: "var(--text-muted)" }} />
-          <input
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            placeholder={t("skills.filterPlaceholder")}
-            aria-label={t("skills.filterPlaceholder")}
-            style={s.filterInput}
-          />
-        </div>
+        <span style={s.count}>{t("skills.enabledCount", { linked: linkedCount, total: skills.length })}</span>
       </div>
       <p style={s.hint}>{t("skills.orderHint")}</p>
+      <div style={s.filter}>
+        <Icon.Search size={14} style={{ color: "var(--text-muted)" }} />
+        <input
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          placeholder={t("skills.filterPlaceholder")}
+          aria-label={t("skills.filterPlaceholder")}
+          style={s.filterInput}
+        />
+      </div>
 
       {skills.length === 0 ? (
         <p style={s.empty}>
@@ -100,79 +100,30 @@ export function SkillsTab({ agent }: { agent: Agent }) {
       ) : (
         <div style={s.list} role="list">
           {visible.map(({ skill, linked, position }) => (
-            <div
+            <SkillRow
               key={skill.id}
-              role="listitem"
-              data-testid={`skill-row-${skill.name}`}
-              style={s.row(linked, overId === skill.id)}
-              draggable={linked}
-              onDragStart={(e) => {
-                setDragId(skill.id);
-                e.dataTransfer.effectAllowed = "move";
+              skill={skill}
+              linked={linked}
+              position={position}
+              linkedCount={linkedCount}
+              onToggle={() => save(toggleLinked(ids, skill.id))}
+              onMove={(to) => save(moveLinked(ids, skill.id, to))}
+              drag={{
+                over: overId === skill.id,
+                onStart: () => setDragId(skill.id),
+                onOver: () => {
+                  if (!dragId || !linked) return false;
+                  setOverId(skill.id);
+                  return true;
+                },
+                onLeave: () => setOverId((o) => (o === skill.id ? null : o)),
+                onDrop: () => onDrop(skill.id),
+                onEnd: () => {
+                  setDragId(null);
+                  setOverId(null);
+                },
               }}
-              onDragOver={(e) => {
-                if (!dragId || !linked) return;
-                e.preventDefault();
-                setOverId(skill.id);
-              }}
-              onDragLeave={() => setOverId((o) => (o === skill.id ? null : o))}
-              onDrop={(e) => {
-                e.preventDefault();
-                onDrop(skill.id);
-              }}
-              onDragEnd={() => {
-                setDragId(null);
-                setOverId(null);
-              }}
-            >
-              <span style={s.handle(linked)} title={t("skills.dragHandle", { name: skill.name })} aria-hidden>
-                <Icon.Menu size={14} />
-              </span>
-              <div style={{ ...s.name, ...(skill.enabled ? {} : s.muted) }}>
-                <Checkbox
-                  checked={linked}
-                  onChange={() => save(toggleLinked(ids, skill.id))}
-                  label={
-                    <span className="mono" title={skill.description}>
-                      {skill.name}
-                    </span>
-                  }
-                />
-              </div>
-              {(skill.source === "community" || skill.source === "imported_url") && (
-                <Badge color="var(--warn)" bg="var(--warn-bg)">
-                  {t("skills.imported")}
-                </Badge>
-              )}
-              {!skill.enabled && (
-                <span title={t("skills.disabledGloballyTitle")}>
-                  <Badge color="var(--text-muted)">{t("skills.disabledGlobally")}</Badge>
-                </span>
-              )}
-              {linked && (
-                <div style={s.arrows}>
-                  <button
-                    type="button"
-                    style={s.arrowBtn}
-                    aria-label={t("skills.moveUp", { name: skill.name })}
-                    disabled={position === 0}
-                    onClick={() => save(moveLinked(ids, skill.id, position - 1))}
-                  >
-                    <Icon.ArrowUp size={13} />
-                  </button>
-                  <button
-                    type="button"
-                    style={s.arrowBtn}
-                    aria-label={t("skills.moveDown", { name: skill.name })}
-                    disabled={position === linkedCount - 1}
-                    onClick={() => save(moveLinked(ids, skill.id, position + 1))}
-                  >
-                    <Icon.ArrowDown size={13} />
-                  </button>
-                </div>
-              )}
-              <SkillTypeBadge type={skill.type} label={tSkills(`type.${skill.type}`)} />
-            </div>
+            />
           ))}
         </div>
       )}

@@ -12,8 +12,9 @@ import { useTranslations } from "next-intl";
 import { Button, Dropdown, EmptyState, ErrorState, Icon, Skeleton } from "@devdigest/ui";
 import type { Skill } from "@devdigest/shared";
 import { AppShell } from "@/components/app-shell";
-import { useDeleteSkill, useSkillCardStats, useSkillUsage, useSkills, useUpdateSkill } from "@/lib/hooks/skills";
+import { useSkillCardStats, useSkillUsage, useSkills, useUpdateSkill } from "@/lib/hooks/skills";
 import { useToast } from "@/lib/toast";
+import { DeleteSkillDialog } from "./_components/DeleteSkillDialog";
 import { ImportSkillModal } from "./_components/ImportSkillModal";
 import { SkillCard } from "./_components/SkillCard";
 import { SkillDetail } from "./_components/SkillDetail";
@@ -32,9 +33,9 @@ export function SkillsLab() {
   const { data: usage } = useSkillUsage();
   const { data: cardStats } = useSkillCardStats();
   const update = useUpdateSkill();
-  const del = useDeleteSkill();
   const toast = useToast();
   const [query, setQuery] = React.useState("");
+  const [deleting, setDeleting] = React.useState<Skill | null>(null);
   const [importing, setImporting] = React.useState(false);
   const dirtyRef = React.useRef(false);
   const onDirtyChange = React.useCallback((d: boolean) => {
@@ -59,24 +60,28 @@ export function SkillsLab() {
     router.replace(qs ? `/skills?${qs}` : "/skills");
   };
 
-  // Card trash icon. Deleting the open skill clears the selection (its unsaved
-  // edits go with it, so no dirty prompt).
-  const remove = (sk: Skill) => {
-    if (del.isPending) return; // one DELETE at a time (double click)
-    if (!window.confirm(t("config.deleteConfirm", { name: sk.name }))) return;
-    del.mutate(sk.id, {
-      onSuccess: () => {
-        toast.success(t("config.deleted"));
-        if (sk.id === selected?.id) go({ id: null, tab, create: false }, { force: true });
-      },
-      onError: (e) => toast.error(errorMessage(e)),
-    });
+  // The URL at the moment a delete finishes (not when it started): the user may
+  // have picked another skill while the request ran.
+  const current = React.useRef({ id: selected?.id ?? null, tab });
+  const selectedId = selected?.id ?? null;
+  React.useLayoutEffect(() => {
+    current.current = { id: selectedId, tab };
+  }, [selectedId, tab]);
+
+  // Card trash icon → DeleteSkillDialog. Deleting the open skill clears the
+  // selection (its unsaved edits go with it, so no dirty prompt).
+  const onCardDeleted = (sk: Skill) => {
+    setDeleting(null);
+    if (sk.id === current.current.id) go({ id: null, tab: current.current.tab, create: false }, { force: true });
   };
 
   const crumb = [{ label: t("page.crumbLab") }, { label: t("page.crumbSkills") }];
 
   return (
     <AppShell crumb={crumb}>
+      {deleting && (
+        <DeleteSkillDialog skill={deleting} onClose={() => setDeleting(null)} onDeleted={onCardDeleted} />
+      )}
       {importing && (
         <ImportSkillModal
           onClose={() => setImporting(false)}
@@ -132,8 +137,7 @@ export function SkillsLab() {
                 usedBy={usage?.[sk.id] ?? 0}
                 active={!creating && sk.id === selected?.id}
                 onClick={() => go({ id: sk.id, tab, create: false })}
-                onDelete={() => remove(sk)}
-                deleteDisabled={del.isPending}
+                onDelete={() => setDeleting(sk)}
                 onToggle={(enabled) =>
                   update.mutate(
                     { id: sk.id, patch: { enabled } },

@@ -6,7 +6,7 @@
 import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import type { AgentSkillLink, Skill, SkillType } from "@devdigest/shared";
-import type { SkillImportPreview } from "../types";
+import type { SkillCardStats, SkillImportPreview, SkillStats, SkillVersionRecord } from "../types";
 
 export function useSkills() {
   return useQuery({
@@ -28,6 +28,36 @@ export interface SkillInput {
   description: string;
   type: SkillType;
   body: string;
+  /** "What changed" — stored on the version a content change creates. */
+  note?: string;
+  /** Create only — defaults to enabled on the server. */
+  enabled?: boolean;
+}
+
+/** Card numbers for every skill (agents · pull % · accept %). */
+export function useSkillCardStats() {
+  return useQuery({
+    queryKey: ["skill-card-stats"],
+    queryFn: () => api.get<Record<string, SkillCardStats>>("/skills/stats"),
+  });
+}
+
+/** Stats tab: 30-day usage, rates and findings by category. */
+export function useSkillStats(id: string | null | undefined) {
+  return useQuery({
+    queryKey: ["skill-stats", id],
+    queryFn: () => api.get<SkillStats>(`/skills/${id}/stats`),
+    enabled: !!id,
+  });
+}
+
+/** Versions tab: body history with notes, newest first. */
+export function useSkillVersions(id: string | null | undefined) {
+  return useQuery({
+    queryKey: ["skill-versions", id],
+    queryFn: () => api.get<SkillVersionRecord[]>(`/skills/${id}/versions`),
+    enabled: !!id,
+  });
 }
 
 export function useCreateSkill() {
@@ -47,7 +77,10 @@ export function useUpdateSkill() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, patch }: UpdateSkillInput) => api.put<Skill>(`/skills/${id}`, patch),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["skills"] }),
+    onSuccess: (_s, { id }) => {
+      qc.invalidateQueries({ queryKey: ["skills"] });
+      qc.invalidateQueries({ queryKey: ["skill-versions", id] });
+    },
   });
 }
 

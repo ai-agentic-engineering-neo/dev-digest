@@ -3,8 +3,8 @@
 /** Version recorded for a newly-created skill. */
 export const INITIAL_SKILL_VERSION = 1;
 
-/** Max skill body length (chars) — a skill is prompt text, keep it bounded. */
-export const MAX_SKILL_BODY_CHARS = 50_000;
+/** Max skill body length (chars) — shared with other skill-creating modules. */
+export { MAX_SKILL_BODY_CHARS } from '../_shared/skill-name.js';
 
 /** Max raw upload size for an import (a .md file or a .zip archive). */
 export const MAX_IMPORT_BYTES = 1_048_576; // 1 MiB

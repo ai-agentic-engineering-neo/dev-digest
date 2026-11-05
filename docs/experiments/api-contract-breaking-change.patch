@@ -1,0 +1,35 @@
+diff --git a/server/src/modules/skills/routes.ts b/server/src/modules/skills/routes.ts
+index c96d04a..b003aa6 100644
+--- a/server/src/modules/skills/routes.ts
++++ b/server/src/modules/skills/routes.ts
+@@ -11,7 +11,7 @@ import { SkillsService } from './service.js';
+ /**
+  * Skills module — reusable, text-only prompt blocks linked to agents.
+  *   GET    /skills                  → list (workspace-scoped)
+- *   GET    /skills/usage            → { [skillId]: linkedAgentCount }
++ *   GET    /skills/link-counts      → [{ skillId, agents }]
+  *   GET    /skills/:id              → one skill
+  *   POST   /skills                  → create (manual, trusted)
+  *   PUT    /skills/:id              → update / toggle enabled (content edits bump version)
+@@ -66,9 +66,10 @@ export default async function skillsRoutes(appBase: FastifyInstance) {
+     return service.list(workspaceId);
+   });
+ 
+-  app.get('/skills/usage', async (req) => {
++  app.get('/skills/link-counts', async (req) => {
+     const { workspaceId } = await getContext(app.container, req);
+-    return service.usage(workspaceId);
++    const counts = await service.usage(workspaceId);
++    return Object.entries(counts).map(([skillId, agents]) => ({ skillId, agents }));
+   });
+ 
+   app.get('/skills/:id', { schema: { params: IdParams } }, async (req) => {
+@@ -103,7 +104,7 @@ export default async function skillsRoutes(appBase: FastifyInstance) {
+     const { workspaceId } = await getContext(app.container, req);
+     const versions = await service.versions(workspaceId, req.params.id);
+     if (!versions) throw new NotFoundError('Skill not found');
+-    return versions;
++    return { items: versions.map((v) => ({ version: v.version, body: v.body, createdAt: v.created_at })) };
+   });
+ 
+   app.post(

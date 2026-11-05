@@ -27,6 +27,8 @@ import { AgentsRepository } from '../modules/agents/repository.js';
 import { ReviewRepository } from '../modules/reviews/repository.js';
 import { SkillsRepository } from '../modules/skills/repository.js';
 import type { SkillsRepositoryPort } from '../modules/skills/ports.js';
+import { ConventionsRepository } from '../modules/conventions/repository.js';
+import type { ConventionsRepositoryPort } from '../modules/conventions/ports.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
 import { type DepGraph, DepCruiseGraph } from '../adapters/depgraph/index.js';
@@ -55,6 +57,8 @@ export interface ContainerOverrides {
   tokenizer?: Tokenizer;
   /** Skills storage — tests inject an in-memory fake. */
   skillsRepo?: SkillsRepositoryPort;
+  /** Conventions storage — tests inject an in-memory fake. */
+  conventionsRepo?: ConventionsRepositoryPort;
 }
 
 export class Container {
@@ -77,6 +81,7 @@ export class Container {
   private _agentsRepo?: AgentsRepository;
   private _reviewRepo?: ReviewRepository;
   private _skillsRepo?: SkillsRepositoryPort;
+  private _conventionsRepo?: ConventionsRepositoryPort;
   private _repoIntel?: RepoIntel;
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
@@ -109,6 +114,12 @@ export class Container {
   get skillsRepo(): SkillsRepositoryPort {
     if (this.overrides.skillsRepo) return this.overrides.skillsRepo;
     return (this._skillsRepo ??= new SkillsRepository(this.db));
+  }
+
+  /** Conventions Extractor storage (conventions module). */
+  get conventionsRepo(): ConventionsRepositoryPort {
+    if (this.overrides.conventionsRepo) return this.overrides.conventionsRepo;
+    return (this._conventionsRepo ??= new ConventionsRepository(this.db));
   }
 
   get codeIndex(): CodeIndex {

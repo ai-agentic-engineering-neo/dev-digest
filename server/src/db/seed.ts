@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { createDb, type Db } from './client.js';
 import * as t from './schema.js';
-import { eq, and, count } from 'drizzle-orm';
+import { eq, and, count, inArray } from 'drizzle-orm';
 import {
   GENERAL_REVIEWER_PROMPT,
   SECURITY_REVIEWER_PROMPT,
@@ -9,7 +9,7 @@ import {
   TEST_QUALITY_REVIEWER_PROMPT,
   API_CONTRACT_REVIEWER_PROMPT,
 } from './seed-prompts.js';
-import { SEED_AGENT_SKILLS, SEED_SKILLS } from './seed-skills.js';
+import { RETIRED_SEED_SKILLS, SEED_AGENT_SKILLS, SEED_SKILLS } from './seed-skills.js';
 
 /** Default provider/model for the built-in reviewer agents. */
 const DEFAULT_PROVIDER = 'openrouter' as const;
@@ -258,6 +258,18 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
  * removed is not re-added by a later re-seed.
  */
 async function seedSkills(db: Db, workspaceId: string): Promise<void> {
+  // Retired seed skills: drop them while unedited (links cascade).
+  await db
+    .delete(t.skills)
+    .where(
+      and(
+        eq(t.skills.workspaceId, workspaceId),
+        inArray(t.skills.name, RETIRED_SEED_SKILLS),
+        eq(t.skills.source, 'manual'),
+        eq(t.skills.version, 1),
+      ),
+    );
+
   const created = new Map<string, string>(); // skill name → id (new this run)
   for (const sk of SEED_SKILLS) {
     const [existing] = await db

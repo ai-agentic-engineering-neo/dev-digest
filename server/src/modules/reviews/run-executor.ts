@@ -193,7 +193,7 @@ export class ReviewRunExecutor {
       // each becomes a block under "## Skills / rules"; imported (community)
       // skills are untrusted-wrapped by the engine. A disabled skill never
       // reaches the prompt, so it is absent from this log line and the trace.
-      const skills = await this.loadPromptSkills(workspaceId, agent, runLog);
+      const skills = await this.loadPromptSkills(workspaceId, agent, runId, runLog);
 
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
@@ -467,6 +467,7 @@ export class ReviewRunExecutor {
   private async loadPromptSkills(
     workspaceId: string,
     agent: AgentRow,
+    runId: string,
     runLog: RunLogger,
   ): Promise<SkillInput[]> {
     const linked = await this.container.skillsRepo.promptSkillsForAgent(workspaceId, agent.id);
@@ -483,6 +484,12 @@ export class ReviewRunExecutor {
       skills: linked.map((s) => ({ name: s.name, trusted: s.trusted })),
       tokens,
     });
+    // Attribution for the Skills · Stats tab. Best-effort: never fails the run.
+    try {
+      await this.container.skillsRepo.recordRunSkills(runId, linked);
+    } catch (e) {
+      runLog.info(`Skills: could not record run attribution (${(e as Error).message})`);
+    }
     return skills;
   }
 

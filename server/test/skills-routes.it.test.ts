@@ -63,10 +63,22 @@ d('skills routes', () => {
       'flaky-test-patterns',
     ]);
     const api = await repo.promptSkillsForAgent(workspaceId, await agentId('API Contract Reviewer'));
-    expect(api.map((s) => s.name)).toEqual(['route-breaking-changes', 'zod-contract-drift']);
+    expect(api.map((s) => s.name)).toEqual(['breaking-change', 'response-schema', 'semver-discipline']);
     expect(api.every((s) => s.trusted)).toBe(true);
     const all = await repo.list(workspaceId);
     expect(new Set(all.map((s) => s.name)).size).toBe(all.length);
+  });
+
+  it('re-seed retires replaced seed skills only while they are unedited', async () => {
+    const repo = new SkillsRepository(pg.handle.db);
+    const base = { workspaceId, description: 'old', type: 'rubric' as const, source: 'manual' as const, body: 'old' };
+    await repo.insert({ ...base, name: 'route-breaking-changes' });
+    const edited = await repo.insert({ ...base, name: 'zod-contract-drift' });
+    await repo.update(workspaceId, edited.id, { body: 'my edits' }); // v2 → user-owned
+    await seed(pg.handle.db);
+    expect(await repo.getByName(workspaceId, 'route-breaking-changes')).toBeUndefined();
+    expect(await repo.getByName(workspaceId, 'zod-contract-drift')).toMatchObject({ version: 2 });
+    await repo.delete(workspaceId, edited.id);
   });
 
   it('CRUD: create → edit bumps version + history → toggle keeps version → delete', async () => {
@@ -87,16 +99,39 @@ d('skills routes', () => {
     });
     expect(dup.statusCode).toBe(409);
 
-    const edited = await app.inject({ method: 'PUT', url: `/skills/${id}`, payload: { body: 'v2 body' } });
+    const edited = await app.inject({
+      method: 'PUT',
+      url: `/skills/${id}`,
+      payload: { body: 'v2 body', note: '  Tightened scope rule  ' },
+    });
     expect(edited.json().version).toBe(2);
+    // A note alone is not an update.
+    expect((await app.inject({ method: 'PUT', url: `/skills/${id}`, payload: { note: 'x' } })).statusCode).toBe(422);
     const toggled = await app.inject({ method: 'PUT', url: `/skills/${id}`, payload: { enabled: false } });
     expect(toggled.json()).toMatchObject({ version: 2, enabled: false });
 
     const versions = await app.inject({ method: 'GET', url: `/skills/${id}/versions` });
-    expect(versions.json().map((v: { version: number; body: string }) => [v.version, v.body])).toEqual([
-      [2, 'v2 body'],
-      [1, 'v1 body'],
+    expect(versions.json().map((v: { version: number; body: string; note: string }) => [v.version, v.body, v.note])).toEqual([
+      [2, 'v2 body', 'Tightened scope rule'],
+      [1, 'v1 body', 'Initial version'],
     ]);
+
+    // Restore = a new version with the old body; history is never rewritten.
+    const restored = await app.inject({
+      method: 'PUT',
+      url: `/skills/${id}`,
+      payload: { body: 'v1 body', note: 'Restored from v1' },
+    });
+    expect(restored.json()).toMatchObject({ version: 3, body: 'v1 body' });
+    const after = (await app.inject({ method: 'GET', url: `/skills/${id}/versions` })).json();
+    expect(after.map((v: { version: number; note: string }) => [v.version, v.note])).toEqual([
+      [3, 'Restored from v1'],
+      [2, 'Tightened scope rule'],
+      [1, 'Initial version'],
+    ]);
+    const plain = await app.inject({ method: 'PUT', url: `/skills/${id}`, payload: { description: 'Use in tests!' } });
+    expect(plain.json().version).toBe(4);
+    expect((await app.inject({ method: 'GET', url: `/skills/${id}/versions` })).json()[0].note).toBe('Updated');
 
     expect((await app.inject({ method: 'DELETE', url: `/skills/${id}` })).statusCode).toBe(200);
     expect((await app.inject({ method: 'GET', url: `/skills/${id}` })).statusCode).toBe(404);
@@ -136,7 +171,8 @@ d('skills routes', () => {
 
     const resolved = await new SkillsRepository(pg.handle.db).promptSkillsForAgent(workspaceId, agent);
     expect(resolved.map((s) => [s.name, s.trusted])).toEqual([
-      ['route-breaking-changes', true],
+      ['breaking-change', true],
+      ['semver-discipline', true],
       ['api-versioning', false],
     ]);
     const usage = (await app.inject({ method: 'GET', url: '/skills/usage' })).json();

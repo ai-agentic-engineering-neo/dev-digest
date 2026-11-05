@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, jsonb, timestamp, doublePrecision, boolean, vector, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, jsonb, timestamp, doublePrecision, integer, vector, index } from 'drizzle-orm/pg-core';
 import { now } from './_shared';
 import { workspaces } from './core';
 import { repos } from './repos';
@@ -38,5 +38,11 @@ export const conventions = pgTable('conventions', {
   evidencePath: text('evidence_path'),
   evidenceSnippet: text('evidence_snippet'),
   confidence: doublePrecision('confidence'),
-  accepted: boolean('accepted').notNull().default(false),
+  // Conventions Extractor: category from the model; evidence lines are computed by
+  // code from the verified snippet match (never trusted from the model).
+  category: text('category'),
+  lineStart: integer('line_start'),
+  lineEnd: integer('line_end'),
+  status: text('status', { enum: ['pending', 'accepted', 'rejected'] }).notNull().default('pending'),
+  createdAt: now(),
 });

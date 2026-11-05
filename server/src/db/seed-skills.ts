@@ -80,40 +80,91 @@ test name and what real behaviour is therefore untested.`,
   },
 
   // ---- API Contract ----------------------------------------------------------
+  // deprecation-policy is NOT seeded: it ships as an import sample
+  // (docs/skill-samples/deprecation-policy) to exercise the import path.
   {
-    name: 'route-breaking-changes',
+    name: 'breaking-change',
     type: 'rubric',
     description:
-      'Use on every PR that touches routes, handlers, Zod contracts or DTOs. Flag breaking changes to the HTTP contract: removed/renamed routes or fields, changed methods, types, status codes, or newly required inputs.',
-    body: `Compare the old and new side of every route and contract in the diff.
-CRITICAL — existing clients break:
-- A route is removed or its path / HTTP method / path params change.
-- A request field becomes required, is renamed, or changes type / format
-  (e.g. number → string, uuid validation added to a previously free string).
-- A response field is removed, renamed, changes type, or becomes nullable.
-- An enum loses a value, or a status code changes for an existing outcome
-  (200 → 201, 404 → 422).
-WARNING — risky but compatible:
-- A new response enum value clients may not handle; a default value changes.
-- Behaviour change with the same shape (pagination, sorting, filtering semantics).
-For each finding name the old shape, the new shape, and which client call breaks.
-Compatible additions (new optional field, new route) are not findings.`,
+      'Use on every PR that touches HTTP routes, handlers or route params. Flag changes or removals of a public contract that break existing clients: removed/renamed routes, changed method or path params, newly required inputs, changed status codes.',
+    body: `Compare the old and the new side of every route in the diff. A public contract is
+anything a deployed client already calls: path, method, params, query, body, status codes.
+
+CRITICAL — an existing call stops working:
+- A route is removed, or its path / HTTP method / path param changes.
+- A request field or query param becomes required, is renamed, or changes type/format.
+- A status code changes for an existing outcome (200 → 201, 404 → 422).
+WARNING — same shape, different behaviour (pagination, default sort, filter semantics).
+Not a finding: a new route, a new OPTIONAL input, an internal refactor with the same contract.
+
+Bad — rename in place, every old client now gets 404:
+\`\`\`ts
+- app.get('/users/:id/orders', handler)
++ app.get('/customers/:customerId/orders', handler)
+\`\`\`
+Good — add the new route, keep the old one as a deprecated alias:
+\`\`\`ts
+app.get('/customers/:customerId/orders', handler)
+app.get('/users/:id/orders', deprecated('/customers/:customerId/orders', handler))
+\`\`\`
+In each finding name the old contract, the new contract and the client call that breaks.`,
   },
   {
-    name: 'zod-contract-drift',
+    name: 'response-schema',
+    type: 'rubric',
+    description:
+      'Use when a PR changes what an endpoint returns: DTO mappers, response types, Zod/OpenAPI response schemas, serializers. Flag removed or renamed fields, changed field types, required ↔ optional/nullable switches and removed enum values.',
+    body: `Clients parse responses by field name and type. For every response shape in the diff:
+
+CRITICAL:
+- A field is removed or renamed (\`user_name\` → \`username\`), including nested fields.
+- A field changes type (number → string, object → array, ISO string → epoch number).
+- A field that was always present becomes optional or nullable.
+- An enum value clients may receive is removed or renamed.
+WARNING:
+- A new enum value is returned (exhaustive client switches break).
+- \`.optional()\` (may be absent) switched to \`.nullable()\` (present, may be null) or back.
+- Casing drift: API JSON is snake_case — a camelCase key in a response is a bug.
+Not a finding: a new optional field.
+
+Bad — field renamed, the client reads \`undefined\`:
+\`\`\`ts
+- return { id, user_name: u.name, total_cents: o.total };
++ return { id, username: u.name, total: o.total / 100 };
+\`\`\`
+Good — additive; the old fields stay until a major version removes them:
+\`\`\`ts
+return { id, user_name: u.name, username: u.name, total_cents: o.total };
+\`\`\`
+Quote the old and new field (name + type) in the finding.`,
+  },
+  {
+    name: 'semver-discipline',
     type: 'convention',
     description:
-      'Use when a PR edits Zod schemas, DTO mappers or API JSON. Flag drift between server contract, DTO mapper and client copy, and casing mistakes (API JSON is snake_case).',
-    body: `DevDigest contract rules:
-- API JSON is snake_case (\`run_id\`, \`cost_usd\`); TS/Drizzle is camelCase. The
-  conversion happens in DTO mappers — a camelCase key in a response is a bug.
-- Zod contracts exist in two copies (server and client vendor/shared). A changed
-  schema on one side only means the client parses a different shape → WARNING,
-  CRITICAL when a required field is affected.
-- A route must validate its body/params with a Zod schema; a handler that reads
-  \`req.body\` fields not declared in the schema is accepting unvalidated input.
-- \`.optional()\` (may be absent) vs \`.nullable()\` (present, may be null) are not
-  interchangeable for clients — flag a switch between them.`,
+      'Use when a PR changes a public API, a published package or its version number. Decide which semver bump the change requires and flag a breaking change shipped as a minor/patch, or a version bump that does not match the change.',
+    body: `Classify the change, then check the declared version (package.json, OpenAPI \`info.version\`,
+route prefix \`/v1\`, CHANGELOG):
+- MAJOR — any breaking change (see breaking-change / response-schema): removal, rename,
+  type change, new required input, changed status code or default behaviour.
+- MINOR — backwards-compatible additions: new route, new optional field or param.
+- PATCH — fixes that keep the contract identical.
+
+CRITICAL: a breaking change ships with a minor/patch bump, or under the same \`/v1\` prefix.
+WARNING: the version is not bumped at all for a contract change, or the CHANGELOG
+entry does not mention the breaking change.
+SUGGESTION: a major bump for a purely additive change (forces needless client upgrades).
+
+Bad — breaking change released as a minor:
+\`\`\`diff
+- "version": "2.3.1"
++ "version": "2.4.0"    // removes GET /orders/:id/items
+\`\`\`
+Good — major bump and a CHANGELOG "BREAKING" entry:
+\`\`\`diff
+- "version": "2.3.1"
++ "version": "3.0.0"    // BREAKING: GET /orders/:id/items removed, use /orders/:id?expand=items
+\`\`\``,
   },
 
   // ---- Existing agents --------------------------------------------------------
@@ -149,7 +200,14 @@ Allowed: \`Promise.all/allSettled\`, a deliberate fire-and-forget with an explic
 /** Agent name → ordered skill names (order = order of blocks in the prompt). */
 export const SEED_AGENT_SKILLS: Record<string, string[]> = {
   'Test Quality Reviewer': ['untested-branches', 'boundary-cases', 'over-mocking', 'flaky-test-patterns'],
-  'API Contract Reviewer': ['route-breaking-changes', 'zod-contract-drift'],
+  'API Contract Reviewer': ['breaking-change', 'response-schema', 'semver-discipline'],
   'Security Reviewer': ['secret-leakage-gate'],
   'General Reviewer': ['no-then-chains'],
 };
+
+/**
+ * Seed skills that were REPLACED by newer ones. Re-seeding removes them, but only
+ * while they are still the untouched seed (source manual, version 1) — a skill the
+ * user edited is theirs and is kept.
+ */
+export const RETIRED_SEED_SKILLS: string[] = ['route-breaking-changes', 'zod-contract-drift'];

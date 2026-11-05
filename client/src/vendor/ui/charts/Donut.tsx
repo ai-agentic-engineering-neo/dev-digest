@@ -13,11 +13,17 @@ export function Donut({
   size = 130,
   stroke = 22,
   valuePrefix = "$",
+  formatValue,
+  gap = 0,
 }: {
   segments: DonutSegment[];
   size?: number;
   stroke?: number;
   valuePrefix?: string;
+  /** Legend value formatter; default `valuePrefix + value.toFixed(2)` (money). */
+  formatValue?: (value: number) => string;
+  /** Angle (deg) between segments — a surface gap so adjacent fills stay distinct. */
+  gap?: number;
 }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
@@ -33,6 +39,7 @@ export function Donut({
           startAngle={90}
           endAngle={-270}
           isAnimationActive={false}
+          paddingAngle={segments.length > 1 ? gap : 0}
           stroke="none"
         >
           {segments.map((s, i) => (
@@ -46,8 +53,7 @@ export function Donut({
             <span style={{ width: 9, height: 9, borderRadius: 2, background: s.color }} />
             <span style={{ color: "var(--text-secondary)", flex: 1 }}>{s.label}</span>
             <span className="mono tnum" style={{ color: "var(--text-primary)", fontWeight: 600 }}>
-              {valuePrefix}
-              {s.value.toFixed(2)}
+              {formatValue ? formatValue(s.value) : `${valuePrefix}${s.value.toFixed(2)}`}
             </span>
           </div>
         ))}

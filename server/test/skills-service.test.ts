@@ -1,7 +1,13 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { Skill } from '@devdigest/shared';
 import { SkillsService } from '../src/modules/skills/service.js';
-import { isSkillContentChange, isTrustedSkillSource, toSkillSlug } from '../src/modules/skills/domain.js';
+import {
+  computeSkillStats,
+  isSkillContentChange,
+  isTrustedSkillSource,
+  toSkillSlug,
+  versionNote,
+} from '../src/modules/skills/domain.js';
 import type { NewSkill, SkillPatch, SkillsRepositoryPort } from '../src/modules/skills/ports.js';
 import { toSkillInputs } from '../src/modules/reviews/helpers.js';
 import { AppError, ValidationError } from '../src/platform/errors.js';
@@ -55,6 +61,13 @@ class FakeSkillsRepo implements SkillsRepositoryPort {
   async linkCounts() {
     return {};
   }
+  async recordRunSkills() {}
+  async statsData() {
+    return { runs: [], runSkills: [], links: [], findings: [] };
+  }
+  async linkedAgents() {
+    return [];
+  }
 }
 
 const WS = 'ws-1';
@@ -79,6 +92,59 @@ describe('skills domain', () => {
   it('slugifies names', () => {
     expect(toSkillSlug('My Skill.md')).toBe('my-skill');
     expect(toSkillSlug('__')).toBe('');
+  });
+});
+
+describe('version notes', () => {
+  it('uses the trimmed note, else a default for v1 / later versions', () => {
+    expect(versionNote('  Added Tests dimension ', false)).toBe('Added Tests dimension');
+    expect(versionNote(undefined, true)).toBe('Initial version');
+    expect(versionNote('   ', false)).toBe('Updated');
+    expect(versionNote('x'.repeat(300), false)).toHaveLength(200);
+  });
+});
+
+describe('computeSkillStats', () => {
+  const data = {
+    runs: [
+      { id: 'r1', agentId: 'agA' },
+      { id: 'r2', agentId: 'agA' }, // skill disabled at that time → not in the prompt
+      { id: 'r3', agentId: 'agB' }, // agB unlinked later, but r3 included the skill
+      { id: 'r4', agentId: 'agC' }, // unrelated agent
+    ],
+    runSkills: [
+      { runId: 'r1', skillId: 's1' },
+      { runId: 'r3', skillId: 's1' },
+      { runId: 'r4', skillId: 's2' },
+    ],
+    links: [
+      { skillId: 's1', agentId: 'agA' },
+      { skillId: 's2', agentId: 'agC' },
+    ],
+    findings: [
+      { runId: 'r1', category: 'security', accepted: true, dismissed: false },
+      { runId: 'r1', category: 'bug', accepted: false, dismissed: true },
+      { runId: 'r3', category: 'security', accepted: false, dismissed: false }, // undecided
+      { runId: 'r4', category: 'style', accepted: true, dismissed: false }, // other skill
+    ],
+  };
+
+  it('pull = included ÷ eligible runs; accept = accepted ÷ decided; categories by count', () => {
+    expect(computeSkillStats('s1', data)).toEqual({
+      agents: 1,
+      pull_rate: 2 / 3,
+      accept_rate: 1 / 2,
+      runs_30d: 2,
+      findings_30d: 3,
+      by_category: [
+        { category: 'security', count: 2 },
+        { category: 'bug', count: 1 },
+      ],
+    });
+  });
+
+  it('no runs / no decisions → null rates', () => {
+    expect(computeSkillStats('zz', data)).toMatchObject({ agents: 0, pull_rate: null, accept_rate: null });
   });
 });
 

@@ -78,6 +78,27 @@
       "when": 1793790698073,
       "tag": "0010_polite_slapstick",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793887549525,
+      "tag": "0011_conventions_extractor",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793887560707,
+      "tag": "0012_conventions_drop_accepted",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793889247424,
+      "tag": "0013_skills_stats_versions",
+      "breakpoints": true
     }
   ]
 }

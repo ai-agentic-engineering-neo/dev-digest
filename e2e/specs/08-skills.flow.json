@@ -1,18 +1,24 @@
 {
   "name": "Skills page lists the seeded skills and the agent Skills tab shows linked ones in prompt order",
-  "description": "Loads /skills (seeded built-in skills), opens a skill preview, then opens Test Quality Reviewer → Skills tab and checks the linked-count badge. Read-only: no link/edit is saved, no LLM call.",
+  "description": "Loads /skills (master-detail, seeded built-in skills), selects a skill and walks Preview → Stats → Versions, then opens Test Quality Reviewer → Skills tab and checks the linked-count badge. Read-only: no link/edit is saved, no LLM call.",
   "steps": [
     { "cmd": ["open", "{BASE}/skills"], "label": "load the skills page" },
     { "cmd": ["wait", "--url", "/skills"], "label": "skills route reached" },
     { "cmd": ["wait", "--load", "networkidle"], "label": "skills fetch settles" },
     { "cmd": ["wait", "--text", "untested-branches"], "label": "seeded skill card is visible" },
-    { "cmd": ["find", "text", "untested-branches", "click"], "label": "open the skill preview" },
-    { "cmd": ["wait", "--text", "Only the happy path"], "label": "preview drawer shows the rendered body" },
+    { "cmd": ["find", "text", "untested-branches", "click"], "label": "select the skill card" },
+    { "cmd": ["wait", "--text", "Configuration"], "label": "Config tab is the default" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Preview"], "label": "switch to the Preview tab" },
+    { "cmd": ["wait", "--text", "Only the happy path"], "label": "preview shows the rendered body" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Stats"], "label": "switch to the Stats tab" },
+    { "cmd": ["wait", "--text", "Pull frequency"], "label": "stats tiles render" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Versions"], "label": "switch to the Versions tab" },
+    { "cmd": ["wait", "--text", "Initial version"], "label": "version history lists v1" },
     { "cmd": ["open", "{BASE}/agents"], "label": "go to the agents list" },
     { "cmd": ["wait", "--text", "Test Quality Reviewer"], "label": "new seeded agent is listed" },
     { "cmd": ["find", "text", "Test Quality Reviewer", "click"], "label": "open the test quality agent" },
     { "cmd": ["find", "role", "button", "click", "--name", "Skills"], "label": "switch to the Skills tab" },
-    { "cmd": ["wait", "--text", "4 of 8 enabled"], "label": "linked-count badge shows the four linked skills" },
+    { "cmd": ["wait", "--text", "4 of 9 enabled"], "label": "linked-count badge shows the four linked skills" },
     { "cmd": ["wait", "--text", "flaky-test-patterns"], "label": "a linked skill row is visible" }
   ]
 }

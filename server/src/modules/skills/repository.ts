@@ -1,9 +1,15 @@
-import { and, asc, count, desc, eq } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, inArray, min } from 'drizzle-orm';
 import type { Skill, SkillSource, SkillType } from '@devdigest/shared';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import { INITIAL_SKILL_VERSION } from './constants.js';
-import { isSkillContentChange, isTrustedSkillSource, type PromptSkill } from './domain.js';
+import {
+  isSkillContentChange,
+  isTrustedSkillSource,
+  versionNote,
+  type PromptSkill,
+  type SkillStatsData,
+} from './domain.js';
 import type { NewSkill, SkillPatch, SkillsRepositoryPort, SkillVersionRecord } from './ports.js';
 
 /**
@@ -74,11 +80,17 @@ export class SkillsRepository implements SkillsRepositoryPort {
           body: values.body,
           enabled: values.enabled ?? true,
           version: INITIAL_SKILL_VERSION,
+          evidenceFiles: values.evidenceFiles ?? null,
         })
         .returning();
       await tx
         .insert(t.skillVersions)
-        .values({ skillId: row!.id, version: INITIAL_SKILL_VERSION, body: row!.body });
+        .values({
+          skillId: row!.id,
+          version: INITIAL_SKILL_VERSION,
+          body: row!.body,
+          note: versionNote(values.note, true),
+        });
       return toSkill(row!);
     });
   }
@@ -115,7 +127,9 @@ export class SkillsRepository implements SkillsRepositoryPort {
         .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.id, id)))
         .returning();
       if (contentChanged) {
-        await tx.insert(t.skillVersions).values({ skillId: id, version: nextVersion, body: row!.body });
+        await tx
+          .insert(t.skillVersions)
+          .values({ skillId: id, version: nextVersion, body: row!.body, note: versionNote(patch.note, false) });
       }
       return toSkill(row!);
     });
@@ -140,13 +154,20 @@ export class SkillsRepository implements SkillsRepositoryPort {
       skill_id: r.skillId,
       version: r.version,
       body: r.body,
+      note: r.note ?? null,
       created_at: r.createdAt.toISOString(),
     }));
   }
 
   async promptSkillsForAgent(workspaceId: string, agentId: string): Promise<PromptSkill[]> {
     const rows = await this.db
-      .select({ name: t.skills.name, body: t.skills.body, source: t.skills.source })
+      .select({
+        id: t.skills.id,
+        version: t.skills.version,
+        name: t.skills.name,
+        body: t.skills.body,
+        source: t.skills.source,
+      })
       .from(t.agentSkills)
       .innerJoin(t.skills, eq(t.agentSkills.skillId, t.skills.id))
       .where(
@@ -158,6 +179,8 @@ export class SkillsRepository implements SkillsRepositoryPort {
       )
       .orderBy(asc(t.agentSkills.order));
     return rows.map((r) => ({
+      id: r.id,
+      version: r.version,
       name: r.name,
       body: r.body,
       trusted: isTrustedSkillSource(r.source as SkillSource),
@@ -172,5 +195,79 @@ export class SkillsRepository implements SkillsRepositoryPort {
       .where(eq(t.skills.workspaceId, workspaceId))
       .groupBy(t.agentSkills.skillId);
     return Object.fromEntries(rows.map((r) => [r.skillId, Number(r.n)]));
+  }
+
+  async recordRunSkills(runId: string, skills: { id: string; version: number }[]): Promise<void> {
+    if (skills.length === 0) return;
+    await this.db
+      .insert(t.runSkills)
+      .values(skills.map((sk, position) => ({ runId, skillId: sk.id, skillVersion: sk.version, position })))
+      .onConflictDoNothing();
+  }
+
+  async statsData(workspaceId: string, since: Date): Promise<SkillStatsData> {
+    // Runs made before run attribution shipped have no run_skills rows; counting
+    // them would read as "skill not used" (0% pull). Start the window at the
+    // workspace's first attributed run instead — no attributed run → no runs.
+    const [first] = await this.db
+      .select({ at: min(t.agentRuns.ranAt) })
+      .from(t.runSkills)
+      .innerJoin(t.agentRuns, eq(t.runSkills.runId, t.agentRuns.id))
+      .where(eq(t.agentRuns.workspaceId, workspaceId));
+    const start = first?.at && first.at > since ? first.at : since;
+    const runs = first?.at
+      ? await this.db
+          .select({ id: t.agentRuns.id, agentId: t.agentRuns.agentId })
+          .from(t.agentRuns)
+          .where(and(eq(t.agentRuns.workspaceId, workspaceId), gte(t.agentRuns.ranAt, start)))
+      : [];
+    const links = await this.db
+      .select({ skillId: t.agentSkills.skillId, agentId: t.agentSkills.agentId })
+      .from(t.agentSkills)
+      .innerJoin(t.skills, eq(t.agentSkills.skillId, t.skills.id))
+      .where(eq(t.skills.workspaceId, workspaceId));
+    if (runs.length === 0) return { runs: [], runSkills: [], links, findings: [] };
+
+    const runIds = runs.map((r) => r.id);
+    const runSkills = await this.db
+      .select({ runId: t.runSkills.runId, skillId: t.runSkills.skillId })
+      .from(t.runSkills)
+      .where(inArray(t.runSkills.runId, runIds));
+    const findingRows = await this.db
+      .select({
+        runId: t.reviews.runId,
+        category: t.findings.category,
+        acceptedAt: t.findings.acceptedAt,
+        dismissedAt: t.findings.dismissedAt,
+      })
+      .from(t.findings)
+      .innerJoin(t.reviews, eq(t.findings.reviewId, t.reviews.id))
+      .where(
+        and(
+          eq(t.reviews.workspaceId, workspaceId),
+          inArray(t.reviews.runId, runIds),
+          eq(t.findings.kind, 'finding'),
+        ),
+      );
+    return {
+      runs,
+      runSkills,
+      links,
+      findings: findingRows.map((f) => ({
+        runId: f.runId!,
+        category: f.category,
+        accepted: f.acceptedAt !== null,
+        dismissed: f.dismissedAt !== null,
+      })),
+    };
+  }
+
+  async linkedAgents(workspaceId: string, skillId: string): Promise<{ id: string; name: string }[]> {
+    return this.db
+      .select({ id: t.agents.id, name: t.agents.name })
+      .from(t.agentSkills)
+      .innerJoin(t.agents, eq(t.agentSkills.agentId, t.agents.id))
+      .where(and(eq(t.agentSkills.skillId, skillId), eq(t.agents.workspaceId, workspaceId)))
+      .orderBy(asc(t.agents.name));
   }
 }

@@ -2,7 +2,14 @@ import type { Skill, SkillSource, SkillType } from '@devdigest/shared';
 import type { Container } from '../../platform/container.js';
 import { AppError, ValidationError } from '../../platform/errors.js';
 import { MAX_SKILL_BODY_CHARS } from './constants.js';
-import { SKILL_NAME_PATTERN, type SkillImportPreview } from './domain.js';
+import {
+  SKILL_NAME_PATTERN,
+  STATS_WINDOW_DAYS,
+  computeSkillStats,
+  type SkillCardStats,
+  type SkillImportPreview,
+  type SkillStats,
+} from './domain.js';
 import { buildImportPreview } from './import/skill-import.js';
 import type { SkillPatch, SkillVersionRecord } from './ports.js';
 
@@ -19,6 +26,8 @@ export interface CreateSkillInput {
   type: SkillType;
   body: string;
   enabled?: boolean;
+  /** Note for v1 (default "Initial version"). */
+  note?: string;
 }
 
 export interface ImportSkillInput {
@@ -106,6 +115,34 @@ export class SkillsService {
     }
     if (patch.body !== undefined) assertBody(patch.body);
     return this.repo.update(workspaceId, id, patch);
+  }
+
+  private statsSince(): Date {
+    return new Date(Date.now() - STATS_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+  }
+
+  /** Stats tab: usage, pull / accept rate, findings by category over the last 30 days. */
+  async stats(workspaceId: string, id: string): Promise<SkillStats | undefined> {
+    if (!(await this.repo.getById(workspaceId, id))) return undefined;
+    const [data, usedBy] = await Promise.all([
+      this.repo.statsData(workspaceId, this.statsSince()),
+      this.repo.linkedAgents(workspaceId, id),
+    ]);
+    return { ...computeSkillStats(id, data), used_by: usedBy, window_days: STATS_WINDOW_DAYS };
+  }
+
+  /** Card numbers for every skill of the workspace (one data load). */
+  async listStats(workspaceId: string): Promise<Record<string, SkillCardStats>> {
+    const [skills, data] = await Promise.all([
+      this.repo.list(workspaceId),
+      this.repo.statsData(workspaceId, this.statsSince()),
+    ]);
+    return Object.fromEntries(
+      skills.map((sk) => {
+        const st = computeSkillStats(sk.id, data);
+        return [sk.id, { agents: st.agents, pull_rate: st.pull_rate, accept_rate: st.accept_rate }];
+      }),
+    );
   }
 
   delete(workspaceId: string, id: string): Promise<boolean> {

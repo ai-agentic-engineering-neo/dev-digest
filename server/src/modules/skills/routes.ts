@@ -16,7 +16,9 @@ import { SkillsService } from './service.js';
  *   POST   /skills                  → create (manual, trusted)
  *   PUT    /skills/:id              → update / toggle enabled (content edits bump version)
  *   DELETE /skills/:id              → delete (agent links cascade)
- *   GET    /skills/:id/versions     → body history (newest first)
+ *   GET    /skills/:id/versions     → body history (newest first, with notes)
+ *   GET    /skills/stats            → { [skillId]: { agents, pull_rate, accept_rate } } (cards)
+ *   GET    /skills/:id/stats        → Stats tab (30-day usage, rates, findings by category)
  *   POST   /skills/import/preview   → parse a .md / .zip upload → preview (nothing saved)
  *   POST   /skills/import           → confirm: re-parse + save as untrusted `community`
  * Linking to agents lives in the agents module: POST /agents/:id/skills.
@@ -24,6 +26,7 @@ import { SkillsService } from './service.js';
 
 const Name = z.string().trim().min(1).max(64);
 const Description = z.string().trim().min(1).max(1000);
+const Note = z.string().trim().max(200).optional();
 
 const CreateSkillBody = z.object({
   name: Name,
@@ -31,6 +34,7 @@ const CreateSkillBody = z.object({
   type: SkillType,
   body: z.string().min(1),
   enabled: z.boolean().optional(),
+  note: Note,
 });
 
 const UpdateSkillBody = z
@@ -40,9 +44,11 @@ const UpdateSkillBody = z
     type: SkillType.optional(),
     body: z.string().min(1).optional(),
     enabled: z.boolean().optional(),
+    /** "What changed" for the version a content change creates (restore: "Restored from vN"). */
+    note: Note,
   })
   // An empty patch would reach Drizzle's `.set({})` and fail as a 500 → reject it as a 422.
-  .refine((b) => Object.values(b).some((v) => v !== undefined), {
+  .refine((b) => Object.entries(b).some(([k, v]) => k !== 'note' && v !== undefined), {
     message: 'Provide at least one field to update',
   });
 
@@ -69,6 +75,18 @@ export default async function skillsRoutes(appBase: FastifyInstance) {
   app.get('/skills/usage', async (req) => {
     const { workspaceId } = await getContext(app.container, req);
     return service.usage(workspaceId);
+  });
+
+  app.get('/skills/stats', async (req) => {
+    const { workspaceId } = await getContext(app.container, req);
+    return service.listStats(workspaceId);
+  });
+
+  app.get('/skills/:id/stats', { schema: { params: IdParams } }, async (req) => {
+    const { workspaceId } = await getContext(app.container, req);
+    const stats = await service.stats(workspaceId, req.params.id);
+    if (!stats) throw new NotFoundError('Skill not found');
+    return stats;
   });
 
   app.get('/skills/:id', { schema: { params: IdParams } }, async (req) => {

@@ -84,7 +84,11 @@ removed… This cannot be undone.", **Cancel** (focused first, so a stray Enter 
 spinner + "Deleting…", Cancel / ✕ / backdrop / Esc do nothing, so a double click can't send a second
 request. Success → modal closes + toast ("Skill deleted" / "Agent deleted"); deleting the open
 skill clears the selection, deleting the open agent returns to `/agents`. Failure → the error is
-shown inside the modal and the user can retry. `ConfirmDialog` takes translated labels from the
+shown inside the modal (role="alert", once — the delete mutations opt out of the global error
+toast) and the user can retry. Focus: Cancel on open, trapped inside (Tab / Shift+Tab cycle), on
+the dialog itself while pending, back on Cancel after a failure, back on the opener (trash icon)
+on close. The dialog is named by its title and described by its body (kit `Modal`
+aria-labelledby / aria-describedby). Also on `/showcase`. `ConfirmDialog` takes translated labels from the
 caller (`skills.deleteDialog.*`, `agents.deleteDialog.*`); `DeleteSkillDialog` /
 `DeleteAgentDialog` own the mutation. AgentCard renders the modal next to the card (not inside),
 so modal clicks don't select the card. Tests: `SkillsLab.test.tsx`, `AgentCard.test.tsx`.

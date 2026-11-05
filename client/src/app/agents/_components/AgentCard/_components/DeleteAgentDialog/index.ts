@@ -1,1 +1,1 @@
-export { DeleteAgentDialog } from "./DeleteAgentDialog";
+export { DeleteAgentDialog, DeleteAgentDialog as default } from "./DeleteAgentDialog";

@@ -70,4 +70,18 @@ describe("ConfirmDialog — focus", () => {
     fireEvent.keyDown(window, { key: "Escape" });
     expect(onCancel).not.toHaveBeenCalled();
   });
+
+  it("after a failed confirm, focus returns to Cancel and the error is announced", () => {
+    const { rerender } = render(<ConfirmDialog {...base} pending />);
+    expect(screen.getByRole("dialog")).toHaveFocus();
+    rerender(<ConfirmDialog {...base} pending={false} error="Skill is in use" />);
+    expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus();
+    expect(screen.getByRole("alert")).toHaveTextContent("Skill is in use");
+    expect(screen.getByRole("button", { name: "Delete" })).toBeEnabled(); // retry is possible
+  });
+
+  it("opening without a pending phase keeps Cancel focused (no jump on first render)", () => {
+    render(<ConfirmDialog {...base} />);
+    expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus();
+  });
 });

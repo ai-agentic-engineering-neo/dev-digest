@@ -10,7 +10,7 @@
 
 import React from "react";
 import { Button, Modal } from "@devdigest/ui";
-import { CONFIRM_DIALOG_WIDTH, FOCUSABLE } from "./constants";
+import { CANCEL_SELECTOR, CONFIRM_DIALOG_WIDTH, FOCUSABLE } from "./constants";
 import { s } from "./styles";
 
 export interface ConfirmDialogProps {
@@ -64,12 +64,20 @@ export function ConfirmDialog({
   );
 
   // While pending both buttons are disabled, which would drop focus to <body>:
-  // park it on the dialog itself so it stays inside.
+  // park it on the dialog itself so it stays inside. When the request fails
+  // (pending ends, dialog still open) focus goes back to Cancel — the safe
+  // default, so a stray Enter can't retry the delete; the error is announced
+  // by its role="alert".
+  const wasPending = React.useRef(pending);
   React.useEffect(() => {
     const el = dialogEl();
-    if (!pending || !el) return;
-    el.tabIndex = -1;
-    el.focus();
+    if (el && pending) {
+      el.tabIndex = -1;
+      el.focus();
+    } else if (el && wasPending.current) {
+      el.querySelector<HTMLElement>(CANCEL_SELECTOR)?.focus();
+    }
+    wasPending.current = pending;
   }, [pending]);
 
   // Focus trap: Tab / Shift+Tab cycle through the dialog's enabled controls.
@@ -111,7 +119,7 @@ export function ConfirmDialog({
               </div>
             )}
             <span style={s.spacer} />
-            <Button size="sm" kind="secondary" onClick={onCancel} disabled={pending} autoFocus>
+            <Button size="sm" kind="secondary" onClick={onCancel} disabled={pending} autoFocus data-confirm-cancel="">
               {cancelLabel}
             </Button>
             <Button size="sm" kind="danger" onClick={onConfirm} loading={pending} disabled={pending}>

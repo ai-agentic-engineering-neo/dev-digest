@@ -134,7 +134,7 @@ describe("SkillsLab — list", () => {
     skills = [RUBRIC, IMPORTED];
     renderLab("id=s1");
     expect(screen.queryByText("Select a skill")).toBeNull();
-    expect((screen.getByRole("button", { name: /Run on evals/ }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole("button", { name: /Run on evals/ })).toBeDisabled();
     expect(screen.getByTestId("skill-card-pr-quality-rubric").getAttribute("aria-pressed")).toBe("true");
   });
 
@@ -147,7 +147,7 @@ describe("SkillsLab — list", () => {
     fireEvent.click(trash());
     const dialog = within(screen.getByRole("dialog"));
     expect(dialog.getByText(/"pr-quality-rubric" will be permanently removed/)).toBeTruthy();
-    expect(document.activeElement?.textContent).toBe("Cancel"); // a stray Enter can't delete
+    expect(dialog.getByRole("button", { name: "Cancel" })).toHaveFocus(); // a stray Enter can't delete
     fireEvent.click(dialog.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog")).toBeNull();
 
@@ -176,8 +176,8 @@ describe("SkillsLab — list", () => {
     renderLab("id=s1");
     fireEvent.click(trash());
     const dialog = within(screen.getByRole("dialog"));
-    expect((dialog.getByRole("button", { name: /Deleting…/ }) as HTMLButtonElement).disabled).toBe(true);
-    expect((dialog.getByRole("button", { name: "Cancel" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(dialog.getByRole("button", { name: /Deleting…/ })).toBeDisabled();
+    expect(dialog.getByRole("button", { name: "Cancel" })).toBeDisabled();
     expect(dialog.queryByRole("button", { name: "Close" })).toBeNull(); // no ✕ while pending
     fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.queryByRole("dialog")).not.toBeNull();
@@ -228,7 +228,7 @@ describe("SkillsLab — Config", () => {
     renderLab("id=s1");
     expect(screen.queryByText("unsaved")).toBeNull();
     expect(screen.queryByRole("button", { name: "Discard" })).toBeNull(); // only while dirty
-    expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
     // Type options are capitalised labels
     expect(screen.getByRole("option", { name: "Rubric" })).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Skill body"), { target: { value: RUBRIC.body + "\n- New rule" } });
@@ -259,7 +259,7 @@ describe("SkillsLab — Config", () => {
     expect(header.getByRole("button", { name: "Save" })).toBeTruthy();
     // and the form stays usable: an edit enables Save
     fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Changed." } });
-    expect((header.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(false);
+    expect(header.getByRole("button", { name: "Save" })).toBeEnabled();
   });
 
   it("guards navigation away from unsaved edits", () => {
@@ -277,13 +277,13 @@ describe("SkillsLab — Config", () => {
     createMutateAsync.mockResolvedValue({ ...RUBRIC, id: "s9", name: "no-then-chains" });
     renderLab("new=1");
     expect(screen.getAllByText("New skill").length).toBeGreaterThan(0);
-    const create = screen.getByRole("button", { name: "Create skill" }) as HTMLButtonElement;
+    const create = screen.getByRole("button", { name: "Create skill" });
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Bad Name" } });
     fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Use on TS." } });
     fireEvent.change(screen.getByLabelText("Skill body"), { target: { value: "Use await." } });
-    expect(create.disabled).toBe(true);
+    expect(create).toBeDisabled();
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "no-then-chains" } });
-    expect(create.disabled).toBe(false);
+    expect(create).toBeEnabled();
     fireEvent.click(create);
     await waitFor(() =>
       expect(createMutateAsync).toHaveBeenCalledWith({
@@ -406,10 +406,10 @@ describe("ImportSkillModal", () => {
     expect(screen.getByText("api-versioning/scripts/run.sh")).toBeTruthy();
     expect(screen.getByText(PREVIEW.warnings[0]!)).toBeTruthy();
 
-    const save = screen.getByRole("button", { name: /Save imported skill/ }) as HTMLButtonElement;
-    expect(save.disabled).toBe(true); // description missing
+    const save = screen.getByRole("button", { name: /Save imported skill/ });
+    expect(save).toBeDisabled(); // description missing
     fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Use on route changes." } });
-    expect(save.disabled).toBe(false);
+    expect(save).toBeEnabled();
     fireEvent.click(save);
 
     await waitFor(() => expect(onImported).toHaveBeenCalled());

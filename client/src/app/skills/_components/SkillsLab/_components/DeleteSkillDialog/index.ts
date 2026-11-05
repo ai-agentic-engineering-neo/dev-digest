@@ -1,1 +1,1 @@
-export { DeleteSkillDialog } from "./DeleteSkillDialog";
+export { DeleteSkillDialog, DeleteSkillDialog as default } from "./DeleteSkillDialog";

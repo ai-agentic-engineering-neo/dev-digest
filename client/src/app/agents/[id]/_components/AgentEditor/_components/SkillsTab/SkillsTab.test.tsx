@@ -119,7 +119,7 @@ describe("SkillsTab", () => {
     renderTab();
     fireEvent.click(screen.getByRole("button", { name: "Move no-then-chains up" }));
     expect(mutate).toHaveBeenLastCalledWith(["s2", "s1"], expect.anything());
-    expect((screen.getByRole("button", { name: "Move pr-quality-rubric up" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole("button", { name: "Move pr-quality-rubric up" })).toBeDisabled();
   });
 
   it("ignores links to deleted skills when reordering and saving", () => {

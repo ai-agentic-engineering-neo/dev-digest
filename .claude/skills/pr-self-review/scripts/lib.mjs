@@ -1,8 +1,9 @@
 // Shared helpers for pr-self-review scripts. Node ≥ 22, no dependencies (runs before `pnpm install`).
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const SKILL_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -87,18 +88,26 @@ export function untrackedFiles() {
 }
 
 /**
- * Stable fingerprint of "everything that would go into the PR": working tree vs merge-base (covers
- * commits + staged + unstaged) plus untracked files. Committing does NOT change it; editing does.
+ * Stable fingerprint of "everything that would go into the PR" (commits + staged + unstaged +
+ * untracked) vs the merge-base. Committing does NOT change it; editing does.
+ *
+ * Computed in a THROWAWAY index (copy of the real one + `git add -A`), then `git diff --cached`:
+ * an untracked file is hashed exactly as it will look once committed (same blob, same EOL
+ * normalization). Hashing untracked files raw next to `git diff` made the hash change on the commit
+ * that added them, so the gate called a fresh PASS "stale". The real index is never touched.
  */
 export function computeDiffHash(mb) {
-  const diff = git(['diff', '--binary', '--no-color', '--no-ext-diff', mb]);
-  const untracked = untrackedFiles().sort();
-  const parts = [diff];
-  for (const f of untracked) {
-    const abs = join(ROOT, f);
-    parts.push(`\0untracked:${f}\0`, existsSync(abs) && statSync(abs).isFile() ? readFileSync(abs) : '');
+  const tmpDir = mkdtempSync(join(tmpdir(), 'pr-self-review-'));
+  const tmpIndex = join(tmpDir, 'index');
+  try {
+    const realIndex = resolve(ROOT, git(['rev-parse', '--git-path', 'index']).trim());
+    if (existsSync(realIndex)) copyFileSync(realIndex, tmpIndex);
+    const env = { ...process.env, GIT_INDEX_FILE: tmpIndex };
+    git(['add', '-A', '--', '.'], { env });
+    return sha256(git(['diff', '--cached', '--binary', '--no-color', '--no-ext-diff', mb], { env }));
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
   }
-  return sha256(...parts);
 }
 
 // ---------------------------------------------------------------------------------------------

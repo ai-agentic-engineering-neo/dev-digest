@@ -21,7 +21,10 @@ The gate (`scripts/gate.mjs`) lets code leave the machine only when the last `pr
 | `review incomplete` | a skill agent produced no output | re-run `/pr-self-review` |
 
 Committing does **not** make a result stale (the hash compares the working tree with the merge-base,
-not HEAD), so the usual flow is: review → commit → push.
+not HEAD), so the usual flow is: review → commit → push. This also holds for **new (untracked)**
+files: the hash is taken from a throwaway index with everything `git add -A`-ed, so a new file
+hashes exactly as it will once committed (`scripts/lib.mjs` → `computeDiffHash`; eval
+"committing a NEW (untracked) file keeps a PASS fresh").
 
 ## Always allowed
 

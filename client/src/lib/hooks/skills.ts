@@ -5,6 +5,7 @@
 
 import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
+import { OWN_ERROR_TOAST } from "../error-message";
 import type { AgentSkillLink, Skill, SkillType } from "@devdigest/shared";
 import type { SkillCardStats, SkillImportPreview, SkillStats, SkillVersionRecord } from "../types";
 
@@ -69,6 +70,7 @@ export function useSkillVersions(id: string | null | undefined) {
 export function useCreateSkill() {
   const qc = useQueryClient();
   return useMutation({
+    meta: OWN_ERROR_TOAST,
     mutationFn: (input: SkillInput) => api.post<Skill>("/skills", input),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["skills"] });
@@ -85,8 +87,13 @@ export interface UpdateSkillInput {
 export function useUpdateSkill() {
   const qc = useQueryClient();
   return useMutation({
+    meta: OWN_ERROR_TOAST,
     mutationFn: ({ id, patch }: UpdateSkillInput) => api.put<Skill>(`/skills/${id}`, patch),
-    onSuccess: (_s, { id }) => {
+    onSuccess: (saved, { id }) => {
+      // Write the saved skill into the list cache right away: until the refetch
+      // lands, the editor would otherwise diff against the stale skill, re-enable
+      // Save and let a second click store a duplicate version.
+      qc.setQueryData<Skill[]>(["skills"], (list) => list?.map((sk) => (sk.id === saved.id ? saved : sk)));
       qc.invalidateQueries({ queryKey: ["skills"] });
       qc.invalidateQueries({ queryKey: ["skill-versions", id] });
       invalidateSkillStats(qc);
@@ -97,8 +104,11 @@ export function useUpdateSkill() {
 export function useDeleteSkill() {
   const qc = useQueryClient();
   return useMutation({
+    meta: OWN_ERROR_TOAST,
     mutationFn: (id: string) => api.del<{ ok: boolean }>(`/skills/${id}`),
-    onSuccess: () => {
+    onSuccess: (_r, id) => {
+      // Drop it from the list cache at once so the detail panel never shows (or edits) a deleted skill.
+      qc.setQueryData<Skill[]>(["skills"], (list) => list?.filter((sk) => sk.id !== id));
       qc.invalidateQueries({ queryKey: ["skills"] });
       qc.invalidateQueries({ queryKey: ["skill-usage"] });
       qc.invalidateQueries({ queryKey: ["agent-skills"] });
@@ -116,6 +126,7 @@ export interface SkillUpload {
 /** Parse an upload into a preview — nothing is saved. */
 export function usePreviewSkillImport() {
   return useMutation({
+    meta: OWN_ERROR_TOAST,
     mutationFn: (upload: SkillUpload) => api.post<SkillImportPreview>("/skills/import/preview", upload),
   });
 }
@@ -124,6 +135,7 @@ export function usePreviewSkillImport() {
 export function useImportSkill() {
   const qc = useQueryClient();
   return useMutation({
+    meta: OWN_ERROR_TOAST,
     mutationFn: (input: SkillUpload & Partial<Pick<SkillInput, "name" | "description" | "type">>) =>
       api.post<Skill>("/skills/import", input),
     onSuccess: () => {
@@ -157,6 +169,7 @@ export function useAgentSkillCounts(agentIds: string[]): Record<string, number |
 export function useSetAgentSkills(agentId: string) {
   const qc = useQueryClient();
   return useMutation({
+    meta: OWN_ERROR_TOAST,
     mutationFn: (skillIds: string[]) =>
       api.post<AgentSkillLink[]>(`/agents/${agentId}/skills`, { skill_ids: skillIds }),
     onMutate: async (skillIds) => {

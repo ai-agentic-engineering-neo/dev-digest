@@ -6,7 +6,7 @@ import type { Convention } from "@/lib/types";
 import type { ConventionsSkillDraft } from "@/lib/types";
 import conventionsMessages from "../../../../../../../messages/en/conventions.json";
 import skillsMessages from "../../../../../../../messages/en/skills.json";
-import { ToastProvider } from "../../../../../../lib/toast";
+import { ToastProvider } from "@/lib/toast";
 
 /* Conventions page: list + accept/reject/edit + Create skill modal. Hooks,
    AppShell and repo context are mocked — no network / query client. */

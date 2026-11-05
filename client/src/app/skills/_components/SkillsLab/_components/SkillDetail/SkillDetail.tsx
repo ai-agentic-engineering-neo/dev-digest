@@ -7,7 +7,7 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Button, Icon, Tabs } from "@devdigest/ui";
 import type { Skill } from "@devdigest/shared";
-import { SkillTypeBadge } from "../../../../../../components/skill-type-badge";
+import { SkillTypeBadge } from "@/components/skill-type-badge";
 import { TAB_KEYS, type SkillTab } from "../../constants";
 import { isImportedSkill } from "../../helpers";
 import { ConfigTab } from "../ConfigTab";

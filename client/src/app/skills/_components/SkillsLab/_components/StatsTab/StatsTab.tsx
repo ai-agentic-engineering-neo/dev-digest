@@ -8,7 +8,7 @@ import React from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { CircularScore, Donut, ErrorState, Icon, Skeleton } from "@devdigest/ui";
-import { useSkillStats } from "../../../../../../lib/hooks/skills";
+import { useSkillStats } from "@/lib/hooks/skills";
 import { DONUT_GAP, DONUT_SIZE, DONUT_STROKE } from "./constants";
 import { categorySegments, toPercent } from "./helpers";
 import { s } from "./styles";

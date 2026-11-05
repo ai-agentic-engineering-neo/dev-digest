@@ -10,15 +10,16 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Button, Dropdown, EmptyState, ErrorState, Icon, Skeleton } from "@devdigest/ui";
 import type { Skill } from "@devdigest/shared";
-import { AppShell } from "../../../../components/app-shell";
-import { useSkillCardStats, useSkillUsage, useSkills, useUpdateSkill } from "../../../../lib/hooks/skills";
-import { useToast } from "../../../../lib/toast";
+import { AppShell } from "@/components/app-shell";
+import { useSkillCardStats, useSkillUsage, useSkills, useUpdateSkill } from "@/lib/hooks/skills";
+import { useToast } from "@/lib/toast";
 import { ImportSkillModal } from "./_components/ImportSkillModal";
 import { SkillCard } from "./_components/SkillCard";
 import { SkillDetail } from "./_components/SkillDetail";
 import { DEFAULT_TAB, SKELETON_CARDS, type SkillTab } from "./constants";
 import { filterSkills, parseTab } from "./helpers";
 import { s } from "./styles";
+import { errorMessage } from "@/lib/error-message";
 
 type Target = { id: string | null; tab: SkillTab; create: boolean };
 
@@ -119,7 +120,7 @@ export function SkillsLab() {
                 onToggle={(enabled) =>
                   update.mutate(
                     { id: sk.id, patch: { enabled } },
-                    { onError: (e) => toast.error(`${t("config.toggleError")}: ${(e as Error).message}`) },
+                    { onError: (e) => toast.error(`${t("config.toggleError")}: ${errorMessage(e)}`) },
                   )
                 }
               />

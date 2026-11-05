@@ -4,7 +4,7 @@ import { NextIntlClientProvider } from "next-intl";
 import type { Skill } from "@devdigest/shared";
 import type { SkillCardStats, SkillImportPreview, SkillStats, SkillVersionRecord } from "@/lib/types";
 import messages from "../../../../../messages/en/skills.json";
-import { ToastProvider } from "../../../../lib/toast";
+import { ToastProvider } from "@/lib/toast";
 
 /* Skills Lab (master-detail) — list, URL selection, Config / Preview / Evals /
    Stats / Versions, import. Data hooks, router and AppShell are mocked. */
@@ -73,6 +73,8 @@ const IMPORTED: Skill = {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  // Undo vi.spyOn stubs (window.confirm) so no test inherits another's stub.
+  vi.restoreAllMocks();
   params = new URLSearchParams();
   skills = [];
   cardStats = {};
@@ -164,7 +166,6 @@ describe("SkillsLab — Config", () => {
     fireEvent.click(screen.getByTestId("skill-card-api-versioning"));
     expect(confirm).toHaveBeenCalled();
     expect(replace).not.toHaveBeenCalled();
-    confirm.mockRestore();
   });
 
   it("create mode: validates the kebab-case name and creates the skill", async () => {

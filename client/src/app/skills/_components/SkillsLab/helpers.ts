@@ -1,6 +1,5 @@
 import type { Skill } from "@devdigest/shared";
-import type { SkillInput } from "../../../../lib/hooks/skills";
-import { isValidSkillName } from "@/lib/skill-name";
+import type { SkillInput } from "@/lib/hooks/skills";
 import { DEFAULT_TAB, TAB_KEYS, type SkillTab } from "./constants";
 
 /** Case-insensitive match on name, description and type. */
@@ -22,11 +21,6 @@ export function isImportedSkill(skill: Pick<Skill, "source">): boolean {
 
 export function parseTab(raw: string | null): SkillTab {
   return (TAB_KEYS as readonly string[]).includes(raw ?? "") ? (raw as SkillTab) : DEFAULT_TAB;
-}
-
-/** The form can be submitted when every field is present and the name is kebab-case. */
-export function canSubmitSkill(form: Pick<SkillInput, "name" | "description" | "body">): boolean {
-  return isValidSkillName(form.name) && form.description.trim().length > 0 && form.body.trim().length > 0;
 }
 
 /** Only the content fields that changed vs the saved skill (empty → nothing to save). */

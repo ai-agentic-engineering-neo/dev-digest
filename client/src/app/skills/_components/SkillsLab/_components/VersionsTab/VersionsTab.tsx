@@ -8,11 +8,12 @@ import { useTranslations } from "next-intl";
 import { Button, ErrorState, Skeleton } from "@devdigest/ui";
 import type { Skill } from "@devdigest/shared";
 import type { SkillVersionRecord } from "@/lib/types";
-import { useSkillVersions, useUpdateSkill } from "../../../../../../lib/hooks/skills";
-import { useToast } from "../../../../../../lib/toast";
+import { useSkillVersions, useUpdateSkill } from "@/lib/hooks/skills";
+import { useToast } from "@/lib/toast";
 import { DiffModal } from "./_components/DiffModal";
 import { versionDate } from "./helpers";
 import { s } from "./styles";
+import { errorMessage } from "@/lib/error-message";
 
 export function VersionsTab({ skill }: { skill: Skill }) {
   const t = useTranslations("skills");
@@ -38,7 +39,7 @@ export function VersionsTab({ skill }: { skill: Skill }) {
       { id: skill.id, patch: { body: v.body, note: t("versions.restoredNote", { version: v.version }) } },
       {
         onSuccess: (saved) => toast.success(t("versions.restored", { version: saved.version })),
-        onError: (e) => toast.error((e as Error).message),
+        onError: (e) => toast.error(errorMessage(e)),
       },
     );
   };

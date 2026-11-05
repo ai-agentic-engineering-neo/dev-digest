@@ -5,6 +5,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
+import { OWN_ERROR_TOAST } from "../error-message";
 import type { Skill, SkillType } from "@devdigest/shared";
 import type { Convention, ConventionExtractResult, ConventionStatus, ConventionsSkillDraft } from "../types";
 
@@ -22,6 +23,7 @@ export function useConventions(repoId: string | null | undefined) {
 export function useExtractConventions(repoId: string) {
   const qc = useQueryClient();
   return useMutation({
+    meta: OWN_ERROR_TOAST,
     mutationFn: () => api.post<ConventionExtractResult>(`/repos/${repoId}/conventions/extract`),
     onSuccess: (res) => qc.setQueryData(key(repoId), res.candidates),
   });
@@ -36,6 +38,7 @@ export interface ConventionPatchInput {
 export function useUpdateConvention(repoId: string) {
   const qc = useQueryClient();
   return useMutation({
+    meta: OWN_ERROR_TOAST,
     mutationFn: ({ id, patch }: ConventionPatchInput) => api.patch<Convention>(`/conventions/${id}`, patch),
     onMutate: async ({ id, patch }) => {
       await qc.cancelQueries({ queryKey: key(repoId) });
@@ -56,6 +59,7 @@ export function useUpdateConvention(repoId: string) {
 export function useSetAllConventions(repoId: string) {
   const qc = useQueryClient();
   return useMutation({
+    meta: OWN_ERROR_TOAST,
     mutationFn: (status: ConventionStatus) =>
       api.post<Convention[]>(`/repos/${repoId}/conventions/status`, { status }),
     onSuccess: (list) => qc.setQueryData(key(repoId), list),
@@ -85,6 +89,7 @@ export interface CreateConventionsSkillInput {
 export function useCreateConventionsSkill(repoId: string) {
   const qc = useQueryClient();
   return useMutation({
+    meta: OWN_ERROR_TOAST,
     mutationFn: (input: CreateConventionsSkillInput) =>
       api.post<{ skill: Skill; linked_agent_id: string | null }>(`/repos/${repoId}/conventions/skill`, input),
     onSuccess: (res) => {

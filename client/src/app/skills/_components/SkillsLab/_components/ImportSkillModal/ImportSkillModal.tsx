@@ -10,18 +10,19 @@ import { useTranslations } from "next-intl";
 import { Badge, Button, FormField, Icon, Markdown, Modal, SelectInput, TextInput } from "@devdigest/ui";
 import type { Skill, SkillType } from "@devdigest/shared";
 import type { SkillImportPreview } from "@/lib/types";
-import { SKILL_TYPES } from "../../../../../../components/skill-type-badge";
+import { SKILL_TYPES } from "@/components/skill-type-badge";
 import {
   fileToUpload,
   useImportSkill,
   usePreviewSkillImport,
   type SkillUpload,
-} from "../../../../../../lib/hooks/skills";
-import { useToast } from "../../../../../../lib/toast";
-import { canSubmitSkill } from "../../helpers";
+} from "@/lib/hooks/skills";
+import { useToast } from "@/lib/toast";
+import { canSubmitSkill } from "@/lib/skill-name";
 import { ACCEPT, MODAL_WIDTH } from "./constants";
 import { formatBytes } from "./helpers";
 import { s } from "./styles";
+import { errorMessage } from "@/lib/error-message";
 
 interface Draft {
   name: string;
@@ -58,7 +59,7 @@ export function ImportSkillModal({
       setPreview(p);
       setDraft({ name: p.name, description: p.description, type: p.type });
     } catch (e) {
-      setError((e as Error).message);
+      setError(errorMessage(e));
     } finally {
       if (inputRef.current) inputRef.current.value = "";
     }
@@ -79,7 +80,7 @@ export function ImportSkillModal({
       toast.success(t("import.saved", { name: saved.name }));
       onImported(saved);
     } catch (e) {
-      setError((e as Error).message);
+      setError(errorMessage(e));
     }
   };
 

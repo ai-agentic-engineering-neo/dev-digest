@@ -9,20 +9,21 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Button, FormField, SelectInput, TextInput, Toggle } from "@devdigest/ui";
 import type { Skill, SkillType } from "@devdigest/shared";
-import { SKILL_TYPES } from "../../../../../../components/skill-type-badge";
+import { SKILL_TYPES } from "@/components/skill-type-badge";
 import {
   useCreateSkill,
   useDeleteSkill,
   useUpdateSkill,
   type SkillInput,
-} from "../../../../../../lib/hooks/skills";
-import { useToast } from "../../../../../../lib/toast";
+} from "@/lib/hooks/skills";
+import { useToast } from "@/lib/toast";
 import { MAX_NOTE_CHARS } from "../../constants";
-import { isValidSkillName } from "@/lib/skill-name";
-import { canSubmitSkill, skillPatch } from "../../helpers";
+import { canSubmitSkill, isValidSkillName } from "@/lib/skill-name";
+import { skillPatch } from "../../helpers";
 import { BodyEditor } from "../BodyEditor";
 import { emptyForm, formFromSkill } from "./helpers";
 import { s } from "./styles";
+import { errorMessage } from "@/lib/error-message";
 
 export function ConfigTab({
   skill,
@@ -84,13 +85,14 @@ export function ConfigTab({
         onCreated(created);
       }
     } catch (e) {
-      setError((e as Error).message);
+      setError(errorMessage(e));
     }
   };
 
   const discard = () => {
     setForm(skill ? formFromSkill(skill) : emptyForm());
     setNote("");
+    setEnabled(true); // create-mode toggle back to its default
     setError(null);
   };
 
@@ -102,7 +104,7 @@ export function ConfigTab({
         onDirtyChange(false);
         onDeleted();
       },
-      onError: (e) => toast.error((e as Error).message),
+      onError: (e) => toast.error(errorMessage(e)),
     });
   };
 
@@ -126,7 +128,7 @@ export function ConfigTab({
             skill
               ? update.mutate(
                   { id: skill.id, patch: { enabled: v } },
-                  { onError: (e) => toast.error(`${t("config.toggleError")}: ${(e as Error).message}`) },
+                  { onError: (e) => toast.error(`${t("config.toggleError")}: ${errorMessage(e)}`) },
                 )
               : setEnabled(v)
           }

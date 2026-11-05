@@ -8,7 +8,7 @@ import { useTranslations } from "next-intl";
 import { Icon, Toggle } from "@devdigest/ui";
 import type { Skill } from "@devdigest/shared";
 import type { SkillCardStats } from "@/lib/types";
-import { SkillTypeBadge } from "../../../../../../components/skill-type-badge";
+import { SkillTypeBadge } from "@/components/skill-type-badge";
 import { formatPct, isImportedSkill } from "../../helpers";
 import { SOURCE_ICON } from "./constants";
 import { s } from "./styles";

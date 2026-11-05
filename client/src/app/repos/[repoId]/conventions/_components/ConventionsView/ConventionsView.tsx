@@ -8,21 +8,22 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Button, EmptyState, ErrorState, Skeleton } from "@devdigest/ui";
 import type { ConventionExtractResult } from "@/lib/types";
-import { AppShell } from "../../../../../../components/app-shell";
-import { RepoNotFound } from "../../../../../../components/repo-not-found";
+import { AppShell } from "@/components/app-shell";
+import { RepoNotFound } from "@/components/repo-not-found";
 import {
   useConventions,
   useExtractConventions,
   useSetAllConventions,
   useUpdateConvention,
-} from "../../../../../../lib/hooks/conventions";
-import { useActiveRepo, useRepoNotFound } from "../../../../../../lib/repo-context";
-import { useToast } from "../../../../../../lib/toast";
+} from "@/lib/hooks/conventions";
+import { useActiveRepo, useRepoNotFound } from "@/lib/repo-context";
+import { useToast } from "@/lib/toast";
 import { ConventionCard } from "./_components/ConventionCard";
 import { CreateConventionsSkillModal } from "./_components/CreateConventionsSkillModal";
 import { SKELETON_CARDS } from "./constants";
 import { countAccepted } from "./helpers";
 import { s } from "./styles";
+import { errorMessage } from "@/lib/error-message";
 
 type ScanSummary = Pick<ConventionExtractResult, "sampled_files" | "rejected_ungrounded">;
 
@@ -56,10 +57,10 @@ export function ConventionsView({ repoId }: { repoId: string }) {
   const runExtraction = () =>
     extract.mutate(undefined, {
       onSuccess: (res) => setScan({ sampled_files: res.sampled_files, rejected_ungrounded: res.rejected_ungrounded }),
-      onError: (e) => toast.error(`${t("page.extractionFailed")}: ${(e as Error).message}`),
+      onError: (e) => toast.error(`${t("page.extractionFailed")}: ${errorMessage(e)}`),
     });
 
-  const onError = (e: unknown) => toast.error(`${t("card.saveError")}: ${(e as Error).message}`);
+  const onError = (e: unknown) => toast.error(`${t("card.saveError")}: ${errorMessage(e)}`);
 
   return (
     <AppShell crumb={crumb}>

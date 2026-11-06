@@ -141,7 +141,8 @@ export async function gatherIntentInput(deps: GatherDeps, ctx: IntentPullContext
   }
   for (const r of cross.slice(0, MAX_EXTERNAL_LINKS)) {
     const ref = `${r.crossRepo}#${r.number}`;
-    gSkipped.push(mk({ id: `xrepo:${ref}`, kind: 'issue', ref, weight: r.weight, issue_number: r.number }, null, '', 'skipped_cross_repo'));
+    // issue_number is null: the client links issue_number to the CURRENT repo; the ref keeps `other/repo#N`.
+    gSkipped.push(mk({ id: `xrepo:${ref}`, kind: 'issue', ref, weight: r.weight, issue_number: null }, null, '', 'skipped_cross_repo'));
   }
 
   let known = new Set<number>();

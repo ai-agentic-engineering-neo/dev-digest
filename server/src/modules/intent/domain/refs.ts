@@ -85,7 +85,9 @@ export function classifyDocPath(path: string): 'plan' | 'spec' | 'doc' | null {
 export function branchRefs(branch: string): { issue: number | null; trackerKey: string | null } {
   const num = /^(\d{1,9})[-_/]/.exec(branch);
   const key = /\b[A-Z][A-Z0-9]+-\d{1,9}\b/.exec(branch);
-  return { issue: num?.[1] ? Number(num[1]) : null, trackerKey: key?.[0] ?? null };
+  const issue = num?.[1] ? Number(num[1]) : 0;
+  // Same rule as addIssue: issue numbers are positive ("0-cleanup" is not issue #0).
+  return { issue: issue > 0 ? issue : null, trackerKey: key?.[0] ?? null };
 }
 
 export function parseBodyRefs(body: string, repo: RepoSlug, selfNumber: number): BodyRefs {

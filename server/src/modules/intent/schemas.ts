@@ -26,8 +26,21 @@ export const IntentSourceSchema = z.object({
   path: z.string().nullable(),
 }) satisfies z.ZodType<IntentSource>;
 
-/** The repository parses the jsonb `sources` column with it. */
 export const IntentSourceList = z.array(IntentSourceSchema);
+
+/**
+ * Parses the jsonb `sources` column one entry at a time: an invalid entry is
+ * dropped on its own instead of failing (and emptying) the whole list.
+ */
+export function parseIntentSources(raw: unknown): IntentSource[] {
+  if (!Array.isArray(raw)) return [];
+  const out: IntentSource[] = [];
+  for (const entry of raw) {
+    const parsed = IntentSourceSchema.safeParse(entry);
+    if (parsed.success) out.push(parsed.data);
+  }
+  return out;
+}
 
 export const PrIntentResponse = z.object({
   pr_id: z.string().uuid(),

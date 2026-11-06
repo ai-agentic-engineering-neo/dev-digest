@@ -27,8 +27,8 @@ function ScopeList({ heading, items }: { heading: string; items: string[] }) {
     <div style={s.scopeCol}>
       <h4 style={s.scopeHeading}>{heading}</h4>
       <ul style={s.list}>
-        {items.map((item) => (
-          <li key={item}>{item}</li>
+        {items.map((item, i) => (
+          <li key={`${i}-${item}`}>{item}</li>
         ))}
       </ul>
     </div>

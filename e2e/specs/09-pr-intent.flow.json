@@ -11,6 +11,6 @@
     { "cmd": ["wait", "--text", "No intent yet"], "label": "intent card empty state title is visible" },
     { "cmd": ["wait", "--text", "Intent is derived before the first review."], "label": "intent card empty state hint is visible" },
     { "cmd": ["wait", "--text", "Derive now"], "label": "Derive now action is visible (not clicked)" },
-    { "cmd": ["wait", "--text", "Description"], "label": "description section is visible" }
+    { "cmd": ["wait", "--text", "prevent abuse from unauthenticated clients"], "label": "description section shows the PR body (its label renders uppercase, so wait for the body text)" }
   ]
 }

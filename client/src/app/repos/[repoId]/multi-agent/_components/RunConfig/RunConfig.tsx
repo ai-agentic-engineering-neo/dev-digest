@@ -34,7 +34,12 @@ export function RunConfig({
 }: RunConfigProps) {
   const t = useTranslations("runs");
   const router = useRouter();
-  const { data: pulls } = usePulls(repoId);
+  const {
+    data: pulls,
+    isLoading: pullsLoading,
+    isError: pullsError,
+    refetch: refetchPulls,
+  } = usePulls(repoId);
   const {
     data: agentsData,
     isLoading: agentsLoading,
@@ -70,19 +75,29 @@ export function RunConfig({
 
       <section style={s.step}>
         <span style={s.stepTitle}>{t("config.stepPr")}</span>
-        <div>
-          <Dropdown
-            width={380}
-            items={prItems}
-            trigger={
-              <Button kind="secondary" iconRight="ChevronDown">
-                {selectedPr
-                  ? t("page.prItem", { number: selectedPr.number, title: selectedPr.title })
-                  : t("page.selectPr")}
-              </Button>
-            }
+        {pullsError ? (
+          <ErrorState
+            title={t("page.pullsError.title")}
+            body={t("page.pullsError.body")}
+            onRetry={() => void refetchPulls()}
           />
-        </div>
+        ) : pullsLoading ? (
+          <Skeleton height={36} />
+        ) : (
+          <div>
+            <Dropdown
+              width={380}
+              items={prItems}
+              trigger={
+                <Button kind="secondary" iconRight="ChevronDown">
+                  {selectedPr
+                    ? t("page.prItem", { number: selectedPr.number, title: selectedPr.title })
+                    : t("page.selectPr")}
+                </Button>
+              }
+            />
+          </div>
+        )}
       </section>
 
       <section style={s.step}>
@@ -141,7 +156,7 @@ export function RunConfig({
         >
           {t("config.run", { count })}
         </Button>
-        {total && (
+        {prNumber !== null && total && (
           <span style={s.total}>
             {t("config.totalEstimate", {
               seconds: formatSeconds(total.duration_ms),

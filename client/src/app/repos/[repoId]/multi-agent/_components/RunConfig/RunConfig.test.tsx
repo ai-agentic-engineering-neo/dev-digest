@@ -7,14 +7,28 @@ import messages from "../../../../../../../messages/en/runs.json";
 const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 
-const state: { agents: Agent[]; estimates: unknown[]; agentsError: boolean } = {
+const state: {
+  agents: Agent[];
+  estimates: unknown[];
+  agentsError: boolean;
+  pullsLoading: boolean;
+  pullsError: boolean;
+} = {
   agents: [],
   estimates: [],
   agentsError: false,
+  pullsLoading: false,
+  pullsError: false,
 };
 const refetchAgents = vi.fn();
+const refetchPulls = vi.fn();
 vi.mock("@/lib/hooks/core", () => ({
-  usePulls: () => ({ data: [{ number: 7, title: "Fix bug" }] }),
+  usePulls: () => ({
+    data: state.pullsLoading || state.pullsError ? undefined : [{ number: 7, title: "Fix bug" }],
+    isLoading: state.pullsLoading,
+    isError: state.pullsError,
+    refetch: refetchPulls,
+  }),
 }));
 vi.mock("@/lib/hooks/agents", () => ({
   useAgents: () => ({
@@ -32,7 +46,10 @@ afterEach(() => {
   cleanup();
   push.mockClear();
   refetchAgents.mockClear();
+  refetchPulls.mockClear();
   state.agentsError = false;
+  state.pullsLoading = false;
+  state.pullsError = false;
 });
 
 function makeAgents(n: number): Agent[] {
@@ -115,6 +132,34 @@ describe("RunConfig", () => {
     state.estimates = [];
     setup({ selectedIds: ["a00", "a01"] });
     expect(screen.queryByText(/≈/)).not.toBeInTheDocument();
+  });
+
+  it("hides the total estimate until a pull request is picked", () => {
+    state.agents = makeAgents(2);
+    state.estimates = [{ agent_id: "a00", sample_size: 3, avg_duration_ms: 8240, avg_cost_usd: 0.5 }];
+    setup({ prNumber: null, selectedIds: ["a00", "a01"] });
+    expect(screen.getByText("Pick a pull request first")).toBeInTheDocument();
+    expect(screen.queryByText(/total$/)).not.toBeInTheDocument();
+  });
+
+  it("shows a skeleton instead of the PR picker while pull requests load", () => {
+    state.agents = makeAgents(2);
+    state.estimates = [];
+    state.pullsLoading = true;
+    setup({ prNumber: null });
+    expect(document.querySelector(".skeleton")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: /Select PR/ })).not.toBeInTheDocument();
+  });
+
+  it("shows an error with Retry instead of an empty PR picker when pull requests fail to load", () => {
+    state.agents = makeAgents(2);
+    state.estimates = [];
+    state.pullsError = true;
+    setup({ prNumber: null });
+    expect(screen.getByText("Couldn’t load pull requests")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Select PR/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(refetchPulls).toHaveBeenCalledTimes(1);
   });
 
   it("shows an error with Retry, not the no-agents empty state, when loading agents fails", () => {

@@ -23,3 +23,4 @@ On Windows `pnpm <script>` can fail with "Access is denied" — call bins via no
 ## Plans
 
 <!-- - [feature.md](feature.md) — one line: what it builds -->
+- [review-and-docs-agents.md](review-and-docs-agents.md) — in progress (W3 smoke run left) · four subagents (`test-writer`, `architecture-reviewer`, `plan-verifier`, `doc-writer`) with write/Bash-scope hooks + `/implement-plan` Finish gate; executed by the main session

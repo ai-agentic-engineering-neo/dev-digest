@@ -66,7 +66,9 @@ rule most at risk into the task's **Skill focus**.
 ## Hard rules
 
 1. **No code changes.** `Write` only `plans/<feature-kebab>.md` and its line in `plans/README.md`
-   (a hook blocks anything else). Bash only read-only (`ls`, `cat`, `git log/show/diff/grep`, `wc`).
+   (a hook blocks anything else). Read, list and search files only with Read/Grep/Glob — never
+   `ls`/`cat`/`head`/`grep`/`find`/`wc` in Bash. Bash only for read-only git history
+   (`git log`/`show`/`diff`/`status`).
 2. **Ground every path.** Each file in the plan either exists (you opened it) or is new in a folder whose
    convention you verified. No invented modules, hooks, tables or routes.
 3. **No placeholders.** No "TBD", "etc.", "similar to above". Unknowns → "Open questions".

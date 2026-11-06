@@ -36,4 +36,10 @@ describe('toSkillSlug', () => {
     expect(long).toHaveLength(64);
     expect(SKILL_NAME_PATTERN.test(long)).toBe(true);
   });
+
+  it('does not leave a trailing dash when the 64-char cut lands on a separator', () => {
+    const cut = toSkillSlug(`${'a'.repeat(63)} b`);
+    expect(cut).toBe('a'.repeat(63));
+    expect(SKILL_NAME_PATTERN.test(cut)).toBe(true);
+  });
 });

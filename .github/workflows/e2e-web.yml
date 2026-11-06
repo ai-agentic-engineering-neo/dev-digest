@@ -39,6 +39,8 @@ jobs:
   e2e:
     name: browser flows
     runs-on: ubuntu-latest
+    # A green run takes ~2 min. Without a cap, a hung download holds the job for GitHub's 6 h default.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -108,10 +110,19 @@ jobs:
           curl -fsS http://localhost:3000 >/dev/null 2>&1 || { echo "::error::web never became reachable"; cat "$RUNNER_TEMP/web.log"; exit 1; }
 
       # --- agent-browser CLI (Rust + CDP) + Chrome for Testing ---
+      # Pinned: an unpinned global install can change under us between runs.
+      # The install downloads Chrome for Testing + apt deps (normally ~20 s) and has hung on
+      # network stalls, so each attempt is capped and retried instead of waiting forever.
       - name: Install agent-browser
+        timeout-minutes: 8
         run: |
-          npm i -g agent-browser
-          agent-browser install --with-deps
+          timeout 120 npm i -g agent-browser@0.41.2
+          for attempt in 1 2 3; do
+            if timeout 150 agent-browser install --with-deps; then exit 0; fi
+            echo "::warning::agent-browser install attempt $attempt failed or timed out"
+          done
+          echo "::error::agent-browser install failed after 3 attempts"
+          exit 1
 
       - name: Run e2e flows
         working-directory: e2e

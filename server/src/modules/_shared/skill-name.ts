@@ -12,8 +12,9 @@ export function toSkillSlug(raw: string): string {
     .toLowerCase()
     .replace(/\.(md|markdown|txt|zip)$/i, '')
     .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 64);
+    .slice(0, 64)
+    // Trim AFTER slicing: a cut that lands on a separator must not leave a trailing dash.
+    .replace(/^-+|-+$/g, '');
 }
 
 /** Max skill body length (chars) — a skill is prompt text, keep it bounded. */

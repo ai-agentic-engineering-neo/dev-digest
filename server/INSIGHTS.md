@@ -58,6 +58,7 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 - 2026-11-05 — pr-self-review PASS follow-ups: seedSkills skill+v1 in one transaction, body-limit unit test (route finding was a false positive).
 - 2026-11-05 — Conventions Extractor (sample by code → 1 cheap-model call → evidence grounding → accept/reject/edit → `<repo>-conventions` skill + agent link) and API Contract skills (breaking-change, response-schema, semver-discipline + import sample deprecation-policy) → specs/conventions.md. Live run on lindigo-design/dev-digest: 13 files sampled, 8 grounded, 5 dropped.
 - 2026-11-05 — Skills Lab v2 server: migration 0013 (`run_skills`, `skill_versions.note`), `GET /skills/stats` + `/skills/:id/stats` (pull / accept rate, findings by category, 30 days), version notes + restore-as-new-version → specs/skills.md.
+- 2026-11-06 — RED-checked test/skills-name-rules.test.ts: all 3 tests fail under mutation; found the `toSkillSlug` trailing-dash gap (Open Questions).
 
 ## Open Questions
 <!-- Unresolved items, known gaps -->
@@ -65,3 +66,5 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 - 2026-11-05 — Conventions sampling is rank-driven and came out client-only on this monorepo (12 of 12 top files under client/); consider per-package quotas so server conventions are sampled too (src/modules/conventions/service.ts → sample).
 - 2026-11-05 — Integration tests intermittently skip (`Docker not available`) or fail when the full suite runs in parallel: `dockerAvailable()` times out under load (test/helpers/pg.ts); consider a longer timeout or running `.it.test.ts` files sequentially.
 - 2026-11-05 — Shared `FEATURE_MODELS` still lists `gpt-5.4` as the conventions default while the module uses `gpt-4.1-mini` (Settings shows the client mirror); reconcile when vendor/shared is next synced.
+- 2026-11-06 — `toSkillSlug` trims dashes BEFORE `.slice(0, 64)`, so a long name cut on a separator (e.g. `'a'.repeat(63) + ' b'`) returns a slug ending in `-` that fails `SKILL_NAME_PATTERN`; the existing test uses an all-`a` input and can't catch it → fix by slicing first, then trimming, and add that case to test/skills-name-rules.test.ts (src/modules/_shared/skill-name.ts:10 → toSkillSlug).
+- 2026-11-06 — CORRECTION of 2026-11-06 entry (toSkillSlug trailing dash): fixed — slice now runs before the dash trim, regression test "does not leave a trailing dash…" added → a trailing-dash slug is now a real regression (src/modules/_shared/skill-name.ts:10 → toSkillSlug).

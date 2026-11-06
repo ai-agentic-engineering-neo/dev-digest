@@ -17,7 +17,7 @@ import type {
   IntentPullContext,
   IntentRepositoryPort,
 } from './ports.js';
-import { IntentSourceList } from './schemas.js';
+import { parseIntentSources } from './schemas.js';
 
 type IntentRow = typeof t.prIntent.$inferSelect;
 
@@ -27,7 +27,7 @@ function pick<T extends string>(allowed: readonly T[], value: string, fallback: 
 
 function toRecord(row: IntentRow): IntentRecord {
   const status = pick(INTENT_DERIVATION_STATUSES, row.status, 'failed');
-  const sources = IntentSourceList.safeParse(row.sources);
+  const sources = parseIntentSources(row.sources);
   return {
     prId: row.prId,
     status,
@@ -39,7 +39,7 @@ function toRecord(row: IntentRow): IntentRecord {
     confidence: pick(INTENT_CONFIDENCES, row.confidence, 'low'),
     confidenceReason: pick(INTENT_CONFIDENCE_REASONS, row.confidenceReason, 'indirect_only'),
     confidenceLowered: row.confidenceLowered,
-    sources: sources.success ? sources.data : [],
+    sources,
     headSha: row.headSha,
     inputHash: row.inputHash,
     bodyHash: row.bodyHash,

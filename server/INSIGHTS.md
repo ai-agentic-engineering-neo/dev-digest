@@ -13,6 +13,7 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 <!-- Dead ends and antipatterns — the most valuable section -->
 - 2026-11-05 — `options.exclude` in .dependency-cruiser.cjs removes the module AND all edges to it, so `exclude: ^src/vendor/` silently killed `domain-shared-type-only` (a clean run looked green; caught by the PR #12 AI review) → for paths rules point AT use `doNotFollow`, and prove rules with `node scripts/check-architecture.mjs --self-test` (.dependency-cruiser.cjs → options.doNotFollow).
 - 2026-11-05 — `POST /agents/:id/skills` used to link ANY skill uuid (only the agent was workspace-checked), i.e. cross-workspace links were possible → link tables must check BOTH sides' workspace; skill ids are now validated (404) and duplicates rejected (422) (src/modules/agents/service.ts:181 → assertWorkspaceSkills).
+- 2026-11-07 — `z.array(X).safeParse(row.sources)` on a jsonb list fails as a whole, so ONE invalid entry (branch `0-cleanup` → issue #0 fails `.positive()`) silently emptied every intent source → read stored jsonb lists entry by entry and drop only the bad one (src/modules/intent/schemas.ts:35 → parseIntentSources).
 
 ## Codebase Patterns
 <!-- Conventions and architecture decisions, with the reason -->
@@ -67,6 +68,7 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 - 2026-11-06 — Specced `GET /agents/run-estimates` (avg of last 5 done runs per agent) as the only server part of Multi-Agent Review, conditional on client Q-d → specs/multi-agent-review.md.
 - 2026-11-06 — Implemented `GET /agents/run-estimates` (agents module, pure `aggregateRunEstimates` in domain.ts, two-workspace .it test green) → plans/multi-agent-review.md.
 - 2026-11-06 — Intent Layer (L03): research + server/client specs + plan, no code → specs/intent-layer.md, plans/intent-layer.md.
+- 2026-11-07 — Intent follow-ups (fix/intent-followups): per-entry source parsing, `branchRefs` rejects issue 0, cross-repo sources get `issue_number: null`.
 
 ## Open Questions
 <!-- Unresolved items, known gaps -->
@@ -78,3 +80,4 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 - 2026-11-06 — CORRECTION of 2026-11-06 entry (toSkillSlug trailing dash): fixed — slice now runs before the dash trim, regression test "does not leave a trailing dash…" added → a trailing-dash slug is now a real regression (src/modules/_shared/skill-name.ts:10 → toSkillSlug).
 - 2026-11-06 — `recentDoneRunSamples` computes `row_number() over (partition by agent_id order by ran_at desc)` over EVERY done run in the workspace on each `GET /agents/run-estimates`, though only 5 per agent are kept, and `agent_runs` has no index on (workspace_id, agent_id, ran_at) → when run volume grows, add `index('agent_runs_ws_agent_ran_idx').on(t.workspaceId, t.agentId, t.ranAt)` in src/db/schema/runs.ts + `pnpm db:generate`, or bound the inner select with a `ran_at` cutoff (src/modules/agents/repository.ts:176 → recentDoneRunSamples).
 - 2026-11-06 — `OctokitGitHubClient.resolveLinkedIssue` regex `(?:closes|fixes|resolves)?\s*#(\d+)` makes the keyword optional, so `linked_issue` = the FIRST `#N` of any kind ("see #7") and misses closed/fixed/resolved, `Closes:`, `owner/repo#N` and issue URLs; nothing reads `linked_issue` today → don't build on it; plans/intent-layer.md removes it in favour of a tested domain parser (Q10) (src/adapters/github/octokit.ts:127 → resolveLinkedIssue).
+- 2026-11-07 — `exclusive()` queues `forReview` calls per PR; when the model is down each queued run retries in turn (~N×30s, `INTENT_TIMEOUT_MS`) → replace with a shared in-flight promise + short negative cache (src/modules/intent/service.ts:152 → exclusive).

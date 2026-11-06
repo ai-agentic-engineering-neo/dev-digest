@@ -20,6 +20,8 @@
     { "cmd": ["open", "{BASE}/agents"], "label": "go to the agents list" },
     { "cmd": ["wait", "--text", "Test Quality Reviewer"], "label": "new seeded agent is listed" },
     { "cmd": ["find", "text", "Test Quality Reviewer", "click"], "label": "open the test quality agent" },
+    { "cmd": ["wait", "--url", "/agents/"], "label": "agent editor route reached (the click navigates; find does not wait for it)" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "agent fetch settles" },
     { "cmd": ["find", "role", "button", "click", "--name", "Skills"], "label": "switch to the Skills tab" },
     { "cmd": ["wait", "--text", "4 of 9 enabled"], "label": "linked-count badge shows the four linked skills" },
     { "cmd": ["wait", "--text", "flaky-test-patterns"], "label": "a linked skill row is visible" }

@@ -1,0 +1,91 @@
+---
+name: implement-plan
+disable-model-invocation: true
+description: >-
+  Executes an approved Development Plan (plans/<feature>.md, written by the planner agent) wave by wave:
+  launches one implementer-backend / implementer-frontend subagent per task in parallel, then runs the
+  wave gate (ownership diff, every task's Verify, package typecheck, layer check), records task status in
+  the plan, stops on BLOCKED or a red gate, and feeds implementers' insight candidates to
+  engineering-insights. Manual only: /implement-plan plans/<feature>.md [--wave N] [--task T<n>].
+  Also on "виконай план", "запусти імплементерів", "implement the plan".
+metadata:
+  version: "1.0.0"
+  updated: "2026-11-06"
+---
+
+# Implement plan
+
+You (the main session) are the orchestrator. Implementers write code; you launch them, check their
+work against the plan, keep the plan's statuses true, and stop when something is wrong. You don't write
+feature code yourself except the small gate fixes allowed in step 5.
+
+Args: `plans/<feature>.md` (required) · `--wave N` (run only that wave) · `--task T<n>` (re-run one task).
+Commands for every package: `plans/README.md` → "Verify commands" (Windows: bins via `node`).
+
+## 0. Preflight
+
+1. Read the plan in full. Plan `Status` must be `approved` or `in progress` — `draft` → stop and ask the
+   user to review/approve it. Non-empty "Open questions" → stop and ask.
+2. Validate the plan: every task has `Status`, type `[backend]|[frontend]`, Files, Verify; the File
+   ownership map has no file twice; a wave has ≤ 4 tasks and ≤ 1 migration task. Broken → stop, report.
+3. `git status --porcelain` → save as the **baseline** (pre-existing changes are not the wave's).
+   Uncommitted changes in files the plan owns → ask before starting.
+4. Set plan `Status: in progress` (edit only that line).
+
+## 1. Pick the wave
+
+The lowest wave with a task in `todo` (or the one given by `--wave`). Every `Depends on` of its tasks
+must be `done`; otherwise stop and report which dependency is missing.
+
+## 2. Launch — all tasks of the wave in ONE message
+
+One `Agent` call per task: `subagent_type` = `implementer-backend` for `[backend]`,
+`implementer-frontend` for `[frontend]`. Prompt (nothing else — the plan is the context):
+
+```
+plan: plans/<feature>.md
+task: T<n>
+base: <git rev-parse --short HEAD>
+Other tasks of this wave run in parallel in the same checkout: <T…> (their files are not yours).
+```
+
+Wait for every report. Don't start the next wave early.
+
+## 3. Read reports
+
+Per task: `DONE` / `DONE_WITH_CONCERNS` / `BLOCKED`. Collect `DEVIATIONS`, `FOREIGN ERRORS`,
+`BLOCKER`, `INSIGHT CANDIDATES`. A report without the required fields counts as `DONE_WITH_CONCERNS`.
+
+## 4. Gate
+
+1. **Ownership diff:** `git status --porcelain` minus the baseline. Every changed path must be in the
+   ownership map under a task of this wave (generated migration files count for the migration task).
+   Anything else → name the file + the task that likely touched it; revert only with the user's OK.
+2. **Verify:** run every command in the Verify field of every task of the wave.
+3. **Package checks** for each package the wave touched: typecheck; `server/` →
+   `node scripts/check-architecture.mjs`; `reviewer-core/` → also server unit tests.
+4. Record actual results (command → result) — you will show them in the wave summary.
+
+## 5. Fix or stop
+
+- All green and no BLOCKED → step 6.
+- Red gate in ONE task's files → re-launch that task's implementer once with the failing output appended
+  to the prompt (`gate failure:` + the exact errors). Still red → mark it `blocked` and stop.
+- Trivial cross-task glue (a missing export/import between two tasks' files) → you may fix it yourself,
+  and say so in the summary.
+- `BLOCKED` → mark the task `blocked: <reason>`, do NOT run later waves, show the user the `BLOCKER` and
+  the smallest plan change; after the user decides, update the plan (or re-run the planner) and resume.
+
+## 6. Record
+
+- Each task's `Status:` line → `done` or `blocked: <one-line reason>`. Edit only those lines.
+- Wave summary to the user: tasks + status, gate results, deviations, files you fixed yourself.
+- Insight candidates: run the `engineering-insights` skill with them (it dedups and decides; implementers
+  never write INSIGHTS themselves).
+- Next wave → back to step 1, unless `--wave`/`--task` was given or the user asked to pause between waves.
+
+## 7. Finish
+
+All tasks `done` → plan `Status: done`, update its line in `plans/README.md`. Run the full unit suites of
+every touched package once. Then tell the user to run `/pr-self-review` (manual, it gates push/PR).
+Never commit, push or open a PR unless the user asks.

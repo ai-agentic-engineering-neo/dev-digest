@@ -62,8 +62,9 @@ Package-specific rules: `<pkg>/CLAUDE.md` § Naming conventions.
   (stop and ask the user first; migrations are generated with `pnpm db:generate`).
 - `server/clones/**` — runtime git checkouts (contain the GitHub token in `.git/config`).
 - `.claude/skills/**` + `skills-lock.json` — vendored third-party skills, pinned by hash.
-  Exceptions: `.claude/skills/engineering-insights/`, `.claude/skills/frontend-ui-architecture/`, `.claude/skills/onion-architecture/`
-  and `.claude/skills/pr-self-review/` are our own skills and may be edited.
+  Exceptions: `.claude/skills/engineering-insights/`, `.claude/skills/frontend-ui-architecture/`, `.claude/skills/onion-architecture/`,
+  `.claude/skills/pr-self-review/`, `.claude/skills/implement-plan/` and `.claude/skills/implementer-protocol/` are our own
+  skills and may be edited (a new own skill must also be added to `ownSkills` in `pr-self-review/references/routing.json`).
 - `.claude/pr-self-review/waivers.json` — only the user adds waivers; never write it to get a PASS.
 - `*/pnpm-lock.yaml`, `*/package-lock.json` — only via the package manager.
 - `server/package.json` is `skip-worktree` locally; don't rely on its scripts in CI changes.
@@ -75,6 +76,8 @@ Package-specific rules: `<pkg>/CLAUDE.md` § Naming conventions.
 - Writing or running tests, touching CI → read `TESTING.md` and `.github/workflows/<suite>.yml`.
 - Editing an agent's system prompt → read `docs/agent-prompts/README.md`.
 - Unsure which skill applies → read `.claude/skills/README.md`.
+- Feature spanning 2+ packages or 3+ tasks → `planner` agent writes `plans/<feature>.md`; after the user approves it,
+  the user runs `/implement-plan plans/<feature>.md` (manual). Agents and the workflow: `.claude/agents/README.md`.
 - Before `git push` / opening or merging a PR → ask the user to run `/pr-self-review` (manual only — auto-invoke
   is disabled; the gate hook blocks push/PR/merge without a fresh PASS).
 

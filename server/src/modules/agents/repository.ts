@@ -1,4 +1,5 @@
-import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, lte, sql } from 'drizzle-orm';
+import type { RunEstimateSample } from './domain.js';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import type { CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
@@ -164,6 +165,52 @@ export class AgentsRepository {
         },
       })
       .onConflictDoNothing();
+  }
+
+  // ---- run estimates -------------------------------------------------------
+
+  /**
+   * Newest `perAgent` done runs (with a duration) per agent, in one query
+   * (row_number window). Scoped by workspace on both agent_runs and agents.
+   */
+  async recentDoneRunSamples(workspaceId: string, perAgent: number): Promise<RunEstimateSample[]> {
+    const ranked = this.db
+      .select({
+        agentId: t.agents.id,
+        durationMs: t.agentRuns.durationMs,
+        costUsd: t.agentRuns.costUsd,
+        rn: sql<number>`row_number() over (partition by ${t.agentRuns.agentId} order by ${t.agentRuns.ranAt} desc, ${t.agentRuns.id} desc)`.as(
+          'rn',
+        ),
+      })
+      .from(t.agentRuns)
+      .innerJoin(
+        t.agents,
+        and(eq(t.agents.id, t.agentRuns.agentId), eq(t.agents.workspaceId, workspaceId)),
+      )
+      .where(
+        and(
+          eq(t.agentRuns.workspaceId, workspaceId),
+          eq(t.agentRuns.status, 'done'),
+          isNotNull(t.agentRuns.durationMs),
+        ),
+      )
+      .as('ranked');
+
+    const rows = await this.db
+      .select({
+        agentId: ranked.agentId,
+        durationMs: ranked.durationMs,
+        costUsd: ranked.costUsd,
+      })
+      .from(ranked)
+      .where(lte(ranked.rn, perAgent));
+
+    return rows.flatMap((r) =>
+      r.durationMs === null
+        ? []
+        : [{ agentId: r.agentId, durationMs: r.durationMs, costUsd: r.costUsd }],
+    );
   }
 
   // ---- agent_versions (immutable config snapshots) ------------------------

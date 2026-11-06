@@ -6,6 +6,7 @@ import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, API_BASE } from "../api";
 import { notify } from "../toast";
+import { errorMessage } from "../error-message";
 import type {
   FindingActionKind,
   PrReviewComment,
@@ -130,6 +131,40 @@ export function useRunReview() {
         ...(all ? { all } : {}),
       }),
     onSuccess: (_d, { prId }) => {
+      qc.invalidateQueries({ queryKey: ["reviews", prId] });
+    },
+  });
+}
+
+export type AgentRunStart =
+  | { agent_id: string; ok: true; run_id: string }
+  /** `error: null` = the request succeeded but no run came back for this agent; the UI shows its own
+      translated text for that case (no user-visible copy in hooks). */
+  | { agent_id: string; ok: false; error: string | null };
+
+/** Start one review per agent in parallel (body is always `{ agentId }`).
+   Resolves with per-agent start results; individual failures never reject. */
+export function useRunReviewsParallel(prId: string | null | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (agentIds: string[]): Promise<AgentRunStart[]> => {
+      const settled = await Promise.allSettled(
+        agentIds.map((agentId) => api.post<ReviewRunResponse>(`/pulls/${prId}/review`, { agentId })),
+      );
+      return settled.map((res, i): AgentRunStart => {
+        const agent_id = agentIds[i] as string;
+        if (res.status === "rejected") {
+          return { agent_id, ok: false, error: errorMessage(res.reason) };
+        }
+        const run_id = res.value.runs.find((r) => r.agent_id === agent_id)?.run_id;
+        return run_id
+          ? { agent_id, ok: true, run_id }
+          : { agent_id, ok: false, error: null };
+      });
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["pr-runs", prId] });
+      qc.invalidateQueries({ queryKey: ["pr-active-runs", prId] });
       qc.invalidateQueries({ queryKey: ["reviews", prId] });
     },
   });

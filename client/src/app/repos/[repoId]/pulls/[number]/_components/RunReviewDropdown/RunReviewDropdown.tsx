@@ -9,10 +9,13 @@ import { useTranslations } from "next-intl";
 import { Button, Dropdown, type DropdownItemDef } from "@devdigest/ui";
 import { useAgents } from "../../../../../../../lib/hooks/agents";
 import { useRunReview } from "../../../../../../../lib/hooks/reviews";
+import { multiAgentHref } from "@/lib/multi-agent-url";
 import { DROPDOWN_WIDTH } from "./constants";
 
 export function RunReviewDropdown({
+  repoId,
   prId,
+  prNumber,
   size = "sm",
   kind = "primary",
   warnMerged = false,
@@ -20,7 +23,10 @@ export function RunReviewDropdown({
   onRunsStarted,
   onRunSettled,
 }: {
+  repoId: string;
   prId: string;
+  /** PR number for the "Compare agents" link (the route is keyed by number, the API by prId). */
+  prNumber: number;
   size?: "sm" | "md" | "lg";
   kind?: "primary" | "secondary";
   /** PR is already merged/closed — dim the trigger and warn, but still allow. */
@@ -78,6 +84,11 @@ export function RunReviewDropdown({
     { divider: true },
     ...agentItems,
     { divider: true },
+    {
+      label: t("runReview.compareAgents"),
+      icon: "Users",
+      onClick: () => router.push(multiAgentHref(repoId, { pr: prNumber })),
+    },
     { label: t("runReview.configureAgents"), icon: "Settings", muted: true, onClick: () => router.push("/agents") },
   ];
 

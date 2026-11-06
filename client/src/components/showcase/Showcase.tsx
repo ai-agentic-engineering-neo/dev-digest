@@ -45,6 +45,7 @@ import {
 } from "@devdigest/ui";
 import { RunCostBadge } from "../run-cost-badge";
 import { SkillTypeBadge } from "../skill-type-badge";
+import { AgentBadge } from "../agent-badge";
 import { ConfirmDialog } from "../confirm-dialog";
 import { SeverityTally } from "../severity-tally";
 import { FindingsCell } from "../../app/repos/[repoId]/pulls/_components/FindingsCell";
@@ -189,6 +190,12 @@ export function Gallery() {
         <SkillTypeBadge type="convention" label="convention" />
         <SkillTypeBadge type="security" label="security" />
         <SkillTypeBadge type="custom" label="custom" />
+      </Group>
+
+      <Group title="Agent badge">
+        {[1, 2, 3, 4, 5, 6].map((n) => (
+          <AgentBadge key={n} colorIndex={n} label={n === 1 ? "Security agent" : undefined} />
+        ))}
       </Group>
 
       <Group title="Cards & States">

@@ -6,6 +6,7 @@ import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { NotFoundError } from '../../platform/errors.js';
 import { AgentsService } from './service.js';
+import type { AgentRunEstimates } from './domain.js';
 
 /** `/providers/:id` addresses a provider by name, not a uuid. */
 const ProviderParams = z.object({ id: Provider });
@@ -16,9 +17,22 @@ const VersionParams = z.object({
   version: z.coerce.number().int().positive(),
 });
 
+/** `GET /agents/run-estimates` response (mirrors AgentRunEstimates in ./domain). */
+const RunEstimatesResponse = z.object({
+  estimates: z.array(
+    z.object({
+      agent_id: z.string().uuid(),
+      sample_size: z.number().int().min(1),
+      avg_duration_ms: z.number().int().min(0),
+      avg_cost_usd: z.number().min(0).nullable(),
+    }),
+  ),
+}) satisfies z.ZodType<AgentRunEstimates>;
+
 /**
  * A2 — agents module (owner A2).
  *   GET    /agents                  → list (workspace-scoped)
+ *   GET    /agents/run-estimates    → avg duration/cost of newest done runs per agent
  *   GET    /agents/:id              → one agent
  *   POST   /agents                  → create
  *   PUT    /agents/:id              → update / toggle enabled (versions config)
@@ -74,6 +88,11 @@ export default async function agentsRoutes(appBase: FastifyInstance) {
   app.get('/agents', async (req) => {
     const { workspaceId } = await getContext(app.container, req);
     return service.list(workspaceId);
+  });
+
+  app.get('/agents/run-estimates', { schema: { response: { 200: RunEstimatesResponse } } }, async (req) => {
+    const { workspaceId } = await getContext(app.container, req);
+    return service.runEstimates(workspaceId);
   });
 
   app.get('/agents/:id', { schema: { params: IdParams } }, async (req) => {

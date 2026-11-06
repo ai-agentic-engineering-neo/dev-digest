@@ -36,6 +36,7 @@
   "runReview": {
     "runAll": "Run all enabled agents",
     "configureAgents": "Configure agents…",
+    "compareAgents": "Compare agents…",
     "running": "Running…",
     "runReview": "Run Review",
     "mergedWarning": "Already merged — review is informational",

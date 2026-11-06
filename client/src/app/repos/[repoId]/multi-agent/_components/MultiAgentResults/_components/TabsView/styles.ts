@@ -1,0 +1,43 @@
+import type { CSSProperties } from "react";
+
+export const s = {
+  root: { display: "flex", flexDirection: "column", gap: 16 } as CSSProperties,
+  tablist: {
+    display: "flex",
+    gap: 4,
+    borderBottom: "1px solid var(--border)",
+    overflowX: "auto",
+  } as CSSProperties,
+  tab: (active: boolean, colorVar: string): CSSProperties => ({
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "8px 12px",
+    background: "transparent",
+    color: active ? "var(--text-primary)" : "var(--text-muted)",
+    border: "none",
+    borderBottomWidth: 2,
+    borderBottomStyle: "solid",
+    borderBottomColor: active ? colorVar : "transparent",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  }),
+  tabScore: (toneVar: string): CSSProperties => ({ color: toneVar, fontWeight: 600 }),
+  panel: { display: "flex", flexDirection: "column", gap: 12 } as CSSProperties,
+  summaryCard: {
+    display: "flex",
+    alignItems: "center",
+    gap: 16,
+    padding: 16,
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    background: "var(--bg-elevated)",
+  } as CSSProperties,
+  summaryMain: { flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 } as CSSProperties,
+  name: { fontWeight: 600 } as CSSProperties,
+  summaryText: { color: "var(--text-muted)", fontSize: 13 } as CSSProperties,
+  meta: { display: "flex", alignItems: "center", gap: 8, color: "var(--text-muted)", fontSize: 12 } as CSSProperties,
+  message: { color: "var(--text-muted)", padding: 16 } as CSSProperties,
+  error: { color: "var(--crit)", padding: "0 16px 16px" } as CSSProperties,
+  findings: { display: "flex", flexDirection: "column", gap: 8 } as CSSProperties,
+};

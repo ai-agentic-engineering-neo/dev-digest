@@ -7,6 +7,7 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 
 ## What Works
 <!-- Approaches that proved effective here -->
+- 2026-11-06 — Top-N-per-group in ONE Drizzle query (no N+1 per agent): inner select with `sql<number>\`row_number() over (partition by … order by ran_at desc, id desc)\`.as('rn')` wrapped `.as('ranked')`, outer select filters `lte(ranked.rn, n)`; the inner join to `agents` carries the second workspace filter and drops `agent_id`-null runs (src/modules/agents/repository.ts:176 → recentDoneRunSamples).
 
 ## What Doesn't Work
 <!-- Dead ends and antipatterns — the most valuable section -->
@@ -27,6 +28,7 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 - 2026-11-05 — LLM-proposed evidence is never trusted: conventions are kept only if the snippet is found in the real file, and lines/snippet are rewritten from that match (src/modules/conventions/domain.ts → groundCandidate).
 - 2026-11-05 — Per-skill metrics need explicit run attribution: `run_skills` (run, skill, version, position) is written by the executor after prompt assembly, best-effort; stats start at the workspace's first attributed run so pre-attribution runs don't read as 0% pull (src/modules/skills/repository.ts → statsData).
 - 2026-11-05 — `GitClient.readFile` callers may send content to an LLM: the adapter resolves the real path and refuses anything outside the clone (symlink escape); the RESOLVED path must also have no `.git` segment — an in-clone link `x -> .git/config` passes the boundary check (src/adapters/git/simple-git.ts → readFile).
+- 2026-11-06 — vendor/shared `contracts/observability.ts` defines `MultiAgentRun` / `AgentColumn` / `Conflict` / `AgentStats` (for `POST /pulls/:id/multi-agent-run`, `GET /agents/:id/stats`) but NO module implements those routes; there is also no per-agent run-history read (only per-PR `/pulls/:id/runs`) → don't assume they exist; a new read (e.g. run estimates) gets a module-local DTO, not these contracts edited (src/vendor/shared/contracts/observability.ts:75 → MultiAgentRun; spec: specs/multi-agent-review.md).
 
 ## Tool & Library Notes
 <!-- Dependency / tooling quirks -->
@@ -59,6 +61,8 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 - 2026-11-05 — Conventions Extractor (sample by code → 1 cheap-model call → evidence grounding → accept/reject/edit → `<repo>-conventions` skill + agent link) and API Contract skills (breaking-change, response-schema, semver-discipline + import sample deprecation-policy) → specs/conventions.md. Live run on lindigo-design/dev-digest: 13 files sampled, 8 grounded, 5 dropped.
 - 2026-11-05 — Skills Lab v2 server: migration 0013 (`run_skills`, `skill_versions.note`), `GET /skills/stats` + `/skills/:id/stats` (pull / accept rate, findings by category, 30 days), version notes + restore-as-new-version → specs/skills.md.
 - 2026-11-06 — RED-checked test/skills-name-rules.test.ts: all 3 tests fail under mutation; found the `toSkillSlug` trailing-dash gap (Open Questions).
+- 2026-11-06 — Specced `GET /agents/run-estimates` (avg of last 5 done runs per agent) as the only server part of Multi-Agent Review, conditional on client Q-d → specs/multi-agent-review.md.
+- 2026-11-06 — Implemented `GET /agents/run-estimates` (agents module, pure `aggregateRunEstimates` in domain.ts, two-workspace .it test green) → plans/multi-agent-review.md.
 
 ## Open Questions
 <!-- Unresolved items, known gaps -->
@@ -68,3 +72,4 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 - 2026-11-05 — Shared `FEATURE_MODELS` still lists `gpt-5.4` as the conventions default while the module uses `gpt-4.1-mini` (Settings shows the client mirror); reconcile when vendor/shared is next synced.
 - 2026-11-06 — `toSkillSlug` trims dashes BEFORE `.slice(0, 64)`, so a long name cut on a separator (e.g. `'a'.repeat(63) + ' b'`) returns a slug ending in `-` that fails `SKILL_NAME_PATTERN`; the existing test uses an all-`a` input and can't catch it → fix by slicing first, then trimming, and add that case to test/skills-name-rules.test.ts (src/modules/_shared/skill-name.ts:10 → toSkillSlug).
 - 2026-11-06 — CORRECTION of 2026-11-06 entry (toSkillSlug trailing dash): fixed — slice now runs before the dash trim, regression test "does not leave a trailing dash…" added → a trailing-dash slug is now a real regression (src/modules/_shared/skill-name.ts:10 → toSkillSlug).
+- 2026-11-06 — `recentDoneRunSamples` computes `row_number() over (partition by agent_id order by ran_at desc)` over EVERY done run in the workspace on each `GET /agents/run-estimates`, though only 5 per agent are kept, and `agent_runs` has no index on (workspace_id, agent_id, ran_at) → when run volume grows, add `index('agent_runs_ws_agent_ran_idx').on(t.workspaceId, t.agentId, t.ranAt)` in src/db/schema/runs.ts + `pnpm db:generate`, or bound the inner select with a `ran_at` cutoff (src/modules/agents/repository.ts:176 → recentDoneRunSamples).

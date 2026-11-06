@@ -11,6 +11,8 @@ import type {
 import { NotFoundError, ValidationError } from '../../platform/errors.js';
 import { AgentsRepository } from './repository.js';
 import { toAgentDto, toAgentVersionDto } from './helpers.js';
+import { ESTIMATE_SAMPLE_SIZE } from './constants.js';
+import { aggregateRunEstimates, type AgentRunEstimates } from './domain.js';
 
 /**
  * A2 — agents service. Business logic for the Agents tab + Agent Editor.
@@ -59,6 +61,12 @@ export class AgentsService {
   async list(workspaceId: string): Promise<Agent[]> {
     const rows = await this.repo.list(workspaceId);
     return rows.map(toAgentDto);
+  }
+
+  /** Avg duration/cost of each agent's newest done runs (pre-run estimates). */
+  async runEstimates(workspaceId: string): Promise<AgentRunEstimates> {
+    const samples = await this.repo.recentDoneRunSamples(workspaceId, ESTIMATE_SAMPLE_SIZE);
+    return { estimates: aggregateRunEstimates(samples) };
   }
 
   async get(workspaceId: string, id: string): Promise<Agent | undefined> {

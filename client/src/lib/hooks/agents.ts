@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import { OWN_ERROR_TOAST } from "../error-message";
 import type { Agent, ModelInfo, Provider, ReviewStrategy } from "@devdigest/shared";
+import type { AgentRunEstimatesResponse } from "../types";
 
 export function useAgents() {
   return useQuery({
@@ -80,6 +81,16 @@ export function useDeleteAgent() {
       qc.invalidateQueries({ queryKey: ["agents"] });
       qc.removeQueries({ queryKey: ["agent", id] });
     },
+  });
+}
+
+/** Average duration/cost of each agent's newest done runs (multi-agent pre-run estimate). */
+export function useAgentRunEstimates() {
+  return useQuery({
+    queryKey: ["agent-run-estimates"],
+    queryFn: () => api.get<AgentRunEstimatesResponse>("/agents/run-estimates"),
+    select: (r) => r.estimates,
+    staleTime: 60_000,
   });
 }
 

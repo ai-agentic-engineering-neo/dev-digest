@@ -5,16 +5,28 @@
   },
   "column": {
     "noFindings": "No findings.",
-    "findingsCount": "{count, plural, one {# finding} other {# findings}}"
+    "findingsCount": "{count, plural, one {# finding} other {# findings}}",
+    "filteredCount": "{shown} of {total} findings",
+    "duration": "{seconds}s",
+    "starting": "Starting…",
+    "running": "Running…",
+    "failedToStart": "Failed to start",
+    "failed": "Failed",
+    "cancelled": "Cancelled",
+    "retry": "Retry",
+    "noRunStarted": "No run was started for this agent"
   },
   "conflicts": {
     "title": "Where agents disagree",
     "onlyConflicts": "Show only conflicts",
-    "empty": "No conflicts — the agents agree on every flagged location.",
-    "didNotFlag": "did not flag"
+    "empty": "Agents agree on every flagged location",
+    "didNotFlag": "did not flag",
+    "needTwo": "Need at least two finished agents to compare",
+    "noNote": "—"
   },
   "tabs": {
-    "noSummary": "No summary."
+    "noSummary": "No summary.",
+    "label": "Agents"
   },
   "trace": {
     "configuration": "Configuration",
@@ -113,23 +125,54 @@
     "selectPr": "Select PR",
     "prItem": "#{number} · {title}",
     "view": {
-      "columns": "columns",
-      "tabs": "tabs"
+      "columns": "Columns",
+      "tabs": "Tabs",
+      "label": "Results view"
     },
     "runAll": "Run all agents",
     "running": "Running…",
-    "meta": "{count} agents · fan-out via p-queue · {duration}s total · {cost}",
+    "meta": "{count, plural, one {# agent} other {# agents}} · {duration}s total",
     "noAgents": {
       "title": "Enable agents to run reviews",
       "body": "Multi-agent review runs the PR through every enabled agent in parallel. You have no agents enabled yet.",
       "cta": "Go to Agents"
     },
     "noRun": {
-      "title": "No multi-agent run yet",
-      "bodyReady": "Run all enabled agents on this PR to see N columns + conflicts.",
-      "bodySelect": "Select a PR to begin.",
-      "cta": "Run all agents"
+      "title": "No runs for these agents yet",
+      "body": "None of the selected agents has reviewed this pull request yet. Configure a run to start.",
+      "cta": "Configure run"
     },
-    "crumb": "Multi-Agent Review"
+    "crumb": "Multi-Agent Review",
+    "metaRunning": "{count, plural, one {# agent} other {# agents}} · running…",
+    "pullsError": {
+      "title": "Couldn’t load pull requests",
+      "body": "The pull request list could not be loaded, so these results can’t be shown. Check that the API is running and retry."
+    },
+    "loadError": {
+      "title": "Couldn’t load the runs",
+      "body": "The runs or reviews for this pull request could not be loaded. Check that the API is running and retry."
+    }
+  },
+  "config": {
+    "title": "Run a Multi-Agent Review",
+    "intro": "Pick a pull request and the agents to run on it. They review it in parallel, then you compare their scores, findings, time and cost side by side.",
+    "stepPr": "Pull request",
+    "stepAgents": "Agents to run",
+    "pickPrFirst": "Pick a pull request first",
+    "selectAll": "Select all",
+    "clearAll": "Clear all",
+    "disabled": "disabled",
+    "capHint": "Up to {max} agents per run (API rate limit)",
+    "estimate": "≈ {seconds}s · {cost}",
+    "totalEstimate": "≈ {seconds}s · {cost} total",
+    "run": "{count, plural, =0 {Select agents} one {Run 1 agent} other {Run multi-agent review (#)}}",
+    "agentsError": {
+      "title": "Couldn’t load agents",
+      "body": "The agent list could not be loaded. Check that the API is running and retry."
+    }
+  },
+  "results": {
+    "configure": "Configure run",
+    "subtitle": "{count, plural, one {# selected agent} other {# selected agents}} · parallel"
   }
 }

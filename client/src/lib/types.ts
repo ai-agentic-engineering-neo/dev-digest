@@ -140,3 +140,18 @@ export interface ConventionExtractResult {
   sampled_files: string[];
   rejected_ungrounded: number;
 }
+
+/**
+ * GET /agents/run-estimates. Mirrors server/src/modules/agents/domain.ts.
+ * TODO: reconcile with @devdigest/shared when the contracts are next synced.
+ */
+export interface AgentRunEstimate {
+  agent_id: string;
+  sample_size: number;
+  avg_duration_ms: number;
+  avg_cost_usd: number | null;
+}
+
+export interface AgentRunEstimatesResponse {
+  estimates: AgentRunEstimate[];
+}

@@ -29,6 +29,7 @@ flowchart TD
 
   AGENTS["/agents"] --> AGENT["/agents/:id<br/>editor (config · skills)"]
   SKILLS["/skills<br/>Skills Lab"]
+  MA["/repos/:repoId/multi-agent<br/>Multi-Agent Review"]
   CONV["/repos/:repoId/conventions<br/>Conventions Extractor"] -->|"create skill"| SKILLS
   SETTINGS["/settings/:section<br/>API keys · models"]
 
@@ -37,6 +38,7 @@ flowchart TD
   AGENTS -->|"/agents · /agents/:id · /agents/:id/skills"| API
   SKILLS -->|"/skills · /skills/usage · /skills/import(/preview)"| API
   CONV -->|"/repos/:id/conventions(/extract · /status · /skill-draft · /skill)<br/>PATCH /conventions/:id"| API
+  MA -->|"GET /agents/run-estimates · /pulls/:id/runs · /reviews<br/>POST /pulls/:id/review ×N"| API
   SETTINGS -->|"/settings · /providers"| API
 ```
 

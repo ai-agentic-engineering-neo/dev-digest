@@ -7,6 +7,7 @@ import { s } from "./styles";
 import type { PrDetail } from "@/lib/types";
 
 interface PrDetailHeaderProps {
+  repoId: string;
   pr: PrDetail;
   prId: string | null;
   tab: string;
@@ -19,6 +20,7 @@ interface PrDetailHeaderProps {
 }
 
 export function PrDetailHeader({
+  repoId,
   pr,
   prId,
   tab,
@@ -91,7 +93,9 @@ export function PrDetailHeader({
           </Button>
           {prId && (
             <RunReviewDropdown
+              repoId={repoId}
               prId={prId}
+              prNumber={pr.number}
               warnMerged={pr.status === "merged" || pr.status === "closed"}
               onRunStart={handleRunStart}
               onRunsStarted={handleRunsStarted}

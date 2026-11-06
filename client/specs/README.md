@@ -13,3 +13,4 @@ Add each new spec to the list below with a one-line "read when".
 - [skills.md](skills.md) — read when changing the Skills page, skill editor/import modals or the agent Skills tab
 - [conventions.md](conventions.md) — read when changing the Conventions page (`ConventionsView`, `ConventionCard`) or the "Create skill from conventions" modal
 - [multi-agent-review.md](multi-agent-review.md) — read when building/changing the Multi-Agent Review page (`/repos/:repoId/multi-agent`: run config, columns/tabs, "Where agents disagree", agent badge) or promoting `FindingCard`/`RunTraceDrawer`
+- [intent-layer.md](intent-layer.md) — read when touching the PR-page Intent card (confidence, sources, stale/refresh, user override) or intent hooks/types

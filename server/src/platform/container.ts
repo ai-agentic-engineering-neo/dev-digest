@@ -29,6 +29,9 @@ import { SkillsRepository } from '../modules/skills/repository.js';
 import type { SkillsRepositoryPort } from '../modules/skills/ports.js';
 import { ConventionsRepository } from '../modules/conventions/repository.js';
 import type { ConventionsRepositoryPort } from '../modules/conventions/ports.js';
+import { IntentRepository } from '../modules/intent/repository.js';
+import type { IntentRepositoryPort } from '../modules/intent/ports.js';
+import { IntentService } from '../modules/intent/service.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
 import { type DepGraph, DepCruiseGraph } from '../adapters/depgraph/index.js';
@@ -59,6 +62,8 @@ export interface ContainerOverrides {
   skillsRepo?: SkillsRepositoryPort;
   /** Conventions storage — tests inject an in-memory fake. */
   conventionsRepo?: ConventionsRepositoryPort;
+  /** Intent storage — tests inject an in-memory fake. */
+  intentRepo?: IntentRepositoryPort;
 }
 
 export class Container {
@@ -82,6 +87,8 @@ export class Container {
   private _reviewRepo?: ReviewRepository;
   private _skillsRepo?: SkillsRepositoryPort;
   private _conventionsRepo?: ConventionsRepositoryPort;
+  private _intentRepo?: IntentRepositoryPort;
+  private _intent?: IntentService;
   private _repoIntel?: RepoIntel;
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
@@ -120,6 +127,17 @@ export class Container {
   get conventionsRepo(): ConventionsRepositoryPort {
     if (this.overrides.conventionsRepo) return this.overrides.conventionsRepo;
     return (this._conventionsRepo ??= new ConventionsRepository(this.db));
+  }
+
+  /** PR intent storage (intent module). */
+  get intentRepo(): IntentRepositoryPort {
+    if (this.overrides.intentRepo) return this.overrides.intentRepo;
+    return (this._intentRepo ??= new IntentRepository(this.db));
+  }
+
+  /** PR intent service (lazy singleton: holds the single-flight map). */
+  get intent(): IntentService {
+    return (this._intent ??= new IntentService(this));
   }
 
   get codeIndex(): CodeIndex {

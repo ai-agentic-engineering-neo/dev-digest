@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { pgTable, uuid, text, integer, jsonb, timestamp, doublePrecision } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, integer, jsonb, timestamp, doublePrecision, boolean } from 'drizzle-orm/pg-core';
 import { now } from './_shared';
 import { workspaces } from './core';
 import { pullRequests } from './pulls';
@@ -49,9 +49,31 @@ export const prIntent = pgTable('pr_intent', {
   prId: uuid('pr_id')
     .primaryKey()
     .references(() => pullRequests.id, { onDelete: 'cascade' }),
-  intent: text('intent').notNull(),
+  intent: text('intent'),
   inScope: jsonb('in_scope').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
   outOfScope: jsonb('out_of_scope').$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  kind: text('kind').notNull().default('unknown'),
+  confidence: text('confidence').notNull().default('low'),
+  confidenceReason: text('confidence_reason').notNull().default('indirect_only'),
+  confidenceLowered: boolean('confidence_lowered').notNull().default(false),
+  sources: jsonb('sources').$type<unknown[]>().notNull().default(sql`'[]'::jsonb`),
+  status: text('status').notNull().default('ok'),
+  error: text('error'),
+  headSha: text('head_sha'),
+  inputHash: text('input_hash'),
+  bodyHash: text('body_hash'),
+  provider: text('provider'),
+  model: text('model'),
+  tokensIn: integer('tokens_in'),
+  tokensOut: integer('tokens_out'),
+  costUsd: doublePrecision('cost_usd'),
+  overrideIntent: text('override_intent'),
+  overrideInScope: jsonb('override_in_scope').$type<string[]>(),
+  overrideOutOfScope: jsonb('override_out_of_scope').$type<string[]>(),
+  overrideHeadSha: text('override_head_sha'),
+  overriddenAt: timestamp('overridden_at', { withTimezone: true }),
+  createdAt: now(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const prBrief = pgTable('pr_brief', {

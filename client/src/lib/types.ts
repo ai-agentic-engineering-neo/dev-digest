@@ -155,3 +155,60 @@ export interface AgentRunEstimate {
 export interface AgentRunEstimatesResponse {
   estimates: AgentRunEstimate[];
 }
+
+/**
+ * Intent Layer API shapes. Mirrors server/src/modules/intent/domain/types.ts.
+ * TODO: reconcile with @devdigest/shared
+ */
+export type IntentKind = "feature" | "fix" | "refactor" | "chore" | "docs" | "test" | "unknown";
+export type IntentConfidence = "high" | "medium" | "low";
+export type IntentConfidenceReason = "substantive_body" | "linked_doc" | "closing_issue" | "short_body" | "indirect_only";
+export type IntentDerivationStatus = "ok" | "failed" | "none";
+export type IntentOrigin = "derived" | "user";
+export type IntentStaleReason = "head_moved" | "body_changed";
+export type IntentSourceKind = "pr_body" | "title" | "issue" | "plan" | "spec" | "doc" | "branch" | "commits" | "paths" | "external_link" | "tracker_key";
+export type IntentSourceStatus = "read" | "empty" | "unavailable" | "skipped_external" | "skipped_cross_repo" | "skipped_cap" | "unresolved";
+export type IntentSourceReason = "template_only" | "not_found" | "pull_request" | "unsafe_path" | "binary" | "github_unavailable" | "not_cloned" | "cap" | "pr_diff_excerpt";
+
+export interface IntentSource {
+  id: string;
+  kind: IntentSourceKind;
+  ref: string;
+  weight: "strong" | "weak";
+  status: IntentSourceStatus;
+  reason: IntentSourceReason | null;
+  used: boolean;
+  cited: boolean;
+  issue_number: number | null;
+  path: string | null;
+}
+
+export interface PrIntent {
+  pr_id: string;
+  status: IntentDerivationStatus;
+  origin: IntentOrigin;
+  intent: string | null;
+  in_scope: string[];
+  out_of_scope: string[];
+  kind: IntentKind;
+  confidence: IntentConfidence;
+  confidence_reason: IntentConfidenceReason;
+  confidence_lowered: boolean;
+  sources: IntentSource[];
+  head_sha: string | null;
+  stale: boolean;
+  stale_reason: IntentStaleReason | null;
+  provider: string | null;
+  model: string | null;
+  tokens_in: number | null;
+  tokens_out: number | null;
+  cost_usd: number | null;
+  error: string | null;
+  updated_at: string;
+}
+
+export interface IntentOverrideInput {
+  intent: string;
+  in_scope: string[];
+  out_of_scope: string[];
+}

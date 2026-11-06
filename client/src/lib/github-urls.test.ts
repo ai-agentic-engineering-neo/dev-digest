@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { githubPrUrl, githubBlobUrl } from "./github-urls";
+import { githubPrUrl, githubBlobUrl, githubIssueUrl } from "./github-urls";
 
 describe("githubPrUrl", () => {
   it("builds the pull request link", () => {
@@ -52,5 +52,11 @@ describe("githubBlobUrl", () => {
     expect(githubBlobUrl("acme/widgets", "abc123", "my%20dir/a.ts")).toBe(
       "https://github.com/acme/widgets/blob/abc123/my%2520dir/a.ts",
     );
+  });
+});
+
+describe("githubIssueUrl", () => {
+  it("builds the issue link", () => {
+    expect(githubIssueUrl("acme/api", 12)).toBe("https://github.com/acme/api/issues/12");
   });
 });

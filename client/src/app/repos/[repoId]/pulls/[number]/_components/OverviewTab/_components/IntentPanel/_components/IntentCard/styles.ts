@@ -1,0 +1,51 @@
+import type { CSSProperties } from "react";
+
+export const s = {
+  wrap: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 12,
+    padding: 16,
+    borderRadius: 10,
+    border: "1px solid var(--border)",
+    background: "var(--bg-elevated)",
+  } satisfies CSSProperties,
+  header: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" } satisfies CSSProperties,
+  title: { fontSize: 14, fontWeight: 700, color: "var(--text-primary)", margin: 0 } satisfies CSSProperties,
+  intent: { fontSize: 14, lineHeight: 1.55, color: "var(--text-primary)", margin: 0 } satisfies CSSProperties,
+  scopeRow: { display: "flex", gap: 24, flexWrap: "wrap" } satisfies CSSProperties,
+  scopeCol: { flex: 1, minWidth: 200 } satisfies CSSProperties,
+  scopeHeading: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: "var(--text-muted)",
+    margin: "0 0 4px",
+  } satisfies CSSProperties,
+  list: {
+    margin: 0,
+    paddingLeft: 18,
+    fontSize: 13,
+    color: "var(--text-secondary)",
+    lineHeight: 1.5,
+  } satisfies CSSProperties,
+  meta: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    flexWrap: "wrap",
+    fontSize: 12,
+    color: "var(--text-muted)",
+  } satisfies CSSProperties,
+  stale: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "8px 12px",
+    borderRadius: 7,
+    fontSize: 13,
+    color: "var(--warn)",
+    background: "var(--warn-bg)",
+  } satisfies CSSProperties,
+  failed: { fontSize: 13, color: "var(--warn)", margin: 0 } satisfies CSSProperties,
+  actions: { display: "flex", gap: 8, flexWrap: "wrap" } satisfies CSSProperties,
+} as const;

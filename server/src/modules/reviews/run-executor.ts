@@ -105,6 +105,28 @@ export class ReviewRunExecutor {
     }
     runLog.info(`Diff ready — ${diff.files.length} changed file(s); starting ${jobs.length} agent run(s)`);
 
+    // Shared intent pre-work: derived once per batch (cached + single-flight in
+    // the service). Best-effort — never fails a run. Intent tokens/cost are NOT
+    // added to any run's spend: one call serves N runs.
+    runLog.tool('Deriving PR intent…');
+    const intentResult = await this.container.intent.forReview(workspaceId, pull.id).catch(
+      (e: unknown) => {
+        const reason = e instanceof Error ? e.message : String(e);
+        return {
+          status: 'skipped',
+          reason,
+          logLine: `Intent unavailable — reviewing without it (warning): ${reason}`,
+        } as const;
+      },
+    );
+    if (intentResult.status === 'ready') {
+      runLog.result(intentResult.logLine);
+    } else {
+      runLog.info(intentResult.logLine);
+      logger?.warn({ prId: pull.id, reason: intentResult.reason }, 'review: intent skipped');
+    }
+    const intentBlock = intentResult.status === 'ready' ? intentResult.block : undefined;
+
     for (const { agent, runId } of jobs) {
       const agentStart = Date.now();
       logger?.info(
@@ -112,7 +134,7 @@ export class ReviewRunExecutor {
         `review: agent "${agent.name}" started (${agent.provider}/${agent.model})`,
       );
       try {
-        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, agent, runId, runLog);
+        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, agent, runId, runLog, intentBlock);
         logger?.info(
           {
             runId,
@@ -144,6 +166,7 @@ export class ReviewRunExecutor {
     agent: AgentRow,
     runId: string,
     parentLog: RunLogger,
+    intent: string | undefined,
   ): Promise<RunOutcome> {
     const start = Date.now();
     // Narrow the fanned-out pre-work logger to THIS run; the shared diff/intent
@@ -216,6 +239,8 @@ export class ReviewRunExecutor {
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
+        // Derived PR intent — pre-rendered untrusted block; omitted when unavailable.
+        ...(intent ? { intent } : {}),
         task,
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
@@ -254,19 +279,6 @@ export class ReviewRunExecutor {
       const blockers = countBlockers(keptFindings, agent.ciFailOn);
 
       // ---- Observability: agent_runs + ONE run_traces document --------------
-      await this.repo.completeAgentRun(runId, {
-        status: 'done',
-        durationMs,
-        tokensIn,
-        tokensOut,
-        costUsd,
-        findingsCount: findingRows.length,
-        grounding,
-        score: outcome.review.score,
-        blockers,
-        error: null,
-      });
-
       const trace: RunTrace = {
         config: {
           agent: agent.name,
@@ -299,7 +311,21 @@ export class ReviewRunExecutor {
         log: runLog.logFor(runId),
       };
       runLog.info('Run complete; trace persisted');
+      // Trace first, terminal status last: anything that polls agent_runs.status
+      // for 'done' (UI, tests) must find the trace already persisted.
       await this.repo.saveRunTrace(runId, trace);
+      await this.repo.completeAgentRun(runId, {
+        status: 'done',
+        durationMs,
+        tokensIn,
+        tokensOut,
+        costUsd,
+        findingsCount: findingRows.length,
+        grounding,
+        score: outcome.review.score,
+        blockers,
+        error: null,
+      });
       this.container.runBus.complete(runId);
 
       return { review, findings: findingRows, grounding, raw: outcome.review };

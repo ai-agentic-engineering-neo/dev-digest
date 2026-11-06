@@ -1,0 +1,16 @@
+{
+  "name": "PR overview shows the intent card empty state with Derive now",
+  "description": "Open seeded PR #482 and confirm the Overview tab shows the intent card empty state (no intent derived yet) with a Derive now action, plus the Description section. Never clicks Derive now (that would trigger an LLM call). Assumes a freshly-seeded DB where the demo repo acme/payments-api (PR #482) is the first repo and has no pr_intent row.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "land on the PR list" },
+    { "cmd": ["wait", "--text", "Add rate limiting to public API endpoints"], "label": "seeded PR title row is visible" },
+    { "cmd": ["find", "text", "Add rate limiting to public API endpoints", "click"], "label": "open the PR row" },
+    { "cmd": ["wait", "--url", "/pulls/482"], "label": "navigate to the PR detail route" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "PR detail data settles" },
+    { "cmd": ["wait", "--text", "No intent yet"], "label": "intent card empty state title is visible" },
+    { "cmd": ["wait", "--text", "Intent is derived before the first review."], "label": "intent card empty state hint is visible" },
+    { "cmd": ["wait", "--text", "Derive now"], "label": "Derive now action is visible (not clicked)" },
+    { "cmd": ["wait", "--text", "Description"], "label": "description section is visible" }
+  ]
+}

@@ -6,4 +6,5 @@ put here what is too detailed for it. Add each new doc to the list below with a 
 <!-- - [topic.md](topic.md) — read when … -->
 - [architecture.md](architecture.md) — read when adding a module/route/plugin, touching `buildApp` order, the error envelope, the DI container, or choosing JobRunner vs fire-and-forget
 - [review-pipeline.md](review-pipeline.md) — read when changing how a review run is started, executed, cancelled, streamed over SSE (`RunBus`) or persisted (`agent_runs`, `run_traces`)
+- [conventions.md](conventions.md) — read when changing the conventions extractor: sampling, grounding of model evidence, de-duplication, or the merged `<repo>-conventions` skill
 - [database.md](database.md) — read when adding/changing tables or columns, writing a migration, scoping queries by workspace, or relying on seed data

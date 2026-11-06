@@ -9,7 +9,7 @@ description: >-
   engineering-insights. Manual only: /implement-plan plans/<feature>.md [--wave N] [--task T<n>].
   Also on "виконай план", "запусти імплементерів", "implement the plan".
 metadata:
-  version: "1.0.0"
+  version: "1.1.0"
   updated: "2026-11-06"
 ---
 
@@ -30,6 +30,7 @@ Commands for every package: `plans/README.md` → "Verify commands" (Windows: bi
    ownership map has no file twice; a wave has ≤ 4 tasks and ≤ 1 migration task. Broken → stop, report.
 3. `git status --porcelain` → save as the **baseline** (pre-existing changes are not the wave's).
    Uncommitted changes in files the plan owns → ask before starting.
+   `git rev-parse --short HEAD` → save as the **plan base** (the `base:` sent to wave 1; used in §7).
 4. Set plan `Status: in progress` (edit only that line).
 
 ## 1. Pick the wave
@@ -86,6 +87,23 @@ Per task: `DONE` / `DONE_WITH_CONCERNS` / `BLOCKED`. Collect `DEVIATIONS`, `FORE
 
 ## 7. Finish
 
-All tasks `done` → plan `Status: done`, update its line in `plans/README.md`. Run the full unit suites of
-every touched package once. Then tell the user to run `/pr-self-review` (manual, it gates push/PR).
+All tasks `done` → run the full unit suites of every touched package once. Insights (§6) are already
+recorded, so the verifiers and `/pr-self-review` see the final `INSIGHTS.md`. Then launch, in ONE
+message, two `Agent` calls (read-only; their rules live in `.claude/agents/`):
+
+```
+subagent_type: plan-verifier           →  plan: plans/<feature>.md · base: <plan base> · run: unit
+subagent_type: architecture-reviewer   →  base: <plan base> · plan: plans/<feature>.md
+```
+
+Show the user both header blocks (`VERDICT`, `COVERAGE` / `CHECKS RUN`, and every non-MET row / finding). Then:
+
+- `COMPLIANT` + `PASS` → plan `Status: done`, update its line in `plans/README.md`. Offer `doc-writer`
+  (`from: plans/<feature>.md`) as an optional next step, then tell the user to run `/pr-self-review`
+  (manual, it gates push/PR).
+- `NOT COMPLIANT` or `FAIL` → keep `Status: in progress`, list the findings with their task, and offer a
+  `--task T<n>` re-run with the finding appended as `gate failure:` — or ask the user. Never set `done`.
+- `INCOMPLETE EVIDENCE` (+ `PASS`) → show `NOT RUN` / `UNVERIFIABLE` rows and ask the user to confirm
+  the manual checks; set `done` only after they confirm.
+
 Never commit, push or open a PR unless the user asks.

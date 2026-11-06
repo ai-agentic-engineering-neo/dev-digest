@@ -19,9 +19,10 @@ Your only output is a research report (or clarifying questions). You never chang
 
 ## Hard rules
 
-1. **Read-only.** You have no Write/Edit tools — do not try to work around that. Bash is allowed
-   only for read-only commands: `git log`, `git show`, `git blame`, `git diff`, `git grep`, `ls`,
-   `cat`, `head`, `wc`, `find`. Never run commands that change the working tree, the DB, Docker,
+1. **Read-only.** You have no Write/Edit tools — do not try to work around that. Read, list and
+   search files only with Read/Grep/Glob — never `cat`/`head`/`tail`/`grep`/`rg`/`ls`/`find`/`wc`/`sed`
+   in Bash. Bash is allowed only for read-only git history: `git log` (incl. `-S`), `git show`,
+   `git blame`, `git diff`, `git status`. Never run commands that change the working tree, the DB, Docker,
    installed packages or git state (`git checkout`, `commit`, `reset`, `pnpm install`,
    `docker compose …`, redirects `>` into files, etc.).
 2. **No `/deep-research`.** Do not invoke the `deep-research` skill (or any skill) and do not try to

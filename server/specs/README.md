@@ -12,3 +12,4 @@ Add each new spec to the list below with a one-line "read when".
 - [skills.md](skills.md) — read when touching skills (CRUD, import/zip parsing, agent links, how skills reach the prompt, seed agents)
 - [multi-agent-review.md](multi-agent-review.md) — read when touching per-agent run estimates (`GET /agents/run-estimates`, averages over recent done runs)
 - [conventions.md](conventions.md) — read when touching the Conventions Extractor (sampling, the extraction model call, evidence grounding, `conventions` table, skill from conventions)
+- [intent-layer.md](intent-layer.md) — read when touching PR intent derivation (sources, linked issues/plans, `review_intent` model call, `pr_intent` caching, `/pulls/:id/intent` routes, intent section in the review prompt)

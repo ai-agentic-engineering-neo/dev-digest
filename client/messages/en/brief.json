@@ -15,5 +15,49 @@
     "blame": "blame",
     "noHistory": "No history available for this line.",
     "noCommits": "No commits found for this line."
+    },
+  "intent": {
+    "kind": { "feature": "Feature", "fix": "Fix", "refactor": "Refactor", "chore": "Chore", "docs": "Docs", "test": "Test", "unknown": "Unclassified" },
+    "confidence": { "high": "High confidence", "medium": "Medium confidence", "low": "Low confidence" },
+    "confidenceHint": {
+      "substantive_body": "Based on the PR description.",
+      "linked_doc": "Based on a linked plan or spec that was read.",
+      "closing_issue": "Based on a linked issue — the PR description adds little.",
+      "short_body": "The PR description is short — the intent may be incomplete.",
+      "indirect_only": "Derived only from title, branch, commits and paths — the PR body has no description.",
+      "lowered": "Lowered one level because the sources disagree."
+    },
+    "inScope": "In scope",
+    "outOfScope": "Out of scope",
+    "sourcesLabel": "Sources",
+    "source": {
+      "pr_body": "PR body", "title": "Title", "issue": "Issue {ref}", "plan": "{ref}", "spec": "{ref}", "doc": "{ref}",
+      "branch": "Branch", "commits": "Commits", "paths": "Paths", "external_link": "{ref}", "tracker_key": "{ref}"
+    },
+    "sourceStatus": {
+      "read": "read", "empty": "empty", "unavailable": "unavailable", "skipped_external": "external link — not fetched",
+      "skipped_cross_repo": "other repository — not fetched", "skipped_cap": "over the limit — not read",
+      "unresolved": "external tracker — not resolved"
+    },
+    "sourceReason": {
+      "template_only": "only a template", "not_found": "missing or private", "pull_request": "is a pull request",
+      "unsafe_path": "path not allowed", "binary": "not a text file", "github_unavailable": "GitHub not connected",
+      "not_cloned": "repository not cloned", "cap": "over the limit", "pr_diff_excerpt": "PR changes only"
+    },
+    "meta": { "model": "{model}", "computedFor": "computed for {sha}", "tokenUnit": "tok" },
+    "stale": {
+      "head_moved": "New commits since this intent was computed.",
+      "body_changed": "The PR description changed since this intent was computed."
+    },
+    "failed": "Intent derivation failed: {error}",
+    "edited": "Edited",
+    "actions": { "refresh": "Refresh", "refreshing": "Refreshing…", "edit": "Edit", "reset": "Reset to derived" },
+    "form": {
+      "intent": "Intent", "inScope": "In scope (one per line)", "outOfScope": "Out of scope (one per line)",
+      "save": "Save", "saving": "Saving…", "cancel": "Cancel", "hint": "Applies to the next review run.",
+      "tooManyItems": "At most {max} items"
+    },
+    "empty": { "title": "No intent yet", "body": "Intent is derived before the first review.", "cta": "Derive now" },
+    "loadError": "Couldn't load the intent"
   }
 }

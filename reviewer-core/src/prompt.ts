@@ -63,6 +63,9 @@ export function wrapUntrusted(label: string, content: string): string {
 /** Cap the PR description so a huge author body can't blow the token budget. */
 const MAX_PR_DESCRIPTION_CHARS = 4000;
 
+/** Cap the pre-rendered PR intent block (backstop; the server caps tighter). */
+const MAX_PR_INTENT_CHARS = 2000;
+
 export interface PromptParts {
   /** Agent's system prompt (trusted). */
   system: string;
@@ -94,6 +97,10 @@ export interface PromptParts {
    * undefined → section omitted.
    */
   prDescription?: string;
+  /** Pre-rendered derived PR intent (untrusted). Rendered right after `## PR description`
+   *  as `## PR intent (derived — untrusted)` via wrapUntrusted('pr-intent'), capped at
+   *  MAX_PR_INTENT_CHARS (2000). Empty/undefined → section omitted (byte-identical prompt). */
+  intent?: string;
   /** The unified diff / user task (untrusted content). */
   diff: string;
   /** Optional task framing line, e.g. "Review PR #482 '…'". */
@@ -136,6 +143,11 @@ export function assemblePrompt(parts: PromptParts): AssembledPrompt {
   if (parts.task) userSections.push(parts.task);
   if (prDescription) {
     userSections.push(`## PR description\n${wrapUntrusted('pr-description', prDescription)}`);
+  }
+  if (parts.intent && parts.intent.trim().length > 0) {
+    userSections.push(
+      `## PR intent (derived — untrusted)\n${wrapUntrusted('pr-intent', parts.intent.slice(0, MAX_PR_INTENT_CHARS))}`,
+    );
   }
   if (skillsBlock) userSections.push(`## Skills / rules\n${skillsBlock}`);
   if (memoryBlock) userSections.push(`## Relevant memory\n${memoryBlock}`);

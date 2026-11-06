@@ -4,7 +4,7 @@ import { waitForPrRuns } from './helpers/runs.js';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/platform/config.js';
 import { seed } from '../src/db/seed.js';
-import { MockLLMProvider, MockEmbedder, MockGitClient } from '../src/adapters/mocks.js';
+import { MockLLMProvider, MockEmbedder, MockGitClient, MockSecretsProvider } from '../src/adapters/mocks.js';
 import * as t from '../src/db/schema.js';
 import { and, eq } from 'drizzle-orm';
 import type { Review } from '@devdigest/shared';
@@ -116,6 +116,7 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
       db: pg.handle.db,
       overrides: {
         embedder: new MockEmbedder(),
+        secrets: new MockSecretsProvider(),
         git: new MockGitClient({ diff: DIFF }),
         llm: {
           [provider]: new MockLLMProvider(provider, { structured }),

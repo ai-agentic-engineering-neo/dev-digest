@@ -30,6 +30,7 @@ and testable with a stub.
 | `skills`, `memory` | no | Resolved strings (never slugs). Rendered **unwrapped** (trusted). Empty array ⇒ section left out. |
 | `specs` | no | Untrusted. Each item wrapped `spec-<i>`. Empty ⇒ left out. |
 | `repoMap`, `callers`, `prDescription` | no | Untrusted, wrapped. Blank or whitespace-only ⇒ left out. `prDescription` cut to 4000 chars. |
+| `intent` | no | Pre-rendered derived PR intent (untrusted). Wrapped `pr-intent`, cut to 2000 chars, rendered after `## PR description`. Blank ⇒ left out. Never in the system message. |
 | `task` | no | Plain first line of the user message. |
 | `maxRetries` | no | Schema-repair retry budget passed to the provider (default `DEFAULT_REVIEW_MAX_RETRIES` = 2). |
 | `mapThresholdLines` | no | `auto` threshold on `additions + deletions` (default `DEFAULT_MAP_THRESHOLD_LINES` = 400). |
@@ -76,7 +77,7 @@ never returned.
 ### Prompt hardening (`src/prompt.ts:85 → assemblePrompt`)
 - `INJECTION_GUARD` is appended to every system message. It is never weakened, and keyword filtering is never added.
 - Untrusted content goes inside `<untrusted source="…">`, with `</untrusted>` escaped (`wrapUntrusted`).
-- Section order is fixed: task → PR description → Skills/rules → Relevant memory → Repo skeleton → Project context →
+- Section order is fixed: task → PR description → PR intent → Skills/rules → Relevant memory → Repo skeleton → Project context →
   Callers → Diff. An empty optional input produces a byte-identical prompt to the one without that slot.
 
 ### Errors

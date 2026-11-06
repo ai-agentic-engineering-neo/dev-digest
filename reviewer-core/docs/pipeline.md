@@ -57,12 +57,14 @@ map-reduce runs only for agents explicitly set to `map-reduce` or `auto`.
 - User message sections, in this fixed order, each left out when empty:
   1. `task` (plain line)
   2. `## PR description`: `wrapUntrusted('pr-description', …)`, cut to `MAX_PR_DESCRIPTION_CHARS` = 4000 (`prompt.ts:37`)
-  3. `## Skills / rules`: skill bodies joined by blank lines (**not** wrapped)
-  4. `## Relevant memory`: `- item` bullets (**not** wrapped)
-  5. `## Repo skeleton`: `wrapUntrusted('repo-map', …)`
-  6. `## Project context`: each spec wrapped as `spec-<i>`
-  7. `## Callers of changed symbols`: `wrapUntrusted('callers', …)`
-  8. `## Diff to review`: `wrapUntrusted('diff', …)` (always present)
+  3. `## PR intent (derived — untrusted)`: `wrapUntrusted('pr-intent', …)`, pre-rendered by the caller, cut to
+     `MAX_PR_INTENT_CHARS` = 2000. Never added to the system message and not recorded in `assembly`.
+  4. `## Skills / rules`: skill bodies joined by blank lines (**not** wrapped)
+  5. `## Relevant memory`: `- item` bullets (**not** wrapped)
+  6. `## Repo skeleton`: `wrapUntrusted('repo-map', …)`
+  7. `## Project context`: each spec wrapped as `spec-<i>`
+  8. `## Callers of changed symbols`: `wrapUntrusted('callers', …)`
+  9. `## Diff to review`: `wrapUntrusted('diff', …)` (always present)
 - `wrapUntrusted` (`prompt.ts:30`) escapes the literal `</untrusted>` inside content and wraps the content in
   `<untrusted source="label">…</untrusted>`.
 - The returned `assembly` (a `PromptAssembly`) feeds the run trace. Single-pass stores the assembly that was actually

@@ -88,7 +88,6 @@ export class OctokitGitHubClient implements GitHubClient {
             pull_number: n,
             per_page: 100,
           });
-          const linkedIssue = await this.resolveLinkedIssue(repo, pr.body ?? '');
           return {
             number: pr.number,
             title: pr.title,
@@ -115,23 +114,12 @@ export class OctokitGitHubClient implements GitHubClient {
               author: c.commit.author?.name ?? c.author?.login ?? 'unknown',
               committed_at: c.commit.author?.date,
             })),
-            linked_issue: linkedIssue,
+            linked_issue: null, // nothing reads it; ref parsing lives in modules/intent/domain/refs.ts
           };
         })(),
         TIMEOUT,
       ),
     );
-  }
-
-  /** linked issue via regex on PR body (#123 / closes #123). */
-  private async resolveLinkedIssue(repo: RepoRef, body: string): Promise<IssueMeta | undefined> {
-    const m = body.match(/(?:closes|fixes|resolves)?\s*#(\d+)/i);
-    if (!m?.[1]) return undefined;
-    try {
-      return await this.getIssue(repo, Number(m[1]));
-    } catch {
-      return undefined;
-    }
   }
 
   async postReview(

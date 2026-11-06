@@ -35,3 +35,8 @@ export function githubBlobUrl(
   }
   return url;
 }
+
+/** https://github.com/{owner}/{repo}/issues/{number} */
+export function githubIssueUrl(repoFullName: string, number: number): string {
+  return `${HOST}/${repoFullName}/issues/${number}`;
+}

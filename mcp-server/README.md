@@ -9,9 +9,9 @@
 | Інструмент | Коли викликати | Анотації |
 |---|---|---|
 | `list_agents` | Першим: дає валідний `agent` (`id`, `name`, `role`, `enabled`) | `readOnlyHint: true` |
-| `run_agent_on_pr` | `repo` (`owner/name`), `pr` (номер), `agent` (назва або id). Запускає прогін, **сам чекає** і повертає findings. Disabled-агент теж запускається, з полем `warning` | `readOnlyHint: false`, `destructiveHint: false`, `idempotentHint: false`, `openWorldHint: true` |
+| `run_agent_on_pr` | `repo` (`owner/name`), `pr` (номер), `agent` (назва або id). Запускає прогін, **сам чекає** і повертає findings. Якщо цей агент уже має активний прогін на цьому PR, приєднується до нього (без другого платного прогону; про це каже `warning`). `pr` приймає і число, і рядок `"3"`. Disabled-агент теж запускається, з полем `warning` | `readOnlyHint: false`, `destructiveHint: false`, `idempotentHint: false`, `openWorldHint: true` |
 | `get_findings` | `repo`, `pr`, опційно `run_id` / `agent`. Без `run_id` повертає останній завершений прогін (цього агента) | `readOnlyHint: true` |
-| `get_conventions` | `repo`, опційно `status` (`accepted` за замовчуванням / `pending` / `all`) | `readOnlyHint: true` |
+| `get_conventions` | `repo`, опційно `status` (`accepted` за замовчуванням / `pending` / `all`). Не більше 50 правил, кожне `rule` ≤ 300 символів; обрізане рахує поле `truncated` | `readOnlyHint: true` |
 | `get_blast_radius` | Чесна заглушка: завжди `status: "not_implemented"`, API не викликає | `readOnlyHint: true` |
 
 Відповідь `run_agent_on_pr` і `get_findings` (`structuredContent`):
@@ -26,17 +26,17 @@
 
 ```bash
 cd mcp-server && npm install         # один раз
-npx tsx mcp-server/src/index.ts      # з кореня репо; сервер чекає JSON-RPC на stdin
+node mcp-server/node_modules/tsx/dist/cli.mjs mcp-server/src/index.ts   # з кореня репо; сервер чекає JSON-RPC на stdin
 ```
 
 Перевірка в MCP Inspector:
 
 ```bash
 # UI
-npx @modelcontextprotocol/inspector npx tsx mcp-server/src/index.ts
+npx @modelcontextprotocol/inspector node mcp-server/node_modules/tsx/dist/cli.mjs mcp-server/src/index.ts
 # CLI
-npx @modelcontextprotocol/inspector --cli npx tsx mcp-server/src/index.ts --method tools/list
-npx @modelcontextprotocol/inspector --cli npx tsx mcp-server/src/index.ts \
+npx @modelcontextprotocol/inspector --cli node mcp-server/node_modules/tsx/dist/cli.mjs mcp-server/src/index.ts --method tools/list
+npx @modelcontextprotocol/inspector --cli node mcp-server/node_modules/tsx/dist/cli.mjs mcp-server/src/index.ts \
   --method tools/call --tool-name get_findings --tool-arg repo=lindigo-design/dev-digest --tool-arg pr=28
 ```
 
@@ -45,9 +45,13 @@ npx @modelcontextprotocol/inspector --cli npx tsx mcp-server/src/index.ts \
 
 Тести (vitest, in-memory MCP Client + підмінений `fetch`, без мережі):
 
+- `test/tools.test.ts`: усі 5 інструментів, схеми, анотації, ліміти `get_conventions`.
+- `test/run-agent-on-pr.test.ts`: приєднання до активного прогону, progress, cancel, неоднозначний агент, `pr:"3"`, помилки з наступним кроком.
+- `test/stdio.smoke.test.ts`: справжній процес через `StdioClientTransport` (stdout містить лише JSON-RPC).
+
 ```bash
-cd mcp-server && npx vitest run      # або: node node_modules/vitest/vitest.mjs run
-npx tsc --noEmit -p tsconfig.json
+cd mcp-server && node node_modules/vitest/vitest.mjs run
+node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json
 ```
 
 ## Підключення до Claude Code
@@ -57,7 +61,8 @@ npx tsc --noEmit -p tsconfig.json
 
 ```json
 { "mcpServers": { "devdigest": {
-  "type": "stdio", "command": "npx", "args": ["tsx", "mcp-server/src/index.ts"],
+  "type": "stdio", "command": "node",
+  "args": ["mcp-server/node_modules/tsx/dist/cli.mjs", "mcp-server/src/index.ts"],
   "env": { "DEVDIGEST_API_URL": "${DEVDIGEST_API_URL:-http://localhost:3001}" },
   "timeout": 240000 } } }
 ```
@@ -65,8 +70,12 @@ npx tsc --noEmit -p tsconfig.json
 Те саме через CLI (local scope, без файлу):
 
 ```bash
-claude mcp add --transport stdio devdigest --env DEVDIGEST_API_URL=http://localhost:3001 -- npx tsx mcp-server/src/index.ts
+claude mcp add --transport stdio devdigest --env DEVDIGEST_API_URL=http://localhost:3001 -- node mcp-server/node_modules/tsx/dist/cli.mjs mcp-server/src/index.ts
 ```
+
+Чому не `npx tsx`: у корені репо немає `package.json`, тож `npx` щоразу тягне непінований `tsx` з реєстру
+(supply chain, повільний холодний старт), а на нативному Windows `npx` ще й потребує обгортки `cmd /c`.
+Локальний `tsx` з `mcp-server/node_modules` пінований lock-файлом. Шляхи відносні, тож cwd = корінь репо.
 
 Цільовий сценарій: *«Зроби рев'ю PR №3 у репозиторії lindigo-design/dev-digest агентом Security Reviewer
 і скажи, чи є критичні знахідки»*. Модель проходить `list_agents` → `run_agent_on_pr` → (за потреби)
@@ -193,7 +202,7 @@ TypeScript SDK, стаття Anthropic «Writing effective tools for agents», �
     [Spec: progress](https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns/progress.md),
     [Spec: cancellation](https://modelcontextprotocol.io/specification/2026-07-28/basic/utilities/cancellation)
     **У нас:** `run_agent_on_pr` опитує `GET /pulls/:id/runs` кожні 2 с і шле progress, якщо є токен.
-    Сигнал скасування перериває очікування. Власний таймаут `DEVDIGEST_RUN_TIMEOUT_MS` (дефолт 180 с),
+    Сигнал скасування перериває очікування (progress і cancel покриті тестами в `test/run-agent-on-pr.test.ts`). Власний таймаут `DEVDIGEST_RUN_TIMEOUT_MS` (дефолт 180 с),
     бо `MCP_TOOL_TIMEOUT` у Claude Code за замовчуванням близько 28 годин.
 13. **Не встигли дочекатися — повертаємо handle.** Специфікація радить повертати явний handle й
     приймати його в наступних викликах.
@@ -215,7 +224,7 @@ TypeScript SDK, стаття Anthropic «Writing effective tools for agents», �
     [Inspector CLI](https://modelcontextprotocol.io/docs/2026-07-28/tools/inspector/cli.md),
     [SDK docs: testing](https://github.com/modelcontextprotocol/typescript-sdk/blob/main/docs/testing.md)
     **У нас:** vitest + in-memory Client + підмінений `fetch` для 5 обов'язкових сценаріїв, далі Inspector
-    і `/mcp` у Claude Code.
+    і `/mcp` у Claude Code. Додатково `test/stdio.smoke.test.ts` запускає справжній процес по stdio.
 
 ### Що свідомо НЕ робимо
 
@@ -237,3 +246,4 @@ TypeScript SDK, стаття Anthropic «Writing effective tools for agents», �
   уже оплачується й допрацює, а результат можна забрати через `get_findings`.
 - **Вигадана карта впливу.** HTTP-маршруту blast radius у DevDigest немає (лише внутрішній
   `RepoIntelService.getBlastRadius`), тому `get_blast_radius` чесно повертає `not_implemented`.
+- **Захист від гонки двох одночасних `run_agent_on_pr`.** Дедуплікує MCP-сервер (шукає активний прогін того ж агента на PR), а не API. Якщо два виклики стартують одночасно, обидва можуть створити прогін. Це прийнятний ризик: виправлення потребує змін у `server/`.

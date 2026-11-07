@@ -22,7 +22,7 @@ Each lesson L01–L08 adds one feature; unused DB tables / i18n files for future
 | `client/` | Next.js 15 / React 19 studio, `:3000` | pnpm | `client/CLAUDE.md` |
 | `reviewer-core/` | Pure review engine: diff → prompt → LLM → grounded findings | **npm** | `reviewer-core/CLAUDE.md` |
 | `e2e/` | Deterministic browser flows (agent-browser, no LLM) | npm | `e2e/CLAUDE.md` |
-| `mcp-server/` | stdio MCP server (5 tools) over the DevDigest HTTP API — no DB access; wired in `.mcp.json` | npm | `mcp-server/README.md` |
+| `mcp-server/` | stdio MCP server (5 tools) over the DevDigest HTTP API — no DB access; wired in `.mcp.json` | npm | `mcp-server/CLAUDE.md` |
 
 Cross-package code is shared via **tsconfig path aliases to raw `.ts` source**, not published packages:
 `@devdigest/reviewer-core` → `../reviewer-core/src`, `@devdigest/shared` → `<pkg>/src/vendor/shared`.

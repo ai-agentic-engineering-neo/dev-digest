@@ -2,8 +2,8 @@
   "mcpServers": {
     "devdigest": {
       "type": "stdio",
-      "command": "npx",
-      "args": ["tsx", "mcp-server/src/index.ts"],
+      "command": "node",
+      "args": ["mcp-server/node_modules/tsx/dist/cli.mjs", "mcp-server/src/index.ts"],
       "env": {
         "DEVDIGEST_API_URL": "${DEVDIGEST_API_URL:-http://localhost:3001}"
       },

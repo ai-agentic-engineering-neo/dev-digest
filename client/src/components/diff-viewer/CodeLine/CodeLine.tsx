@@ -3,13 +3,9 @@
 "use client";
 
 import React from "react";
-import { SeverityBadge } from "@devdigest/ui";
-import type { FindingRecord } from "@devdigest/shared";
-import { SEV_COLOR, SEV_COLOR_FALLBACK } from "../../finding-card";
 import { commentTargetFor, type CommentThread, type DiffCommentApi, cs } from "../comments";
 import { type Line } from "../helpers";
-import { activeFindings, lineSeverities, topSeverity, type DiffFindingApi } from "../findings";
-import { s, lineRowFor, lineSignFor, findingBarFor } from "../styles";
+import { s, lineRowFor, lineSignFor } from "../styles";
 import { CommentThreadView } from "../CommentThreadView";
 import { InlineComposer } from "../InlineComposer";
 
@@ -18,15 +14,11 @@ export function CodeLine({
   path,
   threads,
   commenting,
-  findings,
-  findingApi,
 }: {
   ln: Line;
   path: string;
   threads: CommentThread[];
   commenting?: DiffCommentApi;
-  findings?: FindingRecord[];
-  findingApi?: DiffFindingApi;
 }) {
   const [hover, setHover] = React.useState(false);
   const [composing, setComposing] = React.useState(false);
@@ -42,13 +34,6 @@ export function CodeLine({
   const sign = ln.kind === "add" ? "+" : ln.kind === "del" ? "−" : "";
   const target = commenting?.canComment ? commentTargetFor(ln) : null;
   const showAdd = hover && !!target && !composing;
-  const lineFindings = findingApi ? (findings ?? []) : [];
-  const active = activeFindings(lineFindings);
-  const top = topSeverity(active);
-  const rowStyle = {
-    ...lineRowFor(ln.kind),
-    ...(top ? findingBarFor(SEV_COLOR[top] ?? SEV_COLOR_FALLBACK) : null),
-  };
 
   return (
     <div
@@ -56,7 +41,7 @@ export function CodeLine({
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
-      <div style={rowStyle}>
+      <div style={lineRowFor(ln.kind)}>
         <span className="mono tnum" style={{ ...s.lineNo, position: "relative" }}>
           {showAdd && target && (
             <button
@@ -77,24 +62,7 @@ export function CodeLine({
         <span className="mono" style={s.lineText}>
           {ln.text || " "}
         </span>
-        {findingApi && active.length > 0 && (
-          <span style={s.findingIcons}>
-            {lineSeverities(active).map((sev) => (
-              <span key={sev} role="img" aria-label={findingApi.labels.line[sev]} title={findingApi.labels.line[sev]}>
-                <SeverityBadge severity={sev} compact />
-              </span>
-            ))}
-          </span>
-        )}
       </div>
-
-      {findingApi && findingApi.show && lineFindings.length > 0 && (
-        <div style={s.findingCards}>
-          {lineFindings.map((f) => (
-            <React.Fragment key={f.id}>{findingApi.renderCard(f)}</React.Fragment>
-          ))}
-        </div>
-      )}
 
       {commenting &&
         commenting.showComments &&

@@ -30,6 +30,13 @@ import { reduceReviews, scoreFromFindings, sliceDiff } from './reduce.js';
 export const DEFAULT_MAP_THRESHOLD_LINES = 400;
 /** Default structured-output reprompt retries (matches REVIEW_MAX_RETRIES). */
 export const DEFAULT_REVIEW_MAX_RETRIES = 2;
+/**
+ * Default output-token cap for each review LLM call. Without an explicit cap
+ * OpenRouter reserves the model maximum (e.g. 131072) and answers 402 on keys
+ * with a low limit. Same rationale as the server's EXTRACTION_MAX_TOKENS
+ * (server/src/modules/conventions/constants.ts).
+ */
+export const DEFAULT_REVIEW_MAX_TOKENS = 8_000;
 
 export type ReviewStrategy = 'auto' | 'single-pass' | 'map-reduce';
 export type ReviewMode = 'single-pass' | 'map-reduce';
@@ -80,6 +87,8 @@ export interface ReviewInput {
   task?: string;
   /** Override the structured-output retry budget. */
   maxRetries?: number;
+  /** Output-token cap for EACH chunk LLM call (default DEFAULT_REVIEW_MAX_TOKENS). */
+  maxTokens?: number;
   /** Override the map-reduce line threshold. */
   mapThresholdLines?: number;
   /**
@@ -197,6 +206,7 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
       schemaName: 'Review',
       messages: a.messages,
       maxRetries,
+      maxTokens: input.maxTokens ?? DEFAULT_REVIEW_MAX_TOKENS,
       ...(input.sessionId ? { sessionId: input.sessionId } : {}),
     });
     tokensIn += res.tokensIn;

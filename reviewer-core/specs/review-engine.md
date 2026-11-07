@@ -33,6 +33,7 @@ and testable with a stub.
 | `intent` | no | Pre-rendered derived PR intent (untrusted). Wrapped `pr-intent`, cut to 2000 chars, rendered after `## PR description`. Blank ⇒ left out. Never in the system message. |
 | `task` | no | Plain first line of the user message. |
 | `maxRetries` | no | Schema-repair retry budget passed to the provider (default `DEFAULT_REVIEW_MAX_RETRIES` = 2). |
+| `maxTokens` | no | Output-token cap passed on EACH chunk `completeStructured` call (default `DEFAULT_REVIEW_MAX_TOKENS` = 8000). Without a cap OpenRouter reserves the model max and answers 402 on low-limit keys. |
 | `mapThresholdLines` | no | `auto` threshold on `additions + deletions` (default `DEFAULT_MAP_THRESHOLD_LINES` = 400). |
 | `sessionId` | no | Sent on every LLM call when set. |
 | `onEvent(e)` | no | Progress sink: `{ kind: 'info'\|'tool'\|'result', msg, data? }`. |

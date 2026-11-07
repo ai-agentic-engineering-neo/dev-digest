@@ -23,6 +23,8 @@ The server builds it in `server/src/platform/container.ts:173 → buildLlm` and 
 
 `src/llm/openrouter.ts:59`
 
+`reviewPullRequest` always passes `maxTokens` (default `DEFAULT_REVIEW_MAX_TOKENS` = 8000, override via `ReviewInput.maxTokens`); without it OpenRouter reserves the model maximum and returns 402 on low-limit keys. A reply cut off at the cap is retried once with a larger cap (up to `TRUNCATION_TOKEN_CEILING`).
+
 ```mermaid
 sequenceDiagram
   participant E as reviewPullRequest

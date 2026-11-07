@@ -9,6 +9,7 @@ vi.mock('openai', () => ({
   },
 }));
 
+import { DEFAULT_REVIEW_MAX_TOKENS } from '../src/review/run.js';
 import { OpenRouterProvider, TRUNCATION_TOKEN_CEILING, TRUNCATION_TOKEN_FACTOR } from '../src/llm/openrouter.js';
 
 const Schema = z.object({ intent: z.string() });
@@ -39,6 +40,19 @@ describe('OpenRouterProvider.completeStructured — truncated replies', () => {
     expect(create.mock.calls[0]![0].max_tokens).toBe(800);
     expect(create.mock.calls[1]![0].max_tokens).toBe(800 * TRUNCATION_TOKEN_FACTOR);
     // Same conversation — the cut-off reply is not fed back as something to repair.
+    expect(create.mock.calls[1]![0].messages).toEqual(req.messages);
+  });
+
+  it('a review-sized cap (DEFAULT_REVIEW_MAX_TOKENS) still gets a bigger retry on truncation', async () => {
+    expect(DEFAULT_REVIEW_MAX_TOKENS * TRUNCATION_TOKEN_FACTOR).toBeLessThanOrEqual(TRUNCATION_TOKEN_CEILING);
+    create
+      .mockResolvedValueOnce(reply('', 'length'))
+      .mockResolvedValueOnce(reply('{"intent":"Add rate limiting"}', 'stop'));
+    const res = await new OpenRouterProvider('k').completeStructured({ ...req, maxTokens: DEFAULT_REVIEW_MAX_TOKENS });
+
+    expect(res.data).toEqual({ intent: 'Add rate limiting' });
+    expect(create.mock.calls[0]![0].max_tokens).toBe(8000);
+    expect(create.mock.calls[1]![0].max_tokens).toBe(16000);
     expect(create.mock.calls[1]![0].messages).toEqual(req.messages);
   });
 

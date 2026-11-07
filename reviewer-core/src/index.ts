@@ -40,6 +40,7 @@ export {
   reviewPullRequest,
   DEFAULT_MAP_THRESHOLD_LINES,
   DEFAULT_REVIEW_MAX_RETRIES,
+  DEFAULT_REVIEW_MAX_TOKENS,
   type ReviewInput,
   type ReviewOutcome,
   type ChunkUsage,

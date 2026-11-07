@@ -61,6 +61,11 @@
       "skills": ["typescript-expert", "zod"]
     },
     {
+      "bucket": "mcp-server",
+      "files": ["mcp-server/src/**/*.ts"],
+      "skills": ["typescript-expert", "zod"]
+    },
+    {
       "bucket": "fullstack",
       "files": ["**/*.{ts,tsx,mts,cts,js,mjs,cjs}"],
       "skills": ["security"]

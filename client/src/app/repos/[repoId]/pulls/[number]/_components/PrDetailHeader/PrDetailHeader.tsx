@@ -46,7 +46,7 @@ export function PrDetailHeader({
         : "var(--warn)";
 
   return (
-    <div style={s.root}>
+    <div style={s.root} data-pr-detail-header>
       <div style={s.titleRow}>
         <div style={s.titleCol}>
           <h1 style={s.h1}>

@@ -28,6 +28,9 @@ Rules:
   toward `critical_count`.
 - **Cannot be waived:** `policy/do-not-touch-clones`, `policy/do-not-touch-vendor-shared`, a growing
   `architecture-baseline.json`, and `security` findings whose rule mentions secrets/tokens/keys.
+  Exception: `policy/do-not-touch-vendor-shared` IS waivable when the same file changed in both
+  `server/src/vendor/shared/` and `client/src/vendor/shared/` and the two are byte-identical (git blobs);
+  one copy, differing copies or a deleted copy stay non-waivable. Waive each copy (two entries).
 - Claude **never** writes waivers on its own. The report prints a ready-made entry; the user decides
   and adds it.
 - `waivers.json` is part of the diff, so adding a waiver changes the diff hash → the gate requires a

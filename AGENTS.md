@@ -60,6 +60,7 @@ Package-specific rules: `<pkg>/CLAUDE.md` § Naming conventions.
 
 - `server/src/vendor/shared/` and `server/src/db/migrations/` — never hand-edit without coordination
   (stop and ask the user first; migrations are generated with `pnpm db:generate`).
+  Exception: the same contract change, byte-identical in BOTH `server/src/vendor/shared/` and `client/src/vendor/shared/`, is a *waivable* pr-self-review critical (the user adds the waiver).
 - `server/clones/**` — runtime git checkouts (contain the GitHub token in `.git/config`).
 - `.claude/skills/**` + `skills-lock.json` — vendored third-party skills, pinned by hash.
   Exceptions: `.claude/skills/engineering-insights/`, `.claude/skills/frontend-ui-architecture/`, `.claude/skills/onion-architecture/`,

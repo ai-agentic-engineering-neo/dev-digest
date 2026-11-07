@@ -17,6 +17,13 @@ export const s = {
     gap: 10,
     padding: "10px 12px",
     cursor: "pointer",
+    // <button> reset: the header is a native button (keyboard + aria-expanded).
+    width: "100%",
+    border: "none",
+    background: "transparent",
+    color: "inherit",
+    font: "inherit",
+    textAlign: "left",
   } satisfies CSSProperties,
   fileIcon: { color: "var(--text-muted)" } satisfies CSSProperties,
   filePath: {
@@ -64,6 +71,20 @@ export const s = {
     color: "var(--text-primary)",
     paddingRight: 12,
   } satisfies CSSProperties,
+  findingIcons: {
+    marginLeft: "auto",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 4,
+    paddingRight: 8,
+    flexShrink: 0,
+  } satisfies CSSProperties,
+  findingCards: {
+    margin: "6px 14px 8px 58px",
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+  } satisfies CSSProperties,
 } as const;
 
 /** Chevron rotates 90deg when the file card is open. */
@@ -89,4 +110,14 @@ export function lineSignFor(kind: Line["kind"]): CSSProperties {
     color: kind === "add" ? "var(--code-add-text)" : kind === "del" ? "var(--code-del-text)" : "var(--text-muted)",
     flexShrink: 0,
   };
+}
+
+/** Left bar of a flagged line, coloured by its most severe active finding. */
+export function findingBarFor(color: string): CSSProperties {
+  return { boxShadow: `inset 3px 0 0 ${color}` };
+}
+
+/** Severity dot on a file header. */
+export function fileDotFor(color: string): CSSProperties {
+  return { width: 8, height: 8, borderRadius: "50%", background: color, flexShrink: 0 };
 }

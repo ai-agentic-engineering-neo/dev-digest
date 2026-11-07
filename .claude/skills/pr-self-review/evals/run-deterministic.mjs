@@ -90,10 +90,16 @@ const BASE = {
   'server/src/db/schema/reviews.ts': 'export const reviews = {};\n',
   'server/src/db/migrations/0001_init.sql': 'create table reviews ();\n',
   'server/src/vendor/shared/contracts/finding.ts': "import { z } from 'zod';\nexport const Finding = z.object({});\n",
+  'client/src/vendor/shared/contracts/finding.ts': "import { z } from 'zod';\nexport const Finding = z.object({});\n",
   'server/package.json': '{ "name": "server" }\n',
   'server/pnpm-lock.yaml': 'lockfileVersion: 9\n',
   'README.md': '# repo\n',
 };
+
+const VENDOR_NEXT = "import { z } from 'zod';\nexport const Finding = z.object({ id: z.string() });\n";
+const vendorWaivers = () => JSON.stringify(['server', 'client'].map((pkg) => ({
+  file: `${pkg}/src/vendor/shared/contracts/finding.ts`, rule: 'policy/do-not-touch-vendor-shared', reason: 'eval', expires: todayPlus(30),
+})));
 
 const finding = (task, file, line, severity, rule, issue = 'problem') => ({
   skill: task.skill, rule, file, line, severity, issue, evidence: 'x', fix: 'y',
@@ -132,6 +138,52 @@ const cases = {
     const res = review(r);
     assert(res.last.verdict === 'BLOCK' && res.verdictCode === 1, res.out);
     assert(res.last.findings.some((f) => f.rules.includes('policy/do-not-touch-vendor-shared')), res.out);
+  },
+
+  'vendor/shared: ONE copy changed → non-waivable (waiver ignored)'() {
+    const r = makeRepo(BASE);
+    r.write({
+      'server/src/vendor/shared/contracts/finding.ts': VENDOR_NEXT,
+      '.claude/pr-self-review/waivers.json': vendorWaivers(),
+    });
+    const res = review(r);
+    assert(res.last.verdict === 'BLOCK' && res.verdictCode === 1, res.out);
+    const f = res.merged.findings.find((x) => x.rules.includes('policy/do-not-touch-vendor-shared'));
+    assert(f && f.waivable === false && /only one copy changed/.test(f.issue), JSON.stringify(f));
+    assert(res.last.warnings.some((w) => w.includes('cannot be waived')), res.out);
+  },
+
+  'vendor/shared: BOTH copies byte-identical → waivable (BLOCK without waiver, PASS with it)'() {
+    const r = makeRepo(BASE);
+    r.write({ 'server/src/vendor/shared/contracts/finding.ts': VENDOR_NEXT, 'client/src/vendor/shared/contracts/finding.ts': VENDOR_NEXT });
+    const res = review(r);
+    const fs = res.merged.findings.filter((x) => x.rules.includes('policy/do-not-touch-vendor-shared'));
+    assert(fs.length === 2 && fs.every((f) => f.waivable === true), JSON.stringify(fs));
+    assert(res.last.verdict === 'BLOCK', 'still a critical until the user waives it');
+    r.write({ '.claude/pr-self-review/waivers.json': vendorWaivers() });
+    const waived = review(r);
+    assert(waived.last.verdict === 'PASS' && waived.last.waivedCount === 2, waived.out);
+  },
+
+  'vendor/shared: BOTH copies changed but different → non-waivable (waiver ignored)'() {
+    const r = makeRepo(BASE);
+    r.write({
+      'server/src/vendor/shared/contracts/finding.ts': VENDOR_NEXT,
+      'client/src/vendor/shared/contracts/finding.ts': VENDOR_NEXT.replace('z.string()', 'z.number()'),
+      '.claude/pr-self-review/waivers.json': vendorWaivers(),
+    });
+    const res = review(r);
+    const fs = res.merged.findings.filter((x) => x.rules.includes('policy/do-not-touch-vendor-shared'));
+    assert(fs.length === 2 && fs.every((f) => f.waivable === false && /differ/.test(f.issue)), JSON.stringify(fs));
+    assert(res.last.verdict === 'BLOCK' && res.last.warnings.some((w) => w.includes('cannot be waived')), res.out);
+  },
+
+  'vendor/shared: one copy DELETED, other changed → non-waivable'() {
+    const r = makeRepo(BASE);
+    r.write({ 'server/src/vendor/shared/contracts/finding.ts': VENDOR_NEXT, 'client/src/vendor/shared/contracts/finding.ts': null });
+    const res = review(r);
+    const fs = res.merged.findings.filter((x) => x.rules.includes('policy/do-not-touch-vendor-shared'));
+    assert(fs.length === 2 && fs.every((f) => f.waivable === false), JSON.stringify(fs));
   },
 
   'migration + schema change → PASS'() {

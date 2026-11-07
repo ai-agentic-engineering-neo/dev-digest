@@ -60,16 +60,40 @@ const run = (cmd, argv, cwd, timeout) => {
 // ---------------------------------------------------------------------------------------------
 ran.push('policy');
 
+// vendor/shared exists twice (server canonical + client copy). An edit stays NON-waivable unless the
+// same file changed in BOTH copies and both are byte-identical afterwards (compared as git blobs, so
+// working-tree CRLF from core.autocrlf doesn't count as a difference). Deleting either copy never qualifies.
+const VENDOR_SHARED_ROOTS = ['server/src/vendor/shared/', 'client/src/vendor/shared/'];
+const VENDOR_SHARED_GLOBS = VENDOR_SHARED_ROOTS.map((r) => `${r}**`);
+function mirroredVendorChange(p) {
+  const [own, otherRoot] = p.startsWith(VENDOR_SHARED_ROOTS[0]) ? VENDOR_SHARED_ROOTS : [...VENDOR_SHARED_ROOTS].reverse();
+  const other = otherRoot + p.slice(own.length);
+  const no = (why, evidence = '') => ({ ok: false, other, why, evidence });
+  if (!byPath.has(other)) return no(`only one copy changed — ${other} is unchanged`);
+  if (byPath.get(p).deleted || byPath.get(other).deleted || !existsSync(join(ROOT, p)) || !existsSync(join(ROOT, other))) {
+    return no('a copy was deleted');
+  }
+  const [a, b] = git(['hash-object', '--', p, other]).trim().split(/\r?\n/);
+  const evidence = `${p} ${a.slice(0, 12)} · ${other} ${b.slice(0, 12)}`;
+  return a === b ? { ok: true, other, why: '', evidence } : no(`both copies changed but differ — ${other} is not byte-identical`, evidence);
+}
+
 for (const p of changed) {
   if (p.startsWith('server/clones/')) {
     add({ skill: 'policy', rule: 'policy/do-not-touch-clones', file: p, waivable: false,
       issue: 'server/clones/** are runtime git checkouts that contain the GitHub token in .git/config',
       fix: `git rm --cached -r "${p}" and keep clones/ ignored` });
   }
-  if (matchesAny(p, ['server/src/vendor/shared/**', 'client/src/vendor/shared/**'])) {
-    add({ skill: 'policy', rule: 'policy/do-not-touch-vendor-shared', file: p, waivable: false,
-      issue: 'Zod contracts in vendor/shared must not be edited without coordination (AGENTS.md → Do not touch); a change here can break @devdigest/shared consumers',
-      fix: `Revert (git checkout ${plan.mergeBase.slice(0, 8)} -- "${p}") and agree the contract change with the user first` });
+  if (matchesAny(p, VENDOR_SHARED_GLOBS)) {
+    const mirror = mirroredVendorChange(p);
+    add({ skill: 'policy', rule: 'policy/do-not-touch-vendor-shared', file: p, waivable: mirror.ok,
+      issue: mirror.ok
+        ? `vendor/shared contract changed in BOTH copies, byte-identical (${mirror.other}) — waivable only by the user after agreeing the contract change`
+        : `Zod contracts in vendor/shared must not be edited without coordination (AGENTS.md → Do not touch); a change here can break @devdigest/shared consumers. Not waivable: ${mirror.why}`,
+      evidence: mirror.evidence,
+      fix: mirror.ok
+        ? 'If the contract change is agreed, the user adds a waiver for this file (references/waivers.md); otherwise revert both copies'
+        : `Revert (git checkout ${plan.mergeBase.slice(0, 8)} -- "${p}"), or make the SAME change in ${mirror.other} so both copies are byte-identical, and agree it with the user` });
   }
 }
 

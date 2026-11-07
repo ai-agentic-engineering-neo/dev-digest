@@ -14,6 +14,13 @@ export function toolError(text: string): CallToolResult {
   return { isError: true, content: [{ type: 'text', text }] };
 }
 
+function nextStep(status: number): string {
+  if (status === 404) return 'Check the agent (list_agents), repo and PR number, then retry.';
+  if (status === 400 || status === 422) return 'Check the tool arguments, then retry.';
+  if (status >= 500) return 'Check the DevDigest API log, then retry.';
+  return 'Retry; if it keeps failing, check the DevDigest API log.';
+}
+
 /** Any thrown error → an actionable message. */
 export function errorMessage(err: unknown): string {
   if (err instanceof ToolError) return err.message;
@@ -28,7 +35,7 @@ export function errorMessage(err: unknown): string {
       const wait = err.retryAfterSec ? `${err.retryAfterSec} s` : 'a minute';
       return `DevDigest rate limit reached (10 reviews/min). Retry in ${wait}.`;
     }
-    return `DevDigest API error ${err.status} ${err.code}: ${err.message}.`;
+    return `DevDigest API error ${err.status} ${err.code}: ${err.message}. ${nextStep(err.status)}`;
   }
   return `Unexpected error: ${err instanceof Error ? err.message : String(err)}`;
 }
@@ -42,6 +49,14 @@ export function guarded<A extends unknown[]>(
     try {
       return await fn(...args);
     } catch (err) {
+      // The handler's extra (last arg) carries the client's abort signal.
+      const extra: unknown = args[args.length - 1];
+      const signal =
+        typeof extra === 'object' && extra !== null && 'signal' in extra ? (extra as { signal?: AbortSignal }).signal : undefined;
+      if (signal?.aborted) {
+        console.error(`[devdigest-mcp] ${name}: cancelled by client`);
+        return toolError('Cancelled by the client.');
+      }
       // stderr only (stdout is JSON-RPC); full stack just for unexpected errors
       if (err instanceof ApiError || err instanceof ApiUnreachableError) {
         console.error(`[devdigest-mcp] ${name}: ${err.message}`);

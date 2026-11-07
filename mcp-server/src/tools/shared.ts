@@ -15,7 +15,7 @@ export const repoArg = z
   .regex(/^[\w.-]+\/[\w.-]+$/, 'Use the "owner/name" format, e.g. "acme/payments-api"')
   .describe('GitHub repository as "owner/name"');
 
-export const prArg = z.number().int().positive().describe('Pull request number, e.g. 3');
+export const prArg = z.coerce.number().int().positive().describe('Pull request number, e.g. 3');
 
 export const agentArg = z.string().min(1).describe('Agent name (case-insensitive) or id from list_agents');
 
@@ -36,9 +36,13 @@ export async function finishedRunResult(
   const { run } = args;
   if (run.status === 'failed') {
     const reason = (run.error ?? 'unknown error').replace(/\s+/g, ' ').trim();
+    const short = reason.length > 300 ? `${reason.slice(0, 299)}…` : reason;
+    const outOfCredits = /402|credits/i.test(reason);
     throw new ToolError(
-      `Review run ${run.run_id} failed: ${reason.length > 300 ? `${reason.slice(0, 299)}…` : reason}. ` +
-        `Check the agent's provider/model in DevDigest Settings, then retry run_agent_on_pr.`,
+      `Review run ${run.run_id} failed: ${short}. ` +
+        (outOfCredits
+          ? `The LLM provider ran out of credits or the API key's limit. Top up the key or switch the agent's model in DevDigest Settings, then retry run_agent_on_pr.`
+          : `Check the agent's provider/model in DevDigest Settings, then retry run_agent_on_pr.`),
     );
   }
   if (run.status === 'cancelled') {

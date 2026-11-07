@@ -36,13 +36,28 @@ export function registerRunAgentOnPr(server: McpServer, deps: ToolDeps): void {
       const found = await resolveAgent(deps.api, agent, signal);
       const repoRow = await resolveRepo(deps.api, repo, signal);
       const pull = await resolvePr(deps.api, repoRow, pr, signal);
-      const warning = found.enabled
+      const disabledWarning = found.enabled
         ? undefined
         : `Agent "${found.name}" is disabled in DevDigest; it was run anyway because it was requested explicitly.`;
 
-      const started = await deps.api.startReview(pull.id, found.id, signal);
-      const runId = started[0]?.run_id;
-      if (!runId) throw new ToolError('DevDigest did not start a run. Retry run_agent_on_pr.');
+      // DevDigest does not deduplicate runs: join an active run of this agent instead of paying twice.
+      const active = (await deps.api.listRuns(pull.id, signal)).find(
+        (r) => r.status === 'running' && r.agent_id === found.id,
+      );
+      let runId: string;
+      let reuseWarning: string | undefined;
+      if (active) {
+        runId = active.run_id;
+        reuseWarning =
+          `Agent "${found.name}" was already running on ${repoRow.full_name}#${pr} (run ${runId}); ` +
+          `waited for that run instead of starting a duplicate paid run.`;
+      } else {
+        const started = await deps.api.startReview(pull.id, found.id, signal);
+        const startedId = started[0]?.run_id;
+        if (!startedId) throw new ToolError('DevDigest did not start a run. Retry run_agent_on_pr.');
+        runId = startedId;
+      }
+      const warning = [disabledWarning, reuseWarning].filter(Boolean).join(' ') || undefined;
 
       const base = { repo: repoRow.full_name, pr, ...(warning ? { warning } : {}) };
       const progressToken = extra._meta?.progressToken;

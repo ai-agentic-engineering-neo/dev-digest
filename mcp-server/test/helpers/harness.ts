@@ -40,7 +40,11 @@ export interface FakeState {
   runStatusSequence: string[];
   /** Findings attached to the review created when the started run reaches `done`. */
   newRunFindings: ApiFinding[];
-  reviewStatus?: number; // force POST /review to answer this status (e.g. 429)
+  reviewStatus?: number; // force POST /review to answer this status (e.g. 429, 404)
+  /** Id of the run whose status follows `runStatusSequence` (default 'run-new'; set it for a pre-seeded running run). */
+  trackedRunId?: string;
+  /** Called with every request as "METHOD /path" (before it is answered). */
+  onCall?: (call: string) => void;
   unreachable?: boolean;
   calls: string[];
 }
@@ -69,6 +73,7 @@ export function fakeFetch(state: FakeState) {
     const method = init?.method ?? 'GET';
     const path = url.replace(BASE, '');
     state.calls.push(`${method} ${path}`);
+    state.onCall?.(`${method} ${path}`);
     if (state.unreachable) throw new TypeError('fetch failed');
 
     if (method === 'GET' && path === '/agents') return json(state.agents);
@@ -83,6 +88,9 @@ export function fakeFetch(state: FakeState) {
       if (state.reviewStatus === 429) {
         return json({ error: { code: 'rate_limited', message: 'Too many requests' } }, 429, { 'retry-after': '42' });
       }
+      if (state.reviewStatus !== undefined) {
+        return json({ error: { code: 'not_found', message: 'Pull request not found' } }, state.reviewStatus);
+      }
       const { agentId } = JSON.parse(String(init?.body)) as { agentId: string };
       const agent = state.agents.find((a) => a.id === agentId)!;
       const run: ApiRun = { run_id: 'run-new', agent_id: agentId, agent_name: agent.name, status: 'running', error: null, ran_at: null };
@@ -91,7 +99,8 @@ export function fakeFetch(state: FakeState) {
     }
     m = path.match(/^\/pulls\/([^/]+)\/runs$/);
     if (method === 'GET' && m) {
-      const started = state.runs.find((r) => r.run_id === 'run-new');
+      const trackedId = state.trackedRunId ?? 'run-new';
+      const started = state.runs.find((r) => r.run_id === trackedId);
       if (started && started.status === 'running') {
         const seq = state.runStatusSequence;
         const next = seq[Math.min(polls, seq.length - 1)]!;
@@ -100,7 +109,7 @@ export function fakeFetch(state: FakeState) {
         if (next === 'failed') started.error = 'OpenRouter 402: requires more credits';
         if (next === 'done') {
           state.reviews.unshift({
-            run_id: 'run-new',
+            run_id: trackedId,
             agent_id: started.agent_id,
             agent_name: started.agent_name,
             kind: 'review',
@@ -126,10 +135,17 @@ export async function connect(state: FakeState, config: Partial<Config> = {}) {
   const server = createServer({ ...TEST_CONFIG, ...config }, fakeFetch(state));
   const client = new Client({ name: 'test', version: '0.0.0' });
   const [clientT, serverT] = InMemoryTransport.createLinkedPair();
+  // Record every JSON-RPC method the server sends (the client SDK swallows malformed progress notifications).
+  const serverSent: string[] = [];
+  const originalSend = serverT.send.bind(serverT);
+  serverT.send = (message, options) => {
+    if ('method' in message) serverSent.push(message.method);
+    return originalSend(message, options);
+  };
   await Promise.all([server.connect(serverT), client.connect(clientT)]);
   const call = (name: string, args: Record<string, unknown> = {}) =>
     client.callTool({ name, arguments: args }) as Promise<CallToolResult>;
-  return { client, call, close: () => client.close() };
+  return { client, call, serverSent, close: () => client.close() };
 }
 
 export function text(r: CallToolResult): string {

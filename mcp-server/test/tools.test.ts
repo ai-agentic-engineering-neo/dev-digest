@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { MAX_FINDINGS } from '../src/format.js';
+import { MAX_CONVENTIONS, MAX_RULE_CHARS } from '../src/tools/get-conventions.js';
 import { connect, finding, freshState, PR_ID, SECURITY, text, type FakeState } from './helpers/harness.js';
 
 let close: (() => Promise<void>) | undefined;
@@ -289,7 +290,27 @@ describe('get_conventions', () => {
       status: 'accepted',
       conventions: [{ rule: 'Files are kebab-case', category: 'naming', evidence: 'src/a-b.ts:1', status: 'accepted' }],
       counts: { accepted: 1, pending: 1, rejected: 1 },
+      truncated: 0,
     });
+  });
+
+  it('caps the list at MAX_CONVENTIONS and each rule at MAX_RULE_CHARS; counts cover all', async () => {
+    const state = freshState();
+    state.conventions = Array.from({ length: 60 }, (_, i) => ({
+      category: 'c',
+      rule: i === 0 ? 'x'.repeat(1000) : `Rule ${i}`,
+      evidence_path: `src/f${i}.ts`,
+      line_start: i + 1,
+      status: 'accepted',
+    }));
+    const { call } = await setup(state);
+    const r = await call('get_conventions', { repo: 'acme/payments-api' });
+    const sc = r.structuredContent as { conventions: { rule: string }[]; truncated: number; counts: { accepted: number } };
+    expect(sc.conventions).toHaveLength(MAX_CONVENTIONS);
+    expect(sc.truncated).toBe(10);
+    expect(sc.counts.accepted).toBe(60);
+    expect(sc.conventions[0]!.rule.length).toBeLessThanOrEqual(MAX_RULE_CHARS);
+    expect(text(r)).toContain('10 more conventions omitted');
   });
 
   it('nothing accepted but pending exist → hint to ask for pending', async () => {

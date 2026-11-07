@@ -1,14 +1,20 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { guarded } from '../errors.js';
+import { shorten } from '../format.js';
 import { resolveRepo } from '../resolve.js';
 import { ok, repoArg, type ToolDeps } from './shared.js';
+
+/** Conventions accumulate across extractions and `rule` is user-editable: cap what enters the model context. */
+export const MAX_CONVENTIONS = 50;
+export const MAX_RULE_CHARS = 300;
 
 const Output = z.object({
   repo: z.string(),
   status: z.enum(['accepted', 'pending', 'all']),
   conventions: z.array(z.object({ rule: z.string(), category: z.string().nullable(), evidence: z.string(), status: z.string() })),
   counts: z.object({ accepted: z.number().int(), pending: z.number().int(), rejected: z.number().int() }),
+  truncated: z.number().int(),
 });
 
 export function registerGetConventions(server: McpServer, deps: ToolDeps): void {
@@ -34,20 +40,26 @@ export function registerGetConventions(server: McpServer, deps: ToolDeps): void 
       const counts = { accepted: 0, pending: 0, rejected: 0 };
       for (const c of all) if (c.status in counts) counts[c.status as keyof typeof counts]++;
       const picked = all.filter((c) => (status === 'all' ? c.status !== 'rejected' : c.status === status));
+      const shown = picked.slice(0, MAX_CONVENTIONS);
+      const truncated = picked.length - shown.length;
       const data = {
         repo: repoRow.full_name,
         status,
-        conventions: picked.map((c) => ({
-          rule: c.rule,
+        conventions: shown.map((c) => ({
+          rule: shorten(c.rule, MAX_RULE_CHARS),
           category: c.category,
           evidence: c.line_start ? `${c.evidence_path}:${c.line_start}` : c.evidence_path,
           status: c.status,
         })),
         counts,
+        truncated,
       };
       let text: string;
       if (picked.length > 0) {
         text = data.conventions.map((c) => `- ${c.rule} (${c.evidence})`).join('\n');
+        if (truncated > 0) {
+          text += `\n(${truncated} more conventions omitted; see Skills Lab → Conventions in DevDigest.)`;
+        }
       } else if (all.length === 0) {
         text = `No conventions for ${repoRow.full_name} yet. Extract them in the DevDigest UI (Skills Lab → Conventions).`;
       } else {

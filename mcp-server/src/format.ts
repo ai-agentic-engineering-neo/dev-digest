@@ -38,7 +38,7 @@ function rank(severity: string): number {
   return i === -1 ? SEVERITIES.length : i;
 }
 
-function shorten(text: string, max = MAX_MESSAGE_CHARS): string {
+export function shorten(text: string, max = MAX_MESSAGE_CHARS): string {
   const flat = text.replace(/\s+/g, ' ').trim();
   return flat.length <= max ? flat : `${flat.slice(0, max - 1).trimEnd()}…`;
 }

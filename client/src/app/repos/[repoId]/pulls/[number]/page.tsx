@@ -158,7 +158,6 @@ export default function PRDetailPage() {
               invalidateActiveRuns();
               invalidateRunHistory();
               if (prId) qc.invalidateQueries({ queryKey: ["pr-intent", prId] });
-              if (prId) qc.invalidateQueries({ queryKey: ["smart-diff", prId] });
               refetchReviews();
             }}
           />

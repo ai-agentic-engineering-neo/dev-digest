@@ -32,7 +32,7 @@
 
 | Підозра | Вердикт | Доказ → задача |
 |---|---|---|
-| reviewer-core: виклик рев'ю без `maxTokens` → 402 | **реальна** | `reviewer-core/src/review/run.ts:194-201` не передає `maxTokens`; `reviewer-core/src/llm/openrouter.ts:73` тоді опускає `max_tokens`. Сервер розв'язав таку саму проблему через `EXTRACTION_MAX_TOKENS = 4_000` (`server/src/modules/conventions/constants.ts:18-23`) і `INTENT_MAX_TOKENS = 800`. Порт уже має поле: `StructuredRequest.maxTokens` (`server/src/vendor/shared/adapters.ts:61`), тож vendor не чіпаємо → **T1** |
+| reviewer-core: виклик рев'ю без `maxTokens` → 402 | **реальна** | `reviewer-core/src/review/run.ts:194-201` не передає `maxTokens`; `reviewer-core/src/llm/openrouter.ts:85` тоді опускає `max_tokens`. Сервер розв'язав таку саму проблему через `EXTRACTION_MAX_TOKENS = 4_000` (`server/src/modules/conventions/constants.ts:18-23`) і `INTENT_MAX_TOKENS = 800`. Порт уже має поле: `StructuredRequest.maxTokens` (`server/src/vendor/shared/adapters.ts:61`), тож vendor не чіпаємо → **T1** |
 | дубль платного прогону | **реальна** | `ReviewService.runReview` створює новий `agent_run` без перевірки активних (`server/src/modules/reviews/service.ts:119-129`); rap:43 стартує одразу → **T2** (рішення: приєднуватися до активного прогону) |
 | `pr` як рядок `"3"` | **реальна** | `prArg = z.number()` (sh:18) → **T2** (`z.coerce`; JSON schema лишається `{type:"integer"}`) |
 | немає тестів progress / cancel / неоднозначного агента / stdio smoke | **реальна** | у `test/tools.test.ts` таких тестів немає. Логіка є: progress rap:57-63, abort rap:7-20, ambiguous res:40-43 → **T2**, **T4** |
@@ -60,7 +60,7 @@ W0 не потрібен: жоден контракт не перетинає м
 
 ```ts
 // T1 — reviewer-core/src/review/run.ts (експортується з src/index.ts)
-export const DEFAULT_REVIEW_MAX_TOKENS = 16_000;
+export const DEFAULT_REVIEW_MAX_TOKENS = 8_000;
 interface ReviewInput { /* … */ maxTokens?: number } // кап на КОЖЕН chunk-виклик completeStructured
 
 // T2 — mcp-server/src/tools/shared.ts
@@ -104,24 +104,27 @@ export const MAX_RULE_CHARS = 300;
 
 ### T1 [W1] [backend] reviewer-core: явний кап `maxTokens` для review-виклику
 - **Status:** todo
-- **Files (only these):** `reviewer-core/src/review/run.ts`, `reviewer-core/src/index.ts`, `reviewer-core/test/run.test.ts`, `reviewer-core/specs/review-engine.md`, `reviewer-core/docs/providers-and-cost.md`
+- **Files (only these):** `reviewer-core/src/review/run.ts`, `reviewer-core/src/index.ts`, `reviewer-core/test/run.test.ts`, `reviewer-core/test/openrouter.test.ts`, `reviewer-core/specs/review-engine.md`, `reviewer-core/docs/providers-and-cost.md`
 - **Depends on:** —
-- **Produces:** `export const DEFAULT_REVIEW_MAX_TOKENS = 16_000`; опційне `ReviewInput.maxTokens?: number`; кожен `input.llm.completeStructured` у `reviewPullRequest` отримує `maxTokens: input.maxTokens ?? DEFAULT_REVIEW_MAX_TOKENS`.
+- **Produces:** `export const DEFAULT_REVIEW_MAX_TOKENS = 8_000`; опційне `ReviewInput.maxTokens?: number`; кожен `input.llm.completeStructured` у `reviewPullRequest` отримує `maxTokens: input.maxTokens ?? DEFAULT_REVIEW_MAX_TOKENS`.
 - **Insights:**
-  - `reviewer-core/INSIGHTS.md` 2026-11-07 — Review runs on OpenRouter (`deepseek/deepseek-v4-flash`) fail with `402 … You requested up to 131072 tokens, but can only afford N`: the review's `completeStructured` call passes no `maxTokens`, so `OpenRouterProvider` omits `max_tokens` … → pass an explicit `maxTokens` cap for the review call (src/review/run.ts:194 → reviewPullRequest `completeStructured`; src/llm/openrouter.ts:73 → max_tokens spread).
+  - `reviewer-core/INSIGHTS.md` 2026-11-07 — Review runs on OpenRouter (`deepseek/deepseek-v4-flash`) fail with `402 … You requested up to 131072 tokens, but can only afford N`: the review's `completeStructured` call passes no `maxTokens`, so `OpenRouterProvider` omits `max_tokens` … → pass an explicit `maxTokens` cap for the review call (src/review/run.ts:194 → reviewPullRequest `completeStructured`; src/llm/openrouter.ts:85 → max_tokens spread).
   - `server/INSIGHTS.md` 2026-11-05 — `llm.completeStructured` without `maxTokens` reserves the model max (65k) → OpenRouter 402 … always pass a cap for structured calls (src/modules/conventions/constants.ts:23).
   - `reviewer-core/INSIGHTS.md` 2026-11-04 — `npm run typecheck` checks only `src/**/*.ts` … type errors in `test/*.ts` never fail locally or in CI → after changing a public type (`ReviewInput`…), type-check the tests explicitly (reviewer-core/tsconfig.json:28 → include).
   - `reviewer-core/INSIGHTS.md` 2026-11-05 — test/run.test.ts:111/:142 мають 2 PRE-EXISTING `TS7006 'req' implicitly any` → baseline; нові помилки = регресія.
   - `reviewer-core/INSIGHTS.md` 2026-11-04 — `test/run.test.ts` imports `MockLLMProvider`/`MockGitClient` from `../../server/src/adapters/mocks.js` (test/run.test.ts:3).
 - **Skill focus:** typescript-expert (публічний тип `ReviewInput` без `any`; у новому тесті явно типізуйте `req: StructuredRequest<T>`); жодного I/O чи env у рушії (reviewer-core/CLAUDE.md Hard rules).
 - **Steps:**
-  1. `run.ts`: поруч із `DEFAULT_REVIEW_MAX_RETRIES` (рядок 32) додати `DEFAULT_REVIEW_MAX_TOKENS = 16_000` з коментарем-причиною (402 на ключах з низьким лімітом, посилання на `server/src/modules/conventions/constants.ts`). У `ReviewInput` додати `maxTokens?: number`. У виклику на рядках 194-201 передати кап.
+  1. `run.ts`: поруч із `DEFAULT_REVIEW_MAX_RETRIES` (рядок 32) додати `DEFAULT_REVIEW_MAX_TOKENS = 8_000` з коментарем-причиною (402 на ключах з низьким лімітом, посилання на `server/src/modules/conventions/constants.ts`). У `ReviewInput` додати `maxTokens?: number`. У виклику на рядках 194-201 передати кап.
   2. `index.ts:39-49`: експортувати `DEFAULT_REVIEW_MAX_TOKENS`.
-  3. `test/run.test.ts`: тест у стилі рядків 107-137 (recorder `LLMProvider`). Без `maxTokens` кожен виклик отримує `16000`, із `maxTokens: 1234` отримує `1234`.
+  3. `test/run.test.ts`: тест у стилі рядків 107-137 (recorder `LLMProvider`). Без `maxTokens` кожен виклик отримує `8000`, із `maxTokens: 1234` отримує `1234`.
+  3a. `test/openrouter.test.ts` (поруч із тестами `truncated replies`, рядок 30, той самий фейк клієнта): запит з `maxTokens: DEFAULT_REVIEW_MAX_TOKENS` (8000), перша відповідь `finish_reason: "length"` → другий запит іде з `max_tokens: 16000` (= `TRUNCATION_TOKEN_CEILING`) і без repair-промпта; відповідь приймається. Плюс інваріант `DEFAULT_REVIEW_MAX_TOKENS * TRUNCATION_TOKEN_FACTOR <= TRUNCATION_TOKEN_CEILING`, щоб зміна будь-якої з констант не вимкнула повтор непомітно.
   4. `specs/review-engine.md`: рядок `maxTokens` у таблиці входів (поруч із рядком 35 `maxRetries`). `docs/providers-and-cost.md`: одне речення про кап у розділі `completeStructured` (біля рядків 22-50).
   5. `server/` не змінювати: `run-executor.ts:224` отримує дефолт автоматично.
+  6. Коміт T1 включає й `reviewer-core/INSIGHTS.md`: інсайт про 402 уже оновлено в основній сесії (незакомічений); implementer його не редагує, лише додає в коміт.
 - **Acceptance criteria:**
-  - [ ] `reviewPullRequest` без `maxTokens` передає `maxTokens: 16000` у кожен chunk-виклик; override поважається (тест).
+  - [ ] `reviewPullRequest` без `maxTokens` передає `maxTokens: 8000` у кожен chunk-виклик; override поважається (тест).
+  - [ ] Обрізана відповідь при капі 8000 повторюється з `max_tokens: 16000` (тест у `test/openrouter.test.ts`); інваріант констант перевірено.
   - [ ] `DEFAULT_REVIEW_MAX_TOKENS` експортовано з `@devdigest/reviewer-core`.
   - [ ] typecheck reviewer-core = 0 помилок; тести reviewer-core і server unit — зелені.
   - [ ] Тимчасовий typecheck тестів (`include` + `test/**/*.ts`) показує лише 2 baseline-помилки TS7006 (тимчасову зміну tsconfig відкотити).
@@ -261,12 +264,12 @@ export const MAX_RULE_CHARS = 300;
 - **T2 ламає exact-text асерти в `test/tools.test.ts` (власник T3):** 429 (`:175`), unreachable (`:184-186`), failed/402 (`:157-158`), no runs (`:273`). Gate W1 проганяє весь набір. Owner: **T2**.
 - **Дедуплікація чіпляється до чужого прогону:** фільтр має бути **і** `agent_id`, **і** `status === 'running'` на тому ж PR. Гонку двох одночасних викликів не закриваємо: це документується (T5). Owner: **T2**.
 - **Флейкі cancel/progress-тести і таймери, що витікають:** `sleep` має знімати listener (rap:10-17). У тестах малий `pollMs` і жодних секундних очікувань. Owner: **T2**.
-- **Кап обрізає вивід reasoning-моделей (тому 16000, а не 8000):** для OpenAI reasoning `server/src/adapters/llm/openai.ts:34` мапить кап у `max_completion_tokens`, куди входять і reasoning-токени. Обрізаний JSON → schema repair → failed run. Для Anthropic дефолт був 4096 (`server/src/adapters/llm/anthropic.ts:17`), тепер 16000. Owner: **T1**, див. Q1.
+- **Кап 8000 і reasoning-моделі:** приховані reasoning-токени (OpenAI reasoning через `max_completion_tokens`, `server/src/adapters/llm/openai.ts:34`; деякі апстріми OpenRouter для deepseek) рахуються в межах капу, тож відповідь може обрізатися. На OpenRouter це закриває повтор із 44621a8 (8000 → 16000, `TRUNCATION_TOKEN_CEILING`); OpenAI/Anthropic-адаптери сервера такого повтору не мають, там обрізаний JSON іде в schema repair. Для Anthropic дефолт був 4096 (`server/src/adapters/llm/anthropic.ts:17`), тепер 8000. Owner: **T1**.
 - **Smoke-тест на Windows:** абсолютні шляхи, `process.execPath` замість `npx`, процес закрито в `afterAll`. Owner: **T4**. `.mcp.json` з відносними шляхами потребує cwd = корінь репо (так само, як і зараз). Owner: **T5/T6**.
 
 ## Decisions (2026-11-07, користувач)
 
-- **Q1 → `DEFAULT_REVIEW_MAX_TOKENS = 16_000`.** Запас для OpenAI reasoning-моделей; ключ OpenRouter на момент 402 дозволяв ~56 700, тож 16 000 вкладається.
+- **Q1 → `DEFAULT_REVIEW_MAX_TOKENS = 8_000`** (переглянуто після rebase на `main`). На `main` є 44621a8: `OpenRouterProvider` повторює обрізану відповідь (`finish_reason: "length"`) з капом ×`TRUNCATION_TOKEN_FACTOR` (2), але не вище `TRUNCATION_TOKEN_CEILING = 16_000` (`reviewer-core/src/llm/openrouter.ts:28-30`, логіка `:125-126`). Кап 16 000 дорівнював би стелі, і повтор ніколи б не спрацював. Кап 8 000 резервує вдвічі менше на звичайному виклику (менше шансів на 402 на ключах з низьким лімітом), а при обрізці повтор піднімає його до 16 000. Тест і інваріант констант — у T1 (крок 3a).
 - **Q2 → чекати активний прогін.** `run_agent_on_pr` не робить новий POST, якщо той самий агент уже `running` на цьому PR: чекає його й повертає findings, у `warning` пише про перевикористання. Без поля `force`.
 - **Q3 → так, обидві правки.** (a) `mcp-server/` у список пакетів `.claude/skills/engineering-insights/SKILL.md`; (b) bucket `mcp-server` (`files: ["mcp-server/src/**/*.ts"]`) у `.claude/skills/pr-self-review/references/routing.json`. Implementer-агентам `.claude/**` недоступний, тому ці правки робить основна сесія разом із W2 (до T6).
 - **Q4 → локальний `tsx`.** `.mcp.json`: `node mcp-server/node_modules/tsx/dist/cli.mjs mcp-server/src/index.ts`; один раз `cd mcp-server && npm install` (README).

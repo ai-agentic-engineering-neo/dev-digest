@@ -1,70 +1,81 @@
 /**
- * Thin client over the DevDigest HTTP API. Only the fields the MCP tools use are
- * typed; everything else in the API responses is ignored (never forwarded).
+ * Thin client over the DevDigest HTTP API. Every response is validated with a Zod schema of
+ * only the fields the MCP tools use; unknown keys are stripped (never forwarded).
  */
+import { z } from 'zod';
 
-export interface ApiAgent {
-  id: string;
-  name: string;
-  description: string;
-  enabled: boolean;
-}
+export const ApiAgent = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string(),
+  enabled: z.boolean(),
+});
+export type ApiAgent = z.infer<typeof ApiAgent>;
 
-export interface ApiRepo {
-  id: string;
-  owner: string;
-  name: string;
-  full_name: string;
-}
+export const ApiRepo = z.object({
+  id: z.string(),
+  owner: z.string(),
+  name: z.string(),
+  full_name: z.string(),
+});
+export type ApiRepo = z.infer<typeof ApiRepo>;
 
-export interface ApiPull {
-  id: string | null;
-  number: number;
-  title: string;
-}
+export const ApiPull = z.object({
+  id: z.string().nullable(),
+  number: z.number().int(),
+  title: z.string(),
+});
+export type ApiPull = z.infer<typeof ApiPull>;
 
-export interface ApiRun {
-  run_id: string;
-  agent_id: string | null;
-  agent_name: string | null;
-  status: string | null; // running | done | failed | cancelled
-  error: string | null;
-  ran_at: string | null;
-}
+export const ApiRun = z.object({
+  run_id: z.string(),
+  agent_id: z.string().nullable(),
+  agent_name: z.string().nullable(),
+  status: z.string().nullable(), // running | done | failed | cancelled
+  error: z.string().nullable(),
+  ran_at: z.string().nullable(),
+});
+export type ApiRun = z.infer<typeof ApiRun>;
 
-export interface ApiFinding {
-  severity: string;
-  title: string;
-  file: string;
-  start_line: number;
-  rationale: string;
-  dismissed_at: string | null;
-}
+export const ApiFinding = z.object({
+  severity: z.string(),
+  title: z.string(),
+  file: z.string(),
+  start_line: z.number().int(),
+  rationale: z.string(),
+  dismissed_at: z.string().nullable(),
+});
+export type ApiFinding = z.infer<typeof ApiFinding>;
 
-export interface ApiReview {
-  run_id: string | null;
-  agent_id: string | null;
-  agent_name?: string | null;
-  kind: string;
-  verdict: string | null;
-  summary: string | null;
-  score: number | null;
-  findings: ApiFinding[];
-}
+export const ApiReview = z.object({
+  run_id: z.string().nullable(),
+  agent_id: z.string().nullable(),
+  agent_name: z.string().nullish(),
+  kind: z.string(),
+  verdict: z.string().nullable(),
+  summary: z.string().nullable(),
+  score: z.number().nullable(),
+  findings: z.array(ApiFinding),
+});
+export type ApiReview = z.infer<typeof ApiReview>;
 
-export interface ApiConvention {
-  category: string | null;
-  rule: string;
-  evidence_path: string;
-  line_start: number | null;
-  status: string;
-}
+export const ApiConvention = z.object({
+  category: z.string().nullable(),
+  rule: z.string(),
+  evidence_path: z.string(),
+  line_start: z.number().int().nullable(),
+  status: z.string(),
+});
+export type ApiConvention = z.infer<typeof ApiConvention>;
 
-export interface StartedRun {
-  run_id: string;
-  agent_id: string;
-  agent_name: string;
-}
+export const StartedRun = z.object({
+  run_id: z.string(),
+  agent_id: z.string(),
+  agent_name: z.string(),
+});
+export type StartedRun = z.infer<typeof StartedRun>;
+
+const StartReviewResponse = z.object({ runs: z.array(StartedRun) });
 
 /** The API answered with a non-2xx status. */
 export class ApiError extends Error {
@@ -76,6 +87,17 @@ export class ApiError extends Error {
   ) {
     super(message);
     this.name = 'ApiError';
+  }
+}
+
+/** The API answered 2xx, but the body does not match the shape the tools rely on (API/MCP version drift). */
+export class ApiShapeError extends Error {
+  constructor(
+    public readonly endpoint: string,
+    public readonly detail: string,
+  ) {
+    super(`DevDigest API returned an unexpected response for ${endpoint}: ${detail}`);
+    this.name = 'ApiShapeError';
   }
 }
 
@@ -96,19 +118,20 @@ export class DevDigestApi {
   ) {}
 
   listAgents(signal?: AbortSignal): Promise<ApiAgent[]> {
-    return this.request('GET', '/agents', undefined, signal);
+    return this.request(z.array(ApiAgent), 'GET', '/agents', undefined, signal);
   }
 
   listRepos(signal?: AbortSignal): Promise<ApiRepo[]> {
-    return this.request('GET', '/repos', undefined, signal);
+    return this.request(z.array(ApiRepo), 'GET', '/repos', undefined, signal);
   }
 
   listPulls(repoId: string, signal?: AbortSignal): Promise<ApiPull[]> {
-    return this.request('GET', `/repos/${repoId}/pulls`, undefined, signal);
+    return this.request(z.array(ApiPull), 'GET', `/repos/${repoId}/pulls`, undefined, signal);
   }
 
   async startReview(prId: string, agentId: string, signal?: AbortSignal): Promise<StartedRun[]> {
-    const res = await this.request<{ runs: StartedRun[] }>(
+    const res = await this.request(
+      StartReviewResponse,
       'POST',
       `/pulls/${prId}/review`,
       { agentId },
@@ -119,23 +142,24 @@ export class DevDigestApi {
 
   /** Every run of the PR (any status), newest first. */
   listRuns(prId: string, signal?: AbortSignal): Promise<ApiRun[]> {
-    return this.request('GET', `/pulls/${prId}/runs`, undefined, signal);
+    return this.request(z.array(ApiRun), 'GET', `/pulls/${prId}/runs`, undefined, signal);
   }
 
   listReviews(prId: string, signal?: AbortSignal): Promise<ApiReview[]> {
-    return this.request('GET', `/pulls/${prId}/reviews`, undefined, signal);
+    return this.request(z.array(ApiReview), 'GET', `/pulls/${prId}/reviews`, undefined, signal);
   }
 
   listConventions(repoId: string, signal?: AbortSignal): Promise<ApiConvention[]> {
-    return this.request('GET', `/repos/${repoId}/conventions`, undefined, signal);
+    return this.request(z.array(ApiConvention), 'GET', `/repos/${repoId}/conventions`, undefined, signal);
   }
 
-  private async request<T>(
+  private async request<S extends z.ZodTypeAny>(
+    schema: S,
     method: 'GET' | 'POST',
     path: string,
     body?: unknown,
     signal?: AbortSignal,
-  ): Promise<T> {
+  ): Promise<z.output<S>> {
     let res: Response;
     try {
       res = await this.fetchImpl(`${this.baseUrl}${path}`, {
@@ -161,6 +185,24 @@ export class DevDigestApi {
       const retry = Number(res.headers.get('retry-after'));
       throw new ApiError(res.status, code, message, Number.isFinite(retry) && retry > 0 ? retry : null);
     }
-    return (await res.json()) as T;
+    const endpoint = `${method} ${path}`;
+    let json: unknown;
+    try {
+      json = await res.json();
+    } catch {
+      throw new ApiShapeError(endpoint, 'body is not valid JSON');
+    }
+    const parsed = schema.safeParse(json);
+    if (!parsed.success) throw new ApiShapeError(endpoint, describeIssues(parsed.error));
+    return parsed.data;
   }
+}
+
+/** First few Zod issues as `path: message` — short enough for a tool error. */
+function describeIssues(error: z.ZodError): string {
+  const shown = error.issues
+    .slice(0, 3)
+    .map((i) => `${i.path.length ? i.path.join('.') : '(root)'}: ${i.message}`);
+  const more = error.issues.length > 3 ? ` (+${error.issues.length - 3} more)` : '';
+  return shown.join('; ') + more;
 }

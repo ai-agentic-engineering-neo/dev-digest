@@ -1,4 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
+import type { ServerNotification, ServerRequest } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { guarded } from '../errors.js';
 import { ok, type ToolDeps } from './shared.js';
@@ -21,7 +23,7 @@ export function registerListAgents(server: McpServer, deps: ToolDeps): void {
       outputSchema: Output.shape,
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
-    guarded('list_agents', async (extra: { signal: AbortSignal }) => {
+    guarded('list_agents', async (extra: RequestHandlerExtra<ServerRequest, ServerNotification>) => {
       const agents = await deps.api.listAgents(extra.signal);
       const data = {
         agents: agents.map((a) => ({

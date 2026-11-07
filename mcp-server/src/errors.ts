@@ -1,5 +1,5 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { ApiError, ApiUnreachableError } from './api-client.js';
+import { ApiError, ApiShapeError, ApiUnreachableError } from './api-client.js';
 
 /** A domain failure whose message already tells the model what to do next. */
 export class ToolError extends Error {
@@ -30,6 +30,12 @@ export function errorMessage(err: unknown): string {
       `or set DEVDIGEST_API_URL to where it runs, then retry.`
     );
   }
+  if (err instanceof ApiShapeError) {
+    return (
+      `${err.message}. The MCP server and the DevDigest API are probably out of sync: run both from the same ` +
+      `commit (pull, then restart the API and the MCP server), then retry. If it persists, report it with this message.`
+    );
+  }
   if (err instanceof ApiError) {
     if (err.status === 429) {
       const wait = err.retryAfterSec ? `${err.retryAfterSec} s` : 'a minute';
@@ -58,7 +64,7 @@ export function guarded<A extends unknown[]>(
         return toolError('Cancelled by the client.');
       }
       // stderr only (stdout is JSON-RPC); full stack just for unexpected errors
-      if (err instanceof ApiError || err instanceof ApiUnreachableError) {
+      if (err instanceof ApiError || err instanceof ApiUnreachableError || err instanceof ApiShapeError) {
         console.error(`[devdigest-mcp] ${name}: ${err.message}`);
       } else if (!(err instanceof ToolError)) {
         console.error(`[devdigest-mcp] ${name} failed:`, err);

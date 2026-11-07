@@ -1,0 +1,14 @@
+{
+  "name": "PR overview shows the blast radius block in its no-index (degraded) state",
+  "description": "Open seeded PR #482 and confirm the Overview tab shows the Blast radius block degraded with reason no_data and an empty summary (0 symbols). Preconditions: freshly-seeded DB where acme/payments-api is the first repo; it has no clone and no code index, and REPO_INTEL_ENABLED is true (default). Never clicks Resync (that would start a job). The block label renders uppercase, so wait for body text, not the heading.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "land on the PR list" },
+    { "cmd": ["wait", "--text", "Add rate limiting to public API endpoints"], "label": "seeded PR title row is visible" },
+    { "cmd": ["find", "text", "Add rate limiting to public API endpoints", "click"], "label": "open the PR row" },
+    { "cmd": ["wait", "--url", "/pulls/482"], "label": "navigate to the PR detail route" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "PR detail data settles" },
+    { "cmd": ["wait", "--text", "This repository has no code index yet, so callers can't be mapped."], "label": "degraded no_data message is visible" },
+    { "cmd": ["wait", "--text", "0 symbols"], "label": "empty summary shows 0 symbols" }
+  ]
+}

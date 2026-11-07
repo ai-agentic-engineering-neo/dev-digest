@@ -6,7 +6,7 @@
 import { useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
-import type { IntentOverrideInput, PrIntent } from "../types";
+import type { IntentOverrideInput, PrDetail, PrIntent } from "../types";
 
 export const prIntentKey = (prId: string) => ["pr-intent", prId] as const;
 
@@ -44,10 +44,19 @@ function useWriteIntentCache(prId: string) {
   };
 }
 
+/** Re-derives the intent. The intent is computed from the PR as stored in our DB, and the DB copy of
+    the PR body is only re-synced from GitHub by GET /pulls/:id — so read that first (a just-edited
+    description is picked up and the Description section updates too). A failed sync is not fatal:
+    the server still derives from the stored PR. */
 export function useRefreshIntent(prId: string) {
+  const qc = useQueryClient();
   const write = useWriteIntentCache(prId);
   return useMutation({
-    mutationFn: () => api.post<PrIntent>(`/pulls/${prId}/intent/refresh`),
+    mutationFn: async () => {
+      const detail = await api.get<PrDetail>(`/pulls/${prId}`).catch(() => null);
+      if (detail) qc.setQueryData<PrDetail>(["pull", prId], detail);
+      return api.post<PrIntent>(`/pulls/${prId}/intent/refresh`);
+    },
     onSuccess: write,
   });
 }

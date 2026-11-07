@@ -75,6 +75,38 @@ export const StartedRun = z.object({
 });
 export type StartedRun = z.infer<typeof StartedRun>;
 
+const ApiBlastCaller = z.object({ name: z.string(), file: z.string(), line: z.number().int() });
+const ApiBlastDownstream = z.object({
+  symbol: z.string(),
+  file: z.string(),
+  kind: z.string(),
+  callers: z.array(ApiBlastCaller),
+  endpoints_affected: z.array(z.string()),
+  crons_affected: z.array(z.string()),
+});
+
+/** GET /pulls/:id/blast. `reason` is a plain string so a new server-side reason does not break the tool. */
+export const ApiBlast = z.object({
+  pr_id: z.string(),
+  head_sha: z.string(),
+  indexed_sha: z.string().nullable(),
+  link_sha: z.string(),
+  changed_symbols: z.array(z.object({ name: z.string(), file: z.string(), kind: z.string() })),
+  downstream: z.array(ApiBlastDownstream),
+  unattributed_endpoints: z.array(z.string()),
+  summary: z.string(),
+  counts: z.object({
+    symbols: z.number().int(),
+    callers: z.number().int(),
+    endpoints: z.number().int(),
+    crons: z.number().int(),
+  }),
+  callers_omitted: z.number().int(),
+  degraded: z.boolean(),
+  reason: z.string().nullable(),
+});
+export type ApiBlast = z.infer<typeof ApiBlast>;
+
 const StartReviewResponse = z.object({ runs: z.array(StartedRun) });
 
 /** The API answered with a non-2xx status. */
@@ -151,6 +183,11 @@ export class DevDigestApi {
 
   listConventions(repoId: string, signal?: AbortSignal): Promise<ApiConvention[]> {
     return this.request(z.array(ApiConvention), 'GET', `/repos/${repoId}/conventions`, undefined, signal);
+  }
+
+  /** Read-only impact map of a PR. Never triggers a re-index. */
+  getBlast(prId: string, signal?: AbortSignal): Promise<ApiBlast> {
+    return this.request(ApiBlast, 'GET', `/pulls/${prId}/blast`, undefined, signal);
   }
 
   private async request<S extends z.ZodTypeAny>(

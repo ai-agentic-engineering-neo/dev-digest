@@ -46,6 +46,10 @@ export interface FakeState {
   /** Called with every request as "METHOD /path" (before it is answered). */
   onCall?: (call: string) => void;
   unreachable?: boolean;
+  /** Body of GET /pulls/:id/blast; unset → 404. */
+  blast?: unknown;
+  /** Force GET /pulls/:id/blast to answer this error status. */
+  blastStatus?: number;
   calls: string[];
 }
 
@@ -124,6 +128,14 @@ export function fakeFetch(state: FakeState) {
     }
     m = path.match(/^\/pulls\/([^/]+)\/reviews$/);
     if (method === 'GET' && m) return json(state.reviews);
+
+    m = path.match(/^\/pulls\/([^/]+)\/blast$/);
+    if (method === 'GET' && m) {
+      if (state.blastStatus !== undefined || state.blast === undefined) {
+        return json({ error: { code: 'not_found', message: 'Pull request not found' } }, state.blastStatus ?? 404);
+      }
+      return json(state.blast);
+    }
 
     return json({ error: { code: 'not_found', message: `No route ${method} ${path}` } }, 404);
   };

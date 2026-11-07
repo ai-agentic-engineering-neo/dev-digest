@@ -12,7 +12,11 @@
 | `run_agent_on_pr` | `repo` (`owner/name`), `pr` (номер), `agent` (назва або id). Запускає прогін, **сам чекає** і повертає findings. Якщо цей агент уже має активний прогін на цьому PR, приєднується до нього (без другого платного прогону; про це каже `warning`). `pr` приймає і число, і рядок `"3"`. Disabled-агент теж запускається, з полем `warning` | `readOnlyHint: false`, `destructiveHint: false`, `idempotentHint: false`, `openWorldHint: true` |
 | `get_findings` | `repo`, `pr`, опційно `run_id` / `agent`. Без `run_id` повертає останній завершений прогін (цього агента) | `readOnlyHint: true` |
 | `get_conventions` | `repo`, опційно `status` (`accepted` за замовчуванням / `pending` / `all`). Не більше 50 правил, кожне `rule` ≤ 300 символів; обрізане рахує поле `truncated` | `readOnlyHint: true` |
-| `get_blast_radius` | Чесна заглушка: завжди `status: "not_implemented"`, API не викликає | `readOnlyHint: true` |
+| `get_blast_radius` | `repo`, `pr`. Карта впливу PR з індексу repo-intel (без LLM): символи змінених файлів, їхні прямі викликачі (`file:line`) і ендпоінти/cron у файлах викликачів. Ліміти 30/15/10/10 (символи / символи з викликачами / викликачі / ендпоінти-cron на символ); `counts` серверні, до обрізки. Degraded (`no_data`, `index_partial`, …) додає `next_step` для людини. Resync ніколи не викликається | `readOnlyHint: true` |
+
+Відповідь `get_blast_radius` (`structuredContent`):
+`{status: "ready"|"degraded", repo, pr, head_sha, indexed_sha, link_sha, reason, summary, counts{symbols,callers,endpoints,crons}, changed_symbols[{name,file,kind}], downstream[{symbol,file,kind,callers[{name,file,line}],endpoints_affected,crons_affected}], unattributed_endpoints, truncated{symbols,downstream,callers,endpoints,crons}, callers_omitted_by_server, next_step?}`.
+`link_sha` береться з сервера без змін: рядки викликачів відповідають цьому коміту. Шляхи, імена символів і ендпоінти недовірені (нотатка в `content`).
 
 Відповідь `run_agent_on_pr` і `get_findings` (`structuredContent`):
 `{status: "done"|"running", run_id, repo, pr, agent, verdict, score, summary, counts{critical,warning,suggestion}, findings[{severity,title,file,line,message}], truncated, warning?, next_step?}`.
@@ -252,6 +256,5 @@ TypeScript SDK, стаття Anthropic «Writing effective tools for agents», �
 - **Сирі дампи API, трейси, системні промпти агентів** (п. 6).
 - **Скасування прогону DevDigest, коли MCP-виклик скасовано.** Ми лише перестаємо чекати: прогін
   уже оплачується й допрацює, а результат можна забрати через `get_findings`.
-- **Вигадана карта впливу.** HTTP-маршруту blast radius у DevDigest немає (лише внутрішній
-  `RepoIntelService.getBlastRadius`), тому `get_blast_radius` чесно повертає `not_implemented`.
+- **Resync індексу з MCP.** Інструмент read-only, перебудову запускає людина в UI.
 - **Захист від гонки двох одночасних `run_agent_on_pr`.** Дедуплікує MCP-сервер (шукає активний прогін того ж агента на PR), а не API. Якщо два виклики стартують одночасно, обидва можуть створити прогін. Це прийнятний ризик: виправлення потребує змін у `server/`.

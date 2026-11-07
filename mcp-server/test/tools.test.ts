@@ -322,13 +322,3 @@ describe('get_conventions', () => {
     expect(text(r)).toContain('status "pending"');
   });
 });
-
-describe('get_blast_radius', () => {
-  it('is an honest stub: not_implemented and no API calls', async () => {
-    const { call, state } = await setup();
-    const r = await call('get_blast_radius', { repo: 'acme/payments-api', pr: 3 });
-    expect(r.isError).toBeFalsy();
-    expect(r.structuredContent).toMatchObject({ status: 'not_implemented', repo: 'acme/payments-api', pr: 3 });
-    expect(state.calls).toEqual([]);
-  });
-});

@@ -46,13 +46,16 @@ describe('stdio smoke (real process)', () => {
     ]);
   }, 30_000);
 
-  it('get_blast_radius answers not_implemented without calling the API', async () => {
+  it('get_blast_radius reports an unreachable API as a tool error', async () => {
     const res = await client.callTool({
       name: 'get_blast_radius',
       arguments: { repo: 'acme/payments-api', pr: 3 },
     });
-    expect(res.isError).toBeFalsy();
-    expect(res.structuredContent).toMatchObject({ status: 'not_implemented' });
+    expect(res.isError).toBe(true);
+    const text = (res.content as Array<{ type: string; text?: string }>)
+      .map((c) => c.text ?? '')
+      .join('\n');
+    expect(text).toContain(`unreachable at ${DEAD_API}`);
   }, 30_000);
 
   it('list_agents reports an unreachable API as a tool error', async () => {

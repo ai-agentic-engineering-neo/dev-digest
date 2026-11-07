@@ -2,7 +2,7 @@
 
 <!-- Копія: mcp-server/PLAN.md (на прохання користувача). Канонічна версія для /implement-plan — цей файл. -->
 
-- **Status:** draft
+- **Status:** in progress
 - **Goal:** у Claude Code (і будь-якому MCP-клієнті) сценарій «зроби рев'ю PR №3 у `lindigo-design/dev-digest` агентом Security Reviewer і скажи, чи є критичні знахідки» проходить `list_agents` → `run_agent_on_pr` → `get_findings` без 402, без дубля платного прогону, з progress/cancel, покритими тестами.
 - **Specs:** окремого spec немає. Джерело вимог: `mcp-server/README.md` § «Best practices» (15 пунктів із джерелами) і § «Що свідомо НЕ робимо». Цей план їх не переписує, а перевіряє код на відповідність.
 - **Packages:** `mcp-server/` (npm, незалежний) · `reviewer-core/` (лише ліміт `maxTokens`) · root `AGENTS.md`, `.mcp.json`
@@ -83,6 +83,7 @@ export const MAX_RULE_CHARS = 300;
 | `reviewer-core/src/review/run.ts` | T1 | modified |
 | `reviewer-core/src/index.ts` | T1 | modified |
 | `reviewer-core/test/run.test.ts` | T1 | modified |
+| `reviewer-core/test/openrouter.test.ts` | T1 | modified |
 | `reviewer-core/specs/review-engine.md` | T1 | modified |
 | `reviewer-core/docs/providers-and-cost.md` | T1 | modified |
 | `mcp-server/src/tools/run-agent-on-pr.ts` | T2 | modified |
@@ -103,7 +104,7 @@ export const MAX_RULE_CHARS = 300;
 ## Tasks
 
 ### T1 [W1] [backend] reviewer-core: явний кап `maxTokens` для review-виклику
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `reviewer-core/src/review/run.ts`, `reviewer-core/src/index.ts`, `reviewer-core/test/run.test.ts`, `reviewer-core/test/openrouter.test.ts`, `reviewer-core/specs/review-engine.md`, `reviewer-core/docs/providers-and-cost.md`
 - **Depends on:** —
 - **Produces:** `export const DEFAULT_REVIEW_MAX_TOKENS = 8_000`; опційне `ReviewInput.maxTokens?: number`; кожен `input.llm.completeStructured` у `reviewPullRequest` отримує `maxTokens: input.maxTokens ?? DEFAULT_REVIEW_MAX_TOKENS`.
@@ -134,7 +135,7 @@ export const MAX_RULE_CHARS = 300;
   - `cd server && node node_modules/vitest/vitest.mjs run --exclude '**/*.it.test.ts'` → all pass
 
 ### T2 [W1] [backend] mcp-server: `run_agent_on_pr` без дублів, coerce `pr`, помилки з наступним кроком, progress/cancel-тести
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `mcp-server/src/tools/run-agent-on-pr.ts`, `mcp-server/src/tools/shared.ts`, `mcp-server/src/errors.ts`, `mcp-server/test/helpers/harness.ts`, `mcp-server/test/run-agent-on-pr.test.ts` (new)
 - **Depends on:** —
 - **Produces:** `prArg` з `z.coerce` (див. Contracts); повторне використання активного прогону; abort-aware `guarded`; `errorMessage` з наступним кроком для кожного статусу `ApiError`; підказка для 402 у `finishedRunResult`.
@@ -165,7 +166,7 @@ export const MAX_RULE_CHARS = 300;
   - `cd mcp-server && node node_modules/vitest/vitest.mjs run test/run-agent-on-pr.test.ts test/tools.test.ts` → all pass
 
 ### T3 [W1] [backend] mcp-server: обрізання `get_conventions`
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `mcp-server/src/tools/get-conventions.ts`, `mcp-server/src/format.ts`, `mcp-server/test/tools.test.ts`
 - **Depends on:** —
 - **Produces:** `MAX_CONVENTIONS = 50`, `MAX_RULE_CHARS = 300`, поле `truncated: number` в outputSchema; `export function shorten` у `format.ts` (без зміни поведінки).
@@ -184,7 +185,7 @@ export const MAX_RULE_CHARS = 300;
   - `cd mcp-server && node node_modules/vitest/vitest.mjs run test/tools.test.ts` → all pass
 
 ### T4 [W1] [backend] mcp-server: stdio smoke-тест реального процесу
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `mcp-server/test/stdio.smoke.test.ts` (new)
 - **Depends on:** —
 - **Produces:** тест, який запускає `src/index.ts` як окремий процес через `StdioClientTransport` з `@modelcontextprotocol/sdk/client/stdio.js`.
@@ -202,7 +203,7 @@ export const MAX_RULE_CHARS = 300;
   - `cd mcp-server && node node_modules/vitest/vitest.mjs run test/stdio.smoke.test.ts` → pass
 
 ### T5 [W2] [backend] Гігієна пакета: CLAUDE.md, INSIGHTS.md, README, `.mcp.json`, AGENTS.md
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `mcp-server/CLAUDE.md` (new), `mcp-server/INSIGHTS.md` (new), `mcp-server/README.md`, `AGENTS.md`, `.mcp.json`
 - **Depends on:** T2, T3, T4 (README описує їхню поведінку)
 - **Produces:** документація пакета за зразком `reviewer-core/CLAUDE.md`; запуск без завантаження `tsx` з реєстру.
@@ -230,7 +231,7 @@ export const MAX_RULE_CHARS = 300;
   - `cd mcp-server && node node_modules/vitest/vitest.mjs run` → all pass (24 наявні + нові з T2/T3/T4)
 
 ### T6 [W3] [backend] Ручна перевірка: Inspector і Claude Code, цільовий сценарій
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** жодних. Результати (команди, exit codes, `run_id`, verdict, counts) йдуть у звіт задачі.
 - **Depends on:** T1, T5
 - **Produces:** підтвердження end-to-end на живому API.

@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { ReviewService } from '../src/modules/reviews/service.js';
 import { startPg, dockerAvailable, type PgFixture } from './helpers/pg.js';
 import { waitForPrRuns } from './helpers/runs.js';
 import { buildApp } from '../src/app.js';
@@ -203,6 +204,27 @@ d('intent layer in the review executor (Testcontainers pg)', () => {
     await runOnce(app, pr.id, agent.id, 3);
     expect(intentCalls(openrouter)).toHaveLength(2);
 
+    await app.close();
+  });
+
+  it('the review batch emits one structured intent record through the request logger', async () => {
+    const app = await appWith(newMock());
+    const pr = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const agent = await createAgent(app, 'LogAgent');
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
+
+    const service = new ReviewService(app.container);
+    const targets = await service.resolveTargets(workspaceId, { agentId: agent.id });
+    await service.runReview(workspaceId, pr.id, targets, logger);
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+
+    const intentInfos = logger.info.mock.calls.filter(
+      (c) => (c[0] as { event?: string } | undefined)?.event === 'intent',
+    );
+    expect(intentInfos).toHaveLength(1);
+    expect(intentInfos[0]![0]).toEqual(
+      expect.objectContaining({ event: 'intent', trigger: 'review', prId: pr.id, cache: 'miss', costUsd: 0.001 }),
+    );
     await app.close();
   });
 

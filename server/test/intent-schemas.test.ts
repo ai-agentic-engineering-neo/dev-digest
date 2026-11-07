@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { IntentOverrideBody, IntentSourceList, PrIntentOrNull, PrIntentResponse } from '../src/modules/intent/schemas.js';
+import { IntentOverrideBody, IntentSourceList, PrIntentOrNull, PrIntentResponse, parseIntentSources } from '../src/modules/intent/schemas.js';
 import type { IntentSource, PrIntent } from '../src/modules/intent/domain/types.js';
 
 const source: IntentSource = {
@@ -62,5 +62,24 @@ describe('intent schemas', () => {
   it('IntentSourceList rejects an unknown status', () => {
     expect(IntentSourceList.safeParse([{ ...source, status: 'bogus' }]).success).toBe(false);
     expect(IntentSourceList.safeParse([source]).success).toBe(true);
+  });
+});
+
+describe('parseIntentSources', () => {
+  const second: IntentSource = { ...source, id: 'issue:13', ref: '#13', issue_number: 13 };
+
+  it('drops only the invalid entry and keeps the valid ones in order', () => {
+    const bad = { ...source, id: 'issue:0', issue_number: 0 };
+    expect(parseIntentSources([source, bad, second])).toEqual([source, second]);
+  });
+
+  it('returns all entries unchanged when every one is valid', () => {
+    expect(parseIntentSources([source, second])).toEqual([source, second]);
+  });
+
+  it('returns [] for null, an object and undefined', () => {
+    expect(parseIntentSources(null)).toEqual([]);
+    expect(parseIntentSources({})).toEqual([]);
+    expect(parseIntentSources(undefined)).toEqual([]);
   });
 });

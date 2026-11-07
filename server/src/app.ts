@@ -113,7 +113,7 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
 
   // Structured error handler. Registered BEFORE modules so encapsulated
   // module plugins inherit it. Validation → 422; AppError → its status.
-  app.setErrorHandler((err: unknown, _req, reply) => {
+  app.setErrorHandler((err: unknown, req, reply) => {
     // Request validation failure from the zod type provider (schema.body/params).
     if (hasZodFastifySchemaValidationErrors(err)) {
       reply.status(422).send({
@@ -156,8 +156,16 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
       });
       return;
     }
-    app.log.error(err);
     const e = err as { statusCode?: number; message?: string };
+    // @fastify/rate-limit throws a plain error with statusCode 429 (not an AppError).
+    if (e.statusCode === 429) {
+      req.log.warn({ statusCode: 429, url: req.url }, 'rate limited');
+      reply.status(429).send({
+        error: { code: 'rate_limited', message: e.message ?? 'Rate limit exceeded' },
+      });
+      return;
+    }
+    app.log.error(err);
     reply.status(e.statusCode ?? 500).send({
       error: { code: 'internal_error', message: e.message ?? 'Internal error' },
     });

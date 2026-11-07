@@ -53,6 +53,28 @@ export interface IntentOverrideWrite {
   headSha: string;
 }
 
+export type IntentLogCache = 'hit' | 'miss' | 'override' | 'joined' | 'negative';
+/** One structured pino record per forReview / refresh call (camelCase fields like the executor's). */
+export interface IntentLogRecord {
+  event: 'intent';
+  trigger: 'review' | 'refresh';
+  prId: string;
+  outcome: 'ready' | 'skipped' | 'failed';
+  cache: IntentLogCache | null;
+  latencyMs: number;
+  costUsd: number | null;
+  tokensIn: number;
+  tokensOut: number;
+  provider: string | null;
+  model: string | null;
+  reason: string | null;
+}
+/** Pino-compatible sink (object first). Fastify `req.log` and the executor's `Logger` both satisfy it. */
+export interface IntentLogger {
+  info: (fields: IntentLogRecord, msg: string) => void;
+  warn: (fields: IntentLogRecord, msg: string) => void;
+}
+
 /** Storage for the intent module. Child-table calls take prId ONLY after getPullContext checked the workspace. */
 export interface IntentRepositoryPort {
   /** pull_requests joined with repos, both filtered by workspace_id. */

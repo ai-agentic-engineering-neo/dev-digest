@@ -109,7 +109,7 @@ export class ReviewRunExecutor {
     // the service). Best-effort — never fails a run. Intent tokens/cost are NOT
     // added to any run's spend: one call serves N runs.
     runLog.tool('Deriving PR intent…');
-    const intentResult = await this.container.intent.forReview(workspaceId, pull.id).catch(
+    const intentResult = await this.container.intent.forReview(workspaceId, pull.id, logger).catch(
       (e: unknown) => {
         const reason = e instanceof Error ? e.message : String(e);
         return {
@@ -123,7 +123,6 @@ export class ReviewRunExecutor {
       runLog.result(intentResult.logLine);
     } else {
       runLog.info(intentResult.logLine);
-      logger?.warn({ prId: pull.id, reason: intentResult.reason }, 'review: intent skipped');
     }
     const intentBlock = intentResult.status === 'ready' ? intentResult.block : undefined;
 

@@ -2,7 +2,7 @@
 
 <!-- Копія: mcp-server/PLAN.md (на прохання користувача). Канонічна версія для /implement-plan — цей файл. -->
 
-- **Status:** in progress
+- **Status:** done
 - **Goal:** у Claude Code (і будь-якому MCP-клієнті) сценарій «зроби рев'ю PR №3 у `lindigo-design/dev-digest` агентом Security Reviewer і скажи, чи є критичні знахідки» проходить `list_agents` → `run_agent_on_pr` → `get_findings` без 402, без дубля платного прогону, з progress/cancel, покритими тестами.
 - **Specs:** окремого spec немає. Джерело вимог: `mcp-server/README.md` § «Best practices» (15 пунктів із джерелами) і § «Що свідомо НЕ робимо». Цей план їх не переписує, а перевіряє код на відповідність.
 - **Packages:** `mcp-server/` (npm, незалежний) · `reviewer-core/` (лише ліміт `maxTokens`) · root `AGENTS.md`, `.mcp.json`

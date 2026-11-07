@@ -1,11 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import React from "react";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { api } from "../api";
 import { createQueryClient } from "../query-client";
 import type { PrIntent } from "../types";
-import { useRefreshIntent, useResetIntent, usePrIntent, useSaveIntentOverride } from "./intent";
+import {
+  INTENT_LIVE_POLL_MS,
+  useRefreshIntent,
+  useRefreshIntentWhenRunsSettle,
+  useResetIntent,
+  usePrIntent,
+  useSaveIntentOverride,
+} from "./intent";
 
 vi.mock("../api", () => ({
   api: { get: vi.fn(), post: vi.fn(), put: vi.fn(), del: vi.fn() },
@@ -36,15 +43,68 @@ describe("usePrIntent", () => {
     expect(api.get).toHaveBeenCalledWith("/pulls/pr1/intent");
     expect(result.current.data).toBeNull();
   });
+
+  it("polls while a review is running and stops when it is not", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      vi.mocked(api.get).mockResolvedValue(null);
+      const { wrapper } = setup();
+      const { rerender } = renderHook(({ live }) => usePrIntent("pr1", { live }), {
+        wrapper,
+        initialProps: { live: true },
+      });
+      await waitFor(() => expect(api.get).toHaveBeenCalledTimes(1));
+      await act(() => vi.advanceTimersByTimeAsync(INTENT_LIVE_POLL_MS + 10));
+      await waitFor(() => expect(api.get).toHaveBeenCalledTimes(2));
+
+      rerender({ live: false });
+      const calls = vi.mocked(api.get).mock.calls.length;
+      await act(() => vi.advanceTimersByTimeAsync(INTENT_LIVE_POLL_MS * 3));
+      expect(vi.mocked(api.get).mock.calls.length).toBe(calls);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("useRefreshIntentWhenRunsSettle", () => {
+  it("invalidates the intent once when reviews go from running to settled", () => {
+    const { qc, wrapper } = setup();
+    const spy = vi.spyOn(qc, "invalidateQueries").mockResolvedValue();
+    const { rerender } = renderHook(({ running }) => useRefreshIntentWhenRunsSettle("pr1", running), {
+      wrapper,
+      initialProps: { running: false },
+    });
+    expect(spy).not.toHaveBeenCalled();
+
+    rerender({ running: true });
+    expect(spy).not.toHaveBeenCalled();
+
+    rerender({ running: false });
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledWith({ queryKey: KEY });
+
+    rerender({ running: false });
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("intent mutations", () => {
-  it("refresh posts, then writes the returned entity into the cache before invalidating", async () => {
-    vi.mocked(api.post).mockResolvedValue(INTENT);
+  it("refresh re-syncs the PR from GitHub first, then derives and writes the entity before invalidating", async () => {
+    const DETAIL = { id: "pr1", body: "Edited on GitHub" };
+    const calls: string[] = [];
+    vi.mocked(api.get).mockImplementation(async (url: string) => {
+      calls.push(`GET ${url}`);
+      return DETAIL;
+    });
+    vi.mocked(api.post).mockImplementation(async (url: string) => {
+      calls.push(`POST ${url}`);
+      return INTENT;
+    });
     const { qc, wrapper } = setup();
     const order: string[] = [];
-    const setSpy = vi.spyOn(qc, "setQueryData").mockImplementation((...a) => {
-      order.push("set");
+    vi.spyOn(qc, "setQueryData").mockImplementation((...a) => {
+      order.push(`set ${String(a[0][0])}`);
       return Object.getPrototypeOf(qc).setQueryData.apply(qc, a);
     });
     vi.spyOn(qc, "invalidateQueries").mockImplementation(async () => {
@@ -54,9 +114,22 @@ describe("intent mutations", () => {
 
     await result.current.mutateAsync();
 
+    expect(calls).toEqual(["GET /pulls/pr1", "POST /pulls/pr1/intent/refresh"]);
+    expect(order).toEqual(["set pull", "set pr-intent", "invalidate"]);
+    expect(qc.getQueryData(["pull", "pr1"])).toEqual(DETAIL);
+    expect(qc.getQueryData(KEY)).toEqual(INTENT);
+  });
+
+  it("refresh still derives when the PR re-sync fails", async () => {
+    vi.mocked(api.get).mockRejectedValue(new Error("offline"));
+    vi.mocked(api.post).mockResolvedValue(INTENT);
+    const { qc, wrapper } = setup();
+    const { result } = renderHook(() => useRefreshIntent("pr1"), { wrapper });
+
+    await result.current.mutateAsync();
+
     expect(api.post).toHaveBeenCalledWith("/pulls/pr1/intent/refresh");
-    expect(setSpy).toHaveBeenCalled();
-    expect(order).toEqual(["set", "invalidate"]);
+    expect(qc.getQueryData(["pull", "pr1"])).toBeUndefined();
     expect(qc.getQueryData(KEY)).toEqual(INTENT);
   });
 

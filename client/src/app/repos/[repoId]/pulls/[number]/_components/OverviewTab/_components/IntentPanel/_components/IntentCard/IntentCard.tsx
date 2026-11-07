@@ -3,7 +3,7 @@
 
 import React, { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Badge, Button } from "@devdigest/ui";
+import { Badge, Button, Icon } from "@devdigest/ui";
 import { RunCostBadge } from "@/components/run-cost-badge";
 import type { IntentOverrideInput, PrIntent } from "@/lib/types";
 import { confidenceTone, shortSha } from "./helpers";
@@ -21,14 +21,24 @@ export interface IntentCardActions {
   resetting: boolean;
 }
 
-function ScopeList({ heading, items }: { heading: string; items: string[] }) {
+function ScopeList({ kind, heading, items }: { kind: "in" | "out"; heading: string; items: string[] }) {
   if (items.length === 0) return null;
+  const inScope = kind === "in";
+  const Mark = inScope ? Icon.Check : Icon.X;
   return (
     <div style={s.scopeCol}>
-      <h4 style={s.scopeHeading}>{heading}</h4>
+      <h4 style={inScope ? s.scopeHeadingIn : s.scopeHeadingOut}>
+        <Mark size={13} aria-hidden />
+        {heading}
+      </h4>
       <ul style={s.list}>
         {items.map((item, i) => (
-          <li key={`${i}-${item}`}>{item}</li>
+          <li key={`${i}-${item}`} style={inScope ? s.itemIn : s.itemOut}>
+            <span aria-hidden style={inScope ? s.bulletIn : s.bulletOut}>
+              ·
+            </span>
+            <span>{item}</span>
+          </li>
         ))}
       </ul>
     </div>
@@ -55,7 +65,7 @@ export function IntentCard({
   const sha = shortSha(intent.head_sha);
 
   const refreshButton = (
-    <Button kind="secondary" size="sm" icon="RefreshCw" disabled={actions.refreshing} onClick={actions.onRefresh}>
+    <Button kind="ghost" size="sm" icon="RefreshCw" disabled={actions.refreshing} onClick={actions.onRefresh}>
       {actions.refreshing ? t("intent.actions.refreshing") : t("intent.actions.refresh")}
     </Button>
   );
@@ -63,7 +73,6 @@ export function IntentCard({
   if (intent.status === "failed" && intent.intent === null) {
     return (
       <section style={s.wrap}>
-        <h3 style={s.title}>{t("block.intent")}</h3>
         <p style={s.failed}>{t("intent.failed", { error: intent.error ?? "" })}</p>
         <div style={s.actions}>{refreshButton}</div>
       </section>
@@ -82,7 +91,6 @@ export function IntentCard({
   return (
     <section style={s.wrap}>
       <div style={s.header}>
-        <h3 style={s.title}>{t("block.intent")}</h3>
         <Badge>{t(`intent.kind.${intent.kind}`)}</Badge>
         <span title={hint}>
           <Badge color={tone.color} bg={tone.bg}>
@@ -111,11 +119,19 @@ export function IntentCard({
         />
       ) : (
         <>
-          {intent.intent && <p style={s.intent}>{intent.intent}</p>}
+          {intent.intent && (
+            <blockquote style={s.quote}>
+              <span style={s.quoteText}>
+                <span aria-hidden>“</span>
+                <span>{intent.intent}</span>
+                <span aria-hidden>”</span>
+              </span>
+            </blockquote>
+          )}
           {(intent.in_scope.length > 0 || intent.out_of_scope.length > 0) && (
             <div style={s.scopeRow}>
-              <ScopeList heading={t("intent.inScope")} items={intent.in_scope} />
-              <ScopeList heading={t("intent.outOfScope")} items={intent.out_of_scope} />
+              <ScopeList kind="in" heading={t("intent.inScope")} items={intent.in_scope} />
+              <ScopeList kind="out" heading={t("intent.outOfScope")} items={intent.out_of_scope} />
             </div>
           )}
         </>
@@ -123,31 +139,34 @@ export function IntentCard({
 
       <SourceChips sources={intent.sources} repoFullName={repoFullName} />
 
-      <div style={s.meta}>
-        {intent.model && <span>{t("intent.meta.model", { model: intent.model })}</span>}
-        <RunCostBadge
-          variant="detailed"
-          costUsd={intent.cost_usd}
-          tokensIn={intent.tokens_in}
-          tokensOut={intent.tokens_out}
-          tokenUnit={t("intent.meta.tokenUnit")}
-        />
-        {sha && <span>{t("intent.meta.computedFor", { sha })}</span>}
-      </div>
+      <div style={s.divider} />
 
-      {!editing && (
-        <div style={s.actions}>
-          {!isUser && refreshButton}
-          <Button kind="ghost" size="sm" onClick={() => setEditing(true)}>
-            {t("intent.actions.edit")}
-          </Button>
-          {isUser && (
-            <Button kind="ghost" size="sm" disabled={actions.resetting} onClick={actions.onResetOverride}>
-              {t("intent.actions.reset")}
+      <div style={s.footer}>
+        {!editing && (
+          <div style={s.actions}>
+            {!isUser && refreshButton}
+            <Button kind="ghost" size="sm" onClick={() => setEditing(true)}>
+              {t("intent.actions.edit")}
             </Button>
-          )}
+            {isUser && (
+              <Button kind="ghost" size="sm" disabled={actions.resetting} onClick={actions.onResetOverride}>
+                {t("intent.actions.reset")}
+              </Button>
+            )}
+          </div>
+        )}
+        <div style={s.meta}>
+          {intent.model && <span>{t("intent.meta.model", { model: intent.model })}</span>}
+          <RunCostBadge
+            variant="detailed"
+            costUsd={intent.cost_usd}
+            tokensIn={intent.tokens_in}
+            tokensOut={intent.tokens_out}
+            tokenUnit={t("intent.meta.tokenUnit")}
+          />
+          {sha && <span>{t("intent.meta.computedFor", { sha })}</span>}
         </div>
-      )}
+      </div>
     </section>
   );
 }

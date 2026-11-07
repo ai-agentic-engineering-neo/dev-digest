@@ -2,7 +2,9 @@
 export const DEFAULT_INTENT_MODEL = { provider: 'openrouter', model: 'deepseek/deepseek-v4-flash' } as const;
 export const INTENT_SCHEMA_NAME = 'PrIntentClassification'; // also the MockLLM fixture key
 export const INTENT_PROMPT_VERSION = 1; // part of the fingerprint
-export const INTENT_MAX_TOKENS = 800;
+// Room for providers that run the model with hidden reasoning billed against max_tokens
+// (seen: 600-800 reasoning tokens before a ~350-token answer).
+export const INTENT_MAX_TOKENS = 2000;
 export const INTENT_TIMEOUT_MS = 30_000;
 export const INTENT_MAX_RETRIES = 1;
 export const INTENT_MAX_CHARS = 400;

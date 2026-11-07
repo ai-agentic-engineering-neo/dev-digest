@@ -41,8 +41,12 @@ const IDLE: QueryState = { data: INTENT, isLoading: false, isError: false };
 let current: QueryState = IDLE;
 let refreshPending = false;
 
+const usePrIntentSpy = vi.fn();
 vi.mock("@/lib/hooks/intent", () => ({
-  usePrIntent: () => ({ ...current, refetch }),
+  usePrIntent: (...args: unknown[]) => {
+    usePrIntentSpy(...args);
+    return { ...current, refetch };
+  },
   useRefreshIntent: () => ({ mutate: refreshMutate, isPending: refreshPending }),
   useSaveIntentOverride: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useResetIntent: () => ({ mutate: vi.fn(), isPending: false }),
@@ -53,13 +57,14 @@ beforeEach(() => {
   refreshPending = false;
   refetch.mockClear();
   refreshMutate.mockClear();
+  usePrIntentSpy.mockClear();
 });
 afterEach(cleanup);
 
-const renderPanel = () =>
+const renderPanel = (reviewRunning = false) =>
   render(
     <NextIntlClientProvider locale="en" messages={{ brief: messages }}>
-      <IntentPanel prId={INTENT.pr_id} repoFullName="o/r" />
+      <IntentPanel prId={INTENT.pr_id} repoFullName="o/r" reviewRunning={reviewRunning} />
     </NextIntlClientProvider>,
   );
 
@@ -68,7 +73,7 @@ describe("IntentPanel", () => {
     current = { data: undefined, isLoading: true, isError: false };
     renderPanel();
     expect(screen.queryByText("Add rate limiting to the API.")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Refresh" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Recalculate" })).not.toBeInTheDocument();
   });
 
   it("offers Retry on error", () => {
@@ -82,16 +87,26 @@ describe("IntentPanel", () => {
   it("derives on demand from the empty state", () => {
     current = { data: null, isLoading: false, isError: false };
     renderPanel();
-    expect(screen.getByText("No intent yet")).toBeInTheDocument();
-    expect(screen.getByText("Intent is derived before the first review.")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Derive now" }));
+    expect(screen.getByText("Intent not yet analysed")).toBeInTheDocument();
+    expect(
+      screen.getByText("Run review agents to analyse the intent and scope of this pull request."),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Run Intent" }));
     expect(refreshMutate).toHaveBeenCalledTimes(1);
   });
 
-  it("renders the intent and disables Refresh while refreshing", () => {
+  it("shows that the intent is being analysed while a review runs, and polls for it", () => {
+    current = { data: null, isLoading: false, isError: false };
+    renderPanel(true);
+    expect(screen.getByText("Analysing intent…")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Run Intent" })).not.toBeInTheDocument();
+    expect(usePrIntentSpy).toHaveBeenLastCalledWith(INTENT.pr_id, { live: true });
+  });
+
+  it("renders the intent and disables Recalculate while recalculating", () => {
     refreshPending = true;
     renderPanel();
     expect(screen.getByText("Add rate limiting to the API.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /refreshing/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /recalculating/i })).toBeDisabled();
   });
 });

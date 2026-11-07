@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import type { IssueMeta, RepoRef } from '@devdigest/shared';
 import { MockGitClient, MockGitHubClient, MockLLMProvider } from '../src/adapters/mocks.js';
 import { IntentService, type IntentDeps } from '../src/modules/intent/service.js';
-import { INTENT_SCHEMA_NAME } from '../src/modules/intent/constants.js';
+import { INTENT_MAX_TOKENS, INTENT_SCHEMA_NAME } from '../src/modules/intent/constants.js';
 import type { IntentRecord } from '../src/modules/intent/domain/types.js';
 import type {
   DerivedIntentWrite,
@@ -249,7 +249,8 @@ describe('IntentService', () => {
     expect(req.messages[0]?.content).not.toContain('UNIQUE-BODY-MARKER');
     expect(req.messages[1]?.content).toContain('<untrusted source="pr-body">');
     expect(req.messages[1]?.content).toContain('UNIQUE-BODY-MARKER');
-    expect(req.maxTokens).toBe(800);
+    expect(req.maxTokens).toBe(INTENT_MAX_TOKENS);
+    expect(INTENT_MAX_TOKENS).toBeGreaterThanOrEqual(2000); // headroom for hidden reasoning tokens
     expect(req.temperature).toBe(0);
     expect(req.timeoutMs).toBe(30_000);
   });

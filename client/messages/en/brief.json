@@ -51,13 +51,14 @@
     },
     "failed": "Intent derivation failed: {error}",
     "edited": "Edited",
-    "actions": { "refresh": "Refresh", "refreshing": "Refreshing…", "edit": "Edit", "reset": "Reset to derived" },
+    "actions": { "refresh": "Recalculate", "refreshing": "Recalculating…", "edit": "Edit", "reset": "Reset to derived" },
     "form": {
       "intent": "Intent", "inScope": "In scope (one per line)", "outOfScope": "Out of scope (one per line)",
       "save": "Save", "saving": "Saving…", "cancel": "Cancel", "hint": "Applies to the next review run.",
       "tooManyItems": "At most {max} items"
     },
-    "empty": { "title": "No intent yet", "body": "Intent is derived before the first review.", "cta": "Derive now" },
+    "empty": { "title": "Intent not yet analysed", "body": "Run review agents to analyse the intent and scope of this pull request.", "cta": "Run Intent",
+      "analysing": "Analysing intent…" },
     "loadError": "Couldn't load the intent"
   }
 }

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import type { IssueMeta, RepoRef } from '@devdigest/shared';
 import { MockGitClient, MockGitHubClient, MockLLMProvider } from '../src/adapters/mocks.js';
 import { IntentService, type IntentDeps } from '../src/modules/intent/service.js';
@@ -114,8 +114,12 @@ function setup(opts: { ctx?: Partial<IntentPullContext>; files?: Record<string, 
   };
   const deps: IntentDeps = { intentRepo: repo, git, github: async () => gh, llm: async () => llm };
   const llmCalls = () => llm.calls.filter((c) => c.method === 'completeStructured');
-  return { repo, llm, git, gh, readFiles, svc: new IntentService(deps), llmCalls };
+  const time = { t: 1_000 };
+  const svc = new IntentService(deps, () => time.t);
+  return { repo, llm, git, gh, readFiles, svc, llmCalls, time, deps };
 }
+
+const fakeLogger = () => ({ info: vi.fn(), warn: vi.fn() });
 
 const LONG_BODY = 'This change makes the session refresh happen before the token expires, so users stop being logged out in the middle of work.';
 
@@ -248,5 +252,202 @@ describe('IntentService', () => {
     expect(req.maxTokens).toBe(800);
     expect(req.temperature).toBe(0);
     expect(req.timeoutMs).toBe(30_000);
+  });
+
+  describe('reliability: single-flight, negative cache, log record', () => {
+    type S = ReturnType<typeof setup>;
+    /** Makes the intent LLM call block until resolved/rejected; advances the fake clock by 250 ms. */
+    function gated(s: S, calls: { n: number }) {
+      let rej!: (e: Error) => void;
+      let res!: () => void;
+      const gate = new Promise<void>((resolve, reject) => {
+        res = resolve;
+        rej = reject;
+      });
+      const orig = s.llm.completeStructured.bind(s.llm);
+      s.llm.completeStructured = (async (req: never) => {
+        calls.n++;
+        await gate;
+        s.time.t += 250;
+        return orig(req);
+      }) as typeof s.llm.completeStructured;
+      return { reject: (m: string) => rej(new Error(m)), resolve: () => res() };
+    }
+    const failing = (s: S, calls: { n: number }) => {
+      s.llm.completeStructured = (async () => {
+        calls.n++;
+        throw new Error('boom');
+      }) as typeof s.llm.completeStructured;
+    };
+    const tick = () => new Promise((r) => setTimeout(r, 10));
+
+    it('(a) concurrent failures share ONE model call and ONE saveFailure', async () => {
+      const s = setup({ ctx: { body: LONG_BODY } });
+      const calls = { n: 0 };
+      const gate = gated(s, calls);
+      const save = vi.spyOn(s.repo, 'saveFailure');
+      const all = Promise.all([s.svc.forReview(WS, PR), s.svc.forReview(WS, PR), s.svc.forReview(WS, PR)]);
+      await tick();
+      gate.reject('boom');
+      const res = await all;
+      expect(calls.n).toBe(1);
+      expect(save).toHaveBeenCalledTimes(1);
+      expect(res.map((r) => r.status)).toEqual(['skipped', 'skipped', 'skipped']);
+    });
+
+    it('(b)(c)(d) negative cache: hit, key change, TTL expiry', async () => {
+      const s = setup({ ctx: { body: LONG_BODY } });
+      const calls = { n: 0 };
+      failing(s, calls);
+      const save = vi.spyOn(s.repo, 'saveFailure');
+      await s.svc.forReview(WS, PR);
+      expect([calls.n, save.mock.calls.length]).toEqual([1, 1]);
+
+      s.time.t += 5_000;
+      const r = await s.svc.forReview(WS, PR);
+      expect(r.status === 'skipped' && r.reason).toMatch(/^recent failure \(retry in 55s\): /);
+      expect([calls.n, save.mock.calls.length]).toEqual([1, 1]);
+
+      s.repo.ctx = { ...s.repo.ctx, headSha: 'sha-2' };
+      await s.svc.forReview(WS, PR);
+      expect(calls.n).toBe(2);
+      s.repo.ctx = { ...s.repo.ctx, body: `${LONG_BODY} edited` };
+      await s.svc.forReview(WS, PR);
+      expect(calls.n).toBe(3);
+
+      s.time.t += 60_001;
+      await s.svc.forReview(WS, PR);
+      expect(calls.n).toBe(4);
+    });
+
+    it('(e) refresh bypasses and clears the negative entry; a failed refresh re-arms it', async () => {
+      const s = setup({ ctx: { body: LONG_BODY } });
+      const good = s.llm.completeStructured;
+      const calls = { n: 0 };
+      failing(s, calls);
+      await s.svc.forReview(WS, PR);
+      expect(calls.n).toBe(1);
+
+      await expect(s.svc.refresh(WS, PR)).rejects.toBeInstanceOf(ExternalServiceError);
+      expect(calls.n).toBe(2);
+      const neg = await s.svc.forReview(WS, PR);
+      expect(neg.status === 'skipped' && neg.reason).toMatch(/^recent failure/);
+      expect(calls.n).toBe(2);
+
+      s.llm.completeStructured = good;
+      const before = s.llmCalls().length;
+      await s.svc.refresh(WS, PR);
+      expect(s.llmCalls().length).toBe(before + 1);
+      const r = await s.svc.forReview(WS, PR);
+      expect(r.status === 'ready' && r.step.cache).toBe('hit');
+      expect(s.llmCalls().length).toBe(before + 1);
+    });
+
+    it('(e2) only model/parse failures are negatively cached; saveDerived and provider errors propagate', async () => {
+      // saveDerived (DB) failure: surfaced as-is, no saveFailure, NOT remembered for the TTL.
+      const s = setup({ ctx: { body: LONG_BODY } });
+      const save = vi.spyOn(s.repo, 'saveFailure');
+      const realSaveDerived = s.repo.saveDerived.bind(s.repo);
+      s.repo.saveDerived = async () => {
+        throw new Error('db down');
+      };
+      const r1 = await s.svc.forReview(WS, PR);
+      expect(r1.status === 'skipped' && r1.reason).toBe('db down');
+      await expect(s.svc.refresh(WS, PR)).rejects.toThrow('Intent derivation failed: db down');
+      const r2 = await s.svc.forReview(WS, PR);
+      expect(r2.status === 'skipped' && r2.reason).toBe('db down'); // not "recent failure"
+      expect(s.llmCalls()).toHaveLength(3);
+      expect(save).not.toHaveBeenCalled();
+      s.repo.saveDerived = realSaveDerived;
+      const ok = await s.svc.forReview(WS, PR);
+      expect(ok.status).toBe('ready');
+      expect(s.llmCalls()).toHaveLength(4);
+
+      // Provider resolution failure: no model call, nothing remembered; next run retries.
+      const p = setup({ ctx: { body: LONG_BODY } });
+      const realLlm = p.deps.llm;
+      p.deps.llm = async () => {
+        throw new Error('missing api key');
+      };
+      const q1 = await p.svc.forReview(WS, PR);
+      expect(q1.status === 'skipped' && q1.reason).toBe('missing api key');
+      p.deps.llm = realLlm;
+      const q2 = await p.svc.forReview(WS, PR);
+      expect(q2.status).toBe('ready');
+      expect(p.llmCalls()).toHaveLength(1);
+
+      // Control: a model failure IS still remembered.
+      const m = setup({ ctx: { body: LONG_BODY } });
+      const calls = { n: 0 };
+      failing(m, calls);
+      await m.svc.forReview(WS, PR);
+      const neg = await m.svc.forReview(WS, PR);
+      expect(neg.status === 'skipped' && neg.reason).toMatch(/^recent failure/);
+      expect(calls.n).toBe(1);
+    });
+
+    it('(f) override during the TTL is used without a model call', async () => {
+      const s = setup({ ctx: { body: LONG_BODY } });
+      const calls = { n: 0 };
+      failing(s, calls);
+      await s.svc.forReview(WS, PR);
+      await s.svc.setOverride(WS, PR, { intent: 'Mine', in_scope: [], out_of_scope: [] });
+      const r = await s.svc.forReview(WS, PR);
+      expect(r.status === 'ready' && r.step.cache).toBe('override');
+      expect(calls.n).toBe(1);
+    });
+
+    it('(g) joined success: one call, one miss, joiners report cache hit with 0 tokens', async () => {
+      const s = setup({ ctx: { body: LONG_BODY } });
+      const res = await Promise.all([s.svc.forReview(WS, PR), s.svc.forReview(WS, PR), s.svc.forReview(WS, PR)]);
+      expect(s.llmCalls()).toHaveLength(1);
+      const steps = res.map((r) => (r.status === 'ready' ? r.step : null));
+      expect(steps.filter((x) => x?.cache === 'miss')).toHaveLength(1);
+      const hits = steps.filter((x) => x?.cache === 'hit');
+      expect(hits).toHaveLength(2);
+      for (const h of hits) expect(h?.tokensIn).toBe(0);
+    });
+
+    it('(h) emits exactly one structured record per call, without intent text', async () => {
+      const s = setup({ ctx: { body: LONG_BODY } });
+      const log = fakeLogger();
+      const gate = gated(s, { n: 0 });
+      const leader = s.svc.forReview(WS, PR, log);
+      const joiner = s.svc.forReview(WS, PR, log);
+      await tick();
+      gate.resolve();
+      await Promise.all([leader, joiner]);
+      expect(log.info).toHaveBeenCalledTimes(2);
+      expect(log.warn).not.toHaveBeenCalled();
+      expect(log.info).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'intent', trigger: 'review', prId: PR, outcome: 'ready', cache: 'miss',
+          latencyMs: 250, costUsd: 0.001, tokensIn: 100, reason: null,
+        }),
+        'intent: ready',
+      );
+      expect(log.info).toHaveBeenCalledWith(
+        expect.objectContaining({ cache: 'joined', costUsd: null }),
+        'intent: ready',
+      );
+      expect(JSON.stringify([...log.info.mock.calls, ...log.warn.mock.calls])).not.toContain('Fix the login timeout.');
+
+      const f = setup({ ctx: { body: LONG_BODY } });
+      const flog = fakeLogger();
+      failing(f, { n: 0 });
+      await f.svc.forReview(WS, PR, flog);
+      await f.svc.forReview(WS, PR, flog);
+      expect(flog.warn).toHaveBeenCalledTimes(2);
+      expect(flog.warn).toHaveBeenLastCalledWith(
+        expect.objectContaining({ cache: 'negative', outcome: 'skipped' }),
+        'intent: skipped',
+      );
+      await expect(f.svc.refresh(WS, PR, flog)).rejects.toBeInstanceOf(ExternalServiceError);
+      expect(flog.warn).toHaveBeenCalledTimes(3);
+      expect(flog.warn).toHaveBeenLastCalledWith(
+        expect.objectContaining({ trigger: 'refresh', outcome: 'failed' }),
+        'intent: failed',
+      );
+    });
   });
 });

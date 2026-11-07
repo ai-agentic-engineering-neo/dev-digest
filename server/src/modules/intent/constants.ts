@@ -25,3 +25,7 @@ export const MAX_EXTERNAL_LINKS = 5;
 export const MAX_TRACKER_KEYS = 5;
 export const INTENT_INPUT_MAX_CHARS = 24_000;
 export const REFRESH_RATE_LIMIT = { max: 10, timeWindow: '1 minute' } as const;
+/** How long a failed derivation is remembered per (head_sha, input_hash). Decision OQ1. */
+export const INTENT_NEGATIVE_CACHE_TTL_MS = 60_000;
+/** PUT /pulls/:id/intent (cheap DB write, no model call). Decision OQ4. */
+export const OVERRIDE_RATE_LIMIT = { max: 20, timeWindow: '1 minute' } as const;

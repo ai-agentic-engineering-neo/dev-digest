@@ -91,6 +91,11 @@ Notes from the research step (GitHub Docs, PR-Agent, CodeRabbit, OWASP LLM01):
 - A user override (`origin = user`) is never overwritten by derivation. Stale is reported to the UI.
 - **Best-effort:** if classification fails (no key, timeout, schema error), the review runs without
   intent and logs a warning. Runs never fail because of intent.
+- **Single-flight:** concurrent review batches on one PR share ONE derivation (one model call), and
+  a failure is shared by the joiners. A refresh waits for the derivation in flight and then forces
+  its own.
+- **Negative cache:** a failed derivation is remembered for 60 s per `(head_sha, input_hash)`; later
+  runs skip intent at once without a model call. A refresh bypasses it. In-memory, single instance.
 
 ### 5. API (module-local DTOs, snake_case JSON)
 - `GET /pulls/:id/intent` returns the stored intent + confidence + sources + stale flag + model/cost,
@@ -99,6 +104,7 @@ Notes from the research step (GitHub Docs, PR-Agent, CodeRabbit, OWASP LLM01):
 - `PUT /pulls/:id/intent` sets a user override (`intent`, `in_scope`, `out_of_scope`).
   `DELETE` the override goes back to derived (exact verb in the plan).
 - All routes scope by workspace through the PR (404 otherwise) and use the Zod type provider.
+- Rate limits per client IP: refresh 10/min, `PUT` override 20/min. Both answer 429.
 
 ### 6. Review prompt (reviewer-core)
 - `ReviewInput` / `PromptParts` gain an optional `intent` (a pre-rendered text block).
@@ -152,6 +158,8 @@ Notes from the research step (GitHub Docs, PR-Agent, CodeRabbit, OWASP LLM01):
 12. Routes return 404 for a PR in another workspace (`.it.test.ts`, two workspaces).
 13. Typecheck clean. Server unit + reviewer-core tests green. The layer check adds no new violations.
     No edits under `vendor/shared` or existing migrations.
+14. 3 concurrent review batches with a failing model make 1 model call; a 4th within 60 s makes none.
+15. Each intent step writes one structured log record with `cache`, `latencyMs`, `costUsd`, `reason`.
 
 ## Open questions
 - **Q1** Jira/Linear keys (`ABC-123`): ignore, show as unresolved refs, or integrate (token in

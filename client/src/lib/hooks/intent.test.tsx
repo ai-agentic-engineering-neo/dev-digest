@@ -1,11 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import React from "react";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { api } from "../api";
 import { createQueryClient } from "../query-client";
 import type { PrIntent } from "../types";
-import { useRefreshIntent, useResetIntent, usePrIntent, useSaveIntentOverride } from "./intent";
+import {
+  INTENT_LIVE_POLL_MS,
+  useRefreshIntent,
+  useRefreshIntentWhenRunsSettle,
+  useResetIntent,
+  usePrIntent,
+  useSaveIntentOverride,
+} from "./intent";
 
 vi.mock("../api", () => ({
   api: { get: vi.fn(), post: vi.fn(), put: vi.fn(), del: vi.fn() },
@@ -35,6 +42,50 @@ describe("usePrIntent", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(api.get).toHaveBeenCalledWith("/pulls/pr1/intent");
     expect(result.current.data).toBeNull();
+  });
+
+  it("polls while a review is running and stops when it is not", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      vi.mocked(api.get).mockResolvedValue(null);
+      const { wrapper } = setup();
+      const { rerender } = renderHook(({ live }) => usePrIntent("pr1", { live }), {
+        wrapper,
+        initialProps: { live: true },
+      });
+      await waitFor(() => expect(api.get).toHaveBeenCalledTimes(1));
+      await act(() => vi.advanceTimersByTimeAsync(INTENT_LIVE_POLL_MS + 10));
+      await waitFor(() => expect(api.get).toHaveBeenCalledTimes(2));
+
+      rerender({ live: false });
+      const calls = vi.mocked(api.get).mock.calls.length;
+      await act(() => vi.advanceTimersByTimeAsync(INTENT_LIVE_POLL_MS * 3));
+      expect(vi.mocked(api.get).mock.calls.length).toBe(calls);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("useRefreshIntentWhenRunsSettle", () => {
+  it("invalidates the intent once when reviews go from running to settled", () => {
+    const { qc, wrapper } = setup();
+    const spy = vi.spyOn(qc, "invalidateQueries").mockResolvedValue();
+    const { rerender } = renderHook(({ running }) => useRefreshIntentWhenRunsSettle("pr1", running), {
+      wrapper,
+      initialProps: { running: false },
+    });
+    expect(spy).not.toHaveBeenCalled();
+
+    rerender({ running: true });
+    expect(spy).not.toHaveBeenCalled();
+
+    rerender({ running: false });
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledWith({ queryKey: KEY });
+
+    rerender({ running: false });
+    expect(spy).toHaveBeenCalledTimes(1);
   });
 });
 

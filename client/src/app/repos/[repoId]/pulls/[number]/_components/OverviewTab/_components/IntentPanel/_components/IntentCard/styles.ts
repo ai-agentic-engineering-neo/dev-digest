@@ -1,32 +1,56 @@
 import type { CSSProperties } from "react";
 
+const scopeHeading = {
+  display: "flex",
+  alignItems: "center",
+  gap: 6,
+  fontSize: 11.5,
+  fontWeight: 700,
+  letterSpacing: "0.06em",
+  textTransform: "uppercase",
+  margin: "0 0 8px",
+} as const satisfies CSSProperties;
+const item = { display: "flex", gap: 8, fontSize: 13.5, lineHeight: 1.5 } as const satisfies CSSProperties;
+
 export const s = {
   wrap: {
     display: "flex",
     flexDirection: "column",
-    gap: 12,
-    padding: 16,
+    gap: 16,
+    padding: "18px 20px",
     borderRadius: 10,
     border: "1px solid var(--border)",
     background: "var(--bg-elevated)",
   } satisfies CSSProperties,
-  header: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" } satisfies CSSProperties,
-  title: { fontSize: 14, fontWeight: 700, color: "var(--text-primary)", margin: 0 } satisfies CSSProperties,
-  intent: { fontSize: 14, lineHeight: 1.55, color: "var(--text-primary)", margin: 0 } satisfies CSSProperties,
-  scopeRow: { display: "flex", gap: 24, flexWrap: "wrap" } satisfies CSSProperties,
-  scopeCol: { flex: 1, minWidth: 200 } satisfies CSSProperties,
-  scopeHeading: {
-    fontSize: 12,
-    fontWeight: 600,
-    color: "var(--text-muted)",
-    margin: "0 0 4px",
+  header: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" } satisfies CSSProperties,
+  quote: { margin: 0, padding: 0 } satisfies CSSProperties,
+  quoteText: {
+    fontSize: 15.5,
+    lineHeight: 1.6,
+    fontStyle: "italic",
+    color: "var(--text-primary)",
+    background: "var(--accent-bg)",
+    borderRadius: 4,
+    padding: "2px 6px",
+    boxDecorationBreak: "clone",
+    WebkitBoxDecorationBreak: "clone",
   } satisfies CSSProperties,
-  list: {
-    margin: 0,
-    paddingLeft: 18,
-    fontSize: 13,
-    color: "var(--text-secondary)",
-    lineHeight: 1.5,
+  scopeRow: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 24 } satisfies CSSProperties,
+  scopeCol: { minWidth: 0 } satisfies CSSProperties,
+  scopeHeadingIn: { ...scopeHeading, color: "var(--ok)" } satisfies CSSProperties,
+  scopeHeadingOut: { ...scopeHeading, color: "var(--text-muted)" } satisfies CSSProperties,
+  list: { margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 6 } satisfies CSSProperties,
+  itemIn: { ...item, color: "var(--text-secondary)" } satisfies CSSProperties,
+  itemOut: { ...item, color: "var(--text-muted)" } satisfies CSSProperties,
+  bulletIn: { color: "var(--ok)", fontWeight: 700 } satisfies CSSProperties,
+  bulletOut: { fontWeight: 700 } satisfies CSSProperties,
+  divider: { height: 1, background: "var(--border)" } satisfies CSSProperties,
+  footer: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    flexWrap: "wrap",
   } satisfies CSSProperties,
   meta: {
     display: "flex",
@@ -47,5 +71,5 @@ export const s = {
     background: "var(--warn-bg)",
   } satisfies CSSProperties,
   failed: { fontSize: 13, color: "var(--warn)", margin: 0 } satisfies CSSProperties,
-  actions: { display: "flex", gap: 8, flexWrap: "wrap" } satisfies CSSProperties,
+  actions: { display: "flex", gap: 4, flexWrap: "wrap", marginLeft: -9 } satisfies CSSProperties,
 } as const;

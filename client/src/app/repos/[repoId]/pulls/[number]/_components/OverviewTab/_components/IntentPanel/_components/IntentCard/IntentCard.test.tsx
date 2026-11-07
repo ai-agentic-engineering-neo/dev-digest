@@ -105,15 +105,15 @@ describe("IntentCard", () => {
     expect(screen.getByText("High confidence")).toBeInTheDocument();
   });
 
-  it("shows the stale notice and refreshes on click", () => {
+  it("shows the stale notice and recalculates on click", () => {
     const actions = makeActions();
     renderCard(makeIntent({ stale: true, stale_reason: "head_moved" }), actions);
     expect(screen.getByRole("status")).toHaveTextContent("New commits since this intent was computed.");
-    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    fireEvent.click(screen.getByRole("button", { name: "Recalculate" }));
     expect(actions.onRefresh).toHaveBeenCalledTimes(1);
     cleanup();
     renderCard(makeIntent(), makeActions({ refreshing: true }));
-    expect(screen.getByRole("button", { name: "Refreshing…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Recalculating…" })).toBeDisabled();
   });
 
   it("edits the intent and closes the form after saving", async () => {
@@ -133,13 +133,25 @@ describe("IntentCard", () => {
     await waitFor(() => expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument());
   });
 
-  it("shows Edited and Reset for a user override, without Refresh", () => {
+  it("shows Edited and Reset for a user override, without Recalculate", () => {
     const actions = makeActions();
     renderCard(makeIntent({ origin: "user" }), actions);
     expect(screen.getByText("Edited")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Refresh" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Recalculate" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Reset to derived" }));
     expect(actions.onResetOverride).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the intent as a quote and the two scope columns", () => {
+    renderCard(makeIntent(), makeActions());
+    expect(screen.getByText("Add rate limiting to the API.").closest("blockquote")).toHaveTextContent(
+      "“Add rate limiting to the API.”",
+    );
+    const inHeading = screen.getByRole("heading", { name: "In scope" });
+    const outHeading = screen.getByRole("heading", { name: "Out of scope" });
+    expect(inHeading.parentElement).toHaveTextContent("Limiter middleware");
+    expect(outHeading.parentElement).toHaveTextContent("Auth changes");
+    expect(outHeading.parentElement).not.toHaveTextContent("Limiter middleware");
   });
 
   it("hides empty scope lists", () => {

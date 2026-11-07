@@ -18,5 +18,6 @@ Each flow is read-only over seeded data (`server/src/db/seed.ts`). A step "asser
 | [07-settings](07-settings.flow.json) | Settings sections render | `/settings/api-keys` → network idle → "API Keys" → `/settings/models` → "Feature Models" | no |
 | [08-skills](08-skills.flow.json) | Skills page + agent Skills tab (read-only) | `/skills` → search "untested-branches" → click → Preview / Stats / Versions → Test Quality Reviewer → button "Skills" → "4 of 9 enabled" | no |
 | [09-pr-intent](09-pr-intent.flow.json) | PR Overview intent card empty state (no LLM; "Derive now" is not clicked) | open PR #482 → network idle → "No intent yet" → "Intent is derived before the first review." → "Derive now" → "Description" | **yes** |
+| [10-smart-diff](10-smart-diff.flow.json) | Smart Diff groups + findings in the diff (no LLM; read-only) | open PR #482 → click button "Files changed" → URL `tab=diff` → core group description → tokens note "0 new tokens · built on 0 from last review" → "Hardcoded Stripe secret key in commit" → click button "Original order" → text "src/config.ts" | **yes** |
 
 When you add a flow, add a row here and to the Coverage table in [`../README.md`](../README.md).

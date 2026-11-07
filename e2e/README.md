@@ -101,3 +101,4 @@ a CI artifact by `.github/workflows/e2e-web.yml`).
 | `06-onboarding` | `/onboarding` → add-repository form renders (no submit) |
 | `07-settings` | `/settings/api-keys` + `/settings/models` → section titles render |
 | `08-skills` | `/skills` cards + preview drawer; Test Quality Reviewer → Skills tab shows "4 of 8 enabled" |
+| `10-smart-diff` | PR #482 → Files changed → Smart Diff core group, tokens note, out-of-patch finding; switch to Original order |

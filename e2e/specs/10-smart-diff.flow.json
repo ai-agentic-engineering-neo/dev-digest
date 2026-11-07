@@ -1,0 +1,18 @@
+{
+  "name": "PR detail Files changed tab shows the Smart Diff groups and the out-of-patch finding",
+  "description": "From PR #482, open the Files changed tab (Smart order is the default) and confirm the core group description, the 'not built on a run' tokens note and the seeded finding rendered in the out-of-patch block; then switch to Original order and confirm the file list still renders. Read-only seeded data (no model call, no review triggered). Assumes a freshly-seeded DB (see e2e/README.md).",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "land on the PR list" },
+    { "cmd": ["find", "text", "Add rate limiting to public API endpoints", "click"], "label": "open the PR row" },
+    { "cmd": ["wait", "--url", "/pulls/482"], "label": "navigate to the PR detail route" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "PR detail data settles" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Files changed"], "label": "switch to the Files changed tab" },
+    { "cmd": ["wait", "--url", "tab=diff"], "label": "diff tab is active in the URL" },
+    { "cmd": ["wait", "--text", "The substance of the change — review closely"], "label": "core group description is visible" },
+    { "cmd": ["wait", "--text", "0 new tokens · built on 0 from last review"], "label": "tokens note shows the seeded review was not built on a run" },
+    { "cmd": ["wait", "--text", "Hardcoded Stripe secret key in commit"], "label": "seeded finding renders in the out-of-patch block" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Original order"], "label": "switch to the original order" },
+    { "cmd": ["wait", "--text", "src/config.ts"], "label": "seeded changed file still renders in the original order" }
+  ]
+}

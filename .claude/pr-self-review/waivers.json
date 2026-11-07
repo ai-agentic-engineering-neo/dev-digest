@@ -1,1 +1,14 @@
-[]
+[
+  {
+    "file": "server/src/vendor/shared/contracts/brief.ts",
+    "rule": "policy/do-not-touch-vendor-shared",
+    "reason": "L03 Smart Diff homework requires extending SmartDiffRole to 5 roles (core, tests, wiring, docs, boilerplate); both vendor/shared copies changed identically, approved by the repo owner",
+    "expires": "2026-12-31"
+  },
+  {
+    "file": "client/src/vendor/shared/contracts/brief.ts",
+    "rule": "policy/do-not-touch-vendor-shared",
+    "reason": "L03 Smart Diff homework requires extending SmartDiffRole to 5 roles (core, tests, wiring, docs, boilerplate); both vendor/shared copies changed identically, approved by the repo owner",
+    "expires": "2026-12-31"
+  }
+]

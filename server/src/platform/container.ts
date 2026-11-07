@@ -32,6 +32,8 @@ import type { ConventionsRepositoryPort } from '../modules/conventions/ports.js'
 import { IntentRepository } from '../modules/intent/repository.js';
 import type { IntentRepositoryPort } from '../modules/intent/ports.js';
 import { IntentService } from '../modules/intent/service.js';
+import { SmartDiffRepository } from '../modules/smart-diff/repository.js';
+import type { SmartDiffRepositoryPort } from '../modules/smart-diff/ports.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
 import { type DepGraph, DepCruiseGraph } from '../adapters/depgraph/index.js';
@@ -64,6 +66,8 @@ export interface ContainerOverrides {
   conventionsRepo?: ConventionsRepositoryPort;
   /** Intent storage — tests inject an in-memory fake. */
   intentRepo?: IntentRepositoryPort;
+  /** Smart Diff pr_files storage — tests inject an in-memory fake. */
+  smartDiffRepo?: SmartDiffRepositoryPort;
 }
 
 export class Container {
@@ -88,6 +92,7 @@ export class Container {
   private _skillsRepo?: SkillsRepositoryPort;
   private _conventionsRepo?: ConventionsRepositoryPort;
   private _intentRepo?: IntentRepositoryPort;
+  private _smartDiffRepo?: SmartDiffRepositoryPort;
   private _intent?: IntentService;
   private _repoIntel?: RepoIntel;
   private _depgraph?: DepGraph;
@@ -133,6 +138,12 @@ export class Container {
   get intentRepo(): IntentRepositoryPort {
     if (this.overrides.intentRepo) return this.overrides.intentRepo;
     return (this._intentRepo ??= new IntentRepository(this.db));
+  }
+
+  /** Smart Diff storage (smart-diff module). */
+  get smartDiffRepo(): SmartDiffRepositoryPort {
+    if (this.overrides.smartDiffRepo) return this.overrides.smartDiffRepo;
+    return (this._smartDiffRepo ??= new SmartDiffRepository(this.db));
   }
 
   /** PR intent service (lazy singleton: holds the single-flight map). */

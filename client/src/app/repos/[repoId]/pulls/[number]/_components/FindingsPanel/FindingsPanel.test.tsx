@@ -116,3 +116,49 @@ describe("FindingsPanel severity counters", () => {
     expect(screen.queryByRole("group", { name: "Filter findings by severity" })).not.toBeInTheDocument();
   });
 });
+
+describe("FindingsPanel severity groups", () => {
+  const groupToggle = (sev: string, count: number) =>
+    screen.getByRole("button", { name: `${sev} findings: ${count}` });
+  const openBodies = () => screen.queryAllByText("A secret is committed.").length;
+
+  it("groups findings by severity with a count per group; only the first card starts open", () => {
+    renderWithIntl(<FindingsPanel findings={MIXED} prId="pr1" />);
+    expect(groupToggle("CRITICAL", 2)).toHaveAttribute("aria-expanded", "true");
+    expect(groupToggle("WARNING", 3)).toHaveTextContent("3 findings");
+    expect(groupToggle("SUGGESTION", 1)).toHaveTextContent("1 finding");
+    expect(openBodies()).toBe(1);
+  });
+
+  it("folding a group hides its cards but keeps its header and count", () => {
+    renderWithIntl(<FindingsPanel findings={MIXED} prId="pr1" />);
+    fireEvent.click(groupToggle("WARNING", 3));
+    expect(groupToggle("WARNING", 3)).toHaveAttribute("aria-expanded", "false");
+    expect(titles()).not.toContain("WARNING finding w1");
+    expect(titles()).toHaveLength(3);
+
+    fireEvent.click(groupToggle("WARNING", 3));
+    expect(titles()).toHaveLength(6);
+  });
+
+  it("Expand all opens every card; Collapse all folds every group down to its header", () => {
+    renderWithIntl(<FindingsPanel findings={MIXED} prId="pr1" />);
+    fireEvent.click(screen.getByRole("button", { name: "Expand all" }));
+    expect(openBodies()).toBe(6);
+
+    fireEvent.click(screen.getByRole("button", { name: "Collapse all" }));
+    expect(titles()).toHaveLength(0);
+    for (const [sev, n] of [["CRITICAL", 2], ["WARNING", 3], ["SUGGESTION", 1]] as const) {
+      expect(groupToggle(sev, n)).toHaveAttribute("aria-expanded", "false");
+    }
+    expect(screen.getByRole("button", { name: "Expand all" })).toBeInTheDocument();
+  });
+
+  it("a card still toggles on its own", () => {
+    renderWithIntl(<FindingsPanel findings={MIXED} prId="pr1" />);
+    fireEvent.click(screen.getByText("WARNING finding w2"));
+    expect(openBodies()).toBe(2);
+    fireEvent.click(screen.getByText("WARNING finding w2"));
+    expect(openBodies()).toBe(1);
+  });
+});

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { FindingRecord, Severity } from "@devdigest/shared";
-import { countBySeverity, visibleFindings, confidentFindings } from "./helpers";
+import { countBySeverity, visibleFindings, confidentFindings, groupBySeverity } from "./helpers";
 
 const f = (id: string, severity: Severity, confidence = 0.9): FindingRecord => ({
   id,
@@ -64,5 +64,19 @@ describe("visibleFindings", () => {
     for (const sev of ["CRITICAL", "WARNING", "SUGGESTION"] as const) {
       expect(visibleFindings(LIST, true, sev)).toHaveLength(counts[sev]);
     }
+  });
+});
+
+describe("groupBySeverity", () => {
+  it("splits a severity-sorted list into one group per severity, skipping empty ones", () => {
+    const sorted = visibleFindings([f("s1", "SUGGESTION"), f("c1", "CRITICAL"), f("s2", "SUGGESTION")], false);
+    expect(groupBySeverity(sorted).map((g) => [g.severity, g.findings.map((x) => x.id)])).toEqual([
+      ["CRITICAL", ["c1"]],
+      ["SUGGESTION", ["s1", "s2"]],
+    ]);
+  });
+
+  it("returns no groups for no findings", () => {
+    expect(groupBySeverity([])).toEqual([]);
   });
 });

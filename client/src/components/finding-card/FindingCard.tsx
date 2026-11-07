@@ -31,17 +31,24 @@ export function FindingCard({
   pending,
   repoFullName,
   headSha,
+  expanded: expandedProp,
+  onToggle,
 }: {
   f: FindingRecord;
   focused?: boolean;
   defaultExpanded?: boolean;
+  /** Controlled expansion (FindingsPanel's expand/collapse-all). Omit to let the card manage it. */
+  expanded?: boolean;
+  onToggle?: () => void;
   onAction?: (action: FindingActionKind, reply?: string) => void;
   pending?: boolean;
   repoFullName?: string | null;
   headSha?: string | null;
 }) {
   const t = useTranslations("prReview");
-  const [expanded, setExpanded] = React.useState(defaultExpanded ?? false);
+  const [expandedState, setExpanded] = React.useState(defaultExpanded ?? false);
+  const expanded = expandedProp ?? expandedState;
+  const toggle = onToggle ?? (() => setExpanded((e) => !e));
   const sevColor = SEV_COLOR[f.severity] ?? SEV_COLOR_FALLBACK;
   const fileHref =
     repoFullName && headSha
@@ -53,7 +60,7 @@ export function FindingCard({
 
   return (
     <div data-finding-id={f.id} style={s.card(!!focused, sevColor, muted)}>
-      <div onClick={() => setExpanded((e) => !e)} style={s.header}>
+      <div onClick={toggle} style={s.header}>
         <div style={s.badgeWrap}>
           <SeverityBadge severity={f.severity as Severity} compact />
         </div>

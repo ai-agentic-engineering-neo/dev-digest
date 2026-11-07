@@ -30,3 +30,14 @@ export function countBySeverity(findings: FindingRecord[]): Record<Severity, num
   }
   return counts;
 }
+
+/** Consecutive runs of an already severity-sorted list → one group per severity (empty ones skipped). */
+export function groupBySeverity(sorted: FindingRecord[]): { severity: Severity; findings: FindingRecord[] }[] {
+  const groups: { severity: Severity; findings: FindingRecord[] }[] = [];
+  for (const f of sorted) {
+    const last = groups[groups.length - 1];
+    if (last && last.severity === f.severity) last.findings.push(f);
+    else groups.push({ severity: f.severity, findings: [f] });
+  }
+  return groups;
+}

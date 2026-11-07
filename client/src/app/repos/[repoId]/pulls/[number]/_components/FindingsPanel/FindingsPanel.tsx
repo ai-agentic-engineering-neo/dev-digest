@@ -45,25 +45,24 @@ export function FindingsPanel({
 
   const groups = React.useMemo(() => groupBySeverity(shown), [shown]);
 
-  // Expansion: which cards are open (the first one by default) and which severity groups are folded.
-  const [openIds, setOpenIds] = React.useState<Set<string>>(() => new Set(shown[0] ? [shown[0].id] : []));
+  // Expansion: only the cards the user opened/closed are stored; any other card follows the default
+  // "the first visible card is open" — so after a filter change the new first card opens, as before.
+  const [cardOverrides, setCardOverrides] = React.useState<Map<string, boolean>>(() => new Map());
   const [collapsed, setCollapsed] = React.useState<Set<Severity>>(() => new Set());
   // j/k walk the cards that are on screen — folded groups are skipped.
   const navigable = React.useMemo(() => shown.filter((f) => !collapsed.has(f.severity)), [shown, collapsed]);
-  const allOpen = shown.length > 0 && collapsed.size === 0 && shown.every((f) => openIds.has(f.id));
+  const isOpen = (id: string) => cardOverrides.get(id) ?? id === shown[0]?.id;
+  const allOpen = shown.length > 0 && collapsed.size === 0 && shown.every((f) => isOpen(f.id));
 
   const selectSeverity = (next: Severity | null) => {
     setSeverity(next);
     setFocusIdx(0);
   };
 
-  const toggleCard = (id: string) =>
-    setOpenIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  const toggleCard = (id: string) => {
+    const open = isOpen(id);
+    setCardOverrides((prev) => new Map(prev).set(id, !open));
+  };
 
   const toggleGroup = (sev: Severity) => {
     setCollapsed((prev) => {
@@ -77,13 +76,12 @@ export function FindingsPanel({
 
   // One click: fold every group down to its header + count, or open every group and card.
   const toggleAll = () => {
-    if (allOpen) {
-      setCollapsed(new Set(groups.map((g) => g.severity)));
-      setOpenIds(new Set());
-    } else {
-      setCollapsed(new Set());
-      setOpenIds(new Set(shown.map((f) => f.id)));
-    }
+    setCollapsed(allOpen ? new Set(groups.map((g) => g.severity)) : new Set());
+    setCardOverrides((prev) => {
+      const next = new Map(prev);
+      for (const f of shown) next.set(f.id, !allOpen);
+      return next;
+    });
     setFocusIdx(0);
   };
 
@@ -92,6 +90,8 @@ export function FindingsPanel({
     const handler = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
+      // Nothing on screen (e.g. every group folded): j/k must not move the focus to -1.
+      if (navigable.length === 0) return;
       if (e.key === "j") setFocusIdx((i) => Math.min(i + 1, navigable.length - 1));
       else if (e.key === "k") setFocusIdx((i) => Math.max(i - 1, 0));
       else if (KEY_TO_ACTION[e.key] && navigable[focusIdx]) {
@@ -153,7 +153,7 @@ export function FindingsPanel({
                       key={f.id}
                       f={f}
                       focused={navigable[focusIdx]?.id === f.id}
-                      expanded={openIds.has(f.id)}
+                      expanded={isOpen(f.id)}
                       onToggle={() => toggleCard(f.id)}
                       pending={action.isPending}
                       repoFullName={repoFullName}

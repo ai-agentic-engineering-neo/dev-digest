@@ -4,13 +4,17 @@ import { NextIntlClientProvider } from "next-intl";
 import type { FindingRecord } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/prReview.json";
 
+const actionMutate = vi.fn();
 vi.mock("../../../../../../../lib/hooks/reviews", () => ({
-  useFindingAction: () => ({ mutate: vi.fn(), isPending: false }),
+  useFindingAction: () => ({ mutate: actionMutate, isPending: false }),
 }));
 
 import { FindingsPanel } from "./FindingsPanel";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  actionMutate.mockClear();
+});
 
 const FINDINGS: FindingRecord[] = [
   {
@@ -152,6 +156,26 @@ describe("FindingsPanel severity groups", () => {
       expect(groupToggle(sev, n)).toHaveAttribute("aria-expanded", "false");
     }
     expect(screen.getByRole("button", { name: "Expand all" })).toBeInTheDocument();
+  });
+
+  it("after a filter change the new first card opens, as before grouping", () => {
+    renderWithIntl(<FindingsPanel findings={MIXED} prId="pr1" />);
+    fireEvent.click(counter("WARNING"));
+    expect(titles()).toEqual(["WARNING finding w1", "WARNING finding w2", "WARNING finding w3"]);
+    expect(openBodies()).toBe(1);
+  });
+
+  it("with every group folded, j/k and a/d do nothing — and nothing breaks once groups reopen", () => {
+    renderWithIntl(<FindingsPanel findings={MIXED} prId="pr1" />);
+    fireEvent.click(screen.getByRole("button", { name: "Expand all" }));
+    fireEvent.click(screen.getByRole("button", { name: "Collapse all" }));
+    fireEvent.keyDown(window, { key: "j" });
+    fireEvent.keyDown(window, { key: "a" });
+    expect(actionMutate).not.toHaveBeenCalled();
+
+    fireEvent.click(groupToggle("WARNING", 3));
+    fireEvent.keyDown(window, { key: "a" });
+    expect(actionMutate).toHaveBeenCalledWith({ findingId: "w1", action: "accept", prId: "pr1" });
   });
 
   it("a card still toggles on its own", () => {

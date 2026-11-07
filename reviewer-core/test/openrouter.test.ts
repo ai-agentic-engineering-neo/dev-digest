@@ -9,7 +9,7 @@ vi.mock('openai', () => ({
   },
 }));
 
-import { OpenRouterProvider, TRUNCATION_TOKEN_FACTOR } from '../src/llm/openrouter.js';
+import { OpenRouterProvider, TRUNCATION_TOKEN_CEILING, TRUNCATION_TOKEN_FACTOR } from '../src/llm/openrouter.js';
 
 const Schema = z.object({ intent: z.string() });
 const req = {
@@ -60,5 +60,34 @@ describe('OpenRouterProvider.completeStructured — truncated replies', () => {
     expect(retryMessages).toHaveLength(3);
     expect(retryMessages[1]).toEqual({ role: 'assistant', content: '{"intent": 42}' });
     expect(create.mock.calls[1]![0].max_tokens).toBe(800);
+  });
+
+  it('blames the token limit only when the LAST attempt was cut off', async () => {
+    create
+      .mockResolvedValueOnce(reply('{"intent":"Add', 'length'))
+      .mockResolvedValueOnce(reply('{"intent": 42}', 'stop'));
+    const err = await new OpenRouterProvider('k').completeStructured(req).catch((e: Error) => e);
+    expect((err as Error).message).toBe(
+      'OpenRouter structured output failed schema validation for PrIntentClassification',
+    );
+  });
+
+  it('never raises the cap above the ceiling', async () => {
+    create.mockResolvedValue(reply('', 'length'));
+    await new OpenRouterProvider('k')
+      .completeStructured({ ...req, maxTokens: 12_000, maxRetries: 2 })
+      .catch(() => undefined);
+    expect(create.mock.calls.map((c) => c[0].max_tokens)).toEqual([12_000, TRUNCATION_TOKEN_CEILING, TRUNCATION_TOKEN_CEILING]);
+  });
+
+  it('without a cap of its own, a cut-off reply gets the repair prompt (no identical resend)', async () => {
+    const { maxTokens: _omit, ...uncapped } = req;
+    create
+      .mockResolvedValueOnce(reply('{"intent":"Add', 'length'))
+      .mockResolvedValueOnce(reply('{"intent":"Add rate limiting"}', 'stop'));
+    const res = await new OpenRouterProvider('k').completeStructured(uncapped);
+    expect(res.data).toEqual({ intent: 'Add rate limiting' });
+    expect(create.mock.calls[1]![0].max_tokens).toBeUndefined();
+    expect(create.mock.calls[1]![0].messages).toHaveLength(3);
   });
 });

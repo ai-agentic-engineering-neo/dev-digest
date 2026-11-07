@@ -24,8 +24,10 @@ import { toJsonSchema, parseWithRepair } from './structured.js';
 
 const NOT_SUPPORTED = 'OpenRouterProvider only implements completeStructured';
 
-/** A reply cut off at max_tokens is retried with the cap multiplied by this. */
+/** A reply cut off at max_tokens is retried with the cap multiplied by this… */
 export const TRUNCATION_TOKEN_FACTOR = 2;
+/** …but never above this many tokens. */
+export const TRUNCATION_TOKEN_CEILING = 16_000;
 
 export interface OpenRouterProviderOptions {
   /** OpenAI-compatible base URL (default: OpenRouter). */
@@ -66,9 +68,10 @@ export class OpenRouterProvider implements LLMProvider {
     // Some upstream providers run "reasoning" models with hidden thinking that is billed against
     // max_tokens; the JSON then gets cut off (finish_reason "length", sometimes empty content).
     // Asking the model to "repair" a cut-off reply under the same cap fails the same way, so a
-    // truncated attempt is retried with a doubled cap instead.
+    // truncated attempt is retried with a doubled cap instead. Without a cap of our own there is
+    // nothing to raise, so such a reply goes through the usual repair prompt.
     let maxTokens = req.maxTokens;
-    let truncated = false;
+    let lastTruncated = false;
     let tokensIn = 0;
     let tokensOut = 0;
     let costFromApi: number | null = null;
@@ -118,9 +121,9 @@ export class OpenRouterProvider implements LLMProvider {
           attempts: attempt,
         };
       }
-      if (choice.finish_reason === 'length') {
-        truncated = true;
-        if (maxTokens) maxTokens *= TRUNCATION_TOKEN_FACTOR;
+      lastTruncated = choice.finish_reason === 'length';
+      if (lastTruncated && maxTokens && maxTokens < TRUNCATION_TOKEN_CEILING) {
+        maxTokens = Math.min(maxTokens * TRUNCATION_TOKEN_FACTOR, TRUNCATION_TOKEN_CEILING);
         continue;
       }
       messages.push({ role: 'assistant', content: lastRaw });
@@ -128,7 +131,7 @@ export class OpenRouterProvider implements LLMProvider {
     }
     throw new Error(
       `OpenRouter structured output failed schema validation for ${req.schemaName}` +
-        (truncated ? ' (the response was cut off at the token limit)' : ''),
+        (lastTruncated ? ' (the response was cut off at the token limit)' : ''),
     );
   }
 

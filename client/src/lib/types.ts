@@ -8,7 +8,7 @@
  * not yet exported, add a placeholder below marked
  * `// TODO: reconcile with @devdigest/shared`.
  */
-import type { SkillType } from "@devdigest/shared";
+import type { ChangedSymbol, DownstreamImpact, SkillType } from "@devdigest/shared";
 
 export type {
   Settings,
@@ -35,6 +35,7 @@ export type {
 
 export type { Review, Finding, Severity, Verdict } from "@devdigest/shared";
 export type { PrBrief, SmartDiff } from "@devdigest/shared";
+export type { ChangedSymbol, BlastCaller, DownstreamImpact } from "@devdigest/shared";
 
 /** UI-only view model for a PR list row (derives display fields from PrMeta). */
 export interface PrRowView {
@@ -211,4 +212,38 @@ export interface IntentOverrideInput {
   intent: string;
   in_scope: string[];
   out_of_scope: string[];
+}
+
+/**
+ * GET /pulls/:id/blast. Mirrors server/src/modules/blast/domain/types.ts (PrBlastRadius).
+ * TODO: reconcile with @devdigest/shared
+ */
+export type BlastDegradedReason = "flag_off" | "index_failed" | "index_partial" | "repo_too_large" | "no_data";
+
+export interface BlastDownstream extends DownstreamImpact {
+  file: string;
+  kind: string;
+}
+
+export interface BlastCounts {
+  symbols: number;
+  callers: number;
+  endpoints: number;
+  crons: number;
+}
+
+export interface PrBlastRadius {
+  pr_id: string;
+  head_sha: string;
+  indexed_sha: string | null;
+  /** Commit the caller lines come from (indexed_sha ?? head_sha); links use only this. */
+  link_sha: string;
+  changed_symbols: ChangedSymbol[];
+  downstream: BlastDownstream[];
+  unattributed_endpoints: string[];
+  summary: string;
+  counts: BlastCounts;
+  callers_omitted: number;
+  degraded: boolean;
+  reason: BlastDegradedReason | null;
 }

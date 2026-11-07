@@ -7,12 +7,53 @@
   },
   "view": {
     "tree": "tree",
-    "graph": "graph"
+    "graph": "graph",
+    "ariaLabel": "Blast radius view"
   },
-  "callerCount": "{count} callers",
+  "callerCount": "{count, plural, one {# caller} other {# callers}}",
   "noDownstream": "{count} changed symbol(s), no downstream callers found.",
+  "loading": "Loading blast radius…",
+  "loadError": "Couldn't load the blast radius",
+  "summary": {
+    "ariaLabel": "Blast radius summary",
+    "symbols": "{count, plural, one {# symbol} other {# symbols}}",
+    "callers": "{count, plural, one {# caller} other {# callers}}",
+    "endpoints": "{count, plural, one {# endpoint} other {# endpoints}}",
+    "crons": "{count, plural, one {# cron/job} other {# cron/jobs}}"
+  },
+  "chips": {
+    "endpoints": "Endpoints affected",
+    "crons": "Crons affected",
+    "more": "+{count} more",
+    "less": "Show less"
+  },
+  "unattributed": "Endpoints in caller files (not attributed to a symbol)",
+  "withoutCallers": "{count, plural, one {# more changed symbol has} other {# more changed symbols have}} no callers.",
+  "callersOmitted": "{count, plural, one {# more caller is} other {# more callers are}} not shown (top callers per symbol, by file rank).",
+  "degraded": {
+    "flag_off": "Repo intelligence is turned off on the server (REPO_INTEL_ENABLED=false). Callers come from a best-effort text search and may be incomplete.",
+    "no_data": "This repository has no code index yet, so callers can't be mapped. The index is built after the repository is cloned.",
+    "index_partial": "The code index is partial — some callers may be missing.",
+    "index_failed": "The last indexing run failed — callers may be missing or outdated.",
+    "repo_too_large": "The repository is too large to index fully — callers may be missing."
+  },
+  "resync": {
+    "hint": "Resync fetches the latest default branch and rebuilds the index; this map refreshes when it finishes.",
+    "button": "Resync index",
+    "running": "Resyncing…",
+    "timeout": "Resync is still running — reload this page in a minute."
+  },
   "graph": {
     "empty": "No downstream callers to graph.",
-    "ariaLabel": "Blast radius graph"
+    "ariaLabel": "Blast radius graph",
+    "legend": {
+      "symbol": "changed symbol",
+      "callers": "callers",
+      "endpoints": "endpoints affected"
+    }
+  },
+  "toggle": {
+    "expand": "Expand {symbol}",
+    "collapse": "Collapse {symbol}"
   }
 }

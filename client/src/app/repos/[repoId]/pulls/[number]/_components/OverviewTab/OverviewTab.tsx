@@ -3,6 +3,7 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { SectionLabel } from "@devdigest/ui";
+import { BlastRadiusPanel } from "./_components/BlastRadiusPanel";
 import { IntentPanel } from "./_components/IntentPanel";
 import { s } from "./styles";
 
@@ -10,11 +11,12 @@ interface OverviewTabProps {
   prId: string | null;
   prBody: string | null | undefined;
   repoFullName: string | null;
+  repoId: string;
   /** A review is running for this PR — the intent panel polls until the run has derived it. */
   reviewRunning?: boolean;
 }
 
-export function OverviewTab({ prId, prBody, repoFullName, reviewRunning = false }: OverviewTabProps) {
+export function OverviewTab({ prId, prBody, repoFullName, repoId, reviewRunning = false }: OverviewTabProps) {
   const t = useTranslations("brief");
   return (
     <>
@@ -22,6 +24,12 @@ export function OverviewTab({ prId, prBody, repoFullName, reviewRunning = false 
         <section>
           <SectionLabel icon="Target">{t("block.intent")}</SectionLabel>
           <IntentPanel prId={prId} repoFullName={repoFullName} reviewRunning={reviewRunning} />
+        </section>
+      )}
+      {prId && (
+        <section>
+          <SectionLabel icon="Activity">{t("block.blast")}</SectionLabel>
+          <BlastRadiusPanel prId={prId} repoId={repoId} repoFullName={repoFullName} />
         </section>
       )}
       {prBody && (

@@ -71,14 +71,10 @@ export const s = {
     background: "var(--border-strong)",
   } satisfies CSSProperties,
   rowIcon: { color: "var(--text-muted)", flexShrink: 0 } satisfies CSSProperties,
-  location: { fontSize: 13, color: "var(--text-secondary)", whiteSpace: "nowrap" } satisfies CSSProperties,
-  caller: {
-    fontSize: 11.5,
-    color: "var(--text-muted)",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-    minWidth: 0,
-  } satisfies CSSProperties,
+  /** Holds the full `file:line` tooltip; the visible path is already shortened, so it never needs clipping. */
+  locationBox: { whiteSpace: "nowrap", flexShrink: 0 } satisfies CSSProperties,
+  location: { fontSize: 13, color: "var(--text-secondary)" } satisfies CSSProperties,
+  /** Caller function name is shown in full (wraps rather than being cut). */
+  caller: { fontSize: 11.5, color: "var(--text-muted)", overflowWrap: "anywhere", minWidth: 0 } satisfies CSSProperties,
   chips: { display: "flex", flexDirection: "column", gap: 6, padding: `8px 0 2px ${INDENT}px` } satisfies CSSProperties,
 } as const;

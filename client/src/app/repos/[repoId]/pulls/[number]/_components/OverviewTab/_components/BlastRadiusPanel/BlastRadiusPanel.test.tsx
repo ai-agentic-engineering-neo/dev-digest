@@ -127,7 +127,7 @@ describe("BlastRadiusPanel", () => {
     // numbers are bold, labels plain (design 25.png)
     expect(within(summary).getAllByText(/^\d+$/, { selector: "b" }).map((b) => b.textContent)).toEqual(["2", "3", "1", "0"]);
     fireEvent.click(screen.getByRole("button", { name: "Expand alpha, 3 callers" }));
-    const link = screen.getByRole("link", { name: "server/src/x.ts:12" });
+    const link = screen.getByRole("link", { name: "…/src/x.ts:12" });
     expect(link).toHaveAttribute("href", githubBlobUrl("acme/app", "idx111", "server/src/x.ts", 12));
     expect(link.getAttribute("href")).not.toContain("head999");
     expect(screen.getByText("1 more changed symbol has no callers.")).toBeInTheDocument();
@@ -225,7 +225,7 @@ describe("BlastRadiusPanel", () => {
         ],
       };
       await advance(POLL_MS);
-      expect(await screen.findByRole("link", { name: "server/src/w.ts:5" })).toBeInTheDocument();
+      expect(await screen.findByRole("link", { name: "…/src/w.ts:5" })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Resync index" })).toBeEnabled();
       expect(screen.queryByText(messages.resync.timeout)).not.toBeInTheDocument();
     });

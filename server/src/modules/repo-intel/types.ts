@@ -63,6 +63,8 @@ export interface BlastChangedSymbol {
 export interface BlastCallerRow {
   file: string;
   symbol: string;
+  /** File that declares the changed symbol this caller reaches (same name in 2 files is not the same symbol). */
+  viaFile: string;
   /** Which changed symbol this caller reaches. */
   viaSymbol: string;
   /** 1-based line of the reference (representative; for the BlastRadius view). */
@@ -73,8 +75,9 @@ export interface BlastCallerRow {
 
 export interface BlastResult {
   changedSymbols: BlastChangedSymbol[];
+  /** At most MAX_CALLERS_PER_SYMBOL per (viaFile, viaSymbol), rank desc. */
   callers: BlastCallerRow[];
-  /** "METHOD /path" (via extractEndpoints / file_facts) — flat union. */
+  /** "METHOD /path" (via extractEndpoints / file_facts) — from KEPT caller files only. */
   impactedEndpoints: string[];
   /**
    * Per-caller-file precomputed facts, so consumers (blast) can attribute
@@ -82,6 +85,8 @@ export interface BlastResult {
    * Present on the persistent (non-degraded) path; absent otherwise.
    */
   factsByFile?: Record<string, { endpoints: string[]; crons: string[] }>;
+  /** Callers dropped by the per-symbol cap, summed over all symbols (0 = nothing cut). */
+  callersOmitted: number;
   degraded?: boolean;
   reason?: DegradedReason;
 }

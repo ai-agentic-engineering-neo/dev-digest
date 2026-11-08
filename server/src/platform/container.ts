@@ -32,6 +32,8 @@ import type { ConventionsRepositoryPort } from '../modules/conventions/ports.js'
 import { IntentRepository } from '../modules/intent/repository.js';
 import type { IntentRepositoryPort } from '../modules/intent/ports.js';
 import { IntentService } from '../modules/intent/service.js';
+import { BlastRepository } from '../modules/blast/repository.js';
+import type { BlastRepositoryPort } from '../modules/blast/ports.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
 import { type DepGraph, DepCruiseGraph } from '../adapters/depgraph/index.js';
@@ -64,6 +66,8 @@ export interface ContainerOverrides {
   conventionsRepo?: ConventionsRepositoryPort;
   /** Intent storage — tests inject an in-memory fake. */
   intentRepo?: IntentRepositoryPort;
+  /** Blast storage — tests inject an in-memory fake. */
+  blastRepo?: BlastRepositoryPort;
 }
 
 export class Container {
@@ -89,6 +93,7 @@ export class Container {
   private _conventionsRepo?: ConventionsRepositoryPort;
   private _intentRepo?: IntentRepositoryPort;
   private _intent?: IntentService;
+  private _blastRepo?: BlastRepositoryPort;
   private _repoIntel?: RepoIntel;
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
@@ -138,6 +143,12 @@ export class Container {
   /** PR intent service (lazy singleton: holds the single-flight map). */
   get intent(): IntentService {
     return (this._intent ??= new IntentService(this));
+  }
+
+  /** Blast radius storage (blast module). */
+  get blastRepo(): BlastRepositoryPort {
+    if (this.overrides.blastRepo) return this.overrides.blastRepo;
+    return (this._blastRepo ??= new BlastRepository(this.db));
   }
 
   get codeIndex(): CodeIndex {

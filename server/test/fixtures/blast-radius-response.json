@@ -1,0 +1,23 @@
+{
+  "pr_id": "6f1c1a52-3b0e-4a57-9c1d-2f6a8b7d9e10",
+  "head_sha": "1111111111111111111111111111111111111111",
+  "indexed_sha": "2222222222222222222222222222222222222222",
+  "link_sha": "2222222222222222222222222222222222222222",
+  "changed_symbols": [{ "name": "createUser", "file": "src/users/service.ts", "kind": "function" }],
+  "downstream": [
+    {
+      "symbol": "createUser",
+      "file": "src/users/service.ts",
+      "kind": "function",
+      "callers": [{ "name": "postUsers", "file": "src/users/routes.ts", "line": 42 }],
+      "endpoints_affected": ["POST /users"],
+      "crons_affected": ["nightly-cleanup"]
+    }
+  ],
+  "unattributed_endpoints": ["GET /health"],
+  "summary": "1 changed symbol, 1 caller, 1 endpoint, 1 cron/job.",
+  "counts": { "symbols": 1, "callers": 1, "endpoints": 1, "crons": 1 },
+  "callers_omitted": 0,
+  "degraded": false,
+  "reason": null
+}

@@ -229,6 +229,7 @@ export class RepoIntelService implements RepoIntel {
       changedSymbols: [],
       callers: [],
       impactedEndpoints: [],
+      callersOmitted: 0,
       degraded: true,
       reason: 'no_data',
     };
@@ -257,7 +258,7 @@ export class RepoIntelService implements RepoIntel {
       changedSymbols.push({ file: s.path, name: s.name, kind: s.kind });
     }
 
-    const callerRows: BlastCallerRow[] = [];
+    const allCallerRows: BlastCallerRow[] = [];
     const endpoints = new Set<string>();
     const callerSeen = new Set<string>();
 
@@ -268,36 +269,40 @@ export class RepoIntelService implements RepoIntel {
       } catch {
         continue;
       }
-      const callerFiles = new Set<string>();
       for (const r of refs) {
         if (r.fromPath === sym.file) continue; // skip the decl's own file
         const callerName = enclosingSymbolName(allSymbols, r.fromPath, r.line);
-        const key = `${r.fromPath}|${callerName}|${sym.name}`;
+        const key = `${r.fromPath}|${callerName}|${sym.file}|${sym.name}`;
         if (callerSeen.has(key)) continue;
         callerSeen.add(key);
-        callerRows.push({
+        allCallerRows.push({
           file: r.fromPath,
           symbol: callerName,
+          viaFile: sym.file,
           viaSymbol: sym.name,
           line: r.line,
           rank: 0, // ripgrep/degraded path has no persistent rank
         });
-        callerFiles.add(r.fromPath);
       }
+    }
 
-      // Detect HTTP routes reachable from any caller file (best-effort, just
-      // like the legacy blast service).
-      for (const file of callerFiles) {
-        const content = await readClone(repo.clonePath, file);
-        if (!content) continue;
-        for (const e of extractEndpoints(content)) endpoints.add(e);
-      }
+    // rank is 0 here, so order deterministically by file then line.
+    allCallerRows.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line);
+    const { kept: callerRows, omitted } = capCallersPerSymbol(allCallerRows, MAX_CALLERS_PER_SYMBOL);
+
+    // Detect HTTP routes reachable from KEPT caller files (best-effort, just
+    // like the legacy blast service).
+    for (const file of new Set(callerRows.map((c) => c.file))) {
+      const content = await readClone(repo.clonePath, file);
+      if (!content) continue;
+      for (const e of extractEndpoints(content)) endpoints.add(e);
     }
 
     return {
       changedSymbols,
       callers: callerRows,
       impactedEndpoints: [...endpoints],
+      callersOmitted: omitted,
       degraded: true,
       reason: 'no_data',
     };
@@ -335,15 +340,18 @@ export class RepoIntelService implements RepoIntel {
       nameSet.add(s.name);
     }
     if (nameSet.size === 0) {
-      return { changedSymbols, callers: [], impactedEndpoints: [], degraded: false };
+      return { changedSymbols, callers: [], impactedEndpoints: [], callersOmitted: 0, degraded: false };
     }
 
-    // Resolved cross-file callers.
-    const callerRows = await this.repo.getResolvedCallers(repoId, changedFiles, [...nameSet]);
-    const callerFiles = [...new Set(callerRows.map((c) => c.fromPath))];
+    // Resolved cross-file callers. Self-calls (caller in the declaring file)
+    // and unresolved declarations are not downstream impact.
+    const callerRows = (
+      await this.repo.getResolvedCallers(repoId, changedFiles, [...nameSet])
+    ).filter((c) => c.declFile !== null && c.fromPath !== c.declFile);
+    const rowFiles = [...new Set(callerRows.map((c) => c.fromPath))];
 
     // Enclosing caller symbol from the callers' persistent symbol rows.
-    const callerSymRows = await this.repo.getSymbolRows(repoId, callerFiles);
+    const callerSymRows = await this.repo.getSymbolRows(repoId, rowFiles);
     const symsByFile = new Map<string, FullSymbolRow[]>();
     for (const s of callerSymRows) {
       const arr = symsByFile.get(s.path);
@@ -351,41 +359,51 @@ export class RepoIntelService implements RepoIntel {
       else symsByFile.set(s.path, [s]);
     }
 
-    const callers: BlastCallerRow[] = [];
+    const allCallers: BlastCallerRow[] = [];
     const seenCaller = new Set<string>();
     for (const c of callerRows) {
+      const declFile = c.declFile;
+      if (declFile === null) continue; // narrowed above; keeps the type honest
       const enclosing =
         enclosingFromRows(symsByFile.get(c.fromPath) ?? [], c.line) ??
         c.fromPath.split('/').pop() ??
         c.fromPath;
-      const key = `${c.fromPath}|${enclosing}|${c.toSymbol}`;
+      const key = `${c.fromPath}|${enclosing}|${declFile}|${c.toSymbol}`;
       if (seenCaller.has(key)) continue;
       seenCaller.add(key);
-      callers.push({
+      allCallers.push({
         file: c.fromPath,
         symbol: enclosing,
+        viaFile: declFile,
         viaSymbol: c.toSymbol,
         line: c.line,
         rank: c.rank,
       });
     }
-    callers.sort((a, b) => b.rank - a.rank);
+    allCallers.sort(
+      (a, b) => b.rank - a.rank || a.file.localeCompare(b.file) || a.line - b.line,
+    );
+    const { kept: callers, omitted } = capCallersPerSymbol(allCallers, MAX_CALLERS_PER_SYMBOL);
+    const callerFiles = [...new Set(callers.map((c) => c.file))];
 
-    // Precomputed facts per caller file (endpoints + crons), so consumers can
-    // attribute them to the changed symbol whose callers live in that file.
+    // Precomputed facts per KEPT caller file (endpoints + crons), so consumers
+    // can attribute them to the changed symbol whose callers live in that file.
     const facts = await this.repo.getFileFacts(repoId, callerFiles);
+    const keptFiles = new Set(callerFiles);
     const endpoints = new Set<string>();
     const factsByFile: Record<string, { endpoints: string[]; crons: string[] }> = {};
     for (const f of facts) {
+      if (!keptFiles.has(f.filePath)) continue;
       factsByFile[f.filePath] = { endpoints: f.endpoints, crons: f.crons };
       for (const e of f.endpoints) endpoints.add(e);
     }
 
     return {
       changedSymbols,
-      callers: callers.slice(0, MAX_CALLERS_PER_SYMBOL),
+      callers,
       impactedEndpoints: [...endpoints],
       factsByFile,
+      callersOmitted: omitted,
       degraded: false,
     };
   }
@@ -730,6 +748,26 @@ const JUNK_PATH_PATTERNS = [
 function isJunkPath(path: string): boolean {
   const lower = path.toLowerCase();
   return JUNK_PATH_PATTERNS.some((p) => lower.includes(p));
+}
+
+/**
+ * Keep the first `max` callers of each (viaFile, viaSymbol) group, preserving
+ * input order. `omitted` is the total number of dropped callers.
+ */
+export function capCallersPerSymbol(
+  callers: BlastCallerRow[],
+  max: number,
+): { kept: BlastCallerRow[]; omitted: number } {
+  const counts = new Map<string, number>();
+  const kept: BlastCallerRow[] = [];
+  for (const c of callers) {
+    const key = `${c.viaFile}\u0000${c.viaSymbol}`;
+    const n = counts.get(key) ?? 0;
+    if (n >= max) continue;
+    counts.set(key, n + 1);
+    kept.push(c);
+  }
+  return { kept, omitted: callers.length - kept.length };
 }
 
 /** Enclosing top-level (bare-name) symbol for a line, from persistent rows. */

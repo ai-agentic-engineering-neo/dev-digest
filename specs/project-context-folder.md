@@ -26,6 +26,10 @@ Non-goals
 - Reading a doc as changed by the PR under review. The run trace only notes it (AC-9).
 - Concurrent-edit warnings for attachments: DevDigest is local-first and single-user, so the last write wins.
 - Project context in CI-runner reviews (L06 Export to CI).
+- Agent versions for attachment changes. Skill-link changes don't create versions today either; what an
+  agent actually read is recorded per run in the trace (AC-9). Versioning both is a follow-up spec.
+- Tracking sync progress or storing the reason a resync failed. Only the states DevDigest already knows are
+  shown (AC-5); a "syncing / sync failed" state belongs to repo sync, not to this feature.
 
 ## User stories
 
@@ -53,8 +57,8 @@ Non-goals
   folder contains the text (case-insensitive). IF nothing matches, THEN it SHALL show "No documents found".
 - **AC-4** IF the repo has no docs matching AC-1, THEN the system SHALL show an empty state that names the
   locations it searched and offers the repo's Resync action.
-- **AC-5** WHILE the repo is not cloned, is syncing, or its last sync failed, the system SHALL show that state
-  (and the failure reason, if any) and the repo's Resync action instead of the doc list.
+- **AC-5** WHILE the repo is not cloned, or its code index is failed or degraded, the system SHALL show that state
+  (with the index's reason, if any) and the repo's Resync action instead of the doc list.
 - **AC-6** WHEN the user toggles a doc in the agent editor's Context tab, the system SHALL save the attachment
   for that (agent, active repo) pair. Attached docs are listed first, in attach order, and the order can be
   changed with the mouse (drag) and with the keyboard. Each change is saved and survives a page reload.
@@ -77,8 +81,9 @@ Non-goals
   Detach action, skip it in runs, and show it as "missing" in the run trace. The run SHALL NOT fail because of it.
 - **AC-11** WHERE an agent has no docs attached for the PR's repo, the system SHALL build the review prompt
   exactly as it would without this feature, and the run trace SHALL show no Project context block.
-- **AC-12** WHEN the user changes an agent's attachments (attach, detach, reorder), the system SHALL create a
-  new agent version that records the attached paths per repo in order, the same way skill-link changes do.
+- **AC-12** WHEN the user changes an agent's attachments (attach, detach, reorder), the system SHALL apply the
+  change from the agent's next run on, without creating a new agent version (as with skill links today).
+  Runs that already started keep the attachments they started with.
 - **AC-13** The system SHALL only list, attach and inject docs for agents and repos in the requesting user's
   workspace. A request that names another workspace's agent or repo SHALL be answered as not found.
 
@@ -109,7 +114,7 @@ Non-goals
 ## Inputs (provenance)
 
 - Doc list, previews, token estimates: `[deterministic: files in the repo clone at the last synced commit]`.
-- Attached-agent counts, attachments, agent versions: `[deterministic: DevDigest's stored attachments]`.
+- Attached-agent counts, attachments: `[deterministic: DevDigest's stored attachments]`.
 - "PR changes <doc>" note: `[deterministic: the PR's changed-file list]`.
 - Project-context section in reviews: `[reused: existing review run]` → `[new: 0 LLM calls]`, but more input
   tokens. **Cost: up to 4,000 tokens × the number of model calls in the run.**
@@ -131,11 +136,11 @@ LLM prompts. They are always data, never instructions:
 
 ## Module interactions
 
-- **Repo sync / repo-intel:** provides the clone at the last synced commit and the sync state. If the clone
-  is missing or the sync failed, the page shows AC-5, and runs go ahead without the section; the trace says
-  "project context unavailable: repo not synced".
-- **Agents (agent editor, agent versions):** gains the Context tab next to Skills. Attachments are per
-  (agent, repo), and every change makes a new agent version (AC-12).
+- **Repo sync / repo-intel:** provides the clone at the last synced commit and the code-index state. If the
+  clone is missing or the index is failed or degraded, the page shows AC-5. If the clone is missing, runs go
+  ahead without the section; the trace says "project context unavailable: repo not synced".
+- **Agents (agent editor):** gains the Context tab next to Skills. Attachments are per (agent, repo) and
+  apply from the next run; they don't create agent versions (AC-12).
 - **Reviews (server run, run trace drawer, run estimates):** reads the attachments for the PR's repo, puts the
   section into every model call, records the Project context block (AC-9), and counts the extra tokens in
   cost and estimates.
@@ -164,7 +169,7 @@ User decisions:
   doc index (AC-4, AC-5).
 
 Other notes:
-- **Missing states added:** sync in progress/failed (AC-5), attached doc missing (AC-10), filter with no
+- **Missing states added:** not cloned / index failed or degraded (AC-5), attached doc missing (AC-10), filter with no
   results (AC-3), over cap and too large (AC-7, AC-9), PR changes a doc (AC-9).
 - **Dropped from the design:** N6 Upload/New file/New folder/Edit, "COVERAGE" score, chunk counts, the N2c
   skill section (Non-goals).

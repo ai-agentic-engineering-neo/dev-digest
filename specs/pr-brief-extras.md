@@ -21,6 +21,11 @@ on demand.
 - **AC-3** [P3] WHEN a Review focus item has a line (SPEC-06 AC-7), the click (SPEC-06 AC-9) SHALL scroll to
   that line in the flat Files changed list and highlight it.
 
+- **AC-4** [P3] WHEN SPEC-05 (skill ↔ doc attachments) is implemented, the PR Brief spec-docs input
+  (SPEC-06 AC-4) SHALL also include docs inherited from enabled linked skills, in each agent's SPEC-05 merged
+  order, de-duplicated by path, within the same 4,000-token cap. (Moved from SPEC-06 on 2026-11-08: SPEC-05 is
+  not implemented.)
+
 ## Inputs (provenance)
 
 - Verdict, counts, score: `[reused: stored review runs]`, 0 LLM calls.

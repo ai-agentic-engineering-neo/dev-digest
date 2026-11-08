@@ -69,9 +69,9 @@ P1
   additions, deletions, the Smart Diff role when available (never on this branch, see Module interactions) and
   the hunk line ranges (e.g. `@@ -38,9 +40,13 @@`). It SHALL contain no line of diff content.
 - **AC-4** [P1] The spec-docs input SHALL be the docs attached for this repo to every enabled agent of the
-  workspace, including docs inherited from enabled linked skills (SPEC-05 AC-6). Agents are taken in name
-  order, each with its SPEC-05 merged doc order; docs are de-duplicated by path, so each doc goes in once (at
-  its first position). The SPEC-01 selection rules apply (whole docs, "too large", "over cap", "missing") with
+  workspace (each agent's own attachments, SPEC-01, in its attach order). Docs inherited from skills (SPEC-05)
+  are not included — SPEC-05 is not implemented; see SPEC-07. Agents are taken in name order; docs are
+  de-duplicated by path, so each doc goes in once (at its first position). The SPEC-01 selection rules apply (whole docs, "too large", "over cap", "missing") with
   one 4,000-token cap. No attached docs → generation goes ahead without them.
 - **AC-5** [P1] IF the Intent, the Blast radius or the Smart Diff roles are unavailable for the PR, THEN the
   system SHALL still generate the brief. The brief SHALL show a "Missing inputs" note naming each one with its
@@ -83,8 +83,9 @@ P1
   is neither a changed file of the PR nor (when the blast radius is available) a file in its blast map. A risk
   file ref is `path` or `path:start-end`; grounding matches on the path part. A risk left with no file ref SHALL
   be dropped. Model-supplied paths never become links unless they pass this check.
-- **AC-7** [P1] Each kept Review focus item SHALL have a positive whole-number line. IF the line is outside
-  every changed hunk (new side) of that file, THEN the system SHALL move it to the first line of the nearest
+- **AC-7** [P1] Each kept Review focus item SHALL have a positive whole-number line. For a file that is only
+  in the blast map (not changed in the PR), the model's line SHALL be kept as is (no snapping). For a changed
+  file: IF the line is outside every changed hunk (new side) of that file, THEN the system SHALL move it to the first line of the nearest
   changed hunk (on a tie, the earlier hunk). IF the file has no new-side hunk lines (binary, pure rename,
   deleted, or patch not provided by GitHub), THEN the item SHALL be file-level: stored as line 1 and shown as
   `file — reason`, with no line. Items that become duplicates (same file and line) keep the first.
@@ -111,7 +112,7 @@ P1
   could not be loaded" state.
 - **AC-13** [P1] The system SHALL read, generate and store briefs only for PRs in the requesting user's
   workspace. A request for another workspace's PR SHALL be answered as not found, with no model call. Only
-  that workspace's agents and skills give spec docs (AC-4).
+  that workspace's agents give spec docs (AC-4).
 - **AC-14** [P1] The system SHALL render the summary, risk titles and explanations, and focus reasons as plain
   text (no HTML, no markdown execution). Only paths that passed AC-6 are links.
 - **AC-15** [P1] The system SHALL keep at most 6 risks and at most 7 Review focus items, applied after grounding
@@ -168,7 +169,7 @@ P2
   generation time.
 - **Risk Brief model not configured** (no key for its provider): AC-12. With the feature default (AC-17) a
   workspace with an OpenRouter key works on the first click.
-- **Agent or skill disabled between generations:** its docs leave the next generation (AC-4). A stored brief is
+- **Agent disabled between generations:** its docs leave the next generation (AC-4). A stored brief is
   not changed.
 - **Long content:** long paths are shortened with the full path on hover and in the accessible name. Long
   reasons wrap.
@@ -196,7 +197,8 @@ P2
 - Linked issue: `[reused: L03 Intent sources]` — only issues the Intent layer recorded as read; no extra
   fetches. The Intent store keeps a reference per source (issue number + ref), not the issue text, so the brief
   gets the reference only. No issue → fine.
-- Spec docs: `[reused: SPEC-01/03/05 attachments of enabled agents and their skills]`, 4,000-token cap (AC-4).
+- Spec docs: `[reused: SPEC-01/03 attachments of enabled agents]`, 4,000-token cap (AC-4). Skill-inherited
+  docs (SPEC-05): not on any branch yet → SPEC-07.
 - Summary, risks, review focus: `[new: 1 LLM call per generation]`, Risk Brief feature model (default AC-17),
   ≤ 8,000 input tokens. The output token cap is set by the plan.
 - Grounding, line snapping, caps, outdated check: `[deterministic: changed files + hunk ranges + blast map + head commit]`.
@@ -220,7 +222,8 @@ rejected (AC-3, AC-12). GitHub links (AC-9) are built only from grounded blast-m
   `feat/smart-diff-l03`, which has no Blast radius and no Project Context. Decided (user, 2026-11-08): the
   brief branch `feat/pr-brief` is cut from `feat/sdd-agents`. Roles are a missing input (AC-5), the third
   budget cut does nothing (AC-20), and the click lands in the flat Files changed list (AC-9).
-- **Project Context (SPEC-01/03/05, server):** attachments of enabled agents and skills (AC-4). Repo not cloned
+- **Project Context (SPEC-01/03, server):** attachments of enabled agents (AC-4). SPEC-05 (skill ↔ doc
+  attachments) is approved but not implemented — no table stores skill attachments — so it is not an input. Repo not cloned
   → its repo docs count as "missing", as in SPEC-01 AC-10. Generation goes ahead.
 - **Settings (feature models, API keys):** the Risk Brief model and key (AC-12, AC-17), and pricing for AC-21.
   The feature's own default is mirrored in the client's feature-model list; the shared `FEATURE_MODELS` in
@@ -248,7 +251,10 @@ Decisions (user, 2026-11-08):
   no code-level findings (Non-goals). The design's examples ("live Stripe key sk_live_… committed", "N+1 query")
   and its summary citing findings and blockers need code the model never sees; they overstate what the brief
   can know.
-- **Spec docs:** union over enabled agents, agents by name, de-duplicated by path (AC-4).
+- **Spec docs:** union over enabled agents' own attachments, agents by name, de-duplicated by path (AC-4).
+  Amended 2026-11-08 after implementation-planner found SPEC-05 unimplemented: skill-inherited docs → SPEC-07.
+- **Blast-only focus items** keep the model's line, no snapping (AC-7); the click opens GitHub at that line
+  (AC-9). Amended 2026-11-08 (AC-7 vs AC-9 conflict found by implementation-planner).
 - **Lines:** out-of-range lines snap to the nearest hunk, ties to the earlier one; a file with no hunks gives a
   file-level item (AC-7).
 - **Budget:** 8,000 tokens, cut order and never-cut list in AC-20; still too large → no call, "PR too large for

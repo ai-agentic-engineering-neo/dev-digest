@@ -72,6 +72,35 @@ add('write-scope.mjs', 'docs', [
   'server/src/app.ts',
   'client/src/vendor/ui/README.md',
 ], BLOCK, W);
+// write-scope specs (spec-creator): path normalized (\ → /, resolved against the root) BEFORE matching
+add('write-scope.mjs', 'specs', [
+  'server/specs/x.md',
+  'client/specs/run-cost-badge.md',
+  'reviewer-core/specs/README.md',
+  'mcp-server/specs/x.md',
+  'server\\specs\\x.md', // Windows separators
+  'client/specs/./x.md',
+  path.join(ROOT, 'server', 'specs', 'x.md'), // absolute inside the repo, OS-native separators
+  path.join(ROOT, 'client', 'specs', 'x.md').replace(/\\/g, '/'), // absolute, forward slashes
+], ALLOW, W);
+add('write-scope.mjs', 'specs', [
+  'e2e/specs/x.md', // e2e/specs holds executable flows
+  'e2e/specs/01-x.flow.json',
+  'server/src/x.ts',
+  'server/specs/../x.md',
+  'server\\specs\\..\\src\\x.ts',
+  'server/specs/sub/x.md',
+  'server/specs/x.ts',
+  'server/docs/x.md',
+  'server/INSIGHTS.md',
+  'server/CLAUDE.md',
+  'specs/x.md',
+  'docs/design/x.md',
+  'plans/x.md',
+  '.claude/agents/spec-creator.md',
+  '../dev-digest-other/server/specs/x.md',
+  path.join(ROOT, '..', 'outside', 'server', 'specs', 'x.md'), // absolute outside the repo
+], BLOCK, W);
 // write-scope fail-closed
 cases.push({ hook: 'write-scope.mjs', profile: 'nope', input: W('server/test/a.test.ts'), label: 'unknown profile', expected: BLOCK });
 cases.push({ hook: 'write-scope.mjs', profile: 'tests', input: '{not json', label: 'malformed JSON', expected: BLOCK });
@@ -95,6 +124,8 @@ for (const profile of ALL) {
     'git log --follow -p -- client/src/lib/github-urls.ts',
     'git show 0e4375c:server/src/modules/reviews/usage.ts',
     'git show --stat HEAD',
+    'git log --oneline 9eb3e14..HEAD -- server/src/app.ts plans/TEMPLATE.md', // plan-verifier traceability
+
     "git log --oneline -- 'client/src/app/repos/[repoId]/page.tsx'",
     'cd server && git log --oneline -3',
     `cd "${SERVER_ABS}" && git status --short`,
@@ -358,15 +389,27 @@ const KEYS = new Set([
   'name', 'description', 'tools', 'disallowedTools', 'model', 'permissionMode', 'maxTurns', 'skills', 'hooks',
   'memory', 'effort', 'isolation', 'omitClaudeMd', 'autoCompactWindow', 'mcpServers', 'background', 'color',
 ]);
-const PROFILES = { 'write-scope.mjs': ['tests', 'docs'], 'bash-guard.mjs': ['review', 'verify', 'tests', 'docs'] };
+const PROFILES = {
+  'write-scope.mjs': ['tests', 'docs', 'specs'],
+  'bash-guard.mjs': ['review', 'verify', 'tests', 'docs'],
+};
+// MCP tools: names come from the devdigest server's registerTool() calls, so a typo or a removed tool
+// fails here instead of being dropped silently. Agents that must never start a paid review run:
+const MCP_TOOLS = new Set(
+  readdirSync(path.join(ROOT, 'mcp-server', 'src', 'tools'))
+    .filter((f) => f.endsWith('.ts'))
+    .flatMap((f) => [...readFileSync(path.join(ROOT, 'mcp-server', 'src', 'tools', f), 'utf8')
+      .matchAll(/registerTool\(\s*'([a-z_]+)'/g)].map((m) => `mcp__devdigest__${m[1]}`)),
+);
+const MCP_FORBIDDEN = { 'spec-creator': ['mcp__devdigest__run_agent_on_pr'] };
 
-const agentFiles = readdirSync(AGENTS).filter((f) => f.endsWith('.md') && f !== 'README.md');
-for (const file of agentFiles) {
-  const text = readFileSync(path.join(AGENTS, file), 'utf8').replace(/\r\n/g, '\n');
+function lintAgent(file, rawText) {
+  const out = [];
+  const text = rawText.replace(/\r\n/g, '\n');
   const m = /^---\n([\s\S]*?)\n---\n/.exec(text);
   if (!m) {
-    failures.push(`${file}: no frontmatter`);
-    continue;
+    out.push(`${file}: no frontmatter`);
+    return out;
   }
   const lines = m[1].split('\n');
   const fm = {};
@@ -377,22 +420,22 @@ for (const file of agentFiles) {
     if (top) {
       key = top[1];
       fm[key] = { value: top[2].trim(), items: [], raw: [] };
-      if (!KEYS.has(key)) failures.push(`${file}: unknown frontmatter key "${key}" (ignored silently by Claude Code)`);
+      if (!KEYS.has(key)) out.push(`${file}: unknown frontmatter key "${key}" (ignored silently by Claude Code)`);
     } else if (key) {
       fm[key].raw.push(line);
       const item = /^\s+-\s+([^#\s]+)/.exec(line);
       if (item) fm[key].items.push(item[1]);
-    } else failures.push(`${file}: unparsable frontmatter line "${line}"`);
+    } else out.push(`${file}: unparsable frontmatter line "${line}"`);
   }
   const base = file.replace(/\.md$/, '');
-  if (fm.name?.value !== base) failures.push(`${file}: name "${fm.name?.value}" ≠ file name "${base}"`);
-  if (!fm.description) failures.push(`${file}: no description`);
+  if (fm.name?.value !== base) out.push(`${file}: name "${fm.name?.value}" ≠ file name "${base}"`);
+  if (!fm.description) out.push(`${file}: no description`);
 
   for (const skill of fm.skills?.items ?? []) {
     const p = path.join(ROOT, '.claude', 'skills', skill, 'SKILL.md');
-    if (!existsSync(p)) failures.push(`${file}: skill "${skill}" has no .claude/skills/${skill}/SKILL.md`);
+    if (!existsSync(p)) out.push(`${file}: skill "${skill}" has no .claude/skills/${skill}/SKILL.md`);
     else if (/^disable-model-invocation:\s*true/m.test(readFileSync(p, 'utf8'))) {
-      failures.push(`${file}: skill "${skill}" has disable-model-invocation: true and cannot be preloaded`);
+      out.push(`${file}: skill "${skill}" has disable-model-invocation: true and cannot be preloaded`);
     }
   }
 
@@ -401,18 +444,41 @@ for (const file of agentFiles) {
   for (const cm of hookText.matchAll(/\$CLAUDE_PROJECT_DIR\/([^"\\\s]+)\\?"?\s*([a-z]*)/g)) {
     const rel = cm[1];
     const hookName = path.basename(rel);
-    if (!existsSync(path.join(ROOT, rel))) failures.push(`${file}: hook script ${rel} does not exist`);
+    if (!existsSync(path.join(ROOT, rel))) out.push(`${file}: hook script ${rel} does not exist`);
     if (PROFILES[hookName]) {
-      if (!PROFILES[hookName].includes(cm[2])) failures.push(`${file}: ${hookName} has unknown profile "${cm[2]}"`);
+      if (!PROFILES[hookName].includes(cm[2])) out.push(`${file}: ${hookName} has unknown profile "${cm[2]}"`);
       if (hookName === 'bash-guard.mjs') hasBashGuard = true;
     }
   }
   const tools = (fm.tools?.value ?? '').split(/,\s*/);
-  if (hasBashGuard && tools.includes('PowerShell')) failures.push(`${file}: bash-guard only matches Bash, but tools lists PowerShell`);
-  if (hasBashGuard && !/matcher:\s*"Bash"/.test(hookText)) failures.push(`${file}: bash-guard is not on a "Bash" matcher`);
+  if (hasBashGuard && tools.includes('PowerShell')) out.push(`${file}: bash-guard only matches Bash, but tools lists PowerShell`);
+  if (hasBashGuard && !/matcher:\s*"Bash"/.test(hookText)) out.push(`${file}: bash-guard is not on a "Bash" matcher`);
   if (/write-scope\.mjs/.test(hookText) && !/matcher:\s*"Write\|Edit"/.test(hookText)) {
-    failures.push(`${file}: write-scope must be on the "Write|Edit" matcher`);
+    out.push(`${file}: write-scope must be on the "Write|Edit" matcher`);
   }
+  for (const tool of tools.filter((x) => x.startsWith('mcp__'))) {
+    if (!MCP_TOOLS.has(tool)) out.push(`${file}: tools lists unknown MCP tool "${tool}" (known: ${[...MCP_TOOLS].join(', ')})`);
+  }
+  for (const tool of MCP_FORBIDDEN[base] ?? []) {
+    if (tools.includes(tool)) out.push(`${file}: ${tool} is forbidden for ${base} (starts a paid review run)`);
+  }
+  return out;
+}
+
+if (MCP_TOOLS.size < 5) failures.push(`MCP tool discovery found ${MCP_TOOLS.size} tools in mcp-server/src/tools (expected ≥ 5)`);
+const agentFiles = readdirSync(AGENTS).filter((f) => f.endsWith('.md') && f !== 'README.md');
+for (const file of agentFiles) failures.push(...lintAgent(file, readFileSync(path.join(AGENTS, file), 'utf8')));
+
+// lint must reject: run_agent_on_pr in spec-creator, an unknown/typo MCP tool, an unknown write-scope profile
+const specText = readFileSync(path.join(AGENTS, 'spec-creator.md'), 'utf8').replace(/\r\n/g, '\n');
+const lintMustFail = {
+  'spec-creator + run_agent_on_pr': specText.replace(/^tools: (.*)$/m, 'tools: $1, mcp__devdigest__run_agent_on_pr'),
+  'MCP tool typo': specText.replace('mcp__devdigest__get_findings', 'mcp__devdigest__get_findngs'),
+  'unknown write-scope profile': specText.replace('write-scope.mjs\\" specs', 'write-scope.mjs\\" spec'),
+};
+for (const [label, text] of Object.entries(lintMustFail)) {
+  if (text === specText) failures.push(`lint negative case "${label}": fixture did not change spec-creator.md`);
+  else if (lintAgent('spec-creator.md', text).length === 0) failures.push(`lint negative case "${label}": not rejected`);
 }
 
 if (failures.length) {
@@ -420,4 +486,4 @@ if (failures.length) {
   for (const f of failures) console.error(`  - ${f}`);
   process.exit(1);
 }
-console.log(`✔ hooks self-test: ${cases.length} hook cases, ${agentFiles.length} agent files`);
+console.log(`✔ hooks self-test: ${cases.length} hook cases, ${agentFiles.length} agent files, ${Object.keys(lintMustFail).length} lint negative cases`);

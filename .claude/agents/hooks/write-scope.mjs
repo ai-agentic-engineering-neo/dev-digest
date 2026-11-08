@@ -1,10 +1,13 @@
 #!/usr/bin/env node
 // PreToolUse hook (Write|Edit) for subagents that may write only a narrow set of files.
-//   node write-scope.mjs <profile>     profile ∈ { tests, docs }
-//   tests → test-writer: test files + test helpers only
-//   docs  → doc-writer:  README.md / TESTING.md / <pkg>/docs/**/*.md / module READMEs
+//   node write-scope.mjs <profile>     profile ∈ { tests, docs, specs }
+//   tests → test-writer:  test files + test helpers only
+//   docs  → doc-writer:   README.md / TESTING.md / <pkg>/docs/**/*.md / module READMEs
+//   specs → spec-creator: (server|client|reviewer-core|mcp-server)/specs/*.md — never e2e/specs (flows)
 // Input: hook JSON on stdin (tool_input.file_path). Exit 0 = allow, exit 2 = block (stderr goes back
 // to the agent). FAILS CLOSED: bad JSON, a missing path or an unknown profile all block.
+// The path is normalized FIRST (`\` → `/`, then resolved against $CLAUDE_PROJECT_DIR so `..` segments
+// and absolute paths collapse) and only then matched.
 // Order: outside the project root → block; DENY → block; profile ALLOW → allow; else block.
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -45,6 +48,9 @@ const ALLOW = {
     `${PKGS}/docs/**/*.md`,
     'server/src/modules/*/README.md',
   ],
+  specs: [
+    '{server,client,reviewer-core,mcp-server}/specs/*.md',
+  ],
 };
 
 // Minimal glob → RegExp: `**/` = zero or more dirs, `**` = anything, `*` = no `/`, `{a,b}` = alternation.
@@ -83,9 +89,10 @@ try {
 const file = input?.tool_input?.file_path ?? input?.tool_input?.notebook_path;
 if (typeof file !== 'string' || !file) block(`Blocked (write-scope ${profile}): no file_path in tool input.`);
 
-const root = path.resolve(process.env.CLAUDE_PROJECT_DIR || input.cwd || process.cwd());
-const target = path.resolve(input.cwd || root, file);
-const rel = path.relative(root, target).replace(/\\/g, '/');
+const slash = (p) => p.replace(/\\/g, '/');
+const root = path.resolve(slash(process.env.CLAUDE_PROJECT_DIR || input.cwd || process.cwd()));
+const target = path.resolve(slash(input.cwd || root), slash(file));
+const rel = slash(path.relative(root, target));
 
 const allowed = ALLOW[profile].join(', ');
 if (!rel || rel.startsWith('../') || rel === '..' || path.isAbsolute(rel)) {

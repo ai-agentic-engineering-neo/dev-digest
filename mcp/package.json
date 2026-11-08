@@ -1,5 +1,5 @@
 {
-  "name": "@devdigest/mcp-server",
+  "name": "@devdigest/mcp",
   "version": "0.1.0",
   "license": "MIT",
   "private": true,

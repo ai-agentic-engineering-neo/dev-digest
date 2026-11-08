@@ -1,6 +1,6 @@
 ---
 name: engineering-insights
-description: Captures non-obvious engineering insights (user corrections, dead ends, non-obvious root causes, decisions with their reason, tool quirks) into the INSIGHTS.md of the package being worked on (client, server, reviewer-core, e2e, mcp-server). Use proactively the moment such a signal is confirmed during any task, and always as a wrap-up at the end of every task — writes only new, substantive insights, otherwise leaves the file untouched. Also use on /engineering-insights, "/engineering-insights review", or phrases like "wrap up", "what did we learn", "record this insight", "запиши інсайт", "підсумуй сесію".
+description: Captures non-obvious engineering insights (user corrections, dead ends, non-obvious root causes, decisions with their reason, tool quirks) into the INSIGHTS.md of the package being worked on (client, server, reviewer-core, e2e, mcp). Use proactively the moment such a signal is confirmed during any task, and always as a wrap-up at the end of every task — writes only new, substantive insights, otherwise leaves the file untouched. Also use on /engineering-insights, "/engineering-insights review", or phrases like "wrap up", "what did we learn", "record this insight", "запиши інсайт", "підсумуй сесію".
 ---
 
 # Engineering insights
@@ -35,7 +35,7 @@ Write an entry only if it passes both tests: (a) not obvious to anyone reading t
 ## Where to write
 
 `<pkg>/INSIGHTS.md` of the package whose files the insight is about:
-`client/`, `server/` (includes `server/src/modules/repo-intel`), `reviewer-core/`, `e2e/`, `mcp-server/`.
+`client/`, `server/` (includes `server/src/modules/repo-intel`), `reviewer-core/`, `e2e/`, `mcp/`.
 Touched several packages → one entry in each, worded for that package. Root-only change (scripts,
 docker) → the package whose behavior it affects; if none, report it instead of writing.
 File missing → create it from [TEMPLATE.md](TEMPLATE.md).

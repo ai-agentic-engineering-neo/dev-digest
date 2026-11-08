@@ -3,7 +3,7 @@
     "devdigest": {
       "type": "stdio",
       "command": "node",
-      "args": ["mcp-server/node_modules/tsx/dist/cli.mjs", "mcp-server/src/index.ts"],
+      "args": ["mcp/node_modules/tsx/dist/cli.mjs", "mcp/src/index.ts"],
       "env": {
         "DEVDIGEST_API_URL": "${DEVDIGEST_API_URL:-http://localhost:3001}"
       },

@@ -3,7 +3,7 @@
 //   node write-scope.mjs <profile>     profile ∈ { tests, docs, specs }
 //   tests → test-writer:  test files + test helpers only
 //   docs  → doc-writer:   README.md / TESTING.md / <pkg>/docs/**/*.md / module READMEs
-//   specs → spec-creator: specs/*.md (root, cross-module) + (server|client|reviewer-core|mcp-server)/specs/*.md
+//   specs → spec-creator: specs/*.md (root, cross-module) + (server|client|reviewer-core|mcp)/specs/*.md
 //           — never e2e/specs (flows), never subfolders
 // Input: hook JSON on stdin (tool_input.file_path). Exit 0 = allow, exit 2 = block (stderr goes back
 // to the agent). FAILS CLOSED: bad JSON, a missing path or an unknown profile all block.
@@ -51,7 +51,7 @@ const ALLOW = {
   ],
   specs: [
     'specs/*.md', // cross-module specs (feature touches ≥ 2 modules)
-    '{server,client,reviewer-core,mcp-server}/specs/*.md', // single-module specs
+    '{server,client,reviewer-core,mcp}/specs/*.md', // single-module specs
   ],
 };
 

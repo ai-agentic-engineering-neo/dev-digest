@@ -23,7 +23,7 @@ Each lesson L01–L08 adds one feature; unused DB tables / i18n files for future
 | `client/` | Next.js 15 / React 19 studio, `:3000` | pnpm | `client/CLAUDE.md` |
 | `reviewer-core/` | Pure review engine: diff → prompt → LLM → grounded findings | **npm** | `reviewer-core/CLAUDE.md` |
 | `e2e/` | Deterministic browser flows (agent-browser, no LLM) | npm | `e2e/CLAUDE.md` |
-| `mcp-server/` | stdio MCP server (5 tools) over the DevDigest HTTP API — no DB access; wired in `.mcp.json` | npm | `mcp-server/CLAUDE.md` |
+| `mcp/` | stdio MCP server (5 tools) over the DevDigest HTTP API — no DB access; wired in `.mcp.json` | npm | `mcp/CLAUDE.md` |
 
 Root `specs/` (not a package) holds the specs of features that touch ≥ 2 modules; a single-module feature's
 spec lives in `<pkg>/specs/` ([`specs/README.md`](specs/README.md)). Specs are written by the `spec-creator` agent.

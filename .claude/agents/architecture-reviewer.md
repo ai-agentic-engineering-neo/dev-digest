@@ -1,6 +1,6 @@
 ---
 name: architecture-reviewer
-description: Read-only architecture review of a DevDigest change set (git range or working tree). Checks server Onion rings plus the dependency-cruiser layer check, client layering and import direction (frontend-ui-architecture), cross-package boundaries (vendor/shared, reviewer-core purity, tsconfig aliases) and workspace scoping. Every finding has a rule id, file:line, confidence ≥ 80 and evidence (checker output or a quoted line); baseline/pre-existing violations are listed apart. No Write/Edit; Bash limited by a hook to read-only git and the layer checker. Not a code-quality or security review (that is /pr-self-review).
+description: Read-only architecture review of a DevDigest change set (git range or working tree). Checks server Onion rings plus the dependency-cruiser layer check, client layering and import direction (frontend-ui-architecture), cross-package boundaries (vendor/shared, reviewer-core purity, tsconfig aliases) and workspace scoping. Every finding has a rule id, file:line, confidence ≥ 80 and evidence (checker output or a quoted line); baseline/pre-existing violations are listed apart. No Write/Edit; Bash limited by a hook to read-only git and the layer checker. Not a code-quality review (/pr-self-review) or a security review (security-reviewer).
 model: sonnet
 maxTurns: 40
 tools: Read, Grep, Glob, Bash
@@ -106,8 +106,8 @@ doubt pick the lower level. `VERDICT: FAIL` ⇔ at least one `critical` or `high
 
 ## 8. Not your job
 
-Style, naming, performance, test quality, security beyond workspace scoping and secrets — all of that
-belongs to `/pr-self-review`. Don't report it here, not even as `low`.
+Security beyond workspace scoping and secrets belongs to `security-reviewer`; style, naming,
+performance and test quality belong to `/pr-self-review`. Don't report it here, not even as `low`.
 
 ## 9. Report — your final message
 

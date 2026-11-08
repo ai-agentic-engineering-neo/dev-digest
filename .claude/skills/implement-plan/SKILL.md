@@ -109,23 +109,24 @@ Per task: `DONE` / `DONE_WITH_CONCERNS` / `BLOCKED`. Collect `DEVIATIONS`, `FORE
 
 All tasks `done` → run the full unit suites of every touched package once. Insights (§6) are already
 recorded, so the verifiers and `/pr-self-review` see the final `INSIGHTS.md`. Then launch, in ONE
-message, two `Agent` calls (read-only; their rules live in `.claude/agents/`):
+message, three `Agent` calls (read-only; their rules live in `.claude/agents/`):
 
 ```
 subagent_type: plan-verifier           →  plan: plans/<feature>.md · base: <plan base> · run: unit
 subagent_type: architecture-reviewer   →  base: <plan base> · plan: plans/<feature>.md
+subagent_type: security-reviewer       →  base: <plan base> · plan: plans/<feature>.md
 ```
 
-Show the user both header blocks (`VERDICT`, `COVERAGE` / `CHECKS RUN`, and every non-MET row / finding). Then:
+Show the user the three header blocks (`VERDICT`, `COVERAGE` / `CHECKS RUN` / `COUNTS`, and every non-MET row / finding). Then:
 
 plan-verifier finds the spec criteria through the plan's `Specs:` and each task's `Covers:` and returns
 a TRACEABILITY matrix (`SPEC-NN/AC-n → task → test → commit`) with a GAPS list — show the GAPS too.
 
-- `COMPLIANT` + `PASS` → plan `Status: done`, update its line in `plans/README.md`; set each linked
+- `COMPLIANT` + both reviewers `PASS` → plan `Status: done`, update its line in `plans/README.md`; set each linked
   spec's header `Status: approved` → `implemented` (edit only that word). Offer `doc-writer`
   (`from: plans/<feature>.md`) as an optional next step, then tell the user to run `/pr-self-review`
   (manual, it gates push/PR).
-- `NOT COMPLIANT` or `FAIL` → keep `Status: in progress`, list the findings with their task, and offer a
+- `NOT COMPLIANT` or any reviewer `FAIL` (a CRITICAL/HIGH security finding counts) → keep `Status: in progress`, list the findings with their task, and offer a
   `--task T<n>` re-run with the finding appended as `gate failure:` — or ask the user. Never set `done`.
 - `INCOMPLETE EVIDENCE` (+ `PASS`) → show `NOT RUN` / `UNVERIFIABLE` rows and ask the user to confirm
   the manual checks; set `done` only after they confirm.

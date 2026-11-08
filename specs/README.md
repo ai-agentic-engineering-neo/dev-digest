@@ -1,6 +1,6 @@
 # specs — cross-module
 
-Specs of features that touch **two or more modules** (`server`, `client`, `reviewer-core`, `mcp-server`,
+Specs of features that touch **two or more modules** (`server`, `client`, `reviewer-core`, `mcp`,
 `e2e`). A feature that touches one module keeps its spec in `<module>/specs/`. `docs/` describes how
 existing code works, `specs/` what to build; `plans/` says how and in what order.
 
@@ -8,7 +8,7 @@ existing code works, `specs/` what to build; `plans/` says how and in what order
 
 | The feature touches | Spec goes to |
 |---|---|
-| ONE module | `<module>/specs/<feature>.md` (`server` · `client` · `reviewer-core` · `mcp-server`; never `e2e/specs/` — those are executable flows) |
+| ONE module | `<module>/specs/<feature>.md` (`server` · `client` · `reviewer-core` · `mcp`; never `e2e/specs/` — those are executable flows) |
 | TWO or more modules | ONE file here: `specs/<feature>.md` — never split per module; each touched module's `specs/README.md` gets a "see also" line pointing here |
 
 ## How specs are written

@@ -61,8 +61,8 @@
       "skills": ["typescript-expert", "zod"]
     },
     {
-      "bucket": "mcp-server",
-      "files": ["mcp-server/src/**/*.ts"],
+      "bucket": "mcp",
+      "files": ["mcp/src/**/*.ts"],
       "skills": ["typescript-expert", "zod"]
     },
     {

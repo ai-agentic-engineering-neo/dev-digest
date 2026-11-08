@@ -77,7 +77,7 @@ add('write-scope.mjs', 'specs', [
   'server/specs/x.md',
   'client/specs/run-cost-badge.md',
   'reviewer-core/specs/README.md',
-  'mcp-server/specs/x.md',
+  'mcp/specs/x.md',
   'specs/x.md', // root: cross-module specs
   'specs/README.md',
   'specs\\x.md', // root, Windows separators
@@ -404,9 +404,9 @@ const PROFILES = {
 // MCP tools: names come from the devdigest server's registerTool() calls, so a typo or a removed tool
 // fails here instead of being dropped silently. Agents that must never start a paid review run:
 const MCP_TOOLS = new Set(
-  readdirSync(path.join(ROOT, 'mcp-server', 'src', 'tools'))
+  readdirSync(path.join(ROOT, 'mcp', 'src', 'tools'))
     .filter((f) => f.endsWith('.ts'))
-    .flatMap((f) => [...readFileSync(path.join(ROOT, 'mcp-server', 'src', 'tools', f), 'utf8')
+    .flatMap((f) => [...readFileSync(path.join(ROOT, 'mcp', 'src', 'tools', f), 'utf8')
       .matchAll(/registerTool\(\s*'([a-z_]+)'/g)].map((m) => `mcp__devdigest__${m[1]}`)),
 );
 const MCP_FORBIDDEN = { 'spec-creator': ['mcp__devdigest__run_agent_on_pr'] };
@@ -473,7 +473,7 @@ function lintAgent(file, rawText) {
   return out;
 }
 
-if (MCP_TOOLS.size < 5) failures.push(`MCP tool discovery found ${MCP_TOOLS.size} tools in mcp-server/src/tools (expected ≥ 5)`);
+if (MCP_TOOLS.size < 5) failures.push(`MCP tool discovery found ${MCP_TOOLS.size} tools in mcp/src/tools (expected ≥ 5)`);
 const agentFiles = readdirSync(AGENTS).filter((f) => f.endsWith('.md') && f !== 'README.md');
 for (const file of agentFiles) failures.push(...lintAgent(file, readFileSync(path.join(AGENTS, file), 'utf8')));
 

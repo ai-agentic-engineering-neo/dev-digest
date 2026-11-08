@@ -9,7 +9,7 @@
      Recommended: multi-agent if ≥ 6 tasks AND some wave has ≥ 2 independent tasks; else single-agent -->
 - **Goal:** <one sentence — what the user can do after this ships>
 - **Specs:** <Status approved: `SPEC-NN` — specs/<feature>.md (cross-module) | <module>/specs/<feature>.md (single module)>
-- **Packages:** server · client · reviewer-core · e2e · mcp-server (only the ones touched)
+- **Packages:** server · client · reviewer-core · e2e · mcp (only the ones touched)
 - **Out of scope:** <bullets>
 
 ## Global constraints

@@ -14,7 +14,7 @@ async function setup(state: FakeState = freshState(), config = {}) {
   return { ...c, state };
 }
 
-const RUN_ARGS = { repo: 'acme/payments-api', pr: 3, agent: 'Security Reviewer' };
+const RUN_ARGS = { repo: 'acme/payments-api', pr_id: 3, agent_id: 'Security Reviewer' };
 
 function runningRun(agentId: string, runId: string): ApiRun {
   return { run_id: runId, agent_id: agentId, agent_name: 'x', status: 'running', error: null, ran_at: null };
@@ -109,27 +109,29 @@ describe('run_agent_on_pr: arguments and errors', () => {
     expect(r.isError).toBe(true);
     expect(text(r)).toContain('agent-sec');
     expect(text(r)).toContain('agent-sec-2');
-    expect(text(r)).toContain('Pass the id');
+    expect(text(r)).toContain('Pass the agent_id');
     expect(postCount(state)).toBe(0);
   });
 
-  it('accepts pr as a numeric string and rejects a non-number', async () => {
-    const { call } = await setup();
-    const ok = await call('run_agent_on_pr', { ...RUN_ARGS, pr: '3' });
+  it('accepts pr_id as "#3" and rejects a title part that matches nothing (no run started)', async () => {
+    const { call, state } = await setup();
+    const ok = await call('run_agent_on_pr', { ...RUN_ARGS, pr_id: '#3' });
     expect(ok.isError).toBeFalsy();
     expect((ok.structuredContent as { status: string }).status).toBe('done');
 
-    const bad = await call('run_agent_on_pr', { ...RUN_ARGS, pr: 'abc' });
+    const before = postCount(state);
+    const bad = await call('run_agent_on_pr', { ...RUN_ARGS, pr_id: 'abc' });
     expect(bad.isError).toBe(true);
+    expect(text(bad)).toContain('No PR title in acme/payments-api contains "abc"');
+    expect(postCount(state)).toBe(before);
   });
 
-  it('keeps pr a flat integer in the tool schema', async () => {
+  it('keeps pr_id a flat scalar (number or string) in the tool schema', async () => {
     const { client } = await setup();
     const { tools } = await client.listTools();
     const tool = tools.find((t) => t.name === 'run_agent_on_pr')!;
-    const pr = (tool.inputSchema.properties as Record<string, Record<string, unknown>>).pr!;
-    expect(pr.type).toBe('integer');
-    expect(pr.anyOf).toBeUndefined();
+    const pr = (tool.inputSchema.properties as Record<string, { anyOf?: { type?: string }[] }>).pr_id!;
+    expect(pr.anyOf?.map((s) => s.type).sort()).toEqual(['integer', 'string']);
   });
 
   it('explains a 402 failure with a top-up hint', async () => {

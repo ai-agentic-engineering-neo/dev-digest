@@ -1,8 +1,8 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { guarded, ToolError } from '../errors.js';
 import { FindingsResult, runningResult } from '../format.js';
-import { resolveAgent, resolvePr, resolveRepo } from '../resolve.js';
-import { agentArg, findingsOk, finishedRunResult, prArg, repoArg, type ToolDeps } from './shared.js';
+import { resolveAgent, resolvePr } from '../resolve.js';
+import { agentIdArg, findingsOk, finishedRunResult, optionalRepoArg, prIdArg, type ToolDeps } from './shared.js';
 
 function sleep(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -25,17 +25,17 @@ export function registerRunAgentOnPr(server: McpServer, deps: ToolDeps): void {
     {
       title: 'Run a DevDigest review on a PR',
       description:
-        'Run one DevDigest reviewer agent on a pull request, wait for it and return the real findings (verdict, severity, file:line). ' +
-        'Starts a paid LLM run; if it takes too long, returns status "running" and a run_id for get_findings.',
-      inputSchema: { repo: repoArg, pr: prArg, agent: agentArg },
+        'Run one DevDigest reviewer agent on a pull request, wait for it and return the real findings (verdict, severity, category, file:line, suggestion, cost). ' +
+        'agent_id comes from list_agents (the exact agent name also works). Starts a paid LLM run; if it takes too long, returns status "running" and a run_id for get_findings.',
+      inputSchema: { repo: optionalRepoArg, pr_id: prIdArg, agent_id: agentIdArg },
       outputSchema: FindingsResult.shape,
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     },
-    guarded('run_agent_on_pr', async ({ repo, pr, agent }, extra) => {
+    guarded('run_agent_on_pr', async ({ repo, pr_id, agent_id }, extra) => {
       const { signal } = extra;
-      const found = await resolveAgent(deps.api, agent, signal);
-      const repoRow = await resolveRepo(deps.api, repo, signal);
-      const pull = await resolvePr(deps.api, repoRow, pr, signal);
+      const found = await resolveAgent(deps.api, agent_id, signal);
+      const { repo: repoRow, pull } = await resolvePr(deps.api, repo, pr_id, signal);
+      const pr = pull.number;
       const disabledWarning = found.enabled
         ? undefined
         : `Agent "${found.name}" is disabled in DevDigest; it was run anyway because it was requested explicitly.`;
@@ -59,7 +59,7 @@ export function registerRunAgentOnPr(server: McpServer, deps: ToolDeps): void {
       }
       const warning = [disabledWarning, reuseWarning].filter(Boolean).join(' ') || undefined;
 
-      const base = { repo: repoRow.full_name, pr, ...(warning ? { warning } : {}) };
+      const base = { repo: repoRow.full_name, prNumber: pr, prId: pull.id, ...(warning ? { warning } : {}) };
       const progressToken = extra._meta?.progressToken;
       const deadline = Date.now() + deps.config.runTimeoutMs;
       let tick = 0;
@@ -67,7 +67,7 @@ export function registerRunAgentOnPr(server: McpServer, deps: ToolDeps): void {
         await sleep(Math.min(deps.config.pollMs, Math.max(0, deadline - Date.now())), signal);
         const run = (await deps.api.listRuns(pull.id, signal)).find((r) => r.run_id === runId);
         if (run && run.status !== 'running' && run.status !== null) {
-          return findingsOk(await finishedRunResult(deps, { run, prId: pull.id, ...base }, signal));
+          return findingsOk(await finishedRunResult(deps, { run, ...base }, signal));
         }
         if (progressToken !== undefined) {
           tick++;
@@ -77,7 +77,7 @@ export function registerRunAgentOnPr(server: McpServer, deps: ToolDeps): void {
           });
         }
       }
-      return findingsOk(runningResult({ runId, agent: found.name, ...base }));
+      return findingsOk(runningResult({ runId, agentId: found.id, agent: found.name, ...base }));
     }),
   );
 }

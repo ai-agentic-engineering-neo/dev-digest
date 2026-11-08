@@ -6,22 +6,50 @@
 
 ## Інструменти
 
-| Інструмент | Коли викликати | Анотації |
+Однакові назви аргументів в усіх інструментах: `repo`, `pr_id`, `agent_id`, `run_id`. Аргументи пласкі.
+
+- **`repo`**: `"owner/name"`, просто `"name"` (якщо однозначне серед імпортованих) або UUID репо. Для
+  `run_agent_on_pr` / `get_findings` / `get_blast_radius` **необов'язковий**: без нього PR шукається в усіх
+  імпортованих репо. Кілька збігів → `isError` зі списком `owner/name#N title`.
+- **`pr_id`**: `15`, `"15"`, `"#15"`, UUID PR або частина назви PR (лише при одному збігу; інакше `isError`
+  зі списком кандидатів).
+- **`agent_id`**: `agent_id` з `list_agents`; також працює точне ім'я агента (без урахування регістру).
+
+| Інструмент | Що робить | Анотації |
 |---|---|---|
-| `list_agents` | Першим: дає валідний `agent` (`id`, `name`, `role`, `enabled`) | `readOnlyHint: true` |
-| `run_agent_on_pr` | `repo` (`owner/name`), `pr` (номер), `agent` (назва або id). Запускає прогін, **сам чекає** і повертає findings. Якщо цей агент уже має активний прогін на цьому PR, приєднується до нього (без другого платного прогону; про це каже `warning`). `pr` приймає і число, і рядок `"3"`. Disabled-агент теж запускається, з полем `warning` | `readOnlyHint: false`, `destructiveHint: false`, `idempotentHint: false`, `openWorldHint: true` |
-| `get_findings` | `repo`, `pr`, опційно `run_id` / `agent`. Без `run_id` повертає останній завершений прогін (цього агента) | `readOnlyHint: true` |
-| `get_conventions` | `repo`, опційно `status` (`accepted` за замовчуванням / `pending` / `all`). Не більше 50 правил, кожне `rule` ≤ 300 символів; обрізане рахує поле `truncated` | `readOnlyHint: true` |
-| `get_blast_radius` | `repo`, `pr`. Карта впливу PR з індексу repo-intel (без LLM): символи змінених файлів, їхні прямі викликачі (`file:line`) і ендпоінти/cron у файлах викликачів. Ліміти 30/15/10/10 (символи / символи з викликачами / викликачі / ендпоінти-cron на символ); `counts` серверні, до обрізки. Degraded (`no_data`, `index_partial`, …) додає `next_step` для людини. Resync ніколи не викликається | `readOnlyHint: true` |
+| `list_agents` | Першим: `agents[{agent_id, name, model, role, enabled}]` (системний промпт не віддається) | `readOnlyHint: true` |
+| `run_agent_on_pr` | `repo?`, `pr_id`, `agent_id`. Запускає прогін, **сам чекає** і повертає findings одного прогону. Якщо цей агент уже має активний прогін на PR, приєднується до нього (без другого платного прогону; про це каже `warning`). Disabled-агент теж запускається, з `warning` | `readOnlyHint: false`, `destructiveHint: false`, `idempotentHint: false`, `openWorldHint: true` |
+| `get_findings` | `repo?`, `pr_id`, опційно `run_id` / `agent_id` / `all_runs`. За замовчуванням — **останній завершений прогін кожного агента** на PR, згрупований; `agent_id` → лише цей агент; `run_id` → цей прогін; `all_runs: true` → усі завершені прогони (до 10, найновіші першими) | `readOnlyHint: true` |
+| `get_conventions` | `repo`, опційно `status` (`accepted` за замовчуванням / `pending` / `all`). Кожне правило з `confidence` і доказом `path:line`; дублікати (той самий текст після нормалізації регістру/пробілів) зливаються в одне — з найвищою `confidence` і `duplicates: N`. Не більше 50 правил, `rule` ≤ 300 символів | `readOnlyHint: true` |
+| `get_blast_radius` | `repo?`, `pr_id`. Карта впливу PR з індексу repo-intel (без LLM): символи змінених файлів (`name`, `file`, `kind`), прямі викликачі (`file:line`), ендпоінти/cron у файлах викликачів, і `prior_prs` — попередні PR цього репо, що чіпали ті самі файли (до 5, з `prior_prs_total`). Ліміти 30/15/10/10; `counts` серверні, до обрізки. Degraded додає `next_step`. Якщо `/prior-pulls` недоступний — `prior_prs: []` + `warning`, карта повертається. Resync ніколи не викликається | `readOnlyHint: true` |
 
-Відповідь `get_blast_radius` (`structuredContent`):
-`{status: "ready"|"degraded", repo, pr, head_sha, indexed_sha, link_sha, reason, summary, counts{symbols,callers,endpoints,crons}, changed_symbols[{name,file,kind}], downstream[{symbol,file,kind,callers[{name,file,line}],endpoints_affected,crons_affected}], unattributed_endpoints, truncated{symbols,downstream,callers,endpoints,crons}, callers_omitted_by_server, next_step?}`.
-`link_sha` береться з сервера без змін: рядки викликачів відповідають цьому коміту. Шляхи, імена символів і ендпоінти недовірені (нотатка в `content`).
+**Finding** (усюди однаковий): `{severity, category, title, file, start_line, rationale, suggestion}`;
+`title` ≤ 160, `rationale` / `suggestion` ≤ 300 символів, переноси рядків прибрані. `counts` рахуються по
+всіх активних findings (dismissed не рахуються) **до** обрізки; CRITICAL ніколи не обрізаються.
 
-Відповідь `run_agent_on_pr` і `get_findings` (`structuredContent`):
-`{status: "done"|"running", run_id, repo, pr, agent, verdict, score, summary, counts{critical,warning,suggestion}, findings[{severity,title,file,line,message}], truncated, warning?, next_step?}`.
-`counts` рахуються по всіх активних findings (dismissed не рахуються) **до** обрізки. Список відсортований
-за severity й обрізаний до 25, але CRITICAL ніколи не відкидаються. У `content` лежить короткий текстовий підсумок.
+Відповідь `run_agent_on_pr` (`structuredContent`):
+`{status: "done"|"running", run_id, repo, pr_number, pr_id, review_id, agent_id, agent, model, created_at, cost_usd, verdict, score, summary, counts{critical,warning,suggestion}, findings[], truncated, warning?, next_step?}`.
+Не більше 25 findings.
+
+Відповідь `get_findings`:
+`{status: "done"|"running", repo, pr_number, pr_id, reviews[{review_id, agent_id, agent_name, run_id, verdict, summary, score, model, created_at, cost_usd, counts, findings[], truncated}], running[{run_id, agent_id, agent_name}], counts, truncated, runs_omitted, next_step?}`.
+Ліміти на всю відповідь: ≤ 25 findings на прогін і ≤ 60 разом (CRITICAL не обрізаються), ≤ 10 прогонів
+(`runs_omitted` — скільки старіших не показано). `cost_usd` — з `GET /pulls/:id/runs` (`null`, якщо невідома).
+
+Відповідь `get_blast_radius`:
+`{status: "ready"|"degraded", repo, pr_number, pr_id, head_sha, indexed_sha, link_sha, reason, summary, counts{symbols,callers,endpoints,crons}, changed_symbols[{name,file,kind}], downstream[{symbol,file,kind,callers[{name,file,line}],endpoints_affected,crons_affected}], unattributed_endpoints, truncated{…}, callers_omitted_by_server, prior_prs[{number,title,author,status,shared_count,shared_files}], prior_prs_total, next_step?, warning?}`.
+`link_sha` береться з сервера без змін: рядки викликачів відповідають цьому коміту. Тексти з PR і репозиторію
+(findings, правила, шляхи, імена, назви PR) недовірені — це сказано в `content` і в `instructions` сервера.
+
+### Breaking change (2026-11-08)
+
+Аргументи перейменовано **без синонімів**: `pr` → `pr_id`, `agent` → `agent_id`. У відповідях: `pr` → `pr_number`
+(+ `pr_id` як UUID), finding `line` → `start_line`, `message` → `rationale`, у `list_agents` `id` → `agent_id`.
+`get_findings` без `run_id` тепер повертає **групи по агентах** (`reviews[]`), а не один прогін.
+Збережені промпти чи скрипти зі старими назвами треба оновити.
+
+Рядок для опису PR:
+> **mcp-server (breaking):** args unified to `repo` / `pr_id` / `agent_id` (repo optional, PR by number/`#N`/UUID/title); findings carry `category` + `suggestion` (+ `start_line`); `get_findings` returns the latest run of every agent grouped (`all_runs`, 60/25/10 caps, `cost_usd`); `list_agents` adds `model`; `get_conventions` adds `confidence` + dedup; `get_blast_radius` adds `prior_prs`.
 
 ## Запуск
 
@@ -41,16 +69,17 @@ npx @modelcontextprotocol/inspector node mcp-server/node_modules/tsx/dist/cli.mj
 # CLI
 npx @modelcontextprotocol/inspector --cli node mcp-server/node_modules/tsx/dist/cli.mjs mcp-server/src/index.ts --method tools/list
 npx @modelcontextprotocol/inspector --cli node mcp-server/node_modules/tsx/dist/cli.mjs mcp-server/src/index.ts \
-  --method tools/call --tool-name get_findings --tool-arg repo=lindigo-design/dev-digest --tool-arg pr=28
+  --method tools/call --tool-name get_findings --tool-arg pr_id=28
 ```
 
 Що перевіряти: рівно 5 інструментів, анотації як у таблиці вище, у кожного поля є опис, а помилка
-(наприклад `agent=Nope`) приходить як `isError: true` з підказкою. Для `isError` CLI повертає код виходу 5.
+(наприклад `agent_id=Nope`) приходить як `isError: true` з підказкою. Для `isError` CLI повертає код виходу 5.
 
 Тести (vitest, in-memory MCP Client + підмінений `fetch`, без мережі):
 
-- `test/tools.test.ts`: усі 5 інструментів, схеми, анотації, ліміти `get_conventions`.
-- `test/run-agent-on-pr.test.ts`: приєднання до активного прогону, progress, cancel, неоднозначний агент, `pr:"3"`, помилки з наступним кроком.
+- `test/tools.test.ts`: усі 5 інструментів, схеми, анотації, пошук `repo`/`pr_id`, групи й ліміти `get_findings`, дедуплікація `get_conventions`.
+- `test/get-blast-radius.test.ts`: карта, ліміти, degraded, `prior_prs` і падіння `/prior-pulls`.
+- `test/run-agent-on-pr.test.ts`: приєднання до активного прогону, progress, cancel, неоднозначний агент, `pr_id:"#3"`, помилки з наступним кроком.
 - `test/stdio.smoke.test.ts`: справжній процес через `StdioClientTransport` (stdout містить лише JSON-RPC).
 
 ```bash
@@ -122,7 +151,7 @@ src/index.ts         stdio-вхід (логи тільки в stderr)
 src/server.ts        createServer(config, fetch?) — instructions + 5 інструментів у фіксованому порядку
 src/config.ts        env → Config
 src/api-client.ts    тонкий HTTP-клієнт DevDigest, Zod-схеми відповідей (ApiError / ApiShapeError / ApiUnreachableError)
-src/resolve.ts       owner/name → repo, номер → PR, назва/id → agent (+ тексти помилок)
+src/resolve.ts       repo (owner/name | name | UUID), pr_id (номер | #N | UUID | частина назви), agent (id | назва)
 src/format.ts        FindingsResult (outputSchema), стискання й обрізання findings, текстовий підсумок
 src/errors.ts        ToolError, guarded() → isError: true з підказкою
 src/tools/*.ts       по файлу на інструмент
@@ -146,14 +175,16 @@ TypeScript SDK, стаття Anthropic «Writing effective tools for agents», �
    з форматом (`"owner/name"`, номер PR).
 3. **Людські ідентифікатори замість UUID.** Значущі імена зменшують галюцинації.
    [Anthropic](https://www.anthropic.com/engineering/writing-tools-for-agents)
-   **У нас:** `repo` передається як `owner/name`, `pr` як номер, `agent` як назва або id (без урахування
-   регістру). UUID DevDigest резолвимо всередині сервера.
+   **У нас:** `repo` — `owner/name` або просто `name` (UUID теж приймається), `pr_id` — номер / `#N` /
+   частина назви, `agent_id` — id або точне ім'я. UUID DevDigest резолвимо всередині сервера; неоднозначність →
+   `isError` зі списком кандидатів, а не вгадування.
 4. **Пласка zod-схема з `.describe()` на кожному полі; сервер MUST валідувати вхід.** Офіційні
    приклади використовують пласкі `z.object`.
    [MCP build-server](https://modelcontextprotocol.io/docs/2026-07-28/develop/build-server.md),
    [Spec: Tools § Security](https://modelcontextprotocol.io/specification/2026-07-28/server/tools)
-   **У нас:** у вхідних схемах тільки `string`, `number` і один маленький enum, без вкладених об'єктів.
-   `repo` перевіряємо regex `owner/name`, `pr` має бути додатним цілим.
+   **У нас:** у вхідних схемах тільки `string`, `number`, `boolean` (`all_runs`) і один маленький enum, без
+   вкладених об'єктів; `pr_id` — скаляр `number | string`. Формат `repo`/`pr_id` перевіряє резолвер з
+   підказкою наступного кроку.
 5. **`outputSchema` + `structuredContent`, і дублювання в `content`.** Якщо `outputSchema` задано,
    сервер MUST повернути відповідний `structuredContent` і SHOULD продублювати його текстом для
    сумісності. SDK валідує `structuredContent` перед відправкою.
@@ -165,8 +196,9 @@ TypeScript SDK, стаття Anthropic «Writing effective tools for agents», �
    розумними дефолтами. Якщо щось обрізали, скажіть агенту, як звузити запит. Режим concise витрачав
    приблизно третину токенів detailed.
    [Anthropic](https://www.anthropic.com/engineering/writing-tools-for-agents)
-   **У нас:** знахідка містить тільки `severity`, `title`, `file`, `line` і `message` (≤ 300 символів), список
-   відсортовано за severity з лімітом 25 і полем `truncated`. Промптів, трейсів і сирих DTO не віддаємо.
+   **У нас:** знахідка містить `severity`, `category`, `title`, `file`, `start_line`, `rationale` і `suggestion`
+   (≤ 300 символів), список відсортовано за severity з лімітами 25 на прогін / 60 на відповідь і полем
+   `truncated`. Промптів, трейсів і сирих DTO не віддаємо.
 7. **Ліміти виводу в Claude Code.** Попередження з'являється понад 10k токенів, дефолтний ліміт 25k
    (`MAX_MCP_OUTPUT_TOKENS`), а текст понад 50k символів зберігається у файл.
    [Claude Code: MCP output limits](https://code.claude.com/docs/en/mcp)

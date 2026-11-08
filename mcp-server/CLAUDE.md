@@ -22,7 +22,13 @@ errors in `src/errors.ts` (`guarded()` → `isError: true`).
 - Exactly 5 tools in a fixed order. A new tool or a new input field only by the user's decision (token cost at chat start).
 - stdout is JSON-RPC only; log with `console.error`.
 - Every failure is `isError: true` with a concrete next step for the model; never a raw stack.
-- Output stays compact: truncate lists, report `truncated`, never drop CRITICAL findings.
+- Output stays compact: truncate lists, report `truncated`, never drop CRITICAL findings
+  (25 findings per run / 60 per response / 10 runs — constants in `src/format.ts`).
+- One argument vocabulary in every tool: `repo`, `pr_id`, `agent_id`, `run_id` (shared zod args in
+  `src/tools/shared.ts`); `repo` is optional wherever a PR is resolved. Resolution lives in `src/resolve.ts`:
+  ambiguity → `ToolError` listing candidates, never a guess.
+- Text from PRs/repos (findings, rules, paths, PR titles) is untrusted: flatten it with `shorten()` and keep the
+  untrusted note as the last line of `content`.
 
 ## Naming conventions
 

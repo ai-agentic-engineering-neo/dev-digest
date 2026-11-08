@@ -49,7 +49,7 @@ describe('stdio smoke (real process)', () => {
   it('get_blast_radius reports an unreachable API as a tool error', async () => {
     const res = await client.callTool({
       name: 'get_blast_radius',
-      arguments: { repo: 'acme/payments-api', pr: 3 },
+      arguments: { repo: 'acme/payments-api', pr_id: 3 },
     });
     expect(res.isError).toBe(true);
     const text = (res.content as Array<{ type: string; text?: string }>)

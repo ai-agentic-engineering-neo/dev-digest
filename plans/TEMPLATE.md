@@ -1,12 +1,15 @@
-# Development Plan: <feature>
+# Implementation Plan: <feature>
 
-<!-- Written by the `planner` agent. Copy this file to plans/<feature-kebab>.md.
-     No "TBD" anywhere: unknowns go to "Open questions" and block approval. -->
+<!-- Written by the `implementation-planner` agent. Copy this file to plans/<feature-kebab>.md.
+     The plan says HOW to build; WHAT to build comes from the APPROVED specs it links (spec-creator) —
+     the implementation-planner never writes specs. No "TBD" anywhere: unknowns go to "Open questions" and block approval. -->
 
 - **Status:** draft | approved | in progress | done
+- **Execution mode:** multi-agent | single-agent  <!-- chosen by the user; /implement-plan follows it.
+     Recommended: multi-agent if ≥ 6 tasks AND some wave has ≥ 2 independent tasks; else single-agent -->
 - **Goal:** <one sentence — what the user can do after this ships>
-- **Specs:** <links to server/specs/<feature>.md, client/specs/<feature>.md — or "none, see Goal">
-- **Packages:** server · client · reviewer-core · e2e (only the ones touched)
+- **Specs:** <one per spec file, Status approved: `SPEC-NN` — server/specs/<feature>.md · `SPEC-MM` — client/specs/<feature>.md>
+- **Packages:** server · client · reviewer-core · e2e · mcp-server (only the ones touched)
 - **Out of scope:** <bullets>
 
 ## Global constraints
@@ -42,6 +45,8 @@ export type Foo = z.infer<typeof Foo>;
 - **Status:** todo
 - **Files (only these):** …
 - **Depends on:** —
+- **Covers:** <`SPEC-NN/AC-n, …` this task makes true — mandatory; only W0 contracts / integration may write
+  "— (W0 contracts)" or "— (integration: <why>)">
 - **Produces:** <signatures / routes>
 - **Insights:** <exact INSIGHTS.md lines (with path:line → symbol) about these files/modules — or "none">
 - **Skill focus:** <optional — the 1–3 skill rules most at risk here; all injected skills apply anyway>
@@ -60,7 +65,7 @@ export type Foo = z.infer<typeof Foo>;
 | Wave | Tasks | Runs | Gate before next wave |
 |---|---|---|---|
 | W0 | T0 | alone | typecheck + its tests green |
-| W1 | T1, T2 | in parallel | every task's Verify + typecheck of every touched package |
+| W1 | T1, T2 | in parallel (multi-agent) · sequential: T1 → T2 (single-agent) | every task's Verify + typecheck of every touched package |
 | W2 | T3 (integration / e2e) | alone | — |
 
 ## Risks · Review focus

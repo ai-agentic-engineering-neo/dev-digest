@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// PreToolUse hook for the `planner` subagent: allow Write only to <project>/plans/*.md.
+// PreToolUse hook for the `implementation-planner` subagent: allow Write only to <project>/plans/*.md.
 // Input: hook JSON on stdin (tool_input.file_path). Exit 2 = block, stderr goes back to the agent.
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -24,5 +24,5 @@ if (target.startsWith(plansDir) && target.endsWith('.md') && !target.slice(plans
   process.exit(0);
 }
 
-console.error(`Blocked: planner may write only plans/*.md (got ${file}). Put the content into the plan instead.`);
+console.error(`Blocked: implementation-planner may write only plans/*.md (got ${file}) — no specs, no code. Put the content into the plan; a spec problem → return CANNOT PLAN → run spec-creator.`);
 process.exit(2);

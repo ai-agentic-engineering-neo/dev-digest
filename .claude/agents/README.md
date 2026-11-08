@@ -10,7 +10,7 @@ skills; don't copy them here.
 ```
 question ─────────► researcher ─► report (chat)
 
-feature request ──► planner ─► plans/<feature>.md (draft) ─► user sets "approved"
+feature request ──► implementation-planner ─► plans/<feature>.md (draft) ─► user sets "approved"
                 ──► /implement-plan plans/<feature>.md          (manual skill, main session)
                       per wave: implementer-backend / implementer-frontend × tasks, in parallel
                       ─► gate: ownership diff · Verify · typecheck · layer check
@@ -29,7 +29,7 @@ change set ───────► architecture-reviewer · plan-verifier ─�
 | Agent | Responsibility | Input | Output artifacts | Launched by |
 |---|---|---|---|---|
 | [researcher](researcher.md) | Answer one concrete question from the repo and/or external sources; interview first if the request is vague | a question (free text) | report in chat: TL;DR, findings with `path:line`/URL, references, "Not found / unverified" — or clarifying questions | anyone (`@researcher`, "use the researcher…") |
-| [planner](planner.md) | Turn a feature that spans 2+ packages or 3+ tasks into an executable plan; no code | feature request (+ links to specs) | `plans/<feature>.md` from [TEMPLATE](../../plans/TEMPLATE.md) (`Status: draft`) + its line in [plans/README](../../plans/README.md); chat summary (path, wave table, open questions, could-not-verify) — or questions, or a `CANNOT PLAN` note | main session / user |
+| [implementation-planner](implementation-planner.md) | Turn a feature that spans 2+ packages or 3+ tasks into an executable plan; no code | feature request (+ links to specs) | `plans/<feature>.md` from [TEMPLATE](../../plans/TEMPLATE.md) (`Status: draft`) + its line in [plans/README](../../plans/README.md); chat summary (path, wave table, open questions, could-not-verify) — or questions, or a `CANNOT PLAN` note | main session / user |
 | [implementer-backend](implementer-backend.md) | Write the code of ONE `[backend]` task: `server/`, `reviewer-core/`, `e2e/` | `plan: plans/<f>.md` + `task: T<n>` (+ `base` commit) | code + tests in the task's owned files only; report `STATUS · FILES · TESTS · DEVIATIONS · FOREIGN ERRORS · BLOCKER · INSIGHT CANDIDATES` | [/implement-plan](../skills/implement-plan/SKILL.md) |
 | [implementer-frontend](implementer-frontend.md) | Same for ONE `[frontend]` task: `client/` | same | same | [/implement-plan](../skills/implement-plan/SKILL.md) |
 | [test-writer](test-writer.md) | Write tests for existing code in `client/`, `server/`, `reviewer-core/`; prove each can fail; report bugs as failing tests | `target:` paths (+ `focus:`, `spec:`) | test files / test helpers only; report `STATUS · FILES · BEHAVIOURS · RED CHECK (one per test) · RUN · SHUFFLE · TYPECHECK · BUGS FOUND · NEEDS PRODUCTION CHANGE` | user (`@test-writer`) |
@@ -51,7 +51,7 @@ the hard limit; "prompt" = only the system prompt says so.
 | Agent | Model | Allowed tools | Denied | Limits enforced | Limits by prompt only |
 |---|---|---|---|---|---|
 | researcher | sonnet | Read, Grep, Glob, Bash, WebSearch, WebFetch, AskUserQuestion | everything else (allowlist): no Write/Edit, Agent, Skill | no file writes, no sub-agents, no skills | Bash only read-only git history; files via Read/Grep/Glob, no `cat`/`grep`/`ls` (no hook); never open `.env*` / `clones/**/.git/config` |
-| planner | opus · effort high | Read, Grep, Glob, Bash, Write, AskUserQuestion | Agent, Edit, Skill | `Write` only `plans/*.md` ([hook](hooks/plans-only-write.mjs)) | Bash only read-only git; files via Read/Grep/Glob, no `cat`/`grep`/`ls` (no hook) |
+| implementation-planner | opus · effort high | Read, Grep, Glob, Bash, Write, AskUserQuestion | Agent, Edit, Skill | `Write` only `plans/*.md` ([hook](hooks/plans-only-write.mjs)) | Bash only read-only git; files via Read/Grep/Glob, no `cat`/`grep`/`ls` (no hook) |
 | implementer-backend | sonnet · maxTurns 60 | Read, Grep, Glob, Edit, Write, Bash | Agent, Skill | no sub-agents, no extra skills, ≤ 60 turns | owned files only (checked after the wave by `/implement-plan`); no git/install/`docker compose down -v`; Do-not-touch paths |
 | implementer-frontend | sonnet · maxTurns 60 | same | Agent, Skill | same | same |
 | test-writer | sonnet · maxTurns 60 | Read, Grep, Glob, Edit, Write, Bash | Agent, Skill | Write/Edit only test files + helpers ([write-scope](hooks/write-scope.mjs) `tests`); no sub-agents | Bash: fixed shapes only — git status/diff/log/show, `tsc --noEmit -p tsconfig.json`, `vitest run <paths> [-t] [--sequence.shuffle]`, `rm` of its own untracked `mut-*` scratch files ([bash-guard](hooks/bash-guard.mjs) `tests`, hook (heuristic)); never edits production code or weakens an assertion |
@@ -80,12 +80,12 @@ These files must be named `mut-*`; test-writer deletes them itself with `rm` (ba
   (or with `||`) bash's `cd` fails and git runs from the repo root, so the `../` path leaves the work
   tree and git's implicit `--no-index` prints a file from above the repo. A fix would accept `cd` only
   into an existing directory and allow only `&&` after it.
-- planner and researcher have **no bash-guard**: "read files with Read/Grep/Glob, Bash only for
+- implementation-planner and researcher have **no bash-guard**: "read files with Read/Grep/Glob, Bash only for
   read-only git" is a prompt rule only.
 
 ## Injected skills (`skills:` frontmatter — full text loaded at start)
 
-| Skill | planner | impl-backend | impl-frontend | test-writer | arch-reviewer | doc-writer |
+| Skill | implementation-planner | impl-backend | impl-frontend | test-writer | arch-reviewer | doc-writer |
 |---|:-:|:-:|:-:|:-:|:-:|:-:|
 | implementer-protocol | | ● | ● |  |  |  |
 | onion-architecture | ● | ● | | ● | ● |  |
@@ -103,12 +103,12 @@ These files must be named `mut-*`; test-writer deletes them itself with `rm` (ba
 
 researcher has none. Sync rules: each implementer set = all skills that
 [routing.json](../skills/pr-self-review/references/routing.json) routes to its packages (client has no
-non-vendor `zod` imports → no `zod` in frontend); planner = union of both implementer sets.
-Add a skill to an implementer → add it to the planner too.
+non-vendor `zod` imports → no `zod` in frontend); implementation-planner = union of both implementer sets.
+Add a skill to an implementer → add it to the implementation-planner too.
 test-writer = the skills `routing.json` routes to test files (`react-testing-library` for client tests,
 `security` and `zod` for all TS, `typescript-expert` for `reviewer-core/src`) + `onion-architecture` /
 `fastify-best-practices` for per-ring server testing; the
-planner already holds all of them. The union rule does not extend to the reviewers or doc-writer.
+implementation-planner already holds all of them. The union rule does not extend to the reviewers or doc-writer.
 plan-verifier has no skills on purpose: it checks compliance, and skills would pull it toward generic advice.
 
 ## Where the agents' rules come from
@@ -119,14 +119,14 @@ report of 2026-11-06, not re-read · **internal** = this repo · **decision** = 
 | Source | Status | Rules it grounds | Where |
 |---|---|---|---|
 | [Claude Code — Subagents](https://code.claude.com/docs/en/sub-agents) | verified | `skills:` preload (full text, max 32, no `disable-model-invocation`, missing name skipped silently → `BLOCKED` check); `tools`/`disallowedTools` allowlist; `model`, `effort`, `maxTurns`; frontmatter `hooks:` PreToolUse, exit 2 = block; fresh context per subagent → self-contained plan + `plan`/`task` input | all frontmatter; [hook](hooks/plans-only-write.mjs); protocol §1 |
-| [Claude Code — Best practices](https://code.claude.com/docs/en/best-practices) | via researcher | give a runnable check and a "done" definition → Verify per task; interview before spec → planner Step 0; document only what the repo doesn't show → planner discovers modules instead of a hard-coded list | planner Steps 0–2; TEMPLATE `Verify` |
-| [Anthropic — How we built our multi-agent research system](https://www.anthropic.com/engineering/multi-agent-research-system) | via researcher | each worker gets objective, output format, boundaries; explicit effort-scaling → ≤ 4 tasks per wave | protocol §1/§5; planner "Waves" |
+| [Claude Code — Best practices](https://code.claude.com/docs/en/best-practices) | via researcher | give a runnable check and a "done" definition → Verify per task; interview before spec → spec-creator Step 3; document only what the repo doesn't show → implementation-planner discovers modules instead of a hard-coded list | spec-creator Step 3; implementation-planner Step 1; TEMPLATE `Verify` |
+| [Anthropic — How we built our multi-agent research system](https://www.anthropic.com/engineering/multi-agent-research-system) | via researcher | each worker gets objective, output format, boundaries; explicit effort-scaling → ≤ 4 tasks per wave | protocol §1/§5; implementation-planner "Waves" |
 | [Anthropic — Building effective agents](https://www.anthropic.com/engineering/building-effective-agents) | via researcher | orchestrator-workers for multi-file changes; minimal tools, short prompts | pipeline; tool allowlists |
-| [obra/superpowers](https://github.com/obra/superpowers) — `writing-plans`, `subagent-driven-development`, `dispatching-parallel-agents` (community) | via researcher | file map before tasks; exact paths + interfaces per task; no "TBD"; plan self-check; parallel only with no shared files, all in one message; `DONE / DONE_WITH_CONCERNS / BLOCKED`; implementers don't dispatch sub-agents | TEMPLATE; planner Step 2–3; protocol §3/§5; `/implement-plan` §2 |
+| [obra/superpowers](https://github.com/obra/superpowers) — `writing-plans`, `subagent-driven-development`, `dispatching-parallel-agents` (community) | via researcher | file map before tasks; exact paths + interfaces per task; no "TBD"; plan self-check; parallel only with no shared files, all in one message; `DONE / DONE_WITH_CONCERNS / BLOCKED`; implementers don't dispatch sub-agents | TEMPLATE; implementation-planner Steps 3–4; protocol §3/§5; `/implement-plan` §2 |
 | [github/spec-kit `tasks-template.md`](https://github.com/github/spec-kit/blob/main/templates/tasks-template.md) (community) | via researcher | `T<n>` IDs; blocking foundational phase → W0 contracts; checkpoints → gate per wave | TEMPLATE "Waves"; `/implement-plan` §4 |
-| root `CLAUDE.md` (= `AGENTS.md`), `<pkg>/CLAUDE.md` | internal | Do-not-touch paths; module layout; workspace scoping; session protocol (and the implementers' exemption from it) | planner Hard rules; protocol §0/§3 |
-| `<pkg>/INSIGHTS.md` | internal | no `vendor/shared` edits → module types + client mirror; Windows bins via `node`; `check-architecture.mjs` baseline; hotspot/i18n traps | planner Global constraints + per-task Insights; protocol §2; [plans/README](../../plans/README.md) Verify commands |
-| [pr-self-review routing.json](../skills/pr-self-review/references/routing.json) | internal | which skills each implementer (and the planner) must carry | `skills:` lists |
+| root `CLAUDE.md` (= `AGENTS.md`), `<pkg>/CLAUDE.md` | internal | Do-not-touch paths; module layout; workspace scoping; session protocol (and the implementers' exemption from it) | implementation-planner Hard rules; protocol §0/§3 |
+| `<pkg>/INSIGHTS.md` | internal | no `vendor/shared` edits → module types + client mirror; Windows bins via `node`; `check-architecture.mjs` baseline; hotspot/i18n traps | implementation-planner Global constraints + per-task Insights; protocol §2; [plans/README](../../plans/README.md) Verify commands |
+| [pr-self-review routing.json](../skills/pr-self-review/references/routing.json) | internal | which skills each implementer (and the implementation-planner) must carry | `skills:` lists |
 | [Claude Code — Subagents](https://code.claude.com/docs/en/sub-agents) (2nd pass) | via researcher | `permissionMode: plan` is overridden by a bypass/acceptEdits/auto parent → tool allowlist is the read-only control; `Bash(...)` in `disallowedTools` removes the whole tool → Bash narrowing only via a PreToolUse hook, which "can be bypassed" → "hook (heuristic)" | reviewers' frontmatter; [bash-guard](hooks/bash-guard.mjs) |
 | [Anthropic code-review plugin — confidence scoring](https://instagit.com/anthropics/claude-code/code-review-confidence-scoring-claude-code.md) (mirror; primary 404) | via researcher, secondary | confidence 0–100, report ≥ 80, re-validate each finding | architecture-reviewer §6 |
 | [obra/superpowers](https://github.com/obra/superpowers) — `verification-before-completion`, `requesting-code-review`, `test-driven-development` (community) | via researcher | fresh evidence only, "don't trust agent reports, check the VCS diff", requirements line by line; base/head SHA as reviewer input; watch every test fail (RED check) | plan-verifier §1/§5–§6; architecture-reviewer input; test-writer §6 |
@@ -135,17 +135,17 @@ report of 2026-11-06, not re-read · **internal** = this repo · **decision** = 
 | [Testing Library queries](https://testing-library.com/docs/queries/about/#priority) · [user-event](https://testing-library.com/docs/user-event/intro/) · [TanStack Query testing](https://tanstack.com/query/latest/docs/framework/react/guides/testing) · [Vitest sequence](https://vitest.dev/config/sequence) · [Fastify testing](https://fastify.dev/docs/latest/Guides/Testing/) · [Testcontainers Postgres](https://node.testcontainers.org/modules/postgresql/) · [Kent C. Dodds — implementation details](https://kentcdodds.com/blog/testing-implementation-details) | via researcher | role queries first, `userEvent.setup()`, fresh `QueryClient` with `retry: false`, `--sequence.shuffle`, `app.inject`, real Postgres per `.it.test.ts`, test behaviour not internals | test-writer §5–§6 |
 | [Diátaxis](https://diataxis.fr/) · [C4](https://c4model.com/) · [arc42](https://arc42.org/overview) · [ADR](https://adr.github.io/) · [GitHub Mermaid](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/creating-diagrams) · [Google style highlights](https://developers.google.com/style/highlights) | via researcher | one doc type per file; diagram level per audience; "Decisions" section as ADR-lite; GitHub renders Mermaid; active voice, sentence case | doc-writer §4–§6 |
 | user decisions, 2026-11-06 (agents plan) | decision | reviewers get Bash behind the allowlist hook; test-writer keeps a failing test on a real bug and never edits production code; doc-writer never writes `specs/`; verifiers run only at `/implement-plan` §7 | [plans/review-and-docs-agents.md](../../plans/review-and-docs-agents.md) |
-| user decisions, 2026-11-06 | decision | two implementer files; plans in `plans/`; no worktrees (disjoint ownership instead); implementers only write code, no self-audit; every relevant skill injected, planner gets all of them; `CANNOT PLAN` note instead of invented tasks | agent files; protocol §4; planner |
+| user decisions, 2026-11-06 | decision | two implementer files; plans in `plans/`; no worktrees (disjoint ownership instead); implementers only write code, no self-audit; every relevant skill injected, implementation-planner gets all of them; `CANNOT PLAN` note instead of invented tasks | agent files; protocol §4; implementation-planner |
 
 ## Supporting files
 
 | File | Role |
 |---|---|
-| [hooks/plans-only-write.mjs](hooks/plans-only-write.mjs) | planner's PreToolUse guard: `Write` outside `plans/*.md` → exit 2 |
+| [hooks/plans-only-write.mjs](hooks/plans-only-write.mjs) | implementation-planner's PreToolUse guard: `Write` outside `plans/*.md` → exit 2 |
 | [hooks/write-scope.mjs](hooks/write-scope.mjs) | Write/Edit guard, profiles `tests` (test-writer) · `docs` (doc-writer); deny before allow, fails closed |
 | [hooks/bash-guard.mjs](hooks/bash-guard.mjs) | Bash allowlist of FIXED command shapes, profiles `docs` (`cd` inside the repo, not into `clones`/`node_modules`/`.git`; `git [--no-pager] status\|diff\|log\|show` with a small flag allowlist — no `--output`, `--ext-diff`, `--no-index`, `-c`, `-C`, `-O`; path arguments must stay inside the repo) ⊂ `review` (+ `node scripts/check-architecture.mjs` in `server/`) ⊂ `verify` (+ in a package dir: `tsc --noEmit -p tsconfig.json`, `vitest run [<paths>] [--exclude '**/*.it.test.ts'] [-t <name>] [--sequence.shuffle]`) ⊂ `tests` (+ `rm [-f]` of untracked `mut-*.ts(x)` inside a package). No file-reading/text commands at all (`cat`/`head`/`tail`/`grep`/`rg`/`sed`/`sort`/`find`/`wc`/`ls`, `git grep`) — agents use Read/Grep/Glob. Rejects `$(`, backticks, every `$` outside single quotes, redirects, `&`, unquoted globs/braces; heuristic |
 | [hooks/self-test.mjs](hooks/self-test.mjs) | allow/block cases for all hooks + frontmatter lint of every agent file (keys, skills, hook paths, profiles) |
-| [plans/TEMPLATE.md](../../plans/TEMPLATE.md) | plan structure the planner fills |
+| [plans/TEMPLATE.md](../../plans/TEMPLATE.md) | plan structure the implementation-planner fills |
 | [plans/README.md](../../plans/README.md) | plan index, lifecycle, the single list of Verify commands |
 
 ## Conventions

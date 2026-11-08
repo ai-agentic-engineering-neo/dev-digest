@@ -19,7 +19,7 @@ Reusable AI skills that provide specialized knowledge and workflows. Canonical l
 | [security](security/SKILL.md) | Full-stack | OWASP Top 10:2025, auth, injection, uploads, secrets |
 | [mermaid-diagram](mermaid-diagram/SKILL.md) | Shared | Mermaid diagrams in markdown (flowcharts, sequence, ERD, …) |
 | [pr-self-review](pr-self-review/SKILL.md) | Shared | Own skill: pre-PR review of all local changes — routes changed files to the skills above, runs them as parallel subagents + policy/layer/tsc checks, blocks push/PR/merge on a confirmed critical (gate hook) |
-| [implement-plan](implement-plan/SKILL.md) | Shared | Own skill, manual (`/implement-plan plans/<feature>.md`): runs a planner's Development Plan wave by wave — parallel implementer subagents per task, gate (ownership diff, Verify, typecheck, layer check), task statuses, insight candidates → engineering-insights |
+| [implement-plan](implement-plan/SKILL.md) | Shared | Own skill, manual (`/implement-plan plans/<feature>.md`): runs an implementation-planner's plan wave by wave in its Execution mode — parallel implementer subagents per task (multi-agent) or the main session one by one (single-agent), gate (ownership diff, Verify, typecheck, layer check), task statuses, insight candidates → engineering-insights |
 | [implementer-protocol](implementer-protocol/SKILL.md) | Shared | Own skill, injected only into `implementer-backend` / `implementer-frontend` via `skills:` — input, INSIGHTS-by-path, file ownership, code-first loop, report format |
 
 ## What Are Skills?

@@ -77,7 +77,9 @@ Package-specific rules: `<pkg>/CLAUDE.md` § Naming conventions.
 - Writing or running tests, touching CI → read `TESTING.md` and `.github/workflows/<suite>.yml`.
 - Editing an agent's system prompt → read `docs/agent-prompts/README.md`.
 - Unsure which skill applies → read `.claude/skills/README.md`.
-- Feature spanning 2+ packages or 3+ tasks → `planner` agent writes `plans/<feature>.md`; after the user approves it,
+- New feature → `spec-creator` agent writes `<pkg>/specs/<feature>.md` (WHAT/WHY, EARS `SPEC-NN/AC-n`); the user sets
+  `Status: approved`. Spanning 2+ packages or 3+ tasks → `implementation-planner` agent writes `plans/<feature>.md`
+  from the approved spec (HOW, `Covers:` per task, Execution mode); after the user approves it,
   the user runs `/implement-plan plans/<feature>.md` (manual). Agents and the workflow: `.claude/agents/README.md`.
 - Before `git push` / opening or merging a PR → ask the user to run `/pr-self-review` (manual only — auto-invoke
   is disabled; the gate hook blocks push/PR/merge without a fresh PASS).

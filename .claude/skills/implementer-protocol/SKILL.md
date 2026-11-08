@@ -32,7 +32,7 @@ The prompt gives `plan: plans/<feature>.md` and `task: T<n>`. Return `BLOCKED` w
 1. From the plan read only: Global constraints, Contracts, File ownership map, and YOUR task.
 2. Read the `CLAUDE.md` of your task's package (`server/`, `client/`, `reviewer-core/` or `e2e/`).
 3. **INSIGHTS by path** (don't read the whole file):
-   - the task's **Insights** field — entries the planner attached; they are binding;
+   - the task's **Insights** field — entries the implementation-planner attached; they are binding;
    - `Grep` the package's `INSIGHTS.md` for the folders/modules of your owned files (e.g.
      `modules/skills`, `app/skills`, `hooks/skills`, `run-executor`) — entries carry `path:line → symbol`;
    - read the sections **What Doesn't Work** and **Recurring Errors & Fixes** in full (tooling traps).

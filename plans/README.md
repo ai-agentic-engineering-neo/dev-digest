@@ -3,13 +3,17 @@
 Development Plans — **how and in what order** a feature is built (tasks, file ownership, waves,
 verification). `<pkg>/specs/` stays the source of **what** to build; a plan links to its specs.
 
-- Written by the `planner` agent from [TEMPLATE.md](TEMPLATE.md) as `plans/<feature-kebab>.md`.
-- Executed with `/implement-plan plans/<feature>.md`: wave by wave, one `implementer-backend` /
-  `implementer-frontend` per task, gate after each wave.
+- Written by the `implementation-planner` agent from [TEMPLATE.md](TEMPLATE.md) as
+  `plans/<feature-kebab>.md`, only from specs with `Status: approved` (written by `spec-creator`). Every
+  task names the spec criteria it implements (`Covers: SPEC-NN/AC-n`); it never writes specs.
+  Plans written before 2026-11-08 have no `Covers:` / `Execution mode` (legacy).
+- Executed with `/implement-plan plans/<feature>.md`, wave by wave with a gate after each wave, in the
+  plan's **Execution mode**: `multi-agent` = one `implementer-backend` / `implementer-frontend` subagent
+  per task, a wave's tasks in parallel; `single-agent` = the main session does the tasks itself, one by one.
 - Plan lifecycle: `draft` → user sets `approved` → `in progress` → `done`.
   Task lifecycle: `todo` → `done` | `blocked: <reason>` (written by `/implement-plan`, not by implementers).
 
-## Verify commands (single source — planner copies from here, /implement-plan runs them)
+## Verify commands (single source — implementation-planner copies from here, /implement-plan runs them)
 
 On Windows `pnpm <script>` can fail with "Access is denied" — call bins via node. Run inside the package.
 

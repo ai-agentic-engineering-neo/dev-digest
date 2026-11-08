@@ -48,6 +48,8 @@ import { SkillTypeBadge } from "../skill-type-badge";
 import { AgentBadge } from "../agent-badge";
 import { ConfirmDialog } from "../confirm-dialog";
 import { SeverityTally } from "../severity-tally";
+import { ContextDocPreview } from "../context-doc-preview";
+import { ContextRepoState } from "../context-repo-state";
 import { FindingsCell } from "../../app/repos/[repoId]/pulls/_components/FindingsCell";
 import { SeverityCounters } from "../../app/repos/[repoId]/pulls/[number]/_components/FindingsPanel/_components/SeverityCounters";
 import { s } from "./styles";
@@ -190,6 +192,34 @@ export function Gallery() {
         <SkillTypeBadge type="convention" label="convention" />
         <SkillTypeBadge type="security" label="security" />
         <SkillTypeBadge type="custom" label="custom" />
+      </Group>
+
+      <Group title="Context doc preview">
+        <div style={s.w220}>
+          <ContextDocPreview
+            doc={{ path: "docs/rate-limiting.md", source: "docs", tokens: 820, attached_agents: 2 }}
+            content={"# Rate limiting\n\nPublic endpoints use a **token bucket** per API key."}
+            labels={{ source: "docs", tokens: "~820 tokens", attachedAgents: "2 agents", path: "Path" }}
+          />
+        </div>
+      </Group>
+
+      <Group title="Context repo state (blocking · banner)">
+        <ContextRepoState
+          variant="blocking"
+          title="Repo not cloned yet"
+          body="Docs are read from the local clone. Resync to fetch it."
+          actionLabel="Resync"
+          onAction={() => {}}
+        />
+        <ContextRepoState
+          variant="banner"
+          title="Code index is degraded"
+          body="Reason: no_data"
+          actionLabel="Resync"
+          busy
+          onAction={() => {}}
+        />
       </Group>
 
       <Group title="Agent badge">

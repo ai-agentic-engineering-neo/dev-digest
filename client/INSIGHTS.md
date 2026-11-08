@@ -33,6 +33,8 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 - 2026-11-06 — Kit `Textarea` takes only `value/onChange/placeholder/rows/mono` (no `id`, `aria-*`), so it can't be tied to a `<label htmlFor>` or marked `aria-invalid`, and it's vendor code → a labelled/validated form uses a native `<textarea>` styled with CSS vars (src/vendor/ui/kit/Textarea.tsx:4 → Textarea; example: IntentCard/_components/IntentEditForm/IntentEditForm.tsx).
 - 2026-11-06 — There is NO `css-vars.test.ts` (or any guard) for hard-coded colors, although plans/intent-layer.md cites one; a vitest filter `css-vars` silently matches nothing → check new styles by hand: every `var(--x)` must be defined in a tracked `*.css`, and grep new files for `#[0-9a-f]{3,6}` (git ls-files '*.css').
 - 2026-11-06 — CORRECTION of the entry above (no css-vars guard): it was written on a branch cut before Multi-Agent Review merged; `src/test/css-vars.test.ts` now exists on main and fails on any `var(--x)` not declared in a .css file, so new components are covered automatically (src/test/css-vars.test.ts).
+- 2026-11-08 — Smart Diff (Files changed grouped by role core/wiring/boilerplate) is NOT on `main` nor on branches cut from it: PR #26 was reverted by PR #27, and the feature lives only on `feat/smart-diff-l03` (merged into `local/all-lessons`, so the running app shows it) → a feature that reads Smart Diff roles or expands a file inside its groups must either stack its branch on `feat/smart-diff-l03` or treat roles as missing; don't conclude from the running app that it's on your branch (`git log --oneline main | grep -i smart`; spec: ../specs/pr-brief.md).
+- 2026-11-08 — `messages/en/brief.json` was pre-written for the full product: `unavailableHint` says "Run a review or open the PR to compute it", which is wrong for click-only PR Brief generation (same trap as the multi-agent `runs.json` copy) → check pre-existing catalog strings against the spec before reusing them (messages/en/brief.json:12 → unavailableHint).
 
 ## Tool & Library Notes
 <!-- Dependency / tooling quirks -->
@@ -83,6 +85,7 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 - 2026-11-08 — SPEC-04 UI: shared `DocMarkdown` + `DocSourceBadge`, N2b agent Context tab (checkbox rows, handle drag + Arrow-key reorder, cost footer, preview drawer), trace "Specs read" detail + searchable Project-context prompt row (`PromptSearchModal`) → plans/project-context-agent-tab-and-trace.md.
 - 2026-11-08 — SPEC-04 pr-self-review fixes: resync completion watches index `updatedAt`, refocus only at target position, Context tab not-cloned / no-docs states (+ RED-checked tests); seed review query workspace-scoped (server).
 - 2026-11-08 — SPEC-03 pr-self-review fixes: upload Overwrite keeps the conflict's folder, save keeps text typed in flight, create/copy seed both list caches, unresolved .devdigest id → skeleton/ErrorState, translated root chip, `scroll: false` (+ RED-checked tests).
+- 2026-11-08 — Specced PR Why + Risk Brief (SPEC-06, draft, 21 AC; module-local DTO, no vendor/shared edit), no code → ../specs/pr-brief.md.
 
 ## Open Questions
 <!-- Unresolved items, known gaps -->

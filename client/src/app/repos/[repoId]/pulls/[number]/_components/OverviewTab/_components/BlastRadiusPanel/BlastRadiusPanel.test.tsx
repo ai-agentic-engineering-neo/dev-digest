@@ -68,6 +68,7 @@ function implementApi() {
       if (server.blast === "error") throw new Error("boom");
       return server.blast;
     }
+    if (path.endsWith("/prior-pulls")) return { pr_id: READY.pr_id, total: 0, pulls: [] };
     if (path === "/repos/repo-1/index-state") {
       return { status: "partial", filesIndexed: 10, filesSkipped: 2, lastIndexedSha: "idx111", updatedAt: server.indexUpdatedAt };
     }
@@ -163,6 +164,8 @@ describe("BlastRadiusPanel", () => {
     server.blast = "error";
     renderPanel();
     expect(await screen.findByText("Couldn't load the blast radius")).toBeInTheDocument();
+    // the prior-PRs footer is independent of /blast
+    expect(await screen.findByText(messages.prior.empty)).toBeInTheDocument();
     server.blast = READY;
     fireEvent.click(screen.getByRole("button", { name: /retry/i }));
     expect(await screen.findByRole("button", { name: "Expand alpha, 3 callers" })).toBeInTheDocument();
@@ -185,6 +188,17 @@ describe("BlastRadiusPanel", () => {
 
     fireEvent.click(tree);
     expect(screen.getByRole("button", { name: "Expand alpha, 3 callers" })).toBeInTheDocument();
+  });
+
+  it("requests prior PRs in parallel with /blast and ends the card with the footer", async () => {
+    server.blast = "pending"; // /blast never resolves…
+    renderPanel();
+    // …yet the prior-PRs request has already been sent
+    await vi.waitFor(() => expect(apiGet).toHaveBeenCalledWith(`/pulls/${READY.pr_id}/prior-pulls`));
+    cleanup();
+    server.blast = READY;
+    renderPanel();
+    expect(await screen.findByText(messages.prior.empty)).toBeInTheDocument();
   });
 
   it("has no view switch when there is no map to show", async () => {

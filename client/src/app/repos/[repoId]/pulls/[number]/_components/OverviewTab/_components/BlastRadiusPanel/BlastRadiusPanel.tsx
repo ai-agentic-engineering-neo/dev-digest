@@ -1,14 +1,15 @@
-/* BlastRadiusPanel — container: loads the PR blast radius, renders its states in a card and wires
-   the Tree / Graph switch and index resync. */
+/* BlastRadiusPanel — container: loads the PR blast radius, renders its states in a card, wires
+   the Tree / Graph switch and index resync, and ends with the prior-PRs footer. */
 "use client";
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { ErrorState, Skeleton } from "@devdigest/ui";
-import { useBlastRadius } from "@/lib/hooks/blast";
+import { useBlastRadius, usePriorPulls } from "@/lib/hooks/blast";
 import { BlastChips } from "./_components/BlastChips";
 import { BlastDegradedNotice } from "./_components/BlastDegradedNotice";
 import { BlastGraph } from "./_components/BlastGraph";
+import { BlastPriorPulls } from "./_components/BlastPriorPulls";
 import { BlastSummary } from "./_components/BlastSummary";
 import { BlastSymbolCard } from "./_components/BlastSymbolCard";
 import { BlastViewToggle, type BlastView } from "./_components/BlastViewToggle";
@@ -28,6 +29,8 @@ export function BlastRadiusPanel({
 }) {
   const t = useTranslations("blast");
   const { data, isLoading, isError, refetch } = useBlastRadius(prId);
+  // Started here, not in the footer, so it runs in parallel with /blast and survives a /blast error.
+  const prior = usePriorPulls(prId);
   const resync = useBlastResync(repoId, prId);
   const [view, setView] = useState<BlastView>("tree");
 
@@ -43,6 +46,7 @@ export function BlastRadiusPanel({
     return (
       <div style={s.card}>
         <ErrorState title={t("loadError")} onRetry={() => refetch()} />
+        <BlastPriorPulls repoId={repoId} query={prior} />
       </div>
     );
   }
@@ -87,6 +91,7 @@ export function BlastRadiusPanel({
       )}
       {data.callers_omitted > 0 && <p style={s.note}>{t("callersOmitted", { count: data.callers_omitted })}</p>}
       <BlastChips kind="endpoint" label={t("unattributed")} items={data.unattributed_endpoints} />
+      <BlastPriorPulls repoId={repoId} query={prior} />
     </div>
   );
 }

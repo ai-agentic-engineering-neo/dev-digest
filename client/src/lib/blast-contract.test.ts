@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import messages from "../../messages/en/blast.json";
-import { BLAST_DEGRADED_REASONS, type PrBlastRadius } from "./types";
+import { BLAST_DEGRADED_REASONS, type PrBlastRadius, type PriorPull, type PriorPullsResponse } from "./types";
 
 type Shape = string | Shape[] | { [key: string]: Shape };
 
@@ -66,5 +66,37 @@ describe("PrBlastRadius client mirror", () => {
     for (const reason of serverReasons) {
       expect(messages.degraded, `messages/en/blast.json is missing degraded.${reason}`).toHaveProperty(reason!);
     }
+  });
+});
+
+/** Field names of `export interface <name> { … }` in a server source file (read as text, not imported). */
+function serverInterfaceKeys(src: string, name: string): string[] {
+  const body = new RegExp(`export interface ${name} \\{([^}]*)\\}`).exec(src)?.[1];
+  if (body === undefined) throw new Error(`interface ${name} not found in server domain/types.ts`);
+  return [...body.matchAll(/^\s*(\w+)\??:/gm)].map((m) => m[1]!).sort();
+}
+
+describe("PriorPulls client mirrors", () => {
+  const src = readFileSync(resolve(__dirname, "../../../server/src/modules/blast/domain/types.ts"), "utf8");
+
+  // tsc rejects missing/extra keys in these samples, so their keys ARE the client types' keys.
+  const pull: PriorPull = {
+    pr_id: "00000000-0000-4000-8000-000000000002",
+    number: 1,
+    title: "t",
+    author: "a",
+    status: "open",
+    updated_at: null,
+    shared_count: 1,
+    shared_files: ["a.ts"],
+  };
+  const response: PriorPullsResponse = { pr_id: "00000000-0000-4000-8000-000000000001", total: 1, pulls: [pull] };
+
+  it("PriorPull has exactly the server's fields", () => {
+    expect(Object.keys(pull).sort()).toEqual(serverInterfaceKeys(src, "PriorPull"));
+  });
+
+  it("PriorPullsResponse has exactly the server's fields", () => {
+    expect(Object.keys(response).sort()).toEqual(serverInterfaceKeys(src, "PriorPullsResponse"));
   });
 });

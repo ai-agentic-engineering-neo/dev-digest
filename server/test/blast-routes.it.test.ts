@@ -5,7 +5,8 @@ import { loadConfig } from '../src/platform/config.js';
 import { seed } from '../src/db/seed.js';
 import * as t from '../src/db/schema.js';
 import { MockGitClient, MockGitHubClient, MockSecretsProvider } from '../src/adapters/mocks.js';
-import { BlastRadiusResponse } from '../src/modules/blast/schemas.js';
+import { BlastRadiusResponse, PriorPullsResponseSchema } from '../src/modules/blast/schemas.js';
+import { MAX_PRIOR_SHARED_FILES } from '../src/modules/blast/domain/types.js';
 import type {
   BlastResult,
   IndexResult,
@@ -151,6 +152,58 @@ d('Blast routes (Testcontainers pg)', () => {
     expect(res.statusCode).toBe(404);
     expect(JSON.stringify(res.json())).toContain('not_found');
     expect(intel.blastCalls).toHaveLength(0);
+    await app.close();
+  });
+
+  it('GET /pulls/:id/prior-pulls lists earlier PRs of the same repo sharing a path, newest first', async () => {
+    const app = await makeApp(new FakeRepoIntel());
+    // Own repo: PRs of earlier tests in the shared repo would otherwise count as "prior".
+    const [ownRepo, otherRepo] = await pg.handle.db
+      .insert(t.repos)
+      .values([
+        { workspaceId, owner: 'acme', name: 'prior-app', fullName: 'acme/prior-app', clonePath: '/clones/pa' },
+        { workspaceId, owner: 'acme', name: 'other-app', fullName: 'acme/other-app', clonePath: '/clones/o' },
+      ])
+      .returning();
+    const repo = ownRepo!.id;
+    const many = Array.from({ length: MAX_PRIOR_SHARED_FILES + 2 }, (_, i) => `lib/f${i}.ts`);
+    const olderOne = await newPr(workspaceId, repo, ['src/a.ts', 'src/x.ts']); // shares a
+    const noOverlap = await newPr(workspaceId, repo, ['src/zzz.ts']);
+    const otherRepoPr = await newPr(workspaceId, otherRepo!.id, ['src/a.ts']); // same path, other repo
+    const olderMany = await newPr(workspaceId, repo, ['src/b.ts', ...many]); // shares b + 7
+    const current = await newPr(workspaceId, repo, ['src/a.ts', 'src/b.ts', ...many]);
+    const later = await newPr(workspaceId, repo, ['src/a.ts']); // higher number: not "prior"
+
+    const res = await app.inject({ method: 'GET', url: `/pulls/${current}/prior-pulls` });
+    expect(res.statusCode).toBe(200);
+    const body = PriorPullsResponseSchema.parse(res.json());
+    expect(body.pr_id).toBe(current);
+    expect(body.total).toBe(2);
+    expect(body.pulls.map((p) => p.pr_id)).toEqual([olderMany, olderOne]);
+    const ids = body.pulls.map((p) => p.pr_id);
+    for (const excluded of [current, noOverlap, otherRepoPr, later]) expect(ids).not.toContain(excluded);
+    expect(body.pulls[0]!.shared_count).toBe(MAX_PRIOR_SHARED_FILES + 2 + 1);
+    expect(body.pulls[0]!.shared_files).toHaveLength(MAX_PRIOR_SHARED_FILES);
+    expect(body.pulls[0]!.shared_files).toEqual([...body.pulls[0]!.shared_files].sort());
+    expect(body.pulls[1]).toMatchObject({ shared_count: 1, shared_files: ['src/a.ts'], title: 'Blast' });
+    await app.close();
+  });
+
+  it('prior-pulls of a PR with no earlier overlap is an empty list, and another workspace is 404', async () => {
+    const app = await makeApp(new FakeRepoIntel());
+    const lonely = await newPr(workspaceId, repoId, ['only/here.ts']);
+    const empty = await app.inject({ method: 'GET', url: `/pulls/${lonely}/prior-pulls` });
+    expect(empty.statusCode).toBe(200);
+    expect(empty.json()).toEqual({ pr_id: lonely, total: 0, pulls: [] });
+
+    const [ws3] = await pg.handle.db.insert(t.workspaces).values({ name: 'other-prior' }).returning();
+    const [r3] = await pg.handle.db
+      .insert(t.repos)
+      .values({ workspaceId: ws3!.id, owner: 'zed', name: 'prior', fullName: 'zed/prior', clonePath: '/clones/p' })
+      .returning();
+    const foreign = await newPr(ws3!.id, r3!.id, ['only/here.ts']);
+    const res = await app.inject({ method: 'GET', url: `/pulls/${foreign}/prior-pulls` });
+    expect(res.statusCode).toBe(404);
     await app.close();
   });
 

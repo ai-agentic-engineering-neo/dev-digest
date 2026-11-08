@@ -56,3 +56,39 @@ export interface PrBlastRadius {
   degraded: boolean; // invariant: degraded === (reason !== null)
   reason: BlastDegradedReason | null;
 }
+
+/** Max prior PRs returned by GET /pulls/:id/prior-pulls (newest first). */
+export const MAX_PRIOR_PULLS = 10;
+/** Max shared file paths listed per prior PR (the count is always exact). */
+export const MAX_PRIOR_SHARED_FILES = 5;
+
+/** Storage row: an earlier PR of the same repo that touched at least one of this PR's files. */
+export interface PriorPullRow {
+  id: string;
+  number: number;
+  title: string;
+  author: string;
+  status: string;
+  updatedAt: Date | null;
+  sharedCount: number;
+  sharedFiles: string[]; // byte-order sorted (COLLATE "C"), capped at MAX_PRIOR_SHARED_FILES
+}
+
+/** API DTO — one item of GET /pulls/:id/prior-pulls (snake_case). */
+export interface PriorPull {
+  pr_id: string;
+  number: number;
+  title: string;
+  author: string;
+  status: string;
+  updated_at: string | null;
+  shared_count: number;
+  shared_files: string[];
+}
+
+/** API DTO — GET /pulls/:id/prior-pulls. `total` counts all matches, `pulls` is capped at MAX_PRIOR_PULLS. */
+export interface PriorPullsResponse {
+  pr_id: string;
+  total: number;
+  pulls: PriorPull[];
+}

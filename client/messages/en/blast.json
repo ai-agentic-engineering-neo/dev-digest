@@ -57,5 +57,13 @@
   "toggle": {
     "expand": "Expand {symbol}, {count, plural, one {# caller} other {# callers}}",
     "collapse": "Collapse {symbol}, {count, plural, one {# caller} other {# callers}}"
+  },
+  "prior": {
+    "title": "Prior PRs touching these files",
+    "countAria": "{count, plural, one {# prior PR} other {# prior PRs}}",
+    "empty": "No earlier PR in this repository touched these files.",
+    "loadError": "Couldn't load prior PRs.",
+    "sharedFiles": "{count, plural, one {# shared file} other {# shared files}}",
+    "more": "{count, plural, one {# more earlier PR} other {# more earlier PRs}} not shown."
   }
 }

@@ -214,10 +214,9 @@ export interface IntentOverrideInput {
   out_of_scope: string[];
 }
 
-/**
- * GET /pulls/:id/blast. Mirrors server/src/modules/blast/domain/types.ts (PrBlastRadius).
- * TODO: reconcile with @devdigest/shared
- */
+// ---- GET /pulls/:id/blast — mirrors server/src/modules/blast/domain/types.ts (not in @devdigest/shared).
+// Guarded by src/lib/blast-contract.test.ts. TODO: reconcile with @devdigest/shared.
+
 /** Same values and order as server BLAST_DEGRADED_REASONS — blast-contract.test.ts checks both, and that each has a message. */
 export const BLAST_DEGRADED_REASONS = ["flag_off", "index_failed", "index_partial", "repo_too_large", "no_data"] as const;
 export type BlastDegradedReason = (typeof BLAST_DEGRADED_REASONS)[number];
@@ -234,6 +233,7 @@ export interface BlastCounts {
   crons: number;
 }
 
+/** GET /pulls/:id/blast response (server PrBlastRadius). */
 export interface PrBlastRadius {
   pr_id: string;
   head_sha: string;
@@ -248,4 +248,25 @@ export interface PrBlastRadius {
   callers_omitted: number;
   degraded: boolean;
   reason: BlastDegradedReason | null;
+}
+
+/** GET /pulls/:id/prior-pulls. Mirrors server/src/modules/blast/domain/types.ts (PriorPullsResponse). */
+export interface PriorPull {
+  pr_id: string;
+  number: number;
+  title: string;
+  author: string;
+  status: string;
+  updated_at: string | null;
+  /** Exact number of this PR's paths the prior PR also touched. */
+  shared_count: number;
+  /** Up to 5 of those paths, sorted. */
+  shared_files: string[];
+}
+
+export interface PriorPullsResponse {
+  pr_id: string;
+  /** All matching earlier PRs; `pulls` holds the newest 10. */
+  total: number;
+  pulls: PriorPull[];
 }

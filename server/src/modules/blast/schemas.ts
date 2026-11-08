@@ -1,6 +1,12 @@
 import { z } from 'zod';
 import { BlastRadius, DownstreamImpact } from '@devdigest/shared';
-import { BLAST_DEGRADED_REASONS, type PrBlastRadius } from './domain/types.js';
+import {
+  BLAST_DEGRADED_REASONS,
+  MAX_PRIOR_PULLS,
+  MAX_PRIOR_SHARED_FILES,
+  type PrBlastRadius,
+  type PriorPullsResponse,
+} from './domain/types.js';
 
 export const BlastDegradedReasonSchema = z.enum(BLAST_DEGRADED_REASONS);
 
@@ -25,3 +31,22 @@ export const BlastRadiusResponse = BlastRadius.extend({
   degraded: z.boolean(),
   reason: BlastDegradedReasonSchema.nullable(),
 }) satisfies z.ZodType<PrBlastRadius>;
+
+export const PriorPullSchema = z.object({
+  pr_id: z.string().uuid(),
+  number: z.number().int().positive(),
+  title: z.string(),
+  author: z.string(),
+  status: z.string(),
+  updated_at: z.string().datetime({ offset: true }).nullable(),
+  shared_count: z.number().int().positive(),
+  shared_files: z.array(z.string()).min(1).max(MAX_PRIOR_SHARED_FILES),
+});
+
+export const PriorPullsResponseSchema = z
+  .object({
+    pr_id: z.string().uuid(),
+    total: z.number().int().nonnegative(),
+    pulls: z.array(PriorPullSchema).max(MAX_PRIOR_PULLS),
+  })
+  .refine((b) => b.total >= b.pulls.length, { message: 'total must count every listed pull', path: ['total'] }) satisfies z.ZodType<PriorPullsResponse>;

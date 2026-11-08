@@ -30,7 +30,12 @@ export const BlastRadiusResponse = BlastRadius.extend({
   callers_omitted: z.number().int().nonnegative(),
   degraded: z.boolean(),
   reason: BlastDegradedReasonSchema.nullable(),
-}) satisfies z.ZodType<PrBlastRadius>;
+})
+  // Domain invariant (BlastStatus): a reason exactly when degraded — the UI and MCP pick next steps by `reason`.
+  .refine((b) => b.degraded === (b.reason !== null), {
+    message: 'degraded must be true exactly when reason is set',
+    path: ['reason'],
+  }) satisfies z.ZodType<PrBlastRadius>;
 
 export const PriorPullSchema = z.object({
   pr_id: z.string().uuid(),

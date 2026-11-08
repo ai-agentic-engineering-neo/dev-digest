@@ -77,7 +77,11 @@ describe("BlastSymbolCard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Expand getContext, 1 caller" }));
     const link = screen.getByRole("link", { name: "…/FileCard/FileCard.tsx:58" });
     expect(link.closest("[title]")).toHaveAttribute("title", "client/src/app/repos/_components/FileCard/FileCard.tsx:58");
-    expect(screen.getByText(name)).toHaveTextContent(name);
+    // The name is rendered in full AND not clipped by CSS (no ellipsis / nowrap+hidden), so nothing hides its tail.
+    const caller = screen.getByText(name);
+    expect(caller.textContent).toBe(name);
+    expect(caller).not.toHaveStyle({ textOverflow: "ellipsis" });
+    expect(caller).not.toHaveStyle({ overflow: "hidden" });
   });
 
   it("does not take focus on a mouse press, so the focus ring is keyboard-only", () => {

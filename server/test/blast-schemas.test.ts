@@ -58,6 +58,8 @@ describe('BlastRadiusResponse', () => {
     ['missing counts', (f: Record<string, unknown>) => ({ ...f, counts: undefined })],
     ['missing link_sha', (f: Record<string, unknown>) => ({ ...f, link_sha: undefined })],
     ['non-uuid pr_id', (f: Record<string, unknown>) => ({ ...f, pr_id: 'nope' })],
+    ['degraded without a reason', (f: Record<string, unknown>) => ({ ...f, degraded: true, reason: null })],
+    ['a reason while not degraded', (f: Record<string, unknown>) => ({ ...f, degraded: false, reason: 'no_data' })],
   ])('rejects %s', (_name, mutate) => {
     const base = fixture as Record<string, unknown>;
     expect(BlastRadiusResponse.safeParse(mutate(base)).success).toBe(false);

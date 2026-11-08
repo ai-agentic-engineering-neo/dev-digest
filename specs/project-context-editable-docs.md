@@ -52,10 +52,12 @@ Non-goals
   - right: the selected doc's file name, a Preview | Edit switch, its source label, token estimate and
     "Used by N agents"; with nothing selected, a hint to select a doc.
 - **AC-2** The doc tree SHALL group docs into collapsible sections in this order, hiding empty ones:
-  ".devdigest (editable)", Specs, Docs, Insights, READMEs. Inside a section, docs form a tree of collapsible
-  folders; a doc row shows its file name and token estimate, with the full path in its tooltip and accessible
-  name. WHEN the user types in the filter, the tree SHALL show only docs matching the SPEC-01 AC-3 rule, with
-  their sections and folders expanded. Expanded/collapsed state SHALL survive a page reload in the same browser.
+  ".devdigest (editable)", Specs, Docs, Insights, READMEs. Inside a section, docs form a flat list (user decision
+  2026-11-08, matching the N6 screenshot): a doc row shows a file icon, its file name, an area chip from the first
+  path segment (CLIENT, SERVER, E2E, REVIEWER-CORE, DOCS, ROOT), its folder in a muted line below (none for root
+  files) and its token estimate, with the full path in its tooltip and accessible name. `.devdigest` folders are
+  shown as selectable folder rows (targets for New file / Upload). WHEN the user types in the filter, the list
+  SHALL show only docs matching the SPEC-01 AC-3 rule, with their sections expanded. Expanded/collapsed state SHALL survive a page reload in the same browser.
 - **AC-3** WHEN a doc is shown in Preview, the system SHALL render its markdown with the N6 typography: three
   visually distinct heading levels, bulleted and numbered lists with markers and indentation, inline code in a
   monospace face on a code background, fenced code blocks, emphasis, links and paragraph spacing. Raw HTML is

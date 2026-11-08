@@ -2,8 +2,10 @@
 
 import { useMemo } from "react";
 import { useTranslations } from "next-intl";
+import { Icon } from "@devdigest/ui";
 import type { ContextDoc } from "@/lib/types";
-import { buildDocTree, type TreeFolder, type TreeSectionKey } from "./helpers";
+import { DEVDIGEST_ROOT } from "@/lib/devdigest-docs";
+import { buildDocTree, docArea, fileName, flattenSection, folderOf } from "./helpers";
 import { useTreeExpansion } from "./hooks/useTreeExpansion";
 import { s } from "./styles";
 
@@ -18,110 +20,107 @@ export interface DocTreeProps {
   onSelectFolder: (devdigestFolder: string) => void;
 }
 
-interface FolderContentsProps {
-  section: TreeSectionKey;
-  folder: TreeFolder;
-  depth: number;
-  forceOpen: boolean;
-  isOpen: (key: string, isSection: boolean) => boolean;
-  toggle: (key: string, isSection: boolean) => void;
-  selectedPath: string | null;
-  selectedFolder: string | null;
-  onSelectDoc: (path: string) => void;
-  onSelectFolder: (devdigestFolder: string) => void;
-}
-
-function FolderContents(props: FolderContentsProps) {
+function DocRow({ doc, selected, onSelect }: { doc: ContextDoc; selected: boolean; onSelect: () => void }) {
   const t = useTranslations("context");
-  const { section, folder, depth, forceOpen, isOpen, toggle } = props;
-  const { selectedPath, selectedFolder, onSelectDoc, onSelectFolder } = props;
-  const editable = section === "devdigest";
+  const area = docArea(doc);
+  const folder = folderOf(doc.path);
   return (
-    <>
-      {folder.folders.map((child) => {
-        const open = forceOpen || isOpen(child.key, false);
-        const selected = editable && selectedFolder === child.path;
-        return (
-          <div key={child.key}>
-            <button
-              type="button"
-              aria-expanded={open}
-              aria-current={selected ? "true" : undefined}
-              style={s.folder(selected, depth)}
-              onClick={() => {
-                if (!forceOpen) toggle(child.key, false);
-                if (editable) onSelectFolder(child.path);
-              }}
-            >
-              <span aria-hidden="true" style={s.caret}>
-                {open ? "▾" : "▸"}
-              </span>
-              <span style={s.name}>{child.name}</span>
-            </button>
-            {open ? <FolderContents {...props} folder={child} depth={depth + 1} /> : null}
-          </div>
-        );
-      })}
-      {folder.docs.map((doc) => {
-        const selected = selectedPath === doc.path;
-        return (
-          <button
-            key={doc.path}
-            type="button"
-            title={doc.path}
-            aria-label={t("tree.docLabel", { path: doc.path, count: doc.tokens })}
-            aria-current={selected ? "true" : undefined}
-            style={s.doc(selected, depth)}
-            onClick={() => onSelectDoc(doc.path)}
-          >
-            <span style={s.name}>{doc.path.slice(doc.path.lastIndexOf("/") + 1)}</span>
-            <span style={s.tokens}>{t("meta.tokens", { count: doc.tokens })}</span>
-          </button>
-        );
-      })}
-    </>
+    <button
+      type="button"
+      title={doc.path}
+      aria-label={t("tree.docLabel", { path: doc.path, count: doc.tokens })}
+      aria-current={selected ? "true" : undefined}
+      style={s.doc(selected)}
+      onClick={onSelect}
+    >
+      <span aria-hidden="true" style={s.icon(selected)}>
+        <Icon.FileText size={15} />
+      </span>
+      <span style={s.body}>
+        <span style={s.line}>
+          <span style={s.name}>{fileName(doc.path)}</span>
+          {area ? <span style={s.chip}>{area}</span> : null}
+        </span>
+        <span style={s.line}>
+          <span style={s.path}>{folder}</span>
+          <span style={s.tokens}>{t("meta.tokens", { count: doc.tokens })}</span>
+        </span>
+      </span>
+    </button>
   );
 }
 
+/**
+ * Grouped doc list (SPEC-03 AC-2): collapsible sections in SECTION_ORDER, each a flat list of doc rows
+ * (icon, file name, area chip, folder line, token estimate). The devdigest section also lists its folders,
+ * which are selectable as the New file / Upload target.
+ */
 export function DocTree({ repoId, docs, extraFolders, filter, ...handlers }: DocTreeProps) {
   const t = useTranslations("context");
   const { isOpen, toggle } = useTreeExpansion(repoId);
-  const sections = useMemo(() => buildDocTree(docs, extraFolders, filter), [docs, extraFolders, filter]);
+  const sections = useMemo(
+    () => buildDocTree(docs, extraFolders, filter).map(flattenSection),
+    [docs, extraFolders, filter],
+  );
   const forceOpen = filter.trim() !== "";
 
   return (
     <nav aria-label={t("tree.label")} style={s.nav}>
-      {sections.map(({ key, root }) => {
-        const open = forceOpen || isOpen(root.key, true);
+      {sections.map(({ key, docs: rows, folders }) => {
+        const sectionKey = `${key}:`;
+        const open = forceOpen || isOpen(sectionKey, true);
         const editable = key === "devdigest";
-        const selected = editable && handlers.selectedFolder === "";
+        const rootSelected = editable && handlers.selectedFolder === "";
         return (
           <div key={key} style={s.section}>
             <button
               type="button"
               aria-expanded={open}
-              aria-current={selected ? "true" : undefined}
-              style={s.header(selected)}
+              aria-current={rootSelected ? "true" : undefined}
+              style={s.header(rootSelected)}
               onClick={() => {
-                if (!forceOpen) toggle(root.key, true);
+                if (!forceOpen) toggle(sectionKey, true);
                 if (editable) handlers.onSelectFolder("");
               }}
             >
               <span aria-hidden="true" style={s.caret}>
-                {open ? "▾" : "▸"}
+                {open ? <Icon.ChevronDown size={14} /> : <Icon.ChevronRight size={14} />}
               </span>
-              {t(`sections.${key}`)}
+              <span style={s.headerLabel}>{t(`sections.${key}`)}</span>
+              <span aria-hidden="true" style={s.count}>
+                {rows.length}
+              </span>
             </button>
             {open ? (
-              <FolderContents
-                {...handlers}
-                section={key}
-                folder={root}
-                depth={1}
-                forceOpen={forceOpen}
-                isOpen={isOpen}
-                toggle={toggle}
-              />
+              <>
+                {folders.map((folder) => {
+                  const selected = handlers.selectedFolder === folder;
+                  return (
+                    <button
+                      key={folder}
+                      type="button"
+                      aria-label={folder}
+                      title={`${DEVDIGEST_ROOT}${folder}/`}
+                      aria-current={selected ? "true" : undefined}
+                      style={s.folder(selected)}
+                      onClick={() => handlers.onSelectFolder(folder)}
+                    >
+                      <span aria-hidden="true" style={s.caret}>
+                        <Icon.Folder size={15} />
+                      </span>
+                      <span style={s.folderPath}>{folder}/</span>
+                    </button>
+                  );
+                })}
+                {rows.map((doc) => (
+                  <DocRow
+                    key={doc.path}
+                    doc={doc}
+                    selected={handlers.selectedPath === doc.path}
+                    onSelect={() => handlers.onSelectDoc(doc.path)}
+                  />
+                ))}
+              </>
             ) : null}
           </div>
         );

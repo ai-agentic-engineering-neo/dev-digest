@@ -48,6 +48,47 @@ function sortFolder(folder: TreeFolder): void {
   folder.folders.forEach(sortFolder);
 }
 
+export interface FlatSection {
+  key: TreeSectionKey;
+  /** Every doc of the section, sorted by full path (byte order). */
+  docs: ContextDoc[];
+  /** devdigest-relative folder paths (incl. empty New-folder ones), sorted; only for the devdigest section. */
+  folders: string[];
+}
+
+/** One section as a flat list of rows: the panel shows each doc with its folder line, not nested folders. */
+export function flattenSection(section: TreeSection): FlatSection {
+  const docs: ContextDoc[] = [];
+  const folders: string[] = [];
+  const walk = (folder: TreeFolder) => {
+    docs.push(...folder.docs);
+    for (const child of folder.folders) {
+      folders.push(child.path);
+      walk(child);
+    }
+  };
+  walk(section.root);
+  docs.sort((a, b) => byteCompare(a.path, b.path));
+  folders.sort(byteCompare);
+  return { key: section.key, docs, folders: section.key === "devdigest" ? folders : [] };
+}
+
+/** Folder part of a path with a trailing "/" ("" for a root file). */
+export function folderOf(path: string): string {
+  const i = path.lastIndexOf("/");
+  return i < 0 ? "" : path.slice(0, i + 1);
+}
+
+/** Area chip: the top-level folder (package) of a repo doc, "root" for a root file; devdigest docs use their relative path. */
+export function docArea(doc: ContextDoc): string | null {
+  const rel = doc.source === "devdigest" ? devdigestRelative(doc.path) : doc.path;
+  const segments = rel.split("/");
+  if (segments.length > 1) return segments[0] ?? null;
+  return doc.source === "devdigest" ? null : "root";
+}
+
+export { fileName };
+
 /** Group docs into sections (SECTION_ORDER) of nested folders; the filter is the SPEC-01 AC-3 rule. */
 export function buildDocTree(
   docs: readonly ContextDoc[],

@@ -343,6 +343,7 @@ export function ContextToolbar(props: {
 - **Status:** done
 - **Files (only these):** `client/src/app/repos/[repoId]/context/_components/DocTree/{DocTree.tsx,index.ts,styles.ts,constants.ts,helpers.ts,helpers.test.ts,DocTree.test.tsx,hooks/useTreeExpansion.ts}`
 - **Depends on:** T1
+- **Revised 2026-11-08 (user decision, SPEC-03 AC-2 updated):** sections hold a flat list, not nested collapsible folders — row = file icon · name · area chip (`docArea`) · muted folder line (`folderOf`) · tokens; `.devdigest` folders are selectable folder rows; built by `flattenSection` (replaces nested `buildDocTree` output and `INDENT_PX`).
 - **Covers:** SPEC-03/AC-2, SPEC-03/AC-5 (the empty folder node from New folder is shown and selectable as a target; it is not stored)
 - **Produces:**
   - `helpers.ts` `buildDocTree(docs, extraFolders, filter)`:

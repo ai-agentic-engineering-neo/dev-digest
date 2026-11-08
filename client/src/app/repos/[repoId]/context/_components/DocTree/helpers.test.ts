@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ContextDoc } from "@/lib/types";
-import { buildDocTree } from "./helpers";
+import { buildDocTree, docArea, flattenSection, folderOf } from "./helpers";
 
 const doc = (path: string, source: ContextDoc["source"]): ContextDoc => ({
   path,
@@ -55,5 +55,35 @@ describe("buildDocTree", () => {
     expect(tree).toHaveLength(1);
     expect(tree[0]?.key).toBe("devdigest");
     expect(tree[0]?.root.folders.map((f) => f.path)).toEqual(["drafts"]);
+  });
+});
+
+describe("flattenSection / folderOf / docArea", () => {
+  it("flattens a section to docs in path byte order; folders only for devdigest", () => {
+    const docs = [
+      doc("server/specs/b.md", "specs"),
+      doc("client/specs/z.md", "specs"),
+      doc("server/specs/auth/a.md", "specs"),
+      doc(".devdigest/specs/x/y.md", "devdigest"),
+      doc(".devdigest/specs/top.md", "devdigest"),
+    ];
+    const [dd, specs] = buildDocTree(docs, ["drafts"], "").map(flattenSection);
+    expect(specs?.docs.map((d) => d.path)).toEqual([
+      "client/specs/z.md",
+      "server/specs/auth/a.md",
+      "server/specs/b.md",
+    ]);
+    expect(specs?.folders).toEqual([]);
+    expect(dd?.docs.map((d) => d.path)).toEqual([".devdigest/specs/top.md", ".devdigest/specs/x/y.md"]);
+    expect(dd?.folders).toEqual(["drafts", "x"]);
+  });
+
+  it("derives the folder line and the area chip", () => {
+    expect(folderOf("server/specs/a.md")).toBe("server/specs/");
+    expect(folderOf("README.md")).toBe("");
+    expect(docArea(doc("reviewer-core/README.md", "readme"))).toBe("reviewer-core");
+    expect(docArea(doc("TESTING.md", "readme"))).toBe("root");
+    expect(docArea(doc(".devdigest/specs/auth/a.md", "devdigest"))).toBe("auth");
+    expect(docArea(doc(".devdigest/specs/a.md", "devdigest"))).toBeNull();
   });
 });

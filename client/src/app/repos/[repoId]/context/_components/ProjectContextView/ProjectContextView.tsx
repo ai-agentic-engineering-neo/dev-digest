@@ -94,7 +94,14 @@ export function ProjectContextView({ repoId }: { repoId: string }) {
     <AppShell crumb={crumb}>
       <div style={s.root}>
         <aside style={s.left}>
-          <div style={s.panelTitle}>{t("page.panelTitle")}</div>
+          <div style={s.panelHead}>
+            <div style={s.panelTitle}>{t("page.panelTitle")}</div>
+            {repo?.full_name ? (
+              <div className="mono" style={s.panelRepo} title={repo.full_name}>
+                {repo.full_name}
+              </div>
+            ) : null}
+          </div>
           <div style={s.block}>
             <ContextToolbar
               repoId={repoId}

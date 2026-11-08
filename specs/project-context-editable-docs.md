@@ -43,7 +43,9 @@ Non-goals
 ## Acceptance criteria (EARS)
 
 - **AC-1** WHEN the user opens the Project Context page, the system SHALL show the breadcrumb
-  "<repo> › Project Context" and a two-panel layout filling the viewport height:
+  "<repo> › Project Context" and a two-panel layout filling the viewport height and the full width of the
+  content area, like the Pull Requests page (no centered page column, no page title block): the left panel sits
+  flush against the app sidebar with a fixed width, and the right panel takes all remaining width:
   - left: the title "PROJECT CONTEXT", a toolbar (New file, New folder, Upload, Resync — each with an accessible
     name and tooltip), the filter, the doc tree (AC-2), and a footer with the number of docs and the repo's last
     sync time ("not synced" when never synced);

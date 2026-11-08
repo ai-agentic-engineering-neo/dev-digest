@@ -17,4 +17,6 @@ Add each new spec to the list below with a one-line "read when".
 - [skills.md](skills.md) — read when touching skills (CRUD, import/zip parsing, agent links, how skills reach the prompt, seed agents)
 - [multi-agent-review.md](multi-agent-review.md) — read when touching per-agent run estimates (`GET /agents/run-estimates`, averages over recent done runs)
 - [conventions.md](conventions.md) — read when touching the Conventions Extractor (sampling, the extraction model call, evidence grounding, `conventions` table, skill from conventions)
+- see also: [../../specs/project-context-folder.md](../../specs/project-context-folder.md) — SPEC-01 · repo doc discovery, per-(agent, repo) attachments, project-context section in review runs
+- see also: [../../specs/onboarding-tour.md](../../specs/onboarding-tour.md) — SPEC-02 · per-repo Onboarding Tour generation (repo-intel facts + 1 LLM call, grounding, stale)
 - [intent-layer.md](intent-layer.md) — read when touching PR intent derivation (sources, linked issues/plans, `review_intent` model call, `pr_intent` caching, `/pulls/:id/intent` routes, intent section in the review prompt)

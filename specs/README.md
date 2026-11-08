@@ -26,3 +26,5 @@ existing code works, `specs/` what to build; `plans/` says how and in what order
 ## Index
 
 <!-- - [file.md](file.md) — SPEC-NN · server, client · read when … -->
+- [project-context-folder.md](project-context-folder.md) — SPEC-01 · server, client · read when touching repo doc discovery (READMEs, INSIGHTS.md, nested specs/ + docs/), the Project Context page, the agent Context tab, per-(agent, repo) doc attachments, or the project-context section in review prompts and the run trace (4K token cap, ×N model calls)
+- [onboarding-tour.md](onboarding-tour.md) — SPEC-02 · server, client · read when touching the per-repo Onboarding Tour (5 sections, generation model call, grounding of paths/commands, stale/regenerate, Markdown export)

@@ -1,4 +1,4 @@
-# Spec: PR Why + Risk Brief   |   Spec ID: SPEC-06   |   Status: draft
+# Spec: PR Why + Risk Brief   |   Spec ID: SPEC-06   |   Status: approved
 Modules: server · client
 Related: [project-context-folder.md](project-context-folder.md) (SPEC-01, doc selection + 4K cap),
 [project-context-for-skills.md](project-context-for-skills.md) (SPEC-05, inherited docs),

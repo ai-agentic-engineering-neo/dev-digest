@@ -280,7 +280,9 @@ async function seedReviewRun(db: Db, workspaceId: string, prId: string): Promise
   const [review] = await db
     .select({ id: t.reviews.id, runId: t.reviews.runId })
     .from(t.reviews)
-    .where(and(eq(t.reviews.prId, prId), eq(t.reviews.model, 'seed')));
+    .where(
+      and(eq(t.reviews.workspaceId, workspaceId), eq(t.reviews.prId, prId), eq(t.reviews.model, 'seed')),
+    );
   if (!review || review.runId) return;
   const [agent] = await db
     .select({ id: t.agents.id, name: t.agents.name, systemPrompt: t.agents.systemPrompt })
@@ -338,7 +340,10 @@ async function seedReviewRun(db: Db, workspaceId: string, prId: string): Promise
         },
       },
     });
-    await tx.update(t.reviews).set({ runId: run!.id }).where(eq(t.reviews.id, review.id));
+    await tx
+      .update(t.reviews)
+      .set({ runId: run!.id })
+      .where(and(eq(t.reviews.id, review.id), eq(t.reviews.workspaceId, workspaceId)));
   });
 }
 

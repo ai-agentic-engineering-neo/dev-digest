@@ -53,7 +53,6 @@ interface FocusTarget {
 
 function RepoContextTab({ agentId, repoId }: { agentId: string; repoId: string }) {
   const t = useTranslations("agents");
-  const tc = useTranslations("context");
   const toast = useToast();
   const docsQ = useContextDocs(repoId);
   const attachedQ = useAgentContextDocs(agentId, repoId);
@@ -87,6 +86,7 @@ function RepoContextTab({ agentId, repoId }: { agentId: string; repoId: string }
     );
   }
 
+  const notCloned = docsQ.data.state.status === "not_cloned";
   const rows = buildContextRows(docsQ.data.docs, attachedQ.data.docs);
   const paths = rows.filter((r) => r.attached).map((r) => r.path);
   const tokens = sumTokens(rows.filter((r) => r.attached));
@@ -153,7 +153,9 @@ function RepoContextTab({ agentId, repoId }: { agentId: string; repoId: string }
         </div>
       ))}
 
-      {rows.length > 0 && visible.length === 0 ? (
+      {notCloned ? null : rows.length === 0 ? (
+        <p style={s.empty}>{t("contextTab.noDocs")}</p>
+      ) : visible.length === 0 ? (
         <p style={s.empty}>{t("contextTab.noMatch")}</p>
       ) : (
         <div style={s.list} role="list">
@@ -164,10 +166,8 @@ function RepoContextTab({ agentId, repoId }: { agentId: string; repoId: string }
               onToggle={() => save(toggleAttached(paths, row.path))}
               onKeyMove={(dir) => onKeyMove(row.path, dir)}
               onPreview={() => setPreviewPath(row.path)}
-              focusHandle={focusTarget?.path === row.path}
-              onHandleFocused={() => {
-                if (focusTarget && row.position === focusTarget.position) setFocusTarget(null);
-              }}
+              focusHandle={focusTarget?.path === row.path && focusTarget.position === row.position}
+              onHandleFocused={() => setFocusTarget(null)}
               drag={{
                 over: overPath === row.path,
                 onStart: () => setDragPath(row.path),
@@ -188,15 +188,17 @@ function RepoContextTab({ agentId, repoId }: { agentId: string; repoId: string }
         </div>
       )}
 
-      <div style={s.footer}>
-        <span style={s.footerTokens(overCap)}>{t("contextTab.footerTokens", { count: tokens })}</span>
-        {overCap && (
-          <Badge color="var(--crit)" bg="var(--crit-bg)" icon="AlertTriangle">
-            {t("contextTab.overSoftCap")}
-          </Badge>
-        )}
-        <span style={s.footerNote}>{t.rich("contextTab.footerNote", { code })}</span>
-      </div>
+      {!notCloned && (
+        <div style={s.footer}>
+          <span style={s.footerTokens(overCap)}>{t("contextTab.footerTokens", { count: tokens })}</span>
+          {overCap && (
+            <Badge color="var(--crit)" bg="var(--crit-bg)" icon="AlertTriangle">
+              {t("contextTab.overSoftCap")}
+            </Badge>
+          )}
+          <span style={s.footerNote}>{t.rich("contextTab.footerNote", { code })}</span>
+        </div>
+      )}
 
       <div aria-live="polite" style={s.visuallyHidden}>
         {announcement}

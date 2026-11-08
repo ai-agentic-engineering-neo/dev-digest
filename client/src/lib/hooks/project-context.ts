@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import { OWN_ERROR_TOAST } from "../error-message";
-import { useResyncRepoIntel } from "./repo-intel";
+import { repoIntelStateQuery, useResyncRepoIntel } from "./repo-intel";
 import type { AgentContextDocs, ContextDocContent, ContextDocList } from "../types";
 
 const POLL_MS = 3000;
@@ -103,16 +103,21 @@ export function useSetAgentContextDocs(agentId: string, repoId: string) {
 /** Stop polling the doc list this long after a resync started. */
 const RESYNC_POLL_TIMEOUT_MS = 60_000;
 
-/** What "the resync changed something" compares: the repo state and the number of docs. */
-const signatureOf = (list: ContextDocList | undefined): string | null =>
-  list ? `${list.state.status}:${list.docs.length}` : null;
+/**
+ * What "the resync changed something" compares: the repo state, the number of docs, and the index
+ * state's `updatedAt`. The resync runs as a background job (the POST only enqueues it), and
+ * reindexing an already-ready repo usually leaves status and doc count unchanged, so `updatedAt`
+ * — which advances on every reindex — is what lets polling end in that common case.
+ */
+const signatureOf = (list: ContextDocList | undefined, indexedAt: string | undefined): string | null =>
+  list ? `${list.state.status}:${list.docs.length}:${indexedAt ?? ""}` : null;
 
 /**
- * Starts a repo resync (fetch + reindex) and polls the doc list every 3 s until its state or doc
- * count differs from the value read FRESH right before the click (a cached list may be stale, so
- * an already-changed value would end polling at once), or until 60 s pass. Shared by the Project
- * Context page and the agent editor's Context tab — a bare `useResyncRepoIntel` never refetches
- * the doc list, so its not-cloned / degraded notice would stay up after a resync.
+ * Starts a repo resync (fetch + reindex) and polls the doc list and the index state every 3 s until
+ * their signature differs from the one read FRESH right before the click (a cached value may be
+ * stale, so an already-changed value would end polling at once), or until 60 s pass. Shared by the
+ * Project Context page and the agent editor's Context tab — a bare `useResyncRepoIntel` never
+ * refetches the doc list, so its not-cloned / degraded notice would stay up after a resync.
  */
 export function useContextResync(repoId: string) {
   const qc = useQueryClient();
@@ -121,13 +126,24 @@ export function useContextResync(repoId: string) {
   const [baseline, setBaseline] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const docs = useContextDocs(repoId, { poll: baseline !== null });
+  const intel = useQuery({
+    ...repoIntelStateQuery(repoId),
+    enabled: baseline !== null,
+    refetchInterval: baseline !== null ? POLL_MS : false,
+    retry: false,
+  });
 
-  const current = signatureOf(docs.data);
+  const current = signatureOf(docs.data, intel.data?.updatedAt);
   const finished = baseline !== null && current !== null && current !== baseline;
+  // derived during render, so the button frees up in the same render the change is seen
+  const active = baseline !== null && !finished;
 
   useEffect(() => {
-    if (finished) setBaseline(null);
-  }, [finished]);
+    if (!finished) return;
+    setBaseline(null);
+    // the index may move before the next doc-list poll: read the list once more
+    void qc.invalidateQueries({ queryKey: contextDocsKey(repoId), exact: true });
+  }, [finished, qc, repoId]);
 
   useEffect(() => {
     if (baseline === null) return;
@@ -136,11 +152,18 @@ export function useContextResync(repoId: string) {
   }, [baseline]);
 
   async function start() {
-    if (starting || baseline !== null || resync.isPending) return;
+    if (starting || active || resync.isPending) return;
     setStarting(true);
     try {
-      await qc.refetchQueries({ queryKey: contextDocsKey(repoId), exact: true });
-      const fresh = signatureOf(qc.getQueryData<ContextDocList>(contextDocsKey(repoId)));
+      const [, indexedAt] = await Promise.all([
+        qc.refetchQueries({ queryKey: contextDocsKey(repoId), exact: true }),
+        // no index row yet (e.g. never cloned) → no timestamp; status/doc count still apply
+        qc
+          .fetchQuery({ ...repoIntelStateQuery(repoId), staleTime: 0, retry: false })
+          .then((s) => s.updatedAt)
+          .catch(() => undefined),
+      ]);
+      const fresh = signatureOf(qc.getQueryData<ContextDocList>(contextDocsKey(repoId)), indexedAt);
       setBaseline(fresh ?? "");
       resync.mutate(undefined, { onError: () => setBaseline(null) });
     } finally {
@@ -148,5 +171,5 @@ export function useContextResync(repoId: string) {
     }
   }
 
-  return { start, busy: starting || baseline !== null || resync.isPending };
+  return { start, busy: starting || active || resync.isPending };
 }

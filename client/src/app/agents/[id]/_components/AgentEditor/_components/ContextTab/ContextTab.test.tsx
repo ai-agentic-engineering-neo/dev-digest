@@ -245,6 +245,35 @@ describe("ContextTab", () => {
     expect(screen.getAllByRole("listitem")).toHaveLength(5);
   });
 
+  it("not cloned → only the blocking notice: no list and no token footer", () => {
+    docsList = { repo_id: "r1", state: { status: "not_cloned" }, docs: [] };
+    attached = [ok("docs/a.md", 0)];
+    renderTab();
+    expect(screen.getByText("Docs are read from the local clone. Resync to fetch it.")).toBeInTheDocument();
+    expect(screen.queryByRole("list")).toBeNull();
+    expect(screen.queryByText(/tokens$/)).toBeNull();
+    expect(screen.queryByText(/Injected as an untrusted block/)).toBeNull();
+  });
+
+  it("a ready repo with no docs shows an empty-state message instead of an empty list", () => {
+    docsList = { repo_id: "r1", state: { status: "ready" }, docs: [] };
+    renderTab();
+    expect(screen.getByText("No Markdown docs in this repository at the last synced commit.")).toBeInTheDocument();
+    expect(screen.queryByRole("list")).toBeNull();
+  });
+
+  it("a keyboard move whose new order never lands does not keep pulling focus on later renders", () => {
+    attached = [ok("docs/a.md", 0), ok("docs/b.md", 1)];
+    const { rerender } = renderTab();
+    fireEvent.keyDown(handle("docs/a.md"), { key: "ArrowDown" });
+    // the save is not reflected (order unchanged): docs/a.md never reaches position 1
+    const filter = screen.getByRole("textbox", { name: "Filter documents…" });
+    filter.focus();
+    rerender(tree());
+    fireEvent.change(filter, { target: { value: "docs" } });
+    expect(filter).toHaveFocus();
+  });
+
   it("without an active repo it asks to select one", () => {
     repoId = null;
     renderTab();

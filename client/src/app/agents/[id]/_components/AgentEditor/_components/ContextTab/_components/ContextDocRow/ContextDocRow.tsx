@@ -30,7 +30,8 @@ export interface ContextDocRowProps {
   /** Arrow Up (-1) / Arrow Down (1) on the drag handle. */
   onKeyMove: (dir: -1 | 1) => void;
   onPreview: () => void;
-  /** True right after a keyboard move of this row: focus its handle again (the keyed DOM moved). */
+  /** True once a keyboard-moved row sits at its target position: focus its handle again (the keyed
+      DOM node moved). Focus happens once per true transition, not on every parent render. */
   focusHandle: boolean;
   onHandleFocused: () => void;
 }
@@ -50,12 +51,17 @@ export function ContextDocRow({
   const missing = status === "missing";
   const { name, folder } = splitDocPath(path);
   const handleRef = React.useRef<HTMLButtonElement>(null);
+  // the parent passes a new inline callback each render; read it through a ref so it is not a dep
+  const onFocusedRef = React.useRef(onHandleFocused);
+  React.useEffect(() => {
+    onFocusedRef.current = onHandleFocused;
+  });
 
   React.useEffect(() => {
     if (!focusHandle) return;
     handleRef.current?.focus();
-    onHandleFocused();
-  }, [focusHandle, onHandleFocused]);
+    onFocusedRef.current();
+  }, [focusHandle]);
 
   return (
     <div

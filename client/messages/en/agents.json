@@ -137,6 +137,7 @@
     "tooLarge": "{path} is ~{count} tokens — over the 4,000-token cap on its own, so it will be left out of every run.",
     "filterPlaceholder": "Filter documents…",
     "noMatch": "No documents found",
+    "noDocs": "No Markdown docs in this repository at the last synced commit.",
     "noRepo": "Select a repository to attach its docs.",
     "missing": "missing",
     "missingHint": "Not found at the last synced commit",

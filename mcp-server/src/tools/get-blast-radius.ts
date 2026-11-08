@@ -73,6 +73,13 @@ function nextStepFor(reason: string | null): string {
   return NEXT_STEP_BY_REASON[reason] ?? `The map is degraded (${reason}); treat it as incomplete.`;
 }
 
+/** Untrusted repo strings → one line each (no embedded newlines can forge extra lines in the tool text). */
+const MAX_PATH_CHARS = 300;
+const MAX_NAME_CHARS = 160;
+const MAX_CHIP_CHARS = 200;
+const MAX_SUMMARY_CHARS = 600;
+const chip = (e: string): string => shorten(e, MAX_CHIP_CHARS);
+
 function dropped(total: number, limit: number): number {
   return Math.max(0, total - limit);
 }
@@ -88,12 +95,14 @@ export function compactBlast(api: ApiBlast, repo: string, pr: number): BlastTool
     endpointsCut += dropped(d.endpoints_affected.length, MAX_BLAST_CHIPS);
     cronsCut += dropped(d.crons_affected.length, MAX_BLAST_CHIPS);
     return {
-      symbol: shorten(d.symbol, 160),
-      file: d.file,
-      kind: d.kind,
-      callers: d.callers.slice(0, MAX_BLAST_CALLERS).map((c) => ({ name: shorten(c.name, 160), file: c.file, line: c.line })),
-      endpoints_affected: d.endpoints_affected.slice(0, MAX_BLAST_CHIPS),
-      crons_affected: d.crons_affected.slice(0, MAX_BLAST_CHIPS),
+      symbol: shorten(d.symbol, MAX_NAME_CHARS),
+      file: shorten(d.file, MAX_PATH_CHARS),
+      kind: shorten(d.kind, MAX_NAME_CHARS),
+      callers: d.callers
+        .slice(0, MAX_BLAST_CALLERS)
+        .map((c) => ({ name: shorten(c.name, MAX_NAME_CHARS), file: shorten(c.file, MAX_PATH_CHARS), line: c.line })),
+      endpoints_affected: d.endpoints_affected.slice(0, MAX_BLAST_CHIPS).map(chip),
+      crons_affected: d.crons_affected.slice(0, MAX_BLAST_CHIPS).map(chip),
     };
   });
   // Callers/endpoints/crons of symbols cut from the list are dropped too.
@@ -111,13 +120,17 @@ export function compactBlast(api: ApiBlast, repo: string, pr: number): BlastTool
     indexed_sha: api.indexed_sha,
     link_sha: api.link_sha,
     reason: api.reason,
-    summary: api.summary,
+    summary: shorten(api.summary, MAX_SUMMARY_CHARS),
     counts: api.counts,
     changed_symbols: api.changed_symbols
       .slice(0, MAX_BLAST_SYMBOLS)
-      .map((s) => ({ name: shorten(s.name, 160), file: s.file, kind: s.kind })),
+      .map((s) => ({
+        name: shorten(s.name, MAX_NAME_CHARS),
+        file: shorten(s.file, MAX_PATH_CHARS),
+        kind: shorten(s.kind, MAX_NAME_CHARS),
+      })),
     downstream,
-    unattributed_endpoints: api.unattributed_endpoints.slice(0, MAX_BLAST_CHIPS),
+    unattributed_endpoints: api.unattributed_endpoints.slice(0, MAX_BLAST_CHIPS).map(chip),
     truncated: {
       symbols: dropped(api.changed_symbols.length, MAX_BLAST_SYMBOLS),
       downstream: dropped(api.downstream.length, MAX_BLAST_DOWNSTREAM),

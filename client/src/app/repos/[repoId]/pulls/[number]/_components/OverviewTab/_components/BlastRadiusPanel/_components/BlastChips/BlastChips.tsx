@@ -39,7 +39,7 @@ export function BlastChips({
         </Badge>
       ))}
       {hidden > 0 && (
-        <button type="button" style={s.more} onClick={() => setExpanded((v) => !v)}>
+        <button type="button" style={s.more} aria-expanded={expanded} onClick={() => setExpanded((v) => !v)}>
           {expanded ? t("chips.less") : t("chips.more", { count: hidden })}
         </button>
       )}

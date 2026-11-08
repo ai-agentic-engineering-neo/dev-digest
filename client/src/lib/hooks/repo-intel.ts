@@ -30,11 +30,19 @@ export interface RepoIntelState {
     `lastIndexedSha`/`updatedAt` advance, not by status). */
 export function useRepoIntelStatus(repoId: string | null | undefined, poll = false) {
   return useQuery({
-    queryKey: ["repo-intel-state", repoId],
-    queryFn: () => api.get<RepoIntelState>(`/repos/${repoId}/index-state`),
+    ...repoIntelStateQuery(repoId),
     enabled: !!repoId,
     refetchInterval: poll ? 1500 : false,
   });
+}
+
+/** Key + fetcher of the index state — shared by the hook and imperative `qc.fetchQuery` reads
+    (a resync takes a FRESH baseline, never the possibly stale cached one). */
+export function repoIntelStateQuery(repoId: string | null | undefined) {
+  return {
+    queryKey: ["repo-intel-state", repoId] as const,
+    queryFn: () => api.get<RepoIntelState>(`/repos/${repoId}/index-state`),
+  };
 }
 
 /** POST /repos/:id/resync → fetch latest + incremental reindex (resync, not re-clone). */

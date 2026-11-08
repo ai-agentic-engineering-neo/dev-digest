@@ -1,11 +1,12 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
-import { render, screen, cleanup, fireEvent, within } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, within, act } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import messages from "../../../../../../../../../../messages/en/blast.json";
 import { githubBlobUrl } from "@/lib/github-urls";
 import type { PrBlastRadius } from "@/lib/types";
 import { BlastRadiusPanel } from "./BlastRadiusPanel";
+import { RESYNC_POLL_TIMEOUT_MS } from "./constants";
 
 const READY: PrBlastRadius = {
   pr_id: "11111111-1111-4111-8111-111111111111",
@@ -37,30 +38,50 @@ const READY: PrBlastRadius = {
   degraded: false,
   reason: null,
 };
+const PARTIAL: PrBlastRadius = { ...READY, degraded: true, reason: "index_partial" };
 
-interface BlastState {
-  data: PrBlastRadius | undefined;
-  isLoading: boolean;
-  isError: boolean;
+const T0 = "2026-11-08T10:00:00.000Z";
+const T1 = "2026-11-08T10:05:00.000Z";
+const T2 = "2026-11-08T10:06:00.000Z";
+const POLL_MS = 1500;
+
+/* Fake DevDigest API behind `api.*` — the real query hooks run on top of it.
+   Each test sets the server state; mutating it simulates what the server does next. */
+interface Server {
+  blast: PrBlastRadius | "pending" | "error";
+  indexUpdatedAt: string;
+  resync: "accepted" | "error";
 }
-let current: BlastState = { data: READY, isLoading: false, isError: false };
-const refetch = vi.fn();
-const resyncMutate = vi.fn();
-const statusSpy = vi.fn();
+let server: Server;
+const apiGet = vi.fn();
+const apiPost = vi.fn();
 
-vi.mock("@/lib/hooks/blast", () => ({
-  useBlastRadius: () => ({ ...current, refetch }),
-}));
-vi.mock("@/lib/hooks/repo-intel", () => ({
-  useRepoIntelStatus: (...args: unknown[]) => {
-    statusSpy(...args);
-    return { data: { updatedAt: "2026-11-08T00:00:00.000Z" } };
-  },
-  useResyncRepoIntel: () => ({ mutate: resyncMutate, isPending: false }),
-}));
+vi.mock("@/lib/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api")>();
+  return { ...actual, api: { ...actual.api, get: (p: string) => apiGet(p), post: (p: string) => apiPost(p) } };
+});
+
+function implementApi() {
+  apiGet.mockImplementation(async (path: string) => {
+    if (path.endsWith("/blast")) {
+      if (server.blast === "pending") return new Promise(() => {});
+      if (server.blast === "error") throw new Error("boom");
+      return server.blast;
+    }
+    if (path === "/repos/repo-1/index-state") {
+      return { status: "partial", filesIndexed: 10, filesSkipped: 2, lastIndexedSha: "idx111", updatedAt: server.indexUpdatedAt };
+    }
+    throw new Error(`unexpected GET ${path}`);
+  });
+  apiPost.mockImplementation(async (path: string) => {
+    if (path !== "/repos/repo-1/resync") throw new Error(`unexpected POST ${path}`);
+    if (server.resync === "error") throw new Error("resync failed");
+    return { status: "queued" };
+  });
+}
 
 function renderPanel() {
-  const qc = new QueryClient();
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
       <NextIntlClientProvider locale="en" messages={{ blast: messages }}>
@@ -70,18 +91,38 @@ function renderPanel() {
   );
 }
 
+/** Lets time pass (polls, timeouts) and flushes the resulting renders. */
+async function advance(ms: number) {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(ms);
+  });
+}
+
+const resyncButton = () => screen.getByRole("button", { name: /resync index|resyncing/i });
+
+/** Renders a partial map and clicks Resync; returns once the panel shows the running state. */
+async function startResync() {
+  renderPanel();
+  fireEvent.click(await screen.findByRole("button", { name: "Resync index" }));
+  await advance(0);
+  expect(resyncButton()).toBeDisabled();
+  expect(resyncButton()).toHaveTextContent("Resyncing…");
+}
+
 beforeEach(() => {
-  current = { data: READY, isLoading: false, isError: false };
+  server = { blast: READY, indexUpdatedAt: T0, resync: "accepted" };
+  implementApi();
 });
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.clearAllMocks();
 });
 
 describe("BlastRadiusPanel", () => {
-  it("renders the ready state with links pinned to link_sha", () => {
+  it("renders the ready state with links pinned to link_sha", async () => {
     renderPanel();
-    const summary = screen.getByRole("group", { name: "Blast radius summary" });
+    const summary = await screen.findByRole("group", { name: "Blast radius summary" });
     expect(within(summary).getByText("2 symbols")).toBeInTheDocument();
     expect(within(summary).getByText("3 callers")).toBeInTheDocument();
     expect(within(summary).getByText("1 endpoint")).toBeInTheDocument();
@@ -92,46 +133,91 @@ describe("BlastRadiusPanel", () => {
     expect(screen.getByText("1 more changed symbol has no callers.")).toBeInTheDocument();
   });
 
-  it("shows the empty message for a computed map without callers", () => {
-    current = {
-      ...current,
-      data: { ...READY, downstream: [], counts: { symbols: 0, callers: 0, endpoints: 0, crons: 0 } },
-    };
+  it("shows the empty message for a computed map without callers", async () => {
+    server.blast = { ...READY, downstream: [], counts: { symbols: 0, callers: 0, endpoints: 0, crons: 0 } };
     renderPanel();
-    expect(screen.getByText("0 changed symbol(s), no downstream callers found.")).toBeInTheDocument();
+    expect(await screen.findByText("0 changed symbol(s), no downstream callers found.")).toBeInTheDocument();
   });
 
-  it("offers resync for a partial index and starts polling", () => {
-    current = { ...current, data: { ...READY, degraded: true, reason: "index_partial" } };
-    renderPanel();
-    expect(screen.getByText(messages.degraded.index_partial)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "server/src/x.ts:12" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Resync index" }));
-    expect(resyncMutate).toHaveBeenCalled();
-    expect(statusSpy).toHaveBeenLastCalledWith("repo-1", true);
-  });
-
-  it("explains no_data without resync or an empty-map claim", () => {
-    current = {
-      ...current,
-      data: { ...READY, downstream: [], degraded: true, reason: "no_data", counts: { symbols: 0, callers: 0, endpoints: 0, crons: 0 } },
+  it("explains no_data without resync or an empty-map claim", async () => {
+    server.blast = {
+      ...READY,
+      downstream: [],
+      degraded: true,
+      reason: "no_data",
+      counts: { symbols: 0, callers: 0, endpoints: 0, crons: 0 },
     };
     renderPanel();
-    expect(screen.getByText(messages.degraded.no_data)).toBeInTheDocument();
+    expect(await screen.findByText(messages.degraded.no_data)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Resync index" })).not.toBeInTheDocument();
     expect(screen.queryByText(/no downstream callers found/)).not.toBeInTheDocument();
   });
 
-  it("handles loading and error states", () => {
-    current = { data: undefined, isLoading: true, isError: false };
-    const { unmount } = renderPanel();
-    expect(screen.getByLabelText("Loading blast radius…")).toHaveAttribute("aria-busy", "true");
-    unmount();
-
-    current = { data: undefined, isLoading: false, isError: true };
+  it("shows a busy skeleton while loading", () => {
+    server.blast = "pending";
     renderPanel();
-    expect(screen.getByText("Couldn't load the blast radius")).toBeInTheDocument();
+    expect(screen.getByLabelText("Loading blast radius…")).toHaveAttribute("aria-busy", "true");
+  });
+
+  it("shows an error with a working Retry", async () => {
+    server.blast = "error";
+    renderPanel();
+    expect(await screen.findByText("Couldn't load the blast radius")).toBeInTheDocument();
+    server.blast = READY;
     fireEvent.click(screen.getByRole("button", { name: /retry/i }));
-    expect(refetch).toHaveBeenCalled();
+    expect(await screen.findByRole("link", { name: "server/src/x.ts:12" })).toBeInTheDocument();
+  });
+
+  describe("resync", () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      server.blast = PARTIAL;
+    });
+
+    it("finishes only after the reindex really advances the index — not on a stale cached state", async () => {
+      renderPanel();
+      expect(await screen.findByText(messages.degraded.index_partial)).toBeInTheDocument();
+      // Another reindex finished after the page cached T0: the server is already at T1.
+      server.indexUpdatedAt = T1;
+
+      fireEvent.click(screen.getByRole("button", { name: "Resync index" }));
+      await advance(0);
+      expect(apiPost).toHaveBeenCalledWith("/repos/repo-1/resync");
+
+      // First polls still see T1 — our reindex is not done, so the panel keeps waiting.
+      await advance(POLL_MS * 2);
+      expect(resyncButton()).toHaveTextContent("Resyncing…");
+      expect(resyncButton()).toBeDisabled();
+
+      // Our reindex lands (T2) with a better map: the panel refreshes and Resync is available again.
+      server.indexUpdatedAt = T2;
+      server.blast = {
+        ...PARTIAL,
+        downstream: [
+          { ...PARTIAL.downstream[0]!, callers: [...PARTIAL.downstream[0]!.callers, { name: "callD", file: "server/src/w.ts", line: 5 }] },
+        ],
+      };
+      await advance(POLL_MS);
+      expect(await screen.findByRole("link", { name: "server/src/w.ts:5" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Resync index" })).toBeEnabled();
+      expect(screen.queryByText(messages.resync.timeout)).not.toBeInTheDocument();
+    });
+
+    it("gives up after the poll timeout with a still-running hint and re-enables Resync", async () => {
+      await startResync();
+      await advance(RESYNC_POLL_TIMEOUT_MS);
+      expect(screen.getByText(messages.resync.timeout)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Resync index" })).toBeEnabled();
+    });
+
+    it("re-enables Resync when the resync request fails", async () => {
+      server.resync = "error";
+      renderPanel();
+      fireEvent.click(await screen.findByRole("button", { name: "Resync index" }));
+      await advance(0);
+      expect(apiPost).toHaveBeenCalledWith("/repos/repo-1/resync");
+      expect(screen.getByRole("button", { name: "Resync index" })).toBeEnabled();
+      expect(screen.queryByText(messages.resync.timeout)).not.toBeInTheDocument();
+    });
   });
 });

@@ -1,6 +1,6 @@
-# mcp-server — insights
+# mcp — insights
 
-Non-obvious lessons learned while working in `mcp-server/`. Maintained by the `engineering-insights` skill.
+Non-obvious lessons learned while working in `mcp/`. Maintained by the `engineering-insights` skill.
 Append-only: new lines go at the end of their section; corrections are new dated entries.
 Format: `- YYYY-MM-DD — <what is true / what happened> → <what to do instead> (path:line → symbol)`.
 Add an entry only if forgetting it would make an agent (or a human) repeat the mistake.

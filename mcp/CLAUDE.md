@@ -1,14 +1,14 @@
-# mcp-server/ — DevDigest MCP server (stdio, 5 tools)
+# mcp/ — DevDigest MCP server (stdio, 5 tools)
 
 ## Before answering
 
-Read `mcp-server/README.md` (tools, env, best practices, "Що свідомо НЕ робимо") and `mcp-server/INSIGHTS.md` first.
+Read `mcp/README.md` (tools, env, best practices, "Що свідомо НЕ робимо") and `mcp/INSIGHTS.md` first.
 
-## Commands (npm, NOT pnpm — run in `mcp-server/`, bins via `node` on Windows)
+## Commands (npm, NOT pnpm — run in `mcp/`, bins via `node` on Windows)
 
 - `npm ci` · `node node_modules/vitest/vitest.mjs run` (in-memory MCP Client + fake `fetch`, no network)
 - Typecheck: `node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json`
-- Run from the repo root: `node mcp-server/node_modules/tsx/dist/cli.mjs mcp-server/src/index.ts` (what `.mcp.json` does; no `npx`).
+- Run from the repo root: `node mcp/node_modules/tsx/dist/cli.mjs mcp/src/index.ts` (what `.mcp.json` does; no `npx`).
 
 ## Layout
 

@@ -13,11 +13,11 @@
   імпортованих репо. Кілька збігів → `isError` зі списком `owner/name#N title`.
 - **`pr_id`**: `15`, `"15"`, `"#15"`, UUID PR або частина назви PR (лише при одному збігу; інакше `isError`
   зі списком кандидатів).
-- **`agent_id`**: `agent_id` з `list_agents`; також працює точне ім'я агента (без урахування регістру).
+- **`agent_id`**: `id` з `list_agents`; також працює точне ім'я агента (без урахування регістру).
 
 | Інструмент | Що робить | Анотації |
 |---|---|---|
-| `list_agents` | Першим: `agents[{agent_id, name, model, role, enabled}]` (системний промпт не віддається) | `readOnlyHint: true` |
+| `list_agents` | Першим: `agents[{id, name, description, model, enabled}]` (системний промпт не віддається); `id` передається в `run_agent_on_pr` як `agent_id` | `readOnlyHint: true` |
 | `run_agent_on_pr` | `repo?`, `pr_id`, `agent_id`. Запускає прогін, **сам чекає** і повертає findings одного прогону. Якщо цей агент уже має активний прогін на PR, приєднується до нього (без другого платного прогону; про це каже `warning`). Disabled-агент теж запускається, з `warning` | `readOnlyHint: false`, `destructiveHint: false`, `idempotentHint: false`, `openWorldHint: true` |
 | `get_findings` | `repo?`, `pr_id`, опційно `run_id` / `agent_id` / `all_runs`. За замовчуванням — **останній завершений прогін кожного агента** на PR, згрупований; `agent_id` → лише цей агент; `run_id` → цей прогін; `all_runs: true` → усі завершені прогони (до 10, найновіші першими) | `readOnlyHint: true` |
 | `get_conventions` | `repo`, опційно `status` (`accepted` за замовчуванням / `pending` / `all`). Кожне правило з `confidence` і доказом `path:line`; дублікати (той самий текст після нормалізації регістру/пробілів) зливаються в одне — з найвищою `confidence` і `duplicates: N`. Не більше 50 правил, `rule` ≤ 300 символів | `readOnlyHint: true` |
@@ -48,8 +48,10 @@
 `get_findings` без `run_id` тепер повертає **групи по агентах** (`reviews[]`), а не один прогін.
 Збережені промпти чи скрипти зі старими назвами треба оновити.
 
+**2026-11-08, після рев'ю ментора:** `list_agents` знову повертає `id` і `description` (повний опис агента, не системний промпт) замість `agent_id` і скороченого `role` — як у контракті завдання. Пакет перейменовано на `@devdigest/mcp`, папку — на `mcp/` (шлях у `.mcp.json` оновлено).
+
 Рядок для опису PR:
-> **mcp-server (breaking):** args unified to `repo` / `pr_id` / `agent_id` (repo optional, PR by number/`#N`/UUID/title); findings carry `category` + `suggestion` (+ `start_line`); `get_findings` returns the latest run of every agent grouped (`all_runs`, 60/25/10 caps, `cost_usd`); `list_agents` adds `model`; `get_conventions` adds `confidence` + dedup; `get_blast_radius` adds `prior_prs`.
+> **mcp (breaking):** args unified to `repo` / `pr_id` / `agent_id` (repo optional, PR by number/`#N`/UUID/title); findings carry `category` + `suggestion` (+ `start_line`); `get_findings` returns the latest run of every agent grouped (`all_runs`, 60/25/10 caps, `cost_usd`); `list_agents` adds `model`; `get_conventions` adds `confidence` + dedup; `get_blast_radius` adds `prior_prs`.
 
 ## Запуск
 
@@ -57,18 +59,18 @@
 Пакет незалежний від pnpm-скриптів DevDigest: npm, власний `package.json`.
 
 ```bash
-cd mcp-server && npm install         # один раз
-node mcp-server/node_modules/tsx/dist/cli.mjs mcp-server/src/index.ts   # з кореня репо; сервер чекає JSON-RPC на stdin
+cd mcp && npm install         # один раз
+node mcp/node_modules/tsx/dist/cli.mjs mcp/src/index.ts   # з кореня репо; сервер чекає JSON-RPC на stdin
 ```
 
 Перевірка в MCP Inspector:
 
 ```bash
 # UI
-npx @modelcontextprotocol/inspector node mcp-server/node_modules/tsx/dist/cli.mjs mcp-server/src/index.ts
+npx @modelcontextprotocol/inspector node mcp/node_modules/tsx/dist/cli.mjs mcp/src/index.ts
 # CLI
-npx @modelcontextprotocol/inspector --cli node mcp-server/node_modules/tsx/dist/cli.mjs mcp-server/src/index.ts --method tools/list
-npx @modelcontextprotocol/inspector --cli node mcp-server/node_modules/tsx/dist/cli.mjs mcp-server/src/index.ts \
+npx @modelcontextprotocol/inspector --cli node mcp/node_modules/tsx/dist/cli.mjs mcp/src/index.ts --method tools/list
+npx @modelcontextprotocol/inspector --cli node mcp/node_modules/tsx/dist/cli.mjs mcp/src/index.ts \
   --method tools/call --tool-name get_findings --tool-arg pr_id=28
 ```
 
@@ -83,7 +85,7 @@ npx @modelcontextprotocol/inspector --cli node mcp-server/node_modules/tsx/dist/
 - `test/stdio.smoke.test.ts`: справжній процес через `StdioClientTransport` (stdout містить лише JSON-RPC).
 
 ```bash
-cd mcp-server && node node_modules/vitest/vitest.mjs run
+cd mcp && node node_modules/vitest/vitest.mjs run
 node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json
 ```
 
@@ -95,7 +97,7 @@ node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json
 ```json
 { "mcpServers": { "devdigest": {
   "type": "stdio", "command": "node",
-  "args": ["mcp-server/node_modules/tsx/dist/cli.mjs", "mcp-server/src/index.ts"],
+  "args": ["mcp/node_modules/tsx/dist/cli.mjs", "mcp/src/index.ts"],
   "env": { "DEVDIGEST_API_URL": "${DEVDIGEST_API_URL:-http://localhost:3001}" },
   "timeout": 240000 } } }
 ```
@@ -103,12 +105,12 @@ node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json
 Те саме через CLI (local scope, без файлу):
 
 ```bash
-claude mcp add --transport stdio devdigest --env DEVDIGEST_API_URL=http://localhost:3001 -- node mcp-server/node_modules/tsx/dist/cli.mjs mcp-server/src/index.ts
+claude mcp add --transport stdio devdigest --env DEVDIGEST_API_URL=http://localhost:3001 -- node mcp/node_modules/tsx/dist/cli.mjs mcp/src/index.ts
 ```
 
 Чому не `npx tsx`: у корені репо немає `package.json`, тож `npx` щоразу тягне непінований `tsx` з реєстру
 (supply chain, повільний холодний старт), а на нативному Windows `npx` ще й потребує обгортки `cmd /c`.
-Локальний `tsx` з `mcp-server/node_modules` пінований lock-файлом. Шляхи відносні, тож cwd = корінь репо.
+Локальний `tsx` з `mcp/node_modules` пінований lock-файлом. Шляхи відносні, тож cwd = корінь репо.
 
 Цільовий сценарій: *«Зроби рев'ю PR №3 у репозиторії lindigo-design/dev-digest агентом Security Reviewer
 і скажи, чи є критичні знахідки»*. Модель проходить `list_agents` → `run_agent_on_pr` → (за потреби)

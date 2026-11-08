@@ -1,6 +1,6 @@
-# specs — mcp-server
+# specs — mcp
 
-Specs / acceptance criteria for the `mcp-server` package (stdio MCP tools over the DevDigest HTTP API).
+Specs / acceptance criteria for the `mcp` package (stdio MCP tools over the DevDigest HTTP API).
 
 Features of THIS module only, one per file: `<feature>.md` — a feature touching ≥ 2 modules has ONE spec in
 the root [`specs/`](../../specs/README.md) and a `- see also: ../../specs/<feature>.md` line in the list below. Written BEFORE implementation by the

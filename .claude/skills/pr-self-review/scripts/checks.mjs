@@ -9,7 +9,7 @@
  * 2. Onion layer check (dependency-cruiser) → critical per NEW error-level violation
  * 3. tsc --noEmit per changed package        → critical in changed files, high elsewhere
  * 4. reviewer-core changed → server unit tests (server type-checks against its source) → critical
- * 5. mcp-server changed → its vitest suite (in-memory MCP client + fake fetch, no network) → critical
+ * 5. mcp changed → its vitest suite (in-memory MCP client + fake fetch, no network) → critical
  * Tools are called via `node <bin>` — on Windows `pnpm <script>` can fail ("Access is denied").
  */
 import { execFileSync } from 'node:child_process';
@@ -170,7 +170,7 @@ if (!policyOnly && changedAny(['server/src/**', 'server/.dependency-cruiser.cjs'
 const TS_RELEVANT = ['**/*.{ts,tsx,mts,cts}', '**/tsconfig*.json', '**/package.json'];
 const MAX_TS_FINDINGS = 50;
 if (!skipTypecheck) {
-  for (const pkg of ['server', 'client', 'reviewer-core', 'e2e', 'mcp-server']) {
+  for (const pkg of ['server', 'client', 'reviewer-core', 'e2e', 'mcp']) {
     const touched = changed.filter((p) => p.startsWith(`${pkg}/`) && matchesAny(p, TS_RELEVANT));
     // server type-checks against reviewer-core source → a reviewer-core change also re-checks server
     const viaCore = pkg === 'server' && changed.some((p) => p.startsWith('reviewer-core/src/'));
@@ -238,24 +238,24 @@ if (!skipTests && changed.some((p) => p.startsWith('reviewer-core/'))) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// 5. mcp-server → its own tests
+// 5. mcp → its own tests
 // ---------------------------------------------------------------------------------------------
-if (!skipTests && changed.some((p) => p.startsWith('mcp-server/'))) {
-  const mcpDir = join(ROOT, 'mcp-server');
+if (!skipTests && changed.some((p) => p.startsWith('mcp/'))) {
+  const mcpDir = join(ROOT, 'mcp');
   const vitest = join(mcpDir, 'node_modules', 'vitest', 'vitest.mjs');
   if (!existsSync(vitest)) {
-    warnings.push('mcp-server tests skipped: mcp-server/node_modules not installed (npm ci in mcp-server/)');
+    warnings.push('mcp tests skipped: mcp/node_modules not installed (npm ci in mcp/)');
   } else {
-    ran.push('tests:mcp-server');
+    ran.push('tests:mcp');
     const r = run(process.execPath, [vitest, 'run'], mcpDir, 600_000);
     if (r.code !== 0) {
       add({
         skill: 'tests',
-        rule: 'tests/mcp-server',
-        file: 'mcp-server/test',
-        issue: r.timedOut ? 'mcp-server tests timed out' : 'mcp-server tests fail',
+        rule: 'tests/mcp',
+        file: 'mcp/test',
+        issue: r.timedOut ? 'mcp tests timed out' : 'mcp tests fail',
         evidence: r.out.split(/\r?\n/).filter(Boolean).slice(-40).join('\n'),
-        fix: 'cd mcp-server && node node_modules/vitest/vitest.mjs run',
+        fix: 'cd mcp && node node_modules/vitest/vitest.mjs run',
       });
     }
   }

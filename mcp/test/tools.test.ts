@@ -57,17 +57,18 @@ describe('tools/list', () => {
 });
 
 describe('list_agents', () => {
-  it('returns agent_id, name, model, role, enabled only (no system prompt)', async () => {
+  it('returns id, name, description, model, enabled only (no system prompt)', async () => {
     const { call } = await setup();
     const r = await call('list_agents');
     expect(r.isError).toBeFalsy();
     expect(r.structuredContent).toEqual({
       agents: [
-        { agent_id: 'agent-sec', name: 'Security Reviewer', model: SECURITY.model, role: SECURITY.description, enabled: true },
-        { agent_id: 'agent-style', name: 'Style Reviewer', model: STYLE.model, role: 'Naming and style.', enabled: false },
+        { id: 'agent-sec', name: 'Security Reviewer', description: SECURITY.description, model: SECURITY.model, enabled: true },
+        { id: 'agent-style', name: 'Style Reviewer', description: STYLE.description, model: STYLE.model, enabled: false },
       ],
     });
-    expect(text(r)).toContain('[agent_id agent-sec]');
+    expect(JSON.stringify(r.structuredContent)).not.toContain('system_prompt');
+    expect(text(r)).toContain('[id agent-sec]');
   });
 });
 

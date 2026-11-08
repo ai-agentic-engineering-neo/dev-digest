@@ -1,6 +1,6 @@
 # Implementation Plan: PR Why + Risk Brief
 
-- **Status:** draft
+- **Status:** approved
 - **Execution mode:** multi-agent  <!-- user's choice; 14 tasks (T7 dropped 2026-11-09, numbers kept), widest wave 4 -->
 - **Goal:** On a PR's Overview tab the user clicks Generate brief and gets, for exactly one model call over precomputed facts (no diff code), a stored brief: summary, Risk areas under Intent, a "Review focus — read these first" list whose items open the file in Files changed (or on GitHub for blast-only files), with missing / truncated inputs, an outdated marker and a cost meta line.
 - **Specs:** `SPEC-06` — specs/pr-brief.md (approved; amended in commit 27d048c: AC-4 agents' own attachments only, AC-7/AC-9 blast-only lines). P1 = AC-1..AC-17, P2 = AC-18..AC-21.
@@ -649,7 +649,7 @@ No migration in any wave. reviewer-core is not changed, so no extra cross-packag
 
 - none
 
-## Cross-model review (ChatGPT <модель>, 2026-11-09)
+## Cross-model review (ChatGPT GPT6, 2026-11-09)
 
 - #1 — rejected: `Risk` already has `file_refs`.
 - #2 — rejected: T8 already depends on T5/T6.

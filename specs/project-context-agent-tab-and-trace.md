@@ -1,4 +1,4 @@
-# Spec: Project context — agent Context tab, run trace and section format   |   Spec ID: SPEC-04   |   Status: approved
+# Spec: Project context — agent Context tab, run trace and section format   |   Spec ID: SPEC-04   |   Status: implemented
 Modules: server · client · reviewer-core
 Supersedes: specs/project-context-folder.md (SPEC-01) — the presentation of AC-2 (agent-tab preview), AC-6/AC-7
 (Context-tab rows, header, footer), AC-9 (the separate "Project context" trace block) and AC-11's "no Project

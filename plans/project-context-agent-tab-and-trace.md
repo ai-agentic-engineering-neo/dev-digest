@@ -1,6 +1,6 @@
 # Implementation Plan: Project context — agent Context tab, run trace and section format
 
-- **Status:** in progress
+- **Status:** done (CI incl. e2e browser flows green on 656c9d8, PR #33)
 - **Execution mode:** single-agent  <!-- user's choice -->
 - **Goal:** The agent Context tab matches N2b (row anatomy, source colours, header, cost footer, keyboard reorder on the handle, preview drawer). The run trace matches N10: "Specs read" in Configuration, and a searchable, copyable "Project context — attached specs (untrusted)" row in Prompt assembly. Every model call gets the project-context section in the readable `## Project context` / note / `### <path>` form.
 - **Specs:** `SPEC-04` — specs/project-context-agent-tab-and-trace.md (approved; supersedes parts of `SPEC-01` — specs/project-context-folder.md, implemented by plans/project-context-folder.md)

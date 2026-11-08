@@ -9,9 +9,12 @@ import {
   vector,
   index,
   uniqueIndex,
+  primaryKey,
 } from 'drizzle-orm/pg-core';
+import { now } from './_shared';
 import { workspaces } from './core';
 import { repos } from './repos';
+import { agents } from './agents';
 
 // ============================================================ Context & codebase
 
@@ -124,3 +127,27 @@ export const onboarding = pgTable('onboarding', {
   json: jsonb('json').notNull(),
   generatedAt: timestamp('generated_at', { withTimezone: true }).defaultNow().notNull(),
 });
+
+/**
+ * `agent_context_docs` — markdown docs (repo-relative POSIX paths) an agent reads as project
+ * context when reviewing PRs of a repo, in `position` order (SPEC-01). No workspace_id: every
+ * read/write is scoped through BOTH workspace-checked parents (agent and repo); rows die with either.
+ */
+export const agentContextDocs = pgTable(
+  'agent_context_docs',
+  {
+    agentId: uuid('agent_id')
+      .notNull()
+      .references(() => agents.id, { onDelete: 'cascade' }),
+    repoId: uuid('repo_id')
+      .notNull()
+      .references(() => repos.id, { onDelete: 'cascade' }),
+    path: text('path').notNull(),
+    position: integer('position').notNull(),
+    createdAt: now(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.agentId, t.repoId, t.path] }),
+    repoIdx: index('agent_context_docs_repo_idx').on(t.repoId),
+  }),
+);

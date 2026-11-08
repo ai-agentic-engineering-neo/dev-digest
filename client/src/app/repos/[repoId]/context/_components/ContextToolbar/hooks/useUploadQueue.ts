@@ -13,21 +13,25 @@ export interface UploadReportState {
 
 const EMPTY_REPORT: UploadReportState = { added: [], rejected: [], conflicts: [] };
 
-/** Sequential upload of .md files into `folder`; 409 conflicts wait for Overwrite / Cancel. */
+/**
+ * Sequential upload of .md files into `folder`; 409 conflicts wait for Overwrite / Cancel. A conflict
+ * remembers the folder it happened in: the user may pick another folder before resolving it, and
+ * Overwrite must replace the conflicting doc, not upload into the newly selected folder.
+ */
 export function useUploadQueue(repoId: string, folder: string) {
   const upload = useUploadDevdigestDoc(repoId);
   const [report, setReport] = useState<UploadReportState>(EMPTY_REPORT);
-  const pending = useRef(new Map<string, File>());
+  const pending = useRef(new Map<string, { file: File; folder: string }>());
 
-  async function send(file: File, overwrite: boolean): Promise<void> {
+  async function send(file: File, overwrite: boolean, into: string): Promise<void> {
     try {
       const content_base64 = await fileToBase64(file);
-      const doc = await upload.mutateAsync({ folder, filename: file.name, content_base64, overwrite });
+      const doc = await upload.mutateAsync({ folder: into, filename: file.name, content_base64, overwrite });
       setReport((r) => ({ ...r, added: [...r.added, doc.path] }));
     } catch (e) {
       const details = devdigestErrorOf(e);
       if (details?.reason === "exists" && !overwrite) {
-        pending.current.set(file.name, file);
+        pending.current.set(file.name, { file, folder: into });
         setReport((r) => ({ ...r, conflicts: [...r.conflicts, file.name] }));
         return;
       }
@@ -43,28 +47,28 @@ export function useUploadQueue(repoId: string, folder: string) {
     }
   }
 
-  async function run(files: File[]): Promise<void> {
+  async function run(files: File[], into: string): Promise<void> {
     for (const file of files) {
       const rejection = precheckUpload(file);
       if (rejection) {
         setReport((r) => ({ ...r, rejected: [...r.rejected, { name: file.name, reason: rejection }] }));
         continue;
       }
-      await send(file, false);
+      await send(file, false, into);
     }
   }
 
   function start(files: File[]): void {
     pending.current.clear();
     setReport(EMPTY_REPORT);
-    void run(files);
+    void run(files, folder);
   }
 
   function resolveConflict(name: string, overwrite: boolean): void {
-    const file = pending.current.get(name);
+    const entry = pending.current.get(name);
     pending.current.delete(name);
     setReport((r) => ({ ...r, conflicts: r.conflicts.filter((n) => n !== name) }));
-    if (file && overwrite) void send(file, true);
+    if (entry && overwrite) void send(entry.file, true, entry.folder);
   }
 
   function dismiss(): void {

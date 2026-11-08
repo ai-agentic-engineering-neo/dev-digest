@@ -81,9 +81,9 @@ describe("flattenSection / folderOf / docArea", () => {
   it("derives the folder line and the area chip", () => {
     expect(folderOf("server/specs/a.md")).toBe("server/specs/");
     expect(folderOf("README.md")).toBe("");
-    expect(docArea(doc("reviewer-core/README.md", "readme"))).toBe("reviewer-core");
-    expect(docArea(doc("TESTING.md", "readme"))).toBe("root");
-    expect(docArea(doc(".devdigest/specs/auth/a.md", "devdigest"))).toBe("auth");
+    expect(docArea(doc("reviewer-core/README.md", "readme"))).toEqual({ kind: "folder", name: "reviewer-core" });
+    expect(docArea(doc("TESTING.md", "readme"))).toEqual({ kind: "root" });
+    expect(docArea(doc(".devdigest/specs/auth/a.md", "devdigest"))).toEqual({ kind: "folder", name: "auth" });
     expect(docArea(doc(".devdigest/specs/a.md", "devdigest"))).toBeNull();
   });
 });

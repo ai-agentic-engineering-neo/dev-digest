@@ -79,12 +79,15 @@ export function folderOf(path: string): string {
   return i < 0 ? "" : path.slice(0, i + 1);
 }
 
-/** Area chip: the top-level folder (package) of a repo doc, "root" for a root file; devdigest docs use their relative path. */
-export function docArea(doc: ContextDoc): string | null {
+/** What the area chip shows: a folder name as-is, or the (translated) "root" label for a root file. */
+export type DocArea = { kind: "folder"; name: string } | { kind: "root" };
+
+/** Area chip: the top-level folder (package) of a repo doc, root for a root file; devdigest docs use their relative path (no chip at the top level). */
+export function docArea(doc: ContextDoc): DocArea | null {
   const rel = doc.source === "devdigest" ? devdigestRelative(doc.path) : doc.path;
-  const segments = rel.split("/");
-  if (segments.length > 1) return segments[0] ?? null;
-  return doc.source === "devdigest" ? null : "root";
+  const [first, ...rest] = rel.split("/");
+  if (rest.length > 0 && first) return { kind: "folder", name: first };
+  return doc.source === "devdigest" ? null : { kind: "root" };
 }
 
 export { fileName };

@@ -7,6 +7,7 @@ import { api } from "../api";
 import { OWN_ERROR_TOAST } from "../error-message";
 import { contextDocsKey } from "./project-context";
 import type {
+  ContextDocList,
   DevdigestCopyResult,
   DevdigestDeleteResult,
   DevdigestDoc,
@@ -22,6 +23,27 @@ function invalidateLists(qc: QueryClient, repoId: string) {
     qc.invalidateQueries({ queryKey: devdigestDocsKey(repoId) }),
     qc.invalidateQueries({ queryKey: contextDocsKey(repoId) }),
   ]);
+}
+
+const byPath = (a: { path: string }, b: { path: string }) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
+
+/**
+ * Put a just-created doc into both list caches before they refetch. The page selects the new doc by
+ * `?path=` and resolves it from these lists, so without this it shows "select a doc" (and no editor)
+ * until the refetch lands.
+ */
+function addToLists(qc: QueryClient, repoId: string, doc: DevdigestDoc) {
+  const { id, path, tokens, copied_from, updated_at } = doc;
+  qc.setQueryData<DevdigestDocList>(devdigestDocsKey(repoId), (l) =>
+    l && !l.docs.some((d) => d.path === path)
+      ? { ...l, docs: [...l.docs, { id, path, tokens, copied_from, updated_at }].sort(byPath) }
+      : l,
+  );
+  qc.setQueryData<ContextDocList>(contextDocsKey(repoId), (l) =>
+    l && !l.docs.some((d) => d.path === path)
+      ? { ...l, docs: [...l.docs, { path, source: "devdigest" as const, tokens, attached_agents: 0 }].sort(byPath) }
+      : l,
+  );
 }
 
 /** A repo's `.devdigest` docs plus the page footer/notice data. */
@@ -51,6 +73,7 @@ export function useCreateDevdigestDoc(repoId: string) {
       api.post<DevdigestDoc>(`/repos/${repoId}/devdigest-docs`, body),
     onSuccess: async (doc) => {
       qc.setQueryData(devdigestDocKey(doc.id), doc);
+      addToLists(qc, repoId, doc);
       await invalidateLists(qc, repoId);
     },
   });
@@ -77,7 +100,9 @@ export function useCopyDevdigestDoc(repoId: string) {
       api.post<DevdigestCopyResult>(`/repos/${repoId}/devdigest-docs/copies`, body),
     onSuccess: async (result) => {
       qc.setQueryData(devdigestDocKey(result.doc.id), result.doc);
-      if (result.created) await invalidateLists(qc, repoId);
+      if (!result.created) return;
+      addToLists(qc, repoId, result.doc);
+      await invalidateLists(qc, repoId);
     },
   });
 }

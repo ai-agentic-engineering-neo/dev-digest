@@ -170,6 +170,23 @@ describe("DocPane", () => {
     expect(screen.queryByText("Unsaved changes")).not.toBeInTheDocument();
   });
 
+  it("keeps text typed while a save is in flight instead of replacing it with the saved content", () => {
+    const props = renderPane({ doc: DD_DOC, devdigestId: "d1", mode: "edit" });
+    const box = () => screen.getByRole("textbox", { name: /Markdown source of/ });
+    fireEvent.change(box(), { target: { value: "# First" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(saveMutate).toHaveBeenCalledWith({ id: "d1", content: "# First" }, expect.anything());
+
+    fireEvent.change(box(), { target: { value: "# First more" } }); // typed before the response
+    const opts = saveMutate.mock.calls[0]?.[1] as { onSuccess: (d: DevdigestDoc) => void };
+    ddDoc = { ...ddDoc, content: "# First" };
+    act(() => opts.onSuccess(ddDoc));
+    props.rerenderWith({});
+
+    expect(box()).toHaveValue("# First more");
+    expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+  });
+
   it("guards unload and in-app links only while dirty", () => {
     renderPane({ doc: DD_DOC, devdigestId: "d1", mode: "edit" });
     const link = document.body.appendChild(document.createElement("a"));

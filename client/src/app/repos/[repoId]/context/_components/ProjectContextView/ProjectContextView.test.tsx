@@ -29,6 +29,8 @@ const DD: DevdigestDocList = {
 
 let list: ContextDocList | undefined = READY;
 let dd: DevdigestDocList | undefined = DD;
+let ddState = { isError: false, isFetching: false };
+const ddRefetch = vi.fn();
 let search = new URLSearchParams();
 let crumbs: { label: string; mono?: boolean }[] = [];
 let lastToolbar: { targetFolder: string } | undefined;
@@ -40,7 +42,7 @@ vi.mock("@/lib/hooks/project-context", () => ({
   useContextResync: () => ({ start: resyncStart, busy: false }),
 }));
 vi.mock("@/lib/hooks/devdigest-docs", () => ({
-  useDevdigestDocs: () => ({ data: dd }),
+  useDevdigestDocs: () => ({ data: dd, ...ddState, refetch: ddRefetch }),
 }));
 vi.mock("@/components/app-shell", () => ({
   AppShell: ({ children, crumb }: { children: React.ReactNode; crumb: { label: string; mono?: boolean }[] }) => {
@@ -90,11 +92,15 @@ vi.mock("../ContextToolbar", () => ({
 vi.mock("../DocPane", () => ({
   DocPane: (p: {
     doc: { path: string };
+    devdigestId: string | null;
     onCopied: (r: DevdigestCopyResult) => void;
     onDirtyChange: (d: boolean) => void;
   }) => (
     <div>
-      <span>pane for {p.doc.path}</span>
+      <span>
+        pane for {p.doc.path}
+        {p.devdigestId ? ` (id ${p.devdigestId})` : ""}
+      </span>
       <button onClick={() => p.onDirtyChange(true)}>make dirty</button>
       <button onClick={() => p.onCopied(copied(false))}>copy existing</button>
     </div>
@@ -109,6 +115,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   list = READY;
   dd = DD;
+  ddState = { isError: false, isFetching: false };
   search = new URLSearchParams();
   crumbs = [];
   lastToolbar = undefined;
@@ -162,6 +169,30 @@ describe("ProjectContextView", () => {
     expect(screen.queryByText("Select a document to preview it.")).not.toBeInTheDocument();
   });
 
+  it("a selected .devdigest doc waits for its id instead of opening as a read-only repo doc", () => {
+    const DD_ROW = { path: ".devdigest/specs/x.md", source: "devdigest" as const, tokens: 10, attached_agents: 0 };
+    list = { ...READY, docs: [...DOCS, DD_ROW] };
+    search = new URLSearchParams("path=.devdigest/specs/x.md");
+
+    dd = undefined; // list still loading
+    const { unmount } = renderView();
+    expect(screen.queryByText(/pane for/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Select a document to preview it.")).not.toBeInTheDocument();
+    unmount();
+
+    ddState = { isError: true, isFetching: false }; // list failed
+    const failed = renderView();
+    expect(screen.queryByText(/pane for/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+    expect(ddRefetch).toHaveBeenCalledTimes(1);
+    failed.unmount();
+
+    ddState = { isError: false, isFetching: false };
+    dd = { ...DD, docs: [{ id: "d9", path: DD_ROW.path, tokens: 10, copied_from: null, updated_at: "x" }] };
+    renderView();
+    expect(screen.getByText("pane for .devdigest/specs/x.md (id d9)")).toBeInTheDocument();
+  });
+
   it("notes ignored repo .devdigest files; not cloned shows the notice and keeps the tree", () => {
     dd = { ...DD, ignored_repo_paths: 2 };
     list = {
@@ -195,7 +226,9 @@ describe("ProjectContextView", () => {
   it("creating a file selects it in edit mode; a folder click sets the toolbar target", () => {
     renderView();
     fireEvent.click(screen.getByRole("button", { name: "toolbar create" }));
-    expect(replace).toHaveBeenCalledWith("/repos/r1/context?path=.devdigest%2Fspecs%2Fa.md&mode=edit");
+    expect(replace).toHaveBeenCalledWith("/repos/r1/context?path=.devdigest%2Fspecs%2Fa.md&mode=edit", {
+      scroll: false, // query-only change: keep the two-panel layout where it is
+    });
     fireEvent.click(screen.getByRole("button", { name: "folder drafts" }));
     expect(lastToolbar?.targetFolder).toBe("drafts");
   });
@@ -213,6 +246,7 @@ describe("ProjectContextView", () => {
     fireEvent.click(screen.getByRole("button", { name: "copy existing" }));
     expect(replace).toHaveBeenCalledWith(
       "/repos/r1/context?path=.devdigest%2Fspecs%2Fa.md&mode=edit&copy=exists",
+      { scroll: false },
     );
   });
 });

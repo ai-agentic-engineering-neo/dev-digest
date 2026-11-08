@@ -47,7 +47,7 @@ describe("DocTree", () => {
     const row = screen.getByRole("button", { name: /server\/specs\/auth\/b\.md/ });
     expect(row).toHaveAttribute("title", "server/specs/auth/b.md");
     expect(row).toHaveTextContent("b.md");
-    expect(row).toHaveTextContent("server"); // area chip
+    expect(within(row).getByText("server")).toBeInTheDocument(); // area chip (exact text, not the folder line)
     expect(row).toHaveTextContent("server/specs/auth/"); // folder line
     expect(row).toHaveTextContent("~30 tokens");
 

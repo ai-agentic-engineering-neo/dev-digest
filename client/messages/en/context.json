@@ -76,7 +76,8 @@
   },
   "tree": {
     "label": "Documents",
-    "docLabel": "{path}, ~{count} tokens"
+    "docLabel": "{path}, ~{count} tokens",
+    "rootArea": "root"
   },
   "toolbar": {
     "newFile": "New file",

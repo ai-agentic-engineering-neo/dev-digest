@@ -10,6 +10,7 @@ import { contextDocsKey } from "./project-context";
 import {
   devdigestDocKey,
   devdigestDocsKey,
+  useCopyDevdigestDoc,
   useCreateDevdigestDoc,
   useDeleteDevdigestDoc,
   useSaveDevdigestDoc,
@@ -62,6 +63,38 @@ describe("devdigest-docs hooks", () => {
     expect(qc.getQueryData(devdigestDocKey("d1"))).toEqual(doc);
     expect(invalidate).toHaveBeenCalledWith({ queryKey: devdigestDocsKey("r1") });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: contextDocsKey("r1") });
+  });
+
+  it("create and copy put the new doc into both list caches before they refetch (page selects it by path)", async () => {
+    const { qc, wrapper } = setup();
+    const other = { id: "d0", path: ".devdigest/specs/z.md", tokens: 1, copied_from: null, updated_at: "x" };
+    qc.setQueryData(devdigestDocsKey("r1"), { repo_id: "r1", docs: [other], limit: 200, synced_at: null, ignored_repo_paths: 0 });
+    qc.setQueryData(contextDocsKey("r1"), {
+      repo_id: "r1",
+      state: { status: "ready" },
+      docs: [{ path: "README.md", source: "readme", tokens: 5, attached_agents: 0 }],
+    });
+    mocked.post.mockResolvedValueOnce(doc);
+    const create = renderHook(() => useCreateDevdigestDoc("r1"), { wrapper });
+    await act(async () => {
+      await create.result.current.mutateAsync({ folder: "", name: "a" });
+    });
+
+    const copied = { ...doc, id: "d2", path: ".devdigest/specs/b.md", copied_from: "docs/b.md" };
+    mocked.post.mockResolvedValueOnce({ created: true, doc: copied });
+    const copy = renderHook(() => useCopyDevdigestDoc("r1"), { wrapper });
+    await act(async () => {
+      await copy.result.current.mutateAsync({ source_path: "docs/b.md" });
+    });
+
+    const dd = qc.getQueryData<{ docs: { id: string; path: string }[] }>(devdigestDocsKey("r1"));
+    expect(dd?.docs.map((d) => d.id)).toEqual(["d1", "d2", "d0"]); // byte order by path
+    const ctx = qc.getQueryData<{ docs: { path: string; source: string }[] }>(contextDocsKey("r1"));
+    expect(ctx?.docs).toEqual([
+      { path: ".devdigest/specs/a.md", source: "devdigest", tokens: 3, attached_agents: 0 },
+      { path: ".devdigest/specs/b.md", source: "devdigest", tokens: 3, attached_agents: 0 },
+      { path: "README.md", source: "readme", tokens: 5, attached_agents: 0 },
+    ]);
   });
 
   it("save PUTs the content and a 422 surfaces as a too_large error without a global toast", async () => {

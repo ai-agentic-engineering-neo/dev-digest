@@ -39,7 +39,7 @@ function DocRow({ doc, selected, onSelect }: { doc: ContextDoc; selected: boolea
       <span style={s.body}>
         <span style={s.line}>
           <span style={s.name}>{fileName(doc.path)}</span>
-          {area ? <span style={s.chip}>{area}</span> : null}
+          {area ? <span style={s.chip}>{area.kind === "root" ? t("tree.rootArea") : area.name}</span> : null}
         </span>
         <span style={s.line}>
           <span style={s.path}>{folder}</span>

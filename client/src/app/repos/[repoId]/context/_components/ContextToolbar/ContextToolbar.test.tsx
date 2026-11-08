@@ -139,6 +139,38 @@ describe("ContextToolbar", () => {
     );
   });
 
+  it("Overwrite replaces the doc in the folder where the conflict happened, even after another folder is selected", async () => {
+    upload.mockImplementation(async (body: { folder: string; filename: string; overwrite: boolean }) => {
+      if (!body.overwrite) throw new ApiError("x", 409, "conflict", { reason: "exists", path: "p" });
+      return doc(`.devdigest/specs/${body.folder}/${body.filename}`);
+    });
+    const props = {
+      repoId: "r1",
+      onFileCreated: vi.fn(),
+      onFolderCreated: vi.fn(),
+      resync: { start: vi.fn(), busy: false },
+    };
+    const ui = (targetFolder: string) => (
+      <NextIntlClientProvider locale="en" messages={{ context: contextMessages }}>
+        <ContextToolbar {...props} targetFolder={targetFolder} />
+      </NextIntlClientProvider>
+    );
+    const { rerender } = render(ui("auth"));
+    fireEvent.change(screen.getByTestId("upload-input"), {
+      target: { files: [new File(["x"], "d.md", { type: "text/markdown" })] },
+    });
+    await screen.findByRole("button", { name: "Overwrite d.md" });
+
+    rerender(ui("billing")); // the user picks another folder in the tree before resolving
+    fireEvent.click(screen.getByRole("button", { name: "Overwrite d.md" }));
+
+    await waitFor(() =>
+      expect(upload).toHaveBeenLastCalledWith(
+        expect.objectContaining({ folder: "auth", filename: "d.md", overwrite: true }),
+      ),
+    );
+  });
+
   it("shows a generic failure, not a wrong reason, for an unexpected upload error", async () => {
     upload.mockRejectedValue(new Error("network down"));
     renderToolbar();

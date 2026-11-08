@@ -82,10 +82,12 @@ export function DocPane({
       return;
     }
     setError(null);
+    const sent = draft;
     save.mutate(
-      { id: devdigestId, content: draft },
+      { id: devdigestId, content: sent },
       {
-        onSuccess: () => setDraft(null),
+        // the editor stays editable while saving: keep anything typed after Save was clicked
+        onSuccess: () => setDraft((d) => (d === sent ? null : d)),
         onError: (e) => setError(saveErrorText(devdigestErrorOf(e), e.message)),
       },
     );

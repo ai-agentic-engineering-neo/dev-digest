@@ -43,7 +43,8 @@ export function ProjectContextView({ repoId }: { repoId: string }) {
   const { repos } = useActiveRepo();
   const repoNotFound = useRepoNotFound(repoId);
   const { data, isLoading, isError, refetch } = useContextDocs(repoId);
-  const { data: dd } = useDevdigestDocs(repoId);
+  const ddQuery = useDevdigestDocs(repoId);
+  const dd = ddQuery.data;
   const resync = useContextResync(repoId);
   const [filter, setFilter] = React.useState("");
   const [targetFolder, setTargetFolder] = React.useState("");
@@ -72,7 +73,7 @@ export function ProjectContextView({ repoId }: { repoId: string }) {
       if (opts.mode) sp.set("mode", opts.mode);
       if (opts.copyExists) sp.set("copy", "exists");
     }
-    router.replace(`/repos/${repoId}/context?${sp.toString()}`);
+    router.replace(`/repos/${repoId}/context?${sp.toString()}`, { scroll: false });
   };
 
   /** Every selection change goes through the unsaved-changes guard (AC-7). */
@@ -87,6 +88,8 @@ export function ProjectContextView({ repoId }: { repoId: string }) {
   const folders = pendingFolders(extraFolders, dd?.docs ?? []);
   const selectedDoc = docs.find((d) => d.path === selected) ?? null;
   const devdigestId = dd?.docs.find((d) => d.path === selected)?.id ?? null;
+  // a .devdigest doc whose id is not known yet must not render as a read-only repo doc
+  const devdigestUnresolved = selectedDoc?.source === "devdigest" && devdigestId === null;
   const emptyRepo = !!data && !notCloned && docs.length === 0 && folders.length === 0;
   const syncedAt = dd?.synced_at ?? null;
 
@@ -180,7 +183,15 @@ export function ProjectContextView({ repoId }: { repoId: string }) {
                 onCta={resync.start}
                 ctaLoading={resync.busy}
               />
-            ) : selectedDoc ? (
+            ) : devdigestUnresolved && ddQuery.isError ? (
+              <ErrorState body={t("pane.loadError")} onRetry={() => ddQuery.refetch()} />
+            ) : devdigestUnresolved && (!dd || ddQuery.isFetching) ? (
+              <div style={s.skeletons} aria-busy="true">
+                {Array.from({ length: SKELETON_ROWS }, (_, i) => (
+                  <Skeleton key={i} height={20} />
+                ))}
+              </div>
+            ) : selectedDoc && !devdigestUnresolved ? (
               <DocPane
                 key={selectedDoc.path}
                 repoId={repoId}
@@ -190,7 +201,7 @@ export function ProjectContextView({ repoId }: { repoId: string }) {
                 onModeChange={(m) => {
                   const sp = new URLSearchParams(search.toString());
                   sp.set("mode", m);
-                  router.replace(`/repos/${repoId}/context?${sp.toString()}`);
+                  router.replace(`/repos/${repoId}/context?${sp.toString()}`, { scroll: false });
                 }}
                 copyExists={copyExists}
                 onCopied={(r) => select(r.doc.path, { mode: "edit", copyExists: !r.created })}

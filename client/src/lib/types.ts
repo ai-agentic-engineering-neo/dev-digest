@@ -8,7 +8,7 @@
  * not yet exported, add a placeholder below marked
  * `// TODO: reconcile with @devdigest/shared`.
  */
-import type { ChangedSymbol, DownstreamImpact, SkillType } from "@devdigest/shared";
+import type { ChangedSymbol, DownstreamImpact, RunTrace, SkillType } from "@devdigest/shared";
 
 export type {
   Settings,
@@ -270,3 +270,65 @@ export interface PriorPullsResponse {
   total: number;
   pulls: PriorPull[];
 }
+
+/* ---------------------------------------------------------------------------
+ * Project Context Folder (SPEC-01). Local mirrors of
+ * server/src/modules/context/domain.ts — not in @devdigest/shared.
+ * ------------------------------------------------------------------------- */
+export type DocSource = "readme" | "insights" | "specs" | "docs";
+
+export interface ContextDoc {
+  path: string;
+  source: DocSource;
+  tokens: number;
+  attached_agents: number;
+}
+
+export type ContextRepoState =
+  | { status: "ready" }
+  | { status: "not_cloned" }
+  | { status: "index_failed"; reason: string | null }
+  | { status: "index_degraded"; reason: string | null };
+
+/** `docs` is empty only when `not_cloned`; sorted by path. */
+export interface ContextDocList {
+  repo_id: string;
+  state: ContextRepoState;
+  docs: ContextDoc[];
+}
+
+export interface ContextDocContent extends ContextDoc {
+  content: string;
+}
+
+export interface AgentContextDoc {
+  path: string;
+  /** 0-based attach order. */
+  position: number;
+  /** missing = not found / unreadable at the last synced commit. */
+  status: "ok" | "missing";
+  source: DocSource | null;
+  tokens: number | null;
+}
+
+export interface AgentContextDocs {
+  agent_id: string;
+  repo_id: string;
+  docs: AgentContextDoc[];
+}
+
+export type LeftOutReason = "too_large" | "over_cap" | "missing";
+
+export type ProjectContextTrace =
+  | { status: "unavailable"; reason: "repo_not_synced"; attached: string[] }
+  | {
+      status: "ok";
+      cap_tokens: number;
+      total_tokens: number;
+      included: { path: string; tokens: number }[];
+      left_out: { path: string; tokens: number | null; reason: LeftOutReason }[];
+      changed_by_pr: string[];
+    };
+
+/** GET /runs/:id/trace — the stored trace plus the optional project-context block. */
+export type RunTraceView = RunTrace & { project_context?: ProjectContextTrace | null };

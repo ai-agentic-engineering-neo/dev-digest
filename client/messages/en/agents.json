@@ -49,7 +49,8 @@
       "skills": "Skills",
       "evals": "Evals",
       "stats": "Stats",
-      "ci": "CI"
+      "ci": "CI",
+      "context": "Context"
     }
   },
   "config": {
@@ -124,5 +125,32 @@
     "pending": "Deleting…",
     "cancel": "Cancel",
     "deleted": "Agent deleted"
+  },
+  "contextTab": {
+    "title": "Context",
+    "hint": "Attached docs go into this agent's reviews of {repo} as untrusted project context, in this order.",
+    "attachedCount": "{attached} of {total} attached",
+    "tokenSum": "~{count} tokens per model call",
+    "overCap": "Over the 4,000-token cap — later docs will be left out of runs",
+    "tooLarge": "{path} is ~{count} tokens — over the 4,000-token cap on its own, so it will be left out of every run.",
+    "filterPlaceholder": "Filter documents…",
+    "noMatch": "No documents found",
+    "noRepo": "Select a repository to attach its docs.",
+    "missing": "missing",
+    "missingHint": "Not found at the last synced commit",
+    "attachLabel": "Attach {path}",
+    "detach": "Detach",
+    "detachLabel": "Detach {path}",
+    "preview": "Preview",
+    "previewLabel": "Preview {path}",
+    "attached": "Attached",
+    "attach": "Attach",
+    "moveUp": "Move {path} up",
+    "moveDown": "Move {path} down",
+    "dragHandle": "Drag to reorder {path}",
+    "position": "#{n}",
+    "saveError": "Couldn’t save attachments",
+    "loadError": "Couldn’t load documents",
+    "close": "Close preview"
   }
 }

@@ -72,6 +72,20 @@
       "args": "args",
       "result": "result",
       "previewTruncated": "(preview truncated)"
+    },
+    "projectContext": {
+      "title": "Project context",
+      "summary": "{included} included · ~{tokens} of {cap} tokens",
+      "included": "Included",
+      "leftOut": "Left out",
+      "reason": {
+        "too_large": "too large",
+        "over_cap": "over cap",
+        "missing": "missing"
+      },
+      "prChanges": "this PR changes {path}; the agent saw the synced version",
+      "unavailable": "project context unavailable: repo not synced",
+      "none": "none"
     }
   },
   "drawer": {

@@ -1,7 +1,7 @@
 {
   "$comment": "Source of truth for which skill reviews which changed file. Rationale: routing.md. A file gets the UNION of skills of every rule it matches. `files`/`exclude` are repo-relative globs; `contentMatch` is tested against the whole file, `addedMatch` against added lines only (both case-sensitive JS regex).",
-  "ownSkills": ["engineering-insights", "frontend-ui-architecture", "implement-plan", "implementer-protocol", "onion-architecture", "pr-self-review"],
-  "neverRun": ["mermaid-diagram", "engineering-insights", "pr-self-review", "implement-plan", "implementer-protocol"],
+  "ownSkills": ["engineering-insights", "frontend-ui-architecture", "implement-plan", "implementer-protocol", "onion-architecture", "pr-self-review", "workflow-retro"],
+  "neverRun": ["mermaid-diagram", "engineering-insights", "pr-self-review", "implement-plan", "implementer-protocol", "workflow-retro"],
   "ignore": [
     "**/*.md",
     "docs/**",

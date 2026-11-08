@@ -13,4 +13,5 @@ Add each new spec to the list below with a one-line "read when".
 
 <!-- - [feature.md](feature.md) — read when … -->
 - [review-engine.md](review-engine.md) — read when changing `reviewPullRequest` inputs/outputs, grounding, scoring, map-reduce or callbacks (current-behavior contract, written after the code)
+- see also: [../../specs/project-context-agent-tab-and-trace.md](../../specs/project-context-agent-tab-and-trace.md) — SPEC-04 · new `## Project context` section form (untrusted note + `### <path>` per wrapped doc), byte-identical prompt without docs
 - Run Cost Badge (`onUsage` per-chunk callback) is specced in [../../server/specs/run-cost-badge.md](../../server/specs/run-cost-badge.md) — read when touching usage/cost reporting in `review/run.ts`

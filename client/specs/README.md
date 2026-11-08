@@ -20,4 +20,7 @@ Add each new spec to the list below with a one-line "read when".
 - [multi-agent-review.md](multi-agent-review.md) — read when building/changing the Multi-Agent Review page (`/repos/:repoId/multi-agent`: run config, columns/tabs, "Where agents disagree", agent badge) or promoting `FindingCard`/`RunTraceDrawer`
 - see also: [../../specs/project-context-folder.md](../../specs/project-context-folder.md) — SPEC-01 · Project Context page, agent Context tab (attach/order/token cap)
 - see also: [../../specs/onboarding-tour.md](../../specs/onboarding-tour.md) — SPEC-02 · Onboarding Tour page (sections, stale banner, regenerate, Copy/Download Markdown)
+- see also: [../../specs/project-context-editable-docs.md](../../specs/project-context-editable-docs.md) — SPEC-03 · Project Context page N6 layout, doc tree, Preview | Edit, upload/copy/delete of `.devdigest` docs
+- see also: [../../specs/project-context-agent-tab-and-trace.md](../../specs/project-context-agent-tab-and-trace.md) — SPEC-04 · agent Context tab (N2b), trace "Specs read" + Project-context prompt row and search modal
+- see also: [../../specs/project-context-for-skills.md](../../specs/project-context-for-skills.md) — SPEC-05 · skill editor Context tab, "Inherited from skills" group in the agent Context tab, "via <skill>" in the trace
 - [intent-layer.md](intent-layer.md) — read when touching the PR-page Intent card (confidence, sources, stale/refresh, user override) or intent hooks/types

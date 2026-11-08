@@ -33,16 +33,25 @@ export const pullRequests = pgTable(
   }),
 );
 
-export const prFiles = pgTable('pr_files', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  prId: uuid('pr_id')
-    .notNull()
-    .references(() => pullRequests.id, { onDelete: 'cascade' }),
-  path: text('path').notNull(),
-  additions: integer('additions').notNull().default(0),
-  deletions: integer('deletions').notNull().default(0),
-  patch: text('patch'),
-});
+export const prFiles = pgTable(
+  'pr_files',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    prId: uuid('pr_id')
+      .notNull()
+      .references(() => pullRequests.id, { onDelete: 'cascade' }),
+    path: text('path').notNull(),
+    additions: integer('additions').notNull().default(0),
+    deletions: integer('deletions').notNull().default(0),
+    patch: text('patch'),
+  },
+  (t) => ({
+    // Changed files of a PR (blast, prior-pulls, smart diff) are looked up by pr_id.
+    prIdx: index('pr_files_pr_id_idx').on(t.prId),
+    // Prior-PRs self-join: same path → other PRs (blast module listPriorPulls).
+    pathPrIdx: index('pr_files_path_pr_id_idx').on(t.path, t.prId),
+  }),
+);
 
 export const prCommits = pgTable('pr_commits', {
   id: uuid('id').primaryKey().defaultRandom(),

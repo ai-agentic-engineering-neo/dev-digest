@@ -9,7 +9,8 @@ Each lesson L01–L08 adds one feature; unused DB tables / i18n files for future
    is about (table below; `repo-intel` → `server/`) and READ `<pkg>/INSIGHTS.md` for each of them in
    full. Treat entries as high-confidence guidance unless the user says otherwise. In your first reply
    name the 1–3 entries relevant to the task (or say "no relevant insights").
-   Then search that package's `docs/` and `specs/` — they may already answer the question — then code.
+   Then search that package's `docs/` and `specs/` (plus the root `specs/` for cross-module features) — they may
+   already answer the question — then code.
 2. **During work:** something non-obvious confirmed → run the `engineering-insights` skill right away.
 3. **End of every task:** run the `engineering-insights` skill (wrap-up). It re-reads `INSIGHTS.md` and
    writes ONLY new, substantive insights; if nothing new happened, it leaves the file untouched.
@@ -23,6 +24,9 @@ Each lesson L01–L08 adds one feature; unused DB tables / i18n files for future
 | `reviewer-core/` | Pure review engine: diff → prompt → LLM → grounded findings | **npm** | `reviewer-core/CLAUDE.md` |
 | `e2e/` | Deterministic browser flows (agent-browser, no LLM) | npm | `e2e/CLAUDE.md` |
 | `mcp-server/` | stdio MCP server (5 tools) over the DevDigest HTTP API — no DB access; wired in `.mcp.json` | npm | `mcp-server/CLAUDE.md` |
+
+Root `specs/` (not a package) holds the specs of features that touch ≥ 2 modules; a single-module feature's
+spec lives in `<pkg>/specs/` ([`specs/README.md`](specs/README.md)). Specs are written by the `spec-creator` agent.
 
 Cross-package code is shared via **tsconfig path aliases to raw `.ts` source**, not published packages:
 `@devdigest/reviewer-core` → `../reviewer-core/src`, `@devdigest/shared` → `<pkg>/src/vendor/shared`.
@@ -77,7 +81,8 @@ Package-specific rules: `<pkg>/CLAUDE.md` § Naming conventions.
 - Writing or running tests, touching CI → read `TESTING.md` and `.github/workflows/<suite>.yml`.
 - Editing an agent's system prompt → read `docs/agent-prompts/README.md`.
 - Unsure which skill applies → read `.claude/skills/README.md`.
-- New feature → `spec-creator` agent writes `<pkg>/specs/<feature>.md` (WHAT/WHY, EARS `SPEC-NN/AC-n`); the user sets
+- New feature → `spec-creator` agent writes the spec (WHAT/WHY, EARS `SPEC-NN/AC-n`; 1 module → `<pkg>/specs/`,
+  ≥ 2 → root `specs/`); the user sets
   `Status: approved`. Spanning 2+ packages or 3+ tasks → `implementation-planner` agent writes `plans/<feature>.md`
   from the approved spec (HOW, `Covers:` per task, Execution mode); after the user approves it,
   the user runs `/implement-plan plans/<feature>.md` (manual). Agents and the workflow: `.claude/agents/README.md`.

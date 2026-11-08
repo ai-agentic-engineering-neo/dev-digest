@@ -8,7 +8,7 @@
 - **Execution mode:** multi-agent | single-agent  <!-- chosen by the user; /implement-plan follows it.
      Recommended: multi-agent if ≥ 6 tasks AND some wave has ≥ 2 independent tasks; else single-agent -->
 - **Goal:** <one sentence — what the user can do after this ships>
-- **Specs:** <one per spec file, Status approved: `SPEC-NN` — server/specs/<feature>.md · `SPEC-MM` — client/specs/<feature>.md>
+- **Specs:** <Status approved: `SPEC-NN` — specs/<feature>.md (cross-module) | <module>/specs/<feature>.md (single module)>
 - **Packages:** server · client · reviewer-core · e2e · mcp-server (only the ones touched)
 - **Out of scope:** <bullets>
 

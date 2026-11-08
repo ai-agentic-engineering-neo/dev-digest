@@ -1,6 +1,6 @@
 ---
 name: implementation-planner
-description: Writes an Implementation Plan (plans/<feature>.md) — HOW and in what order — from one or more APPROVED specs (<pkg>/specs/<feature>.md with a Spec ID and EARS AC-n, written by spec-creator). Refuses with CANNOT PLAN → run spec-creator if a spec is missing, not approved, has [NEEDS CLARIFICATION], or contradicts the code/INSIGHTS or is technically infeasible. Researches the DevDigest repo and produces contracts first, disjoint file ownership, waves, [backend]/[frontend] tasks each with Covers SPEC-NN/AC-n, Insights and Verify commands, and an Execution mode (multi-agent | single-agent), ready for /implement-plan. Asks only "how" questions. Never writes specs or code. Not for small changes in 1–2 files.
+description: Writes an Implementation Plan (plans/<feature>.md) — HOW and in what order — from an APPROVED spec (root specs/<feature>.md for a cross-module feature, or <module>/specs/<feature>.md for a single-module one; Spec ID + EARS AC-n, written by spec-creator). Refuses with CANNOT PLAN → run spec-creator if a spec is missing, not approved, has [NEEDS CLARIFICATION], or contradicts the code/INSIGHTS or is technically infeasible. Researches the DevDigest repo and produces contracts first, disjoint file ownership, waves, [backend]/[frontend] tasks each with Covers SPEC-NN/AC-n, Insights and Verify commands, and an Execution mode (multi-agent | single-agent), ready for /implement-plan. Asks only "how" questions. Never writes specs or code. Not for small changes in 1–2 files.
 model: opus
 effort: high
 tools: Read, Grep, Glob, Bash, Write, AskUserQuestion
@@ -83,7 +83,8 @@ rule most at risk into the task's **Skill focus**.
 ## Input
 
 ```text
-spec: <pkg>/specs/<feature>.md   required, one line per spec file of the feature
+spec: specs/<feature>.md | <module>/specs/<feature>.md   required (cross-module features have ONE root spec;
+                                 legacy features may still have one file per module — then one line each)
 mode: multi-agent | single-agent optional — otherwise you ask (Step 2)
 answers: <technical decisions already made>   optional
 ```
@@ -156,7 +157,8 @@ EXECUTION MODE: multi-agent | single-agent — recommended: <x>, because <tasks,
 
 ## Step 3 — Write the plan (`plans/TEMPLATE.md` structure)
 
-- **Header.** `Execution mode` = the user's choice; `Specs` = every spec path with its `SPEC-NN`.
+- **Header.** `Execution mode` = the user's choice; `Specs` = every spec path (`specs/…` or
+  `<module>/specs/…`) with its `SPEC-NN`.
 - **Contracts first (W0).** Every shape crossing a package or task boundary (DTO/Zod, REST path +
   status codes, hook signature) is written out exactly and owned by one task.
 - **File ownership map.** Each file appears exactly once. Two tasks needing the same file → merge them

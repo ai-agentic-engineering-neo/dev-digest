@@ -45,7 +45,8 @@ No plan, or the file doesn't exist → `VERDICT: INCOMPLETE EVIDENCE` with `NOT 
 ## 3. Inventory — read the plan in full, then every spec it links in full
 
 Specs = every path in the plan's `Specs:` header plus every spec whose `SPEC-NN` appears in a task's
-`Covers:` field (find the file by Grepping `Spec ID: SPEC-NN` in `*/specs/*.md`). A `Covers:` ID with no
+`Covers:` field (find the file by Grepping `Spec ID: SPEC-NN` in `specs/*.md` (root, cross-module) and
+`*/specs/*.md` (single-module)). A `Covers:` ID with no
 matching spec → `NOT MET` row for that task.
 
 Assign IDs in order of appearance:

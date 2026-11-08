@@ -1,7 +1,8 @@
 # plans
 
 Development Plans — **how and in what order** a feature is built (tasks, file ownership, waves,
-verification). `<pkg>/specs/` stays the source of **what** to build; a plan links to its specs.
+verification). Specs stay the source of **what** to build — root `specs/` for a feature touching ≥ 2
+modules, `<module>/specs/` for one module; a plan links to its specs in `Specs:`.
 
 - Written by the `implementation-planner` agent from [TEMPLATE.md](TEMPLATE.md) as
   `plans/<feature-kebab>.md`, only from specs with `Status: approved` (written by `spec-creator`). Every

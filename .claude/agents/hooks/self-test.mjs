@@ -78,6 +78,10 @@ add('write-scope.mjs', 'specs', [
   'client/specs/run-cost-badge.md',
   'reviewer-core/specs/README.md',
   'mcp-server/specs/x.md',
+  'specs/x.md', // root: cross-module specs
+  'specs/README.md',
+  'specs\\x.md', // root, Windows separators
+  path.join(ROOT, 'specs', 'x.md'), // root, absolute
   'server\\specs\\x.md', // Windows separators
   'client/specs/./x.md',
   path.join(ROOT, 'server', 'specs', 'x.md'), // absolute inside the repo, OS-native separators
@@ -94,7 +98,11 @@ add('write-scope.mjs', 'specs', [
   'server/docs/x.md',
   'server/INSIGHTS.md',
   'server/CLAUDE.md',
-  'specs/x.md',
+  'specs/sub/x.md',
+  'specs\\sub\\x.md',
+  'specs/x.ts',
+  'specs/../plans/x.md',
+  'e2e/specs/sub/x.md',
   'docs/design/x.md',
   'plans/x.md',
   '.claude/agents/spec-creator.md',

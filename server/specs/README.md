@@ -2,7 +2,8 @@
 
 Specs / acceptance criteria for the `server` package. 
 
-One feature per file: `<feature>.md`, written BEFORE implementation by the
+Features of THIS module only, one per file: `<feature>.md` — a feature touching ≥ 2 modules has ONE spec in
+the root [`specs/`](../../specs/README.md) and a `- see also: ../../specs/<feature>.md` line in the list below. Written BEFORE implementation by the
 [`spec-creator`](../../.claude/agents/spec-creator.md) agent from its template (Spec ID `SPEC-NN`, unique across the
 repo; EARS acceptance criteria `AC-n`, referenced as `SPEC-NN/AC-n`; no implementation details). Lifecycle:
 `draft` → user sets `approved` → `implemented` (by `/implement-plan`). Only an approved spec without

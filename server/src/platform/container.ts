@@ -38,6 +38,10 @@ import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
 import { type DepGraph, DepCruiseGraph } from '../adapters/depgraph/index.js';
 import { type Tokenizer, TiktokenTokenizer } from '../adapters/tokenizer/index.js';
+import { type DocWalker, FsDocWalker } from '../adapters/docs/index.js';
+import { ContextRepository } from '../modules/context/repository.js';
+import type { ContextRepositoryPort } from '../modules/context/ports.js';
+import { ProjectContextService } from '../modules/context/service.js';
 
 /**
  * DI container. One per app instance. Holds config, db, the JobRunner,
@@ -68,6 +72,10 @@ export interface ContainerOverrides {
   intentRepo?: IntentRepositoryPort;
   /** Blast storage — tests inject an in-memory fake. */
   blastRepo?: BlastRepositoryPort;
+  /** Markdown lister for the Project Context Folder — tests inject a fake. */
+  docWalker?: DocWalker;
+  /** Project-context attachment storage — tests inject an in-memory fake. */
+  contextRepo?: ContextRepositoryPort;
 }
 
 export class Container {
@@ -94,6 +102,9 @@ export class Container {
   private _intentRepo?: IntentRepositoryPort;
   private _intent?: IntentService;
   private _blastRepo?: BlastRepositoryPort;
+  private _docWalker?: DocWalker;
+  private _contextRepo?: ContextRepositoryPort;
+  private _projectContext?: ProjectContextService;
   private _repoIntel?: RepoIntel;
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
@@ -149,6 +160,23 @@ export class Container {
   get blastRepo(): BlastRepositoryPort {
     if (this.overrides.blastRepo) return this.overrides.blastRepo;
     return (this._blastRepo ??= new BlastRepository(this.db));
+  }
+
+  /** Lists markdown files of a local clone (Project Context Folder). */
+  get docWalker(): DocWalker {
+    if (this.overrides.docWalker) return this.overrides.docWalker;
+    return (this._docWalker ??= new FsDocWalker());
+  }
+
+  /** Agent ↔ doc attachments per repo (context module). */
+  get contextRepo(): ContextRepositoryPort {
+    if (this.overrides.contextRepo) return this.overrides.contextRepo;
+    return (this._contextRepo ??= new ContextRepository(this.db));
+  }
+
+  /** Project Context Folder service — the context routes and the review executor. */
+  get projectContext(): ProjectContextService {
+    return (this._projectContext ??= new ProjectContextService(this));
   }
 
   get codeIndex(): CodeIndex {

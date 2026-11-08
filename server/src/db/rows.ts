@@ -15,3 +15,4 @@ export type FindingRow = typeof t.findings.$inferSelect;
 export type PullRow = typeof t.pullRequests.$inferSelect;
 export type AgentRunRow = typeof t.agentRuns.$inferSelect;
 export type AgentContextDocRow = typeof t.agentContextDocs.$inferSelect;
+export type DevdigestDocRow = typeof t.devdigestDocs.$inferSelect;

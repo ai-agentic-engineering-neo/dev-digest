@@ -244,6 +244,41 @@ d('project context in review runs (Testcontainers pg)', () => {
     await app.close();
   });
 
+  it('SPEC-03 AC-11/AC-6: a not-cloned repo still sends an attached .devdigest doc; a saved edit reaches the next run', async () => {
+    const llm = new RecordingLLM('openai', { structuredBySchema: { Review: REVIEW } });
+    const app = await appWith(llm);
+    const { repoId, prId, agentId } = await setup({ cloned: false });
+    const DD = '.devdigest/specs/x.md';
+    const [doc] = await pg.handle.db
+      .insert(t.devdigestDocs)
+      .values({ workspaceId, repoId, path: DD, content: 'DD-OLD private notes.' })
+      .returning();
+    await app.container.contextRepo.replaceAttachments(agentId, repoId, [DD, 'docs/a.md']);
+
+    const first = await run(app, prId, agentId, 1);
+
+    expect(first.status).toBe('done');
+    expect(first.trace.project_context.status).toBe('ok');
+    expect(first.trace.project_context.repo_unavailable).toEqual(['docs/a.md']);
+    expect(first.trace.project_context.included.map((x: { path: string }) => x.path)).toEqual([DD]);
+    expect(llm.reviewUsers.length).toBeGreaterThan(0);
+    for (const user of llm.reviewUsers) {
+      expect(user).toContain(`### ${DD}`);
+      expect(user).toContain('DD-OLD');
+    }
+
+    const save = await app.inject({ method: 'PUT', url: `/devdigest-docs/${doc!.id}`, payload: { content: 'DD-NEW edited.' } });
+    expect(save.statusCode).toBe(200);
+    llm.reviewUsers = [];
+    await run(app, prId, agentId, 2);
+    expect(llm.reviewUsers.length).toBeGreaterThan(0);
+    for (const user of llm.reviewUsers) {
+      expect(user).toContain('DD-NEW');
+      expect(user).not.toContain('DD-OLD');
+    }
+    await app.close();
+  });
+
   it('AC-12: attachments changed during a run apply to the NEXT run only', async () => {
     const llm = new RecordingLLM('openai', { structuredBySchema: { Review: REVIEW } });
     const app = await appWith(llm);

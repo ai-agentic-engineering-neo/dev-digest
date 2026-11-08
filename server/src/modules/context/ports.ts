@@ -15,3 +15,37 @@ export interface ContextRepositoryPort {
   /** path → number of the workspace's agents that attached it for this repo. */
   attachedAgentCounts(workspaceId: string, repoId: string): Promise<Map<string, number>>;
 }
+
+export interface DevdigestDocRecord {
+  id: string;
+  repoId: string;
+  path: string;
+  content: string;
+  copiedFrom: string | null;
+  updatedAt: Date;
+}
+
+/** Storage for DevDigest-owned docs. Every method filters by workspaceId. */
+export interface DevdigestDocsRepositoryPort {
+  /** Ordered by path, collate "C". */
+  listByRepo(workspaceId: string, repoId: string): Promise<DevdigestDocRecord[]>;
+  getById(workspaceId: string, id: string): Promise<DevdigestDocRecord | undefined>;
+  getByPaths(workspaceId: string, repoId: string, paths: readonly string[]): Promise<DevdigestDocRecord[]>;
+  countByRepo(workspaceId: string, repoId: string): Promise<number>;
+  /** undefined when (repo_id, path) already exists (on conflict do nothing). */
+  insert(input: {
+    workspaceId: string;
+    repoId: string;
+    path: string;
+    content: string;
+    copiedFrom: string | null;
+  }): Promise<DevdigestDocRecord | undefined>;
+  /** Bumps updated_at. */
+  updateContent(workspaceId: string, id: string, content: string): Promise<DevdigestDocRecord | undefined>;
+  /** ONE transaction: delete agent_context_docs rows (repo_id, path) + the doc. undefined when not found. */
+  deleteAndDetach(
+    workspaceId: string,
+    id: string,
+  ): Promise<{ repoId: string; path: string; detached: number } | undefined>;
+  attachedAgents(workspaceId: string, repoId: string, path: string): Promise<{ id: string; name: string }[]>;
+}

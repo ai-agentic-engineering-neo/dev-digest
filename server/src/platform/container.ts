@@ -40,7 +40,8 @@ import { type DepGraph, DepCruiseGraph } from '../adapters/depgraph/index.js';
 import { type Tokenizer, TiktokenTokenizer } from '../adapters/tokenizer/index.js';
 import { type DocWalker, FsDocWalker } from '../adapters/docs/index.js';
 import { ContextRepository } from '../modules/context/repository.js';
-import type { ContextRepositoryPort } from '../modules/context/ports.js';
+import { DevdigestDocsRepository } from '../modules/context/repository/devdigest-docs.repo.js';
+import type { ContextRepositoryPort, DevdigestDocsRepositoryPort } from '../modules/context/ports.js';
 import { ProjectContextService } from '../modules/context/service.js';
 
 /**
@@ -76,6 +77,8 @@ export interface ContainerOverrides {
   docWalker?: DocWalker;
   /** Project-context attachment storage — tests inject an in-memory fake. */
   contextRepo?: ContextRepositoryPort;
+  /** DevDigest-owned docs storage — tests inject an in-memory fake. */
+  devdigestDocsRepo?: DevdigestDocsRepositoryPort;
 }
 
 export class Container {
@@ -104,6 +107,7 @@ export class Container {
   private _blastRepo?: BlastRepositoryPort;
   private _docWalker?: DocWalker;
   private _contextRepo?: ContextRepositoryPort;
+  private _devdigestDocsRepo?: DevdigestDocsRepositoryPort;
   private _projectContext?: ProjectContextService;
   private _repoIntel?: RepoIntel;
   private _depgraph?: DepGraph;
@@ -172,6 +176,12 @@ export class Container {
   get contextRepo(): ContextRepositoryPort {
     if (this.overrides.contextRepo) return this.overrides.contextRepo;
     return (this._contextRepo ??= new ContextRepository(this.db));
+  }
+
+  /** DevDigest-owned docs (`.devdigest/specs/`) storage (context module). */
+  get devdigestDocsRepo(): DevdigestDocsRepositoryPort {
+    if (this.overrides.devdigestDocsRepo) return this.overrides.devdigestDocsRepo;
+    return (this._devdigestDocsRepo ??= new DevdigestDocsRepository(this.db));
   }
 
   /** Project Context Folder service — the context routes and the review executor. */

@@ -11,6 +11,10 @@ import {
   AgentContextDocsSchema,
   ContextDocContentSchema,
   ContextDocListSchema,
+  DevdigestCopyResultSchema,
+  DevdigestDeleteResultSchema,
+  DevdigestDocListSchema,
+  DevdigestDocSchema,
 } from '../src/modules/context/schemas.js';
 
 const hasDocker = await dockerAvailable();
@@ -31,7 +35,11 @@ class FakeGit extends MockGitClient {
     return body;
   }
 }
-const docWalker = { listMarkdown: async () => Object.keys(FILES).filter((p) => p.endsWith('.md')).sort() };
+/** Extra walker paths (the repo's own `.devdigest/` files); the test mutates it like a Resync would. */
+let repoDevdigest: string[] = [];
+const docWalker = {
+  listMarkdown: async () => [...Object.keys(FILES).filter((p) => p.endsWith('.md')), ...repoDevdigest].sort(),
+};
 
 d('Context routes (Testcontainers pg)', () => {
   let pg: PgFixture;
@@ -204,5 +212,158 @@ d('Context routes (Testcontainers pg)', () => {
     const body = ContextDocListSchema.parse((await app.inject({ url: `/repos/${r!.id}/context-docs` })).json());
     expect(body).toEqual({ repo_id: r!.id, state: { status: 'not_cloned' }, docs: [] });
     await app.close();
+  });
+
+  describe('DevDigest-owned docs (SPEC-03)', () => {
+    const b64 = (data: string | Buffer) => Buffer.from(data).toString('base64');
+
+    async function ownRepo(name: string): Promise<string> {
+      const [r] = await pg.handle.db
+        .insert(t.repos)
+        .values({ workspaceId, owner: 'acme', name, fullName: `acme/${name}`, clonePath: `/clones/${name}` })
+        .returning();
+      return r!.id;
+    }
+
+    it('create, list, save, delete round-trip (AC-4, AC-6, AC-10)', async () => {
+      const app = await makeApp();
+      const rid = await ownRepo('dd-crud');
+      const created = await app.inject({
+        method: 'POST',
+        url: `/repos/${rid}/devdigest-docs`,
+        payload: { folder: 'auth', name: 'notes' },
+      });
+      expect(created.statusCode).toBe(201);
+      const doc = DevdigestDocSchema.parse(created.json());
+      expect(doc.path).toBe('.devdigest/specs/auth/notes.md');
+
+      const list = DevdigestDocListSchema.parse((await app.inject({ url: `/repos/${rid}/devdigest-docs` })).json());
+      expect(list.docs.map((x) => x.path)).toEqual([doc.path]);
+
+      const saved = await app.inject({ method: 'PUT', url: `/devdigest-docs/${doc.id}`, payload: { content: 'x'.repeat(2048) } });
+      expect(saved.statusCode).toBe(200);
+      expect(DevdigestDocSchema.parse(saved.json()).tokens).toBe(512);
+
+      const tooBig = await app.inject({
+        method: 'PUT',
+        url: `/devdigest-docs/${doc.id}`,
+        payload: { content: 'x'.repeat(1_048_577) },
+      });
+      expect(tooBig.statusCode).toBe(422);
+      expect(tooBig.json().error.details.reason).toBe('too_large');
+
+      const del = await app.inject({ method: 'DELETE', url: `/devdigest-docs/${doc.id}` });
+      expect(del.statusCode).toBe(200);
+      expect(DevdigestDeleteResultSchema.parse(del.json()).detached_agents).toBe(0);
+      expect((await app.inject({ url: `/devdigest-docs/${doc.id}` })).statusCode).toBe(404);
+      await app.close();
+    });
+
+    it('upload: 201 new, 409 exists without overwrite, 200 with overwrite, 422 not_text (AC-8)', async () => {
+      const app = await makeApp();
+      const rid = await ownRepo('dd-upload');
+      const url = `/repos/${rid}/devdigest-docs/uploads`;
+      const body = { folder: '', filename: 'up.md', content_base64: b64('# hi'), overwrite: false };
+
+      expect((await app.inject({ method: 'POST', url, payload: body })).statusCode).toBe(201);
+      const dup = await app.inject({ method: 'POST', url, payload: body });
+      expect(dup.statusCode).toBe(409);
+      expect(dup.json().error.details.reason).toBe('exists');
+      const over = await app.inject({ method: 'POST', url, payload: { ...body, content_base64: b64('# v2'), overwrite: true } });
+      expect(over.statusCode).toBe(200);
+      expect(DevdigestDocSchema.parse(over.json()).content).toBe('# v2');
+
+      const bin = await app.inject({
+        method: 'POST',
+        url,
+        payload: { ...body, filename: 'bin.md', content_base64: b64(Buffer.from([0x89, 0x50, 0x00, 0xff])) },
+      });
+      expect(bin.statusCode).toBe(422);
+      expect(bin.json().error.details.reason).toBe('not_text');
+      await app.close();
+    });
+
+    it('repo-owned .devdigest files are ignored; stored docs survive a resync (AC-4)', async () => {
+      const app = await makeApp();
+      const rid = await ownRepo('dd-ignored');
+      repoDevdigest = ['.devdigest/specs/x.md'];
+      try {
+        const docs = ContextDocListSchema.parse((await app.inject({ url: `/repos/${rid}/context-docs` })).json());
+        expect(docs.docs.some((x) => x.path === '.devdigest/specs/x.md')).toBe(false);
+        const list = DevdigestDocListSchema.parse((await app.inject({ url: `/repos/${rid}/devdigest-docs` })).json());
+        expect(list.ignored_repo_paths).toBe(1);
+
+        await app.inject({ method: 'POST', url: `/repos/${rid}/devdigest-docs`, payload: { folder: '', name: 'keep' } });
+        repoDevdigest = []; // the walker's file list changes, as after a Resync
+        const after = ContextDocListSchema.parse((await app.inject({ url: `/repos/${rid}/context-docs` })).json());
+        expect(after.docs.map((x) => x.path)).toContain('.devdigest/specs/keep.md');
+      } finally {
+        repoDevdigest = [];
+      }
+      await app.close();
+    });
+
+    it('copy: 201 then 200 for an existing copy; a non-discovered source is 404', async () => {
+      const app = await makeApp();
+      const rid = await ownRepo('dd-copy');
+      const url = `/repos/${rid}/devdigest-docs/copies`;
+      const first = await app.inject({ method: 'POST', url, payload: { source_path: 'docs/a.md' } });
+      expect(first.statusCode).toBe(201);
+      expect(DevdigestCopyResultSchema.parse(first.json()).doc.copied_from).toBe('docs/a.md');
+      const again = await app.inject({ method: 'POST', url, payload: { source_path: 'docs/a.md' } });
+      expect(again.statusCode).toBe(200);
+      expect(DevdigestCopyResultSchema.parse(again.json()).created).toBe(false);
+      expect((await app.inject({ method: 'POST', url, payload: { source_path: 'src/app.ts' } })).statusCode).toBe(404);
+      await app.close();
+    });
+
+    it('DELETE /repos/:id removes the repo devdigest docs (AC-10)', async () => {
+      const app = await makeApp();
+      const rid = await ownRepo('dd-repo-delete');
+      await app.inject({ method: 'POST', url: `/repos/${rid}/devdigest-docs`, payload: { folder: '', name: 'gone' } });
+      const rows = () => pg.handle.db.select().from(t.devdigestDocs).where(eq(t.devdigestDocs.repoId, rid));
+      expect(await rows()).toHaveLength(1);
+      expect((await app.inject({ method: 'DELETE', url: `/repos/${rid}` })).statusCode).toBe(200);
+      expect(await rows()).toHaveLength(0);
+      await app.close();
+    });
+
+    it('another workspace repo or doc is 404 on all 7 routes, no row changes (AC-12)', async () => {
+      const app = await makeApp();
+      const [ws2] = await pg.handle.db.insert(t.workspaces).values({ name: 'dd-other' }).returning();
+      const [r2] = await pg.handle.db
+        .insert(t.repos)
+        .values({ workspaceId: ws2!.id, owner: 'evil', name: 'dd', fullName: 'evil/dd', clonePath: '/clones/evil-dd' })
+        .returning();
+      const [foreign] = await pg.handle.db
+        .insert(t.devdigestDocs)
+        .values({ workspaceId: ws2!.id, repoId: r2!.id, path: '.devdigest/specs/secret.md', content: 'secret' })
+        .returning();
+      const rid = r2!.id;
+      const did = foreign!.id;
+
+      const cases = [
+        { method: 'GET' as const, url: `/repos/${rid}/devdigest-docs` },
+        { method: 'POST' as const, url: `/repos/${rid}/devdigest-docs`, payload: { folder: '', name: 'a' } },
+        {
+          method: 'POST' as const,
+          url: `/repos/${rid}/devdigest-docs/uploads`,
+          payload: { folder: '', filename: 'a.md', content_base64: b64('x'), overwrite: true },
+        },
+        { method: 'POST' as const, url: `/repos/${rid}/devdigest-docs/copies`, payload: { source_path: 'docs/a.md' } },
+        { method: 'GET' as const, url: `/devdigest-docs/${did}` },
+        { method: 'PUT' as const, url: `/devdigest-docs/${did}`, payload: { content: 'pwned' } },
+        { method: 'DELETE' as const, url: `/devdigest-docs/${did}` },
+      ];
+      for (const c of cases) {
+        const res = await app.inject(c);
+        expect(res.statusCode, `${c.method} ${c.url}`).toBe(404);
+        expect(res.json().error.code).toBe('not_found');
+      }
+      const rows = await pg.handle.db.select().from(t.devdigestDocs).where(eq(t.devdigestDocs.repoId, rid));
+      expect(rows).toHaveLength(1);
+      expect(rows[0]!.content).toBe('secret');
+      await app.close();
+    });
   });
 });

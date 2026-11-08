@@ -127,6 +127,13 @@
       "when": 1794154704804,
       "tag": "0017_wide_vivisector",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1794171624160,
+      "tag": "0018_fast_revanche",
+      "breakpoints": true
     }
   ]
 }

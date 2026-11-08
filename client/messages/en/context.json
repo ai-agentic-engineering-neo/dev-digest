@@ -29,7 +29,12 @@
     "selectHint": "Select a document to preview it.",
     "loadError": "Couldn’t load documents",
     "docLoadError": "Couldn’t load this document",
-    "noRepo": "Select a repository to see its documents."
+    "noRepo": "Select a repository to see its documents.",
+    "panelTitle": "PROJECT CONTEXT",
+    "breadcrumb": "Project Context",
+    "footer": "{count, plural, one {# doc} other {# docs}} · synced {time}",
+    "footerNotSynced": "{count, plural, one {# doc} other {# docs}} · not synced",
+    "ignoredRepoDevdigest": "{count, plural, one {# file} other {# files}} in the repo's .devdigest/ folder {count, plural, one {is} other {are}} ignored — .devdigest/ belongs to DevDigest."
   },
   "source": {
     "readme": "readme",
@@ -61,5 +66,75 @@
     },
     "reason": "Reason: {reason}",
     "noReason": "No reason recorded."
+  },
+  "sections": {
+    "devdigest": ".devdigest (editable)",
+    "specs": "Specs",
+    "docs": "Docs",
+    "insights": "Insights",
+    "readme": "READMEs"
+  },
+  "tree": {
+    "label": "Documents",
+    "docLabel": "{path}, ~{count} tokens"
+  },
+  "toolbar": {
+    "newFile": "New file",
+    "newFolder": "New folder",
+    "upload": "Upload .md files",
+    "resync": "Resync repo docs",
+    "newFileHint": "New .devdigest doc in {folder}",
+    "newFolderHint": "New folder in {folder}",
+    "uploadHint": "Upload .md files to {folder}",
+    "resyncHint": "Fetch the repo and re-read its docs"
+  },
+  "form": {
+    "fileName": "File name, e.g. auth/login.md",
+    "folderName": "Folder name",
+    "create": "Create",
+    "cancel": "Cancel"
+  },
+  "errors": {
+    "invalidName": {
+      "empty": "Enter a name.",
+      "dot_dot": "Names can't contain “..”.",
+      "backslash": "Use / instead of \\.",
+      "leading_slash": "Names can't start with /.",
+      "line_break": "Names can't contain line breaks.",
+      "too_long": "The path is too long.",
+      "empty_segment": "Folder names can't be empty."
+    },
+    "exists": "{path} already exists.",
+    "limitReached": "This repo already has {limit} .devdigest docs — the limit.",
+    "tooLarge": "Over the 1 MB limit.",
+    "notMarkdown": "Not a .md file.",
+    "notText": "Not a UTF-8 text file.",
+    "saveFailed": "Not saved: {message}"
+  },
+  "pane": {
+    "preview": "Preview",
+    "edit": "Edit",
+    "mode": "View mode",
+    "editorLabel": "Markdown source of {path}",
+    "save": "Save",
+    "saving": "Saving…",
+    "unsaved": "Unsaved changes",
+    "copyToEdit": "Copy to .devdigest/ to edit",
+    "copiedFrom": "Copied from {path}",
+    "copyExists": "A copy already exists — opened it unchanged.",
+    "delete": "Delete",
+    "deleteLabel": "Delete {path}",
+    "deleteConfirm": "Delete {path}?{count, plural, =0 {} one {\n\nAttached to # agent ({agents}); it will be detached.} other {\n\nAttached to # agents ({agents}); they will be detached.}}",
+    "unsavedConfirm": "Discard unsaved changes to {path}?",
+    "loadError": "Couldn’t load this document"
+  },
+  "upload": {
+    "title": "Upload",
+    "added": "Added {path}",
+    "rejected": "{name} — {reason}",
+    "conflict": "{name} already exists in this folder.",
+    "overwrite": "Overwrite",
+    "cancel": "Cancel",
+    "dismiss": "Dismiss"
   }
 }

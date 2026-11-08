@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { CONTEXT_TOKEN_CAP } from '../src/modules/context/constants.js';
 import {
+  buildDevdigestPath,
   classifyDocPath,
+  decodeUploadText,
+  isDevdigestNamespace,
+  mirrorToDevdigest,
   estimateTokens,
   selectForRun,
   type AgentContextDocs,
@@ -147,5 +151,62 @@ describe('schemas', () => {
       SetAgentContextDocsBody.safeParse({ repo_id: repoId, paths: Array.from({ length: 201 }, (_, i) => `docs/${i}.md`) })
         .success,
     ).toBe(false);
+  });
+});
+
+describe('devdigest namespace (SPEC-03 AC-4)', () => {
+  it('classifies .devdigest/specs docs and ignores the rest of the namespace', () => {
+    expect(classifyDocPath('.devdigest/specs/a/b.md')).toBe('devdigest');
+    expect(classifyDocPath('.devdigest/notes.md')).toBeNull();
+    expect(classifyDocPath('.devdigest/specs/x.txt')).toBeNull();
+    expect(isDevdigestNamespace('.devdigest/x.md')).toBe(true);
+    expect(isDevdigestNamespace('docs/.devdigest/x.md')).toBe(false);
+  });
+});
+
+describe('buildDevdigestPath (SPEC-03 AC-5)', () => {
+  it('builds paths and appends .md', () => {
+    expect(buildDevdigestPath('', 'auth/login', { appendMd: true })).toEqual({
+      ok: true,
+      path: '.devdigest/specs/auth/login.md',
+    });
+    expect(buildDevdigestPath('auth', 'x.MD', { appendMd: true })).toEqual({
+      ok: true,
+      path: '.devdigest/specs/auth/x.MD',
+    });
+  });
+
+  it('returns one code per rule', () => {
+    const rule = (folder: string, name: string) => {
+      const r = buildDevdigestPath(folder, name, { appendMd: true });
+      return r.ok ? null : r.rule;
+    };
+    expect(rule('', '')).toBe('empty');
+    expect(rule('', 'a/../b')).toBe('dot_dot');
+    expect(rule('', 'a\\b')).toBe('backslash');
+    expect(rule('', '/a')).toBe('leading_slash');
+    expect(rule('', 'a\nb')).toBe('line_break');
+    expect(rule('', 'a//b')).toBe('empty_segment');
+    expect(rule('', 'x'.repeat(1100))).toBe('too_long');
+  });
+});
+
+describe('mirrorToDevdigest (SPEC-03 AC-9)', () => {
+  it('prefixes the devdigest root', () => {
+    expect(mirrorToDevdigest('specs/a.md')).toBe('.devdigest/specs/specs/a.md');
+    expect(mirrorToDevdigest('README.md')).toBe('.devdigest/specs/README.md');
+  });
+});
+
+describe('decodeUploadText (SPEC-03 AC-8)', () => {
+  const b64 = (b: Uint8Array | string) => Buffer.from(b).toString('base64');
+  it('checks size before decoding', () => {
+    // invalid UTF-8 but over the limit: must report too_large, not not_text
+    expect(decodeUploadText(b64(Buffer.alloc(1_048_577, 0xff)))).toEqual({ ok: false, reason: 'too_large' });
+  });
+  it('rejects invalid UTF-8 and NUL, accepts text', () => {
+    expect(decodeUploadText(b64(Uint8Array.from([0xff, 0xfe, 0x00])))).toEqual({ ok: false, reason: 'not_text' });
+    expect(decodeUploadText(b64('a\u0000b'))).toEqual({ ok: false, reason: 'not_text' });
+    expect(decodeUploadText(b64('# ok'))).toEqual({ ok: true, text: '# ok' });
   });
 });

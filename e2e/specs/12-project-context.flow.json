@@ -1,6 +1,6 @@
 {
   "name": "Run trace shows Specs read and the Project context prompt row, and the Project Context page shows the not-cloned state",
-  "description": "SPEC-04 AC-6 + AC-8, SPEC-01 AC-5. Open seeded PR #482, open the seeded run's trace from the Agent runs tab and confirm the Configuration 'Specs read' row lists the included doc, then the too-large doc with its 'too large' reason; open Prompt assembly and confirm the 'Project context — attached specs (untrusted)' row (seed.ts → seedReviewRun). Then go to the sidebar Project Context page of acme/payments-api, which has no clone, and confirm the blocking not-cloned state. Never clicks Resync (that would start a job) and never waits for a failed/degraded index banner: the seeded repo is never in a listed state. The trace drawer is a full-screen overlay with no Escape handler, so the flow reloads the app root before clicking the sidebar link. Preconditions: freshly-seeded DB where acme/payments-api (PR #482) is the first repo.",
+  "description": "SPEC-04 AC-6 + AC-8, SPEC-01 AC-5, SPEC-03 AC-1/AC-4/AC-5. Open seeded PR #482, open the seeded run's trace from the Agent runs tab and confirm the Configuration 'Specs read' row lists the included doc, then the too-large doc with its 'too large' reason; open Prompt assembly and confirm the 'Project context — attached specs (untrusted)' row (seed.ts → seedReviewRun). Then go to the sidebar Project Context page of acme/payments-api, which has no clone, and confirm the blocking not-cloned state. Never clicks Resync (that would start a job) and never waits for a failed/degraded index banner: the seeded repo is never in a listed state. The trace drawer is a full-screen overlay with no Escape handler, so the flow reloads the app root before clicking the sidebar link. The flow also creates a .devdigest doc (review-checklist.md) on the not-cloned repo, so it is hermetic-only: a second run against the same DB hits 409 exists. Preconditions: freshly-seeded DB where acme/payments-api (PR #482) is the first repo.",
   "steps": [
     { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
     { "cmd": ["wait", "--url", "/pulls"], "label": "land on the pr list" },
@@ -24,6 +24,13 @@
     { "cmd": ["wait", "--url", "/context"], "label": "navigate to the project context route" },
     { "cmd": ["wait", "--load", "networkidle"], "label": "doc list request settles" },
     { "cmd": ["wait", "--text", "Repo not cloned yet"], "label": "not-cloned state title is visible" },
-    { "cmd": ["wait", "--text", "Docs are read from the local clone. Resync to fetch it."], "label": "not-cloned state body is visible" }
+    { "cmd": ["wait", "--text", "Docs are read from the local clone. Resync to fetch it."], "label": "not-cloned state body is visible" },
+    { "cmd": ["wait", "--text", "PROJECT CONTEXT"], "label": "left panel title is visible" },
+    { "cmd": ["find", "role", "button", "click", "--name", "New file"], "label": "open the new file form" },
+    { "cmd": ["find", "placeholder", "File name, e.g. auth/login.md", "fill", "review-checklist"], "label": "type the new doc name" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Create"], "label": "create the devdigest doc" },
+    { "cmd": ["wait", "--text", ".devdigest (editable)"], "label": "editable section is visible while not cloned" },
+    { "cmd": ["wait", "--text", "review-checklist.md"], "label": "new doc is in the tree and selected" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Preview"], "label": "switch the new doc to preview" }
   ]
 }

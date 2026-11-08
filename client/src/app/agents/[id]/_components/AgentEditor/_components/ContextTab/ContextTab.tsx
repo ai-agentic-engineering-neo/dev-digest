@@ -86,7 +86,8 @@ function RepoContextTab({ agentId, repoId }: { agentId: string; repoId: string }
     );
   }
 
-  const notCloned = docsQ.data.state.status === "not_cloned";
+  // Not cloned: the server lists only the repo's `.devdigest` docs; with none, the notice blocks the list.
+  const notCloned = docsQ.data.state.status === "not_cloned" && docsQ.data.docs.length === 0;
   const rows = buildContextRows(docsQ.data.docs, attachedQ.data.docs);
   const paths = rows.filter((r) => r.attached).map((r) => r.path);
   const tokens = sumTokens(rows.filter((r) => r.attached));
@@ -145,7 +146,12 @@ function RepoContextTab({ agentId, repoId }: { agentId: string; repoId: string }
       </div>
       <p style={s.hint}>{t.rich("contextTab.hint", { code })}</p>
 
-      <RepoStateNotice state={docsQ.data.state} busy={resync.busy} onResync={() => void resync.start()} />
+      <RepoStateNotice
+        state={docsQ.data.state}
+        blocking={notCloned}
+        busy={resync.busy}
+        onResync={() => void resync.start()}
+      />
 
       {tooLarge.map((r) => (
         <div key={r.path} role="alert" style={s.alert}>
@@ -217,13 +223,23 @@ function RepoContextTab({ agentId, repoId }: { agentId: string; repoId: string }
 }
 
 /** Same state → notice mapping as the Project Context page. */
-function RepoStateNotice({ state, busy, onResync }: { state: RepoState; busy: boolean; onResync: () => void }) {
+function RepoStateNotice({
+  state,
+  blocking,
+  busy,
+  onResync,
+}: {
+  state: RepoState;
+  blocking: boolean;
+  busy: boolean;
+  onResync: () => void;
+}) {
   const tc = useTranslations("context");
   if (state.status === "ready") return null;
   if (state.status === "not_cloned") {
     return (
       <ContextRepoState
-        variant="blocking"
+        variant={blocking ? "blocking" : "banner"}
         title={tc("state.notCloned.title")}
         body={tc("state.notCloned.body")}
         actionLabel={tc("resync")}

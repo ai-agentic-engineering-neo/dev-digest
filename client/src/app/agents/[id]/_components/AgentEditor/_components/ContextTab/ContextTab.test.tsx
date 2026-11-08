@@ -255,6 +255,18 @@ describe("ContextTab", () => {
     expect(screen.queryByText(/Injected as an untrusted block/)).toBeNull();
   });
 
+  it("not cloned with .devdigest docs → banner plus a working list (SPEC-03 AC-11)", () => {
+    docsList = {
+      repo_id: "r1",
+      state: { status: "not_cloned" },
+      docs: [{ path: ".devdigest/specs/x.md", source: "devdigest", tokens: 50, attached_agents: 0 }],
+    };
+    renderTab();
+    expect(screen.getByText("Docs are read from the local clone. Resync to fetch it.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Attach .devdigest/specs/x.md" }));
+    expect(lastSave()).toEqual([".devdigest/specs/x.md"]);
+  });
+
   it("a ready repo with no docs shows an empty-state message instead of an empty list", () => {
     docsList = { repo_id: "r1", state: { status: "ready" }, docs: [] };
     renderTab();

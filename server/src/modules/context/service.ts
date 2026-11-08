@@ -1,19 +1,35 @@
 import type { Container } from '../../platform/container.js';
-import { NotFoundError, ValidationError } from '../../platform/errors.js';
-import { CONTEXT_TOKEN_CAP, PROJECT_CONTEXT_UNAVAILABLE } from './constants.js';
+import { ConflictError, NotFoundError, ValidationError } from '../../platform/errors.js';
 import {
+  CONTEXT_TOKEN_CAP,
+  MAX_DEVDIGEST_DOCS,
+  MAX_DEVDIGEST_DOC_BYTES,
+  MAX_DOC_PATH_CHARS,
+  PROJECT_CONTEXT_UNAVAILABLE,
+} from './constants.js';
+import {
+  buildDevdigestPath,
   classifyDocPath,
+  decodeUploadText,
   estimateTokens,
+  isDevdigestNamespace,
+  mirrorToDevdigest,
   selectForRun,
+  utf8Bytes,
   type AgentContextDoc,
   type AgentContextDocs,
   type ContextDoc,
   type ContextDocContent,
   type ContextDocList,
   type ContextRepoState,
+  type DevdigestCopyResult,
+  type DevdigestDeleteResult,
+  type DevdigestDoc,
+  type DevdigestDocErrorDetails,
+  type DevdigestDocList,
   type RunProjectContext,
 } from './domain.js';
-import type { ContextRepoRef } from './ports.js';
+import type { ContextRepoRef, DevdigestDocRecord } from './ports.js';
 
 /** Parallel file reads per batch (a repo can have hundreds of docs). */
 const READ_BATCH = 32;
@@ -35,10 +51,20 @@ export class ProjectContextService {
 
   /** Every discoverable doc of a cloned repo with its content (unreadable docs dropped). */
   private async discover(ref: ContextRepoRef & { clonePath: string }): Promise<Map<string, string>> {
+    // `.devdigest/**` in the repo is never a repo doc (DevDigest-owned namespace).
     const paths = (await this.container.docWalker.listMarkdown(ref.clonePath)).filter(
-      (p) => classifyDocPath(p) !== null,
+      (p) => !isDevdigestNamespace(p) && classifyDocPath(p) !== null,
     );
     return this.readAll(ref, paths);
+  }
+
+  /** Walker .md paths under the repo's own `.devdigest/` (ignored, reported to the user). */
+  private async ignoredRepoPaths(clonePath: string): Promise<number> {
+    return (await this.container.docWalker.listMarkdown(clonePath)).filter(isDevdigestNamespace).length;
+  }
+
+  private get ddRepo() {
+    return this.container.devdigestDocsRepo;
   }
 
   /** path → content for each readable path (order kept); a read error drops the path. */
@@ -96,23 +122,30 @@ export class ProjectContextService {
   async listDocs(workspaceId: string, repoId: string): Promise<ContextDocList> {
     const ref = await this.requireRepo(workspaceId, repoId);
     const clonePath = ref.clonePath;
-    if (!clonePath) return { repo_id: ref.id, state: { status: 'not_cloned' }, docs: [] };
-
-    const [contents, counts, state] = await Promise.all([
-      this.discover({ ...ref, clonePath }),
+    const [ddDocs, counts] = await Promise.all([
+      this.ddRepo.listByRepo(workspaceId, ref.id),
       this.repo.attachedAgentCounts(workspaceId, ref.id),
-      this.indexState(ref.id),
     ]);
-    const docs: ContextDoc[] = [];
+    const docs: ContextDoc[] = ddDocs.map((d) => toContextDoc(d.path, d.content, counts));
+    if (!clonePath) return { repo_id: ref.id, state: { status: 'not_cloned' }, docs: docs.sort(byPath) };
+
+    const [contents, state] = await Promise.all([this.discover({ ...ref, clonePath }), this.indexState(ref.id)]);
     for (const [path, content] of contents) {
       docs.push(toContextDoc(path, content, counts));
     }
-    return { repo_id: ref.id, state, docs };
+    return { repo_id: ref.id, state, docs: docs.sort(byPath) };
   }
 
   async getDoc(workspaceId: string, repoId: string, path: string): Promise<ContextDocContent> {
     const ref = await this.requireRepo(workspaceId, repoId);
-    if (!ref.clonePath || classifyDocPath(path) === null) throw new NotFoundError('Document not found');
+    const source = classifyDocPath(path);
+    if (source === 'devdigest') {
+      const [rec] = await this.ddRepo.getByPaths(workspaceId, ref.id, [path]);
+      if (!rec) throw new NotFoundError('Document not found');
+      const counts = await this.repo.attachedAgentCounts(workspaceId, ref.id);
+      return { ...toContextDoc(path, rec.content, counts), content: rec.content };
+    }
+    if (!ref.clonePath || source === null) throw new NotFoundError('Document not found');
     const discovered = await this.container.docWalker.listMarkdown(ref.clonePath);
     if (!discovered.includes(path)) throw new NotFoundError('Document not found');
     const content = await this.readDoc(ref, path);
@@ -121,18 +154,37 @@ export class ProjectContextService {
     return { ...toContextDoc(path, content, counts), content };
   }
 
-  async getAgentDocs(workspaceId: string, agentId: string, repoId: string): Promise<AgentContextDocs> {
-    const ref = await this.requireAgentAndRepo(workspaceId, agentId, repoId);
-    return this.agentDocs(ref, agentId);
+  /**
+   * path -> content of each readable attached doc. `.devdigest` docs come from the DB (also when the
+   * repo is not cloned); repo docs only when cloned AND walker-discovered.
+   */
+  private async readAttached(
+    workspaceId: string,
+    ref: ContextRepoRef,
+    attached: readonly string[],
+  ): Promise<Map<string, string>> {
+    const ddPaths = attached.filter((p) => classifyDocPath(p) === 'devdigest');
+    const repoPaths = attached.filter((p) => classifyDocPath(p) !== 'devdigest');
+    const out = new Map<string, string>();
+    if (ddPaths.length > 0) {
+      for (const d of await this.ddRepo.getByPaths(workspaceId, ref.id, ddPaths)) out.set(d.path, d.content);
+    }
+    if (ref.clonePath && repoPaths.length > 0) {
+      const discovered = new Set(await this.container.docWalker.listMarkdown(ref.clonePath));
+      const read = await this.readAll(ref, repoPaths.filter((p) => discovered.has(p)));
+      for (const [p, c] of read) out.set(p, c);
+    }
+    return out;
   }
 
-  private async agentDocs(ref: ContextRepoRef, agentId: string): Promise<AgentContextDocs> {
+  async getAgentDocs(workspaceId: string, agentId: string, repoId: string): Promise<AgentContextDocs> {
+    const ref = await this.requireAgentAndRepo(workspaceId, agentId, repoId);
+    return this.agentDocs(workspaceId, ref, agentId);
+  }
+
+  private async agentDocs(workspaceId: string, ref: ContextRepoRef, agentId: string): Promise<AgentContextDocs> {
     const attached = await this.repo.listAttachments(agentId, ref.id);
-    let readable = new Map<string, string>();
-    if (ref.clonePath && attached.length > 0) {
-      const discovered = new Set(await this.container.docWalker.listMarkdown(ref.clonePath));
-      readable = await this.readAll(ref, attached.filter((p) => discovered.has(p)));
-    }
+    const readable = await this.readAttached(workspaceId, ref, attached);
     const docs: AgentContextDoc[] = attached.map((path, position) => {
       const content = readable.get(path);
       const source = classifyDocPath(path);
@@ -155,7 +207,7 @@ export class ProjectContextService {
     if (bad.length > 0) throw new ValidationError('Not a project-context document', { paths: bad });
     // Existence is NOT required: a missing doc stays attached until the user detaches it.
     await this.repo.replaceAttachments(agentId, ref.id, paths);
-    return this.agentDocs(ref, agentId);
+    return this.agentDocs(workspaceId, ref, agentId);
   }
 
   /**
@@ -171,30 +223,38 @@ export class ProjectContextService {
     agentId: string,
     changedPaths: string[],
   ): Promise<RunProjectContext | null> {
-    void workspaceId; // repo and agent were resolved by the executor from the workspace-checked run
     const attached = await this.repo.listAttachments(agentId, repo.id);
     if (attached.length === 0) return null;
 
+    const isDd = (p: string) => classifyDocPath(p) === 'devdigest';
+    let repoUnavailable: string[] = [];
+    let readList = attached;
     if (!repo.clonePath) {
-      return {
-        specs: [],
-        trace: { status: 'unavailable', reason: PROJECT_CONTEXT_UNAVAILABLE, attached },
-        logLine: 'project context unavailable: repo not synced',
-      };
+      if (!attached.some(isDd)) {
+        return {
+          specs: [],
+          trace: { status: 'unavailable', reason: PROJECT_CONTEXT_UNAVAILABLE, attached },
+          logLine: 'project context unavailable: repo not synced',
+        };
+      }
+      readList = attached.filter(isDd);
+      repoUnavailable = attached.filter((p) => !isDd(p));
     }
 
-    // Same defence as getDoc / agentDocs: only docs the walker discovered are read (it skips
-    // symlinks), so an attached in-clone link is reported `missing`, never followed into the prompt.
-    const discovered = new Set(await this.container.docWalker.listMarkdown(repo.clonePath));
-    const contents = await this.readAll(repo, attached.filter((p) => discovered.has(p)));
+    // Repo docs: only walker-discovered paths are read (it skips symlinks), so an attached in-clone
+    // link is reported `missing`, never followed into the prompt. `.devdigest` docs come from the DB.
+    const contents = await this.readAttached(workspaceId, repo, readList);
     const sel = selectForRun(
-      attached.map((path) => ({ path, content: contents.get(path) ?? null })),
+      readList.map((path) => ({ path, content: contents.get(path) ?? null })),
       CONTEXT_TOKEN_CAP,
     );
     const changed = new Set(changedPaths);
     const included = sel.included.length;
-    let logLine = `Project context: ${included} of ${attached.length} doc(s) included (~${sel.total_tokens} tokens)`;
+    let logLine = `Project context: ${included} of ${readList.length} doc(s) included (~${sel.total_tokens} tokens)`;
     if (sel.left_out.length > 0) logLine += `; ${sel.left_out.length} left out`;
+    if (repoUnavailable.length > 0) {
+      logLine += `; ${repoUnavailable.length} repo doc(s) unavailable: repo not synced`;
+    }
     return {
       // One resolved entry per doc, `### <path>` + content. The engine wraps each entry in
       // <untrusted source="spec-i"> and adds the `## Project context` heading + note (SPEC-04 AC-10).
@@ -206,9 +266,165 @@ export class ProjectContextService {
         included: sel.included.map((d) => ({ path: d.path, tokens: d.tokens })),
         left_out: sel.left_out,
         changed_by_pr: attached.filter((p) => changed.has(p)),
+        ...(repoUnavailable.length > 0 ? { repo_unavailable: repoUnavailable } : {}),
       },
       logLine,
     };
+  }
+
+  // ---------- DevDigest-owned docs (SPEC-03) ----------
+
+  async listDevdigestDocs(workspaceId: string, repoId: string): Promise<DevdigestDocList> {
+    const ref = await this.requireRepo(workspaceId, repoId);
+    const [records, syncedAt, ignored] = await Promise.all([
+      this.ddRepo.listByRepo(workspaceId, ref.id),
+      this.syncedAt(ref.id),
+      ref.clonePath ? this.ignoredRepoPaths(ref.clonePath).catch(() => 0) : Promise.resolve(0),
+    ]);
+    return {
+      repo_id: ref.id,
+      docs: records.map(toDevdigestMeta),
+      limit: MAX_DEVDIGEST_DOCS,
+      synced_at: syncedAt,
+      ignored_repo_paths: ignored,
+    };
+  }
+
+  private async syncedAt(repoId: string): Promise<string | null> {
+    try {
+      const { updatedAt } = await this.container.repoIntel.getIndexState(repoId);
+      return updatedAt.getTime() === 0 ? null : updatedAt.toISOString();
+    } catch {
+      return null;
+    }
+  }
+
+  async getDevdigestDoc(workspaceId: string, id: string): Promise<DevdigestDoc> {
+    const rec = await this.requireDoc(workspaceId, id);
+    return this.toDevdigestDoc(workspaceId, rec);
+  }
+
+  async createDevdigestDoc(workspaceId: string, repoId: string, folder: string, name: string): Promise<DevdigestDoc> {
+    const ref = await this.requireRepo(workspaceId, repoId);
+    const built = buildDevdigestPath(folder, name, { appendMd: true });
+    if (!built.ok) throw invalidName(built.rule);
+    await this.assertUnderLimit(workspaceId, ref.id);
+    const rec = await this.ddRepo.insert({
+      workspaceId,
+      repoId: ref.id,
+      path: built.path,
+      content: '',
+      copiedFrom: null,
+    });
+    if (!rec) throw await this.existsError(workspaceId, ref.id, built.path);
+    return this.toDevdigestDoc(workspaceId, rec);
+  }
+
+  async uploadDevdigestDoc(
+    workspaceId: string,
+    repoId: string,
+    input: { folder: string; filename: string; content_base64: string; overwrite: boolean },
+  ): Promise<{ created: boolean; doc: DevdigestDoc }> {
+    const ref = await this.requireRepo(workspaceId, repoId);
+    if (!input.filename.toLowerCase().endsWith('.md')) throw unprocessable({ reason: 'not_markdown' });
+    const built = buildDevdigestPath(input.folder, input.filename, { appendMd: false });
+    if (!built.ok) throw invalidName(built.rule);
+    const decoded = decodeUploadText(input.content_base64);
+    if (!decoded.ok) {
+      throw unprocessable(
+        decoded.reason === 'too_large'
+          ? { reason: 'too_large', limit: MAX_DEVDIGEST_DOC_BYTES }
+          : { reason: 'not_text' },
+      );
+    }
+    const [existing] = await this.ddRepo.getByPaths(workspaceId, ref.id, [built.path]);
+    if (existing) {
+      if (!input.overwrite) throw await this.existsError(workspaceId, ref.id, built.path);
+      const updated = await this.ddRepo.updateContent(workspaceId, existing.id, decoded.text);
+      if (!updated) throw new NotFoundError('Document not found');
+      return { created: false, doc: await this.toDevdigestDoc(workspaceId, updated) };
+    }
+    await this.assertUnderLimit(workspaceId, ref.id);
+    const rec = await this.ddRepo.insert({
+      workspaceId,
+      repoId: ref.id,
+      path: built.path,
+      content: decoded.text,
+      copiedFrom: null,
+    });
+    if (!rec) throw await this.existsError(workspaceId, ref.id, built.path);
+    return { created: true, doc: await this.toDevdigestDoc(workspaceId, rec) };
+  }
+
+  async copyRepoDoc(workspaceId: string, repoId: string, sourcePath: string): Promise<DevdigestCopyResult> {
+    const ref = await this.requireRepo(workspaceId, repoId);
+    const source = classifyDocPath(sourcePath);
+    if (!ref.clonePath || source === null || source === 'devdigest') throw new NotFoundError('Document not found');
+    const discovered = await this.container.docWalker.listMarkdown(ref.clonePath);
+    if (!discovered.includes(sourcePath)) throw new NotFoundError('Document not found');
+    const target = mirrorToDevdigest(sourcePath);
+    if (target.length > MAX_DOC_PATH_CHARS) throw invalidName('too_long');
+    const [existing] = await this.ddRepo.getByPaths(workspaceId, ref.id, [target]);
+    if (existing) return { created: false, doc: await this.toDevdigestDoc(workspaceId, existing) };
+    const content = await this.readDoc(ref, sourcePath);
+    if (content === null) throw new NotFoundError('Document not found');
+    await this.assertUnderLimit(workspaceId, ref.id);
+    const rec = await this.ddRepo.insert({
+      workspaceId,
+      repoId: ref.id,
+      path: target,
+      content,
+      copiedFrom: sourcePath,
+    });
+    if (!rec) {
+      // lost a race with another copy: return the winner unchanged
+      const [winner] = await this.ddRepo.getByPaths(workspaceId, ref.id, [target]);
+      if (!winner) throw new NotFoundError('Document not found');
+      return { created: false, doc: await this.toDevdigestDoc(workspaceId, winner) };
+    }
+    return { created: true, doc: await this.toDevdigestDoc(workspaceId, rec) };
+  }
+
+  async saveDevdigestDoc(workspaceId: string, id: string, content: string): Promise<DevdigestDoc> {
+    await this.requireDoc(workspaceId, id);
+    if (utf8Bytes(content) > MAX_DEVDIGEST_DOC_BYTES) {
+      throw unprocessable({ reason: 'too_large', limit: MAX_DEVDIGEST_DOC_BYTES });
+    }
+    const rec = await this.ddRepo.updateContent(workspaceId, id, content);
+    if (!rec) throw new NotFoundError('Document not found');
+    return this.toDevdigestDoc(workspaceId, rec);
+  }
+
+  async deleteDevdigestDoc(workspaceId: string, id: string): Promise<DevdigestDeleteResult> {
+    const res = await this.ddRepo.deleteAndDetach(workspaceId, id);
+    if (!res) throw new NotFoundError('Document not found');
+    return { deleted: id, detached_agents: res.detached };
+  }
+
+  private async requireDoc(workspaceId: string, id: string): Promise<DevdigestDocRecord> {
+    const rec = await this.ddRepo.getById(workspaceId, id);
+    if (!rec) throw new NotFoundError('Document not found');
+    return rec;
+  }
+
+  private async assertUnderLimit(workspaceId: string, repoId: string): Promise<void> {
+    if ((await this.ddRepo.countByRepo(workspaceId, repoId)) >= MAX_DEVDIGEST_DOCS) {
+      throw unprocessable({ reason: 'limit_reached', limit: MAX_DEVDIGEST_DOCS });
+    }
+  }
+
+  private async existsError(workspaceId: string, repoId: string, path: string): Promise<ConflictError> {
+    const [existing] = await this.ddRepo.getByPaths(workspaceId, repoId, [path]);
+    return new ConflictError('Document already exists', {
+      reason: 'exists',
+      path,
+      ...(existing ? { doc_id: existing.id } : {}),
+    } satisfies DevdigestDocErrorDetails);
+  }
+
+  private async toDevdigestDoc(workspaceId: string, rec: DevdigestDocRecord): Promise<DevdigestDoc> {
+    const used_by = await this.ddRepo.attachedAgents(workspaceId, rec.repoId, rec.path);
+    return { ...toDevdigestMeta(rec), repo_id: rec.repoId, content: rec.content, used_by };
   }
 }
 
@@ -216,4 +432,26 @@ function toContextDoc(path: string, content: string, counts: Map<string, number>
   // `discover` / `getDoc` only pass classifying paths
   const source = classifyDocPath(path)!;
   return { path, source, tokens: estimateTokens(content), attached_agents: counts.get(path) ?? 0 };
+}
+
+function byPath(a: { path: string }, b: { path: string }): number {
+  return a.path < b.path ? -1 : a.path > b.path ? 1 : 0;
+}
+
+function toDevdigestMeta(rec: DevdigestDocRecord) {
+  return {
+    id: rec.id,
+    path: rec.path,
+    tokens: estimateTokens(rec.content),
+    copied_from: rec.copiedFrom,
+    updated_at: rec.updatedAt.toISOString(),
+  };
+}
+
+function unprocessable(details: DevdigestDocErrorDetails): ValidationError {
+  return new ValidationError('Invalid document', details);
+}
+
+function invalidName(rule: NonNullable<DevdigestDocErrorDetails['rule']>): ValidationError {
+  return unprocessable({ reason: 'invalid_name', rule });
 }

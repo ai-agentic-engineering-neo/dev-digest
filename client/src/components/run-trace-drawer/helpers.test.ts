@@ -34,7 +34,26 @@ describe("specsReadView (SPEC-04 AC-6)", () => {
         { path: "specs/big.md", reason: "too_large", changed: false },
         { path: "docs/gone.md", reason: "missing", changed: true },
       ],
+      unavailable: [],
     });
+  });
+
+  it("ok block with repo_unavailable → those paths in detail.unavailable (SPEC-03 AC-11)", () => {
+    const trace = {
+      ...base,
+      project_context: {
+        status: "ok",
+        cap_tokens: 4000,
+        total_tokens: 5,
+        included: [{ path: ".devdigest/specs/x.md", tokens: 5 }],
+        left_out: [],
+        changed_by_pr: [],
+        repo_unavailable: ["docs/a.md"],
+      },
+    } as RunTraceView;
+    const view = specsReadView(trace);
+    expect(view).toMatchObject({ kind: "detail", unavailable: ["docs/a.md"] });
+    expect(view.kind === "detail" && view.included[0]?.path).toBe(".devdigest/specs/x.md");
   });
 
   it("unavailable block → the attached paths", () => {

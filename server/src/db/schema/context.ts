@@ -10,7 +10,9 @@ import {
   index,
   uniqueIndex,
   primaryKey,
+  check,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { now } from './_shared';
 import { workspaces } from './core';
 import { repos } from './repos';
@@ -149,5 +151,33 @@ export const agentContextDocs = pgTable(
   (t) => ({
     pk: primaryKey({ columns: [t.agentId, t.repoId, t.path] }),
     repoIdx: index('agent_context_docs_repo_idx').on(t.repoId),
+  }),
+);
+
+/**
+ * `devdigest_docs` - markdown docs users own inside DevDigest (never in the repo), SPEC-03.
+ * Paths are names only and always start with `.devdigest/specs/`; every query filters `workspace_id`.
+ */
+export const devdigestDocs = pgTable(
+  'devdigest_docs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    repoId: uuid('repo_id')
+      .notNull()
+      .references(() => repos.id, { onDelete: 'cascade' }),
+    path: text('path').notNull(),
+    content: text('content').notNull().default(''),
+    copiedFrom: text('copied_from'),
+    createdAt: now(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => ({
+    repoPathUq: uniqueIndex('devdigest_docs_repo_path_uq').on(t.repoId, t.path),
+    wsIdx: index('devdigest_docs_ws_idx').on(t.workspaceId),
+    pathCheck: check('devdigest_docs_path_check', sql`starts_with(${t.path}, '.devdigest/specs/')`),
+    sizeCheck: check('devdigest_docs_size_check', sql`octet_length(${t.content}) <= 1048576`),
   }),
 );

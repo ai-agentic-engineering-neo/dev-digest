@@ -86,6 +86,26 @@ flowchart TB
   HEALTH["/health (liveness) · /health/ready (DB ping → 200/503)"]
 ```
 
+### Context (Project Context Folder, SPEC-01 / SPEC-03)
+
+Module `modules/context/`. Every route resolves the workspace; another workspace's repo/agent/doc → 404.
+
+| Route | Purpose |
+|---|---|
+| `GET /repos/:id/context-docs` | Repo markdown docs + the repo's `.devdigest` docs (`source: "devdigest"`) |
+| `GET /repos/:id/context-docs/content?path=` | One doc with its content |
+| `GET /agents/:id/context-docs?repo_id=` | Docs an agent reads for that repo, in order |
+| `PUT /agents/:id/context-docs` | Replace that ordered list |
+| `GET /repos/:id/devdigest-docs` | DevDigest-owned docs (`.devdigest/specs/`) + `synced_at`, `ignored_repo_paths`, `limit` |
+| `POST /repos/:id/devdigest-docs` | Create an empty doc `{folder, name}` → 201 (409 `exists`, 422 `invalid_name` / `limit_reached`) |
+| `POST /repos/:id/devdigest-docs/uploads` | Upload one base64 `.md` `{folder, filename, content_base64, overwrite}` → 201 new / 200 overwritten (409 `exists`, 422 `not_markdown` / `too_large` / `not_text`) |
+| `POST /repos/:id/devdigest-docs/copies` | Copy a repo doc `{source_path}` → 201 created / 200 existing copy |
+| `GET /devdigest-docs/:id` | One doc with content and `used_by` agents |
+| `PUT /devdigest-docs/:id` | Save `{content}` (422 `too_large` above 1 MiB UTF-8) |
+| `DELETE /devdigest-docs/:id` | Delete and detach from agents → `{deleted, detached_agents}` |
+
+Error `details` follow `DevdigestDocErrorDetails` (`reason`, `rule`, `path`, `doc_id`, `limit`).
+
 ## Environment
 
 `server/.env` (copied from `.env.example`):

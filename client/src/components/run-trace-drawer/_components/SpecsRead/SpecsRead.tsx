@@ -91,6 +91,16 @@ export function SpecsRead({ view }: { view: SpecsReadView }) {
           {d.changed && changedMarker(d.path)}
         </span>
       ))}
+      {view.unavailable.length > 0 && (
+        <span style={s.item}>
+          <span style={s.unavailable}>{t("trace.projectContext.unavailable")}</span>
+          {view.unavailable.map((p, i) => (
+            <span key={`un-${i}`} className="mono" style={s.path}>
+              {p}
+            </span>
+          ))}
+        </span>
+      )}
     </div>
   );
 }

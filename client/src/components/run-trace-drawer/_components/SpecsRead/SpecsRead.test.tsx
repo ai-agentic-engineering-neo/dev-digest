@@ -19,6 +19,7 @@ describe("SpecsRead (SPEC-04 AC-6)", () => {
       kind: "detail",
       included: [{ path: "docs/rate-limiting.md", changed: false }],
       leftOut: [{ path: "specs/security-baseline.md", reason: "too_large", changed: false }],
+      unavailable: [],
     });
     const text = container.textContent ?? "";
     expect(text.indexOf("docs/rate-limiting.md")).toBeLessThan(text.indexOf("specs/security-baseline.md"));
@@ -27,10 +28,31 @@ describe("SpecsRead (SPEC-04 AC-6)", () => {
   });
 
   it("marks a doc the PR changes, with an explaining title", () => {
-    renderView({ kind: "detail", included: [{ path: "docs/a.md", changed: true }], leftOut: [] });
+    renderView({ kind: "detail", included: [{ path: "docs/a.md", changed: true }], leftOut: [], unavailable: [] });
     const marker = screen.getByText("changed by this PR");
     expect(marker).toHaveAttribute("title", "this PR changes docs/a.md; the agent saw the synced version");
     expect(marker).toHaveAccessibleName("this PR changes docs/a.md; the agent saw the synced version");
+  });
+
+  it("shows the unavailable repo docs after the included ones, and no note when empty (SPEC-03 AC-11)", () => {
+    const { container, unmount } = renderView({
+      kind: "detail",
+      included: [{ path: ".devdigest/specs/x.md", changed: false }],
+      leftOut: [],
+      unavailable: ["docs/a.md"],
+    });
+    const text = container.textContent ?? "";
+    expect(text.indexOf(".devdigest/specs/x.md")).toBeLessThan(text.indexOf("project context unavailable"));
+    expect(screen.getByText("project context unavailable: repo not synced")).toBeInTheDocument();
+    expect(screen.getByText("docs/a.md")).toBeInTheDocument();
+    unmount();
+    renderView({
+      kind: "detail",
+      included: [{ path: ".devdigest/specs/x.md", changed: false }],
+      leftOut: [],
+      unavailable: [],
+    });
+    expect(screen.queryByText("project context unavailable: repo not synced")).not.toBeInTheDocument();
   });
 
   it("shows the unavailable note with the attached paths", () => {

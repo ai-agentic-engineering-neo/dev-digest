@@ -38,6 +38,8 @@ export type SpecsReadView =
       kind: "detail";
       included: { path: string; changed: boolean }[];
       leftOut: { path: string; reason: LeftOutReason; changed: boolean }[];
+      /** Attached repo docs not read because the repo is not cloned (SPEC-03 AC-11). */
+      unavailable: string[];
     };
 
 /**
@@ -54,6 +56,7 @@ export function specsReadView(trace: RunTraceView): SpecsReadView {
       kind: "detail",
       included: pc.included.map((d) => ({ path: d.path, changed: changed.has(d.path) })),
       leftOut: pc.left_out.map((d) => ({ path: d.path, reason: d.reason, changed: changed.has(d.path) })),
+      unavailable: [...(pc.repo_unavailable ?? [])],
     };
   }
   if (trace.specs_read.length > 0) return { kind: "paths", paths: [...trace.specs_read] };

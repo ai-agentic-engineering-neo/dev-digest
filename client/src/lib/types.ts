@@ -275,7 +275,7 @@ export interface PriorPullsResponse {
  * Project Context Folder (SPEC-01). Local mirrors of
  * server/src/modules/context/domain.ts — not in @devdigest/shared.
  * ------------------------------------------------------------------------- */
-export type DocSource = "readme" | "insights" | "specs" | "docs";
+export type DocSource = "readme" | "insights" | "specs" | "docs" | "devdigest";
 
 export interface ContextDoc {
   path: string;
@@ -328,7 +328,70 @@ export type ProjectContextTrace =
       included: { path: string; tokens: number }[];
       left_out: { path: string; tokens: number | null; reason: LeftOutReason }[];
       changed_by_pr: string[];
+      /** Attached repo docs not read because the repo is not cloned (while a .devdigest doc was). */
+      repo_unavailable?: string[];
     };
+
+export type DevdigestNameRule =
+  | "empty"
+  | "dot_dot"
+  | "backslash"
+  | "leading_slash"
+  | "line_break"
+  | "too_long"
+  | "empty_segment";
+
+export type DevdigestDocErrorReason =
+  | "invalid_name"
+  | "exists"
+  | "limit_reached"
+  | "too_large"
+  | "not_markdown"
+  | "not_text";
+
+/** `details` of every 409/422 from the devdigest routes. */
+export interface DevdigestDocErrorDetails {
+  reason: DevdigestDocErrorReason;
+  rule?: DevdigestNameRule;
+  path?: string;
+  doc_id?: string;
+  limit?: number;
+}
+
+export interface DevdigestDocMeta {
+  id: string;
+  path: string;
+  tokens: number;
+  copied_from: string | null;
+  updated_at: string;
+}
+
+/** GET /repos/:id/devdigest-docs — also carries the page footer/notice data. */
+export interface DevdigestDocList {
+  repo_id: string;
+  /** Sorted by path (byte order). */
+  docs: DevdigestDocMeta[];
+  limit: number;
+  /** Repo-intel index updatedAt; null when never indexed. */
+  synced_at: string | null;
+  ignored_repo_paths: number;
+}
+
+export interface DevdigestDoc extends DevdigestDocMeta {
+  repo_id: string;
+  content: string;
+  used_by: { id: string; name: string }[];
+}
+
+export interface DevdigestCopyResult {
+  created: boolean;
+  doc: DevdigestDoc;
+}
+
+export interface DevdigestDeleteResult {
+  deleted: string;
+  detached_agents: number;
+}
 
 /** GET /runs/:id/trace — the stored trace plus the optional project-context block. */
 export type RunTraceView = RunTrace & { project_context?: ProjectContextTrace | null };

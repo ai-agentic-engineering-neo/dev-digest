@@ -1,0 +1,43 @@
+import type { CSSProperties } from "react";
+
+export const s = {
+  wrap: { display: "flex", flexDirection: "column", gap: 8 } satisfies CSSProperties,
+  bar: { display: "flex", alignItems: "center", gap: 4 } satisfies CSSProperties,
+  iconButton: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: 28,
+    height: 28,
+    border: "1px solid var(--border)",
+    borderRadius: 6,
+    background: "transparent",
+    color: "var(--text-secondary)",
+    cursor: "pointer",
+  } satisfies CSSProperties,
+  hidden: { display: "none" } satisfies CSSProperties,
+  form: { display: "flex", flexDirection: "column", gap: 4 } satisfies CSSProperties,
+  label: { fontSize: 12, color: "var(--text-secondary)" } satisfies CSSProperties,
+  input: {
+    padding: "4px 8px",
+    border: "1px solid var(--border)",
+    borderRadius: 6,
+    background: "var(--bg-surface)",
+    color: "var(--text-primary)",
+    fontSize: 13,
+  } satisfies CSSProperties,
+  formActions: { display: "flex", gap: 6 } satisfies CSSProperties,
+  error: { fontSize: 12, color: "var(--crit)" } satisfies CSSProperties,
+  report: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+    padding: 8,
+    border: "1px solid var(--border)",
+    borderRadius: 6,
+    fontSize: 12,
+  } satisfies CSSProperties,
+  reportTitle: { fontWeight: 600 } satisfies CSSProperties,
+  list: { margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 4 } satisfies CSSProperties,
+  conflictRow: { display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" } satisfies CSSProperties,
+} as const;

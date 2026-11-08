@@ -82,6 +82,8 @@ export interface FakeState {
   /** Called with every request as "METHOD /path" (before it is answered). */
   onCall?: (call: string) => void;
   unreachable?: boolean;
+  /** Delay every fake API answer by this many ms (slow API / slow resolution). */
+  latencyMs?: number;
   /** Body of GET /pulls/:id/blast; unset → 404. */
   blast?: unknown;
   /** Force GET /pulls/:id/blast to answer this error status. */
@@ -121,6 +123,7 @@ export function fakeFetch(state: FakeState) {
     state.calls.push(`${method} ${path}`);
     state.onCall?.(`${method} ${path}`);
     if (state.unreachable) throw new TypeError('fetch failed');
+    if (state.latencyMs) await new Promise((r) => setTimeout(r, state.latencyMs));
 
     if (method === 'GET' && path === '/agents') return json(state.agents);
     if (method === 'GET' && path === '/repos') return json(state.repos);

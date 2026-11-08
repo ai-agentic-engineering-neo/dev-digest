@@ -10,8 +10,15 @@ export interface Config {
 
 /** Same default as server `config.apiPort` (API_PORT=3001). */
 export const DEFAULT_API_URL = 'http://localhost:3001';
-/** Claude Code's tool timeout defaults to ~28 h (stdio idle 30 min), so 3 min is our own cap. */
-export const DEFAULT_RUN_TIMEOUT_MS = 180_000;
+/** Smallest common client limit on a tool call: MCP Inspector's default "Maximum Total Timeout" (60 s). */
+export const TYPICAL_CLIENT_TIMEOUT_MS = 60_000;
+/**
+ * How long run_agent_on_pr waits, counted from the start of the call (resolution included). Kept below
+ * TYPICAL_CLIENT_TIMEOUT_MS so the server answers `status: "running"` + run_id before a client aborts the
+ * call (`MCP error -32001`); the model then follows up with get_findings. Raise it via
+ * DEVDIGEST_RUN_TIMEOUT_MS only for clients with a larger limit (Claude Code: `timeout` in .mcp.json).
+ */
+export const DEFAULT_RUN_TIMEOUT_MS = 50_000;
 export const DEFAULT_POLL_MS = 2_000;
 
 function positiveInt(raw: string | undefined, fallback: number): number {

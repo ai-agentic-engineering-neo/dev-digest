@@ -33,6 +33,9 @@ export function registerRunAgentOnPr(server: McpServer, deps: ToolDeps): void {
     },
     guarded('run_agent_on_pr', async ({ repo, pr_id, agent_id }, extra) => {
       const { signal } = extra;
+      // The wait budget covers the WHOLE call (resolution + start + polling), so the answer arrives
+      // before typical client limits (Inspector: 60 s total) — see DEFAULT_RUN_TIMEOUT_MS.
+      const deadline = Date.now() + deps.config.runTimeoutMs;
       const found = await resolveAgent(deps.api, agent_id, signal);
       const { repo: repoRow, pull } = await resolvePr(deps.api, repo, pr_id, signal);
       const pr = pull.number;
@@ -61,9 +64,9 @@ export function registerRunAgentOnPr(server: McpServer, deps: ToolDeps): void {
 
       const base = { repo: repoRow.full_name, prNumber: pr, prId: pull.id, ...(warning ? { warning } : {}) };
       const progressToken = extra._meta?.progressToken;
-      const deadline = Date.now() + deps.config.runTimeoutMs;
       let tick = 0;
-      while (Date.now() < deadline) {
+      // At least one status check, even when resolution already used up the budget (fast runs still finish).
+      for (let first = true; first || Date.now() < deadline; first = false) {
         await sleep(Math.min(deps.config.pollMs, Math.max(0, deadline - Date.now())), signal);
         const run = (await deps.api.listRuns(pull.id, signal)).find((r) => r.run_id === runId);
         if (run && run.status !== 'running' && run.status !== null) {

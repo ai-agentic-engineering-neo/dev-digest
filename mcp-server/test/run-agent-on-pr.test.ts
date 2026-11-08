@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { ApiRun } from '../src/api-client.js';
+import { DEFAULT_RUN_TIMEOUT_MS, loadConfig, TYPICAL_CLIENT_TIMEOUT_MS } from '../src/config.js';
 import { connect, freshState, SECURITY, text, type FakeState } from './helpers/harness.js';
 
 let close: (() => Promise<void>) | undefined;
@@ -155,5 +156,37 @@ describe('run_agent_on_pr: arguments and errors', () => {
     expect(r.isError).toBe(true);
     expect(text(r)).toContain('404');
     expect(text(r)).toContain('list_agents');
+  });
+});
+
+describe('run_agent_on_pr: wait budget below client limits', () => {
+  it('the default wait is a constant below the typical client limit (Inspector: 60 s total)', () => {
+    expect(DEFAULT_RUN_TIMEOUT_MS).toBe(50_000);
+    expect(DEFAULT_RUN_TIMEOUT_MS).toBeLessThan(TYPICAL_CLIENT_TIMEOUT_MS);
+    expect(loadConfig({}).runTimeoutMs).toBe(DEFAULT_RUN_TIMEOUT_MS);
+    expect(loadConfig({ DEVDIGEST_RUN_TIMEOUT_MS: '120000' }).runTimeoutMs).toBe(120_000); // opt-in for larger clients
+    expect(loadConfig({ DEVDIGEST_RUN_TIMEOUT_MS: 'nope' }).runTimeoutMs).toBe(DEFAULT_RUN_TIMEOUT_MS);
+  });
+
+  it('counts the budget from the start of the call: slow resolution leaves one status check, then "running" + get_findings', async () => {
+    const state = freshState();
+    state.runStatusSequence = ['running'];
+    state.latencyMs = 60; // ~5 calls before polling = 300 ms > the 150 ms budget
+    const { call } = await setup(state, { runTimeoutMs: 150, pollMs: 1 });
+    const r = await call('run_agent_on_pr', RUN_ARGS);
+    expect(r.isError).toBeFalsy();
+    expect(r.structuredContent).toMatchObject({ status: 'running', run_id: 'run-new' });
+    expect((r.structuredContent as { next_step: string }).next_step).toContain('get_findings');
+    // 1 dedup lookup before the start + exactly 1 status check after it (budget already spent)
+    expect(runPolls(state)).toBe(2);
+  });
+
+  it('a run that finished during slow resolution is still returned as done (one check after the budget)', async () => {
+    const state = freshState();
+    state.runStatusSequence = ['done'];
+    state.latencyMs = 60;
+    const { call } = await setup(state, { runTimeoutMs: 150, pollMs: 1 });
+    const r = await call('run_agent_on_pr', RUN_ARGS);
+    expect(r.structuredContent).toMatchObject({ status: 'done', run_id: 'run-new' });
   });
 });

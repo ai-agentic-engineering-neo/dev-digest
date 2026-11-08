@@ -119,16 +119,28 @@ claude mcp add --transport stdio devdigest --env DEVDIGEST_API_URL=http://localh
 | Змінна | Дефолт | Що робить |
 |---|---|---|
 | `DEVDIGEST_API_URL` | `http://localhost:3001` | Базовий URL DevDigest API (`API_PORT` сервера) |
-| `DEVDIGEST_RUN_TIMEOUT_MS` | `180000` | Скільки `run_agent_on_pr` чекає. Після цього повертає `status: "running"` + `run_id` |
+| `DEVDIGEST_RUN_TIMEOUT_MS` | `50000` | Скільки `run_agent_on_pr` чекає, рахуючи від початку виклику. Після цього повертає `status: "running"` + `run_id` + `next_step` («виклич `get_findings`»). Збільшуйте лише для клієнтів із більшим лімітом |
 | `DEVDIGEST_POLL_MS` | `2000` | Інтервал опитування `GET /pulls/:id/runs` |
 
 Секретів немає: локальний API без авторизації, ключі LLM живуть у DevDigest, а не тут.
 
-**Таймаут.** Claude Code без `MCP_TOOL_TIMEOUT` чекає на виклик інструмента близько 28 годин, а для
-stdio-серверів idle-ліміт становить 30 хв ([docs](https://code.claude.com/docs/en/mcp)). Тож 180 с не
-обріже клієнт. У `.mcp.json` стоїть `"timeout": 240000` як явна верхня межа з запасом над 180 с плюс резолвом.
-Якщо зменшуєте `timeout`, тримайте `DEVDIGEST_RUN_TIMEOUT_MS` нижче нього, щоб сервер сам повертав
-`run_id`, а не клієнт обривав виклик.
+### Таймаути
+
+Рев'ю одним агентом часто триває довше за хвилину, а клієнти обривають виклик інструмента за власним лімітом.
+Тому сервер **сам** перестає чекати раніше: `DEFAULT_RUN_TIMEOUT_MS = 50 000` мс (`src/config.ts`), рахуючи
+від початку виклику (резолв repo/PR і старт прогону входять у бюджет). Після цього `run_agent_on_pr` один раз
+перевіряє статус і, якщо прогін ще йде, повертає не помилку, а `status: "running"`, `run_id` і `next_step`:
+«виклич `get_findings` з цим `run_id` за хвилину». Прогін у DevDigest при цьому триває.
+
+| Клієнт | Ліміт за замовчуванням | Що робити |
+|---|---|---|
+| MCP Inspector v1 (звідси помилка `-32001: Maximum total timeout exceeded`) | Request Timeout (`MCP_SERVER_REQUEST_TIMEOUT`, скидається progress-повідомленнями, які ми шлемо) і **Maximum Total Timeout 60 с** (`MCP_REQUEST_MAX_TOTAL_TIMEOUT`) | 50 с вкладаються. Щоб дочекатися довгого рев'ю в одному виклику: у UI **Configuration** задайте `MCP_REQUEST_MAX_TOTAL_TIMEOUT` (мс), наприклад 300000, залиште `MCP_REQUEST_TIMEOUT_RESET_ON_PROGRESS` = true, і підніміть `DEVDIGEST_RUN_TIMEOUT_MS` нижче цього значення |
+| MCP Inspector v2 | Загального ліміту немає (`MCP_REQUEST_MAX_TOTAL_TIMEOUT` прибрано); per-server `requestTimeout` у Server Settings, скидання на progress завжди увімкнене ([міграція v1→v2](https://github.com/modelcontextprotocol/inspector/blob/main/docs/v1-to-v2-migration.md)) | 50 с вкладаються; для довшого очікування — `requestTimeout` + `DEVDIGEST_RUN_TIMEOUT_MS` |
+| Claude Code | `MCP_TOOL_TIMEOUT` ≈ 28 год; у `.mcp.json` стоїть `"timeout": 240000` | 50 с вкладаються; можна підняти `DEVDIGEST_RUN_TIMEOUT_MS` до ~200000 (нижче `timeout` з запасом на резолв) |
+
+Без змін налаштувань достатньо дефолту: модель отримує `run_id` і сама дочитує результат через `get_findings`.
+Помилка `MCP error -32001: Maximum total timeout exceeded` означає, що клієнтський ліміт менший за
+`DEVDIGEST_RUN_TIMEOUT_MS`; зменште змінну або збільште ліміт клієнта.
 
 ## Токени на старті чату
 
@@ -238,8 +250,8 @@ TypeScript SDK, стаття Anthropic «Writing effective tools for agents», �
     [Spec: progress](https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns/progress.md),
     [Spec: cancellation](https://modelcontextprotocol.io/specification/2026-07-28/basic/utilities/cancellation)
     **У нас:** `run_agent_on_pr` опитує `GET /pulls/:id/runs` кожні 2 с і шле progress, якщо є токен.
-    Сигнал скасування перериває очікування (progress і cancel покриті тестами в `test/run-agent-on-pr.test.ts`). Власний таймаут `DEVDIGEST_RUN_TIMEOUT_MS` (дефолт 180 с),
-    бо `MCP_TOOL_TIMEOUT` у Claude Code за замовчуванням близько 28 годин.
+    Сигнал скасування перериває очікування (progress і cancel покриті тестами в `test/run-agent-on-pr.test.ts`). Власний таймаут `DEVDIGEST_RUN_TIMEOUT_MS` (дефолт 50 с від початку
+    виклику): нижче за найменший типовий клієнтський ліміт (Inspector, 60 с), див. «Таймаути».
 13. **Не встигли дочекатися — повертаємо handle.** Специфікація радить повертати явний handle й
     приймати його в наступних викликах.
     [Spec: Tools § Stateful Tools](https://modelcontextprotocol.io/specification/2026-07-28/server/tools),

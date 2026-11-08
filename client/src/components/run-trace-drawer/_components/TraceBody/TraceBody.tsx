@@ -5,7 +5,8 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Badge } from "@devdigest/ui";
-import type { RunTrace, FindingRecord } from "@devdigest/shared";
+import type { FindingRecord } from "@devdigest/shared";
+import type { RunTraceView } from "@/lib/types";
 import { PROMPT_COLORS } from "../../constants";
 import { approxTokens } from "@/lib/tokens";
 import { formatSeconds, formatTokens } from "../../helpers";
@@ -14,10 +15,11 @@ import { TraceSection } from "../TraceSection";
 import { ToolCallRow } from "../ToolCallRow";
 import { PromptBlock } from "../PromptBlock";
 import { FindingsSection } from "../FindingsSection";
+import { ProjectContextBlock } from "../ProjectContextBlock";
 import { Row, Stat } from "../atoms";
 import { formatCost } from "@/components/run-cost-badge";
 
-export function TraceBody({ trace, findings }: { trace: RunTrace; findings: FindingRecord[] }) {
+export function TraceBody({ trace, findings }: { trace: RunTraceView; findings: FindingRecord[] }) {
   const t = useTranslations("runs");
   const stats = trace.stats;
   return (
@@ -69,6 +71,12 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
           <Stat label={t("trace.stat.findings")} val={stats.findings} />
         </div>
       </TraceSection>
+
+      {trace.project_context && (
+        <TraceSection icon="FileText" title={t("trace.projectContext.title")}>
+          <ProjectContextBlock block={trace.project_context} />
+        </TraceSection>
+      )}
 
       <FindingsSection findings={findings} />
 

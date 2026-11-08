@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
-import type { RunTrace } from "@devdigest/shared";
+import type { RunTraceView as RunTrace } from "@/lib/types";
 import messages from "../../../messages/en/runs.json"; // apps/web/messages/en/runs.json
 
 // Mock the trace hooks so the drawer renders without a query client / SSE.
@@ -66,6 +66,30 @@ describe("A5 Run Trace drawer (smoke)", () => {
     renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
     expect(screen.getByText("COST")).toBeInTheDocument();
     expect(screen.getByText("—")).toBeInTheDocument();
+  });
+
+  it("shows the Project context block when the trace has one (AC-9)", () => {
+    currentTrace = {
+      ...TRACE,
+      project_context: {
+        status: "ok",
+        cap_tokens: 4000,
+        total_tokens: 820,
+        included: [{ path: "docs/rate-limiting.md", tokens: 820 }],
+        left_out: [{ path: "specs/security-baseline.md", tokens: 5100, reason: "too_large" }],
+        changed_by_pr: [],
+      },
+    };
+    renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    expect(screen.getByText("Project context")).toBeInTheDocument();
+    expect(screen.getByText("docs/rate-limiting.md")).toBeInTheDocument();
+    expect(screen.getByText("specs/security-baseline.md")).toBeInTheDocument();
+    expect(screen.getByText("too large")).toBeInTheDocument();
+  });
+
+  it("renders no Project context block for a trace without one (AC-11)", () => {
+    renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    expect(screen.queryByText("Project context")).not.toBeInTheDocument();
   });
 
   it("switches to the live log tab", () => {

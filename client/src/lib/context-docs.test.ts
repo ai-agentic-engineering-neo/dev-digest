@@ -1,5 +1,29 @@
 import { describe, it, expect } from "vitest";
-import { CONTEXT_TOKEN_CAP, filterDocs, shortenPath, sumTokens } from "./context-docs";
+import {
+  CONTEXT_TOKEN_CAP,
+  DOC_SOURCE_COLORS,
+  filterDocs,
+  shortenPath,
+  splitDocPath,
+  sumTokens,
+} from "./context-docs";
+
+describe("DOC_SOURCE_COLORS (SPEC-04 AC-1)", () => {
+  it("has one distinct colour for each of the 5 sources", () => {
+    expect(Object.keys(DOC_SOURCE_COLORS).sort()).toEqual(["devdigest", "docs", "insights", "readme", "specs"]);
+    expect(new Set(Object.values(DOC_SOURCE_COLORS).map((c) => c.color)).size).toBe(5);
+  });
+});
+
+describe("splitDocPath (SPEC-04 AC-1)", () => {
+  it("splits a nested path into name and folder", () => {
+    expect(splitDocPath("server/specs/a.md")).toEqual({ name: "a.md", folder: "server/specs" });
+  });
+
+  it("gives a root file an empty folder", () => {
+    expect(splitDocPath("README.md")).toEqual({ name: "README.md", folder: "" });
+  });
+});
 
 const DOCS = [
   { path: "README.md" },

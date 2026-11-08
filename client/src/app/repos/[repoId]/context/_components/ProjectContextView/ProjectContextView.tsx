@@ -6,11 +6,12 @@
 import React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Badge, EmptyState, ErrorState, Skeleton, TextInput } from "@devdigest/ui";
+import { EmptyState, ErrorState, Skeleton, TextInput } from "@devdigest/ui";
 import { AppShell } from "@/components/app-shell";
 import { RepoNotFound } from "@/components/repo-not-found";
 import { ContextDocPreview } from "@/components/context-doc-preview";
 import { ContextRepoState } from "@/components/context-repo-state";
+import { DocSourceBadge } from "@/components/doc-source-badge";
 import { useContextDoc, useContextDocs, useContextResync } from "@/lib/hooks/project-context";
 import { useActiveRepo, useRepoNotFound } from "@/lib/repo-context";
 import { filterDocs, shortenPath } from "@/lib/context-docs";
@@ -159,7 +160,7 @@ function DocRow({ doc, active, onSelect }: { doc: ContextDoc; active: boolean; o
         {shortenPath(doc.path, ROW_PATH_CHARS)}
       </span>
       <span style={s.rowMeta}>
-        <Badge>{t(`source.${doc.source}`)}</Badge>
+        <DocSourceBadge source={doc.source} label={t(`source.${doc.source}`)} />
         <span>{t("meta.tokens", { count: doc.tokens })}</span>
         <span>{t("meta.attachedAgents", { count: doc.attached_agents })}</span>
       </span>

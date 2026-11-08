@@ -7,7 +7,8 @@ import agentsMessages from "../../../../../../../../messages/en/agents.json";
 import contextMessages from "../../../../../../../../messages/en/context.json";
 import { ToastProvider } from "@/lib/toast";
 
-/* Agent editor · Context tab — hooks and repo context are mocked; saves are asserted on the mutation. */
+/* Agent editor · Context tab (SPEC-01 behaviour, SPEC-04 N2b layout) — hooks and repo context are
+   mocked; saves are asserted on the mutation. */
 
 const mutate = vi.fn();
 const resyncStart = vi.fn();
@@ -64,68 +65,129 @@ docsList = READY;
 
 const AGENT = { id: "ag1", name: "Security Reviewer" } as Agent;
 
-function renderTab() {
-  return render(
+function tree() {
+  return (
     <NextIntlClientProvider locale="en" messages={{ agents: agentsMessages, context: contextMessages }}>
       <ToastProvider>
         <ContextTab agent={AGENT} />
       </ToastProvider>
-    </NextIntlClientProvider>,
+    </NextIntlClientProvider>
   );
+}
+
+function renderTab() {
+  return render(tree());
 }
 
 const rowPaths = () => screen.getAllByRole("listitem").map((r) => r.getAttribute("data-testid")?.replace("context-row-", ""));
 const lastSave = () => mutate.mock.calls.at(-1)?.[0];
+const handle = (path: string) => screen.getByRole("button", { name: new RegExp(`^Reorder ${path.replace(/\./g, "\\.")} `) });
 
 describe("ContextTab", () => {
-  it("attaching a doc saves the new ordered list; attached docs render first in order (AC-6)", () => {
+  it("rows show checkbox, name, folder, source badge and Preview; only attached rows have a handle (SPEC-04 AC-1, AC-4)", () => {
+    attached = [ok("docs/a.md", 0)];
+    renderTab();
+    const row = screen.getByTestId("context-row-docs/a.md");
+    expect(within(row).getByRole("checkbox", { name: "Attach docs/a.md" })).toHaveAttribute("aria-checked", "true");
+    expect(within(row).getByText("a.md")).toBeInTheDocument();
+    // "docs" twice: the folder (muted) and the source badge (green)
+    const docsTexts = within(row).getAllByText("docs");
+    expect(docsTexts).toHaveLength(2);
+    expect(docsTexts.map((el) => el.style.color)).toEqual(["var(--text-muted)", "var(--ok)"]);
+    expect(within(row).getByRole("button", { name: "Preview docs/a.md" })).toHaveTextContent("Preview");
+    expect(within(row).getByRole("button", { name: /^Reorder docs\/a\.md/ })).toBeInTheDocument();
+
+    const other = screen.getByTestId("context-row-docs/b.md");
+    expect(within(other).getByRole("checkbox", { name: "Attach docs/b.md" })).toHaveAttribute("aria-checked", "false");
+    expect(within(other).queryByRole("button", { name: /^Reorder/ })).toBeNull();
+
+    expect(screen.queryByText("#1")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Move .* (up|down)/ })).toBeNull();
+    expect(row).not.toHaveAttribute("draggable");
+  });
+
+  it("the checkbox saves the new ordered list; attached docs render first in order (AC-4)", () => {
     attached = [ok("docs/b.md", 0), ok("docs/a.md", 1)];
     renderTab();
     expect(rowPaths()).toEqual(["docs/b.md", "docs/a.md", "README.md", "server/specs/auth.md", "specs/huge.md"]);
-    expect(screen.getByText("#1")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("switch", { name: "Attach README.md" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Attach README.md" }));
     expect(lastSave()).toEqual(["docs/b.md", "docs/a.md", "README.md"]);
 
-    fireEvent.click(screen.getByRole("switch", { name: "Attach docs/b.md" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Attach docs/b.md" }));
     expect(lastSave()).toEqual(["docs/a.md"]);
   });
 
-  it("↑/↓ and drag-and-drop save the moved order (AC-6)", () => {
+  it("header shows the title, 'N of M attached', the filter and the order hint (SPEC-04 AC-2)", () => {
+    attached = [ok("docs/a.md", 0), ok("docs/b.md", 1)];
+    renderTab();
+    expect(screen.getByRole("heading", { level: 2, name: "Project context" })).toBeInTheDocument();
+    expect(screen.getByText("2 of 5 attached")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Filter documents…" })).toBeInTheDocument();
+    expect(screen.getByText(/Order matters — earlier docs appear earlier in the/)).toHaveTextContent("## Project context");
+  });
+
+  it("footer: over the cap the token count is crit with an 'over 4K soft cap' badge and the note (SPEC-04 AC-3)", () => {
+    attached = [ok("docs/a.md", 0), ok("docs/b.md", 1)];
+    renderTab();
+    expect(screen.getByText("≈ 4,500 tokens")).toHaveStyle({ color: "var(--crit)" });
+    expect(screen.getByText("over 4K soft cap")).toBeInTheDocument();
+    expect(screen.getByText(/Injected as an untrusted block/)).toHaveTextContent(
+      "Injected as an untrusted block (## Project context) into every run.",
+    );
+  });
+
+  it("footer: under the cap there is no badge and the count is not crit (SPEC-04 AC-3)", () => {
+    attached = [ok("docs/b.md", 0)];
+    renderTab();
+    expect(screen.getByText("≈ 1,500 tokens")).toHaveStyle({ color: "var(--text-secondary)" });
+    expect(screen.queryByText("over 4K soft cap")).toBeNull();
+  });
+
+  it("Arrow Up on a handle saves the moved order and announces it; nothing is saved at the top (SPEC-04 AC-4)", () => {
+    attached = [ok("docs/a.md", 0), ok("docs/b.md", 1)];
+    const { rerender } = renderTab();
+    fireEvent.keyDown(handle("docs/b.md"), { key: "ArrowUp" });
+    expect(lastSave()).toEqual(["docs/b.md", "docs/a.md"]);
+    expect(screen.getByText("docs/b.md moved to position 1 of 2")).toBeInTheDocument();
+
+    attached = [ok("docs/b.md", 0), ok("docs/a.md", 1)];
+    rerender(tree());
+    mutate.mockReset();
+    fireEvent.keyDown(handle("docs/b.md"), { key: "ArrowUp" });
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
+  it("after a keyboard move the moved row's handle keeps focus although its DOM node moved (SPEC-04 AC-4)", () => {
+    attached = [ok("docs/a.md", 0), ok("docs/b.md", 1)];
+    const { rerender } = renderTab();
+    const a = handle("docs/a.md");
+    a.focus();
+    fireEvent.keyDown(a, { key: "ArrowDown" });
+    expect(lastSave()).toEqual(["docs/b.md", "docs/a.md"]);
+
+    // the cache now holds the new order → React moves docs/a.md's row node after docs/b.md. A real
+    // browser drops focus from a node that is removed and re-inserted; jsdom doesn't, so blur here.
+    a.blur();
+    attached = [ok("docs/b.md", 0), ok("docs/a.md", 1)];
+    rerender(tree());
+    expect(rowPaths().slice(0, 2)).toEqual(["docs/b.md", "docs/a.md"]);
+    expect(handle("docs/a.md")).toHaveFocus();
+    expect(screen.getByText("docs/a.md moved to position 2 of 2")).toBeInTheDocument();
+  });
+
+  it("drag from the handle and drop on another attached row saves the moved order (AC-4)", () => {
     attached = [ok("docs/b.md", 0), ok("docs/a.md", 1), ok("README.md", 2)];
     renderTab();
-    fireEvent.click(screen.getByRole("button", { name: "Move docs/a.md up" }));
-    expect(lastSave()).toEqual(["docs/a.md", "docs/b.md", "README.md"]);
-    // the mocked list does not change after a save: each move starts from [b, a, README]
-    fireEvent.click(screen.getByRole("button", { name: "Move docs/b.md down" }));
-    expect(lastSave()).toEqual(["docs/a.md", "docs/b.md", "README.md"]);
-    expect(screen.getByRole("button", { name: "Move docs/b.md up" })).toBeDisabled();
-    expect(screen.getByRole("img", { name: "Drag to reorder README.md" })).toBeInTheDocument();
-
-    fireEvent.dragStart(screen.getByTestId("context-row-README.md"), { dataTransfer: { effectAllowed: "" } });
+    fireEvent.dragStart(handle("README.md"), { dataTransfer: { effectAllowed: "" } });
     fireEvent.dragOver(screen.getByTestId("context-row-docs/b.md"));
     fireEvent.drop(screen.getByTestId("context-row-docs/b.md"));
     expect(lastSave()).toEqual(["README.md", "docs/b.md", "docs/a.md"]);
   });
 
-  it("shows 'N of M attached', the token sum and the over-cap badge (AC-7)", () => {
-    attached = [ok("docs/a.md", 0), ok("docs/b.md", 1)];
+  it("attaching a doc over the cap still saves, and an attached too-large doc shows an alert (AC-4 / SPEC-01)", () => {
     renderTab();
-    expect(screen.getByText("2 of 5 attached")).toBeInTheDocument();
-    expect(screen.getByText("~4500 tokens per model call")).toBeInTheDocument();
-    expect(screen.getByText("Over the 4,000-token cap — later docs will be left out of runs")).toBeInTheDocument();
-  });
-
-  it("no over-cap badge under the cap", () => {
-    attached = [ok("docs/b.md", 0)];
-    renderTab();
-    expect(screen.getByText("~1500 tokens per model call")).toBeInTheDocument();
-    expect(screen.queryByText(/Over the 4,000-token cap/)).not.toBeInTheDocument();
-  });
-
-  it("attaching a doc over the cap still saves, and an attached too-large doc shows an alert (AC-7)", () => {
-    renderTab();
-    fireEvent.click(screen.getByRole("switch", { name: "Attach specs/huge.md" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Attach specs/huge.md" }));
     expect(lastSave()).toEqual(["specs/huge.md"]);
     cleanup();
 
@@ -136,30 +198,34 @@ describe("ContextTab", () => {
     );
   });
 
-  it("a missing attachment shows 'missing' and a Detach that saves without it (AC-10)", () => {
+  it("a missing attachment shows 'missing' and a Detach that saves without it (SPEC-01)", () => {
     attached = [ok("docs/a.md", 0), { path: "docs/gone.md", position: 1, status: "missing", source: null, tokens: null }];
     renderTab();
     const row = screen.getByTestId("context-row-docs/gone.md");
     expect(within(row).getByText("missing")).toBeInTheDocument();
+    expect(within(row).queryByRole("checkbox")).toBeNull();
     fireEvent.click(within(row).getByRole("button", { name: "Detach docs/gone.md" }));
     expect(lastSave()).toEqual(["docs/a.md"]);
   });
 
-  it("Preview opens a dialog with the rendered doc, its meta and an Attach toggle that saves (AC-2)", () => {
-    docContent = { ...DOCS[3]!, content: "# Auth rules\n\nAll routes need a session." };
+  it("Preview opens a drawer with the path, source, used-by, tokens, an Attach toggle and the rendered doc (SPEC-04 AC-5)", () => {
+    attached = [ok("docs/a.md", 0)];
+    docContent = { ...DOCS[1]!, content: "# Title\n\nRate limits." };
     renderTab();
-    fireEvent.click(screen.getByRole("button", { name: "Preview server/specs/auth.md" }));
+    fireEvent.click(screen.getByRole("button", { name: "Preview docs/a.md" }));
     const dialog = screen.getByRole("dialog");
-    expect(within(dialog).getByRole("heading", { name: "Auth rules" })).toBeInTheDocument();
-    expect(within(dialog).getByText("~300 tokens")).toBeInTheDocument();
-    expect(within(dialog).getByText("no agents")).toBeInTheDocument();
-    const toggle = within(dialog).getByRole("button", { name: "Attach server/specs/auth.md" });
-    expect(toggle).toHaveTextContent("Attach");
+    expect(within(dialog).getByText("docs/a.md")).toBeInTheDocument();
+    expect(within(dialog).getByText("docs")).toHaveStyle({ color: "var(--ok)" });
+    expect(within(dialog).getByText("Used by 1 agent")).toBeInTheDocument();
+    expect(within(dialog).getByText("~3000 tokens")).toBeInTheDocument();
+    expect(within(dialog).getByRole("heading", { level: 1, name: "Title" })).toBeInTheDocument();
+    const toggle = within(dialog).getByRole("button", { name: "Attach docs/a.md" });
+    expect(toggle).toHaveTextContent("Attached");
     fireEvent.click(toggle);
-    expect(lastSave()).toEqual(["server/specs/auth.md"]);
+    expect(lastSave()).toEqual([]);
   });
 
-  it("the filter narrows rows by folder or name and shows 'No documents found' (AC-3)", () => {
+  it("the filter narrows rows by folder or name and shows 'No documents found' (SPEC-01)", () => {
     renderTab();
     const input = screen.getByRole("textbox", { name: "Filter documents…" });
     fireEvent.change(input, { target: { value: "SPECS" } });

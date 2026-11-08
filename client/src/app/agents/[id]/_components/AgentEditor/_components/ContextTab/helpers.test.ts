@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { AgentContextDoc, ContextDoc } from "@/lib/types";
-import { buildContextRows, moveAttached, toggleAttached, tooLargeAttached } from "./helpers";
+import { buildContextRows, keyboardMove, moveAttached, toggleAttached, tooLargeAttached } from "./helpers";
 
 const DOCS: ContextDoc[] = [
   { path: "specs/b.md", source: "specs", tokens: 300, attached_agents: 1 },
@@ -43,5 +43,20 @@ describe("tooLargeAttached (AC-7)", () => {
   it("lists only attached docs over the 4,000-token cap", () => {
     const rows = buildContextRows(DOCS, ATTACHED);
     expect(tooLargeAttached(rows).map((r) => r.path)).toEqual(["docs/a.md"]);
+  });
+});
+
+describe("keyboardMove (SPEC-04 AC-4)", () => {
+  const P = ["a", "b", "c"];
+
+  it("moves an attached doc one step up or down", () => {
+    expect(keyboardMove(P, "b", -1)).toEqual(["b", "a", "c"]);
+    expect(keyboardMove(P, "b", 1)).toEqual(["a", "c", "b"]);
+  });
+
+  it("returns null at the edges and for a doc that isn't attached", () => {
+    expect(keyboardMove(P, "a", -1)).toBeNull();
+    expect(keyboardMove(P, "c", 1)).toBeNull();
+    expect(keyboardMove(P, "x", 1)).toBeNull();
   });
 });

@@ -1,12 +1,15 @@
-/* ContextDocRow — one repo doc in the agent's Context tab: drag handle + ↑/↓ (attached rows), the
-   attach switch, path + source/tokens, a "missing" badge with Detach for docs gone from the synced
-   commit, Preview, and the prompt position #N. Every control's accessible name includes the path.
-   Drag state lives in ContextTab. */
+/* ContextDocRow — one repo doc in the agent's Context tab (N2b): drag handle (attached rows only;
+   drag, or Arrow Up / Arrow Down), the attach checkbox, file name + folder, the source badge, and a
+   Preview button — or, for a doc gone from the synced commit, a "missing" badge with Detach. The
+   row itself is only a drop target (never draggable). Every control's accessible name includes the
+   path. Drag state and the attached order live in ContextTab. */
 "use client";
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { Badge, Icon, Toggle } from "@devdigest/ui";
+import { Badge, Icon } from "@devdigest/ui";
+import { DocSourceBadge } from "@/components/doc-source-badge";
+import { splitDocPath } from "@/lib/context-docs";
 import type { ContextRow } from "../../helpers";
 import { s } from "./styles";
 
@@ -20,36 +23,45 @@ export interface ContextDocRowDrag {
   onEnd: () => void;
 }
 
-export function ContextDocRow({
-  row,
-  attachedCount,
-  drag,
-  onToggle,
-  onMove,
-  onPreview,
-}: {
+export interface ContextDocRowProps {
   row: ContextRow;
-  attachedCount: number;
   drag: ContextDocRowDrag;
   onToggle: () => void;
-  onMove: (to: number) => void;
+  /** Arrow Up (-1) / Arrow Down (1) on the drag handle. */
+  onKeyMove: (dir: -1 | 1) => void;
   onPreview: () => void;
-}) {
+  /** True right after a keyboard move of this row: focus its handle again (the keyed DOM moved). */
+  focusHandle: boolean;
+  onHandleFocused: () => void;
+}
+
+export function ContextDocRow({
+  row,
+  drag,
+  onToggle,
+  onKeyMove,
+  onPreview,
+  focusHandle,
+  onHandleFocused,
+}: ContextDocRowProps) {
   const t = useTranslations("agents");
   const tc = useTranslations("context");
-  const { path, attached, position, status } = row;
+  const { path, attached, status } = row;
   const missing = status === "missing";
+  const { name, folder } = splitDocPath(path);
+  const handleRef = React.useRef<HTMLButtonElement>(null);
+
+  React.useEffect(() => {
+    if (!focusHandle) return;
+    handleRef.current?.focus();
+    onHandleFocused();
+  }, [focusHandle, onHandleFocused]);
 
   return (
     <div
       role="listitem"
       data-testid={`context-row-${path}`}
       style={s.row(attached, drag.over)}
-      draggable={attached}
-      onDragStart={(e) => {
-        drag.onStart();
-        e.dataTransfer.effectAllowed = "move";
-      }}
       onDragOver={(e) => {
         if (drag.onOver()) e.preventDefault();
       }}
@@ -58,34 +70,64 @@ export function ContextDocRow({
         e.preventDefault();
         drag.onDrop();
       }}
-      onDragEnd={drag.onEnd}
     >
-      <span
-        role="img"
-        aria-label={attached ? t("contextTab.dragHandle", { path }) : undefined}
-        aria-hidden={attached ? undefined : true}
-        title={attached ? t("contextTab.dragHandle", { path }) : undefined}
-        style={s.handle(attached)}
-      >
-        {attached && <Icon.Menu size={14} />}
-      </span>
-      {!missing && (
-        <span style={s.toggle}>
-          <Toggle on={attached} onChange={onToggle} size={14} label={t("contextTab.attachLabel", { path })} />
-        </span>
+      {attached ? (
+        <button
+          ref={handleRef}
+          type="button"
+          draggable
+          aria-label={t("contextTab.dragHandle", { path })}
+          title={t("contextTab.dragHandle", { path })}
+          style={s.handle}
+          onDragStart={(e) => {
+            drag.onStart();
+            e.dataTransfer.effectAllowed = "move";
+          }}
+          onDragEnd={drag.onEnd}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+              e.preventDefault();
+              onKeyMove(e.key === "ArrowUp" ? -1 : 1);
+            }
+          }}
+        >
+          <Icon.Menu size={14} />
+        </button>
+      ) : (
+        <span aria-hidden style={s.handleSpacer} />
       )}
-      <div style={s.nameBlock}>
-        <span className="mono" style={s.path(attached)} title={path}>
-          {path}
+
+      {missing ? (
+        <span aria-hidden style={s.checkboxSpacer} />
+      ) : (
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={attached}
+          aria-label={t("contextTab.attachLabel", { path })}
+          onClick={onToggle}
+          style={s.checkbox(attached)}
+        >
+          {attached && <Icon.Check size={11} />}
+        </button>
+      )}
+
+      <span style={s.nameBlock} title={path}>
+        <span className="mono" style={s.name(attached)}>
+          {name}
         </span>
-        {!missing && (
-          <span style={s.meta}>
-            {row.source ? tc(`source.${row.source}`) : ""}
-            {row.tokens != null ? ` · ${tc("meta.tokens", { count: row.tokens })}` : ""}
+        {folder && (
+          <span className="mono" style={s.folder}>
+            {folder}
           </span>
         )}
-      </div>
-      {missing && (
+      </span>
+
+      <span style={s.spacer} />
+
+      {row.source && <DocSourceBadge source={row.source} label={tc(`source.${row.source}`)} />}
+
+      {missing ? (
         <>
           <span title={t("contextTab.missingHint")}>
             <Badge color="var(--crit)" bg="var(--crit-bg)">
@@ -96,37 +138,17 @@ export function ContextDocRow({
             {t("contextTab.detach")}
           </button>
         </>
-      )}
-      {!missing && (
-        <button type="button" style={s.iconBtn} aria-label={t("contextTab.previewLabel", { path })} title={t("contextTab.preview")} onClick={onPreview}>
-          <Icon.Eye size={14} />
+      ) : (
+        <button
+          type="button"
+          style={s.textBtn}
+          aria-label={t("contextTab.previewLabel", { path })}
+          onClick={onPreview}
+        >
+          <Icon.Eye size={13} />
+          {t("contextTab.preview")}
         </button>
       )}
-      {attached && (
-        <div style={s.arrows}>
-          <button
-            type="button"
-            style={s.iconBtn}
-            aria-label={t("contextTab.moveUp", { path })}
-            disabled={position === 0}
-            onClick={() => onMove(position - 1)}
-          >
-            <Icon.ArrowUp size={13} />
-          </button>
-          <button
-            type="button"
-            style={s.iconBtn}
-            aria-label={t("contextTab.moveDown", { path })}
-            disabled={position === attachedCount - 1}
-            onClick={() => onMove(position + 1)}
-          >
-            <Icon.ArrowDown size={13} />
-          </button>
-        </div>
-      )}
-      <span className="mono" style={s.position}>
-        {attached ? t("contextTab.position", { n: position + 1 }) : ""}
-      </span>
     </div>
   );
 }

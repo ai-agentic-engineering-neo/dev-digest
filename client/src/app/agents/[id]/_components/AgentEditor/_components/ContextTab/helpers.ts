@@ -67,3 +67,15 @@ export function moveAttached(paths: readonly string[], path: string, to: number)
 export function tooLargeAttached(rows: readonly ContextRow[]): ContextRow[] {
   return rows.filter((r) => r.attached && r.tokens != null && r.tokens > CONTEXT_TOKEN_CAP);
 }
+
+/**
+ * Arrow-key reorder on a drag handle: move the attached doc `path` one step (`dir` -1 = up,
+ * 1 = down). `null` when it isn't attached or is already first (up) / last (down) — nothing to save.
+ */
+export function keyboardMove(paths: readonly string[], path: string, dir: -1 | 1): string[] | null {
+  const at = paths.indexOf(path);
+  if (at === -1) return null;
+  const to = at + dir;
+  if (to < 0 || to >= paths.length) return null;
+  return moveAttached(paths, path, to);
+}

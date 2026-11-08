@@ -19,5 +19,6 @@ export const s = {
   meta: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 } satisfies CSSProperties,
   metaText: { fontSize: 12, color: "var(--text-secondary)" } satisfies CSSProperties,
   action: { flexShrink: 0 } satisfies CSSProperties,
-  body: { fontSize: 14, color: "var(--text-primary)", minWidth: 0, overflowWrap: "anywhere" } satisfies CSSProperties,
+  // Typography lives in DocMarkdown; the body only has to let it shrink.
+  body: { minWidth: 0 } satisfies CSSProperties,
 } as const;

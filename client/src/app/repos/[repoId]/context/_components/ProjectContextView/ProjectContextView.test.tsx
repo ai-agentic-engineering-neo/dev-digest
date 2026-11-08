@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import React from "react";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import contextMessages from "../../../../../../../messages/en/context.json";
@@ -77,6 +77,14 @@ describe("ProjectContextView", () => {
     expect(row).toHaveTextContent("2 agents");
     expect(screen.getByRole("button", { name: "README.md" })).toHaveTextContent("no agents");
     expect(screen.getByText("Select a document to preview it.")).toBeInTheDocument();
+  });
+
+  it("colours each row's source badge by source (SPEC-04 AC-1)", () => {
+    renderView();
+    const specsRow = screen.getByRole("button", { name: "server/specs/auth.md" });
+    const docsRow = screen.getByRole("button", { name: "docs/rate-limiting.md" });
+    expect(within(specsRow).getByText("specs")).toHaveStyle({ color: "var(--accent-text)" });
+    expect(within(docsRow).getByText("docs")).toHaveStyle({ color: "var(--ok)" });
   });
 
   it("clicking a doc puts it in ?path= (AC-2)", () => {

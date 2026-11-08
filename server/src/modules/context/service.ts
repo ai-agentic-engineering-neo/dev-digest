@@ -162,6 +162,8 @@ export class ProjectContextService {
    * The project context of one agent run. `null` when the agent has no attachments for the repo
    * (AC-11). Missing docs never throw; an attachment-query error propagates (the executor catches it).
    * The index state is not consulted: docs come from the clone's working tree (last synced commit).
+   * `specs` holds one `### <path>\n\n<content>` entry per included doc, in attach order; the cap
+   * counts doc content only, never that fixed text.
    */
   async forRun(
     workspaceId: string,
@@ -194,7 +196,9 @@ export class ProjectContextService {
     let logLine = `Project context: ${included} of ${attached.length} doc(s) included (~${sel.total_tokens} tokens)`;
     if (sel.left_out.length > 0) logLine += `; ${sel.left_out.length} left out`;
     return {
-      specs: sel.included.map((d) => `File: ${d.path}\n\n${d.content}`),
+      // One resolved entry per doc, `### <path>` + content. The engine wraps each entry in
+      // <untrusted source="spec-i"> and adds the `## Project context` heading + note (SPEC-04 AC-10).
+      specs: sel.included.map((d) => `### ${d.path}\n\n${d.content}`),
       trace: {
         status: 'ok',
         cap_tokens: CONTEXT_TOKEN_CAP,

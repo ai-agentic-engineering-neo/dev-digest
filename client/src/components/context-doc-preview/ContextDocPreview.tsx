@@ -1,9 +1,10 @@
 /* ContextDocPreview — one project-context doc: path, source, token estimate, attached-agents count
    and the rendered markdown. Presentational (no next-intl: it is mounted in /showcase), so every
-   label arrives translated. Doc content is untrusted: kit Markdown renders no raw HTML; the path
-   is plain text. */
+   label arrives translated. Doc content is untrusted: DocMarkdown shows raw HTML as literal text;
+   the path is plain text. The source badge uses the shared DOC_SOURCE_COLORS (SPEC-04 AC-1). */
 import React from "react";
-import { Badge, Markdown } from "@devdigest/ui";
+import { DocMarkdown } from "@/components/doc-markdown";
+import { DocSourceBadge } from "@/components/doc-source-badge";
 import type { ContextDoc } from "@/lib/types";
 import { s } from "./styles";
 
@@ -36,7 +37,7 @@ export function ContextDocPreview({ doc, content, labels, action }: ContextDocPr
             {doc.path}
           </span>
           <div style={s.meta}>
-            <Badge>{labels.source}</Badge>
+            <DocSourceBadge source={doc.source} label={labels.source} />
             <span style={s.metaText}>{labels.tokens}</span>
             <span style={s.metaText}>{labels.attachedAgents}</span>
           </div>
@@ -44,7 +45,7 @@ export function ContextDocPreview({ doc, content, labels, action }: ContextDocPr
         {action && <div style={s.action}>{action}</div>}
       </header>
       <div style={s.body}>
-        <Markdown>{content}</Markdown>
+        <DocMarkdown>{content}</DocMarkdown>
       </div>
     </article>
   );

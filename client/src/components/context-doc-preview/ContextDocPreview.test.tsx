@@ -17,12 +17,25 @@ describe("ContextDocPreview (AC-2)", () => {
     expect(screen.getByText("bucket").tagName).toBe("STRONG");
   });
 
-  it("does not render raw HTML from the doc", () => {
+  it("does not render raw HTML from the doc — it is shown as text", () => {
     const { container } = render(
       <ContextDocPreview doc={DOC} content={'<script>alert(1)</script>\n\n<img src=x onerror="alert(1)">'} labels={LABELS} />,
     );
     expect(container.querySelector("script")).toBeNull();
     expect(container.querySelector("img")).toBeNull();
+    expect(container.textContent).toContain("<script>alert(1)</script>");
+  });
+
+  it("shows the source badge in its source colour (SPEC-04 AC-1)", () => {
+    render(<ContextDocPreview doc={DOC} content="x" labels={LABELS} />);
+    expect(screen.getByText("docs")).toHaveStyle({ color: "var(--ok)" });
+  });
+
+  it("renders headings and lists with the shared doc typography (SPEC-04 AC-5)", () => {
+    render(<ContextDocPreview doc={DOC} content={"# A\n## B\n- x"} labels={LABELS} />);
+    expect(screen.getByRole("heading", { level: 1, name: "A" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "B" })).toBeInTheDocument();
+    expect(screen.getByRole("list")).toBeInTheDocument();
   });
 
   it("renders the optional action", () => {

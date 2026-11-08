@@ -1,6 +1,6 @@
 # Implementation Plan: Project context — agent Context tab, run trace and section format
 
-- **Status:** approved
+- **Status:** in progress
 - **Execution mode:** single-agent  <!-- user's choice -->
 - **Goal:** The agent Context tab matches N2b (row anatomy, source colours, header, cost footer, keyboard reorder on the handle, preview drawer). The run trace matches N10: "Specs read" in Configuration, and a searchable, copyable "Project context — attached specs (untrusted)" row in Prompt assembly. Every model call gets the project-context section in the readable `## Project context` / note / `### <path>` form.
 - **Specs:** `SPEC-04` — specs/project-context-agent-tab-and-trace.md (approved; supersedes parts of `SPEC-01` — specs/project-context-folder.md, implemented by plans/project-context-folder.md)
@@ -153,7 +153,7 @@ export function specsReadView(trace: RunTraceView): SpecsReadView;
 ## Tasks
 
 ### T1 [W1] [backend] reviewer-core: readable project-context section
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `reviewer-core/src/prompt.ts`, `reviewer-core/src/index.ts`, `reviewer-core/test/prompt.test.ts`, `reviewer-core/docs/pipeline.md`
 - **Depends on:** —
 - **Covers:** SPEC-04/AC-10 (section form: heading, note, blank line, wrapped docs; recorded as sent), SPEC-04/AC-11 (no docs → byte-identical prompt), SPEC-04/AC-12 (the fixed text is part of the user message, so the provider's input-token count and cost include it)
@@ -177,7 +177,7 @@ export function specsReadView(trace: RunTraceView): SpecsReadView;
   - `cd server && node node_modules/vitest/vitest.mjs run --exclude '**/*.it.test.ts'` → all pass
 
 ### T2 [W1] [frontend] Shared `DocMarkdown` (SPEC-03 AC-3 typography)
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `client/src/components/doc-markdown/{DocMarkdown.tsx,index.ts,styles.ts,helpers.ts,DocMarkdown.test.tsx}`
 - **Depends on:** —
 - **Covers:** SPEC-04/AC-5 (the preview's "typography of SPEC-03 AC-3")
@@ -199,7 +199,7 @@ export function specsReadView(trace: RunTraceView): SpecsReadView;
   - `cd client && node node_modules/vitest/vitest.mjs run src/components/doc-markdown src/test/css-vars.test.ts` → all pass
 
 ### T3 [W1] [frontend] `PromptSearchModal` + `ProjectContextPromptRow` (presentational)
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `client/src/components/run-trace-drawer/_components/PromptSearchModal/{PromptSearchModal.tsx,index.ts,styles.ts,helpers.ts,helpers.test.ts,hooks/useFocusTrap.ts,PromptSearchModal.test.tsx}`, `client/src/components/run-trace-drawer/_components/ProjectContextPromptRow/{ProjectContextPromptRow.tsx,index.ts,ProjectContextPromptRow.test.tsx}`
 - **Depends on:** —
 - **Covers:** SPEC-04/AC-8 (row: label, token estimate, Copy whole section, expand), SPEC-04/AC-9 (modal: title, focused search, exact text, filtered matching lines + highlight + count / "No lines match …", Copy whole section, Escape, focus trap + focus return)
@@ -222,7 +222,7 @@ export function specsReadView(trace: RunTraceView): SpecsReadView;
   - `cd client && node node_modules/vitest/vitest.mjs run src/components/run-trace-drawer/_components/PromptSearchModal src/components/run-trace-drawer/_components/ProjectContextPromptRow` → all pass
 
 ### T4 [W1] [frontend] Source colours, `splitDocPath`, `DocSourceBadge`
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `client/src/lib/context-docs.ts`, `client/src/lib/context-docs.test.ts`, `client/src/components/doc-source-badge/{DocSourceBadge.tsx,index.ts,DocSourceBadge.test.tsx}`, `client/src/components/showcase/Showcase.tsx`
 - **Depends on:** —
 - **Covers:** SPEC-04/AC-1 (one colour per source, `readme` and `devdigest` included, shared by tab, preview and page; name/folder split for the row)
@@ -240,7 +240,7 @@ export function specsReadView(trace: RunTraceView): SpecsReadView;
   - `cd client && node node_modules/vitest/vitest.mjs run src/lib/context-docs.test.ts src/components/doc-source-badge src/test` → all pass
 
 ### T5 [W2] [backend] Server: `### <path>` doc entries + run tests for the new section
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `server/src/modules/context/service.ts`, `server/test/context-service.test.ts`, `server/test/context-review-run.it.test.ts`
 - **Depends on:** T1
 - **Covers:** SPEC-04/AC-10 (every model call receives the section in the AC-10 form; the trace records it byte-for-byte), SPEC-04/AC-11 (no attachments → no section, `prompt_assembly.specs` null), SPEC-04/AC-12 (cap counts doc contents only), SPEC-04/AC-6 (the trace keeps the included / left-out / changed-by-PR / unavailable detail that "Specs read" shows)
@@ -264,7 +264,7 @@ export function specsReadView(trace: RunTraceView): SpecsReadView;
   - `cd server && node scripts/check-architecture.mjs` → no new violations
 
 ### T6 [W2] [frontend] Project Context page + shared preview: source colours and `DocMarkdown`
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `client/src/components/context-doc-preview/{ContextDocPreview.tsx,styles.ts,ContextDocPreview.test.tsx}`, `client/src/app/repos/[repoId]/context/_components/ProjectContextView/{ProjectContextView.tsx,ProjectContextView.test.tsx}`
 - **Depends on:** T2, T4
 - **Covers:** SPEC-04/AC-1 (the same source colour on the Project Context page and its preview), SPEC-04/AC-5 (shared preview typography via `DocMarkdown`)
@@ -281,7 +281,7 @@ export function specsReadView(trace: RunTraceView): SpecsReadView;
   - `cd client && node node_modules/vitest/vitest.mjs run src/components/context-doc-preview src/app/repos src/test` → all pass
 
 ### T7 [W2] [frontend] Agent Context tab (N2b): rows, header, footer, keyboard reorder, preview drawer
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `client/src/app/agents/[id]/_components/AgentEditor/_components/ContextTab/{ContextTab.tsx,styles.ts,helpers.ts,helpers.test.ts,ContextTab.test.tsx}`, `client/src/app/agents/[id]/_components/AgentEditor/_components/ContextTab/_components/ContextDocRow/{ContextDocRow.tsx,styles.ts}`, `client/src/app/agents/[id]/_components/AgentEditor/AgentEditor.test.tsx`, `client/messages/en/agents.json`, `client/messages/en/context.json`
 - **Depends on:** T2, T4
 - **Covers:** SPEC-04/AC-1, SPEC-04/AC-2, SPEC-04/AC-3, SPEC-04/AC-4, SPEC-04/AC-5
@@ -328,7 +328,7 @@ export function specsReadView(trace: RunTraceView): SpecsReadView;
   - `cd client && node node_modules/vitest/vitest.mjs run src/app/agents` → all pass
 
 ### T8 [W2] [frontend] Run trace: "Specs read" detail, Project-context prompt row, no separate block
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `client/src/components/run-trace-drawer/_components/SpecsRead/{SpecsRead.tsx,index.ts,styles.ts,SpecsRead.test.tsx}`, `client/src/components/run-trace-drawer/_components/TraceBody/TraceBody.tsx`, `client/src/components/run-trace-drawer/helpers.ts`, `client/src/components/run-trace-drawer/helpers.test.ts`, `client/src/components/run-trace-drawer/constants.ts`, `client/src/components/run-trace-drawer/RunTraceDrawer.test.tsx`, `client/messages/en/runs.json`; deletes `client/src/components/run-trace-drawer/_components/ProjectContextBlock/{ProjectContextBlock.tsx,index.ts,styles.ts,ProjectContextBlock.test.tsx}`
 - **Depends on:** T3
 - **Covers:** SPEC-04/AC-6, SPEC-04/AC-7, SPEC-04/AC-8 (row shown only with a recorded section, wired with translated labels)
@@ -373,7 +373,7 @@ export function specsReadView(trace: RunTraceView): SpecsReadView;
   - `cd client && node node_modules/vitest/vitest.mjs run` → all pass (full client suite: smoke + css-vars + every touched area)
 
 ### T9 [W3] [backend] Seeded section text + e2e flow 12 update (integration)
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `server/src/db/seed.ts`, `e2e/specs/12-project-context.flow.json`
 - **Depends on:** T1, T5, T7, T8
 - **Covers:** SPEC-04/AC-6, SPEC-04/AC-8 (end-to-end in the browser on the seeded run)

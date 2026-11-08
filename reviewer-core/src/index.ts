@@ -15,6 +15,7 @@
 export {
   assemblePrompt,
   wrapUntrusted,
+  PROJECT_CONTEXT_NOTE,
   type PromptParts,
   type SkillInput,
   type AssembledPrompt,

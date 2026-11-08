@@ -1,17 +1,19 @@
 /* ContextTab — which project-context docs this agent reads when it reviews PRs of the active repo
-   (SPEC-01). Header "N of M attached" + the per-call token sum (over-cap badge above 4,000), a
-   too-large alert per attached doc over the cap, a filter, and one row per doc: attached docs first
-   in prompt order (drag or ↑/↓ to reorder), missing ones with Detach. Each change saves at once;
-   the attached order is read from the query cache (optimistic), never mirrored in state. */
+   (SPEC-01, N2b layout per SPEC-04). Header "Project context" + "N of M attached" + filter, an
+   order hint, too-large alerts, a scrollable list (attached docs first in prompt order; reorder by
+   dragging the handle or Arrow Up / Arrow Down on it) and a cost footer that stays visible. Each
+   change saves at once; the attached order is read from the query cache (optimistic), never
+   mirrored in state. Preview opens a drawer with the rendered doc and an Attach toggle. */
 "use client";
 
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Badge, Button, Drawer, ErrorState, Icon, Skeleton } from "@devdigest/ui";
 import type { Agent } from "@devdigest/shared";
-import { ContextDocPreview } from "@/components/context-doc-preview";
 import { ContextRepoState } from "@/components/context-repo-state";
-import { CONTEXT_TOKEN_CAP, filterDocs, sumTokens } from "@/lib/context-docs";
+import { DocMarkdown } from "@/components/doc-markdown";
+import { DocSourceBadge } from "@/components/doc-source-badge";
+import { CONTEXT_TOKEN_CAP, DOC_SOURCE_COLORS, filterDocs, sumTokens } from "@/lib/context-docs";
 import {
   useAgentContextDocs,
   useContextDoc,
@@ -23,18 +25,33 @@ import { useActiveRepo } from "@/lib/repo-context";
 import { useToast } from "@/lib/toast";
 import { errorMessage } from "@/lib/error-message";
 import type { ContextRepoState as RepoState } from "@/lib/types";
-import { buildContextRows, moveAttached, toggleAttached, tooLargeAttached, type ContextRow } from "./helpers";
+import {
+  buildContextRows,
+  keyboardMove,
+  moveAttached,
+  toggleAttached,
+  tooLargeAttached,
+  type ContextRow,
+} from "./helpers";
 import { ContextDocRow } from "./_components/ContextDocRow";
 import { s } from "./styles";
 
+const code = (chunks: React.ReactNode) => <code className="mono">{chunks}</code>;
+
 export function ContextTab({ agent }: { agent: Agent }) {
   const t = useTranslations("agents");
-  const { repoId, activeRepo } = useActiveRepo();
+  const { repoId } = useActiveRepo();
   if (!repoId) return <p style={s.empty}>{t("contextTab.noRepo")}</p>;
-  return <RepoContextTab agentId={agent.id} repoId={repoId} repoName={activeRepo?.full_name ?? activeRepo?.name ?? ""} />;
+  return <RepoContextTab agentId={agent.id} repoId={repoId} />;
 }
 
-function RepoContextTab({ agentId, repoId, repoName }: { agentId: string; repoId: string; repoName: string }) {
+/** A pending keyboard move: keep focusing `path`'s handle until it sits at `position`. */
+interface FocusTarget {
+  path: string;
+  position: number;
+}
+
+function RepoContextTab({ agentId, repoId }: { agentId: string; repoId: string }) {
   const t = useTranslations("agents");
   const tc = useTranslations("context");
   const toast = useToast();
@@ -46,10 +63,12 @@ function RepoContextTab({ agentId, repoId, repoName }: { agentId: string; repoId
   const [dragPath, setDragPath] = React.useState<string | null>(null);
   const [overPath, setOverPath] = React.useState<string | null>(null);
   const [previewPath, setPreviewPath] = React.useState<string | null>(null);
+  const [focusTarget, setFocusTarget] = React.useState<FocusTarget | null>(null);
+  const [announcement, setAnnouncement] = React.useState("");
 
   if (docsQ.isLoading || attachedQ.isLoading) {
     return (
-      <div style={s.list}>
+      <div style={s.listSkeleton}>
         <Skeleton height={44} />
         <Skeleton height={44} />
         <Skeleton height={44} />
@@ -70,14 +89,21 @@ function RepoContextTab({ agentId, repoId, repoName }: { agentId: string; repoId
 
   const rows = buildContextRows(docsQ.data.docs, attachedQ.data.docs);
   const paths = rows.filter((r) => r.attached).map((r) => r.path);
-  const attachedRows = rows.filter((r) => r.attached);
-  const tokens = sumTokens(attachedRows);
+  const tokens = sumTokens(rows.filter((r) => r.attached));
+  const overCap = tokens > CONTEXT_TOKEN_CAP;
   const tooLarge = tooLargeAttached(rows);
   const visible = filterDocs(rows, filter);
   const previewRow = previewPath ? (rows.find((r) => r.path === previewPath) ?? null) : null;
 
+  // One save per user action; `paths` always comes from the (optimistic) query cache, so rapid
+  // Arrow presses chain correctly through the serialized useSetAgentContextDocs.
   const save = (next: string[]) =>
-    setDocs.mutate(next, { onError: (e) => toast.error(`${t("contextTab.saveError")}: ${errorMessage(e)}`) });
+    setDocs.mutate(next, {
+      onError: (e) => {
+        setFocusTarget(null);
+        toast.error(`${t("contextTab.saveError")}: ${errorMessage(e)}`);
+      },
+    });
 
   const onDrop = (target: string) => {
     if (dragPath && dragPath !== target) {
@@ -88,21 +114,36 @@ function RepoContextTab({ agentId, repoId, repoName }: { agentId: string; repoId
     setOverPath(null);
   };
 
+  const onKeyMove = (path: string, dir: -1 | 1) => {
+    const next = keyboardMove(paths, path, dir);
+    if (!next) return;
+    const position = next.indexOf(path);
+    save(next);
+    setFocusTarget({ path, position });
+    setAnnouncement(t("contextTab.moved", { path, position: position + 1, total: next.length }));
+  };
+
   return (
     <div style={s.column}>
       <div style={s.header}>
         <h2 style={s.title}>{t("contextTab.title")}</h2>
-        <div style={s.counts}>
-          <span style={s.count}>{t("contextTab.attachedCount", { attached: paths.length, total: rows.length })}</span>
-          <span style={s.count}>{t("contextTab.tokenSum", { count: tokens })}</span>
-          {tokens > CONTEXT_TOKEN_CAP && (
-            <Badge color="var(--warn)" bg="var(--warn-bg)" icon="AlertTriangle">
-              {t("contextTab.overCap")}
-            </Badge>
-          )}
-        </div>
+        <Badge color="var(--accent-text)" bg="var(--accent-bg)">
+          {t("contextTab.attachedCount", { attached: paths.length, total: rows.length })}
+        </Badge>
+        {rows.length > 0 && (
+          <div style={s.filter}>
+            <Icon.Search size={14} style={s.filterIcon} />
+            <input
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              placeholder={t("contextTab.filterPlaceholder")}
+              aria-label={t("contextTab.filterPlaceholder")}
+              style={s.filterInput}
+            />
+          </div>
+        )}
       </div>
-      <p style={s.hint}>{t("contextTab.hint", { repo: repoName })}</p>
+      <p style={s.hint}>{t.rich("contextTab.hint", { code })}</p>
 
       <RepoStateNotice state={docsQ.data.state} busy={resync.busy} onResync={() => void resync.start()} />
 
@@ -112,19 +153,6 @@ function RepoContextTab({ agentId, repoId, repoName }: { agentId: string; repoId
         </div>
       ))}
 
-      {rows.length > 0 && (
-        <div style={s.filter}>
-          <Icon.Search size={14} style={s.filterIcon} />
-          <input
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            placeholder={t("contextTab.filterPlaceholder")}
-            aria-label={t("contextTab.filterPlaceholder")}
-            style={s.filterInput}
-          />
-        </div>
-      )}
-
       {rows.length > 0 && visible.length === 0 ? (
         <p style={s.empty}>{t("contextTab.noMatch")}</p>
       ) : (
@@ -133,10 +161,13 @@ function RepoContextTab({ agentId, repoId, repoName }: { agentId: string; repoId
             <ContextDocRow
               key={row.path}
               row={row}
-              attachedCount={paths.length}
               onToggle={() => save(toggleAttached(paths, row.path))}
-              onMove={(to) => save(moveAttached(paths, row.path, to))}
+              onKeyMove={(dir) => onKeyMove(row.path, dir)}
               onPreview={() => setPreviewPath(row.path)}
+              focusHandle={focusTarget?.path === row.path}
+              onHandleFocused={() => {
+                if (focusTarget && row.position === focusTarget.position) setFocusTarget(null);
+              }}
               drag={{
                 over: overPath === row.path,
                 onStart: () => setDragPath(row.path),
@@ -157,20 +188,27 @@ function RepoContextTab({ agentId, repoId, repoName }: { agentId: string; repoId
         </div>
       )}
 
+      <div style={s.footer}>
+        <span style={s.footerTokens(overCap)}>{t("contextTab.footerTokens", { count: tokens })}</span>
+        {overCap && (
+          <Badge color="var(--crit)" bg="var(--crit-bg)" icon="AlertTriangle">
+            {t("contextTab.overSoftCap")}
+          </Badge>
+        )}
+        <span style={s.footerNote}>{t.rich("contextTab.footerNote", { code })}</span>
+      </div>
+
+      <div aria-live="polite" style={s.visuallyHidden}>
+        {announcement}
+      </div>
+
       {previewRow && (
-        <Drawer title={previewRow.path} onClose={() => setPreviewPath(null)}>
-          <PreviewBody
-            repoId={repoId}
-            row={previewRow}
-            onToggle={() => save(toggleAttached(paths, previewRow.path))}
-            labels={{
-              attached: t("contextTab.attached"),
-              attach: t("contextTab.attach"),
-              attachLabel: t("contextTab.attachLabel", { path: previewRow.path }),
-              loadError: tc("page.docLoadError"),
-            }}
-          />
-        </Drawer>
+        <PreviewDrawer
+          repoId={repoId}
+          row={previewRow}
+          onToggle={() => save(toggleAttached(paths, previewRow.path))}
+          onClose={() => setPreviewPath(null)}
+        />
       )}
     </div>
   );
@@ -204,43 +242,65 @@ function RepoStateNotice({ state, busy, onResync }: { state: RepoState; busy: bo
   );
 }
 
-function PreviewBody({
+/** Preview drawer (N2b): icon + path title, source / used-by / tokens subtitle, Attach toggle, doc. */
+function PreviewDrawer({
   repoId,
   row,
   onToggle,
-  labels,
+  onClose,
 }: {
   repoId: string;
   row: ContextRow;
   onToggle: () => void;
-  labels: { attached: string; attach: string; attachLabel: string; loadError: string };
+  onClose: () => void;
 }) {
+  const t = useTranslations("agents");
   const tc = useTranslations("context");
   const { data, isLoading, isError, refetch } = useContextDoc(repoId, row.path);
-  if (isLoading) return <Skeleton height={160} />;
-  if (isError || !data) return <ErrorState body={labels.loadError} onRetry={() => refetch()} />;
+  const color = row.source ? DOC_SOURCE_COLORS[row.source].color : "var(--text-muted)";
   return (
-    <ContextDocPreview
-      doc={data}
-      content={data.content}
-      labels={{
-        source: tc(`source.${data.source}`),
-        tokens: tc("meta.tokens", { count: data.tokens }),
-        attachedAgents: tc("meta.attachedAgents", { count: data.attached_agents }),
-        path: tc("meta.path"),
-      }}
-      action={
-        <Button
-          kind={row.attached ? "secondary" : "primary"}
-          size="sm"
-          icon={row.attached ? "Check" : "Plus"}
-          aria-pressed={row.attached}
-          aria-label={labels.attachLabel}
-          onClick={onToggle}
-        >
-          {row.attached ? labels.attached : labels.attach}
-        </Button>
+    <Drawer
+      width={560}
+      onClose={onClose}
+      title={
+        <span style={s.drawerTitle}>
+          <Icon.FileText size={16} style={{ color, flexShrink: 0 }} />
+          <span className="mono" style={s.drawerPath}>
+            {row.path}
+          </span>
+        </span>
       }
-    />
+      subtitle={
+        <span style={s.drawerMeta}>
+          {row.source && <DocSourceBadge source={row.source} label={tc(`source.${row.source}`)} />}
+          <span>{tc("meta.usedBy", { count: row.attachedAgents })}</span>
+          {row.tokens != null && <span>{tc("meta.tokens", { count: row.tokens })}</span>}
+        </span>
+      }
+    >
+      <div style={s.drawerBody}>
+        <div>
+          <Button
+            kind={row.attached ? "secondary" : "primary"}
+            size="sm"
+            icon={row.attached ? "Check" : "Plus"}
+            aria-pressed={row.attached}
+            aria-label={t("contextTab.attachLabel", { path: row.path })}
+            onClick={onToggle}
+          >
+            {row.attached ? t("contextTab.attached") : t("contextTab.attach")}
+          </Button>
+        </div>
+        {isLoading ? (
+          <Skeleton height={160} />
+        ) : isError || !data ? (
+          <ErrorState body={tc("page.docLoadError")} onRetry={() => refetch()} />
+        ) : (
+          <div style={s.docBox}>
+            <DocMarkdown>{data.content}</DocMarkdown>
+          </div>
+        )}
+      </div>
+    </Drawer>
   );
 }

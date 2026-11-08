@@ -65,7 +65,7 @@ describe("A2 Agent Editor (smoke)", () => {
   it("?tab=context renders the Context tab", () => {
     renderWithIntl(<AgentEditor agent={AGENT} tab="context" onTab={() => {}} />);
     expect(screen.getByText("0 of 1 attached")).toBeInTheDocument();
-    expect(screen.getByRole("switch", { name: "Attach docs/a.md" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Attach docs/a.md" })).toBeInTheDocument();
     expect(screen.queryByText("Save agent")).not.toBeInTheDocument();
   });
 });

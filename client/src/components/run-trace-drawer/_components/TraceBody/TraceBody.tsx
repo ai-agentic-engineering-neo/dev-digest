@@ -1,5 +1,6 @@
-/* TraceBody — the Trace tab content: Configuration, Stats, Findings, Prompt
-   assembly, Tool calls, and Raw output sections for one persisted RunTrace. */
+/* TraceBody — the Trace tab content: Configuration (incl. the "Specs read" project-context detail),
+   Stats, Findings, Prompt assembly (with the searchable Project-context row), Tool calls, and Raw
+   output sections for one persisted RunTrace. */
 "use client";
 
 import React from "react";
@@ -9,19 +10,23 @@ import type { FindingRecord } from "@devdigest/shared";
 import type { RunTraceView } from "@/lib/types";
 import { PROMPT_COLORS } from "../../constants";
 import { approxTokens } from "@/lib/tokens";
-import { formatSeconds, formatTokens } from "../../helpers";
+import { formatSeconds, formatTokens, specsReadView } from "../../helpers";
 import { s } from "../../styles";
 import { TraceSection } from "../TraceSection";
 import { ToolCallRow } from "../ToolCallRow";
 import { PromptBlock } from "../PromptBlock";
 import { FindingsSection } from "../FindingsSection";
-import { ProjectContextBlock } from "../ProjectContextBlock";
+import { ProjectContextPromptRow } from "../ProjectContextPromptRow";
+import { SpecsRead } from "../SpecsRead";
 import { Row, Stat } from "../atoms";
 import { formatCost } from "@/components/run-cost-badge";
 
 export function TraceBody({ trace, findings }: { trace: RunTraceView; findings: FindingRecord[] }) {
   const t = useTranslations("runs");
   const stats = trace.stats;
+  // The project-context section exactly as sent (older traces keep their recorded form).
+  const specs = trace.prompt_assembly.specs;
+  const projectContextLabel = t("trace.prompt.projectContext");
   return (
     <>
       <TraceSection icon="Settings" title={t("trace.configuration")}>
@@ -40,17 +45,7 @@ export function TraceBody({ trace, findings }: { trace: RunTraceView; findings: 
             <span>{t("trace.config.items", { count: trace.memory_pulled.length })}</span>
           </Row>
           <Row label={t("trace.config.specsRead")}>
-            <div style={s.specsWrap}>
-              {trace.specs_read.length === 0 ? (
-                <span style={s.specsNone}>{t("trace.config.none")}</span>
-              ) : (
-                trace.specs_read.map((sp, i) => (
-                  <span key={i} className="mono" style={s.spec}>
-                    {sp}
-                  </span>
-                ))
-              )}
-            </div>
+            <SpecsRead view={specsReadView(trace)} />
           </Row>
         </div>
       </TraceSection>
@@ -72,12 +67,6 @@ export function TraceBody({ trace, findings }: { trace: RunTraceView; findings: 
         </div>
       </TraceSection>
 
-      {trace.project_context && (
-        <TraceSection icon="FileText" title={t("trace.projectContext.title")}>
-          <ProjectContextBlock block={trace.project_context} />
-        </TraceSection>
-      )}
-
       <FindingsSection findings={findings} />
 
       <TraceSection icon="FileText" title={t("trace.promptAssembly")} defaultOpen={false}>
@@ -96,8 +85,22 @@ export function TraceBody({ trace, findings }: { trace: RunTraceView; findings: 
         {trace.prompt_assembly.repo_map != null && (
           <PromptBlock label={t("trace.prompt.repoMap")} text={trace.prompt_assembly.repo_map} color={PROMPT_COLORS.repoMap} />
         )}
-        {trace.prompt_assembly.specs != null && (
-          <PromptBlock label={t("trace.prompt.specs")} text={trace.prompt_assembly.specs} color={PROMPT_COLORS.specs} />
+        {specs != null && specs.trim().length > 0 && (
+          <ProjectContextPromptRow
+            label={projectContextLabel}
+            meta={t("trace.prompt.tokensApprox", { count: approxTokens(specs) })}
+            color={PROMPT_COLORS.projectContext}
+            text={specs}
+            labels={{
+              search: t("trace.prompt.search"),
+              copy: t("trace.prompt.copy"),
+              copied: t("drawer.copied"),
+              matchCount: (n) => t("trace.prompt.matchCount", { count: n }),
+              noMatches: (q) => t("trace.prompt.noLinesMatch", { q }),
+              copyRow: t("trace.prompt.copyLabel", { label: projectContextLabel }),
+              expand: t("trace.prompt.expandLabel", { label: projectContextLabel }),
+            }}
+          />
         )}
         {trace.prompt_assembly.callers != null && (
           <PromptBlock label={t("trace.prompt.callers")} text={trace.prompt_assembly.callers} color={PROMPT_COLORS.callers} />

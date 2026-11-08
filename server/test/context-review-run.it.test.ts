@@ -7,9 +7,11 @@ import { loadConfig } from '../src/platform/config.js';
 import { seed } from '../src/db/seed.js';
 import { MockEmbedder, MockGitClient, MockLLMProvider, MockSecretsProvider } from '../src/adapters/mocks.js';
 import * as t from '../src/db/schema.js';
+import { PROJECT_CONTEXT_NOTE } from '@devdigest/reviewer-core';
 
-/* SPEC-01 AC-8 … AC-13: attached project-context docs reach every model call of a run through the
-   engine's untrusted `specs` slot, and the trace gets a `project_context` block. */
+/* SPEC-01 AC-8 … AC-13 + SPEC-04 AC-10/11: attached project-context docs reach every model call of a
+   run through the engine's untrusted `specs` slot as `## Project context` + note + one wrapped
+   `### <path>` entry per doc; the trace records that section and a `project_context` block. */
 
 const hasDocker = await dockerAvailable();
 const d = hasDocker ? describe : describe.skip;
@@ -65,7 +67,7 @@ class RecordingLLM extends MockLLMProvider {
   }
 }
 
-const docOrder = (user: string, paths: string[]) => paths.map((p) => user.indexOf(`File: ${p}`));
+const docOrder = (user: string, paths: string[]) => paths.map((p) => user.indexOf(`### ${p}`));
 
 d('project context in review runs (Testcontainers pg)', () => {
   let pg: PgFixture;
@@ -147,14 +149,37 @@ d('project context in review runs (Testcontainers pg)', () => {
     expect(llm.reviewUsers).toHaveLength(2);
     for (const user of llm.reviewUsers) {
       expect(user).toContain('## Project context');
-      expect(user).toContain(`<untrusted source="spec-0">\nFile: docs/b.md`);
-      expect(user).toContain(`<untrusted source="spec-1">\nFile: docs/a.md`);
+      expect(user).toContain(`<untrusted source="spec-0">\n### docs/b.md`);
+      expect(user).toContain(`<untrusted source="spec-1">\n### docs/a.md`);
       const [b, a] = docOrder(user, ['docs/b.md', 'docs/a.md']);
       expect(b).toBeGreaterThan(-1);
       expect(a).toBeGreaterThan(b!);
     }
     expect(trace.specs_read).toEqual(['docs/b.md', 'docs/a.md']);
     expect(trace.project_context.status).toBe('ok');
+    await app.close();
+  });
+
+  it('SPEC-04 AC-10: every call carries the exact section, and the trace records it byte-for-byte', async () => {
+    const llm = new RecordingLLM('openai', { structuredBySchema: { Review: REVIEW } });
+    const app = await appWith(llm);
+    const { repoId, prId, agentId } = await setup();
+    await app.container.contextRepo.replaceAttachments(agentId, repoId, ['docs/b.md', 'docs/a.md', 'specs/big.md']);
+    const SECTION =
+      `## Project context\n${PROJECT_CONTEXT_NOTE}\n\n` +
+      `<untrusted source="spec-0">\n### docs/b.md\n\n${FILES['docs/b.md']}\n</untrusted>\n\n` +
+      `<untrusted source="spec-1">\n### docs/a.md\n\n${FILES['docs/a.md']}\n</untrusted>`;
+
+    const { status, trace } = await run(app, prId, agentId);
+
+    expect(status).toBe('done');
+    expect(llm.reviewUsers).toHaveLength(2);
+    for (const user of llm.reviewUsers) expect(user).toContain(SECTION);
+    expect(trace.prompt_assembly.specs).toBe(SECTION);
+    // the detail "Specs read" shows is still recorded
+    expect(trace.project_context.included.map((x: { path: string }) => x.path)).toEqual(['docs/b.md', 'docs/a.md']);
+    expect(trace.project_context.left_out).toEqual([{ path: 'specs/big.md', tokens: 5000, reason: 'too_large' }]);
+    expect(trace.project_context.changed_by_pr).toEqual(['docs/a.md']); // the DIFF touches docs/a.md
     await app.close();
   });
 
@@ -193,8 +218,12 @@ d('project context in review runs (Testcontainers pg)', () => {
 
     expect(status).toBe('done');
     expect(llm.reviewUsers.length).toBeGreaterThan(0);
-    for (const user of llm.reviewUsers) expect(user).not.toContain('## Project context');
+    for (const user of llm.reviewUsers) {
+      expect(user).not.toContain('## Project context');
+      expect(user).not.toContain(PROJECT_CONTEXT_NOTE);
+    }
     expect('project_context' in trace).toBe(false);
+    expect(trace.prompt_assembly.specs).toBeNull();
     expect(trace.specs_read).toEqual([]);
     await app.close();
   });
@@ -211,6 +240,7 @@ d('project context in review runs (Testcontainers pg)', () => {
     expect(trace.project_context).toEqual({ status: 'unavailable', reason: 'repo_not_synced', attached: ['docs/a.md'] });
     expect(trace.log.map((l: { msg: string }) => l.msg)).toContain('project context unavailable: repo not synced');
     for (const user of llm.reviewUsers) expect(user).not.toContain('## Project context');
+    expect(trace.prompt_assembly.specs).toBeNull();
     await app.close();
   });
 
@@ -224,8 +254,8 @@ d('project context in review runs (Testcontainers pg)', () => {
     await run(app, prId, agentId, 1);
     expect(llm.reviewUsers).toHaveLength(2);
     for (const user of llm.reviewUsers) {
-      expect(user).toContain('File: docs/a.md');
-      expect(user).not.toContain('File: docs/new.md');
+      expect(user).toContain('### docs/a.md');
+      expect(user).not.toContain('### docs/new.md');
     }
 
     llm.reviewUsers = [];
@@ -233,8 +263,8 @@ d('project context in review runs (Testcontainers pg)', () => {
     await run(app, prId, agentId, 2);
     expect(llm.reviewUsers.length).toBeGreaterThan(0);
     for (const user of llm.reviewUsers) {
-      expect(user).toContain('File: docs/new.md');
-      expect(user).not.toContain('File: docs/a.md');
+      expect(user).toContain('### docs/new.md');
+      expect(user).not.toContain('### docs/a.md');
     }
     await app.close();
   });
@@ -255,7 +285,7 @@ d('project context in review runs (Testcontainers pg)', () => {
     const { trace } = await run(app, prId, agentId);
 
     for (const user of llm.reviewUsers) {
-      expect(user).toContain('File: docs/a.md');
+      expect(user).toContain('### docs/a.md');
       expect(user).not.toContain('DOC-EVIL');
     }
     expect(trace.specs_read).toEqual(['docs/a.md']);

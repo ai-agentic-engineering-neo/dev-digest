@@ -200,7 +200,7 @@ describe('forRun (AC-8 – AC-11)', () => {
 
     const ctx = await service.forRun(WS, REPO, AGENT, ['docs/a.md', 'src/x.ts']);
 
-    expect(ctx!.specs).toEqual([`File: docs/a.md\n\n${text(1000)}`]);
+    expect(ctx!.specs).toEqual([`### docs/a.md\n\n${text(1000)}`]);
     expect(ctx!.trace).toEqual({
       status: 'ok',
       cap_tokens: 4000,
@@ -223,12 +223,25 @@ describe('forRun (AC-8 – AC-11)', () => {
 
     const ctx = await service.forRun(WS, REPO, AGENT, []);
 
-    expect(ctx!.specs).toEqual([`File: docs/a.md\n\n${text(10)}`]);
+    expect(ctx!.specs).toEqual([`### docs/a.md\n\n${text(10)}`]);
     expect(ctx!.trace).toMatchObject({
       status: 'ok',
       included: [{ path: 'docs/a.md', tokens: 10 }],
       left_out: [{ path: 'docs/link.md', tokens: null, reason: 'missing' }],
     });
     expect(readFile).not.toHaveBeenCalledWith(expect.anything(), 'docs/link.md');
+  });
+
+  it('counts doc content only against the cap: two 2,000-token docs are both included (SPEC-04 AC-12)', async () => {
+    files['docs/a.md'] = text(2000); // 8,000 chars
+    files['specs/b.md'] = text(2000);
+    await contextRepo.replaceAttachments(AGENT, REPO.id, ['docs/a.md', 'specs/b.md']);
+
+    const ctx = await service.forRun(WS, REPO, AGENT, []);
+
+    expect(ctx!.specs).toEqual([`### docs/a.md\n\n${text(2000)}`, `### specs/b.md\n\n${text(2000)}`]);
+    // the rendered entries are longer than 16,000 chars (4,000 tokens), yet nothing is left out
+    expect(ctx!.specs.join('').length).toBeGreaterThan(16_000);
+    expect(ctx!.trace).toMatchObject({ status: 'ok', total_tokens: 4000, left_out: [] });
   });
 });

@@ -59,7 +59,11 @@
       "skills": "Skills (dynamic)",
       "memory": "Memory (dynamic)",
       "repoMap": "Repo skeleton — repo-intel (dynamic)",
-      "specs": "Project context (dynamic)",
+      "projectContext": "Project context — attached specs (untrusted)",
+      "copyLabel": "Copy {label}",
+      "expandLabel": "Expand {label}",
+      "matchCount": "{count, plural, one {# line} other {# lines}}",
+      "noLinesMatch": "No lines match “{q}”",
       "callers": "Callers of changed symbols — repo-intel (dynamic)",
       "user": "User / diff (dynamic)",
       "copy": "Copy",
@@ -74,18 +78,16 @@
       "previewTruncated": "(preview truncated)"
     },
     "projectContext": {
-      "title": "Project context",
-      "summary": "{included} included · ~{tokens} of {cap} tokens",
-      "included": "Included",
-      "leftOut": "Left out",
       "reason": {
         "too_large": "too large",
         "over_cap": "over cap",
         "missing": "missing"
       },
       "prChanges": "this PR changes {path}; the agent saw the synced version",
-      "unavailable": "project context unavailable: repo not synced",
-      "none": "none"
+      "unavailable": "project context unavailable: repo not synced"
+    },
+    "specsRead": {
+      "changedByPr": "changed by this PR"
     }
   },
   "drawer": {

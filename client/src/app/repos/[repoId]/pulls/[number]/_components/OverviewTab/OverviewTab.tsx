@@ -21,16 +21,17 @@ export function OverviewTab({ prId, prBody, repoFullName, repoId, reviewRunning 
   return (
     <>
       {prId && (
-        <section>
-          <SectionLabel icon="Target">{t("block.intent")}</SectionLabel>
-          <IntentPanel prId={prId} repoFullName={repoFullName} reviewRunning={reviewRunning} />
-        </section>
-      )}
-      {prId && (
-        <section>
-          <SectionLabel icon="Activity">{t("block.blast")}</SectionLabel>
-          <BlastRadiusPanel prId={prId} repoId={repoId} repoFullName={repoFullName} />
-        </section>
+        // Two equal-height columns when wide, stacked when narrow (auto-fit, no media query).
+        <div style={s.columns}>
+          <section style={s.column}>
+            <SectionLabel icon="Target">{t("block.intent")}</SectionLabel>
+            <IntentPanel prId={prId} repoFullName={repoFullName} reviewRunning={reviewRunning} />
+          </section>
+          <section style={s.column}>
+            <SectionLabel icon="Workflow">{t("block.blast")}</SectionLabel>
+            <BlastRadiusPanel prId={prId} repoId={repoId} repoFullName={repoFullName} />
+          </section>
+        </div>
       )}
       {prBody && (
         <section>

@@ -21,41 +21,57 @@ const ITEM: BlastDownstream = {
   crons_affected: [],
 };
 
-function renderCard(repoFullName: string | null) {
+function renderCard(repoFullName: string | null, item: BlastDownstream = ITEM) {
   render(
     <NextIntlClientProvider locale="en" messages={{ blast: messages }}>
-      <BlastSymbolCard item={ITEM} repoFullName={repoFullName} linkSha="idx111" />
+      <BlastSymbolCard item={item} repoFullName={repoFullName} linkSha="idx111" />
     </NextIntlClientProvider>,
   );
 }
 
+const expandButton = () => screen.getByRole("button", { name: "Expand getContext, 3 callers" });
+
 afterEach(cleanup);
 
 describe("BlastSymbolCard", () => {
-  it("links callers to GitHub at linkSha and caps endpoint chips", () => {
+  it("starts collapsed with the caller count in its accessible name, and expands/collapses on click", () => {
     renderCard("acme/app");
-
     expect(screen.getByText("3 callers")).toBeInTheDocument();
+    expect(expandButton()).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Endpoints affected" })).not.toBeInTheDocument();
+
+    fireEvent.click(expandButton());
+    const collapse = screen.getByRole("button", { name: "Collapse getContext, 3 callers" });
+    expect(collapse).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getAllByRole("listitem")).toHaveLength(3);
+
+    fireEvent.click(collapse);
+    expect(expandButton()).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("listitem")).not.toBeInTheDocument();
+  });
+
+  it("links callers to GitHub at linkSha, shows endpoint chips capped and no empty cron group", () => {
+    renderCard("acme/app");
+    fireEvent.click(expandButton());
+
     const link = screen.getByRole("link", { name: "server/src/a.ts:12" });
     expect(link).toHaveAttribute("href", githubBlobUrl("acme/app", "idx111", "server/src/a.ts", 12));
     expect(link.getAttribute("href")).toContain("/blob/idx111/");
     expect(screen.getByText("agentsRoutes")).toBeInTheDocument();
 
+    expect(screen.getByRole("group", { name: "Endpoints affected" })).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Crons affected" })).not.toBeInTheDocument();
     expect(screen.getAllByText(/^GET \/route-/)).toHaveLength(8);
     fireEvent.click(screen.getByRole("button", { name: "+2 more" }));
     expect(screen.getAllByText(/^GET \/route-/)).toHaveLength(10);
-    expect(screen.getByRole("button", { name: "Show less" })).toBeInTheDocument();
   });
 
-  it("renders plain text locations without a repo", () => {
-    renderCard(null);
+  it("renders plain text locations without a repo, and cron chips when present", () => {
+    renderCard(null, { ...ITEM, crons_affected: ["reset-buckets (hourly)"] });
+    fireEvent.click(expandButton());
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
     expect(screen.getByText("server/src/a.ts:12")).toBeInTheDocument();
-  });
-
-  it("omits the crons group when there are none", () => {
-    renderCard("acme/app");
-    expect(screen.getByRole("group", { name: "Endpoints affected" })).toBeInTheDocument();
-    expect(screen.queryByRole("group", { name: "Crons affected" })).not.toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Crons affected" })).toHaveTextContent("reset-buckets (hourly)");
   });
 });

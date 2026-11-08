@@ -123,10 +123,10 @@ describe("BlastRadiusPanel", () => {
   it("renders the ready state with links pinned to link_sha", async () => {
     renderPanel();
     const summary = await screen.findByRole("group", { name: "Blast radius summary" });
-    expect(within(summary).getByText("2 symbols")).toBeInTheDocument();
-    expect(within(summary).getByText("3 callers")).toBeInTheDocument();
-    expect(within(summary).getByText("1 endpoint")).toBeInTheDocument();
-    expect(within(summary).getByText("0 cron/jobs")).toBeInTheDocument();
+    for (const stat of ["2 symbols", "3 callers", "1 endpoint", "0 crons"]) expect(summary).toHaveTextContent(stat);
+    // numbers are bold, labels plain (design 25.png)
+    expect(within(summary).getAllByText(/^\d+$/, { selector: "b" }).map((b) => b.textContent)).toEqual(["2", "3", "1", "0"]);
+    fireEvent.click(screen.getByRole("button", { name: "Expand alpha, 3 callers" }));
     const link = screen.getByRole("link", { name: "server/src/x.ts:12" });
     expect(link).toHaveAttribute("href", githubBlobUrl("acme/app", "idx111", "server/src/x.ts", 12));
     expect(link.getAttribute("href")).not.toContain("head999");
@@ -165,7 +165,33 @@ describe("BlastRadiusPanel", () => {
     expect(await screen.findByText("Couldn't load the blast radius")).toBeInTheDocument();
     server.blast = READY;
     fireEvent.click(screen.getByRole("button", { name: /retry/i }));
-    expect(await screen.findByRole("link", { name: "server/src/x.ts:12" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Expand alpha, 3 callers" })).toBeInTheDocument();
+  });
+
+  it("switches between the Tree and Graph views", async () => {
+    renderPanel();
+    const views = await screen.findByRole("group", { name: messages.view.ariaLabel });
+    const tree = within(views).getByRole("button", { name: "tree" });
+    const graph = within(views).getByRole("button", { name: "graph" });
+    expect(tree).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Expand alpha, 3 callers" })).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: messages.graph.ariaLabel })).not.toBeInTheDocument();
+
+    fireEvent.click(graph);
+    expect(graph).toHaveAttribute("aria-pressed", "true");
+    expect(tree).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("img", { name: messages.graph.ariaLabel })).toHaveTextContent("callA");
+    expect(screen.queryByRole("button", { name: "Expand alpha, 3 callers" })).not.toBeInTheDocument();
+
+    fireEvent.click(tree);
+    expect(screen.getByRole("button", { name: "Expand alpha, 3 callers" })).toBeInTheDocument();
+  });
+
+  it("has no view switch when there is no map to show", async () => {
+    server.blast = { ...READY, downstream: [], counts: { symbols: 0, callers: 0, endpoints: 0, crons: 0 } };
+    renderPanel();
+    await screen.findByText("0 changed symbol(s), no downstream callers found.");
+    expect(screen.queryByRole("group", { name: messages.view.ariaLabel })).not.toBeInTheDocument();
   });
 
   describe("resync", () => {
@@ -177,6 +203,7 @@ describe("BlastRadiusPanel", () => {
     it("finishes only after the reindex really advances the index — not on a stale cached state", async () => {
       renderPanel();
       expect(await screen.findByText(messages.degraded.index_partial)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Expand alpha, 3 callers" }));
       // Another reindex finished after the page cached T0: the server is already at T1.
       server.indexUpdatedAt = T1;
 

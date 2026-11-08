@@ -16,10 +16,10 @@
   "loadError": "Couldn't load the blast radius",
   "summary": {
     "ariaLabel": "Blast radius summary",
-    "symbols": "{count, plural, one {# symbol} other {# symbols}}",
-    "callers": "{count, plural, one {# caller} other {# callers}}",
-    "endpoints": "{count, plural, one {# endpoint} other {# endpoints}}",
-    "crons": "{count, plural, one {# cron/job} other {# cron/jobs}}"
+    "symbols": "{count, plural, one {<n>#</n> symbol} other {<n>#</n> symbols}}",
+    "callers": "{count, plural, one {<n>#</n> caller} other {<n>#</n> callers}}",
+    "endpoints": "{count, plural, one {<n>#</n> endpoint} other {<n>#</n> endpoints}}",
+    "crons": "{count, plural, one {<n>#</n> cron} other {<n>#</n> crons}}"
   },
   "chips": {
     "endpoints": "Endpoints affected",
@@ -50,10 +50,12 @@
       "symbol": "changed symbol",
       "callers": "callers",
       "endpoints": "endpoints affected"
-    }
+    },
+    "truncated": "{count, plural, one {# more node is} other {# more nodes are}} not shown — switch to Tree for the full list.",
+    "cronsHint": "Crons are listed in the Tree view."
   },
   "toggle": {
-    "expand": "Expand {symbol}",
-    "collapse": "Collapse {symbol}"
+    "expand": "Expand {symbol}, {count, plural, one {# caller} other {# callers}}",
+    "collapse": "Collapse {symbol}, {count, plural, one {# caller} other {# callers}}"
   }
 }

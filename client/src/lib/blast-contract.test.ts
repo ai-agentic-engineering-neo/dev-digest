@@ -4,7 +4,8 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import type { PrBlastRadius } from "./types";
+import messages from "../../messages/en/blast.json";
+import { BLAST_DEGRADED_REASONS, type PrBlastRadius } from "./types";
 
 type Shape = string | Shape[] | { [key: string]: Shape };
 
@@ -52,5 +53,18 @@ describe("PrBlastRadius client mirror", () => {
       readFileSync(resolve(__dirname, "../../../server/test/fixtures/blast-radius-response.json"), "utf8"),
     );
     expect(keyShape(sample)).toEqual(keyShape(fixture));
+  });
+
+  it("has the server's degraded reasons, each with a message (no MISSING_MESSAGE at runtime)", () => {
+    // Read the server source as TEXT (no cross-package import) and pull out the `as const` list.
+    const src = readFileSync(resolve(__dirname, "../../../server/src/modules/blast/domain/types.ts"), "utf8");
+    const list = /BLAST_DEGRADED_REASONS\s*=\s*\[([^\]]*)\]/.exec(src)?.[1];
+    expect(list, "BLAST_DEGRADED_REASONS not found in server domain/types.ts").toBeDefined();
+    const serverReasons = [...list!.matchAll(/'([^']+)'|"([^"]+)"/g)].map((m) => m[1] ?? m[2]);
+    expect(serverReasons.length).toBeGreaterThan(0);
+    expect([...BLAST_DEGRADED_REASONS]).toEqual(serverReasons);
+    for (const reason of serverReasons) {
+      expect(messages.degraded, `messages/en/blast.json is missing degraded.${reason}`).toHaveProperty(reason!);
+    }
   });
 });

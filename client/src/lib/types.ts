@@ -218,7 +218,9 @@ export interface IntentOverrideInput {
  * GET /pulls/:id/blast. Mirrors server/src/modules/blast/domain/types.ts (PrBlastRadius).
  * TODO: reconcile with @devdigest/shared
  */
-export type BlastDegradedReason = "flag_off" | "index_failed" | "index_partial" | "repo_too_large" | "no_data";
+/** Same values and order as server BLAST_DEGRADED_REASONS — blast-contract.test.ts checks both, and that each has a message. */
+export const BLAST_DEGRADED_REASONS = ["flag_off", "index_failed", "index_partial", "repo_too_large", "no_data"] as const;
+export type BlastDegradedReason = (typeof BLAST_DEGRADED_REASONS)[number];
 
 export interface BlastDownstream extends DownstreamImpact {
   file: string;

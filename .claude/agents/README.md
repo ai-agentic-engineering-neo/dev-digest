@@ -9,6 +9,7 @@ skills; don't copy them here.
 
 ```
 question ─────────► researcher ─► report (chat)
+2+ approaches ────► brainstorm ─► options + recommendation (chat) ─► spec-creator (product) / implementation-planner (technical)
 
 feature request ──► spec-creator ─► spec (WHAT/WHY: SPEC-NN, EARS AC-n; draft)
                       1 module → <module>/specs/<feature>.md · ≥ 2 modules → ONE root specs/<feature>.md
@@ -23,13 +24,13 @@ feature request ──► spec-creator ─► spec (WHAT/WHY: SPEC-NN, EARS AC-n
                       ─► gate: ownership diff · Verify · typecheck · layer check
                       ─► task Status in the plan · insight candidates → engineering-insights
                       Finish: plan-verifier (traceability AC → task → test → commit)
-                              + architecture-reviewer (one message, read-only)
-                      ─► COMPLIANT + PASS → plan done · specs implemented · optional doc-writer
+                              + architecture-reviewer + security-reviewer (one message, read-only)
+                      ─► COMPLIANT + both PASS → plan done · specs implemented · optional doc-writer
                 ──► user runs /pr-self-review ─► push / PR
 
 existing code ────► test-writer ─► test files + report (manual)
 plan / spec / code ► doc-writer ─► <pkg>/docs, READMEs + report (manual or offered at Finish)
-change set ───────► architecture-reviewer · plan-verifier ─► report (manual, or /implement-plan Finish)
+change set ───────► architecture-reviewer · security-reviewer · plan-verifier ─► report (manual, or /implement-plan Finish)
 ```
 
 ## Where specs live
@@ -51,6 +52,8 @@ One feature = ONE spec. It touches one module → `<module>/specs/<feature>.md`;
 | [implementer-frontend](implementer-frontend.md) | Same for ONE `[frontend]` task: `client/` | same | same | [/implement-plan](../skills/implement-plan/SKILL.md) |
 | [test-writer](test-writer.md) | Write tests for existing code in `client/`, `server/`, `reviewer-core/`; prove each can fail; report bugs as failing tests | `target:` paths (+ `focus:`, `spec:`) | test files / test helpers only; report `STATUS · FILES · BEHAVIOURS · RED CHECK (one per test) · RUN · SHUFFLE · TYPECHECK · BUGS FOUND · NEEDS PRODUCTION CHANGE` | user (`@test-writer`) |
 | [architecture-reviewer](architecture-reviewer.md) | Check a change set against architectural boundaries (onion + layer check, client layering, cross-package, workspace scoping); no fixes | `base:`/`head:` (+ `scope:`, `plan:`) | report `VERDICT PASS/FAIL · CHECKS RUN · FINDINGS (≥ 80, evidence) · PRE-EXISTING · UNVERIFIED · NOT CHECKED` | [/implement-plan](../skills/implement-plan/SKILL.md) §7 · user |
+| [security-reviewer](security-reviewer.md) | Security review of a change set: trace attacker input → sink (IDOR/workspace scoping, secrets, untrusted text → LLM/UI, path traversal, SSRF, uploads, injection, MCP output); grade CRITICAL/HIGH/MEDIUM/LOW; no fixes | `base:`/`head:` (+ `scope:`, `plan:`) | report `VERDICT PASS/FAIL (FAIL ⇔ CRITICAL/HIGH) · COUNTS · FINDINGS (source → sink, ≥ 80) · PRE-EXISTING · UNVERIFIED · NOT CHECKED` | [/implement-plan](../skills/implement-plan/SKILL.md) §7 · user |
+| [brainstorm](brainstorm.md) | Compare 2–4 grounded options for ONE decision (product or technical) and recommend one; no code, no files | `decision:` (+ `context:`, `stage:`) | chat report `DECISION · GROUNDING · OPTIONS · REJECTED · RECOMMENDATION · WOULD CHANGE IF · OPEN QUESTIONS · NEXT` | user, before spec-creator / implementation-planner |
 | [plan-verifier](plan-verifier.md) | Check code against EVERY plan item and linked spec criterion with fresh evidence; no generic advice | `plan:` (+ `base:`, `head:`, `task:`, `run:`) | report `VERDICT COMPLIANT/NOT COMPLIANT/INCOMPLETE EVIDENCE · COVERAGE · REQUIREMENTS table · OWNERSHIP · SPEC ↔ PLAN · TRACEABILITY (SPEC-NN/AC-n → task → test → commit) · GAPS · COMMANDS RUN` | [/implement-plan](../skills/implement-plan/SKILL.md) §7 · user |
 | [doc-writer](doc-writer.md) | Turn a plan / spec / code into package docs with Mermaid diagrams, grounded in code, in the right file | `from:` (+ `topic:`, `packages:`) | doc files + index line; report `STATUS · FILES · DIAGRAMS · SOURCES · DISCREPANCIES · SUGGESTIONS` | user · offered at `/implement-plan` §7 |
 
@@ -74,6 +77,8 @@ the hard limit; "prompt" = only the system prompt says so.
 | implementer-frontend | sonnet · maxTurns 60 | same | Agent, Skill | same | same |
 | test-writer | sonnet · maxTurns 60 | Read, Grep, Glob, Edit, Write, Bash | Agent, Skill | Write/Edit only test files + helpers ([write-scope](hooks/write-scope.mjs) `tests`); no sub-agents | Bash: fixed shapes only — git status/diff/log/show, `tsc --noEmit -p tsconfig.json`, `vitest run <paths> [-t] [--sequence.shuffle]`, `rm` of its own untracked `mut-*` scratch files ([bash-guard](hooks/bash-guard.mjs) `tests`, hook (heuristic)); never edits production code or weakens an assertion |
 | architecture-reviewer | sonnet · maxTurns 40 | Read, Grep, Glob, Bash | Write, Edit, NotebookEdit, Agent, Skill | no file writes, no sub-agents | Bash: git status/diff/log/show + `node scripts/check-architecture.mjs` ([bash-guard](hooks/bash-guard.mjs) `review`, hook (heuristic)); findings only with evidence and confidence ≥ 80 |
+| security-reviewer | sonnet · maxTurns 40 | Read, Grep, Glob, Bash | Write, Edit, NotebookEdit, Agent, Skill | no file writes, no sub-agents | Bash: git status/diff/log/show only ([bash-guard](hooks/bash-guard.mjs) `review`, hook (heuristic)); trace source → sink, confidence ≥ 80; never prints a secret |
+| brainstorm | sonnet · maxTurns 25 | Read, Grep, Glob, AskUserQuestion | Write, Edit, NotebookEdit, Bash, Agent, Skill | no file writes, no shell, no sub-agents | 2–4 options, Do-not-touch / INSIGHTS-breaking options only as REJECTED; no implementation plan |
 | plan-verifier | opus · effort high · maxTurns 80 | Read, Grep, Glob, Bash | Write, Edit, NotebookEdit, Agent, Skill | no file writes, no sub-agents | Bash: `review` + `tsc --noEmit` + `vitest run` ([bash-guard](hooks/bash-guard.mjs) `verify`, hook (heuristic)); no row without a requirement ID |
 | doc-writer | sonnet · maxTurns 40 | Read, Grep, Glob, Edit, Write, Bash | Agent, Skill | Write/Edit only READMEs, `TESTING.md`, `<pkg>/docs/**/*.md` ([write-scope](hooks/write-scope.mjs) `docs`) | Bash: `cd` + git status/diff/log/show only ([bash-guard](hooks/bash-guard.mjs) `docs`, hook (heuristic)); no behaviour not found in code |
 
@@ -103,21 +108,21 @@ These files must be named `mut-*`; test-writer deletes them itself with `rm` (ba
 
 ## Injected skills (`skills:` frontmatter — full text loaded at start)
 
-| Skill | implementation-planner | impl-backend | impl-frontend | test-writer | arch-reviewer | doc-writer |
-|---|:-:|:-:|:-:|:-:|:-:|:-:|
-| implementer-protocol | | ● | ● |  |  |  |
-| onion-architecture | ● | ● | | ● | ● |  |
-| fastify-best-practices | ● | ● | | ● |  |  |
-| drizzle-orm-patterns | ● | ● | |  |  |  |
-| postgresql-table-design | ● | ● | |  |  |  |
-| zod | ● | ● | | ● |  |  |
-| typescript-expert | ● | ● | ● | ● |  |  |
-| security | ● | ● | ● | ● |  |  |
-| frontend-ui-architecture | ● | | ● |  | ● |  |
-| react-best-practices | ● | | ● |  |  |  |
-| next-best-practices | ● | | ● |  |  |  |
-| react-testing-library | ● | | ● | ● |  |  |
-| mermaid-diagram | | | | | | ● |
+| Skill | implementation-planner | impl-backend | impl-frontend | test-writer | arch-reviewer | sec-reviewer | doc-writer |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| implementer-protocol | | ● | ● |  |  | |  |
+| onion-architecture | ● | ● | | ● | ● | |  |
+| fastify-best-practices | ● | ● | | ● |  | |  |
+| drizzle-orm-patterns | ● | ● | |  |  | |  |
+| postgresql-table-design | ● | ● | |  |  | |  |
+| zod | ● | ● | | ● |  | |  |
+| typescript-expert | ● | ● | ● | ● |  | |  |
+| security | ● | ● | ● | ● |  | ● |  |
+| frontend-ui-architecture | ● | | ● |  | ● | |  |
+| react-best-practices | ● | | ● |  |  | |  |
+| next-best-practices | ● | | ● |  |  | |  |
+| react-testing-library | ● | | ● | ● |  | |  |
+| mermaid-diagram | | | | | | | ● |
 
 researcher and spec-creator have none (spec-creator describes behaviour, not stack — skills would pull it
 into implementation detail). Sync rules: each implementer set = all skills that
@@ -128,6 +133,7 @@ test-writer = the skills `routing.json` routes to test files (`react-testing-lib
 `security` and `zod` for all TS, `typescript-expert` for `reviewer-core/src`) + `onion-architecture` /
 `fastify-best-practices` for per-ring server testing; the
 implementation-planner already holds all of them. The union rule does not extend to the reviewers or doc-writer.
+security-reviewer gets only `security` (OWASP + confidence-based review); brainstorm has none (it compares options, not rules).
 plan-verifier has no skills on purpose: it checks compliance, and skills would pull it toward generic advice.
 
 ## Where the agents' rules come from
@@ -158,6 +164,7 @@ report of 2026-11-06, not re-read · **internal** = this repo · **decision** = 
 | EARS — A. Mavin et al., "Easy Approach to Requirements Syntax", IEEE RE 2009 (Rolls-Royce) | from the user's brief | 5 patterns: Ubiquitous / WHEN / WHILE / IF…THEN / WHERE — one testable statement per criterion | spec-creator Step 4 |
 | user decisions, 2026-11-08 (SDD agents) | decision | spec-creator (opus, maxTurns 40, read-only devdigest MCP, no `run_agent_on_pr`) owns WHAT/WHY: 1 module → `<module>/specs/`, ≥ 2 → ONE root `specs/` spec; prompt write rule + hook (defense-in-depth); design sources user-given first (Read/WebFetch) then repo; blocking questions via AskUserQuestion, the rest inline `[NEEDS CLARIFICATION]`; spec template + Module interactions + Design review; `SPEC-NN` repo-unique, `AC-n` per spec; the plan agent renamed to `implementation-planner`: plans only from approved specs, spec feasibility check → `CANNOT PLAN → run spec-creator`, mandatory `Covers:`, `.claude/**` stays Do-not-touch; Execution mode multi-agent (≥ 6 tasks and a wave with ≥ 2 independent tasks) / single-agent; plan-verifier traceability matrix | [spec-creator](spec-creator.md); [implementation-planner](implementation-planner.md); [plan-verifier](plan-verifier.md); TEMPLATE; `/implement-plan` |
 | user decisions, 2026-11-06 | decision | two implementer files; plans in `plans/`; no worktrees (disjoint ownership instead); implementers only write code, no self-audit; every relevant skill injected, implementation-planner gets all of them; `CANNOT PLAN` note instead of invented tasks | agent files; protocol §4; implementation-planner |
+| mentor review 2026-11-08 (+ reference fork `yudbox/dev-digest`, branch `feat/hw4-blast-mcp-fixes`) | decision | add `brainstorm` (options before spec/plan) and `security-reviewer` (severity CRITICAL/HIGH/MEDIUM/LOW, `security` skill); security-reviewer joins plan-verifier + architecture-reviewer at `/implement-plan` Finish | [brainstorm](brainstorm.md) · [security-reviewer](security-reviewer.md) · [implement-plan](../skills/implement-plan/SKILL.md) §7 |
 
 ## Supporting files
 

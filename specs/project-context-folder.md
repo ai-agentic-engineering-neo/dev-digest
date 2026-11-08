@@ -57,8 +57,10 @@ Non-goals
   folder contains the text (case-insensitive). IF nothing matches, THEN it SHALL show "No documents found".
 - **AC-4** IF the repo has no docs matching AC-1, THEN the system SHALL show an empty state that names the
   locations it searched and offers the repo's Resync action.
-- **AC-5** WHILE the repo is not cloned, or its code index is failed or degraded, the system SHALL show that state
-  (with the index's reason, if any) and the repo's Resync action instead of the doc list.
+- **AC-5** WHILE the repo is not cloned, the system SHALL show a "not cloned" state and the repo's Resync
+  action instead of the doc list. WHILE the repo is cloned but its code index is failed or degraded, the
+  system SHALL still show the doc list (docs need only the clone), with a notice above it giving the index
+  state, its reason (if any) and the Resync action.
 - **AC-6** WHEN the user toggles a doc in the agent editor's Context tab, the system SHALL save the attachment
   for that (agent, active repo) pair. Attached docs are listed first, in attach order, and the order can be
   changed with the mouse (drag) and with the keyboard. Each change is saved and survives a page reload.
@@ -137,7 +139,8 @@ LLM prompts. They are always data, never instructions:
 ## Module interactions
 
 - **Repo sync / repo-intel:** provides the clone at the last synced commit and the code-index state. If the
-  clone is missing or the index is failed or degraded, the page shows AC-5. If the clone is missing, runs go
+  clone is missing, the page shows the AC-5 "not cloned" state; a failed or degraded index only adds a notice
+  above the doc list (AC-5), and doesn't affect runs. If the clone is missing, runs go
   ahead without the section; the trace says "project context unavailable: repo not synced".
 - **Agents (agent editor):** gains the Context tab next to Skills. Attachments are per (agent, repo) and
   apply from the next run; they don't create agent versions (AC-12).

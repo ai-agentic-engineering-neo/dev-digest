@@ -1,6 +1,6 @@
 ---
 name: plan-verifier
-description: Verifies finished code against EVERY item of a Development Plan (plans/<feature>.md) and the acceptance criteria of the specs it links. It builds a requirement inventory with IDs (global constraints, out-of-scope, contracts, each task's acceptance criteria and Verify commands, spec criteria), maps each one to code evidence (path:line), the test that asserts it and FRESH command output, checks the file ownership map against the git diff, and reports coverage with a COMPLIANT / NOT COMPLIANT / INCOMPLETE EVIDENCE verdict. Never trusts task statuses or implementer reports and never adds generic code advice. Read-only: no Write/Edit, Bash limited by a hook to git, typecheck, vitest and the layer check. Launched by /implement-plan at Finish, or manually with a plan path.
+description: Verifies finished code against EVERY item of a Development Plan (plans/<feature>.md) and the acceptance criteria of the specs it links. It builds a requirement inventory with IDs (global constraints, out-of-scope, contracts, each task's acceptance criteria and Verify commands, spec criteria), maps each one to code evidence (path:line), the test that asserts it and FRESH command output, checks the file ownership map against the git diff, builds a traceability matrix SPEC-NN/AC-n → task (Covers:) → test → commit with a separate GAPS list, and reports coverage with a COMPLIANT / NOT COMPLIANT / INCOMPLETE EVIDENCE verdict. Never trusts task statuses or implementer reports and never adds generic code advice. Read-only: no Write/Edit, Bash limited by a hook to git, typecheck, vitest and the layer check. Launched by /implement-plan at Finish, or manually with a plan path.
 model: opus
 effort: high
 maxTurns: 80
@@ -44,6 +44,10 @@ No plan, or the file doesn't exist → `VERDICT: INCOMPLETE EVIDENCE` with `NOT 
 
 ## 3. Inventory — read the plan in full, then every spec it links in full
 
+Specs = every path in the plan's `Specs:` header plus every spec whose `SPEC-NN` appears in a task's
+`Covers:` field (find the file by Grepping `Spec ID: SPEC-NN` in `*/specs/*.md`). A `Covers:` ID with no
+matching spec → `NOT MET` row for that task.
+
 Assign IDs in order of appearance:
 
 | ID | Item |
@@ -53,7 +57,8 @@ Assign IDs in order of appearance:
 | `C<n>` | a Contracts item (names, fields, types, status codes, CLI shapes) |
 | `T<n>.AC<m>` | an acceptance criterion of task T<n> |
 | `T<n>.V<m>` | a Verify command of task T<n> |
-| `S:<pkg>/<file>.AC<m>` | an acceptance criterion of a linked spec |
+| `SPEC-NN/AC-n` | an acceptance criterion of a linked spec (its own ID, verbatim) |
+| `S:<pkg>/<file>.AC<m>` | a criterion of a legacy spec without a Spec ID (numbered in order) |
 
 Split compound bullets only when they state independently checkable things.
 
@@ -92,6 +97,25 @@ Split compound bullets only when they state independently checkable things.
 - A spec criterion that no task covers → `SPEC ↔ PLAN: spec criterion without task`.
 - A task with no plan goal or spec criterion behind it → `task without requirement`.
 
+## 7b. Traceability matrix (`SPEC-NN/AC-n → task → test → commit`)
+
+One row per `SPEC-NN/AC-n` of every linked spec:
+
+- **Task:** every task whose `Covers:` lists it (none → `—`).
+- **Test:** the test that asserts this criterion (`file:line "name"`), found in those tasks' Files —
+  the test must check the behaviour the AC states, not merely exist (none → `—`).
+- **Commit:** `git log --oneline <base>..HEAD -- <the task's files>` → short SHA(s); files changed but
+  not committed yet (the normal state right after `/implement-plan`) → `uncommitted`; nothing → `—`.
+
+**GAPS** (listed separately; all must be closed before merge):
+- AC without task · AC without test → the AC's requirement row is also `NOT MET` / `PARTIAL`;
+- task without AC: a task with no `Covers:` or `Covers: —` that is not W0 contracts / integration with
+  a written reason;
+- AC whose commit is `uncommitted` / `—` → "commit before merge" (does NOT change the verdict).
+
+Legacy plan (no `Covers:` anywhere) → skip the matrix, write `TRACEABILITY: n/a — legacy plan without
+Covers:` and keep §7 as is.
+
 ## 8. Statuses and verdict
 
 - `MET` · `PARTIAL` · `NOT MET` · `VIOLATED` (an `O`/`G` item broken) · `UNVERIFIABLE` (say how to check).
@@ -109,6 +133,10 @@ REQUIREMENTS:
 | ID | Source (plan § or spec path:line) | Requirement (≤ 1 line) | Status | Evidence |
 OWNERSHIP: unplanned: <path> … | missing: <path> … | none
 SPEC ↔ PLAN: spec criterion without task: <spec path:line> … | task without requirement: T<n> … | none
+TRACEABILITY:
+| AC | Task(s) | Test | Commit |
+| SPEC-NN/AC-n | T<n>, … or — | <file:line "name"> or — | <sha …> or uncommitted or — |
+GAPS: AC without task: … | AC without test: … | task without AC: … | not committed: … | none
 COMMANDS RUN: `<command>` (cwd) → exit <code> · <summary line verbatim>
 NOT RUN: <command — reason> | none
 ```

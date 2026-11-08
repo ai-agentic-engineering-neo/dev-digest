@@ -26,6 +26,11 @@ export type Logger = {
   debug: (obj: unknown, msg?: string) => void;
 };
 
+/** Project context of one run (context module, reached only via `container.projectContext`). */
+type RunProjectContext = NonNullable<Awaited<ReturnType<Container['projectContext']['forRun']>>>;
+/** The stored trace: RunTrace + the optional "Project context" block (extra jsonb key, SPEC-01). */
+type StoredRunTrace = RunTrace & { project_context?: RunProjectContext['trace'] };
+
 // A reduced "Review per file" — same schema as Review (the model returns a small
 // Review per file; we merge findings + take the worst verdict / mean score).
 export type RunOutcome = {
@@ -177,6 +182,9 @@ export class ReviewRunExecutor {
     // failure/cancel the outcome is never returned, so this is the only record
     // of what the run already cost (map-reduce: chunks before the failing one).
     const spent = new UsageTally();
+    // Resolved once per run (attachments changed mid-run apply to the NEXT run, AC-12); kept
+    // outside the try so a failed/cancelled run's trace still shows what was sent.
+    let projectCtx: RunProjectContext | null = null;
 
     runLog.info(`Starting review with agent "${agent.name}" (${agent.provider}/${agent.model})`);
 
@@ -217,6 +225,11 @@ export class ReviewRunExecutor {
       // reaches the prompt, so it is absent from this log line and the trace.
       const skills = await this.loadPromptSkills(workspaceId, agent, runId, runLog);
 
+      // Project Context Folder (SPEC-01) — docs attached to this agent for this repo, whole docs
+      // under a 4K-token cap. Untrusted: they go ONLY through the engine's `specs` slot (wrapped +
+      // injection guard). Best-effort: never fails the run.
+      projectCtx = await this.loadProjectContext(workspaceId, repo, agent, diff, runLog);
+
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
       // the CI runner). The service owns only I/O: repo-intel context resolution
@@ -240,6 +253,8 @@ export class ReviewRunExecutor {
         ...(pull.body ? { prDescription: pull.body } : {}),
         // Derived PR intent — pre-rendered untrusted block; omitted when unavailable.
         ...(intent ? { intent } : {}),
+        // Attached project-context docs; omitted when none are included (prompt unchanged, AC-11).
+        ...(projectCtx && projectCtx.specs.length > 0 ? { specs: projectCtx.specs } : {}),
         task,
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
@@ -278,7 +293,7 @@ export class ReviewRunExecutor {
       const blockers = countBlockers(keptFindings, agent.ciFailOn);
 
       // ---- Observability: agent_runs + ONE run_traces document --------------
-      const trace: RunTrace = {
+      const trace: StoredRunTrace = {
         config: {
           agent: agent.name,
           version: String(agent.version),
@@ -304,10 +319,11 @@ export class ReviewRunExecutor {
         })),
         raw_output: outcome.raw,
         memory_pulled: [],
-        specs_read: [],
+        specs_read: projectCtx?.trace.status === 'ok' ? projectCtx.trace.included.map((d) => d.path) : [],
         // Persisted log = the run's FULL event buffer (incl. shared pre-work:
         // diff load + intent), not just events recorded inside this method.
         log: runLog.logFor(runId),
+        ...(projectCtx ? { project_context: projectCtx.trace } : {}),
       };
       runLog.info('Run complete; trace persisted');
       // Trace first, terminal status last: anything that polls agent_runs.status
@@ -350,7 +366,7 @@ export class ReviewRunExecutor {
       await this.repo
         .saveRunTrace(
           runId,
-          this.traceFromBuffer(runId, pull, agent, '0/0 passed', Date.now() - start, spent),
+          this.traceFromBuffer(runId, pull, agent, '0/0 passed', Date.now() - start, spent, projectCtx),
         )
         .catch(() => undefined);
       this.container.runBus.complete(runId);
@@ -461,7 +477,8 @@ export class ReviewRunExecutor {
       tokensOut: 0,
       costUsd: null,
     },
-  ): RunTrace {
+    projectContext: RunProjectContext | null = null,
+  ): StoredRunTrace {
     return {
       config: {
         agent: agent.name,
@@ -483,9 +500,37 @@ export class ReviewRunExecutor {
       tool_calls: [],
       raw_output: '',
       memory_pulled: [],
-      specs_read: [],
+      specs_read:
+        projectContext?.trace.status === 'ok' ? projectContext.trace.included.map((d) => d.path) : [],
       log: this.container.runBus.buffer(runId).map((e) => ({ t: e.t, kind: e.kind, msg: e.msg })),
+      ...(projectContext ? { project_context: projectContext.trace } : {}),
     };
+  }
+
+  /**
+   * Resolve the agent's attached project-context docs for this repo and log the result. Returns
+   * null when the agent has none (AC-11) or on any error (best-effort: a run never fails here).
+   */
+  private async loadProjectContext(
+    workspaceId: string,
+    repo: typeof schema.repos.$inferSelect,
+    agent: AgentRow,
+    diff: UnifiedDiff,
+    runLog: RunLogger,
+  ): Promise<RunProjectContext | null> {
+    try {
+      const ctx = await this.container.projectContext.forRun(
+        workspaceId,
+        { id: repo.id, owner: repo.owner, name: repo.name, clonePath: repo.clonePath },
+        agent.id,
+        diff.files.map((f) => f.path),
+      );
+      if (ctx) runLog.info(ctx.logLine);
+      return ctx;
+    } catch (e) {
+      runLog.info(`Project context: unavailable (${(e as Error).message})`);
+      return null;
+    }
   }
 
   /** Resolve the agent's prompt skills and log what (and how many tokens) they add. */

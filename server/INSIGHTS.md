@@ -52,6 +52,7 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 - 2026-11-08 — A Bash-tool heredoc (`cat <<EOF` / `node -e` with `\u0000`) collapses escape sequences, so a script meant to write the 6-char text `\u0000` wrote a real NUL byte back → write any script containing backslash escapes with the Write tool into the scratchpad and run it with `node <file>`; then check bytes, e.g. `node -e "…filter(x=>x===0).length"` (src/adapters/depgraph/index.ts:94 → buildEdges key).
 - 2026-11-08 — CORRECTION of 2026-11-07 entry (NUL byte in depgraph): the NUL byte is gone; the key is now the text escape `` `${from}\u0000${to}` `` and `toRel` normalizes to POSIX, so Read/Edit work on the file normally (src/adapters/depgraph/index.ts:94 → buildEdges key, :113 → toRel).
 - 2026-11-08 — Postgres `order by` on text follows the DB locale: the dev DB (en_US) sorted `AGENTS.md` before `.claude/…` in `array_agg(distinct path order by path)`, while a JS `.sort()` in tests expects byte order, so a test passes or fails depending on the container's locale → when a sorted path list is part of a contract, use `collate "C"` in both the DISTINCT arg and the ORDER BY (src/modules/blast/repository.ts:48 → listPriorPulls sharedFiles).
+- 2026-11-08 — `MockGitClient.readFile` returns `opts.files[path] ?? ''` and NEVER throws, so with it a deleted / unreadable file looks like an empty one and "missing file" paths (best-effort enrichment, `status: 'missing'`) are silently untested → in such tests subclass it (`class FakeGit extends MockGitClient { override async readFile … throw }`) or pass a fake `git` override whose readFile throws for unknown paths (src/adapters/mocks.ts:293 → MockGitClient.readFile; test/context-routes.it.test.ts → FakeGit).
 
 ## Recurring Errors & Fixes
 <!-- Symptom → root cause → fix -->
@@ -86,6 +87,7 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 - 2026-11-07 — Planned Intent reliability (single-flight + 60 s negative cache, PUT rate limit, structured intent logs), no code → plans/intent-reliability.md.
 - 2026-11-07 — Intent reliability pr-self-review follow-ups: `DeriveError` scoped to the model call (+ `{ cause }`), 429 logged via `req.log.warn`, RED-checked tests in intent-service / app-rate-limit.
 - 2026-11-08 — Blast W5: `GET /pulls/:id/prior-pulls` (one pr_files self-join query, workspace on both PR rows) + migration 0016 indexes `pr_files_pr_id_idx`, `pr_files_path_pr_id_idx` → plans/blast-radius.md.
+- 2026-11-08 — Project Context Folder (SPEC-01): `modules/context` (4 routes), `FsDocWalker` adapter, `agent_context_docs` via migration 0017, docs injected through reviewer-core's `specs` slot + `project_context` trace block, seeded PR #482 run trace → plans/project-context-folder.md.
 
 ## Open Questions
 <!-- Unresolved items, known gaps -->

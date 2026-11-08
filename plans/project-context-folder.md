@@ -1,6 +1,6 @@
 # Implementation Plan: Project Context Folder
 
-- **Status:** approved
+- **Status:** done
 - **Execution mode:** single-agent  <!-- user's choice (first pipeline run: limited budget/parallelism) -->
 - **Goal:** A user browses a repo's markdown docs on a Project Context page, attaches docs per (agent, repo) in the agent editor's Context tab, and every review run of that agent sends those docs (≤ 4,000 est. tokens, whole docs only) as an untrusted project-context section, with a "Project context" block in the run trace.
 - **Specs:** `SPEC-01` — specs/project-context-folder.md (approved, commit 75b8759 — AC-5: only "not cloned" hides the doc list)
@@ -213,7 +213,7 @@ export function sumTokens(docs: readonly { tokens: number | null }[]): number;
 ## Tasks
 
 ### T1 [W0] [backend] Server contracts + pure context rules
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `server/src/modules/context/constants.ts`, `server/src/modules/context/domain.ts`, `server/src/modules/context/schemas.ts`, `server/src/modules/context/ports.ts`, `server/test/context-domain.test.ts`
 - **Depends on:** —
 - **Covers:** SPEC-01/AC-1 (classification + token estimate), SPEC-01/AC-9 (included / too large / over cap rules), SPEC-01/AC-10 (missing never fails selection)
@@ -236,7 +236,7 @@ export function sumTokens(docs: readonly { tokens: number | null }[]): number;
   - `cd server && node scripts/check-architecture.mjs` → no new violations
 
 ### T2 [W0] [frontend] Client contracts, hooks, pure helpers, all i18n keys
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `client/src/lib/types.ts`, `client/src/lib/context-docs.ts`, `client/src/lib/context-docs.test.ts`, `client/src/lib/hooks/project-context.ts`, `client/src/lib/hooks/project-context.test.tsx`, `client/src/lib/hooks/index.ts`, `client/src/lib/hooks/trace.ts`, `client/messages/en/context.json`, `client/messages/en/agents.json`, `client/messages/en/runs.json`
 - **Depends on:** — (shapes copied from Contracts; T1 is the server source of truth)
 - **Covers:** SPEC-01/AC-3 (filter helper: name or folder, case-insensitive), SPEC-01/AC-7 (token sum helper)
@@ -262,7 +262,7 @@ export function sumTokens(docs: readonly { tokens: number | null }[]): number;
   - `cd client && node node_modules/vitest/vitest.mjs run src/lib/context-docs.test.ts src/lib/hooks/project-context.test.tsx` → all pass
 
 ### T3 [W1] [backend] `agent_context_docs` table + generated migration 0017
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `server/src/db/schema/context.ts`, `server/src/db/schema.ts`, `server/src/db/rows.ts`, generated `server/src/db/migrations/0017_*.sql` + `meta/_journal.json` + `meta/0017_snapshot.json`
 - **Depends on:** —
 - **Covers:** SPEC-01/AC-6 (per (agent, repo) ordered storage that survives reload), SPEC-01/AC-13 (rows die with their agent/repo; no orphan cross-workspace rows)
@@ -278,7 +278,7 @@ export function sumTokens(docs: readonly { tokens: number | null }[]): number;
   - `git status --short server/src/db/migrations` → exactly the new 0017 SQL + journal + snapshot
 
 ### T4 [W1] [backend] Doc walker adapter
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `server/src/adapters/docs/index.ts`, `server/test/docs-walker.test.ts`
 - **Depends on:** —
 - **Covers:** SPEC-01/AC-1 (exclusions, markdown only, non-markdown/binary not listed)
@@ -294,7 +294,7 @@ export function sumTokens(docs: readonly { tokens: number | null }[]): number;
   - `cd server && node node_modules/vitest/vitest.mjs run test/docs-walker.test.ts` → all pass
 
 ### T5 [W2] [backend] Context repository + `ProjectContextService` + container wiring
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `server/src/modules/context/repository.ts`, `server/src/modules/context/service.ts`, `server/src/platform/container.ts`, `server/test/context-service.test.ts`
 - **Depends on:** T1, T3, T4
 - **Covers:** SPEC-01/AC-1, SPEC-01/AC-2, SPEC-01/AC-5, SPEC-01/AC-6, SPEC-01/AC-8, SPEC-01/AC-10, SPEC-01/AC-13
@@ -322,7 +322,7 @@ export function sumTokens(docs: readonly { tokens: number | null }[]): number;
   - `cd server && node scripts/check-architecture.mjs` → no new violations
 
 ### T6 [W3] [backend] Context routes + module registration
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `server/src/modules/context/routes.ts`, `server/src/modules/index.ts`, `server/test/context-routes.it.test.ts`
 - **Depends on:** T5
 - **Covers:** SPEC-01/AC-1, SPEC-01/AC-2, SPEC-01/AC-6, SPEC-01/AC-13
@@ -341,7 +341,7 @@ export function sumTokens(docs: readonly { tokens: number | null }[]): number;
   - `cd server && node scripts/check-architecture.mjs` → no new violations
 
 ### T7 [W3] [backend] Inject project context into review runs + trace block
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `server/src/modules/reviews/run-executor.ts`, `server/test/context-review-run.it.test.ts`
 - **Depends on:** T5
 - **Covers:** SPEC-01/AC-8, SPEC-01/AC-9, SPEC-01/AC-10, SPEC-01/AC-11, SPEC-01/AC-12, SPEC-01/AC-13
@@ -363,7 +363,7 @@ export function sumTokens(docs: readonly { tokens: number | null }[]): number;
   - `cd server && node scripts/check-architecture.mjs` → no new violations
 
 ### T8 [W1] [frontend] "Project context" block in the run trace drawer
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `client/src/components/run-trace-drawer/_components/ProjectContextBlock/{ProjectContextBlock.tsx,index.ts,styles.ts,ProjectContextBlock.test.tsx}`, `client/src/components/run-trace-drawer/_components/TraceBody/TraceBody.tsx`, `client/src/components/run-trace-drawer/RunTraceDrawer.test.tsx`
 - **Depends on:** T2
 - **Covers:** SPEC-01/AC-9, SPEC-01/AC-10, SPEC-01/AC-11
@@ -379,7 +379,7 @@ export function sumTokens(docs: readonly { tokens: number | null }[]): number;
   - `cd client && node node_modules/vitest/vitest.mjs run src/components/run-trace-drawer` → all pass
 
 ### T9 [W2] [frontend] Project Context page + shared preview/state components + nav entry
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `client/src/components/context-doc-preview/{ContextDocPreview.tsx,index.ts,styles.ts,ContextDocPreview.test.tsx}`, `client/src/components/context-repo-state/{ContextRepoState.tsx,index.ts,styles.ts}`, `client/src/components/showcase/Showcase.tsx`, `client/src/vendor/ui/nav.ts`, `client/src/app/repos/[repoId]/context/page.tsx`, `client/src/app/repos/[repoId]/context/_components/ProjectContextView/{ProjectContextView.tsx,index.ts,styles.ts,ProjectContextView.test.tsx}`, `client/src/app/repos/[repoId]/context/_components/ProjectContextView/hooks/useContextResync.ts`
 - **Depends on:** T2
 - **Covers:** SPEC-01/AC-1, SPEC-01/AC-2, SPEC-01/AC-3, SPEC-01/AC-4, SPEC-01/AC-5
@@ -407,7 +407,7 @@ export function sumTokens(docs: readonly { tokens: number | null }[]): number;
   - `cd client && node node_modules/vitest/vitest.mjs run src/app/repos src/components/context-doc-preview src/test` → all pass
 
 ### T10 [W3] [frontend] Agent editor Context tab
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `client/src/app/agents/[id]/_components/AgentEditor/{AgentEditor.tsx,constants.ts,AgentEditor.test.tsx}`, `client/src/app/agents/[id]/_components/AgentEditor/_components/ContextTab/{ContextTab.tsx,index.ts,styles.ts,helpers.ts,helpers.test.ts,ContextTab.test.tsx}`, `client/src/app/agents/[id]/_components/AgentEditor/_components/ContextTab/_components/ContextDocRow/{ContextDocRow.tsx,index.ts,styles.ts}`
 - **Depends on:** T2, T9
 - **Covers:** SPEC-01/AC-2, SPEC-01/AC-3, SPEC-01/AC-6, SPEC-01/AC-7, SPEC-01/AC-10
@@ -430,7 +430,7 @@ export function sumTokens(docs: readonly { tokens: number | null }[]): number;
   - `cd client && node node_modules/vitest/vitest.mjs run` → all pass
 
 ### T11 [W4] [backend] Seeded run trace + e2e flow 12 (integration)
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `server/src/db/seed.ts`, `e2e/specs/12-project-context.flow.json`
 - **Depends on:** T6, T7, T8, T9, T10
 - **Covers:** SPEC-01/AC-9 (end-to-end in the browser), SPEC-01/AC-5 (the "not cloned" state, which hides the list, end-to-end; the seeded repo has no clone, so the failed/degraded banner is covered by T5/T9 unit tests only)

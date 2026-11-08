@@ -10,7 +10,7 @@ import { ToastProvider } from "@/lib/toast";
 /* Agent editor · Context tab — hooks and repo context are mocked; saves are asserted on the mutation. */
 
 const mutate = vi.fn();
-const resyncMutate = vi.fn();
+const resyncStart = vi.fn();
 let docsList: ContextDocList;
 let attached: AgentContextDoc[] = [];
 let repoId: string | null = "r1";
@@ -40,9 +40,7 @@ vi.mock("@/lib/hooks/project-context", () => ({
   }),
   useSetAgentContextDocs: () => ({ mutate, isPending: false }),
   useContextDoc: () => ({ data: docContent, isLoading: false, isError: false, refetch: vi.fn() }),
-}));
-vi.mock("@/lib/hooks/repo-intel", () => ({
-  useResyncRepoIntel: () => ({ mutate: resyncMutate, isPending: false }),
+  useContextResync: () => ({ start: resyncStart, busy: false }),
 }));
 vi.mock("@/lib/repo-context", () => ({
   useActiveRepo: () => ({
@@ -56,7 +54,7 @@ import { ContextTab } from "./ContextTab";
 afterEach(() => {
   cleanup();
   mutate.mockReset();
-  resyncMutate.mockReset();
+  resyncStart.mockReset();
   docsList = READY;
   attached = [];
   repoId = "r1";
@@ -177,7 +175,7 @@ describe("ContextTab", () => {
     const banner = screen.getAllByRole("status").find((el) => el.textContent?.includes("Code index is degraded"));
     expect(banner).toHaveTextContent("Reason: no_data");
     fireEvent.click(screen.getByRole("button", { name: "Resync" }));
-    expect(resyncMutate).toHaveBeenCalledTimes(1);
+    expect(resyncStart).toHaveBeenCalledTimes(1);
     expect(screen.getAllByRole("listitem")).toHaveLength(5);
   });
 

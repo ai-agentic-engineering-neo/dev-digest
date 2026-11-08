@@ -112,6 +112,41 @@ describe("useSetAgentContextDocs", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["context-docs", REPO] });
   });
 
+  it("runs overlapping saves one at a time and keeps the newest optimistic list until the last one settles", async () => {
+    const { qc, wrapper } = setup();
+    const releases: Array<(v: AgentContextDocs) => void> = [];
+    put.mockImplementation(() => new Promise((r) => releases.push(r)));
+    const { result } = renderHook(() => useSetAgentContextDocs(AGENT, REPO), { wrapper });
+    const paths = () => qc.getQueryData<AgentContextDocs>(KEY)?.docs.map((d) => d.path);
+    const saved = (p: string[]): AgentContextDocs => ({
+      ...BEFORE,
+      docs: p.map((path, position) => ({ path, position, status: "ok", source: "docs", tokens: 1 })),
+    });
+
+    // two quick clicks: attach c, then (computed from the optimistic list) detach b
+    result.current.mutate(["docs/a.md", "docs/b.md", "specs/c.md"]);
+    await waitFor(() => expect(paths()).toEqual(["docs/a.md", "docs/b.md", "specs/c.md"]));
+    result.current.mutate(["docs/a.md", "specs/c.md"]);
+    await waitFor(() => expect(paths()).toEqual(["docs/a.md", "specs/c.md"]));
+
+    // the second PUT waits for the first (no out-of-order writes on the server)
+    expect(put).toHaveBeenCalledTimes(1);
+
+    // the first save settling must not overwrite the newer optimistic list
+    releases[0]!(saved(["docs/a.md", "docs/b.md", "specs/c.md"]));
+    await waitFor(() => expect(put).toHaveBeenCalledTimes(2));
+    expect(paths()).toEqual(["docs/a.md", "specs/c.md"]);
+    expect(put).toHaveBeenLastCalledWith(`/agents/${AGENT}/context-docs`, {
+      repo_id: REPO,
+      paths: ["docs/a.md", "specs/c.md"],
+    });
+
+    // the last save's result wins
+    releases[1]!(saved(["docs/a.md", "specs/c.md"]));
+    await waitFor(() => expect(qc.isMutating()).toBe(0));
+    expect(paths()).toEqual(["docs/a.md", "specs/c.md"]);
+  });
+
   it("rolls back to the previous attachments on error", async () => {
     const { qc, wrapper } = setup();
     put.mockRejectedValue(new Error("boom"));

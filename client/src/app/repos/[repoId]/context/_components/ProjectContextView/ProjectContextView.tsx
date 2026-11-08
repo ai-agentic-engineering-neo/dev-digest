@@ -11,11 +11,10 @@ import { AppShell } from "@/components/app-shell";
 import { RepoNotFound } from "@/components/repo-not-found";
 import { ContextDocPreview } from "@/components/context-doc-preview";
 import { ContextRepoState } from "@/components/context-repo-state";
-import { useContextDoc, useContextDocs } from "@/lib/hooks/project-context";
+import { useContextDoc, useContextDocs, useContextResync } from "@/lib/hooks/project-context";
 import { useActiveRepo, useRepoNotFound } from "@/lib/repo-context";
 import { filterDocs, shortenPath } from "@/lib/context-docs";
 import type { ContextDoc, ContextRepoState as RepoState } from "@/lib/types";
-import { useContextResync } from "./hooks/useContextResync";
 import { s } from "./styles";
 
 const ROW_PATH_CHARS = 48;

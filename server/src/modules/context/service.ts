@@ -181,7 +181,10 @@ export class ProjectContextService {
       };
     }
 
-    const contents = await this.readAll(repo, attached);
+    // Same defence as getDoc / agentDocs: only docs the walker discovered are read (it skips
+    // symlinks), so an attached in-clone link is reported `missing`, never followed into the prompt.
+    const discovered = new Set(await this.container.docWalker.listMarkdown(repo.clonePath));
+    const contents = await this.readAll(repo, attached.filter((p) => discovered.has(p)));
     const sel = selectForRun(
       attached.map((path) => ({ path, content: contents.get(path) ?? null })),
       CONTEXT_TOKEN_CAP,

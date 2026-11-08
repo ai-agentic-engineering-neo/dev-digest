@@ -41,6 +41,7 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 - 2026-11-05 — `/pr-self-review` caches findings per file+skill content, so fixing a hook does NOT clear findings cached on its unchanged caller files (`OWN_ERROR_TOAST` highs stayed on the modals after the hooks were fixed); also any `client/INSIGHTS.md` edit invalidates every client pair (~10 agents) → verify such findings against the hook, clear them with `--no-cache`, and finish INSIGHTS edits before the final review (.claude/skills/pr-self-review/scripts/collect-diff.mjs → cache lookup).
 - 2026-11-06 — `@testing-library/user-event` is NOT a client dependency (only `@testing-library/react` + `jest-dom`), but the `react-testing-library` skill and plans say `userEvent` → 4 implementers hit TS2307 in one run; use `fireEvent` from `@testing-library/react` (as AgentCard/FindingCard tests do), or add the dep deliberately — never import it ad hoc (package.json:28 → devDependencies).
 - 2026-11-06 — jsdom has no `EventSource`, so any test that renders running columns (anything calling `useRunEvents`) crashes → `vi.stubGlobal("EventSource", class { addEventListener() {} close() {} onmessage = null; onerror = null; })` in that test (src/app/repos/[repoId]/multi-agent/_components/MultiAgentView/MultiAgentView.test.tsx:84 → EventSource stub).
+- 2026-11-08 — TanStack Query v5 `useMutation({ scope: { id } })` serializes only `mutationFn`; `onMutate` still runs at once for every queued call (query-core 5.101 `Mutation.execute`), so with optimistic updates an EARLIER save's `onSuccess`/`onError`/`onSettled`-invalidate still overwrites the newer optimistic list and the next click computes from stale data → add `mutationKey` + `scope`, and write result / rollback / invalidate the key only when `qc.isMutating({ mutationKey: key, exact: true }) <= 1` (the settling mutation still counts as pending in its own callbacks) (src/lib/hooks/project-context.ts:58 → useSetAgentContextDocs, :62 → isLastSave).
 
 ## Recurring Errors & Fixes
 <!-- Symptom → root cause → fix -->
@@ -71,6 +72,7 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 - 2026-11-06 — pr-self-review highs/mediums on multi-agent fixed: unknown `--text`/`--text-dim` tokens + `css-vars.test.ts` guard, useMultiAgentRun PR-switch race, RunReviewDropdown takes `repoId`/`prNumber` props, MultiAgentView results URL shows skeleton/error while pulls load.
 - 2026-11-08 — Blast radius pr-self-review fixes: resync baseline read fresh, full resync-flow tests over a fake `@/lib/api`, `aria-expanded` on chip toggle.
 - 2026-11-08 — Project Context Folder UI (SPEC-01): `/repos/:repoId/context` page, agent editor Context tab, trace drawer "Project context" block, shared ContextDocPreview / ContextRepoState → plans/project-context-folder.md.
+- 2026-11-08 — Project Context pr-self-review highs: `useContextResync` promoted to `lib/hooks/project-context.ts` (agent Context tab now refetches/polls docs after Resync), serialized `useSetAgentContextDocs` saves; RED-checked tests.
 
 ## Open Questions
 <!-- Unresolved items, known gaps -->

@@ -19,7 +19,7 @@ let list: ContextDocList | undefined = READY;
 let doc: ContextDocContent | undefined;
 let search = new URLSearchParams();
 const replace = vi.fn();
-const resyncMutate = vi.fn();
+const resyncStart = vi.fn();
 
 vi.mock("@/lib/hooks/project-context", () => ({
   contextDocsKey: (repoId: string) => ["context-docs", repoId],
@@ -30,9 +30,7 @@ vi.mock("@/lib/hooks/project-context", () => ({
     isError: false,
     refetch: vi.fn(),
   }),
-}));
-vi.mock("@/lib/hooks/repo-intel", () => ({
-  useResyncRepoIntel: () => ({ mutate: resyncMutate, isPending: false }),
+  useContextResync: () => ({ start: resyncStart, busy: false }),
 }));
 vi.mock("@/components/app-shell", () => ({
   AppShell: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -113,7 +111,7 @@ describe("ProjectContextView", () => {
     expect(screen.getByText("No documents found in this repo")).toBeInTheDocument();
     expect(screen.getByText(/Searched: the root README\.md/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Resync" }));
-    await vi.waitFor(() => expect(resyncMutate).toHaveBeenCalledTimes(1));
+    expect(resyncStart).toHaveBeenCalledTimes(1);
   });
 
   it("not cloned → blocking state with Resync and NO list, filter or preview (AC-5)", () => {

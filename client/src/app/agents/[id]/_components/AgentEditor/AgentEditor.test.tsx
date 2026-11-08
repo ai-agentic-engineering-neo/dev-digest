@@ -20,9 +20,7 @@ vi.mock("../../../../../lib/hooks/project-context", () => ({
   useAgentContextDocs: () => ({ data: { agent_id: "ag1", repo_id: "r1", docs: [] }, isLoading: false, isError: false }),
   useSetAgentContextDocs: () => ({ mutate: vi.fn(), isPending: false }),
   useContextDoc: () => ({ data: undefined, isLoading: false, isError: false }),
-}));
-vi.mock("../../../../../lib/hooks/repo-intel", () => ({
-  useResyncRepoIntel: () => ({ mutate: vi.fn(), isPending: false }),
+  useContextResync: () => ({ start: vi.fn(), busy: false }),
 }));
 vi.mock("../../../../../lib/repo-context", () => ({
   useActiveRepo: () => ({ repoId: "r1", activeRepo: { id: "r1", name: "payments-api", full_name: "acme/payments-api" } }),

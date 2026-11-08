@@ -48,6 +48,9 @@ class FakeGit extends MockGitClient {
   }
 }
 
+/** The fake clone's discovered docs — the run reads only what the walker lists (like getDoc / agentDocs). */
+const docWalker = { listMarkdown: async () => Object.keys(FILES).sort() };
+
 /** Review-call recorder; `onFirstReview` runs inside the first review call (mid-run edits). */
 class RecordingLLM extends MockLLMProvider {
   reviewUsers: string[] = [];
@@ -87,6 +90,7 @@ d('project context in review runs (Testcontainers pg)', () => {
         embedder: new MockEmbedder(),
         secrets: new MockSecretsProvider(),
         git: new FakeGit({ diff: DIFF }),
+        docWalker,
         llm: { openai: llm, openrouter: new MockLLMProvider('openai', { structured: {} }) },
       },
     });

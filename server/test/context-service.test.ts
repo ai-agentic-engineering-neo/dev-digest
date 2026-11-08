@@ -194,6 +194,7 @@ describe('forRun (AC-8 – AC-11)', () => {
   it('includes whole docs in order and reports missing / too-large ones; index state is ignored', async () => {
     files['docs/a.md'] = text(1000);
     files['docs/big.md'] = text(5000);
+    walked.push('docs/big.md');
     getIndexState.mockResolvedValue({ status: 'degraded', degraded: true, degradedReason: 'no_data' });
     await contextRepo.replaceAttachments(AGENT, REPO.id, ['docs/a.md', 'docs/gone.md', 'docs/big.md']);
 
@@ -213,5 +214,21 @@ describe('forRun (AC-8 – AC-11)', () => {
     });
     expect(ctx!.logLine).toBe('Project context: 1 of 3 doc(s) included (~1000 tokens); 2 left out');
     expect(getIndexState).not.toHaveBeenCalled();
+  });
+
+  it('never reads an attached doc the walker did not discover (e.g. an in-clone symlink) — it is missing', async () => {
+    // readable through git.readFile, but skipped by the walker (symlinks are not listed)
+    files['docs/link.md'] = 'target of an in-clone symlink';
+    await contextRepo.replaceAttachments(AGENT, REPO.id, ['docs/a.md', 'docs/link.md']);
+
+    const ctx = await service.forRun(WS, REPO, AGENT, []);
+
+    expect(ctx!.specs).toEqual([`File: docs/a.md\n\n${text(10)}`]);
+    expect(ctx!.trace).toMatchObject({
+      status: 'ok',
+      included: [{ path: 'docs/a.md', tokens: 10 }],
+      left_out: [{ path: 'docs/link.md', tokens: null, reason: 'missing' }],
+    });
+    expect(readFile).not.toHaveBeenCalledWith(expect.anything(), 'docs/link.md');
   });
 });

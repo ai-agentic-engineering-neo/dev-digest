@@ -16,9 +16,9 @@ import {
   useAgentContextDocs,
   useContextDoc,
   useContextDocs,
+  useContextResync,
   useSetAgentContextDocs,
 } from "@/lib/hooks/project-context";
-import { useResyncRepoIntel } from "@/lib/hooks/repo-intel";
 import { useActiveRepo } from "@/lib/repo-context";
 import { useToast } from "@/lib/toast";
 import { errorMessage } from "@/lib/error-message";
@@ -41,7 +41,7 @@ function RepoContextTab({ agentId, repoId, repoName }: { agentId: string; repoId
   const docsQ = useContextDocs(repoId);
   const attachedQ = useAgentContextDocs(agentId, repoId);
   const setDocs = useSetAgentContextDocs(agentId, repoId);
-  const resync = useResyncRepoIntel(repoId);
+  const resync = useContextResync(repoId);
   const [filter, setFilter] = React.useState("");
   const [dragPath, setDragPath] = React.useState<string | null>(null);
   const [overPath, setOverPath] = React.useState<string | null>(null);
@@ -104,7 +104,7 @@ function RepoContextTab({ agentId, repoId, repoName }: { agentId: string; repoId
       </div>
       <p style={s.hint}>{t("contextTab.hint", { repo: repoName })}</p>
 
-      <RepoStateNotice state={docsQ.data.state} busy={resync.isPending} onResync={() => resync.mutate()} />
+      <RepoStateNotice state={docsQ.data.state} busy={resync.busy} onResync={() => void resync.start()} />
 
       {tooLarge.map((r) => (
         <div key={r.path} role="alert" style={s.alert}>

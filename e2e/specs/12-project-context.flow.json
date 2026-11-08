@@ -1,0 +1,26 @@
+{
+  "name": "Run trace shows the Project context block and the Project Context page shows the not-cloned state",
+  "description": "SPEC-01 AC-9 + AC-5. Open seeded PR #482, open the seeded run's trace from the Agent runs tab and confirm the Project context block lists the included doc and the too-large doc (seed.ts → seedReviewRun). Then go to the sidebar Project Context page of acme/payments-api, which has no clone, and confirm the blocking not-cloned state. Never clicks Resync (that would start a job) and never waits for a failed/degraded index banner: the seeded repo is never in a listed state. The trace drawer is a full-screen overlay with no Escape handler, so the flow reloads the app root before clicking the sidebar link. Preconditions: freshly-seeded DB where acme/payments-api (PR #482) is the first repo.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "land on the pr list" },
+    { "cmd": ["find", "text", "Add rate limiting to public API endpoints", "click"], "label": "open the pr row" },
+    { "cmd": ["wait", "--url", "/pulls/482"], "label": "navigate to the pr detail route" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "pr detail data settles" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Agent runs"], "label": "switch to the agent runs tab" },
+    { "cmd": ["wait", "--url", "tab=findings"], "label": "findings tab is active in the url" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "run history settles" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Open run trace & logs"], "label": "open the seeded run trace" },
+    { "cmd": ["wait", "--text", "Project context"], "label": "trace shows the project context section" },
+    { "cmd": ["wait", "--text", "docs/rate-limiting.md"], "label": "included doc is listed" },
+    { "cmd": ["wait", "--text", "specs/security-baseline.md"], "label": "too-large doc is listed as left out" },
+    { "cmd": ["open", "{BASE}/"], "label": "reload the app root (closes the trace overlay)" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "back on the pr list" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "sidebar and repo context settle" },
+    { "cmd": ["find", "role", "link", "click", "--name", "Project Context"], "label": "open project context from the sidebar" },
+    { "cmd": ["wait", "--url", "/context"], "label": "navigate to the project context route" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "doc list request settles" },
+    { "cmd": ["wait", "--text", "Repo not cloned yet"], "label": "not-cloned state title is visible" },
+    { "cmd": ["wait", "--text", "Docs are read from the local clone. Resync to fetch it."], "label": "not-cloned state body is visible" }
+  ]
+}

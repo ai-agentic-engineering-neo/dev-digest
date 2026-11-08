@@ -247,9 +247,83 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
     if (!existing) await db.insert(t.agents).values(a);
   }
 
+  await seedReviewRun(db, workspaceId, pr!.id);
+
   await seedSkills(db, workspaceId);
 
   return { workspaceId, userId };
+}
+
+/**
+ * One finished run for the seeded PR #482 review, with a persisted trace that includes a
+ * "Project context" block (SPEC-01), so the trace drawer can be checked without a model call.
+ * Idempotent: only when the seeded review (`model: 'seed'`) has no run yet. Seed data only —
+ * the doc paths are illustrative, no doc content is stored.
+ */
+async function seedReviewRun(db: Db, workspaceId: string, prId: string): Promise<void> {
+  const [review] = await db
+    .select({ id: t.reviews.id, runId: t.reviews.runId })
+    .from(t.reviews)
+    .where(and(eq(t.reviews.prId, prId), eq(t.reviews.model, 'seed')));
+  if (!review || review.runId) return;
+  const [agent] = await db
+    .select({ id: t.agents.id, name: t.agents.name, systemPrompt: t.agents.systemPrompt })
+    .from(t.agents)
+    .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, 'Security Reviewer')));
+  if (!agent) return;
+
+  await db.transaction(async (tx) => {
+    const [run] = await tx
+      .insert(t.agentRuns)
+      .values({
+        workspaceId,
+        agentId: agent.id,
+        prId,
+        provider: DEFAULT_PROVIDER,
+        model: DEFAULT_MODEL,
+        status: 'done',
+        durationMs: 4200,
+        tokensIn: 5200,
+        tokensOut: 640,
+        findingsCount: 2,
+        grounding: '2/2 passed',
+        score: 61,
+        blockers: 1,
+      })
+      .returning({ id: t.agentRuns.id });
+    await tx.insert(t.runTraces).values({
+      runId: run!.id,
+      trace: {
+        config: { agent: agent.name, version: '1', provider: DEFAULT_PROVIDER, model: DEFAULT_MODEL, pr: 482, source: 'local' },
+        stats: { duration_ms: 4200, tokens_in: 5200, tokens_out: 640, cost_usd: null, findings: 2, grounding: '2/2 passed' },
+        prompt_assembly: {
+          system: agent.systemPrompt,
+          skills: null,
+          memory: null,
+          specs: null,
+          user: 'Review PR #482 (seeded run — no model call was made).',
+        },
+        tool_calls: [],
+        raw_output: '',
+        memory_pulled: [],
+        specs_read: ['docs/rate-limiting.md'],
+        log: [
+          { t: '00.10', kind: 'info', msg: 'Starting review with agent "Security Reviewer" (seeded run)' },
+          { t: '00.20', kind: 'info', msg: 'Project context: 1 of 2 doc(s) included (~820 tokens); 1 left out' },
+          { t: '04.20', kind: 'result', msg: 'Citation grounding: 2/2 passed' },
+        ],
+        project_context: {
+          status: 'ok',
+          cap_tokens: 4000,
+          total_tokens: 820,
+          included: [{ path: 'docs/rate-limiting.md', tokens: 820 }],
+          left_out: [{ path: 'specs/security-baseline.md', tokens: 5100, reason: 'too_large' }],
+          changed_by_pr: [],
+        },
+      },
+    });
+    await tx.update(t.reviews).set({ runId: run!.id }).where(eq(t.reviews.id, review.id));
+  });
 }
 
 /**

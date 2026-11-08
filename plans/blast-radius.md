@@ -1,6 +1,6 @@
 # Development Plan: Blast Radius (L05)
 
-- **Status:** approved
+- **Status:** done
 - **Goal:** на вкладці Overview PR користувач бачить блок «Blast radius»: які символи оголошені у змінених файлах, хто їх викликає (`file:line`, клік відкриває рядок на GitHub на коміті, з якого взято рядок: `link_sha` = `indexed_sha`, fallback `head_sha`) і які HTTP-ендпоінти / cron можуть від цього залежати. Дані беруться з уже побудованого індексу repo-intel, без LLM і без повторного аналізу. Claude Code через `get_blast_radius` отримує ту саму карту з того самого HTTP-маршруту.
 - **Specs:** окремого spec немає (див. Goal). Рішення користувача D1–D4 наведені нижче. Контракт-основа: `server/src/vendor/shared/contracts/brief.ts` (`ChangedSymbol`, `BlastCaller`, `DownstreamImpact`, `BlastRadius`). Дизайн P1: скріншот `27.png` (простий список); P3: `25.png` (дерево), `26.png` (граф), прототип `blast-radius-design-reference.jsx` (лише як референс; стилі беремо з наших токенів і компонентів).
 - **Packages:** server · client · mcp-server · e2e (reviewer-core не змінюється, але гейт його проганяє)
@@ -124,7 +124,7 @@ export const BlastRadiusResponse = BlastRadius.extend({
 // ── REST (T8) ───────────────────────────────────────────────────────────────────────
 // GET /pulls/:id/blast   params: IdParams (uuid)
 //   200 → BlastRadiusResponse
-//   400 → params validation (non-uuid id)
+//   422 → params validation (non-uuid id) — app-wide `validation_error` (server/README.md:52); amended from 400 by user decision 2026-11-08
 //   404 → NotFoundError('Pull request not found') — PR not in the caller's workspace
 //   No LLM / GitHub calls. Never 5xx on a missing/partial/failed index (degraded instead).
 
@@ -297,7 +297,7 @@ export const MAX_BLAST_CHIPS = 10;      // endpoints / crons per listed symbol, 
 ## Tasks
 
 ### T1 [W0] [backend] D1 — depgraph: POSIX-шляхи на Windows (+ регресійний тест)
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `server/src/adapters/depgraph/index.ts`, `server/test/depgraph-paths.test.ts`
 - **Depends on:** —
 - **Produces:** `export function toRel(root: string, p: string, pathApi?: Pick<PlatformPath, 'isAbsolute' | 'resolve' | 'relative' | 'sep'>): string` (default `node:path`), яка завжди повертає repo-relative POSIX (`server/src/a.ts`). Від цього `buildEdges` на Windows знову дає ребра.
@@ -330,7 +330,7 @@ export const MAX_BLAST_CHIPS = 10;      // endpoints / crons per listed symbol, 
   - `cd server && node scripts/check-architecture.mjs` → no new violations
 
 ### T2 [W0] [backend] D2 — facade `getBlastRadius`: ліміт 20 на символ, `viaFile`, без self-callers
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `server/src/modules/repo-intel/types.ts`, `server/src/modules/repo-intel/service.ts`, `server/src/modules/repo-intel/repository.ts`, `server/src/modules/repo-intel/README.md`, `server/test/repo-intel-blast-cap.test.ts`
 - **Depends on:** —
 - **Produces:** `BlastCallerRow.viaFile`, `BlastResult.callersOmitted`, `ResolvedCallerRow.declFile` (див. Contracts). Поведінка: ≤ `MAX_CALLERS_PER_SYMBOL` викликачів на кожну пару (viaFile, viaSymbol), top за rank.
@@ -361,7 +361,7 @@ export const MAX_BLAST_CHIPS = 10;      // endpoints / crons per listed symbol, 
   - `cd server && node scripts/check-architecture.mjs` → no new violations
 
 ### T3 [W0] [backend] Контракт модуля `blast` (domain types + Zod response)
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `server/src/modules/blast/domain/types.ts`, `server/src/modules/blast/schemas.ts`, `server/test/blast-schemas.test.ts`, `server/test/fixtures/blast-radius-response.json`
 - **Depends on:** —
 - **Produces:** усі типи й схеми з розділу Contracts (T3).
@@ -384,7 +384,7 @@ export const MAX_BLAST_CHIPS = 10;      // endpoints / crons per listed symbol, 
   - `cd server && node scripts/check-architecture.mjs` → no new violations
 
 ### T4 [W0] [frontend] Клієнтський контракт: дзеркало типів, `useBlastRadius`, i18n
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `client/src/lib/types.ts`, `client/src/lib/hooks/blast.ts`, `client/src/lib/hooks/index.ts`, `client/messages/en/blast.json`, `client/src/lib/blast-contract.test.ts`
 - **Depends on:** — (тест 5 читає фікстур T3; обидві задачі в W0, тож якщо T4 завершиться раніше, тест проганяється на гейті W0)
 - **Produces:** типи `PrBlastRadius`, `BlastDownstream`, `BlastCounts`, `BlastDegradedReason`, ре-експорт `ChangedSymbol`/`BlastCaller`/`DownstreamImpact`; хук `useBlastRadius(prId)` з ключем `["blast", prId]`; ключі `blast.*` з розділу «i18n keys».
@@ -409,7 +409,7 @@ export const MAX_BLAST_CHIPS = 10;      // endpoints / crons per listed symbol, 
   - `cd client && node node_modules/vitest/vitest.mjs run` → all pass
 
 ### T5 [W1] [backend] Domain `blast`: мапінг BlastResult → BlastRadius і чесний `reason`
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `server/src/modules/blast/domain/status.ts`, `server/src/modules/blast/domain/build.ts`, `server/test/blast-domain.test.ts`
 - **Depends on:** T3
 - **Produces:** `deriveBlastStatus`, `EMPTY_BLAST_RESULT`, `buildBlastRadius`, `blastSummary` (сигнатури в Contracts).
@@ -448,7 +448,7 @@ export const MAX_BLAST_CHIPS = 10;      // endpoints / crons per listed symbol, 
   - `cd server && node scripts/check-architecture.mjs` → no new violations
 
 ### T6 [W1] [backend] MCP `get_blast_radius`: справжня реалізація замість заглушки
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `mcp-server/src/api-client.ts`, `mcp-server/src/tools/get-blast-radius.ts`, `mcp-server/src/server.ts`, `mcp-server/test/helpers/harness.ts`, `mcp-server/test/get-blast-radius.test.ts`, `mcp-server/test/tools.test.ts`, `mcp-server/test/stdio.smoke.test.ts`, `mcp-server/README.md`
 - **Depends on:** T3 (форма відповіді зафіксована; коду з server не імпортувати)
 - **Produces:** `ApiBlast`, `DevDigestApi.getBlast(prId, signal)`, `BlastToolResult` (outputSchema), константи `MAX_BLAST_*`, `UNTRUSTED_BLAST_NOTE`.
@@ -488,7 +488,7 @@ export const MAX_BLAST_CHIPS = 10;      // endpoints / crons per listed symbol, 
   - `cd mcp-server && node node_modules/vitest/vitest.mjs run` → all pass
 
 ### T7a [W1] [frontend] UI-деталі: summary-рядок і degraded-notice
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `BRP/_components/BlastSummary/{BlastSummary.tsx,index.ts,styles.ts}`, `BRP/_components/BlastDegradedNotice/{BlastDegradedNotice.tsx,index.ts,styles.ts,BlastDegradedNotice.test.tsx}`
 - **Depends on:** T4
 - **Produces:** `BlastSummary({ counts }: { counts: BlastCounts })`; `BlastDegradedNotice({ reason, onResync, resyncing, timedOut }: { reason: BlastDegradedReason; onResync?: () => void; resyncing: boolean; timedOut: boolean })`.
@@ -510,7 +510,7 @@ export const MAX_BLAST_CHIPS = 10;      // endpoints / crons per listed symbol, 
   - `cd client && node node_modules/vitest/vitest.mjs run "src/app/repos/[repoId]/pulls/[number]/_components/OverviewTab" src/test/css-vars.test.ts` → all pass
 
 ### T7b [W1] [frontend] UI-деталі: картка символу (`file:line` → GitHub) і чіпи ендпоінтів/кронів
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `BRP/_components/BlastChips/{BlastChips.tsx,index.ts,styles.ts,constants.ts,helpers.ts,helpers.test.ts}`, `BRP/_components/BlastSymbolCard/{BlastSymbolCard.tsx,index.ts,styles.ts,BlastSymbolCard.test.tsx}`
 - **Depends on:** T4
 - **Produces:** `BlastChips({ items, kind, label }: { items: string[]; kind: 'endpoint' | 'cron'; label: string })`; `BlastSymbolCard({ item, repoFullName, linkSha }: { item: BlastDownstream; repoFullName: string | null; linkSha: string })` (D5: `linkSha` = `data.link_sha` із сервера); `splitChips(items: string[], max: number): { shown: string[]; hidden: number }`.
@@ -537,7 +537,7 @@ export const MAX_BLAST_CHIPS = 10;      // endpoints / crons per listed symbol, 
   - `cd client && node node_modules/vitest/vitest.mjs run "src/app/repos/[repoId]/pulls/[number]/_components/OverviewTab" src/test/css-vars.test.ts` → all pass
 
 ### T8 [W2] [backend] Модуль `blast`: ports → repository → service → `GET /pulls/:id/blast` + wiring
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `server/src/modules/blast/ports.ts`, `server/src/modules/blast/repository.ts`, `server/src/modules/blast/service.ts`, `server/src/modules/blast/routes.ts`, `server/src/platform/container.ts`, `server/src/modules/index.ts`, `server/test/blast-service.test.ts`, `server/test/blast-routes.it.test.ts`
 - **Depends on:** T2, T3, T5
 - **Produces:** маршрут `GET /pulls/:id/blast` (Contracts → REST); `BlastService`, `BlastRepository implements BlastRepositoryPort`, getter `container.blastRepo` + `ContainerOverrides.blastRepo`; запис `blast` у реєстрі модулів.
@@ -570,10 +570,10 @@ export const MAX_BLAST_CHIPS = 10;      // endpoints / crons per listed symbol, 
   8. `test/blast-routes.it.test.ts` (Testcontainers, шаблон `server/test/intent-routes.it.test.ts`: `startPg`, `seed`, `buildApp({ … overrides })`): вставити repo, PR (`headSha: 'abc123'`), 2 `pr_files`; `overrides.repoIntel` є фейковим `RepoIntel` (повний інтерфейс, лише `getBlastRadius` / `getIndexState` повертають дані, решта методів повертає `[]` / degraded-літерали).
      (1) `GET /pulls/<id>/blast` дає 200, тіло проходить `BlastRadiusResponse.parse`, `head_sha === 'abc123'`, `link_sha === indexed_sha` фейкового `getIndexState` (D5), а фейк отримав саме 2 шляхи;
      (2) PR другого workspace дає 404 `not_found`;
-     (3) `/pulls/not-a-uuid/blast` дає 400.
+     (3) `/pulls/not-a-uuid/blast` дає 422 (`validation_error`).
      LLM не викликається (провайдери ThrowingLLM, як у наявних `.it`-тестах).
 - **Acceptance criteria:**
-  - [ ] `GET /pulls/:id/blast` віддає 200 за контрактом; чужий PR дає 404; не-uuid дає 400.
+  - [ ] `GET /pulls/:id/blast` віддає 200 за контрактом; чужий PR дає 404; не-uuid дає 422.
   - [ ] `repoId` ніколи не приходить із запиту, лише з `getPull(workspaceId, …)`. `listChangedPaths` фільтрує за `pull_requests.workspace_id`.
   - [ ] `new BlastService(app.container)` компілюється без cast.
   - [ ] Layer check без нових порушень. У `routes.ts` / `service.ts` немає `drizzle-orm` / `db/*`.
@@ -584,7 +584,7 @@ export const MAX_BLAST_CHIPS = 10;      // endpoints / crons per listed symbol, 
   - `cd server && node scripts/check-architecture.mjs` → no new violations
 
 ### T9 [W2] [frontend] `BlastRadiusPanel` (контейнер + resync) і підключення на Overview
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `BRP/BlastRadiusPanel.tsx`, `BRP/index.ts`, `BRP/styles.ts`, `BRP/constants.ts`, `BRP/helpers.ts`, `BRP/helpers.test.ts`, `BRP/hooks/useBlastResync.ts`, `BRP/BlastRadiusPanel.test.tsx`, `client/src/app/repos/[repoId]/pulls/[number]/_components/OverviewTab/OverviewTab.tsx`, `client/src/app/repos/[repoId]/pulls/[number]/page.tsx`
 - **Depends on:** T4, T7a, T7b
 - **Produces:** `BlastRadiusPanel({ prId, repoId, repoFullName }: { prId: string; repoId: string; repoFullName: string | null })` (sha для посилань береться з `data.link_sha`, D5; `head_sha` з page не потрібен); `useBlastResync(repoId: string, prId: string): { start: () => void; canStart: boolean; resyncing: boolean; timedOut: boolean }`; `OverviewTab` отримує prop `repoId: string`.
@@ -637,7 +637,7 @@ export const MAX_BLAST_CHIPS = 10;      // endpoints / crons per listed symbol, 
   - `cd client && node node_modules/vitest/vitest.mjs run "src/app/repos/[repoId]/pulls/[number]/_components/OverviewTab" --sequence.shuffle` → all pass
 
 ### T10 [W3] [backend] e2e: блок Blast radius на Overview (детермінований degraded no_data)
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `e2e/specs/11-blast-radius.flow.json`, `e2e/specs/README.md`, `e2e/README.md`
 - **Depends on:** T8, T9
 - **Produces:** flow `11-blast-radius`. Номер 11, а не 10, щоб не зіткнутися з `10-smart-diff` на `local/all-lessons`.
@@ -654,7 +654,7 @@ export const MAX_BLAST_CHIPS = 10;      // endpoints / crons per listed symbol, 
   - `cd e2e && npm run e2e:hermetic` → flow `11-blast-radius` passes (slow; integration wave only)
 
 ### T11 [W4 · P3 · optional] [frontend] Tree / Graph: згортання карток і граф-вид
-- **Status:** todo
+- **Status:** skipped: optional P3, user chose to skip on 2026-11-08 (finish with P1)
 - **Files (only these):** `BRP/_components/BlastViewToggle/{BlastViewToggle.tsx,index.ts,styles.ts}`, `BRP/_components/BlastGraph/{BlastGraph.tsx,index.ts,styles.ts,helpers.ts,helpers.test.ts,BlastGraph.test.tsx}`; повторно відкриті (послідовно, після W3): `BRP/BlastRadiusPanel.tsx`, `BRP/_components/BlastSymbolCard/BlastSymbolCard.tsx`, `BRP/_components/BlastSymbolCard/styles.ts`, `BRP/_components/BlastSymbolCard/BlastSymbolCard.test.tsx`
 - **Depends on:** T9, T10 (весь P1 зелений)
 - **Produces:** `BlastViewToggle({ value, onChange }: { value: BlastView; onChange: (v: BlastView) => void })`, де `type BlastView = 'tree' | 'graph'`; `BlastGraph({ downstream }: { downstream: BlastDownstream[] })`; `layoutBlastGraph(downstream: BlastDownstream[], opts: { width: number; rowHeight: number }): { nodes: GraphNode[]; edges: GraphEdge[]; height: number }`.
@@ -732,20 +732,20 @@ export const MAX_BLAST_CHIPS = 10;      // endpoints / crons per listed symbol, 
 |---|---|---|---|---|
 | — | plan | planner | draft written | — |
 | — | plan | main session | D5 (`link_sha`), D6 (golden-фікстур), Q1 закрито, `gh`/`dev.sh` прибрано з додатків; status approved | — |
-| W0 | T1 | implementer-backend | — | — |
-| W0 | T2 | implementer-backend | — | — |
-| W0 | T3 | implementer-backend | — | — |
-| W0 | T4 | implementer-frontend | — | — |
-| W1 | T5 | implementer-backend | — | — |
-| W1 | T6 | implementer-backend | — | — |
-| W1 | T7a | implementer-frontend | — | — |
-| W1 | T7b | implementer-frontend | — | — |
-| W2 | T8 | implementer-backend | — | — |
-| W2 | T9 | implementer-frontend | — | — |
-| W3 | T10 | implementer-backend | — | — |
+| W0 | T1 | implementer-backend | DONE_WITH_CONCERNS | gate green; test temp dir under cwd (cruise ENOENT across drives); mutation-check by main session: (a)+(c) fail; live DB check after resync (607de49, needed `git config --global core.longpaths true` — resync silently failed on Windows MAX_PATH): file_edges 0 → 908, resolved 0/7832 → 1507/16510 |
+| W0 | T2 | implementer-backend | DONE | gate green; mutation-check (global slice, persistent path) by main session: (a) fails |
+| W0 | T3 | implementer-backend | DONE | gate green; schema mutation-check not run |
+| W0 | T4 | implementer-frontend | DONE_WITH_CONCERNS | contract test green at gate (T3 fixture); link_sha mutation-check not run |
+| W1 | T5 | implementer-backend | DONE | gate green; link_sha mutation by main session: D5 test fails; summary uses ' · ' format, fixture summary text differs (shape-only check); D6 test sets unattributed_endpoints by hand |
+| W1 | T6 | implementer-backend | DONE | gate green (53/53); truncated.* also counts cut unattributed endpoints and dropped downstream; extra text lines for unattributed + server-omitted callers |
+| W1 | T7a | implementer-frontend | DONE | gate green |
+| W1 | T7b | implementer-frontend | DONE | gate green |
+| W2 | T8 | implementer-backend | DONE_WITH_CONCERNS | gate green; blast-routes.it 3/3 on Docker (not skipped); non-uuid id → 422 validation_error (app convention, server/README.md:52), plan said 400 |
+| W2 | T9 | implementer-frontend | DONE | gate green; OverviewTab --sequence.shuffle ×3 green (33/33); notice gated on `reason !== null` (≡ degraded by invariant) |
+| W3 | T10 | implementer-backend | DONE | flow JSON valid; e2e:hermetic NOT RUN (Windows: pnpm db:migrate/seed no-op per server INSIGHTS, agent-browser not installed); live dev API GET /pulls/<#482>/blast → 200 degraded no_data, counts 0 (matches both flow waits); CI e2e-web.yml pending |
 | W4 | T11 (P3) | implementer-frontend | — | — |
-| finish | — | architecture-reviewer | — | — |
-| finish | — | plan-verifier | — | — |
+| finish | — | architecture-reviewer | PASS | 0 findings; layers 27/27 baseline |
+| finish | — | plan-verifier | NOT COMPLIANT → resolved | 90/102 met; C6 (400 vs 422) fixed by amending plan to 422 (user decision); T3/T4 mutation checks run by main session (both fail as intended); mcp tsc + vitest 53/53 and blast-routes.it 3/3 run in main-session gates; closed after: T1 live psql check (908 edges, 1507 resolved), T1 separate commit 3ca7d85 (G16), ripgrep-fallback cap test added (mutation-checked); e2e flow 11 accepted by user as CI-verified after the PR opens |
 | finish | — | /pr-self-review (user) | — | — |
 
 ## Додаток A — Demo PR (D4)

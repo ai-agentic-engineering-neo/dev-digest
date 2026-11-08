@@ -144,7 +144,6 @@ export function DocPane({
           <span style={s.name} title={doc.path}>
             {name}
           </span>
-          <span style={s.spacer} />
           {isDevdigest && (
             <div role="group" aria-label={t("pane.mode")} style={s.switch}>
               {MODES.map((m) => (
@@ -160,6 +159,18 @@ export function DocPane({
               ))}
             </div>
           )}
+          <DocSourceBadge source={doc.source} label={t(`source.${doc.source}`)} />
+          <span style={s.meta}>{t("meta.tokens", { count: doc.tokens })}</span>
+          <span style={s.spacer} />
+          <span style={s.usedBy}>
+            <Icon.Cpu size={13} />
+            {t("meta.usedBy", { count: doc.attached_agents })}
+          </span>
+          {!isDevdigest && (
+            <Button size="sm" kind="secondary" icon="Copy" loading={copy.isPending} onClick={onCopy}>
+              {t("pane.copyToEdit")}
+            </Button>
+          )}
           {isDevdigest && (
             <Button
               size="sm"
@@ -173,23 +184,11 @@ export function DocPane({
             </Button>
           )}
         </div>
-        <div style={s.metaRow}>
-          <DocSourceBadge source={doc.source} label={t(`source.${doc.source}`)} />
-          <span>{t("meta.tokens", { count: doc.tokens })}</span>
-          <span>{t("meta.usedBy", { count: doc.attached_agents })}</span>
-          {copiedFrom && <span>{t("pane.copiedFrom", { path: copiedFrom })}</span>}
-        </div>
+        {copiedFrom && <p style={s.subMeta}>{t("pane.copiedFrom", { path: copiedFrom })}</p>}
         {copyExists && (
           <p role="status" style={s.notice}>
             {t("pane.copyExists")}
           </p>
-        )}
-        {!isDevdigest && (
-          <div>
-            <Button size="sm" kind="secondary" icon="Copy" loading={copy.isPending} onClick={onCopy}>
-              {t("pane.copyToEdit")}
-            </Button>
-          </div>
         )}
         {error && !(isDevdigest && mode === "edit") && (
           <p role="alert" style={s.error}>

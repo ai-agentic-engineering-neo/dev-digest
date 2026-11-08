@@ -1,11 +1,13 @@
 import type { CSSProperties } from "react";
 
 export const s = {
-  wrap: { display: "flex", flexDirection: "column", gap: 10 } satisfies CSSProperties,
+  // Fills the rest of the pane; the textarea takes all of it, Save stays right below.
+  wrap: { flex: 1, display: "flex", flexDirection: "column", gap: 10, minHeight: 0 } satisfies CSSProperties,
   textarea: {
+    flex: 1,
     width: "100%",
-    minHeight: 360,
-    resize: "vertical",
+    minHeight: 300,
+    resize: "none",
     boxSizing: "border-box",
     padding: 12,
     fontFamily: "var(--font-mono)",
@@ -16,7 +18,7 @@ export const s = {
     border: "1px solid var(--border)",
     borderRadius: 8,
   } satisfies CSSProperties,
-  bar: { display: "flex", alignItems: "center", gap: 12 } satisfies CSSProperties,
+  bar: { display: "flex", alignItems: "center", gap: 12, flexShrink: 0 } satisfies CSSProperties,
   unsaved: { fontSize: 12, color: "var(--text-muted)" } satisfies CSSProperties,
   error: { fontSize: 13, color: "var(--crit)" } satisfies CSSProperties,
 } as const;

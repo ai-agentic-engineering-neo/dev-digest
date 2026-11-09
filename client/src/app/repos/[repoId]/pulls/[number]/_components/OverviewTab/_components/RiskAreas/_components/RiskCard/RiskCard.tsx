@@ -6,7 +6,8 @@ import { Icon } from "@devdigest/ui";
 import type { OpenDiffTarget } from "@/components/diff-viewer";
 import type { BriefRisk } from "@/lib/types";
 import { BriefFileLink, briefRefHref } from "../../../BriefFileLink";
-import { RISK_KIND_ICON, RISK_KIND_ICON_FALLBACK, RISK_SEVERITY_COLOR } from "../../constants";
+import { RISK_SEVERITY_COLOR } from "../../constants";
+import { riskKindIcon } from "../../helpers";
 import { s } from "./styles";
 
 type RiskRef = BriefRisk["refs"][number];
@@ -26,7 +27,7 @@ export function RiskCard({
   const t = useTranslations("brief");
   const [expanded, setExpanded] = useState(false);
   const detailsId = useId();
-  const KindIcon = RISK_KIND_ICON[risk.kind] ?? RISK_KIND_ICON_FALLBACK;
+  const KindIcon = riskKindIcon(risk.kind);
   const color = RISK_SEVERITY_COLOR[risk.severity];
   const [first] = risk.refs;
 

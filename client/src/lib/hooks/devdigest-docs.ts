@@ -46,6 +46,21 @@ function addToLists(qc: QueryClient, repoId: string, doc: DevdigestDoc) {
   );
 }
 
+/**
+ * Drop a just-deleted doc from both list caches before they refetch, so the tree can't offer it (opening
+ * it in that window would 404). The context list is keyed by path, read from the devdigest list by id.
+ */
+function removeFromLists(qc: QueryClient, repoId: string, id: string) {
+  const path = qc.getQueryData<DevdigestDocList>(devdigestDocsKey(repoId))?.docs.find((d) => d.id === id)?.path;
+  qc.setQueryData<DevdigestDocList>(devdigestDocsKey(repoId), (l) =>
+    l ? { ...l, docs: l.docs.filter((d) => d.id !== id) } : l,
+  );
+  if (path === undefined) return;
+  qc.setQueryData<ContextDocList>(contextDocsKey(repoId), (l) =>
+    l ? { ...l, docs: l.docs.filter((d) => !(d.source === "devdigest" && d.path === path)) } : l,
+  );
+}
+
 /** A repo's `.devdigest` docs plus the page footer/notice data. */
 export function useDevdigestDocs(repoId: string) {
   return useQuery({
@@ -127,6 +142,7 @@ export function useDeleteDevdigestDoc(repoId: string) {
     mutationFn: ({ id }: { id: string }) => api.del<DevdigestDeleteResult>(`/devdigest-docs/${id}`),
     onSuccess: async (_result, { id }) => {
       qc.removeQueries({ queryKey: devdigestDocKey(id) });
+      removeFromLists(qc, repoId, id);
       await Promise.all([
         invalidateLists(qc, repoId),
         // attachments were detached for every agent

@@ -22,13 +22,18 @@ export function useUploadQueue(repoId: string, folder: string) {
   const upload = useUploadDevdigestDoc(repoId);
   const [report, setReport] = useState<UploadReportState>(EMPTY_REPORT);
   const pending = useRef(new Map<string, { file: File; folder: string }>());
+  // Batch id: a new start (or dismiss) supersedes the running batch. A superseded batch stops before
+  // its next file and never writes into the current report or the current pending conflicts.
+  const batch = useRef(0);
 
-  async function send(file: File, overwrite: boolean, into: string): Promise<void> {
+  async function send(file: File, overwrite: boolean, into: string, id: number): Promise<void> {
     try {
       const content_base64 = await fileToBase64(file);
       const doc = await upload.mutateAsync({ folder: into, filename: file.name, content_base64, overwrite });
+      if (id !== batch.current) return;
       setReport((r) => ({ ...r, added: [...r.added, doc.path] }));
     } catch (e) {
+      if (id !== batch.current) return;
       const details = devdigestErrorOf(e);
       if (details?.reason === "exists" && !overwrite) {
         pending.current.set(file.name, { file, folder: into });
@@ -47,31 +52,34 @@ export function useUploadQueue(repoId: string, folder: string) {
     }
   }
 
-  async function run(files: File[], into: string): Promise<void> {
+  async function run(files: File[], into: string, id: number): Promise<void> {
     for (const file of files) {
+      if (id !== batch.current) return;
       const rejection = precheckUpload(file);
       if (rejection) {
         setReport((r) => ({ ...r, rejected: [...r.rejected, { name: file.name, reason: rejection }] }));
         continue;
       }
-      await send(file, false, into);
+      await send(file, false, into, id);
     }
   }
 
   function start(files: File[]): void {
+    const id = ++batch.current;
     pending.current.clear();
     setReport(EMPTY_REPORT);
-    void run(files, folder);
+    void run(files, folder, id);
   }
 
   function resolveConflict(name: string, overwrite: boolean): void {
     const entry = pending.current.get(name);
     pending.current.delete(name);
     setReport((r) => ({ ...r, conflicts: r.conflicts.filter((n) => n !== name) }));
-    if (entry && overwrite) void send(entry.file, true, entry.folder);
+    if (entry && overwrite) void send(entry.file, true, entry.folder, batch.current);
   }
 
   function dismiss(): void {
+    batch.current += 1;
     pending.current.clear();
     setReport(EMPTY_REPORT);
   }

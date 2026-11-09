@@ -131,6 +131,19 @@ describe("RiskAreas", () => {
     expect(toggle).toHaveAttribute("aria-expanded", "false");
   });
 
+  it("renders a risk whose model-written kind is an Object.prototype key (no crash, fallback icon)", () => {
+    const hostile: BriefRisk[] = ["constructor", "toString", "__proto__"].map((kind, i) => ({
+      kind,
+      title: `Hostile ${i}`,
+      explanation: "",
+      severity: "low",
+      file_refs: ["src/x.ts"],
+      refs: [{ ref: "src/x.ts", path: "src/x.ts", start_line: null, end_line: null, in_diff: true }],
+    }));
+    expect(() => renderRisks(hostile)).not.toThrow();
+    for (const i of [0, 1, 2]) expect(screen.getByText(`Hostile ${i}`)).toBeInTheDocument();
+  });
+
   it("shows the empty message", () => {
     renderRisks([]);
     expect(screen.getByText("No notable risks flagged.")).toBeInTheDocument();

@@ -131,4 +131,30 @@ describe("devdigest-docs hooks", () => {
     await waitFor(() => expect(qc.getQueryData(devdigestDocKey("d1"))).toBeUndefined());
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["agent-context-docs"] });
   });
+
+  it("delete drops the doc from both list caches before they refetch (the tree can't open a 404)", async () => {
+    mocked.del.mockResolvedValue({ deleted: "d1", detached_agents: 0 });
+    const { qc, wrapper } = setup();
+    const other = { id: "d0", path: ".devdigest/specs/z.md", tokens: 1, copied_from: null, updated_at: "x" };
+    const mine = { id: "d1", path: doc.path, tokens: 3, copied_from: null, updated_at: "x" };
+    qc.setQueryData(devdigestDocsKey("r1"), { repo_id: "r1", docs: [mine, other], limit: 200, synced_at: null, ignored_repo_paths: 0 });
+    qc.setQueryData(contextDocsKey("r1"), {
+      repo_id: "r1",
+      state: { status: "ready" },
+      docs: [
+        { path: doc.path, source: "devdigest", tokens: 3, attached_agents: 1 },
+        { path: "README.md", source: "readme", tokens: 5, attached_agents: 0 },
+      ],
+    });
+    const { result } = renderHook(() => useDeleteDevdigestDoc("r1"), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync({ id: "d1" });
+    });
+
+    const dd = qc.getQueryData<{ docs: { id: string }[] }>(devdigestDocsKey("r1"));
+    expect(dd?.docs.map((d) => d.id)).toEqual(["d0"]);
+    const ctx = qc.getQueryData<{ docs: { path: string }[] }>(contextDocsKey("r1"));
+    expect(ctx?.docs.map((d) => d.path)).toEqual(["README.md"]);
+  });
 });

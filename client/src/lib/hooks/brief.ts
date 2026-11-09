@@ -15,7 +15,7 @@ export const BRIEF_POLL_MS = 3000;
 
 export function usePrBrief(prId: string | null | undefined) {
   return useQuery({
-    queryKey: ["pr-brief", prId],
+    queryKey: prBriefKey(prId ?? ""),
     queryFn: () => api.get<PrBriefResponse>(`/pulls/${prId}/brief`),
     enabled: !!prId,
     refetchInterval: (query) => (query.state.data?.generating ? BRIEF_POLL_MS : false),

@@ -1,12 +1,14 @@
 "use client";
 
-import Link from "next/link";
+import { useId } from "react";
 import { useTranslations } from "next-intl";
-import { Button, Skeleton } from "@devdigest/ui";
+import { Button } from "@devdigest/ui";
 import type { PrBriefResponse } from "@/lib/types";
-import { BriefMeta } from "./_components/BriefMeta";
-import { BriefNotes } from "./_components/BriefNotes";
-import { generateErrorView, shortSha } from "./helpers";
+import { VerdictBanner } from "../../../VerdictBanner";
+import { BriefSectionLabel } from "../BriefSectionLabel";
+import { BriefBody } from "./_components/BriefBody";
+import { VerdictProvenance } from "./_components/VerdictProvenance";
+import type { BriefVerdict } from "./types";
 import { s } from "./styles";
 
 interface PrBriefCardProps {
@@ -17,92 +19,82 @@ interface PrBriefCardProps {
   generateError: unknown;
   onGenerate: () => void;
   onRetryLoad: () => void;
+  verdict?: BriefVerdict;
+  onRetryVerdict?: () => void;
 }
 
-/** PR Brief card: header + action, summary, notes and meta. All states derive from props. */
-export function PrBriefCard({ data, loadError, generating, generateError, onGenerate, onRetryLoad }: PrBriefCardProps) {
+const NO_VERDICT: BriefVerdict = { state: "none" };
+
+/** PR Brief card: section label, then the brief inside a verdict banner (or the plain box). */
+export function PrBriefCard({
+  data,
+  loadError,
+  generating,
+  generateError,
+  onGenerate,
+  onRetryLoad,
+  verdict = NO_VERDICT,
+  onRetryVerdict,
+}: PrBriefCardProps) {
   const t = useTranslations("brief");
-  const brief = data?.brief ?? null;
-  const noFiles = data != null && data.changed_files === 0;
-  const errorView = generateErrorView(generateError);
+  const headingId = useId();
+
+  const body = (
+    <BriefBody
+      data={data}
+      loadError={loadError}
+      generating={generating}
+      generateError={generateError}
+      onGenerate={onGenerate}
+      onRetryLoad={onRetryLoad}
+    />
+  );
+
+  let content;
+  switch (verdict.state) {
+    case "ready":
+      content = (
+        <VerdictBanner
+          verdict={verdict.verdict}
+          score={verdict.score}
+          findingsCount={verdict.findings}
+          blockers={verdict.blockers}
+          summary={null}
+          agentName={null}
+          titleAside={<VerdictProvenance agentName={verdict.agentName} reviewedAt={verdict.reviewedAt} />}
+          body={body}
+          stackOnNarrow
+        />
+      );
+      break;
+    case "error":
+      content = (
+        <div style={s.box}>
+          <div role="alert" style={s.verdictError}>
+            <span>{t("verdict.unavailable")}</span>
+            <Button kind="ghost" size="sm" aria-label={t("verdict.retry")} onClick={onRetryVerdict}>
+              {t("actions.retry")}
+            </Button>
+          </div>
+          {body}
+        </div>
+      );
+      break;
+    case "none":
+      content = <div style={s.box}>{body}</div>;
+      break;
+    default: {
+      const unreachable: never = verdict;
+      return unreachable;
+    }
+  }
 
   return (
-    <section style={s.root} aria-label={t("card.title")}>
-      <div style={s.header}>
-        <div style={s.titleBox}>
-          <h3 style={s.title}>{t("card.title")}</h3>
-          {data && <span style={s.model}>{t("card.model", { model: data.model.model })}</span>}
-        </div>
-        <div style={s.actions}>
-          <Button kind="primary" size="sm" onClick={onGenerate} disabled={!data || generating || noFiles}>
-            {brief ? t("actions.regenerate") : t("actions.generate")}
-          </Button>
-          {noFiles && <p style={s.hint}>{t("noFiles")}</p>}
-        </div>
-      </div>
-
-      {generating && (
-        <div role="status" aria-live="polite" style={s.status}>
-          {t("actions.generating")}
-        </div>
-      )}
-
-      {errorView && (
-        <div role="alert" style={s.error}>
-          {errorView.kind === "not_configured" && (
-            <>
-              <span>{t("errors.notConfigured")}</span>
-              <Link href="/settings/api-keys" style={s.link}>
-                {t("errors.openSettings")}
-              </Link>
-            </>
-          )}
-          {errorView.kind === "too_large" && (
-            <span>{t("errors.tooLarge", { tokens: errorView.tokens, limit: errorView.limit })}</span>
-          )}
-          {errorView.kind === "no_files" && <span>{t("noFiles")}</span>}
-          {errorView.kind === "failed" && (
-            <>
-              <span>{t("errors.failed", { reason: t(`errors.reason.${errorView.reason}`) })}</span>
-              <Button kind="ghost" size="sm" onClick={onGenerate} disabled={generating}>
-                {t("actions.retry")}
-              </Button>
-            </>
-          )}
-          {errorView.kind === "unknown" && (
-            <>
-              <span>{t("errors.unknown", { message: errorView.message })}</span>
-              <Button kind="ghost" size="sm" onClick={onGenerate} disabled={generating}>
-                {t("actions.retry")}
-              </Button>
-            </>
-          )}
-        </div>
-      )}
-
-      {loadError ? (
-        <div role="alert" style={s.error}>
-          <span>{t("card.loadError")}</span>
-          <Button kind="ghost" size="sm" onClick={onRetryLoad}>
-            {t("actions.retry")}
-          </Button>
-        </div>
-      ) : brief ? (
-        <>
-          {data?.outdated && <p style={s.outdated}>{t("outdated", { sha: shortSha(brief.head_sha) })}</p>}
-          <p style={s.label}>{t("card.summary")}</p>
-          <p style={s.summary}>{brief.summary}</p>
-          <BriefNotes missing={brief.missing_inputs} truncated={brief.truncated} />
-          <BriefMeta brief={brief} />
-        </>
-      ) : generating || !data ? (
-        <Skeleton height={60} />
-      ) : (
-        <>
-          <p style={s.empty}>{t("unavailable")}</p>
-          <p style={s.emptyHint}>{t("unavailableHint")}</p>
-        </>
-      )}
+    <section style={s.root} aria-labelledby={headingId}>
+      <BriefSectionLabel id={headingId} icon="Sparkles">
+        {t("card.title")}
+      </BriefSectionLabel>
+      {content}
     </section>
   );
 }

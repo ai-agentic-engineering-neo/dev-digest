@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { Icon } from "@devdigest/ui";
 import type { BriefMissingInput, BriefTruncation } from "@/lib/types";
 import { truncationParts } from "../../helpers";
 import { s } from "./styles";
@@ -14,18 +15,21 @@ export function BriefNotes({ missing, truncated }: { missing: BriefMissingInput[
   return (
     <div style={s.root}>
       {missing.length > 0 && (
-        <>
-          <p style={s.title}>{t("missing.title")}</p>
-          <ul style={s.list}>
-            {missing.map((m) => (
-              <li key={m.input}>
-                {m.input === "intent" && t(`missing.intent.${m.reason}`)}
-                {m.input === "blast" && t("missing.blast", { reason: t(`missing.blastReason.${m.reason}`) })}
-                {m.input === "smart_diff_roles" && t("missing.smart_diff_roles")}
-              </li>
-            ))}
-          </ul>
-        </>
+        <div style={s.box}>
+          <Icon.AlertTriangle size={14} aria-hidden style={s.icon} />
+          <div>
+            <p style={s.title}>{t("missing.title")}</p>
+            <ul style={s.list}>
+              {missing.map((m) => (
+                <li key={m.input}>
+                  {m.input === "intent" && t(`missing.intent.${m.reason}`)}
+                  {m.input === "blast" && t("missing.blast", { reason: t(`missing.blastReason.${m.reason}`) })}
+                  {m.input === "smart_diff_roles" && t("missing.smart_diff_roles")}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
       )}
       {parts.length > 0 && (
         <p style={s.truncated}>

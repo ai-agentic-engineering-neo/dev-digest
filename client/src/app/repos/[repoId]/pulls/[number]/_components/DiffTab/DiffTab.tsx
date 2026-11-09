@@ -2,7 +2,8 @@
 
 import React from "react";
 import { SectionLabel, Button } from "@devdigest/ui";
-import { DiffViewer, type DiffCommentApi } from "@/components/diff-viewer";
+import { useTranslations } from "next-intl";
+import { DiffViewer, type DiffCommentApi, type LineRange } from "@/components/diff-viewer";
 import { usePrComments, useCreatePrComment } from "@/lib/hooks/reviews";
 import { notify } from "@/lib/toast";
 import type { PrFile } from "@devdigest/shared";
@@ -15,9 +16,12 @@ interface DiffTabProps {
   canComment?: boolean;
   /** File to open and scroll into view (from the PR brief). */
   focusPath?: string | null;
+  /** New-side line range to highlight inside the focused file. */
+  focusLines?: LineRange | null;
 }
 
-export function DiffTab({ prId, filesCount, files, canComment, focusPath }: DiffTabProps) {
+export function DiffTab({ prId, filesCount, files, canComment, focusPath, focusLines = null }: DiffTabProps) {
+  const t = useTranslations("brief");
   const { data: comments } = usePrComments(prId);
   const create = useCreatePrComment(prId);
   // Comments start hidden so the diff is clean by default — toggle to reveal.
@@ -61,7 +65,13 @@ export function DiffTab({ prId, filesCount, files, canComment, focusPath }: Diff
       >
         Files changed · {filesCount} files
       </SectionLabel>
-      <DiffViewer files={files} commenting={commenting} focusPath={focusPath} />
+      <DiffViewer
+        files={files}
+        commenting={commenting}
+        focusPath={focusPath}
+        focusLines={focusLines}
+        focusMissingNote={focusLines ? t("diffTarget.lineNotInDiff", { line: focusLines.start }) : null}
+      />
     </section>
   );
 }

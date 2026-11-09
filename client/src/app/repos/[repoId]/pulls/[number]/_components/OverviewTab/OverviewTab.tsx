@@ -9,6 +9,9 @@ import { IntentPanel } from "./_components/IntentPanel";
 import { PrBriefCard } from "./_components/PrBriefCard";
 import { ReviewFocusList } from "./_components/ReviewFocusList";
 import { RiskAreas } from "./_components/RiskAreas";
+import type { OpenDiffTarget } from "@/components/diff-viewer";
+import { usePrReviews, usePrRuns } from "@/lib/hooks/reviews";
+import { toBriefVerdict } from "./helpers";
 import { s } from "./styles";
 
 interface OverviewTabProps {
@@ -19,7 +22,7 @@ interface OverviewTabProps {
   /** A review is running for this PR — the intent panel polls until the run has derived it. */
   reviewRunning?: boolean;
   /** Opens a changed file in the Files changed tab. */
-  onOpenFile: (path: string) => void;
+  onOpenFile: OpenDiffTarget;
 }
 
 const SLOT_SKELETON_HEIGHT = 80;
@@ -33,6 +36,13 @@ export function OverviewTab({ prId, prBody, repoFullName, repoId, reviewRunning 
   const generating = generate.isPending || !!data?.generating;
   const linkSha = brief?.blast_link_sha ?? null;
   const awaitingBrief = !brief && generating;
+  const reviewsQuery = usePrReviews(prId);
+  const runsQuery = usePrRuns(prId);
+  const verdict = toBriefVerdict({
+    reviews: reviewsQuery.data,
+    runs: runsQuery.data,
+    failed: reviewsQuery.isError || runsQuery.isError,
+  });
 
   return (
     <>
@@ -44,6 +54,11 @@ export function OverviewTab({ prId, prBody, repoFullName, repoId, reviewRunning 
           generateError={generate.error}
           onGenerate={() => generate.mutate()}
           onRetryLoad={() => briefQuery.refetch()}
+          verdict={verdict}
+          onRetryVerdict={() => {
+            reviewsQuery.refetch();
+            runsQuery.refetch();
+          }}
         />
       )}
       {prId && (

@@ -16,6 +16,9 @@ export function VerdictBanner({
   findingsCount,
   blockers,
   agentName,
+  titleAside,
+  body,
+  stackOnNarrow = false,
 }: {
   verdict: Verdict;
   summary: string | null;
@@ -23,16 +26,22 @@ export function VerdictBanner({
   findingsCount: number;
   blockers: number;
   agentName?: string | null;
+  /** Rendered at the end of the title row (e.g. an info control). */
+  titleAside?: React.ReactNode;
+  /** Rendered in the main column instead of the summary paragraph. */
+  body?: React.ReactNode;
+  /** Let the score column drop below the text on narrow widths. */
+  stackOnNarrow?: boolean;
 }) {
   const t = useTranslations("prReview");
   const m = VERDICT_META[verdict] ?? VERDICT_META.comment;
   const VIcon = Icon[m.icon];
   return (
-    <div style={s.wrap}>
+    <div style={stackOnNarrow ? { ...s.wrap, ...s.wrapStacked } : s.wrap}>
       <div style={s.iconBox(m.bg, m.c)}>
         <VIcon size={22} />
       </div>
-      <div style={s.main}>
+      <div style={stackOnNarrow ? { ...s.main, ...s.mainStacked } : s.main}>
         <div style={s.titleRow}>
           <span style={s.label(m.c)}>{t(`verdict.${m.labelKey}`)}</span>
           <Badge color="var(--text-secondary)">
@@ -44,8 +53,10 @@ export function VerdictBanner({
               {agentName}
             </Badge>
           )}
+          {titleAside}
         </div>
-        {summary && <p style={s.summary}>{summary}</p>}
+        {body ?? null}
+        {body === undefined && summary && <p style={s.summary}>{summary}</p>}
       </div>
       {score != null && (
         <div style={s.scoreCol}>

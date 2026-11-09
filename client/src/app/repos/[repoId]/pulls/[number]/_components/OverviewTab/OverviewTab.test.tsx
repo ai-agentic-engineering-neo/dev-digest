@@ -3,7 +3,9 @@ import { render, screen, cleanup, fireEvent, waitFor, within } from "@testing-li
 import { NextIntlClientProvider } from "next-intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import briefMessages from "../../../../../../../../messages/en/brief.json";
+import prReviewMessages from "../../../../../../../../messages/en/prReview.json";
 import blastMessages from "../../../../../../../../messages/en/blast.json";
+import type { ReviewRecord, RunSummary } from "@devdigest/shared";
 import type { PrBlastRadius, PrBriefResponse, StoredBrief } from "@/lib/types";
 import { OverviewTab } from "./OverviewTab";
 
@@ -54,8 +56,29 @@ const response = (brief: StoredBrief | null): PrBriefResponse => ({
   brief,
 });
 
+const finding = (id: string, severity: "CRITICAL" | "WARNING") => ({ id, severity, dismissed_at: null }) as ReviewRecord["findings"][number];
+
+const REVIEW: ReviewRecord = {
+  id: "rev-1",
+  pr_id: PR_ID,
+  agent_id: null,
+  run_id: "run-1",
+  agent_name: "Security",
+  kind: "review",
+  verdict: "request_changes",
+  summary: null,
+  score: 61,
+  model: null,
+  created_at: "2026-11-09T10:00:00.000Z",
+  findings: [finding("f1", "CRITICAL"), finding("f2", "WARNING")],
+};
+
+const RUN = { run_id: "run-1", status: "done" } as RunSummary;
+
 /* Fake DevDigest API behind `api.*` — the real hooks run on top of it. */
 let stored: StoredBrief | null;
+let reviews: ReviewRecord[];
+let runs: RunSummary[];
 let resolvePost: (r: PrBriefResponse) => void;
 const apiGet = vi.fn();
 const apiPost = vi.fn();
@@ -67,8 +90,12 @@ vi.mock("@/lib/api", async (importOriginal) => {
 
 beforeEach(() => {
   stored = null;
+  reviews = [];
+  runs = [];
   apiGet.mockImplementation(async (path: string) => {
     if (path === `/pulls/${PR_ID}/brief`) return response(stored);
+    if (path === `/pulls/${PR_ID}/reviews`) return reviews;
+    if (path === `/pulls/${PR_ID}/runs`) return runs;
     if (path === `/pulls/${PR_ID}/intent`) return null;
     if (path === `/pulls/${PR_ID}/blast`) return BLAST;
     if (path === `/pulls/${PR_ID}/prior-pulls`) return { pr_id: PR_ID, total: 0, pulls: [] };
@@ -95,14 +122,19 @@ afterEach(() => {
 function renderTab() {
   const onOpenFile = vi.fn();
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  renderWith(qc, onOpenFile);
+  return onOpenFile;
+}
+
+function renderWith(qc: QueryClient, onOpenFile: () => void) {
   render(
     <QueryClientProvider client={qc}>
-      <NextIntlClientProvider locale="en" timeZone="UTC" messages={{ brief: briefMessages, blast: blastMessages }}>
+      <NextIntlClientProvider locale="en" timeZone="UTC" messages={{ prReview: prReviewMessages, brief: briefMessages, blast: blastMessages }}>
         <OverviewTab prId={PR_ID} prBody="Body" repoFullName="acme/app" repoId="repo-1" onOpenFile={onOpenFile} />
       </NextIntlClientProvider>
     </QueryClientProvider>,
   );
-  return onOpenFile;
+  return qc;
 }
 
 const follows = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
@@ -128,12 +160,15 @@ describe("OverviewTab", () => {
 
     const risks = await screen.findByRole("heading", { name: "Risk areas" });
     expect(follows(screen.getByText("Intent"), risks)).toBe(true);
+    const leftColumn = screen.getByText("Intent").closest("section")!;
+    expect(leftColumn).toContainElement(risks);
+    expect(within(screen.getByText("Blast radius").closest("section")!).queryByRole("heading", { name: "Risk areas" })).toBeNull();
     expect(follows(screen.getByText("Intent not yet analysed"), risks)).toBe(true);
 
     const focus = screen.getByRole("heading", { name: /Review focus/ }).closest("section")!;
     expect(follows(risks, focus)).toBe(true);
     fireEvent.click(within(focus).getByRole("button", { name: "Open src/auth/service.ts:40 in Files changed" }));
-    expect(onOpenFile).toHaveBeenCalledWith("src/auth/service.ts");
+    expect(onOpenFile).toHaveBeenCalledWith("src/auth/service.ts", { start: 40, end: 40 });
   });
 
   it("with no brief, still renders the Intent and Blast radius content next to the empty state", async () => {
@@ -165,5 +200,65 @@ describe("OverviewTab", () => {
     renderTab();
     expect(await screen.findByText(STORED.summary)).toBeInTheDocument();
     expect(apiPost).not.toHaveBeenCalled();
+  });
+
+  it("shows the newest finished review as the verdict and follows cache invalidation without a model call", async () => {
+    stored = STORED;
+    reviews = [REVIEW];
+    runs = [RUN];
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    renderWith(qc, vi.fn());
+
+    expect(await screen.findByText("Request changes")).toBeInTheDocument();
+    expect(screen.getByText("2 findings · 1 blockers")).toBeInTheDocument();
+    expect(screen.getByText("61")).toBeInTheDocument();
+    expect(screen.getByText(STORED.summary)).toBeInTheDocument();
+
+    reviews = [{ ...REVIEW, id: "rev-2", run_id: "run-2", verdict: "approve", created_at: "2026-11-09T11:00:00.000Z" }, REVIEW];
+    runs = [{ run_id: "run-2", status: "done" } as RunSummary, RUN];
+    await qc.invalidateQueries({ queryKey: ["reviews", PR_ID] });
+    await qc.invalidateQueries({ queryKey: ["pr-runs", PR_ID] });
+    expect(await screen.findByText("Approve")).toBeInTheDocument();
+    expect(apiPost).not.toHaveBeenCalled();
+
+    // Newest review deleted -> the previous verdict comes back, without remounting.
+    reviews = [REVIEW];
+    runs = [RUN];
+    await qc.invalidateQueries({ queryKey: ["reviews", PR_ID] });
+    await qc.invalidateQueries({ queryKey: ["pr-runs", PR_ID] });
+    expect(await screen.findByText("Request changes")).toBeInTheDocument();
+    expect(screen.queryByText("Approve")).not.toBeInTheDocument();
+
+    // All reviews deleted -> the review-less look, brief still shown.
+    reviews = [];
+    runs = [];
+    await qc.invalidateQueries({ queryKey: ["reviews", PR_ID] });
+    await qc.invalidateQueries({ queryKey: ["pr-runs", PR_ID] });
+    await waitFor(() => expect(screen.queryByText("Request changes")).not.toBeInTheDocument());
+    expect(screen.queryByText("Approve")).not.toBeInTheDocument();
+    expect(screen.queryByText(/findings/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/PR SCORE/i)).not.toBeInTheDocument();
+    expect(screen.getByText(STORED.summary)).toBeInTheDocument();
+    expect(apiPost).not.toHaveBeenCalled();
+  });
+
+  it("shows an unavailable note with Retry when the reviews fail to load, keeping the brief", async () => {
+    stored = STORED;
+    const base = apiGet.getMockImplementation()!;
+    let reviewCalls = 0;
+    apiGet.mockImplementation(async (path: string) => {
+      if (path === `/pulls/${PR_ID}/reviews`) {
+        reviewCalls += 1;
+        throw new Error("boom");
+      }
+      return base(path);
+    });
+    renderTab();
+
+    expect(await screen.findByText("Review verdict unavailable")).toBeInTheDocument();
+    expect(screen.getByText(STORED.summary)).toBeInTheDocument();
+    const before = reviewCalls;
+    fireEvent.click(screen.getByRole("button", { name: "Retry loading the review verdict" }));
+    await waitFor(() => expect(reviewCalls).toBeGreaterThan(before));
   });
 });

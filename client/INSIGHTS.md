@@ -15,6 +15,8 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 ## What Doesn't Work
 <!-- Dead ends and antipatterns — the most valuable section -->
 - 2026-11-05 — Closing a hover popover on the trigger's `onMouseLeave` breaks it even when the popover is a DOM child: the 6px gap between cell and popover leaves both, so it vanished before the cursor reached it (DevDigest flagged it, but blamed "not a descendant" — wrong cause) → close after a short delay (`CLOSE_DELAY_MS` 150) that `mouseenter` cancels; blur/Escape close immediately; also cap `maxHeight` to the space in the chosen direction (src/app/repos/[repoId]/pulls/_components/FindingsCell/FindingsCell.tsx:59 → scheduleClose; helpers.ts:24 → placePopover).
+- 2026-11-09 — A deep-link effect that force-opens a `FileCard` (`setOpen(true)`) and lists `open` in its deps re-opens the card every time the user collapses it, so a focused file can never be closed → remember the handled target key (`${path}:${start}-${end}`) in a ref and force-open / scroll / focus only when the key is new; when re-applying the line target on the controlled Smart Diff `FileCard` (`local/all-lessons`), keep this guard and swap `setOpen` for `onToggle` (src/components/diff-viewer/FileCard/FileCard.tsx:56 → handledTarget, :72 → focus effect).
+- 2026-11-09 — To style one ARGUMENT of a translated string, next-intl `t.rich` won't help with a plain `{reason}`: plain values accept only string/number/Date (a ReactNode fails tsc) and a function value isn't called; an implementer worked around it with a `"\0reason\0"` placeholder split out of the chunks, which put literal NUL bytes in the .tsx (the Edit tool then refuses the file as binary) → wrap the argument in a rich tag in the message, `<loc>{location}</loc> — <r>{reason}</r>`, and pass `r: (c) => <span style={s.reason}>{c}</span>` (tag name ≠ value name, see 2026-11-05 t.rich entry) (messages/en/brief.json:89 → link.withReason; …/OverviewTab/_components/BriefFileLink/BriefFileLink.tsx:47 → t.rich).
 
 ## Codebase Patterns
 <!-- Conventions and architecture decisions, with the reason -->
@@ -88,6 +90,7 @@ Add an entry only if forgetting it would make an agent (or a human) repeat the m
 - 2026-11-08 — SPEC-04 pr-self-review fixes: resync completion watches index `updatedAt`, refocus only at target position, Context tab not-cloned / no-docs states (+ RED-checked tests); seed review query workspace-scoped (server).
 - 2026-11-08 — SPEC-03 pr-self-review fixes: upload Overwrite keeps the conflict's folder, save keeps text typed in flight, create/copy seed both list caches, unresolved .devdigest id → skeleton/ErrorState, translated root chip, `scroll: false` (+ RED-checked tests).
 - 2026-11-08 — Specced PR Why + Risk Brief (SPEC-06, draft, 21 AC; module-local DTO, no vendor/shared edit), no code → ../specs/pr-brief.md.
+- 2026-11-09 — SPEC-07 PR Brief extras via /implement-plan (11 tasks, 4 waves): Overview verdict banner from the newest finished run, expandable risk cards, exact-line jump `?file=&line=&lineEnd=` with highlight/focus/fallback note, section labels, accent links → plans/pr-brief-extras.md.
 
 ## Open Questions
 <!-- Unresolved items, known gaps -->

@@ -57,6 +57,17 @@ export const s = {
     userSelect: "none",
     flexShrink: 0,
   } satisfies CSSProperties,
+  lineHighlighted: {
+    background: "var(--accent-bg)",
+    boxShadow: "inset 3px 0 0 var(--accent)",
+  } satisfies CSSProperties,
+  focusNote: {
+    padding: "8px 12px",
+    fontSize: 12,
+    color: "var(--warn)",
+    background: "var(--warn-bg)",
+    borderTop: "1px solid var(--border)",
+  } satisfies CSSProperties,
   lineText: {
     flex: 1,
     whiteSpace: "pre-wrap",

@@ -1,6 +1,6 @@
 # Implementation Plan: PR Brief extras — verdict banner, risk expand, exact-line focus, visual parity
 
-- **Status:** approved
+- **Status:** in progress
 - **Execution mode:** multi-agent  <!-- planner rule: 11 tasks (≥ 6) and W1 has 4 independent tasks; the caller asked the planner to pick by rule -->
 - **Goal:** On a PR's Overview the brief's summary sits in a verdict banner showing the newest finished review run (verdict, "N findings · M blockers", PR score, provenance info control); risks are compact cards that expand; a Review focus item or risk ref with a line opens Files changed scrolled to, highlighting and focusing that line (or the file header with a note); the brief uses section labels, severity-coloured risk icons, accent file links and a warning-style "Missing inputs" note.
 - **Specs:** `SPEC-07` — client/specs/pr-brief-extras.md (approved; supersedes SPEC-06 AC-2 risk layout and AC-9 click target only).
@@ -174,7 +174,7 @@ export function toBriefVerdict(input: { reviews: ReviewRecord[] | undefined; run
 ## Tasks
 
 ### T1 [W0] [frontend] Contracts: diff-target types, route URL/count helpers, all new `brief` strings
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `client/src/components/diff-viewer/focus.ts`, `client/src/components/diff-viewer/index.ts`, `client/messages/en/brief.json`, `…/constants.ts`, `…/helpers.ts`, `…/helpers.test.ts`
 - **Depends on:** —
 - **Covers:** SPEC-07/AC-3 (`reviewCounts`: dismissed counted in findings, not in blockers), SPEC-07/AC-9 (URL round-trip so a reload re-targets the same line)
@@ -193,7 +193,7 @@ export function toBriefVerdict(input: { reviews: ReviewRecord[] | undefined; run
   - `cd client && node node_modules/vitest/vitest.mjs run "src/app/repos/[repoId]/pulls/[number]/helpers.test.ts"` → all pass
 
 ### T2 [W0] [frontend] `useRefreshReviewsWhenRunsSettle`
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `client/src/lib/hooks/reviews.ts`, `client/src/lib/hooks/reviews.test.tsx`
 - **Depends on:** —
 - **Covers:** SPEC-07/AC-6 (a finished run reaches the review/run caches within 10 s, with no model call)
@@ -209,7 +209,7 @@ export function toBriefVerdict(input: { reviews: ReviewRecord[] | undefined; run
   - `cd client && node node_modules/vitest/vitest.mjs run src/lib/hooks/reviews.test.tsx` → all pass
 
 ### T3 [W0] [frontend] `BriefSectionLabel`
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `…/_components/OverviewTab/_components/BriefSectionLabel/{BriefSectionLabel.tsx,index.ts,styles.ts,BriefSectionLabel.test.tsx}`
 - **Depends on:** —
 - **Covers:** SPEC-07/AC-11 (icon + uppercase label like the Intent / Blast radius labels; count in a badge)
@@ -224,7 +224,7 @@ export function toBriefVerdict(input: { reviews: ReviewRecord[] | undefined; run
   - `cd client && node node_modules/vitest/vitest.mjs run BriefSectionLabel src/test/css-vars.test.ts` → all pass
 
 ### T4 [W1] [frontend] Files changed: exact-line target, highlight, focus, fallback note
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `client/src/components/diff-viewer/{helpers.ts,styles.ts}`, `client/src/components/diff-viewer/CodeLine/CodeLine.tsx`, `client/src/components/diff-viewer/FileCard/FileCard.tsx`, `client/src/components/diff-viewer/DiffViewer/{DiffViewer.tsx,DiffViewer.test.tsx}`, `…/_components/DiffTab/{DiffTab.tsx,DiffTab.test.tsx}`
 - **Depends on:** T1
 - **Covers:** SPEC-07/AC-9 (scroll, highlight range, keyboard focus on the target line; re-targets on mount = reload), SPEC-07/AC-10 (no line → header as SPEC-06; line not rendered → header + focus + announced note, no highlight)
@@ -247,7 +247,7 @@ export function toBriefVerdict(input: { reviews: ReviewRecord[] | undefined; run
   - `cd client && node node_modules/vitest/vitest.mjs run src/components/diff-viewer DiffTab src/test/smoke.test.tsx src/test/css-vars.test.ts` → all pass
 
 ### T5 [W1] [frontend] `VerdictBanner` slots + shared counts on the Agent runs tab
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `…/_components/VerdictBanner/{VerdictBanner.tsx,styles.ts,VerdictBanner.test.tsx}`, `…/_components/ReviewRunAccordion/{ReviewRunAccordion.tsx,ReviewRunAccordion.test.tsx}`
 - **Depends on:** T1
 - **Covers:** SPEC-07/AC-1 (verdict icon + label in the verdict colour, chip, score circle + "PR SCORE"), SPEC-07/AC-3 (same counts as the Agent runs tab; kit score thresholds; no score → no circle/label)
@@ -264,7 +264,7 @@ export function toBriefVerdict(input: { reviews: ReviewRecord[] | undefined; run
   - `cd client && node node_modules/vitest/vitest.mjs run VerdictBanner ReviewRunAccordion src/test/css-vars.test.ts` → all pass
 
 ### T6 [W1] [frontend] `BriefFileLink`: line/range target, accent styling, href helper
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `…/_components/OverviewTab/_components/BriefFileLink/{BriefFileLink.tsx,styles.ts,helpers.ts,helpers.test.ts,index.ts,BriefFileLink.test.tsx}`
 - **Depends on:** T1
 - **Covers:** SPEC-07/AC-9 (an in-diff ref with a line/range calls `onOpenFile(path, range)`), SPEC-07/AC-10 (no line → `onOpenFile(path, null)`; blast-only refs keep opening GitHub), SPEC-07/AC-12 (clickable refs mono + accent + hover; non-openable refs muted)
@@ -282,7 +282,7 @@ export function toBriefVerdict(input: { reviews: ReviewRecord[] | undefined; run
   - `cd client && node node_modules/vitest/vitest.mjs run BriefFileLink src/test/css-vars.test.ts` → all pass
 
 ### T7 [W1] [frontend] `VerdictProvenance` info control + warning-style "Missing inputs"
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `…/PrBriefCard/_components/VerdictProvenance/{VerdictProvenance.tsx,index.ts,styles.ts,VerdictProvenance.test.tsx}`, `…/PrBriefCard/_components/BriefNotes/{BriefNotes.tsx,styles.ts,BriefNotes.test.tsx}` (`…` = `…/_components/OverviewTab/_components`)
 - **Depends on:** T1
 - **Covers:** SPEC-07/AC-7 (hover + keyboard focus, text in the accessible name, agent + date/time + brief provenance), SPEC-07/AC-12 (missing inputs = warning note; truncated note stays muted — spec decision 8)
@@ -300,7 +300,7 @@ export function toBriefVerdict(input: { reviews: ReviewRecord[] | undefined; run
   - `cd client && node node_modules/vitest/vitest.mjs run VerdictProvenance BriefNotes src/test/css-vars.test.ts` → all pass
 
 ### T8 [W2] [frontend] `PrBriefCard`: "PR Brief" label + verdict banner around every brief state
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `…/PrBriefCard/{PrBriefCard.tsx,styles.ts,types.ts,index.ts,PrBriefCard.test.tsx}`, `…/PrBriefCard/_components/BriefBody/{BriefBody.tsx,index.ts,styles.ts}` (`…` = `…/_components/OverviewTab/_components`)
 - **Depends on:** T1, T3, T5, T7
 - **Covers:** SPEC-07/AC-1 (banner under the "PR Brief" label with the brief summary as its text), SPEC-07/AC-4 (no finished run → SPEC-06 look; review data error → note + Retry, brief usable), SPEC-07/AC-5 (verdict/chip/score kept in every brief state; Generate/Regenerate names unchanged), SPEC-07/AC-7 (info control in the banner title row), SPEC-07/AC-11 ("PR Brief" section label), SPEC-07/AC-12 (meta line small + muted)
@@ -323,7 +323,7 @@ export function toBriefVerdict(input: { reviews: ReviewRecord[] | undefined; run
   - `cd client && node node_modules/vitest/vitest.mjs run PrBriefCard src/test/css-vars.test.ts` → all pass
 
 ### T9 [W2] [frontend] `RiskAreas`: compact expandable risk cards
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `…/RiskAreas/{RiskAreas.tsx,styles.ts,constants.ts,RiskAreas.test.tsx}`, `…/RiskAreas/_components/RiskCard/{RiskCard.tsx,index.ts,styles.ts}` (`…` = `…/_components/OverviewTab/_components`)
 - **Depends on:** T1, T3, T6
 - **Covers:** SPEC-07/AC-8 (collapsed card, keyboard toggle with `aria-expanded`, expanded explanation + all refs, independent, start collapsed), SPEC-07/AC-9 (risk ref with a range → `onOpenFile(path, range)`), SPEC-07/AC-10 (ref without range → file-level), SPEC-07/AC-11 ("Risk areas" section label), SPEC-07/AC-12 (bordered cards, kind icon coloured by severity, unknown kind → warning icon)
@@ -344,7 +344,7 @@ export function toBriefVerdict(input: { reviews: ReviewRecord[] | undefined; run
   - `cd client && node node_modules/vitest/vitest.mjs run RiskAreas RiskCard src/test/css-vars.test.ts` → all pass
 
 ### T10 [W2] [frontend] `ReviewFocusList`: count badge, line targets, accent paths
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `…/_components/OverviewTab/_components/ReviewFocusList/{ReviewFocusList.tsx,styles.ts,ReviewFocusList.test.tsx}`
 - **Depends on:** T1, T3, T6
 - **Covers:** SPEC-07/AC-9 (an item with a line → `onOpenFile(file, { start: line, end: line })`), SPEC-07/AC-10 (file-level item → `onOpenFile(file, null)`; blast-only stays a GitHub link), SPEC-07/AC-11 (label with icon, count in a badge instead of "(N)"), SPEC-07/AC-12 (focus paths mono accent)
@@ -362,7 +362,7 @@ export function toBriefVerdict(input: { reviews: ReviewRecord[] | undefined; run
   - `cd client && node node_modules/vitest/vitest.mjs run ReviewFocusList` → all pass
 
 ### T11 [W3] [frontend] Integration: Overview verdict data, page wiring (line URL + settle refresh)
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `…/_components/OverviewTab/{OverviewTab.tsx,helpers.ts,helpers.test.ts,OverviewTab.test.tsx}`, `…/page.tsx`
 - **Depends on:** T1, T2, T4, T5, T8, T9, T10
 - **Covers:** SPEC-07/AC-2 (newest finished run selection), SPEC-07/AC-4 (no finished run / load failure + Retry with real hooks), SPEC-07/AC-6 (banner follows the caches with no reload and 0 model calls; page calls the settle hook), SPEC-07/AC-9 (click → `?tab=diff&file=&line=&lineEnd=` → DiffTab), SPEC-07/AC-1 (end-to-end in the Overview); also closes the SPEC-06 follow-up T14.AC2 from `plans/pr-brief.md` (Risk areas in the left column — user decision 2026-11-09)

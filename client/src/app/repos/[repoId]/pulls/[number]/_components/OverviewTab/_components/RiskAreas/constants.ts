@@ -10,8 +10,8 @@ export const RISK_KIND_ICON: Record<string, typeof Icon.Shield> = {
 };
 export const RISK_KIND_ICON_FALLBACK = Icon.AlertTriangle;
 
-export const SEVERITY_ICON: Record<BriefRisk["severity"], { icon: typeof Icon.Info; color: string }> = {
-  high: { icon: Icon.AlertOctagon, color: "var(--crit)" },
-  medium: { icon: Icon.AlertTriangle, color: "var(--warn)" },
-  low: { icon: Icon.Info, color: "var(--info)" },
+export const RISK_SEVERITY_COLOR: Record<BriefRisk["severity"], string> = {
+  high: "var(--crit)",
+  medium: "var(--warn)",
+  low: "var(--info)",
 };

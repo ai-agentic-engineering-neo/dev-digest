@@ -1,11 +1,23 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { ComponentProps } from "react";
 import messages from "../../../../../../../../../../messages/en/brief.json";
+import prReviewMessages from "../../../../../../../../../../messages/en/prReview.json";
 import { ApiError } from "@/lib/api";
 import type { PrBriefResponse, StoredBrief } from "@/lib/types";
 import { PrBriefCard } from "./PrBriefCard";
+import type { BriefVerdict } from "./types";
+
+const READY: BriefVerdict = {
+  state: "ready",
+  verdict: "request_changes",
+  score: 61,
+  findings: 6,
+  blockers: 2,
+  agentName: "Security Reviewer",
+  reviewedAt: "2026-11-09T10:00:00.000Z",
+};
 
 afterEach(cleanup);
 
@@ -40,7 +52,7 @@ function makeData(over: Partial<PrBriefResponse> = {}): PrBriefResponse {
 function renderCard(props: Partial<ComponentProps<typeof PrBriefCard>> = {}) {
   const onGenerate = vi.fn();
   render(
-    <NextIntlClientProvider locale="en" timeZone="UTC" messages={{ brief: messages }}>
+    <NextIntlClientProvider locale="en" timeZone="UTC" messages={{ brief: messages, prReview: prReviewMessages }}>
       <PrBriefCard
         data={makeData()}
         loadError={false}
@@ -139,5 +151,129 @@ describe("PrBriefCard", () => {
 
     renderCard({ generateError: new ApiError("x", 422, "brief_too_large", { tokens: 9120, limit: 8000 }) });
     expect(screen.getByRole("alert")).toHaveTextContent("PR too large for brief — 9,120 / 8,000 tokens");
+  });
+
+  it("wraps the brief in a verdict banner under the PR Brief label and keeps it in every state", () => {
+    renderCard({ data: makeData({ brief: BRIEF }), verdict: READY });
+    const heading = screen.getByRole("heading", { name: "PR Brief" });
+    expect(heading).toBeInTheDocument();
+    expect(screen.getByText("Request changes")).toBeInTheDocument();
+    expect(screen.getByText(/6 findings/)).toHaveTextContent("2 blockers");
+    expect(screen.getByText("61")).toBeInTheDocument();
+    expect(screen.getByText("PR SCORE")).toBeInTheDocument();
+    expect(screen.getByText("Adds <b>x</b> to config")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Security Reviewer's review run of/ })).toBeInTheDocument();
+    cleanup();
+
+    renderCard({ verdict: READY });
+    expect(screen.getByText("Request changes")).toBeInTheDocument();
+    expect(screen.getByText("No brief yet.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Generate brief" })).toBeEnabled();
+    cleanup();
+
+    renderCard({ data: makeData({ brief: BRIEF, outdated: true }), verdict: READY });
+    expect(screen.getByText("Outdated — generated for abcdef1")).toBeInTheDocument();
+    expect(screen.getByText("Request changes")).toBeInTheDocument();
+  });
+
+  it("shows no verdict UI without a finished run, and an alert with Retry on a verdict error", () => {
+    renderCard({ verdict: { state: "none" } });
+    expect(screen.queryByText("PR SCORE")).not.toBeInTheDocument();
+    expect(screen.queryByText(/findings/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /review run of/ })).not.toBeInTheDocument();
+    cleanup();
+
+    const onRetryVerdict = vi.fn();
+    const onGenerate = renderCard({ verdict: { state: "error" }, onRetryVerdict });
+    expect(screen.getByText("Review verdict unavailable")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Retry loading the review verdict" }));
+    expect(onRetryVerdict).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Generate brief" }));
+    expect(onGenerate).toHaveBeenCalledTimes(1);
+  });
+
+  const BANNER_CASES: Array<{
+    name: string;
+    props: Partial<ComponentProps<typeof PrBriefCard>>;
+    expectBody: () => void;
+  }> = [
+    {
+      name: "no brief",
+      props: {},
+      expectBody: () => {
+        expect(screen.getByText("No brief yet.")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Generate brief" })).toBeEnabled();
+        expect(screen.getByText("Risk Brief model: deepseek/deepseek-v4-flash")).toBeInTheDocument();
+      },
+    },
+    {
+      name: "generating",
+      props: { data: makeData({ generating: true }), generating: true },
+      expectBody: () => {
+        expect(screen.getByRole("button", { name: "Generate brief" })).toBeDisabled();
+        expect(screen.getByRole("status")).toHaveTextContent("Generating brief…");
+      },
+    },
+    {
+      name: "generation failed",
+      props: { generateError: new ApiError("x", 502, "brief_generation_failed", { reason: "timeout" }) },
+      expectBody: () => {
+        expect(screen.getByRole("alert")).toHaveTextContent("Brief generation failed");
+        expect(screen.getByRole("button", { name: "Retry" })).toBeEnabled();
+      },
+    },
+    {
+      name: "outdated",
+      props: { data: makeData({ brief: BRIEF, outdated: true }) },
+      expectBody: () => {
+        expect(screen.getByText("Outdated — generated for abcdef1")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Regenerate" })).toBeEnabled();
+      },
+    },
+    {
+      name: "no changed files",
+      props: { data: makeData({ changed_files: 0 }) },
+      expectBody: () => {
+        expect(screen.getByRole("button", { name: "Generate brief" })).toBeDisabled();
+        expect(screen.getByText("This PR has no changed files — nothing to brief")).toBeInTheDocument();
+      },
+    },
+    {
+      name: "ready",
+      props: { data: makeData({ brief: BRIEF }) },
+      expectBody: () => {
+        expect(screen.getByText("Adds <b>x</b> to config")).toBeInTheDocument();
+      },
+    },
+  ];
+
+  it.each(BANNER_CASES)("keeps the verdict banner when the brief is in the $name state", ({ props, expectBody }) => {
+    renderCard({ ...props, verdict: READY });
+    expect(screen.getByText("Request changes")).toBeInTheDocument();
+    expect(screen.getByText("6 findings · 2 blockers")).toBeInTheDocument();
+    expect(screen.getByText("61")).toBeInTheDocument();
+    expectBody();
+  });
+
+  it("places the provenance info button in the banner title row next to the verdict label", () => {
+    renderCard({ data: makeData({ brief: BRIEF }), verdict: READY });
+    const label = screen.getByText("Request changes");
+    const button = screen.getByRole("button", { name: /Security Reviewer's review run of/ });
+    expect(label.parentElement).not.toBeNull();
+    expect(label.parentElement).toContainElement(button);
+  });
+
+  it("renders an uppercase PR Brief heading before the banner", () => {
+    renderCard({ data: makeData({ brief: BRIEF }), verdict: READY });
+    const heading = screen.getByRole("heading", { name: "PR Brief" });
+    expect(within(heading).getByText("PR Brief")).toHaveStyle({ textTransform: "uppercase" });
+    const label = screen.getByText("Request changes");
+    expect(heading.compareDocumentPosition(label) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("renders the meta line at 12px in the muted text color", () => {
+    renderCard({ data: makeData({ brief: BRIEF }) });
+    const meta = screen.getByText(/1,234 → 210 tok/);
+    expect(meta).toHaveStyle({ fontSize: "12px", color: "var(--text-muted)" });
   });
 });

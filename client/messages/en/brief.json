@@ -25,12 +25,23 @@
   "noFiles": "This PR has no changed files — nothing to brief",
   "noFocus": "No review focus items.",
   "focus": {
-    "title": "Review focus — read these first ({count})",
-    "item": "{location} — {reason}"
+    "title": "Review focus — read these first"
   },
   "risk": {
     "severity": { "high": "High", "medium": "Medium", "low": "Low" },
-    "files": "Files"
+    "files": "Files",
+    "moreRefs": "+{count} more",
+    "expand": "Show details: {title}",
+    "collapse": "Hide details: {title}"
+  },
+  "verdict": {
+    "unavailable": "Review verdict unavailable",
+    "retry": "Retry loading the review verdict",
+    "provenance": "Verdict, findings and score come from {agent}'s review run of {when}. Summary, risks and review focus come from the brief.",
+    "unknownAgent": "an agent"
+  },
+  "diffTarget": {
+    "lineNotInDiff": "Line {line} isn't part of this diff — showing the file"
   },
   "outdated": "Outdated — generated for {sha}",
   "missing": {
@@ -74,7 +85,8 @@
   },
   "link": {
     "openInDiff": "Open {location} in Files changed",
-    "openOnGithub": "Open {location} on GitHub"
+    "openOnGithub": "Open {location} on GitHub",
+    "withReason": "<loc>{location}</loc> — <r>{reason}</r>"
   },
   "why": {
     "title": "git-why",

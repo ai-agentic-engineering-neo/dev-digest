@@ -1,17 +1,24 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import React from "react";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createQueryClient } from "../query-client";
 import { ApiError, api } from "../api";
-import { useRunReviewsParallel } from "./reviews";
+import {
+  useRunReviewsParallel,
+  usePrActiveRuns,
+  usePrReviews,
+  usePrRuns,
+  useRefreshReviewsWhenRunsSettle,
+} from "./reviews";
 
 vi.mock("../api", async (orig) => ({
   ...(await orig<typeof import("../api")>()),
-  api: { post: vi.fn() },
+  api: { post: vi.fn(), get: vi.fn() },
 }));
 
 const post = vi.mocked(api.post);
+const get = vi.mocked(api.get);
 
 function setup() {
   const qc = createQueryClient();
@@ -83,5 +90,62 @@ describe("useRunReviewsParallel", () => {
       results = await hook.result.current.mutateAsync(["a"]);
     });
     expect(results).toEqual([{ agent_id: "a", ok: false, error: null }]);
+  });
+});
+
+describe("useRefreshReviewsWhenRunsSettle", () => {
+  let activeRuns: unknown[];
+
+  function useHarness(id: string) {
+    const active = usePrActiveRuns(id);
+    useRefreshReviewsWhenRunsSettle(id, (active.data?.length ?? 0) > 0);
+    usePrReviews(id);
+    usePrRuns(id);
+  }
+
+  const calls = (path: string) => get.mock.calls.filter((c) => c[0] === path).length;
+
+  beforeEach(() => {
+    post.mockReset();
+    get.mockReset();
+    get.mockImplementation(async (path: string) => (path.endsWith("/runs/active") ? activeRuns : []));
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function mount() {
+    const qc = createQueryClient();
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    );
+    renderHook(() => useHarness("pr1"), { wrapper });
+  }
+
+  it("re-requests reviews and runs when the active run settles, without any model call", async () => {
+    activeRuns = [{ run_id: "r1", agent_id: "a", agent_name: "A", ran_at: null }];
+    mount();
+    await waitFor(() => expect(calls("/pulls/pr1/reviews")).toBe(1));
+    expect(calls("/pulls/pr1/runs")).toBe(1);
+
+    activeRuns = [];
+    await act(() => vi.advanceTimersByTimeAsync(10_000));
+
+    await waitFor(() => expect(calls("/pulls/pr1/reviews")).toBe(2));
+    expect(calls("/pulls/pr1/runs")).toBe(2);
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it("does not refetch when nothing was ever running", async () => {
+    activeRuns = [];
+    mount();
+    await waitFor(() => expect(calls("/pulls/pr1/reviews")).toBe(1));
+
+    await act(() => vi.advanceTimersByTimeAsync(10_000));
+
+    expect(calls("/pulls/pr1/reviews")).toBe(1);
+    expect(calls("/pulls/pr1/runs")).toBe(1);
   });
 });

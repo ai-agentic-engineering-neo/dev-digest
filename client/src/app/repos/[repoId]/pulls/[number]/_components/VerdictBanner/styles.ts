@@ -21,7 +21,9 @@ export const s = {
     color,
     flexShrink: 0,
   }),
+  wrapStacked: { flexWrap: "wrap" } satisfies CSSProperties,
   main: { flex: 1, minWidth: 0 } satisfies CSSProperties,
+  mainStacked: { flex: "1 1 320px" } satisfies CSSProperties,
   titleRow: {
     display: "flex",
     alignItems: "center",

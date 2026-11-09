@@ -18,6 +18,9 @@ import RunTraceDrawer from "@/components/run-trace-drawer";
 import { usePullDetail, usePulls } from "../../../../../lib/hooks";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePrReviews, useCancelRun, usePrActiveRuns, usePrRuns, useDeleteRun } from "../../../../../lib/hooks/reviews";
+import type { LineRange } from "@/components/diff-viewer";
+import { diffFocusFrom, withDiffFocus, withTab } from "./helpers";
+import { useRefreshReviewsWhenRunsSettle } from "../../../../../lib/hooks/reviews";
 import { useRefreshIntentWhenRunsSettle } from "../../../../../lib/hooks/intent";
 import { useActiveRepo, useRepoNotFound } from "../../../../../lib/repo-context";
 import { ApiError } from "../../../../../lib/api";
@@ -50,6 +53,8 @@ export default function PRDetailPage() {
   const reviewRunning = liveRunIds.length > 0;
   // Intent is derived at the start of every review — re-read it when runs settle, on any tab.
   useRefreshIntentWhenRunsSettle(prId, reviewRunning);
+  // The Overview verdict banner follows the review + run lists — re-read them when runs settle, on any tab.
+  useRefreshReviewsWhenRunsSettle(prId, reviewRunning);
   const cancel = useCancelRun();
   const invalidateActiveRuns = () => {
     if (prId) qc.invalidateQueries({ queryKey: ["pr-active-runs", prId] });
@@ -69,18 +74,13 @@ export default function PRDetailPage() {
     router.replace(`/repos/${repoId}/pulls/${number}${sp.toString() ? `?${sp.toString()}` : ""}`);
   };
   const setTab = (t: string) => {
-    const sp = new URLSearchParams(search.toString());
-    sp.set("tab", t);
-    sp.delete("file");
-    router.replace(`/repos/${repoId}/pulls/${number}?${sp.toString()}`);
+    router.replace(`/repos/${repoId}/pulls/${number}?${withTab(search.toString(), t)}`);
   };
-  // A brief file link: switch to Files changed and focus the file in ONE navigation.
-  const openFileInDiff = (path: string) => {
-    const sp = new URLSearchParams(search.toString());
-    sp.set("tab", "diff");
-    sp.set("file", path);
-    router.replace(`/repos/${repoId}/pulls/${number}?${sp.toString()}`);
+  // A brief file/line link: switch to Files changed and focus the file (and line) in ONE navigation.
+  const openFileInDiff = (path: string, lines?: LineRange | null) => {
+    router.replace(`/repos/${repoId}/pulls/${number}?${withDiffFocus(search.toString(), path, lines ?? null)}`);
   };
+  const focus = diffFocusFrom(search);
 
   // Reviews come newest-first; each is its own run (grouped into accordions).
   const runs = reviews ?? [];
@@ -184,7 +184,8 @@ export default function PRDetailPage() {
             filesCount={pr.files_count}
             files={pr.files}
             canComment={pr.status === "open"}
-            focusPath={search.get("file")}
+            focusPath={focus.path}
+            focusLines={focus.lines}
           />
         )}
       </div>

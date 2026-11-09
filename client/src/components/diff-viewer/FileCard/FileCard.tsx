@@ -7,7 +7,8 @@ import { useTranslations } from "next-intl";
 import { Icon } from "@devdigest/ui";
 import type { PrFile } from "@/lib/types";
 import { AUTO_EXPAND_MAX_LINES } from "../constants";
-import { parsePatch, type Line } from "../helpers";
+import { findLineTarget, parsePatch, type Line } from "../helpers";
+import type { LineRange } from "../focus";
 import {
   buildThreads,
   keysForLine,
@@ -34,25 +35,60 @@ export function FileCard({
   file,
   commenting,
   focused = false,
+  focusLines = null,
+  focusMissingNote = null,
 }: {
   file: PrFile;
   commenting?: DiffCommentApi;
   /** Deep-linked file: mounts open and scrolls its header into view. */
   focused?: boolean;
+  /** Deep-linked new-side line range inside the focused file. */
+  focusLines?: LineRange | null;
+  /** Announced under the header when the target line is not part of the diff. */
+  focusMissingNote?: string | null;
 }) {
   const t = useTranslations("shell");
   const [open, setOpen] = React.useState(
     focused || (file.additions ?? 0) + (file.deletions ?? 0) <= AUTO_EXPAND_MAX_LINES
   );
   const headerRef = React.useRef<HTMLDivElement>(null);
-
-  // Focus can move to this card without a remount: open it and bring it into view.
-  React.useEffect(() => {
-    if (!focused) return;
-    setOpen(true);
-    headerRef.current?.scrollIntoView({ block: "start" });
-  }, [focused]);
+  const targetRowRef = React.useRef<HTMLDivElement>(null);
+  const handledTarget = React.useRef<string | null>(null);
   const lines = React.useMemo(() => parsePatch(file.patch), [file.patch]);
+
+  const rangeStart = focusLines?.start;
+  const rangeEnd = focusLines?.end;
+  const lineTarget = React.useMemo(
+    () =>
+      focused && rangeStart !== undefined && rangeEnd !== undefined
+        ? findLineTarget(lines, { start: rangeStart, end: rangeEnd })
+        : null,
+    [focused, lines, rangeStart, rangeEnd]
+  );
+  const hasLineTarget = focused && rangeStart !== undefined;
+
+  // Focus can move to this card without a remount: open it, then scroll to the
+  // target line (or the header) once per new target.
+  React.useEffect(() => {
+    if (!focused) {
+      handledTarget.current = null;
+      return;
+    }
+    const key = rangeStart !== undefined ? `${rangeStart}-${rangeEnd}` : "header";
+    if (handledTarget.current === key) return; // already scrolled; let the user collapse the card
+    if (!open) {
+      setOpen(true);
+      return;
+    }
+    handledTarget.current = key;
+    if (lineTarget && targetRowRef.current) {
+      targetRowRef.current.scrollIntoView({ block: "center" });
+      targetRowRef.current.focus();
+      return;
+    }
+    headerRef.current?.scrollIntoView({ block: "start" });
+    if (rangeStart !== undefined) headerRef.current?.focus();
+  }, [focused, open, rangeStart, rangeEnd, lineTarget]);
 
   // Group this file's comments into threads, then split into ones we can anchor
   // to a rendered line vs. "outdated" (GitHub dropped the line / it's not here).
@@ -71,7 +107,7 @@ export function FileCard({
 
   return (
     <div style={s.fileCard}>
-      <div ref={headerRef} onClick={() => setOpen((o) => !o)} style={s.fileHeader}>
+      <div ref={headerRef} tabIndex={-1} onClick={() => setOpen((o) => !o)} style={s.fileHeader}>
         <Icon.ChevronRight size={13} style={chevronFor(open)} />
         <Icon.FileText size={14} style={s.fileIcon} />
         <span className="mono" style={s.filePath}>
@@ -90,6 +126,11 @@ export function FileCard({
           </span>
         )}
       </div>
+      {hasLineTarget && !lineTarget && focusMissingNote && (
+        <div role="status" style={s.focusNote}>
+          {focusMissingNote}
+        </div>
+      )}
       {open && (
         <div style={s.fileBody}>
           {lines.length === 0 ? (
@@ -102,6 +143,8 @@ export function FileCard({
                 path={file.path}
                 threads={threadsForLine(ln, matched)}
                 commenting={commenting}
+                highlighted={lineTarget?.highlighted.has(i) ?? false}
+                rowRef={lineTarget?.targetIndex === i ? targetRowRef : undefined}
               />
             ))
           )}

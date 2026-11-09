@@ -1,18 +1,19 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import type { OpenDiffTarget } from "@/components/diff-viewer";
 import type { BriefFocusItem } from "@/lib/types";
 import { BriefFileLink, fileLocation } from "../BriefFileLink";
+import { BriefSectionLabel } from "../BriefSectionLabel";
 import { s } from "./styles";
 
 interface Shared {
   repoFullName: string | null;
   linkSha: string | null;
-  onOpenFile: (path: string) => void;
+  onOpenFile: OpenDiffTarget;
 }
 
 function FocusItem({ item, repoFullName, linkSha, onOpenFile }: Shared & { item: BriefFocusItem }) {
-  const t = useTranslations("brief");
   const line = item.file_level ? null : item.line;
   return (
     <li style={s.item}>
@@ -23,13 +24,14 @@ function FocusItem({ item, repoFullName, linkSha, onOpenFile }: Shared & { item:
         repoFullName={repoFullName}
         linkSha={linkSha}
         onOpenFile={onOpenFile}
-        label={t("focus.item", { location: fileLocation(item.file, line), reason: item.reason })}
+        label={fileLocation(item.file, line)}
+        reason={item.reason}
       />
     </li>
   );
 }
 
-/** Full-width "Review focus — read these first" list, in model order; items open the file in Files changed or on GitHub. */
+/** Full-width "Review focus — read these first" list, in model order; items open the file (at the line) in Files changed or on GitHub. */
 export function ReviewFocusList({
   items,
   repoFullName,
@@ -40,7 +42,9 @@ export function ReviewFocusList({
 
   return (
     <section style={s.root}>
-      <h3 style={s.heading}>{t("focus.title", { count: items.length })}</h3>
+      <BriefSectionLabel icon="ListChecks" count={items.length}>
+        {t("focus.title")}
+      </BriefSectionLabel>
       {items.length === 0 ? (
         <p style={s.empty}>{t("noFocus")}</p>
       ) : (

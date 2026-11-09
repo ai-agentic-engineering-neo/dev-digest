@@ -4,24 +4,18 @@ const root = {
   display: "flex",
   flexDirection: "column",
   gap: 12,
+  minWidth: 0,
+} as const satisfies CSSProperties;
+const box = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 12,
   padding: 14,
   border: "1px solid var(--border)",
   borderRadius: 10,
   background: "var(--bg-elevated)",
 } as const satisfies CSSProperties;
-const header = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" } as const satisfies CSSProperties;
-const titleBox = { display: "flex", flexDirection: "column", gap: 2 } as const satisfies CSSProperties;
-const title = { margin: 0, fontSize: 14, fontWeight: 600 } as const satisfies CSSProperties;
-const model = { fontSize: 12, color: "var(--text-muted)" } as const satisfies CSSProperties;
-const actions = { display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 } as const satisfies CSSProperties;
-const hint = { margin: 0, fontSize: 12, color: "var(--text-muted)" } as const satisfies CSSProperties;
-const status = { fontSize: 12, color: "var(--info)" } as const satisfies CSSProperties;
-const outdated = { margin: 0, fontSize: 12, fontWeight: 600, color: "var(--warn)" } as const satisfies CSSProperties;
-const label = { margin: 0, fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.4, color: "var(--text-muted)" } as const satisfies CSSProperties;
-const summary = { margin: 0, fontSize: 13, whiteSpace: "pre-wrap", overflowWrap: "anywhere", color: "var(--text-secondary)" } as const satisfies CSSProperties;
-const empty = { margin: 0, fontSize: 13, color: "var(--text-muted)" } as const satisfies CSSProperties;
-const emptyHint = { margin: 0, fontSize: 12, color: "var(--text-muted)" } as const satisfies CSSProperties;
-const error = {
+const verdictError = {
   display: "flex",
   alignItems: "center",
   gap: 10,
@@ -32,6 +26,5 @@ const error = {
   fontSize: 13,
   color: "var(--crit)",
 } as const satisfies CSSProperties;
-const link = { color: "var(--info)", textDecoration: "underline" } as const satisfies CSSProperties;
 
-export const s = { root, header, titleBox, title, model, actions, hint, status, outdated, label, summary, empty, emptyHint, error, link };
+export const s = { root, box, verdictError };

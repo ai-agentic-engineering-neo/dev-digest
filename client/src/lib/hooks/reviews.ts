@@ -57,6 +57,23 @@ export function usePrReviews(prId: string | null | undefined) {
   });
 }
 
+/** Re-reads the PR's reviews and run list once every time its runs go from running to settled,
+   whichever tab is open (`usePrReviews` never polls). Mirrors `useRefreshIntentWhenRunsSettle`. */
+export function useRefreshReviewsWhenRunsSettle(
+  prId: string | null | undefined,
+  reviewRunning: boolean,
+) {
+  const qc = useQueryClient();
+  const wasRunning = React.useRef(reviewRunning);
+  React.useEffect(() => {
+    if (wasRunning.current && !reviewRunning && prId) {
+      qc.invalidateQueries({ queryKey: ["reviews", prId] });
+      qc.invalidateQueries({ queryKey: ["pr-runs", prId] });
+    }
+    wasRunning.current = reviewRunning;
+  }, [prId, reviewRunning, qc]);
+}
+
 /** Delete one run from the PR's run history (+ its trace). */
 export function useDeleteRun(prId: string | null | undefined) {
   const qc = useQueryClient();

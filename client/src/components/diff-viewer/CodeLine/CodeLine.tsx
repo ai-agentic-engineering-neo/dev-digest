@@ -14,11 +14,17 @@ export function CodeLine({
   path,
   threads,
   commenting,
+  highlighted = false,
+  rowRef,
 }: {
   ln: Line;
   path: string;
   threads: CommentThread[];
   commenting?: DiffCommentApi;
+  /** Row is inside the deep-linked line range. */
+  highlighted?: boolean;
+  /** Attached to the row of the deep-link target so it can be scrolled to and focused. */
+  rowRef?: React.Ref<HTMLDivElement>;
 }) {
   const [hover, setHover] = React.useState(false);
   const [composing, setComposing] = React.useState(false);
@@ -41,7 +47,12 @@ export function CodeLine({
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
-      <div style={lineRowFor(ln.kind)}>
+      <div
+        ref={rowRef}
+        tabIndex={rowRef ? -1 : undefined}
+        data-highlighted={highlighted ? "true" : undefined}
+        style={highlighted ? { ...lineRowFor(ln.kind), ...s.lineHighlighted } : lineRowFor(ln.kind)}
+      >
         <span className="mono tnum" style={{ ...s.lineNo, position: "relative" }}>
           {showAdd && target && (
             <button

@@ -12,6 +12,8 @@ export const s = {
   } satisfies CSSProperties,
   /** Label row + card row; the card row (1fr) stretches so both cards share the taller one's height. */
   column: { display: "grid", gridTemplateRows: "auto 1fr", minWidth: 0 } satisfies CSSProperties,
+  /** Intent card with the brief's Risk areas under it. */
+  stack: { display: "flex", flexDirection: "column", gap: 16, minWidth: 0 } satisfies CSSProperties,
   descriptionBox: {
     border: "1px solid var(--border)",
     borderRadius: 8,

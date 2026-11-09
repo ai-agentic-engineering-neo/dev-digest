@@ -11,6 +11,7 @@ import {
 } from './seed-prompts.js';
 import { RETIRED_SEED_SKILLS, SEED_AGENT_SKILLS, SEED_SKILLS } from './seed-skills.js';
 import { versionNote } from '../modules/skills/domain.js';
+import type { StoredBrief } from '../modules/brief/domain/types.js';
 
 /** Default provider/model for the built-in reviewer agents. */
 const DEFAULT_PROVIDER = 'openrouter' as const;
@@ -249,9 +250,50 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
 
   await seedReviewRun(db, workspaceId, pr!.id);
 
+  await seedBrief(db, pr!.id);
+
   await seedSkills(db, workspaceId);
 
   return { workspaceId, userId };
+}
+
+/**
+ * A stored PR Brief for the seeded PR #482 (SPEC-06 AC-10: shown on open, no model call). Metadata-only
+ * text, no code-level claims. The seeded files have no patch, so focus items are file-level (line 1).
+ * `head_sha` equals the seeded head so the brief is not outdated. Idempotent. Seed data only.
+ */
+async function seedBrief(db: Db, prId: string): Promise<void> {
+  const json = {
+    summary:
+      'Adds rate limiting for public API endpoints. The change touches the rate limit middleware and the configuration.',
+    risks: [
+      {
+        kind: 'abuse protection',
+        title: 'Rate limit settings affect all public endpoints',
+        explanation: 'The middleware and configuration changes apply to every public route, so limits need a careful look.',
+        severity: 'medium',
+        file_refs: ['src/middleware/ratelimit.ts'],
+        refs: [
+          { ref: 'src/middleware/ratelimit.ts', path: 'src/middleware/ratelimit.ts', start_line: null, end_line: null, in_diff: true },
+        ],
+      },
+    ],
+    review_focus: [
+      { file: 'src/middleware/ratelimit.ts', line: 1, file_level: true, in_diff: true, reason: 'Largest change in this pull request' },
+      { file: 'src/config.ts', line: 1, file_level: true, in_diff: true, reason: 'Configuration values for the limits' },
+    ],
+    missing_inputs: [
+      { input: 'intent', reason: 'not_derived' },
+      { input: 'blast', reason: 'no_data' },
+      { input: 'smart_diff_roles', reason: 'not_in_build' },
+    ],
+    truncated: { spec_docs: 0, callers: 0, boilerplate_hunk_files: 0 },
+    head_sha: 'a1b2c3d4e5f6',
+    blast_link_sha: null,
+    usage: { provider: 'openrouter', model: 'deepseek/deepseek-v4-flash', tokens_in: 1200, tokens_out: 300, cost_usd: null },
+    generated_at: '2026-01-01T00:00:00.000Z',
+  } satisfies StoredBrief;
+  await db.insert(t.prBrief).values({ prId, json }).onConflictDoNothing();
 }
 
 /**

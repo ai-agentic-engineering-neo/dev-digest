@@ -102,3 +102,4 @@ a CI artifact by `.github/workflows/e2e-web.yml`).
 | `07-settings` | `/settings/api-keys` + `/settings/models` → section titles render |
 | `08-skills` | `/skills` cards + preview drawer; Test Quality Reviewer → Skills tab shows "4 of 8 enabled" |
 | `11-blast-radius` | PR #482 → Overview Blast radius block renders its no-index (degraded `no_data`) state with "0 symbols" |
+| `13-pr-brief` | PR #482 → Overview shows the seeded stored brief; clicking a review-focus item opens Files changed with the file |

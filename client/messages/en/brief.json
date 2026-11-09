@@ -2,14 +2,80 @@
   "block": {
     "intent": "Intent",
     "blast": "Blast radius",
-    "risks": "Risks",
+    "risks": "Risk areas",
     "history": "PR history"
   },
   "noRisks": "No notable risks flagged.",
   "noHistory": "No prior PRs overlap these files.",
   "overlap": "{count} overlap",
-  "unavailable": "Brief not available yet.",
-  "unavailableHint": "Run a review or open the PR to compute it.",
+  "unavailable": "No brief yet.",
+  "unavailableHint": "Generate a Why + Risk brief for this PR — one model call.",
+  "card": {
+    "title": "PR Brief",
+    "model": "Risk Brief model: {model}",
+    "summary": "Summary",
+    "loadError": "Couldn't load the brief"
+  },
+  "actions": {
+    "generate": "Generate brief",
+    "regenerate": "Regenerate",
+    "generating": "Generating brief…",
+    "retry": "Retry"
+  },
+  "noFiles": "This PR has no changed files — nothing to brief",
+  "noFocus": "No review focus items.",
+  "focus": {
+    "title": "Review focus — read these first ({count})",
+    "item": "{location} — {reason}"
+  },
+  "risk": {
+    "severity": { "high": "High", "medium": "Medium", "low": "Low" },
+    "files": "Files"
+  },
+  "outdated": "Outdated — generated for {sha}",
+  "missing": {
+    "title": "Missing inputs",
+    "intent": {
+      "not_derived": "Intent unavailable — not derived yet",
+      "failed": "Intent unavailable — derivation failed"
+    },
+    "blast": "Blast radius unavailable — {reason}",
+    "blastReason": {
+      "flag_off": "Repo intelligence is turned off on the server (REPO_INTEL_ENABLED=false). Callers come from a best-effort text search and may be incomplete.",
+      "no_data": "This repository has no code index yet, so callers can't be mapped. The index is built after the repository is cloned.",
+      "index_partial": "The code index is partial — some callers may be missing.",
+      "index_failed": "The last indexing run failed — callers may be missing or outdated.",
+      "repo_too_large": "The repository is too large to index fully — callers may be missing."
+    },
+    "smart_diff_roles": "Smart Diff roles unavailable — not in this build"
+  },
+  "truncated": {
+    "label": "Truncated: {parts}",
+    "specDocs": "{count, plural, one {# spec doc} other {# spec docs}}",
+    "callers": "{count, plural, one {# caller} other {# callers}}",
+    "boilerplate": "{count, plural, one {hunk ranges of # boilerplate file} other {hunk ranges of # boilerplate files}}"
+  },
+  "errors": {
+    "failed": "Brief generation failed: {reason}",
+    "reason": {
+      "provider_error": "the model provider returned an error",
+      "timeout": "the model call took longer than 60 s",
+      "invalid_reply": "the model's reply was still invalid after a retry"
+    },
+    "unknown": "Brief generation failed: {message}",
+    "notConfigured": "Risk Brief model not configured",
+    "openSettings": "Open Settings",
+    "tooLarge": "PR too large for brief — {tokens, number} / {limit, number} tokens"
+  },
+  "meta": {
+    "tokens": "{tokensIn} → {tokensOut} tok",
+    "costNa": "cost n/a",
+    "generatedFor": "generated for {sha}"
+  },
+  "link": {
+    "openInDiff": "Open {location} in Files changed",
+    "openOnGithub": "Open {location} on GitHub"
+  },
   "why": {
     "title": "git-why",
     "blame": "blame",

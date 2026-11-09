@@ -51,6 +51,11 @@ export function isDevdigestNamespace(path: string): boolean {
   return path.split('/')[0] === DEVDIGEST_NAMESPACE;
 }
 
+/** Distinct paths, first occurrence wins, order kept (brief spec docs across agents). */
+export function unionAttachedPaths(rows: readonly { path: string }[]): string[] {
+  return [...new Set(rows.map((r) => r.path))];
+}
+
 export function estimateTokens(content: string): number {
   return Math.ceil(content.length / CHARS_PER_TOKEN);
 }

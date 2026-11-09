@@ -68,6 +68,7 @@ flowchart TB
     pulls["pulls<br/>/pulls/:id · /pulls/:id/comments"]
     polling["polling<br/>/repos/:id/poll"]
     intent["intent<br/>/pulls/:id/intent · /pulls/:id/intent/refresh"]
+    brief["brief<br/>GET · POST /pulls/:id/brief"]
   end
   subgraph Review["Review & runs"]
     reviews["reviews<br/>/pulls/:id/review · /reviews · /findings/:id/(accept|dismiss)<br/>/runs/:id/(events|trace)"]
@@ -105,6 +106,17 @@ Module `modules/context/`. Every route resolves the workspace; another workspace
 | `DELETE /devdigest-docs/:id` | Delete and detach from agents → `{deleted, detached_agents}` |
 
 Error `details` follow `DevdigestDocErrorDetails` (`reason`, `rule`, `path`, `doc_id`, `limit`).
+
+### Brief (PR Why + Risk Brief, SPEC-06)
+
+Module `modules/brief/`. One model call over precomputed facts (hunk headers only, no patch lines); the brief is stored in `pr_brief`. Another workspace's PR → 404 before any work.
+
+| Route | Purpose |
+|---|---|
+| `GET /pulls/:id/brief` | Stored brief or `brief: null`, `generating`, `outdated`, `changed_files`, effective `model`. Never calls a model |
+| `POST /pulls/:id/brief` | Generate (or regenerate) now; concurrent requests share one call. Rate-limited 10/min |
+
+POST errors: 404 `not_found`, 422 `brief_no_changed_files` / `brief_too_large` (`tokens`, `limit`) / `brief_model_not_configured` (`provider`), 502 `brief_generation_failed` (`reason`: `provider_error` | `timeout` | `invalid_reply`), 429 `rate_limited`.
 
 ## Environment
 

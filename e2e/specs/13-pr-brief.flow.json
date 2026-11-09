@@ -1,0 +1,17 @@
+{
+  "name": "PR overview shows the stored brief and a focus item opens its file in Files changed",
+  "description": "Open seeded PR #482 and confirm the Overview tab shows the seeded stored PR Brief (no model call), then click the first review-focus item and land on the Files changed tab with the file. Preconditions: freshly-seeded DB where acme/payments-api is the first repo; seed inserts the pr_brief row. Never clicks Generate or Regenerate. Section labels render uppercase, so wait for seeded content text.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "land on the PR list" },
+    { "cmd": ["wait", "--text", "Add rate limiting to public API endpoints"], "label": "seeded PR title row is visible" },
+    { "cmd": ["find", "text", "Add rate limiting to public API endpoints", "click"], "label": "open the PR row" },
+    { "cmd": ["wait", "--url", "/pulls/482"], "label": "navigate to the PR detail route" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "PR detail data settles" },
+    { "cmd": ["wait", "--text", "Adds rate limiting for public API endpoints."], "label": "seeded brief summary is visible" },
+    { "cmd": ["wait", "--text", "Largest change in this pull request"], "label": "first review focus reason is visible" },
+    { "cmd": ["find", "text", "Largest change in this pull request", "click"], "label": "click the first review focus item" },
+    { "cmd": ["wait", "--url", "tab=diff"], "label": "switch to the Files changed tab" },
+    { "cmd": ["wait", "--text", "src/middleware/ratelimit.ts"], "label": "focused file is visible in the diff viewer" }
+  ]
+}

@@ -33,6 +33,11 @@ import { IntentRepository } from '../modules/intent/repository.js';
 import type { IntentRepositoryPort } from '../modules/intent/ports.js';
 import { IntentService } from '../modules/intent/service.js';
 import { BlastRepository } from '../modules/blast/repository.js';
+import { BlastService } from '../modules/blast/service.js';
+import { BriefRepository } from '../modules/brief/repository.js';
+import type { BriefRepositoryPort } from '../modules/brief/ports.js';
+import { BriefService } from '../modules/brief/service.js';
+import { BRIEF_LLM_TIMEOUT_MS, BRIEF_TRANSPORT_RETRIES } from '../modules/brief/constants.js';
 import type { BlastRepositoryPort } from '../modules/blast/ports.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
@@ -73,6 +78,8 @@ export interface ContainerOverrides {
   intentRepo?: IntentRepositoryPort;
   /** Blast storage — tests inject an in-memory fake. */
   blastRepo?: BlastRepositoryPort;
+  /** PR brief storage — tests inject an in-memory fake. */
+  briefRepo?: BriefRepositoryPort;
   /** Markdown lister for the Project Context Folder — tests inject a fake. */
   docWalker?: DocWalker;
   /** Project-context attachment storage — tests inject an in-memory fake. */
@@ -105,6 +112,9 @@ export class Container {
   private _intentRepo?: IntentRepositoryPort;
   private _intent?: IntentService;
   private _blastRepo?: BlastRepositoryPort;
+  private _blast?: BlastService;
+  private _briefRepo?: BriefRepositoryPort;
+  private _brief?: BriefService;
   private _docWalker?: DocWalker;
   private _contextRepo?: ContextRepositoryPort;
   private _devdigestDocsRepo?: DevdigestDocsRepositoryPort;
@@ -164,6 +174,22 @@ export class Container {
   get blastRepo(): BlastRepositoryPort {
     if (this.overrides.blastRepo) return this.overrides.blastRepo;
     return (this._blastRepo ??= new BlastRepository(this.db));
+  }
+
+  /** Blast radius service (the brief reads it; the blast routes keep their own instance). */
+  get blast(): BlastService {
+    return (this._blast ??= new BlastService(this));
+  }
+
+  /** PR brief storage (brief module). */
+  get briefRepo(): BriefRepositoryPort {
+    if (this.overrides.briefRepo) return this.overrides.briefRepo;
+    return (this._briefRepo ??= new BriefRepository(this.db));
+  }
+
+  /** PR brief service (lazy singleton: holds the single-flight map). */
+  get brief(): BriefService {
+    return (this._brief ??= new BriefService(this));
   }
 
   /** Lists markdown files of a local clone (Project Context Folder). */
@@ -256,6 +282,35 @@ export class Container {
     if (cached) return cached;
     const provider = await this.buildLlm(id);
     this.llmCache.set(id, provider);
+    return provider;
+  }
+
+  /**
+   * Provider for the PR brief: for OpenRouter (the default) 60 s per call and
+   * 0 transport retries, so one generation is at most 1 call + 1 validation
+   * retry. OpenAI / Anthropic are built as `llm()` builds them (adapters
+   * unchanged; they may retry transport errors). Cached under `brief:<id>`.
+   */
+  async briefLlm(id: 'openai' | 'anthropic' | 'openrouter'): Promise<LLMProvider> {
+    const injected = this.overrides.llm?.[id];
+    if (injected) return injected;
+    const cacheKey = `brief:${id}`;
+    const cached = this.llmCache.get(cacheKey);
+    if (cached) return cached;
+    let provider: LLMProvider;
+    if (id === 'openrouter') {
+      const key = await this.secrets.get('OPENROUTER_API_KEY');
+      if (!key) throw new ConfigError('OPENROUTER_API_KEY is not configured');
+      provider = new OpenRouterProvider(key, {
+        timeoutMs: BRIEF_LLM_TIMEOUT_MS,
+        maxRetries: BRIEF_TRANSPORT_RETRIES,
+        estimateCost: (model, tokensIn, tokensOut) =>
+          this.priceBook.estimate(model, tokensIn, tokensOut),
+      });
+    } else {
+      provider = await this.buildLlm(id);
+    }
+    this.llmCache.set(cacheKey, provider);
     return provider;
   }
 

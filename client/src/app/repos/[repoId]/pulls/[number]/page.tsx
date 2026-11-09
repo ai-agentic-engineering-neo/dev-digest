@@ -68,7 +68,19 @@ export default function PRDetailPage() {
     else sp.set(key, val);
     router.replace(`/repos/${repoId}/pulls/${number}${sp.toString() ? `?${sp.toString()}` : ""}`);
   };
-  const setTab = (t: string) => setParam("tab", t);
+  const setTab = (t: string) => {
+    const sp = new URLSearchParams(search.toString());
+    sp.set("tab", t);
+    sp.delete("file");
+    router.replace(`/repos/${repoId}/pulls/${number}?${sp.toString()}`);
+  };
+  // A brief file link: switch to Files changed and focus the file in ONE navigation.
+  const openFileInDiff = (path: string) => {
+    const sp = new URLSearchParams(search.toString());
+    sp.set("tab", "diff");
+    sp.set("file", path);
+    router.replace(`/repos/${repoId}/pulls/${number}?${sp.toString()}`);
+  };
 
   // Reviews come newest-first; each is its own run (grouped into accordions).
   const runs = reviews ?? [];
@@ -138,7 +150,7 @@ export default function PRDetailPage() {
       />
 
       <div style={{ padding: "24px 32px 44px", display: "flex", flexDirection: "column", gap: 24, maxWidth: 1080, margin: "0 auto" }}>
-        {tab === "overview" && <OverviewTab prId={prId} prBody={pr.body} repoFullName={repoFullName} repoId={repoId} reviewRunning={reviewRunning} />}
+        {tab === "overview" && <OverviewTab prId={prId} prBody={pr.body} repoFullName={repoFullName} repoId={repoId} reviewRunning={reviewRunning} onOpenFile={openFileInDiff} />}
 
         {tab === "findings" && (
           <FindingsTab
@@ -172,6 +184,7 @@ export default function PRDetailPage() {
             filesCount={pr.files_count}
             files={pr.files}
             canComment={pr.status === "open"}
+            focusPath={search.get("file")}
           />
         )}
       </div>

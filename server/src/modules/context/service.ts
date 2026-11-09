@@ -15,12 +15,14 @@ import {
   isDevdigestNamespace,
   mirrorToDevdigest,
   selectForRun,
+  unionAttachedPaths,
   utf8Bytes,
   type AgentContextDoc,
   type AgentContextDocs,
   type ContextDoc,
   type ContextDocContent,
   type ContextDocList,
+  type ContextSelection,
   type ContextRepoState,
   type DevdigestCopyResult,
   type DevdigestDeleteResult,
@@ -270,6 +272,23 @@ export class ProjectContextService {
       },
       logLine,
     };
+  }
+
+  /**
+   * Spec docs for the PR brief: union of the attachments of the workspace's enabled agents for the
+   * repo (agent name order, then position; first occurrence wins), read like a run and capped.
+   * Missing docs are reported as left out, never thrown.
+   */
+  async forBrief(workspaceId: string, repoId: string): Promise<ContextSelection> {
+    const ref = await this.requireRepo(workspaceId, repoId);
+    const rows = await this.repo.listEnabledAgentAttachments(workspaceId, ref.id);
+    const paths = unionAttachedPaths(rows);
+    if (paths.length === 0) return { included: [], left_out: [], total_tokens: 0 };
+    const contents = await this.readAttached(workspaceId, ref, paths);
+    return selectForRun(
+      paths.map((path) => ({ path, content: contents.get(path) ?? null })),
+      CONTEXT_TOKEN_CAP,
+    );
   }
 
   // ---------- DevDigest-owned docs (SPEC-03) ----------

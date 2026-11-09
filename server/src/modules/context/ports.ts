@@ -14,6 +14,11 @@ export interface ContextRepositoryPort {
   replaceAttachments(agentId: string, repoId: string, paths: string[]): Promise<void>;
   /** path → number of the workspace's agents that attached it for this repo. */
   attachedAgentCounts(workspaceId: string, repoId: string): Promise<Map<string, number>>;
+  /**
+   * Attachments of the workspace's ENABLED agents for the repo, in ONE query: agents ordered by
+   * name (collate "C") then id, each agent's docs by position. Other workspaces' agents never appear.
+   */
+  listEnabledAgentAttachments(workspaceId: string, repoId: string): Promise<{ agentId: string; path: string }[]>;
 }
 
 export interface DevdigestDocRecord {

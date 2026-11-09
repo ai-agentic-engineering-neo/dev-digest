@@ -35,6 +35,11 @@ class FakeContextRepo implements ContextRepositoryPort {
   async attachedAgentCounts() {
     return this.counts;
   }
+  /** rows already in the order the SQL returns (enabled agents only, name/id/position). */
+  enabledRows: { agentId: string; path: string }[] = [];
+  async listEnabledAgentAttachments(ws: string, repoId: string) {
+    return ws === WS && repoId === REPO.id ? [...this.enabledRows] : [];
+  }
 }
 
 class FakeDevdigestDocsRepo implements DevdigestDocsRepositoryPort {
@@ -489,5 +494,52 @@ describe('workspace scoping (AC-12)', () => {
     ];
     for (const c of calls) await expect(c).rejects.toBeInstanceOf(NotFoundError);
     expect(await ddRepo.countByRepo(WS, REPO.id)).toBe(1);
+  });
+});
+
+describe('forBrief (SPEC-06 AC-4)', () => {
+  const rows = (...p: [string, string][]) => p.map(([agentId, path]) => ({ agentId, path }));
+
+  it('unions agents in order, each path once (first position wins)', async () => {
+    files['specs/b.md'] = text(5);
+    files['docs/c.md'] = text(6);
+    files['docs/a.md'] = text(7);
+    walked.push('docs/c.md');
+    contextRepo.enabledRows = rows(['alpha', 'specs/b.md'], ['alpha', 'docs/c.md'], ['beta', 'docs/a.md'], ['beta', 'specs/b.md']);
+    const sel = await service.forBrief(WS, REPO.id);
+    expect(sel.included.map((d) => d.path)).toEqual(['specs/b.md', 'docs/c.md', 'docs/a.md']);
+    expect(sel.left_out).toEqual([]);
+  });
+
+  it('too_large, over_cap and missing', async () => {
+    files['docs/a.md'] = text(5000);
+    files['specs/b.md'] = text(3000);
+    files['docs/c.md'] = text(2000);
+    walked.push('docs/c.md', 'docs/gone.md');
+    contextRepo.enabledRows = rows(['a', 'docs/a.md'], ['a', 'specs/b.md'], ['a', 'docs/c.md'], ['a', 'docs/gone.md']);
+    const sel = await service.forBrief(WS, REPO.id);
+    expect(sel.included.map((d) => d.path)).toEqual(['specs/b.md']);
+    expect(sel.left_out).toEqual([
+      { path: 'docs/a.md', tokens: 5000, reason: 'too_large' },
+      { path: 'docs/c.md', tokens: 2000, reason: 'over_cap' },
+      { path: 'docs/gone.md', tokens: null, reason: 'missing' },
+    ]);
+  });
+
+  it('no attachments → empty selection', async () => {
+    expect(await service.forBrief(WS, REPO.id)).toEqual({ included: [], left_out: [], total_tokens: 0 });
+  });
+
+  it('not cloned: repo docs missing, .devdigest docs still included', async () => {
+    contextRepo.repos.set(REPO.id, { ...REPO, clonePath: null });
+    await ddRepo.insert({ workspaceId: WS, repoId: REPO.id, path: '.devdigest/specs/x.md', content: 'hi', copiedFrom: null });
+    contextRepo.enabledRows = rows(['a', 'docs/a.md'], ['a', '.devdigest/specs/x.md']);
+    const sel = await service.forBrief(WS, REPO.id);
+    expect(sel.included.map((d) => d.path)).toEqual(['.devdigest/specs/x.md']);
+    expect(sel.left_out).toEqual([{ path: 'docs/a.md', tokens: null, reason: 'missing' }]);
+  });
+
+  it('a repo outside the workspace → NotFoundError', async () => {
+    await expect(service.forBrief('other', REPO.id)).rejects.toBeInstanceOf(NotFoundError);
   });
 });

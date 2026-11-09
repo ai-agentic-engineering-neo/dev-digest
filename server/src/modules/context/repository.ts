@@ -1,4 +1,4 @@
-import { and, asc, count, eq } from 'drizzle-orm';
+import { and, asc, count, eq, sql } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import type { ContextRepoRef, ContextRepositoryPort } from './ports.js';
@@ -62,5 +62,24 @@ export class ContextRepository implements ContextRepositoryPort {
       .where(eq(t.agentContextDocs.repoId, repoId))
       .groupBy(t.agentContextDocs.path);
     return new Map(rows.map((r) => [r.path, Number(r.n)]));
+  }
+
+  async listEnabledAgentAttachments(
+    workspaceId: string,
+    repoId: string,
+  ): Promise<{ agentId: string; path: string }[]> {
+    return this.db
+      .select({ agentId: t.agentContextDocs.agentId, path: t.agentContextDocs.path })
+      .from(t.agentContextDocs)
+      .innerJoin(
+        t.agents,
+        and(
+          eq(t.agents.id, t.agentContextDocs.agentId),
+          eq(t.agents.workspaceId, workspaceId),
+          eq(t.agents.enabled, true),
+        ),
+      )
+      .where(eq(t.agentContextDocs.repoId, repoId))
+      .orderBy(sql`${t.agents.name} collate "C"`, asc(t.agents.id), asc(t.agentContextDocs.position));
   }
 }

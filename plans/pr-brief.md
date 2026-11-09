@@ -1,6 +1,6 @@
 # Implementation Plan: PR Why + Risk Brief
 
-- **Status:** approved
+- **Status:** in progress
 - **Execution mode:** multi-agent  <!-- user's choice; 14 tasks (T7 dropped 2026-11-09, numbers kept), widest wave 4 -->
 - **Goal:** On a PR's Overview tab the user clicks Generate brief and gets, for exactly one model call over precomputed facts (no diff code), a stored brief: summary, Risk areas under Intent, a "Review focus — read these first" list whose items open the file in Files changed (or on GitHub for blast-only files), with missing / truncated inputs, an outdated marker and a cost meta line.
 - **Specs:** `SPEC-06` — specs/pr-brief.md (approved; amended in commit 27d048c: AC-4 agents' own attachments only, AC-7/AC-9 blast-only lines). P1 = AC-1..AC-17, P2 = AC-18..AC-21.
@@ -262,7 +262,7 @@ export function useGenerateBrief(prId: string): UseMutationResult<PrBriefRespons
 ## Tasks
 
 ### T1 [W0] [backend] Server brief contracts
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `server/src/modules/brief/constants.ts`, `server/src/modules/brief/domain/types.ts`, `server/src/modules/brief/schemas.ts`, `server/src/modules/brief/ports.ts`, `server/test/brief-schemas.test.ts`, `server/test/fixtures/brief-response.json`
 - **Depends on:** —
 - **Covers:** — (W0 contracts)
@@ -282,7 +282,7 @@ export function useGenerateBrief(prId: string): UseMutationResult<PrBriefRespons
   - `cd server && node scripts/check-architecture.mjs` → no new violations
 
 ### T2 [W0] [frontend] Client mirrors, brief hooks, feature-model mirror, all `brief` i18n keys
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `client/src/lib/types.ts`, `client/src/lib/hooks/brief.ts`, `client/src/lib/hooks/brief.test.tsx`, `client/src/lib/hooks/index.ts`, `client/src/lib/feature-models.ts`, `client/messages/en/brief.json`
 - **Depends on:** — (shapes copied from Contracts; T1 is the server source of truth, T14 adds the drift test)
 - **Covers:** SPEC-06/AC-17 (client feature-model mirror), SPEC-06/AC-19 (poll while generating), SPEC-06/AC-12 (404 → page's not-found state; error passed to the caller, no global toast)
@@ -313,7 +313,7 @@ export function useGenerateBrief(prId: string): UseMutationResult<PrBriefRespons
   - `cd client && node node_modules/vitest/vitest.mjs run src/lib/hooks/brief.test.tsx` → all pass
 
 ### T3 [W1] [backend] Hunk ranges + grounding, line snapping, caps
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `server/src/modules/brief/domain/hunks.ts`, `server/src/modules/brief/domain/grounding.ts`, `server/test/brief-hunks.test.ts`, `server/test/brief-grounding.test.ts`
 - **Depends on:** T1
 - **Covers:** SPEC-06/AC-6, SPEC-06/AC-7, SPEC-06/AC-8 (empty results are not errors), SPEC-06/AC-14 (server side: model text clamped and kept as plain strings), SPEC-06/AC-15
@@ -342,7 +342,7 @@ export function useGenerateBrief(prId: string): UseMutationResult<PrBriefRespons
   - `cd server && node scripts/check-architecture.mjs` → no new violations
 
 ### T4 [W1] [backend] Input facts, missing inputs, prompt, 8,000-token budget
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `server/src/modules/brief/domain/inputs.ts`, `server/src/modules/brief/domain/budget.ts`, `server/src/modules/brief/prompt.ts`, `server/test/brief-inputs.test.ts`, `server/test/brief-budget.test.ts`, `server/test/brief-prompt.test.ts`
 - **Depends on:** T1
 - **Covers:** SPEC-06/AC-3 (input built only from the listed inputs; hunk ranges, no diff line), SPEC-06/AC-5 (missing-inputs list), SPEC-06/AC-20 (cut order, never-cut set, too-large result)
@@ -364,7 +364,7 @@ export function useGenerateBrief(prId: string): UseMutationResult<PrBriefRespons
   - `cd server && node scripts/check-architecture.mjs` → no new violations
 
 ### T5 [W1] [backend] Spec docs for the brief: enabled agents' own attachments
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `server/src/modules/context/ports.ts`, `server/src/modules/context/domain.ts`, `server/src/modules/context/repository.ts`, `server/src/modules/context/service.ts`, `server/test/context-service.test.ts`, `server/test/context-brief-docs.it.test.ts`
 - **Depends on:** —
 - **Covers:** SPEC-06/AC-4, SPEC-06/AC-13 (only the requesting workspace's agents give docs)
@@ -389,7 +389,7 @@ export function useGenerateBrief(prId: string): UseMutationResult<PrBriefRespons
   - `cd server && node scripts/check-architecture.mjs` → no new violations
 
 ### T6 [W1] [backend] Brief repository (`pr_brief` store + PR facts)
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `server/src/modules/brief/repository.ts`, `server/test/brief-repository.it.test.ts`
 - **Depends on:** T1
 - **Covers:** SPEC-06/AC-10 (stored brief read back), SPEC-06/AC-11 (save replaces), SPEC-06/AC-13 (workspace-filtered PR lookup)
@@ -408,7 +408,7 @@ export function useGenerateBrief(prId: string): UseMutationResult<PrBriefRespons
   - `cd server && node scripts/check-architecture.mjs` → no new violations
 
 ### T8 [W2] [backend] `BriefService` (read, generate, single-flight) + errors
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `server/src/modules/brief/service.ts`, `server/src/modules/brief/errors.ts`, `server/src/modules/_shared/single-flight.ts`, `server/src/modules/intent/single-flight.ts`, `server/test/brief-service.test.ts`
 - **Depends on:** T1, T3, T4, T5, T6 (T5/T6 are W1, so the wave order already holds; the unit test uses in-memory port fakes)
 - **Covers:** SPEC-06/AC-1 (read makes no call), SPEC-06/AC-3, SPEC-06/AC-5, SPEC-06/AC-10, SPEC-06/AC-11, SPEC-06/AC-12, SPEC-06/AC-13, SPEC-06/AC-16, SPEC-06/AC-17, SPEC-06/AC-18, SPEC-06/AC-19, SPEC-06/AC-20, SPEC-06/AC-21
@@ -445,7 +445,7 @@ export function useGenerateBrief(prId: string): UseMutationResult<PrBriefRespons
   - `cd server && node scripts/check-architecture.mjs` → no new violations
 
 ### T9 [W2] [frontend] Files changed: open + scroll to a focused file
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `client/src/components/diff-viewer/DiffViewer/DiffViewer.tsx`, `client/src/components/diff-viewer/FileCard/FileCard.tsx`, `client/src/components/diff-viewer/DiffViewer/DiffViewer.test.tsx`, `client/src/app/repos/[repoId]/pulls/[number]/_components/DiffTab/DiffTab.tsx`
 - **Depends on:** —
 - **Covers:** SPEC-06/AC-9 (expand the file in the flat list and scroll its header into view)
@@ -462,7 +462,7 @@ export function useGenerateBrief(prId: string): UseMutationResult<PrBriefRespons
   - `cd client && node node_modules/vitest/vitest.mjs run src/components/diff-viewer src/test/smoke.test.tsx` → all pass
 
 ### T10 [W2] [frontend] `BriefFileLink` + `RiskAreas`
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `…/OverviewTab/_components/BriefFileLink/{BriefFileLink.tsx,index.ts,styles.ts,helpers.ts,helpers.test.ts}`, `…/OverviewTab/_components/RiskAreas/{RiskAreas.tsx,index.ts,styles.ts,constants.ts,RiskAreas.test.tsx}` (`…` = `client/src/app/repos/[repoId]/pulls/[number]/_components`)
 - **Depends on:** T2
 - **Covers:** SPEC-06/AC-2 (risk item: title, severity icon + text label, file refs), SPEC-06/AC-6 (only stored, grounded refs are links), SPEC-06/AC-8 (no-risks message), SPEC-06/AC-9 (ref click: changed file → Files changed, blast-only → GitHub at the range start), SPEC-06/AC-14 (plain text)
@@ -484,7 +484,7 @@ export function useGenerateBrief(prId: string): UseMutationResult<PrBriefRespons
   - `cd client && node node_modules/vitest/vitest.mjs run BriefFileLink RiskAreas src/test/css-vars.test.ts` → all pass
 
 ### T11 [W3] [backend] Wiring: container getters, `briefLlm`, routes, registry
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `server/src/platform/container.ts`, `server/src/modules/brief/routes.ts`, `server/src/modules/index.ts`, `server/README.md`, `server/test/brief-routes.it.test.ts`, `server/test/brief-llm.test.ts`
 - **Depends on:** T5, T6, T8
 - **Covers:** SPEC-06/AC-3 (brief provider for OpenRouter: 60 s, 0 transport retries), SPEC-06/AC-10, SPEC-06/AC-12, SPEC-06/AC-13, SPEC-06/AC-19, SPEC-06/AC-21 (PR-list cost untouched)
@@ -510,7 +510,7 @@ export function useGenerateBrief(prId: string): UseMutationResult<PrBriefRespons
   - `cd server && node scripts/check-architecture.mjs` → no new violations
 
 ### T12 [W3] [frontend] `PrBriefCard` (states, actions, notes, meta)
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `…/OverviewTab/_components/PrBriefCard/{PrBriefCard.tsx,index.ts,styles.ts,helpers.ts,helpers.test.ts,PrBriefCard.test.tsx}`, `…/OverviewTab/_components/PrBriefCard/_components/BriefNotes/{BriefNotes.tsx,index.ts,styles.ts}`, `…/OverviewTab/_components/PrBriefCard/_components/BriefMeta/{BriefMeta.tsx,index.ts,styles.ts}`
 - **Depends on:** T2
 - **Covers:** SPEC-06/AC-1, SPEC-06/AC-2 (disable + generating indicator, summary), SPEC-06/AC-5 (missing-inputs note), SPEC-06/AC-11 (brief stays visible while regenerating), SPEC-06/AC-12 (error + reason + Retry, not-configured + Settings link), SPEC-06/AC-14 (summary plain text), SPEC-06/AC-16, SPEC-06/AC-18, SPEC-06/AC-19 (generating state from the server), SPEC-06/AC-20 (truncated note, too-large message), SPEC-06/AC-21
@@ -540,7 +540,7 @@ export function useGenerateBrief(prId: string): UseMutationResult<PrBriefRespons
   - `cd client && node node_modules/vitest/vitest.mjs run PrBriefCard src/test/css-vars.test.ts` → all pass
 
 ### T13 [W3] [frontend] `ReviewFocusList`
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `…/OverviewTab/_components/ReviewFocusList/{ReviewFocusList.tsx,index.ts,styles.ts,ReviewFocusList.test.tsx}`
 - **Depends on:** T2, T10
 - **Covers:** SPEC-06/AC-2 (full-width list in model order with count), SPEC-06/AC-7 (file-level items without a line), SPEC-06/AC-8 (no-focus message), SPEC-06/AC-9 (item click), SPEC-06/AC-14
@@ -558,7 +558,7 @@ export function useGenerateBrief(prId: string): UseMutationResult<PrBriefRespons
   - `cd client && node node_modules/vitest/vitest.mjs run ReviewFocusList` → all pass
 
 ### T14 [W4] [frontend] Overview composition, `?tab=diff&file=` wiring, contract drift test
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `…/OverviewTab/OverviewTab.tsx`, `…/OverviewTab/styles.ts`, `…/OverviewTab/OverviewTab.test.tsx`, `client/src/app/repos/[repoId]/pulls/[number]/page.tsx`, `client/src/lib/brief-contract.test.ts`
 - **Depends on:** T2, T9, T10, T12, T13 (+ T1 fixture)
 - **Covers:** SPEC-06/AC-1 (Intent + Blast shown as today, opening makes no model call), SPEC-06/AC-2 (layout), SPEC-06/AC-5 (blast reason text = Blast block's), SPEC-06/AC-9 (click → `?tab=diff&file=`), SPEC-06/AC-10, SPEC-06/AC-17 (client/server default in sync)
@@ -580,7 +580,7 @@ export function useGenerateBrief(prId: string): UseMutationResult<PrBriefRespons
   - `cd client && node node_modules/vitest/vitest.mjs run` → all pass
 
 ### T15 [W5] [backend] Seeded brief for PR #482 + e2e flow 13
-- **Status:** todo
+- **Status:** done
 - **Files (only these):** `server/src/db/seed.ts`, `e2e/specs/13-pr-brief.flow.json`, `e2e/specs/README.md`, `e2e/README.md`
 - **Depends on:** T11, T14
 - **Covers:** SPEC-06/AC-9 (end to end: focus click → Files changed with the file), SPEC-06/AC-10 (stored brief shown on open, no model call)
@@ -648,6 +648,16 @@ No migration in any wave. reviewer-core is not changed, so no extra cross-packag
 ## Open questions
 
 - none
+
+## Verification follow-ups (2026-11-09)
+
+Final checks: plan-verifier INCOMPLETE EVIDENCE 160/167 (0 NOT MET / VIOLATED) · architecture-reviewer PASS · security-reviewer PASS. Plan stays `in progress` until CI `e2e web` is green (user decision).
+
+- [ ] CI-only: e2e flow 13 (T15.AC3/V2, incl. the AC-9 `page.tsx` glue `?tab=diff&file=`) and the seeded GET on #482 (T15.AC1). Risk: CI viewport 1280×577 — the Review focus list is at the bottom of Overview; if `find text … click` fails, scroll before the click (e2e INSIGHTS 2026-11-05).
+- [ ] T2.AC2 (PARTIAL): prove `setQueryData` runs before the invalidation (GET must return a different object) and add a 502 case.
+- [ ] T5.AC2 (PARTIAL): `.it` case with two agents of the same name → order by id.
+- [ ] T14.AC2 (PARTIAL): assert Risk areas sits in the left (Intent) column, before the Blast column.
+- [ ] Security UNVERIFIED (< 80 confidence): `BriefGenerationError` returns the raw provider `e.message` (`server/src/modules/brief/service.ts:164-167`) — confirm LLM adapter errors never carry headers/keys, or map to a fixed message per reason.
 
 ## Cross-model review (ChatGPT GPT6, 2026-11-09)
 

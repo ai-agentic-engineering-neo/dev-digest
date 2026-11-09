@@ -1,0 +1,38 @@
+{
+  "pr_id": "6f1c1a52-3b0e-4a57-9c1d-2f6a8b7d9e10",
+  "model": { "provider": "openrouter", "model": "deepseek/deepseek-v4-flash" },
+  "changed_files": 3,
+  "generating": false,
+  "outdated": false,
+  "brief": {
+    "summary": "Adds token refresh to the auth service and updates the session middleware.",
+    "risks": [
+      {
+        "kind": "auth",
+        "title": "Session expiry handling changed",
+        "explanation": "The refresh path now extends sessions silently; callers in the web layer rely on the old expiry.",
+        "severity": "high",
+        "file_refs": ["src/auth/service.ts:38-50", "src/web/session.ts"],
+        "refs": [
+          { "ref": "src/auth/service.ts:38-50", "path": "src/auth/service.ts", "start_line": 38, "end_line": 50, "in_diff": true },
+          { "ref": "src/web/session.ts", "path": "src/web/session.ts", "start_line": null, "end_line": null, "in_diff": false }
+        ]
+      }
+    ],
+    "review_focus": [
+      { "file": "src/auth/service.ts", "line": 40, "file_level": false, "in_diff": true, "reason": "Refresh logic starts here." },
+      { "file": "src/auth/routes.ts", "line": 1, "file_level": true, "in_diff": true, "reason": "New endpoint wiring." },
+      { "file": "src/web/session.ts", "line": 77, "file_level": false, "in_diff": false, "reason": "Calls the changed refresh function." }
+    ],
+    "missing_inputs": [
+      { "input": "intent", "reason": "not_derived" },
+      { "input": "blast", "reason": "index_partial" },
+      { "input": "smart_diff_roles", "reason": "not_in_build" }
+    ],
+    "truncated": { "spec_docs": 1, "callers": 4, "boilerplate_hunk_files": 2 },
+    "head_sha": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+    "blast_link_sha": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+    "usage": { "provider": "openrouter", "model": "deepseek/deepseek-v4-flash", "tokens_in": 3200, "tokens_out": 640, "cost_usd": null },
+    "generated_at": "2026-11-09T10:00:00.000Z"
+  }
+}

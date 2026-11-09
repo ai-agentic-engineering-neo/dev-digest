@@ -10,5 +10,6 @@ export * from "./skills";
 export * from "./conventions";
 export * from "./intent";
 export * from "./blast";
+export * from "./brief";
 export * from "./project-context";
 export * from "./devdigest-docs";

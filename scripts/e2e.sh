@@ -41,6 +41,9 @@ export DATABASE_URL="postgres://${PG_USER}:${PG_PASS}@127.0.0.1:${PG_PORT}/${PG_
 export API_PORT WEB_PORT
 export NEXT_PUBLIC_API_BASE="http://localhost:${API_PORT}"
 export E2E_BASE_URL="http://localhost:${WEB_PORT}"
+# The flows hit the API from one IP within ~20 s; the default global cap (120/min) would answer
+# the later flows with 429 (same setting as .github/workflows/e2e-web.yml).
+export RATE_LIMIT_MAX="${RATE_LIMIT_MAX:-2000}"
 
 log()  { printf '\033[1;36m▸ %s\033[0m\n' "$*"; }
 warn() { printf '\033[1;33m! %s\033[0m\n' "$*"; }

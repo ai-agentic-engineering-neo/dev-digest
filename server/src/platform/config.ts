@@ -30,6 +30,12 @@ const EnvSchema = z.object({
   WEB_PORT: z.coerce.number().int().default(3000),
   DEVDIGEST_CLONE_DIR: z.string().optional(),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  // Global per-IP request cap per minute (not registered under NODE_ENV=test). The e2e CI
+  // stack raises it: its browser flows all hit the API from one IP within ~20 s.
+  RATE_LIMIT_MAX: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.coerce.number().int().positive().default(120),
+  ),
   // `.env` (and .env.example) ship `LOG_LEVEL=` empty; an empty string is not a
   // valid enum member, so coerce '' → undefined to fall through to the default.
   LOG_LEVEL: z.preprocess(
@@ -47,6 +53,8 @@ export type AppConfig = {
   /** Absolute path to the writable secrets store (BYO keys from the UI). */
   secretsPath: string;
   nodeEnv: 'development' | 'test' | 'production';
+  /** Global rate limit: requests per minute per IP (RATE_LIMIT_MAX, default 120). */
+  rateLimitMax: number;
   logLevel: string;
   /** Allowed CORS origin for the Next.js dev server. */
   webOrigin: string;
@@ -73,6 +81,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     cloneDir,
     secretsPath: join(homedir(), '.devdigest', 'secrets.json'),
     nodeEnv: parsed.NODE_ENV,
+    rateLimitMax: parsed.RATE_LIMIT_MAX,
     logLevel: parsed.LOG_LEVEL ?? (parsed.NODE_ENV === 'test' ? 'silent' : 'info'),
     webOrigin: `http://localhost:${parsed.WEB_PORT}`,
     embeddingsEnabled: parsed.EMBEDDINGS_ENABLED === 'true',

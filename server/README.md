@@ -51,7 +51,7 @@ flowchart LR
 - **Validation is schema-first.** Each route declares zod `params`/`body` schemas
   (`fastify-type-provider-zod`); invalid input is rejected with a `422` **before**
   the handler runs — handlers no longer hand-roll `Schema.parse(req.body)`.
-- **Rate limiting:** a global 120/min limit (disabled under `NODE_ENV=test`), with
+- **Rate limiting:** a global per-IP limit, 120/min by default (`RATE_LIMIT_MAX`; disabled under `NODE_ENV=test`), with
   tighter per-route caps on expensive endpoints (e.g. `POST /pulls/:id/review`);
   SSE and `/health*` are exempt.
 - Modules are registered statically in `src/modules/index.ts` (one import + one
@@ -133,6 +133,7 @@ POST errors: 404 `not_found`, 422 `brief_no_changed_files` / `brief_too_large` (
 | `DEVDIGEST_CLONE_DIR` | `./clones` | imported-repo checkouts (git-ignored) |
 | `LOG_LEVEL` | `info` (`silent` in test) | pino level |
 | `NODE_ENV` | `development` | `test` → silent logs + global rate-limit disabled |
+| `RATE_LIMIT_MAX` | `120` | global requests per minute per IP; the e2e CI stack raises it (`e2e-web.yml`) |
 
 Secrets (API keys, `GITHUB_TOKEN`) are **not** part of `AppConfig` — they go
 through `SecretsProvider` (`~/.devdigest/secrets.json`, mode `0600`, with

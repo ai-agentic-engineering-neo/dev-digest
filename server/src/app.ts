@@ -93,7 +93,7 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
   // Global rate limit. Disabled under test so integration suites can hammer
   // endpoints via inject(); per-route overrides live on the routes themselves.
   if (config.nodeEnv !== 'test') {
-    await app.register(rateLimit, { max: 120, timeWindow: '1 minute' });
+    await app.register(rateLimit, { max: config.rateLimitMax, timeWindow: '1 minute' });
   }
 
   // Liveness check (no module, no DB, no rate limit).

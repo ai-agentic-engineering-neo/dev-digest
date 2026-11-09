@@ -24,6 +24,27 @@ const warnConfig = loadConfig({
   LOG_LEVEL: 'warn',
 } as NodeJS.ProcessEnv);
 
+describe('global rate limit: RATE_LIMIT_MAX', () => {
+  it('defaults to 120 and reads RATE_LIMIT_MAX (empty → default)', () => {
+    const base = { ...process.env, NODE_ENV: 'production' } as NodeJS.ProcessEnv;
+    delete base.RATE_LIMIT_MAX;
+    expect(loadConfig(base).rateLimitMax).toBe(120);
+    expect(loadConfig({ ...base, RATE_LIMIT_MAX: '' }).rateLimitMax).toBe(120);
+    expect(loadConfig({ ...base, RATE_LIMIT_MAX: '2000' }).rateLimitMax).toBe(2000);
+    expect(() => loadConfig({ ...base, RATE_LIMIT_MAX: '0' })).toThrow();
+  });
+
+  it('the global cap applies the configured max (3rd request over max 2 → 429)', async () => {
+    const app = await buildApp({ config: { ...config, rateLimitMax: 2 } });
+    app.get('/__global-probe', async () => ({ ok: true }));
+    vi.spyOn(app.log, 'warn').mockImplementation(() => undefined);
+    const codes: number[] = [];
+    for (let i = 0; i < 3; i++) codes.push((await app.inject({ method: 'GET', url: '/__global-probe' })).statusCode);
+    expect(codes).toEqual([200, 200, 429]);
+    await app.close();
+  });
+});
+
 describe('error handler: rate limiting', () => {
   it('429 from @fastify/rate-limit → code rate_limited, warn level on the request logger, retry-after kept', async () => {
     const app = await buildApp({ config: warnConfig });

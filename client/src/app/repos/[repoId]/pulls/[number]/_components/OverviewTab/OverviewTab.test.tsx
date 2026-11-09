@@ -97,7 +97,7 @@ function renderTab() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={qc}>
-      <NextIntlClientProvider locale="en" messages={{ brief: briefMessages, blast: blastMessages }}>
+      <NextIntlClientProvider locale="en" timeZone="UTC" messages={{ brief: briefMessages, blast: blastMessages }}>
         <OverviewTab prId={PR_ID} prBody="Body" repoFullName="acme/app" repoId="repo-1" onOpenFile={onOpenFile} />
       </NextIntlClientProvider>
     </QueryClientProvider>,

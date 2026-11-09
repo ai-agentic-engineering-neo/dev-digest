@@ -20,9 +20,20 @@ export class BriefModelNotConfiguredError extends AppError {
   }
 }
 
+/** Fixed client-facing text per reason — the raw provider message never reaches the API. */
+const FAILURE_MESSAGES: Record<BriefFailureReason, string> = {
+  timeout: 'Brief generation failed: the model call took too long',
+  invalid_reply: "Brief generation failed: the model's reply was invalid",
+  provider_error: 'Brief generation failed: the model provider returned an error',
+};
+
 export class BriefGenerationError extends AppError {
-  constructor(reason: BriefFailureReason, message: string) {
-    super('brief_generation_failed', message, 502, { reason });
+  /** Raw provider message — for the server log only; never serialized into a response. */
+  readonly providerMessage: string;
+
+  constructor(reason: BriefFailureReason, providerMessage: string) {
+    super('brief_generation_failed', FAILURE_MESSAGES[reason], 502, { reason });
+    this.providerMessage = providerMessage;
   }
 }
 

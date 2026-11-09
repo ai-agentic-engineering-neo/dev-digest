@@ -169,6 +169,23 @@ describe('BriefService', () => {
     }
   });
 
+  it('a provider error message never reaches the error; it goes to the server log only', async () => {
+    const llm = new MockLLMProvider();
+    llm.completeStructured = async () => {
+      throw Object.assign(new Error('401 Unauthorized: invalid key sk-test-secret'), { status: 401 });
+    };
+    const { svc } = makeService({ llm });
+    const logger = { info: vi.fn(), warn: vi.fn() };
+    const err = await svc.generate('w', 'pr1', logger).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(BriefGenerationError);
+    const e = err as BriefGenerationError;
+    expect(e.message).not.toContain('sk-test-secret');
+    expect(JSON.stringify({ code: e.code, message: e.message, details: e.details })).not.toContain('sk-test-secret');
+    expect(e.details).toEqual({ reason: 'provider_error' });
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    expect(logger.warn.mock.calls[0]![0]).toMatchObject({ outcome: 'failed', providerError: expect.stringContaining('sk-test-secret') });
+  });
+
   it('unknown PR (other workspace) is 404 and calls nothing (AC-13)', async () => {
     const { repo } = makeRepo({ ctx: undefined });
     const { svc, llm, briefLlm } = makeService({ repo });

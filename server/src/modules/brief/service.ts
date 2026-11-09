@@ -65,6 +65,7 @@ export class BriefService {
         reason: e instanceof AppError ? e.code : 'error',
         latencyMs: Date.now() - t0,
         ...NO_USAGE,
+        ...(e instanceof BriefGenerationError ? { providerError: e.providerMessage } : {}),
       });
       throw e;
     }

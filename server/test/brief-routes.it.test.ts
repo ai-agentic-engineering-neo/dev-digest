@@ -129,6 +129,21 @@ d('Brief routes (Testcontainers pg)', () => {
     await bad.app.close();
   });
 
+  it('a provider error with a secret -> 502 with only the classified reason, secret not in the body', async () => {
+    class SecretLLM extends MockLLMProvider {
+      override async completeStructured<T>(): Promise<never> {
+        throw Object.assign(new Error('401 Unauthorized: invalid key sk-test-secret'), { status: 401 });
+      }
+    }
+    const { app } = await makeApp({ llm: new SecretLLM('openai') });
+    const prId = await newPr();
+    const res = await app.inject({ method: 'POST', url: `/pulls/${prId}/brief` });
+    expect(res.statusCode).toBe(502);
+    expect(res.body).not.toContain('sk-test-secret');
+    expect(res.json().error).toMatchObject({ code: 'brief_generation_failed', details: { reason: 'provider_error' } });
+    await app.close();
+  });
+
   it('unknown PR id -> 404', async () => {
     const { app } = await makeApp();
     const id = '00000000-0000-4000-8000-000000000000';

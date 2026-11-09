@@ -66,6 +66,8 @@ export interface BriefLogRecord {
   tokensIn: number;
   tokensOut: number;
   costUsd: number | null;
+  /** Raw provider error message of a failed model call — server log only, never in a response. */
+  providerError?: string;
 }
 export interface BriefLogger {
   info(fields: BriefLogRecord, msg: string): void;

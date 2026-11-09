@@ -657,7 +657,7 @@ Final checks: plan-verifier INCOMPLETE EVIDENCE 160/167 (0 NOT MET / VIOLATED) �
 - [ ] T2.AC2 (PARTIAL): prove `setQueryData` runs before the invalidation (GET must return a different object) and add a 502 case.
 - [ ] T5.AC2 (PARTIAL): `.it` case with two agents of the same name → order by id.
 - [ ] T14.AC2 (PARTIAL): assert Risk areas sits in the left (Intent) column, before the Blast column.
-- [ ] Security UNVERIFIED (< 80 confidence): `BriefGenerationError` returns the raw provider `e.message` (`server/src/modules/brief/service.ts:164-167`) — confirm LLM adapter errors never carry headers/keys, or map to a fixed message per reason.
+- [x] (fixed 2026-11-09: fixed message per reason, raw message only in the server log as `providerError`; tests in brief-service.test.ts + brief-routes.it.test.ts with `sk-test-secret`, mutation-checked) Security UNVERIFIED (< 80 confidence): `BriefGenerationError` returned the raw provider `e.message` (`server/src/modules/brief/service.ts:164-167`) — confirm LLM adapter errors never carry headers/keys, or map to a fixed message per reason.
 
 ## Cross-model review (ChatGPT GPT6, 2026-11-09)
 

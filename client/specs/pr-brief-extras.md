@@ -1,4 +1,4 @@
-# Spec: PR Brief extras — verdict banner, risk expand, exact-line focus, visual parity   |   Spec ID: SPEC-07   |   Status: draft
+# Spec: PR Brief extras — verdict banner, risk expand, exact-line focus, visual parity   |   Spec ID: SPEC-07   |   Status: approved
 Modules: client
 Supersedes: [../../specs/pr-brief.md](../../specs/pr-brief.md) — only SPEC-06 AC-2 (how a risk item is laid out: explanation
 behind an expand toggle) and AC-9 (click target for a changed file: the line, not only the header). Everything

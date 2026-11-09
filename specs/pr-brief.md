@@ -2,7 +2,7 @@
 Modules: server · client
 Related: [project-context-folder.md](project-context-folder.md) (SPEC-01, doc selection + 4K cap),
 [project-context-for-skills.md](project-context-for-skills.md) (SPEC-05, inherited docs),
-[pr-brief-extras.md](pr-brief-extras.md) (SPEC-07, P3 follow-up: verdict banner, risk expand, scroll to line),
+[../client/specs/pr-brief-extras.md](../client/specs/pr-brief-extras.md) (SPEC-07, P3 follow-up: verdict banner, risk expand, scroll to line),
 [../server/specs/intent-layer.md](../server/specs/intent-layer.md) (L03 Intent), [../plans/blast-radius.md](../plans/blast-radius.md) (L04).
 
 ## Problem and why
@@ -245,7 +245,7 @@ Decisions (user, 2026-11-08):
   parts (summary, review focus, generated-for commit, missing inputs, truncated inputs, model/usage) are stored
   with the brief in the existing per-PR brief store.
 - **Base branch:** `feat/sdd-agents`; Smart Diff roles always missing; click → flat list (Module interactions).
-- **Scope:** P1 + P2 here; the three P3 criteria moved to SPEC-07 ([pr-brief-extras.md](pr-brief-extras.md)).
+- **Scope:** P1 + P2 here; the three P3 criteria moved to SPEC-07 ([../client/specs/pr-brief-extras.md](../client/specs/pr-brief-extras.md)).
 - **Default model:** module-local `openrouter / deepseek/deepseek-v4-flash`, like Intent (AC-17).
 - **Metadata only:** risks and focus come from paths, roles, stats, intent, blast, docs and the PR description;
   no code-level findings (Non-goals). The design's examples ("live Stripe key sk_live_… committed", "N+1 query")

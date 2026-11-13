@@ -21,7 +21,7 @@ const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
  * with a few findings, and the three built-in agents (General + Security +
  * Performance), all on the default openrouter/deepseek-v4-flash provider+model.
  *
- * Course lessons populate the other tables (skills, conventions, memory, eval,
+ * Later milestones populate the other tables (skills, conventions, memory, eval,
  * …) once their features are built — they start empty here.
  */
 

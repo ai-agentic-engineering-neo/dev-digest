@@ -1,5 +1,5 @@
 /* AgentEditor — basic agent config editor (model + system prompt). Later
-   lessons add Skills/Evals/Stats/CI tabs; the Part-0 starter ships Config only.
+   milestones add Skills/Evals/Stats/CI tabs; the starter ships Config only.
    Tab state still lives in ?tab= for forward-compatibility. */
 "use client";
 

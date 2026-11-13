@@ -1,9 +1,9 @@
 # DevDigest — starter
 
-Local-first AI pull-request review. This is the **course starter template**: a
+Local-first AI pull-request review. This is the **starter template**: a
 minimal-but-working tool that does exactly one thing end to end — **import a PR
-and run an agent review on it**. Every later course lesson adds one feature back
-(see [_What you build in the course_](#what-you-build-in-the-course)).
+and run an agent review on it**. Every later milestone adds one feature back
+(see [_Roadmap_](#roadmap)).
 
 Several standalone packages (no monorepo workspace — each has its own
 `package.json` and lockfile; cross-package code is shared through tsconfig path
@@ -73,20 +73,20 @@ Each package has its own README with deeper diagrams:
 - **Agents** — two built-in reviewers (General + Security); create/edit your own (model + system prompt).
 - **Run a review** — single-pass analysis returning structured findings (severity + score), with the grounding gate and repo-map context working from the start.
 
-## What you build in the course
+## Roadmap
 
-These are intentionally **not** in the starter — each lesson adds one back:
+These are intentionally **not** in the starter — each milestone adds one back:
 
-| Lesson | You build |
+| Milestone | You build |
 |--------|-----------|
-| L01 | Run cost badge · severity filter on findings |
-| L02 | Skills in the product · Conventions extractor |
-| L03 | Intent layer · Smart Diff |
-| L04 | `devdigest-mcp` server · Blast Radius (reads `repo-intel`) |
-| L05 | Project Context Folder · Onboarding generator · PR Brief card |
-| L06 | Eval pipeline · Secret/Phantom gates · Plan Verifier · Export to CI |
-| L07 | Multi-agent review · Run Trace / Live Log · Persistent memory · per-agent stats |
-| L08 | Plugin export/import · Agent performance dashboard · weekly digest |
+| M1 | Run cost badge · severity filter on findings |
+| M2 | Skills in the product · Conventions extractor |
+| M3 | Intent layer · Smart Diff |
+| M4 | `devdigest-mcp` server · Blast Radius (reads `repo-intel`) |
+| M5 | Project Context Folder · Onboarding generator · PR Brief card |
+| M6 | Eval pipeline · Secret/Phantom gates · Plan Verifier · Export to CI |
+| M7 | Multi-agent review · Run Trace / Live Log · Persistent memory · per-agent stats |
+| M8 | Plugin export/import · Agent performance dashboard · weekly digest |
 
 ## Prerequisites
 
@@ -165,7 +165,6 @@ Postgres); everything else is hermetic. The browser e2e flows live in
 [MIT](LICENSE) — fork it, extend it, run it inside your own company. The only
 requirement is that the copyright notice travels with the copy.
 
-This starter is built for participants of the **AI Agentic Engineering** course:
-you are meant to copy it, keep it in your own fork, and grow it lesson by lesson
-into your own working PR-review tool — including using it for your own projects
-and at work.
+This starter is meant to be copied: keep it in your own fork and grow it
+milestone by milestone into your own working PR-review tool — including using it
+for your own projects and at work.

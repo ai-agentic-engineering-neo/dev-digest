@@ -7,7 +7,7 @@ map** (the project skeleton). On a review it is only **read** — the index is
 already computed, so adding context to a prompt costs no analysis at request time.
 
 This is **starter infrastructure**: it works from day 1 (the **Indexed** badge),
-but you don't write it. Course lessons build features _on top_ of its facade —
+but you don't write it. Later milestones build features _on top_ of its facade —
 Blast Radius (L04), Conventions samples (L02), Onboarding reading-path (L05),
 the Phantom-API gate (L06) — by calling `repoIntel.*`, not by re-indexing.
 

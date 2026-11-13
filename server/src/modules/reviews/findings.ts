@@ -5,7 +5,7 @@ import { findingRowToDto, type ReviewDtoFinding } from './helpers.js';
 
 /**
  * Finding actions available in the starter: accept / dismiss. These decisions
- * are the dataset later lessons build on (eval cases from accept/dismiss, the
+ * are the dataset later milestones build on (eval cases from accept/dismiss, the
  * `learn → memory` action, etc.).
  */
 export async function actOnFinding(

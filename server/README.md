@@ -6,11 +6,11 @@ grounded structured findings). Fastify 5 + Drizzle ORM over Postgres (pgvector).
 Adapters (LLM, GitHub, git, ast-grep, …) sit behind a DI container so they can be
 swapped for mocks in tests.
 
-> This is the **starter** module set. Later course lessons add their own modules
+> This is the **starter** module set. Later milestones add their own modules
 > (skills, intent/smart-diff, blast, brief/context/onboarding, eval/ci/hooks,
 > memory, plugins, …) — each is a self-contained `modules/<name>/` plugin plus,
 > usually, a slot it starts feeding the reviewer prompt. The DB schema already
-> contains **every** table; the unused ones simply sit empty until a lesson fills
+> contains **every** table; the unused ones simply sit empty until a milestone fills
 > them.
 
 - **Stack:** Fastify 5 (`@fastify/helmet`, `@fastify/rate-limit`, `@fastify/cors`,

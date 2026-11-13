@@ -17,7 +17,7 @@ import repoIntel from './repo-intel/routes.js';
  * than via filesystem autoload so the same code path works under tsx, the
  * bundler, and vitest — native dynamic import() of .ts files is not portable.)
  *
- * This is the Part-0 starter set. Each course lesson adds its own module here
+ * This is the starter set. Each later milestone adds its own module here
  * (skills, intent/smart-diff, blast, brief/context/onboarding, eval/ci/hooks,
  * memory, plugins, …) without touching any other module or the shared schema.
  */

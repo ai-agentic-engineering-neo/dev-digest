@@ -101,6 +101,8 @@ export function Dropdown({
           {items.map((it, i) =>
             it.divider ? (
               <div key={i} style={{ height: 1, background: "var(--border)", margin: "6px 0" }} />
+            ) : it.custom ? (
+              <React.Fragment key={i}>{it.custom(() => setOpen(false))}</React.Fragment>
             ) : (
               <DropdownItem key={i} it={it} onClose={() => setOpen(false)} />
             )

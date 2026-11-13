@@ -82,7 +82,13 @@ export function useDeleteReview(prId: string | null | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (reviewId: string) => api.del<{ ok: boolean }>(`/reviews/${reviewId}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["reviews", prId] }),
+    // Deleting a review also deletes its matching agent_runs row server-side
+    // (same run, seen from the Timeline), so drop both caches — otherwise the
+    // Timeline keeps showing a tile for a run that's gone from Review runs.
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["reviews", prId] });
+      qc.invalidateQueries({ queryKey: ["pr-runs", prId] });
+    },
   });
 }
 

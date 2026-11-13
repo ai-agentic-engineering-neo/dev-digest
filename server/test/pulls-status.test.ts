@@ -47,6 +47,72 @@ describe('deriveReviewStatus', () => {
       deriveReviewStatus({ ghStatus: 'closed', lastReviewedSha: 'abc', headSha: 'abc', updatedAt: new Date(now), now }),
     ).toBe('closed');
   });
+
+  it('changes_requested overrides needs_review/stale/reviewed whenever any run requested changes', () => {
+    // Fresh head, recent PR — would otherwise be "reviewed".
+    expect(
+      deriveReviewStatus({
+        ghStatus: 'open',
+        lastReviewedSha: 'abc',
+        headSha: 'abc',
+        updatedAt: new Date(now - DAY),
+        now,
+        worstVerdict: 'request_changes',
+      }),
+    ).toBe('changes_requested');
+    // Stale head — would otherwise be "stale".
+    expect(
+      deriveReviewStatus({
+        ghStatus: 'open',
+        lastReviewedSha: 'abc',
+        headSha: 'abc',
+        updatedAt: new Date(now - (STALE_DAYS + 1) * DAY),
+        now,
+        worstVerdict: 'request_changes',
+      }),
+    ).toBe('changes_requested');
+    // Head moved since last review — would otherwise be "needs_review"; a past
+    // request_changes still takes precedence (unscoped to the current head).
+    expect(
+      deriveReviewStatus({
+        ghStatus: 'open',
+        lastReviewedSha: 'old',
+        headSha: 'abc',
+        updatedAt: new Date(now),
+        now,
+        worstVerdict: 'request_changes',
+      }),
+    ).toBe('changes_requested');
+  });
+
+  it('a null/undefined worstVerdict preserves prior behavior exactly (regression guard)', () => {
+    expect(
+      deriveReviewStatus({
+        ghStatus: 'open',
+        lastReviewedSha: 'abc',
+        headSha: 'abc',
+        updatedAt: new Date(now - DAY),
+        now,
+        worstVerdict: null,
+      }),
+    ).toBe('reviewed');
+    expect(
+      deriveReviewStatus({ ghStatus: 'open', lastReviewedSha: null, headSha: 'abc', updatedAt: new Date(now), now }),
+    ).toBe('needs_review');
+  });
+
+  it('merged/closed still short-circuit even with a request_changes verdict', () => {
+    expect(
+      deriveReviewStatus({
+        ghStatus: 'merged',
+        lastReviewedSha: 'abc',
+        headSha: 'abc',
+        updatedAt: new Date(now),
+        now,
+        worstVerdict: 'request_changes',
+      }),
+    ).toBe('merged');
+  });
 });
 
 describe('rollupSeverities', () => {

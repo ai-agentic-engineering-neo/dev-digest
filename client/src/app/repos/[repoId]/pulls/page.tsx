@@ -22,7 +22,7 @@ import { PRRow } from "./_components/PRRow";
 import { FilterBar } from "./_components/FilterBar";
 
 /** Open PRs carry a derived review status; everything else is merged/closed. */
-const OPEN_STATUSES = new Set(["needs_review", "reviewed", "stale"]);
+const OPEN_STATUSES = new Set(["needs_review", "reviewed", "stale", "changes_requested"]);
 
 export default function PullsPage() {
   const t = useTranslations("prReview");
@@ -98,7 +98,7 @@ export default function PullsPage() {
         />
         <div style={s.headRow}>
           {COLUMN_KEYS.map((key, i) => (
-            <div key={key} style={s.headCell(i === COLUMN_KEYS.length - 1)}>
+            <div key={key} style={s.headCell(i >= COLUMN_KEYS.length - 2)}>
               {t(`list.columns.${key}`)}
             </div>
           ))}

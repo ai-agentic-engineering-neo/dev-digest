@@ -13,4 +13,11 @@ export interface DropdownItemDef {
   onRemove?: () => void;
   /** Accessible label/tooltip for the trailing remove action. */
   removeLabel?: string;
+  /**
+   * Renders arbitrary content in place of the default label row (e.g. a
+   * checkbox list) without auto-closing the menu on click. When set, all
+   * other fields on this item are ignored. Call `close()` to dismiss the
+   * menu once the custom content's own action fires.
+   */
+  custom?: (close: () => void) => React.ReactNode;
 }

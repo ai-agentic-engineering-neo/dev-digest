@@ -2,8 +2,11 @@
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { Badge, Icon, CircularScore, type IconName } from "@devdigest/ui";
-import type { RunSummary, PrCommit } from "@devdigest/shared";
+import { Badge, Icon, CircularScore, SeverityBadge, Modal, type IconName } from "@devdigest/ui";
+import type { RunSummary, PrCommit, FindingRecord } from "@devdigest/shared";
+import { formatCost, formatTokens } from "@/lib/format";
+import { countBySeverity, presentSeverities } from "@/lib/findings";
+import { FindingPreviewRow } from "@/components/FindingPreviewRow";
 
 /**
  * PR timeline — every agent run interleaved with the PR's commits, newest-first
@@ -87,12 +90,17 @@ function tsOf(s: string | null | undefined): number {
 export function RunHistory({
   runs,
   commits = [],
+  findingsByRunId,
   onOpenTrace,
   onGoToReview,
   onDelete,
 }: {
   runs: RunSummary[];
   commits?: PrCommit[];
+  /** Per-run findings, keyed by run_id — used both for each tile's severity
+   *  icon+count summary and for that tile's "click to see findings" modal.
+   *  Absent entries (e.g. no matching review yet) render no icons. */
+  findingsByRunId?: Record<string, FindingRecord[]>;
   /** Open the trace + log drawer for a run (the logs icon). */
   onOpenTrace: (runId: string) => void;
   /** Jump to this run's inline review accordion below (clicking the agent name). */
@@ -100,7 +108,10 @@ export function RunHistory({
   onDelete?: (runId: string) => void;
 }) {
   const t = useTranslations("prReview");
+  const [modalRunId, setModalRunId] = React.useState<string | null>(null);
   if (runs.length === 0 && commits.length === 0) return null;
+
+  const modalFindings = modalRunId ? findingsByRunId?.[modalRunId] ?? [] : [];
 
   const items: TimelineItem[] = [
     ...runs.map((run) => ({ kind: "run" as const, ts: tsOf(run.ran_at), run })),
@@ -112,6 +123,7 @@ export function RunHistory({
   ].sort((a, b) => b.ts - a.ts);
 
   return (
+    <>
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       {items.map((item) => {
         if (item.kind === "commit") {
@@ -188,15 +200,50 @@ export function RunHistory({
                   {r.error}
                 </div>
               )}
-              {settled && (
-                <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                  {t("runStatus.findings", { count: r.findings_count ?? 0 })}
-                  {(r.blockers ?? 0) > 0 ? t("runStatus.blockers", { count: r.blockers ?? 0 }) : ""}
-                </div>
-              )}
+              {settled &&
+                (r.findings_count ?? 0) > 0 &&
+                (() => {
+                  const findings = findingsByRunId?.[r.run_id] ?? [];
+                  const counts = countBySeverity(findings);
+                  const present = presentSeverities(counts);
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => setModalRunId(r.run_id)}
+                      disabled={present.length === 0}
+                      title={t("verdict.findingsCount", { count: r.findings_count ?? 0 })}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        marginTop: 2,
+                        padding: 0,
+                        border: "none",
+                        background: "none",
+                        cursor: present.length > 0 ? "pointer" : "default",
+                      }}
+                    >
+                      {present.length > 0 ? (
+                        present.map((sev) => <SeverityBadge key={sev} severity={sev} count={counts[sev]} compact />)
+                      ) : (
+                        <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                          {t("runStatus.findings", { count: r.findings_count ?? 0 })}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })()}
             </div>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, fontSize: 11, color: "var(--text-muted)", flexShrink: 0 }}>
               {r.ran_at && <span>{new Date(r.ran_at).toLocaleTimeString()}</span>}
+              {settled && (
+                <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  {r.tokens_in != null && r.tokens_out != null && (
+                    <span className="mono">{formatTokens(r.tokens_in, r.tokens_out)}</span>
+                  )}
+                  <span>{formatCost(r.cost_usd)}</span>
+                </span>
+              )}
             </div>
             <button
               type="button"
@@ -222,5 +269,18 @@ export function RunHistory({
         );
       })}
     </div>
+    {modalRunId && (
+      <Modal
+        title={t("verdict.findingsCount", { count: modalFindings.length })}
+        onClose={() => setModalRunId(null)}
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 14, padding: "16px 20px" }}>
+          {modalFindings.map((f) => (
+            <FindingPreviewRow key={f.id} f={f} />
+          ))}
+        </div>
+      </Modal>
+    )}
+    </>
   );
 }

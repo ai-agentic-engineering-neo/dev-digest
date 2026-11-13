@@ -15,6 +15,8 @@ import type { Finding, UnifiedDiff } from '@devdigest/shared';
 
 const FULL_FILE_KINDS = new Set(['secret_leak', 'lethal_trifecta', 'phantom', 'hook']);
 
+const demo = 'test';
+
 export interface GroundingResult {
   kept: Finding[];
   dropped: { finding: Finding; reason: string }[];

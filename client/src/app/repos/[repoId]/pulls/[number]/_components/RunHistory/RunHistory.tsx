@@ -3,7 +3,9 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Badge, Icon, CircularScore, type IconName } from "@devdigest/ui";
-import type { RunSummary, PrCommit } from "@devdigest/shared";
+import type { RunSummary, PrCommit, FindingRecord, Severity } from "@devdigest/shared";
+import { RunCostBadge } from "@/components/run-cost-badge";
+import { SeverityCounts, countBySeverity } from "@/components/severity-counts";
 
 /**
  * PR timeline — every agent run interleaved with the PR's commits, newest-first
@@ -90,6 +92,8 @@ export function RunHistory({
   onOpenTrace,
   onGoToReview,
   onDelete,
+  findingsByRun,
+  onSelectSeverity,
 }: {
   runs: RunSummary[];
   commits?: PrCommit[];
@@ -98,6 +102,10 @@ export function RunHistory({
   /** Jump to this run's inline review accordion below (clicking the agent name). */
   onGoToReview?: (runId: string) => void;
   onDelete?: (runId: string) => void;
+  /** Each run's persisted findings (by run_id) — feeds the per-run severity counters + popover. */
+  findingsByRun?: Record<string, FindingRecord[]>;
+  /** Clicking a run's severity counter (filter to it + jump to the run). */
+  onSelectSeverity?: (runId: string, sev: Severity) => void;
 }) {
   const t = useTranslations("prReview");
   if (runs.length === 0 && commits.length === 0) return null;
@@ -149,6 +157,9 @@ export function RunHistory({
         const r = item.run;
         const o = outcomeOf(r);
         const settled = r.status === "done";
+        const runFindings = findingsByRun?.[r.run_id];
+        const runCounts = runFindings ? countBySeverity(runFindings) : null;
+        const hasCounts = runCounts != null && Object.values(runCounts).some((n) => n > 0);
         return (
           <div key={`run:${r.run_id}`} style={rowStyle}>
             <Badge color={o.color} bg={o.bg} icon={o.icon}>
@@ -189,14 +200,25 @@ export function RunHistory({
                 </div>
               )}
               {settled && (
-                <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                  {t("runStatus.findings", { count: r.findings_count ?? 0 })}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text-muted)" }}>
+                  {hasCounts ? (
+                    <SeverityCounts
+                      counts={runCounts}
+                      findings={runFindings}
+                      onSelect={onSelectSeverity ? (sev) => onSelectSeverity(r.run_id, sev) : undefined}
+                    />
+                  ) : (
+                    t("runStatus.findings", { count: r.findings_count ?? 0 })
+                  )}
                   {(r.blockers ?? 0) > 0 ? t("runStatus.blockers", { count: r.blockers ?? 0 }) : ""}
                 </div>
               )}
             </div>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, fontSize: 11, color: "var(--text-muted)", flexShrink: 0 }}>
               {r.ran_at && <span>{new Date(r.ran_at).toLocaleTimeString()}</span>}
+              {settled && (
+                <RunCostBadge variant="full" usd={r.cost_usd} tokensIn={r.tokens_in} tokensOut={r.tokens_out} />
+              )}
             </div>
             <button
               type="button"

@@ -1,4 +1,4 @@
-import type { PrStatus } from '@devdigest/shared';
+import type { PrStatus, SeverityCounts as PrSeverityCounts } from '@devdigest/shared';
 
 /**
  * PR-list rollup helpers (pure — no DB / `this`, so they unit-test cleanly).
@@ -28,6 +28,27 @@ export function rollupSeverities(rows: { severity: string }[]): SeverityCounts {
     else if (r.severity === 'SUGGESTION') c.suggestion += 1;
   }
   return c;
+}
+
+/**
+ * Group `(prId, severity, n)` aggregate rows into the PR list's `finding_counts`
+ * (contract shape). PRs with no rows are absent → the route returns null.
+ * Unknown severities are ignored.
+ */
+export function tallySeverityCountsByPr(
+  rows: { prId: string; severity: string; n: number }[],
+): Map<string, PrSeverityCounts> {
+  const byPr = new Map<string, PrSeverityCounts>();
+  for (const r of rows) {
+    if (r.severity !== 'CRITICAL' && r.severity !== 'WARNING' && r.severity !== 'SUGGESTION') continue;
+    let c = byPr.get(r.prId);
+    if (!c) {
+      c = { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 };
+      byPr.set(r.prId, c);
+    }
+    c[r.severity] += Number(r.n);
+  }
+  return byPr;
 }
 
 /**

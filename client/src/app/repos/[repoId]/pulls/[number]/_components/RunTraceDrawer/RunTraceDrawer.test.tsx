@@ -1,13 +1,14 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
-import type { RunTrace } from "@devdigest/shared";
+import type { FindingRecord, RunTrace } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/runs.json"; // apps/web/messages/en/runs.json
+import prReviewMessages from "../../../../../../../../messages/en/prReview.json";
 
 // Mock the trace hooks so the drawer renders without a query client / SSE.
 const TRACE: RunTrace = {
   config: { agent: "Security", version: "1", provider: "openai", model: "gpt-4.1", pr: 482, source: "local" },
-  stats: { duration_ms: 8200, tokens_in: 12000, tokens_out: 1500, findings: 2, grounding: "2/2 passed" },
+  stats: { duration_ms: 8200, tokens_in: 12000, tokens_out: 1500, cost_usd: 0.06, findings: 2, grounding: "2/2 passed" },
   prompt_assembly: { system: "You are a reviewer.", skills: "### skill", memory: null, specs: null, user: "Review PR #482" },
   tool_calls: [{ tool: "review_file", args: "src/config.ts", meta: "single-pass", ms: 1200 }],
   raw_output: '{"verdict":"request_changes"}',
@@ -32,7 +33,7 @@ afterEach(cleanup);
 
 function renderWithIntl(ui: React.ReactElement) {
   return render(
-    <NextIntlClientProvider locale="en" messages={{ runs: messages }}>
+    <NextIntlClientProvider locale="en" messages={{ runs: messages, prReview: prReviewMessages }}>
       <div data-theme="dark">{ui}</div>
     </NextIntlClientProvider>,
   );
@@ -44,6 +45,8 @@ describe("A5 Run Trace drawer (smoke)", () => {
     expect(screen.getByText("Configuration")).toBeInTheDocument();
     expect(screen.getByText("Stats")).toBeInTheDocument();
     expect(screen.getByText("2/2 passed")).toBeInTheDocument();
+    expect(screen.getByText("COST")).toBeInTheDocument();
+    expect(screen.getByText("$0.060")).toBeInTheDocument();
     expect(screen.getByText("Tool calls")).toBeInTheDocument();
   });
 
@@ -52,5 +55,43 @@ describe("A5 Run Trace drawer (smoke)", () => {
     fireEvent.click(screen.getByText("log"));
     // LiveLogStream renders its filter input
     expect(screen.getByPlaceholderText("Filter log…")).toBeInTheDocument();
+  });
+});
+
+describe("Run Trace drawer — findings severity filter", () => {
+  const f = (id: string, severity: FindingRecord["severity"], title: string): FindingRecord => ({
+    id,
+    severity,
+    category: "security",
+    title,
+    file: "lib/analytics.router.ts",
+    start_line: 19,
+    end_line: 55,
+    rationale: "r",
+    suggestion: null,
+    confidence: 0.95,
+    kind: "finding",
+    trifecta_components: null,
+    evidence: null,
+    review_id: "rv",
+    accepted_at: null,
+    dismissed_at: null,
+  });
+  const FINDINGS = [
+    f("w1", "WARNING", "Date-range boundary is inclusive"),
+    f("c1", "CRITICAL", "Analytics endpoints are unauthenticated"),
+  ];
+
+  it("shows severity counters; clicking one filters the run's findings", () => {
+    renderWithIntl(
+      <RunTraceDrawer runId="r1" agentName="Security" prNumber={482} findings={FINDINGS} onClose={() => {}} />,
+    );
+    const crit = screen.getByRole("button", { name: "Show only Critical findings (1)" });
+    expect(screen.getByRole("button", { name: "Show only Warning findings (1)" })).toBeInTheDocument();
+    fireEvent.click(crit);
+    expect(screen.getByText("Analytics endpoints are unauthenticated")).toBeInTheDocument();
+    expect(screen.queryByText("Date-range boundary is inclusive")).not.toBeInTheDocument();
+    fireEvent.click(crit);
+    expect(screen.getByText("Date-range boundary is inclusive")).toBeInTheDocument();
   });
 });

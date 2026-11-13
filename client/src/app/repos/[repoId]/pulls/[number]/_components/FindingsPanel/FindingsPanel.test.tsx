@@ -31,6 +31,24 @@ const FINDINGS: FindingRecord[] = [
     accepted_at: null,
     dismissed_at: null,
   },
+  {
+    id: "f2",
+    severity: "SUGGESTION",
+    category: "style",
+    title: "Extract magic number",
+    file: "src/rate.ts",
+    start_line: 28,
+    end_line: 28,
+    rationale: "3600 appears twice.",
+    suggestion: null,
+    confidence: 0.9,
+    kind: "finding",
+    trifecta_components: null,
+    evidence: null,
+    review_id: "r1",
+    accepted_at: null,
+    dismissed_at: null,
+  },
 ];
 
 function renderWithIntl(ui: React.ReactElement) {
@@ -46,6 +64,12 @@ describe("FindingsPanel (smoke)", () => {
     renderWithIntl(<FindingsPanel findings={FINDINGS} prId="pr1" />);
     expect(screen.getByText("Hide low confidence")).toBeInTheDocument();
     expect(screen.getByText("Hardcoded secret")).toBeInTheDocument();
+  });
+
+  it("severityFilter keeps only that severity", () => {
+    renderWithIntl(<FindingsPanel findings={FINDINGS} prId="pr1" severityFilter="SUGGESTION" />);
+    expect(screen.getByText("Extract magic number")).toBeInTheDocument();
+    expect(screen.queryByText("Hardcoded secret")).not.toBeInTheDocument();
   });
 
   it("shows the empty state when nothing matches", () => {

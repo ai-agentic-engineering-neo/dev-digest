@@ -7,7 +7,7 @@ import { seed } from '../src/db/seed.js';
 import { MockLLMProvider, MockEmbedder, MockGitClient } from '../src/adapters/mocks.js';
 import * as t from '../src/db/schema.js';
 import { eq } from 'drizzle-orm';
-import type { Review } from '@devdigest/shared';
+import type { GitHubClient, PrMeta, Review, RunSummary } from '@devdigest/shared';
 
 const hasDocker = await dockerAvailable();
 const d = hasDocker ? describe : describe.skip;
@@ -208,6 +208,99 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(run!.status).toBe('done');
     expect(run!.findingsCount).toBe(1);
     expect(run!.grounding).toBe('1/2 passed');
+
+    // L01 run cost: the engine's costUsd (mock: $0.001 per call) is persisted on
+    // the run row, the trace stats and the timeline summary — no extra LLM calls.
+    expect(run!.costUsd).toBeGreaterThan(0);
+    expect(trace.stats.cost_usd).toBeCloseTo(run!.costUsd!);
+    const runs: RunSummary[] = (
+      await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })
+    ).json();
+    expect(runs.find((r) => r.run_id === runId)!.cost_usd).toBeCloseTo(run!.costUsd!);
+
+    await app.close();
+  });
+
+  it('PR list COST sums every priced run per PR; unpriced / unreviewed → null', async () => {
+    // GitHub stub with no PRs: the list serves only what we persist below.
+    const github = { listPullRequests: async () => [] } as unknown as GitHubClient;
+    const app = await buildApp({ config: config(), db: pg.handle.db, overrides: { github } });
+    const { repo, pr: reviewed } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const extraPr = (number: number) => ({
+      workspaceId,
+      repoId: repo.id,
+      number,
+      title: `PR ${number}`,
+      author: 'deepak.r',
+      branch: `feat/${number}`,
+      base: 'main',
+      headSha: 'ffff',
+      additions: 1,
+      deletions: 0,
+      filesCount: 1,
+      status: 'needs_review',
+    });
+    const [unpriced, fresh] = await pg.handle.db
+      .insert(t.pullRequests)
+      .values([extraPr(483), extraPr(484)])
+      .returning();
+
+    await pg.handle.db.insert(t.agentRuns).values([
+      { workspaceId, prId: reviewed.id, status: 'done', costUsd: 0.0013 },
+      { workspaceId, prId: reviewed.id, status: 'done', costUsd: 0.0014 },
+      { workspaceId, prId: reviewed.id, status: 'failed', costUsd: null },
+      { workspaceId, prId: unpriced!.id, status: 'done', costUsd: null },
+    ]);
+
+    const res = await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` });
+    expect(res.statusCode).toBe(200);
+    const byNumber = new Map(res.json().map((p: PrMeta) => [p.number, p]));
+    expect(byNumber.get(482)!.cost_usd).toBeCloseTo(0.0027);
+    expect(byNumber.get(483)!.cost_usd).toBeNull();
+    expect(byNumber.get(484)!.cost_usd).toBeNull();
+    expect(fresh).toBeDefined();
+
+    await app.close();
+  });
+
+  it('PR list FINDINGS counts non-dismissed findings per severity across reviews; none → null', async () => {
+    const github = { listPullRequests: async () => [] } as unknown as GitHubClient;
+    const app = await buildApp({ config: config(), db: pg.handle.db, overrides: { github } });
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+
+    const [r1, r2] = await pg.handle.db
+      .insert(t.reviews)
+      .values([
+        { workspaceId, prId: pr.id, kind: 'review' },
+        { workspaceId, prId: pr.id, kind: 'review' },
+      ])
+      .returning();
+    const finding = (reviewId: string, severity: string, dismissed = false) => ({
+      reviewId,
+      file: 'src/a.ts',
+      startLine: 1,
+      endLine: 1,
+      severity,
+      category: 'bug',
+      title: `${severity} finding`,
+      rationale: 'r',
+      confidence: 0.9,
+      dismissedAt: dismissed ? new Date() : null,
+    });
+    await pg.handle.db.insert(t.findings).values([
+      finding(r1!.id, 'CRITICAL'),
+      finding(r1!.id, 'WARNING'),
+      finding(r2!.id, 'CRITICAL'),
+      finding(r2!.id, 'SUGGESTION'),
+      finding(r2!.id, 'CRITICAL', true), // dismissed → not counted
+    ]);
+
+    const res = await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` });
+    expect(res.statusCode).toBe(200);
+    const listed: PrMeta[] = res.json();
+    const row = listed.find((p) => p.id === pr.id)!;
+    expect(row.finding_counts).toEqual({ CRITICAL: 2, WARNING: 1, SUGGESTION: 1 });
+    expect(listed.filter((p) => p.id !== pr.id).every((p) => p.finding_counts == null)).toBe(true);
 
     await app.close();
   });

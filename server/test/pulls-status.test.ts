@@ -6,7 +6,7 @@
  * + age, so it gets unit coverage independent of the route's queries.
  */
 import { describe, it, expect } from 'vitest';
-import { deriveReviewStatus, rollupSeverities, STALE_DAYS } from '../src/modules/pulls/status.js';
+import { deriveReviewStatus, rollupSeverities, tallySeverityCountsByPr, STALE_DAYS } from '../src/modules/pulls/status.js';
 
 const DAY = 86_400_000;
 const now = Date.UTC(2026, 5, 11);
@@ -64,5 +64,20 @@ describe('rollupSeverities', () => {
 
   it('is all-zero for no findings', () => {
     expect(rollupSeverities([])).toEqual({ critical: 0, warning: 0, suggestion: 0 });
+  });
+});
+
+describe('tallySeverityCountsByPr', () => {
+  it('groups aggregate rows into per-PR contract counts (ignores unknown severities)', () => {
+    const m = tallySeverityCountsByPr([
+      { prId: 'a', severity: 'CRITICAL', n: 3 },
+      { prId: 'a', severity: 'WARNING', n: 5 },
+      { prId: 'a', severity: 'SUGGESTION', n: 2 },
+      { prId: 'b', severity: 'SUGGESTION', n: 1 },
+      { prId: 'b', severity: 'WEIRD', n: 9 },
+    ]);
+    expect(m.get('a')).toEqual({ CRITICAL: 3, WARNING: 5, SUGGESTION: 2 });
+    expect(m.get('b')).toEqual({ CRITICAL: 0, WARNING: 0, SUGGESTION: 1 });
+    expect(m.has('c')).toBe(false);
   });
 });

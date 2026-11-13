@@ -209,6 +209,31 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(run!.findingsCount).toBe(1);
     expect(run!.grounding).toBe('1/2 passed');
 
+    // Run cost (mock LLM reports costUsd per call) is persisted on the row and
+    // surfaced identically on the trace stats and the PR run history.
+    expect(run!.costUsd).toBeGreaterThan(0);
+    expect(trace.stats.cost_usd).toBeCloseTo(run!.costUsd!);
+    const runs = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(runs[0].cost_usd).toBeCloseTo(run!.costUsd!);
+
+    await app.close();
+  });
+
+  it('run cost: seeded PR #482 shows the summed cost on the list and its run', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const [repo] = await pg.handle.db
+      .select()
+      .from(t.repos)
+      .where(eq(t.repos.fullName, 'acme/payments-api'));
+    const list = (await app.inject({ method: 'GET', url: `/repos/${repo!.id}/pulls` })).json();
+    const seeded = list.find((p: { number: number }) => p.number === 482);
+    expect(seeded.cost_usd).toBeCloseTo(0.014);
+    // Latest review's findings grouped by severity (seed: 1 CRITICAL + 1 WARNING).
+    expect(seeded.severity_counts).toEqual({ CRITICAL: 1, WARNING: 1, SUGGESTION: 0 });
+
+    const runs = (await app.inject({ method: 'GET', url: `/pulls/${seeded.id}/runs` })).json();
+    expect(runs[0]).toMatchObject({ status: 'done', tokens_in: 8200, tokens_out: 1300 });
+    expect(runs[0].cost_usd).toBeCloseTo(0.014);
     await app.close();
   });
 

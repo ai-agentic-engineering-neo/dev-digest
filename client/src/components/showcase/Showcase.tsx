@@ -13,6 +13,8 @@ import {
   Chip,
   Avatar,
   ConfidenceNum,
+  RunCostBadge,
+  formatTokenFlow,
   MonoLink,
   ProgressBar,
   PercentProgress,
@@ -114,6 +116,14 @@ export function Gallery() {
         <MonoLink>src/config.ts:12</MonoLink>
         <Kbd>⌘K</Kbd>
         <Toggle on={toggle} onChange={setToggle} />
+      </Group>
+
+      <Group title="Run cost (compact · detailed · unpriced · large)">
+        <RunCostBadge usd={0.014} />
+        <RunCostBadge usd={0.014} tokens={formatTokenFlow(8200, 1300)} />
+        <RunCostBadge usd={null} />
+        <RunCostBadge usd={1.25} size="lg" />
+        <RunCostBadge usd={0.0013} muted />
       </Group>
 
       <Group title="Progress & Score">

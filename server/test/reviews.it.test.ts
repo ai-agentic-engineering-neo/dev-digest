@@ -110,7 +110,11 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     await pg?.stop();
   });
 
-  function appWith(structured: unknown, provider: 'openai' | 'anthropic' = 'openai') {
+  function appWith(
+    structured: unknown,
+    provider: 'openai' | 'anthropic' = 'openai',
+    llmOpts: { costUsd?: number | null } = {},
+  ) {
     return buildApp({
       config: config(),
       db: pg.handle.db,
@@ -118,7 +122,7 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
         embedder: new MockEmbedder(),
         git: new MockGitClient({ diff: DIFF }),
         llm: {
-          [provider]: new MockLLMProvider(provider, { structured }),
+          [provider]: new MockLLMProvider(provider, { structured, ...llmOpts }),
         },
       },
     });
@@ -208,6 +212,87 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(run!.status).toBe('done');
     expect(run!.findingsCount).toBe(1);
     expect(run!.grounding).toBe('1/2 passed');
+    // the LLM's reported cost survives all the way to the column (mock: 0.001/call)
+    expect(run!.costUsd).toBeGreaterThan(0);
+
+    await app.close();
+  });
+
+  it('surfaces the run cost on every read path: trace, runs, reviews and the PR list', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'Cost', provider: 'openai', model: 'gpt-4.1', system_prompt: 'cost' },
+      })
+    ).json();
+
+    const body = (
+      await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } })
+    ).json();
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+    const runId = body.runs[0].run_id;
+    const [run] = await pg.handle.db.select().from(t.agentRuns).where(eq(t.agentRuns.id, runId));
+    const cost = run!.costUsd!;
+    expect(cost).toBeGreaterThan(0);
+
+    const trace = (await app.inject({ method: 'GET', url: `/runs/${runId}/trace` })).json();
+    expect(trace.stats.cost_usd).toBe(cost);
+
+    const runs = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(runs[0].cost_usd).toBe(cost);
+    expect(runs[0].tokens_in).toBeGreaterThan(0);
+
+    const reviews = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/reviews` })).json();
+    expect(reviews[0].cost_usd).toBe(cost);
+    expect(reviews[0].tokens_in).toBeGreaterThan(0);
+    expect(reviews[0].tokens_out).toBeGreaterThan(0);
+
+    const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const listed = pulls.find((p: { id: string }) => p.id === pr.id);
+    expect(listed.cost_usd).toBe(cost);
+
+    await app.close();
+  });
+
+  it('an unpriced model leaves cost null everywhere instead of reporting 0', async () => {
+    const app = await appWith(REVIEW_FIXTURE, 'openai', { costUsd: null });
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'Unpriced', provider: 'openai', model: 'gpt-4.1', system_prompt: 'x' },
+      })
+    ).json();
+
+    const body = (
+      await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } })
+    ).json();
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+    const runId = body.runs[0].run_id;
+
+    const [run] = await pg.handle.db.select().from(t.agentRuns).where(eq(t.agentRuns.id, runId));
+    expect(run!.status).toBe('done');
+    expect(run!.costUsd).toBeNull();
+
+    const trace = (await app.inject({ method: 'GET', url: `/runs/${runId}/trace` })).json();
+    expect(trace.stats.cost_usd).toBeNull();
+
+    const runs = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(runs[0].cost_usd).toBeNull();
+    // tokens still landed — only the price is unknown
+    expect(runs[0].tokens_in).toBeGreaterThan(0);
+
+    const reviews = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/reviews` })).json();
+    expect(reviews[0].cost_usd).toBeNull();
+
+    // the PR list skips unpriced runs rather than showing 0
+    const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const listed = pulls.find((p: { id: string }) => p.id === pr.id);
+    expect(listed.cost_usd).toBeNull();
 
     await app.close();
   });

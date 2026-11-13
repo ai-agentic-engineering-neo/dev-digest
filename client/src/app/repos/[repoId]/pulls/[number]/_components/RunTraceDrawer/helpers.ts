@@ -26,3 +26,15 @@ export function formatSeconds(ms: number): string {
 export function formatTokens(tokensIn: number, tokensOut: number): string {
   return `${(tokensIn / 1000).toFixed(0)}k→${(tokensOut / 1000).toFixed(1)}k`;
 }
+
+/**
+ * USD cost of the run, or "—" when the model had no known price.
+ *
+ * Deviates from the design's `toFixed(2)`: a review run costs a tenth of a cent,
+ * so two decimals would print "$0.00" for almost every real run. Same rule as
+ * RunCostBadge — 3 decimals below $1, 2 above.
+ */
+export function formatCost(usd: number | null | undefined): string {
+  if (usd == null) return "—";
+  return usd < 1 ? `$${usd.toFixed(3)}` : `$${usd.toFixed(2)}`;
+}

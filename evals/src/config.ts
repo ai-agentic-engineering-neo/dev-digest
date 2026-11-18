@@ -24,8 +24,11 @@ export const COST_REGRESSION_RATIO = 1.25; // candidate mean tokens > 125% of ba
 // --- Tool allow-lists -------------------------------------------------------
 // Subagent-spawning tool name varies by harness; count both.
 export const SPAWN_TOOLS = new Set(["Task", "Agent"]);
-// workflowTask runs against the LIVE repo with bypassPermissions — keep this read-only.
+// workflowTask runs against the LIVE repo — keep this read-only. Enforced by
+// permissionMode "dontAsk" (only allowedTools run) plus DISALLOWED_TOOLS below.
 export const WORKFLOW_ALLOWED_TOOLS = ["Read", "Grep", "Glob", "Task", "Agent", "Skill"];
+// Never available to a model under test, whatever a case or agent definition asks for.
+export const DISALLOWED_TOOLS = ["Bash", "Write", "Edit", "MultiEdit", "NotebookEdit", "WebFetch", "WebSearch"] as const;
 
 // --- Output verbosity -------------------------------------------------------
 // Set EVAL_QUIET to suppress per-run trace/verdict spam during multi-run aggregation.

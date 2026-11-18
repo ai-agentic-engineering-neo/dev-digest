@@ -10,30 +10,36 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@tanstack/react-query": "^5.62.8",
+    "@tanstack/react-query": "^5.108.0",
     "lucide-react": "^0.469.0",
-    "mermaid": "^11.15.0",
-    "next": "^15.1.3",
-    "next-intl": "^3.26.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "react-markdown": "^9.0.3",
-    "recharts": "^2.15.0",
-    "remark-gfm": "^4.0.0",
-    "zod": "^3.24.1"
+    "mermaid": "^11.17.2",
+    "next": "^15.5.29",
+    "next-intl": "^3.26.5",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-markdown": "^9.1.0",
+    "recharts": "^2.15.4",
+    "remark-gfm": "^4.0.1",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.0.0",
-    "@testing-library/jest-dom": "^6.6.3",
-    "@testing-library/react": "^16.1.0",
-    "@types/node": "^22.10.0",
-    "@types/react": "^19.0.2",
-    "@types/react-dom": "^19.0.2",
-    "@vitejs/plugin-react": "^4.3.4",
+    "@tailwindcss/postcss": "^4.3.5",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.3",
+    "@types/node": "^22.20.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^4.7.0",
     "jsdom": "^25.0.1",
-    "postcss": "^8.4.49",
-    "tailwindcss": "^4.0.0",
-    "typescript": "^5.7.2",
-    "vitest": "^2.1.8"
+    "postcss": "^8.5.33",
+    "tailwindcss": "^4.3.5",
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.9"
+  },
+  "pnpm": {
+    "overrides": {
+      "postcss": "^8.5.23",
+      "katex": "^0.18.2"
+    }
   }
 }

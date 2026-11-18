@@ -1,5 +1,6 @@
 import type { WebFetchClient } from '@devdigest/shared';
 import { ValidationError } from '../../platform/errors.js';
+import { fetchPublicUrl, BlockedHostError } from '../../platform/public-fetch.js';
 
 /**
  * SSRF-guarded outbound HTTP adapter.
@@ -11,9 +12,10 @@ import { ValidationError } from '../../platform/errors.js';
  *   - Response must have Content-Type starting with "text/"
  *   - Body capped at ~100KB
  *
- * Residual gap (same as today): DNS-rebinding is not defended — the guard
- * checks the hostname string, not the resolved IP address. This is a known
- * limitation and is out of scope to fix here.
+ * S7 (security hardening): the hostname regex is only a fast pre-check. The
+ * real guard is `fetchPublicUrl` — it checks every resolved address at
+ * connect time (DNS rebinding, `localtest.me`, IPv6/IPv4-mapped literals) and
+ * follows redirects by hand, re-validating each hop.
  */
 export class WebFetchAdapter implements WebFetchClient {
   async fetch(url: string): Promise<string> {
@@ -36,9 +38,12 @@ export class WebFetchAdapter implements WebFetchClient {
 
     let res: Response;
     try {
-      res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+      res = await fetchPublicUrl(url, AbortSignal.timeout(10_000));
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Network error';
+      if (err instanceof BlockedHostError) {
+      throw new ValidationError('Private and local URLs are not allowed');
+    }
+    const msg = err instanceof Error ? err.message : 'Network error';
       throw new ValidationError(`Failed to fetch URL: ${msg}`);
     }
 

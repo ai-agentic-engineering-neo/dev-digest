@@ -23,8 +23,26 @@ const BACKEND = process.env.EVAL_BACKEND ?? "subscription";
  *   proxy (e.g. http://localhost:4000) when routing to models that need Anthropic<->OpenAI
  *   translation.
  */
+/**
+ * Credentials the model under test never needs. S5 (plans/18-security-fixes.md): even with
+ * Bash disallowed, keep secrets out of the child env as defence in depth. The SDK's own auth
+ * (ANTHROPIC_* set below, CLAUDE_CODE_OAUTH_TOKEN for the subscription in CI) is kept.
+ */
+const SECRET_ENV = /(_API_KEY|_TOKEN|_SECRET|_PASSWORD|_PAT)$/i;
+const KEEP_ENV = new Set(["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"]);
+
+export function scrubSecrets(source: NodeJS.ProcessEnv): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [k, v] of Object.entries(source)) {
+    if (v === undefined) continue;
+    if (SECRET_ENV.test(k) && !KEEP_ENV.has(k)) continue;
+    env[k] = v;
+  }
+  return env;
+}
+
 export function subscriptionEnv(): Record<string, string> {
-  const env = { ...process.env } as Record<string, string>;
+  const env = scrubSecrets(process.env);
 
   if (BACKEND === "openrouter") {
     const key = process.env.OPENROUTER_API_KEY;

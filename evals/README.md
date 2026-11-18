@@ -180,11 +180,12 @@ workflow cases:
    **indicative, not blocking** when running on non-Anthropic models. (On the Anthropic path the
    model invokes the Skill tool, so it passes.)
 
-> **Isolation note.** `workflowTask` runs with `settingSources:["project"]` + `bypassPermissions`
-> against the live repo. A model that decides to `Write` can touch real files (e.g. your local
-> memory dir) even though `WORKFLOW_ALLOWED_TOOLS` is a read-only list. In CI this is harmless (the
-> checkout is disposable); locally, prefer the Anthropic path or a throwaway clone for the workflow
-> tier.
+> **Isolation note.** `workflowTask` runs with `settingSources:["project"]` against the live repo,
+> under `permissionMode: "dontAsk"`: only tools in `WORKFLOW_ALLOWED_TOOLS` run, and
+> `DISALLOWED_TOOLS` (`Bash`, `Write`, `Edit`, `MultiEdit`, `NotebookEdit`, `WebFetch`,
+> `WebSearch`) are removed outright — so the model under test cannot modify the checkout.
+> Credentials (`*_API_KEY`, `*_TOKEN`, …) are also stripped from the child env, except the SDK's
+> own auth.
 
 ### Wiring it into GitHub Actions (per-PR)
 
@@ -571,9 +572,10 @@ tokens > 125% of baseline), `missing_data` (a config has zero records for a test
 
 ## Safety
 
-Sessions run with `permissionMode: "bypassPermissions"`, so `workflowTask` keeps a **read-only
-allow-list** (`Read, Grep, Glob, Task, Agent, Skill` — no `Bash`/`Write`/`Edit`). Don't copy the
-bypass pattern into a context that grants write tools.
+Sessions run with `permissionMode: "dontAsk"` — anything outside `allowedTools` is denied — plus
+`disallowedTools: DISALLOWED_TOOLS` (`src/config.ts`) as a hard floor. `workflowTask` keeps a
+**read-only allow-list** (`Read, Grep, Glob, Task, Agent, Skill`). Never switch back to
+`bypassPermissions`: it approves every tool call and turns `allowedTools` into a suggestion.
 
 ## Deferred (recorded so it isn't rediscovered)
 

@@ -1,0 +1,7 @@
+{
+  "description": "Only the top-level registry.set statement in boot.ts changed",
+  "file": "pkg-a/src/boot.ts",
+  "patch": "--- a/pkg-a/src/boot.ts\n+++ b/pkg-a/src/boot.ts\n@@ -11 +11 @@ export function boot(name: string): string {\n-registry.set('init', 'start');\n+registry.set('init', 'init');\n",
+  "expectedChanged": ["<module>"],
+  "expectedImpacted": []
+}

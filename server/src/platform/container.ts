@@ -41,8 +41,8 @@ import type { RepoIntel } from '../domain/ports/repo-intel.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
 import { RepoIntelRepository } from '../modules/repo-intel/repository.js';
 import { resolveFeatureModel as resolveFeatureModelForWorkspace } from '../modules/settings/feature-models.js';
-import type { DepGraph } from '../domain/ports/depgraph.js';
-import { DepCruiseGraph } from '../adapters/depgraph/index.js';
+import type { ModuleResolver } from '../domain/ports/module-resolver.js';
+import { TsModuleResolverFactory } from '../adapters/tsresolve/index.js';
 import type { Tokenizer } from '../domain/ports/tokenizer.js';
 import { TiktokenTokenizer } from '../adapters/tokenizer/index.js';
 import { IntentRepository } from '../modules/intent/repository.js';
@@ -71,7 +71,7 @@ export interface ContainerOverrides {
   /** repo-intel facade (T1.1+) — tests inject mock RepoIntel implementations. */
   repoIntel?: RepoIntel;
   /** repo-intel T3 adapters — only the indexer pipeline reads these. */
-  depgraph?: DepGraph;
+  resolver?: ModuleResolver;
   tokenizer?: Tokenizer;
 }
 
@@ -106,7 +106,7 @@ export class Container {
   private _evalRepo?: EvalRepository;
   private _evalService?: EvalService;
   private _repoIntelService?: RepoIntelService;
-  private _depgraph?: DepGraph;
+  private _resolver?: ModuleResolver;
   private _tokenizer?: Tokenizer;
   private _priceBook?: PriceBook;
   private _intentRepo?: IntentRepository;
@@ -383,18 +383,18 @@ export class Container {
       git: this.git,
       codeIndex: this.codeIndex,
       jobs: this.jobs,
-      depgraph: this.depgraph,
+      resolver: this.resolver,
       tokenizer: this.tokenizer,
       repoIntelEnabled: this.config.repoIntelEnabled,
     });
     return this._repoIntelService;
   }
 
-  /** Import-graph builder (dependency-cruiser). T3 indexer pipeline only. */
-  get depgraph(): DepGraph {
-    if (this.overrides.depgraph) return this.overrides.depgraph;
-    this._depgraph ??= new DepCruiseGraph();
-    return this._depgraph;
+  /** Module resolver factory (`ts.resolveModuleName`, contained host). Indexer pipeline only. */
+  get resolver(): ModuleResolver {
+    if (this.overrides.resolver) return this.overrides.resolver;
+    this._resolver ??= new TsModuleResolverFactory();
+    return this._resolver;
   }
 
   /** Token counter (js-tiktoken) for the repo-map budget search. */

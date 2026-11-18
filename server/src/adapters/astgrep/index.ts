@@ -80,7 +80,7 @@ export function langForFile(file: string): Lang | null {
 // ---------------------------------------------------------------------------
 
 /** 0-based ast-grep line → 1-based file line (matches extract.ts). */
-function lineOf(n: SgNode): number {
+export function lineOf(n: SgNode): number {
   return n.range().start.line + 1;
 }
 
@@ -124,6 +124,17 @@ const KEYWORDS = new Set([
   'constructor', 'get', 'set', 'import', 'export', 'as', 'from', 'class', 'extends',
 ]);
 
+/**
+ * Declaration names: real reserved words can't be one, but contextual words
+ * (`get`, `set`, `from`, `as`, `of`) are legal identifiers — `export function
+ * get()` must be a symbol, or every `import { get }` binding dangles. KEYWORDS
+ * stays for reference scanning only.
+ */
+const RESERVED_DECL = new Set([...KEYWORDS].filter((k) => !['get', 'set', 'from', 'as', 'of', 'constructor'].includes(k)));
+function isReservedDeclName(name: string): boolean {
+  return RESERVED_DECL.has(name);
+}
+
 /** Leftmost identifier in a name node (`identifier` or `member_expression`). */
 function leftmostName(n: SgNode | null | undefined): string | null {
   if (!n) return null;
@@ -136,7 +147,7 @@ function leftmostName(n: SgNode | null | undefined): string | null {
 }
 
 /** Rightmost identifier in a member expression (= the method/property name). */
-function rightmostName(n: SgNode | null | undefined): string | null {
+export function rightmostName(n: SgNode | null | undefined): string | null {
   if (!n) return null;
   if (n.kind() === 'identifier' || n.kind() === 'type_identifier') return n.text();
   if (n.kind() === 'property_identifier') return n.text();
@@ -153,12 +164,12 @@ function childrenOfKind(n: SgNode, kind: string): SgNode[] {
 }
 
 /** True when `n` (or any of its ancestors before reaching root) is an import. */
-function isInsideImport(n: SgNode): boolean {
+export function isInsideImport(n: SgNode): boolean {
   for (const a of n.ancestors()) if (a.kind() === 'import_statement') return true;
   return false;
 }
 
-function getField(n: SgNode, name: string): SgNode | null {
+export function getField(n: SgNode, name: string): SgNode | null {
   return (n as unknown as { field(name: string): SgNode | null }).field(name);
 }
 
@@ -226,7 +237,7 @@ function handleDecl(
     case 'function_declaration':
     case 'generator_function_declaration': {
       const name = getField(node, 'name')?.text();
-      if (!name || KEYWORDS.has(name)) return;
+      if (!name || isReservedDeclName(name)) return;
       out.push({
         name,
         kind: 'function',
@@ -238,9 +249,28 @@ function handleDecl(
       declLines.set(name, lineOf(node));
       return;
     }
+    case 'ambient_declaration': {
+      // `declare function f(): void` / `export declare const x: T` (d.ts style).
+      for (const inner of node.children()) {
+        if (inner.kind() === 'function_signature') {
+          const fname = getField(inner, 'name')?.text();
+          if (!fname || isReservedDeclName(fname)) return;
+          out.push({
+            name: fname, kind: 'function',
+            line: lineOf(inner), endLine: endLineOf(inner),
+            exported, signature: headSignature(inner),
+          });
+          declLines.set(fname, lineOf(inner));
+          return;
+        }
+        if (inner.kind() !== 'declare') handleDecl(inner, exported, out, declLines);
+      }
+      return;
+    }
+    case 'abstract_class_declaration':
     case 'class_declaration': {
       const name = getField(node, 'name')?.text();
-      if (!name || KEYWORDS.has(name)) return;
+      if (!name || isReservedDeclName(name)) return;
       const classLine = lineOf(node);
       out.push({
         name,
@@ -257,7 +287,7 @@ function handleDecl(
         for (const m of body.children()) {
           if (m.kind() !== 'method_definition') continue;
           const mname = getField(m, 'name')?.text();
-          if (!mname || KEYWORDS.has(mname)) continue;
+          if (!mname || mname === 'constructor') continue;
           const mline = lineOf(m);
           const sig = headSignature(m);
           out.push({
@@ -284,7 +314,7 @@ function handleDecl(
     }
     case 'interface_declaration': {
       const name = getField(node, 'name')?.text();
-      if (!name || KEYWORDS.has(name)) return;
+      if (!name || isReservedDeclName(name)) return;
       out.push({
         name, kind: 'interface',
         line: lineOf(node), endLine: endLineOf(node),
@@ -295,7 +325,7 @@ function handleDecl(
     }
     case 'type_alias_declaration': {
       const name = getField(node, 'name')?.text();
-      if (!name || KEYWORDS.has(name)) return;
+      if (!name || isReservedDeclName(name)) return;
       out.push({
         name, kind: 'type',
         line: lineOf(node), endLine: endLineOf(node),
@@ -306,7 +336,7 @@ function handleDecl(
     }
     case 'enum_declaration': {
       const name = getField(node, 'name')?.text();
-      if (!name || KEYWORDS.has(name)) return;
+      if (!name || isReservedDeclName(name)) return;
       out.push({
         name, kind: 'enum',
         line: lineOf(node), endLine: endLineOf(node),
@@ -322,16 +352,19 @@ function handleDecl(
       // expression, async arrow, etc.). Plain values aren't symbols here.
       for (const decl of childrenOfKind(node, 'variable_declarator')) {
         const name = getField(decl, 'name')?.text();
-        if (!name || KEYWORDS.has(name)) continue;
+        if (!name || isReservedDeclName(name)) continue;
         const value = getField(decl, 'value');
-        if (!isFunctionLike(value)) continue;
+        const fnLike = isFunctionLike(value);
+        // Plain values are symbols only when exported (AC-3); the name must be
+        // a simple identifier (destructuring patterns are skipped).
+        if (!fnLike && !(exported && getField(decl, 'name')?.kind() === 'identifier')) continue;
         out.push({
           name,
-          kind: 'function',
+          kind: fnLike ? 'function' : 'const',
           line: lineOf(decl),
           endLine: endLineOf(decl),
           exported,
-          signature: headSignatureOfVariable(decl),
+          signature: fnLike ? headSignatureOfVariable(decl) : headSignature(decl),
         });
         declLines.set(name, lineOf(decl));
       }

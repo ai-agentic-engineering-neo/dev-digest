@@ -2,9 +2,9 @@
  * SPEC-16 / plan 16, T1 — characterization net for `runFullIndex` / `runIncremental`.
  *
  * Complements indexer-pipeline.test.ts (which already pins the main branches)
- * by pinning WHICH collaborators (`git`, `depgraph`, `tokenizer`) each branch
+ * by pinning WHICH collaborators (`git`, `resolver`, `tokenizer`) each branch
  * calls, and with what arguments. Phase 2 changes the first parameter from
- * `Container` to `{ git, depgraph, tokenizer }`; only `makeDeps` changes.
+ * `Container` to `{ git, resolver, tokenizer }`; only `makeDeps` changes.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
@@ -26,7 +26,7 @@ import type { PipelineDeps } from '../src/modules/repo-intel/deps.js';
 
 interface Rec {
   git: string[];
-  depgraph: Array<{ clonePath: string; files: string[] }>;
+  resolver: Array<{ clonePath: string; files: string[] }>;
   tokenizer: number;
   repo: string[];
   putRepoMapCache: Array<{ sha: string; budget: number }>;
@@ -35,12 +35,15 @@ interface Rec {
 interface DepsOpts {
   head?: () => Promise<string>;
   diff?: (base: string, head: string) => Promise<string[]>;
-  buildEdges?: () => Promise<Array<{ from: string; to: string }>>;
+  /** Makes `resolver.create` throw (sync, like the real adapter factory). */
+  createThrows?: string;
+  /** Per-specifier resolution handed to the resolver instance. */
+  resolve?: (from: string, specifier: string) => { kind: 'file'; path: string } | { kind: 'external' };
 }
 
 /** THE ONE factory (Phase 2 rewrites its return type only). */
 function makeDeps(opts: DepsOpts = {}) {
-  const rec: Rec = { git: [], depgraph: [], tokenizer: 0, repo: [], putRepoMapCache: [] };
+  const rec: Rec = { git: [], resolver: [], tokenizer: 0, repo: [], putRepoMapCache: [] };
   const container = {
     git: {
       currentHead: async () => {
@@ -52,10 +55,15 @@ function makeDeps(opts: DepsOpts = {}) {
         return opts.diff ? opts.diff(base, head) : [];
       },
     },
-    depgraph: {
-      buildEdges: async (clonePath: string, files: string[]) => {
-        rec.depgraph.push({ clonePath, files: [...files] });
-        return opts.buildEdges ? opts.buildEdges() : [];
+    resolver: {
+      create: (input: { root: string; files: ReadonlySet<string> }) => {
+        rec.resolver.push({ clonePath: input.root, files: [...input.files] });
+        if (opts.createThrows) throw new Error(opts.createThrows);
+        return {
+          resolve: (from: string, spec: string) =>
+            opts.resolve ? opts.resolve(from, spec) : { kind: 'external' },
+          tsconfigFailures: () => [],
+        };
       },
     },
     tokenizer: {
@@ -120,9 +128,15 @@ function makeRepo(
     replaceFileRank: note('replaceFileRank'),
     replaceFileFacts: note('replaceFileFacts'),
     patchFileFacts: note('patchFileFacts'),
-    resolveReferences: async (_id: string, o: { reset: boolean }) => {
-      rec.repo.push(`resolveReferences:reset=${o.reset}`);
-    },
+    // graph-row writes / incremental expansion reads are not part of the
+    // recorded call-order contract (kept silent on purpose).
+    replaceGraphRows: async () => undefined,
+    replaceGraphRowsForFiles: async () => undefined,
+    getGraphContext: async () => ({ imports: [], exports: [], symbols: [] }),
+    getIndexedPaths: async () => new Set<string>(),
+    getImpactedImporters: async () => [],
+    getFilesWithRecoverableImports: async () => [],
+    setReindexProgress: async () => undefined,
     getRepoMapCandidates: async () => [],
     deleteRepoMapCache: note('deleteRepoMapCache'),
     putRepoMapCache: async (_id: string, sha: string, budget: number) => {
@@ -167,7 +181,7 @@ afterEach(async () => {
 // ---------------------------------------------------------------------------
 
 describe('runFullIndex — collaborator usage', () => {
-  it('clean pass: git.currentHead once, depgraph.buildEdges(clonePath, walked files), tokenizer used for the repo-map, map cached under the head sha', async () => {
+  it('clean pass: git.currentHead once, resolver.create(clonePath, walked files), tokenizer used for the repo-map, map cached under the head sha', async () => {
     await put(root, 'src/a.ts', 'export function a() { return 1; }\n');
     await put(root, 'src/b.ts', 'export function b() { return 2; }\n');
     const { deps, rec } = makeDeps();
@@ -178,9 +192,9 @@ describe('runFullIndex — collaborator usage', () => {
     expect(result.status).toBe('full');
     expect(result.reason).toBeUndefined();
     expect(rec.git).toEqual(['currentHead']);
-    expect(rec.depgraph).toHaveLength(1);
-    expect(rec.depgraph[0]!.clonePath).toBe(root);
-    expect([...rec.depgraph[0]!.files].sort()).toEqual(['src/a.ts', 'src/b.ts']);
+    expect(rec.resolver).toHaveLength(1);
+    expect(rec.resolver[0]!.clonePath).toBe(root);
+    expect([...rec.resolver[0]!.files].sort()).toEqual(['src/a.ts', 'src/b.ts']);
     // repo-map render ran against the injected tokenizer (candidates are [] here,
     // but renderRepoMap is still handed the tokenizer — pin the cache write).
     expect(rec.putRepoMapCache).toEqual([
@@ -190,7 +204,7 @@ describe('runFullIndex — collaborator usage', () => {
     expect(upserts[0]).toMatchObject({ status: 'full', lastIndexedSha: 'sha-head', filesIndexed: 2 });
   });
 
-  it('persist order: deleteAllForRepo → insertSymbols → insertReferences → replaceEdges → resolveReferences(reset=false) → replaceFileRank → repo-map cache → replaceFileFacts → upsertIndexState', async () => {
+  it('persist order: deleteAllForRepo → insertSymbols → insertReferences → replaceEdges → replaceFileRank → repo-map cache → replaceFileFacts → upsertIndexState', async () => {
     await put(root, 'src/a.ts', 'export function a() { return 1; }\n');
     const { deps, rec } = makeDeps();
     const { repo } = makeRepo(rec, { clonePath: root });
@@ -202,7 +216,6 @@ describe('runFullIndex — collaborator usage', () => {
       'insertSymbols',
       'insertReferences',
       'replaceEdges:0',
-      'resolveReferences:reset=false',
       'replaceFileRank',
       'deleteRepoMapCache',
       'putRepoMapCache',
@@ -228,30 +241,27 @@ describe('runFullIndex — collaborator usage', () => {
     expect(rec.repo).toContain('deleteRepoMapCache'); // stale entries still dropped
   });
 
-  it("depgraph.buildEdges throwing → status 'partial', reason 'graph_failed', stats.graphFailed carries the message, rank/map still run", async () => {
+  it("resolver.create throwing → status 'partial', reason 'graph_failed', stats.graphFailed carries the message, rank/map still run", async () => {
     await put(root, 'src/a.ts', 'export function a() { return 1; }\n');
-    const { deps, rec } = makeDeps({
-      buildEdges: async () => {
-        throw new Error('cruiser crashed');
-      },
-    });
+    const { deps, rec } = makeDeps({ createThrows: 'resolver crashed' });
     const { repo, upserts } = makeRepo(rec, { clonePath: root });
 
     const result = await runFullIndex(deps, repo, { repoId: 'r1' });
 
     expect(result.status).toBe('partial');
     expect(result.reason).toBe('graph_failed');
-    expect(upserts[0]!.stats.graphFailed).toBe('cruiser crashed');
+    expect(upserts[0]!.stats.graphFailed).toBe('resolver crashed');
     expect(rec.repo).toContain('replaceEdges:0');
     expect(rec.repo).toContain('replaceFileRank');
     expect(rec.putRepoMapCache).toHaveLength(1);
   });
 
-  it('depgraph edges are mapped {from,to} → {fromFile,toFile} and counted in stats.edgesWritten', async () => {
+  it('resolved imports become file edges {from,to} → {fromFile,toFile}, counted in stats.edgesWritten', async () => {
     await put(root, 'src/a.ts', "import { b } from './b';\nexport function a() { return b(); }\n");
     await put(root, 'src/b.ts', 'export function b() { return 2; }\n');
     const { deps, rec } = makeDeps({
-      buildEdges: async () => [{ from: 'src/a.ts', to: 'src/b.ts' }],
+      resolve: (_from, spec) =>
+        spec === './b' ? { kind: 'file', path: 'src/b.ts' } : { kind: 'external' },
     });
     const { repo, upserts } = makeRepo(rec, { clonePath: root });
 
@@ -262,7 +272,7 @@ describe('runFullIndex — collaborator usage', () => {
     expect(upserts[0]!.stats.ranked).toBe(2);
   });
 
-  it('no clone → degraded no_clone; git/depgraph/tokenizer are never touched', async () => {
+  it('no clone → degraded no_clone; git/resolver/tokenizer are never touched', async () => {
     const { deps, rec } = makeDeps();
     const { repo, upserts } = makeRepo(rec, { clonePath: null });
 
@@ -270,12 +280,12 @@ describe('runFullIndex — collaborator usage', () => {
 
     expect(result).toMatchObject({ status: 'degraded', reason: 'no_clone' });
     expect(rec.git).toEqual([]);
-    expect(rec.depgraph).toEqual([]);
+    expect(rec.resolver).toEqual([]);
     expect(rec.tokenizer).toBe(0);
     expect(upserts[0]).toMatchObject({ status: 'degraded', lastIndexedSha: '' });
   });
 
-  it('empty clone (no supported files) → partial no_files; git.currentHead is read but depgraph is NOT', async () => {
+  it('empty clone (no supported files) → partial no_files; git.currentHead is read but resolver is NOT', async () => {
     await put(root, 'README.md', '# nothing');
     const { deps, rec } = makeDeps();
     const { repo } = makeRepo(rec, { clonePath: root });
@@ -284,7 +294,7 @@ describe('runFullIndex — collaborator usage', () => {
 
     expect(result).toMatchObject({ status: 'partial', reason: 'no_files', filesIndexed: 0 });
     expect(rec.git).toEqual(['currentHead']);
-    expect(rec.depgraph).toEqual([]);
+    expect(rec.resolver).toEqual([]);
   });
 });
 
@@ -303,7 +313,7 @@ describe('runIncremental — collaborator usage per branch', () => {
     expect(rec.git).toEqual([]);
   });
 
-  it('no state row → delegates to full index (currentHead once, depgraph once, NO diffNameOnly)', async () => {
+  it('no state row → delegates to full index (currentHead once, resolver once, NO diffNameOnly)', async () => {
     await put(root, 'src/a.ts', 'export function a() { return 1; }\n');
     const { deps, rec } = makeDeps();
     const { repo } = makeRepo(rec, { clonePath: root, state: null });
@@ -312,7 +322,7 @@ describe('runIncremental — collaborator usage per branch', () => {
 
     expect(result.status).toBe('full');
     expect(rec.git).toEqual(['currentHead']);
-    expect(rec.depgraph).toHaveLength(1);
+    expect(rec.resolver).toHaveLength(1);
     expect(rec.repo).toContain('deleteAllForRepo');
   });
 
@@ -347,10 +357,10 @@ describe('runIncremental — collaborator usage per branch', () => {
       filesSkipped: 0,
     });
     expect(rec.repo).toEqual([]);
-    expect(rec.depgraph).toEqual([]);
+    expect(rec.resolver).toEqual([]);
   });
 
-  it('sha unchanged → returns prior status/counters, touches only; no diff, no depgraph, no tokenizer', async () => {
+  it('sha unchanged → returns prior status/counters, touches only; no diff, no resolver, no tokenizer', async () => {
     const { deps, rec } = makeDeps({ head: async () => 'sha-old' });
     const { repo } = makeRepo(rec, { clonePath: root, state: priorState() });
 
@@ -364,11 +374,11 @@ describe('runIncremental — collaborator usage per branch', () => {
     });
     expect(rec.git).toEqual(['currentHead']);
     expect(rec.repo).toEqual(['touchIndexState']);
-    expect(rec.depgraph).toEqual([]);
+    expect(rec.resolver).toEqual([]);
     expect(rec.tokenizer).toBe(0);
   });
 
-  it('diffNameOnly receives (lastIndexedSha, currentHead); only unsupported ext changed → advanceSha(head), no depgraph', async () => {
+  it('diffNameOnly receives (lastIndexedSha, currentHead); only unsupported ext changed → advanceSha(head), no resolver', async () => {
     const { deps, rec } = makeDeps({
       head: async () => 'sha-new',
       diff: async () => ['README.md', 'package.json'],
@@ -380,7 +390,7 @@ describe('runIncremental — collaborator usage per branch', () => {
     expect(rec.git).toEqual(['currentHead', 'diffNameOnly:sha-old..sha-new']);
     expect(result).toMatchObject({ status: 'full', filesIndexed: 5, reason: 'no_supported_changes' });
     expect(rec.repo).toEqual(['advanceSha:sha-new']);
-    expect(rec.depgraph).toEqual([]);
+    expect(rec.resolver).toEqual([]);
   });
 
   it('diffNameOnly throwing → falls back to full index (deleteAllForRepo, new sha persisted)', async () => {
@@ -420,7 +430,7 @@ describe('runIncremental — collaborator usage per branch', () => {
     expect(over.rec.repo).toContain('deleteAllForRepo');
   });
 
-  it('slice path: reparses the changed file, rebuilds graph over the FULL walk, resolveReferences(reset=true), repo-map cached under the NEW sha, counters accumulate', async () => {
+  it('slice path: reparses the changed file, rebuilds graph over the FULL walk, repo-map cached under the NEW sha, counters accumulate', async () => {
     await put(root, 'src/changed.ts', 'export function fresh(x: number) { return x; }\n');
     await put(root, 'src/other.ts', 'export function other() { return 0; }\n');
     const { deps, rec } = makeDeps({
@@ -433,14 +443,13 @@ describe('runIncremental — collaborator usage per branch', () => {
 
     expect(result).toMatchObject({ status: 'full', filesIndexed: 1, reason: 'incremental' });
     // graph is built over every walked file, not just the changed slice
-    expect([...rec.depgraph[0]!.files].sort()).toEqual(['src/changed.ts', 'src/other.ts']);
+    expect([...rec.resolver[0]!.files].sort()).toEqual(['src/changed.ts', 'src/other.ts']);
     expect(rec.repo).toEqual([
       'deleteForFiles',
       'insertSymbols',
       'insertReferences',
       'patchFileFacts',
       'replaceEdges:0',
-      'resolveReferences:reset=true',
       'replaceFileRank',
       'deleteRepoMapCache',
       'putRepoMapCache',
@@ -458,14 +467,12 @@ describe('runIncremental — collaborator usage per branch', () => {
     expect(upserts[0]!.stats).toMatchObject({ incremental: true, changedFiles: 1 });
   });
 
-  it("slice path with a failing depgraph → status 'partial' (even from a full prior), stats.graphFailed set, repo-map NOT cached", async () => {
+  it("slice path with a failing resolver.create → status 'partial' (even from a full prior), stats.graphFailed set, repo-map NOT cached", async () => {
     await put(root, 'src/changed.ts', 'export function fresh(x: number) { return x; }\n');
     const { deps, rec } = makeDeps({
       head: async () => 'sha-new',
       diff: async () => ['src/changed.ts'],
-      buildEdges: async () => {
-        throw new Error('graph boom');
-      },
+      createThrows: 'graph boom',
     });
     const { repo, upserts } = makeRepo(rec, { clonePath: root, state: priorState() });
 

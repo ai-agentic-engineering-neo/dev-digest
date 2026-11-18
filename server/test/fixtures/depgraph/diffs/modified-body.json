@@ -1,0 +1,7 @@
+{
+  "description": "Body of util.slug changed (trim only -> trim + lowercase)",
+  "file": "pkg-a/src/util.ts",
+  "patch": "--- a/pkg-a/src/util.ts\n+++ b/pkg-a/src/util.ts\n@@ -6 +6 @@ export function slug(text: string): string {\n-  return text.trim();\n+  return text.trim().toLowerCase();\n",
+  "expectedChanged": ["slug"],
+  "expectedImpacted": ["pkg-a/src/service.ts#other", "pkg-a/src/boot.ts#boot", "pkg-a/src/consumer.ts#useAll"]
+}

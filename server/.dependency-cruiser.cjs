@@ -30,6 +30,16 @@ module.exports = {
       to: { path: '^src/(adapters|platform|db|modules)/' },
     },
     {
+      name: 'pure-graph-core',
+      comment:
+        'modules/*/graph/ is a pure core (SPEC-18): no I/O, no infrastructure. ' +
+        'It takes parsed facts and a resolver instance as arguments; shared ' +
+        'fact types live in src/domain/module-facts.ts, not in the parser adapter.',
+      severity: 'error',
+      from: { path: '^src/modules/[^/]+/graph/' },
+      to: { path: '^src/(adapters|platform|db)/|^drizzle-orm|^node:(fs|child_process|net|http)' },
+    },
+    {
       name: 'routes-are-adapters',
       comment:
         'routes.ts is an HTTP adapter: parse, call one service method, respond. ' +

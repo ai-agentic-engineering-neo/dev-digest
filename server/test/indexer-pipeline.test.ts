@@ -5,7 +5,7 @@
  * stays on pipeline flow:
  *   - runFullIndex over a tmpdir clone → expected symbols/references persisted,
  *     repo_index_state stamped 'full' on a clean pass (T3: graph/rank/map ran
- *     via stubbed depgraph+tokenizer), unsupported / oversize files counted.
+ *     via stubbed resolver+tokenizer), unsupported / oversize files counted.
  *   - runIncremental flow branches:
  *       * indexer-version mismatch → delegates to full
  *       * sha unchanged             → touchIndexState, no file work
@@ -102,7 +102,13 @@ function makeRepoStub(opts: {
     replaceFileRank: async () => {},
     replaceFileFacts: async () => {},
     patchFileFacts: async () => {},
-    resolveReferences: async () => {},
+    replaceGraphRows: async () => {},
+    replaceGraphRowsForFiles: async () => {},
+    getGraphContext: async () => ({ imports: [], exports: [], symbols: [] }),
+    getIndexedPaths: async () => new Set<string>(),
+    getImpactedImporters: async () => [],
+    getFilesWithRecoverableImports: async () => [],
+    setReindexProgress: async () => {},
     getRepoMapCandidates: async () => [],
     deleteRepoMapCache: async () => {},
     putRepoMapCache: async () => {},
@@ -135,7 +141,7 @@ function makeContainer(git: MiniGit): PipelineDeps {
   return {
     git,
     // T3 adapters — stubbed: empty graph (rank degrades to flat) + char/4 tokens.
-    depgraph: { buildEdges: async () => [] },
+    resolver: { create: () => ({ resolve: () => ({ kind: 'external' }), tsconfigFailures: () => [] }) },
     tokenizer: { count: (text: string) => Math.ceil(text.length / 4) },
   } as unknown as PipelineDeps;
 }

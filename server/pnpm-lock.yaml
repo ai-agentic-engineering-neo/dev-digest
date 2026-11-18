@@ -74,6 +74,9 @@ importers:
       simple-git:
         specifier: ^3.27.0
         version: 3.36.0
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.3
       yaml:
         specifier: ^2.6.1
         version: 2.9.0
@@ -105,9 +108,6 @@ importers:
       tsx:
         specifier: ^4.19.2
         version: 4.22.4
-      typescript:
-        specifier: ^5.7.2
-        version: 5.9.3
       vitest:
         specifier: ^2.1.8
         version: 2.1.9(@types/node@22.19.19)

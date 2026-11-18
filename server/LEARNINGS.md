@@ -140,6 +140,20 @@ does fs or DB I/O before the check.
 
 ## Codebase Patterns
 
+### 2026-11-18 — SPEC-18 v3 index: parser/resolver blind spots found on a real JS repo (supersedes the "two bugs outside P1-E" bullet of the P1-E entry under Tool & Library Notes — both are fixed)
+
+Diagnosed by re-indexing `burnjohn/quick-blog`: value-binding coverage 1/18 → 237/310 → 274/277. The last 3 are a real broken import in that repo.
+- **Late-exported plain values.** `const X = model(…); export default X` / `export { X }`: `parseSymbols` keeps a plain value only when its own declaration carries `export`, so the binding dangled. `module-facts.ts` now adds such top-level values as exported `const` symbols. This is the default Mongoose/Express pattern.
+- **Contextual keywords as declaration names.** `astgrep/index.ts` `KEYWORDS` (`get`, `set`, `from`, `as`, `of`, `constructor`) was applied to declaration names, which dropped `export function get()` and every `Repo.get` method. The inferred `this.repo.get()` rule depends on those methods. Declarations now use `RESERVED_DECL` (methods skip only `constructor`), and `KEYWORDS` is for reference scanning only.
+- **Assets are not code.** An unresolved relative `./logo.svg` / `./index.css` / `.png` resolves to `external`, not `missing`; otherwise coverage punishes frontends for their images.
+- **Diagnosing coverage:** `file_imports.unresolved_reason = 'missing'` covers two cases. `resolved_file` NULL means the file was not found. `resolved_file` set means the file was found but the name has no symbol there. Query `resolved_file` first.
+- Pure fact types and `MODULE_SYMBOL` live in `src/domain/module-facts.ts` (the adapter re-exports them) so `modules/repo-intel/graph/**` never imports the parser adapter. `pnpm arch` has no rule for that, and the architecture review caught it.
+
+### 2026-11-18 — a characterization test that injects a dependency inline in its `it(...)` body breaks on a port swap — the SPEC-16 "one factory" rule only protects tests that use the factory
+
+- Replacing the `depgraph` port with `resolver` (SPEC-18 P1-C) broke 3 tests in `test/indexer-pipeline-characterization.test.ts` and 1 in `indexer-pipeline-hotness.test.ts`, because they passed `depgraph: { buildEdges: … }` inside the `it` body. They had to be rewritten.
+- When writing a new characterization case, route every dependency override through `makeDeps(opts)` options, never through an inline container literal.
+
 ### 2026-10-10 — SPEC-16: ports live in `src/domain/ports/*`, module classes take `(repo, deps)`, and `test/shared-export-surface.test.ts` pins the `@devdigest/shared` export set
 
 After `refactor/16-server-ports-inward` (commits `f7c4066`..`609e37e`) the
@@ -547,6 +561,21 @@ than debugging a silently-empty `diff.files` after the fact.
 
 ## Tool & Library Notes
 
+### 2026-11-18 — `@ast-grep/napi`: a rule naming a node kind the grammar doesn't have THROWS for the whole rule (`Kind \`type_identifier\` is invalid`) — it does not return 0 matches
+
+- `adapters/astgrep/module-facts.ts` queried `interface_declaration` and `type_identifier` (TS-only kinds) on every file. Under `Lang.JavaScript` the whole `findAll` throws, so every `.js/.mjs/.cjs` file landed in `parseDegraded` and the index went `partial`.
+- `.jsx` hid it: `langForFile` parses `.jsx` with the TSX grammar, so a JSX test passes while `.js` fails.
+- Fix: build kind lists per grammar (`isTsGrammar(lang)` in `module-facts.ts`). Any rule with an `any: [{kind}…]` list shared across TS and JS must be filtered the same way. `test/module-facts.test.ts` "JavaScript files" covers `.js/.mjs/.cjs/.jsx`.
+
+### 2026-11-18 — TypeScript `resolveModuleName` hands a custom `ModuleResolutionHost` directory candidates WITH a trailing slash for `'.'`, `'./'`, `'..'`
+
+- `posix.normalize('/clone/src/Foo/')` keeps the slash, so `adapters/tsresolve` looked up `'src/Foo/'` in its directory set, missed, and reported `import X from '.'` as `missing` (while `'./index'` worked).
+- Fix: `toRel` strips trailing slashes (`/(?<=.)\/+$/`). Covered in `test/tsresolve.test.ts`.
+
+### 2026-11-18 — pnpm 10.23: regenerating `server/pnpm-lock.yaml` strips unrelated `libc` lines
+
+- Moving `typescript` from devDependencies to dependencies via a normal `pnpm install` rewrote unrelated entries (`libc`, `tsx`). P1-C hand-edited only the importer entry and verified with `pnpm install --frozen-lockfile`. Do the same for small dependency moves, and review the lockfile diff before committing.
+
 ### 2026-08-25 — specs/13-multi-agent-review.md Phase A1: the concurrent per-agent loop held AC-19/AC-20 by construction, with zero changes to `RunLogger`/`RunBus` — confirmed by a new test, not just re-asserted
 
 `run-executor.ts`'s per-agent job loop (`executeRuns`) went from a sequential
@@ -725,7 +754,24 @@ scored cases" vs "count passing cases" that no existing fixture happens to
 distinguish — left as open follow-up, not fixed here (task scope was "kill
 one").
 
+### 2026-11-18 — plan 19 / P1-E: v3 indexer pipeline (module graph) — what a future session must know
+
+- **Incremental needs graph CONTEXT, not just the slice.** `buildGraph` binds names across files, so `runIncremental` re-parses only `changed ∪ importers` (`repository.getImpactedImporters`: `file_imports.resolved_file` + `file_exports.resolved_file`, following re-exporters transitively; plus `getFilesWithRecoverableImports` when a file was added/removed) and feeds every other file in as a reference-less module rebuilt from the persisted imports/exports/symbols (`pipeline/context.ts`). Only the slice's rows are rewritten; `file_edges` is rebuilt globally from `graph.fileEdges`.
+- **`references.decl_file IS NULL` now means "unresolved", never "external"**: `referenceRowsFor` writes no row for external-library refs and keeps unresolved rows only for bare calls (`foo()`), the population the phantom gate judged in v1 (member calls like `arr.map()` would otherwise flood it).
+- **Reindex axis is separate from `status`**: `repo_index_state.reindex_*` columns; `tryGetIndexState` derives `reindexing` (stored version < current ⇒ `queued`, no write on read); `upsertIndexState` always clears them; boot sweep = `RepoIntelService.sweepStaleIndexes()` (fire-and-forget WITH `.catch`).
+- `walkClone` already skips symlinks; the resolver's `readText` is `makeReadText` (realpath-contained) in `pipeline/index-rows.ts`.
+- `export { x }` with `x` neither declared nor imported now resolves to unresolved `missing` in `graph/bindings.ts` (`fromExport`), not a symbol binding to a non-existent `(file, x)`.
+- Real re-index of a dev repo exposed two bugs outside P1-E: `parseModuleFacts` throws on `.js/.jsx` (`interfaceMembers` uses the TS-only `interface_declaration` kind) so every JS file is parse-degraded ⇒ `partial`; and the resolver reports `import X from '.'` as `missing`. Both only show against real JS code, not the TS-only fixtures.
+- Tests that called the deleted `repository.resolveReferences` (`repo-intel-blast-persistent.it.test.ts`, 2 cases) are Phase 2 (P2-B) work.
+
 ## Recurring Errors & Fixes
+
+### 2026-11-18 — SPEC-18: the indexer handed the module resolver code files only, so no `tsconfig.json` was ever visible and every `paths` alias stayed unresolved in production — while the fixture gate was green
+
+- `pipeline/full.ts` / `incremental.ts` built the resolver from `walk.files`, which is `SUPPORTED_EXT` only. `TsModuleResolver.nearestTsconfig` looks tsconfigs up via `this.files.has(...)`, so it found none and fell back to default resolution: alias imports (`@/…`, `@devdigest/…`) went `missing`. On this repo: 1640 file edges instead of 2351.
+- The fixture gate (`test/depgraph-fixture-regression.test.ts`) passed because it hands the resolver the FULL fixture file set. The component was right; its input wiring was wrong.
+- Fix: `walkClone` returns `jsonFiles` (same exclusions + size cap, never parsed) and both pipelines pass `[...files, ...jsonFiles]`. Guard: `test/walk-json-files.test.ts`. `pnpm report:depgraph` prints an `M7*` control row (code files only) so the gap stays visible.
+- Rule: when a gate test builds a component's inputs itself, add one test that the production caller builds them the same way.
 
 ### 2026-10-10 — fresh git worktree for parallel implementers: `reviewer-core` has no pnpm lockfile, so `pnpm install --frozen-lockfile` fails there and leaves `server` tests unable to resolve `@devdigest/reviewer-core`
 

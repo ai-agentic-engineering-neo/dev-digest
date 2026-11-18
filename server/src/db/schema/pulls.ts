@@ -18,6 +18,8 @@ export const pullRequests = pgTable(
     branch: text('branch').notNull(),
     base: text('base').notNull(),
     headSha: text('head_sha').notNull(),
+    // specs/18 — GitHub's base.sha at sync time; NULL for PRs synced before 0027.
+    baseSha: text('base_sha'),
     lastReviewedSha: text('last_reviewed_sha'),
     additions: integer('additions').notNull().default(0),
     deletions: integer('deletions').notNull().default(0),
@@ -51,6 +53,9 @@ export const prFiles = pgTable('pr_files', {
   additions: integer('additions').notNull().default(0),
   deletions: integer('deletions').notNull().default(0),
   patch: text('patch'),
+  // specs/18 — GitHub file status + rename origin; NULL for rows synced before 0027.
+  status: text('status'),
+  previousPath: text('previous_path'),
 });
 
 export const prCommits = pgTable('pr_commits', {

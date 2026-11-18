@@ -12,7 +12,7 @@
  *   - resyncRepo: no_clone / sync_failed:<msg> / success → incremental
  *   - repoIntelEnabled=false → every flag-gated method returns its degraded
  *     value WITHOUT touching the repository (AC-7 / AC-8 evidence)
- *   - git / codeIndex / depgraph / tokenizer are read from the injected deps
+ *   - git / codeIndex / resolver / tokenizer are read from the injected deps
  */
 import { describe, it, expect } from 'vitest';
 import { RepoIntelService } from '../src/modules/repo-intel/service.js';
@@ -88,7 +88,7 @@ interface Fakes {
 
 /**
  * THE ONE factory. Phase 2 changes only this function's body
- * (`new RepoIntelService(repo, { git, codeIndex, jobs, depgraph, tokenizer, repoIntelEnabled })`).
+ * (`new RepoIntelService(repo, { git, codeIndex, jobs, resolver, tokenizer, repoIntelEnabled })`).
  */
 function makeService(fakes: Fakes = {}) {
   const git = fakes.git ?? new MockGitClient({});
@@ -98,10 +98,10 @@ function makeService(fakes: Fakes = {}) {
     git,
     jobs,
     codeIndex: fakes.codeIndex ?? { symbols: async () => [], references: async () => [] },
-    depgraph: {
-      buildEdges: async () => {
+    resolver: {
+      create: () => {
         calls.buildEdges += 1;
-        return [];
+        return { resolve: () => ({ kind: 'external' }), tsconfigFailures: () => [] };
       },
     },
     tokenizer: {

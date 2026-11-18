@@ -27,6 +27,8 @@ export const BlastCaller = z.object({
   line: z.number().int(),
   /** file_rank.rank of the caller file; `0` = no rank data (degraded path). */
   rank: z.number().int(),
+  /** specs/18 (additive): true when the caller reaches the symbol only through type-only edges. */
+  type_only: z.boolean().optional(),
 });
 export type BlastCaller = z.infer<typeof BlastCaller>;
 

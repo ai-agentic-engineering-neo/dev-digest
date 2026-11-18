@@ -79,7 +79,13 @@ function makeRepoStub(opts: { basics: RepoBasics | null; initialState?: IndexSta
     },
     replaceFileFacts: async () => {},
     patchFileFacts: async () => {},
-    resolveReferences: async () => {},
+    replaceGraphRows: async () => {},
+    replaceGraphRowsForFiles: async () => {},
+    getGraphContext: async () => ({ imports: [], exports: [], symbols: [] }),
+    getIndexedPaths: async () => new Set<string>(),
+    getImpactedImporters: async () => [],
+    getFilesWithRecoverableImports: async () => [],
+    setReindexProgress: async () => {},
     getRepoMapCandidates: async () => [],
     deleteRepoMapCache: async () => {},
     putRepoMapCache: async () => {},
@@ -104,7 +110,7 @@ function makeContainer(overrides?: Partial<{ diffNameOnly: (...args: unknown[]) 
       currentHead: async () => 'sha-head',
       diffNameOnly: overrides?.diffNameOnly ?? (async () => []),
     },
-    depgraph: { buildEdges: async () => [] },
+    resolver: { create: () => ({ resolve: () => ({ kind: 'external' }), tsconfigFailures: () => [] }) },
     tokenizer: { count: (text: string) => Math.ceil(text.length / 4) },
   } as unknown as PipelineDeps;
 }
@@ -174,8 +180,8 @@ describe('runFullIndex — real hotness wiring (D6)', () => {
     });
     const container = {
       git: { currentHead: async () => 'sha-head', diffNameOnly: async () => [] },
-      depgraph: {
-        buildEdges: async () => {
+      resolver: {
+        create: () => {
           throw new Error('graph build blew up');
         },
       },

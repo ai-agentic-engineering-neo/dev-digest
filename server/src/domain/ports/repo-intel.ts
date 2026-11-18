@@ -22,6 +22,8 @@
  * while still guaranteeing every consumer can fall back without throwing.
  */
 
+import type { IndexCoverage, IndexReindexing } from '../../vendor/shared/index.js';
+
 export type IndexStatus = 'full' | 'partial' | 'degraded' | 'failed';
 
 export type DegradedReason =
@@ -62,6 +64,13 @@ export interface IndexState extends IndexResult {
    * `getCriticalPaths` returns no chains for this index (Q2).
    */
   graphFailed?: string;
+  /** Dependency-graph coverage (specs/18 AC-14); null before the first v3 index. */
+  coverage?: IndexCoverage | null;
+  /**
+   * Reindex progress (AC-15/16/16a) — a SEPARATE axis from `status`; null/absent
+   * when nothing is pending. Derived at read time for a stored version < current.
+   */
+  reindexing?: IndexReindexing | null;
 }
 
 // ---------------------------------------------------------------------------

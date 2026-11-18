@@ -36,7 +36,11 @@ export const MAX_CALLERS_PER_SYMBOL = 20;
  * v2 (T3): graph + decl_file resolution + file_rank + repo-map landed, so every
  * T2 `partial` index must be rebuilt to gain the rank-driven data.
  */
-export const INDEXER_VERSION = 2;
+export const INDEXER_VERSION = 3;
+/** v3 (specs/18): module-aware graph — file_imports/file_exports/symbol_edges, binding-based decl_file. */
+
+/** Reindex progress is flushed every N parsed files (AC-16). */
+export const REINDEX_PROGRESS_EVERY = 100;
 
 // --- [T2] Full-index limits (documented now, enforced in the pipeline) ------
 export const MAX_INDEXED_FILES = 5000;

@@ -1,0 +1,7 @@
+{
+  "description": "New function math.sub appended (nobody uses it yet)",
+  "file": "pkg-b/lib/math.ts",
+  "patch": "--- a/pkg-b/lib/math.ts\n+++ b/pkg-b/lib/math.ts\n@@ -8,0 +9,4 @@ export interface Pair {\n+\n+export function sub(a: number, b: number): number {\n+  return a - b;\n+}\n",
+  "expectedChanged": ["sub"],
+  "expectedImpacted": []
+}

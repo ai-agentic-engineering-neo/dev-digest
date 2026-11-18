@@ -15,7 +15,7 @@
  * the rank-driven methods. T3 unlocks `getCriticalPaths` etc.
  *
  * The constructor takes the repository and an explicit `RepoIntelDeps` bag
- * (git, codeIndex, jobs, depgraph, tokenizer, repoIntelEnabled) — never the
+ * (git, codeIndex, jobs, resolver, tokenizer, repoIntelEnabled) — never the
  * DI Container. `platform/container.ts` is the composition point.
  */
 import type { CodeSymbol, RepoRef } from '@devdigest/shared';
@@ -181,6 +181,34 @@ export class RepoIntelService implements RepoIntel {
     this.deps.jobs.register(RESYNC_JOB_KIND, async (payload) => {
       await this.resyncRepo((payload as IndexPayload).repoId);
     });
+    // Boot sweep (AC-15). Fire-and-forget WITH a catch: an unhandled rejection
+    // here would take the whole API process down (plans/17 R1).
+    if (this.deps.repoIntelEnabled) {
+      void this.sweepStaleIndexes().catch(() => undefined);
+    }
+  }
+
+  /**
+   * Enqueue a full index for every repo whose stored indexer version differs
+   * from the current one and mark it `reindex_state='queued'` (AC-15/16a).
+   * Idempotent: reads never enqueue, and re-running just re-enqueues an
+   * idempotent full index. A failed enqueue clears the queued marker so a
+   * repo is never left claiming a reindex that no job will perform.
+   */
+  async sweepStaleIndexes(): Promise<number> {
+    const stale = await this.repo.listReposWithStaleIndex(INDEXER_VERSION);
+    let enqueued = 0;
+    for (const { repoId, workspaceId } of stale) {
+      try {
+        await this.repo.setReindexProgress(repoId, 'queued', 0, 0);
+        const job = await this.deps.jobs.enqueue(workspaceId, INDEX_JOB_KIND, { repoId });
+        job.done.catch(() => undefined); // failures surface in repo_index_state / jobs
+        enqueued += 1;
+      } catch {
+        await this.repo.clearReindexState(repoId).catch(() => undefined);
+      }
+    }
+    return enqueued;
   }
 
   /**

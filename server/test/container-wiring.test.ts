@@ -34,15 +34,15 @@ describe('Container wiring', () => {
     await app.close();
   });
 
-  it('git / codeIndex / depgraph / tokenizer overrides are returned as-is', async () => {
+  it('git / codeIndex / resolver / tokenizer overrides are returned as-is', async () => {
     const git = fake<NonNullable<ContainerOverrides['git']>>('git');
     const codeIndex = fake<NonNullable<ContainerOverrides['codeIndex']>>('codeIndex');
-    const depgraph = fake<NonNullable<ContainerOverrides['depgraph']>>('depgraph');
+    const resolver = fake<NonNullable<ContainerOverrides['resolver']>>('resolver');
     const tokenizer = fake<NonNullable<ContainerOverrides['tokenizer']>>('tokenizer');
-    const app = await makeApp({ git, codeIndex, depgraph, tokenizer });
+    const app = await makeApp({ git, codeIndex, resolver, tokenizer });
     expect(app.container.git).toBe(git);
     expect(app.container.codeIndex).toBe(codeIndex);
-    expect(app.container.depgraph).toBe(depgraph);
+    expect(app.container.resolver).toBe(resolver);
     expect(app.container.tokenizer).toBe(tokenizer);
     await app.close();
   });

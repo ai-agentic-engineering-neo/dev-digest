@@ -26,8 +26,13 @@ async function main() {
   }
 
   try {
-    await app.listen({ port: config.apiPort, host: '0.0.0.0' });
-    app.log.info(`DevDigest API listening on http://localhost:${config.apiPort}`);
+    await app.listen({ port: config.apiPort, host: config.apiHost });
+    app.log.info(`DevDigest API listening on http://${config.apiHost}:${config.apiPort}`);
+    if (config.apiHost !== '127.0.0.1' && config.apiHost !== 'localhost' && config.apiHost !== '::1') {
+      app.log.warn(
+        `API_HOST=${config.apiHost} — the API has no authentication and is now reachable beyond this machine`,
+      );
+    }
   } catch (err) {
     app.log.error(err);
     process.exit(1);

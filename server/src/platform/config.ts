@@ -27,6 +27,13 @@ const EnvSchema = z.object({
   // unindexed repo degrades gracefully. Per-agent override: agents.repo_intel.
   REPO_INTEL_ENABLED: z.string().optional(),
   API_PORT: z.coerce.number().int().default(3001),
+  // S2 (security hardening) — the API has no authentication, so it
+  // binds to loopback by default. Binding anything wider (e.g. 0.0.0.0 inside
+  // a container) exposes every route to the network: only do it behind your
+  // own access control, and list the hostnames clients will use in
+  // API_ALLOWED_HOSTS or the Host check rejects them.
+  API_HOST: z.string().min(1).default('127.0.0.1'),
+  API_ALLOWED_HOSTS: z.string().optional(),
   WEB_PORT: z.coerce.number().int().default(3000),
   DEVDIGEST_CLONE_DIR: z.string().optional(),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -36,6 +43,15 @@ const EnvSchema = z.object({
 export type AppConfig = {
   databaseUrl: string;
   apiPort: number;
+  /** Interface the API listens on. Loopback unless API_HOST says otherwise. */
+  apiHost: string;
+  /**
+   * Hostnames (no port, lowercase) accepted in the `Host` header — the
+   * DNS-rebinding guard in `platform/local-only.ts`.
+   */
+  allowedHosts: string[];
+  /** Browser origins allowed to call the API (CORS + Origin check). */
+  allowedOrigins: string[];
   webPort: number;
   /** Absolute path where repos are cloned (~/.devdigest/workspace by default). */
   cloneDir: string;
@@ -64,6 +80,17 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   return {
     databaseUrl: parsed.DATABASE_URL,
     apiPort: parsed.API_PORT,
+    apiHost: parsed.API_HOST,
+    allowedHosts: [
+      'localhost',
+      '127.0.0.1',
+      '::1',
+      ...(parsed.API_ALLOWED_HOSTS ?? '')
+        .split(',')
+        .map((h) => h.trim().toLowerCase())
+        .filter((h) => h.length > 0),
+    ],
+    allowedOrigins: [`http://localhost:${parsed.WEB_PORT}`, `http://127.0.0.1:${parsed.WEB_PORT}`],
     webPort: parsed.WEB_PORT,
     cloneDir,
     secretsPath: join(homedir(), '.devdigest', 'secrets.json'),

@@ -9,6 +9,7 @@ import * as t from '../src/db/schema.js';
 import { MockGitClient, MockGitHubClient, MockLLMProvider } from '../src/adapters/mocks.js';
 import { EVAL_FIXTURE_CASES } from '../src/db/seed-eval-cases.js';
 import { RUN_RATE_LIMIT } from '../src/modules/eval/constants.js';
+import { pgErrorCode } from '../src/platform/errors.js';
 
 const hasDocker = await dockerAvailable();
 const d = hasDocker ? describe : describe.skip;
@@ -355,9 +356,13 @@ d('eval module (DB-backed)', () => {
 
     try {
       await db.insert(t.evalCases).values(caseValues('first'));
-      await expect(db.insert(t.evalCases).values(caseValues('second'))).rejects.toMatchObject({
-        code: '23505',
-      });
+      // drizzle >= 0.44 wraps the driver error (DrizzleQueryError), so the
+      // SQLSTATE lives on `.cause` — pgErrorCode is what the services use too.
+      const err = await db
+        .insert(t.evalCases)
+        .values(caseValues('second'))
+        .then(() => null, (e: unknown) => e);
+      expect(pgErrorCode(err)).toBe('23505');
     } finally {
       await db.delete(t.evalCases).where(eq(t.evalCases.sourceFindingId, findingId));
     }

@@ -4,7 +4,7 @@ import { reviewPullRequest, toReviewPayload, gateTriggered, countBlockers } from
 import { loadManifest } from './manifest.js';
 import { loadSkillBodies } from './skills.js';
 import { resolvePrContext, type CiEnv } from './context.js';
-import { parseUnifiedDiff, stripIgnoredFiles } from './diff.js';
+import { configChangeNotice, listIgnoredPaths, parseUnifiedDiff, stripIgnoredFiles } from './diff.js';
 import { fetchPrDiff, postGithubReview, postPrComment, type FetchLike } from './github.js';
 import { buildResultArtifact } from './artifact.js';
 import { RunnerError } from './errors.js';
@@ -110,6 +110,11 @@ export async function runCi(deps: RunCiDeps): Promise<RunCiResult> {
     //    GitHub 422 "diff too large", and reviewing our own config is noise.
     const rawDiff = await fetchDiffImpl(ctx, githubToken ?? '', fetchImpl);
     const diff = parseUnifiedDiff(stripIgnoredFiles(rawDiff));
+    // S8 — surface (never silently drop) changes to DevDigest's own config.
+    // Not a finding: it has no reviewable diff line, so it would bypass the
+    // grounding gate; the generated workflow already guarantees the review
+    // itself ran with the base branch's `.devdigest/`.
+    const configPaths = listIgnoredPaths(rawDiff);
 
     // 4. Run the SAME engine the studio uses. `reviewPullRequest` internally
     //    calls `assemblePrompt`/`wrapUntrusted` (diff → `<untrusted
@@ -137,6 +142,9 @@ export async function runCi(deps: RunCiDeps): Promise<RunCiResult> {
       diff,
       title: manifest.name,
     });
+    if (configPaths.length > 0) {
+      payload.body = configChangeNotice(configPaths) + payload.body;
+    }
     const blockers = countBlockers(outcome.review.findings, manifest.ci_fail_on);
     const triggered = gateTriggered(outcome.review.findings, manifest.ci_fail_on);
 

@@ -73,14 +73,14 @@ d('Testcontainers: pg + pgvector', () => {
     expect(ws.filter((w) => w.name === 'default')).toHaveLength(1);
   });
 
-  it('seeds the API Contract Reviewer agent with its 3 skills linked+enabled, and leaves the 4th for live import', async () => {
+  it('seeds the API & Integration Reviewer agent with its 3 skills linked+enabled, and leaves the 4th for live import', async () => {
     const { db } = pg.handle;
     const { workspaceId } = await seed(db);
 
     const [agent] = await db
       .select()
       .from(t.agents)
-      .where(eq(t.agents.name, 'API Contract Reviewer'));
+      .where(eq(t.agents.name, 'API & Integration Reviewer'));
     expect(agent).toBeDefined();
     expect(agent!.workspaceId).toBe(workspaceId);
     expect(agent!.enabled).toBe(true);

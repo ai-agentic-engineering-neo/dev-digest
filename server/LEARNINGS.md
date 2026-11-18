@@ -1324,3 +1324,48 @@ guesses right, and is not treated as a bug.
 callers omitted"). `buildBriefMessages`'s `RenderedBriefPayload.droppedCount`
 is the source of this number — read that if a future UI wants a more granular
 count; the column would need a shape change (int → object) to carry it.
+
+### 2026-11-18 — simple-git 4 silently strips guarded env vars (incl. `GIT_TERMINAL_PROMPT`) unless `allowEnvironment` lists them
+
+plans/18-security-fixes.md (S9 dependency bump 3.36 → 4.1). simple-git 4's
+`allowEnvironment` plugin does two things to "guarded" git env vars
+(`GIT_TERMINAL_PROMPT`, `GCM_INTERACTIVE`, `GIT_CONFIG_COUNT/KEY_n/VALUE_n`,
+`EDITOR`, `PAGER`, …): passed via `.env()` → the call throws `Use of "X" is
+blocked by the environment guard`; inherited from `process.env` → **deleted
+without any error**. The second is the trap: `SimpleGitClient` sets
+`process.env.GIT_TERMINAL_PROMPT = '0'` so a private clone fails fast instead
+of hanging on a credential prompt, and after the bump that line still reads as
+working while git never sees it. Typecheck and every mocked test stay green;
+only a test that runs a real clone through `.env()` (test/git-adapter-safety.test.ts)
+surfaced the throw, and nothing at all surfaces the silent strip. Fix: every
+instance goes through one `gitAt(baseDir)` factory with
+`simpleGit({ baseDir, allowEnvironment: ALLOWED_GIT_ENV })`; `allowEnvironment`
+also replaces v3's `unsafe.allowUnsafeConfigEnvCount` for `GIT_CONFIG_*`.
+**Generalizes:** after bumping simple-git, grep for `simpleGit(` — a bare
+call is now a place where env you set on purpose may be dropped.
+
+### 2026-11-18 — drizzle-orm ≥ 0.44 wraps DB errors: SQLSTATE moves from `err.code` to `err.cause.code`
+
+plans/18-security-fixes.md (drizzle-orm 0.38 → 0.45). drizzle now throws
+`DrizzleQueryError("Failed query: …")` with the postgres-js error on `.cause`.
+Two hand-rolled `isUniqueViolation` checks (`skills/repository.ts`,
+`eval/service.ts`) read `err.code === '23505'` and silently stopped matching —
+a skill-name collision would have become a raw 500 instead of an inline field
+error. Only the DB-backed `eval.it.test.ts` D17 case caught it (needs Docker;
+skipped on a machine without it, so a "green" `pnpm test` there proves
+nothing about this). Fix: `pgErrorCode(err)` in `platform/errors.ts` walks the
+`cause` chain — use it for any SQLSTATE check, never `err.code` directly.
+`drizzle-kit` 0.31 reads the existing 0.30 snapshot chain fine
+(`drizzle-kit generate` → "No schema changes").
+
+### 2026-11-18 — Node's `BlockList` maps every IPv4 into `::ffff:0:0/96` — blocking that subnet blocks all of IPv4
+
+plans/18-security-fixes.md (S7 SSRF guard, `platform/net-policy.ts`). Adding
+`addSubnet('::ffff:0:0', 96, 'ipv6')` to deny IPv4-mapped literals like
+`[::ffff:127.0.0.1]` made `check('8.8.8.8', 'ipv4')` return true too — Node
+checks IPv4 addresses against the mapped IPv6 range as well. Unwrap mapped
+addresses yourself (both `::ffff:a.b.c.d` and the hex form `::ffff:7f00:1`,
+which is what `new URL()` normalises them to) and check the IPv4 rules; keep a
+public-address assertion (`8.8.8.8` → allowed) in the test so the inverse
+mistake can't come back. Related: Node's `http.request` skips the custom
+`lookup` for IP literals, so the connect-time guard must check literals up front.

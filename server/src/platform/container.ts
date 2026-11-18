@@ -15,6 +15,8 @@ import { LocalNoAuthProvider } from '../adapters/auth/local.js';
 import { OctokitGitHubClient } from '../adapters/github/octokit.js';
 import { SimpleGitClient } from '../adapters/git/simple-git.js';
 import { RipgrepCodeIndex } from '../adapters/codeindex/ripgrep.js';
+import { safeFetch } from '../adapters/http/safe-fetch.js';
+import type { HttpFetch } from '../domain/ports/http.js';
 import { OpenAIProvider } from '../adapters/llm/openai.js';
 import { AnthropicProvider } from '../adapters/llm/anthropic.js';
 import { OpenAIEmbedder } from '../adapters/embedder/openai.js';
@@ -73,6 +75,8 @@ export interface ContainerOverrides {
   /** repo-intel T3 adapters — only the indexer pipeline reads these. */
   depgraph?: DepGraph;
   tokenizer?: Tokenizer;
+  /** Outbound fetch for user-supplied URLs (skill import) — tests inject a fake. */
+  httpFetch?: HttpFetch;
 }
 
 export class Container {
@@ -126,7 +130,9 @@ export class Container {
 
   get git(): GitClient {
     if (this.overrides.git) return this.overrides.git;
-    this._git ??= new SimpleGitClient(this.config.cloneDir);
+    this._git ??= new SimpleGitClient(this.config.cloneDir, {
+      getToken: () => this.secrets.get('GITHUB_TOKEN'),
+    });
     return this._git;
   }
 
@@ -149,6 +155,7 @@ export class Container {
       this.tokenizer,
       this.projectContextService,
       this.evalRepo,
+      this.overrides.httpFetch ?? safeFetch,
     ));
   }
 
@@ -443,9 +450,29 @@ export class Container {
     return provider;
   }
 
-  private async buildLlm(id: 'openai' | 'anthropic' | 'openrouter'): Promise<LLMProvider> {
+  /**
+   * S11 (plans/18-security-fixes.md) — a provider built from a CANDIDATE key,
+   * neither read from nor written to the secrets store and not cached. Used
+   * by "Test connection" so a typo is verified before it can overwrite a
+   * working key.
+   */
+  async llmWithKey(id: 'openai' | 'anthropic' | 'openrouter', key: string): Promise<LLMProvider> {
+    const injected = this.overrides.llm?.[id];
+    if (injected) return injected;
+    return this.buildLlm(id, key);
+  }
+
+  /** S11 — a GitHub client for a candidate token, not persisted or cached. */
+  githubWithToken(token: string): GitHubClient {
+    return this.overrides.github ?? new OctokitGitHubClient(token);
+  }
+
+  private async buildLlm(
+    id: 'openai' | 'anthropic' | 'openrouter',
+    keyOverride?: string,
+  ): Promise<LLMProvider> {
     if (id === 'openai') {
-      const key = await this.secrets.get('OPENAI_API_KEY');
+      const key = keyOverride ?? (await this.secrets.get('OPENAI_API_KEY'));
       if (!key) throw new ConfigError('OPENAI_API_KEY is not configured');
       return new OpenAIProvider(key);
     }
@@ -453,14 +480,14 @@ export class Container {
       // Single OpenRouter provider lives in reviewer-core (shared with the CI
       // runner); inject the PriceBook so cost attribution uses LIVE OpenRouter
       // prices (with the static table as a fallback) rather than a hardcoded one.
-      const key = await this.secrets.get('OPENROUTER_API_KEY');
+      const key = keyOverride ?? (await this.secrets.get('OPENROUTER_API_KEY'));
       if (!key) throw new ConfigError('OPENROUTER_API_KEY is not configured');
       return new OpenRouterProvider(key, {
         estimateCost: (model, tokensIn, tokensOut) =>
           this.priceBook.estimate(model, tokensIn, tokensOut),
       });
     }
-    const key = await this.secrets.get('ANTHROPIC_API_KEY');
+    const key = keyOverride ?? (await this.secrets.get('ANTHROPIC_API_KEY'));
     if (!key) throw new ConfigError('ANTHROPIC_API_KEY is not configured');
     return new AnthropicProvider(key);
   }

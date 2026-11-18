@@ -17,6 +17,8 @@ See also: `insights/gotchas.md` for known quirks at project start.
 
 2026-07-08 — `agent-runner/tsconfig.json` intentionally mirrors `server/tsconfig.json`'s compiler options and path-alias block verbatim (aliasing `@devdigest/reviewer-core` → `../reviewer-core/src/index.ts` and `@devdigest/shared` → `../server/src/vendor/shared/index.ts`), so both consumers resolve the exact same source files. `agent-runner/vitest.config.ts` re-declares the same two aliases (vitest/vite doesn't read `tsconfig.json` paths automatically) — matches the pattern already used in `reviewer-core/vitest.config.ts`. ref: agent-runner/tsconfig.json:21
 
+2026-11-18 — Trust for `.devdigest/**` lives in the GENERATED WORKFLOW, not here: since plans/18 (S8) the workflow restores `.devdigest/` from `pull_request.base.sha` before `node .devdigest/runner/index.js`, so a PR can't swap its own reviewer/manifest/skills. The runner's part is only to *report* config changes — `listIgnoredPaths` + `configChangeNotice` prepend a warning to the posted body. Don't turn that into a synthetic finding: it has no diff line to cite, so it would have to bypass `groundFindings` (a hard invariant above). Grepping the ncc bundle for the notice text fails on the apostrophe (`DevDigest's` is escaped in the build) — grep a fragment without it. ref: agent-runner/src/diff.ts, server/src/modules/ci/workflow.ts
+
 ## Tool & Library Notes
 
 2026-07-08 — `@vercel/ncc` versions jump from `0.38.4` straight to `0.43.0`/`0.44.x` on npm (no `0.39`–`0.42` releases). A `^0.38.3` semver range resolves to `0.38.4`, not the newer `0.44.x` line — pin explicitly if the newer major-minor is desired. ref: agent-runner/package.json:15

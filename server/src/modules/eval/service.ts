@@ -1,7 +1,7 @@
 import type { EvalAgentDetail, EvalAgentSummary, EvalCallout, EvalCase, EvalCaseInput, EvalCaseMeta, EvalCaseOutcome, EvalCompare, EvalDashboard, EvalExpectation, EvalLift, EvalOwnerKind, EvalRun, EvalRunAllResult, EvalRunEstimate, EvalRunRecord, EvalSkillCarrier, EvalSkillCaseEffect, EvalSkillCompare, EvalSkillOffer, EvalSkillRunEstimate, EvalSkillRunRecord, EvalSkillSummary, EvalTrendPoint } from '@devdigest/shared';
 import type { LLMProvider } from '../../domain/ports/llm.js';
 import type { Tokenizer } from '../../domain/ports/tokenizer.js';
-import { AppError, ConfigError, NotFoundError } from '../../platform/errors.js';
+import { AppError, ConfigError, NotFoundError, PG_UNIQUE_VIOLATION, pgErrorCode } from '../../platform/errors.js';
 import {
   EvalRepository,
   type EvalCaseRow,
@@ -68,7 +68,7 @@ export interface EvalSkillRunAllResult {
 }
 
 function isUniqueViolation(err: unknown): boolean {
-  return typeof err === 'object' && err !== null && (err as { code?: string }).code === '23505';
+  return pgErrorCode(err) === PG_UNIQUE_VIOLATION;
 }
 
 /** Case name default: a slug of the finding title (Approach §5 step 7). */

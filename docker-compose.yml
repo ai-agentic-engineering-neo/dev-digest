@@ -10,7 +10,7 @@ services:
       POSTGRES_PASSWORD: devdigest
       POSTGRES_DB: devdigest
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"  # loopback only — devdigest/devdigest is a well-known password
     volumes:
       - devdigest_pgdata:/var/lib/postgresql/data
     healthcheck:

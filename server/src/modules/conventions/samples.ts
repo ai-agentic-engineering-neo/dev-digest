@@ -1,5 +1,4 @@
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { readContainedFile } from '../_shared/checkout-paths.js';
 import type { GitClient } from '../../domain/ports/git.js';
 import type { RepoIntel } from '../../domain/ports/repo-intel.js';
 import { ValidationError } from '../../platform/errors.js';
@@ -28,7 +27,8 @@ export interface ConventionsSampleSet {
  *  Exported for reuse within this module (evidence verification also reads
  *  off the clone, for candidates that cite a file outside the sample set). */
 export async function readClone(clonePath: string, file: string): Promise<string | null> {
-  return readFile(join(clonePath, file), 'utf8').catch(() => null);
+  // S6 — containment-checked: a committed symlink can't read outside the clone.
+  return readContainedFile(clonePath, file);
 }
 
 export async function getConventionsSampleSet(

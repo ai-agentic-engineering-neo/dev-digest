@@ -2,6 +2,7 @@ import { unzipSync, strFromU8 } from 'fflate';
 import type { Skill, SkillType } from '@devdigest/shared';
 import { SKILL_NAME_RE } from '@devdigest/shared';
 import { ValidationError } from '../../platform/errors.js';
+import { isBlockedAddress, isIpLiteral } from '../../platform/net-policy.js';
 import {
   ARCHIVE_ENTRY_LIMIT,
   MAX_BODY_BYTES,
@@ -306,29 +307,20 @@ export function parseSkillUpload(
 // unit-testable on its own — the fetch itself lives in the service, this only
 // decides whether a URL is even allowed to be fetched.
 
-const BLOCKED_HOSTNAMES = new Set(['localhost', '0.0.0.0', '::1']);
-
-/** Private/link-local ranges a server-side fetch must never reach — same
- *  class of target as cloud metadata endpoints (169.254.169.254) and internal
- *  services on a private network. */
-function isBlockedIp(hostname: string): boolean {
-  if (/^127\./.test(hostname)) return true;
-  if (/^10\./.test(hostname)) return true;
-  if (/^192\.168\./.test(hostname)) return true;
-  if (/^172\.(1[6-9]|2\d|3[01])\./.test(hostname)) return true;
-  if (/^169\.254\./.test(hostname)) return true;
-  return false;
+/** Names that always mean "this machine", whatever DNS says. */
+function isLocalHostname(hostname: string): boolean {
+  return hostname === 'localhost' || hostname.endsWith('.localhost');
 }
 
 /**
- * Parse and validate a URL for server-side fetch: http(s) only, and not an
- * obviously local/internal target. Throws `ValidationError` otherwise.
+ * Parse and validate a URL for server-side fetch: http(s) only, no
+ * credentials, and not a local/internal IP literal. Throws `ValidationError`
+ * otherwise.
  *
- * This is a deny-list, not a sandbox — it stops the obvious cases (localhost,
- * private ranges, cloud metadata) without resolving DNS. A determined attacker
- * with control of DNS could still route around it; the import is a manual,
- * single-user action against a URL the user themselves typed in, not
- * attacker-supplied input, so this is a reasonable bar for a local-first tool.
+ * This is the early, friendly check. It cannot see what a hostname resolves
+ * to — that is enforced at connect time by the `HttpFetch` adapter
+ * (adapters/http/safe-fetch.ts), against the same `isBlockedAddress` policy
+ * (S7, plans/18-security-fixes.md). Every redirect hop goes through both.
  */
 export function assertPublicHttpUrl(input: string): URL {
   let url: URL;
@@ -340,8 +332,13 @@ export function assertPublicHttpUrl(input: string): URL {
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     throw new ValidationError('Only http/https URLs are allowed', { field: 'url' });
   }
-  const hostname = url.hostname.toLowerCase();
-  if (BLOCKED_HOSTNAMES.has(hostname) || isBlockedIp(hostname)) {
+  if (url.username !== '' || url.password !== '') {
+    throw new ValidationError('URLs with credentials are not allowed', { field: 'url' });
+  }
+  // WHATWG URL already normalised `0x7f.1`, `127.1`, `2130706433` to
+  // `127.0.0.1` and lowercased the host.
+  const hostname = url.hostname.replace(/\.$/, '');
+  if (isLocalHostname(hostname) || (isIpLiteral(hostname) && isBlockedAddress(hostname))) {
     throw new ValidationError('This host cannot be fetched', { field: 'url' });
   }
   return url;

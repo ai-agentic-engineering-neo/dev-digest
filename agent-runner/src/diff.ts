@@ -45,6 +45,43 @@ export function stripIgnoredFiles(raw: string): string {
 }
 
 /**
+ * New-side paths of the ignored sections (`.devdigest/**`, `.github/workflows/**`)
+ * a raw diff touches. S8 (plans/18-security-fixes.md): those sections are cut
+ * from the review, so the runner must SAY a PR changes DevDigest's own CI
+ * configuration instead of dropping it silently.
+ */
+export function listIgnoredPaths(raw: string): string[] {
+  const out: string[] = [];
+  for (const line of raw.split('\n')) {
+    if (!line.startsWith('diff --git')) continue;
+    const path = line.match(/ b\/(.*)$/)?.[1]?.trim() ?? '';
+    if (path && isIgnoredDiffPath(path) && !out.includes(path)) out.push(path);
+  }
+  return out;
+}
+
+/**
+ * Markdown notice prepended to the posted review when a PR touches DevDigest's
+ * CI configuration. Paths are capped and code-formatted (they are PR-controlled
+ * text); backticks in a path are stripped so it can't break out of the span.
+ */
+export function configChangeNotice(paths: readonly string[]): string {
+  const MAX = 10;
+  const shown = paths.slice(0, MAX).map((p) => `- \`${p.replace(/`/g, '')}\``);
+  if (paths.length > MAX) shown.push(`- …and ${paths.length - MAX} more`);
+  return [
+    '> [!WARNING]',
+    '> This PR changes DevDigest\'s own CI configuration. These files were **not** reviewed by',
+    '> DevDigest, and this review ran with the configuration from the base branch.',
+    '> Review them by hand before merging:',
+    '>',
+    ...shown.map((l) => `> ${l}`),
+    '',
+    '',
+  ].join('\n');
+}
+
+/**
  * Minimal unified-diff parser — a self-contained agent-runner copy of the
  * server's `git/diff-parser.ts` (not importable here: it lives outside this
  * package's owned paths and the bundle must stay self-contained, importing

@@ -19,7 +19,7 @@ import { RepoRepository } from './repository.js';
  */
 export default async function reposRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
-  const service = new RepoService(new RepoRepository(app.container.db), app.container.jobs, app.container.secrets, app.container.git);
+  const service = new RepoService(new RepoRepository(app.container.db), app.container.jobs, app.container.git);
 
   // Register the clone job handler once.
   service.registerCloneJobHandler();

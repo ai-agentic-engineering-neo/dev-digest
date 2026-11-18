@@ -2,7 +2,7 @@ import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import type { SkillSource, SkillType } from '@devdigest/shared';
-import { ValidationError } from '../../platform/errors.js';
+import { PG_UNIQUE_VIOLATION, ValidationError, pgErrorCode } from '../../platform/errors.js';
 import { INITIAL_SKILL_VERSION, STATS_WINDOW_DAYS } from './constants.js';
 
 /**
@@ -72,10 +72,8 @@ export interface SkillListStatsRow {
 }
 
 /** Postgres unique-violation. A name collision must not surface as a raw 500. */
-const PG_UNIQUE_VIOLATION = '23505';
-
 function isUniqueViolation(err: unknown): boolean {
-  return (err as { code?: string } | null)?.code === PG_UNIQUE_VIOLATION;
+  return pgErrorCode(err) === PG_UNIQUE_VIOLATION;
 }
 
 /** `accepted / (accepted + dismissed)`; null when nothing has been judged. */

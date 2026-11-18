@@ -6,7 +6,6 @@ import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { NotFoundError } from '../../platform/errors.js';
 import { MAX_BODY_BYTES, MAX_UPLOAD_BYTES } from './constants.js';
-import { SkillsService } from './service.js';
 
 /**
  * Skills module — the workspace's reusable blocks of reviewer instructions.
@@ -79,12 +78,10 @@ const ImportUrlBody = z.object({ url: z.string().min(1).max(2048) });
 
 export default async function skillsRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
-  const service = new SkillsService(
-    app.container.skillsRepo,
-    app.container.tokenizer,
-    app.container.projectContextService,
-    app.container.evalRepo,
-  );
+  // The container's shared instance — it carries the SSRF-guarded HttpFetch
+  // (S7). A second `new SkillsService(...)` here would silently fall back to
+  // the unguarded global fetch.
+  const service = app.container.skillsService;
 
   app.get('/skills', async (req) => {
     const { workspaceId } = await getContext(app.container, req);

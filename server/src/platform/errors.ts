@@ -39,3 +39,22 @@ export class ConfigError extends AppError {
     super('config_error', message, 500, details);
   }
 }
+
+/** Postgres SQLSTATE for a unique-constraint violation. */
+export const PG_UNIQUE_VIOLATION = '23505';
+
+/**
+ * Postgres SQLSTATE of a DB error (e.g. `'23505'`), or undefined.
+ * drizzle-orm >= 0.44 wraps driver errors in `DrizzleQueryError`, which keeps
+ * the postgres-js error — and its `code` — on `.cause`; reading `err.code`
+ * alone silently stops matching after that upgrade. Walks the `cause` chain.
+ */
+export function pgErrorCode(err: unknown): string | undefined {
+  let cur: unknown = err;
+  for (let depth = 0; depth < 4 && typeof cur === 'object' && cur !== null; depth++) {
+    const code = (cur as { code?: unknown }).code;
+    if (typeof code === 'string' && /^[0-9A-Z]{5}$/.test(code)) return code;
+    cur = (cur as { cause?: unknown }).cause;
+  }
+  return undefined;
+}

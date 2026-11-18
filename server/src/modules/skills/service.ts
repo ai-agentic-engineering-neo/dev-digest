@@ -9,6 +9,7 @@ import type {
   SkillWithStats,
 } from '@devdigest/shared';
 import type { Tokenizer } from '../../domain/ports/tokenizer.js';
+import { BlockedHostError, type HttpFetch } from '../../domain/ports/http.js';
 import { ValidationError } from '../../platform/errors.js';
 // THE one project-context renderer, shared with the run executor/adhoc
 // service — never re-implement this formatting here (specs/09-project-
@@ -94,6 +95,13 @@ export class SkillsService {
     private tokenizer: Tokenizer,
     private projectContext: ProjectContextLookup,
     private evalCleanup?: EvalCleanup,
+    /**
+     * Outbound fetch for URL imports. Production wires the connect-time
+     * guarded adapter (`adapters/http/safe-fetch.ts`, S7); the default exists
+     * only so the many unit tests that never import from a URL can keep their
+     * short constructor call.
+     */
+    private httpFetch: HttpFetch = (url, init) => fetch(url, init),
   ) {}
 
   /**
@@ -339,7 +347,7 @@ export class SkillsService {
       // 302 to an internal target (e.g. 169.254.169.254), and 'follow'
       // would have walked straight past the SSRF guard.
       let current = url;
-      let res = await fetch(current, { signal: controller.signal, redirect: 'manual' });
+      let res = await this.httpFetch(current, { signal: controller.signal, redirect: 'manual' });
       for (let hop = 0; res.status >= 300 && res.status < 400; hop++) {
         const location = res.headers.get('location');
         if (!location) break;
@@ -347,7 +355,7 @@ export class SkillsService {
           throw new ValidationError(`Too many redirects fetching ${url.href}`, { field: 'url' });
         }
         current = assertPublicHttpUrl(new URL(location, current).href);
-        res = await fetch(current, { signal: controller.signal, redirect: 'manual' });
+        res = await this.httpFetch(current, { signal: controller.signal, redirect: 'manual' });
       }
       if (!res.ok) {
         throw new ValidationError(`${current.href} returned ${res.status}`, { field: 'url' });
@@ -373,6 +381,9 @@ export class SkillsService {
       return Buffer.concat(chunks.map((c) => Buffer.from(c))).toString('utf8');
     } catch (e) {
       if (e instanceof ValidationError) throw e;
+      if (e instanceof BlockedHostError) {
+        throw new ValidationError('This host cannot be fetched', { field: 'url' });
+      }
       throw new ValidationError(
         e instanceof Error && e.name === 'AbortError'
           ? `Timed out fetching ${url.href}`

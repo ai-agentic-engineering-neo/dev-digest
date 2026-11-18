@@ -25,8 +25,19 @@ describe('buildWorkflowYaml', () => {
     expect(parsed.jobs.review.permissions).toEqual({ contents: 'read', 'pull-requests': 'write' });
 
     const steps = parsed.jobs.review.steps as Array<Record<string, unknown>>;
-    expect(steps).toHaveLength(5);
-    const [checkoutStep, setupNodeStep, runStep, metadataStep, uploadStep] = steps;
+    expect(steps).toHaveLength(6);
+    const [checkoutStep, trustedStep, setupNodeStep, runStep, metadataStep, uploadStep] = steps;
+    // S8 — `.devdigest/` comes from the base commit; the review runs only
+    // when the base actually has a runner.
+    expect(trustedStep?.env).toEqual({ BASE_SHA: '${{ github.event.pull_request.base.sha }}' });
+    expect(trustedStep?.run).toContain('git checkout "$BASE_SHA" -- .devdigest');
+    expect(trustedStep?.run).not.toContain('${{');
+    expect(runStep?.if).toBe("steps.trusted-config.outputs.trusted == 'true'");
+    expect(parsed.jobs.review['timeout-minutes']).toBe(15);
+    expect(parsed.concurrency).toEqual({
+      group: 'devdigest-review-${{ github.event.pull_request.number }}',
+      'cancel-in-progress': true,
+    });
     // AC-62 — every `uses:` resolves to a full commit SHA, never a tag/branch.
     expect(checkoutStep?.uses).toBe(`actions/checkout@${PINNED_ACTIONS.checkout.sha}`);
     expect(setupNodeStep?.uses).toBe(`actions/setup-node@${PINNED_ACTIONS.setupNode.sha}`);
@@ -72,7 +83,7 @@ describe('buildWorkflowYaml', () => {
     // never rendered into the document.
     expect(parsed.on.pull_request.types).toEqual(['opened']);
     // No stray top-level key could have been smuggled in via the trigger list.
-    expect(Object.keys(parsed)).toEqual(['name', 'on', 'jobs']);
+    expect(Object.keys(parsed)).toEqual(['name', 'concurrency', 'on', 'jobs']);
     expect(parsed.jobs.review).not.toHaveProperty('evil_key');
     expect(parsed.jobs.review).not.toHaveProperty('new_key');
   });

@@ -5,6 +5,7 @@ import { SkillSource, SkillType } from "@devdigest/shared";
 import { getContext } from "../_shared/context.js";
 import { IdParams } from "../_shared/schemas.js";
 import { NotFoundError, ValidationError } from "../../platform/errors.js";
+import { fetchPublicUrl, BlockedHostError } from "../../platform/public-fetch.js";
 import { SkillsService } from "./service.js";
 import { regexScan, llmScan, THREAT_LEVEL } from "./scanner.js";
 import type { ThreatLevel } from "./scanner.js";
@@ -82,8 +83,11 @@ async function safeFetchSkillUrl(url: string): Promise<string> {
 
   let res: Response;
   try {
-    res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+    res = await fetchPublicUrl(url, AbortSignal.timeout(10_000));
   } catch (err: unknown) {
+    if (err instanceof BlockedHostError) {
+      throw new ValidationError("Private and local URLs are not allowed");
+    }
     const msg = err instanceof Error ? err.message : "Network error";
     throw new ValidationError(`Failed to fetch URL: ${msg}`);
   }

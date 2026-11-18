@@ -19,9 +19,8 @@
  * block is skipped when the soft budget trips, leaving status 'partial'.
  */
 import { createHash } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
 import { cpus } from 'node:os';
-import { join } from 'node:path';
+import { readContainedFile } from '../../../platform/contained-read.js';
 import PQueue from 'p-queue';
 import type { RepoRef } from '@devdigest/shared';
 import type { Container } from '../../../platform/container.js';
@@ -141,7 +140,9 @@ export async function runFullIndex(
       }
       let source: string;
       try {
-        source = await readFile(join(repo.clonePath!, relPath), 'utf8');
+        const contained = await readContainedFile(repo.clonePath!, relPath);
+        if (contained === null) throw new Error('unreadable or outside the clone (symlink?)');
+        source = contained;
       } catch (err) {
         filesSkipped += 1;
         recordParseDegraded(parseDegraded, relPath, asMessage(err));

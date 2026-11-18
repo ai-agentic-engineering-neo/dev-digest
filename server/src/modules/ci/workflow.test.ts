@@ -10,6 +10,34 @@ import {
 } from './constants.js';
 import { buildCiConfigFiles, buildGhaWorkflowFile, buildGhaWorkflowYaml } from './workflow.js';
 
+describe('S8 — a PR cannot swap its own reviewer', () => {
+  const yaml = buildGhaWorkflowYaml();
+
+  it('restores .devdigest/ from the base commit before the review step', () => {
+    const restore = yaml.indexOf('id: trusted-config');
+    const review = yaml.indexOf('name: Run DevDigest review');
+    expect(restore).toBeGreaterThan(-1);
+    expect(restore).toBeLessThan(review);
+    expect(yaml).toContain('BASE_SHA: ${{ github.event.pull_request.base.sha }}');
+    expect(yaml).toContain('git checkout "$BASE_SHA" -- .devdigest');
+  });
+
+  it('runs the review only when the base has a trusted runner', () => {
+    expect(yaml).toContain("if: steps.trusted-config.outputs.trusted == 'true'");
+  });
+
+  it('bounds the job and cancels stale runs', () => {
+    expect(yaml).toContain('timeout-minutes: 15');
+    expect(yaml).toContain('group: devdigest-review-${{ github.event.pull_request.number }}');
+    expect(yaml).toContain('cancel-in-progress: true');
+  });
+
+  it('keeps every expression out of the restore script body (no interpolation)', () => {
+    const script = yaml.slice(yaml.indexOf('set -euo pipefail'), yaml.indexOf('- name: Setup Node.js'));
+    expect(script).not.toContain('${{');
+  });
+});
+
 /** Extract the block of trimmed, non-empty lines under a top-level `key:` header, up to the next top-level (non-indented) key. */
 function extractBlock(yamlText: string, header: string): string[] {
   const lines = yamlText.split('\n');

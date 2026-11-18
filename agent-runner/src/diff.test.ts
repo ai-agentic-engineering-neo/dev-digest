@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseUnifiedDiff, stripIgnoredFiles } from './diff.js';
+import { configChangeNotice, listIgnoredPaths, parseUnifiedDiff, stripIgnoredFiles } from './diff.js';
 
 /**
  * Sanity test for the self-authored unified-diff parser (agent-runner cannot
@@ -109,5 +109,32 @@ diff --git a/.github/workflows/devdigest-review.yml b/.github/workflows/devdiges
 
   it('is a no-op when nothing is ignored', () => {
     expect(stripIgnoredFiles(FIXTURE_DIFF_RAW)).toBe(FIXTURE_DIFF_RAW);
+  });
+});
+
+describe('listIgnoredPaths / configChangeNotice (S8)', () => {
+  const raw = [
+    'diff --git a/src/a.ts b/src/a.ts',
+    '+x',
+    'diff --git a/.devdigest/runner/index.js b/.devdigest/runner/index.js',
+    '+y',
+    'diff --git a/.github/workflows/devdigest.yml b/.github/workflows/devdigest.yml',
+    '+z',
+  ].join('\n');
+
+  it('lists only the ignored paths, once each', () => {
+    expect(listIgnoredPaths(raw)).toEqual(['.devdigest/runner/index.js', '.github/workflows/devdigest.yml']);
+    expect(listIgnoredPaths('diff --git a/src/a.ts b/src/a.ts\n+x')).toEqual([]);
+  });
+
+  it('formats paths as code and cannot be broken out of with backticks', () => {
+    const notice = configChangeNotice(['.devdigest/a`](https://evil.tld)`.md']);
+    expect(notice).toContain('`.devdigest/a](https://evil.tld).md`');
+    expect(notice).not.toContain('a`]');
+  });
+
+  it('caps a long list', () => {
+    const many = Array.from({ length: 15 }, (_, i) => `.devdigest/skills/s${i}.md`);
+    expect(configChangeNotice(many)).toContain('and 5 more');
   });
 });

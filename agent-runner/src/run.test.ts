@@ -388,4 +388,34 @@ describe('runCi (T8 agent-runner orchestrator)', () => {
     expect(result.exitCode).toBe(1);
     expect(result.artifacts).toHaveLength(2);
   });
+  it('S8: a PR that changes DevDigest config gets an explicit notice instead of a silent strip', async () => {
+    const stub = makeStubLlm(GROUNDED_PLUS_HALLUCINATED_REVIEW);
+    const configDiff =
+      FIXTURE_DIFF_RAW +
+      'diff --git a/.devdigest/agents/security-reviewer.yaml b/.devdigest/agents/security-reviewer.yaml\n' +
+      '--- a/.devdigest/agents/security-reviewer.yaml\n' +
+      '+++ b/.devdigest/agents/security-reviewer.yaml\n' +
+      '@@ -1,1 +1,1 @@\n' +
+      '-ci_fail_on: "critical"\n' +
+      '+ci_fail_on: "none"\n';
+    const result = await runCi(baseDeps({ llm: stub.llm, fetchDiff: async () => configDiff, postAs: 'none' }));
+
+    expect(result.results?.length).toBeGreaterThan(0);
+    // Every reviewer's posted review carries the notice.
+    for (const r of result.results ?? []) {
+      expect(r.posted.payload!.body).toContain("changes DevDigest's own CI configuration");
+      expect(r.posted.payload!.body).toContain('`.devdigest/agents/security-reviewer.yaml`');
+      // The verdict still comes from the grounded findings only (AC-23).
+      expect(r.gateTriggered).toBe(true);
+    }
+  });
+
+  it('S8: no notice when the PR leaves DevDigest config alone', async () => {
+    const stub = makeStubLlm(GROUNDED_PLUS_HALLUCINATED_REVIEW);
+    const result = await runCi(baseDeps({ llm: stub.llm, fetchDiff: async () => FIXTURE_DIFF_RAW, postAs: 'none' }));
+    expect(result.results?.length).toBeGreaterThan(0);
+    for (const r of result.results ?? []) {
+      expect(r.posted.payload!.body).not.toContain("DevDigest's own CI configuration");
+    }
+  });
 });

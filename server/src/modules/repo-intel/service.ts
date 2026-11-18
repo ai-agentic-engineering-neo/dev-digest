@@ -26,8 +26,8 @@ import {
   parseSymbols,
   langForFile,
 } from '../../adapters/astgrep/index.js';
-import { readFile } from 'node:fs/promises';
-import { extname, join } from 'node:path';
+import { readContainedFile } from '../../platform/contained-read.js';
+import { extname } from 'node:path';
 import { RepoIntelRepository, type FullSymbolRow } from './repository.js';
 import type {
   BlastCallerRow,
@@ -760,5 +760,6 @@ function enclosingSymbolName(
 }
 
 async function readClone(clonePath: string, file: string): Promise<string | null> {
-  return readFile(join(clonePath, file), 'utf8').catch(() => null);
+  // S6 — containment-checked: a committed symlink can't read outside the clone.
+  return readContainedFile(clonePath, file);
 }

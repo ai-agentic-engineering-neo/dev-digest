@@ -30,4 +30,25 @@ describe("VerdictBanner (smoke)", () => {
     expect(screen.getByText("42")).toBeInTheDocument();
     expect(screen.getByText(/1 findings · 1 blockers/)).toBeInTheDocument();
   });
+
+  it("shows the run's cost · tokens line when cost is passed (M1)", () => {
+    renderWithIntl(
+      <VerdictBanner
+        verdict="comment"
+        summary={null}
+        score={70}
+        findingsCount={2}
+        blockers={0}
+        cost={{ costUsd: 0.014, tokensIn: 8200, tokensOut: 1300 }}
+      />,
+    );
+    expect(screen.getByTestId("run-cost-badge").textContent).toBe("$0.014 · 8.2K→1.3K");
+  });
+
+  it("renders no cost line when cost is omitted", () => {
+    renderWithIntl(
+      <VerdictBanner verdict="approve" summary={null} score={95} findingsCount={0} blockers={0} />,
+    );
+    expect(screen.queryByTestId("run-cost-badge")).not.toBeInTheDocument();
+  });
 });

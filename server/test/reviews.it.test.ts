@@ -5,6 +5,7 @@ import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/platform/config.js';
 import { seed } from '../src/db/seed.js';
 import { MockLLMProvider, MockEmbedder, MockGitClient } from '../src/adapters/mocks.js';
+import { completeAgentRun } from '../src/modules/reviews/repository/run.repo.js';
 import * as t from '../src/db/schema.js';
 import { eq } from 'drizzle-orm';
 import type { Review } from '@devdigest/shared';
@@ -208,6 +209,104 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(run!.status).toBe('done');
     expect(run!.findingsCount).toBe(1);
     expect(run!.grounding).toBe('1/2 passed');
+
+    // M1 — run cost persisted from the engine's usage (MockLLM: $0.001/call),
+    // mirrored into the trace stats and exposed on the runs history route.
+    expect(run!.costUsd).toBeGreaterThan(0);
+    expect(trace.stats.cost_usd).toBeCloseTo(run!.costUsd!, 10);
+    const runs = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(runs[0].cost_usd).toBeCloseTo(run!.costUsd!, 10);
+
+    await app.close();
+  });
+
+  it('M1: a FAILED review run stores cost_usd = null (trace, runs history, PR list)', async () => {
+    // A fixture that fails the Review schema makes the mock LLM throw → run fails.
+    const app = await appWith({ not: 'a review' });
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'Broken', provider: 'openai', model: 'gpt-4.1', system_prompt: 'x' },
+      })
+    ).json();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/pulls/${pr.id}/review`,
+      payload: { agentId: agent.id },
+    });
+    const runId = res.json().runs[0].run_id;
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+
+    const [run] = await pg.handle.db.select().from(t.agentRuns).where(eq(t.agentRuns.id, runId));
+    expect(run!.status).toBe('failed');
+    expect(run!.costUsd).toBeNull();
+
+    const trace = (await app.inject({ method: 'GET', url: `/runs/${runId}/trace` })).json();
+    expect(trace.stats.cost_usd ?? null).toBeNull();
+
+    const runs = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(runs[0].status).toBe('failed');
+    expect(runs[0].cost_usd).toBeNull();
+
+    const list = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    expect(list[0].cost_usd).toBeNull();
+
+    await app.close();
+  });
+
+  it('M1: completing a run as cancelled/failed without a cost clears any stored cost_usd', async () => {
+    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    for (const status of ['cancelled', 'failed'] as const) {
+      // Seed a stale non-null cost so the assertion proves an overwrite, not a default.
+      const [row] = await pg.handle.db
+        .insert(t.agentRuns)
+        .values({ workspaceId, prId: pr.id, status: 'running', costUsd: 0.7 })
+        .returning({ id: t.agentRuns.id });
+
+      await completeAgentRun(pg.handle.db, row!.id, {
+        status,
+        durationMs: 10,
+        tokensIn: 0,
+        tokensOut: 0,
+        findingsCount: 0,
+        grounding: '0/0 passed',
+        error: status === 'cancelled' ? 'Cancelled by user' : 'boom',
+      });
+
+      const [after] = await pg.handle.db.select().from(t.agentRuns).where(eq(t.agentRuns.id, row!.id));
+      expect(after!.status).toBe(status);
+      expect(after!.costUsd).toBeNull();
+    }
+  });
+
+  it('M1: PR list COST = cost of the latest FINISHED run; null without one', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const { pr: bare } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const at = (iso: string) => new Date(iso);
+    await pg.handle.db.insert(t.agentRuns).values([
+      // older done run
+      { workspaceId, prId: pr.id, ranAt: at('2026-06-01T10:00:00Z'), status: 'done', costUsd: 0.5 },
+      // latest done run → wins
+      { workspaceId, prId: pr.id, ranAt: at('2026-06-01T11:00:00Z'), status: 'done', costUsd: 0.012 },
+      // newer but FAILED → ignored
+      { workspaceId, prId: pr.id, ranAt: at('2026-06-01T12:00:00Z'), status: 'failed', costUsd: null },
+      // PR in the other repo: only a failed run
+      { workspaceId, prId: bare.id, ranAt: at('2026-06-01T12:00:00Z'), status: 'failed', costUsd: null },
+    ]);
+
+    const list = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const row = list.find((p: { number: number }) => p.number === pr.number);
+    expect(row.cost_usd).toBe(0.012);
+
+    const bareRepoId = (
+      await pg.handle.db.select().from(t.pullRequests).where(eq(t.pullRequests.id, bare.id))
+    )[0]!.repoId;
+    const bareList = (await app.inject({ method: 'GET', url: `/repos/${bareRepoId}/pulls` })).json();
+    expect(bareList[0].cost_usd).toBeNull();
 
     await app.close();
   });

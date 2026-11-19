@@ -61,6 +61,8 @@ export const RunStats = z.object({
   duration_ms: z.number().int(),
   tokens_in: z.number().int(),
   tokens_out: z.number().int(),
+  /** Run cost in USD; nullish so traces stored before M1 still parse. */
+  cost_usd: z.number().nullish(),
   findings: z.number().int(),
   grounding: z.string(),
 });
@@ -101,6 +103,8 @@ export const RunSummary = z.object({
   duration_ms: z.number().int().nullable(),
   tokens_in: z.number().int().nullable(),
   tokens_out: z.number().int().nullable(),
+  /** Run cost in USD; null = no data (failed/cancelled/running/pre-M1/unknown price). */
+  cost_usd: z.number().nullable(),
   findings_count: z.number().int().nullable(),
   grounding: z.string().nullable(),
   ran_at: z.string().nullable(),

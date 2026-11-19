@@ -59,6 +59,7 @@ export async function listRunsForPull(
     duration_ms: run.durationMs,
     tokens_in: run.tokensIn,
     tokens_out: run.tokensOut,
+    cost_usd: run.costUsd,
     findings_count: run.findingsCount,
     grounding: run.grounding,
     ran_at: run.ranAt ? run.ranAt.toISOString() : null,
@@ -154,6 +155,8 @@ export async function completeAgentRun(
     blockers?: number | null;
     /** Failure reason (status='failed') / cancellation note. Null clears it. */
     error?: string | null;
+    /** Run cost in USD; null/omitted on failed/cancelled runs or unknown price. */
+    costUsd?: number | null;
   },
 ): Promise<void> {
   await db
@@ -168,6 +171,7 @@ export async function completeAgentRun(
       score: values.score ?? null,
       blockers: values.blockers ?? null,
       error: values.error ?? null,
+      costUsd: values.costUsd ?? null,
     })
     .where(eq(t.agentRuns.id, runId));
 }

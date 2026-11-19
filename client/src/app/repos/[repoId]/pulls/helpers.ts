@@ -7,6 +7,26 @@ export function sizeOf(pr: PrMeta): SizeInfo {
   return { size, lines };
 }
 
+/**
+ * USD cost with adaptive precision — ONE formatter for every cost surface.
+ * <$0.01 → 4 decimals ($0.0013), <$1 → 3 ($0.014), else 2 ($1.25).
+ * No data (null/undefined/NaN) → "—", never "$0.00"; a real 0 (free model) → "$0";
+ * a positive amount too small for 4 decimals → "<$0.0001" rather than "$0.0000".
+ */
+export function formatCost(usd: number | null | undefined): string {
+  if (usd == null || Number.isNaN(usd)) return "—";
+  if (usd === 0) return "$0";
+  if (usd < 0.0001) return "<$0.0001";
+  if (usd < 0.01) return `$${usd.toFixed(4)}`;
+  if (usd < 1) return `$${usd.toFixed(3)}`;
+  return `$${usd.toFixed(2)}`;
+}
+
+/** Token in→out summary (e.g. "12k→1.5k"). */
+export function formatTokens(tokensIn: number, tokensOut: number): string {
+  return `${(tokensIn / 1000).toFixed(0)}k→${(tokensOut / 1000).toFixed(1)}k`;
+}
+
 /** Compact relative time for the list's UPDATED column (e.g. "3h", "2d"). */
 export function relativeTime(iso: string | null | undefined): string {
   if (!iso) return "—";

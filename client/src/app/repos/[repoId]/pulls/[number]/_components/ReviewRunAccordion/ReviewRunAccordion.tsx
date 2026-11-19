@@ -7,7 +7,7 @@
 
 import React from "react";
 import { Icon, Badge } from "@devdigest/ui";
-import type { ReviewRecord, Verdict } from "@devdigest/shared";
+import type { ReviewRecord, RunSummary, Verdict } from "@devdigest/shared";
 import { FindingsPanel } from "../FindingsPanel";
 import { VerdictBanner } from "../VerdictBanner";
 import { useDeleteReview } from "../../../../../../../lib/hooks/reviews";
@@ -31,8 +31,12 @@ export function ReviewRunAccordion({
   headSha,
   targetRunId = null,
   targetNonce = 0,
+  run,
 }: {
   review: ReviewRecord;
+  /** The agent run that produced this review (matched by run_id) — feeds the
+   *  verdict banner's cost line. Absent → no cost line. */
+  run?: RunSummary;
   prId: string;
   defaultOpen?: boolean;
   repoFullName?: string | null;
@@ -144,6 +148,7 @@ export function ReviewRunAccordion({
                 findingsCount={findings.length}
                 blockers={blockers}
                 agentName={review.agent_name}
+                run={run}
               />
             </div>
           )}

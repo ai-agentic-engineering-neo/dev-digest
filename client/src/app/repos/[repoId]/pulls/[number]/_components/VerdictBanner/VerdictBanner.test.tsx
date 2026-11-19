@@ -30,4 +30,30 @@ describe("VerdictBanner (smoke)", () => {
     expect(screen.getByText("42")).toBeInTheDocument();
     expect(screen.getByText(/1 findings · 1 blockers/)).toBeInTheDocument();
   });
+
+  const base = {
+    verdict: "comment" as const,
+    summary: null,
+    score: 70,
+    findingsCount: 0,
+    blockers: 0,
+  };
+
+  it("shows the cost · tokens line when the run is passed", () => {
+    renderWithIntl(
+      <VerdictBanner {...base} run={{ cost_usd: 0.014, tokens_in: 8200, tokens_out: 1300 }} />,
+    );
+    expect(screen.getByText("$0.014 · 8k→1.3k")).toBeInTheDocument();
+  });
+
+  it("shows '—' (not $0.00) when the run has no cost data", () => {
+    renderWithIntl(<VerdictBanner {...base} run={{ cost_usd: null, tokens_in: null, tokens_out: null }} />);
+    expect(screen.getByText("—")).toBeInTheDocument();
+  });
+
+  it("shows no cost line when no run is passed", () => {
+    renderWithIntl(<VerdictBanner {...base} />);
+    expect(screen.queryByText(/\$/)).not.toBeInTheDocument();
+    expect(screen.queryByText("—")).not.toBeInTheDocument();
+  });
 });

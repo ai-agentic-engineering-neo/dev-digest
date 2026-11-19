@@ -1,30 +1,55 @@
 "use client";
 
 import React from "react";
+import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 import { Icon, SEV, CategoryTag, ConfidenceNum } from "@devdigest/ui";
 import type { FindingRecord, Severity } from "@devdigest/shared";
-import { countBySeverity, visibleFindings } from "../FindingsPanel/helpers";
-import { SEVERITY_LEVELS } from "../FindingsPanel/constants";
+import { countBySeverity, visibleFindings } from "../../[number]/_components/FindingsPanel/helpers";
+import { SEVERITY_LEVELS } from "../../[number]/_components/FindingsPanel/constants";
+
+/** The subset of a finding the hover needs (PR list previews and full records both fit). */
+export type FindingPreview = Pick<
+  FindingRecord,
+  "id" | "severity" | "category" | "title" | "file" | "start_line" | "end_line" | "confidence" | "rationale"
+>;
 
 const MAX_SHOWN = 5;
 
-/** Severity icons + counts for one run; hovering/focusing shows a popover with
- *  that run's findings (severity, title, category, file:lines, confidence). */
-export function RunFindingsHover({ findings }: { findings: FindingRecord[] }) {
+/** Severity icons + counts; hovering/focusing shows a popover with the
+ *  findings (severity, title, category, file:lines, confidence). */
+const POPOVER_W = 420;
+const POPOVER_EST_H = 380;
+
+export function FindingsHover({ findings }: { findings: FindingPreview[] }) {
   const t = useTranslations("prReview");
-  const [open, setOpen] = React.useState(false);
+  const [pos, setPos] = React.useState<{ left: number; top?: number; bottom?: number } | null>(null);
+  const triggerRef = React.useRef<HTMLSpanElement | null>(null);
+  const open = pos !== null;
+  // Portal + fixed position so the popover is never clipped by a scrolling /
+  // overflow:hidden ancestor (e.g. the PR list table card). Flips up near the bottom.
+  const show = () => {
+    const r = triggerRef.current?.getBoundingClientRect();
+    if (!r) return setPos({ left: 0, top: 0 });
+    const left = Math.max(8, Math.min(r.left, window.innerWidth - POPOVER_W - 8));
+    const below = window.innerHeight - r.bottom;
+    setPos(below >= POPOVER_EST_H || r.top < POPOVER_EST_H
+      ? { left, top: r.bottom + 6 }
+      : { left, bottom: window.innerHeight - r.top + 6 });
+  };
+  const hide = () => setPos(null);
   const counts = countBySeverity(findings);
   const sorted = visibleFindings(findings, false);
   const shown = sorted.slice(0, MAX_SHOWN);
 
   return (
     <span
-      style={{ position: "relative", display: "inline-flex" }}
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
-      onFocus={() => setOpen(true)}
-      onBlur={() => setOpen(false)}
+      ref={triggerRef}
+      style={{ display: "inline-flex" }}
+      onMouseEnter={show}
+      onMouseLeave={hide}
+      onFocus={show}
+      onBlur={hide}
     >
       <span tabIndex={0} style={{ display: "inline-flex", gap: 10, verticalAlign: "middle", outline: "none" }}>
         {SEVERITY_LEVELS.filter((l) => counts[l] > 0).map((l: Severity) => {
@@ -41,16 +66,17 @@ export function RunFindingsHover({ findings }: { findings: FindingRecord[] }) {
           );
         })}
       </span>
-      {open && (
+      {open && pos && createPortal(
         <div
           role="tooltip"
+          onClick={(e) => e.stopPropagation()}
           style={{
-            position: "absolute",
-            top: "100%",
-            left: 0,
-            marginTop: 6,
-            zIndex: 30,
-            width: 420,
+            position: "fixed",
+            top: pos.top,
+            bottom: pos.bottom,
+            left: pos.left,
+            zIndex: 1000,
+            width: POPOVER_W,
             maxWidth: "80vw",
             padding: 12,
             borderRadius: 8,
@@ -148,7 +174,8 @@ export function RunFindingsHover({ findings }: { findings: FindingRecord[] }) {
               {t("timeline.moreFindings", { count: sorted.length - MAX_SHOWN })}
             </div>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
     </span>
   );

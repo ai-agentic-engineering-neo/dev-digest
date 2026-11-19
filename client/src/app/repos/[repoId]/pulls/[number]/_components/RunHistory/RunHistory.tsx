@@ -4,7 +4,7 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Badge, Icon, CircularScore, type IconName } from "@devdigest/ui";
 import type { RunSummary, PrCommit, FindingRecord } from "@devdigest/shared";
-import { RunFindingsHover } from "./RunFindingsHover";
+import { FindingsHover } from "../../../_components/FindingsHover";
 import { RunCostBadge } from "../../../_components/RunCostBadge";
 
 /**
@@ -198,7 +198,7 @@ export function RunHistory({
               {settled && (
                 <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
                   {runFindings && runFindings.length > 0 ? (
-                    <RunFindingsHover findings={runFindings} />
+                    <FindingsHover findings={runFindings} />
                   ) : (
                     t("runStatus.findings", { count: r.findings_count ?? 0 })
                   )}

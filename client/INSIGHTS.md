@@ -20,6 +20,8 @@ Entry: `YYYY-MM-DD — claim — why / what to do (`path` · `symbol`)`. No line
 
 - 2026-11-19 — The brief says the PR-list findings icons/popover and Timeline severity icons already exist, but this branch has neither (`RunHistory.tsx` printed only "N finding(s)"); `RunSummary` carries totals only, so per-severity data must come from `ReviewRecord.findings` matched by `run_id` (`FindingsTab` · `findingsByRun`, `RunHistory/RunFindingsHover.tsx`).
 
+- 2026-11-19 — Findings hover is a shared component rendered in a portal with fixed position (the PR list `tableCard` is `overflow: hidden` and would clip an absolutely-positioned popover); PR list data comes from `PrMeta.findings` (also changed in `server/`) (`pulls/_components/FindingsHover`).
+
 ## Tool & Library Notes
 <!-- Dependency / CLI quirks, versions. -->
 

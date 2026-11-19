@@ -73,26 +73,37 @@ export default async function settingsRoutes(appBase: FastifyInstance) {
     },
     async (req): Promise<ConnTestResult> => {
     const { provider, key } = req.body;
-    try {
-      // If the UI supplied a key, persist it (BYO key) before testing so the
-      // test reflects — and the rest of the app can use — the new value.
-      if (key) {
-        if (!container.secrets.set) {
-          return { provider, ok: false, message: 'Secrets backend is read-only' };
-        }
-        await container.secrets.set(SECRET_KEY_BY_PROVIDER[provider], key);
-        container.invalidateSecretCaches();
-      }
-      if (provider === GITHUB_PROVIDER) {
-        const gh = await container.github();
-        const login = await gh.currentLogin();
-        return { provider, ok: true, message: `Connected as @${login}` };
-      }
-      const llm = await container.llm(provider);
-      const models = await llm.listModels();
-      return { provider, ok: true, message: `OK — ${models.length} models available` };
-    } catch (err) {
-      return { provider, ok: false, message: (err as Error).message };
+    // S11 (security hardening): a candidate key is verified with a
+    // throwaway client FIRST and persisted only if the check passes — a typo
+    // must never overwrite the working key in ~/.devdigest/secrets.json.
+    if (key && !container.secrets.set) {
+      return { provider, ok: false, message: 'Secrets backend is read-only' };
     }
+    let message: string;
+    try {
+      if (provider === GITHUB_PROVIDER) {
+        const gh = key ? container.githubWithToken(key) : await container.github();
+        const login = await gh.currentLogin();
+        message = `Connected as @${login}`;
+      } else {
+        const llm = key ? await container.llmWithKey(provider, key) : await container.llm(provider);
+        const models = await llm.listModels();
+        message = `OK — ${models.length} models available`;
+      }
+    } catch (err) {
+      const raw = (err as Error).message;
+      // Provider SDK errors can echo the key back; never return it.
+      const safe = key ? raw.split(key).join('[redacted]') : raw;
+      return { provider, ok: false, message: key ? `${safe} — key not saved` : safe };
+    }
+    if (key) {
+      try {
+        await container.secrets.set!(SECRET_KEY_BY_PROVIDER[provider], key);
+        container.invalidateSecretCaches();
+      } catch (err) {
+        return { provider, ok: false, message: `Key verified but could not be saved: ${(err as Error).message}` };
+      }
+    }
+    return { provider, ok: true, message };
   });
 }

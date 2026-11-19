@@ -1,4 +1,12 @@
-import type { FindingActionKind } from "@devdigest/shared";
+import type { FindingActionKind, Severity } from "@devdigest/shared";
+
+/* Type-only import on purpose: Next's webpack can't resolve the `.js` specifiers
+   inside src/vendor/shared, so client code must not import runtime values from it.
+   Record<Severity, …> makes tsc fail if the contract gains or drops a level. */
+const LEVELS: Record<Severity, true> = { CRITICAL: true, WARNING: true, SUGGESTION: true };
+
+/** Contract severity levels, in chip order. Not SEV/SEVERITY_ORDER keys: those include INFO. */
+export const SEVERITY_LEVELS = Object.keys(LEVELS) as Severity[];
 
 /** Sort weight per severity (lower = shown first). */
 export const SEVERITY_ORDER: Record<string, number> = {

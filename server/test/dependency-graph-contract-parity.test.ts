@@ -8,10 +8,13 @@ import { dirname, resolve } from 'node:path';
  * hand-maintained (no sync script) and must stay byte-identical.
  */
 const serverRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const rel = 'src/vendor/shared/contracts/dependency-graph.ts';
+const files = [
+  'src/vendor/shared/contracts/dependency-graph.ts',
+  'src/vendor/shared/contracts/project-graph.ts',
+];
 
 describe('dependency-graph contract parity', () => {
-  it('server and client copies are byte-identical', () => {
+  it.each(files)('server and client copies of %s are byte-identical', (rel) => {
     const server = readFileSync(resolve(serverRoot, rel));
     const client = readFileSync(resolve(serverRoot, '../client', rel));
     expect(client.equals(server)).toBe(true);

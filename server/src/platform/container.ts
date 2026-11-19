@@ -40,6 +40,9 @@ import { EvalExecutor } from '../modules/eval/executor.js';
 import type { RepoIntel } from '../domain/ports/repo-intel.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
 import { RepoIntelRepository } from '../modules/repo-intel/repository.js';
+import type { ProjectGraphReader } from '../domain/ports/project-graph.js';
+import { GraphReadService } from '../modules/repo-intel/graph-read.service.js';
+import { GraphReadRepository } from '../modules/repo-intel/graph-read.repository.js';
 import { resolveFeatureModel as resolveFeatureModelForWorkspace } from '../modules/settings/feature-models.js';
 import type { ModuleResolver } from '../domain/ports/module-resolver.js';
 import { TsModuleResolverFactory } from '../adapters/tsresolve/index.js';
@@ -73,6 +76,8 @@ export interface ContainerOverrides {
   /** repo-intel T3 adapters — only the indexer pipeline reads these. */
   resolver?: ModuleResolver;
   tokenizer?: Tokenizer;
+  /** Project graph read side (specs/18) — tests inject a fake reader. */
+  projectGraph?: ProjectGraphReader;
 }
 
 export class Container {
@@ -107,6 +112,7 @@ export class Container {
   private _evalService?: EvalService;
   private _repoIntelService?: RepoIntelService;
   private _resolver?: ModuleResolver;
+  private _projectGraph?: ProjectGraphReader;
   private _tokenizer?: Tokenizer;
   private _priceBook?: PriceBook;
   private _intentRepo?: IntentRepository;
@@ -388,6 +394,13 @@ export class Container {
       repoIntelEnabled: this.config.repoIntelEnabled,
     });
     return this._repoIntelService;
+  }
+
+  /** Project dependency-graph reader (specs/18 P4-A): read-only, memoises cycles in-process. */
+  get projectGraph(): ProjectGraphReader {
+    if (this.overrides.projectGraph) return this.overrides.projectGraph;
+    this._projectGraph ??= new GraphReadService(new GraphReadRepository(this.db));
+    return this._projectGraph;
   }
 
   /** Module resolver factory (`ts.resolveModuleName`, contained host). Indexer pipeline only. */

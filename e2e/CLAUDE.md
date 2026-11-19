@@ -33,4 +33,4 @@ npm (`package-lock.json`) · Vercel agent-browser CLI (installed globally, drive
 - Read when you need the overall test strategy: [../TESTING.md](../TESTING.md)
 - Read when you need design notes or how-tos for this module: [docs/](docs/)
 - Read when implementing or changing a feature here: [specs/](specs/)
-- Read when starting non-trivial work here; append when you find something non-obvious: [INSIGHTS.md](INSIGHTS.md)
+- Read before starting work here and update at the end of the task, via the `engineering-insights` skill: [INSIGHTS.md](INSIGHTS.md)

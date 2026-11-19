@@ -21,17 +21,24 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.3.198",
-    "openai": "^4.77.0"
+    "@anthropic-ai/claude-agent-sdk": "^0.3.327",
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "openai": "^4.104.0",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
+    "@types/node": "^22.20.5",
     "gray-matter": "^4.0.3",
-    "tsx": "^4.19.0",
-    "typescript": "^5.6.0",
-    "vitest": "^2.1.0"
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vitest": "^2.1.9"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild"]
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ],
+    "overrides": {
+      "@modelcontextprotocol/sdk": "^1.32.0"
+    }
   }
 }

@@ -71,6 +71,13 @@ export function FindingsTab({
     setTarget((p) => ({ runId, n: (p?.n ?? 0) + 1 }));
   }, []);
 
+  // Findings per run for the Timeline icons + hover, from the already-loaded reviews.
+  const findingsByRun = React.useMemo(() => {
+    const m: Record<string, FindingRecord[]> = {};
+    for (const r of runs) if (r.run_id) m[r.run_id] = r.findings;
+    return m;
+  }, [runs]);
+
   return (
     <section>
       {liveRunIds.length > 0 && (
@@ -131,6 +138,7 @@ export function FindingsTab({
           <RunHistory
             runs={prRuns ?? []}
             commits={prCommits}
+            findingsByRun={findingsByRun}
             onOpenTrace={handleOpenTrace}
             onGoToReview={handleGoToReview}
             onDelete={handleDelete}

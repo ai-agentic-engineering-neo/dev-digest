@@ -5,9 +5,9 @@
  * and shows the review score ring.
  */
 import { describe, it, expect, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
-import type { RunSummary } from "@devdigest/shared";
+import type { RunSummary, FindingRecord } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/prReview.json";
 import { RunHistory } from "./RunHistory";
 
@@ -35,10 +35,10 @@ function run(o: Partial<RunSummary>): RunSummary {
   };
 }
 
-function renderRuns(runs: RunSummary[]) {
+function renderRuns(runs: RunSummary[], findingsByRun?: React.ComponentProps<typeof RunHistory>["findingsByRun"]) {
   return render(
     <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
-      <RunHistory runs={runs} onOpenTrace={() => {}} />
+      <RunHistory runs={runs} findingsByRun={findingsByRun} onOpenTrace={() => {}} />
     </NextIntlClientProvider>,
   );
 }
@@ -90,5 +90,42 @@ describe("RunHistory — cost badge", () => {
   it("a failed run shows no cost badge", () => {
     renderRuns([run({ status: "failed", error: "boom", cost_usd: null, tokens_in: 0, tokens_out: 0 })]);
     expect(screen.queryByText(/tok/)).not.toBeInTheDocument();
+  });
+});
+
+const F = (id: string, severity: FindingRecord["severity"], title: string): FindingRecord => ({
+  id, severity, category: "perf", title, file: "src/a.ts", start_line: 4, end_line: 9,
+  rationale: "Because reasons.", suggestion: null, confidence: 0.86, kind: "finding",
+  trifecta_components: null, evidence: null, review_id: "r1", accepted_at: null, dismissed_at: null,
+});
+
+describe("RunHistory — severity icons + hover", () => {
+  const data = { "run-1": [F("1", "CRITICAL", "Boom"), F("2", "CRITICAL", "Bang"), F("3", "WARNING", "Hmm")] };
+
+  it("shows an icon + count per non-zero severity instead of the plain findings text", () => {
+    renderRuns([run({ findings_count: 3 })], data);
+    expect(screen.getByLabelText("2 CRITICAL")).toBeInTheDocument();
+    expect(screen.getByLabelText("1 WARNING")).toBeInTheDocument();
+    expect(screen.queryByLabelText("0 SUGGESTION")).not.toBeInTheDocument();
+    expect(screen.queryByText(/finding\(s\)/)).not.toBeInTheDocument();
+  });
+
+  it("hover shows the findings popover and mouse-leave hides it", () => {
+    renderRuns([run({ findings_count: 3 })], data);
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    fireEvent.mouseEnter(screen.getByLabelText("2 CRITICAL").parentElement!.parentElement!);
+    const tip = screen.getByRole("tooltip");
+    expect(tip).toHaveTextContent("3 findings in this run");
+    expect(tip).toHaveTextContent("Boom");
+    expect(tip).toHaveTextContent("src/a.ts:4-9");
+    expect(tip).toHaveTextContent("86% conf");
+    expect(tip).toHaveTextContent("Because reasons.");
+    fireEvent.mouseLeave(screen.getByLabelText("2 CRITICAL").parentElement!.parentElement!);
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+  });
+
+  it("falls back to the findings text when there is no breakdown", () => {
+    renderRuns([run({ findings_count: 1 })]);
+    expect(screen.getByText(/1 finding/)).toBeInTheDocument();
   });
 });

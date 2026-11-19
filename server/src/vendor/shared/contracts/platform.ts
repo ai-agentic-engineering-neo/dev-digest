@@ -133,7 +133,9 @@ export type SecretsStatus = z.infer<typeof SecretsStatus>;
 
 // ---- Repos ----
 export const RepoInput = z.object({
-  url: z.string().url(),
+  // Length cap only — which URLs are accepted (github.com only) is decided by
+  // the server's parseRepoUrl, not by this schema.
+  url: z.string().url().max(300),
 });
 export type RepoInput = z.infer<typeof RepoInput>;
 

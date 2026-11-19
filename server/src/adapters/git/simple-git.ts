@@ -1,6 +1,6 @@
 import { simpleGit, type SimpleGit } from 'simple-git';
-import { join } from 'node:path';
-import { mkdir, readFile, access, rm } from 'node:fs/promises';
+import { join, resolve, sep } from 'node:path';
+import { mkdir, readFile, access, rm, realpath } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import type {
   GitClient,
@@ -19,27 +19,154 @@ import { parseUnifiedDiff } from './diff-parser.js';
  */
 const RESYNC_FETCH_DEPTH = 50;
 
+/** Only origin whose clones/fetches ever receive the GitHub token. */
+const GITHUB_ORIGIN = 'https://github.com/';
+
+/**
+ * Environment passed to authenticated git subprocesses. An explicit
+ * allow-list rather than `...process.env`: simple-git's unsafe-operations
+ * guard rejects the whole call when vars such as `EDITOR`/`PAGER`/
+ * `GIT_SSH_COMMAND` are present, and nothing else from the server's
+ * environment needs to reach git.
+ */
+const PASSTHROUGH_ENV = [
+  'PATH',
+  'HOME',
+  'LANG',
+  'LC_ALL',
+  'TMPDIR',
+  'SYSTEMROOT',
+  'HTTP_PROXY',
+  'HTTPS_PROXY',
+  'NO_PROXY',
+  'http_proxy',
+  'https_proxy',
+  'no_proxy',
+  'SSL_CERT_FILE',
+  'SSL_CERT_DIR',
+  'GIT_SSL_CAINFO',
+] as const;
+
+export interface SimpleGitClientOptions {
+  /**
+   * Resolves the GitHub token for network operations (clone/fetch). Read on
+   * every call so a token saved in Settings applies without a restart.
+   */
+  getToken?: () => Promise<string | undefined>;
+}
+
+/** A repo ref whose owner/name is not a plain directory name. */
+export class UnsafeClonePathError extends Error {
+  constructor(repo: RepoRef) {
+    super(`Refusing a clone path outside the clone directory for '${repo.owner}/${repo.name}'`);
+    this.name = 'UnsafeClonePathError';
+  }
+}
+
+/**
+ * Git environment variables this adapter sets on purpose. simple-git 4's
+ * environment guard both REJECTS such vars when passed via `.env()` and
+ * silently STRIPS them from the inherited `process.env` unless allowed — the
+ * latter would quietly drop `GIT_TERMINAL_PROMPT=0` and let a private clone
+ * hang on a credential prompt. Everything else stays guarded.
+ */
+const ALLOWED_GIT_ENV = [
+  'GIT_TERMINAL_PROMPT',
+  'GCM_INTERACTIVE',
+  'GIT_CONFIG_COUNT',
+  'GIT_CONFIG_KEY_0',
+  'GIT_CONFIG_VALUE_0',
+];
+
+/** `-c` keys this adapter passes itself (simple-git 4 warns on, and its next
+ *  major blocks, config keys outside its known-safe list). */
+const ALLOWED_GIT_CONFIG = ['core.symlinks'];
+
+/** The only way this adapter builds a simple-git instance. */
+function gitAt(baseDir: string): SimpleGit {
+  return simpleGit({ baseDir, allowEnvironment: ALLOWED_GIT_ENV, allowConfig: ALLOWED_GIT_CONFIG });
+}
+
+function isPlainSegment(s: string): boolean {
+  return (
+    s.length > 0 && s !== '.' && s !== '..' && !s.includes('/') && !s.includes('\\') && !s.includes('\0')
+  );
+}
+
 /**
  * GitClient over simple-git. Repos clone to
  * `<cloneDir>/<owner>/<repo>`. We NEVER execute repo code — only git ops.
+ *
+ * S1 (security hardening):
+ *  - `clonePathFor` proves the path stays inside `cloneDir` before any
+ *    `rm`/`clone` — the second line of defence behind `parseRepoUrl`.
+ *  - The GitHub token goes in as an `http.https://github.com/.extraHeader`
+ *    through `GIT_CONFIG_*` env for one command at a time. It is never put in
+ *    the remote URL, so it never lands in the clone's `.git/config`, and it is
+ *    scoped to github.com so a redirect cannot carry it to another host.
  */
 export class SimpleGitClient implements GitClient {
-  constructor(private cloneDir: string) {
+  private readonly root: string;
+
+  constructor(
+    cloneDir: string,
+    private opts: SimpleGitClientOptions = {},
+  ) {
+    this.root = resolve(cloneDir);
     // Force non-interactive auth so an unauthenticated/private clone fails in
     // ~1s with a clear error instead of hanging on a credential prompt until the
-    // job timeout. Set on process.env (inherited by git subprocesses) rather
-    // than via simple-git's .env(), which inspects and rejects vars like
-    // PAGER/EDITOR present in the shell environment.
+    // job timeout. Set on process.env (inherited by git subprocesses); kept
+    // there by ALLOWED_GIT_ENV, which simple-git 4 would otherwise strip.
     process.env.GIT_TERMINAL_PROMPT ??= '0';
     process.env.GCM_INTERACTIVE ??= 'never';
   }
 
   clonePathFor(repo: RepoRef): string {
-    return join(this.cloneDir, repo.owner, repo.name);
+    if (!isPlainSegment(repo.owner) || !isPlainSegment(repo.name)) {
+      throw new UnsafeClonePathError(repo);
+    }
+    const dest = resolve(this.root, repo.owner, repo.name);
+    if (!dest.startsWith(this.root + sep)) throw new UnsafeClonePathError(repo);
+    return dest;
   }
 
   private git(repo: RepoRef): SimpleGit {
-    return simpleGit(this.clonePathFor(repo));
+    return gitAt(this.clonePathFor(repo));
+  }
+
+  /**
+   * A simple-git instance for commands that talk to the network. With a token,
+   * auth goes in through `GIT_CONFIG_COUNT/KEY/VALUE` — guarded by simple-git
+   * and allowed only via ALLOWED_GIT_ENV, for config this class builds itself.
+   */
+  private async netGit(baseDir: string): Promise<SimpleGit> {
+    const token = await this.opts.getToken?.();
+    if (!token) return gitAt(baseDir);
+    const env: Record<string, string> = {};
+    for (const key of PASSTHROUGH_ENV) {
+      const v = process.env[key];
+      if (v !== undefined) env[key] = v;
+    }
+    const basic = Buffer.from(`x-access-token:${token}`).toString('base64');
+    env.GIT_TERMINAL_PROMPT = '0';
+    env.GCM_INTERACTIVE = 'never';
+    env.GIT_CONFIG_COUNT = '1';
+    env.GIT_CONFIG_KEY_0 = `http.${GITHUB_ORIGIN}.extraHeader`;
+    env.GIT_CONFIG_VALUE_0 = `Authorization: Basic ${basic}`;
+    return gitAt(baseDir).env(env);
+  }
+
+  /**
+   * Clones made before S1 carry the PAT inside `origin`
+   * (`https://x-access-token:<pat>@github.com/...`). Rewrite such a remote to
+   * the canonical credential-free URL; auth now comes from `netGit`.
+   */
+  private async scrubRemote(dest: string, repo: RepoRef): Promise<void> {
+    const g = gitAt(dest);
+    const current = await g.remote(['get-url', 'origin']).catch(() => undefined);
+    if (typeof current === 'string' && /^https:\/\/[^/]*@/.test(current.trim())) {
+      await g.remote(['set-url', 'origin', `${GITHUB_ORIGIN}${repo.owner}/${repo.name}.git`]);
+    }
   }
 
   private async exists(path: string): Promise<boolean> {
@@ -53,25 +180,34 @@ export class SimpleGitClient implements GitClient {
 
   async clone(repo: RepoRef, url: string, opts?: CloneOptions): Promise<{ path: string }> {
     const dest = this.clonePathFor(repo);
-    await mkdir(join(this.cloneDir, repo.owner), { recursive: true });
+    await mkdir(join(this.root, repo.owner), { recursive: true });
     if (await this.exists(join(dest, '.git'))) {
       // already cloned → fetch latest
-      await simpleGit(dest).fetch();
+      await this.scrubRemote(dest, repo);
+      await (await this.netGit(dest)).fetch();
       return { path: dest };
     }
     // A prior clone may have timed out mid-write, leaving a partial dir without
     // a .git — git clone refuses a non-empty dest, so clear it first.
     if (await this.exists(dest)) await rm(dest, { recursive: true, force: true });
-    const args: string[] = [];
+    // `core.symlinks=false`: a symlink committed to the (untrusted) repo is
+    // checked out as a small text file holding its target, not a live link
+    // out of the clone (S6). Reads are containment-checked regardless, since
+    // clones made before this change still have real symlinks.
+    const args: string[] = ['clone', '-c', 'core.symlinks=false'];
     if (opts?.depth) args.push('--depth', String(opts.depth));
     if (opts?.branch) args.push('--branch', opts.branch);
-    await simpleGit(this.cloneDir).clone(url, dest, args);
+    // `--end-of-options`: the URL and destination can never be read as flags.
+    args.push('--end-of-options', url, dest);
+    await (await this.netGit(this.root)).raw(args);
     return { path: dest };
   }
 
   async fetchPullHead(repo: RepoRef, n: number): Promise<void> {
     // Fetch the PR head ref into a local ref (GitHub exposes pull/<n>/head).
-    await this.git(repo).fetch(['origin', `pull/${n}/head:pr-${n}`]);
+    const dest = this.clonePathFor(repo);
+    await this.scrubRemote(dest, repo);
+    await (await this.netGit(dest)).fetch(['origin', `pull/${n}/head:pr-${n}`]);
   }
 
   async sync(repo: RepoRef, branch: string): Promise<{ head: string }> {
@@ -81,8 +217,10 @@ export class SimpleGitClient implements GitClient {
     // Fetch a bounded depth (> the shallow CLONE_DEPTH) so the prior indexed sha
     // is usually reachable for an incremental diff; the indexer falls back to a
     // full reindex when it isn't.
+    const dest = this.clonePathFor(repo);
+    await this.scrubRemote(dest, repo);
+    await (await this.netGit(dest)).fetch(['origin', branch, '--depth', String(RESYNC_FETCH_DEPTH)]);
     const g = this.git(repo);
-    await g.fetch(['origin', branch, '--depth', String(RESYNC_FETCH_DEPTH)]);
     await g.reset(['--hard', `origin/${branch}`]);
     return { head: (await g.revparse(['HEAD'])).trim() };
   }
@@ -112,7 +250,7 @@ export class SimpleGitClient implements GitClient {
   }
 
   async blame(repo: RepoRef, path: string): Promise<BlameLine[]> {
-    const raw = await this.git(repo).raw(['blame', '--line-porcelain', path]);
+    const raw = await this.git(repo).raw(['blame', '--line-porcelain', '--', path]);
     return parseBlamePorcelain(raw);
   }
 
@@ -127,7 +265,14 @@ export class SimpleGitClient implements GitClient {
   }
 
   async readFile(repo: RepoRef, path: string): Promise<string> {
-    return readFile(join(this.clonePathFor(repo), path), 'utf8');
+    // S6 — the clone is untrusted: prove the real path (after symlinks) is
+    // still inside it before reading.
+    const root = await realpath(this.clonePathFor(repo));
+    const target = await realpath(resolve(root, path));
+    if (!target.startsWith(root + sep)) {
+      throw new Error(`Path escapes the repository checkout: ${path}`);
+    }
+    return readFile(target, 'utf8');
   }
 }
 

@@ -15,6 +15,7 @@ import { loadConfig, type AppConfig } from './platform/config.js';
 import { createDb, type Db } from './db/client.js';
 import { Container, type ContainerOverrides } from './platform/container.js';
 import { AppError } from './platform/errors.js';
+import { isAllowedHost, isAllowedOrigin } from './platform/local-only.js';
 import { modules } from './modules/index.js';
 import { ReviewService } from './modules/reviews/service.js';
 
@@ -86,8 +87,21 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
 
   // Security headers (X-Content-Type-Options, X-Frame-Options, …). The API
   // serves JSON only, so the default CSP is fine.
+  // S2 — DNS-rebinding / cross-site guard for an unauthenticated local API.
+  // Runs first on every request (including /health and CORS preflights).
+  app.addHook('onRequest', async (req, reply) => {
+    if (!isAllowedHost(req.headers.host, config.allowedHosts)) {
+      return reply.status(403).send({
+        error: { code: 'forbidden_host', message: 'Host not allowed (see API_ALLOWED_HOSTS)' },
+      });
+    }
+    if (!isAllowedOrigin(req.headers.origin, config.allowedOrigins)) {
+      return reply.status(403).send({ error: { code: 'forbidden_origin', message: 'Origin not allowed' } });
+    }
+  });
+
   await app.register(helmet);
-  await app.register(cors, { origin: [config.webOrigin], credentials: true });
+  await app.register(cors, { origin: config.allowedOrigins, credentials: true });
   await app.register(FastifySSEPlugin);
 
   // Global rate limit. Disabled under test so integration suites can hammer

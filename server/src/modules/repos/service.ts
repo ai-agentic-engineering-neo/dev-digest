@@ -1,13 +1,9 @@
 import type { Container } from '../../platform/container.js';
 import { type Repo } from '@devdigest/shared';
-import { NotFoundError } from '../../platform/errors.js';
+import { AppError, NotFoundError } from '../../platform/errors.js';
 import { RepoRepository } from './repository.js';
-import { parseRepoUrl, withGitHubToken, toRepoDto } from './helpers.js';
-import {
-  CLONE_JOB_KIND,
-  CLONE_DEPTH,
-  GITHUB_TOKEN_SECRET,
-} from './constants.js';
+import { parseRepoUrl, canonicalCloneUrl, isValidRepoRef, toRepoDto } from './helpers.js';
+import { CLONE_JOB_KIND, CLONE_DEPTH } from './constants.js';
 import {
   INDEX_JOB_KIND,
   REFRESH_JOB_KIND,
@@ -49,10 +45,15 @@ export class RepoService {
   }
 
   async runCloneJob(payload: CloneJobPayload): Promise<void> {
-    const { repoId, owner, name, url } = payload;
-    const token = await this.container.secrets.get(GITHUB_TOKEN_SECRET);
-    const cloneUrl = token ? withGitHubToken(url, token) : url;
-    const { path } = await this.container.git.clone({ owner, name }, cloneUrl, {
+    const { repoId, owner, name } = payload;
+    // Never clone `payload.url`: jobs persist in the DB, and rows enqueued
+    // earlier may carry an arbitrary user-supplied URL. Rebuild it from the
+    // validated owner/name instead. Auth is the GitClient adapter's concern —
+    // the token is never embedded in the URL (it would land in .git/config).
+    if (!isValidRepoRef(owner, name)) {
+      throw new AppError('invalid_repo_url', `Refusing to clone invalid repo '${owner}/${name}'`, 400);
+    }
+    const { path } = await this.container.git.clone({ owner, name }, canonicalCloneUrl(owner, name), {
       depth: CLONE_DEPTH,
     });
     await this.repo.updateClonePath(repoId, path);
@@ -88,7 +89,7 @@ export class RepoService {
     userId: string,
     url: string,
   ): Promise<{ repo: Repo; created: boolean }> {
-    const { owner, name } = parseRepoUrl(url);
+    const { owner, name, cloneUrl } = parseRepoUrl(url);
     const fullName = `${owner}/${name}`;
 
     const existing = await this.repo.findByFullName(workspaceId, fullName);
@@ -99,7 +100,7 @@ export class RepoService {
       repoId: row.id,
       owner,
       name,
-      url,
+      url: cloneUrl,
     } satisfies CloneJobPayload);
 
     return { repo: toRepoDto(row), created: true };
@@ -118,7 +119,7 @@ export class RepoService {
       repoId: repo.id,
       owner: repo.owner,
       name: repo.name,
-      url: `https://github.com/${repo.fullName}.git`,
+      url: canonicalCloneUrl(repo.owner, repo.name),
     } satisfies CloneJobPayload);
     // T2.2 — also enqueue an incremental refresh. The two queue positions are
     // independent (p-queue doesn't FIFO across kinds), but `runIncremental` is

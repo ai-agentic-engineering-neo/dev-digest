@@ -26,6 +26,7 @@ import {
   type ProjectGraphSymbols,
   type ProjectGraphUnresolved,
 } from '../../vendor/shared/index.js';
+import { OVERVIEW_TARGET_NODES } from './constants.js';
 import type {
   ProjectGraphFilesQuery,
   ProjectGraphQuery,
@@ -127,7 +128,7 @@ export class GraphReadService implements ProjectGraphReader {
       agg = aggregateDirFocus(files, fileEdges, query.dir);
       focus = { mode: 'dir' as const, depth: null, dir: query.dir, file: null };
     } else {
-      const depth = query.depth ?? chooseDepth(files, MAX_GRAPH_NODES);
+      const depth = query.depth ?? chooseDepth(files, OVERVIEW_TARGET_NODES);
       agg = aggregateOverview(files, fileEdges, depth);
       focus = { mode: 'overview' as const, depth, dir: null, file: null };
     }

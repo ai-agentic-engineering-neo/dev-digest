@@ -1,4 +1,5 @@
 export { GraphCanvasLazy } from "./GraphCanvasLazy";
+export { MODULE_SYMBOL, symbolDisplayName } from "./helpers";
 export type { GraphCanvasProps } from "./GraphCanvas";
 export { GraphBanner } from "./GraphBanner";
 export { Legend } from "./Legend";

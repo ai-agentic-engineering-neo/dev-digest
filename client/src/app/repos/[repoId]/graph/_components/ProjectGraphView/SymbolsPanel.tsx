@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { symbolDisplayName } from "@/components/graph-canvas";
 import { Skeleton } from "@devdigest/ui";
 import { useProjectGraphSymbols } from "@/lib/hooks/project-graph";
 import { Pager } from "./Pager";
@@ -10,6 +11,7 @@ import { s } from "./styles";
 /** File drill-down: paged symbol list (the canvas shows the in/out symbol edges). */
 export function SymbolsPanel({ repoId, file }: { repoId: string; file: string }) {
   const t = useTranslations("projectGraph.symbols");
+  const tCanvas = useTranslations("graph");
   const [page, setPage] = useState(1);
   const { data, isLoading } = useProjectGraphSymbols(repoId, { file, page });
   return (
@@ -36,7 +38,7 @@ export function SymbolsPanel({ repoId, file }: { repoId: string; file: string })
             <tbody>
               {data.items.map((y) => (
                 <tr key={`${y.name}:${y.line}`}>
-                  <td style={{ ...s.td, ...s.mono }}>{y.name}</td>
+                  <td style={{ ...s.td, ...s.mono }}>{symbolDisplayName(y.name, tCanvas("moduleScope"))}</td>
                   <td style={s.td}>{y.kind}</td>
                   <td style={s.td}>{y.line ?? ""}</td>
                   <td style={s.td}>{y.exported ? "✓" : ""}</td>

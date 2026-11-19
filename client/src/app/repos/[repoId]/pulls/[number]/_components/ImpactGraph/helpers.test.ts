@@ -71,6 +71,11 @@ describe("impact graph helpers", () => {
     expect(nodeLine(nodes[0]!, edges)).toBeUndefined();
   });
 
+  it("labels the <module> pseudo-symbol as module scope, never the raw id", () => {
+    const [m] = toCanvasNodes([{ ...nodes[0]!, name: "<module>" }], null, null, "type", "(module scope)");
+    expect(m!.label).toBe("(module scope)");
+  });
+
   it("prefers the server's declaration line at head over the use-site line (AC-42)", () => {
     expect(nodeLine({ ...nodes[1]!, line: 42 }, edges)).toBe(42);
     expect(nodeLine({ ...nodes[0]!, line: 3 }, edges)).toBe(3);

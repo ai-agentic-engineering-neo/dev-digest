@@ -84,18 +84,18 @@ export function countAtDepth(files: readonly FileInfo[], depth: number): number 
 }
 
 /**
- * Most detailed roll-up depth (>= 1) whose aggregated node count is within
- * `maxNodes`. `maxDirDepth + 1` is full file detail. Falls back to 1 when even
- * depth 1 is over the cap (the caller truncates).
+ * Overview depth (AC-47 "grouped by directory at the top level"): the deepest
+ * DIRECTORY level whose node count stays within `targetNodes`, so the first
+ * view is a readable directory map, not every file. Never goes to file detail
+ * (that is what `dir=`/`file=` drill-down is for). Floor is 1.
  */
-export function chooseDepth(files: readonly FileInfo[], maxNodes: number): number {
-  // The most detailed level that still fits: roll-up counts never shrink as
-  // depth grows, so walk down until the next level would overflow. Depth 1 is
-  // the floor even when it alone exceeds the cap (truncation handles that).
-  const deepest = Math.max(1, maxDepth(files) + 1);
+export function chooseDepth(files: readonly FileInfo[], targetNodes: number): number {
+  // Roll-up counts never shrink as depth grows: walk down until the next
+  // directory level would overflow the target.
+  const deepestDir = Math.max(1, maxDepth(files));
   let chosen = 1;
-  for (let d = 1; d <= deepest; d++) {
-    if (countAtDepth(files, d) > maxNodes) break;
+  for (let d = 1; d <= deepestDir; d++) {
+    if (countAtDepth(files, d) > targetNodes) break;
     chosen = d;
   }
   return chosen;

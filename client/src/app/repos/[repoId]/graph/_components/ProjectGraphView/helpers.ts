@@ -21,9 +21,11 @@ interface ToCanvasOpts {
 
 /** Role is a shape + icon + label, so "hot" and "cycle" never rely on colour alone. */
 function roleOf(n: ProjectGraphNode): string {
+  // A directory is always a directory: its "hot"/"cycle" status is a tag, or a
+  // screen reader would announce "hot file: components" for a folder.
+  if (n.kind === "directory") return "directory";
   if (n.hot) return "hot";
   if (n.inCycle) return "cycle";
-  if (n.kind === "directory") return "directory";
   if (n.kind === "file") return "file";
   return "other";
 }

@@ -10,7 +10,17 @@
  *     merely edited and is `changed`.
  */
 import { MODULE_SYMBOL } from '../../../domain/module-facts.js';
+import { SUPPORTED_EXT } from '../constants.js';
 import { parsePatchRanges, rangesIntersect, type LineRange } from './hunks.js';
+
+const SUPPORTED: ReadonlySet<string> = new Set(SUPPORTED_EXT);
+
+/** Only indexed source files can change symbols; lockfiles, YAML, docs, assets never do. */
+function isSupportedSource(path: string | null | undefined): boolean {
+  if (!path) return false;
+  const dot = path.lastIndexOf('.');
+  return dot > path.lastIndexOf('/') && SUPPORTED.has(path.slice(dot).toLowerCase());
+}
 
 /** Structural subset of a declaration (persisted row or freshly parsed head symbol). */
 export interface DeclRange {
@@ -85,6 +95,9 @@ export function computeChangedSymbols(input: ChangedInput): ChangedSymbol[] {
   const moduleKind = 'module';
 
   for (const file of input.files) {
+    // Edge case "PR only touches non-code files": no changed node, not a
+    // `<module>` for package-lock.json or a workflow YAML.
+    if (!isSupportedSource(file.path) && !isSupportedSource(file.previousPath)) continue;
     const baseDecls = graphKeys(input.base.get(file.path) ?? []);
     const headDecls = input.head.get(file.path);
 

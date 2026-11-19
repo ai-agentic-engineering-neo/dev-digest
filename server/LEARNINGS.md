@@ -140,6 +140,13 @@ does fs or DB I/O before the check.
 
 ## Codebase Patterns
 
+### 2026-11-19 — SPEC-18 smoke on a real PR: non-code files became changed `<module>` nodes, and the project-graph overview must stay at DIRECTORY level
+
+- `graph/changed.ts` `computeChangedSymbols` took every PR file. `client/package-lock.json` and two workflow YAMLs came out as changed `<module>` nodes on quick-blog PR #24, against the spec edge case "PR only touches non-code files ⇒ no changed node". The overlay already filtered by `SUPPORTED_EXT`; the changed computation did not. Now a file counts only if its path or `previousPath` has a supported source extension, and `test/graph-changed.test.ts` covers it.
+- **Project graph overview depth.** `chooseDepth` picks the deepest DIRECTORY level within `OVERVIEW_TARGET_NODES` = 60 (`repo-intel/constants.ts`, server-only), never file detail. `MAX_GRAPH_NODES` 400 is the payload cap, not the readability target. A same-day "most detailed level that fits 400" change was wrong: on a 211-file repo it drew every file as one hairball, and AC-47 says "grouped by directory at the top level". Files are reached through `dir=` drill-down. A screenshot settled it after reasoning alone had picked the wrong rule.
+- Real numbers (quick-blog, dev DB, PR #24 with 74 files): blast took 3.98 s on the first call (a one-time `fetchPullHead`; the head commit was not in the clone) and 0.46–0.52 s warm. The project graph took 9 ms. The PR graph had 224–232 nodes and 467 edges, untruncated.
+- quick-blog shows 0 entry points: the L04 `extractEndpoints` regex does not recognise `blogRouter.get(...)` (Express routers), so `file_facts` has 1 endpoint file for the whole repo. That is a pre-existing facts gap, not SPEC-18; it is a candidate follow-up because blast stops at entry points.
+
 ### 2026-11-19 — SPEC-18 phases 2–4: blast consumers and cross-layer fields — what the agents missed until a later task tried to use the data
 
 - **A field one layer needs must be in the contract the layer below fills.** AC-42 asks for a `file:line` link per graph node, but `BlastGraphNode` had no `line`. The spec, P1-A (contract) and P2-B (engine) all passed; the gap only surfaced when P3-B (UI) built the link and fell back to the edge's call-site line. Fix: `BlastGraphNode.line` (head declaration line) filled in `RepoIntelService.attachDeclLines`. Head decls come from overlay files; the rest come from indexed symbols, which equal head because the PR did not touch them (not true under `staleOverlay`). Deleted nodes get no line. When an AC names something the UI shows, check that the response contract carries it before the engine task starts.

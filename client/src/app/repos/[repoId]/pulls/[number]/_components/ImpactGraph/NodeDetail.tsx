@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { symbolDisplayName } from "@/components/graph-canvas";
 import type { BlastGraphNode } from "@devdigest/shared";
 import { MonoLink } from "@devdigest/ui";
 import { githubBlobUrl } from "@/lib/github-urls";
@@ -17,6 +18,7 @@ interface NodeDetailProps {
 /** Detail panel for the selected node — plain text only; link pinned to the PR head SHA. */
 export function NodeDetail({ node, line, repoFullName, headSha, onClose }: NodeDetailProps) {
   const t = useTranslations("impactGraph");
+  const tCanvas = useTranslations("graph");
   if (!node) return <div style={s.detail}>{t("detail.none")}</div>;
 
   const href = repoFullName && headSha ? githubBlobUrl(repoFullName, headSha, node.path, line, line) : undefined;
@@ -30,7 +32,7 @@ export function NodeDetail({ node, line, repoFullName, headSha, onClose }: NodeD
       </div>
       <dl style={s.dl}>
         <dt>{t("detail.symbol")}</dt>
-        <dd style={s.dd}>{node.name}</dd>
+        <dd style={s.dd}>{symbolDisplayName(node.name, tCanvas("moduleScope"))}</dd>
         <dt>{t("detail.file")}</dt>
         <dd style={s.dd}>
           <MonoLink href={href}>

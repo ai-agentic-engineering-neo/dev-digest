@@ -9,6 +9,7 @@
     "cycle": "cycle",
     "other": "other"
   },
+  "moduleScope": "(module scope)",
   "tag": {
     "type": "type",
     "deleted": "deleted",

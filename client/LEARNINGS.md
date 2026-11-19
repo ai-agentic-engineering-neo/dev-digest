@@ -298,6 +298,18 @@ silently if `/ci-runs` grows a "View trace" affordance later.
 
 ## Tool & Library Notes
 
+### 2026-11-19 — SPEC-18 browser smoke found five UI defects that 360 green unit tests missed
+
+All five were found by opening the real pages (`./scripts/dev.sh --no-seed` + `agent-browser`) on `burnjohn/quick-blog`.
+- **`MISSING_MESSAGE: shell.nav.graph`.** A key added to `vendor/ui/nav.ts` without a `messages/en/shell.json` entry only fails at runtime, because shell tests stub the nav. `src/components/app-shell/nav-i18n.test.ts` now pins every `NAV` key to `shell.nav.*`, and it was mutation-checked.
+- **React Flow `fitView` prop fits only once, on first init.** At that point ELK hasn't answered, so every node sits at (0,0) and the viewport zoomed to `maxZoom` (×2) on one node. `GraphCanvas` now has `FitOnLayout`, which re-fits when layout positions land. Two traps:
+  - React Flow copies the `nodes` prop into its store in its own effect, which runs AFTER a child's effect, so the call is deferred one `requestAnimationFrame`.
+  - `useNodesInitialized()` stays `false` for nodes with explicit `width`/`height`, so don't gate on it.
+- **`minZoom` 0.1 could not fit a 232-node PR graph.** ELK puts 123 changed nodes in one layer, about 5500 px tall, so the floor is now 0.02. Big PR graphs are still unreadable in the card; that is the open follow-up (full-screen view or ELK layer wrapping).
+- **The raw `<module>` pseudo-symbol leaked into labels.** It is the server's module-scope node (AC-26). `symbolDisplayName` (`graph-canvas/helpers.ts`, string `graph.moduleScope`) is now used by the canvas, `NodeDetail`, `BlastList` and `SymbolsPanel`.
+- **Role precedence put `hot` before `directory`,** so folders were announced as "hot file: components". In `ProjectGraphView/helpers.ts` `roleOf`, a directory now always keeps the `directory` role and gets hot/cycle as tags.
+- Use ICU plurals for counts: `{count, plural, one {# file} other {# files}}`. The tag rendered "1 files".
+
 ### 2026-11-19 — `@xyflow/react` 13 in jsdom: nodes render only with explicit sizes, and edges never render
 
 - `components/graph-canvas` gives every node an explicit `width`/`height`. Without them React Flow treats nodes as unmeasured and hides them in jsdom, so `getByRole` finds nothing. `src/test/setup.ts` also stubs `DOMMatrixReadOnly` and `offsetWidth`/`offsetHeight` (800×600); `ResizeObserver` was already stubbed.

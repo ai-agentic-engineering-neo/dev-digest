@@ -4,6 +4,7 @@
 
 import React from "react";
 import { useTranslations } from "next-intl";
+import { symbolDisplayName } from "@/components/graph-canvas";
 import { Card, Badge, MonoLink } from "@devdigest/ui";
 import { githubBlobUrl } from "@/lib/github-urls";
 import type { BlastRadiusResponse } from "@/lib/hooks/blast-radius";
@@ -18,6 +19,7 @@ interface BlastListProps {
 
 export function BlastList({ envelope, repoFullName, headSha }: BlastListProps) {
   const t = useTranslations("impactGraph");
+  const tCanvas = useTranslations("graph");
   const { data: blast, graph } = envelope;
   const deleted = deletedSymbolNames(envelope);
   const entryPoints = graph?.entryPoints;
@@ -32,7 +34,7 @@ export function BlastList({ envelope, repoFullName, headSha }: BlastListProps) {
               className="mono"
               style={{ ...s.groupSymbol, textDecoration: deleted.has(group.symbol) ? "line-through" : undefined }}
             >
-              {group.symbol}
+              {symbolDisplayName(group.symbol, tCanvas("moduleScope"))}
             </span>
             {deleted.has(group.symbol) && <Badge color="var(--danger)">{t("list.deleted")}</Badge>}
             <Badge color="var(--text-secondary)">{t("stat.callers", { count: group.callers.length })}</Badge>
@@ -51,7 +53,7 @@ export function BlastList({ envelope, repoFullName, headSha }: BlastListProps) {
                   </MonoLink>
                 </span>
                 <Badge color="var(--text-secondary)">{c.type_only ? t("list.typeOnly") : t("list.runtime")}</Badge>
-                <span style={s.callerSymbol}>{c.name}</span>
+                <span style={s.callerSymbol}>{symbolDisplayName(c.name, tCanvas("moduleScope"))}</span>
               </li>
             ))}
           </ul>

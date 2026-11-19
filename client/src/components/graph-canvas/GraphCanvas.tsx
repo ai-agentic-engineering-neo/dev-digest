@@ -1,8 +1,16 @@
 "use client";
 
 import "@xyflow/react/dist/style.css";
-import { useMemo } from "react";
-import { Background, Controls, ReactFlow, ReactFlowProvider, type Edge, type Node } from "@xyflow/react";
+import { useEffect, useMemo } from "react";
+import {
+  Background,
+  Controls,
+  ReactFlow,
+  ReactFlowProvider,
+  useReactFlow,
+  type Edge,
+  type Node,
+} from "@xyflow/react";
 import { useTranslations } from "next-intl";
 import { DEFAULT_ROLES, NODE_HEIGHT, NODE_WIDTH } from "./constants";
 import { GraphBanner } from "./GraphBanner";
@@ -29,6 +37,24 @@ export interface GraphCanvasProps {
 }
 
 const NODE_TYPES = { graph: GraphNode };
+
+/**
+ * The `fitView` prop fits once, on first init — when every node still sits at
+ * (0,0) because ELK hasn't answered yet, so the viewport ended up zoomed into a
+ * single node. Re-fit whenever a finished layout (new positions) lands.
+ */
+function FitOnLayout({ status, positions }: { status: string; positions: unknown }) {
+  const { fitView } = useReactFlow();
+  useEffect(() => {
+    if (status === "loading") return;
+    // React Flow copies the `nodes` prop into its store in its own effect,
+    // which runs after this child effect: fitting now would measure the old
+    // (0,0) bounds and zoom to maxZoom on one node. Wait one frame.
+    const frame = requestAnimationFrame(() => void fitView({ padding: 0.1 }));
+    return () => cancelAnimationFrame(frame);
+  }, [status, positions, fitView]);
+  return null;
+}
 
 function Inner({ nodes, edges, onSelect, roles, banners, ariaLabel, announcement, height = 480 }: GraphCanvasProps) {
   const t = useTranslations("graph");
@@ -97,11 +123,12 @@ function Inner({ nodes, edges, onSelect, roles, banners, ariaLabel, announcement
           edgesFocusable={false}
           elementsSelectable={false}
           fitView
-          minZoom={0.1}
+          minZoom={0.02}
           proOptions={{ hideAttribution: true }}
         >
           <Background />
           <Controls showInteractive={false} />
+          <FitOnLayout status={status} positions={positions} />
         </ReactFlow>
       </div>
       <Legend nodes={nodes} edges={edges} roles={roles} />

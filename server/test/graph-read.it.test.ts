@@ -65,8 +65,8 @@ d('GraphReadService over real Postgres (specs/18 P4-A)', () => {
     const g = await svc.getGraph(repoId, {});
     if (g.state !== 'ready') throw new Error('expected ready');
     expect(g.cycles.total).toBe(1);
-    // Two files fit the 400-node cap, so the overview shows full file detail.
-    expect(g.nodes.map((n) => n.id).sort()).toEqual(['src/a.ts', 'src/b.ts']);
+    // AC-47: the overview groups by directory; files come via `dir=` drill-down.
+    expect(g.nodes.map((n) => n.id)).toEqual(expect.arrayContaining(['src']));
     expect(g.index.indexedSha).toBe('sha1');
   });
 

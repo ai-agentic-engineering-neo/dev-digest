@@ -38,3 +38,14 @@ export function edgeStrokeWidth(e: GraphEdgeInput): number {
   const weighted = e.weight && e.weight > 1 ? Math.min(3, Math.log2(e.weight)) : 0;
   return 2 + weighted + (e.highlighted ? 1 : 0);
 }
+
+/** The server's module-scope pseudo-symbol (SPEC-18 AC-10/26). */
+export const MODULE_SYMBOL = "<module>";
+
+/**
+ * Human label for a symbol name: the `<module>` pseudo-symbol becomes the
+ * localised "module scope" text; every other name is shown verbatim.
+ */
+export function symbolDisplayName(name: string, moduleScope: string): string {
+  return name === MODULE_SYMBOL ? moduleScope : name;
+}

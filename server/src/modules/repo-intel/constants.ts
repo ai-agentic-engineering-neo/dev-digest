@@ -74,3 +74,6 @@ export const HOTNESS_WINDOW_DAYS = 180;
 export const DEFAULT_REPO_MAP_TOKEN_BUDGET = 1500;
 /** Signatures are trimmed to this many chars in the parse phase (cache stability). */
 export const MAX_SIGNATURE_CHARS = 120;
+
+/** Project graph overview size (AC-47): a readable directory map; `dir=` drill-down shows the rest. */
+export const OVERVIEW_TARGET_NODES = 60;

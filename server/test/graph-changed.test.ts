@@ -88,3 +88,30 @@ describe('computeChangedSymbols', () => {
     expect(names(r)).toEqual(['+c.ts#C.m']);
   });
 });
+
+// Regression (found in the browser smoke on burnjohn/quick-blog PR #24):
+// package-lock.json and workflow YAML showed up as changed `<module>` nodes.
+describe('computeChangedSymbols — non-code files', () => {
+  it('yields no changed node for lockfiles, YAML, docs or assets', () => {
+    const out = computeChangedSymbols({
+      files: [
+        { path: 'client/package-lock.json', status: 'modified', patch: '@@ -1,2 +1,2 @@\n-a\n+b\n' },
+        { path: '.github/workflows/ci.yml', status: 'removed', patch: '@@ -1 +0,0 @@\n-x\n' },
+        { path: 'README.md', status: 'added', patch: '@@ -0,0 +1 @@\n+x\n' },
+        { path: 'src/logo.svg', status: 'modified', patch: null },
+      ],
+      base: new Map(),
+      head: new Map(),
+    });
+    expect(out).toEqual([]);
+  });
+
+  it('still tracks a code file renamed from a non-code extension and vice versa', () => {
+    const out = computeChangedSymbols({
+      files: [{ path: 'src/a.json', previousPath: 'src/a.ts', status: 'renamed', patch: null }],
+      base: new Map([['src/a.ts', [{ name: 'foo', kind: 'function', line: 1, endLine: 3 }]]]),
+      head: new Map(),
+    });
+    expect(out.map((c) => [c.path, c.name, c.deleted])).toEqual([['src/a.ts', 'foo', true]]);
+  });
+});

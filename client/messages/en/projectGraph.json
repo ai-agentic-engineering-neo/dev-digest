@@ -30,7 +30,7 @@
     "hint": "Press Enter on a directory to expand it or on a file to see its symbols. A table with the same information follows below."
   },
   "role": { "hot": "hot file", "cycle": "cycle" },
-  "tag": { "hot": "hot", "cycle": "cycle", "files": "{count} files", "aggregate": "neighbour", "exported": "exported" },
+  "tag": { "hot": "hot", "cycle": "cycle", "files": "{count, plural, one {# file} other {# files}}", "aggregate": "neighbour", "exported": "exported" },
   "banner": {
     "truncated": "The graph is truncated: {nodes} nodes and {edges} edges were left out (limit {maxNodes} nodes, {maxEdges} edges). Expand a directory to see more.",
     "nodesDropped": "Nodes left out",

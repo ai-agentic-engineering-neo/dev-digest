@@ -1,7 +1,7 @@
 /* Pure mapping/filter helpers for ImpactGraph. React Flow renders no edges in
    jsdom, so edge mapping and path highlighting are asserted through these. */
 import type { BlastGraphEdge, BlastGraphNode, BlastNodeRole } from "@devdigest/shared";
-import type { GraphEdgeInput, GraphNodeInput } from "@/components/graph-canvas";
+import { symbolDisplayName, type GraphEdgeInput, type GraphNodeInput } from "@/components/graph-canvas";
 
 const CANVAS_ROLE: Record<BlastNodeRole, string> = {
   changed: "changed",
@@ -91,10 +91,11 @@ export function toCanvasNodes(
   selectedId: string | null,
   highlight: PathHighlight | null,
   typeTag: string,
+  moduleScope = "(module scope)",
 ): GraphNodeInput[] {
   return nodes.map((n) => ({
     id: n.id,
-    label: n.name,
+    label: symbolDisplayName(n.name, moduleScope),
     role: CANVAS_ROLE[n.role],
     secondary: n.entryLabel ?? n.path,
     deleted: n.deleted || undefined,

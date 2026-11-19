@@ -23,11 +23,10 @@ describe('LoD depth selection', () => {
     expect(countAtDepth(files, 2)).toBe(4); // src/a, src/b, lib/q.ts, main.ts
   });
 
-  it('picks the most detailed depth that still fits the cap', () => {
+  it('picks the deepest DIRECTORY level within the overview target, never file detail', () => {
     expect(countAtDepth(files, 3)).toBe(5); // every file on its own
-    expect(chooseDepth(files, 400)).toBe(3); // whole tree fits => full detail
-    expect(chooseDepth(files, 4)).toBe(2); // depth 3 (5 nodes) would overflow
-    expect(chooseDepth(files, 3)).toBe(1);
+    expect(chooseDepth(files, 400)).toBe(2); // directories only, even when files would fit
+    expect(chooseDepth(files, 3)).toBe(1); // depth 2 (4 nodes) would overflow
     expect(chooseDepth(files, 2)).toBe(1); // nothing fits => floor of 1
   });
 });

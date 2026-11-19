@@ -7,7 +7,7 @@
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { BlastGraph } from "@devdigest/shared";
-import { GraphCanvasLazy, LiveRegion, useAnnouncer } from "@/components/graph-canvas";
+import { GraphCanvasLazy, LiveRegion, symbolDisplayName, useAnnouncer } from "@/components/graph-canvas";
 import { NodeDetail } from "./NodeDetail";
 import { nodeLine, pathToChanged, toCanvasEdges, toCanvasNodes, visibleEdges, visibleNodes } from "./helpers";
 import { s } from "./styles";
@@ -44,7 +44,7 @@ export function ImpactGraph({
     [selected, nodes, edges],
   );
   const canvasNodes = useMemo(
-    () => toCanvasNodes(nodes, selected?.id ?? null, highlight, tCanvas("tag.type")),
+    () => toCanvasNodes(nodes, selected?.id ?? null, highlight, tCanvas("tag.type"), tCanvas("moduleScope")),
     [nodes, selected, highlight, tCanvas],
   );
   const canvasEdges = useMemo(() => toCanvasEdges(edges, highlight), [edges, highlight]);
@@ -52,7 +52,7 @@ export function ImpactGraph({
   const onSelect = (id: string) => {
     const n = nodes.find((x) => x.id === id);
     setSelectedId(id);
-    if (n) announce(t("graph.announceSelected", { name: n.name }));
+    if (n) announce(t("graph.announceSelected", { name: symbolDisplayName(n.name, tCanvas("moduleScope")) }));
   };
   const clear = () => {
     setSelectedId(null);

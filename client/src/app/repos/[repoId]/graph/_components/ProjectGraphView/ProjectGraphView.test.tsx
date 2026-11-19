@@ -116,8 +116,9 @@ describe("ProjectGraphView", () => {
   it("renders the overview, expands a directory, opens a file and goes back", async () => {
     graphResponse = OVERVIEW;
     renderView();
-    // hot/cycle are distinguished by role + tag, not colour; directory shows file count
-    expect(await screen.findByRole("button", { name: /^lib \[hot,3 files\] hot/ })).toBeInTheDocument();
+    // hot/cycle are distinguished by role + tag, not colour; a hot DIRECTORY keeps the
+    // directory role (hot is a tag) and shows its file count
+    expect(await screen.findByRole("button", { name: /^lib \[hot,3 files\] directory/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^a\.ts \[cycle\] cycle/ })).toBeInTheDocument();
     expect(screen.getByText(/The graph is truncated: 5 nodes and 9 edges/)).toBeInTheDocument();
     expect(screen.getByTestId("announcement")).toHaveTextContent("Graph overview loaded: 3 nodes, 1 edges.");

@@ -57,7 +57,21 @@ export class RipgrepCodeIndex implements CodeIndex {
   private grepWithRg(rg: string, root: string, pattern: string): Promise<CodeMatch[]> {
     return new Promise((resolve, reject) => {
       const matches: CodeMatch[] = [];
-      const proc = spawn(rg, ['--line-number', '--no-heading', '--color=never', pattern, root]);
+      // `-e` so a pattern starting with `-` (e.g. `--pre=<cmd>`, which makes rg
+      // EXECUTE a program) is never read as a flag; `--no-config` ignores
+      // RIPGREP_CONFIG_PATH; `--no-follow` keeps rg out of symlinks committed
+      // to the (untrusted) clone — S6, security hardening.
+      const proc = spawn(rg, [
+        '--no-config',
+        '--no-follow',
+        '--line-number',
+        '--no-heading',
+        '--color=never',
+        '-e',
+        pattern,
+        '--',
+        root,
+      ]);
       let buf = '';
       proc.stdout.on('data', (d) => {
         buf += d.toString();

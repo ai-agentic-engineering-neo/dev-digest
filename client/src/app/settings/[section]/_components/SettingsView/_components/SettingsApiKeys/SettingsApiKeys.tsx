@@ -42,8 +42,16 @@ function KeyRow({
   const run = async () => {
     setRes(null);
     try {
-      const r = await test.mutateAsync({ provider, key: val.trim() || undefined });
+      const candidate = val.trim() || undefined;
+      const r = await test.mutateAsync({ provider, key: candidate });
       setRes({ ok: r.ok, message: r.message });
+      // The server saves a typed key only once it passes the check (S11). On
+      // success it is stored — drop it from the input so the secret doesn't
+      // linger in the DOM; on failure keep it so the user can fix the typo.
+      if (r.ok && candidate) {
+        setVal("");
+        setReveal(false);
+      }
     } catch (e) {
       setRes({ ok: false, message: e instanceof ApiError ? e.message : t("apiKeys.testFailed") });
     }

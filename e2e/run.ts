@@ -2,7 +2,7 @@
  * DevDigest web e2e runner — Vercel agent-browser, deterministic, no LLM.
  *
  * agent-browser is a CDP browser-automation CLI (not a test framework), so we
- * define a thin convention: each flow is a `specs/*.flow.json` file listing
+ * define a thin convention: each flow is a `flows/*.flow.json` file listing
  * agent-browser commands. Commands share one browser session (the daemon keeps
  * the page between invocations). A command that exits non-zero — including a
  * `wait --text` / `wait --url` whose condition never holds — fails the step and
@@ -33,7 +33,7 @@ import {
 const exec = promisify(execFile);
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const SPECS_DIR = join(HERE, "specs");
+const FLOWS_DIR = join(HERE, "flows");
 const RESULTS_DIR = join(HERE, "test-results");
 
 const BASE = process.env.E2E_BASE_URL ?? "http://localhost:3000";
@@ -51,12 +51,12 @@ async function ab(args: string[]): Promise<string> {
 }
 
 function loadFlows(): { file: string; flow: Flow }[] {
-  return readdirSync(SPECS_DIR)
+  return readdirSync(FLOWS_DIR)
     .filter((f) => f.endsWith(".flow.json"))
     .sort()
     .map((file) => ({
       file,
-      flow: JSON.parse(readFileSync(join(SPECS_DIR, file), "utf8")) as Flow,
+      flow: JSON.parse(readFileSync(join(FLOWS_DIR, file), "utf8")) as Flow,
     }));
 }
 
@@ -96,7 +96,7 @@ async function main(): Promise<void> {
   console.log(`DevDigest e2e — base=${BASE} bin=${BIN}`);
   const flows = loadFlows();
   if (flows.length === 0) {
-    console.error(`No specs found in ${SPECS_DIR}`);
+    console.error(`No flows found in ${FLOWS_DIR}`);
     process.exit(1);
   }
 

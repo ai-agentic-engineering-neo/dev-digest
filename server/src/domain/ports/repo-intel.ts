@@ -22,7 +22,13 @@
  * while still guaranteeing every consumer can fall back without throwing.
  */
 
-import type { IndexCoverage, IndexReindexing } from '../../vendor/shared/index.js';
+import type {
+  BlastGraph,
+  BlastIndexInfo,
+  IndexCoverage,
+  IndexReindexing,
+  OverlayInfo,
+} from '../../vendor/shared/index.js';
 
 export type IndexStatus = 'full' | 'partial' | 'degraded' | 'failed';
 
@@ -111,6 +117,65 @@ export interface BlastResult {
 }
 
 // ---------------------------------------------------------------------------
+// Blast v2 (specs/18; plan 19 / P2-B): symbol-level reverse reachability over
+// the persisted v3 graph plus an in-memory PR overlay.
+// ---------------------------------------------------------------------------
+
+export interface BlastRequestFile {
+  path: string;
+  /** `pr_files.patch`; null/absent ⇒ the whole file counts as changed (legacy, no-diff callers). */
+  patch?: string | null;
+  /** GitHub file status (`added|removed|modified|renamed|…`). */
+  status?: string | null;
+  previousPath?: string | null;
+}
+
+export interface BlastRequest {
+  /** PR head; null ⇒ no overlay (legacy callers without a diff). */
+  headSha: string | null;
+  /** PR base; null (PR synced before 0027) ⇒ `staleOverlay: true`. */
+  baseSha: string | null;
+  /** Used only to re-fetch a missing head object once. */
+  prNumber: number | null;
+  files: BlastRequestFile[];
+  /** Clamped to 1…6, default 6. */
+  depth?: number;
+  /** Default true. */
+  includeTypeOnly?: boolean;
+}
+
+/** The additive third argument of `getBlastRadius` (everything but the paths). */
+export type BlastRadiusOpts = Partial<Omit<BlastRequest, 'files'>> & { files?: BlastRequestFile[] };
+
+export interface BlastChangedNode {
+  file: string;
+  name: string;
+  kind: string;
+  deleted: boolean;
+}
+
+/**
+ * Result of `getBlastGraph`. `reindexing` set ⇒ `graph` is empty and nothing
+ * else is meaningful (AC-16a). `fallback` set ⇒ no usable index (never
+ * indexed / failed / flag off): `graph` is empty and the caller may use the
+ * v1 degraded path.
+ */
+export interface BlastGraphResult {
+  graph: BlastGraph;
+  overlay: OverlayInfo;
+  index: BlastIndexInfo;
+  reindexing: IndexReindexing | null;
+  fallback?: DegradedReason;
+  changed: BlastChangedNode[];
+  /** Untruncated list projection (what `toLegacyBlastResult` maps). */
+  projection: {
+    callers: BlastCallerRow[];
+    impactedEndpoints: string[];
+    factsByFile: Record<string, { endpoints: string[]; crons: string[] }>;
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Read-model rows.
 // ---------------------------------------------------------------------------
 
@@ -181,7 +246,8 @@ export interface RepoIntel {
   getIndexState(repoId: string): Promise<IndexState>;
 
   // --- Reads --------------------------------------------------------------
-  getBlastRadius(repoId: string, changedFiles: string[]): Promise<BlastResult>;
+  getBlastRadius(repoId: string, changedFiles: string[], opts?: BlastRadiusOpts): Promise<BlastResult>;
+  getBlastGraph(repoId: string, req: BlastRequest): Promise<BlastGraphResult>;
   getRepoMap(repoId: string, tokenBudget?: number): Promise<RepoMapResult>;
   getFileRank(repoId: string, paths: string[]): Promise<FileRankRow[]>;
   getSymbolsInFiles(repoId: string, paths: string[]): Promise<SymbolRow[]>;
@@ -189,6 +255,8 @@ export interface RepoIntel {
     repoId: string,
     changedFiles: string[],
     limit?: number,
+    /** OLD-side (base-coordinate) hunk ranges per file; absent ⇒ every symbol of a file counts as changed. */
+    changedRanges?: ReadonlyMap<string, ReadonlyArray<{ start: number; end: number }>>,
   ): Promise<SignatureRow[]>;
   /**
    * Unresolved references (= Phantom-gate fuel).

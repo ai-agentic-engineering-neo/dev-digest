@@ -123,6 +123,45 @@ export class SimpleGitClient implements GitClient {
   async readFile(repo: RepoRef, path: string): Promise<string> {
     return readFile(join(this.clonePathFor(repo), path), 'utf8');
   }
+
+  async readFileAtRef(
+    repo: RepoRef,
+    sha: string,
+    path: string,
+    maxBytes: number,
+  ): Promise<string | null> {
+    if (!SHA_RE.test(sha) || !isSafeRepoPath(path)) return null;
+    const g = this.git(repo);
+    const spec = `${sha}:${path}`;
+    try {
+      if ((await g.raw(['cat-file', '-t', spec])).trim() !== 'blob') return null;
+      const size = Number((await g.raw(['cat-file', '-s', spec])).trim());
+      if (!Number.isFinite(size) || size > maxBytes) return null;
+      return await g.raw(['show', spec]);
+    } catch {
+      return null; // missing commit/path
+    }
+  }
+
+  async hasObject(repo: RepoRef, sha: string): Promise<boolean> {
+    if (!SHA_RE.test(sha)) return false;
+    try {
+      await this.git(repo).raw(['cat-file', '-e', `${sha}^{commit}`]);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
+const SHA_RE = /^[0-9a-f]{40}$/;
+
+/** Repo-relative, normalised, no `..`, no leading `/` or `-`, no NUL/backslash. */
+function isSafeRepoPath(path: string): boolean {
+  if (!path || path.startsWith('/') || path.startsWith('-')) return false;
+  if (path.includes('\0') || path.includes('\\')) return false;
+  const segs = path.split('/');
+  return segs.every((s) => s !== '' && s !== '.' && s !== '..');
 }
 
 function parseBlamePorcelain(raw: string): BlameLine[] {

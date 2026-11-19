@@ -18,6 +18,8 @@ import {
   type GraphResult,
   type ParsedModule,
 } from '../src/modules/repo-intel/graph/index.js';
+import { computeBlast, memoryBlastSource } from '../src/modules/repo-intel/graph/blast.js';
+import { computeChangedSymbols } from '../src/modules/repo-intel/graph/changed.js';
 import { changedSymbols, intersectsHunk, parseFiles, parseHunks, realResolver, walkTree } from './depgraph-fixture-utils.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), 'fixtures/depgraph');
@@ -108,8 +110,8 @@ describe('AC-19…AC-22 on the real resolver', () => {
 });
 
 // ---------------------------------------------------------------------------
-// AC-23 (changed symbols). The blast engine is Phase 2; here only the
-// hunk ∩ declaration step is checked, against the scripted diffs.
+// AC-23 (changed symbols): the hunk ∩ declaration step against the scripted
+// diffs, via the test-local reference implementation in depgraph-fixture-utils.
 // ---------------------------------------------------------------------------
 
 interface DiffCase {
@@ -140,7 +142,7 @@ describe('AC-23 changed symbols (hunk ∩ declaration)', () => {
       measured.push({
         changedSymbols: reported.length,
         changedIntersectingHunk: reported.filter((s) => intersectsHunk(s, base, head, hunks)).length,
-        expectedImpacted: 0, // the impacted half needs the blast engine (P2-B)
+        expectedImpacted: 0, // the impacted half is asserted against the real blast core below
         expectedReported: 0,
       });
     });
@@ -154,7 +156,54 @@ describe('AC-23 changed symbols (hunk ∩ declaration)', () => {
     expect(MODULE_SYMBOL).toBe('<module>');
   });
 
-  it.todo('P2-B: every expectedImpacted symbol of each diffs/*.json is reported by the blast engine (100%)');
+});
+
+// ---------------------------------------------------------------------------
+// AC-23 (expected impacted): the PURE blast core (changed.ts + blast.ts over
+// an in-memory edge source) must report 100% of each scripted diff's
+// `expectedImpacted`, and its changed set must equal `expectedChanged`.
+// ---------------------------------------------------------------------------
+
+describe('AC-23 expected impacted (pure blast core, in-memory edge source)', () => {
+  const graph = buildGraph(MODULES, realResolver(ROOT, FILES));
+  const source = memoryBlastSource(graph.edges);
+  const measuredBlast: BlastCaseMeasure[] = [];
+
+  for (const name of DIFF_NAMES) {
+    it(`${name}: reports 100% of expectedImpacted`, async () => {
+      const d = loadDiff(name);
+      const head = MODULES.find((m) => m.path === d.file)!.facts.symbols;
+      const base = d.oldSource === undefined ? head : parseModuleFacts(d.file, d.oldSource).symbols;
+      const changed = computeChangedSymbols({
+        files: [{ path: d.file, status: 'modified', patch: d.patch }],
+        base: new Map([[d.file, base]]),
+        head: new Map([[d.file, head]]),
+      });
+      expect(changed.map((c) => c.name).sort()).toEqual([...d.expectedChanged].sort());
+
+      const res = await computeBlast(
+        changed.map((c) => ({ path: c.path, name: c.name, kind: c.kind, deleted: c.deleted })),
+        source,
+      );
+      const reported = new Set(res.graph.nodes.filter((n) => n.role !== 'changed').map((n) => n.id));
+      const hit = d.expectedImpacted.filter((id) => reported.has(id));
+      expect(hit, `missing: ${d.expectedImpacted.filter((id) => !reported.has(id)).join(', ')}`).toEqual(d.expectedImpacted);
+      expect(res.graph.truncation.truncated).toBe(false);
+      measuredBlast.push({
+        changedSymbols: changed.length,
+        changedIntersectingHunk: changed.length,
+        expectedImpacted: d.expectedImpacted.length,
+        expectedReported: hit.length,
+      });
+    });
+  }
+
+  it('the AC-23 predicate passes on the measured diffs (100% expected impacted)', () => {
+    expect(measuredBlast.reduce((a, m) => a + m.expectedImpacted, 0)).toBeGreaterThan(0);
+    const { measures } = run(realResolver(ROOT, FILES));
+    const report = evaluateThresholds({ ...measures, blast: measuredBlast });
+    expect(report.checks.find((c) => c.ac === 'AC-23' && c.label.includes('impacted'))?.status).toBe('pass');
+  });
 });
 
 // ---------------------------------------------------------------------------

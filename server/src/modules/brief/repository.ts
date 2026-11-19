@@ -16,6 +16,8 @@ export interface BriefPullRow {
   title: string;
   body: string | null;
   headSha: string;
+  /** `pull_requests.base_sha`; null for PRs synced before migration 0027. */
+  baseSha: string | null;
   base: string;
   additions: number;
   deletions: number;
@@ -97,6 +99,7 @@ export class BriefRepository {
       title: row.title,
       body: row.body,
       headSha: row.headSha,
+      baseSha: row.baseSha ?? null,
       base: row.base,
       additions: row.additions,
       deletions: row.deletions,

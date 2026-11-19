@@ -34,6 +34,8 @@ export interface BriefChangedSymbolFact {
   file: string;
   name: string;
   kind: string;
+  /** Removed by the PR (v3 blast); rendered as "removed" in the prompt. */
+  deleted?: boolean;
 }
 
 export interface BriefIntentFact {
@@ -120,7 +122,12 @@ export async function assembleFacts(input: AssembleFactsInput): Promise<BriefFac
   const paths = files.map((f) => f.path);
 
   const [blastResult, indexState, issue, specContent] = await Promise.all([
-    repoIntel.getBlastRadius(repo.id, paths),
+    repoIntel.getBlastRadius(repo.id, paths, {
+      headSha: pull.headSha,
+      baseSha: pull.baseSha,
+      prNumber: pull.number,
+      files: files.map((f) => ({ path: f.path, patch: f.patch })),
+    }),
     repoIntel.getIndexState(repo.id),
     tryResolveIssue(github, issueNumber, repo),
     trySpec(readSpec, specPath, repo.clonePath),
@@ -206,7 +213,8 @@ function deriveBlastFact(blast: RepoIntelBlastResult, state: { status: string; r
   // own clamp.
   const callers = [...blast.callers].sort((a, b) => b.rank - a.rank).slice(0, FACT_POOL_SAFETY_MAX);
   return {
-    changedSymbols: blast.changedSymbols.slice(0, FACT_SYMBOLS_MAX),
+    // `<module>` is a graph-internal pseudo-symbol, never something to cite.
+    changedSymbols: blast.changedSymbols.filter((s) => s.name !== '<module>').slice(0, FACT_SYMBOLS_MAX),
     callers,
     impactedEndpoints: blast.impactedEndpoints.slice(0, FACT_POOL_SAFETY_MAX),
     crons: [...crons],

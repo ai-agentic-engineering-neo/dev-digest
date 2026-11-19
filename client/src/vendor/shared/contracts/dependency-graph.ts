@@ -114,6 +114,12 @@ export const BlastGraphNode = z.object({
   typeOnly: z.boolean().optional(),
   /** Entry-point label, e.g. `GET /users` or `cron 0 * * * *`. */
   entryLabel: z.string().nullish(),
+  /**
+   * 1-based declaration line at the PR head (AC-42 `file:line` link). Head
+   * declarations for overlay-parsed files, the indexed line otherwise; absent
+   * for deleted nodes (nothing to link to at head).
+   */
+  line: z.number().int().positive().optional(),
 });
 export type BlastGraphNode = z.infer<typeof BlastGraphNode>;
 

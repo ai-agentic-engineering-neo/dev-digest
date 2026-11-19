@@ -49,6 +49,25 @@ export const MAX_PARSE_MS_PER_FILE = 2000;
 /** Soft self-watch budget (< JobRunner hard 120s) → finish as `partial`. */
 export const INDEX_SOFT_BUDGET_MS = 110_000;
 
+// --- Blast v2 (specs/18 caps; plan 19 "Caps (numbers)") ---------------------
+export const BLAST_MAX_DEPTH = 6;
+export const BLAST_DEFAULT_DEPTH = 6;
+/** Nodes / edges kept in a PR impact graph (changed, then entry points, then impacted). */
+export const MAX_BLAST_NODES = 300;
+export const MAX_BLAST_EDGES = 600;
+/** Internal traversal visited cap; beyond it counts are lower bounds (`totalsCapped`). */
+export const MAX_TRAVERSAL_NODES = 5000;
+export const MAX_BLAST_ENTRY_POINTS = 50;
+export const MAX_BLAST_TESTS = 100;
+/** `(to_path, to_name) IN (…)` chunk per hop query. */
+export const BLAST_QUERY_CHUNK = 200;
+/** Changed files parsed at head per blast read; the rest stay base-only. */
+export const MAX_OVERLAY_FILES = 200;
+export const OVERLAY_CONCURRENCY = 8;
+export const MAX_DEGRADED_FILES_LISTED = 50;
+/** `lowConfidence` iff the resolved share of value bindings is below this. */
+export const LOW_CONFIDENCE_VALUE_SHARE = 0.8;
+
 // --- [T3] Graph / hotness / repo-map ---------------------------------------
 export const BFS_DEPTH = 2;
 export const HOTNESS_WINDOW_DAYS = 180;

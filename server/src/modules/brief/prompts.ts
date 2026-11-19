@@ -205,7 +205,7 @@ function renderBlast(facts: BriefFactSet, flags: PayloadFlags): string {
   ];
 
   if (b.changedSymbols.length > 0) {
-    const lines = b.changedSymbols.map((s) => `${s.file}: ${s.name} (${s.kind})`).join('\n');
+    const lines = b.changedSymbols.map((s) => `${s.file}: ${s.name} (${s.kind}${s.deleted ? ', removed' : ''})`).join('\n');
     sections.push(`### Changed symbols\n${wrapUntrusted('changed-symbols', lines)}`);
   }
 

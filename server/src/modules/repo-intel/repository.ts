@@ -173,14 +173,6 @@ export interface FullSymbolRow {
   signature: string | null;
 }
 
-/** A resolved cross-file caller (reference whose decl_file is a changed file). */
-export interface ResolvedCallerRow {
-  fromPath: string;
-  toSymbol: string;
-  line: number;
-  rank: number;
-}
-
 export class RepoIntelRepository {
   constructor(private db: Db) {}
 
@@ -798,53 +790,58 @@ export class RepoIntelRepository {
   }
 
   /**
-   * Resolved cross-file callers of symbols declared in `declFiles`.
-   *
-   * Joins `symbols` on `(repoId, name = toSymbol, path IN declFiles)` and
-   * excludes `fromPath = symbols.path` — a reference sitting in the SAME file
-   * that declares the symbol it references is not a "cross-file caller", it's
-   * a same-file usage (e.g. a helper calling itself, or another top-level
-   * function in the same module). Excluding it here (rather than "any changed
-   * file") keeps a reference from file B to a symbol declared in file A
-   * correctly counted, even when both A and B are changed files.
+   * Blast hop read (plan 19 / P2-B): symbol edges whose TARGET is one of the
+   * given `(path, name)` pairs — `(to_path, to_name) IN (…)` on the
+   * `symbol_edges_repo_to_idx` index. Callers chunk the pairs
+   * (`BLAST_QUERY_CHUNK`); the whole-repo edge table is never loaded.
    */
-  async getResolvedCallers(
+  async getIncomingEdges(
     repoId: string,
-    declFiles: string[],
-    names: string[],
-  ): Promise<ResolvedCallerRow[]> {
-    if (declFiles.length === 0 || names.length === 0) return [];
+    targets: ReadonlyArray<{ path: string; name: string }>,
+  ): Promise<SymbolEdgeRow[]> {
+    if (targets.length === 0) return [];
+    const pairs = sql.join(
+      targets.map((x) => sql`(${x.path}, ${x.name})`),
+      sql`, `,
+    );
     return this.db
       .select({
-        fromPath: t.references.fromPath,
-        toSymbol: t.references.toSymbol,
-        line: t.references.line,
-        rank: t.fileRank.rank,
+        fromPath: t.symbolEdges.fromPath,
+        fromName: t.symbolEdges.fromName,
+        toPath: t.symbolEdges.toPath,
+        toName: t.symbolEdges.toName,
+        kind: t.symbolEdges.kind,
+        confidence: t.symbolEdges.confidence,
+        line: t.symbolEdges.line,
       })
-      .from(t.references)
-      .innerJoin(
-        t.fileRank,
-        and(
-          eq(t.fileRank.repoId, t.references.repoId),
-          eq(t.fileRank.filePath, t.references.fromPath),
-        ),
-      )
-      .innerJoin(
-        t.symbols,
-        and(
-          eq(t.symbols.repoId, t.references.repoId),
-          eq(t.symbols.name, t.references.toSymbol),
-          inArray(t.symbols.path, declFiles),
-        ),
-      )
+      .from(t.symbolEdges)
       .where(
         and(
-          eq(t.references.repoId, repoId),
-          inArray(t.references.declFile, declFiles),
-          inArray(t.references.toSymbol, names),
-          ne(t.references.fromPath, t.symbols.path),
+          eq(t.symbolEdges.repoId, repoId),
+          sql`(${t.symbolEdges.toPath}, ${t.symbolEdges.toName}) in (${pairs})`,
         ),
       );
+  }
+
+  /** Every indexed code path (each parsed file has a `<module>` symbol row). */
+  async getIndexedFilePaths(repoId: string): Promise<Set<string>> {
+    const rows = await this.db
+      .selectDistinct({ path: t.symbols.path })
+      .from(t.symbols)
+      .where(eq(t.symbols.repoId, repoId));
+    return new Set(rows.map((r) => r.path));
+  }
+
+  /** `file_rank.rank` per path (blast ordering). */
+  async getFileRankValues(repoId: string, paths: readonly string[]): Promise<Map<string, number>> {
+    const out = new Map<string, number>();
+    if (paths.length === 0) return out;
+    const rows = await this.db
+      .select({ path: t.fileRank.filePath, rank: t.fileRank.rank })
+      .from(t.fileRank)
+      .where(and(eq(t.fileRank.repoId, repoId), inArray(t.fileRank.filePath, [...paths])));
+    for (const r of rows) out.set(r.path, r.rank);
+    return out;
   }
 
   /** Per-file facts (endpoints/crons) for the given files. */

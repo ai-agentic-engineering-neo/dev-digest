@@ -23,6 +23,7 @@ const PULL: BriefPullRow = {
   title: 'Fix rate limiting',
   body: null,
   headSha: 'sha-head',
+  baseSha: 'sha-base',
   base: 'main',
   additions: 10,
   deletions: 2,

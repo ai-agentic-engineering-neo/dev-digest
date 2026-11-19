@@ -311,6 +311,12 @@ export class MockGitClient implements GitClient {
   async readFile(_repo: RepoRef, path: string): Promise<string> {
     return this.opts.files?.[path] ?? '';
   }
+  async readFileAtRef(_repo: RepoRef, _sha: string, path: string, _maxBytes: number): Promise<string | null> {
+    return this.opts.files?.[path] ?? null;
+  }
+  async hasObject(): Promise<boolean> {
+    return true;
+  }
 }
 
 // ---------- Mock CodeIndex ----------

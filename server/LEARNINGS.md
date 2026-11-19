@@ -140,6 +140,15 @@ does fs or DB I/O before the check.
 
 ## Codebase Patterns
 
+### 2026-11-19 — SPEC-18 phases 2–4: blast consumers and cross-layer fields — what the agents missed until a later task tried to use the data
+
+- **A field one layer needs must be in the contract the layer below fills.** AC-42 asks for a `file:line` link per graph node, but `BlastGraphNode` had no `line`. The spec, P1-A (contract) and P2-B (engine) all passed; the gap only surfaced when P3-B (UI) built the link and fell back to the edge's call-site line. Fix: `BlastGraphNode.line` (head declaration line) filled in `RepoIntelService.attachDeclLines`. Head decls come from overlay files; the rest come from indexed symbols, which equal head because the PR did not touch them (not true under `staleOverlay`). Deleted nodes get no line. When an AC names something the UI shows, check that the response contract carries it before the engine task starts.
+- **Callers digest uses OLD-side hunk ranges.** `RepoIntelService.getCallerSignatures` intersects persisted (base-index) symbols, so `reviews/run-executor.ts` `hunkRangesByFile` maps `@@ -a,b` to `a…a+b-1`, or to the single line `a` when `b = 0`, so code added inside a function marks that function. New-side ranges drift by every line the PR inserts above. Known imprecision: `DiffHunk` has no per-line types, so the range includes up to 3 context lines per side and a change at a function's first or last lines can pull in the neighbour's callers. That is acceptable for a 10-row prompt hint. Blast and Brief use `graph/hunks.ts` on the raw patch instead.
+- **Brief reads `pull_requests.base_sha`** (migration 0027, filled by PR sync). Passing `null` makes every brief `staleOverlay: true`.
+- `modules/blast/service.ts` keeps its own `MAX_CALLERS_PER_SYMBOL = 20`, because `no-cross-module` forbids importing repo-intel's constant. Change both together.
+- MCP `GET_BLAST_RADIUS_DESCRIPTION`: the v1 sentence "empty changed_symbols means none of the changed files declare a function…" became false under AC-26 (every changed code file yields at least `<module>`). It was corrected inside the same single deliberate edit (AC-36). Re-read the old text of a VERBATIM description when the semantics behind it change, not only the sentence you append.
+- Blast latency measured on `burnjohn/quick-blog` (384 symbols, 30 changed files): 143 ms cold, 85 ms warm. Parsing plus graph building dominate; SQL is about 40 ms. Not yet measured on an ~860-file repo, and `getGraphContext` loads the whole repo's imports, exports and symbols per request.
+
 ### 2026-11-18 — SPEC-18 v3 index: parser/resolver blind spots found on a real JS repo (supersedes the "two bugs outside P1-E" bullet of the P1-E entry under Tool & Library Notes — both are fixed)
 
 Diagnosed by re-indexing `burnjohn/quick-blog`: value-binding coverage 1/18 → 237/310 → 274/277. The last 3 are a real broken import in that repo.
@@ -1370,3 +1379,13 @@ guesses right, and is not treated as a bug.
 callers omitted"). `buildBriefMessages`'s `RenderedBriefPayload.droppedCount`
 is the source of this number — read that if a future UI wants a more granular
 count; the column would need a shape change (int → object) to carry it.
+
+### 2026-11-19 — plan 19 / P2-B: blast v2 engine — what a future session must know
+
+- **Split of purity.** `repo-intel/graph/{hunks,changed,entry-points,blast}.ts` are pure (injected `BlastSource`); everything with I/O (git reads, parsing, resolver, clone walk) is `repo-intel/blast-overlay.ts`; list projection + empty results are `blast-legacy.ts`. The fixture gate drives the SAME `computeBlast` with `memoryBlastSource`.
+- **Deleted vs edited.** A removed (base-side) range touching a persisted symbol is `deleted` only if the head file no longer declares that name; otherwise it is `changed`. Pure deletions add NO head-side range (an earlier "seam" marker falsely flagged the neighbouring declaration — the `deleted-decl` fixture caught it). Head ranges are matched against head declarations only, never persisted base rows.
+- **`added` symbols are role `changed`**, not `impacted` — an alias caller the PR itself adds shows up as a changed node with an edge into the changed target, not as an impacted one.
+- **Runtime vs type-only** is computed AFTER traversal over the recorded edges (reverse BFS over call/value/re-export edges only); `extends`/`implements` count as type-only per the plan. `includeTypeOnly=false` skips those edge kinds during traversal instead.
+- **Overlay needs the whole persisted graph context** (`getGraphContext`) to bind head files through barrels, and the resolver MUST get json files (tsconfig) — `jsonFilesFor` walks the clone once per (root, indexed sha) and caches. A test that swaps the json list out turns the alias case red, so keep it.
+- `getBlastRadius(repoId, paths, opts?)` is now `toLegacyBlastResult(getBlastGraph(...))`; the ripgrep path runs only on `fallback` (flag off / no state / non-full-partial status). `reindexing` returns an empty degraded legacy result and never the fallback.
+- Postgres tuple `IN`: `sql\`(${to_path}, ${to_name}) in (${sql.join(pairs, sql\`, \`)})\`` works and uses `symbol_edges_repo_to_idx`; chunk at 200 pairs.

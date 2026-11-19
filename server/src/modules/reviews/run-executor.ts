@@ -599,7 +599,12 @@ export class ReviewRunExecutor {
     if (changedFiles.length === 0) return undefined;
     let rows;
     try {
-      rows = await this.deps.repoIntel.getCallerSignatures(repoId, changedFiles, 10);
+      rows = await this.deps.repoIntel.getCallerSignatures(
+        repoId,
+        changedFiles,
+        10,
+        hunkRangesByFile(diff),
+      );
     } catch (err) {
       // Never let an enrichment break the run — surface only as a Live Log info.
       runLog.info(`callers digest: repoIntel failed — ${(err as Error).message}`);
@@ -675,4 +680,23 @@ export class ReviewRunExecutor {
       log: this.deps.runBus.buffer(runId).map((e) => ({ t: e.t, kind: e.kind, msg: e.msg })),
     });
   }
+}
+
+/**
+ * OLD-side hunk ranges per file for the callers digest: the persisted index
+ * stores symbol spans in BASE coordinates, so a head-side shift (+N lines
+ * above) must not move the match. `@@ -a,b @@` ⇒ a…a+b-1; an addition-only
+ * hunk (b = 0) is the insertion point `a` as a 1-line range, so code added
+ * inside an existing function marks that function changed.
+ */
+export function hunkRangesByFile(diff: UnifiedDiff): Map<string, Array<{ start: number; end: number }>> {
+  const out = new Map<string, Array<{ start: number; end: number }>>();
+  for (const f of diff.files) {
+    const ranges = f.hunks.map((h) => ({
+      start: h.oldStart,
+      end: h.oldLines > 0 ? h.oldStart + h.oldLines - 1 : h.oldStart,
+    }));
+    if (ranges.length > 0) out.set(f.path, ranges);
+  }
+  return out;
 }

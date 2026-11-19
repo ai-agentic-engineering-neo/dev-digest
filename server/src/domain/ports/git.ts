@@ -43,5 +43,16 @@ export interface GitClient {
   blame(repo: RepoRef, path: string): Promise<BlameLine[]>;
   log(repo: RepoRef, path?: string): Promise<GitCommit[]>;
   readFile(repo: RepoRef, path: string): Promise<string>;
+  /**
+   * Read `path` as it exists at commit `sha` (`git show <sha>:<path>`), without
+   * touching the working tree. Returns `null` — never throws — when: `sha` is not
+   * a 40-hex id; `path` is unsafe (absolute, `..` segment, NUL, leading `-`,
+   * non-normalised); the commit/path doesn't exist; the object isn't a blob; or the
+   * blob exceeds `maxBytes` (the caller's budget; repo-intel passes its
+   * MAX_FILE_SIZE — the adapter owns no application constants).
+   */
+  readFileAtRef(repo: RepoRef, sha: string, path: string, maxBytes: number): Promise<string | null>;
+  /** True when `sha` (40-hex) resolves to a commit object present in the clone. */
+  hasObject(repo: RepoRef, sha: string): Promise<boolean>;
   clonePathFor(repo: RepoRef): string;
 }

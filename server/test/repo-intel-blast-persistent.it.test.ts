@@ -1,17 +1,18 @@
 /**
- * `RepoIntelService.getBlastRadius`'s persistent path (`tryPersistentBlast`) —
- * end-to-end against a real Postgres index, covering the three fixes from
- * specs/07-blast-radius.md:
+ * `RepoIntelService.getBlastRadius`'s persistent path (v3 symbol-edge graph via
+ * `getBlastGraph`) — end-to-end against a real Postgres index, covering the
+ * three fixes from specs/07-blast-radius.md, re-expressed on v3 rows (plan 19
+ * / P2-B, AC-39: `resolveReferences` is gone, edges are seeded directly):
  *
  *   1. declaring-file exclusion — a reference that resolves to its OWN
  *      declaring file must not count as a "caller".
  *   2. per-symbol caller cap — `MAX_CALLERS_PER_SYMBOL` applies PER changed
  *      symbol, not once globally, so a hot symbol can't starve another
  *      changed symbol's caller slots.
- *   3. 2-hop reverse-import-graph endpoint/cron impact — files reachable via
- *      the reverse import graph (up to `BFS_DEPTH` hops) contribute facts
- *      even with zero direct symbol-callers, and the walk stops at the depth
- *      bound.
+ *   3. multi-hop endpoint/cron impact — files reachable through the reverse
+ *      symbol-edge graph contribute facts even with zero direct callers of the
+ *      changed symbol, the walk stops at an entry point and at the requested
+ *      depth bound.
  *
  * Docker-gated, self-skips without a reachable daemon (see helpers/pg.ts).
  */
@@ -23,6 +24,7 @@ import { RepoIntelRepository } from '../src/modules/repo-intel/repository.js';
 import { RepoIntelService } from '../src/modules/repo-intel/service.js';
 import { INDEXER_VERSION, MAX_CALLERS_PER_SYMBOL } from '../src/modules/repo-intel/constants.js';
 import type { RepoIntelDeps } from '../src/modules/repo-intel/deps.js';
+import type { SymbolEdgeRow } from '../src/modules/repo-intel/graph/types.js';
 
 const hasDocker = await dockerAvailable();
 const d = hasDocker ? describe : describe.skip;
@@ -65,6 +67,20 @@ d('RepoIntelService.getBlastRadius — persistent-index fixes', () => {
     });
   }
 
+  const edge = (
+    from: [string, string],
+    to: [string, string],
+    line = 1,
+  ): SymbolEdgeRow => ({
+    fromPath: from[0],
+    fromName: from[1],
+    toPath: to[0],
+    toName: to[1],
+    kind: 'call',
+    confidence: 'exact',
+    line,
+  });
+
   it('excludes a reference that resolves to its own declaring file (not just any changed file)', async () => {
     const repoId = await makeRepo('declfile-exclusion');
     const declFile = 'src/utils/helper.ts';
@@ -84,21 +100,15 @@ d('RepoIntelService.getBlastRadius — persistent-index fixes', () => {
       },
     ]);
 
-    // Force a same-file reference to resolve its OWN declFile by giving it a
-    // self-edge — `resolveReferences` only resolves a reference through an
-    // import edge, so this is the deterministic way to construct the case the
-    // fix targets, regardless of whether a real import graph would emit one.
-    await repo.replaceEdges(repoId, [
-      { fromFile: declFile, toFile: declFile },
-      { fromFile: callerFile, toFile: declFile },
-    ]);
-
-    await repo.insertReferences([
-      { repoId, fromPath: declFile, toSymbol: 'helper', line: 5, contentHash: 'r1' }, // same-file — must be excluded
-      { repoId, fromPath: callerFile, toSymbol: 'helper', line: 10, contentHash: 'r2' }, // real caller — must be kept
-    ]);
-
-    await repo.resolveReferences(repoId, { reset: true });
+    // v3 edges: one same-file usage (must be excluded) and one real cross-file caller.
+    await repo.replaceGraphRows(repoId, {
+      imports: [],
+      exports: [],
+      edges: [
+        edge([declFile, 'internalUser'], [declFile, 'helper'], 5),
+        edge([callerFile, 'handler'], [declFile, 'helper'], 10),
+      ],
+    });
 
     await repo.replaceFileRank(repoId, [
       { filePath: declFile, pagerank: 1, hotness: 0, rank: 1, percentile: 50 },
@@ -151,23 +161,14 @@ d('RepoIntelService.getBlastRadius — persistent-index fixes', () => {
     );
     const betaCallerFile = 'src/callers/buser.ts';
 
-    await repo.replaceEdges(repoId, [
-      ...alphaCallerFiles.map((f) => ({ fromFile: f, toFile: declFile })),
-      { fromFile: betaCallerFile, toFile: declFile },
-    ]);
-
-    await repo.insertReferences([
-      ...alphaCallerFiles.map((f, i) => ({
-        repoId,
-        fromPath: f,
-        toSymbol: 'alpha',
-        line: 1,
-        contentHash: `ra${i}`,
-      })),
-      { repoId, fromPath: betaCallerFile, toSymbol: 'beta', line: 1, contentHash: 'rb' },
-    ]);
-
-    await repo.resolveReferences(repoId, { reset: true });
+    await repo.replaceGraphRows(repoId, {
+      imports: [],
+      exports: [],
+      edges: [
+        ...alphaCallerFiles.map((f) => edge([f, 'run'], [declFile, 'alpha'])),
+        edge([betaCallerFile, 'run'], [declFile, 'beta']),
+      ],
+    });
 
     // alpha callers rank HIGH (descending), beta's single caller ranks LOWEST
     // of all — under the OLD global top-N-by-rank cap, beta's caller would be
@@ -195,20 +196,26 @@ d('RepoIntelService.getBlastRadius — persistent-index fixes', () => {
     expect(betaCallers[0]!.file).toBe(betaCallerFile);
   });
 
-  it('walks the reverse import graph 2 hops for endpoint/cron impact, even with zero direct callers, and stops at the depth bound', async () => {
+  it('walks the reverse symbol-edge graph for endpoint/cron impact even with a single direct caller, stops at an entry point and at the depth bound', async () => {
     const repoId = await makeRepo('reverse-import-impact');
     const changed = 'src/features/a.ts';
     const oneHop = 'src/features/b.ts';
-    const twoHop = 'src/features/c.ts';
-    const threeHop = 'src/features/d.ts'; // beyond BFS_DEPTH — must NOT be included
+    const twoHop = 'src/features/c.ts'; // endpoint file: the walk stops here
+    const threeHop = 'src/features/d.ts'; // behind the entry point — must NOT be reached
 
-    // Import chain: a <- b <- c <- d (b imports a, c imports b, d imports c).
-    await repo.replaceEdges(repoId, [
-      { fromFile: oneHop, toFile: changed },
-      { fromFile: twoHop, toFile: oneHop },
-      { fromFile: threeHop, toFile: twoHop },
+    await repo.insertSymbols([
+      { repoId, path: changed, name: 'fnA', kind: 'function', line: 1, endLine: 3, exported: true, signature: 'function fnA()', contentHash: 'h1' },
     ]);
-
+    // Chain: a.fnA <- b.fnB <- c.fnC <- d.fnD
+    await repo.replaceGraphRows(repoId, {
+      imports: [],
+      exports: [],
+      edges: [
+        edge([oneHop, 'fnB'], [changed, 'fnA']),
+        edge([twoHop, 'fnC'], [oneHop, 'fnB']),
+        edge([threeHop, 'fnD'], [twoHop, 'fnC']),
+      ],
+    });
     await repo.replaceFileFacts(repoId, [
       { filePath: twoHop, endpoints: ['GET /impacted'], crons: [] },
       { filePath: threeHop, endpoints: ['GET /too-far'], crons: [] },
@@ -216,17 +223,19 @@ d('RepoIntelService.getBlastRadius — persistent-index fixes', () => {
 
     await markIndexed(repoId);
 
-    // `changed` declares no symbols at all — this exercises the case where
-    // there are zero direct symbol-callers, so file-level reverse-import
-    // impact is the ONLY source of endpoint facts.
     const result = await service.getBlastRadius(repoId, [changed]);
 
     expect(result.degraded).toBeFalsy();
-    expect(result.changedSymbols).toHaveLength(0);
-    expect(result.callers).toHaveLength(0);
+    expect(result.changedSymbols.map((s) => s.name)).toEqual(['fnA']);
+    expect(result.callers.map((c) => c.file)).toEqual([oneHop]);
     expect(result.impactedEndpoints).toContain('GET /impacted');
     expect(result.impactedEndpoints).not.toContain('GET /too-far');
     expect(result.factsByFile?.[twoHop]?.endpoints).toEqual(['GET /impacted']);
     expect(result.factsByFile?.[threeHop]).toBeUndefined();
+
+    // Depth bound: one hop does not reach the endpoint file at all.
+    const shallow = await service.getBlastRadius(repoId, [changed], { depth: 1 });
+    expect(shallow.impactedEndpoints).not.toContain('GET /impacted');
+    expect(shallow.callers.map((c) => c.file)).toEqual([oneHop]);
   });
 });

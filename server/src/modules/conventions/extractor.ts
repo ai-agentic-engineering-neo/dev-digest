@@ -1,5 +1,4 @@
-import { readFile } from "fs/promises";
-import { join } from "path";
+import { readContainedFile } from "../../platform/contained-read.js";
 import { z } from "zod";
 import type { LLMProvider } from "@devdigest/shared";
 
@@ -20,12 +19,10 @@ async function readSample(
   clonePath: string,
   relativePath: string,
 ): Promise<string | null> {
-  try {
-    const content = await readFile(join(clonePath, relativePath), "utf-8");
-    return content.slice(0, 2_000);
-  } catch {
-    return null;
-  }
+  // S6 (security hardening): containment-checked — a committed symlink or a
+  // `../` path can't read outside the clone.
+  const content = await readContainedFile(clonePath, relativePath);
+  return content === null ? null : content.slice(0, 2_000);
 }
 
 /**
@@ -38,8 +35,10 @@ async function verifyEvidence(
   evidenceSnippet: string,
 ): Promise<boolean> {
   try {
-    const fullPath = join(clonePath, evidencePath);
-    const content = await readFile(fullPath, "utf-8");
+    // evidencePath comes from LLM output (steerable by prompt injection) —
+    // never let it probe files outside the clone.
+    const content = await readContainedFile(clonePath, evidencePath);
+    if (content === null) return false;
     const firstLine = evidenceSnippet.split("\n")[0]?.trim() ?? "";
     return firstLine.length > 0 && content.includes(firstLine);
   } catch {

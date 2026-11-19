@@ -1,0 +1,82 @@
+{
+  "title": "Blast Radius",
+  "view": {
+    "label": "Blast radius view",
+    "list": "List",
+    "graph": "Graph",
+    "announceList": "Showing list view",
+    "announceGraph": "Showing graph view"
+  },
+  "stat": {
+    "symbols": "{count, plural, one {# symbol} other {# symbols}}",
+    "callers": "{count, plural, one {# caller} other {# callers}}",
+    "endpoints": "{count, plural, one {# endpoint} other {# endpoints}}",
+    "crons": "{count, plural, one {# cron} other {# crons}}"
+  },
+  "state": {
+    "loading": "Loading blast radius…",
+    "error": "Couldn't load the blast radius.",
+    "retry": "Retry",
+    "emptyTitle": "No blast radius to show",
+    "emptyFull": "None of the changed files declare a function, method, or class this repo's index tracks.",
+    "emptyLowConfidence": "Nothing was found, but the index has low confidence (some imports could not be resolved), so impacted code may be missing.",
+    "noCallers": "{count} changed symbol(s) — no cross-file callers found in the index.",
+    "reindexingTitle": "Re-indexing this repository",
+    "reindexingBody": "The graph is hidden until the new index is ready.",
+    "reindexingProgress": "{state, select, queued {Queued} other {Indexing}}: {done} of {total} files",
+    "graphEmpty": "No nodes to draw with the current filters.",
+    "updating": "Updating graph…"
+  },
+  "banner": {
+    "truncated": "The graph was truncated to stay readable; counts are what was left out.",
+    "truncatedCapped": "Traversal limit reached — totals are lower bounds.",
+    "nodesDropped": "nodes hidden",
+    "edgesDropped": "edges hidden",
+    "partial": "This repo's index is only partially built — some callers or impacted endpoints may be missing.",
+    "degraded": "This repo's index isn't available yet — showing a best-effort, less precise blast radius.",
+    "staleOverlay": "The index was built at {indexed} but the PR branches off {base}; results may differ from the real impact.",
+    "staleOverlayUnknown": "The index is not at the PR's base commit; results may differ from the real impact.",
+    "overlayDegraded": "{count, plural, one {# changed file} other {# changed files}} could not be analysed at the PR head and fall back to base data.",
+    "lowConfidence": "Low-confidence index: some imports could not be resolved.",
+    "coverageValue": "value imports resolved",
+    "coverageType": "type imports resolved",
+    "reindexing": "Re-indexing in progress."
+  },
+  "list": {
+    "entryPoints": "Entry points",
+    "tests": "Affected tests",
+    "more": "+{count} more",
+    "runtime": "runtime",
+    "typeOnly": "type-only",
+    "deleted": "deleted",
+    "depth": "depth {depth}"
+  },
+  "graph": {
+    "ariaLabel": "PR impact graph",
+    "filters": "Graph filters",
+    "showTypeOnly": "Show type-only edges",
+    "hideInferred": "Hide inferred edges",
+    "announceLoaded": "{nodes} nodes, {edges} edges",
+    "announceSelected": "Selected {name}",
+    "announceCleared": "Selection cleared"
+  },
+  "detail": {
+    "title": "Node details",
+    "symbol": "Symbol",
+    "file": "File",
+    "kind": "Kind",
+    "role": "Role",
+    "depth": "Depth",
+    "github": "Open on GitHub",
+    "close": "Close details",
+    "none": "Select a node to see details and highlight its path to the changed code.",
+    "kindFile": "file",
+    "kindSymbol": "symbol"
+  },
+  "role": {
+    "changed": "changed",
+    "impacted": "impacted",
+    "entry_point": "entry point",
+    "test": "test"
+  }
+}

@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 import { activeKeyFor } from "./helpers";
 
 describe("activeKeyFor", () => {
+  it("highlights Graph only for a real graph segment", () => {
+    expect(activeKeyFor("/repos/x/graph")).toBe("graph");
+    expect(activeKeyFor("/repos/x/graphql")).toBe("");
+    expect(activeKeyFor("/repos/x/subgraph")).toBe("");
+  });
+
   it("AC-39/D10 — highlights the Onboarding Tour entry for the tour route, and leaves it unhighlighted on the add-a-repo screen", () => {
     expect(activeKeyFor("/repos/repo-1/tour")).toBe("onboarding-tour");
     // The bug this fixes: `.includes("/onboarding")` also matched the

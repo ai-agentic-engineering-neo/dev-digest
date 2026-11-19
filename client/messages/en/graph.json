@@ -1,0 +1,35 @@
+{
+  "role": {
+    "changed": "changed",
+    "impacted": "impacted",
+    "entry": "entry point",
+    "test": "test",
+    "file": "file",
+    "directory": "directory",
+    "cycle": "cycle",
+    "other": "other"
+  },
+  "tag": {
+    "type": "type",
+    "deleted": "deleted",
+    "weight": "×{count}"
+  },
+  "legend": {
+    "title": "Legend",
+    "inferred": "inferred edge (dashed)",
+    "typeOnly": "type-only import (thin)",
+    "deleted": "deleted symbol",
+    "weight": "×N = number of file imports behind a grouped edge (thicker = more)",
+    "weightSample": "×N",
+    "deletedSample": "name"
+  },
+  "banner": {
+    "label": "Graph notices",
+    "info": "Note",
+    "warning": "Warning"
+  },
+  "state": {
+    "layouting": "Laying out graph…",
+    "layoutSkipped": "Graph is too large for automatic layout; nodes are shown in a grid."
+  }
+}

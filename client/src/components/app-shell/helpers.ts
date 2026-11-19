@@ -38,6 +38,8 @@ export function activeKeyFor(pathname: string): string {
   // tour route is `/repos/:repoId/tour`, no "onboarding" segment anywhere in
   // its URL.
   if (hasSegment(pathname, "tour")) return "onboarding-tour";
+  // AC-46a: segment-exact like `tour` — `/repos/x/graphql` or `/subgraph` must not match.
+  if (hasSegment(pathname, "graph")) return "graph";
   if (pathname.includes("/context")) return "context";
   if (pathname.includes("/conventions")) return "conventions";
   if (pathname.includes("/pulls")) return "pulls";

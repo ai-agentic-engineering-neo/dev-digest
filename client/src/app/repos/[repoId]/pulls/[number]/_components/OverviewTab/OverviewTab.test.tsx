@@ -7,6 +7,8 @@ import * as blastHooks from "@/lib/hooks/blast-radius";
 import * as briefHooks from "@/lib/hooks/brief";
 import * as toastLib from "@/lib/toast";
 import briefMessages from "../../../../../../../../messages/en/brief.json";
+import impactMessages from "../../../../../../../../messages/en/impactGraph.json";
+import graphMessages from "../../../../../../../../messages/en/graph.json";
 import { OverviewTab } from "./OverviewTab";
 
 vi.spyOn(toastLib, "useToast").mockReturnValue({
@@ -22,7 +24,7 @@ function renderWithProviders(ui: React.ReactElement) {
   const qc = new QueryClient();
   return render(
     <QueryClientProvider client={qc}>
-      <NextIntlClientProvider locale="en" messages={{ brief: briefMessages }}>
+      <NextIntlClientProvider locale="en" messages={{ brief: briefMessages, impactGraph: impactMessages, graph: graphMessages }}>
         {ui}
       </NextIntlClientProvider>
     </QueryClientProvider>,

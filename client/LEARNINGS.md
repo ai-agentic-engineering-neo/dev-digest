@@ -298,6 +298,15 @@ silently if `/ci-runs` grows a "View trace" affordance later.
 
 ## Tool & Library Notes
 
+### 2026-11-19 — `@xyflow/react` 13 in jsdom: nodes render only with explicit sizes, and edges never render
+
+- `components/graph-canvas` gives every node an explicit `width`/`height`. Without them React Flow treats nodes as unmeasured and hides them in jsdom, so `getByRole` finds nothing. `src/test/setup.ts` also stubs `DOMMatrixReadOnly` and `offsetWidth`/`offsetHeight` (800×600); `ResizeObserver` was already stubbed.
+- **Edges never appear in the DOM** under jsdom because handle positions can't be measured, so `getByText("×12")` on an edge label fails. Keep edge mapping in pure helpers and assert those: `edgeLabel`, `edgeStrokeWidth` (`graph-canvas/helpers.ts`), and `toCanvasEdges`, `visibleEdges`, `pathToChanged` (`ImpactGraph/helpers.ts`). The legend renders and can be asserted in the DOM.
+- `elkjs/lib/elk.bundled.js` runs fine in jsdom, so it needs no mock.
+- Use `GraphCanvasLazy` (`next/dynamic`, `ssr: false`) from pages so xyflow and ELK stay out of the main bundle.
+- The client has no `@testing-library/user-event`; graph tests use `fireEvent`.
+- New `messages/en/*.json` namespaces need no registration: `i18n/request.ts` loads every file in that folder. A component test still has to pass each namespace it uses to `NextIntlClientProvider`. `OverviewTab.test.tsx` broke when `BlastRadiusCard` started using `impactGraph` and `graph`.
+
 ### 2026-08-13 — `src/vendor/ui/primitives/Markdown.tsx` sets no `urlTransform` and no `img` override — it does not constrain link/image targets
 
 Confirmed while building the Onboarding Tour page

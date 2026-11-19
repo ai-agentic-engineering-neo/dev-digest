@@ -1,0 +1,36 @@
+import type { CSSProperties } from "react";
+
+export const s = {
+  pageHeader: { padding: "24px 32px 10px" } satisfies CSSProperties,
+  pageTitle: { fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em" } satisfies CSSProperties,
+  pageSubtitle: { fontSize: 14, color: "var(--text-secondary)", marginTop: 4 } satisfies CSSProperties,
+  body: { margin: "0 32px 44px", display: "flex", flexDirection: "column", gap: 16 } satisfies CSSProperties,
+  stack: { display: "flex", flexDirection: "column", gap: 12, margin: "14px 32px 44px" } satisfies CSSProperties,
+  row: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } satisfies CSSProperties,
+  panel: {
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    padding: "12px 14px",
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+  } satisfies CSSProperties,
+  panelTitle: { fontSize: 14, fontWeight: 600 } satisfies CSSProperties,
+  muted: { fontSize: 12.5, color: "var(--text-muted)" } satisfies CSSProperties,
+  mono: { fontFamily: "var(--font-mono, monospace)", fontSize: 12.5, wordBreak: "break-all" } satisfies CSSProperties,
+  grid2: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 16 } satisfies CSSProperties,
+  table: { width: "100%", borderCollapse: "collapse", fontSize: 13 } satisfies CSSProperties,
+  th: { textAlign: "left", padding: "6px 8px", borderBottom: "1px solid var(--border)" } satisfies CSSProperties,
+  td: { padding: "6px 8px", borderBottom: "1px solid var(--border)", verticalAlign: "top" } satisfies CSSProperties,
+  linkBtn: {
+    background: "none",
+    border: "none",
+    padding: 0,
+    cursor: "pointer",
+    color: "var(--accent, inherit)",
+    textDecoration: "underline",
+    font: "inherit",
+    textAlign: "left",
+  } satisfies CSSProperties,
+  list: { margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 4 } satisfies CSSProperties,
+};

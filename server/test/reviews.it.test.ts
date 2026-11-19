@@ -159,7 +159,7 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
 
   it('runs a review: map-reduce + grounding drops the hallucinated finding, keeps the valid one', async () => {
     const app = await appWith(REVIEW_FIXTURE);
-    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
 
     const agent = (
       await app.inject({
@@ -209,6 +209,26 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(run!.findingsCount).toBe(1);
     expect(run!.grounding).toBe('1/2 passed');
 
+    // Run Cost Badge: the mock LLM reports a cost per call; it must be persisted
+    // on the run row, in the trace stats, in the run history and on the PR list
+    // (summed over the latest done run per agent — here a single agent).
+    expect(run!.costUsd).toBeGreaterThan(0);
+    expect(trace.stats.cost_usd).toBe(run!.costUsd);
+
+    const history = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(history.find((r: { run_id: string }) => r.run_id === runId).cost_usd).toBe(run!.costUsd);
+
+    const list = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    expect(list.find((p: { id: string }) => p.id === pr.id).cost_usd).toBeCloseTo(run!.costUsd!);
+
+    await app.close();
+  });
+
+  it('a PR that was never reviewed has cost_usd null on the list (no data → "—", not 0)', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const list = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    expect(list.find((p: { id: string }) => p.id === pr.id).cost_usd).toBeNull();
     await app.close();
   });
 

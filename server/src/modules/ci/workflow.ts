@@ -83,6 +83,30 @@ function normalizePostAs(postAs: string | undefined): CiPostAs {
     : DEFAULT_POST_AS;
 }
 
+const JOB_TIMEOUT_MINUTES = 15;
+
+/**
+ * S8 (security hardening) — fixed script, no interpolation (BASE_SHA comes
+ * from the step's env). A PR could otherwise edit `.devdigest/` (runner,
+ * agent prompt, skills) and have its OWN reviewer approve it. This replaces
+ * the PR's `.devdigest/` with the base commit's copy, and reports via a step
+ * output whether a trusted runner exists on the base at all.
+ */
+const RESTORE_TRUSTED_CONFIG_SCRIPT = [
+  'set -euo pipefail',
+  'git fetch --no-tags --depth=1 origin "$BASE_SHA"',
+  'if git cat-file -e "$BASE_SHA:.devdigest/runner" 2>/dev/null; then',
+  '  rm -rf .devdigest',
+  '  git checkout "$BASE_SHA" -- .devdigest',
+  '  echo "trusted=true" >> "$GITHUB_OUTPUT"',
+  'else',
+  '  echo "::notice::DevDigest is not on the base branch yet - merge the setup PR first; skipping review."',
+  '  echo "trusted=false" >> "$GITHUB_OUTPUT"',
+  'fi',
+]
+  .map((line) => `          ${line}`)
+  .join('\n');
+
 /** Build the `permissions:` block text (AC-15) from the canonical constant list. */
 function buildPermissionsBlock(): string {
   return GHA_PERMISSIONS.map(([key, value]) => `  ${key}: ${value}`).join('\n');
@@ -106,10 +130,16 @@ on:
 permissions:
 ${permissionsBlock}
 
+# One review per PR at a time; a new push cancels the stale run.
+concurrency:
+  group: devdigest-review-\${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   review:
     name: DevDigest Review
     runs-on: ubuntu-latest
+    timeout-minutes: ${JOB_TIMEOUT_MINUTES}
     # Fork PRs never receive OPENROUTER_API_KEY / GITHUB_TOKEN: this job simply
     # does not run for them (AC-17). The workflow uses the standard
     # 'pull_request' event, never the base-repo-privileged variant that would
@@ -122,12 +152,21 @@ jobs:
           ref: ${PR_HEAD_SHA_EXPR}
           fetch-depth: 0
 
+      # Review with the BASE branch's DevDigest config, never the PR's own.
+      - name: Use trusted DevDigest config from base
+        id: trusted-config
+        env:
+          BASE_SHA: \${{ github.event.pull_request.base.sha }}
+        run: |
+${RESTORE_TRUSTED_CONFIG_SCRIPT}
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
 
       - name: Run DevDigest review
+        if: steps.trusted-config.outputs.trusted == 'true'
         env:
           OPENROUTER_API_KEY: ${OPENROUTER_SECRET_EXPR}
           GITHUB_TOKEN: ${GITHUB_TOKEN_SECRET_EXPR}

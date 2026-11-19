@@ -4,7 +4,7 @@ import { reviewPullRequest, toReviewPayload, gateTriggered, countBlockers } from
 import { loadManifests } from './manifest.js';
 import { loadSkillBodies } from './skills.js';
 import { resolvePrContext, type CiEnv } from './context.js';
-import { parseUnifiedDiff, stripIgnoredFiles } from './diff.js';
+import { configChangeNotice, listIgnoredPaths, parseUnifiedDiff, stripIgnoredFiles } from './diff.js';
 import { fetchPrDiff, postGithubReview, postPrComment, type FetchLike } from './github.js';
 import { buildResultArtifact } from './artifact.js';
 import { RunnerError } from './errors.js';
@@ -116,6 +116,11 @@ export async function runCi(deps: RunCiDeps): Promise<RunCiResult> {
     //    own config is noise.
     const rawDiff = await fetchDiffImpl(ctx, githubToken ?? '', fetchImpl);
     const diff = parseUnifiedDiff(stripIgnoredFiles(rawDiff));
+    // S8 — surface (never silently drop) changes to DevDigest's own config.
+    // Not a finding: it has no reviewable diff line, so it would bypass the
+    // grounding gate; the generated workflow already guarantees the review
+    // itself ran with the base branch's `.devdigest/`.
+    const configPaths = listIgnoredPaths(rawDiff);
 
     // 4. Run each reviewer through the SAME engine the studio uses. Reviews are
     //    computed for ALL agents FIRST (no posting yet) so that a failure in any
@@ -152,11 +157,14 @@ export async function runCi(deps: RunCiDeps): Promise<RunCiResult> {
       }),
       posted: {
         kind: deps.postAs,
-        payload: toReviewPayload(outcome.review, {
-          failOn: manifest.ci_fail_on,
-          diff,
-          title: manifest.name,
-        }),
+        payload: withConfigNotice(
+          toReviewPayload(outcome.review, {
+            failOn: manifest.ci_fail_on,
+            diff,
+            title: manifest.name,
+          }),
+          configPaths,
+        ),
       },
       blockers: countBlockers(outcome.review.findings, manifest.ci_fail_on),
       gateTriggered: gateTriggered(outcome.review.findings, manifest.ci_fail_on),
@@ -189,4 +197,14 @@ export async function runCi(deps: RunCiDeps): Promise<RunCiResult> {
     const message = err instanceof Error ? err.message : String(err);
     return { exitCode: 1, results: null, artifacts: null, error: message };
   }
+}
+
+/**
+ * S8 (security hardening): when a PR touches DevDigest's own config, say so
+ * at the top of every posted review — the workflow already runs the base
+ * commit's copy, this makes the swap attempt visible to the human reviewer.
+ */
+function withConfigNotice(payload: GitHubReviewPayload, configPaths: string[]): GitHubReviewPayload {
+  if (configPaths.length === 0) return payload;
+  return { ...payload, body: configChangeNotice(configPaths) + payload.body };
 }

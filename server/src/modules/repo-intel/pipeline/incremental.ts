@@ -16,8 +16,8 @@
  * header comment.
  */
 import { createHash } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
-import { extname, join } from 'node:path';
+import { extname } from 'node:path';
+import { readContainedFile } from '../../_shared/checkout-paths.js';
 import type { RepoRef } from '@devdigest/shared';
 import type { PipelineDeps } from '../deps.js';
 import { withTimeout } from '../../../platform/resilience.js';
@@ -154,7 +154,10 @@ export async function runIncremental(
     }
     let source: string;
     try {
-      source = await readFile(join(repo.clonePath, relPath), 'utf8');
+      // S6 — containment-checked (see full.ts).
+      const contained = await readContainedFile(repo.clonePath, relPath);
+      if (contained === null) throw new Error('unreadable or outside the clone (symlink?)');
+      source = contained;
     } catch (err) {
       // File was deleted between the diff and the read — count as skipped
       // (its old rows still get cleared below).

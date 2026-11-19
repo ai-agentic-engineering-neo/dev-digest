@@ -21,9 +21,8 @@
  * skipped entirely when the soft budget trips, leaving status 'partial'.
  */
 import { createHash } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
 import { cpus } from 'node:os';
-import { join } from 'node:path';
+import { readContainedFile } from '../../_shared/checkout-paths.js';
 import PQueue from 'p-queue';
 import type { RepoRef } from '@devdigest/shared';
 import type { PipelineDeps } from '../deps.js';
@@ -144,7 +143,11 @@ export async function runFullIndex(
       }
       let source: string;
       try {
-        source = await readFile(join(repo.clonePath!, relPath), 'utf8');
+        // S6 — containment-checked: a committed symlink can't pull a file from
+        // outside the clone into the index.
+        const contained = await readContainedFile(repo.clonePath!, relPath);
+        if (contained === null) throw new Error('unreadable or outside the clone (symlink?)');
+        source = contained;
       } catch (err) {
         filesSkipped += 1;
         recordParseDegraded(parseDegraded, relPath, asMessage(err));

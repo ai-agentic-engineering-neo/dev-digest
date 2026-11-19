@@ -18,8 +18,8 @@
  * `parseChangedFiles` helper (which reads files diff-scoped under `root`).
  */
 import { parse, Lang, type SgNode } from '@ast-grep/napi';
-import { readFile } from 'node:fs/promises';
-import { extname, join } from 'node:path';
+import { extname } from 'node:path';
+import { readContainedFile } from '../../modules/_shared/checkout-paths.js';
 
 import type { ExtractedReference, ExtractedSymbol } from '../codeindex/extract.js';
 import { MAX_SIGNATURE_CHARS, SUPPORTED_EXT } from '../../modules/repo-intel/constants.js';
@@ -618,7 +618,10 @@ export async function parseChangedFiles(
 
     let source: string;
     try {
-      source = await readFile(join(root, rel), 'utf8');
+      // S6 — containment-checked: skip a file that resolves outside the clone.
+      const contained = await readContainedFile(root, rel);
+      if (contained === null) continue;
+      source = contained;
     } catch {
       continue;
     }

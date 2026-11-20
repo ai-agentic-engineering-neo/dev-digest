@@ -1,31 +1,31 @@
-# Онбордінг: DevDigest (starter)
+# Onboarding: DevDigest (starter)
 
-## 1. Що це і навіщо
+## 1. What it is and why
 
-**DevDigest** — інструмент для AI-рев'ю pull request'ів, який працює локально. Цей репозиторій — **стартовий шаблон**. Він робить одну річ від початку до кінця: імпортує PR з GitHub і проганяє на ньому рев'ю LLM-агентом. Результат — структуровані findings із severity та score.
+**DevDigest** is a tool for AI review of pull requests that runs locally. This repository is a **starter template**. It does one thing end to end: it imports a PR from GitHub and runs a review on it with an LLM agent. The result is structured findings with a severity and a score.
 
-Схоже, що проєкт навчальний або курсовий. У README є роадмап M1–M8, і кожен milestone повертає одну фічу: skills, blast radius, MCP-сервер, eval, multi-agent тощо. Тому в коді багато "заготовок під майбутнє". Детальніше про це в розділі 5.
+The project looks like a learning or course project. The README has an M1–M8 roadmap, and each milestone brings back one feature: skills, blast radius, an MCP server, eval, multi-agent and so on. That is why the code contains many "placeholders for the future". See section 5 for details.
 
-Основний сценарій: **додати репо → сервер клонує та індексує його → імпортувати PR → натиснути Review → отримати findings у UI**. Назовні йдуть лише запити до GitHub і до LLM.
+The main scenario: **add a repo → the server clones and indexes it → import a PR → click Review → get findings in the UI**. The only outbound requests go to GitHub and to the LLM.
 
-## 2. Технологічний стек
+## 2. Tech stack
 
-| Шар | Технології |
+| Layer | Technologies |
 |---|---|
 | **client/** (`:3000`) | Next.js 15 (App Router), React 19, TanStack Query, next-intl, recharts, mermaid, react-markdown |
 | **server/** (`:3001`) | Fastify 5, Drizzle ORM, Postgres 16 + pgvector, Zod (`fastify-type-provider-zod`), SSE (`fastify-sse-v2`), p-queue |
-| **reviewer-core/** | Чистий TypeScript, без БД і файлової системи. LLM підключається через ін'єкцію |
-| **Аналіз коду** | `@ast-grep/napi` (символи), `dependency-cruiser` (граф імпортів), `graphology` (PageRank), `@vscode/ripgrep`, `js-tiktoken` |
-| **Зовнішні сервіси** | Octokit (GitHub), `simple-git`, OpenAI / Anthropic SDK, OpenRouter |
-| **Тести** | vitest, testcontainers (справжній Postgres), agent-browser для e2e |
-| **Інфраструктура** | Docker піднімає тільки Postgres. Решта запускається на хості через `./scripts/dev.sh`. CI — 5 workflow'ів GitHub Actions із path-фільтрами |
+| **reviewer-core/** | Pure TypeScript, no DB and no file system. The LLM is plugged in by injection |
+| **Code analysis** | `@ast-grep/napi` (symbols), `dependency-cruiser` (import graph), `graphology` (PageRank), `@vscode/ripgrep`, `js-tiktoken` |
+| **External services** | Octokit (GitHub), `simple-git`, OpenAI / Anthropic SDK, OpenRouter |
+| **Tests** | vitest, testcontainers (real Postgres), agent-browser for e2e |
+| **Infrastructure** | Docker runs only Postgres. Everything else runs on the host via `./scripts/dev.sh`. CI — 5 GitHub Actions workflows with path filters |
 
-## 3. Як модулі пов'язані між собою
+## 3. How the modules connect
 
 ```mermaid
 flowchart TB
   subgraph CLIENT["client/ — Next.js :3000"]
-    PAGES["app/** pages<br/>(тонкі)"] --> COMP["_components/*<br/>(фіча-логіка)"]
+    PAGES["app/** pages<br/>(thin)"] --> COMP["_components/*<br/>(feature logic)"]
     COMP --> HOOKS["lib/hooks/*<br/>TanStack Query"]
     HOOKS --> APIJS["lib/api.ts<br/>fetch"]
     HOOKS --> ES["EventSource<br/>/runs/:id/events"]
@@ -34,25 +34,25 @@ flowchart TB
   subgraph SERVER["server/ — Fastify :3001"]
     PLUG["plugins: helmet · cors · rate-limit<br/>local-only (Host/Origin guard) · SSE"]
     PLUG --> MODS
-    subgraph MODS["modules/ (статичний реєстр modules/index.ts)"]
+    subgraph MODS["modules/ (static registry modules/index.ts)"]
       repos & pulls & polling & agents & settings & workspace
       reviews["reviews<br/>service → run-executor"]
       ri["repo-intel<br/>walk → ast-grep → depgraph → rank → repo-map"]
     end
     MODS --> CONT{{"platform/container.ts<br/>DI composition root"}}
-    CONT --> JOBS["JobRunner<br/>p-queue + таблиця jobs"]
+    CONT --> JOBS["JobRunner<br/>p-queue + jobs table"]
     CONT --> BUS["RunBus<br/>in-memory SSE"]
     CONT --> ADP["adapters/<br/>github · git · llm · astgrep<br/>depgraph · tokenizer · secrets"]
     MODS --> DB[("Postgres + pgvector<br/>Drizzle")]
   end
 
-  subgraph CORE["reviewer-core/ (чиста логіка)"]
-    PROMPT["assemblePrompt<br/>+ INJECTION_GUARD"] --> LLMCALL["LLMProvider (ін'єкція)"]
+  subgraph CORE["reviewer-core/ (pure logic)"]
+    PROMPT["assemblePrompt<br/>+ INJECTION_GUARD"] --> LLMCALL["LLMProvider (injected)"]
     LLMCALL --> STRUCT["structured output<br/>Zod → JSON Schema, repair"]
-    STRUCT --> GROUND["groundFindings<br/>відкидає вигадані рядки"]
+    STRUCT --> GROUND["groundFindings<br/>drops invented lines"]
   end
 
-  SHARED["@devdigest/shared<br/>Zod-контракти"]
+  SHARED["@devdigest/shared<br/>Zod contracts"]
 
   APIJS -->|REST| PLUG
   ES -->|SSE| BUS
@@ -65,7 +65,7 @@ flowchart TB
   SHARED -.-> CORE
 ```
 
-### Покроково, як проходить рев'ю
+### Step by step: how a review runs
 
 ```mermaid
 sequenceDiagram
@@ -78,58 +78,58 @@ sequenceDiagram
   participant L as LLM
   participant B as RunBus (SSE)
   UI->>R: POST /pulls/:id/review
-  R->>S: створити agent_runs
-  S-->>UI: runId (одразу)
-  S--)X: void executeRuns() (без await)
+  R->>S: create agent_runs
+  S-->>UI: runId (immediately)
+  S--)X: void executeRuns() (no await)
   UI->>B: EventSource /runs/:id/events
   X->>X: loadDiff
   X->>RI: getRepoMap / getCallerSignatures / getFileRank
   X->>C: reviewPullRequest(diff, prompt, repoMap, llm)
   C->>L: prompt + INJECTION_GUARD
   L-->>C: JSON findings
-  C->>C: grounding gate, перерахунок score
+  C->>C: grounding gate, score recalculation
   C-->>X: Review
   X->>X: insertReview / insertFindings / saveRunTrace
   X->>B: complete(runId)
-  B-->>UI: події та завершення
+  B-->>UI: events and completion
 ```
 
-## 4. Ключові особливості (спроєктовані свідомо)
+## 4. Key features (designed on purpose)
 
-- **Три пакети без монорепо-workspace.** У кожного свій `package.json` і свій lockfile. Код між ними ділиться через **tsconfig path aliases**. `server` імпортує вихідний код `reviewer-core` напряму: `@devdigest/reviewer-core → ../reviewer-core/src`. Тому `build` у reviewer-core — це лише typecheck.
-- **Composition root і DI.** Усі адаптери проходять через [container.ts](../server/src/platform/container.ts) і створюються ліниво. Для тестів туди передають overrides — моки з `adapters/mocks.ts`. Модулі не лізуть у чужі папки: спільні репозиторії беруться з контейнера (`container.agentsRepo`, `container.reviewRepo`).
-- **Zod як єдине джерело правди.** Ті самі схеми валідують запити (невалідний запит отримує 422 ще до хендлера), серіалізують відповіді й описують структурований вихід LLM.
-- **Grounding gate.** Finding без реального рядка в diff відкидається. Score, який повертає модель, ігнорується і рахується наново з тих findings, що лишилися.
-- **Захист від prompt-injection** — одне довірене правило `INJECTION_GUARD` у системному промпті. Свідомо немає keyword-сканування, бо такий denylist ловить лише одне формулювання.
-- **repo-intel індексує заздалегідь, на clone/fetch.** Під час рев'ю він тільки читає готові дані. Якщо репо не проіндексоване, рев'ю просто йде по самому diff, без помилки.
-- **Безпека для localhost.** API без автентифікації слухає тільки `127.0.0.1`. Від DNS rebinding захищає перевірка `Host`/`Origin` у [local-only.ts](../server/src/platform/local-only.ts). Секрети лежать у `~/.devdigest/secrets.json` з правами `0600` — не в БД і не в git.
-- **Фонові задачі двох видів.** Clone і index йдуть через `JobRunner` (p-queue, дублюються в таблицю `jobs`, з retry). А рев'ю — це просто `void executor.executeRuns()` в тому самому процесі. Під час старту сервер прибирає «осиротілі» run'и в статусі `running`.
-- **Тести розділені за назвою файлу.** `*.it.test.ts` працюють із справжнім Postgres через testcontainers. Усе інше герметичне. e2e детерміновані й без LLM.
+- **Three packages without a monorepo workspace.** Each has its own `package.json` and its own lockfile. Code is shared between them via **tsconfig path aliases**. `server` imports the `reviewer-core` source code directly: `@devdigest/reviewer-core → ../reviewer-core/src`. That is why `build` in reviewer-core is only a typecheck.
+- **Composition root and DI.** All adapters go through [container.ts](../server/src/platform/container.ts) and are created lazily. Tests pass overrides into it — mocks from `adapters/mocks.ts`. Modules don't reach into each other's folders: shared repositories come from the container (`container.agentsRepo`, `container.reviewRepo`).
+- **Zod as the single source of truth.** The same schemas validate requests (an invalid request gets a 422 before reaching the handler), serialize responses and describe the LLM's structured output.
+- **Grounding gate.** A finding without a real line in the diff is dropped. The score the model returns is ignored and recalculated from the findings that remain.
+- **Prompt-injection protection** is a single trusted rule, `INJECTION_GUARD`, in the system prompt. There is deliberately no keyword scanning, because such a denylist only catches one phrasing.
+- **repo-intel indexes ahead of time, on clone/fetch.** During a review it only reads prepared data. If the repo isn't indexed, the review simply runs on the diff alone, without an error.
+- **Localhost security.** The API has no authentication and listens only on `127.0.0.1`. DNS rebinding is blocked by the `Host`/`Origin` check in [local-only.ts](../server/src/platform/local-only.ts). Secrets live in `~/.devdigest/secrets.json` with `0600` permissions — not in the DB and not in git.
+- **Two kinds of background tasks.** Clone and index go through `JobRunner` (p-queue, mirrored to the `jobs` table, with retries). A review, however, is just `void executor.executeRuns()` in the same process. On startup the server cleans up "orphaned" runs left in the `running` status.
+- **Tests are split by file name.** `*.it.test.ts` run against a real Postgres via testcontainers. Everything else is hermetic. e2e tests are deterministic and use no LLM.
 
-## 5. Дивні частини (на що звернути увагу)
+## 5. Odd parts (what to watch out for)
 
-1. **Контракти `@devdigest/shared` скопійовані двічі й уже розійшлися.** Є [server/src/vendor/shared](../server/src/vendor/shared) і [client/src/vendor/shared](../client/src/vendor/shared). `diff` показує близько 150 рядків різниці. Наприклад, у клієнта `LLMProvider.id` має тип `'openai' | 'anthropic'`, без `openrouter`. Також у клієнтській копії немає `commitFiles`, `sync`, `diffNameOnly`, `sessionId`. Це «спільна» схема, яка насправді не спільна.
-2. **reviewer-core бере shared із папки сервера:** `../server/src/vendor/shared`. Формально engine «чистий», але фізично залежить від дерева `server/`.
-3. **Схема БД містить таблиці всіх milestone'ів наперед** — 40+ таблиць у `db/schema/*`: eval, ci, skills, knowledge… Більшість із них порожні. Так задумано, але новачка це плутає.
-4. **Залишки «майбутнього» коду.** Shim'и [platform/grounding.ts](../server/src/platform/grounding.ts) і [platform/prompt.ts](../server/src/platform/prompt.ts) — це re-export'и, які «зберігають сумісність» для імпортерів, а імпортерів у них фактично немає. Коментарі згадують «CI agent-runner», а його в стартері немає. `@fastify/autoload` стоїть у залежностях, хоча модулі реєструються статично. Executor уміє map-reduce і cancel між файлами.
-5. **Три LLM-провайдери в двох місцях.** OpenAI та Anthropic реалізовані як адаптери сервера. OpenRouter живе в `reviewer-core`, і контейнер імпортує його звідти. При цьому кореневий README каже, що LLM викликається «via OpenRouter».
-6. **Документація трохи відстає від коду.** README reviewer-core каже, що в стартері передаються тільки diff, system prompt і repo map. Насправді executor також передає callers digest і rank note («high blast-radius»).
-7. **RunBus живе в пам'яті.** Якщо сервер рестартне посеред рев'ю, live-лог пропаде, а run прибере reaper. Для локального інструменту це нормально, але про це варто знати.
-8. **У `.claude/skills` лежить багато вендорних skills** для AI-асистентів: zod, fastify, drizzle, next… Це не код продукту.
+1. **The `@devdigest/shared` contracts are copied twice and have already diverged.** There is [server/src/vendor/shared](../server/src/vendor/shared) and [client/src/vendor/shared](../client/src/vendor/shared). `diff` shows about 150 lines of difference. For example, on the client `LLMProvider.id` has the type `'openai' | 'anthropic'`, without `openrouter`. The client copy also lacks `commitFiles`, `sync`, `diffNameOnly`, `sessionId`. It is a "shared" schema that isn't actually shared.
+2. **reviewer-core takes shared from the server folder:** `../server/src/vendor/shared`. Formally the engine is "pure", but physically it depends on the `server/` tree.
+3. **The DB schema contains the tables of all milestones up front** — 40+ tables in `db/schema/*`: eval, ci, skills, knowledge… Most of them are empty. This is by design, but it confuses newcomers.
+4. **Leftovers of "future" code.** The shims [platform/grounding.ts](../server/src/platform/grounding.ts) and [platform/prompt.ts](../server/src/platform/prompt.ts) are re-exports that "preserve compatibility" for importers, yet they effectively have no importers. Comments mention a "CI agent-runner" that doesn't exist in the starter. `@fastify/autoload` is in the dependencies, although modules are registered statically. The executor can do map-reduce and cancel between files.
+5. **Three LLM providers in two places.** OpenAI and Anthropic are implemented as server adapters. OpenRouter lives in `reviewer-core`, and the container imports it from there. Meanwhile the root README says the LLM is called "via OpenRouter".
+6. **The documentation lags slightly behind the code.** The reviewer-core README says the starter passes only the diff, the system prompt and the repo map. In reality the executor also passes a callers digest and a rank note ("high blast-radius").
+7. **RunBus lives in memory.** If the server restarts mid-review, the live log is lost and the run is cleaned up by the reaper. That's fine for a local tool, but worth knowing.
+8. **`.claude/skills` holds many vendored skills** for AI assistants: zod, fastify, drizzle, next… They are not product code. The exception is our own `engineering-insights` skill, which maintains the per-module INSIGHTS.md files.
 
-## 6. Що тут цілком стандартне (і зроблено добре)
+## 6. What is entirely standard here (and done well)
 
-- Структура модуля: `routes.ts → service.ts → repository.ts`, плюс `constants/helpers`. Fastify-плагін на кожну фічу.
-- Клієнт: тонкі сторінки, логіка в колокованих `_components/<Name>/` з тестами поруч, усі дані йдуть через `lib/hooks`.
-- Drizzle-міграції не запускаються автоматично на старті (`pnpm db:migrate`). Seed ідемпотентний.
-- Конфіг запускається без жодного ключа: усі секрети опціональні.
-- Rate-limit глобальний, а для дорогих ендпоінтів (`POST /pulls/:id/review`) ліміт жорсткіший.
+- Module structure: `routes.ts → service.ts → repository.ts`, plus `constants/helpers`. One Fastify plugin per feature.
+- Client: thin pages, logic in colocated `_components/<Name>/` with tests alongside, all data goes through `lib/hooks`.
+- Drizzle migrations don't run automatically on startup (`pnpm db:migrate`). The seed is idempotent.
+- The config starts without a single key: all secrets are optional.
+- Rate limiting is global, with a stricter limit for expensive endpoints (`POST /pulls/:id/review`).
 
-## 7. З чого почати читати
+## 7. Where to start reading
 
-1. [README.md](../README.md) і [TESTING.md](../TESTING.md)
+1. [README.md](../README.md) and [TESTING.md](../TESTING.md)
 2. [server/src/app.ts](../server/src/app.ts) → [modules/index.ts](../server/src/modules/index.ts) → [platform/container.ts](../server/src/platform/container.ts)
-3. Головний flow: [reviews/service.ts](../server/src/modules/reviews/service.ts) → [reviews/run-executor.ts](../server/src/modules/reviews/run-executor.ts) → [reviewer-core/src/review/run.ts](../reviewer-core/src/review/run.ts) → [prompt.ts](../reviewer-core/src/prompt.ts) і [grounding.ts](../reviewer-core/src/grounding.ts)
-4. [repo-intel/README.md](../server/src/modules/repo-intel/README.md) і папка `pipeline/`
-5. Клієнт: [lib/api.ts](../client/src/lib/api.ts), [lib/hooks/reviews.ts](../client/src/lib/hooks/reviews.ts) (там SSE), сторінка `app/repos/[repoId]/pulls/[number]`
-6. Запуск: `./scripts/dev.sh`, потім http://localhost:3000
+3. The main flow: [reviews/service.ts](../server/src/modules/reviews/service.ts) → [reviews/run-executor.ts](../server/src/modules/reviews/run-executor.ts) → [reviewer-core/src/review/run.ts](../reviewer-core/src/review/run.ts) → [prompt.ts](../reviewer-core/src/prompt.ts) and [grounding.ts](../reviewer-core/src/grounding.ts)
+4. [repo-intel/README.md](../server/src/modules/repo-intel/README.md) and the `pipeline/` folder
+5. Client: [lib/api.ts](../client/src/lib/api.ts), [lib/hooks/reviews.ts](../client/src/lib/hooks/reviews.ts) (SSE is there), the page `app/repos/[repoId]/pulls/[number]`
+6. Running it: `./scripts/dev.sh`, then http://localhost:3000

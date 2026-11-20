@@ -1,38 +1,39 @@
-# server — Fastify API :3001, слухає лише 127.0.0.1. НЕ містить логіки рев'ю (вона в ../reviewer-core).
+# server — Fastify API :3001, listens on 127.0.0.1 only. Contains NO review logic (that lives in ../reviewer-core).
 
 ## Stack
 Fastify 5 · Drizzle 0.45 + Postgres 16/pgvector · Zod 3.25 · fastify-type-provider-zod 4 · fastify-sse-v2 · p-queue · vitest 2 · pnpm
 
 ## Commands
 - `pnpm typecheck` · `pnpm test` (unit + integration)
-- unit без Docker: `pnpm exec vitest run --exclude '**/*.it.test.ts'`
+- unit without Docker: `pnpm exec vitest run --exclude '**/*.it.test.ts'`
 - integration (Docker): `pnpm exec vitest run .it.test`
-- Міграції не автоматичні: `pnpm db:generate` → `pnpm db:migrate`; `pnpm db:seed` ідемпотентний
+- Migrations are not automatic: `pnpm db:generate` → `pnpm db:migrate`; `pnpm db:seed` is idempotent
 
 ## Map
-- src/modules/<feature>/ — routes → service → repository; реєстр статичний: modules/index.ts
+- src/modules/<feature>/ — routes → service → repository; static registry: modules/index.ts
 - src/platform/container.ts — DI composition root; local-only.ts — Host/Origin guard
-- src/adapters/ — github, git, llm, astgrep, depgraph, tokenizer, secrets (моки: adapters/mocks.ts)
-- src/db/schema/ — таблиці ВСІХ milestone'ів наперед, більшість порожні — так задумано
-- src/vendor/shared/ — Zod-контракти (правило синхронізації — у кореневому CLAUDE.md)
+- src/adapters/ — github, git, llm, astgrep, depgraph, tokenizer, secrets (mocks: adapters/mocks.ts)
+- src/db/schema/ — tables for ALL milestones up front, most of them empty — by design
+- src/vendor/shared/ — Zod contracts (sync rule — in the root CLAUDE.md)
 
 ## Conventions
-- Адаптери й спільні репозиторії — лише через `container.*`, без `new` у модулі
-- Модуль не імпортує з теки іншого модуля
-- Новий модуль → реєструй у modules/index.ts (@fastify/autoload у deps, але не використовується)
-- Тест, що імпортує test/helpers/pg.ts, мусить мати суфікс `*.it.test.ts`
-- Тести герметичні: MockLLMProvider / MockGitClient з adapters/mocks.ts, без мережі й ключів
+- All documentation is written in English (CLAUDE.md, README, specs, INSIGHTS, code comments)
+- Adapters and shared repositories — only via `container.*`, no `new` inside a module
+- A module never imports from another module's folder
+- New module → register it in modules/index.ts (@fastify/autoload is in deps but unused)
+- A test that imports test/helpers/pg.ts must have the `*.it.test.ts` suffix
+- Tests are hermetic: MockLLMProvider / MockGitClient from adapters/mocks.ts, no network or keys
 
 ## Gotchas
-- package.json у `skip-worktree` (локальний варіант відрізняється) — не покладайся на скрипти test:unit/test:integration
-- Рев'ю — `void executeRuns()` у процесі; clone/index — через JobRunner (p-queue + таблиця jobs). Це різні механізми
-- RunBus живе в пам'яті: рестарт сервера = втрачений live-лог, «осиротілі» run'и прибирає reaper на старті
-- Нема індексу repo-intel → рев'ю йде по самому diff, без помилки
-- server/clones/** — runtime-дані, git-ignored
+- package.json is `skip-worktree` (the local variant differs) — don't rely on the test:unit/test:integration scripts
+- Review runs as `void executeRuns()` in-process; clone/index go through JobRunner (p-queue + jobs table). These are different mechanisms
+- RunBus lives in memory: a server restart = lost live log; "orphaned" runs are cleaned up by the reaper on startup
+- No repo-intel index → the review runs on the diff alone, without an error
+- server/clones/** — runtime data, git-ignored
 
 ## Do not touch
-- platform/local-only.ts, bind на 127.0.0.1, helmet / rate-limit — захист від DNS rebinding
-- platform/grounding.ts, platform/prompt.ts — shim'и над reviewer-core; логіку міняй там, не тут
+- platform/local-only.ts, binding to 127.0.0.1, helmet / rate-limit — protection against DNS rebinding
+- platform/grounding.ts, platform/prompt.ts — shims over reviewer-core; change the logic there, not here
 
 ## Read when
 - Before adding or changing a route → read README.md ("API map", "Request & DI flow")
@@ -44,5 +45,5 @@ Fastify 5 · Drizzle 0.45 + Postgres 16/pgvector · Zod 3.25 · fastify-type-pro
 - Before editing anything here → read INSIGHTS.md
 
 ## Insights
-Знайшов неочевидну пастку → допиши в INSIGHTS.md: `- YYYY-MM-DD · <область> · <що сталося> → <як правильно>`.
-Пункт спрацював двічі → перенеси в Gotchas. (L06: перейде у хук / slash-команду.)
+This package's lessons live in INSIGHTS.md (append-only, 7 sections). Hooks handle reading at the start and the wrap-up at the end; selection rules, format and writing — skill `engineering-insights` (`/engineering-insights`, `/engineering-insights review`).
+An entry that fired twice → move it to Gotchas and mark it in INSIGHTS with a new entry `(→ CLAUDE.md)`.

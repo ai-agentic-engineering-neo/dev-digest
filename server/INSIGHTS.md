@@ -12,6 +12,8 @@ Entry: `- YYYY-MM-DD — <what, concrete> — <path + symbol> — <what to do>`
 
 ## Codebase Patterns
 
+- 2026-11-20 — Run cost is already computed end to end (`reviewPullRequest` → `ReviewOutcome.costUsd`; OpenRouter sends `usage: { include: true }` and uses the real `usage.cost`), but `run-executor.ts` drops it because migration `0009` removed `agent_runs.cost_usd` — re-add the column; don't build a new pricing path.
+
 - 2026-11-20 — `PromptCache` in `platform/model-router.ts` defaults to `now = () => 0`, so entries never expire — pass a real clock if you ever wire it.
 
 ## Tool & Library Notes

@@ -159,7 +159,7 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
 
   it('runs a review: map-reduce + grounding drops the hallucinated finding, keeps the valid one', async () => {
     const app = await appWith(REVIEW_FIXTURE);
-    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
 
     const agent = (
       await app.inject({
@@ -208,6 +208,53 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(run!.status).toBe('done');
     expect(run!.findingsCount).toBe(1);
     expect(run!.grounding).toBe('1/2 passed');
+
+    // run cost (spec run-cost): MockLLMProvider reports $0.001 per call
+    expect(run!.costUsd).toBeCloseTo(0.001, 10);
+    expect(trace.stats.cost_usd).toBeCloseTo(0.001, 10);
+    const runs = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(runs[0].cost_usd).toBeCloseTo(0.001, 10);
+    const list = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    expect(list.find((p: { number: number }) => p.number === pr.number).cost_usd).toBeCloseTo(0.001, 10);
+
+    await app.close();
+  });
+
+  it('a run that fails before any LLM call completes records no cost (null, not 0)', async () => {
+    class FailingLLM extends MockLLMProvider {
+      override async completeStructured<T>(): Promise<never> {
+        throw new Error('429 You exceeded your current quota');
+      }
+    }
+    const app = await buildApp({
+      config: config(),
+      db: pg.handle.db,
+      overrides: {
+        embedder: new MockEmbedder(),
+        git: new MockGitClient({ diff: DIFF }),
+        llm: { openai: new FailingLLM('openai', { structured: REVIEW_FIXTURE }) },
+      },
+    });
+    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'Gen', provider: 'openai', model: 'gpt-4.1', system_prompt: 'gen' },
+      })
+    ).json();
+    const body = (
+      await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } })
+    ).json();
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+
+    const runId = body.runs[0].run_id;
+    const [run] = await pg.handle.db.select().from(t.agentRuns).where(eq(t.agentRuns.id, runId));
+    expect(run!.status).toBe('failed');
+    expect(run!.tokensIn).toBe(0);
+    expect(run!.costUsd).toBeNull();
+    const trace = (await app.inject({ method: 'GET', url: `/runs/${runId}/trace` })).json();
+    expect(trace.stats.cost_usd).toBeNull();
 
     await app.close();
   });

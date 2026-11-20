@@ -80,6 +80,7 @@ export class ReviewRunExecutor {
             durationMs: 0,
             tokensIn: 0,
             tokensOut: 0,
+            costUsd: null, // pre-work failed before any LLM call
             findingsCount: 0,
             grounding: '0/0 passed',
             error: msg,
@@ -145,6 +146,9 @@ export class ReviewRunExecutor {
     parentLog: RunLogger,
   ): Promise<RunOutcome> {
     const start = Date.now();
+    // Per-call usage streamed from the engine. The source of truth on the
+    // failure/cancel path, where reviewPullRequest throws without usage.
+    const usage = { tokensIn: 0, tokensOut: 0, costUsd: 0 as number | null };
     // Narrow the fanned-out pre-work logger to THIS run; the shared diff/intent
     // events are already in this run's buffer, so the persisted trace below
     // (built from the buffer) includes them too.
@@ -206,11 +210,17 @@ export class ReviewRunExecutor {
         task,
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
+        onUsage: (u) => {
+          usage.tokensIn += u.tokensIn;
+          usage.tokensOut += u.tokensOut;
+          usage.costUsd = usage.costUsd == null || u.costUsd == null ? null : usage.costUsd + u.costUsd;
+        },
         checkCancelled: () => {
           if (this.container.runBus.isCancelled(runId)) throw new RunCancelledError();
         },
       });
       const { tokensIn, tokensOut, grounding } = outcome;
+      const costUsd = runCost(tokensIn, tokensOut, outcome.costUsd);
 
       const keptFindings = outcome.review.findings;
 
@@ -245,6 +255,7 @@ export class ReviewRunExecutor {
         durationMs,
         tokensIn,
         tokensOut,
+        costUsd,
         findingsCount: findingRows.length,
         grounding,
         score: outcome.review.score,
@@ -265,6 +276,7 @@ export class ReviewRunExecutor {
           duration_ms: durationMs,
           tokens_in: tokensIn,
           tokens_out: tokensOut,
+          cost_usd: costUsd,
           findings: findingRows.length,
           grounding,
         },
@@ -298,15 +310,17 @@ export class ReviewRunExecutor {
         .completeAgentRun(runId, {
           status,
           durationMs: Date.now() - start,
-          tokensIn: 0,
-          tokensOut: 0,
+          // Usage of the LLM calls that completed before the throw.
+          tokensIn: usage.tokensIn,
+          tokensOut: usage.tokensOut,
+          costUsd: runCost(usage.tokensIn, usage.tokensOut, usage.costUsd),
           findingsCount: 0,
           grounding: '0/0 passed',
           error: msg,
         })
         .catch(() => undefined);
       await this.repo
-        .saveRunTrace(runId, this.traceFromBuffer(runId, pull, agent, '0/0 passed', Date.now() - start))
+        .saveRunTrace(runId, this.traceFromBuffer(runId, pull, agent, '0/0 passed', Date.now() - start, usage))
         .catch(() => undefined);
       this.container.runBus.complete(runId);
       throw err;
@@ -411,6 +425,11 @@ export class ReviewRunExecutor {
     agent: AgentRow,
     grounding: string,
     durationMs = 0,
+    usage: { tokensIn: number; tokensOut: number; costUsd: number | null } = {
+      tokensIn: 0,
+      tokensOut: 0,
+      costUsd: null,
+    },
   ): RunTrace {
     return {
       config: {
@@ -421,7 +440,14 @@ export class ReviewRunExecutor {
         pr: pull.number,
         source: 'local',
       },
-      stats: { duration_ms: durationMs, tokens_in: 0, tokens_out: 0, findings: 0, grounding },
+      stats: {
+        duration_ms: durationMs,
+        tokens_in: usage.tokensIn,
+        tokens_out: usage.tokensOut,
+        cost_usd: runCost(usage.tokensIn, usage.tokensOut, usage.costUsd),
+        findings: 0,
+        grounding,
+      },
       prompt_assembly: { system: agent.systemPrompt, skills: null, memory: null, specs: null, user: '' },
       tool_calls: [],
       raw_output: '',
@@ -430,4 +456,12 @@ export class ReviewRunExecutor {
       log: this.container.runBus.buffer(runId).map((e) => ({ t: e.t, kind: e.kind, msg: e.msg })),
     };
   }
+}
+
+/**
+ * Cost to persist for a run: no usage at all means "no data" (null → "—" in the
+ * UI), never $0 — a free model with real usage still records its genuine 0.
+ */
+export function runCost(tokensIn: number, tokensOut: number, costUsd: number | null): number | null {
+  return tokensIn + tokensOut > 0 ? costUsd : null;
 }

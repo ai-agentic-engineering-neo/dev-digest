@@ -19,6 +19,9 @@ Selection rules, review and promotion to CLAUDE.md — skill `engineering-insigh
 
 ## Recurring Errors & Fixes
 
+- 2026-11-20 · dev.sh + pnpm ≥11 · ERR_PNPM_VERIFY_DEPS_BEFORE_RUN on client 'pnpm dev': pnpm ≥11 no longer reads the "pnpm" field (client/package.json pnpm.overrides) → run the client with 'npx -y pnpm@10 dev' or move overrides into client/pnpm-workspace.yaml, because pnpm 12 refuses to start rather than silently dropping the overrides · client/package.json, scripts/dev.sh
+- 2026-11-20 · dev.sh + Docker · if the first 'docker compose up' fails on a port conflict (5432 taken by another project's Postgres), the devdigest-postgres container stays 'created'; the next dev.sh run does 'docker start' on it → healthy but with NO port mapping, and migrations fail ECONNREFUSED → free the port, then 'docker compose up -d --force-recreate' (keeps the volume; never 'down -v'), because the port binding is fixed at creation time · scripts/dev.sh Postgres section, 'docker port devdigest-postgres'
+
 ## Session Notes
 
 ## Open Questions

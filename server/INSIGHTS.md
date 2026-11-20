@@ -11,6 +11,7 @@ Selection rules, review and promotion to CLAUDE.md — skill `engineering-insigh
 ## Codebase Patterns
 
 - 2026-11-20 · run-executor · the catch path persists tokensIn/tokensOut = 0 because reviewPullRequest throws without partial usage → stream per-call metrics out of reviewer-core via a callback (like onEvent) if failed/cancelled runs must keep them, because the thrown error carries nothing · run-executor.ts catch block, reviewer-core/src/review/run.ts
+- 2026-11-20 · JobRunner · a rejected promise nobody subscribes to (e.g. EnqueuedJob.done from fire-and-forget enqueue) is an unhandledRejection, and Node ≥15 kills the whole API — one failed clone (GitHub 403) took :3001 down → ALWAYS attach a handler (.catch) to any promise you create but don't await in long-lived server code, because a background failure must land in the jobs row, not crash the process · src/platform/jobs.ts enqueue(), repos/service.ts refresh()/add()
 
 ## Tool & Library Notes
 

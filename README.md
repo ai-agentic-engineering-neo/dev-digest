@@ -120,7 +120,7 @@ docker compose up -d                                   # Postgres + pgvector
 
 cd server && pnpm install
 pnpm db:migrate          # apply migrations (NOT run automatically on boot)
-pnpm db:seed             # idempotent demo data (optional)
+pnpm db:seed             # create the required local user and workspace, plus demo data
 pnpm dev                 # API on :3001
 
 cd ../client && pnpm install && pnpm dev               # web on :3000

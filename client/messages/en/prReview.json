@@ -92,6 +92,7 @@
       "size": "Size",
       "score": "Score",
       "status": "Status",
+      "cost": "Cost",
       "updated": "Updated"
     },
     "filesCount": "{count} files",
@@ -100,6 +101,9 @@
     "emptyTitle": "No pull requests",
     "emptyAllBody": "No open PRs found for this repo yet. Refresh to sync from GitHub.",
     "emptyStatusBody": "No PRs with status “{status}”."
+  },
+  "cost": {
+    "tokens": "{count, number} tok"
   },
   "timeline": {
     "goToReview": "Jump to this run’s findings below",

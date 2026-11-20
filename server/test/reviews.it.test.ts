@@ -212,6 +212,55 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     await app.close();
   });
 
+  it('run cost: persisted on the run, in the trace + log, and summed per PR in the list', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'CostAgent', provider: 'openai', model: 'gpt-4.1', system_prompt: 's' },
+      })
+    ).json();
+    await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } });
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+
+    // MockLLMProvider reports $0.001 per structured call; single file → one call.
+    const runs = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(runs[0].cost_usd).toBeCloseTo(0.001, 9);
+    const trace = (await app.inject({ method: 'GET', url: `/runs/${runs[0].run_id}/trace` })).json();
+    expect(trace.stats.cost_usd).toBeCloseTo(0.001, 9);
+    expect(trace.log.some((l: { msg: string }) => l.msg.startsWith('Cost: $0.001000'))).toBe(true);
+
+    // A failed run has no cost: it must not turn the sum into null or add a fake 0.
+    await pg.handle.db.insert(t.agentRuns).values({ workspaceId, prId: pr.id, status: 'failed' });
+    // A second PR whose only run failed → unknown cost, not $0.
+    const [pr2] = await pg.handle.db
+      .insert(t.pullRequests)
+      .values({
+        workspaceId,
+        repoId: repo.id,
+        number: 483,
+        title: 'Failed only',
+        author: 'a',
+        branch: 'b',
+        base: 'main',
+        headSha: 'ffff',
+        additions: 1,
+        deletions: 0,
+        filesCount: 1,
+        status: 'needs_review',
+      })
+      .returning();
+    await pg.handle.db.insert(t.agentRuns).values({ workspaceId, prId: pr2!.id, status: 'failed' });
+
+    const list = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const byNumber = (n: number) => list.find((p: { number: number }) => p.number === n);
+    expect(byNumber(482).cost_usd).toBeCloseTo(0.001, 9);
+    expect(byNumber(483).cost_usd).toBeNull();
+    await app.close();
+  });
+
   it('dual-provider structured output: anthropic provider returns the same Review shape', async () => {
     const app = await appWith(REVIEW_FIXTURE, 'anthropic');
     const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);

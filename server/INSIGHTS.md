@@ -18,6 +18,8 @@ Entry: `- YYYY-MM-DD — <what, concrete> — <path + symbol> — <what to do>`
 
 ## Tool & Library Notes
 
+- 2026-11-20 — Drizzle `sum(col)` is typed and returned as `string | null` even for `double precision` (pg numeric aggregate) — `modules/pulls/routes.ts` list cost — convert with `Number()` after the null check, or the JSON ships `"0.001"`.
+
 ## Recurring Errors & Fixes
 
 ## Session Notes

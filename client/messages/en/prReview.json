@@ -24,7 +24,8 @@
     "comment": "Comment",
     "findingsCount": "{count} findings",
     "blockers": " · {count} blockers",
-    "prScore": "PR SCORE"
+    "prScore": "PR SCORE",
+    "costTitle": "Run cost · input→output tokens"
   },
   "panel": {
     "hideLowConfidence": "Hide low confidence",
@@ -92,6 +93,7 @@
       "size": "Size",
       "score": "Score",
       "status": "Status",
+      "cost": "Cost",
       "updated": "Updated"
     },
     "filesCount": "{count} files",

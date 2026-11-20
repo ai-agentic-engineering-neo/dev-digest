@@ -9,7 +9,7 @@
  * the flow. We add only light substring checks on top.
  *
  * Env:
- *   E2E_BASE_URL       web app origin (default http://localhost:3000)
+ *   E2E_BASE_URL       web app origin (default http://localhost:13000)
  *   AGENT_BROWSER_BIN  binary name/path (default "agent-browser")
  *   E2E_STEP_TIMEOUT   per-command timeout in ms (default 60000)
  *
@@ -36,7 +36,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const FLOWS_DIR = join(HERE, "flows");
 const RESULTS_DIR = join(HERE, "test-results");
 
-const BASE = process.env.E2E_BASE_URL ?? "http://localhost:3000";
+const BASE = process.env.E2E_BASE_URL ?? "http://localhost:13000";
 const BIN = process.env.AGENT_BROWSER_BIN ?? "agent-browser";
 const STEP_TIMEOUT = Number(process.env.E2E_STEP_TIMEOUT ?? 60_000);
 

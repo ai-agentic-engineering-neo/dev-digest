@@ -23,7 +23,7 @@ A flow lives in `flows/NN-name.flow.json`:
 }
 ```
 
-- `{BASE}` is replaced with `E2E_BASE_URL` (default `http://localhost:3000`).
+- `{BASE}` is replaced with `E2E_BASE_URL` (default `http://localhost:13000`).
 - Each `cmd` is passed verbatim to `agent-browser`. A non-zero exit fails the
   step and the flow — so `wait --text` / `wait --url` **are** the assertions
   (they time out and exit non-zero if the condition never holds).
@@ -74,7 +74,7 @@ Only safe if your dev DB contains *only* the seeded repo (see precondition
 above). Otherwise prefer the hermetic runner.
 
 ```sh
-./scripts/dev.sh          # Postgres + API :3001 + web :3000 (seeded)
+./scripts/dev.sh          # Postgres + API :13001 + web :13000 (seeded)
 cd e2e && npm install && npm test
 ```
 

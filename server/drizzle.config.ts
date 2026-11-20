@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { defineConfig } from 'drizzle-kit';
 
 const DATABASE_URL =
-  process.env.DATABASE_URL ?? 'postgres://devdigest:devdigest@localhost:5432/devdigest';
+  process.env.DATABASE_URL ?? 'postgres://devdigest:devdigest@localhost:55432/devdigest';
 
 export default defineConfig({
   schema: './src/db/schema.ts',

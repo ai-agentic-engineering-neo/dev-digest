@@ -101,12 +101,12 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-log "starting API on :3001 (server)"
+log "starting API on :13001 (server)"
 (cd server && pnpm dev) &
 SERVER_PID=$!
 
 if [ "$RUN_CLIENT" -eq 1 ]; then
-  log "starting web on :3000 (client) — Ctrl-C to stop both"
+  log "starting web on :13000 (client) — Ctrl-C to stop both"
   (cd client && pnpm dev)
 else
   log "API running (PID $SERVER_PID) — Ctrl-C to stop"

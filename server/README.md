@@ -18,7 +18,7 @@ swapped for mocks in tests.
   Zod contracts from `src/vendor/shared` (`@devdigest/shared`) double as route
   schemas via `fastify-type-provider-zod` — one definition drives request
   validation **and** response serialization.
-- **Run:** `pnpm dev` (`:3001`). **Migrate/seed:** `pnpm db:migrate`,
+- **Run:** `pnpm dev` (`:13001`). **Migrate/seed:** `pnpm db:migrate`,
   `pnpm db:seed`. **Test:** `pnpm test` (see [Testing](#testing)).
 - **No keys required to boot:** `loadConfig` (`src/platform/config.ts`) marks
   every secret optional; keys can also be set at runtime via Settings.
@@ -90,8 +90,8 @@ flowchart TB
 
 | Var | Default | Notes |
 |-----|---------|-------|
-| `DATABASE_URL` | `postgres://devdigest:devdigest@localhost:5432/devdigest` | required to migrate/serve |
-| `API_PORT` / `WEB_PORT` | `3001` / `3000` | API port; `WEB_PORT` also sets the allowed CORS origin |
+| `DATABASE_URL` | `postgres://devdigest:devdigest@localhost:55432/devdigest` | required to migrate/serve |
+| `API_PORT` / `WEB_PORT` | `13001` / `13000` | API port; `WEB_PORT` also sets the allowed CORS origin |
 | `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `OPENROUTER_API_KEY` | — | optional, per-provider; also settable via Settings UI |
 | `GITHUB_TOKEN` | — | optional; PAT with repo scope (`GITHUB_PAT` accepted as a fallback) |
 | `EMBEDDINGS_ENABLED` | `false` | memory/RAG embeddings (OpenAI); off → **zero** OpenAI calls |

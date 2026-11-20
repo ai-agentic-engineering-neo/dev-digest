@@ -1,7 +1,7 @@
 # Web end-to-end suite — the real stack + deterministic agent-browser flows.
 #
 # Boots exactly what scripts/dev.sh boots: Postgres (pgvector) in Docker, the
-# Fastify API on :3001 (migrated + seeded), and the Next.js app on :3000 built
+# Fastify API on :13001 (migrated + seeded), and the Next.js app on :13000 built
 # against that API. Then runs the e2e/ specs through the agent-browser CLI.
 #
 # No API keys: loadConfig() marks every secret optional, so the API boots and
@@ -31,9 +31,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  DATABASE_URL: postgres://devdigest:devdigest@localhost:5432/devdigest
-  NEXT_PUBLIC_API_BASE: http://localhost:3001
-  E2E_BASE_URL: http://localhost:3000
+  DATABASE_URL: postgres://devdigest:devdigest@localhost:55432/devdigest
+  NEXT_PUBLIC_API_BASE: http://localhost:13001
+  E2E_BASE_URL: http://localhost:13000
 
 jobs:
   e2e:
@@ -79,7 +79,7 @@ jobs:
         working-directory: reviewer-core
         run: npm ci
 
-      - name: Start API (:3001)
+      - name: Start API (:13001)
         working-directory: server
         run: |
           # tsx directly (not `pnpm start`): the committed package.json's start
@@ -88,24 +88,24 @@ jobs:
           nohup pnpm exec tsx src/server.ts > "$RUNNER_TEMP/api.log" 2>&1 &
           echo "waiting for API /health…"
           for i in $(seq 1 30); do
-            curl -fsS http://localhost:3001/health >/dev/null 2>&1 && { echo "api up"; break; }
+            curl -fsS http://localhost:13001/health >/dev/null 2>&1 && { echo "api up"; break; }
             sleep 2
           done
-          curl -fsS http://localhost:3001/health || { echo "::error::API never became healthy"; cat "$RUNNER_TEMP/api.log"; exit 1; }
+          curl -fsS http://localhost:13001/health || { echo "::error::API never became healthy"; cat "$RUNNER_TEMP/api.log"; exit 1; }
 
       # --- Web: build against the API, then serve in the background ---
-      - name: Build + start web (:3000)
+      - name: Build + start web (:13000)
         working-directory: client
         run: |
           pnpm install --frozen-lockfile
           pnpm build
           nohup pnpm start > "$RUNNER_TEMP/web.log" 2>&1 &
-          echo "waiting for web :3000…"
+          echo "waiting for web :13000…"
           for i in $(seq 1 30); do
-            curl -fsS http://localhost:3000 >/dev/null 2>&1 && { echo "web up"; break; }
+            curl -fsS http://localhost:13000 >/dev/null 2>&1 && { echo "web up"; break; }
             sleep 2
           done
-          curl -fsS http://localhost:3000 >/dev/null 2>&1 || { echo "::error::web never became reachable"; cat "$RUNNER_TEMP/web.log"; exit 1; }
+          curl -fsS http://localhost:13000 >/dev/null 2>&1 || { echo "::error::web never became reachable"; cat "$RUNNER_TEMP/web.log"; exit 1; }
 
       # --- agent-browser CLI (Rust + CDP) + Chrome for Testing ---
       - name: Install agent-browser

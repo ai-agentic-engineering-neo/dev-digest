@@ -11,9 +11,9 @@ dashboard screens.)
   `react-markdown`. UI primitives are vendored under `src/vendor/ui`
   (`@devdigest/ui`) and shared Zod contracts under `src/vendor/shared`
   (`@devdigest/shared`).
-- **API base:** `NEXT_PUBLIC_API_BASE` (default `http://localhost:3001`), used by
+- **API base:** `NEXT_PUBLIC_API_BASE` (default `http://localhost:13001`), used by
   `src/lib/api.ts`. Every data hook lives in `src/lib/hooks/*`.
-- **Run:** `pnpm dev` (`:3000`). **Test:** `pnpm test` (vitest + jsdom, fetch
+- **Run:** `pnpm dev` (`:13000`). **Test:** `pnpm test` (vitest + jsdom, fetch
   mocked — no API needed). **Typecheck:** `pnpm typecheck`.
 
 ## UI route map

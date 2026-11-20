@@ -1,9 +1,9 @@
-/* api.ts — typed fetch client for the F1 Fastify engine (localhost:3001).
+/* api.ts — typed fetch client for the F1 Fastify engine (localhost:13001).
    All hooks build on `apiFetch`. Errors are normalized to ApiError so the
    error-UX taxonomy (toast/inline/full-screen) can branch on status. */
 
 export const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:3001";
+  process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:13001";
 
 export class ApiError extends Error {
   status: number;

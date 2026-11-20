@@ -15,7 +15,7 @@ import { join, isAbsolute, resolve } from 'node:path';
 const EnvSchema = z.object({
   DATABASE_URL: z
     .string()
-    .default('postgres://devdigest:devdigest@localhost:5432/devdigest'),
+    .default('postgres://devdigest:devdigest@localhost:55432/devdigest'),
   // Memory/RAG embeddings run on OpenAI (text-embedding-3-small, 1536-dim — the
   // pgvector columns are locked to that). Default OFF so the app makes ZERO
   // OpenAI requests; set EMBEDDINGS_ENABLED=true to turn memory retrieval on.
@@ -26,7 +26,7 @@ const EnvSchema = z.object({
   // Note: even when on, sections only populate once the repo is indexed; an
   // unindexed repo degrades gracefully. Per-agent override: agents.repo_intel.
   REPO_INTEL_ENABLED: z.string().optional(),
-  API_PORT: z.coerce.number().int().default(3001),
+  API_PORT: z.coerce.number().int().default(13001),
   // S2 (security hardening) — the API has no authentication, so it
   // binds to loopback by default. Binding anything wider (e.g. 0.0.0.0 inside
   // a container) exposes every route to the network: only do it behind your
@@ -34,7 +34,7 @@ const EnvSchema = z.object({
   // API_ALLOWED_HOSTS or the Host check rejects them.
   API_HOST: z.string().min(1).default('127.0.0.1'),
   API_ALLOWED_HOSTS: z.string().optional(),
-  WEB_PORT: z.coerce.number().int().default(3000),
+  WEB_PORT: z.coerce.number().int().default(13000),
   DEVDIGEST_CLONE_DIR: z.string().optional(),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   // `.env` (and .env.example) ship `LOG_LEVEL=` empty; an empty string is not a

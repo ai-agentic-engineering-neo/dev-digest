@@ -136,7 +136,7 @@ export function Gallery() {
           <EmptyState icon="GitPullRequest" title="No pull requests" body="Refresh to sync from GitHub." cta="Add repo" />
         </div>
         <div style={s.w300}>
-          <ErrorState title="Engine unreachable" body="Is the API running on :3001?" onRetry={() => {}} />
+          <ErrorState title="Engine unreachable" body="Is the API running on :13001?" onRetry={() => {}} />
         </div>
         <div style={s.skeletonStack}>
           <Skeleton height={16} />

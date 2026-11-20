@@ -2,11 +2,12 @@
 
 Local-first AI pull-request review starter: import a PR, run an agent review, get grounded findings.
 
+- Before the first plan or edit of any task, run the `engineering-insights` skill: read root [INSIGHTS.md](INSIGHTS.md), then the `INSIGHTS.md` of every module the task touches.
 - Read when you need product purpose, architecture, roadmap or quick start: [README.md](README.md)
 
 ## Map
 
-Each module has its own `CLAUDE.md`, plus `docs/`, `specs/` and `INSIGHTS.md`.
+Each module has its own `CLAUDE.md`, plus `docs/`, `specs/` and `INSIGHTS.md`. Root `INSIGHTS.md` holds cross-module lessons only.
 
 | Path | What |
 |------|------|

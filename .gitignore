@@ -20,6 +20,7 @@ coverage/
 clones/
 playwright-report/
 test-results/
+.vscode/
 
 # emdash worktree config (local)
 .emdash.json

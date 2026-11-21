@@ -10,7 +10,7 @@ against one shared browser session by `run.ts`.
 
 ## How a flow works
 
-A spec lives in `specs/NN-name.flow.json`:
+A flow lives in `flows/NN-name.flow.json`:
 
 ```jsonc
 {

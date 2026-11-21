@@ -35,4 +35,5 @@ Zod 3.25 · Vitest 2.1 · Postgres 16 + pgvector (Docker)
 - Feature work → `<module>/specs/` first.
 - Deeper docs → `<module>/docs/` · [docs/](docs/) · agent prompts: [docs/agent-prompts/](docs/agent-prompts/)
 - Known pitfalls → `<module>/INSIGHTS.md` · [INSIGHTS.md](INSIGHTS.md)
-- After fixing a non-obvious bug, append one line to the relevant INSIGHTS.md.
+- After the user's first prompt and before any work, identify the module and read its INSIGHTS.md (root INSIGHTS.md for cross-module topics); name the 2–3 relevant entries.
+- At the end of a task run /engineering-insights: re-read first, add only significant insights not already recorded, otherwise write nothing. Never overwrite existing entries.

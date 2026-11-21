@@ -86,7 +86,7 @@ cd e2e && npm install && npm test
   `test:integration` scripts.
 - **Hermetic by default.** Reach for `src/adapters/mocks.ts` (MockLLMProvider,
   MockGitClient) rather than real network/keys.
-- **E2E specs are deterministic batch JSON** (`e2e/specs/*.flow.json`) using
+- **E2E flows are deterministic batch JSON** (`e2e/flows/*.flow.json`) using
   only `--url` / `--text` / `find` locators — never the AI `chat` command.
 - **CI is path-filtered per package.** Cross-package source aliases are encoded
   in each workflow's `paths:` (e.g. `reviewer-core/**` triggers `server-unit`

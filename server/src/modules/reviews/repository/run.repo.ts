@@ -64,6 +64,7 @@ export async function listRunsForPull(
     ran_at: run.ranAt ? run.ranAt.toISOString() : null,
     score: run.score,
     blockers: run.blockers,
+    cost_usd: run.costUsd ?? null,
   }));
 }
 
@@ -154,6 +155,8 @@ export async function completeAgentRun(
     blockers?: number | null;
     /** Failure reason (status='failed') / cancellation note. Null clears it. */
     error?: string | null;
+    /** USD cost from the review engine; null = unknown / not a done run. */
+    costUsd?: number | null;
   },
 ): Promise<void> {
   await db
@@ -168,6 +171,7 @@ export async function completeAgentRun(
       score: values.score ?? null,
       blockers: values.blockers ?? null,
       error: values.error ?? null,
+      costUsd: values.costUsd ?? null,
     })
     .where(eq(t.agentRuns.id, runId));
 }
@@ -181,6 +185,23 @@ export async function saveRunTrace(db: Db, runId: string, trace: RunTrace): Prom
 }
 
 export async function getRunTrace(db: Db, runId: string): Promise<RunTrace | undefined> {
-  const [row] = await db.select().from(t.runTraces).where(eq(t.runTraces.runId, runId));
-  return row ? (row.trace as RunTrace) : undefined;
+  const [row] = await db
+    .select({ trace: t.runTraces.trace, costUsd: t.agentRuns.costUsd })
+    .from(t.runTraces)
+    .leftJoin(t.agentRuns, eq(t.agentRuns.id, t.runTraces.runId))
+    .where(eq(t.runTraces.runId, runId));
+  if (!row) return undefined;
+  return withRunCost(row.trace as RunTrace, row.costUsd);
+}
+
+/**
+ * Response-only: `agent_runs.cost_usd` is the source of truth for a run's cost;
+ * traces stored before M1 have no `stats.cost_usd`. The stored jsonb is never
+ * rewritten.
+ */
+export function withRunCost(trace: RunTrace, costUsd: number | null | undefined): RunTrace {
+  return {
+    ...trace,
+    stats: { ...trace.stats, cost_usd: costUsd ?? trace.stats.cost_usd ?? null },
+  };
 }

@@ -28,6 +28,10 @@ export interface ReviewDto {
   model: string | null;
   grounding?: string | null;
   created_at: string;
+  /** Cost + tokens of the review's run (M1); null when unknown. */
+  cost_usd?: number | null;
+  tokens_in?: number | null;
+  tokens_out?: number | null;
   findings: ReviewDtoFinding[];
 }
 
@@ -56,6 +60,7 @@ export function reviewToDto(
   review: ReviewRow,
   findings: FindingRow[],
   agentName?: string | null,
+  run?: { costUsd: number | null; tokensIn: number | null; tokensOut: number | null } | null,
 ): ReviewDto {
   return {
     id: review.id,
@@ -69,6 +74,9 @@ export function reviewToDto(
     score: review.score,
     model: review.model,
     created_at: review.createdAt.toISOString(),
+    cost_usd: run?.costUsd ?? null,
+    tokens_in: run?.tokensIn ?? null,
+    tokens_out: run?.tokensOut ?? null,
     findings: findings.map(findingRowToDto),
   };
 }

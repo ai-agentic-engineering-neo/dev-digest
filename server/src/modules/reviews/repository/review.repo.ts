@@ -58,7 +58,7 @@ export async function insertFindings(
 export async function reviewsForPull(
   db: Db,
   prId: string,
-): Promise<{ review: ReviewRow; findings: FindingRow[] }[]> {
+): Promise<{ review: ReviewRow; findings: FindingRow[]; run: RunUsage | null }[]> {
   const reviews = await db
     .select()
     .from(t.reviews)
@@ -67,10 +67,33 @@ export async function reviewsForPull(
   if (reviews.length === 0) return [];
   const ids = reviews.map((r) => r.id);
   const findings = await db.select().from(t.findings).where(inArray(t.findings.reviewId, ids));
+  // Cost + tokens of each review's run (M1) — one IN-query, no N+1.
+  const runIds = reviews.map((r) => r.runId).filter((id): id is string => id != null);
+  const runs =
+    runIds.length > 0
+      ? await db
+          .select({
+            id: t.agentRuns.id,
+            costUsd: t.agentRuns.costUsd,
+            tokensIn: t.agentRuns.tokensIn,
+            tokensOut: t.agentRuns.tokensOut,
+          })
+          .from(t.agentRuns)
+          .where(inArray(t.agentRuns.id, runIds))
+      : [];
+  const runById = new Map(runs.map(({ id, ...usage }) => [id, usage]));
   return reviews.map((review) => ({
     review,
     findings: findings.filter((f) => f.reviewId === review.id),
+    run: (review.runId && runById.get(review.runId)) || null,
   }));
+}
+
+/** Usage of the run that produced a review. */
+export interface RunUsage {
+  costUsd: number | null;
+  tokensIn: number | null;
+  tokensOut: number | null;
 }
 
 export async function getReview(db: Db, reviewId: string): Promise<ReviewRow | undefined> {

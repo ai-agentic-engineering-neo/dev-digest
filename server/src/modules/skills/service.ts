@@ -8,7 +8,7 @@ import type {
   SkillVersion,
   SkillWithStats,
 } from '@devdigest/shared';
-import type { Tokenizer } from '../../adapters/tokenizer/index.js';
+import type { Tokenizer } from '../../domain/ports/tokenizer.js';
 import { ValidationError } from '../../platform/errors.js';
 // THE one project-context renderer, shared with the run executor/adhoc
 // service — never re-implement this formatting here (specs/09-project-

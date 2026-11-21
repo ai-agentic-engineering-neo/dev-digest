@@ -298,6 +298,66 @@ silently if `/ci-runs` grows a "View trace" affordance later.
 
 ## Tool & Library Notes
 
+### 2026-11-21 — React Flow nodes are unclickable (`pointer-events: none`) unless something makes them interactive
+
+`graph-canvas/GraphCanvas.tsx` disables `nodesDraggable`, `nodesConnectable` and
+`elementsSelectable`. With all three off and no `onNodeClick`, @xyflow/react
+sets `pointer-events: none` on every node wrapper (its internal check is
+`selectable || draggable || onClick || onMouseEnter || …`). So the `onClick`
+inside the custom `GraphNode` never fired in a real browser — while the jsdom
+tests passed, because `fireEvent.click` dispatches straight to the element and
+ignores CSS. The fix is `onNodeClick` on `<ReactFlow>`; GraphNode keeps only
+the keyboard handler (an extra onClick would call `onSelect` twice). Verify
+canvas interactivity in a real browser (agent-browser), not just RTL.
+
+Related: on a few-hundred-node graph `fitView` lands at ~0.05 zoom and panning
+is unbounded, so a few drags leave the viewport over empty space and the graph
+looks "broken". `translateExtent` from `layoutExtent()` (bounding box + margin),
+plus the `GraphToolbar` (search / fit all / fit changed / center selection),
+a `MiniMap` and `onlyRenderVisibleElements` fix it.
+
+### 2026-11-21 — Tailwind preflight strips Markdown typography; `.dd-md` in `vendor/ui/styles.css` restores it
+
+Lists had no bullets and `##` headings rendered as body text because Tailwind
+v4's preflight resets `list-style`, heading sizes and margins. The `Markdown`
+primitive now relies on the scoped `.dd-md` rules (headings, lists, task
+lists, tables, `pre`, quotes) instead of per-element inline styles. Its raw-HTML
+handling is opt-in per caller: the default shows HTML as inert text (the
+brief's AC-40 test depends on that), while `skipHtml` drops it. The PR
+description uses `skipHtml` so PR-template `<!-- … -->` hints vanish, plus
+`breaks` (remark-breaks), because GitHub renders a single newline in a PR body
+as a line break.
+
+### 2026-11-21 — next-intl does not fail a test on a missing message
+
+A component that calls `useTranslations("help")` under a test provider without
+that namespace only logs `IntlError: MISSING_MESSAGE` and renders the key, so
+the test still passes. After adding a namespace to a shared component
+(`HelpTip`, used inside many cards), add it to every test provider that
+renders it, then grep the vitest output for `MISSING_MESSAGE`.
+
+
+### 2026-11-19 — SPEC-18 browser smoke found five UI defects that 360 green unit tests missed
+
+All five were found by opening the real pages (`./scripts/dev.sh --no-seed` + `agent-browser`) on `burnjohn/quick-blog`.
+- **`MISSING_MESSAGE: shell.nav.graph`.** A key added to `vendor/ui/nav.ts` without a `messages/en/shell.json` entry only fails at runtime, because shell tests stub the nav. `src/components/app-shell/nav-i18n.test.ts` now pins every `NAV` key to `shell.nav.*`, and it was mutation-checked.
+- **React Flow `fitView` prop fits only once, on first init.** At that point ELK hasn't answered, so every node sits at (0,0) and the viewport zoomed to `maxZoom` (×2) on one node. `GraphCanvas` now has `FitOnLayout`, which re-fits when layout positions land. Two traps:
+  - React Flow copies the `nodes` prop into its store in its own effect, which runs AFTER a child's effect, so the call is deferred one `requestAnimationFrame`.
+  - `useNodesInitialized()` stays `false` for nodes with explicit `width`/`height`, so don't gate on it.
+- **`minZoom` 0.1 could not fit a 232-node PR graph.** ELK puts 123 changed nodes in one layer, about 5500 px tall, so the floor is now 0.02. Big PR graphs are still unreadable in the card; that is the open follow-up (full-screen view or ELK layer wrapping).
+- **The raw `<module>` pseudo-symbol leaked into labels.** It is the server's module-scope node (AC-26). `symbolDisplayName` (`graph-canvas/helpers.ts`, string `graph.moduleScope`) is now used by the canvas, `NodeDetail`, `BlastList` and `SymbolsPanel`.
+- **Role precedence put `hot` before `directory`,** so folders were announced as "hot file: components". In `ProjectGraphView/helpers.ts` `roleOf`, a directory now always keeps the `directory` role and gets hot/cycle as tags.
+- Use ICU plurals for counts: `{count, plural, one {# file} other {# files}}`. The tag rendered "1 files".
+
+### 2026-11-19 — `@xyflow/react` 13 in jsdom: nodes render only with explicit sizes, and edges never render
+
+- `components/graph-canvas` gives every node an explicit `width`/`height`. Without them React Flow treats nodes as unmeasured and hides them in jsdom, so `getByRole` finds nothing. `src/test/setup.ts` also stubs `DOMMatrixReadOnly` and `offsetWidth`/`offsetHeight` (800×600); `ResizeObserver` was already stubbed.
+- **Edges never appear in the DOM** under jsdom because handle positions can't be measured, so `getByText("×12")` on an edge label fails. Keep edge mapping in pure helpers and assert those: `edgeLabel`, `edgeStrokeWidth` (`graph-canvas/helpers.ts`), and `toCanvasEdges`, `visibleEdges`, `pathToChanged` (`ImpactGraph/helpers.ts`). The legend renders and can be asserted in the DOM.
+- `elkjs/lib/elk.bundled.js` runs fine in jsdom, so it needs no mock.
+- Use `GraphCanvasLazy` (`next/dynamic`, `ssr: false`) from pages so xyflow and ELK stay out of the main bundle.
+- The client has no `@testing-library/user-event`; graph tests use `fireEvent`.
+- New `messages/en/*.json` namespaces need no registration: `i18n/request.ts` loads every file in that folder. A component test still has to pass each namespace it uses to `NextIntlClientProvider`. `OverviewTab.test.tsx` broke when `BlastRadiusCard` started using `impactGraph` and `graph`.
+
 ### 2026-08-13 — `src/vendor/ui/primitives/Markdown.tsx` sets no `urlTransform` and no `img` override — it does not constrain link/image targets
 
 Confirmed while building the Onboarding Tour page

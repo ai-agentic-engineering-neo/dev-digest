@@ -1,14 +1,9 @@
 import { spawn } from 'node:child_process';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { join, relative, extname } from 'node:path';
-import type {
-  CodeIndex,
-  RepoRef,
-  CodeMatch,
-  CodeSymbol,
-  CodeReference,
-  GitClient,
-} from '@devdigest/shared';
+import type { RepoRef, CodeMatch, CodeSymbol, CodeReference } from '@devdigest/shared';
+import type { CodeIndex } from '../../domain/ports/code-index.js';
+import type { GitClient } from '../../domain/ports/git.js';
 import { extractSymbols, extractReferences } from './extract.js';
 
 /**

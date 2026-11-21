@@ -64,9 +64,19 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
   const service = new ReviewService(
     container.reviewRepo,
     container.agentsRepo,
-    new ReviewRunExecutor(container, container.reviewRepo, container.agentsRepo),
+    new ReviewRunExecutor(container.reviewRepo, {
+      agents: container.agentsRepo,
+      llm: (p) => container.llm(p),
+      runBus: container.runBus,
+      tokenizer: container.tokenizer,
+      git: container.git,
+      resolveIntent: (i) => container.intentService.resolve(i),
+      resolveProjectContext: (w, a, r) => container.projectContextService.resolveForRun(w, a, r),
+      repoIntel: container.repoIntel,
+      promptAssemblyDebugEnabled: container.config.promptAssemblyDebugEnabled,
+    }),
     container.runBus,
-    (workspaceId, pull, repo) => loadDiff(container, container.reviewRepo, workspaceId, pull, repo),
+    (workspaceId, pull, repo) => loadDiff(container.git, container.reviewRepo, workspaceId, pull, repo),
     (input) => container.intentService.resolve(input),
   );
   // AdhocReviewService declares its own narrow `AgentLookup`/`SkillLookup`/

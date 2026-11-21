@@ -8,7 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import { RepoIntelService } from '../src/modules/repo-intel/service.js';
 import type { FileRankFullRow, IndexerEdgeRow } from '../src/modules/repo-intel/repository.js';
-import type { Container } from '../src/platform/container.js';
+import type { RepoIntelDeps } from '../src/modules/repo-intel/deps.js';
 
 function buildService(opts: {
   fileRankRows?: FileRankFullRow[];
@@ -16,17 +16,15 @@ function buildService(opts: {
   rankedPaths?: Array<{ path: string; rank: number }>;
   repoIntelEnabled?: boolean;
 }): RepoIntelService {
-  const container = {
-    config: { repoIntelEnabled: opts.repoIntelEnabled ?? true },
-    db: {} as never,
-  } as unknown as Container;
-  const svc = new RepoIntelService(container);
-  (svc as unknown as { repo: Record<string, unknown> }).repo = {
+  const deps = {
+    repoIntelEnabled: opts.repoIntelEnabled ?? true,
+  } as unknown as RepoIntelDeps;
+  const repo = {
     getFileRankRows: async () => opts.fileRankRows ?? [],
     getEdges: async () => opts.edges ?? [],
     getRankedPaths: async () => opts.rankedPaths ?? [],
   };
-  return svc;
+  return new RepoIntelService(repo as never, deps);
 }
 
 describe('RepoIntelService.getWeightedRankedFiles', () => {

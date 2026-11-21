@@ -14,8 +14,8 @@ module.exports = {
       name: 'no-circular',
       comment:
         'Circular imports break module init order and defeat reasoning. ' +
-        '5 cycles exist today; 4 of them run through platform/container.ts and ' +
-        'disappear when no-container-in-services is fixed.',
+        '1 cycle remains today (agents/helpers.ts <-> agents/repository.ts); ' +
+        'the four that ran through platform/container.ts are gone.',
       severity: 'error',
       from: {},
       to: { circular: true },
@@ -30,6 +30,16 @@ module.exports = {
       to: { path: '^src/(adapters|platform|db|modules)/' },
     },
     {
+      name: 'pure-graph-core',
+      comment:
+        'modules/*/graph/ is a pure core (SPEC-18): no I/O, no infrastructure. ' +
+        'It takes parsed facts and a resolver instance as arguments; shared ' +
+        'fact types live in src/domain/module-facts.ts, not in the parser adapter.',
+      severity: 'error',
+      from: { path: '^src/modules/[^/]+/graph/' },
+      to: { path: '^src/(adapters|platform|db)/|^drizzle-orm|^node:(fs|child_process|net|http)' },
+    },
+    {
       name: 'routes-are-adapters',
       comment:
         'routes.ts is an HTTP adapter: parse, call one service method, respond. ' +
@@ -41,10 +51,12 @@ module.exports = {
     {
       name: 'no-container-in-services',
       comment:
-        'Inject the ports the service actually uses. Depending on the container ' +
-        'hides dependencies and points outward at the composition root.',
+        'Inject the ports the module actually uses. Depending on the container ' +
+        'hides dependencies and points outward at the composition root. Applies ' +
+        'to every module file except routes.ts (a composition point) and ' +
+        '_shared/ (route-layer helpers such as context.ts).',
       severity: 'error',
-      from: { path: '^src/modules/.+/service\\.ts$' },
+      from: { path: '^src/modules/(?!_shared/)(?!.*routes\\.ts$)' },
       to: { path: '^src/platform/container\\.ts$' },
     },
     {

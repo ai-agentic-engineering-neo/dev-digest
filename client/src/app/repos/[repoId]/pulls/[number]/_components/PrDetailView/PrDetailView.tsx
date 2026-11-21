@@ -189,6 +189,8 @@ export function PrDetailView() {
             repoFullName={repoFullName}
             headSha={pr.head_sha}
             onFocusFile={handleFocusFile}
+            section={search.get("section")}
+            onSectionChange={(sec) => setParam("section", sec === "brief" ? null : sec)}
           />
         )}
 

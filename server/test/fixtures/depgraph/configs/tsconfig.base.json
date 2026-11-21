@@ -1,0 +1,1 @@
+{ "extends": "./tsconfig.core.json", "compilerOptions": { "esModuleInterop": true } }

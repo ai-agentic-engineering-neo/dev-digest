@@ -1,6 +1,6 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import type { SecretsProvider, SecretKey } from '@devdigest/shared';
+import type { SecretsProvider, SecretKey } from '../../domain/ports/secrets.js';
 
 /**
  * LocalSecretsProvider — writable MVP secrets backend.

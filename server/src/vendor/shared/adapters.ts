@@ -1,10 +1,4 @@
 import { z } from 'zod';
-import type {
-  PrMeta,
-  PrDetail,
-  IssueMeta,
-  PrReviewComment,
-} from './contracts/platform.js';
 
 /**
  * Adapter interfaces. ALL external calls go behind these interfaces.
@@ -27,72 +21,8 @@ export const ModelInfo = z.object({
 });
 export type ModelInfo = z.infer<typeof ModelInfo>;
 
-export interface ChatMessage {
-  role: 'system' | 'user' | 'assistant';
-  content: string;
-}
-
-export interface CompletionRequest {
-  model: string;
-  messages: ChatMessage[];
-  temperature?: number;
-  maxTokens?: number;
-  timeoutMs?: number;
-}
-
-export interface CompletionResult {
-  text: string;
-  model: string;
-  tokensIn: number;
-  tokensOut: number;
-  costUsd: number | null;
-}
-
-/**
- * Structured-output request. `schema` is a Zod schema; `schemaName` names the
- * tool / json_schema. `maxRetries` controls reprompt-on-error.
- */
-export interface StructuredRequest<T> {
-  model: string;
-  schema: z.ZodType<T>;
-  schemaName: string;
-  messages: ChatMessage[];
-  temperature?: number;
-  maxTokens?: number;
-  timeoutMs?: number;
-  maxRetries?: number;
-  /**
-   * OpenRouter session id — groups related generations (e.g. all map-reduce
-   * chunks of one review) into a session in the OpenRouter dashboard. Sent as
-   * the `session_id` body field; ignored by providers that don't support it.
-   */
-  sessionId?: string;
-}
-
-export interface StructuredResult<T> {
-  data: T;
-  model: string;
-  tokensIn: number;
-  tokensOut: number;
-  costUsd: number | null;
-  raw: string;
-  attempts: number;
-}
-
-export interface LLMProvider {
-  readonly id: 'openai' | 'anthropic' | 'openrouter';
-  listModels(): Promise<ModelInfo[]>;
-  complete(req: CompletionRequest): Promise<CompletionResult>;
-  completeStructured<T>(req: StructuredRequest<T>): Promise<StructuredResult<T>>;
-  embed(texts: string[]): Promise<number[][]>;
-}
 
 // ---------- Embedder ----------
-export interface Embedder {
-  /** OpenAI text-embedding-3-small → 1536 dims. */
-  embed(texts: string[]): Promise<number[][]>;
-  readonly dims: number;
-}
 
 // ---------- GitHub (Octokit REST, thin) ----------
 export interface RepoRef {
@@ -174,59 +104,8 @@ export interface RunArtifact {
   expired: boolean;
 }
 
-export interface GitHubClient {
-  listPullRequests(repo: RepoRef): Promise<PrMeta[]>;
-  getPullRequest(repo: RepoRef, n: number): Promise<PrDetail>;
-  postReview(repo: RepoRef, n: number, review: GitHubReviewPayload): Promise<{ id: string }>;
-  /** List inline review comments on a PR (for the "Files changed" tab). */
-  listReviewComments(repo: RepoRef, n: number): Promise<PrReviewComment[]>;
-  /** Create one inline review comment (or reply) on a PR; returns the new comment. */
-  createReviewComment(
-    repo: RepoRef,
-    n: number,
-    input: CreateReviewCommentInput,
-  ): Promise<PrReviewComment>;
-  openPullRequest(repo: RepoRef, payload: OpenPrPayload): Promise<{ url: string }>;
-  /**
-   * Commit `files` onto `branch` as ONE atomic commit (Git Data API: blobs →
-   * tree → commit → ref). Creates the branch from `base` if missing, else
-   * fast-forwards it. Idempotent: re-publishing just adds a new commit.
-   */
-  commitFiles(repo: RepoRef, payload: CommitFilesPayload): Promise<{ branch: string }>;
-  /** The open PR whose head is `branch`, if any (so re-publish reuses it). */
-  findOpenPr(repo: RepoRef, branch: string): Promise<{ url: string } | null>;
-  getIssue(repo: RepoRef, n: number): Promise<IssueMeta>;
-  /** GET /user — for "posting as @user". */
-  currentLogin(): Promise<string>;
-  /**
-   * specs/14-export-to-ci.md — completed (and in-progress) runs of the
-   * workflow at `opts.workflowPath` (e.g. `.github/workflows/devdigest.yml`),
-   * newest first. Ingestion (AC-17) polls this to discover runs to pull back.
-   */
-  listWorkflowRuns(
-    repo: RepoRef,
-    opts: { workflowPath: string; perPage?: number },
-  ): Promise<WorkflowRun[]>;
-  /** Artifacts published by one workflow run (metadata only). */
-  listRunArtifacts(repo: RepoRef, runId: number): Promise<RunArtifact[]>;
-  /** Download one artifact's raw zip bytes. */
-  downloadArtifact(repo: RepoRef, artifactId: number): Promise<Uint8Array>;
-  /**
-   * NAMES only, never values — GitHub's own Actions-secrets API never
-   * returns a secret's value either way (AC-15, AC-64). Returns `null`,
-   * never an empty array or a thrown error, when the credential is not
-   * permitted to LIST secrets at all (a 403 on this endpoint — the common
-   * case for a fine-grained local-mode PAT lacking `Secrets: read`) — the
-   * caller must render that as "unknown", never as "missing" (P-7).
-   */
-  listRepoSecretNames(repo: RepoRef): Promise<string[] | null>;
-}
 
 // ---------- Git (simple-git, heavy) ----------
-export interface CloneOptions {
-  depth?: number;
-  branch?: string;
-}
 
 export interface DiffHunk {
   file: string;
@@ -243,45 +122,6 @@ export interface UnifiedDiff {
   files: { path: string; additions: number; deletions: number; hunks: DiffHunk[] }[];
 }
 
-export interface BlameLine {
-  line: number;
-  sha: string;
-  author: string;
-  date: string;
-  summary: string;
-}
-
-export interface GitCommit {
-  sha: string;
-  message: string;
-  author: string;
-  date: string;
-}
-
-export interface GitClient {
-  clone(repo: RepoRef, url: string, opts?: CloneOptions): Promise<{ path: string }>;
-  fetchPullHead(repo: RepoRef, n: number): Promise<void>;
-  /**
-   * Resync an already-cloned repo to the tip of `branch`: fetch from origin and
-   * advance the local working tree to `origin/<branch>`. Unlike `clone`'s bare
-   * `fetch` (which only moves remote-tracking refs), this moves local HEAD so a
-   * subsequent index reflects the latest code. Returns the new HEAD sha.
-   */
-  sync(repo: RepoRef, branch: string): Promise<{ head: string }>;
-  currentHead(repo: RepoRef): Promise<string>;
-  diff(repo: RepoRef, base: string, head: string): Promise<UnifiedDiff>;
-  /**
-   * Names of files changed between two commits (`git diff --name-only base..head`).
-   * Two-dot form is intentional — we want files reachable from `head` but not `base`,
-   * matching the incremental indexer's "what moved since last_indexed_sha?" semantics.
-   * Returns an empty array when the two refs resolve to the same commit.
-   */
-  diffNameOnly(repo: RepoRef, base: string, head: string): Promise<string[]>;
-  blame(repo: RepoRef, path: string): Promise<BlameLine[]>;
-  log(repo: RepoRef, path?: string): Promise<GitCommit[]>;
-  readFile(repo: RepoRef, path: string): Promise<string>;
-  clonePathFor(repo: RepoRef): string;
-}
 
 // ---------- CodeIndex (ripgrep + tree-sitter) ----------
 export interface CodeMatch {
@@ -303,11 +143,6 @@ export interface CodeReference {
   line: number;
 }
 
-export interface CodeIndex {
-  grep(repo: RepoRef, pattern: string): Promise<CodeMatch[]>;
-  symbols(repo: RepoRef): Promise<CodeSymbol[]>;
-  references(repo: RepoRef, symbol: string): Promise<CodeReference[]>;
-}
 
 // ---------- Auth (pluggable; MVP = LocalNoAuthProvider) ----------
 export interface AuthUser {
@@ -321,24 +156,32 @@ export interface AuthWorkspace {
   name: string;
 }
 
-export interface AuthProvider {
-  currentUser(req: unknown): Promise<AuthUser>;
-  currentWorkspace(req: unknown): Promise<AuthWorkspace>;
-}
 
 // ---------- Secrets (pluggable; MVP = LocalSecretsProvider) ----------
-export type SecretKey =
-  | 'OPENAI_API_KEY'
-  | 'ANTHROPIC_API_KEY'
-  | 'GITHUB_TOKEN'
-  | 'DATABASE_URL'
-  | (string & {});
 
-export interface SecretsProvider {
-  get(key: SecretKey): Promise<string | undefined>;
-  /**
-   * Persist a secret (BYO key entered via the UI). Optional — read-only
-   * providers (e.g. the env-only MVP backend) may omit it.
-   */
-  set?(key: SecretKey, value: string): Promise<void>;
-}
+// ---------- Compat shim (type-only) ----------
+// The port interfaces moved to `server/src/domain/ports` (SPEC-16). These
+// type-only re-exports keep reviewer-core / agent-runner (which alias
+// `@devdigest/shared` to this file) compiling. Source of truth is domain/ports;
+// shim removal is a follow-up to SPEC-16.
+/** @deprecated compat shim; import from `domain/ports/llm`. */
+export type {
+  ChatMessage,
+  CompletionRequest,
+  CompletionResult,
+  StructuredRequest,
+  StructuredResult,
+  LLMProvider,
+} from '../../domain/ports/llm.js';
+/** @deprecated compat shim; import from `domain/ports/embedder`. */
+export type { Embedder } from '../../domain/ports/embedder.js';
+/** @deprecated compat shim; import from `domain/ports/github`. */
+export type { GitHubClient } from '../../domain/ports/github.js';
+/** @deprecated compat shim; import from `domain/ports/git`. */
+export type { CloneOptions, BlameLine, GitCommit, GitClient } from '../../domain/ports/git.js';
+/** @deprecated compat shim; import from `domain/ports/code-index`. */
+export type { CodeIndex } from '../../domain/ports/code-index.js';
+/** @deprecated compat shim; import from `domain/ports/auth`. */
+export type { AuthProvider } from '../../domain/ports/auth.js';
+/** @deprecated compat shim; import from `domain/ports/secrets`. */
+export type { SecretKey, SecretsProvider } from '../../domain/ports/secrets.js';

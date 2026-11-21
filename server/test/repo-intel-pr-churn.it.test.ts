@@ -16,7 +16,7 @@ import { seed } from '../src/db/seed.js';
 import * as t from '../src/db/schema.js';
 import { RepoIntelRepository } from '../src/modules/repo-intel/repository.js';
 import { RepoIntelService } from '../src/modules/repo-intel/service.js';
-import type { Container } from '../src/platform/container.js';
+import type { RepoIntelDeps } from '../src/modules/repo-intel/deps.js';
 
 const hasDocker = await dockerAvailable();
 const d = hasDocker ? describe : describe.skip;
@@ -184,10 +184,10 @@ d('RepoIntelRepository — getPrChurn / getFileRankRows / getWeightedRankedFiles
         });
       }
 
-      const service = new RepoIntelService({
-        config: { repoIntelEnabled: true },
-        db: pg.handle.db,
-      } as unknown as Container);
+      const service = new RepoIntelService(
+        new RepoIntelRepository(pg.handle.db),
+        { repoIntelEnabled: true } as unknown as RepoIntelDeps,
+      );
 
       const first = await service.getWeightedRankedFiles(repoId, 10);
       const second = await service.getWeightedRankedFiles(repoId, 10);
@@ -207,10 +207,10 @@ d('RepoIntelRepository — getPrChurn / getFileRankRows / getWeightedRankedFiles
         { repoId, filePath: 'high.ts', pagerank: 0.5, hotness: 0.5, rank: 0.5, percentile: 90 },
         { repoId, filePath: 'mid.ts', pagerank: 0.3, hotness: 0.1, rank: 0.3, percentile: 50 },
       ]);
-      const service = new RepoIntelService({
-        config: { repoIntelEnabled: true },
-        db: pg.handle.db,
-      } as unknown as Container);
+      const service = new RepoIntelService(
+        new RepoIntelRepository(pg.handle.db),
+        { repoIntelEnabled: true } as unknown as RepoIntelDeps,
+      );
       const rows = await service.getWeightedRankedFiles(repoId, 10);
       expect(rows.map((r) => r.path)).toEqual(['high.ts', 'mid.ts', 'low.ts']);
     });
@@ -258,10 +258,10 @@ d('RepoIntelRepository — getPrChurn / getFileRankRows / getWeightedRankedFiles
         .insert(t.fileFacts)
         .values([{ repoId, filePath: 'src/cron.ts', endpoints: [], crons: ['*/5 * * * *'] }]);
 
-      const service = new RepoIntelService({
-        config: { repoIntelEnabled: true },
-        db: pg.handle.db,
-      } as unknown as Container);
+      const service = new RepoIntelService(
+        new RepoIntelRepository(pg.handle.db),
+        { repoIntelEnabled: true } as unknown as RepoIntelDeps,
+      );
       const rows = await service.getFileFacts(repoId, ['src/cron.ts']);
       expect(rows).toEqual([{ file: 'src/cron.ts', endpoints: [], crons: ['*/5 * * * *'] }]);
     });

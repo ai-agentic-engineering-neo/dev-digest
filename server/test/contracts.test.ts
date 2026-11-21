@@ -19,6 +19,7 @@ import {
   ProjectDocument,
   DocumentList,
   AttachedDocument,
+  ModelInfo,
 } from '@devdigest/shared';
 
 /**
@@ -351,5 +352,12 @@ describe('Project Context contracts (specs/09-project-context-folder.md)', () =>
         status: 'gone', // not a valid enum member
       }),
     ).toThrow();
+  });
+});
+
+describe('adapters.ts runtime exports (SPEC-16 AC-3)', () => {
+  it('ModelInfo stays a runtime zod value, not a type-only export', () => {
+    expect(ModelInfo.parse({ id: 'm', provider: 'openrouter' })).toEqual({ id: 'm', provider: 'openrouter' });
+    expect(ModelInfo.safeParse({ id: 'm', provider: 'nope' }).success).toBe(false);
   });
 });

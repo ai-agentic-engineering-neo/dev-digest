@@ -1,0 +1,8 @@
+{
+  "description": "lazy.lazyOld deleted (the head file on disk no longer has it)",
+  "file": "pkg-a/src/lazy.ts",
+  "oldSource": "export function lazyValue(): number {\n  return 7;\n}\n\nexport function lazyOld(): number {\n  return 8;\n}\n",
+  "patch": "--- a/pkg-a/src/lazy.ts\n+++ b/pkg-a/src/lazy.ts\n@@ -4,4 +3,0 @@ export function lazyValue(): number {\n-\n-export function lazyOld(): number {\n-  return 8;\n-}\n",
+  "expectedChanged": ["lazyOld"],
+  "expectedImpacted": []
+}

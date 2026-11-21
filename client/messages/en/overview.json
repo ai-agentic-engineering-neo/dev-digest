@@ -1,0 +1,38 @@
+{
+  "description": "Description",
+  "showMore": "Show full description",
+  "showLess": "Collapse description",
+  "sections": "Overview sections",
+  "card": {
+    "brief": "Risk brief",
+    "intent": "Intent",
+    "blast": "Blast radius",
+    "description": "Description"
+  },
+  "brief": {
+    "none": "Not generated yet",
+    "noneSub": "Generate a why + risk summary",
+    "generating": "Generating…",
+    "failed": "Last attempt failed",
+    "failedSub": "Open to retry",
+    "risks": "{risks, plural, one {# risk area} other {# risk areas}} · {focus, plural, one {# focus point} other {# focus points}}",
+    "stale": "May be out of date"
+  },
+  "intent": {
+    "none": "Not analyzed yet",
+    "noneSub": "Computed on the next review run",
+    "scope": "{inScope} in scope · {outOfScope} out"
+  },
+  "blast": {
+    "loading": "Loading…",
+    "reindexing": "Re-indexing…",
+    "none": "No cross-file impact",
+    "value": "{count, plural, one {# call site} other {# call sites}}",
+    "sub": "{symbols, plural, one {# symbol} other {# symbols}} · {files, plural, one {# file} other {# files}} · {tests, plural, one {# test} other {# tests}}"
+  },
+  "desc": {
+    "none": "No description",
+    "words": "{count, plural, one {# word} other {# words}}"
+  },
+  "glance": "At a glance"
+}

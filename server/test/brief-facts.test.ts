@@ -15,6 +15,7 @@ const PULL: BriefPullRow = {
   title: 'Fix rate limiting',
   body: 'Closes #7. See specs/07-blast-radius.md for background.',
   headSha: 'sha-head',
+  baseSha: 'sha-base',
   base: 'main',
   additions: 20,
   deletions: 5,
@@ -69,6 +70,42 @@ function githubResolved(issue: { number: number; title: string; body?: string | 
 }
 
 describe('assembleFacts', () => {
+  it('AC-37: forwards head/base sha, PR number and the per-file patches to getBlastRadius; filters <module>', async () => {
+    const seen: unknown[] = [];
+    const port = repoIntel({
+      changedSymbols: [
+        { file: 'src/a.ts', name: '<module>', kind: 'module' },
+        { file: 'src/a.ts', name: 'handler', kind: 'function' },
+      ],
+    });
+    const wrapped: RepoIntelPort = {
+      ...port,
+      getBlastRadius: async (id, paths, opts) => {
+        seen.push({ id, paths, opts });
+        return port.getBlastRadius(id, paths, opts);
+      },
+    };
+    const facts = await assembleFacts({
+      pull: PULL,
+      repo: REPO,
+      files: FILES,
+      repoIntel: wrapped,
+      github: githubResolved(null),
+      readSpec: async () => null,
+    });
+    expect(seen[0]).toEqual({
+      id: 'repo-1',
+      paths: ['src/a.ts'],
+      opts: {
+        headSha: 'sha-head',
+        baseSha: 'sha-base',
+        prNumber: 42,
+        files: [{ path: 'src/a.ts', patch: FILES[0]!.patch }],
+      },
+    });
+    expect(facts.blast.changedSymbols.map((s) => s.name)).toEqual(['handler']);
+  });
+
   it('AC-1: makes zero calls to anything LLM-shaped (structural — no LlmResolver in the input at all)', async () => {
     // No `LlmResolver` field exists on `AssembleFactsInput` — this is
     // enforced by the type signature, not just runtime behavior.

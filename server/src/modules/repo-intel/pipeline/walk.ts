@@ -45,6 +45,12 @@ export interface WalkStats {
 export interface WalkResult {
   /** Paths relative to `root`, separator-normalized to forward slashes. */
   files: string[];
+  /**
+   * `.json` files (same exclusions + size cap), never parsed. The module
+   * resolver needs them: `tsconfig.json`/`jsconfig.json` drive `paths`
+   * aliases, and `import data from './x.json'` must resolve to a real file.
+   */
+  jsonFiles: string[];
   stats: WalkStats;
 }
 
@@ -54,26 +60,29 @@ export interface WalkResult {
  */
 export async function walkClone(root: string): Promise<WalkResult> {
   const out: string[] = [];
+  const json: string[] = [];
   const stats: WalkStats = { totalCandidates: 0, skippedTooLarge: 0, bounded: 0 };
 
-  await walkDir(root, root, out, stats);
+  await walkDir(root, root, out, json, stats);
 
   // Stable order: alphabetical relpath. Keeps "first N when bounded" reproducible
   // across runs (until T3 replaces it with rank-driven selection).
   out.sort();
+  json.sort();
 
   if (out.length > MAX_INDEXED_FILES) {
     stats.bounded = out.length - MAX_INDEXED_FILES;
     out.length = MAX_INDEXED_FILES;
   }
 
-  return { files: out, stats };
+  return { files: out, jsonFiles: json, stats };
 }
 
 async function walkDir(
   root: string,
   dir: string,
   out: string[],
+  json: string[],
   stats: WalkStats,
 ): Promise<void> {
   let entries: Dirent[];
@@ -91,13 +100,23 @@ async function walkDir(
 
     if (entry.isDirectory()) {
       if (EXCLUDED_SET.has(name)) continue;
-      await walkDir(root, join(dir, name), out, stats);
+      await walkDir(root, join(dir, name), out, json, stats);
       continue;
     }
 
     if (!entry.isFile()) continue;
 
     const ext = extname(name).toLowerCase();
+    if (ext === '.json') {
+      try {
+        if ((await stat(join(dir, name))).size <= MAX_FILE_SIZE) {
+          json.push(relative(root, join(dir, name)).split(sep).join('/'));
+        }
+      } catch {
+        /* unreadable: the resolver just won't see it */
+      }
+      continue;
+    }
     if (!SUPPORTED_SET.has(ext)) continue;
 
     stats.totalCandidates += 1;

@@ -1,143 +1,230 @@
-/* BlastRadiusCard — specs/07-blast-radius.md. Own section on the Overview
-   tab, next to IntentCard (not a separate top-level tab — see the L04 design
-   mockup this was corrected against). Changed symbols → their resolved
-   cross-file callers → impacted HTTP endpoints/crons, read entirely off
-   repo-intel's persistent index (no LLM call). `file:line` links open the
-   exact GitHub line in a new tab — same pattern as FindingCard.tsx.
-   No in-app scroll target for callers (deliberately, per spec: this data has
-   nowhere to scroll TO within this tab). */
+/* BlastRadiusCard — specs/07-blast-radius.md + specs/18-dependency-graph.md.
+   Own section on the Overview tab, next to IntentCard. A `List | Graph` toggle
+   (default List) switches between the grouped caller list and the impact
+   graph; both read the same `/pulls/:id/blast` envelope off repo-intel's
+   persistent index (no LLM call). Non-blocking banners sit above either view.
+   `file:line` links open the exact GitHub line at the PR head SHA. */
 "use client";
 
-import React from "react";
-import { SectionLabel, Card, Badge, MonoLink, EmptyState, Skeleton, Icon } from "@devdigest/ui";
+import React, { useState } from "react";
+import { useTranslations } from "next-intl";
+import { SectionLabel, EmptyState, Icon, Skeleton, type IconName } from "@devdigest/ui";
+import { GraphBanner, LiveRegion, useAnnouncer } from "@/components/graph-canvas";
 import { useBlastRadius } from "@/lib/hooks/blast-radius";
-import { githubBlobUrl } from "@/lib/github-urls";
-import { STATUS_BANNER } from "./constants";
+import { HelpTip } from "@/components/help-tip";
+import { ImpactGraph } from "../ImpactGraph";
+import { BlastList } from "./BlastList";
+import { activeReindexing, blastStats, buildBanners } from "./helpers";
 import { s } from "./styles";
 
 interface BlastRadiusCardProps {
   prId: string | null;
   repoFullName?: string | null;
   headSha?: string | null;
+  /** Opens a changed file in the Files tab. */
+  onFocusFile?: (file: string, line: number | null) => void;
 }
 
-export function BlastRadiusCard({ prId, repoFullName, headSha }: BlastRadiusCardProps) {
-  const { data: envelope, isLoading } = useBlastRadius(prId);
+type View = "list" | "graph";
 
-  if (isLoading || !envelope) {
+export function BlastRadiusCard({ prId, repoFullName, headSha, onFocusFile }: BlastRadiusCardProps) {
+  const t = useTranslations("impactGraph");
+  const [view, setView] = useState<View>("list");
+  const [includeTypeOnly, setIncludeTypeOnly] = useState(true);
+  const { message, announce } = useAnnouncer();
+  const { data: envelope, isLoading, isError, isFetching, refetch } = useBlastRadius(prId, { includeTypeOnly });
+
+  const choose = (v: View) => {
+    setView(v);
+    announce(v === "list" ? t("view.announceList") : t("view.announceGraph"));
+  };
+
+  if (!envelope) {
     return (
       <section>
-        <SectionLabel icon="Target">Blast Radius</SectionLabel>
-        <div style={s.loadingStack}>
-          <Skeleton height={64} />
-          <Skeleton height={64} />
-        </div>
+        <SectionLabel icon="Target" info={<HelpTip topic="blast" />}>
+          {t("title")}
+        </SectionLabel>
+        {isError && !isLoading ? (
+          <div style={s.banner} role="alert">
+            <span>{t("state.error")}</span>
+            <button type="button" onClick={() => void refetch()}>
+              {t("state.retry")}
+            </button>
+          </div>
+        ) : (
+          <div style={s.loadingStack} role="status" aria-label={t("state.loading")}>
+            <Skeleton height={64} />
+            <Skeleton height={64} />
+          </div>
+        )}
       </section>
     );
   }
 
-  const { status, degradedReason, data: blast } = envelope;
-  const bannerCopy = STATUS_BANNER[status];
+  const { data: blast, graph } = envelope;
+  const reindexing = activeReindexing(envelope);
+  const banners = buildBanners(envelope, t);
 
-  const callerCount = blast.downstream.reduce((n, g) => n + g.callers.length, 0);
-  const endpointCount = new Set(blast.downstream.flatMap((g) => g.endpoints_affected)).size;
-  const cronCount = new Set(blast.downstream.flatMap((g) => g.crons_affected)).size;
+  const stats = blastStats(envelope);
+  const empty = blast.changed_symbols.length === 0 && (graph?.nodes.length ?? 0) === 0;
 
   return (
     <section>
-      <SectionLabel icon="Target">Blast Radius</SectionLabel>
+      <SectionLabel
+        icon="Target"
+        info={<HelpTip topic="blast" />}
+        right={
+          reindexing ? undefined : (
+            <div role="group" aria-label={t("view.label")} style={s.toggle}>
+              {(["list", "graph"] as const).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  aria-pressed={view === v}
+                  onClick={() => choose(v)}
+                  style={view === v ? s.toggleOn : s.toggleOff}
+                >
+                  {v === "list" ? <Icon.ListChecks size={13} aria-hidden /> : <Icon.Workflow size={13} aria-hidden />}
+                  {t(`view.${v}`)}
+                </button>
+              ))}
+            </div>
+          )
+        }
+      >
+        {t("title")}
+      </SectionLabel>
+      <LiveRegion message={reindexing ? t("banner.reindexing") : message} />
 
-      {blast.changed_symbols.length > 0 && (
-        <div style={s.statsRow}>
-          <Badge icon="Code">
-            {blast.changed_symbols.length} symbol{blast.changed_symbols.length === 1 ? "" : "s"}
-          </Badge>
-          <Badge icon="CornerDownRight">
-            {callerCount} caller{callerCount === 1 ? "" : "s"}
-          </Badge>
-          {endpointCount > 0 && (
-            <Badge icon="Globe">
-              {endpointCount} endpoint{endpointCount === 1 ? "" : "s"}
-            </Badge>
-          )}
-          {cronCount > 0 && (
-            <Badge icon="Clock">
-              {cronCount} cron{cronCount === 1 ? "" : "s"}
-            </Badge>
-          )}
-        </div>
-      )}
-
-      {bannerCopy && (
-        <div style={s.banner} role="status">
-          <Icon.AlertTriangle size={13} style={{ color: "var(--warn)", flexShrink: 0 }} />
-          <span>
-            {bannerCopy}
-            {degradedReason ? ` (${degradedReason})` : ""}
-          </span>
-        </div>
-      )}
-
-      {blast.changed_symbols.length === 0 ? (
-        <EmptyState
-          icon="Target"
-          title="No blast radius to show"
-          body="None of the changed files declare a function, method, or class this repo's index tracks."
-        />
-      ) : blast.downstream.length === 0 ? (
-        <div style={s.noCallers}>
-          {blast.changed_symbols.length} changed symbol(s) — no cross-file callers found in the index.
-        </div>
+      {reindexing ? (
+        <>
+          <GraphBanner conditions={banners} />
+          <div style={s.progress} role="status">
+            <strong>{t("state.reindexingTitle")}</strong>
+            <progress value={reindexing.done} max={Math.max(reindexing.total, 1)} />
+            <span>
+              {t("state.reindexingProgress", {
+                state: reindexing.state,
+                done: reindexing.done,
+                total: reindexing.total,
+              })}
+            </span>
+            <span>{t("state.reindexingBody")}</span>
+          </div>
+        </>
       ) : (
-        <div style={s.groupList}>
-          {blast.downstream.map((group) => (
-            <Card key={group.symbol} style={s.groupCard}>
-              <div style={s.groupHeader}>
-                <span className="mono" style={s.groupSymbol}>
-                  {group.symbol}
-                </span>
-                <Badge color="var(--text-secondary)">
-                  {group.callers.length} caller{group.callers.length === 1 ? "" : "s"}
-                </Badge>
-              </div>
+        <>
+          {blast.changed_symbols.length > 0 && (
+            <div style={s.statsRow}>
+              <StatTile
+                icon="Edit"
+                tone="var(--warn)"
+                value={stats.symbols}
+                label={t("tile.symbols")}
+                help="tileSymbols"
+                sub={t("tile.inFiles", { count: stats.changedFiles })}
+              />
+              <StatTile
+                icon="CornerDownRight"
+                tone="var(--accent-text)"
+                value={stats.callers}
+                label={t("tile.callers")}
+                help="tileCallSites"
+                sub={
+                  stats.typeOnlyCallers > 0
+                    ? t("tile.typeOnlyShare", { count: stats.typeOnlyCallers })
+                    : t("tile.allRuntime")
+                }
+              />
+              <StatTile
+                icon="FileText"
+                tone="var(--text-secondary)"
+                value={stats.callerFiles}
+                label={t("tile.files")}
+                help="tileFiles"
+                sub={t("tile.filesSub")}
+              />
+              <StatTile
+                icon="Globe"
+                tone="var(--ok)"
+                value={stats.entryPoints}
+                label={t("tile.entryPoints")}
+                help="tileEntryPoints"
+                sub={t("tile.entryPointsSub")}
+              />
+              <StatTile
+                icon="FlaskConical"
+                tone="var(--info)"
+                value={stats.tests}
+                label={t("tile.tests")}
+                help="tileTests"
+                sub={t("tile.testsSub")}
+              />
+            </div>
+          )}
 
-              <ul style={s.callerList}>
-                {group.callers.map((c, i) => (
-                  <li key={`${c.file}:${c.line}:${i}`} style={s.callerRow}>
-                    <span style={s.callerLinkWrap} title={`${c.file}:${c.line}`}>
-                      <MonoLink
-                        href={
-                          repoFullName && headSha
-                            ? githubBlobUrl(repoFullName, headSha, c.file, c.line, c.line)
-                            : undefined
-                        }
-                      >
-                        {c.file}:{c.line}
-                      </MonoLink>
-                    </span>
-                    <span style={s.callerSymbol}>{c.name}</span>
-                  </li>
-                ))}
-              </ul>
+          {banners.length > 0 && (
+            <div style={s.bannerWrap}>
+              <GraphBanner conditions={banners} />
+            </div>
+          )}
 
-              {(group.endpoints_affected.length > 0 || group.crons_affected.length > 0) && (
-                <div style={s.factsRow}>
-                  {group.endpoints_affected.map((e) => (
-                    <Badge key={e} icon="Globe" color="var(--accent-text)" bg="var(--accent-bg)">
-                      {e}
-                    </Badge>
-                  ))}
-                  {group.crons_affected.map((cron) => (
-                    <Badge key={cron} icon="Clock" color="var(--text-secondary)">
-                      {cron}
-                    </Badge>
-                  ))}
-                </div>
-              )}
-            </Card>
-          ))}
-        </div>
+          {empty ? (
+            <EmptyState
+              icon="Target"
+              title={t("state.emptyTitle")}
+              body={envelope.index?.lowConfidence ? t("state.emptyLowConfidence") : t("state.emptyFull")}
+            />
+          ) : view === "graph" && graph ? (
+            <ImpactGraph
+              graph={graph}
+              repoFullName={repoFullName}
+              headSha={headSha}
+              includeTypeOnly={includeTypeOnly}
+              onIncludeTypeOnlyChange={setIncludeTypeOnly}
+              isUpdating={isFetching}
+              onFocusFile={onFocusFile}
+            />
+          ) : blast.downstream.length === 0 && !(graph?.entryPoints.items.length || graph?.tests.items.length) ? (
+            <div style={s.noCallers}>{t("state.noCallers", { count: blast.changed_symbols.length })}</div>
+          ) : (
+            <BlastList envelope={envelope} repoFullName={repoFullName} headSha={headSha} onFocusFile={onFocusFile} />
+          )}
+        </>
       )}
     </section>
+  );
+}
+
+function StatTile({
+  icon,
+  tone,
+  value,
+  label,
+  sub,
+  help,
+}: {
+  icon: IconName;
+  tone: string;
+  value: number;
+  label: string;
+  sub: string;
+  /** help.json topic explaining the metric. */
+  help: string;
+}) {
+  const I = Icon[icon];
+  return (
+    <div style={s.tile}>
+      <div style={s.tileHead}>
+        <I size={13} style={{ color: tone }} aria-hidden />
+        <span>{label}</span>
+        <HelpTip topic={help} size={12} />
+      </div>
+      <div className="tnum" style={s.tileValue}>
+        {value}
+      </div>
+      <div style={s.tileSub}>{sub}</div>
+    </div>
   );
 }

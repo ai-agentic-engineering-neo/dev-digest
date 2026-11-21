@@ -1,5 +1,7 @@
-import type { FeatureModelChoice, GitHubClient, LLMProvider, Provider as ProviderId } from '@devdigest/shared';
-import type { Tokenizer } from '../../adapters/tokenizer/index.js';
+import type { FeatureModelChoice, Provider as ProviderId } from '@devdigest/shared';
+import type { GitHubClient } from '../../domain/ports/github.js';
+import type { LLMProvider } from '../../domain/ports/llm.js';
+import type { Tokenizer } from '../../domain/ports/tokenizer.js';
 
 /**
  * Narrow local ports (`server/LEARNINGS.md`'s local-port rule) — this module
@@ -16,6 +18,8 @@ export interface RepoIntelBlastChangedSymbol {
   file: string;
   name: string;
   kind: string;
+  /** Removed by the PR (v3 blast); absent on legacy results. */
+  deleted?: boolean;
 }
 
 export interface RepoIntelBlastCallerRow {
@@ -39,6 +43,15 @@ export interface RepoIntelBlastResult {
   reason?: string;
 }
 
+/** Shape copied from `repo-intel`'s `BlastRadiusOpts` (not imported): the PR's
+ *  diff so changed symbols are hunk-intersecting rather than whole-file. */
+export interface RepoIntelBlastOpts {
+  headSha: string | null;
+  baseSha: string | null;
+  prNumber: number | null;
+  files: Array<{ path: string; patch?: string | null }>;
+}
+
 export interface RepoIntelIndexState {
   status: string;
   reason?: string;
@@ -49,7 +62,11 @@ export interface RepoIntelIndexState {
 }
 
 export interface RepoIntelPort {
-  getBlastRadius(repoId: string, changedFiles: string[]): Promise<RepoIntelBlastResult>;
+  getBlastRadius(
+    repoId: string,
+    changedFiles: string[],
+    opts?: RepoIntelBlastOpts,
+  ): Promise<RepoIntelBlastResult>;
   getIndexState(repoId: string): Promise<RepoIntelIndexState>;
 }
 

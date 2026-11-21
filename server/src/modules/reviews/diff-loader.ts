@@ -1,7 +1,6 @@
-import type { Container } from '../../platform/container.js';
+import type { GitClient } from '../../domain/ports/git.js';
 import type { UnifiedDiff } from '@devdigest/shared';
 import { parseUnifiedDiff } from '../../adapters/git/diff-parser.js';
-import * as schema from '../../db/schema.js';
 import type { ReviewRepository, PullRow } from './repository.js';
 
 /**
@@ -10,14 +9,14 @@ import type { ReviewRepository, PullRow } from './repository.js';
  * patches (so the reviewer works even before a clone completes / in tests).
  */
 export async function loadDiff(
-  container: Container,
-  repo: ReviewRepository,
+  git: Pick<GitClient, 'diff'>,
+  repo: Pick<ReviewRepository, 'getPrFiles'>,
   workspaceId: string,
   pull: PullRow,
-  repoRow: typeof schema.repos.$inferSelect,
+  repoRow: { owner: string; name: string },
 ): Promise<UnifiedDiff> {
   try {
-    const diff = await container.git.diff(
+    const diff = await git.diff(
       { owner: repoRow.owner, name: repoRow.name },
       pull.base,
       pull.headSha,
@@ -30,7 +29,7 @@ export async function loadDiff(
 }
 
 /** Reconstruct a UnifiedDiff from persisted pr_files patches. */
-export async function diffFromPrFiles(repo: ReviewRepository, prId: string): Promise<UnifiedDiff> {
+export async function diffFromPrFiles(repo: Pick<ReviewRepository, 'getPrFiles'>, prId: string): Promise<UnifiedDiff> {
   const files = await repo.getPrFiles(prId);
   const parts: string[] = [];
   for (const f of files) {

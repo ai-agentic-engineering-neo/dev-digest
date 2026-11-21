@@ -1,7 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
-import type { PrMeta, PrDetail, GitHubClient, PrReviewComment } from '@devdigest/shared';
+import type { PrMeta, PrDetail, PrReviewComment } from '@devdigest/shared';
+import type { GitHubClient } from '../../domain/ports/github.js';
 import { PrCommentInput } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
 import { getContext } from '../_shared/context.js';
@@ -55,6 +56,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
               branch: pr.branch,
               base: pr.base,
               headSha: pr.head_sha,
+              baseSha: pr.base_sha ?? null,
               additions: pr.additions,
               deletions: pr.deletions,
               filesCount: pr.files_count,
@@ -67,6 +69,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
               set: {
                 title: pr.title,
                 headSha: pr.head_sha,
+                baseSha: pr.base_sha ?? null,
                 status: pr.status,
                 updatedAt: pr.updated_at ? new Date(pr.updated_at) : null,
               },
@@ -246,6 +249,8 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
             additions: f.additions,
             deletions: f.deletions,
             patch: f.patch ?? null,
+            status: f.status ?? null,
+            previousPath: f.previous_filename ?? null,
           })),
         );
       }
@@ -265,6 +270,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         .update(t.pullRequests)
         .set({
           body: detail.body ?? null,
+          baseSha: detail.base_sha ?? null,
           // Diff stats aren't on GitHub's PR-list payload — backfill them from
           // the detail fetch so the Pull Requests list shows real size/files.
           additions: detail.additions,

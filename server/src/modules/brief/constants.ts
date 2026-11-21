@@ -21,8 +21,13 @@ import { RiskKind } from '@devdigest/shared';
 export const BRIEF_INPUT_TOKEN_BUDGET = 8000;
 
 /** Passed as `maxTokens` on the one `StructuredRequest` — two short
- *  paragraphs, ≤6 risks, ≤5 focus entries. */
-export const BRIEF_MAX_OUTPUT_TOKENS = 1500;
+ *  paragraphs, ≤6 risks, ≤5 focus entries. Was 1500: a real PR (85 files)
+ *  produced ~2.4k chars of JSON before the cap cut it mid-string, so every
+ *  attempt failed as "not valid JSON" and nothing was ever persisted. Reasoning
+ *  models on OpenRouter also count hidden reasoning against this cap, so it
+ *  needs real headroom; it is a ceiling, not a target (billing is per token
+ *  actually produced). */
+export const BRIEF_MAX_OUTPUT_TOKENS = 6000;
 
 // --- Output bounds (AC-14, enforced deterministically per Q5) --------------
 

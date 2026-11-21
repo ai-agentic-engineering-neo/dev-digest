@@ -1,140 +1,216 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
+import { render, screen, cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import * as hooks from "@/lib/hooks/blast-radius";
+import { NextIntlClientProvider } from "next-intl";
+import { api } from "@/lib/api";
 import type { BlastRadiusResponse } from "@/lib/hooks/blast-radius";
+import impactMessages from "../../../../../../../../messages/en/impactGraph.json";
+import helpMessages from "../../../../../../../../messages/en/help.json";
+import graphMessages from "../../../../../../../../messages/en/graph.json";
 import { BlastRadiusCard } from "./BlastRadiusCard";
 
+vi.mock("@/lib/api", () => ({ api: { get: vi.fn() } }));
+const get = vi.mocked(api.get);
+
+beforeEach(() => get.mockReset());
 afterEach(cleanup);
 
-function renderWithProviders(ui: React.ReactElement) {
-  const qc = new QueryClient();
-  return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
+function renderCard() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={qc}>
+      <NextIntlClientProvider locale="en" messages={{ impactGraph: impactMessages, graph: graphMessages, help: helpMessages }}>
+        <BlastRadiusCard prId="pr1" repoFullName="acme/app" headSha="abc123" />
+      </NextIntlClientProvider>
+    </QueryClientProvider>,
+  );
 }
 
-function mockBlastRadius(data: BlastRadiusResponse | undefined, isLoading = false) {
-  vi.spyOn(hooks, "useBlastRadius").mockReturnValue({
-    data,
-    isLoading,
-    isError: false,
-  } as unknown as ReturnType<typeof hooks.useBlastRadius>);
+const trunc = { truncated: false, nodesDropped: 0, edgesDropped: 0, totalsCapped: false, maxDepth: 3, maxNodes: 100, maxEdges: 200 };
+const overlay = { staleOverlay: false, overlayDegraded: false, degradedFiles: [], degradedCount: 0, baseSha: "base111", headSha: "abc123", indexedSha: "base111" };
+
+function envelope(over: Partial<BlastRadiusResponse> = {}): BlastRadiusResponse {
+  return {
+    status: "full",
+    data: {
+      changed_symbols: [{ name: "core", file: "src/core.ts", kind: "function" }, { name: "gone", file: "src/gone.ts", kind: "function" }],
+      downstream: [
+        {
+          symbol: "core",
+          callers: [
+            { name: "svc", file: "src/svc.ts", line: 7, rank: 1 },
+            { name: "Props", file: "src/types.ts", line: 3, rank: 0, type_only: true },
+          ],
+          endpoints_affected: ["GET /x"],
+          crons_affected: [],
+        },
+      ],
+    },
+    index: { status: "full", indexedSha: "base111", lowConfidence: false },
+    overlay,
+    graph: {
+      nodes: [
+        { id: "src/core.ts#core", kind: "symbol", name: "core", path: "src/core.ts", role: "changed", depth: 0, symbolKind: "function" },
+        { id: "src/gone.ts#gone", kind: "symbol", name: "gone", path: "src/gone.ts", role: "changed", depth: 0, deleted: true },
+        { id: "src/svc.ts#svc", kind: "symbol", name: "svc", path: "src/svc.ts", role: "impacted", depth: 1, symbolKind: "function" },
+        { id: "src/api.ts", kind: "file", name: "api.ts", path: "src/api.ts", role: "entry_point", depth: 2, entryLabel: "GET /x" },
+      ],
+      edges: [
+        { from: "src/svc.ts#svc", to: "src/core.ts#core", kind: "call", confidence: "exact", typeOnly: false, line: 7 },
+        { from: "src/api.ts", to: "src/svc.ts#svc", kind: "call", confidence: "inferred", typeOnly: false },
+      ],
+      truncation: trunc,
+      entryPoints: { items: [{ path: "src/api.ts", type: "endpoint", label: "GET /x", depth: 2 }], total: 1 },
+      tests: { items: [{ path: "src/core.test.ts", depth: 1 }], total: 3 },
+    },
+    ...over,
+  };
 }
 
-describe("BlastRadiusCard (specs/07-blast-radius.md)", () => {
-  it("shows the standard EmptyState when there are no changed symbols", () => {
-    mockBlastRadius({
-      status: "full",
-      data: { changed_symbols: [], downstream: [] },
-    });
-    renderWithProviders(<BlastRadiusCard prId="pr1" />);
-    expect(screen.getByText("No blast radius to show")).toBeInTheDocument();
+/** A call-site chip: text `L7`, accessible name `file:line`. */
+const callSite = (name = "src/svc.ts:7") => screen.findByRole("link", { name });
+
+describe("BlastRadiusCard", () => {
+  it("defaults to List with stat tiles, file-grouped callers, entry points and tests; toggles to Graph and back", async () => {
+    get.mockResolvedValue(envelope());
+    renderCard();
+
+    expect(await callSite()).toHaveAttribute("href", "https://github.com/acme/app/blob/abc123/src/svc.ts#L7");
+    expect(await callSite("src/types.ts:3")).toHaveTextContent("L3");
+    const listBtn = screen.getByRole("button", { name: "List" });
+    expect(listBtn).toHaveAttribute("aria-pressed", "true");
+    // stat tiles
+    expect(screen.getByText("Changed symbols")).toBeInTheDocument();
+    expect(screen.getByText("1 type-only")).toBeInTheDocument();
+    // a file whose every call site is type-only is tagged as such
+    expect(screen.getByText("type-only")).toBeInTheDocument();
+    expect(screen.getAllByText("Entry points")).toHaveLength(2); // stat tile + list card
+    expect(screen.getAllByText("GET /x").length).toBeGreaterThan(0);
+    expect(screen.getByTitle("src/core.test.ts")).toHaveTextContent("src/core.test.ts");
+    expect(screen.getByText("+2 more")).toBeInTheDocument();
+    expect(screen.getByText("core")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Graph" }));
+    expect(screen.getByRole("button", { name: "Graph" })).toHaveAttribute("aria-pressed", "true");
+    expect(listBtn).toHaveAttribute("aria-pressed", "false");
+    expect(await screen.findByRole("region", { name: "PR impact graph" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByText("Showing graph view").length).toBeGreaterThan(0));
+
+    fireEvent.click(screen.getByRole("button", { name: "List" }));
+    expect(await callSite()).toBeInTheDocument();
   });
 
-  it("shows a distinct 'no callers' message when symbols changed but none have callers", () => {
-    mockBlastRadius({
-      status: "full",
-      data: {
-        changed_symbols: [{ name: "helper", file: "src/utils/helper.ts", kind: "function" }],
-        downstream: [],
-      },
-    });
-    renderWithProviders(<BlastRadiusCard prId="pr1" />);
-    expect(
-      screen.getByText("1 changed symbol(s) — no cross-file callers found in the index."),
-    ).toBeInTheDocument();
-    expect(screen.queryByText("No blast radius to show")).not.toBeInTheDocument();
+  it("list: groups collapse/expand and the filter narrows callers by file", async () => {
+    get.mockResolvedValue(envelope());
+    renderCard();
+    await callSite();
+
+    const header = screen.getByRole("button", { name: /core/, expanded: true });
+    fireEvent.click(header);
+    expect(header).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("link", { name: "src/svc.ts:7" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Expand all" }));
+    expect(await callSite()).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "Filter by symbol or file…" }), { target: { value: "types" } });
+    expect(await callSite("src/types.ts:3")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "src/svc.ts:7" })).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "nope" } });
+    expect(screen.getByText("Nothing matches “nope”.")).toBeInTheDocument();
   });
 
-  it("renders a stats row summarizing symbols/callers/endpoints/crons", () => {
-    mockBlastRadius({
-      status: "full",
-      data: {
-        changed_symbols: [{ name: "helper", file: "src/utils/helper.ts", kind: "function" }],
-        downstream: [
-          {
-            symbol: "helper",
-            callers: [{ name: "handler", file: "src/api/route.ts", line: 10, rank: 5 }],
-            endpoints_affected: ["GET /x"],
-            crons_affected: ["nightly-job"],
-          },
-        ],
-      },
-    });
-    renderWithProviders(<BlastRadiusCard prId="pr1" />);
-    expect(screen.getByText("1 symbol")).toBeInTheDocument();
-    // "1 caller" appears twice: the stats row AND the per-group caller-count badge.
-    expect(screen.getAllByText("1 caller")).toHaveLength(2);
-    expect(screen.getByText("1 endpoint")).toBeInTheDocument();
-    expect(screen.getByText("1 cron")).toBeInTheDocument();
-  });
+  it("graph: selecting a node shows detail with a head-SHA GitHub link; filters hide inferred and re-query without type-only", async () => {
+    get.mockResolvedValue(envelope());
+    renderCard();
+    fireEvent.click(await screen.findByRole("button", { name: "Graph" }));
 
-  it("renders downstream groups with caller file:line links and impacted endpoints/crons", () => {
-    mockBlastRadius({
-      status: "full",
-      data: {
-        changed_symbols: [{ name: "helper", file: "src/utils/helper.ts", kind: "function" }],
-        downstream: [
-          {
-            symbol: "helper",
-            callers: [{ name: "handler", file: "src/api/route.ts", line: 10, rank: 5 }],
-            endpoints_affected: ["GET /x"],
-            crons_affected: ["nightly-job"],
-          },
-        ],
-      },
-    });
-    renderWithProviders(
-      <BlastRadiusCard prId="pr1" repoFullName="acme/app" headSha="abc123" />,
-    );
-
-    expect(screen.getByText("helper")).toBeInTheDocument();
-    const link = screen.getByText("src/api/route.ts:10").closest("a");
-    expect(link).toHaveAttribute(
+    expect(await screen.findByText(/Click any node/)).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: /impacted: svc/ }));
+    const detail = await screen.findByRole("complementary", { name: "Node details" });
+    expect(within(detail).getAllByText("svc").length).toBeGreaterThan(0);
+    expect(within(detail).getByText("function")).toBeInTheDocument();
+    expect(within(detail).getByText("impacted")).toBeInTheDocument();
+    expect(within(detail).getByText("1 hop from the changed code")).toBeInTheDocument();
+    expect(within(detail).getByRole("link", { name: "src/svc.ts:7" })).toHaveAttribute(
       "href",
-      "https://github.com/acme/app/blob/abc123/src/api/route.ts#L10",
+      "https://github.com/acme/app/blob/abc123/src/svc.ts#L7",
     );
-    expect(link).toHaveAttribute("target", "_blank");
-    expect(screen.getByText("GET /x")).toBeInTheDocument();
-    expect(screen.getByText("nightly-job")).toBeInTheDocument();
+    // neighbours in both directions + the chain to changed code
+    expect(within(detail).getByText("Used by (1)")).toBeInTheDocument();
+    expect(within(detail).getByText("Depends on (1)")).toBeInTheDocument();
+    expect(within(detail).getByText("Path to changed code")).toBeInTheDocument();
+
+    // clicking a neighbour selects it
+    fireEvent.click(within(detail).getByRole("button", { name: /api\.ts/ }));
+    await waitFor(() => expect(within(detail).getByText("entry point")).toBeInTheDocument());
+    expect(within(detail).getByText("GET /x")).toBeInTheDocument();
+
+    // Esc clears the selection
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(await screen.findByText(/Click any node/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /impacted: svc/ }));
+
+    // hide inferred: entry node only connected via the inferred edge disappears
+    expect(screen.getByRole("button", { name: /entry point: api.ts/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Hide inferred edges" }));
+    expect(screen.queryByRole("button", { name: /entry point: api.ts/ })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Show type-only edges" }));
+    await waitFor(() => expect(get).toHaveBeenLastCalledWith("/pulls/pr1/blast?include_type_only=false"));
   });
 
-  it("renders a distinct non-blocking banner for a 'partial' index, without hiding the real data", () => {
-    mockBlastRadius({
-      status: "partial",
-      data: {
-        changed_symbols: [{ name: "helper", file: "src/utils/helper.ts", kind: "function" }],
-        downstream: [
-          {
-            symbol: "helper",
-            callers: [{ name: "handler", file: "src/api/route.ts", line: 10, rank: 5 }],
-            endpoints_affected: [],
-            crons_affected: [],
-          },
-        ],
-      },
-    });
-    renderWithProviders(<BlastRadiusCard prId="pr1" />);
-    expect(screen.getByRole("status")).toHaveTextContent(/partially built/i);
-    expect(screen.getByText("helper")).toBeInTheDocument();
+  it("shows every non-blocking banner with counts", async () => {
+    const base = envelope();
+    get.mockResolvedValue(
+      envelope({
+        status: "partial",
+        overlay: { ...overlay, staleOverlay: true, overlayDegraded: true, degradedCount: 4, degradedFiles: ["a.ts"], indexedSha: "1234567890" },
+        index: { status: "partial", indexedSha: "1234567890", lowConfidence: true, coverage: { value: { resolved: 8, total: 10 }, type: { resolved: 5, total: 10 }, unresolvedBySpecifier: 2, tsconfigFailures: [], inferredShare: 0.1 } },
+        graph: { ...base.graph!, truncation: { ...trunc, truncated: true, nodesDropped: 12, edgesDropped: 30 } },
+      }),
+    );
+    renderCard();
+
+    const notices = await screen.findByRole("region", { name: "Graph notices" });
+    expect(notices).toHaveTextContent("truncated");
+    expect(notices).toHaveTextContent("nodes hidden: 12");
+    expect(notices).toHaveTextContent("only partially built");
+    expect(notices).toHaveTextContent("built at 1234567 but the PR branches off base111");
+    expect(notices).toHaveTextContent("4 changed files could not be analysed");
+    expect(notices).toHaveTextContent("Low-confidence index");
+    expect(notices).toHaveTextContent("value imports resolved (10): 8");
+    expect(await callSite()).toBeInTheDocument(); // results still shown
   });
 
-  it("renders a DIFFERENT banner for a 'degraded' index than for 'partial'", () => {
-    mockBlastRadius({
-      status: "degraded",
-      degradedReason: "no_data",
-      data: { changed_symbols: [], downstream: [] },
-    });
-    renderWithProviders(<BlastRadiusCard prId="pr1" />);
-    expect(screen.getByRole("status")).toHaveTextContent(/best-effort/i);
-    expect(screen.getByRole("status")).toHaveTextContent(/no_data/);
+  it("empty state distinguishes full from low-confidence coverage", async () => {
+    const empty = { changed_symbols: [], downstream: [] };
+    const emptyGraph = { ...envelope().graph!, nodes: [], edges: [], entryPoints: { items: [], total: 0 }, tests: { items: [], total: 0 } };
+    get.mockResolvedValueOnce(envelope({ data: empty, graph: emptyGraph }));
+    renderCard();
+    expect(await screen.findByText(/None of the changed files declare/)).toBeInTheDocument();
+    cleanup();
+
+    get.mockResolvedValueOnce(envelope({ data: empty, graph: emptyGraph, index: { status: "full", indexedSha: "x", lowConfidence: true } }));
+    renderCard();
+    expect(await screen.findByText(/index has low confidence/)).toBeInTheDocument();
   });
 
-  it("renders no banner for a 'full' index", () => {
-    mockBlastRadius({
-      status: "full",
-      data: { changed_symbols: [], downstream: [] },
-    });
-    renderWithProviders(<BlastRadiusCard prId="pr1" />);
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  it("reindexing shows progress and no graph/list", async () => {
+    get.mockResolvedValue(envelope({ reindexing: { state: "running", done: 3, total: 10 } }));
+    renderCard();
+    expect(await screen.findByText("Indexing: 3 of 10 files")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Graph" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "src/svc.ts:7" })).not.toBeInTheDocument();
+  });
+
+  it("shows loading, then an error with retry that recovers", async () => {
+    get.mockRejectedValueOnce(new Error("boom")).mockResolvedValueOnce(envelope());
+    renderCard();
+    expect(screen.getByRole("status", { name: "Loading blast radius…" })).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't load the blast radius.");
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await callSite()).toBeInTheDocument();
   });
 });

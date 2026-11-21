@@ -23,7 +23,7 @@ import type {
 } from '../src/modules/repo-intel/repository.js';
 import { HOTNESS_WINDOW_DAYS, INDEXER_VERSION } from '../src/modules/repo-intel/constants.js';
 import type { IndexState } from '../src/modules/repo-intel/types.js';
-import type { Container } from '../src/platform/container.js';
+import type { PipelineDeps } from '../src/modules/repo-intel/deps.js';
 
 interface RepoBasics {
   id: string;
@@ -79,7 +79,13 @@ function makeRepoStub(opts: { basics: RepoBasics | null; initialState?: IndexSta
     },
     replaceFileFacts: async () => {},
     patchFileFacts: async () => {},
-    resolveReferences: async () => {},
+    replaceGraphRows: async () => {},
+    replaceGraphRowsForFiles: async () => {},
+    getGraphContext: async () => ({ imports: [], exports: [], symbols: [] }),
+    getIndexedPaths: async () => new Set<string>(),
+    getImpactedImporters: async () => [],
+    getFilesWithRecoverableImports: async () => [],
+    setReindexProgress: async () => {},
     getRepoMapCandidates: async () => [],
     deleteRepoMapCache: async () => {},
     putRepoMapCache: async () => {},
@@ -98,15 +104,15 @@ function makeRepoStub(opts: { basics: RepoBasics | null; initialState?: IndexSta
   };
 }
 
-function makeContainer(overrides?: Partial<{ diffNameOnly: (...args: unknown[]) => Promise<string[]> }>): Container {
+function makeContainer(overrides?: Partial<{ diffNameOnly: (...args: unknown[]) => Promise<string[]> }>): PipelineDeps {
   return {
     git: {
       currentHead: async () => 'sha-head',
       diffNameOnly: overrides?.diffNameOnly ?? (async () => []),
     },
-    depgraph: { buildEdges: async () => [] },
+    resolver: { create: () => ({ resolve: () => ({ kind: 'external' }), tsconfigFailures: () => [] }) },
     tokenizer: { count: (text: string) => Math.ceil(text.length / 4) },
-  } as unknown as Container;
+  } as unknown as PipelineDeps;
 }
 
 async function writeFileAt(root: string, rel: string, contents: string): Promise<void> {
@@ -174,13 +180,13 @@ describe('runFullIndex — real hotness wiring (D6)', () => {
     });
     const container = {
       git: { currentHead: async () => 'sha-head', diffNameOnly: async () => [] },
-      depgraph: {
-        buildEdges: async () => {
+      resolver: {
+        create: () => {
           throw new Error('graph build blew up');
         },
       },
       tokenizer: { count: (t: string) => Math.ceil(t.length / 4) },
-    } as unknown as Container;
+    } as unknown as PipelineDeps;
 
     const result = await runFullIndex(container, stub.repo, { repoId: 'r3' });
     expect(result.status).toBe('partial'); // graphFailed keeps it honest
@@ -270,7 +276,7 @@ describe('runIncremental — real hotness wiring (D6)', () => {
       git: { currentHead: async () => 'sha-same', diffNameOnly: async () => {
         throw new Error('should not be called');
       } },
-    } as unknown as Container;
+    } as unknown as PipelineDeps;
 
     const result = await runIncremental(sameShaContainer, stub.repo, { repoId: 'r1' });
     expect(result.reason).toBe('sha_unchanged');

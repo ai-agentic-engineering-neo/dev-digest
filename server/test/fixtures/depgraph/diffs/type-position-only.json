@@ -1,0 +1,7 @@
+{
+  "description": "Shape.sides retyped; Shape is used only in type positions",
+  "file": "pkg-a/src/types.ts",
+  "patch": "--- a/pkg-a/src/types.ts\n+++ b/pkg-a/src/types.ts\n@@ -5 +5 @@ export interface Shape {\n-  sides: string;\n+  sides: number;\n",
+  "expectedChanged": ["Shape"],
+  "expectedImpacted": ["pkg-a/src/consumer.ts#useShape", "pkg-a/src/app.ts#start"]
+}

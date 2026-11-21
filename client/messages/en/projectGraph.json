@@ -1,0 +1,117 @@
+{
+  "title": "Project graph",
+  "subtitle": "How files and directories in this repository depend on each other.",
+  "crumb": "Graph",
+  "repoFallback": "repository",
+  "loading": "Loading project graph…",
+  "loadError": { "title": "Could not load the project graph", "retry": "Retry" },
+  "empty": {
+    "never_indexed": { "title": "Not indexed yet", "body": "This repository has no dependency index. Index it to see its graph." },
+    "indexing": { "title": "Indexing in progress", "body": "The dependency index is being built. Check back in a moment." },
+    "failed": { "title": "Indexing failed", "body": "The last indexing run failed, so there is no graph to show. Re-index the repository to try again." }
+  },
+  "reindexing": {
+    "title": "Re-indexing in progress",
+    "body": "The dependency index is being rebuilt with a newer indexer. The graph will be back when it finishes.",
+    "queued": "Queued",
+    "running": "Running",
+    "progress": "{done} of {total} files",
+    "progressLabel": "Re-indexing progress"
+  },
+  "nav": {
+    "label": "Graph navigation",
+    "overview": "Overview",
+    "back": "Back",
+    "viewing": "Showing {mode, select, overview {overview at directory depth {depth}} dir {directory {path}} file {file {path}} other {graph}}"
+  },
+  "canvas": {
+    "label": "Dependency graph of {scope}",
+    "scopeOverview": "the repository",
+    "hint": "Press Enter on a directory to expand it or on a file to see its symbols. A table with the same information follows below."
+  },
+  "role": { "hot": "hot file", "cycle": "cycle" },
+  "tag": { "hot": "hot", "cycle": "cycle", "files": "{count, plural, one {# file} other {# files}}", "aggregate": "neighbour", "exported": "exported" },
+  "banner": {
+    "truncated": "The graph is truncated: {nodes} nodes and {edges} edges were left out (limit {maxNodes} nodes, {maxEdges} edges). Expand a directory to see more.",
+    "nodesDropped": "Nodes left out",
+    "edgesDropped": "Edges left out",
+    "partial": "The index is partial; some files or edges may be missing.",
+    "degraded": "The index is degraded; the graph may be incomplete."
+  },
+  "announce": {
+    "overview": "Graph overview loaded: {nodes} nodes, {edges} edges.",
+    "dir": "Directory {path} expanded: {nodes} nodes, {edges} edges.",
+    "file": "File {path} opened: {nodes} nodes, {edges} edges.",
+    "empty": "No graph available.",
+    "reindexing": "Re-indexing in progress."
+  },
+  "cycles": {
+    "title": "Dependency cycles",
+    "none": "No dependency cycles found.",
+    "summary": "{total, plural, one {# cycle} other {# cycles}} involving {files, plural, one {# file} other {# files}}",
+    "item": "Cycle of {size, plural, one {# file} other {# files}}",
+    "more": "…and {count} more members not listed",
+    "highlight": "Highlight cycle {index}",
+    "clear": "Clear highlight",
+    "highlighted": "Highlighted"
+  },
+  "hot": {
+    "title": "Hot files",
+    "item": "{path} (rank {rank}, hotness {hotness})"
+  },
+  "index": {
+    "title": "Index status",
+    "status": "Status",
+    "statuses": { "full": "full", "partial": "partial", "degraded": "degraded", "failed": "failed" },
+    "sha": "Indexed commit",
+    "version": "Indexer version",
+    "valueBindings": "Value imports resolved",
+    "typeBindings": "Type imports resolved",
+    "ratio": "{resolved} of {total}",
+    "unresolved": "Unresolved specifiers",
+    "inferred": "Inferred symbol edges",
+    "tsconfigFailures": "Unreadable tsconfig files"
+  },
+  "unresolved": {
+    "title": "Unresolved imports",
+    "none": "No unresolved imports.",
+    "file": "File",
+    "specifier": "Specifier",
+    "name": "Imported name",
+    "line": "Line",
+    "reason": "Reason"
+  },
+  "symbols": {
+    "title": "Symbols in {path}",
+    "none": "No symbols indexed for this file.",
+    "name": "Name",
+    "kind": "Kind",
+    "line": "Line",
+    "exported": "Exported",
+    "in": "Incoming",
+    "out": "Outgoing"
+  },
+  "table": {
+    "title": "Files (table view)",
+    "caption": "Files with incoming and outgoing dependency counts, rank and cycle membership",
+    "skip": "Skip to the file table",
+    "file": "File",
+    "in": "Incoming",
+    "out": "Outgoing",
+    "rank": "Rank",
+    "hotness": "Hotness",
+    "cycle": "In cycle",
+    "hot": "Hot",
+    "yes": "yes",
+    "no": "no",
+    "sortBy": "Sort by {column}",
+    "none": "No files in this scope.",
+    "open": "Open {path}"
+  },
+  "pager": {
+    "label": "Pagination",
+    "prev": "Previous page",
+    "next": "Next page",
+    "page": "Page {page} of {pages} ({total} total)"
+  }
+}

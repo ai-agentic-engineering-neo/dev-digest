@@ -6,7 +6,7 @@
  *                                  fetch latest from origin + incremental reindex.
  *
  * Job-handler registration lives here: this plugin runs once at app boot and
- * calls `RepoIntelService.registerIndexJobHandlers()` so INDEX/REFRESH jobs
+ * calls `container.repoIntelService.registerIndexJobHandlers()` so INDEX/REFRESH jobs
  * enqueued by `repos/service.ts` (after clone / on refresh) have a handler
  * to run against. Mirrors the `RepoService.registerCloneJobHandler()` shape.
  */
@@ -14,20 +14,16 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
-import { RepoIntelService } from './service.js';
 import { RESYNC_JOB_KIND } from './constants.js';
 import type { IndexState } from './types.js';
 
 export default async function repoIntelRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
   const { container } = app;
-  // Register the INDEX/REFRESH handlers exactly once at module load. Using a
-  // local service here (instead of `container.repoIntel`) is fine — the
-  // JobRunner stores the handler closure, not the service instance, and the
-  // lazy `container.repoIntel` getter constructs its own service for read
-  // calls. Both share the same DB, so behaviour is identical.
-  const service = new RepoIntelService(container);
-  service.registerIndexJobHandlers();
+  // Register the INDEX/REFRESH/RESYNC handlers exactly once at module load,
+  // on the container's single (cached) concrete service. It deliberately
+  // ignores `overrides.repoIntel`, same as the old local instance did.
+  container.repoIntelService.registerIndexJobHandlers();
 
   app.get(
     '/repos/:id/index-state',

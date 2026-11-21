@@ -1,25 +1,7 @@
 import { zipSync, strToU8 } from 'fflate';
-import type {
-  AgentPerf,
-  AgentPerfRow,
-  CiExport,
-  CiExportInput,
-  CiFile,
-  CiInstallation,
-  CiPreview,
-  CiRefreshResult,
-  CiRun,
-  CiRunSummary,
-  CiRunsPage,
-  CiSecretStatus,
-  CiTarget,
-  CiTargetOption,
-  GitHubClient,
-  RepoRef,
-  RunTrace,
-  SecretsProvider,
-  WorkflowRun,
-} from '@devdigest/shared';
+import type { AgentPerf, AgentPerfRow, CiExport, CiExportInput, CiFile, CiInstallation, CiPreview, CiRefreshResult, CiRun, CiRunSummary, CiRunsPage, CiSecretStatus, CiTarget, CiTargetOption, RepoRef, RunTrace, WorkflowRun } from '@devdigest/shared';
+import type { GitHubClient } from '../../domain/ports/github.js';
+import type { SecretsProvider } from '../../domain/ports/secrets.js';
 import { NotFoundError, ValidationError, ExternalServiceError } from '../../platform/errors.js';
 import { buildRunTrace } from '../../platform/trace-builder.js';
 import { CiRepository, type CiInstallationRow, type CiRunFilters, type CiRunRow } from './repository.js';

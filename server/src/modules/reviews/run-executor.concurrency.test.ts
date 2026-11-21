@@ -1,17 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import type {
-  LLMProvider,
-  CompletionRequest,
-  CompletionResult,
-  StructuredRequest,
-  StructuredResult,
-  ModelInfo,
-  UnifiedDiff,
-} from '@devdigest/shared';
+import type { ModelInfo, UnifiedDiff } from '@devdigest/shared';
+import type { LLMProvider, CompletionRequest, CompletionResult, StructuredRequest, StructuredResult } from '../../domain/ports/llm.js';
 import type { AgentRow, PullRow } from '../../db/rows.js';
-import type { Container } from '../../platform/container.js';
 import type { ReviewRepository } from './repository.js';
-import { ReviewRunExecutor } from './run-executor.js';
+import { ReviewRunExecutor, type RunExecutorDeps } from './run-executor.js';
 import { RunBus } from '../../platform/sse.js';
 
 /**
@@ -142,7 +134,7 @@ type Persisted = {
 function buildHarness(providers: Record<string, LLMProvider>) {
   const runBus = new RunBus();
   const gitDiffCalls: unknown[] = [];
-  const container = {
+  const deps: Omit<RunExecutorDeps, 'agents'> = {
     runBus,
     git: {
       diff: async (...args: unknown[]) => {
@@ -157,22 +149,26 @@ function buildHarness(providers: Record<string, LLMProvider>) {
     },
     tokenizer: { count: (t: string) => t.length },
     // specs/09 — nothing attached in this harness; irrelevant to D16.
-    projectContextService: { resolveForRun: async () => ({ documents: [], entries: [] }) },
+    resolveProjectContext: async () => ({ documents: [], entries: [] }),
     // L03 — resolved once per BATCH (shared pre-work, before the concurrent
     // loop) — this test asserts the LOOP's concurrency, not intent
     // resolution, so a trivial no-op stub is enough.
-    intentService: {
-      resolve: async () => ({
-        rendered: undefined,
-        inScope: undefined,
-        outOfScope: undefined,
-        provider: null,
-        model: null,
-        userMessageText: undefined,
-        contextGaps: [],
-      }),
+    resolveIntent: async () => ({
+      rendered: undefined,
+      inScope: undefined,
+      outOfScope: undefined,
+      provider: null,
+      model: null,
+      userMessageText: undefined,
+      contextGaps: [],
+    }),
+    promptAssemblyDebugEnabled: false,
+    repoIntel: {
+      getCallerSignatures: async () => [],
+      getRepoMap: async () => ({ degraded: true, text: '', tokens: 0, cached: false }),
+      getFileRank: async () => [],
     },
-  } as unknown as Container;
+  };
 
   const persisted = new Map<string, Persisted>();
   const forRun = (runId: string): Persisted => {
@@ -201,9 +197,9 @@ function buildHarness(providers: Record<string, LLMProvider>) {
     recordRunSkills: async () => undefined,
   } as unknown as ReviewRepository;
 
-  const agents = { enabledSkills: async () => [] } as unknown as Container['agentsRepo'];
+  const agents = { enabledSkills: async () => [] } as RunExecutorDeps['agents'];
 
-  const executor = new ReviewRunExecutor(container, repo, agents);
+  const executor = new ReviewRunExecutor(repo, { ...deps, agents });
   return { executor, runBus, gitDiffCalls, persisted };
 }
 

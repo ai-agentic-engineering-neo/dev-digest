@@ -48,6 +48,14 @@ export const NAV: NavGroup[] = [
         href: "/repos/:repoId/tour",
         gKey: "t",
       },
+      {
+        // specs/18-dependency-graph.md AC-46a — repo-scoped project graph tab.
+        key: "graph",
+        label: "Graph",
+        icon: "GitBranch",
+        href: "/repos/:repoId/graph",
+        gKey: "d",
+      },
     ],
   },
   {
@@ -114,6 +122,7 @@ export const SHORTCUTS: ShortcutDef[] = [
   { keys: "g m", label: "Go to Multi-Agent Review", group: "Navigation" },
   { keys: "g x", label: "Go to Project Context", group: "Navigation" },
   { keys: "g t", label: "Go to Onboarding Tour", group: "Navigation" },
+  { keys: "g d", label: "Go to Graph", group: "Navigation" },
   { keys: "g s", label: "Go to Skills", group: "Navigation" },
   { keys: "g a", label: "Go to Agents", group: "Navigation" },
   { keys: "g c", label: "Go to Conventions", group: "Navigation" },

@@ -1,5 +1,6 @@
 /** Constants for the settings module. */
-import type { ConnTestProvider, SecretKey } from '@devdigest/shared';
+import type { ConnTestProvider } from '@devdigest/shared';
+import type { SecretKey } from '../../domain/ports/secrets.js';
 
 /** Provider id used by the GitHub connection test branch. */
 export const GITHUB_PROVIDER = 'github';

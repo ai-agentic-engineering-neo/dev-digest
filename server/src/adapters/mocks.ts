@@ -1,39 +1,12 @@
 import type { z } from 'zod';
-import type {
-  LLMProvider,
-  ModelInfo,
-  CompletionRequest,
-  CompletionResult,
-  StructuredRequest,
-  StructuredResult,
-  Embedder,
-  GitHubClient,
-  RepoRef,
-  PrMeta,
-  PrDetail,
-  GitHubReviewPayload,
-  CreateReviewCommentInput,
-  PrReviewComment,
-  OpenPrPayload,
-  CommitFilesPayload,
-  IssueMeta,
-  WorkflowRun,
-  RunArtifact,
-  GitClient,
-  CloneOptions,
-  UnifiedDiff,
-  BlameLine,
-  GitCommit,
-  CodeIndex,
-  CodeMatch,
-  CodeSymbol,
-  CodeReference,
-  AuthProvider,
-  AuthUser,
-  AuthWorkspace,
-  SecretsProvider,
-  SecretKey,
-} from '@devdigest/shared';
+import type { ModelInfo, RepoRef, PrMeta, PrDetail, GitHubReviewPayload, CreateReviewCommentInput, PrReviewComment, OpenPrPayload, CommitFilesPayload, IssueMeta, WorkflowRun, RunArtifact, UnifiedDiff, CodeMatch, CodeSymbol, CodeReference, AuthUser, AuthWorkspace } from '@devdigest/shared';
+import type { LLMProvider, CompletionRequest, CompletionResult, StructuredRequest, StructuredResult } from '../domain/ports/llm.js';
+import type { Embedder } from '../domain/ports/embedder.js';
+import type { GitHubClient } from '../domain/ports/github.js';
+import type { GitClient, CloneOptions, BlameLine, GitCommit } from '../domain/ports/git.js';
+import type { CodeIndex } from '../domain/ports/code-index.js';
+import type { AuthProvider } from '../domain/ports/auth.js';
+import type { SecretsProvider, SecretKey } from '../domain/ports/secrets.js';
 import { parseUnifiedDiff } from './git/diff-parser.js';
 
 /**
@@ -337,6 +310,12 @@ export class MockGitClient implements GitClient {
   }
   async readFile(_repo: RepoRef, path: string): Promise<string> {
     return this.opts.files?.[path] ?? '';
+  }
+  async readFileAtRef(_repo: RepoRef, _sha: string, path: string, _maxBytes: number): Promise<string | null> {
+    return this.opts.files?.[path] ?? null;
+  }
+  async hasObject(): Promise<boolean> {
+    return true;
   }
 }
 

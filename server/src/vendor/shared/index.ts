@@ -24,4 +24,6 @@ export * from './contracts/why.js';
 export * from './contracts/eval-ci.js';
 export * from './contracts/observability.js';
 export * from './contracts/productionize.js';
+export * from './contracts/dependency-graph.js';
+export * from './contracts/project-graph.js';
 export * from './adapters.js';

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { NextIntlClientProvider } from "next-intl";
 import * as hooks from "@/lib/hooks/intent";
@@ -7,6 +7,11 @@ import * as blastHooks from "@/lib/hooks/blast-radius";
 import * as briefHooks from "@/lib/hooks/brief";
 import * as toastLib from "@/lib/toast";
 import briefMessages from "../../../../../../../../messages/en/brief.json";
+import helpMessages from "../../../../../../../../messages/en/help.json";
+import impactMessages from "../../../../../../../../messages/en/impactGraph.json";
+import graphMessages from "../../../../../../../../messages/en/graph.json";
+import intentMessages from "../../../../../../../../messages/en/intent.json";
+import overviewMessages from "../../../../../../../../messages/en/overview.json";
 import { OverviewTab } from "./OverviewTab";
 
 vi.spyOn(toastLib, "useToast").mockReturnValue({
@@ -22,7 +27,14 @@ function renderWithProviders(ui: React.ReactElement) {
   const qc = new QueryClient();
   return render(
     <QueryClientProvider client={qc}>
-      <NextIntlClientProvider locale="en" messages={{ brief: briefMessages }}>
+      <NextIntlClientProvider locale="en" messages={{
+          brief: briefMessages,
+          impactGraph: impactMessages,
+          graph: graphMessages,
+          intent: intentMessages,
+          overview: overviewMessages,
+          help: helpMessages,
+        }}>
         {ui}
       </NextIntlClientProvider>
     </QueryClientProvider>,
@@ -102,46 +114,106 @@ function mockGeneratedBriefWithFocusEntry() {
 }
 
 describe("OverviewTab", () => {
-  it("renders the IntentCard and BlastRadiusCard side by side (own components — not inline)", () => {
+  it("shows the at-a-glance cards as a tablist and only the selected section (brief by default)", () => {
+    mockIntent();
+    mockBlastRadius();
+    mockBrief();
+
+    renderWithProviders(<OverviewTab prId="pr1" prBody="Fixes the thing." />);
+    const tabs = screen.getAllByRole("tab");
+    expect(tabs.map((t) => t.textContent)).toEqual([
+      expect.stringContaining("Risk brief"),
+      expect.stringContaining("Intent"),
+      expect.stringContaining("Blast radius"),
+      expect.stringContaining("Description"),
+    ]);
+    expect(tabs[0]).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText("Why + Risk Brief")).toBeInTheDocument();
+    expect(screen.queryByText("Not yet analyzed — intent is computed on the next review run.")).not.toBeInTheDocument();
+    // the glance card summarises the description without rendering the section
+    expect(screen.getByRole("tab", { name: /Description/ })).toHaveTextContent("Fixes the thing.");
+    expect(screen.getByRole("tab", { name: /Description/ })).toHaveTextContent("3 words");
+  });
+
+  it("switches sections from the cards and reports the choice when controlled", () => {
+    mockIntent();
+    mockBlastRadius();
+    mockBrief();
+    const onSectionChange = vi.fn();
+
+    const { rerender } = renderWithProviders(
+      <OverviewTab prId="pr1" prBody="Fixes the thing." onSectionChange={onSectionChange} />,
+    );
+    fireEvent.click(screen.getByRole("tab", { name: /Blast radius/ }));
+    expect(onSectionChange).toHaveBeenCalledWith("blast");
+
+    rerender(
+      <QueryClientProvider client={new QueryClient()}>
+        <NextIntlClientProvider
+          locale="en"
+          messages={{
+            brief: briefMessages,
+            impactGraph: impactMessages,
+            graph: graphMessages,
+            intent: intentMessages,
+            overview: overviewMessages,
+            help: helpMessages,
+          }}
+        >
+          <OverviewTab prId="pr1" prBody="Fixes the thing." section="intent" onSectionChange={onSectionChange} />
+        </NextIntlClientProvider>
+      </QueryClientProvider>,
+    );
+    expect(screen.getByRole("tab", { name: /Intent/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText("Not yet analyzed — intent is computed on the next review run.")).toBeInTheDocument();
+  });
+
+  it("uncontrolled: clicking a card renders that section (Intent, Blast Radius)", () => {
     mockIntent();
     mockBlastRadius();
     mockBrief();
 
     renderWithProviders(<OverviewTab prId="pr1" prBody={null} />);
-    expect(
-      screen.getByText("Not yet analyzed — intent is computed on the next review run."),
-    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: /Intent/ }));
+    expect(screen.getByText("Not yet analyzed — intent is computed on the next review run.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: /Blast radius/ }));
     expect(screen.getByText("No blast radius to show")).toBeInTheDocument();
+    expect(screen.getByRole("tabpanel")).toHaveAttribute("aria-labelledby", "overview-tab-blast");
   });
 
-  it("renders the PR body as a Description section when present", () => {
+  it("renders the PR body as Markdown and drops PR-template HTML comments", () => {
     mockIntent();
     mockBlastRadius();
     mockBrief();
 
-    renderWithProviders(<OverviewTab prId="pr1" prBody="Fixes the thing." />);
-    expect(screen.getByText("Fixes the thing.")).toBeInTheDocument();
+    const body = "## Summary\n\nA **bold** change.\n\n<!-- drop demo.mp4 here -->\n\n- one\n- `two`";
+    renderWithProviders(<OverviewTab prId="pr1" prBody={body} section="description" />);
+    const panel = screen.getByRole("tabpanel");
+    expect(within(panel).getByRole("heading", { level: 2, name: "Summary" })).toBeInTheDocument();
+    expect(within(panel).getByText("bold").tagName).toBe("STRONG");
+    expect(within(panel).getByText("two").tagName).toBe("CODE");
+    expect(within(panel).getAllByRole("listitem")).toHaveLength(2);
+    expect(panel).not.toHaveTextContent("drop demo.mp4");
   });
 
-  it("Q8/AC-36: the brief section renders ABOVE the Intent/Blast grid, with Description last", () => {
+  it("keeps GitHub-style single line breaks in the description", () => {
     mockIntent();
     mockBlastRadius();
     mockBrief();
 
-    renderWithProviders(<OverviewTab prId="pr1" prBody="Fixes the thing." />);
+    const { container } = renderWithProviders(
+      <OverviewTab prId="pr1" prBody={"Spec: a.md\nCovers: AC-1"} section="description" />,
+    );
+    expect(container.querySelector(".dd-md br")).not.toBeNull();
+  });
 
-    const briefLabel = screen.getByText("Why + Risk Brief");
-    const intentText = screen.getByText("Not yet analyzed — intent is computed on the next review run.");
-    const blastText = screen.getByText("No blast radius to show");
-    const descriptionText = screen.getByText("Fixes the thing.");
+  it("shows an empty description state instead of a blank box", () => {
+    mockIntent();
+    mockBlastRadius();
+    mockBrief();
 
-    // DOCUMENT_POSITION_FOLLOWING: the argument node comes AFTER the node
-    // `compareDocumentPosition` is called on — asserts DOM order, not mere
-    // presence, matching this test-matrix row's "DOM-order assertion" ask.
-    const FOLLOWING = Node.DOCUMENT_POSITION_FOLLOWING;
-    expect(briefLabel.compareDocumentPosition(intentText) & FOLLOWING).toBeTruthy();
-    expect(intentText.compareDocumentPosition(blastText) & FOLLOWING).toBeTruthy();
-    expect(blastText.compareDocumentPosition(descriptionText) & FOLLOWING).toBeTruthy();
+    renderWithProviders(<OverviewTab prId="pr1" prBody={null} section="description" />);
+    expect(within(screen.getByRole("tabpanel")).getByText("No description")).toBeInTheDocument();
   });
 
   it("forwards onFocusFile through to PrBriefCard, so a review-focus click reaches OverviewTab's caller", () => {
@@ -151,6 +223,9 @@ describe("OverviewTab", () => {
     const onFocusFile = vi.fn();
 
     renderWithProviders(<OverviewTab prId="pr1" prBody={null} onFocusFile={onFocusFile} />);
+    // the glance card reflects the generated brief
+    expect(screen.getByRole("tab", { name: /Risk brief/ })).toHaveTextContent("LOW");
+    expect(screen.getByRole("tab", { name: /Risk brief/ })).toHaveTextContent("0 risk areas · 1 focus point");
     fireEvent.click(screen.getByRole("button", { name: /src\/a\.ts:10/ }));
 
     expect(onFocusFile).toHaveBeenCalledWith("src/a.ts", 10);

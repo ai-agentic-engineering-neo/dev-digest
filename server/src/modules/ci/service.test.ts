@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { GitHubClient } from '@devdigest/shared';
+import type { GitHubClient } from '../../domain/ports/github.js';
 import { CiService, type CiExportOptions } from './service.js';
 import type { CiRepository } from './repository.js';
 import type { AgentLookup, AgentRecord, MemoryReader, RepoLookup, SkillLookup } from './ports.js';

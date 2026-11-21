@@ -17,10 +17,18 @@ import { and, asc, desc, eq, gte, inArray, isNotNull, ne, sql } from 'drizzle-or
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import { clampIndexedName } from '../../db/schema/context.js';
+import { INDEXER_VERSION } from './constants.js';
+import type { ExportRow, ImportRow, SymbolEdgeRow } from './graph/types.js';
 import type { DegradedReason, FileRankRow, IndexState, IndexStatus } from './types.js';
 
 /** Chunk size for batched inserts — same value blast already uses. */
 const INSERT_CHUNK_SIZE = 500;
+/** Chunk size for `IN (...)` deletes/lookups (well under the 65535 param cap). */
+const DELETE_CHUNK_SIZE = 1000;
+
+function* chunked<T>(items: readonly T[], size: number): Generator<T[]> {
+  for (let i = 0; i < items.length; i += size) yield items.slice(i, i + size) as T[];
+}
 
 /** Row shape the indexer pipeline buffers up before persistence. */
 export interface IndexerSymbolRow {
@@ -40,7 +48,31 @@ export interface IndexerReferenceRow {
   fromPath: string;
   toSymbol: string;
   line: number;
+  /** Declaring file from binding resolution (exact/inferred); NULL = unresolved. */
+  declFile?: string | null;
   contentHash: string;
+}
+
+/** Graph rows (graph core output) the pipeline persists, minus `repoId`. */
+export interface GraphRowsInput {
+  imports: ImportRow[];
+  exports: ExportRow[];
+  edges: SymbolEdgeRow[];
+}
+
+/** Persisted graph rows of one file, read back as incremental context. */
+export interface GraphContextRows {
+  imports: ImportRow[];
+  exports: ExportRow[];
+  symbols: Array<{
+    path: string;
+    name: string;
+    kind: string;
+    line: number | null;
+    endLine: number | null;
+    exported: boolean;
+    signature: string | null;
+  }>;
 }
 
 /** Bundle of values the pipeline persists into `repo_index_state`. */
@@ -52,6 +84,10 @@ export interface IndexStateUpsert {
   filesIndexed: number;
   filesSkipped: number;
   stats: Record<string, unknown>;
+  /** Graph coverage (specs/18 AC-14); omitted ⇒ stored as NULL. */
+  coverage?: unknown;
+  /** tsconfig files that failed to parse (AC-6); omitted ⇒ NULL. */
+  tsconfigFailures?: unknown;
 }
 
 /** Minimal repo shape the facade needs to call CodeIndex on a clone. */
@@ -135,14 +171,6 @@ export interface FullSymbolRow {
   endLine: number | null;
   exported: boolean;
   signature: string | null;
-}
-
-/** A resolved cross-file caller (reference whose decl_file is a changed file). */
-export interface ResolvedCallerRow {
-  fromPath: string;
-  toSymbol: string;
-  line: number;
-  rank: number;
 }
 
 export class RepoIntelRepository {
@@ -257,6 +285,15 @@ export class RepoIntelRepository {
         hotnessPrs,
         hotnessWindowDays,
         graphFailed,
+        coverage: (row.coverage as IndexState['coverage']) ?? null,
+        // Derived at read time, never written by a read (AC-16/16a): an explicit
+        // reindex_state wins; otherwise a stored version below the current one
+        // means a reindex is pending.
+        reindexing: row.reindexState
+          ? { state: row.reindexState, done: row.reindexDone ?? 0, total: row.reindexTotal ?? 0 }
+          : row.indexerVersion < INDEXER_VERSION
+            ? { state: 'queued' as const, done: 0, total: 0 }
+            : null,
       };
     } catch {
       // Table missing / schema drift / connection blip — degrade silently. The
@@ -273,6 +310,9 @@ export class RepoIntelRepository {
   async deleteAllForRepo(repoId: string): Promise<void> {
     await this.db.delete(t.symbols).where(eq(t.symbols.repoId, repoId));
     await this.db.delete(t.references).where(eq(t.references.repoId, repoId));
+    await this.db.delete(t.fileImports).where(eq(t.fileImports.repoId, repoId));
+    await this.db.delete(t.fileExports).where(eq(t.fileExports.repoId, repoId));
+    await this.db.delete(t.symbolEdges).where(eq(t.symbolEdges.repoId, repoId));
   }
 
   /**
@@ -281,15 +321,14 @@ export class RepoIntelRepository {
    * Inline-empty guard keeps the no-op refresh path zero-DB.
    */
   async deleteForFiles(repoId: string, paths: string[]): Promise<void> {
-    if (paths.length === 0) return;
-    await this.db
-      .delete(t.symbols)
-      .where(and(eq(t.symbols.repoId, repoId), inArray(t.symbols.path, paths)));
-    await this.db
-      .delete(t.references)
-      .where(
-        and(eq(t.references.repoId, repoId), inArray(t.references.fromPath, paths)),
-      );
+    for (const chunk of chunked(paths, DELETE_CHUNK_SIZE)) {
+      await this.db
+        .delete(t.symbols)
+        .where(and(eq(t.symbols.repoId, repoId), inArray(t.symbols.path, chunk)));
+      await this.db
+        .delete(t.references)
+        .where(and(eq(t.references.repoId, repoId), inArray(t.references.fromPath, chunk)));
+    }
   }
 
   /** Batched insert into `symbols`. Uses the same chunk size as blast. */
@@ -306,7 +345,7 @@ export class RepoIntelRepository {
   /** Batched insert into `references`. */
   async insertReferences(rows: IndexerReferenceRow[]): Promise<void> {
     if (rows.length === 0) return;
-    const safe = rows.map((r) => ({ ...r, toSymbol: clampIndexedName(r.toSymbol) }));
+    const safe = rows.map((r) => ({ ...r, declFile: r.declFile ?? null, toSymbol: clampIndexedName(r.toSymbol) }));
     for (let i = 0; i < safe.length; i += INSERT_CHUNK_SIZE) {
       await this.db.insert(t.references).values(safe.slice(i, i + INSERT_CHUNK_SIZE));
     }
@@ -331,6 +370,11 @@ export class RepoIntelRepository {
         filesSkipped: state.filesSkipped,
         stats: state.stats,
         updatedAt: now,
+        coverage: state.coverage ?? null,
+        tsconfigFailures: state.tsconfigFailures ?? null,
+        reindexState: null,
+        reindexDone: null,
+        reindexTotal: null,
       })
       .onConflictDoUpdate({
         target: t.repoIndexState.repoId,
@@ -342,6 +386,12 @@ export class RepoIntelRepository {
           filesSkipped: state.filesSkipped,
           stats: state.stats,
           updatedAt: now,
+          coverage: state.coverage ?? null,
+          tsconfigFailures: state.tsconfigFailures ?? null,
+          // A finished run always clears the reindex axis (AC-16a).
+          reindexState: null,
+          reindexDone: null,
+          reindexTotal: null,
         },
       });
   }
@@ -410,45 +460,186 @@ export class RepoIntelRepository {
     }
   }
 
+  // -------------------------------------------------------------------------
+  // specs/18 — graph rows + reindex lifecycle.
+  // -------------------------------------------------------------------------
+
+  /** Replace the repo's whole import/export/symbol-edge graph (full index). */
+  async replaceGraphRows(repoId: string, rows: GraphRowsInput): Promise<void> {
+    await this.db.delete(t.fileImports).where(eq(t.fileImports.repoId, repoId));
+    await this.db.delete(t.fileExports).where(eq(t.fileExports.repoId, repoId));
+    await this.db.delete(t.symbolEdges).where(eq(t.symbolEdges.repoId, repoId));
+    await this.insertGraphRows(repoId, rows);
+  }
+
   /**
-   * Resolve `references.decl_file` through the import graph (step 5).
-   * A reference `(from_path → to_symbol)` resolves to file `F` iff `from_path`
-   * imports `F` AND `F` exports a symbol named `to_symbol` — and ONLY when that
-   * candidate is unique. 0 or >1 candidates leave `decl_file = NULL` (which is
-   * the honest "unresolved" signal, never a nearest-name guess).
-   *
-   * `reset: true` (incremental) first clears every decl_file so a changed
-   * decl-file can't leave a stale resolution behind; full index inserts rows
-   * with NULL decl_file already, so reset is unnecessary there.
-   *
-   * Quoted `"references"` — it's a SQL reserved word. The query is fully
-   * parameterised on repoId (no injection surface).
+   * Replace the graph rows OWNED by `files` (incremental): imports/exports by
+   * their file, symbol edges by their source path. Passing a deleted path with
+   * empty `rows` simply removes everything it left behind.
    */
-  async resolveReferences(repoId: string, opts: { reset: boolean }): Promise<void> {
-    if (opts.reset) {
-      await this.db.execute(
-        sql`UPDATE "references" SET decl_file = NULL WHERE repo_id = ${repoId}`,
-      );
+  async replaceGraphRowsForFiles(
+    repoId: string,
+    files: string[],
+    rows: GraphRowsInput,
+  ): Promise<void> {
+    for (const chunk of chunked(files, DELETE_CHUNK_SIZE)) {
+      await this.db
+        .delete(t.fileImports)
+        .where(and(eq(t.fileImports.repoId, repoId), inArray(t.fileImports.fromFile, chunk)));
+      await this.db
+        .delete(t.fileExports)
+        .where(and(eq(t.fileExports.repoId, repoId), inArray(t.fileExports.file, chunk)));
+      await this.db
+        .delete(t.symbolEdges)
+        .where(and(eq(t.symbolEdges.repoId, repoId), inArray(t.symbolEdges.fromPath, chunk)));
     }
-    await this.db.execute(sql`
-      WITH cand AS (
-        SELECT r.id AS ref_id, e.to_file AS decl
-        FROM "references" r
-        JOIN file_edges e ON e.repo_id = r.repo_id AND e.from_file = r.from_path
-        JOIN symbols s ON s.repo_id = r.repo_id AND s.path = e.to_file
-                      AND s.name = r.to_symbol AND s.exported = true
-        WHERE r.repo_id = ${repoId}
-        GROUP BY r.id, e.to_file
-      ),
-      uniq AS (
-        SELECT ref_id FROM cand GROUP BY ref_id HAVING count(*) = 1
-      )
-      UPDATE "references" r
-      SET decl_file = c.decl
-      FROM cand c
-      JOIN uniq u ON u.ref_id = c.ref_id
-      WHERE r.id = c.ref_id
-    `);
+    await this.insertGraphRows(repoId, rows);
+  }
+
+  private async insertGraphRows(repoId: string, rows: GraphRowsInput): Promise<void> {
+    const imports = rows.imports.map((r) => ({ repoId, ...r, specifier: clampIndexedName(r.specifier) }));
+    for (const chunk of chunked(imports, INSERT_CHUNK_SIZE)) {
+      await this.db.insert(t.fileImports).values(chunk).onConflictDoNothing();
+    }
+    const exportsRows = rows.exports.map((r) => ({ repoId, ...r }));
+    for (const chunk of chunked(exportsRows, INSERT_CHUNK_SIZE)) {
+      await this.db.insert(t.fileExports).values(chunk).onConflictDoNothing();
+    }
+    const edges = rows.edges.map((r) => ({ repoId, ...r }));
+    for (const chunk of chunked(edges, INSERT_CHUNK_SIZE)) {
+      await this.db.insert(t.symbolEdges).values(chunk).onConflictDoNothing();
+    }
+  }
+
+  /** Every persisted import/export/symbol row — the incremental run's context. */
+  async getGraphContext(repoId: string): Promise<GraphContextRows> {
+    const imports = await this.db
+      .select()
+      .from(t.fileImports)
+      .where(eq(t.fileImports.repoId, repoId));
+    const exportRows = await this.db
+      .select()
+      .from(t.fileExports)
+      .where(eq(t.fileExports.repoId, repoId));
+    const symbols = await this.db
+      .select({
+        path: t.symbols.path,
+        name: t.symbols.name,
+        kind: t.symbols.kind,
+        line: t.symbols.line,
+        endLine: t.symbols.endLine,
+        exported: t.symbols.exported,
+        signature: t.symbols.signature,
+      })
+      .from(t.symbols)
+      .where(eq(t.symbols.repoId, repoId));
+    return {
+      imports: imports.map(({ repoId: _r, ...r }) => r),
+      exports: exportRows.map(({ repoId: _r, ...r }) => r),
+      symbols,
+    };
+  }
+
+  /**
+   * AC-18 expansion. Files whose bindings may change when `changed` files
+   * change: direct importers (`file_imports.resolved_file`) and re-exporters
+   * (`file_exports.resolved_file`); re-exporters are followed transitively so
+   * importers of a barrel are picked up too. Returns the extra files only.
+   */
+  async getImpactedImporters(repoId: string, changed: string[]): Promise<string[]> {
+    const seen = new Set(changed);
+    const extra = new Set<string>();
+    let frontier = [...new Set(changed)];
+    while (frontier.length > 0) {
+      const next: string[] = [];
+      for (const chunk of chunked(frontier, DELETE_CHUNK_SIZE)) {
+        const importers = await this.db
+          .selectDistinct({ file: t.fileImports.fromFile })
+          .from(t.fileImports)
+          .where(
+            and(eq(t.fileImports.repoId, repoId), inArray(t.fileImports.resolvedFile, chunk)),
+          );
+        const reexporters = await this.db
+          .selectDistinct({ file: t.fileExports.file })
+          .from(t.fileExports)
+          .where(
+            and(eq(t.fileExports.repoId, repoId), inArray(t.fileExports.resolvedFile, chunk)),
+          );
+        for (const { file } of importers) {
+          if (!seen.has(file)) {
+            seen.add(file);
+            extra.add(file);
+          }
+        }
+        for (const { file } of reexporters) {
+          if (!seen.has(file)) {
+            seen.add(file);
+            extra.add(file);
+            next.push(file); // a barrel: its own importers are affected too
+          }
+        }
+      }
+      frontier = next;
+    }
+    return [...extra];
+  }
+
+  /** Files whose imports failed to resolve for a reason a NEW file could fix. */
+  async getFilesWithRecoverableImports(repoId: string): Promise<string[]> {
+    const rows = await this.db
+      .selectDistinct({ file: t.fileImports.fromFile })
+      .from(t.fileImports)
+      .where(
+        and(
+          eq(t.fileImports.repoId, repoId),
+          inArray(t.fileImports.unresolvedReason, ['missing', 'ambiguous', 'tsconfig']),
+        ),
+      );
+    return rows.map((r) => r.file);
+  }
+
+  /** Subset of `paths` that already have indexed symbols (every parsed file has a `<module>` row). */
+  async getIndexedPaths(repoId: string, paths: string[]): Promise<Set<string>> {
+    const out = new Set<string>();
+    for (const chunk of chunked(paths, DELETE_CHUNK_SIZE)) {
+      const rows = await this.db
+        .selectDistinct({ path: t.symbols.path })
+        .from(t.symbols)
+        .where(and(eq(t.symbols.repoId, repoId), inArray(t.symbols.path, chunk)));
+      for (const r of rows) out.add(r.path);
+    }
+    return out;
+  }
+
+  /** Reindex progress (AC-16). No-op when the repo has no state row yet. */
+  async setReindexProgress(
+    repoId: string,
+    state: 'queued' | 'running',
+    done: number,
+    total: number,
+  ): Promise<void> {
+    await this.db
+      .update(t.repoIndexState)
+      .set({ reindexState: state, reindexDone: done, reindexTotal: total })
+      .where(eq(t.repoIndexState.repoId, repoId));
+  }
+
+  async clearReindexState(repoId: string): Promise<void> {
+    await this.db
+      .update(t.repoIndexState)
+      .set({ reindexState: null, reindexDone: null, reindexTotal: null })
+      .where(eq(t.repoIndexState.repoId, repoId));
+  }
+
+  /** Repos whose stored indexer version differs from `version` (boot sweep, AC-15). */
+  async listReposWithStaleIndex(
+    version: number,
+  ): Promise<Array<{ repoId: string; workspaceId: string }>> {
+    return this.db
+      .select({ repoId: t.repoIndexState.repoId, workspaceId: t.repos.workspaceId })
+      .from(t.repoIndexState)
+      .innerJoin(t.repos, eq(t.repos.id, t.repoIndexState.repoId))
+      .where(ne(t.repoIndexState.indexerVersion, version));
   }
 
   // -------------------------------------------------------------------------
@@ -599,53 +790,58 @@ export class RepoIntelRepository {
   }
 
   /**
-   * Resolved cross-file callers of symbols declared in `declFiles`.
-   *
-   * Joins `symbols` on `(repoId, name = toSymbol, path IN declFiles)` and
-   * excludes `fromPath = symbols.path` — a reference sitting in the SAME file
-   * that declares the symbol it references is not a "cross-file caller", it's
-   * a same-file usage (e.g. a helper calling itself, or another top-level
-   * function in the same module). Excluding it here (rather than "any changed
-   * file") keeps a reference from file B to a symbol declared in file A
-   * correctly counted, even when both A and B are changed files.
+   * Blast hop read (plan 19 / P2-B): symbol edges whose TARGET is one of the
+   * given `(path, name)` pairs — `(to_path, to_name) IN (…)` on the
+   * `symbol_edges_repo_to_idx` index. Callers chunk the pairs
+   * (`BLAST_QUERY_CHUNK`); the whole-repo edge table is never loaded.
    */
-  async getResolvedCallers(
+  async getIncomingEdges(
     repoId: string,
-    declFiles: string[],
-    names: string[],
-  ): Promise<ResolvedCallerRow[]> {
-    if (declFiles.length === 0 || names.length === 0) return [];
+    targets: ReadonlyArray<{ path: string; name: string }>,
+  ): Promise<SymbolEdgeRow[]> {
+    if (targets.length === 0) return [];
+    const pairs = sql.join(
+      targets.map((x) => sql`(${x.path}, ${x.name})`),
+      sql`, `,
+    );
     return this.db
       .select({
-        fromPath: t.references.fromPath,
-        toSymbol: t.references.toSymbol,
-        line: t.references.line,
-        rank: t.fileRank.rank,
+        fromPath: t.symbolEdges.fromPath,
+        fromName: t.symbolEdges.fromName,
+        toPath: t.symbolEdges.toPath,
+        toName: t.symbolEdges.toName,
+        kind: t.symbolEdges.kind,
+        confidence: t.symbolEdges.confidence,
+        line: t.symbolEdges.line,
       })
-      .from(t.references)
-      .innerJoin(
-        t.fileRank,
-        and(
-          eq(t.fileRank.repoId, t.references.repoId),
-          eq(t.fileRank.filePath, t.references.fromPath),
-        ),
-      )
-      .innerJoin(
-        t.symbols,
-        and(
-          eq(t.symbols.repoId, t.references.repoId),
-          eq(t.symbols.name, t.references.toSymbol),
-          inArray(t.symbols.path, declFiles),
-        ),
-      )
+      .from(t.symbolEdges)
       .where(
         and(
-          eq(t.references.repoId, repoId),
-          inArray(t.references.declFile, declFiles),
-          inArray(t.references.toSymbol, names),
-          ne(t.references.fromPath, t.symbols.path),
+          eq(t.symbolEdges.repoId, repoId),
+          sql`(${t.symbolEdges.toPath}, ${t.symbolEdges.toName}) in (${pairs})`,
         ),
       );
+  }
+
+  /** Every indexed code path (each parsed file has a `<module>` symbol row). */
+  async getIndexedFilePaths(repoId: string): Promise<Set<string>> {
+    const rows = await this.db
+      .selectDistinct({ path: t.symbols.path })
+      .from(t.symbols)
+      .where(eq(t.symbols.repoId, repoId));
+    return new Set(rows.map((r) => r.path));
+  }
+
+  /** `file_rank.rank` per path (blast ordering). */
+  async getFileRankValues(repoId: string, paths: readonly string[]): Promise<Map<string, number>> {
+    const out = new Map<string, number>();
+    if (paths.length === 0) return out;
+    const rows = await this.db
+      .select({ path: t.fileRank.filePath, rank: t.fileRank.rank })
+      .from(t.fileRank)
+      .where(and(eq(t.fileRank.repoId, repoId), inArray(t.fileRank.filePath, [...paths])));
+    for (const r of rows) out.set(r.path, r.rank);
+    return out;
   }
 
   /** Per-file facts (endpoints/crons) for the given files. */

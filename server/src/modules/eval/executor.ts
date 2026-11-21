@@ -1,4 +1,5 @@
-import type { LLMProvider, PromptAssembly } from '@devdigest/shared';
+import type { PromptAssembly } from '@devdigest/shared';
+import type { LLMProvider } from '../../domain/ports/llm.js';
 import { reviewPullRequest } from '@devdigest/reviewer-core';
 import { parseUnifiedDiff } from '../../adapters/git/diff-parser.js';
 import { renderSkillBlock, type RenderableSkill } from '../_shared/skill-render.js';

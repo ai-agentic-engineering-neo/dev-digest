@@ -34,7 +34,7 @@ export default async function conventionsRoutes(appBase: FastifyInstance) {
     conventionsRepo,
     container.repoRepo,
     container.skillsService,
-    (repo) => getConventionsSampleSet(container, repo),
+    (repo) => getConventionsSampleSet({ git: container.git, repoIntel: container.repoIntel }, repo),
     (workspaceId, id) => container.resolveFeatureModel(workspaceId, id),
     (id) => container.llm(id),
   );

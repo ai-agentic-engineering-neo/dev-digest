@@ -18,6 +18,7 @@ import {
   integer,
   smallint,
   doublePrecision,
+  boolean,
   jsonb,
   timestamp,
   primaryKey,
@@ -45,6 +46,14 @@ export const repoIndexState = pgTable('repo_index_state', {
   filesSkipped: integer('files_skipped').notNull().default(0),
   stats: jsonb('stats').notNull().default({}),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  // specs/18 — index coverage + reindex progress. All nullable: rows written
+  // before indexer v3 carry NULL. `reindex_*` is a SEPARATE axis from `status`
+  // (AC-16a) — nothing is added to the status enum.
+  coverage: jsonb('coverage'),
+  reindexState: text('reindex_state', { enum: ['queued', 'running'] }),
+  reindexDone: integer('reindex_done'),
+  reindexTotal: integer('reindex_total'),
+  tsconfigFailures: jsonb('tsconfig_failures'),
 });
 
 /**
@@ -64,6 +73,99 @@ export const fileEdges = pgTable(
   (t) => ({
     pk: primaryKey({ columns: [t.repoId, t.fromFile, t.toFile] }),
     toIdx: index('file_edges_repo_to_idx').on(t.repoId, t.toFile),
+  }),
+);
+
+/**
+ * Import bindings (specs/18): one row per local binding of an import
+ * statement. `resolvedFile` is NULL when unresolved; `unresolvedReason` says
+ * why (`external`/`builtin` are NOT counted as unresolved). Derived
+ * `file_edges` are written only from rows with a non-null `resolvedFile`.
+ */
+export const fileImports = pgTable(
+  'file_imports',
+  {
+    repoId: uuid('repo_id')
+      .notNull()
+      .references(() => repos.id, { onDelete: 'cascade' }),
+    fromFile: text('from_file').notNull(),
+    idx: integer('idx').notNull(),
+    localName: text('local_name').notNull(),
+    importedName: text('imported_name').notNull(),
+    specifier: text('specifier').notNull(),
+    isType: boolean('is_type').notNull().default(false),
+    kind: text('kind', { enum: ['static', 'dynamic', 'require'] }).notNull(),
+    line: integer('line').notNull(),
+    resolvedFile: text('resolved_file'),
+    unresolvedReason: text('unresolved_reason', {
+      enum: [
+        'missing',
+        'cycle',
+        'ambiguous',
+        'tsconfig',
+        'non_literal',
+        'outside_clone',
+        'external',
+        'builtin',
+      ],
+    }),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.repoId, t.fromFile, t.idx] }),
+    resolvedIdx: index('file_imports_repo_resolved_idx').on(t.repoId, t.resolvedFile),
+    fromIdx: index('file_imports_repo_from_idx').on(t.repoId, t.fromFile),
+  }),
+);
+
+/** Export table (specs/18): what each file exports, incl. re-export chains. */
+export const fileExports = pgTable(
+  'file_exports',
+  {
+    repoId: uuid('repo_id')
+      .notNull()
+      .references(() => repos.id, { onDelete: 'cascade' }),
+    file: text('file').notNull(),
+    exportedName: text('exported_name').notNull(),
+    localName: text('local_name'),
+    kind: text('kind', {
+      enum: ['local', 'default', 'reexport', 'reexport_all', 'namespace'],
+    }).notNull(),
+    specifier: text('specifier'),
+    resolvedFile: text('resolved_file'),
+    line: integer('line').notNull(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.repoId, t.file, t.exportedName, t.kind] }),
+    resolvedIdx: index('file_exports_repo_resolved_idx').on(t.repoId, t.resolvedFile),
+  }),
+);
+
+/**
+ * Symbol-level edges (specs/18): `from` symbol references `to` symbol.
+ * Module-scope pseudo-symbol name = `<module>`.
+ */
+export const symbolEdges = pgTable(
+  'symbol_edges',
+  {
+    repoId: uuid('repo_id')
+      .notNull()
+      .references(() => repos.id, { onDelete: 'cascade' }),
+    fromPath: text('from_path').notNull(),
+    fromName: text('from_name').notNull(),
+    toPath: text('to_path').notNull(),
+    toName: text('to_name').notNull(),
+    kind: text('kind', {
+      enum: ['call', 'type', 'value', 'extends', 'implements', 're-export'],
+    }).notNull(),
+    confidence: text('confidence', { enum: ['exact', 'inferred'] }).notNull(),
+    line: integer('line').notNull(),
+  },
+  (t) => ({
+    pk: primaryKey({
+      columns: [t.repoId, t.fromPath, t.fromName, t.toPath, t.toName, t.kind, t.line],
+    }),
+    toIdx: index('symbol_edges_repo_to_idx').on(t.repoId, t.toPath, t.toName),
+    fromIdx: index('symbol_edges_repo_from_idx').on(t.repoId, t.fromPath),
   }),
 );
 

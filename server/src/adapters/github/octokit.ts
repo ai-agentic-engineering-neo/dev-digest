@@ -1,19 +1,6 @@
 import { Octokit } from 'octokit';
-import type {
-  GitHubClient,
-  RepoRef,
-  PrMeta,
-  PrDetail,
-  PrStatus,
-  GitHubReviewPayload,
-  CreateReviewCommentInput,
-  PrReviewComment,
-  OpenPrPayload,
-  CommitFilesPayload,
-  IssueMeta,
-  WorkflowRun,
-  RunArtifact,
-} from '@devdigest/shared';
+import type { RepoRef, PrMeta, PrDetail, PrStatus, GitHubReviewPayload, CreateReviewCommentInput, PrReviewComment, OpenPrPayload, CommitFilesPayload, IssueMeta, WorkflowRun, RunArtifact } from '@devdigest/shared';
+import type { GitHubClient } from '../../domain/ports/github.js';
 import { withRetry, withTimeout } from '../../platform/resilience.js';
 import { resolveLinkedIssue } from '../../modules/_shared/linked-issue.js';
 import { ValidationError } from '../../platform/errors.js';
@@ -81,6 +68,7 @@ export class OctokitGitHubClient implements GitHubClient {
             branch: pr.head.ref,
             base: pr.base.ref,
             head_sha: pr.head.sha,
+            base_sha: pr.base.sha,
             additions: 0,
             deletions: 0,
             files_count: 0, // not present on the list payload; populated by getPullRequest
@@ -103,7 +91,8 @@ export class OctokitGitHubClient implements GitHubClient {
             repo: repo.name,
             pull_number: n,
           });
-          const { data: files } = await this.octokit.rest.pulls.listFiles({
+          // specs/18 AC-35: a single page caps at 100 files — paginate so big PRs are complete.
+          const files = await this.octokit.paginate(this.octokit.rest.pulls.listFiles, {
             owner: repo.owner,
             repo: repo.name,
             pull_number: n,
@@ -123,6 +112,7 @@ export class OctokitGitHubClient implements GitHubClient {
             branch: pr.head.ref,
             base: pr.base.ref,
             head_sha: pr.head.sha,
+            base_sha: pr.base.sha,
             additions: pr.additions,
             deletions: pr.deletions,
             files_count: pr.changed_files,
@@ -135,6 +125,8 @@ export class OctokitGitHubClient implements GitHubClient {
               additions: f.additions,
               deletions: f.deletions,
               patch: f.patch,
+              status: f.status,
+              previous_filename: f.previous_filename ?? null,
             })),
             commits: commits.map((c) => ({
               sha: c.sha,

@@ -9,6 +9,7 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Button, EmptyState, Icon, Markdown, SectionLabel, Skeleton } from "@devdigest/ui";
 import { useBrief, useGenerateBrief } from "@/lib/hooks/brief";
+import { HelpTip } from "@/components/help-tip";
 import { useToast } from "@/lib/toast";
 import { ApiError } from "@/lib/api";
 import { formatCost, relativeTime } from "@/lib/format";
@@ -48,7 +49,9 @@ export function PrBriefCard({
   if (isLoading || !page) {
     return (
       <section>
-        <SectionLabel icon="Sparkles">{t("section.title")}</SectionLabel>
+        <SectionLabel icon="Sparkles" info={<HelpTip topic="brief" />}>
+          {t("section.title")}
+        </SectionLabel>
         <div style={s.loadingStack}>
           <Skeleton height={20} width={240} />
           <Skeleton height={60} />
@@ -71,6 +74,7 @@ export function PrBriefCard({
     <section>
       <SectionLabel
         icon="Sparkles"
+        info={<HelpTip topic="brief" />}
         right={
           <Button
             kind="primary"
@@ -136,7 +140,9 @@ export function PrBriefCard({
           </div>
 
           <div style={s.block}>
-            <div style={s.blockLabel}>{t("section.risks")}</div>
+            <div style={s.blockLabel}>
+              {t("section.risks")} <HelpTip topic="riskAreas" size={12} />
+            </div>
             {page.brief.risks.length === 0 ? (
               <p style={s.prose}>{t("section.noRisks")}</p>
             ) : (
@@ -154,7 +160,9 @@ export function PrBriefCard({
           </div>
 
           <div style={s.block}>
-            <div style={s.blockLabel}>{t("section.focus")}</div>
+            <div style={s.blockLabel}>
+              {t("section.focus")} <HelpTip topic="reviewFocus" size={12} />
+            </div>
             <ReviewFocusList
               items={page.brief.review_focus}
               repoFullName={repoFullName}

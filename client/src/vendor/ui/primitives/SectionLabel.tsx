@@ -5,10 +5,13 @@ export function SectionLabel({
   children,
   icon,
   right,
+  info,
 }: {
   children?: React.ReactNode;
   icon?: IconName;
   right?: React.ReactNode;
+  /** Optional help affordance (e.g. an `<InfoTip>`) rendered right after the label. */
+  info?: React.ReactNode;
 }) {
   const I = icon ? Icon[icon] : null;
   return (
@@ -25,6 +28,7 @@ export function SectionLabel({
       >
         {children}
       </span>
+      {info}
       {right && <div style={{ marginLeft: "auto" }}>{right}</div>}
     </div>
   );

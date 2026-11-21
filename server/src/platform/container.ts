@@ -1,14 +1,11 @@
-import type {
-  AuthProvider,
-  SecretsProvider,
-  GitHubClient,
-  GitClient,
-  CodeIndex,
-  Embedder,
-  LLMProvider,
-  FeatureModelId,
-  FeatureModelChoice,
-} from '@devdigest/shared';
+import type { FeatureModelId, FeatureModelChoice } from '@devdigest/shared';
+import type { AuthProvider } from '../domain/ports/auth.js';
+import type { SecretsProvider } from '../domain/ports/secrets.js';
+import type { GitHubClient } from '../domain/ports/github.js';
+import type { GitClient } from '../domain/ports/git.js';
+import type { CodeIndex } from '../domain/ports/code-index.js';
+import type { Embedder } from '../domain/ports/embedder.js';
+import type { LLMProvider } from '../domain/ports/llm.js';
 import type { AppConfig } from './config.js';
 import type { Db } from '../db/client.js';
 import { JobRunner } from './jobs.js';
@@ -40,11 +37,17 @@ import { readSpecFile } from '../modules/brief/clone.js';
 import { EvalRepository } from '../modules/eval/repository.js';
 import { EvalService } from '../modules/eval/service.js';
 import { EvalExecutor } from '../modules/eval/executor.js';
-import type { RepoIntel } from '../modules/repo-intel/types.js';
+import type { RepoIntel } from '../domain/ports/repo-intel.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
+import { RepoIntelRepository } from '../modules/repo-intel/repository.js';
+import type { ProjectGraphReader } from '../domain/ports/project-graph.js';
+import { GraphReadService } from '../modules/repo-intel/graph-read.service.js';
+import { GraphReadRepository } from '../modules/repo-intel/graph-read.repository.js';
 import { resolveFeatureModel as resolveFeatureModelForWorkspace } from '../modules/settings/feature-models.js';
-import { type DepGraph, DepCruiseGraph } from '../adapters/depgraph/index.js';
-import { type Tokenizer, TiktokenTokenizer } from '../adapters/tokenizer/index.js';
+import type { ModuleResolver } from '../domain/ports/module-resolver.js';
+import { TsModuleResolverFactory } from '../adapters/tsresolve/index.js';
+import type { Tokenizer } from '../domain/ports/tokenizer.js';
+import { TiktokenTokenizer } from '../adapters/tokenizer/index.js';
 import { IntentRepository } from '../modules/intent/repository.js';
 import { IntentService } from '../modules/intent/service.js';
 import { readClone } from '../modules/intent/clone.js';
@@ -71,8 +74,10 @@ export interface ContainerOverrides {
   /** repo-intel facade (T1.1+) — tests inject mock RepoIntel implementations. */
   repoIntel?: RepoIntel;
   /** repo-intel T3 adapters — only the indexer pipeline reads these. */
-  depgraph?: DepGraph;
+  resolver?: ModuleResolver;
   tokenizer?: Tokenizer;
+  /** Project graph read side (specs/18) — tests inject a fake reader. */
+  projectGraph?: ProjectGraphReader;
 }
 
 export class Container {
@@ -105,8 +110,9 @@ export class Container {
   private _briefService?: BriefService;
   private _evalRepo?: EvalRepository;
   private _evalService?: EvalService;
-  private _repoIntel?: RepoIntel;
-  private _depgraph?: DepGraph;
+  private _repoIntelService?: RepoIntelService;
+  private _resolver?: ModuleResolver;
+  private _projectGraph?: ProjectGraphReader;
   private _tokenizer?: Tokenizer;
   private _priceBook?: PriceBook;
   private _intentRepo?: IntentRepository;
@@ -369,15 +375,39 @@ export class Container {
    */
   get repoIntel(): RepoIntel {
     if (this.overrides.repoIntel) return this.overrides.repoIntel;
-    this._repoIntel ??= new RepoIntelService(this);
-    return this._repoIntel;
+    return this.repoIntelService;
   }
 
-  /** Import-graph builder (dependency-cruiser). T3 indexer pipeline only. */
-  get depgraph(): DepGraph {
-    if (this.overrides.depgraph) return this.overrides.depgraph;
-    this._depgraph ??= new DepCruiseGraph();
-    return this._depgraph;
+  /**
+   * The concrete repo-intel service (composition point, SPEC-16 AC-12). Ignores
+   * `overrides.repoIntel` on purpose: `repo-intel/routes.ts` registers the
+   * INDEX/REFRESH/RESYNC job handlers on the real service even when a test
+   * overrides the facade.
+   */
+  get repoIntelService(): RepoIntelService {
+    this._repoIntelService ??= new RepoIntelService(new RepoIntelRepository(this.db), {
+      git: this.git,
+      codeIndex: this.codeIndex,
+      jobs: this.jobs,
+      resolver: this.resolver,
+      tokenizer: this.tokenizer,
+      repoIntelEnabled: this.config.repoIntelEnabled,
+    });
+    return this._repoIntelService;
+  }
+
+  /** Project dependency-graph reader (specs/18 P4-A): read-only, memoises cycles in-process. */
+  get projectGraph(): ProjectGraphReader {
+    if (this.overrides.projectGraph) return this.overrides.projectGraph;
+    this._projectGraph ??= new GraphReadService(new GraphReadRepository(this.db));
+    return this._projectGraph;
+  }
+
+  /** Module resolver factory (`ts.resolveModuleName`, contained host). Indexer pipeline only. */
+  get resolver(): ModuleResolver {
+    if (this.overrides.resolver) return this.overrides.resolver;
+    this._resolver ??= new TsModuleResolverFactory();
+    return this._resolver;
   }
 
   /** Token counter (js-tiktoken) for the repo-map budget search. */

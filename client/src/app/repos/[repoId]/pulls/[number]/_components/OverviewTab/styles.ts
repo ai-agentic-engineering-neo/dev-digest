@@ -1,32 +1,109 @@
 import type { CSSProperties } from "react";
+import { DESCRIPTION_COLLAPSED_HEIGHT } from "./constants";
 
 export const s = {
-  briefSection: {
-    marginBottom: 24,
+  glanceWrap: { marginBottom: 22 } satisfies CSSProperties,
+  glanceHead: { display: "flex", alignItems: "center", gap: 6, marginBottom: 10 } satisfies CSSProperties,
+  glanceTitle: {
+    fontSize: 12,
+    fontWeight: 700,
+    letterSpacing: "0.07em",
+    textTransform: "uppercase",
+    color: "var(--text-muted)",
   } satisfies CSSProperties,
-  overviewGrid: {
+  glance: {
     display: "grid",
-    // minmax(0, 1fr), not 1fr: a bare `1fr` track still floors at its item's
-    // min-content width (long unbreakable file:line paths in BlastRadiusCard
-    // easily exceed half the row), so the two columns rendered unequal widths
-    // — this pins both to exactly half regardless of content, matching the
-    // Intent/Blast-Radius figma (both == half of the Description row below).
-    gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
-    gap: 20,
-    marginBottom: 24,
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    gap: 10,
   } satisfies CSSProperties,
-  overviewGridCell: {
+  glanceCard: (active: boolean): CSSProperties => ({
+    display: "grid",
+    gridTemplateRows: "auto 1fr auto",
+    gap: 6,
+    minHeight: 104,
+    padding: "12px 14px",
+    textAlign: "left",
+    borderRadius: 10,
+    border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
+    background: active ? "var(--accent-bg)" : "var(--bg-elevated)",
+    boxShadow: active ? "0 0 0 3px var(--accent-bg)" : undefined,
+    color: "inherit",
+    cursor: "pointer",
+    transition: "border-color .12s, background .12s",
+    minWidth: 0,
+  }),
+  glanceLabel: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    fontSize: 11.5,
+    fontWeight: 700,
+    letterSpacing: "0.05em",
+    textTransform: "uppercase",
+    color: "var(--text-secondary)",
+  } satisfies CSSProperties,
+  glanceValue: { fontWeight: 650, lineHeight: 1.35, alignSelf: "center", minWidth: 0 } satisfies CSSProperties,
+  glanceSub: {
+    fontSize: 12,
+    color: "var(--text-muted)",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  } satisfies CSSProperties,
+  clamp2: {
+    display: "-webkit-box",
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: "vertical",
+    overflow: "hidden",
+    fontWeight: 500,
+  } satisfies CSSProperties,
+  panel: { minWidth: 0 } satisfies CSSProperties,
+  section: {
+    marginBottom: 28,
     minWidth: 0,
   } satisfies CSSProperties,
   descriptionBox: {
+    position: "relative",
     border: "1px solid var(--border)",
     borderRadius: 8,
     background: "var(--bg-elevated)",
-    padding: 18,
+    padding: "18px 22px",
     fontSize: 14,
     color: "var(--text-secondary)",
-    whiteSpace: "pre-wrap",
-    lineHeight: 1.55,
+    lineHeight: 1.6,
     marginBottom: 24,
+  } satisfies CSSProperties,
+  emptyBox: {
+    border: "1px dashed var(--border)",
+    borderRadius: 8,
+    padding: 18,
+    fontSize: 13,
+    color: "var(--text-muted)",
+  } satisfies CSSProperties,
+  descriptionCollapsed: {
+    maxHeight: DESCRIPTION_COLLAPSED_HEIGHT,
+    overflow: "hidden",
+  } satisfies CSSProperties,
+  fade: {
+    position: "absolute",
+    left: 1,
+    right: 1,
+    bottom: 50,
+    height: 90,
+    background: "linear-gradient(to bottom, transparent, var(--bg-elevated))",
+    pointerEvents: "none",
+  } satisfies CSSProperties,
+  expandBtn: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 12,
+    padding: "5px 12px",
+    borderRadius: 6,
+    border: "1px solid var(--border)",
+    background: "var(--bg-surface)",
+    color: "var(--text-secondary)",
+    fontSize: 12.5,
+    cursor: "pointer",
   } satisfies CSSProperties,
 } as const;

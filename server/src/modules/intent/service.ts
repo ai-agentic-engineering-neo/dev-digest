@@ -1,4 +1,6 @@
-import type { FeatureModelChoice, GitHubClient, LLMProvider, Provider as ProviderId } from '@devdigest/shared';
+import type { FeatureModelChoice, Provider as ProviderId } from '@devdigest/shared';
+import type { GitHubClient } from '../../domain/ports/github.js';
+import type { LLMProvider } from '../../domain/ports/llm.js';
 import { collectSpecCandidates, mentionsSpecWithoutPath, parseIssueNumber } from '../_shared/linked-issue.js';
 import { detectContextGaps, renderIntentText } from './helpers.js';
 import { buildIntentPrompt } from './prompts.js';

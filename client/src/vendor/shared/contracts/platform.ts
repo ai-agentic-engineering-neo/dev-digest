@@ -164,6 +164,8 @@ export const PrMeta = z.object({
   branch: z.string(),
   base: z.string(),
   head_sha: z.string(),
+  /** specs/18 (additive): GitHub base.sha at sync time; absent for PRs synced before 0027. */
+  base_sha: z.string().nullish(),
   additions: z.number().int(),
   deletions: z.number().int(),
   files_count: z.number().int(),
@@ -188,6 +190,10 @@ export const PrFile = z.object({
   additions: z.number().int(),
   deletions: z.number().int(),
   patch: z.string().nullish(),
+  /** specs/18 (additive): GitHub file status (added|removed|modified|renamed|…). */
+  status: z.string().nullish(),
+  /** specs/18 (additive): previous path for renamed files. */
+  previous_filename: z.string().nullish(),
 });
 export type PrFile = z.infer<typeof PrFile>;
 

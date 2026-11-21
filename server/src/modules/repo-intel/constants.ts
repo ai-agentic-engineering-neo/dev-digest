@@ -36,7 +36,11 @@ export const MAX_CALLERS_PER_SYMBOL = 20;
  * v2 (T3): graph + decl_file resolution + file_rank + repo-map landed, so every
  * T2 `partial` index must be rebuilt to gain the rank-driven data.
  */
-export const INDEXER_VERSION = 2;
+export const INDEXER_VERSION = 3;
+/** v3 (specs/18): module-aware graph — file_imports/file_exports/symbol_edges, binding-based decl_file. */
+
+/** Reindex progress is flushed every N parsed files (AC-16). */
+export const REINDEX_PROGRESS_EVERY = 100;
 
 // --- [T2] Full-index limits (documented now, enforced in the pipeline) ------
 export const MAX_INDEXED_FILES = 5000;
@@ -45,9 +49,31 @@ export const MAX_PARSE_MS_PER_FILE = 2000;
 /** Soft self-watch budget (< JobRunner hard 120s) → finish as `partial`. */
 export const INDEX_SOFT_BUDGET_MS = 110_000;
 
+// --- Blast v2 (specs/18 caps; plan 19 "Caps (numbers)") ---------------------
+export const BLAST_MAX_DEPTH = 6;
+export const BLAST_DEFAULT_DEPTH = 6;
+/** Nodes / edges kept in a PR impact graph (changed, then entry points, then impacted). */
+export const MAX_BLAST_NODES = 300;
+export const MAX_BLAST_EDGES = 600;
+/** Internal traversal visited cap; beyond it counts are lower bounds (`totalsCapped`). */
+export const MAX_TRAVERSAL_NODES = 5000;
+export const MAX_BLAST_ENTRY_POINTS = 50;
+export const MAX_BLAST_TESTS = 100;
+/** `(to_path, to_name) IN (…)` chunk per hop query. */
+export const BLAST_QUERY_CHUNK = 200;
+/** Changed files parsed at head per blast read; the rest stay base-only. */
+export const MAX_OVERLAY_FILES = 200;
+export const OVERLAY_CONCURRENCY = 8;
+export const MAX_DEGRADED_FILES_LISTED = 50;
+/** `lowConfidence` iff the resolved share of value bindings is below this. */
+export const LOW_CONFIDENCE_VALUE_SHARE = 0.8;
+
 // --- [T3] Graph / hotness / repo-map ---------------------------------------
 export const BFS_DEPTH = 2;
 export const HOTNESS_WINDOW_DAYS = 180;
 export const DEFAULT_REPO_MAP_TOKEN_BUDGET = 1500;
 /** Signatures are trimmed to this many chars in the parse phase (cache stability). */
 export const MAX_SIGNATURE_CHARS = 120;
+
+/** Project graph overview size (AC-47): a readable directory map; `dir=` drill-down shows the rest. */
+export const OVERVIEW_TARGET_NODES = 60;

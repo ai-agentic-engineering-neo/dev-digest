@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback } from "react";
+import React, { useCallback, useMemo } from "react";
 import { Icon, Badge, Button, SectionLabel, EmptyState } from "@devdigest/ui";
 import { RunStatus } from "../RunStatus";
 import { RunHistory } from "../RunHistory/RunHistory";
@@ -44,6 +44,16 @@ export function FindingsTab({
   const handleCancelAll = useCallback(() => {
     liveRunIds.forEach((id) => cancelMutation.mutate(id));
   }, [liveRunIds, cancelMutation]);
+
+  // run_id → cost of completed runs, for the review-run headers (M1). Reuses
+  // the already-loaded run history instead of widening the reviews contract.
+  const costByRunId = useMemo(
+    () =>
+      new Map(
+        (prRuns ?? []).filter((r) => r.status === "done").map((r) => [r.run_id, r.cost_usd] as const),
+      ),
+    [prRuns],
+  );
 
   const handleOpenFirstTrace = useCallback(() => {
     if (liveRunIds[0]) onOpenTrace(liveRunIds[0]);
@@ -164,6 +174,7 @@ export function FindingsTab({
             headSha={headSha}
             targetRunId={target?.runId ?? null}
             targetNonce={target?.n ?? 0}
+            costUsd={review.run_id ? costByRunId.get(review.run_id) ?? null : null}
           />
         ))
       )}

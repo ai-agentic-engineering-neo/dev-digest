@@ -16,6 +16,10 @@ Entry format:
 
 <!-- Dead ends and antipatterns. The most valuable section; do not skip it. -->
 
+- 2026-11-21 — `scripts/e2e.sh` exits 0 even when no flow ran: with `e2e/node_modules` missing it prints `tsx: command not found` and still reports success. Before trusting a green run, check its output for the flow results; run `cd e2e && npm ci` and install `agent-browser` (`npm i -g agent-browser && agent-browser install`) first. Evidence: scripts/e2e.sh:163
+
+- 2026-11-21 — `scripts/e2e.sh` is NOT safe alongside a running dev stack despite its header: it starts `next dev -p 3100` in the same `client/` folder, which rewrites the shared `client/.next` and breaks the dev server on :3000 (`Loading chunk app/... failed`, chunk 404). Stop the dev web server first, or after the run fix it with Ctrl-C → `rm -rf client/.next && pnpm dev`. Evidence: scripts/e2e.sh:148
+
 ## Codebase Patterns
 
 <!-- Conventions and structure that are not obvious from one file. -->
@@ -39,6 +43,8 @@ Entry format:
 <!-- One dated line per work session. -->
 
 - 2026-11-21 — Added CLAUDE.md, INSIGHTS.md, docs/ and written-spec files beside the flows; no flow or runner code changed.
+
+- 2026-11-21 — Added a `$0.014` COST assertion to 02-repo-pulls-detail.flow.json (M1 cost badge); not executed locally because agent-browser is not installed.
 
 ## Open Questions
 

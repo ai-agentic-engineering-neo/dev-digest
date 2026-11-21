@@ -19,4 +19,4 @@ Add a row when a spec is created.
 
 | Spec | Milestone | Status |
 |------|-----------|--------|
-| —    | —         | —      |
+| [M1-cost-badge.md](M1-cost-badge.md) | M1 | built |

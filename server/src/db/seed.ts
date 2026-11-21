@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { createDb, type Db } from './client.js';
 import * as t from './schema.js';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, isNull } from 'drizzle-orm';
 import {
   GENERAL_REVIEWER_PROMPT,
   SECURITY_REVIEWER_PROMPT,
@@ -218,6 +218,79 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       .from(t.agents)
       .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, a.name)));
     if (!existing) await db.insert(t.agents).values(a);
+  }
+
+  // ---- PR #482: one completed agent run behind the sample review ----
+  // Gives the M1 run cost badge real data on a fresh DB (PR list COST column,
+  // Agent runs timeline, review-run header, trace drawer). Idempotent: skipped
+  // once the PR has any agent run.
+  const [existingRun] = await db
+    .select({ id: t.agentRuns.id })
+    .from(t.agentRuns)
+    .where(eq(t.agentRuns.prId, pr!.id))
+    .limit(1);
+  const [securityAgent] = await db
+    .select()
+    .from(t.agents)
+    .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, 'Security Reviewer')));
+  if (!existingRun && securityAgent) {
+    const seedRun = {
+      durationMs: 8200,
+      tokensIn: 8200,
+      tokensOut: 1300,
+      costUsd: 0.0142,
+      findingsCount: 2,
+      grounding: '2/2 passed',
+    };
+    const [run] = await db
+      .insert(t.agentRuns)
+      .values({
+        workspaceId,
+        agentId: securityAgent.id,
+        prId: pr!.id,
+        provider: securityAgent.provider,
+        model: securityAgent.model,
+        status: 'done',
+        score: 61,
+        blockers: 1,
+        ...seedRun,
+      })
+      .returning();
+    await db.insert(t.runTraces).values({
+      runId: run!.id,
+      trace: {
+        config: {
+          agent: securityAgent.name,
+          version: String(securityAgent.version),
+          provider: securityAgent.provider,
+          model: securityAgent.model,
+          pr: 482,
+          source: 'local',
+        },
+        stats: {
+          duration_ms: seedRun.durationMs,
+          tokens_in: seedRun.tokensIn,
+          tokens_out: seedRun.tokensOut,
+          cost_usd: seedRun.costUsd,
+          findings: seedRun.findingsCount,
+          grounding: seedRun.grounding,
+        },
+        prompt_assembly: { system: securityAgent.systemPrompt, skills: null, memory: null, specs: null, user: 'Review PR #482' },
+        tool_calls: [],
+        raw_output: '',
+        memory_pulled: [],
+        specs_read: [],
+        log: [
+          { t: '00.00', kind: 'info', msg: `Agent run started · ${securityAgent.name}` },
+          { t: '08.20', kind: 'result', msg: 'Run complete · 2 findings · $0.0142 · 8.2s' },
+        ],
+      },
+    });
+    // Attach the sample review (created above without a run) to this run.
+    await db
+      .update(t.reviews)
+      .set({ runId: run!.id, agentId: securityAgent.id })
+      .where(and(eq(t.reviews.prId, pr!.id), eq(t.reviews.model, 'seed'), isNull(t.reviews.runId)));
   }
 
   return { workspaceId, userId };

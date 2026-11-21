@@ -298,6 +298,45 @@ silently if `/ci-runs` grows a "View trace" affordance later.
 
 ## Tool & Library Notes
 
+### 2026-11-21 — React Flow nodes are unclickable (`pointer-events: none`) unless something makes them interactive
+
+`graph-canvas/GraphCanvas.tsx` disables `nodesDraggable`, `nodesConnectable` and
+`elementsSelectable`. With all three off and no `onNodeClick`, @xyflow/react
+sets `pointer-events: none` on every node wrapper (its internal check is
+`selectable || draggable || onClick || onMouseEnter || …`). So the `onClick`
+inside the custom `GraphNode` never fired in a real browser — while the jsdom
+tests passed, because `fireEvent.click` dispatches straight to the element and
+ignores CSS. The fix is `onNodeClick` on `<ReactFlow>`; GraphNode keeps only
+the keyboard handler (an extra onClick would call `onSelect` twice). Verify
+canvas interactivity in a real browser (agent-browser), not just RTL.
+
+Related: on a few-hundred-node graph `fitView` lands at ~0.05 zoom and panning
+is unbounded, so a few drags leave the viewport over empty space and the graph
+looks "broken". `translateExtent` from `layoutExtent()` (bounding box + margin),
+plus the `GraphToolbar` (search / fit all / fit changed / center selection),
+a `MiniMap` and `onlyRenderVisibleElements` fix it.
+
+### 2026-11-21 — Tailwind preflight strips Markdown typography; `.dd-md` in `vendor/ui/styles.css` restores it
+
+Lists had no bullets and `##` headings rendered as body text because Tailwind
+v4's preflight resets `list-style`, heading sizes and margins. The `Markdown`
+primitive now relies on the scoped `.dd-md` rules (headings, lists, task
+lists, tables, `pre`, quotes) instead of per-element inline styles. Its raw-HTML
+handling is opt-in per caller: the default shows HTML as inert text (the
+brief's AC-40 test depends on that), while `skipHtml` drops it. The PR
+description uses `skipHtml` so PR-template `<!-- … -->` hints vanish, plus
+`breaks` (remark-breaks), because GitHub renders a single newline in a PR body
+as a line break.
+
+### 2026-11-21 — next-intl does not fail a test on a missing message
+
+A component that calls `useTranslations("help")` under a test provider without
+that namespace only logs `IntlError: MISSING_MESSAGE` and renders the key, so
+the test still passes. After adding a namespace to a shared component
+(`HelpTip`, used inside many cards), add it to every test provider that
+renders it, then grep the vitest output for `MISSING_MESSAGE`.
+
+
 ### 2026-11-19 — SPEC-18 browser smoke found five UI defects that 360 green unit tests missed
 
 All five were found by opening the real pages (`./scripts/dev.sh --no-seed` + `agent-browser`) on `burnjohn/quick-blog`.

@@ -5,6 +5,7 @@ import { useEffect, useMemo } from "react";
 import {
   Background,
   Controls,
+  MiniMap,
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
@@ -15,9 +16,10 @@ import { useTranslations } from "next-intl";
 import { DEFAULT_ROLES, NODE_HEIGHT, NODE_WIDTH } from "./constants";
 import { GraphBanner } from "./GraphBanner";
 import { GraphNode } from "./GraphNode";
+import { GraphToolbar } from "./GraphToolbar";
 import { Legend } from "./Legend";
 import { LiveRegion } from "./LiveRegion";
-import { edgeLabel, edgeStrokeWidth } from "./helpers";
+import { edgeLabel, edgeStrokeWidth, layoutExtent } from "./helpers";
 import { useElkLayout } from "./useElkLayout";
 import type { BannerCondition, GraphEdgeInput, GraphNodeData, GraphNodeInput, GraphRoleDef } from "./types";
 
@@ -26,6 +28,11 @@ export interface GraphCanvasProps {
   edges: GraphEdgeInput[];
   /** Called on click / Enter / Space on a node. */
   onSelect?: (id: string) => void;
+  /** Called on a click on empty canvas (clears the caller's selection). */
+  onPaneClick?: () => void;
+  /** Node to bring into view (pans/zooms when it changes, e.g. after picking
+   *  a neighbour from a detail panel). */
+  focusId?: string | null;
   /** Extra or overriding role definitions, keyed by `GraphNodeInput.role`. */
   roles?: Record<string, GraphRoleDef>;
   banners?: BannerCondition[];
@@ -56,10 +63,39 @@ function FitOnLayout({ status, positions }: { status: string; positions: unknown
   return null;
 }
 
-function Inner({ nodes, edges, onSelect, roles, banners, ariaLabel, announcement, height = 480 }: GraphCanvasProps) {
+/** Pans to `focusId` once the layout has positioned it. */
+function FocusNode({ focusId, status }: { focusId: string | null | undefined; status: string }) {
+  const { fitView } = useReactFlow();
+  useEffect(() => {
+    if (!focusId || status === "loading") return;
+    const frame = requestAnimationFrame(
+      () => void fitView({ nodes: [{ id: focusId }], padding: 0.6, maxZoom: 1.1, duration: 300 }),
+    );
+    return () => cancelAnimationFrame(frame);
+  }, [focusId, status, fitView]);
+  return null;
+}
+
+function Inner({
+  nodes,
+  edges,
+  onSelect,
+  onPaneClick,
+  focusId,
+  roles,
+  banners,
+  ariaLabel,
+  announcement,
+  height = 480,
+}: GraphCanvasProps) {
   const t = useTranslations("graph");
   const nodeIds = useMemo(() => nodes.map((n) => n.id), [nodes]);
   const { positions, status } = useElkLayout(nodeIds, edges);
+
+  const extent = useMemo(
+    () => (status === "loading" ? undefined : layoutExtent(positions, NODE_WIDTH, NODE_HEIGHT)),
+    [positions, status],
+  );
 
   const flowNodes = useMemo<Node<GraphNodeData>[]>(
     () =>
@@ -122,13 +158,37 @@ function Inner({ nodes, edges, onSelect, roles, banners, ariaLabel, announcement
           nodesFocusable={false}
           edgesFocusable={false}
           elementsSelectable={false}
+          // React Flow sets `pointer-events: none` on a node wrapper unless the
+          // node is selectable/draggable or an `onNodeClick` handler exists —
+          // with both disabled above, a click never reached GraphNode. This
+          // handler is what makes nodes clickable; keyboard selection stays
+          // on GraphNode itself.
+          onNodeClick={(_, n) => onSelect?.(n.id)}
+          onPaneClick={onPaneClick}
           fitView
           minZoom={0.02}
+          translateExtent={extent}
+          // Hundreds of nodes: skip off-screen nodes/edges so panning stays smooth.
+          onlyRenderVisibleElements={nodes.length > 80}
           proOptions={{ hideAttribution: true }}
         >
           <Background />
           <Controls showInteractive={false} />
+          <GraphToolbar nodes={nodes} selectedId={focusId} onSelect={onSelect} />
+          {nodes.length > 12 && (
+            <MiniMap
+              pannable
+              zoomable
+              ariaLabel={t("toolbar.minimap")}
+              nodeColor={(n) => (n.data as GraphNodeData).roleDef.tone ?? "var(--text-muted)"}
+              nodeStrokeWidth={0}
+              nodeBorderRadius={4}
+              maskColor="rgba(0, 0, 0, 0.55)"
+              style={{ background: "var(--bg-surface)", border: "1px solid var(--border)", width: 180, height: 120 }}
+            />
+          )}
           <FitOnLayout status={status} positions={positions} />
+          <FocusNode focusId={focusId} status={status} />
         </ReactFlow>
       </div>
       <Legend nodes={nodes} edges={edges} roles={roles} />

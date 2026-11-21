@@ -49,7 +49,14 @@
     "runtime": "runtime",
     "typeOnly": "type-only",
     "deleted": "deleted",
-    "depth": "depth {depth}"
+    "depth": "depth {depth}",
+    "filterPlaceholder": "Filter by symbol or file…",
+    "expandAll": "Expand all",
+    "collapseAll": "Collapse all",
+    "noMatches": "Nothing matches “{query}”.",
+    "files": "{count, plural, one {# file} other {# files}}",
+    "moreFiles": "+{count, plural, one {# more file} other {# more files}}",
+    "in": "in"
   },
   "graph": {
     "ariaLabel": "PR impact graph",
@@ -58,7 +65,8 @@
     "hideInferred": "Hide inferred edges",
     "announceLoaded": "{nodes} nodes, {edges} edges",
     "announceSelected": "Selected {name}",
-    "announceCleared": "Selection cleared"
+    "announceCleared": "Selection cleared",
+    "hint": "Click a node to inspect it · Esc to clear"
   },
   "detail": {
     "title": "Node details",
@@ -69,14 +77,46 @@
     "depth": "Depth",
     "github": "Open on GitHub",
     "close": "Close details",
-    "none": "Select a node to see details and highlight its path to the changed code.",
+    "none": "Click any node to see who uses it, what it depends on, and how it connects to the changed code.",
     "kindFile": "file",
-    "kindSymbol": "symbol"
+    "kindSymbol": "symbol",
+    "hops": "{count, plural, =0 {Changed in this PR} one {# hop from the changed code} other {# hops from the changed code}}",
+    "showInDiff": "Show in diff",
+    "pathToChanged": "Path to changed code",
+    "noPath": "No path to changed code with the current filters.",
+    "usedBy": "Used by ({count})",
+    "dependsOn": "Depends on ({count})",
+    "noDependents": "Nothing in the graph depends on this.",
+    "noDependencies": "It depends on nothing else in the graph.",
+    "inferred": "inferred",
+    "showAll": "Show all {count}",
+    "showLess": "Show less"
   },
   "role": {
     "changed": "changed",
     "impacted": "impacted",
     "entry_point": "entry point",
     "test": "test"
+  },
+  "tile": {
+    "symbols": "Changed symbols",
+    "inFiles": "{count, plural, one {in # file} other {in # files}}",
+    "callers": "Call sites",
+    "typeOnlyShare": "{count} type-only",
+    "allRuntime": "all runtime",
+    "files": "Files reached",
+    "filesSub": "with at least one call site",
+    "entryPoints": "Entry points",
+    "entryPointsSub": "routes, pages, crons",
+    "tests": "Affected tests",
+    "testsSub": "cover the impacted code"
+  },
+  "edge": {
+    "call": "call",
+    "type": "type",
+    "value": "value",
+    "extends": "extends",
+    "implements": "implements",
+    "re-export": "re-export"
   }
 }

@@ -1,15 +1,28 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { NextIntlClientProvider } from "next-intl";
+import intentMessages from "../../../../../../../../messages/en/intent.json";
+import helpMessages from "../../../../../../../../messages/en/help.json";
 import * as hooks from "@/lib/hooks/intent";
 import type { Intent } from "@/lib/hooks/intent";
 import { IntentCard } from "./IntentCard";
 
 afterEach(cleanup);
 
-function renderWithProviders(ui: React.ReactElement) {
+function wrap(ui: React.ReactElement) {
   const qc = new QueryClient();
-  return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
+  return (
+    <QueryClientProvider client={qc}>
+      <NextIntlClientProvider locale="en" messages={{ intent: intentMessages, help: helpMessages }}>
+        {ui}
+      </NextIntlClientProvider>
+    </QueryClientProvider>
+  );
+}
+
+function renderWithProviders(ui: React.ReactElement) {
+  return render(wrap(ui));
 }
 
 function mockIntent(data: Intent | undefined) {
@@ -38,7 +51,7 @@ describe("IntentCard (specs/05-intent-layer.md revision 2)", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders the summary quote plus both IN SCOPE / OUT OF SCOPE lists when populated", () => {
+  it("renders the summary plus both IN SCOPE / OUT OF SCOPE lists (with counts) when populated", () => {
     mockIntent({
       summary: "Adds rate limiting to the public API endpoints.",
       inScope: ["Rate limiter middleware", "Config for limiter thresholds"],
@@ -48,9 +61,11 @@ describe("IntentCard (specs/05-intent-layer.md revision 2)", () => {
     });
     mockRecalculate();
     renderWithProviders(<IntentCard prId="pr1" />);
-    expect(screen.getByText("“Adds rate limiting to the public API endpoints.”")).toBeInTheDocument();
-    expect(screen.getByText("✓ IN SCOPE")).toBeInTheDocument();
-    expect(screen.getByText("✗ OUT OF SCOPE")).toBeInTheDocument();
+    expect(screen.getByText("Adds rate limiting to the public API endpoints.")).toBeInTheDocument();
+    expect(screen.getByText("In scope")).toBeInTheDocument();
+    expect(screen.getByText("Out of scope")).toBeInTheDocument();
+    expect(screen.getByText("2")).toBeInTheDocument();
+    expect(screen.getByText("1")).toBeInTheDocument();
     expect(screen.getByText("Rate limiter middleware")).toBeInTheDocument();
     expect(screen.getByText("Config for limiter thresholds")).toBeInTheDocument();
     expect(screen.getByText("Authentication changes")).toBeInTheDocument();
@@ -81,9 +96,8 @@ describe("IntentCard (specs/05-intent-layer.md revision 2)", () => {
     });
     mockRecalculate();
     const { rerender } = renderWithProviders(<IntentCard prId="pr1" />);
-    expect(
-      screen.getByText("⚠ Limited context: PR description is empty or near-empty"),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("note")).toHaveTextContent("Limited context");
+    expect(screen.getByText("PR description is empty or near-empty")).toBeInTheDocument();
 
     mockIntent({
       summary: "Unclear from available signals.",
@@ -92,12 +106,7 @@ describe("IntentCard (specs/05-intent-layer.md revision 2)", () => {
       contextGaps: [],
       signals: [],
     });
-    const qc = new QueryClient();
-    rerender(
-      <QueryClientProvider client={qc}>
-        <IntentCard prId="pr1" />
-      </QueryClientProvider>,
-    );
+    rerender(wrap(<IntentCard prId="pr1" />));
     expect(screen.queryByText(/Limited context/)).not.toBeInTheDocument();
   });
 
@@ -111,7 +120,9 @@ describe("IntentCard (specs/05-intent-layer.md revision 2)", () => {
     });
     mockRecalculate();
     const { rerender } = renderWithProviders(<IntentCard prId="pr1" />);
-    expect(screen.getByText("Derived from: PR title, commit messages")).toBeInTheDocument();
+    expect(screen.getByText("Derived from")).toBeInTheDocument();
+    expect(screen.getByText("PR title")).toBeInTheDocument();
+    expect(screen.getByText("commit messages")).toBeInTheDocument();
 
     mockIntent({
       summary: "Adds rate limiting to the public API endpoints.",
@@ -120,13 +131,21 @@ describe("IntentCard (specs/05-intent-layer.md revision 2)", () => {
       contextGaps: [],
       signals: [],
     });
-    const qc = new QueryClient();
-    rerender(
-      <QueryClientProvider client={qc}>
-        <IntentCard prId="pr1" />
-      </QueryClientProvider>,
-    );
+    rerender(wrap(<IntentCard prId="pr1" />));
     expect(screen.queryByText(/Derived from/)).not.toBeInTheDocument();
+  });
+
+  it("collapses a long scope list behind 'Show all N' and expands it on click", () => {
+    const many = Array.from({ length: 9 }, (_, i) => `Item ${i + 1}`);
+    mockIntent({ summary: "Big PR.", inScope: many, outOfScope: [], contextGaps: [], signals: [] });
+    mockRecalculate();
+    renderWithProviders(<IntentCard prId="pr1" />);
+    expect(screen.getByText("Item 6")).toBeInTheDocument();
+    expect(screen.queryByText("Item 7")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Show all 9" }));
+    expect(screen.getByText("Item 9")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Show less" }));
+    expect(screen.queryByText("Item 9")).not.toBeInTheDocument();
   });
 
   it("calls useRecalculateIntent's mutate when Recalculate is clicked", () => {

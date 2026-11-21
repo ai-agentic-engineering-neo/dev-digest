@@ -1,4 +1,4 @@
-import type { GraphEdgeInput } from "./types";
+import type { GraphEdgeInput, GraphNodeInput } from "./types";
 import { NODE_HEIGHT, NODE_WIDTH } from "./constants";
 import type { Position, RoleShape } from "./types";
 
@@ -48,4 +48,62 @@ export const MODULE_SYMBOL = "<module>";
  */
 export function symbolDisplayName(name: string, moduleScope: string): string {
   return name === MODULE_SYMBOL ? moduleScope : name;
+}
+
+/**
+ * Case-insensitive node search over label and secondary text. Ranking: exact
+ * label, label prefix, label substring, then secondary (path) substring —
+ * shorter labels first within a tier, so `useBlog` beats `useBlogActions`.
+ */
+export function searchNodes(nodes: GraphNodeInput[], query: string): GraphNodeInput[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+  const scored: { n: GraphNodeInput; tier: number }[] = [];
+  for (const n of nodes) {
+    const label = n.label.toLowerCase();
+    const tier =
+      label === q
+        ? 0
+        : label.startsWith(q)
+          ? 1
+          : label.includes(q)
+            ? 2
+            : (n.secondary ?? "").toLowerCase().includes(q)
+              ? 3
+              : -1;
+    if (tier >= 0) scored.push({ n, tier });
+  }
+  return scored
+    .sort((a, b) => a.tier - b.tier || a.n.label.length - b.n.label.length || a.n.label.localeCompare(b.n.label))
+    .map((x) => x.n);
+}
+
+/**
+ * Pan limits around the laid-out graph (`translateExtent`): the bounding box
+ * of every node plus a margin. Without it a few drags on a large, zoomed-out
+ * graph leave the viewport over empty space with no visual way back.
+ * `undefined` while there is nothing positioned yet.
+ */
+export function layoutExtent(
+  positions: Record<string, Position>,
+  nodeWidth: number,
+  nodeHeight: number,
+): [[number, number], [number, number]] | undefined {
+  const ps = Object.values(positions);
+  if (ps.length === 0) return undefined;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const p of ps) {
+    minX = Math.min(minX, p.x);
+    minY = Math.min(minY, p.y);
+    maxX = Math.max(maxX, p.x + nodeWidth);
+    maxY = Math.max(maxY, p.y + nodeHeight);
+  }
+  const pad = Math.max(400, (maxX - minX) * 0.25, (maxY - minY) * 0.25);
+  return [
+    [minX - pad, minY - pad],
+    [maxX + pad, maxY + pad],
+  ];
 }

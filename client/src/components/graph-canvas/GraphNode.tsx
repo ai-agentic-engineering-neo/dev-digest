@@ -8,7 +8,10 @@ import type { GraphNodeData } from "./types";
 
 type FlowNode = Node<GraphNodeData, "graph">;
 
-/** Custom node: keyboard-focusable button; label/secondary rendered as plain text. */
+/** Custom node: keyboard-focusable button; label/secondary rendered as plain text.
+ *  Mouse clicks are handled by `<ReactFlow onNodeClick>` in GraphCanvas (it is
+ *  also what enables pointer events on the node wrapper) — a second onClick
+ *  here would fire `onSelect` twice. */
 export function GraphNode({ data }: NodeProps<FlowNode>) {
   const t = useTranslations("graph");
   const { node, roleDef, onSelect } = data;
@@ -22,7 +25,6 @@ export function GraphNode({ data }: NodeProps<FlowNode>) {
       tabIndex={0}
       aria-pressed={!!node.selected}
       aria-label={`${roleLabel}: ${node.label}${node.deleted ? ` (${t("tag.deleted")})` : ""}`}
-      onClick={select}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
@@ -41,6 +43,15 @@ export function GraphNode({ data }: NodeProps<FlowNode>) {
         cursor: "pointer",
         background: node.highlighted ? "var(--accent-bg)" : "var(--bg-surface)",
         border: `${node.selected ? 2 : 1}px solid ${node.selected ? "var(--accent)" : "var(--border-strong)"}`,
+        // Role strip as an inset shadow — a `borderLeft` next to the `border`
+        // shorthand makes React warn about conflicting style properties.
+        boxShadow:
+          [
+            roleDef.tone && roleDef.shape === "rect" ? `inset 3px 0 0 ${roleDef.tone}` : null,
+            node.selected ? "0 0 0 4px var(--accent-bg)" : null,
+          ]
+            .filter(Boolean)
+            .join(", ") || undefined,
         opacity: node.dimmed ? 0.4 : 1,
         fontSize: 12,
         color: "var(--text-primary)",
@@ -49,7 +60,7 @@ export function GraphNode({ data }: NodeProps<FlowNode>) {
     >
       <Handle type="target" position={Position.Left} isConnectable={false} style={{ opacity: 0 }} />
       <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-        <Icon size={12} aria-hidden style={{ flex: "none" }} />
+        <Icon size={12} aria-hidden style={{ flex: "none", color: roleDef.tone }} />
         <span
           style={{
             overflow: "hidden",

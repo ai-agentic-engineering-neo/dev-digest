@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent, waitFor, renderHook } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, waitFor, renderHook, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import graphMessages from "../../../messages/en/graph.json";
 import { GraphCanvas } from "./GraphCanvas";
@@ -7,7 +7,7 @@ import { GraphBanner } from "./GraphBanner";
 import { LiveRegion, useAnnouncer } from "./LiveRegion";
 import { useElkLayout } from "./useElkLayout";
 import { MAX_LAYOUT_NODES } from "./constants";
-import { edgeLabel, edgeStrokeWidth } from "./helpers";
+import { edgeLabel, edgeStrokeWidth, layoutExtent, searchNodes } from "./helpers";
 import type { GraphEdgeInput, GraphNodeInput } from "./types";
 
 afterEach(cleanup);
@@ -30,6 +30,51 @@ const edges: GraphEdgeInput[] = [
 ];
 
 describe("GraphCanvas", () => {
+  it("toolbar: search picks a node (keyboard and click); fit buttons are present", async () => {
+    const onSelect = vi.fn();
+    wrap(<GraphCanvas nodes={nodes} edges={edges} onSelect={onSelect} focusId="b" ariaLabel="Impact graph" />);
+    await screen.findByRole("button", { name: /changed: <b>parse<\/b>/ });
+
+    expect(screen.getByRole("button", { name: "Fit the whole graph" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Zoom to the changed code" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Center on the selected node" })).toBeEnabled();
+
+    const box = screen.getByRole("combobox", { name: "Find a node…" });
+    fireEvent.change(box, { target: { value: "ren" } });
+    expect(screen.getByRole("option")).toHaveTextContent("render");
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(onSelect).toHaveBeenLastCalledWith("b");
+    expect(box).toHaveValue("");
+
+    fireEvent.change(box, { target: { value: "src/a" } }); // matches the secondary (path) line
+    fireEvent.click(within(screen.getByRole("listbox")).getByRole("button", { name: /parse/ }));
+    expect(onSelect).toHaveBeenLastCalledWith("a");
+
+    fireEvent.change(box, { target: { value: "zzz" } });
+    expect(screen.getByText("No matching nodes")).toBeInTheDocument();
+  });
+
+  it("searchNodes ranks exact > prefix > substring > path, shorter labels first", () => {
+    const ns: GraphNodeInput[] = [
+      { id: "1", label: "useBlogActions", role: "impacted" },
+      { id: "2", label: "getBlog", role: "impacted" },
+      { id: "3", label: "useBlog", role: "impacted" },
+      { id: "4", label: "x", role: "impacted", secondary: "src/blog/x.ts" },
+      { id: "5", label: "blog", role: "changed" },
+    ];
+    expect(searchNodes(ns, "blog").map((n) => n.id)).toEqual(["5", "2", "3", "1", "4"]);
+    expect(searchNodes(ns, "  ")).toEqual([]);
+  });
+
+  it("layoutExtent pads the node bounding box and is undefined with no layout", () => {
+    expect(layoutExtent({}, 190, 56)).toBeUndefined();
+    const [[x0, y0], [x1, y1]] = layoutExtent({ a: { x: 0, y: 0 }, b: { x: 1000, y: 200 } }, 190, 56)!;
+    expect(x0).toBeLessThan(0);
+    expect(y0).toBeLessThan(0);
+    expect(x1).toBeGreaterThan(1190);
+    expect(y1).toBeGreaterThan(256);
+  });
+
   it("renders nodes as plain text, legend for encodings in use, banners, and selects via click and keyboard", async () => {
     const onSelect = vi.fn();
     wrap(

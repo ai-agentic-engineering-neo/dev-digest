@@ -7,6 +7,9 @@ export interface GraphRoleDef {
   label: string;
   shape: RoleShape;
   icon: LucideIcon;
+  /** Accent colour (CSS value) for the icon and edge strip — decorative only;
+   *  shape + icon + label stay the actual encoding. */
+  tone?: string;
 }
 
 /** Data-agnostic node. `label`/`secondary` are rendered as plain text only. */

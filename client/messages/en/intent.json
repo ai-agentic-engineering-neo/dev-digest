@@ -1,0 +1,13 @@
+{
+  "title": "Intent",
+  "recalculate": "Recalculate",
+  "empty": "Not yet analyzed — intent is computed on the next review run.",
+  "inScope": "In scope",
+  "outOfScope": "Out of scope",
+  "nothingStated": "Nothing stated",
+  "showAll": "Show all {count}",
+  "showLess": "Show less",
+  "limitedContext": "Limited context",
+  "limitedContextBody": "The intent was inferred with gaps — read it as a best guess:",
+  "derivedFrom": "Derived from"
+}

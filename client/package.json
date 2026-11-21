@@ -21,6 +21,7 @@
     "react-dom": "^19.0.0",
     "react-markdown": "^9.0.3",
     "recharts": "^2.15.0",
+    "remark-breaks": "4.0.0",
     "remark-gfm": "^4.0.0",
     "zod": "^3.24.1"
   },

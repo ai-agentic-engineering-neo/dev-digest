@@ -3,6 +3,7 @@ import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { BriefPage } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/brief.json";
+import helpMessages from "../../../../../../../../messages/en/help.json";
 import * as toastLib from "@/lib/toast";
 import { formatCost } from "@/lib/format";
 
@@ -39,7 +40,7 @@ afterEach(() => {
 
 function renderCard(props: { onFocusFile?: (file: string, line: number | null) => void } = {}) {
   return render(
-    <NextIntlClientProvider locale="en" messages={{ brief: messages }}>
+    <NextIntlClientProvider locale="en" messages={{ brief: messages, help: helpMessages }}>
       <PrBriefCard prId="pr-1" repoFullName="acme/demo" {...props} />
     </NextIntlClientProvider>,
   );

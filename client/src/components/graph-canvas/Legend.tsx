@@ -44,7 +44,7 @@ export function Legend({
                   ...shapeStyle(def.shape),
                 }}
               >
-                <Icon size={10} />
+                <Icon size={10} style={{ color: def.tone }} />
               </span>
               {customRoles?.[role]?.label ?? (t.has(`role.${role}`) ? t(`role.${role}`) : role)}
             </li>

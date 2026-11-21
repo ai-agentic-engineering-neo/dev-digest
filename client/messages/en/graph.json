@@ -32,5 +32,14 @@
   "state": {
     "layouting": "Laying out graph…",
     "layoutSkipped": "Graph is too large for automatic layout; nodes are shown in a grid."
+  },
+  "toolbar": {
+    "search": "Find a node…",
+    "results": "Matching nodes",
+    "noResults": "No matching nodes",
+    "fitAll": "Fit the whole graph",
+    "fitChanged": "Zoom to the changed code",
+    "focusSelected": "Center on the selected node",
+    "minimap": "Graph overview — drag to move around"
   }
 }

@@ -1,15 +1,29 @@
 /* ImpactGraph — Graph view of the Blast Radius card (specs/18 AC-40…43).
    Pure presentation over the server-built `graph`; layout/render lives in the
    shared graph-canvas. Type-only filtering re-queries the server (parent owns
-   `includeTypeOnly`); hide-inferred is a client-side filter. */
+   `includeTypeOnly`); hide-inferred is a client-side filter. Clicking a node
+   (or a neighbour in the side panel) selects it, highlights its path to the
+   changed code and pans the canvas to it; Esc / a click on empty canvas
+   clears the selection. */
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { BlastGraph } from "@devdigest/shared";
 import { GraphCanvasLazy, LiveRegion, symbolDisplayName, useAnnouncer } from "@/components/graph-canvas";
+import { HelpTip } from "@/components/help-tip";
 import { NodeDetail } from "./NodeDetail";
-import { nodeLine, pathToChanged, toCanvasEdges, toCanvasNodes, visibleEdges, visibleNodes } from "./helpers";
+import { GRAPH_HEIGHT } from "./constants";
+import {
+  neighbours,
+  nodeLine,
+  pathToChanged,
+  shortestPathToChanged,
+  toCanvasEdges,
+  toCanvasNodes,
+  visibleEdges,
+  visibleNodes,
+} from "./helpers";
 import { s } from "./styles";
 
 interface ImpactGraphProps {
@@ -20,6 +34,8 @@ interface ImpactGraphProps {
   onIncludeTypeOnlyChange: (v: boolean) => void;
   /** True while a filter re-query is in flight. */
   isUpdating?: boolean;
+  /** Opens a changed file in the Files tab. */
+  onFocusFile?: (file: string, line: number | null) => void;
 }
 
 export function ImpactGraph({
@@ -29,6 +45,7 @@ export function ImpactGraph({
   includeTypeOnly,
   onIncludeTypeOnlyChange,
   isUpdating,
+  onFocusFile,
 }: ImpactGraphProps) {
   const t = useTranslations("impactGraph");
   const tCanvas = useTranslations("graph");
@@ -43,6 +60,13 @@ export function ImpactGraph({
     () => (selected ? pathToChanged(selected.id, nodes, edges) : null),
     [selected, nodes, edges],
   );
+  const detail = useMemo(
+    () =>
+      selected
+        ? { nb: neighbours(selected.id, nodes, edges), path: shortestPathToChanged(selected.id, nodes, edges) }
+        : null,
+    [selected, nodes, edges],
+  );
   const canvasNodes = useMemo(
     () => toCanvasNodes(nodes, selected?.id ?? null, highlight, tCanvas("tag.type"), tCanvas("moduleScope")),
     [nodes, selected, highlight, tCanvas],
@@ -55,9 +79,23 @@ export function ImpactGraph({
     if (n) announce(t("graph.announceSelected", { name: symbolDisplayName(n.name, tCanvas("moduleScope")) }));
   };
   const clear = () => {
+    if (selectedId == null) return;
     setSelectedId(null);
     announce(t("graph.announceCleared"));
   };
+
+  // Esc clears the selection from anywhere on the page while one is active.
+  useEffect(() => {
+    if (!selectedId) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setSelectedId(null);
+        announce(t("graph.announceCleared"));
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedId, announce, t]);
 
   return (
     <div style={s.wrap}>
@@ -70,31 +108,44 @@ export function ImpactGraph({
           />
           {t("graph.showTypeOnly")}
         </label>
+        <HelpTip topic="typeOnlyEdges" size={12} />
         <label style={s.filterLabel}>
           <input type="checkbox" checked={hideInferred} onChange={(e) => setHideInferred(e.target.checked)} />
           {t("graph.hideInferred")}
         </label>
-        {isUpdating && <span>{t("state.updating")}</span>}
+        <HelpTip topic="inferredEdges" size={12} />
+        <span style={s.updating}>{isUpdating ? t("state.updating") : t("graph.hint")}</span>
       </div>
 
       {nodes.length === 0 ? (
         <div style={s.empty}>{t("state.graphEmpty")}</div>
       ) : (
         <div style={s.body}>
-          <GraphCanvasLazy
-            nodes={canvasNodes}
-            edges={canvasEdges}
-            ariaLabel={t("graph.ariaLabel")}
-            onSelect={onSelect}
-            announcement={t("graph.announceLoaded", { nodes: nodes.length, edges: edges.length })}
-          />
-          <NodeDetail
-            node={selected}
-            line={selected ? nodeLine(selected, edges) : undefined}
-            repoFullName={repoFullName}
-            headSha={headSha}
-            onClose={clear}
-          />
+          <div style={s.canvasCell}>
+            <GraphCanvasLazy
+              nodes={canvasNodes}
+              edges={canvasEdges}
+              ariaLabel={t("graph.ariaLabel")}
+              onSelect={onSelect}
+              onPaneClick={clear}
+              focusId={selectedId}
+              height={GRAPH_HEIGHT}
+              announcement={t("graph.announceLoaded", { nodes: nodes.length, edges: edges.length })}
+            />
+          </div>
+          <div style={s.detailCell}>
+            <NodeDetail
+              node={selected}
+              line={selected ? nodeLine(selected, edges) : undefined}
+              neighbours={detail?.nb ?? null}
+              path={detail?.path ?? []}
+              repoFullName={repoFullName}
+              headSha={headSha}
+              onSelect={onSelect}
+              onClose={clear}
+              onFocusFile={onFocusFile}
+            />
+          </div>
         </div>
       )}
       <LiveRegion message={message} />

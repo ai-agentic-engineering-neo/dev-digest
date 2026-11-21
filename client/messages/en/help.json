@@ -1,0 +1,80 @@
+{
+  "labels": {
+    "about": "About {title}",
+    "what": "What it is",
+    "why": "Why it matters",
+    "how": "How to use it"
+  },
+  "glance": {
+    "title": "At a glance",
+    "what": "One line per analysis of this PR: the brief's risk level, the author's intent, how far the change reaches, and the description.",
+    "how": "Click a card to open that section below. The section you pick is kept in the URL, so you can share a link straight to it."
+  },
+  "brief": {
+    "title": "Why + Risk Brief",
+    "what": "A short AI summary of what this PR changes, why, and where it could break. It is written from the diff, the PR intent, the blast radius and any linked issue or spec.",
+    "why": "It gives you a reviewer's mental model in about a minute: which risks deserve attention first, and where to start reading.",
+    "how": "Click Generate (one LLM call; model and cost appear under the risk level). Expand a risk to see the files it cites, or click a Review focus entry to jump to that line in Files changed. After new commits a banner says the brief may be out of date. Regenerate then."
+  },
+  "riskAreas": {
+    "title": "Risk areas",
+    "what": "Concrete ways this change could break something, each with a severity and the files it is based on.",
+    "why": "Every file and line a risk cites is checked against the real diff. Anything that doesn't match is dropped before you see it.",
+    "how": "Start with HIGH. Open a risk and follow its file links to judge it yourself."
+  },
+  "reviewFocus": {
+    "title": "Review focus",
+    "what": "The few places worth reading first, in order, each with the reason why.",
+    "how": "Click a file to open it in Files changed at that line."
+  },
+  "intent": {
+    "title": "Intent",
+    "what": "What the PR is trying to do, inferred from its title, description and commits: a one-paragraph summary plus what is in and out of scope. 'Derived from' lists the sources actually used.",
+    "why": "It lets you judge the diff against the author's goal. Code outside 'In scope', or touching something listed 'Out of scope', points to scope creep or an accident. The review agents get it as context too.",
+    "how": "Read the summary first. If the PR description changed, click Recalculate. 'Limited context' means the sources were thin, so treat the intent as a best guess."
+  },
+  "blast": {
+    "title": "Blast Radius",
+    "what": "Which code outside this PR depends on what it changes. It is computed from the repository's dependency index, with no AI involved.",
+    "why": "A small diff can still break distant callers. This shows what else to double-check and which routes, pages and tests sit in the blast zone.",
+    "how": "List: one group per changed symbol with every call site; click an L-number to open GitHub at that line, or filter by symbol or file. Graph: click a node to see who uses it, what it depends on and its path to the changed code. On big graphs use the search, the fit buttons and the mini-map."
+  },
+  "tileSymbols": {
+    "title": "Changed symbols",
+    "what": "Functions, classes, constants and other declarations whose lines this PR actually touches. Untouched symbols in an edited file don't count."
+  },
+  "tileCallSites": {
+    "title": "Call sites",
+    "what": "Places elsewhere in the repo that use a changed symbol.",
+    "why": "'Type-only' uses reference just a type: they can break the build, but not runtime behaviour."
+  },
+  "tileFiles": {
+    "title": "Files reached",
+    "what": "Distinct files that contain at least one call site, so roughly how much code needs re-checking."
+  },
+  "tileEntryPoints": {
+    "title": "Entry points",
+    "what": "HTTP endpoints, cron jobs and app-router pages or routes from which the changed code can be reached.",
+    "why": "This is what users or scheduled jobs would actually feel if the change misbehaves."
+  },
+  "tileTests": {
+    "title": "Affected tests",
+    "what": "Test files that reach the changed code through the dependency graph.",
+    "how": "Run these first. If this is 0, nothing in the test suite reaches the changed code."
+  },
+  "typeOnlyEdges": {
+    "title": "Type-only edges",
+    "what": "Links where code only uses a changed symbol's type, not its value.",
+    "how": "Turn this off to see runtime impact only."
+  },
+  "inferredEdges": {
+    "title": "Inferred edges",
+    "what": "Links found by matching names when an import couldn't be resolved exactly (dashed lines).",
+    "how": "They may be false positives. Hide them to see only exact links."
+  },
+  "description": {
+    "title": "Description",
+    "what": "The PR body as the author wrote it on GitHub, rendered as Markdown.",
+    "why": "It is the primary source the Intent and the Brief are built from. If it is thin, both get less reliable."
+  }
+}

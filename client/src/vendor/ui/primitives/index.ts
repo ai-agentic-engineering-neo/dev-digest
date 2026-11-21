@@ -17,3 +17,5 @@ export { EmptyState } from "./EmptyState";
 export { Skeleton } from "./Skeleton";
 export { ErrorState } from "./ErrorState";
 export { Markdown } from "./Markdown";
+export { InfoTip } from "./InfoTip";
+export type { InfoTipSection } from "./InfoTip";

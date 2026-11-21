@@ -1,6 +1,15 @@
 import { describe, it, expect } from "vitest";
 import type { BlastGraphEdge, BlastGraphNode } from "@devdigest/shared";
-import { pathToChanged, toCanvasEdges, toCanvasNodes, visibleEdges, visibleNodes, nodeLine } from "./helpers";
+import {
+  neighbours,
+  nodeLine,
+  pathToChanged,
+  shortestPathToChanged,
+  toCanvasEdges,
+  toCanvasNodes,
+  visibleEdges,
+  visibleNodes,
+} from "./helpers";
 
 const n = (id: string, role: BlastGraphNode["role"], extra: Partial<BlastGraphNode> = {}): BlastGraphNode => ({
   id,
@@ -79,5 +88,25 @@ describe("impact graph helpers", () => {
   it("prefers the server's declaration line at head over the use-site line (AC-42)", () => {
     expect(nodeLine({ ...nodes[1]!, line: 42 }, edges)).toBe(42);
     expect(nodeLine({ ...nodes[0]!, line: 3 }, edges)).toBe(3);
+  });
+
+  it("lists dependents and dependencies of a node, merging parallel edges", () => {
+    const extra = [...edges, e("other", "svc", { kind: "type", typeOnly: true })];
+    const svc = neighbours("svc", nodes, extra);
+    expect(svc.dependents.map((x) => x.node.id)).toEqual(["other", "route"]);
+    const other = svc.dependents.find((x) => x.node.id === "other")!;
+    expect(other.kinds).toEqual(["call", "type"]);
+    expect(other.typeOnly).toBe(false); // a runtime edge wins
+    expect(svc.dependents.find((x) => x.node.id === "route")!.inferred).toBe(true);
+    expect(svc.dependencies).toEqual([
+      expect.objectContaining({ node: expect.objectContaining({ id: "core" }), line: 7 }),
+    ]);
+  });
+
+  it("returns the shortest ordered chain to changed code", () => {
+    expect(shortestPathToChanged("route", nodes, edges).map((x) => x.id)).toEqual(["route", "svc", "core"]);
+    expect(shortestPathToChanged("core", nodes, edges).map((x) => x.id)).toEqual(["core"]);
+    expect(shortestPathToChanged("lonely", nodes, edges)).toEqual([]);
+    expect(shortestPathToChanged("missing", nodes, edges)).toEqual([]);
   });
 });

@@ -90,7 +90,7 @@ These are intentionally **not** in the starter — each milestone adds one back:
 
 ## Prerequisites
 
-- **Node** ≥ 22 · **pnpm** ≥ 10 (`npm i -g pnpm`) · **Docker** (for Postgres)
+- **Node** ≥ 22 · **pnpm** 10 (`npm i -g pnpm@10`) · **Docker** (for Postgres)
 
 ## Quick start (from zero)
 

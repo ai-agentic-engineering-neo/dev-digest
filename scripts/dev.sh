@@ -35,7 +35,7 @@ warn() { printf '\033[1;33m! %s\033[0m\n' "$*"; }
 
 # --- prerequisites -----------------------------------------------------------
 command -v docker >/dev/null || { echo "docker not found"; exit 1; }
-command -v pnpm   >/dev/null || { echo "pnpm not found (npm i -g pnpm)"; exit 1; }
+command -v pnpm   >/dev/null || { echo "pnpm not found (npm i -g pnpm@10)"; exit 1; }
 
 # --- env files ---------------------------------------------------------------
 for dir in server client; do

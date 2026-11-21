@@ -30,4 +30,4 @@ Inherits the root `CLAUDE.md`; only e2e-specific rules here.
 - Deciding what to cover → read `README.md` §Coverage
 - Design question → read `docs/`
 - Implementing a feature → read its spec in `specs/`
-- Before finishing → check `INSIGHTS.md`; append new lessons
+- Before finishing → run the `engineering-insights` skill (wrap-up) → `INSIGHTS.md`

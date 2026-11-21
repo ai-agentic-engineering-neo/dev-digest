@@ -42,4 +42,4 @@ Inherits the root `CLAUDE.md`; only server-specific rules here.
 - Adding an env var or secret → read `README.md` §Environment
 - Design question → read `docs/`
 - Implementing a feature → read its spec in `specs/`
-- Before finishing → check `INSIGHTS.md`; append new lessons
+- Before finishing → run the `engineering-insights` skill (wrap-up) → `INSIGHTS.md`

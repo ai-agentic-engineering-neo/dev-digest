@@ -36,8 +36,10 @@ Local-first AI PR review. 4 standalone packages, **no workspace**: each has its 
   `README.md` §Roadmap
 - Writing, renaming or moving tests → read `TESTING.md`
 - Before changing non-trivial code in a package → read `<package>/INSIGHTS.md`
-- Learned something non-obvious (a trap, a failed approach) → append it to
-  `<package>/INSIGHTS.md`
+- Learned something non-obvious (a trap, a failed approach, a decision) → use
+  the `engineering-insights` skill to append it to `<package>/INSIGHTS.md`
+  right away, and run it again as a wrap-up before reporting a task done.
+  Do not skip this step. `INSIGHTS.md` is append-only: never overwrite it
 
 ## Cross-package gotchas
 - Zod contracts exist in **two copies**: `server/src/vendor/shared` (also used by

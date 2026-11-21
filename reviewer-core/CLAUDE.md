@@ -32,4 +32,4 @@ Inherits the root `CLAUDE.md`; only engine-specific rules here.
 - Changing exports → read `README.md` §Public API
 - Design question → read `docs/`
 - Implementing a feature → read its spec in `specs/`
-- Before finishing → check `INSIGHTS.md`; append new lessons
+- Before finishing → run the `engineering-insights` skill (wrap-up) → `INSIGHTS.md`

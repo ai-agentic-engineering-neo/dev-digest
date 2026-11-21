@@ -28,4 +28,4 @@ Inherits the root `CLAUDE.md`; only client-specific rules here.
 - Building or changing a UI component → read `src/vendor/ui/README.md`
 - Design question → read `docs/`
 - Implementing a feature → read its spec in `specs/`
-- Before finishing → check `INSIGHTS.md`; append new lessons
+- Before finishing → run the `engineering-insights` skill (wrap-up) → `INSIGHTS.md`

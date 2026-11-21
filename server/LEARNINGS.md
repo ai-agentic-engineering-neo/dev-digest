@@ -782,6 +782,24 @@ one").
 
 ## Recurring Errors & Fixes
 
+### 2026-11-21 — "The brief isn't saved": it was never generated. The output-token cap cut the JSON mid-string
+
+Symptom: the Why + Risk Brief showed up after Generate, then was gone after a
+reload ("it lives in memory"). `pr_brief` had only seed rows. Every real
+generation failed (AC-28: a failure writes nothing) with
+`OpenRouter structured output failed schema validation`, and the client only
+held the `failed` result in its React Query cache. The cause was
+`BRIEF_MAX_OUTPUT_TOKENS = 1500`: a real 85-file PR needed ~3.5k output
+tokens, the JSON was truncated ("Unterminated string"), and the 2 repair
+re-prompts hit the same cap. Raised to 6000 (it is a ceiling; billing is per
+token produced). `reviewer-core`'s OpenRouter provider now (a) appends the zod
+issue list (field paths + constraint messages, never model prose) to the
+thrown error, so `brief.generate ok:false` log lines are diagnosable, and
+(b) on `finish_reason === 'length'` re-prompts for a shorter answer instead of
+"fix your JSON". When a structured call fails, check the token cap before the
+schema.
+
+
 ### 2026-11-18 — SPEC-18: the indexer handed the module resolver code files only, so no `tsconfig.json` was ever visible and every `paths` alias stayed unresolved in production — while the fixture gate was green
 
 - `pipeline/full.ts` / `incremental.ts` built the resolver from `walk.files`, which is `SUPPORTED_EXT` only. `TsModuleResolver.nearestTsconfig` looks tsconfigs up via `this.files.has(...)`, so it found none and fell back to default resolution: alias imports (`@/…`, `@devdigest/…`) went `missing`. On this repo: 1640 file edges instead of 2351.

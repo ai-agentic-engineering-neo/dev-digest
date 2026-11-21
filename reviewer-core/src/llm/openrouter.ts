@@ -64,6 +64,7 @@ export class OpenRouterProvider implements LLMProvider {
     let tokensOut = 0;
     let costFromApi: number | null = null;
     let lastRaw = '';
+    let lastError = '';
 
     for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
       const res = await this.client.chat.completions.create({
@@ -109,10 +110,26 @@ export class OpenRouterProvider implements LLMProvider {
           attempts: attempt,
         };
       }
+      // Cut off by the output-token cap: "fix your JSON" just reproduces the
+      // same truncation, so ask for a shorter answer instead.
+      const truncated = choice.finish_reason === 'length';
+      lastError = truncated ? `Output truncated at the token limit (${parsed.error})` : parsed.error;
       messages.push({ role: 'assistant', content: lastRaw });
-      messages.push({ role: 'user', content: parsed.repromptMessage });
+      messages.push({
+        role: 'user',
+        content: truncated
+          ? 'Your previous answer was cut off by the output length limit and is not valid JSON. ' +
+            'Return the COMPLETE JSON object again, but keep every text field much shorter.'
+          : parsed.repromptMessage,
+      });
     }
-    throw new Error(`OpenRouter structured output failed schema validation for ${req.schemaName}`);
+    // The zod issue list names field paths + constraint messages only (never
+    // the model's prose), so it is safe to log — without it a failed
+    // generation is undiagnosable from the server log.
+    throw new Error(
+      `OpenRouter structured output failed schema validation for ${req.schemaName}` +
+        (lastError ? `:\n${lastError.slice(0, 1000)}` : ''),
+    );
   }
 
   /**

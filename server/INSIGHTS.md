@@ -12,6 +12,9 @@ Written via the `engineering-insights` skill — see `.claude/skills/engineering
 ## Codebase Patterns
 <!-- Conventions and architectural decisions the code alone does not make obvious. -->
 
+### 2026-11-21 · New `RunStats` fields need a read-time default; trace jsonb is never migrated
+**What:** `run_traces.trace` is a jsonb `RunTrace`. A SQL migration doesn't touch it, so traces saved before a new `RunStats` field existed lack that key. Make the field `.nullish()` in the contract and normalise it in `getRunTrace`, which is how `stats.cost_usd ?? null` is handled. **Why it matters:** Otherwise old runs return `undefined`, and the client breaks or shows wrong values while every new-run test passes. **Where:** `server/src/modules/reviews/repository/run.repo.ts` (`getRunTrace`), `server/src/vendor/shared/contracts/trace.ts` (`RunStats`)
+
 ## Tool & Library Notes
 <!-- Dependency, tooling, and CI quirks. -->
 

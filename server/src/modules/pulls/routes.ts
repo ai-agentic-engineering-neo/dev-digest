@@ -129,6 +129,27 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
+    // COST per PR = sum of cost_usd over the latest DONE run of each agent, so a
+    // re-run replaces (not adds to) that agent's cost. Same compute-on-read
+    // pattern as the score: one IN-query, newest-first, first seen per
+    // (pr, agent) wins. Null when no counted run has a known cost.
+    const costByPr = new Map<string, number>();
+    if (prIds.length > 0) {
+      const runRows = await container.db
+        .select({ prId: t.agentRuns.prId, agentId: t.agentRuns.agentId, costUsd: t.agentRuns.costUsd })
+        .from(t.agentRuns)
+        .where(and(inArray(t.agentRuns.prId, prIds), eq(t.agentRuns.status, 'done')))
+        .orderBy(desc(t.agentRuns.ranAt));
+      const seen = new Set<string>();
+      for (const run of runRows) {
+        if (!run.prId) continue;
+        const key = `${run.prId}:${run.agentId}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        if (run.costUsd != null) costByPr.set(run.prId, (costByPr.get(run.prId) ?? 0) + run.costUsd);
+      }
+    }
+
     const now = Date.now();
     return rows.map((r) => {
       const review = latestReviewByPr.get(r.id);
@@ -153,6 +174,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
+        cost_usd: costByPr.get(r.id) ?? null,
       };
     });
   });

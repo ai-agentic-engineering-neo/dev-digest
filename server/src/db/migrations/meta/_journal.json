@@ -71,6 +71,13 @@
       "when": 1781464392464,
       "tag": "0009_complex_runaways",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1795288467264,
+      "tag": "0010_rich_payback",
+      "breakpoints": true
     }
   ]
 }

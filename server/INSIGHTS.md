@@ -30,11 +30,19 @@ actionable cold.
 **Insight:** reviewer-core returns `costUsd` per run, but `run-executor.ts` keeps only tokensIn/tokensOut and `agent_runs` has no cost column; the static fallback price table has no current Claude model IDs, so `estimateCost()` returns null for them.
 **Rule:** ALWAYS derive run cost from `agent_runs.model` + tokens via `container.priceBook.estimate()` and refresh `adapters/llm/pricing.ts` when agents switch models — because unknown models silently price as null/$0.
 **Evidence:** `server/src/modules/reviews/run-executor.ts` → `completeAgentRun()` call; `server/src/adapters/llm/pricing.ts` → `PRICING`; spec `docs/specs/m1-run-cost/SPEC.md`
+> **Superseded 2026-11-21:** M1 stores the engine's `costUsd` in `agent_runs.cost_usd` instead of re-pricing on read — see "Read run cost from agent_runs.cost_usd, never re-price".
+
+### 2026-11-21 — Read run cost from agent_runs.cost_usd, never re-price
+**Insight:** `reviewPullRequest()` already returns `costUsd` (OpenRouter: real `usage.cost`), and M1 persists it once in `agent_runs.cost_usd`; `run_traces.stats.cost_usd` is a copy that pre-M1 traces lack. `null` means unknown (pre-M1, unpriced model, failed/cancelled) and the UI shows "—", not $0.
+**Rule:** ALWAYS take run cost from `agent_runs.cost_usd` (trace route merges it via `withRunCost()`, PR list via one `sum()` group-by) and pass explicit `costUsd: null` in every non-done `completeAgentRun()` — because re-pricing from tokens drifts with prices and treating null as 0 hides unpriced runs.
+**Evidence:** `server/src/modules/reviews/repository/run.repo.ts` → `getRunTrace()`, `withRunCost()`; `server/src/modules/pulls/routes.ts` → `costByPr`; test `test/run-cost.it.test.ts`
 
 ## Tool & Library Notes
 
 ## Recurring Errors & Fixes
 
 ## Session Notes
+
+- 2026-11-21 — M1 run cost (server: column + 4 read paths): done, unit + integration green; see "Read run cost from agent_runs.cost_usd, never re-price"
 
 ## Open Questions

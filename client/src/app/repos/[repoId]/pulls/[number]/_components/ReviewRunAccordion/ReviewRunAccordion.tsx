@@ -144,6 +144,9 @@ export function ReviewRunAccordion({
                 findingsCount={findings.length}
                 blockers={blockers}
                 agentName={review.agent_name}
+                costUsd={review.cost_usd}
+                tokensIn={review.tokens_in}
+                tokensOut={review.tokens_out}
               />
             </div>
           )}

@@ -19,8 +19,9 @@ const TRACE: RunTrace = {
   ],
 };
 
+let currentTrace: RunTrace = TRACE;
 vi.mock("../../../../../../../lib/hooks/trace", () => ({
-  useRunTrace: () => ({ data: TRACE, isLoading: false }),
+  useRunTrace: () => ({ data: currentTrace, isLoading: false }),
 }));
 vi.mock("../../../../../../../lib/hooks/reviews", () => ({
   useRunEvents: () => ({ events: [], running: false }),
@@ -52,5 +53,24 @@ describe("A5 Run Trace drawer (smoke)", () => {
     fireEvent.click(screen.getByText("log"));
     // LiveLogStream renders its filter input
     expect(screen.getByPlaceholderText("Filter log…")).toBeInTheDocument();
+  });
+});
+
+describe("Run Trace drawer — COST stat (M1)", () => {
+  afterEach(() => {
+    currentTrace = TRACE;
+  });
+
+  it("shows COST between TOKENS and FINDINGS", () => {
+    currentTrace = { ...TRACE, stats: { ...TRACE.stats, cost_usd: 0.06 } };
+    renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    const labels = screen.getAllByText(/^(DURATION|TOKENS|COST|FINDINGS)$/).map((el) => el.textContent);
+    expect(labels).toEqual(["DURATION", "TOKENS", "COST", "FINDINGS"]);
+    expect(screen.getByTestId("run-cost")).toHaveTextContent("$0.06");
+  });
+
+  it("a trace stored before M1 (no cost_usd) shows —", () => {
+    renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    expect(screen.getByTestId("run-cost")).toHaveTextContent(/^—$/);
   });
 });

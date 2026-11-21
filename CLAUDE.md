@@ -12,7 +12,7 @@ package.json + lockfile. Overview and architecture: [README.md](README.md).
 | e2e/ | Browser e2e (agent-browser, no LLM) | [e2e/CLAUDE.md](e2e/CLAUDE.md) |
 
 ## Stack
-Node ≥22 · pnpm ≥10 (server, client) · npm (reviewer-core, e2e) · TypeScript 5.9 ·
+Node ≥22 · pnpm 10 (server, client) · npm (reviewer-core, e2e) · TypeScript 5.9 ·
 Zod 3.25 · Vitest 2.1 · Postgres 16 + pgvector (Docker)
 
 ## Commands

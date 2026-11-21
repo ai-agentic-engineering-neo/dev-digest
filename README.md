@@ -63,6 +63,21 @@ Each package has its own README with deeper diagrams:
 [`reviewer-core`](reviewer-core/README.md) (review pipeline) ·
 [`e2e`](e2e/README.md).
 
+Repo-level docs live in [`docs/`](docs/README.md): an index of every document
+and the cross-package [architecture](docs/architecture.md). Each package also
+keeps its own deeper docs and feature specs:
+
+| Package | Docs | Specs |
+|---------|------|-------|
+| `server/` | [`server/docs/`](server/docs/README.md) | [`server/specs/`](server/specs/README.md) |
+| `client/` | [`client/docs/`](client/docs/README.md) | [`client/specs/`](client/specs/README.md) |
+| `reviewer-core/` | [`reviewer-core/docs/`](reviewer-core/docs/README.md) | [`reviewer-core/specs/`](reviewer-core/specs/README.md) |
+| `e2e/` | [`e2e/docs/`](e2e/docs/README.md) | [`e2e/specs/`](e2e/specs/README.md) |
+
+Agent context files (`CLAUDE.md`) sit at the root and in each package, with
+curated package facts in `INSIGHTS.md` and append-only session lessons in
+`LEARNINGS.md` (written by the `engineering-insights` skill).
+
 ## What works on day 1
 
 - **Local launch** — one command brings up Postgres (Docker) + API + web.

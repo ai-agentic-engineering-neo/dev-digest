@@ -11,6 +11,7 @@
     { "cmd": ["wait", "--url", "tab=findings"], "label": "findings tab is active in the URL" },
     { "cmd": ["wait", "--text", "request changes"], "label": "seeded run accordion shows its verdict" },
     { "cmd": ["wait", "--text", "2 findings"], "label": "accordion header shows the seeded finding count" },
+    { "cmd": ["wait", "--text", "1 CRITICAL"], "label": "severity counters sit above the findings of the open run (M1 severity filter)" },
     { "cmd": ["wait", "--text", "Hardcoded Stripe secret key in commit"], "label": "seeded FindingCard is visible (newest run is open by default)" }
   ]
 }

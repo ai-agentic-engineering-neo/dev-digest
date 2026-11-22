@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { FindingRecord } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/prReview.json";
@@ -51,5 +51,57 @@ describe("FindingsPanel (smoke)", () => {
   it("shows the empty state when nothing matches", () => {
     renderWithIntl(<FindingsPanel findings={[]} prId="pr1" />);
     expect(screen.getByText("No findings match")).toBeInTheDocument();
+  });
+});
+
+/** A run with 1 CRITICAL, 2 WARNING (one low-confidence) and no SUGGESTION. */
+function finding(id: string, severity: FindingRecord["severity"], confidence: number): FindingRecord {
+  return { ...FINDINGS[0]!, id, severity, title: `${severity} ${id}`, confidence };
+}
+const MIXED: FindingRecord[] = [
+  finding("c1", "CRITICAL", 0.95),
+  finding("w1", "WARNING", 0.9),
+  finding("w2", "WARNING", 0.4),
+];
+
+describe("FindingsPanel severity filter", () => {
+  it("shows a counter per level that matches the cards in the list", () => {
+    renderWithIntl(<FindingsPanel findings={MIXED} prId="pr1" />);
+    expect(screen.getByRole("button", { name: "1 CRITICAL" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "2 WARNING" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "0 SUGGESTION" })).toBeInTheDocument();
+    expect(screen.getAllByText(/^CRITICAL /)).toHaveLength(1);
+    expect(screen.getAllByText(/^WARNING /)).toHaveLength(2);
+  });
+
+  it("leaves only the clicked level, and restores the full list on a second click", () => {
+    renderWithIntl(<FindingsPanel findings={MIXED} prId="pr1" />);
+    fireEvent.click(screen.getByRole("button", { name: "2 WARNING" }));
+    expect(screen.queryByText("CRITICAL c1")).not.toBeInTheDocument();
+    expect(screen.getByText("WARNING w1")).toBeInTheDocument();
+    expect(screen.getByText("WARNING w2")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "2 WARNING" }));
+    expect(screen.getByText("CRITICAL c1")).toBeInTheDocument();
+    expect(screen.getByText("WARNING w1")).toBeInTheDocument();
+  });
+
+  it("combines with hide-low-confidence: counters and list keep only findings that pass both", () => {
+    renderWithIntl(<FindingsPanel findings={MIXED} prId="pr1" />);
+    fireEvent.click(screen.getByRole("button", { name: "2 WARNING" }));
+    fireEvent.click(screen.getByRole("switch"));
+    expect(screen.getByRole("button", { name: "1 WARNING" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("WARNING w1")).toBeInTheDocument();
+    expect(screen.queryByText("WARNING w2")).not.toBeInTheDocument();
+    expect(screen.queryByText("CRITICAL c1")).not.toBeInTheDocument();
+  });
+
+  it("shows the empty state when the filters leave nothing", () => {
+    const onlyLow = [finding("w2", "WARNING", 0.4)];
+    renderWithIntl(<FindingsPanel findings={onlyLow} prId="pr1" />);
+    fireEvent.click(screen.getByRole("button", { name: "1 WARNING" }));
+    fireEvent.click(screen.getByRole("switch"));
+    expect(screen.getByText("No findings match")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "0 WARNING" })).toBeEnabled();
   });
 });

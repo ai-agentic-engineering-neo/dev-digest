@@ -46,6 +46,8 @@ Entry format:
 
 - 2026-11-21 — Added a `$0.014` COST assertion to 02-repo-pulls-detail.flow.json (M1 cost badge); not executed locally because agent-browser is not installed.
 
+- 2026-11-22 — Added a `1 CRITICAL` counter assertion to 04-pr-findings.flow.json (M1 severity filter); not executed locally because agent-browser is not installed.
+
 ## Open Questions
 
 <!-- What is still unresolved. -->

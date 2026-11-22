@@ -97,6 +97,13 @@ export class JobRunner {
       }
     }) as Promise<void>;
 
+    // Most callers fire-and-forget (they never touch `done`). Without a handler,
+    // a failed job becomes an unhandled rejection and Node exits — taking the
+    // whole API down. The failure is already persisted on the `jobs` row; this
+    // no-op only marks the promise handled. Callers that await `done` still
+    // receive the rejection.
+    done.catch(() => {});
+
     return { id: jobId, done };
   }
 

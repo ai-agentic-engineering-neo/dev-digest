@@ -1,0 +1,6 @@
+# pnpm only runs dependency install scripts for packages listed here as true.
+allowBuilds:
+  esbuild: true         # tsx / drizzle-kit need its native binary
+  cpu-features: false   # optional native add-on for ssh2 (testcontainers)
+  ssh2: false           # optional native crypto; pure-JS fallback works
+  protobufjs: false     # postinstall is only a version check

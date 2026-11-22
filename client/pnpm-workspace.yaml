@@ -1,0 +1,8 @@
+# pnpm only runs dependency install scripts for packages listed here as true.
+allowBuilds:
+  esbuild: true   # vitest/vite need its native binary
+
+# Security pins (moved from package.json "pnpm.overrides", which pnpm no longer reads).
+overrides:
+  postcss: ^8.5.23
+  katex: ^0.18.2

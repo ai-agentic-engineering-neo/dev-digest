@@ -13,7 +13,7 @@ Show run cost with the `RunCostBadge` component, which has two variants:
 
 | Where | Variant | Data |
 |---|---|---|
-| PR list, COST column (between STATUS and UPDATED) | compact `$0.012` | `PrMeta.last_run_cost_usd` |
+| PR list, COST column (between STATUS and UPDATED) | compact `$0.012` | `PrMeta.total_cost_usd`, the total of all runs on the PR |
 | PR detail, Agent runs, Timeline row (under the time) | detailed `$0.014 · 8.2K→1.3K` | `RunSummary.cost_usd`, `tokens_in`, `tokens_out` |
 | PR detail, Review runs header (before the date) | compact | `RunSummary.cost_usd` matched by `run_id` |
 | Agent run drawer, Stats | COST tile between TOKENS and FINDINGS | `RunStats.cost_usd` |
@@ -21,16 +21,18 @@ Show run cost with the `RunCostBadge` component, which has two variants:
 ## Non-goals
 
 - The FINDINGS column and Run Review button from the design mock-up.
-- A total per PR, and cost charts.
+- Cost charts.
 
 ## Behaviour
 
+- The PR list COST column is the total cost of all agent runs on the PR. The
+  other three places show the cost of a single run.
 - Cost format: at least 3 significant digits.
   - `≥ $0.01` → 3 decimals (`$0.012`, never `$0.01`).
   - Below that → 2 significant digits (`$0.0013`).
   - A genuinely free run → `$0.000`.
 - Token format: `800`, `8.2K`, `15K`, `1.3M`.
-- No data → `—`, never `$0.00`. This covers a PR with no completed run, a
+- No data → `—`, never `$0.00`. This covers a PR where no run has a known cost, a
   running, failed or cancelled run, a run stored before M1, and a model with
   no known price.
 - The Timeline shows the badge only for `status === "done"`. A failed run's
@@ -61,6 +63,7 @@ Show run cost with the `RunCostBadge` component, which has two variants:
 ## Acceptance criteria
 
 - [x] A completed run shows its cost in all four places.
+- [x] The PR list shows the sum of the costs of all runs on the PR.
 - [x] A run without data shows `—`, not `$0.00`.
 - [x] Costs show at least 3 significant digits (`$0.012`, `$0.0013`).
 

@@ -1,5 +1,6 @@
-/* RunCostBadge — cost (and tokens) of one agent run (M1).
-   - compact:  "$0.012"              (PR list COST column, review-run header)
+/* RunCostBadge — cost (and tokens) of one agent run, or a total of runs (M1).
+   - compact:  "$0.012"              (review-run header; PR list COST column,
+                                      where it is the total of all runs on the PR)
    - detailed: "$0.014 · 8.2K→1.3K"  (Agent runs timeline)
    Callers pass null for runs that are not done, so a running / failed /
    cancelled run renders "—" instead of a fake or partial price. */

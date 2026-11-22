@@ -247,7 +247,33 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(runs[0].cost_usd).toBe(cost);
 
     const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
-    expect(pulls.find((p: { id: string }) => p.id === pr.id).last_run_cost_usd).toBe(cost);
+    expect(pulls.find((p: { id: string }) => p.id === pr.id).total_cost_usd).toBe(cost);
+
+    await app.close();
+  });
+
+  it('M1 run cost: the PR list totals the cost of every run on the PR, not just the latest', async () => {
+    const app = await appWith(REVIEW_FIXTURE, 'openai', { github: new MockGitHubClient({ pulls: [] }) });
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'TotalCostAgent', provider: 'openai', model: 'gpt-4.1', system_prompt: 's' },
+      })
+    ).json();
+    // Two separate reviews of the same PR → two done runs, each with its own cost.
+    await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } });
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+    await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } });
+    const runs = await waitForPrRuns(pg.handle.db, pr.id, { expected: 2 });
+
+    const costs = runs.map((r) => r.costUsd ?? 0);
+    expect(costs).toHaveLength(2);
+    expect(Math.min(...costs)).toBeGreaterThan(0);
+
+    const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    expect(pulls.find((p: { id: string }) => p.id === pr.id).total_cost_usd).toBeCloseTo(costs[0]! + costs[1]!, 10);
 
     await app.close();
   });
@@ -276,7 +302,7 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(run!.costUsd).toBeNull();
 
     const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
-    expect(pulls.find((p: { id: string }) => p.id === pr.id).last_run_cost_usd).toBeNull();
+    expect(pulls.find((p: { id: string }) => p.id === pr.id).total_cost_usd).toBeNull();
 
     await app.close();
   });

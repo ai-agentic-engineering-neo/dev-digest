@@ -60,8 +60,8 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
         </Badge>
       </div>
       <div>
-        {/* Cost of the latest completed run; "—" when there is none. */}
-        <RunCostBadge costUsd={pr.last_run_cost_usd} style={{ fontSize: 13 }} />
+        {/* Total cost of all agent runs on the PR; "—" when none has a known cost. */}
+        <RunCostBadge costUsd={pr.total_cost_usd} style={{ fontSize: 13 }} />
       </div>
       <div style={s.updatedCell}>{relativeTime(pr.updated_at)}</div>
     </div>

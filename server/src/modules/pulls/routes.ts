@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm';
 import type { PrMeta, PrDetail, GitHubClient, PrReviewComment } from '@devdigest/shared';
 import { PrCommentInput } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
@@ -129,19 +129,20 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
-    // M1 run cost badge: cost of the latest *completed* agent run per PR.
-    // Running/failed/cancelled runs are skipped so the list never shows a
-    // partial or fake price; a done run with unknown cost yields null ("—").
-    const lastRunCostByPr = new Map<string, number | null>();
+    // M1 run cost badge: total cost of every agent run on the PR. Only runs
+    // with a stored cost count — running/failed/cancelled runs and runs with an
+    // unknown price store null — so a PR with no known cost stays absent from
+    // the map and the list shows "—" instead of a fake $0.
+    const totalCostByPr = new Map<string, number>();
     if (prIds.length > 0) {
       const runRows = await container.db
         .select({ prId: t.agentRuns.prId, costUsd: t.agentRuns.costUsd })
         .from(t.agentRuns)
-        .where(and(inArray(t.agentRuns.prId, prIds), eq(t.agentRuns.status, 'done')))
-        .orderBy(desc(t.agentRuns.ranAt));
-      // Newest-first → first seen per PR is the latest completed run.
+        .where(and(inArray(t.agentRuns.prId, prIds), isNotNull(t.agentRuns.costUsd)));
       for (const run of runRows) {
-        if (run.prId && !lastRunCostByPr.has(run.prId)) lastRunCostByPr.set(run.prId, run.costUsd);
+        if (run.prId && run.costUsd != null) {
+          totalCostByPr.set(run.prId, (totalCostByPr.get(run.prId) ?? 0) + run.costUsd);
+        }
       }
     }
 
@@ -169,7 +170,11 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
-        last_run_cost_usd: lastRunCostByPr.get(r.id) ?? null,
+        // Rounded to 10 decimals so float addition noise (0.1 + 0.2) never
+        // reaches the client's unrounded hover value.
+        total_cost_usd: totalCostByPr.has(r.id)
+          ? Math.round(totalCostByPr.get(r.id)! * 1e10) / 1e10
+          : null,
       };
     });
   });

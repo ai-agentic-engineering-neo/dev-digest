@@ -1,15 +1,16 @@
-/* FindingsPanel — hide-low-confidence + j/k navigation + FindingCard list,
-   wiring the accept/dismiss action hook (A2). */
+/* FindingsPanel — severity counters/filter + hide-low-confidence + j/k
+   navigation + FindingCard list, wiring the accept/dismiss action hook (A2). */
 "use client";
 
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Toggle, EmptyState } from "@devdigest/ui";
-import type { FindingRecord } from "@devdigest/shared";
+import type { FindingRecord, Severity } from "@devdigest/shared";
 import { FindingCard } from "../FindingCard";
 import { useFindingAction } from "../../../../../../../lib/hooks/reviews";
 import { KEY_TO_ACTION } from "./constants";
-import { visibleFindings } from "./helpers";
+import { applyConfidence, countBySeverity, visibleFindings } from "./helpers";
+import { SeverityCounters } from "./SeverityCounters";
 import { s } from "./styles";
 
 export function FindingsPanel({
@@ -26,9 +27,28 @@ export function FindingsPanel({
   const t = useTranslations("prReview");
   const action = useFindingAction();
   const [hideLow, setHideLow] = React.useState(false);
+  const [severity, setSeverity] = React.useState<Severity | null>(null);
   const [focusIdx, setFocusIdx] = React.useState(0);
 
-  const shown = React.useMemo(() => visibleFindings(findings, hideLow), [findings, hideLow]);
+  // Counts follow Hide low confidence but not the severity filter, so every
+  // chip equals the cards its level shows. Recomputed when findings refetch
+  // (e.g. after accept/dismiss).
+  const counts = React.useMemo(
+    () => countBySeverity(applyConfidence(findings, hideLow)),
+    [findings, hideLow],
+  );
+  const shown = React.useMemo(
+    () => visibleFindings(findings, hideLow, severity),
+    [findings, hideLow, severity],
+  );
+
+  // Filters change the list → keep j/k and a/d pointing at a shown card.
+  React.useEffect(() => setFocusIdx(0), [hideLow, severity]);
+
+  const toggleSeverity = React.useCallback(
+    (level: Severity) => setSeverity((cur) => (cur === level ? null : level)),
+    [],
+  );
 
   // j/k navigation + a/d shortcuts on the focused finding (keyboard).
   React.useEffect(() => {
@@ -48,6 +68,7 @@ export function FindingsPanel({
   return (
     <div>
       <div style={s.toolbar}>
+        <SeverityCounters counts={counts} active={severity} onToggle={toggleSeverity} />
         <div style={s.toggleGroup}>
           {t("panel.hideLowConfidence")}
           <Toggle on={hideLow} onChange={setHideLow} size={16} />

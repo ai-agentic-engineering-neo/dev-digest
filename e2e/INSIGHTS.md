@@ -30,6 +30,13 @@ actionable cold.
 
 ## Recurring Errors & Fixes
 
+### 2026-11-22 — [REVIEW NEEDED] e2e:hermetic fails "Bind for 127.0.0.1:5433 failed: port is already allocated"
+**Insight:** The hermetic stack defaults its ephemeral Postgres to :5433, but a dev `devdigest-postgres` container may itself be mapped to 127.0.0.1:5433 (when :5432 is taken by another project), so `docker run` exits 125 before any flow runs.
+**Rule:** ALWAYS check `docker ps` for a :5433 mapping and run `E2E_PG_PORT=5434 npm run e2e:hermetic` when it is taken — because the dev DB must not be stopped to free the port.
+**Evidence:** `scripts/e2e.sh` → `PG_PORT="${E2E_PG_PORT:-5433}"`; `docker ps` → `devdigest-postgres 127.0.0.1:5433->5432`
+
 ## Session Notes
+
+- 2026-11-22 — e2e hermetic run after M1 severity counters: 7/7 flows passed on E2E_PG_PORT=5434; see "e2e:hermetic fails"
 
 ## Open Questions

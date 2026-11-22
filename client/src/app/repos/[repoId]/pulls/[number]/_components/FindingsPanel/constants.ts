@@ -1,4 +1,7 @@
-import type { FindingActionKind } from "@devdigest/shared";
+import type { FindingActionKind, Severity } from "@devdigest/shared";
+
+/** Severity levels shown as counters, in display order (the Zod contract; no INFO). */
+export const SEVERITY_LEVELS: readonly Severity[] = ["CRITICAL", "WARNING", "SUGGESTION"];
 
 /** Sort weight per severity (lower = shown first). */
 export const SEVERITY_ORDER: Record<string, number> = {

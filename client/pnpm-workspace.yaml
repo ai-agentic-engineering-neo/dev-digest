@@ -1,0 +1,7 @@
+allowBuilds:
+  esbuild: true
+
+# pnpm 11+ ignores the "pnpm" field in package.json — overrides live here.
+overrides:
+  postcss: ^8.5.23
+  katex: ^0.18.2

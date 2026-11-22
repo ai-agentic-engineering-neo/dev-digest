@@ -116,17 +116,33 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
     // grouping is cheap. (The per-severity FINDINGS breakdown is intentionally
     // not surfaced on the list — findings live on the PR detail page.)
     const prIds = rows.map((r) => r.id);
-    const latestReviewByPr = new Map<string, { score: number | null }>();
+    const latestReviewByPr = new Map<string, { score: number | null; runId: string | null }>();
     if (prIds.length > 0) {
       const reviewRows = await container.db
-        .select({ prId: t.reviews.prId, score: t.reviews.score })
+        .select({ prId: t.reviews.prId, score: t.reviews.score, runId: t.reviews.runId })
         .from(t.reviews)
         .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review')))
         .orderBy(desc(t.reviews.createdAt));
       // Rows are newest-first → first seen per PR is the latest review.
       for (const rv of reviewRows) {
-        if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { score: rv.score });
+        if (!latestReviewByPr.has(rv.prId)) {
+          latestReviewByPr.set(rv.prId, { score: rv.score, runId: rv.runId });
+        }
       }
+    }
+
+    // Cost (USD) of the run behind each PR's latest review. Same run as `score`, so the two
+    // columns always describe the same review. `reviews.run_id` has no FK: a null/dangling id → null.
+    const costByRun = new Map<string, number | null>();
+    const runIds = [...latestReviewByPr.values()]
+      .map((rv) => rv.runId)
+      .filter((id): id is string => !!id);
+    if (runIds.length > 0) {
+      const runRows = await container.db
+        .select({ id: t.agentRuns.id, costUsd: t.agentRuns.costUsd })
+        .from(t.agentRuns)
+        .where(inArray(t.agentRuns.id, runIds));
+      for (const run of runRows) costByRun.set(run.id, run.costUsd);
     }
 
     const now = Date.now();
@@ -153,6 +169,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
+        cost_usd: review?.runId ? (costByRun.get(review.runId) ?? null) : null,
       };
     });
   });

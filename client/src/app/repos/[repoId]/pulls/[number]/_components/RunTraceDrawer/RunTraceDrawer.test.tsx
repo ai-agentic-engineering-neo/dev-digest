@@ -7,7 +7,7 @@ import messages from "../../../../../../../../messages/en/runs.json"; // apps/we
 // Mock the trace hooks so the drawer renders without a query client / SSE.
 const TRACE: RunTrace = {
   config: { agent: "Security", version: "1", provider: "openai", model: "gpt-4.1", pr: 482, source: "local" },
-  stats: { duration_ms: 8200, tokens_in: 12000, tokens_out: 1500, findings: 2, grounding: "2/2 passed" },
+  stats: { duration_ms: 8200, tokens_in: 12000, tokens_out: 1500, cost_usd: 0.06, findings: 2, grounding: "2/2 passed" },
   prompt_assembly: { system: "You are a reviewer.", skills: "### skill", memory: null, specs: null, user: "Review PR #482" },
   tool_calls: [{ tool: "review_file", args: "src/config.ts", meta: "single-pass", ms: 1200 }],
   raw_output: '{"verdict":"request_changes"}',
@@ -19,8 +19,11 @@ const TRACE: RunTrace = {
   ],
 };
 
+// Swappable per test (e.g. a trace persisted before `cost_usd` existed).
+let traceData: RunTrace = TRACE;
+
 vi.mock("../../../../../../../lib/hooks/trace", () => ({
-  useRunTrace: () => ({ data: TRACE, isLoading: false }),
+  useRunTrace: () => ({ data: traceData, isLoading: false }),
 }));
 vi.mock("../../../../../../../lib/hooks/reviews", () => ({
   useRunEvents: () => ({ events: [], running: false }),
@@ -28,7 +31,10 @@ vi.mock("../../../../../../../lib/hooks/reviews", () => ({
 
 import RunTraceDrawer from "./RunTraceDrawer";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  traceData = TRACE;
+});
 
 function renderWithIntl(ui: React.ReactElement) {
   return render(
@@ -45,6 +51,24 @@ describe("A5 Run Trace drawer (smoke)", () => {
     expect(screen.getByText("Stats")).toBeInTheDocument();
     expect(screen.getByText("2/2 passed")).toBeInTheDocument();
     expect(screen.getByText("Tool calls")).toBeInTheDocument();
+  });
+
+  it("shows the COST stat between TOKENS and FINDINGS", () => {
+    renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    // design order: DURATION · TOKENS · COST · FINDINGS (positions in the rendered text)
+    const text = document.body.textContent ?? "";
+    const pos = ["DURATION", "TOKENS", "COST", "FINDINGS"].map((l) => text.indexOf(l));
+    expect(pos.every((p) => p >= 0)).toBe(true);
+    expect(pos).toEqual([...pos].sort((a, b) => a - b));
+    expect(screen.getByText("$0.06")).toBeInTheDocument();
+  });
+
+  it("a trace persisted without cost_usd shows an em-dash, not a crash", () => {
+    const { cost_usd: _omit, ...statsWithoutCost } = TRACE.stats;
+    traceData = { ...TRACE, stats: statsWithoutCost };
+    renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    expect(screen.getByText("COST")).toBeInTheDocument();
+    expect(screen.getByText("—")).toBeInTheDocument();
   });
 
   it("switches to the live log tab", () => {

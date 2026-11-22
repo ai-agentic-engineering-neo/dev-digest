@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import type { Db } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
 import type { RunSummary, RunTrace } from '@devdigest/shared';
@@ -59,12 +59,25 @@ export async function listRunsForPull(
     duration_ms: run.durationMs,
     tokens_in: run.tokensIn,
     tokens_out: run.tokensOut,
+    cost_usd: run.costUsd,
     findings_count: run.findingsCount,
     grounding: run.grounding,
     ran_at: run.ranAt ? run.ranAt.toISOString() : null,
     score: run.score,
     blockers: run.blockers,
   }));
+}
+
+/** Cost (USD) per agent run id, for decorating reviews (reviews.run_id has no FK; missing/unknown → absent). */
+export async function costsForRuns(db: Db, runIds: string[]): Promise<Map<string, number | null>> {
+  const out = new Map<string, number | null>();
+  if (runIds.length === 0) return out;
+  const rows = await db
+    .select({ id: t.agentRuns.id, costUsd: t.agentRuns.costUsd })
+    .from(t.agentRuns)
+    .where(inArray(t.agentRuns.id, runIds));
+  for (const r of rows) out.set(r.id, r.costUsd);
+  return out;
 }
 
 /**
@@ -146,6 +159,8 @@ export async function completeAgentRun(
     durationMs: number;
     tokensIn: number;
     tokensOut: number;
+    /** Run cost in USD from reviewer-core; null on failed/cancelled runs and unknown model prices. */
+    costUsd?: number | null;
     findingsCount: number;
     grounding: string;
     /** Review score (0-100); null on failed/cancelled runs. */
@@ -163,6 +178,7 @@ export async function completeAgentRun(
       durationMs: values.durationMs,
       tokensIn: values.tokensIn,
       tokensOut: values.tokensOut,
+      costUsd: values.costUsd ?? null,
       findingsCount: values.findingsCount,
       grounding: values.grounding,
       score: values.score ?? null,

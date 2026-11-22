@@ -4,7 +4,7 @@ import { waitForPrRuns } from './helpers/runs.js';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/platform/config.js';
 import { seed } from '../src/db/seed.js';
-import { MockLLMProvider, MockEmbedder, MockGitClient } from '../src/adapters/mocks.js';
+import { MockLLMProvider, MockEmbedder, MockGitClient, MockGitHubClient } from '../src/adapters/mocks.js';
 import * as t from '../src/db/schema.js';
 import { eq } from 'drizzle-orm';
 import type { Review } from '@devdigest/shared';
@@ -208,6 +208,59 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(run!.status).toBe('done');
     expect(run!.findingsCount).toBe(1);
     expect(run!.grounding).toBe('1/2 passed');
+
+    // cost: stored on the run (sum of per-call costs from the LLM adapter) and surfaced consistently
+    expect(run!.costUsd).toBeGreaterThan(0);
+    expect(trace.stats.cost_usd).toBe(run!.costUsd);
+    expect(review.cost_usd).toBe(run!.costUsd);
+
+    await app.close();
+  });
+
+  it('PR list: cost_usd is the cost of the run behind the LATEST review (same run as score)', async () => {
+    const app = await buildApp({
+      config: config(),
+      db: pg.handle.db,
+      overrides: {
+        embedder: new MockEmbedder(),
+        git: new MockGitClient({ diff: DIFF }),
+        github: new MockGitHubClient({ pulls: [] }),
+        llm: { openai: new MockLLMProvider('openai', { structured: REVIEW_FIXTURE }) },
+      },
+    });
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const listCost = async () => {
+      const list = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+      return list.find((p: { id: string }) => p.id === pr.id).cost_usd;
+    };
+
+    // never reviewed → null
+    expect(await listCost()).toBeNull();
+
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'CostAgent', provider: 'openai', model: 'gpt-4.1', system_prompt: 's' },
+      })
+    ).json();
+
+    // 1st review; pin its run cost to a known value
+    await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } });
+    const [first] = await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+    await pg.handle.db.update(t.agentRuns).set({ costUsd: 0.5 }).where(eq(t.agentRuns.id, first!.id));
+    expect(await listCost()).toBe(0.5);
+
+    // 2nd review → the list switches to the NEW run's cost (not a sum with the first)
+    await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } });
+    const runs = await waitForPrRuns(pg.handle.db, pr.id, { expected: 2 });
+    const second = runs.find((r) => r.id !== first!.id)!;
+    expect(second.costUsd).toBeGreaterThan(0);
+    expect(await listCost()).toBe(second.costUsd);
+
+    // a review not linked to a run (reviews.run_id has no FK) → null, not an error
+    await pg.handle.db.update(t.reviews).set({ runId: null }).where(eq(t.reviews.prId, pr.id));
+    expect(await listCost()).toBeNull();
 
     await app.close();
   });

@@ -148,6 +148,10 @@ export class ReviewRepository {
     return runRepo.createAgentRun(this.db, values);
   }
 
+  costsForRuns(runIds: string[]): Promise<Map<string, number | null>> {
+    return runRepo.costsForRuns(this.db, runIds);
+  }
+
   completeAgentRun(
     runId: string,
     values: {
@@ -155,6 +159,8 @@ export class ReviewRepository {
       durationMs: number;
       tokensIn: number;
       tokensOut: number;
+      /** Run cost in USD from reviewer-core; null on failed/cancelled runs and unknown model prices. */
+      costUsd?: number | null;
       findingsCount: number;
       grounding: string;
       /** Review score (0-100); null on failed/cancelled runs. */

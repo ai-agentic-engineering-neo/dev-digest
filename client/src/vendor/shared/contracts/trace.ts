@@ -61,6 +61,8 @@ export const RunStats = z.object({
   duration_ms: z.number().int(),
   tokens_in: z.number().int(),
   tokens_out: z.number().int(),
+  /** Run cost in USD (null when the model has no known price). Optional: traces persisted before this field exist. */
+  cost_usd: z.number().nullish(),
   findings: z.number().int(),
   grounding: z.string(),
 });
@@ -109,5 +111,8 @@ export const RunSummary = z.object({
   // findings that trip the agent's gate. Null on failed/cancelled runs.
   score: z.number().int().nullable(),
   blockers: z.number().int().nullable(),
+  // Run cost in USD, fixed at completion; null while running/failed/cancelled, for runs that
+  // predate the column, and for models without a known price.
+  cost_usd: z.number().nullable(),
 });
 export type RunSummary = z.infer<typeof RunSummary>;

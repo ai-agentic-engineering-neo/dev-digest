@@ -46,6 +46,8 @@ export interface CompletionResult {
   tokensIn: number;
   tokensOut: number;
   costUsd: number | null;
+  /** True when costUsd came from a price table, not the provider's billed amount. */
+  costEstimated?: boolean;
 }
 
 /**
@@ -75,6 +77,8 @@ export interface StructuredResult<T> {
   tokensIn: number;
   tokensOut: number;
   costUsd: number | null;
+  /** True when costUsd came from a price table, not the provider's billed amount. */
+  costEstimated?: boolean;
   raw: string;
   attempts: number;
 }

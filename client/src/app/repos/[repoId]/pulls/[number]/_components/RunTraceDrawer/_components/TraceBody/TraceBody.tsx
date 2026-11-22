@@ -8,6 +8,7 @@ import { Badge } from "@devdigest/ui";
 import type { RunTrace, FindingRecord } from "@devdigest/shared";
 import { PROMPT_COLORS } from "../../constants";
 import { formatSeconds, formatTokens } from "../../helpers";
+import { formatUsd } from "@/lib/format";
 import { s } from "../../styles";
 import { TraceSection } from "../TraceSection";
 import { ToolCallRow } from "../ToolCallRow";
@@ -63,6 +64,14 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
         <div style={s.statsRow}>
           <Stat label={t("trace.stat.duration")} val={formatSeconds(stats.duration_ms)} />
           <Stat label={t("trace.stat.tokens")} val={formatTokens(stats.tokens_in, stats.tokens_out)} />
+          <Stat
+            label={t("trace.stat.cost")}
+            val={
+              <span title={stats.cost_estimated ? t("trace.stat.costEstimated") : undefined}>
+                {formatUsd(stats.cost_usd, { estimated: stats.cost_estimated })}
+              </span>
+            }
+          />
           <Stat label={t("trace.stat.findings")} val={stats.findings} />
         </div>
       </TraceSection>

@@ -155,6 +155,10 @@ export class ReviewRepository {
       durationMs: number;
       tokensIn: number;
       tokensOut: number;
+      /** USD; null/omitted when unknown (failed/cancelled run, unpriced model). */
+      costUsd?: number | null;
+      /** True when costUsd is a price-table estimate rather than the billed amount. */
+      costEstimated?: boolean;
       findingsCount: number;
       grounding: string;
       /** Review score (0-100); null on failed/cancelled runs. */

@@ -12,6 +12,9 @@ import {
   EvalRun,
   MemoryItem,
   RunTrace,
+  RunStats,
+  RunSummary,
+  PrMeta,
   Settings,
   Repo,
   PrDetail,
@@ -166,6 +169,34 @@ describe('AI contracts parse fixtures', () => {
       log: [{ t: '00.00', kind: 'info', msg: 'started' }],
     });
     expect(trace.tool_calls).toHaveLength(1);
+    // Traces stored before M1 have no stats.cost_usd — they must still parse.
+    expect(trace.stats.cost_usd).toBeUndefined();
+  });
+
+  it('M1 cost fields: RunStats / RunSummary / PrMeta', () => {
+    const base = { duration_ms: 1, tokens_in: 1, tokens_out: 1, findings: 0, grounding: '0/0 passed' };
+    expect(RunStats.parse({ ...base, cost_usd: 0.0013 }).cost_usd).toBe(0.0013);
+    expect(RunStats.parse({ ...base, cost_usd: null }).cost_usd).toBeNull();
+
+    const summary = {
+      run_id: 'r', agent_id: null, agent_name: null, provider: null, model: null,
+      status: 'done', error: null, duration_ms: 1, tokens_in: 1, tokens_out: 1,
+      findings_count: 0, grounding: null, ran_at: null, score: null, blockers: null,
+    };
+    expect(RunSummary.parse({ ...summary, cost_usd: 0.01, cost_estimated: false }).cost_usd).toBe(0.01);
+    // cost_usd / cost_estimated are required on RunSummary: the API always sends them.
+    expect(RunSummary.safeParse(summary).success).toBe(false);
+    expect(RunSummary.safeParse({ ...summary, cost_usd: 0.01 }).success).toBe(false);
+    expect(RunStats.parse({ ...base, cost_usd: 0.0003, cost_estimated: true }).cost_estimated).toBe(true);
+
+    const pr = {
+      number: 1, title: 't', author: 'a', branch: 'b', base: 'main', head_sha: 's',
+      additions: 0, deletions: 0, files_count: 0, status: 'open',
+    };
+    // GitHub-built PrMeta has no cost; the list endpoint adds it.
+    expect(PrMeta.parse(pr).cost_usd).toBeUndefined();
+    expect(PrMeta.parse({ ...pr, cost_usd: 0.014 }).cost_usd).toBe(0.014);
+    expect(PrMeta.parse({ ...pr, cost_usd: 0.014, cost_estimated: true }).cost_estimated).toBe(true);
   });
 });
 

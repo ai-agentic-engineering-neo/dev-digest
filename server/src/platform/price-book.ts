@@ -38,6 +38,15 @@ export class PriceBook {
     return this.fallback(model, tokensIn, tokensOut);
   }
 
+  /**
+   * The cached LIVE OpenRouter price (USD per 1M tokens) for a model, or null
+   * when it is not in the live list — no static-table fallback. Call `refresh()`
+   * first; used by the cost backfill, which must not guess from stale tables.
+   */
+  livePrice(model: string): { in: number; out: number } | null {
+    return this.prices.get(model) ?? null;
+  }
+
   /** Force a synchronous-await refresh (e.g. to warm the cache). Never throws. */
   async refresh(): Promise<void> {
     try {

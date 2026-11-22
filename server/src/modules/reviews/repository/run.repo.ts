@@ -59,6 +59,8 @@ export async function listRunsForPull(
     duration_ms: run.durationMs,
     tokens_in: run.tokensIn,
     tokens_out: run.tokensOut,
+    cost_usd: run.costUsd,
+    cost_estimated: run.costEstimated,
     findings_count: run.findingsCount,
     grounding: run.grounding,
     ran_at: run.ranAt ? run.ranAt.toISOString() : null,
@@ -146,6 +148,10 @@ export async function completeAgentRun(
     durationMs: number;
     tokensIn: number;
     tokensOut: number;
+    /** USD; null/omitted when unknown (failed/cancelled run, unpriced model). */
+    costUsd?: number | null;
+    /** True when costUsd is a price-table estimate rather than the billed amount. */
+    costEstimated?: boolean;
     findingsCount: number;
     grounding: string;
     /** Review score (0-100); null on failed/cancelled runs. */
@@ -163,6 +169,8 @@ export async function completeAgentRun(
       durationMs: values.durationMs,
       tokensIn: values.tokensIn,
       tokensOut: values.tokensOut,
+      costUsd: values.costUsd ?? null,
+      costEstimated: values.costEstimated ?? false,
       findingsCount: values.findingsCount,
       grounding: values.grounding,
       score: values.score ?? null,

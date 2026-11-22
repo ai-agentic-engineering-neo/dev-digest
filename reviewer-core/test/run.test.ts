@@ -135,4 +135,58 @@ describe('reviewPullRequest (engine)', () => {
     expect(seen.length).toBeGreaterThan(0);
     expect(seen.every((s) => s === 'sess-abc')).toBe(true);
   });
+
+  describe('cost provenance (M1 addendum)', () => {
+    /** Provider whose every call reports the given cost + provenance. */
+    function costProvider(costUsd: number | null, costEstimated?: boolean): LLMProvider {
+      return {
+        id: 'openrouter',
+        async completeStructured<T>(req): Promise<StructuredResult<T>> {
+          return {
+            data: fixture as unknown as T,
+            model: req.model,
+            tokensIn: 10,
+            tokensOut: 5,
+            costUsd,
+            ...(costEstimated === undefined ? {} : { costEstimated }),
+            raw: '',
+            attempts: 1,
+          };
+        },
+        async listModels() {
+          return [];
+        },
+        async complete() {
+          throw new Error('not used');
+        },
+        async embed() {
+          return [];
+        },
+      };
+    }
+    const run = async (llm: LLMProvider) =>
+      reviewPullRequest({ systemPrompt: 's', model: 'm', diff: await new MockGitClient().diff(), llm });
+
+    it('billed cost (provider-reported) is not marked estimated', async () => {
+      const o = await run(costProvider(0.002, false));
+      expect(o.costUsd).toBeCloseTo(0.002);
+      expect(o.costEstimated).toBe(false);
+    });
+
+    it('a price-table cost is marked estimated', async () => {
+      const o = await run(costProvider(0.003, true));
+      expect(o.costEstimated).toBe(true);
+    });
+
+    it('unknown cost is never "estimated" (nothing to approximate)', async () => {
+      const o = await run(costProvider(null, true));
+      expect(o.costUsd).toBeNull();
+      expect(o.costEstimated).toBe(false);
+    });
+
+    it('providers that omit the flag count as billed', async () => {
+      const o = await run(costProvider(0.001));
+      expect(o.costEstimated).toBe(false);
+    });
+  });
 });

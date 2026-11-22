@@ -19,8 +19,11 @@ const TRACE: RunTrace = {
   ],
 };
 
+// Swappable per test; TRACE itself is a pre-M1 trace (no stats.cost_usd).
+let currentTrace: RunTrace = TRACE;
+
 vi.mock("../../../../../../../lib/hooks/trace", () => ({
-  useRunTrace: () => ({ data: TRACE, isLoading: false }),
+  useRunTrace: () => ({ data: currentTrace, isLoading: false }),
 }));
 vi.mock("../../../../../../../lib/hooks/reviews", () => ({
   useRunEvents: () => ({ events: [], running: false }),
@@ -28,7 +31,10 @@ vi.mock("../../../../../../../lib/hooks/reviews", () => ({
 
 import RunTraceDrawer from "./RunTraceDrawer";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  currentTrace = TRACE;
+});
 
 function renderWithIntl(ui: React.ReactElement) {
   return render(
@@ -52,5 +58,28 @@ describe("A5 Run Trace drawer (smoke)", () => {
     fireEvent.click(screen.getByText("log"));
     // LiveLogStream renders its filter input
     expect(screen.getByPlaceholderText("Filter log…")).toBeInTheDocument();
+  });
+});
+
+describe("Run Trace drawer — cost stat (M1)", () => {
+  it("shows the run cost in Stats", () => {
+    currentTrace = { ...TRACE, stats: { ...TRACE.stats, cost_usd: 0.06 } };
+    renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    expect(screen.getByText("COST")).toBeInTheDocument();
+    expect(screen.getByText("$0.0600")).toBeInTheDocument();
+  });
+
+  it("a trace stored before M1 (no cost_usd) still renders, with a dash", () => {
+    renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    expect(screen.getByText("COST").nextSibling).toHaveTextContent("—");
+  });
+
+  it("an estimated cost reads ~ with a tooltip", () => {
+    currentTrace = { ...TRACE, stats: { ...TRACE.stats, cost_usd: 0.00031, cost_estimated: true } };
+    renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    expect(screen.getByText("~$0.0003")).toHaveAttribute(
+      "title",
+      "Estimated from tokens × list price (not the billed amount)",
+    );
   });
 });

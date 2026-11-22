@@ -12,7 +12,8 @@
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
-    "db:seed": "tsx src/db/seed.ts"
+    "db:seed": "tsx src/db/seed.ts",
+    "db:backfill-costs": "tsx src/db/backfill-costs.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.33.1",

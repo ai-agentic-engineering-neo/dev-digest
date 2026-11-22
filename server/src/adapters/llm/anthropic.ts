@@ -83,6 +83,7 @@ export class AnthropicProvider implements LLMProvider {
       tokensIn,
       tokensOut,
       costUsd: estimateCost(req.model, tokensIn, tokensOut),
+      costEstimated: true, // no billed amount from this API → price-table estimate
     };
   }
 
@@ -133,6 +134,7 @@ export class AnthropicProvider implements LLMProvider {
           tokensIn,
           tokensOut,
           costUsd: estimateCost(req.model, tokensIn, tokensOut),
+          costEstimated: true, // no billed amount from this API → price-table estimate
           raw: lastRaw,
           attempts: attempt,
         };

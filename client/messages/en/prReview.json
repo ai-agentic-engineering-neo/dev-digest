@@ -48,7 +48,10 @@
     "cancelled": "cancelled",
     "running": "running",
     "findings": "{count} finding(s)",
-    "blockers": " · {count} blockers"
+    "blockers": " · {count} blockers",
+    "tokens": "{count, number} tok",
+    "costUnknown": "Cost unknown for this run or model",
+    "costEstimated": "Estimated from tokens × list price (not the billed amount)"
   },
   "smartDiff": {
     "coreLabel": "Core",
@@ -92,8 +95,11 @@
       "size": "Size",
       "score": "Score",
       "status": "Status",
+      "cost": "Cost",
       "updated": "Updated"
     },
+    "costUnknown": "No run with a known cost yet",
+    "costEstimated": "Approximate: includes runs estimated from tokens × list price",
     "filesCount": "{count} files",
     "errorTitle": "Couldn’t load pull requests",
     "errorBody": "The engine returned an error.",

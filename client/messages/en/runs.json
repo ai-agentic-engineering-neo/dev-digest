@@ -39,6 +39,8 @@
     "stat": {
       "duration": "DURATION",
       "tokens": "TOKENS",
+      "cost": "COST",
+      "costEstimated": "Estimated from tokens × list price (not the billed amount)",
       "findings": "FINDINGS"
     },
     "prompt": {

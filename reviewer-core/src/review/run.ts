@@ -108,6 +108,8 @@ export interface ReviewOutcome {
   tokensIn: number;
   tokensOut: number;
   costUsd: number | null;
+  /** True when any chunk's cost was estimated from a price table (not billed). */
+  costEstimated: boolean;
   /** Joined raw model outputs (for the run trace). */
   raw: string;
 }
@@ -157,6 +159,7 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
   let tokensIn = 0;
   let tokensOut = 0;
   let costUsd: number | null = 0;
+  let costEstimated = false;
   const raws: string[] = [];
 
   for (const chunk of chunks) {
@@ -182,6 +185,7 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
     tokensIn += res.tokensIn;
     tokensOut += res.tokensOut;
     costUsd = costUsd == null || res.costUsd == null ? null : costUsd + res.costUsd;
+    if (res.costEstimated) costEstimated = true;
     raws.push(res.raw);
     partials.push(res.data);
     emit('result', `${chunk.label}: ${res.data.findings.length} candidate finding(s)`);
@@ -214,6 +218,7 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
     tokensIn,
     tokensOut,
     costUsd,
+    costEstimated: costUsd != null && costEstimated,
     raw: raws.join('\n---\n'),
   };
 }

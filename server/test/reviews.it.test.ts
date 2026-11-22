@@ -4,6 +4,7 @@ import { waitForPrRuns } from './helpers/runs.js';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/platform/config.js';
 import { seed } from '../src/db/seed.js';
+import { backfillEstimatedCosts } from '../src/db/backfill-costs.js';
 import { MockLLMProvider, MockEmbedder, MockGitClient } from '../src/adapters/mocks.js';
 import * as t from '../src/db/schema.js';
 import { eq } from 'drizzle-orm';
@@ -208,6 +209,139 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(run!.status).toBe('done');
     expect(run!.findingsCount).toBe(1);
     expect(run!.grounding).toBe('1/2 passed');
+
+    await app.close();
+  });
+
+  it('M1 cost: a run persists its cost; the PR list sums known run costs per PR', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const { pr: unreviewed } = await (async () => {
+      const [p] = await pg.handle.db
+        .insert(t.pullRequests)
+        .values({
+          workspaceId,
+          repoId: repo.id,
+          number: 483,
+          title: 'Never reviewed',
+          author: 'deepak.r',
+          branch: 'feat/x',
+          base: 'main',
+          headSha: 'ffff',
+          additions: 1,
+          deletions: 0,
+          filesCount: 1,
+          status: 'needs_review',
+        })
+        .returning();
+      return { pr: p! };
+    })();
+
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'Cost', provider: 'openai', model: 'gpt-4.1', system_prompt: 'c' },
+      })
+    ).json();
+    const res = await app.inject({
+      method: 'POST',
+      url: `/pulls/${pr.id}/review`,
+      payload: { agentId: agent.id },
+    });
+    const runId = res.json().runs[0].run_id;
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+
+    // The mock LLM reports $0.001 per call → the run's cost is known and positive,
+    // and the same value lands in agent_runs, the run summary and the trace.
+    const [run] = await pg.handle.db.select().from(t.agentRuns).where(eq(t.agentRuns.id, runId));
+    expect(run!.costUsd).toBeGreaterThan(0);
+    const runs = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(runs.find((r: { run_id: string }) => r.run_id === runId)?.cost_usd).toBeCloseTo(run!.costUsd!);
+    const trace = (await app.inject({ method: 'GET', url: `/runs/${runId}/trace` })).json();
+    expect(trace.stats.cost_usd).toBeCloseTo(run!.costUsd!);
+
+    // A failed run (cost unknown) does not break the sum; a second priced run adds up.
+    await pg.handle.db.insert(t.agentRuns).values([
+      { workspaceId, prId: pr.id, status: 'failed', costUsd: null },
+      { workspaceId, prId: pr.id, status: 'done', costUsd: 0.002 },
+    ]);
+
+    const list = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const row = list.find((p: { id: string }) => p.id === pr.id);
+    expect(row.cost_usd).toBeCloseTo(run!.costUsd! + 0.002);
+    // The mock provider omits costEstimated → billed → the total is exact, not "~".
+    expect(run!.costEstimated).toBe(false);
+    expect(row.cost_estimated).toBe(false);
+    const empty = list.find((p: { id: string }) => p.id === unreviewed.id);
+    expect(empty.cost_usd).toBeNull();
+
+    await app.close();
+  });
+
+  it('M1 addendum: backfill estimates old runs from tokens × live price; PR total turns approximate', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+
+    const [oldRun, unpriced, failed, billed] = await pg.handle.db
+      .insert(t.agentRuns)
+      .values([
+        // pre-M1 successful run: tokens, no cost → gets estimated
+        { workspaceId, prId: pr.id, status: 'done', model: 'deepseek/deepseek-v4-flash', tokensIn: 2867, tokensOut: 277 },
+        // model without a live price → stays unknown
+        { workspaceId, prId: pr.id, status: 'done', model: 'mystery/model', tokensIn: 100, tokensOut: 10 },
+        // failed run → never backfilled
+        { workspaceId, prId: pr.id, status: 'failed', model: 'deepseek/deepseek-v4-flash', tokensIn: 0, tokensOut: 0 },
+        // already-billed run → untouched
+        { workspaceId, prId: pr.id, status: 'done', model: 'deepseek/deepseek-v4-flash', tokensIn: 50, tokensOut: 5, costUsd: 0.00005 },
+      ])
+      .returning();
+    await pg.handle.db.insert(t.runTraces).values({
+      runId: oldRun!.id,
+      trace: {
+        config: { agent: 'Sec', version: '1', provider: 'openrouter', model: 'deepseek/deepseek-v4-flash', pr: 482, source: 'local' },
+        stats: { duration_ms: 1, tokens_in: 2867, tokens_out: 277, findings: 0, grounding: '0/0 passed' },
+        prompt_assembly: { system: 's', user: 'u' },
+        tool_calls: [],
+        raw_output: '',
+        memory_pulled: [],
+        specs_read: [],
+        log: [],
+      },
+    });
+
+    const prices: Record<string, { in: number; out: number }> = {
+      'deepseek/deepseek-v4-flash': { in: 0.09, out: 0.18 },
+    };
+    const report = await backfillEstimatedCosts(pg.handle.db, (m) => prices[m] ?? null);
+    const expected = (2867 * 0.09 + 277 * 0.18) / 1_000_000;
+    expect(report.updated).toBe(1);
+    expect(report.totalUsd).toBeCloseTo(expected, 12);
+    expect(report.skippedModels).toEqual({ 'mystery/model': 1 });
+
+    const byId = async (id: string) =>
+      (await pg.handle.db.select().from(t.agentRuns).where(eq(t.agentRuns.id, id)))[0]!;
+    expect((await byId(oldRun!.id)).costUsd).toBeCloseTo(expected, 12);
+    expect((await byId(oldRun!.id)).costEstimated).toBe(true);
+    expect((await byId(unpriced!.id)).costUsd).toBeNull();
+    expect((await byId(failed!.id)).costUsd).toBeNull();
+    expect((await byId(billed!.id)).costUsd).toBe(0.00005);
+    expect((await byId(billed!.id)).costEstimated).toBe(false);
+
+    // trace document agrees with the run row
+    const trace = (await app.inject({ method: 'GET', url: `/runs/${oldRun!.id}/trace` })).json();
+    expect(trace.stats.cost_usd).toBeCloseTo(expected, 12);
+    expect(trace.stats.cost_estimated).toBe(true);
+
+    // idempotent: a second pass changes nothing
+    const again = await backfillEstimatedCosts(pg.handle.db, (m) => prices[m] ?? null);
+    expect(again.updated).toBe(0);
+
+    // PR total = billed + estimated, and is flagged approximate
+    const list = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const row = list.find((p: { id: string }) => p.id === pr.id);
+    expect(row.cost_usd).toBeCloseTo(expected + 0.00005, 12);
+    expect(row.cost_estimated).toBe(true);
 
     await app.close();
   });

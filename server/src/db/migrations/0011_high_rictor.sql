@@ -1,0 +1,1 @@
+ALTER TABLE "agent_runs" ADD COLUMN "cost_estimated" boolean DEFAULT false NOT NULL;

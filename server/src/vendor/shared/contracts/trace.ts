@@ -62,6 +62,10 @@ export const RunStats = z.object({
   duration_ms: z.number().int(),
   tokens_in: z.number().int(),
   tokens_out: z.number().int(),
+  /** USD; null when unknown. Absent on traces stored before M1. */
+  cost_usd: z.number().nullish(),
+  /** True when cost_usd is an estimate (tokens × list price), not the billed amount. */
+  cost_estimated: z.boolean().nullish(),
   findings: z.number().int(),
   grounding: z.string(),
 });
@@ -102,6 +106,10 @@ export const RunSummary = z.object({
   duration_ms: z.number().int().nullable(),
   tokens_in: z.number().int().nullable(),
   tokens_out: z.number().int().nullable(),
+  /** USD; null when unknown (failed/cancelled, unpriced model, pre-M1 run). */
+  cost_usd: z.number().nullable(),
+  /** True when cost_usd is an estimate (tokens × list price), not the billed amount. */
+  cost_estimated: z.boolean(),
   findings_count: z.number().int().nullable(),
   grounding: z.string().nullable(),
   ran_at: z.string().nullable(),

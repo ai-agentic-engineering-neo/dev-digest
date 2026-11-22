@@ -25,6 +25,8 @@ function run(o: Partial<RunSummary>): RunSummary {
     duration_ms: 1000,
     tokens_in: 100,
     tokens_out: 50,
+    cost_usd: null,
+    cost_estimated: false,
     findings_count: 0,
     grounding: "0/0 passed",
     ran_at: "2026-06-11T18:44:34.000Z",
@@ -71,5 +73,28 @@ describe("RunHistory — outcome badge", () => {
   it("a running run reads 'running'", () => {
     renderRuns([run({ status: "running", score: null, blockers: null })]);
     expect(screen.getByText("running")).toBeInTheDocument();
+  });
+});
+
+describe("RunHistory — cost badge (M1)", () => {
+  it("a done run shows total tokens and its USD cost", () => {
+    renderRuns([run({ tokens_in: 9000, tokens_out: 119, cost_usd: 0.0013 })]);
+    expect(screen.getByText(/9,119 tok · \$0\.0013/)).toBeInTheDocument();
+  });
+
+  it("a done run with unknown cost shows a dash", () => {
+    renderRuns([run({ cost_usd: null })]);
+    expect(screen.getByText(/150 tok · —/)).toBeInTheDocument();
+  });
+
+  it("an estimated cost reads ~ and explains itself in a tooltip", () => {
+    renderRuns([run({ tokens_in: 2867, tokens_out: 277, cost_usd: 0.00031, cost_estimated: true })]);
+    const line = screen.getByText(/3,144 tok · ~\$0\.0003/);
+    expect(line).toHaveAttribute("title", "Estimated from tokens × list price (not the billed amount)");
+  });
+
+  it("a failed run shows no cost line", () => {
+    renderRuns([run({ status: "failed", error: "429 quota", cost_usd: null })]);
+    expect(screen.queryByText(/tok ·/)).not.toBeInTheDocument();
   });
 });

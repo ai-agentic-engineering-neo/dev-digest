@@ -8,6 +8,7 @@ import { Icon, Avatar, Badge, CircularScore } from "@devdigest/ui";
 import type { PrMeta } from "@/lib/types";
 import { SIZE_COLOR, STATUS_META } from "../../constants";
 import { relativeTime, sizeOf } from "../../helpers";
+import { formatUsd } from "@/lib/format";
 import { s } from "../../styles";
 
 export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
@@ -57,6 +58,19 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
         <Badge dot color={st.c} bg="transparent">
           {t(`list.status.${st.labelKey}`)}
         </Badge>
+      </div>
+      <div
+        className="mono tnum"
+        style={s.costCell}
+        title={
+          pr.cost_usd == null
+            ? t("list.costUnknown")
+            : pr.cost_estimated
+              ? t("list.costEstimated")
+              : undefined
+        }
+      >
+        {formatUsd(pr.cost_usd, { estimated: pr.cost_estimated })}
       </div>
       <div style={s.updatedCell}>{relativeTime(pr.updated_at)}</div>
     </div>

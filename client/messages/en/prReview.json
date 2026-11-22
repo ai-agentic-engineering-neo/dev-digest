@@ -29,7 +29,13 @@
   "panel": {
     "hideLowConfidence": "Hide low confidence",
     "noMatchTitle": "No findings match",
-    "noMatchBody": "Adjust the filters above, or run a review to generate findings."
+    "noMatchBody": "Adjust the filters above, or run a review to generate findings.",
+    "severity": {
+      "groupLabel": "Filter by severity",
+      "CRITICAL": "{count} CRITICAL",
+      "WARNING": "{count} WARNING",
+      "SUGGESTION": "{count} SUGGESTION"
+    }
   },
   "runReview": {
     "runAll": "Run all enabled agents",

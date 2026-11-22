@@ -78,7 +78,7 @@ export class ReviewRepository {
   }
 
   /** All runs for a PR (any status), newest first — the PR run history. */
-  listRunsForPull(workspaceId: string, prId: string): Promise<RunSummary[]> {
+  listRunsForPull(workspaceId: string, prId: string): Promise<Omit<RunSummary, 'cost_usd'>[]> {
     return runRepo.listRunsForPull(this.db, workspaceId, prId);
   }
 

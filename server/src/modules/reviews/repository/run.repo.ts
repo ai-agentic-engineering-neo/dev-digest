@@ -41,7 +41,7 @@ export async function listRunsForPull(
   db: Db,
   workspaceId: string,
   prId: string,
-): Promise<RunSummary[]> {
+): Promise<Omit<RunSummary, 'cost_usd'>[]> {
   const rows = await db
     .select({ run: t.agentRuns, agentName: t.agents.name })
     .from(t.agentRuns)

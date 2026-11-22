@@ -25,6 +25,7 @@ function run(o: Partial<RunSummary>): RunSummary {
     duration_ms: 1000,
     tokens_in: 100,
     tokens_out: 50,
+    cost_usd: 0.012,
     findings_count: 0,
     grounding: "0/0 passed",
     ran_at: "2026-06-11T18:44:34.000Z",
@@ -71,5 +72,16 @@ describe("RunHistory — outcome badge", () => {
   it("a running run reads 'running'", () => {
     renderRuns([run({ status: "running", score: null, blockers: null })]);
     expect(screen.getByText("running")).toBeInTheDocument();
+  });
+
+  it("a done run surfaces the formatted USD cost", () => {
+    renderRuns([run({ status: "done", findings_count: 0, blockers: 0, score: 95, cost_usd: 0.012 })]);
+    expect(screen.getByText("$0.012")).toBeInTheDocument();
+  });
+
+  it("a done run with null cost shows em-dash in the cost slot", () => {
+    renderRuns([run({ status: "done", findings_count: 0, blockers: 0, score: 95, cost_usd: null })]);
+    // The row shows a muted em-dash from RunCostBadge (and nothing else renders a dash on a done run).
+    expect(screen.getByText("—")).toBeInTheDocument();
   });
 });

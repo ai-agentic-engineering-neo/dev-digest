@@ -129,6 +129,37 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
+    // PR-list cost: sum of cost_usd over the LATEST completed run per distinct
+    // agent for this PR. Any contributing run with a null cost → PR total null
+    // (don't under-report). Multi-agent batches aren't modelled yet, so the
+    // "latest per agent" is the closest proxy to "cost of current state".
+    const costByPr = new Map<string, number | null>();
+    if (prIds.length > 0) {
+      const runRows = await container.db
+        .select({
+          prId: t.agentRuns.prId,
+          agentId: t.agentRuns.agentId,
+          costUsd: t.agentRuns.costUsd,
+        })
+        .from(t.agentRuns)
+        .where(and(inArray(t.agentRuns.prId, prIds), eq(t.agentRuns.status, 'done')))
+        .orderBy(desc(t.agentRuns.ranAt));
+      // First-seen per (pr, agent) = that agent's latest completed run.
+      const seenAgent = new Set<string>();
+      for (const r of runRows) {
+        if (r.prId == null) continue;
+        const key = `${r.prId}::${r.agentId ?? ''}`;
+        if (seenAgent.has(key)) continue;
+        seenAgent.add(key);
+        const existing = costByPr.has(r.prId) ? costByPr.get(r.prId)! : 0;
+        if (existing === null || r.costUsd == null) {
+          costByPr.set(r.prId, null);
+        } else {
+          costByPr.set(r.prId, existing + r.costUsd);
+        }
+      }
+    }
+
     const now = Date.now();
     return rows.map((r) => {
       const review = latestReviewByPr.get(r.id);
@@ -153,6 +184,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
+        cost_usd: costByPr.has(r.id) ? costByPr.get(r.id)! : null,
       };
     });
   });

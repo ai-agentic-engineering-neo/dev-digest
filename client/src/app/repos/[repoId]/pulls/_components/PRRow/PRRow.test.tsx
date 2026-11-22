@@ -8,6 +8,9 @@ import type { PrMeta } from "@/lib/types";
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
 }));
+vi.mock("@/lib/hooks/reviews", () => ({
+  usePrReviews: () => ({ data: [], isLoading: false, isError: false }),
+}));
 
 afterEach(cleanup);
 
@@ -49,5 +52,24 @@ describe("PRRow cost cell", () => {
   it("shows em-dash when cost_usd is null", () => {
     renderRow(pr({ cost_usd: null }));
     expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+  });
+});
+
+describe("PRRow findings + status", () => {
+  it("renders the FINDINGS counts cell", () => {
+    renderRow(pr({ findings: { critical: 2, warning: 1, suggestion: 0 }, latest_review_ids: ["r1"] }));
+    expect(screen.getByRole("button", { name: "2 critical, 1 warning, 0 suggestion findings" })).toBeInTheDocument();
+  });
+
+  it("colours a reviewed PR's status red when a CRITICAL finding is still open", () => {
+    renderRow(pr({ status: "reviewed", score: 0, findings: { critical: 1, warning: 0, suggestion: 0 } }));
+    const badge = screen.getByText("Reviewed").closest("span")!;
+    expect(badge.getAttribute("style")).toContain("var(--crit)");
+  });
+
+  it("keeps a clean reviewed PR green", () => {
+    renderRow(pr({ status: "reviewed", score: 100, findings: { critical: 0, warning: 0, suggestion: 0 } }));
+    const badge = screen.getByText("Reviewed").closest("span")!;
+    expect(badge.getAttribute("style")).toContain("var(--ok)");
   });
 });

@@ -63,10 +63,11 @@ cd e2e && npm install && npm test
 | `05-pr-diff` | PR #482 → Files changed tab → seeded file in diff viewer |
 | `06-onboarding` | `/onboarding` → add-repository form renders |
 | `07-settings` | `/settings/api-keys` and `/settings/models` → section titles render |
+| `08-pr-severity-filter` | PR #482 → Agent runs → severity counters filter the run's findings (toggle off restores), ⓘ opens the per-severity modal |
 
 ## Critical precondition
 
-Flows 02, 04, 05 follow the home redirect to the **first** repo. They assume the seeded demo repo (`acme/payments-api`) is the **only** repo in the DB. CI guarantees this. Your local dev DB usually has others — use the hermetic runner (`./scripts/e2e.sh`) to avoid false failures.
+Flows 02, 04, 05, 08 follow the home redirect to the **first** repo. They assume the seeded demo repo (`acme/payments-api`) is the **only** repo in the DB. CI guarantees this. Your local dev DB usually has others — use the hermetic runner (`./scripts/e2e.sh`) to avoid false failures.
 
 ## Hermetic runner env knobs
 

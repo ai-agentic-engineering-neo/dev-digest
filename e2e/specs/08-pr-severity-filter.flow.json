@@ -1,0 +1,25 @@
+{
+  "name": "Review run severity counters filter findings and open a per-severity modal",
+  "description": "From PR #482, open the Agent runs tab. The seeded run (open by default) has 1 CRITICAL + 1 WARNING finding, so the severity counter row shows '1 CRITICAL' and '1 WARNING'. Clicking '1 WARNING' filters the list to the N+1 query finding; clicking it again restores the full list (the critical Stripe-key finding is back). The ⓘ button on the CRITICAL pill opens a modal listing that severity's findings; Close dismisses it. Read-only seeded data (no model call). agent-browser can only wait for text to appear, not assert absence, so 'filtered out' is covered by the client unit tests (FindingsPanel.test.tsx). Assumes a freshly-seeded DB where acme/payments-api (PR #482) is the first repo — run via the hermetic stack (see e2e/README.md).",
+  "steps": [
+    { "cmd": ["open", "{BASE}/"], "label": "load the app root" },
+    { "cmd": ["wait", "--url", "/pulls"], "label": "land on the PR list" },
+    { "cmd": ["find", "text", "Add rate limiting to public API endpoints", "click"], "label": "open the PR row" },
+    { "cmd": ["wait", "--url", "/pulls/482"], "label": "navigate to the PR detail route" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "PR detail data settles" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Agent runs"], "label": "switch to the Agent runs tab" },
+    { "cmd": ["wait", "--url", "tab=findings"], "label": "findings tab is active in the URL" },
+    { "cmd": ["wait", "--text", "1 CRITICAL"], "label": "severity counter row shows the critical count" },
+    { "cmd": ["wait", "--text", "1 WARNING"], "label": "severity counter row shows the warning count" },
+    { "cmd": ["find", "role", "button", "click", "--name", "1 WARNING"], "label": "filter the run to WARNING findings" },
+    { "cmd": ["wait", "--text", "N+1 query in user list endpoint"], "label": "the warning finding is listed" },
+    { "cmd": ["wait", "--text", "Clear filter"], "label": "clear-filter affordance appears while filtering" },
+    { "cmd": ["find", "role", "button", "click", "--name", "1 WARNING"], "label": "click the active chip again to remove the filter" },
+    { "cmd": ["wait", "--text", "Hardcoded Stripe secret key in commit"], "label": "full list is back (critical finding visible)" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Show CRITICAL findings"], "label": "open the CRITICAL findings modal" },
+    { "cmd": ["wait", "--text", "1 CRITICAL finding"], "label": "modal title shows the severity count" },
+    { "cmd": ["wait", "--text", "src/config.ts:12"], "label": "modal lists the finding's file:line" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Show only these"], "label": "apply the filter from the modal (closes it)" },
+    { "cmd": ["wait", "--text", "Clear filter"], "label": "CRITICAL filter is active after the modal closes" }
+  ]
+}

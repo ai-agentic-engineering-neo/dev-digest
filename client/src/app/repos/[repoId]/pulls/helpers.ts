@@ -19,3 +19,15 @@ export function relativeTime(iso: string | null | undefined): string {
   if (h < 24) return `${h}h`;
   return `${Math.round(h / 24)}d`;
 }
+
+/**
+ * Colour for the STATUS badge + row icon. A "reviewed" PR is only green when
+ * no open finding is left: open CRITICAL → crit, open WARNING → warn. Other
+ * statuses keep their STATUS_META colour.
+ */
+export function statusColor(pr: PrMeta, base: string): string {
+  if (pr.status !== "reviewed" || !pr.findings) return base;
+  if (pr.findings.critical > 0) return "var(--crit)";
+  if (pr.findings.warning > 0) return "var(--warn)";
+  return base;
+}

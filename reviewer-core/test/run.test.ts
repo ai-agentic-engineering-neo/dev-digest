@@ -135,4 +135,38 @@ describe('reviewPullRequest (engine)', () => {
     expect(seen.length).toBeGreaterThan(0);
     expect(seen.every((s) => s === 'sess-abc')).toBe(true);
   });
+
+  it('M1 cost badge: surfaces the run usage (tokens + cost) without extra LLM calls', async () => {
+    const llm = new MockLLMProvider('openai', { structured: fixture });
+    const diff = await new MockGitClient().diff();
+    const outcome = await reviewPullRequest({ systemPrompt: 's', model: 'gpt-4.1', diff, llm });
+    const calls = llm.calls.filter((c) => c.method === 'completeStructured').length;
+    expect(calls).toBeGreaterThan(0);
+    // MockLLMProvider bills 100 in / 50 out / $0.001 per call; the engine sums every call.
+    expect(outcome.tokensIn).toBe(100 * calls);
+    expect(outcome.tokensOut).toBe(50 * calls);
+    expect(outcome.costUsd).toBeCloseTo(0.001 * calls, 9);
+  });
+
+  it('M1 cost badge: an unpriced call makes the run cost null (unknown), never $0', async () => {
+    const unpriced: LLMProvider = {
+      id: 'openrouter',
+      async completeStructured<T>(req): Promise<StructuredResult<T>> {
+        return { data: fixture as unknown as T, model: req.model, tokensIn: 10, tokensOut: 5, costUsd: null, raw: '', attempts: 1 };
+      },
+      async listModels() {
+        return [];
+      },
+      async complete() {
+        throw new Error('not used');
+      },
+      async embed() {
+        return [];
+      },
+    };
+    const diff = await new MockGitClient().diff();
+    const outcome = await reviewPullRequest({ systemPrompt: 's', model: 'unknown/model', diff, llm: unpriced });
+    expect(outcome.costUsd).toBeNull();
+    expect(outcome.tokensIn).toBeGreaterThan(0);
+  });
 });

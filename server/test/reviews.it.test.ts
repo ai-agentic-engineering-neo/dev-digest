@@ -212,6 +212,47 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     await app.close();
   });
 
+  it('M1 cost badge: persists run cost and exposes it on runs, trace and the PR list', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { pr, repo } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'Cost', provider: 'openai', model: 'gpt-4.1', system_prompt: 'c' },
+      })
+    ).json();
+    const body = (
+      await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } })
+    ).json();
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+    const runId = body.runs[0].run_id;
+
+    // MockLLMProvider bills 0.001 per call; the engine sums every chunk.
+    const [row] = await pg.handle.db.select().from(t.agentRuns).where(eq(t.agentRuns.id, runId));
+    const cost = row!.costUsd!;
+    expect(cost).toBeGreaterThan(0);
+    expect(Math.round(cost / 0.001) * 0.001).toBeCloseTo(cost, 9);
+
+    const runs = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(runs[0].cost_usd).toBeCloseTo(cost, 9);
+    const trace = (await app.inject({ method: 'GET', url: `/runs/${runId}/trace` })).json();
+    expect(trace.stats.cost_usd).toBeCloseTo(cost, 9);
+
+    // A newer FAILED run (no cost) must not blank out the list's latest-done cost.
+    await pg.handle.db.insert(t.agentRuns).values({
+      workspaceId,
+      prId: pr.id,
+      status: 'failed',
+      ranAt: new Date(Date.now() + 60_000),
+    });
+    const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const listed = pulls.find((p: { id: string }) => p.id === pr.id);
+    expect(listed.cost_usd).toBeCloseTo(cost, 9);
+
+    await app.close();
+  });
+
   it('dual-provider structured output: anthropic provider returns the same Review shape', async () => {
     const app = await appWith(REVIEW_FIXTURE, 'anthropic');
     const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);

@@ -73,3 +73,21 @@ describe("RunHistory — outcome badge", () => {
     expect(screen.getByText("running")).toBeInTheDocument();
   });
 });
+
+describe("RunHistory — run cost (M1)", () => {
+  it("a done run shows total tokens and cost under its time", () => {
+    // RTL normalizes the thin-space thousands separator to a plain space
+    renderRuns([run({ status: "done", tokens_in: 8000, tokens_out: 1119, cost_usd: 0.00131 })]);
+    expect(screen.getByText("9 119 tok · $0.0013")).toBeInTheDocument();
+  });
+
+  it("a legacy done run without a stored cost shows a dash, not $0.00", () => {
+    renderRuns([run({ status: "done", tokens_in: 100, tokens_out: 50, cost_usd: null })]);
+    expect(screen.getByText("150 tok · —")).toBeInTheDocument();
+  });
+
+  it("a failed run shows no cost line", () => {
+    renderRuns([run({ status: "failed", error: "429", tokens_in: 0, tokens_out: 0, cost_usd: null })]);
+    expect(screen.queryByText(/tok ·/)).not.toBeInTheDocument();
+  });
+});

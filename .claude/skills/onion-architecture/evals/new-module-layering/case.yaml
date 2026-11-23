@@ -1,0 +1,7 @@
+schema_version: "1.1"
+name: new-module-layering
+expected_outcome: |
+  modules/labels/{routes,service,repository,helpers,constants}.ts, zod params/body at the route,
+  the 5-label rule as a pure function with a plain unit test, repository workspace-scoped and
+  tested in a *.it.test.ts, registration in modules/index.ts. No empty domain/ folder and no
+  repository interface unless a fake is needed.

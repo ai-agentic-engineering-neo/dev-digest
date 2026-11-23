@@ -1,0 +1,7 @@
+schema_version: "1.1"
+name: route-with-inline-drizzle
+expected_outcome: |
+  Says the query belongs in a repository (infrastructure) and any filter rule is a pure helper,
+  with the route only declaring the zod querystring and calling a service. Names the existing
+  violation (Drizzle and GitHub sync inline in the route) as pre-existing debt, recommends a
+  scoped change rather than refactoring the whole handler unasked, and does not edit files.

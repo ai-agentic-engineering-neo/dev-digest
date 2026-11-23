@@ -21,3 +21,4 @@ Fastify 5 + Drizzle + Postgres. Deep docs (API map, DI flow, env table): `README
 - Module details: `src/modules/repo-intel/README.md`
 - `docs/` explanations · `specs/` feature briefs · `INSIGHTS.md` learned gotchas
 - Test strategy: `../TESTING.md`
+- Layering (which ring code belongs in, import direction): skill `onion-architecture` (`.claude/skills/onion-architecture/`)

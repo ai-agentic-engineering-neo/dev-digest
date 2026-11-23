@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: shared-constant-placement
+expected_outcome: |
+  Recommends moving SEVERITY_ORDER one level up to a route-level constants file
+  (pulls/[number]/constants.ts), imported by both FindingsPanel and FindingCard.
+  Does not recommend src/lib for two siblings of one route, and does not copy the constant.

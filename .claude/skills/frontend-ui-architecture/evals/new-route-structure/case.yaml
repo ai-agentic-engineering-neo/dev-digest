@@ -1,0 +1,7 @@
+schema_version: "1.1"
+name: new-route-structure
+expected_outcome: |
+  A tree under app/repos/[repoId]/insights/ with a thin page.tsx and route-private
+  _components/<Name>/ folders each with index.ts. Data via a hook in src/lib/hooks (no fetch in
+  components). Filters in URL search params. Pure chart math in helpers.ts with a test.
+  User-facing labels in messages/en/*.json. Constants in constants.ts without sentences.

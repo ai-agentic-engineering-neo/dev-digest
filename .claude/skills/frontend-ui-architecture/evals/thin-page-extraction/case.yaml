@@ -1,0 +1,7 @@
+schema_version: "1.1"
+name: thin-page-extraction
+expected_outcome: |
+  Proposes keeping page.tsx to param reading and composition, moving orchestration
+  (queries, mutations, derived data) into a custom hook, pure derivations into helpers.ts
+  (with a unit test), and rendering into a view component in _components/ with an index.ts.
+  Does not add the new query inline in the page and does not invent layers or new top-level folders.

@@ -1,0 +1,7 @@
+schema_version: "1.1"
+name: new-external-integration
+expected_outcome: |
+  A port interface in vendor/shared/adapters.ts, an adapter under adapters/ as the only file
+  importing the Slack SDK (token via SecretsProvider), a mock in adapters/mocks.ts, a container
+  getter plus a ContainerOverrides entry in platform/container.ts, and the service calling the
+  port through the container. No SDK import in a service, no process.env.

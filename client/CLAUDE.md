@@ -16,3 +16,4 @@ Next.js 15 App Router studio UI. Route map and testing notes: `README.md`.
 ## Look here when relevant (not auto-loaded)
 - `docs/` explanations · `specs/` feature briefs · `INSIGHTS.md` learned gotchas
 - Test strategy: `../TESTING.md`
+- Where code goes / how to split components: skill `frontend-ui-architecture` (`.claude/skills/frontend-ui-architecture/`)

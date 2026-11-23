@@ -41,6 +41,7 @@ export {
   DEFAULT_REVIEW_MAX_RETRIES,
   type ReviewInput,
   type ReviewOutcome,
+  type ReviewUsage,
   type ReviewEvent,
   type ReviewStrategy,
   type ReviewMode,

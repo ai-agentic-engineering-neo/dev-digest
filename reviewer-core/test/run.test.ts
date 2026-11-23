@@ -136,3 +136,55 @@ describe('reviewPullRequest (engine)', () => {
     expect(seen.every((s) => s === 'sess-abc')).toBe(true);
   });
 });
+
+describe('reviewPullRequest — onUsage', () => {
+  const clean = { verdict: 'approve', summary: 'ok', score: 95, findings: [] };
+
+  it('reports usage once per completed LLM call', async () => {
+    const llm = new MockLLMProvider('openai', { structured: clean });
+    const diff = await new MockGitClient().diff();
+    const usage: { tokensIn: number; tokensOut: number; costUsd: number | null }[] = [];
+
+    const outcome = await reviewPullRequest({
+      systemPrompt: 'r',
+      model: 'gpt-4.1',
+      diff,
+      llm,
+      task: 't',
+      onUsage: (u) => usage.push(u),
+    });
+
+    expect(usage).toHaveLength(outcome.chunks.length);
+    expect(usage.reduce((n, u) => n + u.tokensIn, 0)).toBe(outcome.tokensIn);
+    expect(usage[0]!.costUsd).toBe(0.001);
+  });
+
+  it('keeps usage of calls that completed before a later call throws', async () => {
+    const base = new MockLLMProvider('openai', { structured: clean });
+    let calls = 0;
+    const llm: LLMProvider = Object.assign(Object.create(Object.getPrototypeOf(base)), base, {
+      completeStructured: async <T>(req: Parameters<LLMProvider['completeStructured']>[0]) => {
+        calls += 1;
+        if (calls === 2) throw new Error('429 quota');
+        return base.completeStructured(req) as Promise<StructuredResult<T>>;
+      },
+    });
+    const one = await new MockGitClient().diff();
+    // map-reduce needs ≥2 files → duplicate the mock file under another path.
+    const diff = { ...one, files: [...one.files, { ...one.files[0]!, path: 'src/other.ts' }] };
+    const usage: unknown[] = [];
+
+    await expect(
+      reviewPullRequest({
+        systemPrompt: 'r',
+        model: 'gpt-4.1',
+        diff,
+        llm,
+        task: 't',
+        strategy: 'map-reduce',
+        onUsage: (u) => usage.push(u),
+      }),
+    ).rejects.toThrow('429 quota');
+    expect(usage).toHaveLength(1);
+  });
+});

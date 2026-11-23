@@ -87,6 +87,11 @@ export class ReviewRepository {
     return runRepo.deleteAgentRun(this.db, workspaceId, runId);
   }
 
+  /** Does this run exist in the workspace? (tenancy guard for /runs/:id routes) */
+  runInWorkspace(workspaceId: string, runId: string): Promise<boolean> {
+    return runRepo.runInWorkspace(this.db, workspaceId, runId);
+  }
+
   /** Mark a still-running run as cancelled (no-op if it already finished). */
   cancelRunIfRunning(runId: string): Promise<boolean> {
     return runRepo.cancelRunIfRunning(this.db, runId);

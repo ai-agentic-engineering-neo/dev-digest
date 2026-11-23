@@ -184,6 +184,20 @@ export async function saveRunTrace(db: Db, runId: string, trace: RunTrace): Prom
     .onConflictDoUpdate({ target: t.runTraces.runId, set: { trace } });
 }
 
+/** True when the run exists AND belongs to the workspace (tenancy guard for run-id routes). */
+export async function runInWorkspace(
+  db: Db,
+  workspaceId: string,
+  runId: string,
+): Promise<boolean> {
+  const rows = await db
+    .select({ id: t.agentRuns.id })
+    .from(t.agentRuns)
+    .where(and(eq(t.agentRuns.id, runId), eq(t.agentRuns.workspaceId, workspaceId)))
+    .limit(1);
+  return rows.length > 0;
+}
+
 export async function getRunTrace(db: Db, runId: string): Promise<RunTrace | undefined> {
   const [row] = await db.select().from(t.runTraces).where(eq(t.runTraces.runId, runId));
   return row ? (row.trace as RunTrace) : undefined;

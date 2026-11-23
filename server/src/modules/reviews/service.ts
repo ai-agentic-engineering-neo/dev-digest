@@ -82,7 +82,8 @@ export class ReviewService {
    * so cancel also works for ORPHANED runs (whose background process died on a
    * server restart) where signalling alone would do nothing.
    */
-  async cancelRun(runId: string): Promise<void> {
+  async cancelRun(workspaceId: string, runId: string): Promise<void> {
+    await this.assertRunInWorkspace(workspaceId, runId);
     this.publish(runId, 'info', 'Cancellation requested — stopping…');
     this.container.runBus.cancel(runId);
     await this.repo.cancelRunIfRunning(runId);
@@ -173,7 +174,18 @@ export class ReviewService {
     );
   }
 
-  async getRunTrace(runId: string): Promise<RunTrace | undefined> {
+  async getRunTrace(workspaceId: string, runId: string): Promise<RunTrace | undefined> {
+    await this.assertRunInWorkspace(workspaceId, runId);
     return this.repo.getRunTrace(runId);
+  }
+
+  /**
+   * Tenancy guard for every `/runs/:id/*` route. 404 (not 403) so a foreign
+   * run id is indistinguishable from a missing one.
+   */
+  async assertRunInWorkspace(workspaceId: string, runId: string): Promise<void> {
+    if (!(await this.repo.runInWorkspace(workspaceId, runId))) {
+      throw new NotFoundError('Run not found');
+    }
   }
 }

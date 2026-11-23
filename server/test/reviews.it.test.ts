@@ -309,6 +309,31 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     await app.close();
   });
 
+  it('tenancy: /runs/:id/{cancel,trace,events} 404 for a run in another workspace and do not touch it', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const db = pg.handle.db;
+    const [otherWs] = await db.insert(t.workspaces).values({ name: 'other-tenant' }).returning();
+    const [foreign] = await db
+      .insert(t.agentRuns)
+      .values({ workspaceId: otherWs!.id, status: 'running' })
+      .returning();
+    await db.insert(t.runTraces).values({ runId: foreign!.id, trace: { secret: 'tenant-b' } });
+
+    const cancel = await app.inject({ method: 'POST', url: `/runs/${foreign!.id}/cancel` });
+    const trace = await app.inject({ method: 'GET', url: `/runs/${foreign!.id}/trace` });
+    const events = await app.inject({ method: 'GET', url: `/runs/${foreign!.id}/events` });
+
+    expect(cancel.statusCode).toBe(404);
+    expect(trace.statusCode).toBe(404);
+    expect(events.statusCode).toBe(404);
+    expect(trace.payload).not.toContain('tenant-b');
+
+    // The foreign run must be untouched (cancel was rejected before any write).
+    const [after] = await db.select().from(t.agentRuns).where(eq(t.agentRuns.id, foreign!.id));
+    expect(after!.status).toBe('running');
+    await app.close();
+  });
+
   it('run all enabled agents reviews with each enabled agent', async () => {
     const app = await appWith(REVIEW_FIXTURE);
     const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);

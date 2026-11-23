@@ -19,6 +19,7 @@
  */
 import type { CodeSymbol, RepoRef } from '@devdigest/shared';
 import type { Container } from '../../platform/container.js';
+import { NotFoundError } from '../../platform/errors.js';
 import { extractEndpoints } from '../../adapters/codeindex/extract.js';
 import {
   parseImports,
@@ -103,6 +104,16 @@ export class RepoIntelService implements RepoIntel {
 
   constructor(private container: Container) {
     this.repo = new RepoIntelRepository(container.db);
+  }
+
+  /**
+   * Tenancy guard for HTTP entry points. The facade itself is tenant-agnostic
+   * (keyed by repoId), so routes must prove the repo belongs to the caller's
+   * workspace first. 404 (not 403) so a foreign id looks like a missing one.
+   */
+  async assertRepoInWorkspace(workspaceId: string, repoId: string): Promise<void> {
+    const repo = await this.container.reposRepo.getById(workspaceId, repoId);
+    if (!repo) throw new NotFoundError('Repo not found');
   }
 
   // -------------------------------------------------------------------------

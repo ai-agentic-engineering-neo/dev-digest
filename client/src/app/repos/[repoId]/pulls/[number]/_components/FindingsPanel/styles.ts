@@ -24,4 +24,16 @@ export const s = {
     color: "var(--text-secondary)",
   } satisfies CSSProperties,
   list: { display: "flex", flexDirection: "column", gap: 12 } satisfies CSSProperties,
+  /** Severity counter pill — outlined in the severity color, filled when active. */
+  sevPill: (c: string, active: boolean): CSSProperties => ({
+    padding: "3px 10px",
+    borderRadius: 999,
+    border: `1px solid ${c}`,
+    background: active ? c : "transparent",
+    color: active ? "#fff" : c,
+    fontSize: 12,
+    fontWeight: 600,
+    letterSpacing: "0.04em",
+    cursor: "pointer",
+  }),
 } as const;

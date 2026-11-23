@@ -209,6 +209,20 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(run!.findingsCount).toBe(1);
     expect(run!.grounding).toBe('1/2 passed');
 
+    // run cost (mock LLM bills 0.001/call) persisted + surfaced on all 3 reads
+    expect(run!.costUsd).toBeGreaterThan(0);
+    expect(trace.stats.cost_usd).toBe(run!.costUsd);
+    const history = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(history[0].cost_usd).toBe(run!.costUsd);
+    const pulls = (await app.inject({ method: 'GET', url: `/repos/${pr.repoId}/pulls` })).json();
+    expect(pulls.find((p: { id: string }) => p.id === pr.id).cost_usd).toBe(run!.costUsd);
+    // per-severity findings breakdown for the list's Findings column
+    expect(pulls.find((p: { id: string }) => p.id === pr.id).findings_by_severity).toEqual({
+      CRITICAL: 1,
+      WARNING: 0,
+      SUGGESTION: 0,
+    });
+
     await app.close();
   });
 
@@ -297,6 +311,14 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     ).json();
     // seed has 2 enabled agents; we may have created more above in this PR's ws.
     expect(body.runs.length).toBeGreaterThanOrEqual(2);
+
+    // PR-list COST = total across ALL agent runs on the PR
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: body.runs.length });
+    const runs = await pg.handle.db.select().from(t.agentRuns).where(eq(t.agentRuns.prId, pr.id));
+    const total = runs.reduce((acc, r) => acc + (r.costUsd ?? 0), 0);
+    expect(total).toBeGreaterThan(0);
+    const pulls = (await app.inject({ method: 'GET', url: `/repos/${pr.repoId}/pulls` })).json();
+    expect(pulls.find((p: { id: string }) => p.id === pr.id).cost_usd).toBeCloseTo(total, 10);
     await app.close();
   });
 });

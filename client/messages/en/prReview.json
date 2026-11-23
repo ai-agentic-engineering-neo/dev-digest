@@ -28,6 +28,7 @@
   },
   "panel": {
     "hideLowConfidence": "Hide low confidence",
+    "severityCount": "{count} {label}",
     "noMatchTitle": "No findings match",
     "noMatchBody": "Adjust the filters above, or run a review to generate findings."
   },
@@ -91,7 +92,9 @@
       "author": "Author",
       "size": "Size",
       "score": "Score",
+      "findings": "Findings",
       "status": "Status",
+      "cost": "Cost",
       "updated": "Updated"
     },
     "filesCount": "{count} files",
@@ -100,6 +103,11 @@
     "emptyTitle": "No pull requests",
     "emptyAllBody": "No open PRs found for this repo yet. Refresh to sync from GitHub.",
     "emptyStatusBody": "No PRs with status “{status}”."
+  },
+  "findingsSummary": {
+    "heading": "{count} findings",
+    "runHeading": "{count} findings in this run",
+    "loading": "Loading findings…"
   },
   "timeline": {
     "goToReview": "Jump to this run’s findings below",

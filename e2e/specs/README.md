@@ -3,7 +3,7 @@
 One spec per milestone feature, written before the code. A spec here covers this
 package's part of the feature: browser journeys covered by flows. It states what
 will be built and how we will know it works; lessons go in
-[`../LEARNINGS.md`](../LEARNINGS.md).
+[`../INSIGHTS.md`](../INSIGHTS.md).
 
 This folder also holds the runnable flows (`NN-name.flow.json`). The runner
 picks up only files ending in `.flow.json`, so markdown specs here are ignored

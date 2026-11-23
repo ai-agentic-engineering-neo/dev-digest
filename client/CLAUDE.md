@@ -61,7 +61,6 @@ pnpm build
 - Adding a hook or touching the API boundary → read `docs/architecture.md`.
 - Building a milestone screen → read its spec in `specs/` (write it first).
 - Writing tests → read `../TESTING.md`.
-- Before starting → read `INSIGHTS.md` and `LEARNINGS.md`; treat both as
-  high-confidence guidance.
+- Before starting → read `INSIGHTS.md`; treat it as high-confidence guidance.
 - When a task ends or something non-obvious happens → run the
-  `engineering-insights` skill (appends to `LEARNINGS.md`).
+  `engineering-insights` skill (appends to `INSIGHTS.md`).

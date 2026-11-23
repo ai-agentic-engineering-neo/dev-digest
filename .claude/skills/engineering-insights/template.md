@@ -1,12 +1,20 @@
-# <module> — learnings
+# <module> — insights
 
-Lessons captured while working in this module, written by the
-`engineering-insights` skill. Append-only: add entries, never rewrite or delete
-them; correct an entry by appending a new dated one that names it. Curated
-facts about the module, where the module keeps them, are in `INSIGHTS.md`.
+What the code of this module does not show: lasting facts about it, and the
+lessons of past work sessions. Read it before working here. It is the one place
+for this knowledge: the `engineering-insights` skill appends to it, and people
+edit it.
 
-Entry format:
-`- YYYY-MM-DD — <specific lesson and the action to take>. Evidence: path:line`
+- **Key Facts** is curated. Edit or remove an entry when it stops being true.
+  Format: `### YYYY-MM-DD — short title`, then **What happened**, **Why** and
+  **Rule**.
+- Every other section is append-only. Add entries, never rewrite or delete
+  them; correct one by appending a new dated entry that names it. Format:
+  `- YYYY-MM-DD — <specific lesson and the action to take>. Evidence: path:line`
+
+## Key Facts
+
+<!-- Lasting facts about the module, promoted from the sections below. -->
 
 ## What Works
 

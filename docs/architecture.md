@@ -97,8 +97,7 @@ dev-digest/
 └── <package>/           server, client, reviewer-core, e2e
     ├── CLAUDE.md        package rules, loaded when work happens there
     ├── README.md        what the package is and how to run it
-    ├── INSIGHTS.md      curated facts about the package
-    ├── LEARNINGS.md     append-only session lessons (engineering-insights skill)
+    ├── INSIGHTS.md      lasting facts and session lessons (engineering-insights skill)
     ├── docs/            README.md (index) + architecture.md
     └── specs/           README.md (index) + _template.md + feature specs
 ```

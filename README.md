@@ -75,8 +75,8 @@ keeps its own deeper docs and feature specs:
 | `e2e/` | [`e2e/docs/`](e2e/docs/README.md) | [`e2e/specs/`](e2e/specs/README.md) |
 
 Agent context files (`CLAUDE.md`) sit at the root and in each package, with
-curated package facts in `INSIGHTS.md` and append-only session lessons in
-`LEARNINGS.md` (written by the `engineering-insights` skill).
+each package's lasting facts and session lessons in one `INSIGHTS.md`
+(appended to by the `engineering-insights` skill).
 
 ## What works on day 1
 

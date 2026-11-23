@@ -3,7 +3,7 @@
 One spec per milestone feature, written before the code. A spec here covers this
 package's part of the feature: pages, components, hooks and UI states. It states what
 will be built and how we will know it works; lessons go in
-[`../LEARNINGS.md`](../LEARNINGS.md).
+[`../INSIGHTS.md`](../INSIGHTS.md).
 
 - Name files `M<n>-<feature>.md`, for example `M1-cost-badge.md`.
 - Start from [`_template.md`](_template.md).

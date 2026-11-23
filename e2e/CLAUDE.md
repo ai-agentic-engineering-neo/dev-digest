@@ -57,7 +57,6 @@ One-time setup: `npm i -g agent-browser && agent-browser install`.
 - Adding a flow for a milestone journey → read `specs/README.md`.
 - Changing CI for this suite → read `../TESTING.md` and
   `../.github/workflows/e2e-web.yml`.
-- Before starting → read `INSIGHTS.md` and `LEARNINGS.md`; treat both as
-  high-confidence guidance.
+- Before starting → read `INSIGHTS.md`; treat it as high-confidence guidance.
 - When a task ends or something non-obvious happens → run the
-  `engineering-insights` skill (appends to `LEARNINGS.md`).
+  `engineering-insights` skill (appends to `INSIGHTS.md`).

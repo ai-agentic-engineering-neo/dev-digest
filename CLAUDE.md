@@ -89,7 +89,7 @@ Per-package build/test commands live in each package's `CLAUDE.md`.
 - Editing reviewer prompts or picking a model → read `docs/agent-prompts/README.md`.
 - Starting a milestone feature → read `<package>/specs/README.md` for each
   package it touches, then the feature's spec; write it first if missing.
-- Before working in a package → read its `INSIGHTS.md` (curated facts) and
-  `LEARNINGS.md` (session lessons); treat both as high-confidence guidance.
+- Before working in a package → read its `INSIGHTS.md` (lasting facts and
+  session lessons); treat it as high-confidence guidance.
 - When a task ends, or the moment something non-obvious happens → run the
-  `engineering-insights` skill to append to `LEARNINGS.md`. Do not skip it.
+  `engineering-insights` skill to append to `INSIGHTS.md`. Do not skip it.

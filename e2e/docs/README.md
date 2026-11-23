@@ -14,5 +14,4 @@ also holds this package's written specs (see its
 | [../../docs/architecture.md](../../docs/architecture.md) | changing how this package depends on, or is used by, another |
 | [../../TESTING.md](../../TESTING.md) | deciding what deserves a flow |
 | [../specs/README.md](../specs/README.md) | adding a flow for a milestone journey |
-| [../INSIGHTS.md](../INSIGHTS.md) | before starting work here: curated facts about the module |
-| [../LEARNINGS.md](../LEARNINGS.md) | before starting work here: lessons from past sessions |
+| [../INSIGHTS.md](../INSIGHTS.md) | before starting work here: lasting facts about the module and lessons from past sessions |

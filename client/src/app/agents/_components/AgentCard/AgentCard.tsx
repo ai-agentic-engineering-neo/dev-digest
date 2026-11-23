@@ -9,6 +9,7 @@ import type { Agent } from "@devdigest/shared";
 import { useDeleteAgent } from "../../../../lib/hooks/agents";
 import { modelColor } from "./helpers";
 import { s } from "./styles";
+import { buttonLikeProps } from "@/lib/a11y";
 
 export function AgentCard({
   ag,
@@ -27,7 +28,7 @@ export function AgentCard({
   const del = useDeleteAgent();
   const color = modelColor(ag.model);
   return (
-    <div onClick={onClick} style={s.card(!!active, ag.enabled)}>
+    <div {...buttonLikeProps(onClick)} style={s.card(!!active, ag.enabled)}>
       <div style={s.headerRow}>
         <div style={s.iconBox}>
           <Icon.Cpu size={15} />

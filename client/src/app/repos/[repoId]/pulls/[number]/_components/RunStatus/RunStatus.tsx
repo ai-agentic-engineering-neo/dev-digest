@@ -19,11 +19,23 @@ export function RunStatus({
   const t = useTranslations("prReview");
   const { events, running } = useRunEvents(runIds);
   const wasRunning = React.useRef(false);
+  // Hold the latest callback in a ref so an unstable inline `onDone` from the
+  // parent never re-triggers the effect.
+  const onDoneRef = React.useRef(onDone);
+  onDoneRef.current = onDone;
 
   React.useEffect(() => {
-    if (running) wasRunning.current = true;
-    if (!running && wasRunning.current) onDone?.();
-  }, [running, onDone]);
+    if (running) {
+      wasRunning.current = true;
+      return;
+    }
+    // Fire once on the running → idle edge, then reset so later re-renders
+    // (which refetch → re-render the parent) cannot fire it again.
+    if (wasRunning.current) {
+      wasRunning.current = false;
+      onDoneRef.current?.();
+    }
+  }, [running]);
 
   if (runIds.length === 0) return null;
 

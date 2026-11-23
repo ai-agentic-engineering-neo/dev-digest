@@ -6,13 +6,14 @@ import { useTranslations } from "next-intl";
 import { Icon } from "@devdigest/ui";
 import type { ToolCall } from "@devdigest/shared";
 import { s } from "../../styles";
+import { disclosureProps } from "@/lib/a11y";
 
 export function ToolCallRow({ tc }: { tc: ToolCall }) {
   const t = useTranslations("runs");
   const [open, setOpen] = React.useState(false);
   return (
     <div style={s.toolRow}>
-      <div onClick={() => setOpen((o) => !o)} style={s.toolHead}>
+      <div {...disclosureProps(open, () => setOpen((o) => !o))} style={s.toolHead}>
         <Icon.Wrench size={13} style={s.toolIcon} />
         <span className="mono" style={s.toolName}>
           {tc.tool}

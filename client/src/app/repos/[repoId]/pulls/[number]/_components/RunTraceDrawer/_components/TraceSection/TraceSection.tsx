@@ -4,6 +4,7 @@
 import React from "react";
 import { Icon } from "@devdigest/ui";
 import { s } from "../../styles";
+import { disclosureProps } from "@/lib/a11y";
 
 export function TraceSection({
   icon,
@@ -22,7 +23,7 @@ export function TraceSection({
   const I = Icon[icon];
   return (
     <div style={s.section}>
-      <div onClick={() => setOpen((o) => !o)} style={s.sectionHead}>
+      <div {...disclosureProps(open, () => setOpen((o) => !o))} style={s.sectionHead}>
         <I size={15} style={s.sectionIcon} />
         <span style={s.sectionTitle}>{title}</span>
         {right}

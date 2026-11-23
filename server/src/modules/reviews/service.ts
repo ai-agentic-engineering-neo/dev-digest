@@ -7,6 +7,7 @@ import { type ReviewDto, type ReviewDtoFinding } from './helpers.js';
 import { ReviewRunExecutor, type Logger } from './run-executor.js';
 import { actOnFinding as actOnFindingImpl } from './findings.js';
 import { reviewToDto } from './helpers.js';
+import { runCostUsd } from '../../platform/run-cost.js';
 
 // Re-export DTO types + converters for backward-compatible imports from
 // './service.js' (these previously lived here; logic now in ./helpers.ts).
@@ -68,7 +69,12 @@ export class ReviewService {
 
   /** All runs for a PR (any status), newest first — the run history (incl. failures). */
   async listRuns(workspaceId: string, prId: string) {
-    return this.repo.listRunsForPull(workspaceId, prId);
+    const runs = await this.repo.listRunsForPull(workspaceId, prId);
+    const prices = this.container.priceBook;
+    return runs.map((r) => ({
+      ...r,
+      cost_usd: runCostUsd(prices, r.model, r.tokens_in, r.tokens_out),
+    }));
   }
 
   /** Delete one run from the history (+ its trace). */
@@ -174,6 +180,16 @@ export class ReviewService {
   }
 
   async getRunTrace(runId: string): Promise<RunTrace | undefined> {
-    return this.repo.getRunTrace(runId);
+    const trace = await this.repo.getRunTrace(runId);
+    if (!trace) return undefined;
+    const { model } = trace.config;
+    const { tokens_in, tokens_out } = trace.stats;
+    return {
+      ...trace,
+      stats: {
+        ...trace.stats,
+        cost_usd: runCostUsd(this.container.priceBook, model, tokens_in, tokens_out),
+      },
+    };
   }
 }

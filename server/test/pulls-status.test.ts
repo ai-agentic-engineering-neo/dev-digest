@@ -6,7 +6,12 @@
  * + age, so it gets unit coverage independent of the route's queries.
  */
 import { describe, it, expect } from 'vitest';
-import { deriveReviewStatus, rollupSeverities, STALE_DAYS } from '../src/modules/pulls/status.js';
+import {
+  deriveReviewStatus,
+  pickLatestReviewPerAgent,
+  rollupSeverities,
+  STALE_DAYS,
+} from '../src/modules/pulls/status.js';
 
 const DAY = 86_400_000;
 const now = Date.UTC(2026, 5, 11);
@@ -64,5 +69,30 @@ describe('rollupSeverities', () => {
 
   it('is all-zero for no findings', () => {
     expect(rollupSeverities([])).toEqual({ critical: 0, warning: 0, suggestion: 0 });
+  });
+});
+
+describe('pickLatestReviewPerAgent', () => {
+  // Rows arrive newest-first, as the list route queries them.
+  it("keeps each agent's newest review per PR and drops the superseded ones", () => {
+    const counted = pickLatestReviewPerAgent([
+      { id: 'sec-new', prId: 'pr-1', agentId: 'security' },
+      { id: 'perf', prId: 'pr-1', agentId: 'performance' },
+      { id: 'sec-old', prId: 'pr-1', agentId: 'security' },
+      { id: 'other-pr', prId: 'pr-2', agentId: 'security' },
+    ]);
+    expect([...counted]).toEqual([
+      ['sec-new', 'pr-1'],
+      ['perf', 'pr-1'],
+      ['other-pr', 'pr-2'],
+    ]);
+  });
+
+  it('groups reviews without an agent under one key per PR', () => {
+    const counted = pickLatestReviewPerAgent([
+      { id: 'anon-new', prId: 'pr-1', agentId: null },
+      { id: 'anon-old', prId: 'pr-1', agentId: null },
+    ]);
+    expect([...counted.keys()]).toEqual(['anon-new']);
   });
 });

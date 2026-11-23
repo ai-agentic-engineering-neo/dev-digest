@@ -1,13 +1,19 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm';
-import type { PrMeta, PrDetail, GitHubClient, PrReviewComment } from '@devdigest/shared';
+import type {
+  PrMeta,
+  PrDetail,
+  PrFindingsCounts,
+  GitHubClient,
+  PrReviewComment,
+} from '@devdigest/shared';
 import { PrCommentInput } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { AppError, NotFoundError } from '../../platform/errors.js';
-import { deriveReviewStatus } from './status.js';
+import { deriveReviewStatus, pickLatestReviewPerAgent, rollupSeverities } from './status.js';
 
 /**
  * F1 — pulls module. PR import via Octokit (list + per-PR detail).
@@ -111,21 +117,53 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
-    // Latest-review SCORE per PR for the list's score ring. Computed on read
-    // from reviews (no FK denorm); the list is small, so one IN-query + JS
-    // grouping is cheap. (The per-severity FINDINGS breakdown is intentionally
-    // not surfaced on the list — findings live on the PR detail page.)
+    // Review rollups for the list, computed on read from reviews (no FK
+    // denorm); the list is small, so IN-queries + JS grouping are cheap.
+    //  - SCORE ring: the PR's latest review.
+    //  - FINDINGS column (M1): findings per severity, summed over each
+    //    agent's latest review. The findings themselves stay on the PR page;
+    //    the client loads them for the hover preview.
     const prIds = rows.map((r) => r.id);
     const latestReviewByPr = new Map<string, { score: number | null }>();
+    const findingsCountsByPr = new Map<string, PrFindingsCounts>();
     if (prIds.length > 0) {
       const reviewRows = await container.db
-        .select({ prId: t.reviews.prId, score: t.reviews.score })
+        .select({
+          id: t.reviews.id,
+          prId: t.reviews.prId,
+          agentId: t.reviews.agentId,
+          score: t.reviews.score,
+        })
         .from(t.reviews)
         .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review')))
         .orderBy(desc(t.reviews.createdAt));
       // Rows are newest-first → first seen per PR is the latest review.
       for (const rv of reviewRows) {
         if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { score: rv.score });
+      }
+
+      const countedReviews = pickLatestReviewPerAgent(reviewRows);
+      const severitiesByPr = new Map<string, { severity: string }[]>();
+      // A reviewed PR with no findings still gets an (all-zero) entry, so the
+      // response can tell "reviewed, clean" from "never reviewed" (null).
+      for (const prId of countedReviews.values()) severitiesByPr.set(prId, []);
+      if (countedReviews.size > 0) {
+        const findingRows = await container.db
+          .select({ reviewId: t.findings.reviewId, severity: t.findings.severity })
+          .from(t.findings)
+          .where(inArray(t.findings.reviewId, [...countedReviews.keys()]));
+        for (const f of findingRows) {
+          const prId = countedReviews.get(f.reviewId);
+          if (prId) severitiesByPr.get(prId)!.push(f);
+        }
+      }
+      for (const [prId, severities] of severitiesByPr) {
+        const c = rollupSeverities(severities);
+        findingsCountsByPr.set(prId, {
+          CRITICAL: c.critical,
+          WARNING: c.warning,
+          SUGGESTION: c.suggestion,
+        });
       }
     }
 
@@ -175,6 +213,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         total_cost_usd: totalCostByPr.has(r.id)
           ? Math.round(totalCostByPr.get(r.id)! * 1e10) / 1e10
           : null,
+        findings_counts: findingsCountsByPr.get(r.id) ?? null,
       };
     });
   });

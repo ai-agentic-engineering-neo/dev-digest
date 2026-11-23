@@ -307,6 +307,61 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     await app.close();
   });
 
+  it("M1 findings column: the PR list sums each agent's latest review and skips superseded ones", async () => {
+    const app = await appWith(REVIEW_FIXTURE, 'openai', { github: new MockGitHubClient({ pulls: [] }) });
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    // A second PR in the same repo that nobody reviewed.
+    const [unreviewed] = await pg.handle.db
+      .insert(t.pullRequests)
+      .values({
+        workspaceId,
+        repoId: repo.id,
+        number: 483,
+        title: 'Unreviewed',
+        author: 'marisa.koch',
+        branch: 'feat/x',
+        base: 'main',
+        headSha: 'ffff0000',
+        status: 'needs_review',
+      })
+      .returning();
+    const agents = await pg.handle.db.select().from(t.agents);
+    const [security, performance] = [agents[0]!.id, agents[1]!.id];
+
+    // Reviews are written directly, with explicit timestamps, so "latest per
+    // agent" does not depend on run timing.
+    const review = async (agentId: string, createdAt: string, severities: string[]) => {
+      const [rv] = await pg.handle.db
+        .insert(t.reviews)
+        .values({ workspaceId, prId: pr.id, agentId, kind: 'review', score: 50, createdAt: new Date(createdAt) })
+        .returning();
+      if (severities.length === 0) return;
+      await pg.handle.db.insert(t.findings).values(
+        severities.map((severity) => ({
+          reviewId: rv!.id,
+          file: 'src/config.ts',
+          startLine: 11,
+          endLine: 11,
+          severity,
+          category: 'security',
+          title: `${severity} finding`,
+          rationale: 'r',
+          confidence: 0.9,
+        })),
+      );
+    };
+    await review(security, '2026-01-01T10:00:00Z', ['CRITICAL', 'CRITICAL', 'WARNING']); // superseded
+    await review(security, '2026-01-01T12:00:00Z', ['CRITICAL']);
+    await review(performance, '2026-01-01T11:00:00Z', ['WARNING', 'SUGGESTION', 'SUGGESTION']);
+
+    const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const byId = (id: string) => pulls.find((p: { id: string }) => p.id === id);
+    expect(byId(pr.id).findings_counts).toEqual({ CRITICAL: 1, WARNING: 1, SUGGESTION: 2 });
+    expect(byId(unreviewed!.id).findings_counts).toBeNull();
+
+    await app.close();
+  });
+
   it('dual-provider structured output: anthropic provider returns the same Review shape', async () => {
     const app = await appWith(REVIEW_FIXTURE, 'anthropic');
     const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);

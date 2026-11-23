@@ -362,6 +362,21 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     await app.close();
   });
 
+  it('M1 findings column: the seeded PR #482 sums its two seeded agents, and re-seeding adds nothing', async () => {
+    const app = await appWith(REVIEW_FIXTURE, 'openai', { github: new MockGitHubClient({ pulls: [] }) });
+    const [repo] = await pg.handle.db.select().from(t.repos).where(eq(t.repos.fullName, 'acme/payments-api'));
+
+    await seed(pg.handle.db); // second run of the seed (beforeAll ran the first)
+    const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo!.id}/pulls` })).json();
+    const seeded = pulls.find((p: { number: number }) => p.number === 482);
+    // Security Reviewer: 1 CRITICAL + 1 WARNING; Performance Reviewer: 1 WARNING + 2 SUGGESTION.
+    expect(seeded.findings_counts).toEqual({ CRITICAL: 1, WARNING: 2, SUGGESTION: 2 });
+    expect(seeded.score).toBe(61); // the Security review stays the latest one
+    expect(seeded.total_cost_usd).toBeCloseTo(0.0142 + 0.0098, 10);
+
+    await app.close();
+  });
+
   it('dual-provider structured output: anthropic provider returns the same Review shape', async () => {
     const app = await appWith(REVIEW_FIXTURE, 'anthropic');
     const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);

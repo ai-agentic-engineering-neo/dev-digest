@@ -9,10 +9,12 @@ Hygiene: monthly `/engineering-insights review` (logged under Review log); split
 ## Patterns
 
 ## Mistakes
+- 2026-11-23 · The React warning "Updating a style property during rerender (borderColor) when a conflicting property is set (borderLeftColor)" in FindingsPanel tests comes from FindingCard, not the panel: `borderColor` is itself a 4-side shorthand, so the "all-longhand" fix in `s.card` still conflicts with `borderLeftColor`. It only fires when a card's `focused` flips on rerender (j/k, severity filter resets focusIdx); fix would be per-side colors (`borderTopColor`/`borderRightColor`/`borderBottomColor`) — old smoke tests never rerendered, so it looked new. Evidence: `client/src/app/repos/[repoId]/pulls/[number]/_components/FindingCard/styles.ts` (`s.card`)
 
 ## Decisions
 
 ## Context
+- 2026-11-23 · Import the `Severity` type from `@devdigest/shared` (CRITICAL/WARNING/SUGGESTION), not from `@devdigest/ui` — the UI kit exports its own `Severity` that also includes `INFO`, so UI-typed code would render/count a level the API never returns. `SEV[sev]` still accepts the shared type. Evidence: `client/src/vendor/ui/primitives/tokens.ts` (`Severity`, `SEV`), `client/src/vendor/shared/contracts/findings.ts` (`Severity`)
 
 ## Open Questions
 

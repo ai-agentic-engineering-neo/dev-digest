@@ -1,6 +1,6 @@
 # M1 — Findings column on the PR list (server)
 
-Status: approved
+Status: built
 
 ## Problem
 
@@ -60,19 +60,21 @@ list endpoint returns nothing about findings.
 
 ## Acceptance criteria
 
-- [ ] A PR with one review returns the per-severity counts of that review.
-- [ ] A PR reviewed by two agents returns the sum of both agents' latest reviews.
-- [ ] An older review by the same agent is not counted.
-- [ ] A PR with no review returns `findings_counts: null`.
-- [ ] On a fresh seeded DB, PR #482 returns `{ CRITICAL: 1, WARNING: 2, SUGGESTION: 2 }`.
+- [x] A PR with one review returns the per-severity counts of that review.
+- [x] A PR reviewed by two agents returns the sum of both agents' latest reviews.
+- [x] An older review by the same agent is not counted.
+- [x] A PR with no review returns `findings_counts: null`.
+- [x] On a fresh seeded DB, PR #482 returns `{ CRITICAL: 1, WARNING: 2, SUGGESTION: 2 }`.
 
 ## Tests
 
 - `test/pulls-status.test.ts`: `pickLatestReviewPerAgent` — two agents, a
   superseded review, a review without an agent, two PRs.
-- `test/reviews.it.test.ts`: "M1 findings column: …" — the list sums two
-  agents' latest reviews and skips the superseded one; a PR with no review
-  returns `null`.
+- `test/reviews.it.test.ts`:
+  - "M1 findings column: the PR list sums…": two agents' latest reviews are
+    summed, the superseded one is skipped, and a PR with no review returns `null`.
+  - "M1 findings column: the seeded PR #482…": the seeded counts, score and
+    total cost, after the seed has run twice.
 
 ## Related specs
 

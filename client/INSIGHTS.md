@@ -64,6 +64,10 @@ disable the control that clears the active filter.
 
 - 2026-11-22 — `Chip` (active style fixed to the accent colour, count after the label) and `SeverityBadge` (a `span`, not a button) cannot be a severity-coloured toggle, and `src/vendor/ui` is off limits for feature work. Build such a control locally under `_components/` as a `<button aria-pressed>` and take colours from the `SEV` tokens of `@devdigest/ui`; put the label text in `messages/en`, not `SEV[x].label`. Evidence: client/src/app/repos/[repoId]/pulls/[number]/_components/SeverityFilter/SeverityFilter.tsx:39
 
+- 2026-11-23 — An overlay opened from a PR list row must be `position: fixed`: the table card has `overflow: hidden`, so an absolutely positioned child is clipped at the card's edge. Keep it a DOM child of the element that opens it, with padding instead of a gap between the two, so the pointer can move onto it without a `mouseleave`; stop the click inside it, because the whole row is clickable; and close it on scroll, since a fixed overlay does not follow its row. `@devdigest/ui` has no popover, and `Dropdown` opens on click with a fixed item list. Evidence: client/src/app/repos/[repoId]/pulls/_components/FindingsCell/styles.ts:31
+
+- 2026-11-23 — To load data only when a control is opened, pass `null` as the id to the existing query hook (`usePrReviews(open ? pr.id : null)`): every hook here is `enabled: !!id`, so no `enabled` parameter is needed, and the result is cached for the next open. Evidence: client/src/app/repos/[repoId]/pulls/_components/FindingsCell/FindingsCell.tsx:43
+
 ## Tool & Library Notes
 
 <!-- Quirks of dependencies and tooling. -->
@@ -78,6 +82,8 @@ disable the control that clears the active filter.
 
 - 2026-11-22 — Severity counters are computed after `Hide low confidence` and before the severity filter, so a counter always equals the number of cards a click on it shows; counting the unfiltered run would break "the number matches the list" as soon as the toggle is on. A level with 0 findings is disabled, except when it is the active filter, because the toggle can empty the active level and the filter must still be clearable. Evidence: client/src/app/repos/[repoId]/pulls/[number]/_components/FindingsPanel/FindingsPanel.tsx:36
 
+- 2026-11-23 — The PR list's findings preview does not trust the list's numbers for its heading: it applies the server's rule itself (`latestFindingsPerAgent`: each agent's latest `kind = "review"` review) to the loaded reviews and heads the list with the number of findings it shows. The chips come from `PrMeta.findings_counts`, which refreshes every 60 s, so the two can differ for a moment after a new run; a heading taken from the chips would then disagree with the list under it. If the server rule changes, change this helper with it. Evidence: client/src/app/repos/[repoId]/pulls/helpers.ts:16
+
 ## Recurring Errors & Fixes
 
 <!-- An error seen more than once, with its fix. -->
@@ -91,6 +97,8 @@ disable the control that clears the active filter.
 - 2026-11-21 — Built M1 run cost badge (client): `RunCostBadge` (compact/detailed) in PR list, timeline, review-run header and trace COST tile; spec client/specs/M1-cost-badge.md.
 
 - 2026-11-22 — Built the M1 severity filter (client only): `SeverityFilter` counters above each run's findings, `countBySeverity` / `visibleFindings({ hideLow, severity })`; spec client/specs/M1-severity-filter.md. Checked live on seeded PR #482; the combination with `Hide low confidence` is covered by tests only, because no stored finding is below 0.65 confidence.
+
+- 2026-11-23 — Built the M1 findings column (client): `FindingsCell` with severity chips and a hover preview headed `N findings in this run` on the PR list; spec client/specs/M1-findings-column.md. Checked live on seeded PR #482 (two agents, 5 findings), including the severity counters and `Hide low confidence` on the Performance Reviewer run, which now has a finding below 0.65 confidence. Merged `LEARNINGS.md` into this file.
 
 ## Open Questions
 

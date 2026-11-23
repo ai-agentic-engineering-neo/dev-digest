@@ -54,6 +54,8 @@ edit it.
 
 - 2026-11-22 — Investigated why every real review scored 100: no pipeline defect (the model returned an empty findings list, grounding `0/0`); the agents do report on fixture PRs #12 and #13. No source code changed.
 
+- 2026-11-23 — Merged `LEARNINGS.md` into this file; no source code changed.
+
 ## Open Questions
 
 <!-- What is still unresolved. -->

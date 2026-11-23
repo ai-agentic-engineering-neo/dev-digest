@@ -20,4 +20,4 @@ Add a row when a spec is created.
 | Spec | Milestone | Status |
 |------|-----------|--------|
 | [M1-cost-badge.md](M1-cost-badge.md) | M1 | built |
-| [M1-findings-column.md](M1-findings-column.md) | M1 | approved |
+| [M1-findings-column.md](M1-findings-column.md) | M1 | built |

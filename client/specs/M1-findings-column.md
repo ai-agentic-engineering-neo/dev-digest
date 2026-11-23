@@ -1,6 +1,6 @@
 # M1 — Findings column on the PR list (client)
 
-Status: approved
+Status: built
 
 ## Problem
 
@@ -70,23 +70,24 @@ critical finding, a reviewer has to open it and go to the Agent runs tab.
 
 ## Acceptance criteria
 
-- [ ] The list has a FINDINGS column with a chip per severity that has findings.
-- [ ] A PR without findings shows `—` and opens no preview.
-- [ ] Hovering the chips shows a preview headed `N findings in this run`.
-- [ ] N equals the sum of the chips and the number of findings in the preview.
-- [ ] For a PR reviewed by two agents, the preview lists both agents' findings
+- [x] The list has a FINDINGS column with a chip per severity that has findings.
+- [x] A PR without findings shows `—` and opens no preview.
+- [x] Hovering the chips shows a preview headed `N findings in this run`.
+- [x] N equals the sum of the chips and the number of findings in the preview.
+- [x] For a PR reviewed by two agents, the preview lists both agents' findings
       and names each agent.
-- [ ] A superseded review by the same agent is not listed.
-- [ ] No reviews request is sent until the preview opens.
-- [ ] Clicking the cell opens the Agent runs tab and does not also trigger the row.
+- [x] A superseded review by the same agent is not listed.
+- [x] No reviews request is sent until the preview opens.
+- [x] Clicking the cell opens the Agent runs tab and does not also trigger the row.
 
 ## Tests
 
 - `pulls/helpers.test.ts`: `latestFindingsPerAgent` — two agents, a superseded
   review, a summary review, the severity order.
 - `_components/FindingsCell/FindingsCell.test.tsx`: chips and their counts; `—`
-  without findings; no request before hover; hover shows the heading and the
-  findings; `+K more`.
+  without findings; no request before hover; hover shows the heading and both
+  agents' findings; `+K more`; a click opens the Agent runs tab without
+  triggering the row.
 - e2e `02-repo-pulls-detail.flow.json`: the seeded PR's total cost changes with
   the second seeded run.
 

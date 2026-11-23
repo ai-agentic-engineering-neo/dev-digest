@@ -45,6 +45,8 @@ also uses.
 
 - 2026-11-21 — Run cost is already computed per LLM call (OpenRouter `usage.cost`, else `estimateCost`) and summed by reviewer-core into `ReviewOutcome.costUsd`; to surface it, persist it in `run-executor` — never add a model call or recompute from tokens. Failed/cancelled paths hard-code tokens 0 and cost null, so read cost only from `status='done'` runs. Evidence: server/src/modules/reviews/run-executor.ts:214
 
+- 2026-11-23 — A review seeded on PR #482 must be dated before the seeded Security Reviewer review. The newest review on a PR drives the list's score and is the run the Agent runs tab opens by default, and e2e flow 04 asserts that run's `2 findings` and `1 CRITICAL`; a newer seeded review would take both over. Each seeded block also needs its own idempotency check (the Performance Reviewer block keys on a `model = 'seed'` review by that agent), because the first block's "PR has any run" check would skip it on a database that was seeded earlier. Evidence: server/src/db/seed.ts:333
+
 ## Tool & Library Notes
 
 <!-- Quirks of dependencies and tooling. -->
@@ -56,6 +58,8 @@ also uses.
 - 2026-11-21 — M1 cost badge edited the existing `reviews` and `pulls` modules instead of adding a new module: the cost originates in `reviews` and the list route lives in `pulls`; a new module would only duplicate those reads. `PrMeta.last_run_cost_usd` = newest `done` run, so a running/failed newer run never replaces it with a fake price. Evidence: server/src/modules/pulls/routes.ts:172
 
 - 2026-11-22 — Corrects the 2026-11-21 entry above: the PR list cost is now `PrMeta.total_cost_usd`, the sum of `cost_usd` over every run on the PR, because the list should show what the PR cost in total, not the last run. It sums runs with a stored cost and has no `status` filter (failed and cancelled runs store null, so they add nothing), and it is null when no run has a known cost; keep per-run cost on `RunSummary.cost_usd`. The sum is rounded to 10 decimals so float addition noise does not reach the client's unrounded hover value. Evidence: server/src/modules/pulls/routes.ts:175
+
+- 2026-11-23 — The PR list's `PrMeta.findings_counts` is summed over each agent's latest review on the PR (`kind = 'review'`, newest first, one per `prId|agentId`, reviews without an agent share one key), not over the PR's single latest review: a PR reviewed by several agents must show all of them, and a re-run must replace that agent's earlier findings instead of adding to them. It counts every stored finding, dismissed and low-confidence ones included, to match `N findings` in a run's header. `null` means "never reviewed"; a reviewed PR with no findings gets an all-zero object. The client's hover preview applies the same rule to `/pulls/:id/reviews`, so change both together. Evidence: server/src/modules/pulls/status.ts:49
 
 ## Recurring Errors & Fixes
 
@@ -72,6 +76,8 @@ also uses.
 - 2026-11-22 — Imported the upstream repo `ai-agentic-engineering-neo/dev-digest` into the local app through the API (repo, clone, index, 50 PRs) and added its open PR #14 as a hand-written row; no source code changed.
 
 - 2026-11-22 — Changed the PR list cost from the latest run to the total of all runs: `PrMeta.last_run_cost_usd` renamed to `total_cost_usd` in both contract copies, `pulls/routes.ts`, specs and tests updated.
+
+- 2026-11-23 — Built the M1 findings column (server): `PrMeta.findings_counts` on `GET /repos/:id/pulls`, `pickLatestReviewPerAgent`, and a second seeded run and review on PR #482 (Performance Reviewer); spec server/specs/M1-findings-column.md. Merged `LEARNINGS.md` into this file.
 
 ## Open Questions
 

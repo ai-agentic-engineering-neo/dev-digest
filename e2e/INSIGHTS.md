@@ -56,6 +56,8 @@ edit it.
 
 - 2026-11-22 — Added a `1 CRITICAL` counter assertion to 04-pr-findings.flow.json (M1 severity filter); not executed locally because agent-browser is not installed.
 
+- 2026-11-23 — Changed the COST assertion in 02-repo-pulls-detail.flow.json from `$0.014` to `$0.024`: PR #482 now has two seeded runs (M1 findings column). No step was added for the FINDINGS preview, which opens on hover. Not executed locally because agent-browser is not installed. Merged `LEARNINGS.md` into this file.
+
 ## Open Questions
 
 <!-- What is still unresolved. -->

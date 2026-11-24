@@ -21,6 +21,8 @@ Selection rules, review and promotion to CLAUDE.md — skill `engineering-insigh
 
 ## Recurring Errors & Fixes
 
+- 2026-11-24 · pnpm store mismatch · 'npx pnpm@10 add' in server/ fails with ERR_PNPM_UNEXPECTED_STORE because server/node_modules was installed by global pnpm 12 (store v11), unlike client/ which is pinned to pnpm 10 → in server/ use the global pnpm for add/install (server has no pnpm.overrides) and check node_modules/.modules.yaml packageManager first, because the lockfile stays lockfileVersion 9.0 and CI's pnpm 10 --frozen-lockfile still accepts it (verified with --lockfile-only) · server/node_modules/.modules.yaml, ESLint install
+
 ## Session Notes
 
 ## Open Questions

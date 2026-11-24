@@ -1,5 +1,8 @@
 import type { FindingActionKind } from "@devdigest/shared";
 
+/** Contract severity levels in display order (shared with the PR list). */
+export { SEVERITY_LEVELS } from "@/lib/severity";
+
 /** Sort weight per severity (lower = shown first). */
 export const SEVERITY_ORDER: Record<string, number> = {
   CRITICAL: 0,

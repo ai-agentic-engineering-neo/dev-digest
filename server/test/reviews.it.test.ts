@@ -239,7 +239,7 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     const trace = (await app.inject({ method: 'GET', url: `/runs/${runId}/trace` })).json();
     expect(trace.stats.cost_usd).toBeCloseTo(cost, 9);
 
-    // A newer FAILED run (no cost) must not blank out the list's latest-done cost.
+    // A newer FAILED run (no cost) adds nothing to the list's total cost.
     await pg.handle.db.insert(t.agentRuns).values({
       workspaceId,
       prId: pr.id,
@@ -249,6 +249,28 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
     const listed = pulls.find((p: { id: string }) => p.id === pr.id);
     expect(listed.cost_usd).toBeCloseTo(cost, 9);
+
+    // Another finished run (e.g. a second agent) adds its cost to the list total.
+    await pg.handle.db.insert(t.agentRuns).values({
+      workspaceId,
+      prId: pr.id,
+      status: 'done',
+      costUsd: 0.25,
+      ranAt: new Date(Date.now() + 120_000),
+    });
+    const pullsAfter = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const listedAfter = pullsAfter.find((p: { id: string }) => p.id === pr.id);
+    expect(listedAfter.cost_usd).toBeCloseTo(cost + 0.25, 9);
+
+    // Findings column: the list carries the latest review's findings (same review as the score).
+    const reviews = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/reviews` })).json();
+    const latest = reviews.find((r: { kind: string }) => r.kind === 'review');
+    expect(latest.findings.length).toBeGreaterThan(0);
+    expect(listed.score).toBe(latest.score);
+    expect(listed.findings.map((f: { id: string }) => f.id).sort()).toEqual(
+      latest.findings.map((f: { id: string }) => f.id).sort(),
+    );
+    expect(listed.findings[0]).toMatchObject({ review_id: latest.id, dismissed_at: null });
 
     await app.close();
   });

@@ -30,14 +30,16 @@ traces and fixtures stay valid.
 |---|---|---|
 | `RunSummary` (`contracts/trace.ts`) | `cost_usd` | `GET /pulls/:id/runs` |
 | `RunStats` (`contracts/trace.ts`) | `cost_usd` | `GET /runs/:id/trace` (absent on legacy traces) |
-| `PrMeta` (`contracts/platform.ts`) | `cost_usd` | `GET /repos/:id/pulls`: cost of the PR's **latest `done` run** |
+| `PrMeta` (`contracts/platform.ts`) | `cost_usd` | `GET /repos/:id/pulls`: **total** cost of all the PR's runs |
 
-For the PR list, `failed` and `running` runs are skipped, so a trailing 429 does not blank
-out the last real spend. Semantics: `null` = unknown, and `0` = a real free run.
+For the PR list, the cost is the sum over every run with a known cost (changed from "latest
+`done` run" on 2026-11-25 at the user's request; per-run cost is on the PR's Agent runs tab).
+Runs without a known cost (failed, running, legacy) add nothing, so a trailing 429 does not
+blank out the total. Semantics: `null` = no run has a known cost, and `0` = real free runs.
 
 ## Acceptance criteria
 1. A new `done` run stores `cost_usd`. If any chunk is unpriced, the run cost is `null`.
-2. The cost appears on all three routes above. A newer failed run does not hide the list cost.
+2. The cost appears on all three routes above. The list shows the total of all runs; a failed run does not hide it.
 3. The number of LLM calls per run is unchanged.
 4. Tests:
    - `test/reviews.it.test.ts` ("M1 cost badge …")

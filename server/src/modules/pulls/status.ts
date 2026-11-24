@@ -53,3 +53,41 @@ export function deriveReviewStatus(args: {
   if (updatedAt && now - updatedAt.getTime() > staleMs) return 'stale';
   return 'reviewed';
 }
+
+/**
+ * The reviews that make up a PR's current findings: the latest review of EACH
+ * agent. Several agents review a PR independently, so the newest review alone
+ * hides what the others found; a re-run of the same agent supersedes its
+ * earlier review, so findings aren't double-counted. Reviews without an agent
+ * (legacy runs) count as one agent. Input must be newest-first.
+ */
+export function latestReviewPerAgent<R extends { prId: string; agentId: string | null }>(
+  reviewsNewestFirst: R[],
+): Map<string, R[]> {
+  const seen = new Set<string>();
+  const byPr = new Map<string, R[]>();
+  for (const rv of reviewsNewestFirst) {
+    const key = `${rv.prId}:${rv.agentId ?? 'legacy'}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const list = byPr.get(rv.prId) ?? [];
+    list.push(rv);
+    byPr.set(rv.prId, list);
+  }
+  return byPr;
+}
+
+/**
+ * Total LLM spend per PR across ALL its agent runs (the list's Cost column;
+ * per-run cost lives on the PR's Agent runs tab). Runs with an unknown cost
+ * (failed / cancelled / legacy) add nothing; a PR none of whose runs has a
+ * known cost is absent from the map, so the column shows "—" rather than $0.
+ */
+export function totalCostPerPr(runs: { prId: string | null; costUsd: number | null }[]): Map<string, number> {
+  const totals = new Map<string, number>();
+  for (const run of runs) {
+    if (!run.prId || run.costUsd == null) continue;
+    totals.set(run.prId, (totals.get(run.prId) ?? 0) + run.costUsd);
+  }
+  return totals;
+}

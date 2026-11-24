@@ -19,6 +19,7 @@ Reusable AI skills that provide specialized knowledge and workflows. Canonical l
 | [security](security/SKILL.md) | Full-stack | OWASP Top 10:2025, auth, injection, uploads, secrets |
 | [mermaid-diagram](mermaid-diagram/SKILL.md) | Shared | Mermaid diagrams in markdown (flowcharts, sequence, ERD, …) |
 | [engineering-insights](engineering-insights/SKILL.md) | Shared | Reads & maintains per-module INSIGHTS.md (read at start, log only new learnings at end) |
+| [pr-self-review](pr-self-review/SKILL.md) | Shared | Manual-only pre-PR workflow: matches skills to the diff (all UI skills on `client/`, `onion-architecture` on `server/`), runs parallel `pr-skill-reviewer` subagents, writes a PASS/BLOCK verdict. A hook (`.claude/hooks/pr-gate.sh`) blocks `gh pr create`/`gh pr merge` without a fresh PASS. Does not stop merges made in the GitHub UI or from a plain terminal |
 
 ## What Are Skills?
 

@@ -1,7 +1,7 @@
 # Server unit suite — Fastify API (@devdigest/api), hermetic tests only.
 #
 # Two jobs:
-#  - typecheck: type-check on Linux only — the platform CI and the exported
+#  - typecheck: type-check + ESLint on Linux only — the platform CI and the exported
 #    agent-runner both run on. We deliberately do NOT matrix over Windows/macOS:
 #    macOS is covered by daily local dev, Windows is not a ship target, and
 #    `@ast-grep/napi` is exact-pinned so its native binary only changes on a
@@ -64,6 +64,9 @@ jobs:
         run: npm ci
 
       - run: pnpm typecheck
+
+      # Type-aware lint (no-floating-promises) — needs reviewer-core deps too.
+      - run: pnpm exec eslint .
 
   unit:
     name: tests

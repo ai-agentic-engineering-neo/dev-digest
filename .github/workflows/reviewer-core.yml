@@ -46,4 +46,6 @@ jobs:
 
       - run: npm run typecheck
 
+      - run: npx eslint .
+
       - run: npm test

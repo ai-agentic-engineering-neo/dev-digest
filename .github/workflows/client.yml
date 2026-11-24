@@ -1,5 +1,5 @@
 # Client suite — Next.js web app (@devdigest/web).
-# Typecheck + component/unit tests (vitest + jsdom). Hermetic: no API, no DB,
+# Typecheck + lint (ESLint) + component/unit tests (vitest + jsdom). Hermetic: no API, no DB,
 # no browser — fetch is mocked in the tests. The full-stack browser flow lives
 # in e2e-web.yml.
 name: client
@@ -45,5 +45,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - run: pnpm typecheck
+
+      - run: pnpm exec eslint .
 
       - run: pnpm test

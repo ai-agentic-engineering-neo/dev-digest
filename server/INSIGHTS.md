@@ -6,6 +6,8 @@ Selection rules, review and promotion to CLAUDE.md — skill `engineering-insigh
 
 ## What Works
 
+- 2026-11-24 · onion migration with shared repos · a migrated repository that returns domain types breaks legacy consumers typed against the Drizzle row (reviews uses container.agentsRepo as AgentRow) → give the domain type exactly the row's field names and types (same enum unions, Date, string|null) so it stays structurally assignable to the row type, and switch the consumer to the port when its own module migrates, because that keeps a one-module-per-PR migration without touching the consumer · server/src/modules/agents/domain/types.ts Agent, reviews/service.ts + run-executor.ts unchanged, pnpm typecheck green
+
 ## What Doesn't Work
 
 ## Codebase Patterns

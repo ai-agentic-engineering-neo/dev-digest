@@ -11,7 +11,7 @@ Node 22 (CI-pinned, no `engines`) · pnpm ≥10 · TypeScript 5.9 · Zod **3.x**
 - `reviewer-core/` pure review engine (no I/O)   → [reviewer-core/CLAUDE.md](reviewer-core/CLAUDE.md)
 - `e2e/`           agent-browser UI flows        → [e2e/CLAUDE.md](e2e/CLAUDE.md)
 
-Before editing files in a package, read that package's CLAUDE.md.
+Before editing files in a package, read that package's CLAUDE.md and its `INSIGHTS.md` (short, dated lessons from past sessions). At the end of a task, run `/engineering-insights` to append new non-obvious findings to that package's `INSIGHTS.md`; do not skip this step.
 
 ## Commands
 - Full stack from zero: `./scripts/dev.sh` (flags: `--no-seed` `--no-client` `--db-only`)

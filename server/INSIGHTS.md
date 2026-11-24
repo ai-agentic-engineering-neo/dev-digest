@@ -11,6 +11,7 @@ If Claude keeps getting it wrong anyway, promote it to `server/CLAUDE.md`.
 ## What Doesn't Work
 
 ## Codebase Patterns
+- 2026-11-24 — SUPERSEDES 2026-11-23 "PR-list per-severity counts" entry — count only each agent's LATEST review (key `prId:agentId ?? reviewId`, taken from the newest-first reviews query the score already runs), else every re-run adds the same findings again (src/modules/pulls/routes.ts › findings_by_severity).
 - 2026-11-23 — PR-list per-severity counts = `count(*)` over findings ⨝ reviews (`kind='review'`) `GROUP BY pr_id, severity`, folded into `{CRITICAL,WARNING,SUGGESTION}`; the starter had deliberately removed this breakdown, so the UI's Findings column needed this server field (src/modules/pulls/routes.ts › findings_by_severity).
 - 2026-11-22 — SUPERSEDES 2026-11-22 "latest review leftJoin" entry — PR-list COST is the TOTAL over all agent runs (user decision), computed as `sum(agent_runs.cost_usd) GROUP BY pr_id`; the leftJoin pattern still applies if you ever need data of the latest review's run (src/modules/pulls/routes.ts › GET /repos/:id/pulls).
 - 2026-11-22 — Run cost already exists upstream: reviewer-core returns `outcome.costUsd` (OpenRouter `usage.cost` or price-book estimate, null if any chunk unpriced); the server only has to persist it — don't add a second pricing path (src/modules/reviews/run-executor.ts › runOne, agent_runs.cost_usd).

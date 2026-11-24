@@ -1,10 +1,10 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
-import type { FindingRecord } from "@devdigest/shared";
+import type { FindingRecord, ReviewRecord } from "@devdigest/shared";
 import messages from "../../../messages/en/prReview.json";
 import { FindingsSummary } from "./FindingsSummary";
-import { countBySeverity } from "./helpers";
+import { countBySeverity, latestAgentFindings } from "./helpers";
 
 afterEach(cleanup);
 
@@ -39,6 +39,20 @@ const renderIntl = (ui: React.ReactElement) =>
 describe("countBySeverity", () => {
   it("counts per severity", () => {
     expect(countBySeverity(FINDINGS)).toEqual({ CRITICAL: 2, SUGGESTION: 1 });
+  });
+});
+
+describe("latestAgentFindings", () => {
+  it("keeps only each agent's newest review (input newest-first)", () => {
+    const rv = (id: string, agent_id: string | null, findings: FindingRecord[]) =>
+      ({ id, agent_id, kind: "review", findings }) as unknown as ReviewRecord;
+    const got = latestAgentFindings([
+      rv("r3", "A", [mk("new", "WARNING")]),
+      rv("r2", "B", [mk("b", "SUGGESTION")]),
+      rv("r1", "A", [mk("old", "CRITICAL")]),
+      rv("r0", null, [mk("x", "CRITICAL")]),
+    ]);
+    expect(got.map((f) => f.id)).toEqual(["new", "b", "x"]);
   });
 });
 

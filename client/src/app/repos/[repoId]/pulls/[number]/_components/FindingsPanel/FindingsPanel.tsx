@@ -31,7 +31,8 @@ export function FindingsPanel({
 
   const [sevFilter, setSevFilter] = React.useState<Severity | null>(null);
 
-  const counts = React.useMemo(() => countBySeverity(findings), [findings]);
+  // Counts follow "Hide low confidence" so each pill matches the cards below it.
+  const counts = React.useMemo(() => countBySeverity(visibleFindings(findings, hideLow)), [findings, hideLow]);
   const shown = React.useMemo(
     () => visibleFindings(findings, hideLow, sevFilter),
     [findings, hideLow, sevFilter],
@@ -55,7 +56,8 @@ export function FindingsPanel({
   return (
     <div>
       <div style={s.toolbar}>
-        {COUNTED_SEVERITIES.filter((sev) => counts[sev]).map((sev) => {
+        {/* The active pill stays even at 0 (after hide-low) so the filter can be cleared. */}
+        {COUNTED_SEVERITIES.filter((sev) => counts[sev] || sevFilter === sev).map((sev) => {
           const active = sevFilter === sev;
           return (
             <button
@@ -68,7 +70,7 @@ export function FindingsPanel({
                 setFocusIdx(0);
               }}
             >
-              {t("panel.severityCount", { count: counts[sev]!, label: SEV[sev].label.toUpperCase() })}
+              {t("panel.severityCount", { count: counts[sev] ?? 0, label: SEV[sev].label.toUpperCase() })}
             </button>
           );
         })}

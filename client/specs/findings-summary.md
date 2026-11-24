@@ -6,8 +6,10 @@ hover popover listing the findings behind them. Component:
 
 ## Where
 - **PR list → Findings column.** Counts = `PrMeta.findings_by_severity` from
-  `GET /repos/:id/pulls` (all `kind='review'` reviews of the PR). The popover's
-  findings are fetched lazily on first hover (`usePrReviews`). No reviews → `—`.
+  `GET /repos/:id/pulls` — only each agent's **latest** review, so re-running an
+  agent replaces its counts instead of adding to them. The popover's findings are
+  fetched lazily on first hover (`usePrReviews`) and narrowed the same way
+  (`latestAgentFindings`). No reviews → `—`.
 - **PR page → Agent runs → Timeline.** Each settled run row shows its counts +
   " · N blockers"; popover heading "N findings in this run". Data = the already
   loaded reviews grouped by `run_id` (FindingsTab → RunHistory), no new request.

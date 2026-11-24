@@ -98,4 +98,22 @@ describe("FindingsPanel severity counters", () => {
     fireEvent.click(screen.getByRole("switch"));
     expect(titles()).toEqual(["WARNING w1"]);
   });
+
+  it("counts follow Hide low confidence so pills match the cards", () => {
+    renderWithIntl(<FindingsPanel findings={MIXED} prId="pr1" />);
+    fireEvent.click(screen.getByRole("switch"));
+    expect(screen.getByRole("button", { name: "1 WARNING" })).toBeInTheDocument();
+    expect(titles()).toHaveLength(3);
+  });
+
+  it("keeps the active pill at 0 after hide-low so the filter can be cleared", () => {
+    renderWithIntl(<FindingsPanel findings={[mk("c1", "CRITICAL"), mk("w2", "WARNING", 0.5)]} prId="pr1" />);
+    fireEvent.click(screen.getByRole("button", { name: "1 WARNING" }));
+    fireEvent.click(screen.getByRole("switch"));
+    const warn = screen.getByRole("button", { name: "0 WARNING" });
+    expect(titles()).toEqual([]);
+    fireEvent.click(warn);
+    expect(titles()).toEqual(["CRITICAL c1"]);
+    expect(screen.queryByRole("button", { name: /WARNING/ })).toBeNull();
+  });
 });

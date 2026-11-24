@@ -9,6 +9,8 @@ If Claude keeps getting it wrong anyway, promote it to `client/CLAUDE.md`.
 ## What Doesn't Work
 
 ## Codebase Patterns
+- 2026-11-24 — SUPERSEDES 2026-11-23 "Per-run finding filters" entry — pill counts now follow "Hide low confidence" (`countBySeverity(visibleFindings(findings, hideLow))`) so a pill always matches its cards; the ACTIVE pill stays visible even at 0, otherwise hide-low could strand the user in an empty, uncleared severity filter (_components/FindingsPanel/FindingsPanel.tsx).
+- 2026-11-24 — PR-list Findings popover must narrow reviews exactly like the server's `findings_by_severity` (latest review per agent) — use `latestAgentFindings`, or popover and counts disagree after a re-run (src/components/findings-summary/helpers.ts).
 - 2026-11-23 — Task briefs may say a UI piece "already exists" when the starter stripped it (PR-list Findings column, timeline severity icons were missing) — grep/open the app before trusting it; both now come from `FindingsSummary` (src/components/findings-summary).
 - 2026-11-23 — Hover popovers inside the PR table must use `position: fixed` from `getBoundingClientRect()` and stay DOM children of the trigger — the table card has `overflow: hidden` (clips absolute popovers) and a DOM-child popover keeps `mouseleave` from firing while hovering it (src/components/findings-summary/styles.ts › popover).
 - 2026-11-23 — Per-run finding filters (hide-low, severity) live as state in FindingsPanel and go through `visibleFindings(findings, hideLow, severity)`; counts come from `countBySeverity` over the unfiltered run — `SeverityBadge` renders "icon Label count", so "N LABEL" pills read `SEV[sev].c/label` directly (_components/FindingsPanel/helpers.ts).

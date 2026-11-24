@@ -223,6 +223,16 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
       SUGGESTION: 0,
     });
 
+    // re-running the same agent replaces its counts (latest review per agent), not adds
+    await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } });
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 2 });
+    const pullsAfter = (await app.inject({ method: 'GET', url: `/repos/${pr.repoId}/pulls` })).json();
+    expect(pullsAfter.find((p: { id: string }) => p.id === pr.id).findings_by_severity).toEqual({
+      CRITICAL: 1,
+      WARNING: 0,
+      SUGGESTION: 0,
+    });
+
     await app.close();
   });
 

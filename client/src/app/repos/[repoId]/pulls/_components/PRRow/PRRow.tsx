@@ -7,7 +7,7 @@ import { useTranslations } from "next-intl";
 import { Icon, Avatar, Badge, CircularScore } from "@devdigest/ui";
 import type { PrMeta } from "@/lib/types";
 import { RunCostBadge } from "@/components/run-cost-badge";
-import { FindingsSummary } from "@/components/findings-summary";
+import { FindingsSummary, latestAgentFindings } from "@/components/findings-summary";
 import { usePrReviews } from "@/lib/hooks/reviews";
 import { SIZE_COLOR, STATUS_META } from "../../constants";
 import { relativeTime, sizeOf } from "../../helpers";
@@ -64,7 +64,7 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
         (pr.findings_by_severity.CRITICAL || pr.findings_by_severity.WARNING || pr.findings_by_severity.SUGGESTION) ? (
           <FindingsSummary
             counts={pr.findings_by_severity}
-            findings={reviews.data?.filter((r) => r.kind === "review").flatMap((r) => r.findings)}
+            findings={reviews.data && latestAgentFindings(reviews.data)}
             onHover={() => setWantFindings(true)}
           />
         ) : (

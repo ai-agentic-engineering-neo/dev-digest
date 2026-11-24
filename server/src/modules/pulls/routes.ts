@@ -115,7 +115,8 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
     // from reviews (no FK denorm); the list is small, so one IN-query + JS
     // grouping is cheap.
     const prIds = rows.map((r) => r.id);
-    // FINDINGS per severity across all of the PR's reviews (list's Findings column).
+    // FINDINGS per severity from each agent's LATEST review only (list's Findings
+    // column) — re-running an agent replaces its counts instead of adding to them.
     const sevByPr = new Map<string, { CRITICAL: number; WARNING: number; SUGGESTION: number }>();
     const latestReviewByPr = new Map<string, { score: number | null }>();
     // COST = TOTAL spend on the PR across all agent runs. SQL SUM skips null
@@ -123,14 +124,19 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
     const totalCostByPr = new Map<string, number | null>();
     if (prIds.length > 0) {
       const reviewRows = await container.db
-        .select({ prId: t.reviews.prId, score: t.reviews.score })
+        .select({ id: t.reviews.id, prId: t.reviews.prId, agentId: t.reviews.agentId, score: t.reviews.score })
         .from(t.reviews)
         .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review')))
         .orderBy(desc(t.reviews.createdAt));
-      // Rows are newest-first → first seen per PR is the latest review.
+      // Rows are newest-first → first seen per PR is the latest review, and first
+      // seen per (PR, agent) is that agent's latest. Agent-less reviews count alone.
+      const latestPerAgent = new Map<string, string>();
       for (const rv of reviewRows) {
         if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { score: rv.score });
+        const key = `${rv.prId}:${rv.agentId ?? rv.id}`;
+        if (!latestPerAgent.has(key)) latestPerAgent.set(key, rv.id);
       }
+      const latestReviewIds = [...latestPerAgent.values()];
       const costRows = await container.db
         .select({
           prId: t.agentRuns.prId,
@@ -149,7 +155,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         })
         .from(t.findings)
         .innerJoin(t.reviews, eq(t.findings.reviewId, t.reviews.id))
-        .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review')))
+        .where(latestReviewIds.length > 0 ? inArray(t.findings.reviewId, latestReviewIds) : sql`false`)
         .groupBy(t.reviews.prId, t.findings.severity);
       for (const row of sevRows) {
         const acc = sevByPr.get(row.prId) ?? { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 };

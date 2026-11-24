@@ -61,7 +61,6 @@ npm run typecheck   # this is also the build; the package emits no JS
 - Building a milestone change → read its spec in `specs/` (write it first).
 - Editing reviewer system prompts → read `../docs/agent-prompts/README.md`.
 - Writing tests → read `../TESTING.md`.
-- Before starting → read `INSIGHTS.md` and `LEARNINGS.md`; treat both as
-  high-confidence guidance.
+- Before starting → read `INSIGHTS.md`; treat it as high-confidence guidance.
 - When a task ends or something non-obvious happens → run the
-  `engineering-insights` skill (appends to `LEARNINGS.md`).
+  `engineering-insights` skill (appends to `INSIGHTS.md`).

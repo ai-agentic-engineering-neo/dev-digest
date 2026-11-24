@@ -9,6 +9,7 @@ import type { PrMeta } from "@/lib/types";
 import { SIZE_COLOR, STATUS_META } from "../../constants";
 import { relativeTime, sizeOf } from "../../helpers";
 import { s } from "../../styles";
+import { FindingsCell } from "../FindingsCell";
 import { RunCostBadge } from "../RunCostBadge";
 
 export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
@@ -53,6 +54,10 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
         ) : (
           <span style={s.muted}>—</span>
         )}
+      </div>
+      <div style={s.findingsColumn}>
+        {/* Findings per severity over each agent's latest review; hover previews them. */}
+        <FindingsCell pr={pr} repoId={repoId} />
       </div>
       <div>
         <Badge dot color={st.c} bg="transparent">

@@ -30,6 +30,34 @@ export function rollupSeverities(rows: { severity: string }[]): SeverityCounts {
   return c;
 }
 
+/** The columns of a review that decide whether the list counts its findings. */
+export interface ReviewRef {
+  id: string;
+  prId: string;
+  agentId: string | null;
+}
+
+/**
+ * The reviews whose findings the list's FINDINGS column counts: each agent's
+ * LATEST review on a PR, so a PR reviewed by several agents shows the sum of
+ * what each of them currently reports and a re-run replaces that agent's
+ * earlier result instead of adding to it. Reviews without an agent share one
+ * key per PR.
+ *
+ * Returns reviewId → prId. Input must be newest-first.
+ */
+export function pickLatestReviewPerAgent(rows: ReviewRef[]): Map<string, string> {
+  const counted = new Map<string, string>();
+  const seen = new Set<string>();
+  for (const rv of rows) {
+    const key = `${rv.prId}|${rv.agentId ?? 'none'}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    counted.set(rv.id, rv.prId);
+  }
+  return counted;
+}
+
 /**
  * Review-freshness status for the PR list. Merged/closed PRs keep their GitHub
  * merge state; open PRs map to:

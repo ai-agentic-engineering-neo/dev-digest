@@ -103,4 +103,4 @@ a CI artifact by `.github/workflows/e2e-web.yml`).
 
 ## More
 
-[Docs](docs/README.md) · [Repo docs](../docs/README.md) · [Specs](specs/README.md) · [Insights](INSIGHTS.md) · [Learnings](LEARNINGS.md) · [Main README](../README.md)
+[Docs](docs/README.md) · [Repo docs](../docs/README.md) · [Specs](specs/README.md) · [Insights](INSIGHTS.md) · [Main README](../README.md)

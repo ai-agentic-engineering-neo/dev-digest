@@ -51,4 +51,4 @@ no network. `npm run typecheck` doubles as the build. See
 
 ## More
 
-[Docs](docs/README.md) · [Repo docs](../docs/README.md) · [Specs](specs/README.md) · [Insights](INSIGHTS.md) · [Learnings](LEARNINGS.md) · [Main README](../README.md)
+[Docs](docs/README.md) · [Repo docs](../docs/README.md) · [Specs](specs/README.md) · [Insights](INSIGHTS.md) · [Main README](../README.md)

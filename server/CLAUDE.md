@@ -71,8 +71,7 @@ pnpm db:migrate && pnpm db:seed
 - Calling the indexer → read `src/modules/repo-intel/README.md`.
 - Building a milestone module → read its spec in `specs/` (write it first).
 - Writing tests → read `../TESTING.md`.
-- Before starting → read `INSIGHTS.md` and `LEARNINGS.md`; treat both as
-  high-confidence guidance.
+- Before starting → read `INSIGHTS.md`; treat it as high-confidence guidance.
 - When a task ends or something non-obvious happens → run the
-  `engineering-insights` skill (appends to `LEARNINGS.md`). Indexer lessons go to
-  `src/modules/repo-intel/LEARNINGS.md`.
+  `engineering-insights` skill (appends to `INSIGHTS.md`). Indexer lessons go to
+  `src/modules/repo-intel/INSIGHTS.md`.

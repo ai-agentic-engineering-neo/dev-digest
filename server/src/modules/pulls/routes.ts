@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { PrMeta, PrDetail, GitHubClient, PrReviewComment } from '@devdigest/shared';
 import { PrCommentInput } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
@@ -113,19 +113,54 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
 
     // Latest-review SCORE per PR for the list's score ring. Computed on read
     // from reviews (no FK denorm); the list is small, so one IN-query + JS
-    // grouping is cheap. (The per-severity FINDINGS breakdown is intentionally
-    // not surfaced on the list — findings live on the PR detail page.)
+    // grouping is cheap.
     const prIds = rows.map((r) => r.id);
+    // FINDINGS per severity from each agent's LATEST review only (list's Findings
+    // column) — re-running an agent replaces its counts instead of adding to them.
+    const sevByPr = new Map<string, { CRITICAL: number; WARNING: number; SUGGESTION: number }>();
     const latestReviewByPr = new Map<string, { score: number | null }>();
+    // COST = TOTAL spend on the PR across all agent runs. SQL SUM skips null
+    // costs and yields null when no run has one → "—" in the UI, not "$0.00".
+    const totalCostByPr = new Map<string, number | null>();
     if (prIds.length > 0) {
       const reviewRows = await container.db
-        .select({ prId: t.reviews.prId, score: t.reviews.score })
+        .select({ id: t.reviews.id, prId: t.reviews.prId, agentId: t.reviews.agentId, score: t.reviews.score })
         .from(t.reviews)
         .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review')))
         .orderBy(desc(t.reviews.createdAt));
-      // Rows are newest-first → first seen per PR is the latest review.
+      // Rows are newest-first → first seen per PR is the latest review, and first
+      // seen per (PR, agent) is that agent's latest. Agent-less reviews count alone.
+      const latestPerAgent = new Map<string, string>();
       for (const rv of reviewRows) {
         if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { score: rv.score });
+        const key = `${rv.prId}:${rv.agentId ?? rv.id}`;
+        if (!latestPerAgent.has(key)) latestPerAgent.set(key, rv.id);
+      }
+      const latestReviewIds = [...latestPerAgent.values()];
+      const costRows = await container.db
+        .select({
+          prId: t.agentRuns.prId,
+          total: sql<number | null>`sum(${t.agentRuns.costUsd})`.mapWith(Number),
+        })
+        .from(t.agentRuns)
+        .where(inArray(t.agentRuns.prId, prIds))
+        .groupBy(t.agentRuns.prId);
+      for (const c of costRows) if (c.prId) totalCostByPr.set(c.prId, c.total ?? null);
+
+      const sevRows = await container.db
+        .select({
+          prId: t.reviews.prId,
+          severity: t.findings.severity,
+          n: sql<number>`count(*)`.mapWith(Number),
+        })
+        .from(t.findings)
+        .innerJoin(t.reviews, eq(t.findings.reviewId, t.reviews.id))
+        .where(latestReviewIds.length > 0 ? inArray(t.findings.reviewId, latestReviewIds) : sql`false`)
+        .groupBy(t.reviews.prId, t.findings.severity);
+      for (const row of sevRows) {
+        const acc = sevByPr.get(row.prId) ?? { CRITICAL: 0, WARNING: 0, SUGGESTION: 0 };
+        if (row.severity in acc) acc[row.severity as keyof typeof acc] += row.n;
+        sevByPr.set(row.prId, acc);
       }
     }
 
@@ -153,6 +188,8 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
+        cost_usd: totalCostByPr.get(r.id) ?? null,
+        findings_by_severity: sevByPr.get(r.id) ?? null,
       };
     });
   });

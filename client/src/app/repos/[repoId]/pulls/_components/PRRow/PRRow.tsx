@@ -6,6 +6,9 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Icon, Avatar, Badge, CircularScore } from "@devdigest/ui";
 import type { PrMeta } from "@/lib/types";
+import { RunCostBadge } from "@/components/run-cost-badge";
+import { FindingsSummary, latestAgentFindings } from "@/components/findings-summary";
+import { usePrReviews } from "@/lib/hooks/reviews";
 import { SIZE_COLOR, STATUS_META } from "../../constants";
 import { relativeTime, sizeOf } from "../../helpers";
 import { s } from "../../styles";
@@ -17,6 +20,9 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
   const st = STATUS_META[pr.status] ?? STATUS_META.needs_review!;
   const { size, lines } = sizeOf(pr);
   const reviewed = pr.score != null; // null score ⇒ PR has never been reviewed
+  // Findings for the hover popover are fetched only once the user hovers the counts.
+  const [wantFindings, setWantFindings] = React.useState(false);
+  const reviews = usePrReviews(wantFindings ? pr.id : null);
   return (
     <div
       onMouseEnter={() => setH(true)}
@@ -54,9 +60,24 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
         )}
       </div>
       <div>
+        {pr.findings_by_severity &&
+        (pr.findings_by_severity.CRITICAL || pr.findings_by_severity.WARNING || pr.findings_by_severity.SUGGESTION) ? (
+          <FindingsSummary
+            counts={pr.findings_by_severity}
+            findings={reviews.data && latestAgentFindings(reviews.data)}
+            onHover={() => setWantFindings(true)}
+          />
+        ) : (
+          <span style={s.muted}>—</span>
+        )}
+      </div>
+      <div>
         <Badge dot color={st.c} bg="transparent">
           {t(`list.status.${st.labelKey}`)}
         </Badge>
+      </div>
+      <div>
+        <RunCostBadge cost={pr.cost_usd} />
       </div>
       <div style={s.updatedCell}>{relativeTime(pr.updated_at)}</div>
     </div>

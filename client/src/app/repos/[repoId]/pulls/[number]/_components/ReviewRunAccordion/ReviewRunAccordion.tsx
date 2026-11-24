@@ -6,6 +6,7 @@
 "use client";
 
 import React from "react";
+import { useTranslations } from "next-intl";
 import { Icon, Badge } from "@devdigest/ui";
 import type { ReviewRecord, Verdict } from "@devdigest/shared";
 import { FindingsPanel } from "../FindingsPanel";
@@ -42,6 +43,7 @@ export function ReviewRunAccordion({
   targetRunId?: string | null;
   targetNonce?: number;
 }) {
+  const t = useTranslations("prReview");
   const [open, setOpen] = React.useState(defaultOpen);
   const rootRef = React.useRef<HTMLDivElement | null>(null);
   React.useEffect(() => {
@@ -86,15 +88,15 @@ export function ReviewRunAccordion({
         }}
       >
         <Icon.Cpu size={15} style={{ color: "var(--text-muted)" }} />
-        <span style={{ fontWeight: 600, fontSize: 14 }}>{review.agent_name ?? "Agent"}</span>
+        <span style={{ fontWeight: 600, fontSize: 14 }}>{review.agent_name ?? t("reviewRun.agentFallback")}</span>
         {review.verdict && (
           <Badge color={verdictColor} bg="transparent">
             {review.verdict.replace("_", " ")}
           </Badge>
         )}
         <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
-          {findings.length} finding{findings.length === 1 ? "" : "s"}
-          {blockers > 0 ? ` · ${blockers} blocker${blockers === 1 ? "" : "s"}` : ""}
+          {t("reviewRun.findings", { count: findings.length })}
+          {blockers > 0 ? t("reviewRun.blockers", { count: blockers }) : ""}
         </span>
         <span style={{ flex: 1 }} />
         {review.score != null && (
@@ -108,13 +110,13 @@ export function ReviewRunAccordion({
         <button
           onClick={(e) => {
             e.stopPropagation();
-            if (window.confirm(`Delete this "${review.agent_name ?? "agent"}" review run and its findings?`)) {
+            if (window.confirm(t("reviewRun.deleteConfirm", { agent: review.agent_name ?? t("reviewRun.agentConfirmFallback") }))) {
               del.mutate(review.id);
             }
           }}
           disabled={del.isPending}
-          title="Delete this review run"
-          aria-label="Delete this review run"
+          title={t("reviewRun.delete")}
+          aria-label={t("reviewRun.delete")}
           style={{
             background: "none",
             border: "none",

@@ -41,11 +41,11 @@ export function AgentCard({
         <button
           onClick={(e) => {
             e.stopPropagation();
-            if (window.confirm(`Delete agent "${ag.name}"? This cannot be undone.`)) del.mutate(ag.id);
+            if (window.confirm(t("card.deleteConfirm", { name: ag.name }))) del.mutate(ag.id);
           }}
           disabled={del.isPending}
-          title="Delete agent"
-          aria-label="Delete agent"
+          title={t("card.delete")}
+          aria-label={t("card.delete")}
           style={{
             background: "none",
             border: "none",

@@ -14,11 +14,14 @@ export function CodeLine({
   path,
   threads,
   commenting,
+  addCommentLabel,
 }: {
   ln: Line;
   path: string;
   threads: CommentThread[];
   commenting?: DiffCommentApi;
+  /** Already-translated title/aria-label for the hover "+" button (the caller owns the namespace). */
+  addCommentLabel: string;
 }) {
   const [hover, setHover] = React.useState(false);
   const [composing, setComposing] = React.useState(false);
@@ -46,8 +49,8 @@ export function CodeLine({
           {showAdd && target && (
             <button
               type="button"
-              title="Add a comment on this line"
-              aria-label="Add a comment on this line"
+              title={addCommentLabel}
+              aria-label={addCommentLabel}
               onClick={() => setComposing(true)}
               style={cs.addBtn}
             >

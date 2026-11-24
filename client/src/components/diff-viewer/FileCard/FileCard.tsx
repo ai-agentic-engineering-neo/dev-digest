@@ -85,6 +85,7 @@ export function FileCard({ file, commenting }: { file: PrFile; commenting?: Diff
                 path={file.path}
                 threads={threadsForLine(ln, matched)}
                 commenting={commenting}
+                addCommentLabel={t("diffViewer.addComment")}
               />
             ))
           )}

@@ -109,5 +109,33 @@
     "openTrace": "Open run trace & logs",
     "tokens": "{count, number} tok",
     "deleteRun": "Delete run"
+  },
+  "detail": {
+    "loadErrorTitle": "Couldn't load this pull request",
+    "loadErrorBody": "PR #{number} could not be loaded.",
+    "deleteRunConfirm": "Delete this run from history? (its logs are removed too)"
+  },
+  "findingsTab": {
+    "cancel": "Cancel",
+    "openRunTrace": "Open run trace",
+    "liveReview": "Live review",
+    "reviewInProgress": "Review in progress…",
+    "reviewInProgressSub": "the agent is analyzing the diff — this can take a while on large PRs.",
+    "lethalTrifectaDetected": "Lethal Trifecta detected",
+    "lethalTrifectaCount": "{count} finding(s)",
+    "timeline": "Timeline",
+    "timelineHint": "runs & commits · newest first",
+    "reviewRuns": "Review runs",
+    "reviewRunsHint": "grouped by run · newest first",
+    "emptyTitle": "No findings yet",
+    "emptyBody": "Run a review to generate findings. Use Run Review ▾ above (run all enabled agents or a specific one)."
+  },
+  "reviewRun": {
+    "agentFallback": "Agent",
+    "findings": "{count, plural, one {# finding} other {# findings}}",
+    "blockers": "{count, plural, one { · # blocker} other { · # blockers}}",
+    "deleteConfirm": "Delete this \"{agent}\" review run and its findings?",
+    "agentConfirmFallback": "agent",
+    "delete": "Delete this review run"
   }
 }

@@ -152,6 +152,23 @@ export const Repo = z.object({
 });
 export type Repo = z.infer<typeof Repo>;
 
+// ---- Workspace (GET /workspace) ----
+export const WorkspaceRepo = z.object({
+  id: z.string(),
+  full_name: z.string(),
+  clone_path: z.string().nullable(),
+  last_polled_at: z.string().nullable(),
+  cloned: z.boolean(),
+});
+export type WorkspaceRepo = z.infer<typeof WorkspaceRepo>;
+
+export const WorkspaceInfo = z.object({
+  workspaceId: z.string(),
+  cloneDir: z.string(),
+  repos: z.array(WorkspaceRepo),
+});
+export type WorkspaceInfo = z.infer<typeof WorkspaceInfo>;
+
 // ---- Pull requests ----
 export const PrStatus = z.enum(['needs_review', 'reviewed', 'stale', 'open', 'closed', 'merged']);
 export type PrStatus = z.infer<typeof PrStatus>;

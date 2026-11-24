@@ -5,7 +5,7 @@ import pulls from './pulls/index.js';
 import polling from './polling/index.js';
 import workspace from './workspace/index.js';
 import agents from './agents/index.js';
-import reviews from './reviews/routes.js';
+import reviews from './reviews/index.js';
 import repoIntel from './repo-intel/index.js';
 
 /**

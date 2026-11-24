@@ -26,7 +26,8 @@ import { ConfigError } from './errors.js';
 import type { AgentsRepository, AgentsUnitOfWork } from '../modules/agents/domain/ports.js';
 import { DrizzleAgentsRepository } from '../modules/agents/infrastructure/agents.repository.js';
 import { DrizzleAgentsUnitOfWork } from '../modules/agents/infrastructure/agents.uow.js';
-import { ReviewRepository } from '../modules/reviews/repository.js';
+import { ReviewRepository } from '../modules/reviews/infrastructure/review.repository.js';
+import { ReviewService } from '../modules/reviews/service.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
 import { RepoIntelRepository } from '../modules/repo-intel/repository.js';
@@ -76,6 +77,7 @@ export class Container {
   private _agentsRepo?: AgentsRepository;
   private _agentsUow?: AgentsUnitOfWork;
   private _reviewRepo?: ReviewRepository;
+  private _reviewService?: ReviewService;
   private _repoIntelService?: RepoIntelService;
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
@@ -110,6 +112,24 @@ export class Container {
 
   get reviewRepo(): ReviewRepository {
     return (this._reviewRepo ??= new ReviewRepository(this.db));
+  }
+
+  /** Review runs + findings; adapters resolved lazily per call, as before. */
+  get reviewService(): ReviewService {
+    const c = this; // the getters below read the live container
+    this._reviewService ??= new ReviewService({
+      repo: this.reviewRepo,
+      agents: this.agentsRepo,
+      runBus: this.runBus,
+      llmFor: (provider) => this.llm(provider),
+      get repoIntel() {
+        return c.repoIntel;
+      },
+      get git() {
+        return c.git;
+      },
+    });
+    return this._reviewService;
   }
 
   get codeIndex(): CodeIndex {

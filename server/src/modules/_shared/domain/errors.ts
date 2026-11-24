@@ -16,6 +16,14 @@ export abstract class DomainError extends Error {
   }
 }
 
+/** A pull request id that does not exist in the caller's workspace. */
+export class PullNotFound extends DomainError {
+  readonly code = 'pull_not_found';
+  constructor() {
+    super('Pull request not found');
+  }
+}
+
 /** A repo id that does not exist in the caller's workspace (shared by repo-scoped modules). */
 export class RepoNotFound extends DomainError {
   readonly code = 'repo_not_found';

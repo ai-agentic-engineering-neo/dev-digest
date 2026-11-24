@@ -46,7 +46,7 @@ flowchart LR
   SVC -. "throws" .-> ERR
 ```
 
-- **Onion modules** (`agents`, `settings`, `workspace`, `polling`, `pulls`, `repos`; skill `onion-architecture`): `index.ts` builds the
+- **Onion modules** (all modules — `repo-intel` and `reviews` with narrow deps rather than a full ring split; skill `onion-architecture`): `index.ts` builds the
   service from container ports (`agentsRepo`, `agentsUow`), routes in `http/` call one use case
   and a presenter, use cases throw `DomainError`s (no HTTP status) and multi-write use cases run
   in a `UnitOfWork` transaction.

@@ -3,15 +3,17 @@
 Most of `server/src/modules/*` predates this skill. Migrate **one module per PR**, behaviour-
 identical, with existing tests green before and after. Don't mix a migration with feature work.
 
-## Inventory (grep, 2026-11-24)
+## Inventory (2026-11-24, after the full migration)
 
-| Violation | Files |
-|---|---|
-| Service/helper takes the whole `Container` | `reviews/service.ts`, `reviews/run-executor.ts`, `reviews/diff-loader.ts`, `_shared/context.ts` |
-| Service constructs its own Drizzle repo (`new XRepository(container.db)`) | `reviews/service.ts:34` |
-| Drizzle / `db/schema` outside a repository | `reviews/run-executor.ts`, `reviews/diff-loader.ts`, `_shared/schemas.ts` |
-| HTTP status inside domain errors | `platform/errors.ts` (`AppError.statusCode`) |
-| Composition outside the root | `app.ts:82` `new ReviewService(container).reapStaleRuns()` (acceptable — `app.ts` is the root — but must use the new constructor) |
+The depcruise baseline is **empty**: every module follows the dependency rules.
+What is left is structural, not a rule violation:
+
+| Leftover | Where | When to do it |
+|---|---|---|
+| Facade/executor not split into rings (still import `adapters/*`, `platform/*` directly — legal outside an `application/` folder) | `repo-intel/service.ts` + `pipeline/`, `reviews/service.ts` + `run-executor.ts` | With plan item S4, when the module next gains features |
+| `reviews` repository returns Drizzle rows (`PullRow`, `RepoRow`, …) to its service | `reviews/infrastructure/review.repository.ts` | Same — mappers + domain types when the service is split |
+| `getContext(container, req)` takes the Container | `_shared/context.ts` | Fine as is: only `index.ts` factories call it |
+| `AppError` subclasses with HTTP status | `platform/errors.ts`, used only by adapters (`ExternalServiceError`) and the container (`ConfigError`) | Fine as is — outer rings only; modules throw `DomainError`s |
 
 The authoritative, always-current list is the baseline itself — print it with:
 ```bash
@@ -24,8 +26,8 @@ cd server && pnpm exec depcruise src --config .dependency-cruiser.cjs --no-ignor
 2. **settings**, **workspace**, **polling**, **pulls** — **done 2026-11-24**. Shared kernel grew: `RepoNotFound`, `DomainError.details`, `Logger` port (`_shared/domain/`). Patterns worth copying: a single-aggregate atomic write may run `db.transaction` inside the repository method (`recordPoll`, `storeDetail`, settings `upsert`) — use a UoW only when a use case spans several repository calls; jsonb is parsed in infrastructure (`settings` `featureModelOverride`); secrets/SDK probes become small ports adapted in `index.ts` (`settings`).
 3. **repos** — **done 2026-11-24**. Job kinds moved to `_shared/job-kinds.ts` (repo-intel re-exports them); `JobScheduler` port in `_shared/domain/jobs.ts` (JobRunner satisfies it structurally); `InvalidRepoUrl` domain error. Lazily-resolved adapters are passed as factories (`git: () => c.git`) so test overrides and new tokens are picked up per job.
 4. **repo-intel** — **done 2026-11-24 (narrow deps)**: `RepoIntelService` takes `RepoIntelDeps`, the pipeline takes `IndexerDeps`; `container.repoIntelService` builds them with lazy getters (adapters still built on first use); routes in `http/`, `index.ts` factory registers the job handlers; `SUPPORTED_EXT`/`MAX_SIGNATURE_CHARS` moved to `adapters/code-scope.ts` (re-exported by `constants.ts`). Not done: the ring split of the 765-line facade and the pipeline (they still import `adapters/*` and `platform/contained-read` directly — legal for a non-`application/` folder). Do it with S4 when the facade gains features.
-5. **reviews** — last: `run-executor` is the most coupled (LLM, git, RunBus, DB, pricing).
-6. `platform/errors.ts` — once no module relies on `AppError.statusCode` from inner code, keep `AppError` for delivery only.
+5. **reviews** — **done 2026-11-24 (narrow deps)**: `ReviewService` takes `ReviewDeps` (repository, `AgentsReader`, RunBus, `llmFor`, `ReviewContextSource`, git); `container.reviewService` builds it (lazy `repoIntel`/`git` getters) and is shared by the routes and the boot reaper in `app.ts`. Agents and repo-intel are reached through reviews-local ports (`types.ts`) that the other modules satisfy structurally — no cross-module import. Repository moved to `infrastructure/`; routes to `http/`; domain errors in `errors.ts`; `PullNotFound` moved to the shared kernel.
+6. `platform/errors.ts` — **done**: no module throws `AppError`; it remains for adapters/container only.
 
 ## Steps for one module
 

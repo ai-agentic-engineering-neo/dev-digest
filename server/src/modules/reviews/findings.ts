@@ -1,6 +1,6 @@
 import type { FindingActionKind } from '@devdigest/shared';
-import { AppError, NotFoundError } from '../../platform/errors.js';
-import type { ReviewRepository } from './repository.js';
+import { FindingNotFound, InvalidFindingAction } from './errors.js';
+import type { ReviewRepository } from './infrastructure/review.repository.js';
 import { findingRowToDto, type ReviewDtoFinding } from './helpers.js';
 
 /**
@@ -16,7 +16,7 @@ export async function actOnFinding(
 ): Promise<{ finding: ReviewDtoFinding }> {
   const ctx = await repo.findingContext(findingId);
   if (!ctx || ctx.pull.workspaceId !== workspaceId) {
-    throw new NotFoundError('Finding not found');
+    throw new FindingNotFound();
   }
 
   switch (action) {
@@ -29,6 +29,6 @@ export async function actOnFinding(
       return { finding: findingRowToDto(row!) };
     }
     default:
-      throw new AppError('invalid_action', `Action '${action}' is not available in the starter`, 400);
+      throw new InvalidFindingAction(action);
   }
 }

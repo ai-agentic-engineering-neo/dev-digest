@@ -1,8 +1,8 @@
 import { and, desc, eq, inArray } from 'drizzle-orm';
-import type { Db } from '../../../db/client.js';
-import * as t from '../../../db/schema.js';
+import type { Db } from '../../../../db/client.js';
+import * as t from '../../../../db/schema.js';
 import type { Finding } from '@devdigest/shared';
-import type { FindingRow, PullRow } from '../../../db/rows.js';
+import type { FindingRow, PullRow } from '../../../../db/rows.js';
 
 export type ReviewRow = typeof t.reviews.$inferSelect;
 

@@ -1,5 +1,5 @@
-import type { Db } from '../../db/client.js';
-import * as t from '../../db/schema.js';
+import type { Db } from '../../../db/client.js';
+import * as t from '../../../db/schema.js';
 import type { Finding, Intent, RunSummary, RunTrace } from '@devdigest/shared';
 
 /**
@@ -13,14 +13,15 @@ import type { Finding, Intent, RunSummary, RunTrace } from '@devdigest/shared';
  * composes them so its public API stays identical.
  */
 
-import type { FindingRow, PullRow } from '../../db/rows.js';
+import type { FindingRow, PullRow } from '../../../db/rows.js';
 export type { FindingRow, PullRow };
 
 export type ReviewRow = typeof t.reviews.$inferSelect;
+export type RepoRow = typeof t.repos.$inferSelect;
 
-import * as reviewRepo from './repository/review.repo.js';
-import * as runRepo from './repository/run.repo.js';
-import * as pullRepo from './repository/pull.repo.js';
+import * as reviewRepo from './queries/review.repo.js';
+import * as runRepo from './queries/run.repo.js';
+import * as pullRepo from './queries/pull.repo.js';
 
 export class ReviewRepository {
   constructor(private db: Db) {}

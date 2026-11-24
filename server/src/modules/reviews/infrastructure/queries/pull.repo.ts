@@ -1,8 +1,8 @@
 import { and, eq } from 'drizzle-orm';
-import type { Db } from '../../../db/client.js';
-import * as t from '../../../db/schema.js';
+import type { Db } from '../../../../db/client.js';
+import * as t from '../../../../db/schema.js';
 import type { Intent } from '@devdigest/shared';
-import type { PullRow } from '../../../db/rows.js';
+import type { PullRow } from '../../../../db/rows.js';
 
 // ---- PR lookup (workspace-scoped) -----------------------------------------
 

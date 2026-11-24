@@ -1,11 +1,7 @@
 import { DomainError } from '../../_shared/domain/errors.js';
 
-export class PullNotFound extends DomainError {
-  readonly code = 'pull_not_found';
-  constructor() {
-    super('Pull request not found');
-  }
-}
+/** Shared with reviews; re-exported so pulls code keeps one import site. */
+export { PullNotFound } from '../../_shared/domain/errors.js';
 
 export class GitHubUnavailable extends DomainError {
   readonly code = 'github_unavailable';

@@ -1,6 +1,6 @@
 import { and, desc, eq } from 'drizzle-orm';
-import type { Db } from '../../../db/client.js';
-import * as t from '../../../db/schema.js';
+import type { Db } from '../../../../db/client.js';
+import * as t from '../../../../db/schema.js';
 import type { RunSummary, RunTrace } from '@devdigest/shared';
 
 // ---- in-flight / history --------------------------------------------------

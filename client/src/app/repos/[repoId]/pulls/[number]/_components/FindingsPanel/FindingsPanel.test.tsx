@@ -4,13 +4,17 @@ import { NextIntlClientProvider } from "next-intl";
 import type { FindingRecord } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/prReview.json";
 
+const mutate = vi.fn();
 vi.mock("../../../../../../../lib/hooks/reviews", () => ({
-  useFindingAction: () => ({ mutate: vi.fn(), isPending: false }),
+  useFindingAction: () => ({ mutate, isPending: false }),
 }));
 
 import { FindingsPanel } from "./FindingsPanel";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  mutate.mockClear();
+});
 
 const FINDINGS: FindingRecord[] = [
   {
@@ -100,5 +104,39 @@ describe("FindingsPanel severity counters", () => {
     hideLow();
     expect(screen.queryByRole("button", { name: /Warning/ })).toBeNull();
     expect(screen.getByText("Crit one")).toBeInTheDocument();
+  });
+});
+
+describe("FindingsPanel j/k focus", () => {
+  const RUN = [
+    finding("c1", "CRITICAL", "Crit one"),
+    finding("w1", "WARNING", "Warn one"),
+    finding("w2", "WARNING", "Warn two"),
+  ];
+  const press = (key: string) => fireEvent.keyDown(window, { key });
+  const acceptedId = () => mutate.mock.calls.at(-1)?.[0].findingId;
+
+  it("moves focus with j and acts on the focused finding", () => {
+    renderWithIntl(<FindingsPanel findings={RUN} prId="pr1" />);
+    press("j");
+    press("a");
+    expect(acceptedId()).toBe("w1");
+  });
+
+  it("resets focus to the first card when the severity filter changes", () => {
+    renderWithIntl(<FindingsPanel findings={RUN} prId="pr1" />);
+    press("j");
+    press("j");
+    fireEvent.click(screen.getByRole("button", { name: "2 Warning" }));
+    press("a");
+    expect(acceptedId()).toBe("w1");
+  });
+
+  it("resets focus to the first card when hide-low-confidence toggles", () => {
+    renderWithIntl(<FindingsPanel findings={RUN} prId="pr1" />);
+    press("j");
+    fireEvent.click(screen.getByRole("switch"));
+    press("a");
+    expect(acceptedId()).toBe("c1");
   });
 });

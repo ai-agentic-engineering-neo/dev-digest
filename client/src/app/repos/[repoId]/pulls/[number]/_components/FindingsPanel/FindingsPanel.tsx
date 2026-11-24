@@ -27,7 +27,6 @@ export function FindingsPanel({
   const t = useTranslations("prReview");
   const action = useFindingAction();
   const [hideLow, setHideLow] = React.useState(false);
-  const [focusIdx, setFocusIdx] = React.useState(0);
 
   const [sevFilter, setSevFilter] = React.useState<Severity | null>(null);
 
@@ -40,8 +39,17 @@ export function FindingsPanel({
     [findings, hideLow, activeSev],
   );
 
-  // Keep j/k focus inside the (possibly shorter) filtered list.
-  React.useEffect(() => setFocusIdx(0), [hideLow, activeSev]);
+  // Keep j/k focus inside the (possibly shorter) filtered list: whenever the
+  // effective filter (hide-low + active level) changes, focus falls back to the
+  // first card. Adjusted during render (react.dev "You Might Not Need an Effect"),
+  // which also covers a level filter that drops because its counter emptied.
+  const filterKey = `${hideLow}|${activeSev ?? ""}`;
+  const [focusIdx, setFocusIdx] = React.useState(0);
+  const [focusFilterKey, setFocusFilterKey] = React.useState(filterKey);
+  if (focusFilterKey !== filterKey) {
+    setFocusFilterKey(filterKey);
+    setFocusIdx(0);
+  }
 
   // j/k navigation + a/d shortcuts on the focused finding (keyboard).
   React.useEffect(() => {

@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { Agent } from "@devdigest/shared";
 import messages from "../../../../../../messages/en/agents.json";
@@ -30,12 +30,15 @@ const AGENT: Agent = {
   version: 1,
 };
 
-function renderWithIntl(ui: React.ReactElement) {
-  return render(
+function withIntl(ui: React.ReactElement) {
+  return (
     <NextIntlClientProvider locale="en" messages={{ agents: messages }}>
       <ToastProvider>{ui}</ToastProvider>
-    </NextIntlClientProvider>,
+    </NextIntlClientProvider>
   );
+}
+function renderWithIntl(ui: React.ReactElement) {
+  return render(withIntl(ui));
 }
 
 describe("A2 Agent Editor (smoke)", () => {
@@ -44,5 +47,27 @@ describe("A2 Agent Editor (smoke)", () => {
     expect(screen.getByText("Config")).toBeInTheDocument();
     expect(screen.getByText("Configuration")).toBeInTheDocument();
     expect(screen.getByText("Save agent")).toBeInTheDocument();
+  });
+});
+
+describe("A2 Agent Editor — Config form state", () => {
+  const OTHER: Agent = { ...AGENT, id: "ag2", name: "Perf Reviewer", description: "Finds slow paths" };
+  const editor = (agent: Agent) => withIntl(<AgentEditor agent={agent} tab="config" onTab={() => {}} />);
+
+  it("shows the new agent's values (dropping unsaved edits) when switching agents", () => {
+    const { rerender } = render(editor(AGENT));
+    fireEvent.change(screen.getByDisplayValue("Security Reviewer"), { target: { value: "Edited name" } });
+    expect(screen.getByDisplayValue("Edited name")).toBeInTheDocument();
+    rerender(editor(OTHER));
+    expect(screen.getByDisplayValue("Perf Reviewer")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Finds slow paths")).toBeInTheDocument();
+    expect(screen.queryByDisplayValue("Edited name")).toBeNull();
+  });
+
+  it("keeps the local form when the same agent is refetched (e.g. after save)", () => {
+    const { rerender } = render(editor(AGENT));
+    fireEvent.change(screen.getByDisplayValue("Security Reviewer"), { target: { value: "Edited name" } });
+    rerender(editor({ ...AGENT, version: 2, name: "Server name" }));
+    expect(screen.getByDisplayValue("Edited name")).toBeInTheDocument();
   });
 });

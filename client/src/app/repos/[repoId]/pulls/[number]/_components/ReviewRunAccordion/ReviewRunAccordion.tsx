@@ -44,14 +44,22 @@ export function ReviewRunAccordion({
   targetNonce?: number;
 }) {
   const t = useTranslations("prReview");
-  const [open, setOpen] = React.useState(defaultOpen);
+  const isTarget = !!review.run_id && review.run_id === targetRunId;
+  const [open, setOpen] = React.useState(defaultOpen || isTarget);
+  // Open when the Timeline targets this run (a new nonce re-targets the same run).
+  // Adjusted during render — no effect needed to derive UI state.
+  const targetKey = `${targetRunId ?? ""}|${targetNonce}|${review.run_id ?? ""}`;
+  const [seenTargetKey, setSeenTargetKey] = React.useState(targetKey);
+  if (seenTargetKey !== targetKey) {
+    setSeenTargetKey(targetKey);
+    if (isTarget) setOpen(true);
+  }
+  // Scrolling is a DOM side effect, so it stays in an effect (runs after the
+  // opened body has been committed).
   const rootRef = React.useRef<HTMLDivElement | null>(null);
   React.useEffect(() => {
-    if (review.run_id && review.run_id === targetRunId) {
-      setOpen(true);
-      rootRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, [targetRunId, targetNonce, review.run_id]);
+    if (isTarget) rootRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [isTarget, targetNonce]);
   const del = useDeleteReview(prId);
   const findings = review.findings;
   const blockers = findings.filter((f) => f.severity === "CRITICAL" && !f.dismissed_at).length;

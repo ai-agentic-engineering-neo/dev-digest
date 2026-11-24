@@ -13,6 +13,9 @@ coverage/
 .env.local
 .DS_Store
 .idea/
+.vscode/
+__pycache__/
+*.pyc
 .turbo/
 .pnpm-store/
 *.log

@@ -1,5 +1,5 @@
 /**
- * F1 — repos module constants (extracted from routes.ts; no behaviour change).
+ * F1 — repos domain constants (pure literals and GitHub identifier rules).
  */
 
 /** JobRunner kind for the asynchronous `git clone` job. */

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { parseRepoUrl, canonicalCloneUrl, isValidRepoRef } from '../src/modules/repos/helpers.js';
+import { parseRepoUrl, canonicalCloneUrl, isValidRepoRef } from '../src/modules/repos/domain/policies.js';
+import { DOMAIN_STATUS } from '../src/platform/errors.js';
 
 /**
  * S1 (security hardening) — only `github.com/<owner>/<repo>` may reach
@@ -57,7 +58,8 @@ describe('parseRepoUrl', () => {
     '--upload-pack=touch /tmp/pwned',
     '',
   ])('rejects %s with a 400', (url) => {
-    expect(() => parseRepoUrl(url)).toThrow(expect.objectContaining({ code: 'invalid_repo_url', statusCode: 400 }));
+    expect(() => parseRepoUrl(url)).toThrow(expect.objectContaining({ code: 'invalid_repo_url' }));
+    expect(DOMAIN_STATUS.invalid_repo_url).toBe(400);
   });
 });
 

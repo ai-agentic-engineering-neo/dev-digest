@@ -184,34 +184,6 @@
   },
   {
     "type": "dependency",
-    "from": "src/modules/repos/service.ts",
-    "to": "src/modules/repo-intel/constants.ts",
-    "unresolvedTo": "../repo-intel/constants.js",
-    "dependencyTypes": [
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "no-cross-module-imports"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/modules/repos/helpers.ts",
-    "to": "src/db/schema.ts",
-    "unresolvedTo": "../../db/schema.js",
-    "dependencyTypes": [
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "no-drizzle-outside-infrastructure"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/modules/reviews/diff-loader.ts",
     "to": "src/db/schema.ts",
     "unresolvedTo": "../../db/schema.js",

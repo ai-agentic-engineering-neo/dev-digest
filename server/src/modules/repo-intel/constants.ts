@@ -3,11 +3,8 @@
  * exported early so the pipeline lands against a single source of truth.
  */
 
-// --- Job kinds (registered on JobRunner; enqueued from repos/service.ts) ----
-export const INDEX_JOB_KIND = 'repo-intel-index';
-export const REFRESH_JOB_KIND = 'repo-intel-refresh';
-/** Manual "re-analyze": fetch latest from origin + incremental reindex. */
-export const RESYNC_JOB_KIND = 'repo-intel-resync';
+// --- Job kinds (registered here; repos enqueues them) — defined in the shared kernel.
+export { INDEX_JOB_KIND, REFRESH_JOB_KIND, RESYNC_JOB_KIND } from '../_shared/job-kinds.js';
 
 // --- Walk / parse scope -----------------------------------------------------
 /** [T1] Files we parse (diff-scoped in T1; whole walk in T2). */

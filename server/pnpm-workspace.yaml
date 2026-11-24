@@ -3,3 +3,10 @@ allowBuilds:
   esbuild: true
   protobufjs: true
   ssh2: false
+
+# Install native binaries for this machine (current) plus Windows and Linux — node_modules
+# is shared between both OSes on a dual-boot NTFS drive. `current` keeps other platforms (e.g. macOS) working.
+supportedArchitectures:
+  os: [current, win32, linux]
+  cpu: [current, x64]
+  libc: [current, glibc]

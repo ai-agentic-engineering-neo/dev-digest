@@ -19,6 +19,9 @@ If Claude keeps getting it wrong anyway, promote it to `server/CLAUDE.md`.
 - 2026-11-22 — New fields on `RunStats` must be `.nullish()` — traces are stored as one jsonb doc, so rows written before the field existed lack it and would fail parsing (src/vendor/shared/contracts/trace.ts › RunStats).
 
 ## Tool & Library Notes
+- 2026-11-24 — pnpm `supportedArchitectures` REPLACES the host platform, it doesn't add to it — always list `current` (`os: [current, win32, linux]`, same for cpu/libc), else other platforms (e.g. macOS arm64) lose their native esbuild/rollup binaries (server/pnpm-workspace.yaml).
+- 2026-11-24 — The repo sits on an NTFS drive shared by Windows and Linux (dual-boot), so one `node_modules` serves both OSes — `supportedArchitectures: os [win32, linux]` in pnpm-workspace.yaml makes pnpm install native binaries (esbuild, rollup, ripgrep, ast-grep) for both; without it Linux crashes on win32-only binaries. Install pnpm 11 first (`npm i -g pnpm@11`) (server/pnpm-workspace.yaml).
+- 2026-11-24 — `scripts/*.sh` came out CRLF from the Windows checkout, so bash on Linux failed with `$'\r'` — `.gitattributes` `*.sh text eol=lf` forces LF; Git Bash runs LF scripts fine (.gitattributes).
 
 ## Recurring Errors & Fixes
 - 2026-11-23 — `pathToFileURL(process.argv[1])` fails `pnpm typecheck` (noUncheckedIndexedAccess → `string | undefined`) — write `pathToFileURL(process.argv[1] ?? "")` (src/db/migrate.ts, src/db/seed.ts › CLI entrypoint).

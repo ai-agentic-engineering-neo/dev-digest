@@ -17,3 +17,4 @@ If Claude keeps getting it wrong anyway, promote it to `reviewer-core/CLAUDE.md`
 ## Session Notes
 
 ## Open Questions
+- 2026-11-24 — `node_modules` here is npm-installed on Windows (win32-only esbuild/rollup). The API still runs on Linux because it only needs `openai` + `zod`, but `npm test` (vitest) on Linux probably needs `npm ci` there first. Not checked yet, and running it would drop the win32 binaries again.

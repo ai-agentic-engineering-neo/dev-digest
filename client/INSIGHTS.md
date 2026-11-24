@@ -18,6 +18,8 @@ If Claude keeps getting it wrong anyway, promote it to `client/CLAUDE.md`.
 - 2026-11-22 — Adding a PR-list column = `COLUMN_KEYS` + `GRID` in constants.ts + a cell in PRRow + `list.columns.<key>` in messages/en/prReview.json; header and rows share `GRID` (src/app/repos/[repoId]/pulls/constants.ts).
 
 ## Tool & Library Notes
+- 2026-11-24 — pnpm `supportedArchitectures` REPLACES the host platform, it doesn't add to it — always list `current` (`os: [current, win32, linux]`, same for cpu/libc), else e.g. macOS arm64 gets only win32/linux x64 binaries and `next dev` breaks (client/pnpm-workspace.yaml).
+- 2026-11-24 — `node_modules` is shared by Windows and Linux (dual-boot NTFS drive) — `supportedArchitectures: os [win32, linux]` in pnpm-workspace.yaml installs next-swc, lightningcss, tailwind oxide and sharp for both OSes; without it `next dev` on Linux fails on win32-only binaries (client/pnpm-workspace.yaml).
 
 ## Recurring Errors & Fixes
 - 2026-11-23 — SUPERSEDES 2026-11-23 borderColor entry — it was a real bug, not noise: `borderColor`/`borderWidth` are shorthands too, so changing `borderColor` next to `borderLeftColor` warns; use per-side longhands (`borderTopColor`… ) only (_components/FindingCard/styles.ts › card).

@@ -147,6 +147,26 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       })
       .returning();
 
+    // one completed run with a known cost so the PR list / timeline show spend
+    const [seedRun] = await db
+      .insert(t.agentRuns)
+      .values({
+        workspaceId,
+        prId: pr!.id,
+        provider: 'seed',
+        model: 'seed',
+        status: 'done',
+        durationMs: 8200,
+        tokensIn: 14820,
+        tokensOut: 1240,
+        costUsd: 0.014,
+        findingsCount: 2,
+        grounding: '2/2 passed',
+        score: 61,
+      })
+      .returning();
+    await db.update(t.reviews).set({ runId: seedRun!.id }).where(eq(t.reviews.id, review!.id));
+
     await db.insert(t.findings).values([
       {
         reviewId: review!.id,

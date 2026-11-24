@@ -52,6 +52,15 @@ export default function PullsPage() {
     .filter((p) => !q || p.title.toLowerCase().includes(q) || String(p.number).includes(q))
     .slice()
     .sort((a, b) => {
+      if (sort === "costDesc" || sort === "costAsc") {
+        // PRs without a known cost always sort last, in either direction.
+        const ca = a.cost_usd;
+        const cb = b.cost_usd;
+        if (ca == null && cb == null) return 0;
+        if (ca == null) return 1;
+        if (cb == null) return -1;
+        return sort === "costDesc" ? cb - ca : ca - cb;
+      }
       const ta = Date.parse(a.updated_at ?? "") || 0;
       const tb = Date.parse(b.updated_at ?? "") || 0;
       return sort === "oldest" ? ta - tb : tb - ta;

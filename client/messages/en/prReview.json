@@ -84,7 +84,9 @@
     "filterPlaceholder": "Filter pull requests…",
     "sort": {
       "newest": "Sort: Newest",
-      "oldest": "Sort: Oldest"
+      "oldest": "Sort: Oldest",
+      "costDesc": "Sort: Cost (high to low)",
+      "costAsc": "Sort: Cost (low to high)"
     },
     "columns": {
       "pullRequest": "Pull request",
@@ -92,6 +94,7 @@
       "size": "Size",
       "score": "Score",
       "status": "Status",
+      "cost": "Cost",
       "updated": "Updated"
     },
     "filesCount": "{count} files",
@@ -104,6 +107,7 @@
   "timeline": {
     "goToReview": "Jump to this run’s findings below",
     "openTrace": "Open run trace & logs",
-    "deleteRun": "Delete run"
+    "deleteRun": "Delete run",
+    "tokens": "{count} tok"
   }
 }

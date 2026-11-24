@@ -6,6 +6,8 @@ Selection rules, review and promotion to CLAUDE.md — skill `engineering-insigh
 
 ## What Works
 
+- 2026-11-25 · runtime Zod schema from vendored contracts · the @devdigest/shared barrel can't be imported as a value (.js re-exports), but importing the specific contract file by alias (`import { RunEvent } from "@/vendor/shared/contracts/trace"`) passes eslint (no-restricted-imports matches the bare name only) and `next build` bundles it → ALWAYS take runtime schemas from the single contract file, never the barrel, and only when that file imports nothing but zod, because its own relative .js imports would hit the same webpack error · src/lib/hooks/parse-run-event.ts, verified via pnpm build + RunEvent schema present in .next/static/chunks
+
 ## What Doesn't Work
 
 ## Codebase Patterns

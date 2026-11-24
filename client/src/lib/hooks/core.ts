@@ -4,8 +4,9 @@
    and are re-exported alongside these from hooks/index.ts. */
 "use client";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { queryOptions, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
+import { agentQueries } from "./agents";
 import type {
   Settings,
   SettingsUpdate,
@@ -19,19 +20,52 @@ import type {
   IndexStatus,
 } from "../types";
 
+/** Query-options factories for the platform domain (settings, secrets, repos,
+    pulls, project context): the single source of each query key + fetcher.
+    Per-screen knobs (enabled, polling, staleTime) stay in the hooks. */
+export const coreQueries = {
+  settings: () =>
+    queryOptions({
+      queryKey: ["settings"] as const,
+      queryFn: () => api.get<Settings>("/settings"),
+    }),
+  secretsStatus: () =>
+    queryOptions({
+      queryKey: ["secrets-status"] as const,
+      queryFn: () => api.get<SecretsStatus>("/settings/secrets-status"),
+    }),
+  repos: () =>
+    queryOptions({
+      queryKey: ["repos"] as const,
+      queryFn: () => api.get<Repo[]>("/repos"),
+    }),
+  pulls: (repoId: string | null | undefined) =>
+    queryOptions({
+      queryKey: ["pulls", repoId] as const,
+      queryFn: () => api.get<PrMeta[]>(`/repos/${repoId}/pulls`),
+    }),
+  pullDetail: (prId: string | number | null | undefined) =>
+    queryOptions({
+      queryKey: ["pull", prId] as const,
+      queryFn: () => api.get<PrDetail>(`/pulls/${prId}`),
+    }),
+  contextFiles: (repoId: string | null | undefined) =>
+    queryOptions({
+      queryKey: ["context", repoId] as const,
+      queryFn: () => api.get<SpecFile[]>(`/repos/${repoId}/context`),
+    }),
+};
+
 // ---- Settings (F1: GET/PUT /settings, POST /settings/test-connection) ----
 export function useSettings() {
-  return useQuery({
-    queryKey: ["settings"],
-    queryFn: () => api.get<Settings>("/settings"),
-  });
+  return useQuery(coreQueries.settings());
 }
 
 export function useUpdateSettings() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (patch: SettingsUpdate) => api.put<Settings>("/settings", patch),
-    onSuccess: (data) => qc.setQueryData(["settings"], data),
+    onSuccess: (data) => qc.setQueryData(coreQueries.settings().queryKey, data),
   });
 }
 
@@ -47,8 +81,8 @@ export function useTestConnection() {
     // refresh the "Configured / Not set" key-status badges.
     onSuccess: (res) => {
       if (res.ok) {
-        qc.invalidateQueries({ queryKey: ["provider-models"] });
-        qc.invalidateQueries({ queryKey: ["secrets-status"] });
+        qc.invalidateQueries({ queryKey: agentQueries.providerModelsAll() });
+        qc.invalidateQueries({ queryKey: coreQueries.secretsStatus().queryKey });
       }
     },
   });
@@ -57,25 +91,21 @@ export function useTestConnection() {
 /** Which provider keys are configured (booleans only — never the values). */
 export function useSecretsStatus() {
   return useQuery({
-    queryKey: ["secrets-status"],
-    queryFn: () => api.get<SecretsStatus>("/settings/secrets-status"),
+    ...coreQueries.secretsStatus(),
     staleTime: 30_000,
   });
 }
 
 // ---- Repos (F1: GET/POST /repos, refresh, delete) ----
 export function useRepos() {
-  return useQuery({
-    queryKey: ["repos"],
-    queryFn: () => api.get<Repo[]>("/repos"),
-  });
+  return useQuery(coreQueries.repos());
 }
 
 export function useAddRepo() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (url: string) => api.post<Repo>("/repos", { url }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["repos"] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: coreQueries.repos().queryKey }),
   });
 }
 
@@ -84,8 +114,8 @@ export function useRefreshRepo() {
   return useMutation({
     mutationFn: (repoId: string) => api.post<Repo>(`/repos/${repoId}/refresh`),
     onSuccess: (_d, repoId) => {
-      qc.invalidateQueries({ queryKey: ["repos"] });
-      qc.invalidateQueries({ queryKey: ["pulls", repoId] });
+      qc.invalidateQueries({ queryKey: coreQueries.repos().queryKey });
+      qc.invalidateQueries({ queryKey: coreQueries.pulls(repoId).queryKey });
     },
   });
 }
@@ -94,15 +124,14 @@ export function useDeleteRepo() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (repoId: string) => api.del<{ deleted: string }>(`/repos/${repoId}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["repos"] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: coreQueries.repos().queryKey }),
   });
 }
 
 // ---- Pull requests (F1: GET /repos/:id/pulls, GET /pulls/:id) ----
 export function usePulls(repoId: string | null | undefined) {
   return useQuery({
-    queryKey: ["pulls", repoId],
-    queryFn: () => api.get<PrMeta[]>(`/repos/${repoId}/pulls`),
+    ...coreQueries.pulls(repoId),
     enabled: !!repoId,
     // Auto-refresh PR statuses: re-sync from GitHub every 60s while the page is
     // open, and whenever the window regains focus.
@@ -113,8 +142,7 @@ export function usePulls(repoId: string | null | undefined) {
 
 export function usePullDetail(prId: string | number | null | undefined) {
   return useQuery({
-    queryKey: ["pull", prId],
-    queryFn: () => api.get<PrDetail>(`/pulls/${prId}`),
+    ...coreQueries.pullDetail(prId),
     enabled: prId != null,
   });
 }
@@ -122,8 +150,7 @@ export function usePullDetail(prId: string | number | null | undefined) {
 // ---- Project Context (A3 contract; safe to call once API exposes it) ----
 export function useContextFiles(repoId: string | null | undefined) {
   return useQuery({
-    queryKey: ["context", repoId],
-    queryFn: () => api.get<SpecFile[]>(`/repos/${repoId}/context`),
+    ...coreQueries.contextFiles(repoId),
     enabled: !!repoId,
   });
 }
@@ -132,6 +159,6 @@ export function useReindexContext() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (repoId: string) => api.post<IndexStatus>(`/repos/${repoId}/context/reindex`),
-    onSuccess: (_d, repoId) => qc.invalidateQueries({ queryKey: ["context", repoId] }),
+    onSuccess: (_d, repoId) => qc.invalidateQueries({ queryKey: coreQueries.contextFiles(repoId).queryKey }),
   });
 }

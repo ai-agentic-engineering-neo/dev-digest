@@ -14,7 +14,8 @@ import { z } from 'zod';
 import { loadConfig, type AppConfig } from './platform/config.js';
 import { createDb, type Db } from './db/client.js';
 import { Container, type ContainerOverrides } from './platform/container.js';
-import { AppError } from './platform/errors.js';
+import { AppError, DOMAIN_STATUS } from './platform/errors.js';
+import { DomainError } from './modules/_shared/domain/errors.js';
 import { isAllowedHost, isAllowedOrigin } from './platform/local-only.js';
 import { modules } from './modules/index.js';
 import { ReviewService } from './modules/reviews/service.js';
@@ -161,6 +162,12 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
           message: 'Request validation failed',
           details: maybeZod.issues ?? maybeZod.errors,
         },
+      });
+      return;
+    }
+    if (err instanceof DomainError) {
+      reply.status(DOMAIN_STATUS[err.code] ?? 400).send({
+        error: { code: err.code, message: err.message },
       });
       return;
     }

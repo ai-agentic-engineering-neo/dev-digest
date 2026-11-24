@@ -7,15 +7,13 @@ identical, with existing tests green before and after. Don't mix a migration wit
 
 | Violation | Files |
 |---|---|
-| Service/helper takes the whole `Container` | `agents/service.ts`, `repos/service.ts`, `reviews/service.ts`, `reviews/run-executor.ts`, `reviews/diff-loader.ts`, `repo-intel/service.ts`, `repo-intel/pipeline/{full,incremental}.ts`, `settings/feature-models.ts`, `_shared/context.ts` |
-| Service constructs its own Drizzle repo (`new XRepository(container.db)`) | `agents/service.ts:55`, `repos/service.ts:33`, `repo-intel/service.ts:105`, `reviews/service.ts:34` |
+| Service/helper takes the whole `Container` | `repos/service.ts`, `reviews/service.ts`, `reviews/run-executor.ts`, `reviews/diff-loader.ts`, `repo-intel/service.ts`, `repo-intel/pipeline/{full,incremental}.ts`, `settings/feature-models.ts`, `_shared/context.ts` |
+| Service constructs its own Drizzle repo (`new XRepository(container.db)`) | `repos/service.ts:33`, `repo-intel/service.ts:105`, `reviews/service.ts:34` |
 | Drizzle / `db/schema` outside a repository | `settings/routes.ts`, `pulls/routes.ts`, `polling/routes.ts`, `workspace/routes.ts`, `repos/helpers.ts`, `settings/feature-models.ts`, `reviews/run-executor.ts`, `reviews/diff-loader.ts`, `_shared/schemas.ts` |
 | Route uses `container.db` directly (no service at all) | `pulls/routes.ts`, `workspace/routes.ts`, `polling/routes.ts`, `settings/routes.ts` |
 | Cross-module import | `repos/service.ts` → `../repo-intel/constants.js` |
 | Adapter depends on a feature module | `adapters/depgraph/index.ts`, `adapters/astgrep/index.ts` → `modules/repo-intel/constants.ts` (move `SUPPORTED_EXT` etc. to `_shared` or pass it in) |
-| Import cycles via the Container | `platform/container.ts` ⇄ `repo-intel/service.ts`, `pipeline/{full,incremental}.ts`; `agents/helpers.ts` ⇄ `agents/repository.ts` |
-| Business rule inside a repository | `agents/repository.ts` (`update` decides version bump via `isConfigChange`) |
-| Multi-write without a transaction | `agents/repository.ts` `insert` + `snapshotVersion`; `update` + `snapshotVersion` |
+| Import cycles via the Container | `platform/container.ts` ⇄ `repo-intel/service.ts`, `pipeline/{full,incremental}.ts` |
 | HTTP status inside domain errors | `platform/errors.ts` (`AppError.statusCode`) |
 | Composition outside the root | `app.ts:82` `new ReviewService(container).reapStaleRuns()` (acceptable — `app.ts` is the root — but must use the new constructor) |
 
@@ -26,7 +24,7 @@ cd server && pnpm exec depcruise src --config .dependency-cruiser.cjs --no-ignor
 
 ## Order
 
-1. **agents** — pilot. Small, has an integration test (`test/agents-versions.it.test.ts`), shows every pattern (policy in repo, missing tx, DTO mapping).
+1. **agents** — pilot, **done 2026-11-24**: `domain/ application/ infrastructure/ http/` + `index.ts`; UoW (`_shared/domain/unit-of-work.ts`, `DrizzleAgentsUnitOfWork`), `DomainError` + `DOMAIN_STATUS` in `platform/errors.ts`. Use it as the reference module. Leftover: `reviews` still types agents as `AgentRow` (works because the domain `Agent` mirrors the row) — switch it to the `AgentsRepository` port when `reviews` migrates.
 2. **settings**, **workspace**, **polling**, **pulls** — routes that talk to the DB directly; mostly "extract service + repository".
 3. **repos** — also fix the cross-module import (move the shared constant to `_shared/` or behind a `RepoIntel` port).
 4. **repo-intel** — already has a facade interface (`types.ts` `RepoIntel`); pipeline files take `Container` → pass narrow deps.

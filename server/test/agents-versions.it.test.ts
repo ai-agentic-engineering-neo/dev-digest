@@ -6,9 +6,19 @@ import { loadConfig } from '../src/platform/config.js';
 import { seed } from '../src/db/seed.js';
 import * as t from '../src/db/schema.js';
 import { MockGitClient, MockGitHubClient } from '../src/adapters/mocks.js';
-import { AgentsService } from '../src/modules/agents/service.js';
-import { AgentsRepository } from '../src/modules/agents/repository.js';
-import type { Container } from '../src/platform/container.js';
+import { AgentsService } from '../src/modules/agents/application/agents.service.js';
+import { DrizzleAgentsRepository } from '../src/modules/agents/infrastructure/agents.repository.js';
+import { DrizzleAgentsUnitOfWork } from '../src/modules/agents/infrastructure/agents.uow.js';
+import { AgentNotFound } from '../src/modules/agents/domain/errors.js';
+import type { Db } from '../src/db/client.js';
+
+function makeService(db: Db, agents = new DrizzleAgentsRepository(db)) {
+  return new AgentsService({
+    agents,
+    uow: new DrizzleAgentsUnitOfWork(db),
+    modelsFor: () => Promise.reject(new Error('no llm in tests')),
+  });
+}
 
 const hasDocker = await dockerAvailable();
 const d = hasDocker ? describe : describe.skip;
@@ -155,8 +165,8 @@ d('GET /agents/:id/versions', () => {
     const { db } = pg.handle;
     // An agent that lives in a DIFFERENT workspace than the request context.
     const [otherWs] = await db.insert(t.workspaces).values({ name: 'other' }).returning();
-    const repo = new AgentsRepository(db);
-    const foreign = await repo.insert({
+    const service = makeService(db);
+    const foreign = await service.create({
       workspaceId: otherWs!.id,
       name: 'Foreign',
       provider: 'openai',
@@ -164,15 +174,47 @@ d('GET /agents/:id/versions', () => {
       systemPrompt: 'x',
     });
 
-    const service = new AgentsService({ db } as unknown as Container);
     const [{ id: defaultWs }] = await db
       .select({ id: t.workspaces.id })
       .from(t.workspaces)
       .where(eq(t.workspaces.name, 'default'));
 
-    // Owner can read; a different workspace is denied (undefined → 404 at route).
+    // Owner can read; a different workspace gets AgentNotFound (→ 404 at the edge).
     expect(await service.listVersions(otherWs!.id, foreign.id)).toHaveLength(1);
-    expect(await service.listVersions(defaultWs!, foreign.id)).toBeUndefined();
-    expect(await service.getVersion(defaultWs!, foreign.id, 1)).toBeUndefined();
+    await expect(service.listVersions(defaultWs!, foreign.id)).rejects.toBeInstanceOf(AgentNotFound);
+    await expect(service.getVersion(defaultWs!, foreign.id, 1)).rejects.toBeInstanceOf(AgentNotFound);
+  });
+
+  it('update + version snapshot are atomic: a failed snapshot rolls back the update', async () => {
+    const { db } = pg.handle;
+    const [ws] = await db.select().from(t.workspaces).where(eq(t.workspaces.name, 'default'));
+    const service = makeService(db);
+    const agent = await service.create({
+      workspaceId: ws!.id,
+      name: 'Atomic',
+      provider: 'openai',
+      model: 'gpt-4o-mini',
+      systemPrompt: 'x',
+    });
+
+    // Same UoW, but its tx-bound repository fails on the snapshot write.
+    class FailingSnapshots extends DrizzleAgentsRepository {
+      override appendVersion(): Promise<void> {
+        return Promise.reject(new Error('snapshot write failed'));
+      }
+    }
+    const failing = new AgentsService({
+      agents: new DrizzleAgentsRepository(db),
+      uow: { run: (work) => db.transaction((tx) => work({ agents: new FailingSnapshots(tx) })) },
+      modelsFor: () => Promise.reject(new Error('no llm in tests')),
+    });
+
+    await expect(failing.update(ws!.id, agent.id, { model: 'gpt-4o' })).rejects.toThrow(
+      'snapshot write failed',
+    );
+    const after = await service.get(ws!.id, agent.id);
+    expect(after.model).toBe('gpt-4o-mini');
+    expect(after.version).toBe(1);
+    expect(await service.listVersions(ws!.id, agent.id)).toHaveLength(1);
   });
 });

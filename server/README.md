@@ -34,7 +34,7 @@ swapped for mocks in tests.
 flowchart LR
   REQ["HTTP request"] --> MW["plugins (registered before modules)<br/>helmet · cors · rate-limit · SSE"]
   MW --> VAL["route zod schema<br/>params/body validation"]
-  VAL --> MOD["feature module plugin<br/>modules/&lt;name&gt;/routes.ts"]
+  VAL --> MOD["feature module plugin<br/>modules/&lt;name&gt;/routes.ts (legacy)<br/>or modules/&lt;name&gt;/index.ts (onion)"]
   MOD --> SVC["service<br/>(e.g. ReviewService)"]
   SVC --> DI{"DI container<br/>platform/container.ts"}
   DI --> ADP["adapters (ports)<br/>llm · github · git · astgrep · tokenizer · secrets"]
@@ -42,10 +42,14 @@ flowchart LR
   ADP -->|"tests"| MOCK["src/adapters/mocks.ts<br/>MockLLMProvider · MockGitClient · …"]
   SVC --> DB[("Drizzle → Postgres")]
   SVC -. "run traces" .-> SSE["SSE stream → client"]
-  VAL -. "invalid" .-> ERR["error handler (structured envelope)<br/>validation → 422 · AppError → status<br/>response serialization → 500"]
+  VAL -. "invalid" .-> ERR["error handler (structured envelope)<br/>validation → 422 · AppError → status<br/>DomainError → DOMAIN_STATUS[code]<br/>response serialization → 500"]
   SVC -. "throws" .-> ERR
 ```
 
+- **Onion modules** (`agents` so far; skill `onion-architecture`): `index.ts` builds the
+  service from container ports (`agentsRepo`, `agentsUow`), routes in `http/` call one use case
+  and a presenter, use cases throw `DomainError`s (no HTTP status) and multi-write use cases run
+  in a `UnitOfWork` transaction.
 - **Plugins register before modules** so the encapsulated module plugins inherit
   them (helmet, cors, rate-limit, SSE) and the shared error handler.
 - **Validation is schema-first.** Each route declares zod `params`/`body` schemas

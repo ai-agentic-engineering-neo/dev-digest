@@ -29,38 +29,6 @@
   },
   {
     "type": "cycle",
-    "from": "src/modules/agents/helpers.ts",
-    "to": "src/modules/agents/repository.ts",
-    "unresolvedTo": "./repository.js",
-    "dependencyTypes": [
-      "local",
-      "type-only",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "no-circular"
-    },
-    "cycle": [
-      {
-        "name": "src/modules/agents/repository.ts",
-        "dependencyTypes": [
-          "local",
-          "type-only",
-          "import"
-        ]
-      },
-      {
-        "name": "src/modules/agents/helpers.ts",
-        "dependencyTypes": [
-          "local",
-          "import"
-        ]
-      }
-    ]
-  },
-  {
-    "type": "cycle",
     "from": "src/modules/repo-intel/pipeline/full.ts",
     "to": "src/platform/container.ts",
     "unresolvedTo": "../../../platform/container.js",
@@ -231,7 +199,7 @@
   {
     "type": "dependency",
     "from": "src/modules/polling/routes.ts",
-    "to": "node_modules/.pnpm/drizzle-orm@0.45.4_gel@2.2.1_postgres@3.4.9/node_modules/drizzle-orm/index.d.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.45.4_gel@2.2.1_supports-color@7.2.0__postgres@3.4.9/node_modules/drizzle-orm/index.d.ts",
     "unresolvedTo": "drizzle-orm",
     "dependencyTypes": [
       "npm",
@@ -259,7 +227,7 @@
   {
     "type": "dependency",
     "from": "src/modules/pulls/routes.ts",
-    "to": "node_modules/.pnpm/drizzle-orm@0.45.4_gel@2.2.1_postgres@3.4.9/node_modules/drizzle-orm/index.d.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.45.4_gel@2.2.1_supports-color@7.2.0__postgres@3.4.9/node_modules/drizzle-orm/index.d.ts",
     "unresolvedTo": "drizzle-orm",
     "dependencyTypes": [
       "npm",
@@ -359,7 +327,7 @@
   {
     "type": "dependency",
     "from": "src/modules/settings/feature-models.ts",
-    "to": "node_modules/.pnpm/drizzle-orm@0.45.4_gel@2.2.1_postgres@3.4.9/node_modules/drizzle-orm/index.d.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.45.4_gel@2.2.1_supports-color@7.2.0__postgres@3.4.9/node_modules/drizzle-orm/index.d.ts",
     "unresolvedTo": "drizzle-orm",
     "dependencyTypes": [
       "npm",
@@ -387,7 +355,7 @@
   {
     "type": "dependency",
     "from": "src/modules/settings/routes.ts",
-    "to": "node_modules/.pnpm/drizzle-orm@0.45.4_gel@2.2.1_postgres@3.4.9/node_modules/drizzle-orm/index.d.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.45.4_gel@2.2.1_supports-color@7.2.0__postgres@3.4.9/node_modules/drizzle-orm/index.d.ts",
     "unresolvedTo": "drizzle-orm",
     "dependencyTypes": [
       "npm",
@@ -415,7 +383,7 @@
   {
     "type": "dependency",
     "from": "src/modules/workspace/routes.ts",
-    "to": "node_modules/.pnpm/drizzle-orm@0.45.4_gel@2.2.1_postgres@3.4.9/node_modules/drizzle-orm/index.d.ts",
+    "to": "node_modules/.pnpm/drizzle-orm@0.45.4_gel@2.2.1_supports-color@7.2.0__postgres@3.4.9/node_modules/drizzle-orm/index.d.ts",
     "unresolvedTo": "drizzle-orm",
     "dependencyTypes": [
       "npm",

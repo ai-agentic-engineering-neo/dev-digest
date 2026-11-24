@@ -39,3 +39,13 @@ export class ConfigError extends AppError {
     super('config_error', message, 500, details);
   }
 }
+
+/**
+ * HTTP status for each DomainError code (modules/_shared/domain/errors.ts).
+ * Domain code never knows its status; the error handler in app.ts looks it up
+ * here. An unmapped code falls back to 400.
+ */
+export const DOMAIN_STATUS: Readonly<Record<string, number>> = {
+  agent_not_found: 404,
+  agent_version_not_found: 404,
+};

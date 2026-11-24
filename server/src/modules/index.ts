@@ -4,13 +4,14 @@ import repos from './repos/routes.js';
 import pulls from './pulls/routes.js';
 import polling from './polling/routes.js';
 import workspace from './workspace/routes.js';
-import agents from './agents/routes.js';
+import agents from './agents/index.js';
 import reviews from './reviews/routes.js';
 import repoIntel from './repo-intel/routes.js';
 
 /**
- * Module registry. Each feature module is a Fastify plugin in
- * `modules/<name>/routes.ts`. Registered here in one place.
+ * Module registry. Each feature module is a Fastify plugin — legacy modules
+ * export it from `modules/<name>/routes.ts`, migrated (onion) modules from
+ * `modules/<name>/index.ts`. Registered here in one place.
  *
  * ADD A MODULE: create `modules/<name>/routes.ts` exporting a default Fastify
  * plugin, then add one import + one entry below. (We register statically rather

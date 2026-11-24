@@ -23,7 +23,9 @@ import { OpenRouterProvider } from '@devdigest/reviewer-core';
 import { estimateCost } from '../adapters/llm/pricing.js';
 import { PriceBook } from './price-book.js';
 import { ConfigError } from './errors.js';
-import { AgentsRepository } from '../modules/agents/repository.js';
+import type { AgentsRepository, AgentsUnitOfWork } from '../modules/agents/domain/ports.js';
+import { DrizzleAgentsRepository } from '../modules/agents/infrastructure/agents.repository.js';
+import { DrizzleAgentsUnitOfWork } from '../modules/agents/infrastructure/agents.uow.js';
 import { ReviewRepository } from '../modules/reviews/repository.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
@@ -71,6 +73,7 @@ export class Container {
   // runs). Constructed here, in the composition root, so consuming modules use
   // `container.agentsRepo` instead of reaching into another module's folder.
   private _agentsRepo?: AgentsRepository;
+  private _agentsUow?: AgentsUnitOfWork;
   private _reviewRepo?: ReviewRepository;
   private _repoIntel?: RepoIntel;
   private _depgraph?: DepGraph;
@@ -94,8 +97,14 @@ export class Container {
     return this._git;
   }
 
+  /** Agents persistence port (also read by reviews to pick review targets). */
   get agentsRepo(): AgentsRepository {
-    return (this._agentsRepo ??= new AgentsRepository(this.db));
+    return (this._agentsRepo ??= new DrizzleAgentsRepository(this.db));
+  }
+
+  /** Transaction boundary for multi-write agents use cases. */
+  get agentsUow(): AgentsUnitOfWork {
+    return (this._agentsUow ??= new DrizzleAgentsUnitOfWork(this.db));
   }
 
   get reviewRepo(): ReviewRepository {

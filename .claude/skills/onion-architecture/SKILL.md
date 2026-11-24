@@ -123,7 +123,7 @@ Existing modules predate this skill (flat `routes.ts / service.ts / repository.t
 
 `server/.dependency-cruiser.cjs` encodes the import table above; `server/test/architecture.test.ts`
 runs it in the unit suite, so CI `server-unit` fails on any violation not in
-`server/.dependency-cruiser-known-violations.json` (23 legacy entries as of 2026-11-24).
+`server/.dependency-cruiser-known-violations.json` (22 legacy entries after the agents pilot, 2026-11-24).
 
 - Check locally (from `server/`): `pnpm exec vitest run test/architecture.test.ts`
   or, for readable output, `pnpm exec depcruise src --config .dependency-cruiser.cjs --ignore-known`.

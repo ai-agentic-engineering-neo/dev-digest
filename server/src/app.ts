@@ -167,7 +167,7 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
     }
     if (err instanceof DomainError) {
       reply.status(DOMAIN_STATUS[err.code] ?? 400).send({
-        error: { code: err.code, message: err.message },
+        error: { code: err.code, message: err.message, details: err.details },
       });
       return;
     }

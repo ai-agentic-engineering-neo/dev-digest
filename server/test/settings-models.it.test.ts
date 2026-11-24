@@ -5,10 +5,8 @@ import { loadConfig } from '../src/platform/config.js';
 import { seed } from '../src/db/seed.js';
 import * as t from '../src/db/schema.js';
 import type { SecretsProvider } from '@devdigest/shared';
-import {
-  resolveFeatureModel,
-  getFeatureModelOverride,
-} from '../src/modules/settings/feature-models.js';
+import { resolveFeatureModel } from '../src/modules/settings/application/feature-models.js';
+import { DrizzleSettingsRepository } from '../src/modules/settings/infrastructure/settings.repository.js';
 
 const hasDocker = await dockerAvailable();
 const d = hasDocker ? describe : describe.skip;
@@ -32,8 +30,8 @@ d('Settings: feature models + secrets status (Testcontainers pg)', () => {
     const app = await buildApp({ config: config(), db: pg.handle.db, overrides: {} });
 
     // No override yet → registry default; getFeatureModelOverride is undefined.
-    expect(await getFeatureModelOverride(app.container, workspaceId, 'onboarding')).toBeUndefined();
-    expect(await resolveFeatureModel(app.container, workspaceId, 'onboarding')).toEqual({
+    expect(await new DrizzleSettingsRepository(pg.handle.db).featureModelOverride(workspaceId, 'onboarding')).toBeUndefined();
+    expect(await resolveFeatureModel(new DrizzleSettingsRepository(pg.handle.db), workspaceId, 'onboarding')).toEqual({
       provider: 'openrouter',
       model: 'deepseek/deepseek-v4-flash',
     });
@@ -46,12 +44,12 @@ d('Settings: feature models + secrets status (Testcontainers pg)', () => {
     });
     expect(put.statusCode).toBe(200);
 
-    expect(await resolveFeatureModel(app.container, workspaceId, 'onboarding')).toEqual({
+    expect(await resolveFeatureModel(new DrizzleSettingsRepository(pg.handle.db), workspaceId, 'onboarding')).toEqual({
       provider: 'openrouter',
       model: 'z-ai/glm-4.7-flash',
     });
     // An unset feature still resolves to its own registry default.
-    expect(await resolveFeatureModel(app.container, workspaceId, 'risk_brief')).toEqual({
+    expect(await resolveFeatureModel(new DrizzleSettingsRepository(pg.handle.db), workspaceId, 'risk_brief')).toEqual({
       provider: 'openai',
       model: 'gpt-4.1',
     });

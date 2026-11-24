@@ -1,9 +1,9 @@
 import type { FastifyPluginAsync } from 'fastify';
-import settings from './settings/routes.js';
+import settings from './settings/index.js';
 import repos from './repos/routes.js';
 import pulls from './pulls/routes.js';
-import polling from './polling/routes.js';
-import workspace from './workspace/routes.js';
+import polling from './polling/index.js';
+import workspace from './workspace/index.js';
 import agents from './agents/index.js';
 import reviews from './reviews/routes.js';
 import repoIntel from './repo-intel/routes.js';

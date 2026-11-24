@@ -48,4 +48,8 @@ export class ConfigError extends AppError {
 export const DOMAIN_STATUS: Readonly<Record<string, number>> = {
   agent_not_found: 404,
   agent_version_not_found: 404,
+  repo_not_found: 404,
+  pull_not_found: 404,
+  github_unavailable: 400,
+  github_comment_failed: 400,
 };

@@ -198,34 +198,6 @@
   },
   {
     "type": "dependency",
-    "from": "src/modules/polling/routes.ts",
-    "to": "node_modules/.pnpm/drizzle-orm@0.45.4_gel@2.2.1_supports-color@7.2.0__postgres@3.4.9/node_modules/drizzle-orm/index.d.ts",
-    "unresolvedTo": "drizzle-orm",
-    "dependencyTypes": [
-      "npm",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "no-drizzle-outside-infrastructure"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/modules/polling/routes.ts",
-    "to": "src/db/schema.ts",
-    "unresolvedTo": "../../db/schema.js",
-    "dependencyTypes": [
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "no-drizzle-outside-infrastructure"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/modules/pulls/routes.ts",
     "to": "node_modules/.pnpm/drizzle-orm@0.45.4_gel@2.2.1_supports-color@7.2.0__postgres@3.4.9/node_modules/drizzle-orm/index.d.ts",
     "unresolvedTo": "drizzle-orm",
@@ -317,90 +289,6 @@
     "dependencyTypes": [
       "local",
       "type-only",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "no-drizzle-outside-infrastructure"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/modules/settings/feature-models.ts",
-    "to": "node_modules/.pnpm/drizzle-orm@0.45.4_gel@2.2.1_supports-color@7.2.0__postgres@3.4.9/node_modules/drizzle-orm/index.d.ts",
-    "unresolvedTo": "drizzle-orm",
-    "dependencyTypes": [
-      "npm",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "no-drizzle-outside-infrastructure"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/modules/settings/feature-models.ts",
-    "to": "src/db/schema.ts",
-    "unresolvedTo": "../../db/schema.js",
-    "dependencyTypes": [
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "no-drizzle-outside-infrastructure"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/modules/settings/routes.ts",
-    "to": "node_modules/.pnpm/drizzle-orm@0.45.4_gel@2.2.1_supports-color@7.2.0__postgres@3.4.9/node_modules/drizzle-orm/index.d.ts",
-    "unresolvedTo": "drizzle-orm",
-    "dependencyTypes": [
-      "npm",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "no-drizzle-outside-infrastructure"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/modules/settings/routes.ts",
-    "to": "src/db/schema.ts",
-    "unresolvedTo": "../../db/schema.js",
-    "dependencyTypes": [
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "no-drizzle-outside-infrastructure"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/modules/workspace/routes.ts",
-    "to": "node_modules/.pnpm/drizzle-orm@0.45.4_gel@2.2.1_supports-color@7.2.0__postgres@3.4.9/node_modules/drizzle-orm/index.d.ts",
-    "unresolvedTo": "drizzle-orm",
-    "dependencyTypes": [
-      "npm",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "no-drizzle-outside-infrastructure"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/modules/workspace/routes.ts",
-    "to": "src/db/schema.ts",
-    "unresolvedTo": "../../db/schema.js",
-    "dependencyTypes": [
-      "local",
       "import"
     ],
     "rule": {

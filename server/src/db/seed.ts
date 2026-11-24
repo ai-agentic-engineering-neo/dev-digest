@@ -6,7 +6,10 @@ import {
   GENERAL_REVIEWER_PROMPT,
   SECURITY_REVIEWER_PROMPT,
   PERFORMANCE_REVIEWER_PROMPT,
+  TEST_QUALITY_REVIEWER_PROMPT,
+  API_CONTRACT_REVIEWER_PROMPT,
 } from './seed-prompts.js';
+import { SEED_SKILLS } from './seed-skills.js';
 
 /** Default provider/model for the built-in reviewer agents. */
 const DEFAULT_PROVIDER = 'openrouter' as const;
@@ -211,6 +214,28 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       version: 1,
       createdBy: userId,
     },
+    {
+      workspaceId,
+      name: 'Test Quality Reviewer',
+      description: 'Checks that changed behavior is covered by meaningful, non-brittle tests.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: TEST_QUALITY_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
+    {
+      workspaceId,
+      name: 'API Contract Reviewer',
+      description: 'Finds breaking changes, response-schema drift and versioning gaps in API changes.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: API_CONTRACT_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
   ];
   for (const a of seedAgents) {
     const [existing] = await db
@@ -218,6 +243,49 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       .from(t.agents)
       .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, a.name)));
     if (!existing) await db.insert(t.agents).values(a);
+  }
+
+  // ---- built-in skills (idempotent by workspace+name; never overwrite user edits) ----
+  const agentIdByName = new Map<string, string>();
+  for (const a of await db.select().from(t.agents).where(eq(t.agents.workspaceId, workspaceId))) {
+    agentIdByName.set(a.name, a.id);
+  }
+  const nextOrder = new Map<string, number>(); // agent name → next link position
+  for (const sk of SEED_SKILLS) {
+    let [row] = await db
+      .select()
+      .from(t.skills)
+      .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.name, sk.name)));
+    if (!row) {
+      [row] = await db
+        .insert(t.skills)
+        .values({
+          workspaceId,
+          name: sk.name,
+          description: sk.description,
+          type: sk.type,
+          source: 'manual',
+          body: sk.body,
+          enabled: true,
+          version: 1,
+        })
+        .returning();
+      await db
+        .insert(t.skillVersions)
+        .values({ skillId: row!.id, version: 1, body: sk.body })
+        .onConflictDoNothing();
+    }
+    for (const agentName of sk.agents) {
+      const order = nextOrder.get(agentName) ?? 0;
+      nextOrder.set(agentName, order + 1);
+      const agentId = agentIdByName.get(agentName);
+      if (!agentId) continue;
+      // DO NOTHING keeps a user's later reorder/attach intact on re-seed.
+      await db
+        .insert(t.agentSkills)
+        .values({ agentId, skillId: row!.id, order })
+        .onConflictDoNothing();
+    }
   }
 
   return { workspaceId, userId };

@@ -115,7 +115,13 @@ export type MemoryItem = z.infer<typeof MemoryItem>;
 export const SkillType = z.enum(['rubric', 'convention', 'security', 'custom']);
 export type SkillType = z.infer<typeof SkillType>;
 
-export const SkillSource = z.enum(['manual', 'imported_url', 'extracted', 'community']);
+export const SkillSource = z.enum([
+  'manual',
+  'imported_url',
+  'imported_file',
+  'extracted',
+  'community',
+]);
 export type SkillSource = z.infer<typeof SkillSource>;
 
 export const Skill = z.object({
@@ -130,6 +136,52 @@ export const Skill = z.object({
   evidence_files: z.array(z.string()).nullish(),
 });
 export type Skill = z.infer<typeof Skill>;
+
+/** Skill row as listed on the Skills page (adds how many agents use it). */
+export const SkillListItem = Skill.extend({ agent_count: z.number().int() });
+export type SkillListItem = z.infer<typeof SkillListItem>;
+
+export const SkillCreate = z.object({
+  name: z.string().min(1).max(120),
+  description: z.string().min(1).max(1000),
+  type: SkillType,
+  body: z.string().min(1).max(100_000),
+  source: SkillSource.optional(),
+  enabled: z.boolean().optional(),
+  /** Repo-relative files the skill was derived from (extracted skills). */
+  evidence_files: z.array(z.string().max(500)).max(50).optional(),
+});
+export type SkillCreate = z.infer<typeof SkillCreate>;
+
+export const SkillUpdate = SkillCreate.omit({ source: true }).partial();
+export type SkillUpdate = z.infer<typeof SkillUpdate>;
+
+export const SkillVersion = z.object({
+  skill_id: z.string(),
+  version: z.number().int(),
+  body: z.string(),
+  created_at: z.string(),
+});
+export type SkillVersion = z.infer<typeof SkillVersion>;
+
+/** Import: the client sends the raw file (base64); the server only parses it. */
+export const SkillImportRequest = z.object({
+  filename: z.string().min(1).max(255),
+  content_base64: z.string().min(1),
+});
+export type SkillImportRequest = z.infer<typeof SkillImportRequest>;
+
+/** Preview of an imported skill. Nothing is saved until the user confirms. */
+export const SkillImportPreview = z.object({
+  name: z.string(),
+  description: z.string(),
+  type: SkillType,
+  body: z.string(),
+  /** Archive entries that were NOT read (scripts, binaries, extra files). Never executed. */
+  ignored_files: z.array(z.string()),
+  warnings: z.array(z.string()),
+});
+export type SkillImportPreview = z.infer<typeof SkillImportPreview>;
 
 export const CommunitySkill = z.object({
   name: z.string(),
@@ -150,6 +202,30 @@ export const ConventionCandidate = z.object({
   accepted: z.boolean(),
 });
 export type ConventionCandidate = z.infer<typeof ConventionCandidate>;
+
+/** Edit one candidate: its text and/or whether it is accepted. */
+export const ConventionUpdate = z
+  .object({
+    rule: z.string().trim().min(1).max(500).optional(),
+    accepted: z.boolean().optional(),
+  })
+  .refine((v) => v.rule !== undefined || v.accepted !== undefined, {
+    message: 'Provide rule or accepted',
+  });
+export type ConventionUpdate = z.infer<typeof ConventionUpdate>;
+
+/** Select / deselect every candidate of a repo at once. */
+export const ConventionBulkAccept = z.object({ accepted: z.boolean() });
+export type ConventionBulkAccept = z.infer<typeof ConventionBulkAccept>;
+
+export const ConventionExtractResult = z.object({
+  candidates: z.array(ConventionCandidate),
+  /** How many files were sent to the model. */
+  sampled_files: z.number().int(),
+  /** Candidates the model proposed that failed the evidence check. */
+  dropped: z.number().int(),
+});
+export type ConventionExtractResult = z.infer<typeof ConventionExtractResult>;
 
 // ---- Agents ----
 // 'openrouter' routes through the OpenAI-compatible API (OpenAIProvider with a
@@ -188,6 +264,8 @@ export const Agent = z.object({
   // Inject repo-intel context (repo skeleton + callers + rank note) into this
   // agent's review prompt. Default on; gated again by the global flag.
   repo_intel: z.boolean().default(true),
+  /** Number of skills linked to this agent (list/get only). */
+  skill_count: z.number().int().optional(),
 });
 export type Agent = z.infer<typeof Agent>;
 

@@ -22,13 +22,22 @@ Entry: `YYYY-MM-DD — claim — why / what to do (`path` · `symbol`)`. No line
 
 - 2026-11-19 — Findings hover is a shared component rendered in a portal with fixed position (the PR list `tableCard` is `overflow: hidden` and would clip an absolutely-positioned popover); PR list data comes from `PrMeta.findings` (also changed in `server/`) (`pulls/_components/FindingsHover`).
 
+- 2026-11-23 — `SkillEditorModal` now lives in `src/components/skill-editor-modal/` (used by Skills and Conventions) and takes `initial/source/evidenceFiles/submitLabel/banner`; it sends `enabled` only when toggled off because `SkillEditorModal.test.tsx` pins the exact create payload.
+- 2026-11-23 — The `@devdigest/ui` `Icon` map has no `Pencil`; use `Edit` (alias) or `tsc` fails with TS2322 on `icon=` (`vendor/ui/icons.tsx`).
+
+- 2026-11-23 — Skill Config/Preview/Versioning live in the right-hand `SkillPanel` on `/skills`, NOT a `/skills/:id` page (deliberately removed): the panel is re-keyed per skill (`key={selected.id}`) so tab and form state reset on selection (`app/skills/_components/SkillsView/_components/SkillPanel`).
+
 ## Tool & Library Notes
 <!-- Dependency / CLI quirks, versions. -->
 
 - 2026-11-19 — `pnpm test` / `pnpm typecheck` can fail with `ERR_PNPM_VERIFY_DEPS_BEFORE_RUN` (pnpm ignores the `pnpm` field in `package.json`; env `npm_config_verify_deps_before_run=false` does not help) — run `./node_modules/.bin/vitest run` and `./node_modules/.bin/tsc --noEmit` directly, with node on PATH (nvm node is not on the agent shell PATH) (`client/package.json`).
 
+- 2026-11-23 — In tests `FormField` labels are not linked to inputs (find by placeholder/display value, not `getByLabelText`) and `Toggle` is `role="switch"` with no accessible name; native DnD works under jsdom with `fireEvent.dragStart/dragOver/drop` if code uses `e.dataTransfer?.` (`SkillsTab`, `SkillCard`).
+- 2026-11-23 — `@devdigest/ui` `Tabs` renders plain `<button>`s (no `role="tab"`) and draws its own bottom border: query tabs with `getByRole("button")` and don't add a second border around it (`vendor/ui/kit/Tabs.tsx`).
+
 ## Recurring Errors & Fixes
 <!-- `exact error text` — cause — fix. -->
+- 2026-11-23 — `tsc` reports `.next/types/validator.ts: TS2344 '"/skills/[id]"' does not satisfy the constraint 'AppRoutes'` right after adding a route while `next dev` runs — cause: generated route types lag behind — fix: wait a few seconds and re-run `tsc --noEmit`; after DELETING a route, `next dev` keeps `.next/types/app/<route>/page.ts` and tsc fails with TS2307 — remove that generated folder.
 
 ## Session Notes
 <!-- ### YYYY-MM-DD — task, then 1–3 bullets of what was added. -->
@@ -39,6 +48,18 @@ Entry: `YYYY-MM-DD — claim — why / what to do (`path` · `symbol`)`. No line
 
 ### 2026-11-19 — Run Cost Badge UI
 - Added the `runs` vs `prReview` i18n namespace split (the drawer COST label lives in `runs.json`).
+
+### 2026-11-23 — Skills UI (M2)
+- Added test quirks for FormField/Toggle and jsdom drag-and-drop; the RunTraceDrawer "Prompt assembly" section is collapsed by default, so click it before asserting token counts.
+
+### 2026-11-23 — Conventions page
+- Added the SkillEditorModal move/extension and the `Edit` icon name.
+
+### 2026-11-23 — Skill page `/skills/:id`
+- Added `Tabs` test/markup quirk and the stale `.next/types` tsc error.
+
+### 2026-11-23 — Skill tabs moved into the side panel
+- Removed `/skills/:id`; noted the re-key behaviour and the stale generated route types after deleting a route.
 
 ## Open Questions
 <!-- - [ ] YYYY-MM-DD — question — look at: … -->

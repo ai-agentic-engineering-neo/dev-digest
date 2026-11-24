@@ -21,7 +21,18 @@ const miniBtnStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
-export function PromptBlock({ label, text, color }: { label: string; text: string; color: string }) {
+export function PromptBlock({
+  label,
+  text,
+  color,
+  tokens,
+}: {
+  label: string;
+  text: string;
+  color: string;
+  /** Token count of this section (prompt_assembly.prompt_tokens); absent on older traces. */
+  tokens?: number;
+}) {
   const t = useTranslations("runs");
   const [open, setOpen] = React.useState(false);
   const [full, setFull] = React.useState(false);
@@ -36,6 +47,11 @@ export function PromptBlock({ label, text, color }: { label: string; text: strin
       <div {...disclosureProps(open, () => setOpen((o) => !o))} style={s.promptHead}>
         <span style={s.promptDot(color)} />
         <span style={s.promptLabel}>{label}</span>
+        {tokens != null && (
+          <span className="mono" style={{ fontSize: 11, color: "var(--text-muted)" }}>
+            {t("trace.prompt.tokens", { count: tokens })}
+          </span>
+        )}
         <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
           <button
             type="button"

@@ -49,6 +49,8 @@ export const PromptAssembly = z.object({
   /** PR author's description/body (truncated); null when absent. */
   pr_description: z.string().nullish(),
   user: z.string(),
+  /** Tokens per prompt section (tiktoken estimate); absent on older traces. */
+  prompt_tokens: z.record(z.string(), z.number().int()).optional(),
 });
 export type PromptAssembly = z.infer<typeof PromptAssembly>;
 

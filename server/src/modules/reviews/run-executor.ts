@@ -6,7 +6,8 @@ import * as schema from '../../db/schema.js';
 import type { AgentRow } from '../../db/rows.js';
 import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './repository.js';
 import { REVIEW_STRATEGY } from './constants.js';
-import { taskLine } from './helpers.js';
+import { taskLine, formatSkillBlocks } from './helpers.js';
+import { withPromptTokens } from '../../platform/trace-builder.js';
 import { loadDiff } from './diff-loader.js';
 
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
@@ -181,6 +182,10 @@ export class ReviewRunExecutor {
       const repoMap = repoIntelOn ? await this.buildRepoMapDigest(pull.repoId, runLog) : undefined;
       const rankNote = repoIntelOn ? await this.buildRankNote(pull.repoId, diff, runLog) : '';
 
+      // Skills linked to this agent (ordered by link order); only enabled ones.
+      const skillBlocks = formatSkillBlocks(await this.agents.linkedSkills(agent.id));
+      if (skillBlocks.length > 0) runLog.info(`skills: ${skillBlocks.length} enabled skill(s) attached`);
+
       const task = taskLine(pull) + rankNote;
 
       // ---- Engine: assemble → single-pass → grounding -----------------------
@@ -200,6 +205,8 @@ export class ReviewRunExecutor {
         ...(callersDigest ? { callers: callersDigest } : {}),
         // T3 — repo skeleton, same omit-when-empty contract.
         ...(repoMap ? { repoMap } : {}),
+        // Enabled linked skills, in link order; omitted when none.
+        ...(skillBlocks.length > 0 ? { skills: skillBlocks } : {}),
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
@@ -270,7 +277,7 @@ export class ReviewRunExecutor {
           findings: findingRows.length,
           grounding,
         },
-        prompt_assembly: outcome.assembly,
+        prompt_assembly: withPromptTokens(outcome.assembly, this.container.tokenizer),
         tool_calls: outcome.chunks.map((c) => ({
           tool: 'review_file',
           args: c.label,

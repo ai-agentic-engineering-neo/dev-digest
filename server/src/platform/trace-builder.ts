@@ -7,6 +7,7 @@ import type {
   ToolCall,
 } from '@devdigest/shared';
 import { RunTrace as RunTraceSchema } from '@devdigest/shared';
+import type { Tokenizer } from '../adapters/tokenizer/index.js';
 
 /**
  * A5 — shared run-trace builder. A2's single-agent reviewer and A5's
@@ -59,4 +60,25 @@ export function buildRunTrace(input: BuildTraceInput): RunTrace {
 /** An empty prompt-assembly for detectors that don't call an LLM. */
 export function emptyPromptAssembly(system: string, user: string): PromptAssembly {
   return { system, skills: null, memory: null, specs: null, user };
+}
+
+const TOKEN_SECTIONS = [
+  'system',
+  'skills',
+  'memory',
+  'specs',
+  'callers',
+  'repo_map',
+  'pr_description',
+  'user',
+] as const;
+
+/** Attach per-section token counts (absent/empty sections count as 0). */
+export function withPromptTokens(assembly: PromptAssembly, tokenizer: Tokenizer): PromptAssembly {
+  const prompt_tokens: Record<string, number> = {};
+  for (const key of TOKEN_SECTIONS) {
+    const text = assembly[key];
+    prompt_tokens[key] = typeof text === 'string' && text.length > 0 ? tokenizer.count(text) : 0;
+  }
+  return { ...assembly, prompt_tokens };
 }

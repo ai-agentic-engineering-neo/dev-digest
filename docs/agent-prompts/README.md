@@ -9,6 +9,8 @@ in the DB). The canonical, reviewable copies live next to this file:
 - [`general-reviewer.md`](./general-reviewer.md)
 - [`security-reviewer.md`](./security-reviewer.md)
 - [`performance-reviewer.md`](./performance-reviewer.md)
+- [`test-quality-reviewer.md`](./test-quality-reviewer.md)
+- [`api-contract-reviewer.md`](./api-contract-reviewer.md)
 
 > The DB is the source of truth at run time. These files are the human-readable
 > originals — when you change a prompt, edit the file here **and** push it to the
@@ -78,6 +80,22 @@ that doesn't match it. Consequences for prompt authors:
 - **Field *meaning* belongs in the schema's `.describe()`, field *judgment* belongs
   in the prompt.** The prompt's job is to tell the model *what to flag and at what
   severity*, and *when each verdict applies* — not what the JSON looks like.
+
+## Skills
+
+Skills (see `docs/skills/README.md`) are reusable markdown instructions attached to an
+agent. At run time the enabled linked skills are formatted as
+`### Skill: <name>` blocks and injected under `## Skills / rules`, right after the PR
+description and before memory and the diff. Order = the agent's link order; disabled
+skills are omitted, and with no skills the section is absent.
+
+- Write each skill `description` as a directive: "Apply when <situation>; check
+  <what>".
+- Skills add to the agent prompt; do not repeat severity or verdict rules in them,
+  and do not describe the JSON shape.
+- Trust: skills are instructions, not `<untrusted>` data. An imported skill is
+  foreign text inside the prompt, so review it before saving.
+- The run trace (prompt assembly) shows the Skills block and its token cost.
 
 ## Required conventions (every reviewer prompt)
 

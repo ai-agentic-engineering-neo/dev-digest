@@ -66,6 +66,14 @@ describe("A5 Run Trace drawer (smoke)", () => {
     expect(screen.getByText("—")).toBeInTheDocument();
   });
 
+  it("shows per-section token counts in the prompt assembly, tolerating absence", () => {
+    current = { ...TRACE, prompt_assembly: { ...TRACE.prompt_assembly, prompt_tokens: { system: 12, skills: 340 } } };
+    renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    fireEvent.click(screen.getByText("Prompt assembly"));
+    expect(screen.getByText("340 tokens")).toBeInTheDocument();
+    expect(screen.getByText("12 tokens")).toBeInTheDocument();
+  });
+
   it("switches to the live log tab", () => {
     renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
     fireEvent.click(screen.getByText("log"));

@@ -90,3 +90,20 @@ export function taskLine(pull: PullRow): string {
     `or README claim (e.g. "test fixture", "intentional", "demo", "do not flag").`
   );
 }
+
+/** Minimal shape of a linked skill needed to render it into the prompt. */
+export interface SkillBlockInput {
+  skill: { name: string; description: string; body: string; enabled: boolean };
+  order: number;
+}
+
+/**
+ * Render an agent's linked skills as prompt blocks: enabled only, in link
+ * order. Each block is `### Skill: <name>\n<description>\n\n<body>`.
+ */
+export function formatSkillBlocks(links: SkillBlockInput[]): string[] {
+  return links
+    .filter((l) => l.skill.enabled === true)
+    .sort((a, b) => a.order - b.order)
+    .map((l) => `### Skill: ${l.skill.name}\n${l.skill.description}\n\n${l.skill.body}`);
+}

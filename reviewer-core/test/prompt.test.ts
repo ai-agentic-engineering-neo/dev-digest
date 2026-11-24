@@ -4,7 +4,7 @@
  * truncation, and ordering (before the diff).
  */
 import { describe, it, expect } from 'vitest';
-import { assemblePrompt } from '../src/prompt.js';
+import { assemblePrompt, INJECTION_GUARD } from '../src/prompt.js';
 
 function userOf(parts: Parameters<typeof assemblePrompt>[0]): string {
   const { messages } = assemblePrompt(parts);
@@ -62,5 +62,46 @@ describe('assemblePrompt — ## PR description', () => {
       prDescription: 'x'.repeat(10_000),
     });
     expect((assembly.pr_description as string).length).toBe(4000);
+  });
+});
+
+describe('assemblePrompt — ## Skills / rules', () => {
+  const SKILLS = ['### Skill: A\nbody-A', '### Skill: B\nbody-B', '### Skill: C\nbody-C'];
+
+  it('renders the section with skills in the given order (A before B before C)', () => {
+    const user = userOf({ system: 'S', diff: 'DIFF', skills: SKILLS });
+    expect(user).toContain('## Skills / rules');
+    const a = user.indexOf('body-A');
+    const b = user.indexOf('body-B');
+    const c = user.indexOf('body-C');
+    expect(a).toBeGreaterThan(user.indexOf('## Skills / rules'));
+    expect(a).toBeLessThan(b);
+    expect(b).toBeLessThan(c);
+  });
+
+  it('omits the section for an empty array and for undefined', () => {
+    expect(userOf({ system: 'S', diff: 'DIFF', skills: [] })).not.toContain('## Skills / rules');
+    expect(userOf({ system: 'S', diff: 'DIFF' })).not.toContain('## Skills / rules');
+  });
+
+  it('assembly.skills is null when absent and holds all bodies when present', () => {
+    expect(assemblePrompt({ system: 'S', diff: 'D' }).assembly.skills).toBeNull();
+    expect(assemblePrompt({ system: 'S', diff: 'D', skills: [] }).assembly.skills).toBeNull();
+    const skills = assemblePrompt({ system: 'S', diff: 'D', skills: SKILLS }).assembly.skills;
+    expect(skills).not.toBeNull();
+    for (const s of SKILLS) expect(skills).toContain(s);
+  });
+
+  it('places skills after the PR description and before the diff', () => {
+    const user = userOf({ system: 'S', diff: 'DIFF', prDescription: 'PRD', skills: SKILLS });
+    expect(user.indexOf('## PR description')).toBeLessThan(user.indexOf('## Skills / rules'));
+    expect(user.indexOf('## Skills / rules')).toBeLessThan(user.indexOf('## Diff to review'));
+  });
+});
+
+describe('INJECTION_GUARD export', () => {
+  it('is the exact guard assemblePrompt appends, so standalone LLM calls can reuse it', () => {
+    const [system] = assemblePrompt({ system: 'S', diff: 'D' }).messages;
+    expect(system?.content).toBe(`S\n\n${INJECTION_GUARD}`);
   });
 });

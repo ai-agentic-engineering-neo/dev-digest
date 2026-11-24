@@ -34,9 +34,14 @@ function highlightLine(line: string, q: string): React.ReactNode {
 export function PromptModalBody({ text }: { text: string }) {
   const t = useTranslations("runs");
   const [q, setQ] = React.useState("");
-  const lines = React.useMemo(() => (text || "—").split("\n"), [text]);
+  // Each line keeps its 0-based position in the prompt: that line number is the
+  // line's identity (unique, unchanged by the search filter) and its React key.
+  const lines = React.useMemo(
+    () => (text || "—").split("\n").map((line, no) => ({ no, line })),
+    [text],
+  );
   const ql = q.trim().toLowerCase();
-  const shown = ql ? lines.filter((l) => l.toLowerCase().includes(ql)) : lines;
+  const shown = ql ? lines.filter((l) => l.line.toLowerCase().includes(ql)) : lines;
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "70vh" }}>
       <div style={{ padding: "12px 24px", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
@@ -63,7 +68,7 @@ export function PromptModalBody({ text }: { text: string }) {
             className="mono"
             style={{ margin: 0, padding: "16px 24px", whiteSpace: "pre-wrap", fontSize: 12.5, lineHeight: 1.6 }}
           >
-            {ql ? shown.map((l, i) => <div key={i}>{highlightLine(l, q)}</div>) : text || "—"}
+            {ql ? shown.map((l) => <div key={l.no}>{highlightLine(l.line, q)}</div>) : text || "—"}
           </pre>
         )}
       </div>

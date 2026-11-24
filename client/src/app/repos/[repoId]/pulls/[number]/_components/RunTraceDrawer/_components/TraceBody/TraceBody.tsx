@@ -5,8 +5,9 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Badge } from "@devdigest/ui";
-import type { RunTrace, FindingRecord } from "@devdigest/shared";
+import type { RunTrace, FindingRecord, ToolCall } from "@devdigest/shared";
 import { formatCost } from "@/lib/format-cost";
+import { dedupeKeys } from "@/lib/stable-keys";
 import { PROMPT_COLORS } from "../../constants";
 import { formatSeconds, formatTokens } from "../../helpers";
 import { s } from "../../styles";
@@ -15,6 +16,13 @@ import { ToolCallRow } from "../ToolCallRow";
 import { PromptBlock } from "../PromptBlock";
 import { FindingsSection } from "../FindingsSection";
 import { Row, Stat } from "../atoms";
+
+/** ToolCall has no id, so key by what identifies the call: the tool and its
+ *  args (a ToolCallRow's open state then follows the call, not the slot). The
+ *  same call can legitimately repeat, so repeats get an occurrence suffix. */
+function toolCallKeys(calls: ToolCall[]): string[] {
+  return dedupeKeys(calls.map((tc) => `${tc.tool}(${tc.args})`));
+}
 
 export function TraceBody({ trace, findings }: { trace: RunTrace; findings: FindingRecord[] }) {
   const t = useTranslations("runs");
@@ -41,9 +49,9 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
               {trace.specs_read.length === 0 ? (
                 <span style={s.specsNone}>{t("trace.config.none")}</span>
               ) : (
-                trace.specs_read.map((sp, i) => (
-                  <span key={i} className="mono" style={s.spec}>
-                    {sp}
+                dedupeKeys(trace.specs_read).map((key, i) => (
+                  <span key={key} className="mono" style={s.spec}>
+                    {trace.specs_read[i]}
                   </span>
                 ))
               )}
@@ -99,7 +107,7 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
         {trace.tool_calls.length === 0 ? (
           <span style={s.noToolCalls}>{t("trace.noToolCalls")}</span>
         ) : (
-          trace.tool_calls.map((tc, i) => <ToolCallRow key={i} tc={tc} />)
+          toolCallKeys(trace.tool_calls).map((key, i) => <ToolCallRow key={key} tc={trace.tool_calls[i]!} />)
         )}
       </TraceSection>
 

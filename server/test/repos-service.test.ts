@@ -30,6 +30,7 @@ function setup(opts: { indexHandler?: boolean } = {}) {
     enqueue: async (_ws, kind, payload) => {
       if (kind === 'repo-intel-index' && !opts.indexHandler) throw new Error('no handler');
       enqueued.push({ kind, payload });
+      return { id: `j${enqueued.length}` };
     },
   };
   const service = new ReposService({

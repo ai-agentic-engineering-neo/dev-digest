@@ -20,24 +20,23 @@ function buildDegradedService(opts: {
   basics?: RepoBasics | null;
   indexStateRow?: IndexState | null;
 }): RepoIntelService {
-  const container = {
-    config: { repoIntelEnabled: opts.flag },
-    db: {} as never,
-    // codeIndex is reached by getBlastRadius; we stub minimal behaviour.
-    codeIndex: {
-      symbols: async () => [],
-      references: async () => [],
+  return new RepoIntelService({
+    enabled: opts.flag,
+    // Repository stub: null/[] everywhere so the degraded paths run cleanly.
+    repository: {
+      getRepoBasics: async () => opts.basics ?? null,
+      tryGetIndexState: async () => opts.indexStateRow ?? null,
+      getCachedSymbols: async () => [],
+      getCachedSymbolsForFiles: async () => [],
+      getCachedReferencesTo: async () => [],
     } as never,
-  } as never;
-  const svc = new RepoIntelService(container);
-  (svc as unknown as { repo: Record<string, unknown> }).repo = {
-    getRepoBasics: async () => opts.basics ?? null,
-    tryGetIndexState: async () => opts.indexStateRow ?? null,
-    getCachedSymbols: async () => [],
-    getCachedSymbolsForFiles: async () => [],
-    getCachedReferencesTo: async () => [],
-  };
-  return svc;
+    // codeIndex is reached by getBlastRadius; minimal behaviour.
+    codeIndex: { symbols: async () => [], references: async () => [] } as never,
+    git: {} as never,
+    depgraph: {} as never,
+    tokenizer: {} as never,
+    jobs: { register: () => {} },
+  });
 }
 
 describe('RepoIntel facade — degraded contract (flag off)', () => {

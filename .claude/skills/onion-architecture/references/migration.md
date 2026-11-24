@@ -7,11 +7,9 @@ identical, with existing tests green before and after. Don't mix a migration wit
 
 | Violation | Files |
 |---|---|
-| Service/helper takes the whole `Container` | `reviews/service.ts`, `reviews/run-executor.ts`, `reviews/diff-loader.ts`, `repo-intel/service.ts`, `repo-intel/pipeline/{full,incremental}.ts`, `_shared/context.ts` |
-| Service constructs its own Drizzle repo (`new XRepository(container.db)`) | `repo-intel/service.ts:105`, `reviews/service.ts:34` |
+| Service/helper takes the whole `Container` | `reviews/service.ts`, `reviews/run-executor.ts`, `reviews/diff-loader.ts`, `_shared/context.ts` |
+| Service constructs its own Drizzle repo (`new XRepository(container.db)`) | `reviews/service.ts:34` |
 | Drizzle / `db/schema` outside a repository | `reviews/run-executor.ts`, `reviews/diff-loader.ts`, `_shared/schemas.ts` |
-| Adapter depends on a feature module | `adapters/depgraph/index.ts`, `adapters/astgrep/index.ts` → `modules/repo-intel/constants.ts` (move `SUPPORTED_EXT` etc. to `_shared` or pass it in) |
-| Import cycles via the Container | `platform/container.ts` ⇄ `repo-intel/service.ts`, `pipeline/{full,incremental}.ts` |
 | HTTP status inside domain errors | `platform/errors.ts` (`AppError.statusCode`) |
 | Composition outside the root | `app.ts:82` `new ReviewService(container).reapStaleRuns()` (acceptable — `app.ts` is the root — but must use the new constructor) |
 
@@ -25,7 +23,7 @@ cd server && pnpm exec depcruise src --config .dependency-cruiser.cjs --no-ignor
 1. **agents** — pilot, **done 2026-11-24**: `domain/ application/ infrastructure/ http/` + `index.ts`; UoW (`_shared/domain/unit-of-work.ts`, `DrizzleAgentsUnitOfWork`), `DomainError` + `DOMAIN_STATUS` in `platform/errors.ts`. Use it as the reference module. Leftover: `reviews` still types agents as `AgentRow` (works because the domain `Agent` mirrors the row) — switch it to the `AgentsRepository` port when `reviews` migrates.
 2. **settings**, **workspace**, **polling**, **pulls** — **done 2026-11-24**. Shared kernel grew: `RepoNotFound`, `DomainError.details`, `Logger` port (`_shared/domain/`). Patterns worth copying: a single-aggregate atomic write may run `db.transaction` inside the repository method (`recordPoll`, `storeDetail`, settings `upsert`) — use a UoW only when a use case spans several repository calls; jsonb is parsed in infrastructure (`settings` `featureModelOverride`); secrets/SDK probes become small ports adapted in `index.ts` (`settings`).
 3. **repos** — **done 2026-11-24**. Job kinds moved to `_shared/job-kinds.ts` (repo-intel re-exports them); `JobScheduler` port in `_shared/domain/jobs.ts` (JobRunner satisfies it structurally); `InvalidRepoUrl` domain error. Lazily-resolved adapters are passed as factories (`git: () => c.git`) so test overrides and new tokens are picked up per job.
-4. **repo-intel** — already has a facade interface (`types.ts` `RepoIntel`); pipeline files take `Container` → pass narrow deps.
+4. **repo-intel** — **done 2026-11-24 (narrow deps)**: `RepoIntelService` takes `RepoIntelDeps`, the pipeline takes `IndexerDeps`; `container.repoIntelService` builds them with lazy getters (adapters still built on first use); routes in `http/`, `index.ts` factory registers the job handlers; `SUPPORTED_EXT`/`MAX_SIGNATURE_CHARS` moved to `adapters/code-scope.ts` (re-exported by `constants.ts`). Not done: the ring split of the 765-line facade and the pipeline (they still import `adapters/*` and `platform/contained-read` directly — legal for a non-`application/` folder). Do it with S4 when the facade gains features.
 5. **reviews** — last: `run-executor` is the most coupled (LLM, git, RunBus, DB, pricing).
 6. `platform/errors.ts` — once no module relies on `AppError.statusCode` from inner code, keep `AppError` for delivery only.
 

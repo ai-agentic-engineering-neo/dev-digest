@@ -7,8 +7,8 @@
 export { INDEX_JOB_KIND, REFRESH_JOB_KIND, RESYNC_JOB_KIND } from '../_shared/job-kinds.js';
 
 // --- Walk / parse scope -----------------------------------------------------
-/** [T1] Files we parse (diff-scoped in T1; whole walk in T2). */
-export const SUPPORTED_EXT = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'] as const;
+/** [T1] Files we parse — defined next to the adapters that share it. */
+export { SUPPORTED_EXT, MAX_SIGNATURE_CHARS } from '../../adapters/code-scope.js';
 
 /** [T1] Directories never walked. `.gitignore` is layered on top in T2 walk. */
 export const EXCLUDED_DIRS = [
@@ -46,5 +46,3 @@ export const INDEX_SOFT_BUDGET_MS = 110_000;
 export const BFS_DEPTH = 2;
 export const HOTNESS_WINDOW_DAYS = 180;
 export const DEFAULT_REPO_MAP_TOKEN_BUDGET = 1500;
-/** Signatures are trimmed to this many chars in the parse phase (cache stability). */
-export const MAX_SIGNATURE_CHARS = 120;

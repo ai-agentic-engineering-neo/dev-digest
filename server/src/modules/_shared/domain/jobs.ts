@@ -8,5 +8,5 @@ export type JobHandler = (payload: unknown, ctx: { jobId: string }) => Promise<v
 export interface JobScheduler {
   register(kind: string, handler: JobHandler): void;
   /** Throws when no handler is registered for `kind`. */
-  enqueue(workspaceId: string, kind: string, payload: unknown): Promise<unknown>;
+  enqueue(workspaceId: string, kind: string, payload: unknown): Promise<{ id: string }>;
 }

@@ -32,7 +32,8 @@ results rather than throwing).
 
 ## Facade (`repoIntel.*`)
 
-Everything downstream reads through one facade (`service.ts`) so consumers never
+Everything downstream reads through one facade (`service.ts`, reached as `container.repoIntel`;
+its deps are built in `platform/container.ts`, never the Container itself) so consumers never
 touch the pipeline internals:
 
 - `getRepoMap(repoId)` → the cached repo skeleton (fed into the **review prompt**).

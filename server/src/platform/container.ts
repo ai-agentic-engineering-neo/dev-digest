@@ -29,6 +29,7 @@ import { DrizzleAgentsUnitOfWork } from '../modules/agents/infrastructure/agents
 import { ReviewRepository } from '../modules/reviews/repository.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
+import { RepoIntelRepository } from '../modules/repo-intel/repository.js';
 import { type DepGraph, DepCruiseGraph } from '../adapters/depgraph/index.js';
 import { type Tokenizer, TiktokenTokenizer } from '../adapters/tokenizer/index.js';
 
@@ -75,7 +76,7 @@ export class Container {
   private _agentsRepo?: AgentsRepository;
   private _agentsUow?: AgentsUnitOfWork;
   private _reviewRepo?: ReviewRepository;
-  private _repoIntel?: RepoIntel;
+  private _repoIntelService?: RepoIntelService;
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
   private _priceBook?: PriceBook;
@@ -123,9 +124,33 @@ export class Container {
    * Tests inject a mock via `ContainerOverrides.repoIntel`.
    */
   get repoIntel(): RepoIntel {
-    if (this.overrides.repoIntel) return this.overrides.repoIntel;
-    this._repoIntel ??= new RepoIntelService(this);
-    return this._repoIntel;
+    return this.overrides.repoIntel ?? this.repoIntelService;
+  }
+
+  /**
+   * The concrete facade + indexer (job handlers live here). Adapters are passed
+   * as lazy getters so they are still built on first use, as before.
+   */
+  get repoIntelService(): RepoIntelService {
+    const c = this; // the getters below read the live container
+    this._repoIntelService ??= new RepoIntelService({
+      repository: new RepoIntelRepository(this.db),
+      get git() {
+        return c.git;
+      },
+      get depgraph() {
+        return c.depgraph;
+      },
+      get tokenizer() {
+        return c.tokenizer;
+      },
+      get codeIndex() {
+        return c.codeIndex;
+      },
+      jobs: this.jobs,
+      enabled: this.config.repoIntelEnabled,
+    });
+    return this._repoIntelService;
   }
 
   /** Import-graph builder (dependency-cruiser). T3 indexer pipeline only. */

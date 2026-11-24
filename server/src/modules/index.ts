@@ -6,7 +6,7 @@ import polling from './polling/index.js';
 import workspace from './workspace/index.js';
 import agents from './agents/index.js';
 import reviews from './reviews/routes.js';
-import repoIntel from './repo-intel/routes.js';
+import repoIntel from './repo-intel/index.js';
 
 /**
  * Module registry. Each feature module is a Fastify plugin — legacy modules

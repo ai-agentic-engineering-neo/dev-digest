@@ -4,7 +4,7 @@ import { NextIntlClientProvider } from "next-intl";
 import type { ReviewRecord } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/prReview.json";
 
-vi.mock("../../../../../../../lib/hooks/reviews", () => ({
+vi.mock("@/lib/hooks/reviews", () => ({
   useDeleteReview: () => ({ mutate: vi.fn(), isPending: false }),
   useFindingAction: () => ({ mutate: vi.fn(), isPending: false }),
 }));

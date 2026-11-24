@@ -6,10 +6,10 @@ import messages from "../../../../../../../../messages/en/prReview.json";
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
 }));
-vi.mock("../../../../../../../lib/hooks/agents", () => ({
+vi.mock("@/lib/hooks/agents", () => ({
   useAgents: () => ({ data: [{ id: "a1", name: "Security", model: "gpt-4.1", enabled: true }] }),
 }));
-vi.mock("../../../../../../../lib/hooks/reviews", () => ({
+vi.mock("@/lib/hooks/reviews", () => ({
   useRunReview: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 

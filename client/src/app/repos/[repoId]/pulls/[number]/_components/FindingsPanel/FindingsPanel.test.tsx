@@ -5,7 +5,7 @@ import type { FindingRecord } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/prReview.json";
 
 const mutate = vi.fn();
-vi.mock("../../../../../../../lib/hooks/reviews", () => ({
+vi.mock("@/lib/hooks/reviews", () => ({
   useFindingAction: () => ({ mutate, isPending: false }),
 }));
 

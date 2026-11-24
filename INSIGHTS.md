@@ -12,6 +12,7 @@ Selection rules, review and promotion to CLAUDE.md — skill `engineering-insigh
 
 - 2026-11-20 · .claude/insights guard · guard.mjs only intercepts Write|Edit|MultiEdit, so a shell write (sed -i, >, node fs) to INSIGHTS*.md bypasses append-only silently → NEVER modify INSIGHTS files via Bash except a deliberate, user-approved header change, and ALWAYS diff the body afterwards, because git is the only safety net there · .claude/settings.json PreToolUse matcher, .claude/skills/engineering-insights/hooks/guard.mjs
 - 2026-11-20 · run cost · reviewer-core still returns costUsd (OpenRouter usage.cost / PriceBook), but per-run cost was removed from DB, contracts and UI → before re-adding cost, read `git show d45ab0d` for the full touchpoint list, because it spans schema, run.repo, run-executor, both vendor/shared copies, TraceBody, i18n and fixtures · d45ab0d, migration 0009
+- 2026-11-24 · linting · no package (client, server, reviewer-core, e2e) has ESLint and no CI workflow lints, so existing '// eslint-disable…' comments (e.g. ReviewRunAccordion.tsx exhaustive-deps) are dead and hook-deps / floating-promise / type-only-import mistakes pass CI → don't assume a lint gate exists: check these by hand in review, and run typecheck + tests as the only automated gate until the ESLint step from docs/improvement-plan.md (X1) lands · ls -a per package, .github/workflows/*.yml
 
 ## Tool & Library Notes
 

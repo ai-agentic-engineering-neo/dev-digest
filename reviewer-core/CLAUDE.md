@@ -35,6 +35,7 @@ TypeScript 5.7 · Zod 3.24 · openai SDK 4 (for OpenRouter) · vitest 2 · **npm
 - Before changing exports → read README.md ("Public API")
 - Before changing feature behavior → read specs/<feature>.md if it exists
 - Before a design-level change → read docs/
+- Before adding a dependency or a new port → skill `onion-architecture` (this package is the pure core)
 - Before editing anything here → read INSIGHTS.md
 
 ## Insights

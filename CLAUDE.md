@@ -27,7 +27,7 @@ Working in a subproject → read its CLAUDE.md first (auto-loading is unreliable
 - Zod contracts are copied twice: server/src/vendor/shared and client/src/vendor/shared, and the copies have already diverged.
   Changing a contract → update both copies. reviewer-core reads the copy in server/.
 - A change in reviewer-core/** triggers CI server-unit — also check the server typecheck
-- .claude/skills/* — vendored skills for the assistant, not product code; the exception is our own engineering-insights (its hooks are in .claude/settings.json)
+- .claude/skills/* — vendored skills for the assistant, not product code; the exceptions are our own engineering-insights (its hooks are in .claude/settings.json), onion-architecture (backend layering rules for server/ + reviewer-core) and frontend-ui-architecture (code organization rules for client/)
 
 ## Do not touch
 - `docker compose down -v` — destroys the devdigest_pgdata volume with all imported repos

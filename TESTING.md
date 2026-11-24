@@ -39,7 +39,10 @@ If a test wouldn't catch a class of regression we care about, we don't write it.
 surface (list, diff, findings, run controls) and the agent editor.
 
 **server-unit** — the DB-free majority: adapters, prompt assembly, grounding,
-repo-intel ranking & indexing, pricing, route smoke. The `typecheck` job also
+repo-intel ranking & indexing, pricing, route smoke, and the Onion Architecture
+gate (`test/architecture.test.ts`: dependency-cruiser with `.dependency-cruiser.cjs`,
+failing on import violations not in `.dependency-cruiser-known-violations.json` —
+see skill `onion-architecture`). The `typecheck` job also
 runs on Windows, which doubles as the `@ast-grep/napi` prebuilt gate (install
 fails there if the win32 prebuilt is missing).
 

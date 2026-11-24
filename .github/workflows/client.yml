@@ -9,10 +9,14 @@ on:
     branches: [main]
     paths:
       - 'client/**'
+      - 'server/src/vendor/shared/**'
+      - 'scripts/check-contracts.sh'
       - '.github/workflows/client.yml'
   pull_request:
     paths:
       - 'client/**'
+      - 'server/src/vendor/shared/**'
+      - 'scripts/check-contracts.sh'
       - '.github/workflows/client.yml'
 
 permissions:
@@ -31,6 +35,11 @@ jobs:
         working-directory: client
     steps:
       - uses: actions/checkout@v4
+
+      # The two vendored contract copies must stay identical (server is the source).
+      - name: Contracts in sync
+        working-directory: .
+        run: ./scripts/check-contracts.sh
 
       - uses: pnpm/action-setup@v4
         with:

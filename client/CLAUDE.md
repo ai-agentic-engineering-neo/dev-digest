@@ -24,7 +24,7 @@ Next.js 15.5 (App Router) · React 19 · TanStack Query · next-intl 3 · Zod 3.
 - Take primitives from src/vendor/ui; don't pull in a new UI library
 
 ## Gotchas
-- vendor/shared here lags behind server: LLMProvider.id has no `openrouter`, and `commitFiles`, `sync`, `diffNameOnly`, `sessionId` are missing
+- vendor/shared must equal server/src/vendor/shared (CI: scripts/check-contracts.sh) — change contracts in server, then `cp -R ../server/src/vendor/shared/. src/vendor/shared/`
 - Browser scenarios are covered by ../e2e, not by vitest here
 
 ## Do not touch

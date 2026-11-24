@@ -24,7 +24,8 @@ Working in a subproject → read its CLAUDE.md first (auto-loading is unreliable
 - There is NO monorepo workspace: each package has its own package.json and lockfile.
   pnpm — client/, server/; npm — reviewer-core/, e2e/. Don't mix them.
 - Code is shared between packages via tsconfig path aliases; server imports the sources of ../reviewer-core/src
-- Zod contracts are copied twice: server/src/vendor/shared and client/src/vendor/shared, and the copies have already diverged.
+- Zod contracts are copied twice: server/src/vendor/shared (source of truth) and client/src/vendor/shared; they must stay byte-identical —
+  `scripts/check-contracts.sh` enforces it in CI (client workflow).
   Changing a contract → update both copies. reviewer-core reads the copy in server/.
 - A change in reviewer-core/** triggers CI server-unit — also check the server typecheck
 - .claude/skills/* — vendored skills for the assistant, not product code; the exceptions are our own engineering-insights (its hooks are in .claude/settings.json), onion-architecture (backend layering rules for server/ + reviewer-core) and frontend-ui-architecture (code organization rules for client/)

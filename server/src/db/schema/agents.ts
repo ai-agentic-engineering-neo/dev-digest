@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, integer, boolean, jsonb, primaryKey } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, integer, boolean, jsonb, primaryKey, index } from 'drizzle-orm/pg-core';
 import { now } from './_shared';
 import { workspaces, users } from './core';
 import { skills } from './skills';
@@ -33,7 +33,10 @@ export const agents = pgTable('agents', {
   version: integer('version').notNull().default(1),
   createdBy: uuid('created_by').references(() => users.id),
   createdAt: now(),
-});
+}, (t) => ({
+  // Agent list per workspace (every page).
+  wsIdx: index('agents_ws_idx').on(t.workspaceId),
+}));
 
 export const agentVersions = pgTable(
   'agent_versions',
@@ -59,5 +62,9 @@ export const agentSkills = pgTable(
       .references(() => skills.id, { onDelete: 'cascade' }),
     order: integer('order').notNull().default(0),
   },
-  (t) => ({ pk: primaryKey({ columns: [t.agentId, t.skillId] }) }),
+  (t) => ({
+    pk: primaryKey({ columns: [t.agentId, t.skillId] }),
+    // The PK leads with agent_id; skill deletes cascade by skill_id.
+    skillIdx: index('agent_skills_skill_idx').on(t.skillId),
+  }),
 );

@@ -6,7 +6,7 @@
  * + age, so it gets unit coverage independent of the route's queries.
  */
 import { describe, it, expect } from 'vitest';
-import { deriveReviewStatus, rollupSeverities, STALE_DAYS } from '../src/modules/pulls/status.js';
+import { deriveReviewStatus, rollupSeverities, STALE_DAYS } from '../src/modules/pulls/domain/status.js';
 
 const DAY = 86_400_000;
 const now = Date.UTC(2026, 5, 11);

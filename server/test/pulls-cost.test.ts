@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { aggregatePrCosts, type RunCostRow } from '../src/modules/pulls/cost.js';
+import { aggregatePrCosts, type RunCostRow } from '../src/modules/pulls/domain/cost.js';
 
 const row = (o: Partial<RunCostRow>): RunCostRow => ({
   prId: 'pr1',

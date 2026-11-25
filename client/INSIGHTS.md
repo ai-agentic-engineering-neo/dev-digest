@@ -46,6 +46,16 @@ actionable cold.
 **Rule:** ALWAYS put `var(--bg-primary)` as text color on a background of `SEV[lvl].c` — because it is a theme token and was the agreed choice over `#fff`.
 **Evidence:** `FindingsPanel/styles.ts` → `severityChip()`; `client/specs/m1-severity-filter/SPEC.md` §3 Look
 
+### 2026-11-25 — Use the @/ alias in new imports despite existing ../../../ chains
+**Insight:** About 30 files under `client/src` import shared code via `../../../`+ chains although `tsconfig.json` maps `@/*` → `./src/*`; copying a neighbour's import spreads the debt.
+**Rule:** ALWAYS write `@/lib/...` for imports leaving the component folder and import hooks from the domain file (`@/lib/hooks/agents`), not the `export *` barrel `src/lib/hooks/index.ts` — because deep chains break on moves and aggregate barrels invite cycles; fix chains only in files you touch.
+**Evidence:** `src/app/agents/_components/AgentCard/AgentCard.tsx` → `useDeleteAgent` import | `grep -rlE 'from "(\.\./){3,}' client/src`
+
+### 2026-11-25 — Client contract copy lacks openrouter and newer schemas
+**Insight:** `client/src/vendor/shared` has drifted functionally from the server copy: `LLMProvider.id` and the `productionize.ts` provider enum lack `'openrouter'`, and `AgentVersionConfig`, `AgentManifest`, `CommitFile` are missing — while the UI already sends `provider: "openrouter"`.
+**Rule:** ALWAYS run `diff -rq server/src/vendor/shared client/src/vendor/shared` after touching a contract and copy server → client — because typecheck passes on the stale copy, so drift is silent.
+**Evidence:** `client/src/vendor/shared/adapters.ts` → `LLMProvider` | `SettingsModels.tsx` → `feature_models` | `docs/improvement-plan.md` P0-2
+
 ## Tool & Library Notes
 
 ### 2026-11-22 — @testing-library/user-event is not installed in client
@@ -57,6 +67,22 @@ actionable cold.
 **Insight:** pnpm ≥11 no longer reads the `pnpm.overrides` field of `client/package.json`, so its pre-run deps check fails and `pnpm test` / `pnpm typecheck` / `pnpm dev` exit before running; a piped `| tail` hides the non-zero exit.
 **Rule:** ALWAYS use pnpm 10 (`npm i -g pnpm@10`), or set `pnpm_config_verify_deps_before_run=false` for a one-off run, and NEVER run `pnpm install` under pnpm 12 here — because it would drop the overrides from the lockfile.
 **Evidence:** `client/package.json` → `pnpm.overrides`; command `pnpm_config_verify_deps_before_run=false pnpm typecheck`
+
+### 2026-11-25 — eslint-disable comments in client suppress nothing
+**Insight:** No package has an ESLint config or `lint` script, so `// eslint-disable-line react-hooks/exhaustive-deps` in `ConfigTab.tsx` and `ReviewRunAccordion.tsx` is decorative and hook-rule violations go unchecked.
+**Rule:** NEVER treat an eslint-disable comment as proof a rule was considered — because no linter runs; verify hook deps by hand until P0-1 in `docs/improvement-plan.md` lands.
+**Evidence:** `client/package.json` (no lint script) | `ConfigTab.tsx` → reset `useEffect`
+> **Superseded 2026-11-25:** ESLint now runs (`client/eslint.config.mjs`, `pnpm lint`, `client.yml`); disable comments are live again and an unused one is reported.
+
+### 2026-11-25 — no-restricted-imports group negation ignores ../ paths
+**Insight:** In `no-restricted-imports`, a `group` like `["../../../*", "!**/messages/**"]` still flags `../../../../messages/en/x.json`, because the gitignore-style matcher doesn't apply `**` negations to paths starting with `../`.
+**Rule:** ALWAYS express "deep relative except X" with the `regex` option (`^(?:\.\./){3,}(?!\.\./)(?!messages/)`) — because `group` negation silently keeps the false positives.
+**Evidence:** `client/eslint.config.mjs` → `no-restricted-imports` pattern | `pnpm lint` (0 `messages/` hits after the switch)
+
+### 2026-11-25 — Next 15 lints during next build once ESLint is installed
+**Insight:** Adding `eslint` + `eslint-config-next` makes `next build` run ESLint and fail on lint errors, which silently couples the production build (and e2e, which builds the web app) to lint.
+**Rule:** ALWAYS keep `eslint: { ignoreDuringBuilds: true }` in `next.config.mjs` and run `pnpm lint` as its own CI step — because a new lint error must not break the build or the e2e stack.
+**Evidence:** `client/next.config.mjs` → `eslint.ignoreDuringBuilds` | `.github/workflows/client.yml` → `pnpm lint`
 
 ## Recurring Errors & Fixes
 
@@ -71,4 +97,10 @@ actionable cold.
 
 - 2026-11-22 — M1 severity counters & filter (client: FindingsPanel chips + filter, 21 panel/helper tests, 87 client tests green): done; see "Iterate severity levels from the contract, not from SEV"
 
+- 2026-11-25 — Researched React/Next.js architecture practices and added `.claude/skills/frontend-architecture` (SKILL, examples, references): done; see "Use the @/ alias in new imports despite existing ../../../ chains"
+
 ## Open Questions
+
+- 2026-11-25 — Is the hard-coded hex `MODEL_COLOR` map an accepted exception to "no hard-coded colors / CSS variables only"? (context: `src/app/agents/_components/AgentCard/constants.ts` → `MODEL_COLOR`)
+
+- 2026-11-25 — Will the client ever be deployed publicly? It decides SEO scope: today only root `metadata` exists, there is no `robots.ts`/`sitemap.ts`, and repo/PR/settings screens would need `noindex` (context: `src/app/layout.tsx` → `metadata`; `.claude/skills/frontend-architecture/SKILL.md` §12–13)

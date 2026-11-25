@@ -103,7 +103,7 @@ export function PrDetailHeader({
         <div style={s.staleBanner}>
           <Icon.AlertTriangle size={13} style={{ color: "var(--warn)", flexShrink: 0 }} />
           <span>
-            This PR is already {pr.status} — running a review is informational and won't affect the
+            This PR is already {pr.status} — running a review is informational and won&apos;t affect the
             merged code.
           </span>
         </div>

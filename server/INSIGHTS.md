@@ -37,6 +37,11 @@ actionable cold.
 **Rule:** ALWAYS take run cost from `agent_runs.cost_usd` (trace route merges it via `withRunCost()`, PR list via one `sum()` group-by) and pass explicit `costUsd: null` in every non-done `completeAgentRun()` — because re-pricing from tokens drifts with prices and treating null as 0 hides unpriced runs.
 **Evidence:** `server/src/modules/reviews/repository/run.repo.ts` → `getRunTrace()`, `withRunCost()`; `server/src/modules/pulls/routes.ts` → `costByPr`; test `test/run-cost.it.test.ts`
 
+### 2026-11-25 — Server contract changes are not mirrored into the client copy
+**Insight:** The server copy of `vendor/shared` is the newer one (has `openrouter`, `AgentVersionConfig`, `AgentManifest`, `CommitFile`); the client copy was not updated, and nothing in CI compares the two.
+**Rule:** ALWAYS mirror a `server/src/vendor/shared` change into `client/src/vendor/shared` in the same PR — because no check catches the drift (see client/INSIGHTS.md "Client contract copy lacks openrouter").
+**Evidence:** `diff -rq server/src/vendor/shared client/src/vendor/shared` (5 files differ on 2026-11-25)
+
 ## Tool & Library Notes
 
 ### 2026-11-25 — Keep dependency-cruiser rule regexes flat and unanchored for pnpm

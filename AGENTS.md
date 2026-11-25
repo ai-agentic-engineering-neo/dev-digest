@@ -41,8 +41,9 @@ Local-first AI PR review. 4 standalone packages, **no workspace**: each has its 
 
 ## Cross-package gotchas
 - Zod contracts exist in **two copies**: `server/src/vendor/shared` (also used by
-  reviewer-core) and `client/src/vendor/shared`. They already diverge — when you
-  change a contract, update both.
+  reviewer-core) and `client/src/vendor/shared`. They must stay byte-identical —
+  when you change a contract, update both; `scripts/check-contracts.sh`
+  (CI: `contracts.yml`) fails on drift.
 - `reviewer-core` is consumed as **TS source** via tsconfig path alias, never built.
   Editing it also triggers server CI.
 

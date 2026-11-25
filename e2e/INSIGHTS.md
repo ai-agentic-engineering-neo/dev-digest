@@ -34,6 +34,7 @@ actionable cold.
 **Insight:** The hermetic stack defaults its ephemeral Postgres to :5433, but a dev `devdigest-postgres` container may itself be mapped to 127.0.0.1:5433 (when :5432 is taken by another project), so `docker run` exits 125 before any flow runs.
 **Rule:** ALWAYS check `docker ps` for a :5433 mapping and run `E2E_PG_PORT=5434 npm run e2e:hermetic` when it is taken — because the dev DB must not be stopped to free the port.
 **Evidence:** `scripts/e2e.sh` → `PG_PORT="${E2E_PG_PORT:-5433}"`; `docker ps` → `devdigest-postgres 127.0.0.1:5433->5432`
+> **Update 2026-11-25:** confirmed again; the fix also works with all three ports moved: `E2E_PG_PORT=5440 E2E_API_PORT=3201 E2E_WEB_PORT=3200 ./scripts/e2e.sh` → 7/7 flows passed.
 
 ## Session Notes
 

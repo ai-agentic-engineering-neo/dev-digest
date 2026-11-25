@@ -49,7 +49,7 @@ export function ReviewRunAccordion({
       setOpen(true);
       rootRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // targetNonce is intentional: re-clicking the same run in the Timeline re-opens and re-scrolls.
   }, [targetRunId, targetNonce, review.run_id]);
   const del = useDeleteReview(prId);
   const findings = review.findings;

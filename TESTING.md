@@ -31,6 +31,7 @@ If a test wouldn't catch a class of regression we care about, we don't write it.
 | server-integration | `server/` | integration (real Postgres) | vitest | `server-integration.yml` | **yes** |
 | reviewer-core | `reviewer-core/` | unit (engine) | vitest | `reviewer-core.yml` | no |
 | e2e web | `e2e/` | browser e2e (deterministic) | agent-browser + `run.ts` | `e2e-web.yml` | yes (stack) |
+| contracts | `server/` + `client/` `src/vendor/shared` | guard: both Zod contract copies are byte-identical | `scripts/check-contracts.sh` | `contracts.yml` | no |
 
 ## What each suite covers
 

@@ -39,10 +39,17 @@ actionable cold.
 
 ## Tool & Library Notes
 
+### 2026-11-25 — Keep dependency-cruiser rule regexes flat and unanchored for pnpm
+**Insight:** depcruise refuses the whole config with "has an unsafe regular expression. Bailing out." when a `to.path` holds nested quantifiers like `(\.pnpm/[^/]+/node_modules/)?`; under pnpm, packages resolve to `node_modules/.pnpm/<pkg>@<ver>/node_modules/<pkg>/…`, so `^node_modules/drizzle-orm` never matches.
+**Rule:** ALWAYS match packages as unanchored `node_modules/(drizzle-orm|openai|…)/` and set `tsPreCompilationDeps: true` to see `import type` edges (exempt with `dependencyTypesNot: ['type-only']`) — because anchored patterns silently pass every import and nested groups abort the run.
+**Evidence:** `.claude/skills/onion-architecture/templates/dependency-cruiser.example.cjs` → `pkg()`; `./node_modules/.bin/depcruise src --config <template> --output-type err`
+
 ## Recurring Errors & Fixes
 
 ## Session Notes
 
 - 2026-11-21 — M1 run cost (server: column + 4 read paths): done, unit + integration green; see "Read run cost from agent_runs.cost_usd, never re-price"
+
+- 2026-11-25 — onion-architecture skill (rules only, enforcement not wired): template run on server/src reports 34 errors + 5 cycles as starting baseline; see "Keep dependency-cruiser rule regexes flat and unanchored for pnpm"
 
 ## Open Questions

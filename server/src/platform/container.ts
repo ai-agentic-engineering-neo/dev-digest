@@ -27,8 +27,9 @@ import { AgentsRepository } from '../modules/agents/repository.js';
 import { ReviewRepository } from '../modules/reviews/repository.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
-import { type DepGraph, DepCruiseGraph } from '../adapters/depgraph/index.js';
-import { type Tokenizer, TiktokenTokenizer } from '../adapters/tokenizer/index.js';
+import { DepCruiseGraph } from '../adapters/depgraph/index.js';
+import { TiktokenTokenizer } from '../adapters/tokenizer/index.js';
+import type { DepGraph, Tokenizer } from '../modules/repo-intel/ports.js';
 
 /**
  * DI container. One per app instance. Holds config, db, the JobRunner,

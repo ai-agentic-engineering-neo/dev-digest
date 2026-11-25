@@ -7,7 +7,7 @@ import { CLONE_JOB_KIND, CLONE_DEPTH } from './constants.js';
 import {
   INDEX_JOB_KIND,
   REFRESH_JOB_KIND,
-} from '../repo-intel/constants.js';
+} from '../repo-intel/index.js';
 
 /**
  * F1 — repos service. Business logic for the Repositories feature:

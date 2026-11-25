@@ -12,10 +12,10 @@
  * mock counter (ContainerOverrides.tokenizer).
  */
 import { getEncoding, type Tiktoken } from 'js-tiktoken';
+// The port is owned by its consumer (repo-intel); this adapter implements it.
+import type { Tokenizer } from '../../modules/repo-intel/ports.js';
 
-export interface Tokenizer {
-  count(text: string): number;
-}
+export type { Tokenizer };
 
 /** Heuristic fallback used before/instead of a real encoder. */
 export function approxTokens(text: string): number {

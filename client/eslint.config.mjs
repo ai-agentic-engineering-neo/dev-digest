@@ -29,8 +29,9 @@ const config = [
   {
     rules: {
       // Imports: alias instead of deep relative chains; UI only via the package entry.
+      // error since F4 (all deep chains rewritten to @/).
       "no-restricted-imports": [
-        "warn",
+        "error",
         {
           patterns: [
             {

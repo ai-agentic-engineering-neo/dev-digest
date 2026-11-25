@@ -17,6 +17,18 @@ inventoried by `onion-architecture`).
 Priority: **P1** = do next, cheap and protects everything else · **P2** = planned refactors ·
 **P3** = nice to have / needs a decision first.
 
+## Status (2026-11-25)
+
+Done on branch `chore/improvement-plan-p1`: 0.1, X1 (a–c), X2 (a–b), C1–C7, S1–S6,
+D1, R1–R2, T1–T3. R1 found a real bug (`sliceDiff` matched diff headers by
+substring) — fixed. Local hermetic e2e: 7/7 flows (flows 04/05 got a missing
+wait step). S1 ended with an **empty** architecture baseline; S4 split every
+oversized server file (largest now ~370 lines, an adapter).
+
+Decided "not now" with revisit triggers — see [docs/adr/](adr/README.md):
+D2 → ADR 0001, X2c → ADR 0002, C9 → ADR 0003, C10 → ADR 0004.
+Left as is by decision: C8 (`components/showcase`).
+
 ---
 
 ## 0. Before anything: land what is already done

@@ -10,7 +10,7 @@ What is left is structural, not a rule violation:
 
 | Leftover | Where | When to do it |
 |---|---|---|
-| Facade/executor not split into rings (still import `adapters/*`, `platform/*` directly — legal outside an `application/` folder) | `repo-intel/service.ts` + `pipeline/`, `reviews/service.ts` + `run-executor.ts` | With plan item S4, when the module next gains features |
+| Facade/executor not split into rings (still import `adapters/*`, `platform/*` directly — legal outside an `application/` folder). Already split by **size** (S4, 2026-11-25): repo-intel use-case files + `repository/` queries, reviews `run-*.ts` | `repo-intel/*.ts` + `pipeline/`, `reviews/service.ts` + `run-*.ts` | When the module next gains features |
 | `reviews` repository returns Drizzle rows (`PullRow`, `RepoRow`, …) to its service | `reviews/infrastructure/review.repository.ts` | Same — mappers + domain types when the service is split |
 | `getContext(container, req)` takes the Container | `_shared/context.ts` | Fine as is: only `index.ts` factories call it |
 | `AppError` subclasses with HTTP status | `platform/errors.ts`, used only by adapters (`ExternalServiceError`) and the container (`ConfigError`) | Fine as is — outer rings only; modules throw `DomainError`s |

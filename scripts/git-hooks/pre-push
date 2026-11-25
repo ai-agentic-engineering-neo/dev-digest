@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Before every push: runs pr-self-review automatically (headless Claude) when the
+# report for the current branch is missing or stale, then refuses the push on
+# any CRITICAL finding. A fresh passing report makes this instant.
+# Enable once per clone:   git config core.hooksPath scripts/git-hooks
+# Only gate, no auto run:  PR_SELF_REVIEW_AUTO=0 git push
+# Emergency bypass:        git push --no-verify
+set -euo pipefail
+root="$(git rev-parse --show-toplevel)"
+exec python3 "$root/.claude/skills/pr-self-review/scripts/auto_review.py"

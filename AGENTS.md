@@ -38,6 +38,9 @@ Local-first AI PR review. 4 standalone packages, **no workspace**: each has its 
 - Learned something non-obvious (a trap, a failed approach, a decision) → append
   it to `<package>/INSIGHTS.md` right away, and review it again as a wrap-up
   before reporting a task done. `INSIGHTS.md` is append-only: never overwrite it
+- Before `git push` / opening or merging a PR → run the `pr-self-review` skill.
+  One CRITICAL blocks: a hook (`.claude/settings.json`) and the optional git
+  `pre-push` hook (`git config core.hooksPath scripts/git-hooks`) refuse the push
 
 ## Cross-package gotchas
 - Zod contracts exist in **two copies**: `server/src/vendor/shared` (also used by

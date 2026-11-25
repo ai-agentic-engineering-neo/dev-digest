@@ -20,6 +20,7 @@ __pycache__/
 .pnpm-store/
 *.log
 .devdigest/cache/
+.devdigest/self-review/
 clones/
 playwright-report/
 test-results/

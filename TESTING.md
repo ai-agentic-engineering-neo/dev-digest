@@ -73,6 +73,9 @@ cd server && pnpm test                                          # both
 ./scripts/dev.sh
 npm i -g agent-browser && agent-browser install
 cd e2e && npm install && npm test
+
+# pr-self-review skill scripts (stdlib python, throwaway git repos, no CI job)
+python3 -m unittest discover -s .claude/skills/pr-self-review/tests
 ```
 
 ## Conventions

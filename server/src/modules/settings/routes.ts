@@ -1,16 +1,15 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { and, eq } from 'drizzle-orm';
 import {
   SettingsUpdate,
   ConnTestRequest,
-  type ConnTestResult,
-  type SecretsStatus,
+  ConnTestResult,
+  SecretsStatus,
 } from '@devdigest/shared';
-import * as t from '../../db/schema.js';
 import { getContext } from '../_shared/context.js';
 import { GITHUB_PROVIDER, SECRET_KEY_BY_PROVIDER } from './constants.js';
-import { rowsToSettings } from './helpers.js';
+import { SettingsRepository } from './repository.js';
+import { SettingsService } from './service.js';
 
 /**
  * F1 — settings module.
@@ -24,19 +23,20 @@ import { rowsToSettings } from './helpers.js';
 export default async function settingsRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
   const { container } = app;
+  // Module composition root: wire the service to its store.
+  const service = new SettingsService({ store: new SettingsRepository(container.db) });
 
   app.get('/settings', async (req) => {
     const { workspaceId } = await getContext(container, req);
-    const rows = await container.db
-      .select()
-      .from(t.settings)
-      .where(eq(t.settings.workspaceId, workspaceId));
-    return rowsToSettings(rows);
+    return service.get(workspaceId);
   });
 
   // Which provider keys are configured (booleans only — the values are NEVER
   // returned). Drives the "Configured / Not set" badges in the API Keys panel.
-  app.get('/settings/secrets-status', async (req): Promise<SecretsStatus> => {
+  app.get(
+    '/settings/secrets-status',
+    { schema: { response: { 200: SecretsStatus } } },
+    async (req): Promise<SecretsStatus> => {
     await getContext(container, req);
     const entries = await Promise.all(
       (Object.entries(SECRET_KEY_BY_PROVIDER) as [keyof SecretsStatus, string][]).map(
@@ -44,31 +44,18 @@ export default async function settingsRoutes(appBase: FastifyInstance) {
       ),
     );
     return Object.fromEntries(entries) as SecretsStatus;
-  });
+    },
+  );
 
   app.put('/settings', { schema: { body: SettingsUpdate } }, async (req) => {
     const { workspaceId, userId } = await getContext(container, req);
-    const body = req.body;
-    for (const [key, value] of Object.entries(body)) {
-      await container.db
-        .insert(t.settings)
-        .values({ workspaceId, userId, key, value })
-        .onConflictDoUpdate({
-          target: [t.settings.workspaceId, t.settings.userId, t.settings.key],
-          set: { value },
-        });
-    }
-    const rows = await container.db
-      .select()
-      .from(t.settings)
-      .where(eq(t.settings.workspaceId, workspaceId));
-    return rowsToSettings(rows);
+    return service.update(workspaceId, userId, req.body);
   });
 
   app.post(
     '/settings/test-connection',
     {
-      schema: { body: ConnTestRequest },
+      schema: { body: ConnTestRequest, response: { 200: ConnTestResult } },
       config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
     },
     async (req): Promise<ConnTestResult> => {

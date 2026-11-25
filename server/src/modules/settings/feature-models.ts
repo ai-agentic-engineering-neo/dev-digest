@@ -1,12 +1,11 @@
-import { eq } from 'drizzle-orm';
 import {
   FEATURE_MODELS,
   FeatureModelChoice,
   type FeatureModelId,
 } from '@devdigest/shared';
 import type { Container } from '../../platform/container.js';
-import * as t from '../../db/schema.js';
 import { rowsToSettings } from './helpers.js';
+import { SettingsRepository } from './repository.js';
 
 /**
  * Per-feature model configuration.
@@ -38,10 +37,7 @@ export async function getFeatureModelOverride(
   workspaceId: string,
   id: FeatureModelId,
 ): Promise<FeatureModelChoice | undefined> {
-  const rows = await container.db
-    .select({ key: t.settings.key, value: t.settings.value })
-    .from(t.settings)
-    .where(eq(t.settings.workspaceId, workspaceId));
+  const rows = await new SettingsRepository(container.db).listForWorkspace(workspaceId);
   const fm = (rowsToSettings(rows) as { feature_models?: Record<string, unknown> }).feature_models;
   const parsed = FeatureModelChoice.safeParse(fm?.[id]);
   return parsed.success ? parsed.data : undefined;

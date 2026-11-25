@@ -29,6 +29,22 @@ Decided "not now" with revisit triggers — see [docs/adr/](adr/README.md):
 D2 → ADR 0001, X2c → ADR 0002, C9 → ADR 0003, C10 → ADR 0004.
 Left as is by decision: C8 (`components/showcase`).
 
+Self-review follow-ups (2026-11-25, branch `lab-02`; PR #2 was closed and
+this work goes in a new PR):
+- Client: list key builders (`lineKeys`, `fileKeys`, `toolCallKeys`) and the
+  PR list filter/sort/counts moved to `helpers.ts` with tests; `setTab`
+  parameters no longer shadow the `t` translator.
+- Server: `reviews` is split into rings — `domain/{types,ports,errors}.ts`,
+  use cases in `application/` (now covered by depcruise
+  `application-no-outer-rings`), `ReviewRepository implements
+  ReviewsRepository`; RunLogger and the diff parser are injected. The review
+  route validates its body via `schema.body` (a missing body is still `{}`).
+- Server: `settings` builds feature-model defaults in a domain policy
+  (`featureModelDefaults`), so `application/` no longer imports the runtime
+  `FEATURE_MODELS` registry.
+- `scripts/e2e.sh` runs `client/` through `npx -y pnpm@10` (works with a
+  global pnpm ≥11): 7/7 flows locally. Architecture baseline still `[]`.
+
 ---
 
 ## 0. Before anything: land what is already done

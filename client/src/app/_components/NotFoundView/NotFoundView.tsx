@@ -1,6 +1,12 @@
-/* 404 body for app/not-found.tsx. Server component: the way back is a real
-   <Link href="/"> (crawlable, middle-click / open-in-new-tab work), not a
-   button that calls router.push (frontend-architecture §12). */
+/* 404 body for app/not-found.tsx. The way back is a real <Link href="/">
+   (crawlable, middle-click / open-in-new-tab work), not a button that calls
+   router.push (frontend-architecture §12).
+   Must stay a client component: the @devdigest/ui barrel pulls client-only
+   modules (class components), and importing it from a Server Component makes
+   `next dev` throw "Super expression must either be null or a function" on
+   every route (not-found is part of the root tree). */
+"use client";
+
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { EmptyState } from "@devdigest/ui";

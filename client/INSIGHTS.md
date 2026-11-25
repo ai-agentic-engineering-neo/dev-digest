@@ -101,6 +101,11 @@ actionable cold.
 **Rule:** NEVER chase this warning in FindingsPanel changes — because it comes from FindingCard, which the severity-filter spec leaves untouched; fix it only in a FindingCard task (split `borderColor` into per-side colors).
 **Evidence:** `FindingCard/styles.ts` → card style (`borderColor`, `borderLeftColor`); test `FindingsPanel severity counters` stderr
 
+### 2026-11-25 — "Super expression must either be null or a function" on every route in next dev
+**Insight:** Importing the `@devdigest/ui` barrel from a Server Component (here the root `not-found` view) pulls its client-only class components into the RSC graph; `next dev` then 500s on every page, while `next build` + `next start` still pass, so only e2e catches it.
+**Rule:** ALWAYS keep any component that imports `@devdigest/ui` a `"use client"` file (server `page.tsx`/`not-found.tsx` render it) and run `e2e:hermetic` after making a component server-only — because the production build does not reproduce the dev-mode crash.
+**Evidence:** `src/app/_components/NotFoundView/NotFoundView.tsx` → `"use client"` | `./scripts/e2e.sh` ("web never became reachable" + the TypeError in the web log)
+
 ## Session Notes
 
 - 2026-11-21 — M1 run cost (client: RunCostBadge in PR list, timeline, trace drawer, verdict banner): done, 68 tests green; see "Keep shared src/components free of their own i18n namespace"

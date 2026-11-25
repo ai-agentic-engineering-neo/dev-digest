@@ -3,7 +3,7 @@
  * their arguments — no DB / network / `this`).
  */
 import type { Finding } from '@devdigest/shared';
-import type { FindingRow, PullRow, ReviewRow } from './infrastructure/review.repository.js';
+import type { PullRequest, Review, ReviewFinding } from '../domain/types.js';
 
 // reduceReviews + sliceDiff live in @devdigest/reviewer-core (pure engine logic
 // shared with the CI runner); re-exported here for backward-compatible imports.
@@ -31,7 +31,7 @@ export interface ReviewDto {
   findings: ReviewDtoFinding[];
 }
 
-export function findingRowToDto(row: FindingRow): ReviewDtoFinding {
+export function findingRowToDto(row: ReviewFinding): ReviewDtoFinding {
   return {
     id: row.id,
     severity: row.severity as Finding['severity'],
@@ -53,8 +53,8 @@ export function findingRowToDto(row: FindingRow): ReviewDtoFinding {
 }
 
 export function reviewToDto(
-  review: ReviewRow,
-  findings: FindingRow[],
+  review: Review,
+  findings: ReviewFinding[],
   agentName?: string | null,
 ): ReviewDto {
   return {
@@ -79,7 +79,7 @@ export function reviewToDto(
  * The TRUSTED part (ours) states the task and the non-negotiable rule: review
  * the whole diff and never withhold a security/correctness finding.
  */
-export function taskLine(pull: PullRow): string {
+export function taskLine(pull: Pick<PullRequest, 'number' | 'title' | 'author'>): string {
   return (
     `Review pull request #${pull.number} "${pull.title}" by ${pull.author}. ` +
     `Report only the distinct, high-value findings you can defend, each citing an exact ` +

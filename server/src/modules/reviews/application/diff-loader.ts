@@ -1,6 +1,6 @@
 import type { GitClient, UnifiedDiff } from '@devdigest/shared';
-import { parseUnifiedDiff } from '../../adapters/git/diff-parser.js';
-import type { ReviewRepository, PullRow, RepoRow } from './infrastructure/review.repository.js';
+import type { DiffParser, ReviewsRepository } from '../domain/ports.js';
+import type { PullRequest, RepoCoordinates } from '../domain/types.js';
 
 /**
  * Load the unified diff for a PR. Prefers a real `git diff base...head`; falls
@@ -9,14 +9,14 @@ import type { ReviewRepository, PullRow, RepoRow } from './infrastructure/review
  */
 export async function loadDiff(
   git: Pick<GitClient, 'diff'>,
-  repo: ReviewRepository,
-  workspaceId: string,
-  pull: PullRow,
-  repoRow: RepoRow,
+  repo: ReviewsRepository,
+  parseDiff: DiffParser,
+  pull: PullRequest,
+  coords: RepoCoordinates,
 ): Promise<UnifiedDiff> {
   try {
     const diff = await git.diff(
-      { owner: repoRow.owner, name: repoRow.name },
+      { owner: coords.owner, name: coords.name },
       pull.base,
       pull.headSha,
     );
@@ -24,11 +24,15 @@ export async function loadDiff(
   } catch {
     /* fall through to pr_files reconstruction */
   }
-  return diffFromPrFiles(repo, pull.id);
+  return diffFromPrFiles(repo, parseDiff, pull.id);
 }
 
 /** Reconstruct a UnifiedDiff from persisted pr_files patches. */
-export async function diffFromPrFiles(repo: ReviewRepository, prId: string): Promise<UnifiedDiff> {
+export async function diffFromPrFiles(
+  repo: ReviewsRepository,
+  parseDiff: DiffParser,
+  prId: string,
+): Promise<UnifiedDiff> {
   const files = await repo.getPrFiles(prId);
   const parts: string[] = [];
   for (const f of files) {
@@ -38,5 +42,5 @@ export async function diffFromPrFiles(repo: ReviewRepository, prId: string): Pro
     parts.push(`+++ b/${f.path}`);
     parts.push(f.patch);
   }
-  return parseUnifiedDiff(parts.join('\n'));
+  return parseDiff(parts.join('\n'));
 }

@@ -1,11 +1,10 @@
 import type { UnifiedDiff } from '@devdigest/shared';
 import { reviewPullRequest, countBlockers } from '@devdigest/reviewer-core';
-import type { RunLogger } from '../../platform/run-logger.js';
-import type { PullRow, RepoRow } from './infrastructure/review.repository.js';
-import type { ReviewAgent } from './types.js';
+import type { ReviewRunDeps, RunLog } from '../domain/ports.js';
+import type { PullRequest, RepoCoordinates, ReviewAgent } from '../domain/types.js';
 import { REVIEW_STRATEGY } from './constants.js';
 import { taskLine } from './helpers.js';
-import { RunCancelledError, type ReviewRunDeps, type RunOutcome } from './run-types.js';
+import { RunCancelledError, type RunOutcome } from './run-types.js';
 import { buildCallersDigest, buildRankNote, buildRepoMapDigest } from './run-context.js';
 import { buildRunTrace, runCost, traceFromBuffer } from './run-trace.js';
 
@@ -20,12 +19,12 @@ export type AgentRunDeps = Pick<ReviewRunDeps, 'repo' | 'runBus' | 'llmFor' | 'r
 export async function runOneAgent(
   d: AgentRunDeps,
   workspaceId: string,
-  pull: PullRow,
-  repo: RepoRow,
+  pull: PullRequest,
+  repo: RepoCoordinates,
   diff: UnifiedDiff,
   agent: ReviewAgent,
   runId: string,
-  parentLog: RunLogger,
+  parentLog: RunLog,
 ): Promise<RunOutcome> {
   const start = Date.now();
   // Per-call usage streamed from the engine. The source of truth on the

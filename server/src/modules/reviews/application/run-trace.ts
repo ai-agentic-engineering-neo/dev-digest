@@ -1,9 +1,7 @@
 import type { RunTrace } from '@devdigest/shared';
 import type { reviewPullRequest } from '@devdigest/reviewer-core';
-import type { RunBus } from '../../platform/sse.js';
-import type { RunLogger } from '../../platform/run-logger.js';
-import type { PullRow } from './infrastructure/review.repository.js';
-import type { ReviewAgent } from './types.js';
+import type { RunEvents, RunLog } from '../domain/ports.js';
+import type { PullRequest, ReviewAgent } from '../domain/types.js';
 import type { RunUsage } from './run-types.js';
 
 type EngineOutcome = Awaited<ReturnType<typeof reviewPullRequest>>;
@@ -18,10 +16,10 @@ export function runCost(tokensIn: number, tokensOut: number, costUsd: number | n
 
 /** The ONE run_traces document persisted for a successful run. */
 export function buildRunTrace(
-  pull: PullRow,
+  pull: PullRequest,
   agent: ReviewAgent,
   runId: string,
-  runLog: RunLogger,
+  runLog: RunLog,
   outcome: EngineOutcome,
   stats: {
     durationMs: number;
@@ -72,9 +70,9 @@ export function buildRunTrace(
  * survive a reload, not just the in-memory stream.
  */
 export function traceFromBuffer(
-  runBus: Pick<RunBus, 'buffer'>,
+  runBus: Pick<RunEvents, 'buffer'>,
   runId: string,
-  pull: PullRow,
+  pull: PullRequest,
   agent: ReviewAgent,
   grounding: string,
   durationMs = 0,

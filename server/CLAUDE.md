@@ -11,7 +11,7 @@ Fastify 5 · Drizzle 0.45 + Postgres 16/pgvector · Zod 3.25 · fastify-type-pro
 - Migrations are not automatic: `pnpm db:generate` → `pnpm db:migrate`; `pnpm db:seed` is idempotent
 
 ## Map
-- src/modules/<feature>/ — onion modules (agents, settings, workspace, polling, pulls, repos): `domain/ application/ infrastructure/ http/` + `index.ts`; repo-intel and reviews: facade/service with narrow deps (`RepoIntelDeps`, `ReviewDeps`) built in the container, routes in `http/`; static registry: modules/index.ts
+- src/modules/<feature>/ — onion modules (agents, settings, workspace, polling, pulls, repos, reviews): `domain/ application/ infrastructure/ http/` + `index.ts` (reviews' service is built in the container from `ReviewDeps`, shared with the boot reaper); repo-intel: facade with narrow deps (`RepoIntelDeps`), routes in `http/`; static registry: modules/index.ts
 - src/platform/container.ts — DI composition root; local-only.ts — Host/Origin guard
 - src/adapters/ — github, git, llm, astgrep, depgraph, tokenizer, secrets (mocks: adapters/mocks.ts)
 - src/db/schema/ — tables for ALL milestones up front, most of them empty — by design

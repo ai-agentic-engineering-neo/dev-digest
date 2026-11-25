@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { taskLine } from '../src/modules/reviews/helpers.js';
+import { taskLine } from '../src/modules/reviews/application/helpers.js';
 
 /**
  * Unit coverage for the review task-line. The key invariant: our trusted

@@ -1,15 +1,10 @@
 import type { UnifiedDiff } from '@devdigest/shared';
-import { RunLogger } from '../../platform/run-logger.js';
-import type { PullRow, RepoRow, ReviewRepository } from './infrastructure/review.repository.js';
-import type { ReviewAgent } from './types.js';
+import type { Logger, ReviewRunDeps, ReviewsRepository } from '../domain/ports.js';
+import type { PullRequest, RepoCoordinates, ReviewAgent } from '../domain/types.js';
 import { loadDiff } from './diff-loader.js';
-import { RunCancelledError, type Logger, type ReviewRunDeps } from './run-types.js';
+import { RunCancelledError } from './run-types.js';
 import { runOneAgent } from './run-agent.js';
 import { traceFromBuffer } from './run-trace.js';
-
-// Public surface kept here: service.ts (and others) import these from run-executor.
-export { RunCancelledError, type Logger, type ReviewRunDeps, type RunOutcome } from './run-types.js';
-export { runCost } from './run-trace.js';
 
 /**
  * Owns the background execution of queued agent runs (extracted from
@@ -21,7 +16,7 @@ export { runCost } from './run-trace.js';
  * (repo-intel prompt context), run-trace.ts (RunTrace building + runCost).
  */
 export class ReviewRunExecutor {
-  private readonly repo: ReviewRepository;
+  private readonly repo: ReviewsRepository;
 
   constructor(private readonly d: ReviewRunDeps) {
     this.repo = d.repo;
@@ -34,16 +29,15 @@ export class ReviewRunExecutor {
    */
   async executeRuns(
     workspaceId: string,
-    pull: PullRow,
-    repo: RepoRow,
+    pull: PullRequest,
+    repo: RepoCoordinates,
     jobs: { agent: ReviewAgent; runId: string }[],
     logger?: Logger,
   ): Promise<void> {
     // ONE logger fanned out over every queued run: shared pre-work (diff +
     // intent) is streamed into each target agent's Live Log and persisted into
     // each run's trace. Per-agent work below narrows it to a single run.
-    const runLog = new RunLogger(
-      this.d.runBus,
+    const runLog = this.d.openRunLog(
       jobs.map((j) => j.runId),
       logger,
       { prId: pull.id },
@@ -75,7 +69,7 @@ export class ReviewRunExecutor {
 
     let diff: UnifiedDiff;
     try {
-      diff = await runLog.step('Loading PR diff', () => loadDiff(this.d.git, this.repo, workspaceId, pull, repo), {
+      diff = await runLog.step('Loading PR diff', () => loadDiff(this.d.git, this.repo, this.d.parseDiff, pull, repo), {
         kind: 'tool',
       });
     } catch (err) {

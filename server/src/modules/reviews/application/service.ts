@@ -1,10 +1,10 @@
-import type { FindingActionKind, RunEventKind, RunTrace } from '@devdigest/shared';
-import { PullNotFound, RepoNotFound } from '../_shared/domain/errors.js';
-import { InvalidRunRequest, ReviewNotFound, RunAgentNotFound, RunTraceNotFound } from './errors.js';
-import type { ReviewRepository } from './infrastructure/review.repository.js';
+import type { FindingActionKind, RunEventKind, RunSummary, RunTrace } from '@devdigest/shared';
+import { PullNotFound, RepoNotFound } from '../../_shared/domain/errors.js';
+import { InvalidRunRequest, ReviewNotFound, RunAgentNotFound, RunTraceNotFound } from '../domain/errors.js';
+import type { AgentsReader, Logger, ReviewDeps, ReviewsRepository } from '../domain/ports.js';
+import type { ActiveRun, ReviewAgent } from '../domain/types.js';
 import { type ReviewDto, type ReviewDtoFinding } from './helpers.js';
-import { ReviewRunExecutor, type Logger, type ReviewRunDeps } from './run-executor.js';
-import type { AgentsReader, ReviewAgent } from './types.js';
+import { ReviewRunExecutor } from './run-executor.js';
 import { actOnFinding as actOnFindingImpl } from './findings.js';
 import { reviewToDto } from './helpers.js';
 
@@ -25,13 +25,8 @@ export type { ReviewDto, ReviewDtoFinding } from './helpers.js';
  * Also: the finding accept/dismiss actions. The bulky run execution lives in
  * run-executor; this class keeps the public method surface.
  */
-/** Built in platform/container.ts (`container.reviewService`). */
-export interface ReviewDeps extends ReviewRunDeps {
-  agents: AgentsReader;
-}
-
 export class ReviewService {
-  private readonly repo: ReviewRepository;
+  private readonly repo: ReviewsRepository;
   private readonly agents: AgentsReader;
   private readonly executor: ReviewRunExecutor;
 
@@ -67,12 +62,12 @@ export class ReviewService {
   }
 
   /** In-flight runs for a PR (server-side source of truth, survives reload). */
-  async activeRuns(workspaceId: string, prId: string) {
+  async activeRuns(workspaceId: string, prId: string): Promise<ActiveRun[]> {
     return this.repo.activeRunsForPull(workspaceId, prId);
   }
 
   /** All runs for a PR (any status), newest first — the run history (incl. failures). */
-  async listRuns(workspaceId: string, prId: string) {
+  async listRuns(workspaceId: string, prId: string): Promise<RunSummary[]> {
     return this.repo.listRunsForPull(workspaceId, prId);
   }
 

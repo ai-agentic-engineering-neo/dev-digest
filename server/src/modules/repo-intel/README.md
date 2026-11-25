@@ -44,7 +44,7 @@ touch the pipeline internals:
 - `getConventionSamples(repoId)` → top-ranked files for convention extraction (L02).
 
 In the starter, only `getRepoMap` / `getFileRank` / `getCallerSignatures` are
-wired — into `modules/reviews/run-executor.ts`, which adds the repo map and a
+wired — into `modules/reviews/application/run-agent.ts` (via `run-context.ts`), which adds the repo map and a
 high-blast-radius note to the prompt. Toggled by `REPO_INTEL_ENABLED` (global)
 and a per-agent `repo_intel` flag.
 

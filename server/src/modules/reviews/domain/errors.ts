@@ -1,4 +1,4 @@
-import { DomainError } from '../_shared/domain/errors.js';
+import { DomainError } from '../../_shared/domain/errors.js';
 
 /** The agent named in a run request is not in the workspace. */
 export class RunAgentNotFound extends DomainError {

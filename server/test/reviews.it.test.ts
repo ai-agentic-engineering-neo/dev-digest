@@ -346,4 +346,23 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(body.runs.length).toBeGreaterThanOrEqual(2);
     await app.close();
   });
+
+  it('review body: a missing or empty body is valid and reaches the use case; a wrong type is 422', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    // Neither agentId nor all → the use case's invalid_run_request, not a schema error.
+    for (const payload of [undefined, {}]) {
+      const res = await app.inject({
+        method: 'POST',
+        url: `/pulls/${pr.id}/review`,
+        ...(payload ? { payload } : {}),
+      });
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error.code).toBe('invalid_run_request');
+    }
+    const bad = await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { all: 'yes' } });
+    expect(bad.statusCode).toBe(422);
+    expect(bad.json().error.code).toBe('validation_error');
+    await app.close();
+  });
 });

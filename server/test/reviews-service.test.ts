@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { ReviewService } from '../src/modules/reviews/service.js';
+import { ReviewService } from '../src/modules/reviews/application/service.js';
 import {
   InvalidRunRequest,
   ReviewNotFound,
   RunAgentNotFound,
   RunTraceNotFound,
-} from '../src/modules/reviews/errors.js';
+} from '../src/modules/reviews/domain/errors.js';
 import { PullNotFound } from '../src/modules/_shared/domain/errors.js';
 import { DOMAIN_STATUS } from '../src/platform/errors.js';
-import type { ReviewAgent } from '../src/modules/reviews/types.js';
+import type { ReviewAgent } from '../src/modules/reviews/domain/types.js';
 
 const agent = { id: 'a1', name: 'Reviewer', enabled: true } as unknown as ReviewAgent;
 
@@ -30,6 +30,12 @@ function setup() {
       cancel: (id: string) => void busCalls.push(`cancel:${id}`),
       complete: (id: string) => void busCalls.push(`complete:${id}`),
     } as never,
+    openRunLog: () => {
+      throw new Error('unused');
+    },
+    parseDiff: () => {
+      throw new Error('unused');
+    },
     llmFor: () => Promise.reject(new Error('unused')),
     repoIntel: {} as never,
     git: {} as never,

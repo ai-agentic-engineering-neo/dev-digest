@@ -1,6 +1,7 @@
 import type { Db } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
 import type { Finding, Intent, RunSummary, RunTrace } from '@devdigest/shared';
+import type { ReviewsRepository } from '../domain/ports.js';
 
 /**
  * A2 — review data-access. The ONLY layer touching the DB for the review
@@ -23,7 +24,7 @@ import * as reviewRepo from './queries/review.repo.js';
 import * as runRepo from './queries/run.repo.js';
 import * as pullRepo from './queries/pull.repo.js';
 
-export class ReviewRepository {
+export class ReviewRepository implements ReviewsRepository {
   constructor(private db: Db) {}
 
   // ---- PR lookup (workspace-scoped) --------------------------------------

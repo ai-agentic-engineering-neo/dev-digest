@@ -1,6 +1,5 @@
 import type { UnifiedDiff } from '@devdigest/shared';
-import type { RunLogger } from '../../platform/run-logger.js';
-import type { ReviewContextSource } from './types.js';
+import type { ReviewContextSource, RunLog } from '../domain/ports.js';
 
 /**
  * Repo-intel prompt-context builders for a review run. All best-effort: any
@@ -22,7 +21,7 @@ export async function buildCallersDigest(
   repoIntel: ReviewContextSource,
   repoId: string,
   diff: UnifiedDiff,
-  runLog: RunLogger,
+  runLog: RunLog,
 ): Promise<string | undefined> {
   const changedFiles = diff.files.map((f) => f.path);
   if (changedFiles.length === 0) return undefined;
@@ -59,7 +58,7 @@ export async function buildCallersDigest(
 export async function buildRepoMapDigest(
   repoIntel: ReviewContextSource,
   repoId: string,
-  runLog: RunLogger,
+  runLog: RunLog,
 ): Promise<string | undefined> {
   try {
     const map = await repoIntel.getRepoMap(repoId);
@@ -81,7 +80,7 @@ export async function buildRankNote(
   repoIntel: ReviewContextSource,
   repoId: string,
   diff: UnifiedDiff,
-  runLog: RunLogger,
+  runLog: RunLog,
 ): Promise<string> {
   const changedFiles = diff.files.map((f) => f.path);
   if (changedFiles.length === 0) return '';

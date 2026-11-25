@@ -1,10 +1,10 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { RunRequest } from '@devdigest/shared';
 import type { RunEvent } from '@devdigest/shared';
 import type { RequestContext } from '../../_shared/context.js';
 import { IdParams } from '../../_shared/schemas.js';
-import type { ReviewService } from '../service.js';
+import { ReviewRunBody } from './schemas.js';
+import type { ReviewService } from '../application/service.js';
 
 export interface ReviewsRouteDeps {
   service: ReviewService;
@@ -33,13 +33,18 @@ export async function registerReviewsRoutes(
 
   // ---- Run a review (manual trigger) -------------------------------
   // Tight per-route limit: each call can fan out to expensive LLM runs.
-  // Body stays a tolerant manual parse (both fields optional; empty body is OK).
+  // Both body fields are optional and a missing body is valid: Fastify passes
+  // it as null, which the schema maps to {}. The use case rejects a request
+  // that names neither an agent nor `all`.
   app.post(
     '/pulls/:id/review',
-    { schema: { params: IdParams }, config: { rateLimit: { max: 10, timeWindow: '1 minute' } } },
+    {
+      schema: { params: IdParams, body: ReviewRunBody },
+      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+    },
     async (req) => {
     const { workspaceId } = await context(req);
-    const body = RunRequest.parse(req.body ?? {});
+    const body = req.body;
     const targets = await service.resolveTargets(workspaceId, {
       ...(body.agentId !== undefined ? { agentId: body.agentId } : {}),
       ...(body.all !== undefined ? { all: body.all } : {}),

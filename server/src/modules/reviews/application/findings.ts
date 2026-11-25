@@ -1,6 +1,6 @@
 import type { FindingActionKind } from '@devdigest/shared';
-import { FindingNotFound, InvalidFindingAction } from './errors.js';
-import type { ReviewRepository } from './infrastructure/review.repository.js';
+import { FindingNotFound, InvalidFindingAction } from '../domain/errors.js';
+import type { ReviewsRepository } from '../domain/ports.js';
 import { findingRowToDto, type ReviewDtoFinding } from './helpers.js';
 
 /**
@@ -9,7 +9,7 @@ import { findingRowToDto, type ReviewDtoFinding } from './helpers.js';
  * `learn → memory` action, etc.).
  */
 export async function actOnFinding(
-  repo: ReviewRepository,
+  repo: ReviewsRepository,
   workspaceId: string,
   findingId: string,
   action: FindingActionKind,

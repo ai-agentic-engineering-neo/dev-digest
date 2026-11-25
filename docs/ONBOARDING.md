@@ -130,7 +130,7 @@ sequenceDiagram
 
 1. [README.md](../README.md) and [TESTING.md](../TESTING.md)
 2. [server/src/app.ts](../server/src/app.ts) → [modules/index.ts](../server/src/modules/index.ts) → [platform/container.ts](../server/src/platform/container.ts)
-3. The main flow: [reviews/service.ts](../server/src/modules/reviews/service.ts) → [reviews/run-executor.ts](../server/src/modules/reviews/run-executor.ts) → [reviewer-core/src/review/run.ts](../reviewer-core/src/review/run.ts) → [prompt.ts](../reviewer-core/src/prompt.ts) and [grounding.ts](../reviewer-core/src/grounding.ts)
+3. The main flow: [reviews/application/service.ts](../server/src/modules/reviews/application/service.ts) → [reviews/application/run-executor.ts](../server/src/modules/reviews/application/run-executor.ts) → [reviewer-core/src/review/run.ts](../reviewer-core/src/review/run.ts) → [prompt.ts](../reviewer-core/src/prompt.ts) and [grounding.ts](../reviewer-core/src/grounding.ts)
 4. [repo-intel/README.md](../server/src/modules/repo-intel/README.md) and the `pipeline/` folder
 5. Client: [lib/api.ts](../client/src/lib/api.ts), [lib/hooks/reviews.ts](../client/src/lib/hooks/reviews.ts) (SSE is there), the page `app/repos/[repoId]/pulls/[number]`
 6. Running it: `./scripts/dev.sh`, then http://localhost:3000

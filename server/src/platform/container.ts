@@ -11,10 +11,12 @@ import type { AppConfig } from './config.js';
 import type { Db } from '../db/client.js';
 import { JobRunner } from './jobs.js';
 import { runBus, type RunBus } from './sse.js';
+import { RunLogger } from './run-logger.js';
 import { LocalSecretsProvider } from '../adapters/secrets/local.js';
 import { LocalNoAuthProvider } from '../adapters/auth/local.js';
 import { OctokitGitHubClient } from '../adapters/github/octokit.js';
 import { SimpleGitClient } from '../adapters/git/simple-git.js';
+import { parseUnifiedDiff } from '../adapters/git/diff-parser.js';
 import { RipgrepCodeIndex } from '../adapters/codeindex/ripgrep.js';
 import { OpenAIProvider } from '../adapters/llm/openai.js';
 import { AnthropicProvider } from '../adapters/llm/anthropic.js';
@@ -27,7 +29,7 @@ import type { AgentsRepository, AgentsUnitOfWork } from '../modules/agents/domai
 import { DrizzleAgentsRepository } from '../modules/agents/infrastructure/agents.repository.js';
 import { DrizzleAgentsUnitOfWork } from '../modules/agents/infrastructure/agents.uow.js';
 import { ReviewRepository } from '../modules/reviews/infrastructure/review.repository.js';
-import { ReviewService } from '../modules/reviews/service.js';
+import { ReviewService } from '../modules/reviews/application/service.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
 import { RepoIntelRepository } from '../modules/repo-intel/repository.js';
@@ -121,6 +123,8 @@ export class Container {
       repo: this.reviewRepo,
       agents: this.agentsRepo,
       runBus: this.runBus,
+      openRunLog: (runIds, logger, ctx) => new RunLogger(this.runBus, runIds, logger, ctx),
+      parseDiff: parseUnifiedDiff,
       llmFor: (provider) => this.llm(provider),
       get repoIntel() {
         return c.repoIntel;

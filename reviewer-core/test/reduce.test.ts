@@ -174,16 +174,29 @@ describe('sliceDiff — per-file slice of the raw diff', () => {
     expect(sliceDiff(diff, path)).toBe(expected);
   });
 
-  // BUG (reported, not fixed): the header match is a substring test, so slicing
-  // `src/a.ts` also captures `src/a.tsx` (header contains "b/src/a.ts").
-  it.fails('does not capture a different file whose path starts with the requested path', () => {
-    const rawX = [
-      'diff --git a/src/a.ts b/src/a.ts',
-      '+a',
-      'diff --git a/src/a.tsx b/src/a.tsx',
-      '+tsx',
-    ].join('\n');
-    const d: UnifiedDiff = { raw: rawX, files: [] };
-    expect(sliceDiff(d, 'src/a.ts')).toBe('diff --git a/src/a.ts b/src/a.ts\n+a');
+  // Headers are matched exactly (`a/<old> b/<new>`), never as a substring.
+  const rawX = [
+    'diff --git a/src/a.ts b/src/a.ts',
+    '+a',
+    'diff --git a/src/a.tsx b/src/a.tsx',
+    '+tsx',
+    'diff --git a/lib/src/a.ts b/lib/src/a.ts',
+    '+nested',
+    'diff --git a/old/name.ts b/new/name.ts',
+    '+renamed',
+    'diff --git a/z.ts b/z.ts',
+    '+ mentions b/src/a.ts in the body only',
+  ].join('\n');
+  const dX: UnifiedDiff = { raw: rawX, files: [] };
+
+  it.each<[string, string, string]>([
+    ['a path does not capture a longer path it prefixes (a.ts vs a.tsx)', 'src/a.ts', 'diff --git a/src/a.ts b/src/a.ts\n+a'],
+    ['the longer path gets only its own section', 'src/a.tsx', 'diff --git a/src/a.tsx b/src/a.tsx\n+tsx'],
+    ['a path does not capture another path it is a suffix of', 'a.ts', rawX],
+    ['a nested path matches its own header only', 'lib/src/a.ts', 'diff --git a/lib/src/a.ts b/lib/src/a.ts\n+nested'],
+    ['a rename matches by its new path', 'new/name.ts', 'diff --git a/old/name.ts b/new/name.ts\n+renamed'],
+    ['a rename matches by its old path', 'old/name.ts', 'diff --git a/old/name.ts b/new/name.ts\n+renamed'],
+  ])('%s', (_name, path, expected) => {
+    expect(sliceDiff(dX, path)).toBe(expected);
   });
 });

@@ -54,18 +54,27 @@ export function reduceReviews(partials: Review[]): Review {
   return { verdict, score, summary, findings };
 }
 
+/**
+ * True when a `diff --git a/<old> b/<new>` header belongs to `path` — the new
+ * path (or, for a rename, the old one) must equal it exactly. A substring test
+ * would also match `src/a.tsx` for `src/a.ts`, or `x/a.ts` for `a.ts`.
+ */
+function headerIsFor(header: string, path: string): boolean {
+  const rest = header.slice('diff --git '.length);
+  return rest.endsWith(` b/${path}`) || rest.startsWith(`a/${path} b/`);
+}
+
 /** Extract the slice of the unified diff for a single file (for map chunks). */
 export function sliceDiff(diff: UnifiedDiff, path: string): string {
   const lines = diff.raw.split('\n');
   const out: string[] = [];
   let capture = false;
   for (const line of lines) {
-    if (line.startsWith('diff --git'))
-      capture = line.includes(`b/${path}`) || line.includes(` ${path}`);
+    if (line.startsWith('diff --git ')) capture = headerIsFor(line, path);
     if (capture) out.push(line);
   }
   if (out.length > 0) return out.join('\n');
-  // fallback: synthesize from the file's hunks
+  // Fallback: the file was parsed but has no section in `raw` — a header-only stub.
   const f = diff.files.find((x) => x.path === path);
   if (!f) return diff.raw;
   return `diff --git a/${path} b/${path}\n--- a/${path}\n+++ b/${path}`;

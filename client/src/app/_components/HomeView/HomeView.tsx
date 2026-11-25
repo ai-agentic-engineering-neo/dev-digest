@@ -8,7 +8,7 @@ import { useTranslations } from "next-intl";
 import { useRepos } from "@/lib/hooks/core";
 import { AppShell } from "@/components/app-shell";
 import { PageContainer } from "@/components/page-shell";
-import { EmptyState, Skeleton } from "@devdigest/ui";
+import { EmptyState, ErrorState, Skeleton } from "@devdigest/ui";
 
 /* Navigation is a real <Link href> (open-in-new-tab, crawlable), not a button
    calling router.push (frontend-architecture §12). */
@@ -17,7 +17,7 @@ const linkStyle = { color: "var(--accent-text)", fontSize: 14 } as const;
 export function HomeView() {
   const t = useTranslations("home");
   const router = useRouter();
-  const { data: repos, isLoading, isError } = useRepos();
+  const { data: repos, isLoading, isError, refetch } = useRepos();
 
   React.useEffect(() => {
     if (repos && repos.length > 0) {
@@ -34,7 +34,10 @@ export function HomeView() {
             <Skeleton height={48} />
             <Skeleton height={48} />
           </div>
-        ) : isError || !repos || repos.length === 0 ? (
+        ) : isError ? (
+          // API down ≠ "no repositories": show the error with a retry.
+          <ErrorState title={t("error.title")} body={t("error.body")} onRetry={() => refetch()} />
+        ) : !repos || repos.length === 0 ? (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
             <EmptyState icon="GitBranch" title={t("empty.title")} body={t("empty.body")} />
             <Link href="/onboarding" style={linkStyle}>

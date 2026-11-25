@@ -7,5 +7,9 @@
     "cta": "Add repository"
   },
   "redirecting": "Taking you to your repository…",
-  "openRepo": "Open {name}"
+  "openRepo": "Open {name}",
+  "error": {
+    "title": "Couldn't load your repositories",
+    "body": "The DevDigest API didn't respond. Check that it is running, then retry."
+  }
 }

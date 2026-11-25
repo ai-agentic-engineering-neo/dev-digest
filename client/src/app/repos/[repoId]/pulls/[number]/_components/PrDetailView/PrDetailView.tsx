@@ -8,7 +8,8 @@
 import React from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Skeleton, ErrorState } from "@devdigest/ui";
+import Link from "next/link";
+import { Skeleton, ErrorState, EmptyState } from "@devdigest/ui";
 import { AppShell } from "@/components/app-shell";
 import { RepoNotFound } from "@/components/repo-not-found";
 import { PrDetailHeader } from "../PrDetailHeader";
@@ -29,6 +30,7 @@ import { useActiveRepo, useRepoNotFound } from "@/lib/repo-context";
 import { ApiError } from "@/lib/api";
 import { githubPrUrl } from "@/lib/github-urls";
 import type { FindingRecord } from "@devdigest/shared";
+import { parseTraceRunId } from "./helpers";
 
 export function PrDetailView() {
   const t = useTranslations("prReview");
@@ -40,7 +42,13 @@ export function PrDetailView() {
   const repoNotFound = useRepoNotFound(repoId);
   // The route is keyed by PR number, but every PR API is keyed by the row's
   // uuid — resolve number → uuid via the (cached) pulls list before fetching.
-  const { data: pulls, isLoading: pullsLoading } = usePulls(repoId);
+  const {
+    data: pulls,
+    isLoading: pullsLoading,
+    isError: pullsError,
+    error: pullsErrorValue,
+    refetch: refetchPulls,
+  } = usePulls(repoId);
   const prId = pulls?.find((p) => p.number === Number(number))?.id ?? null;
   const { data: pr, isLoading: detailLoading, isError, error, refetch } = usePullDetail(prId);
 
@@ -60,7 +68,8 @@ export function PrDetailView() {
   const { invalidateActiveRuns, invalidateRunHistory } = useInvalidatePrRuns(prId);
 
   const tab = search.get("tab") ?? "overview";
-  const traceRunId = search.get("trace");
+  // ?trace= comes from a (possibly shared) URL and lands in an API path: uuid only.
+  const traceRunId = parseTraceRunId(search.get("trace"));
   const setParam = (key: string, val: string | null) => {
     const sp = new URLSearchParams(search.toString());
     if (val == null) sp.delete(key);
@@ -102,6 +111,35 @@ export function PrDetailView() {
           <Skeleton height={28} width={420} />
           <Skeleton height={16} width={300} />
           <Skeleton height={200} />
+        </div>
+      </AppShell>
+    );
+  }
+
+  // The PR list itself failed: retry the list (prId can't be resolved without it).
+  if (pullsError) {
+    return (
+      <AppShell crumb={crumb}>
+        <ErrorState
+          fullScreen
+          title={t("detail.loadErrorTitle")}
+          body={pullsErrorValue instanceof ApiError ? pullsErrorValue.message : t("detail.loadErrorBody", { number })}
+          onRetry={() => refetchPulls()}
+        />
+      </AppShell>
+    );
+  }
+
+  // The list loaded but has no PR with this number: a not-found state, not an
+  // error — retrying would only request /pulls/null.
+  if (prId == null) {
+    return (
+      <AppShell crumb={crumb}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+          <EmptyState icon="Search" title={t("detail.notFoundTitle")} body={t("detail.notFoundBody", { number })} />
+          <Link href={`/repos/${repoId}/pulls`} style={{ color: "var(--accent-text)", fontSize: 14 }}>
+            {t("detail.backToPulls")}
+          </Link>
         </div>
       </AppShell>
     );

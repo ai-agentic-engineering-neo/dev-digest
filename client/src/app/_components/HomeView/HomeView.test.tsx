@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import home from "../../../../messages/en/home.json";
 
@@ -9,7 +9,8 @@ const { replace, push, repos } = vi.hoisted(() => ({
   repos: { current: { data: undefined as unknown, isLoading: false, isError: false } },
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace, push }) }));
-vi.mock("@/lib/hooks/core", () => ({ useRepos: () => repos.current }));
+const refetch = vi.fn();
+vi.mock("@/lib/hooks/core", () => ({ useRepos: () => ({ ...repos.current, refetch }) }));
 // The shell has its own data hooks; it isn't what this test is about.
 vi.mock("@/components/app-shell", () => ({
   AppShell: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -46,5 +47,14 @@ describe("HomeView", () => {
     renderView();
     expect(replace).toHaveBeenCalledWith("/repos/r1/pulls");
     expect(screen.getByRole("link", { name: "Open acme/payments-api" })).toHaveAttribute("href", "/repos/r1/pulls");
+  });
+
+  it("shows an error with retry (not the empty state) when the repos request fails", () => {
+    repos.current = { data: undefined, isLoading: false, isError: true };
+    renderView();
+    expect(screen.getByText("Couldn't load your repositories")).toBeInTheDocument();
+    expect(screen.queryByText("No repositories yet")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+    expect(refetch).toHaveBeenCalledTimes(1);
   });
 });

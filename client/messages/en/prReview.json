@@ -117,6 +117,9 @@
   "detail": {
     "loadErrorTitle": "Couldn't load this pull request",
     "loadErrorBody": "PR #{number} could not be loaded.",
-    "deleteRunConfirm": "Delete this run from history? (its logs are removed too)"
+    "deleteRunConfirm": "Delete this run from history? (its logs are removed too)",
+    "notFoundTitle": "Pull request not found",
+    "notFoundBody": "PR #{number} isn't in this repository's pull request list. It may be closed or not synced yet.",
+    "backToPulls": "Back to pull requests"
   }
 }

@@ -6,6 +6,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "./keys";
+import { isUuid, repoPath } from "../ids";
 import { api } from "../api";
 import type {
   Settings,
@@ -83,7 +84,7 @@ export function useAddRepo() {
 export function useRefreshRepo() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (repoId: string) => api.post<Repo>(`/repos/${repoId}/refresh`),
+    mutationFn: (repoId: string) => api.post<Repo>(`${repoPath(repoId)}/refresh`),
     onSuccess: (_d, repoId) => {
       qc.invalidateQueries({ queryKey: queryKeys.repos() });
       qc.invalidateQueries({ queryKey: queryKeys.pulls(repoId) });
@@ -94,7 +95,7 @@ export function useRefreshRepo() {
 export function useDeleteRepo() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (repoId: string) => api.del<{ deleted: string }>(`/repos/${repoId}`),
+    mutationFn: (repoId: string) => api.del<{ deleted: string }>(repoPath(repoId)),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.repos() }),
   });
 }
@@ -103,8 +104,9 @@ export function useDeleteRepo() {
 export function usePulls(repoId: string | null | undefined) {
   return useQuery({
     queryKey: queryKeys.pulls(repoId),
-    queryFn: () => api.get<PrMeta[]>(`/repos/${repoId}/pulls`),
-    enabled: !!repoId,
+    queryFn: () => api.get<PrMeta[]>(`${repoPath(repoId)}/pulls`),
+    // URL-sourced id: only a real repo uuid may reach the API path.
+    enabled: isUuid(repoId),
     // Auto-refresh PR statuses: re-sync from GitHub every 60s while the page is
     // open, and whenever the window regains focus.
     refetchInterval: 60_000,
@@ -124,15 +126,15 @@ export function usePullDetail(prId: string | number | null | undefined) {
 export function useContextFiles(repoId: string | null | undefined) {
   return useQuery({
     queryKey: queryKeys.context(repoId),
-    queryFn: () => api.get<SpecFile[]>(`/repos/${repoId}/context`),
-    enabled: !!repoId,
+    queryFn: () => api.get<SpecFile[]>(`${repoPath(repoId)}/context`),
+    enabled: isUuid(repoId),
   });
 }
 
 export function useReindexContext() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (repoId: string) => api.post<IndexStatus>(`/repos/${repoId}/context/reindex`),
+    mutationFn: (repoId: string) => api.post<IndexStatus>(`${repoPath(repoId)}/context/reindex`),
     onSuccess: (_d, repoId) => qc.invalidateQueries({ queryKey: queryKeys.context(repoId) }),
   });
 }

@@ -55,6 +55,14 @@ export class ReviewRepository {
     return reviewRepo.insertReview(this.db, values);
   }
 
+  /** Review + findings in one transaction (see review.repo.insertReviewWithFindings). */
+  insertReviewWithFindings(
+    values: Parameters<typeof reviewRepo.insertReview>[1],
+    findings: Finding[],
+  ): Promise<{ review: ReviewRow; findings: FindingRow[] }> {
+    return reviewRepo.insertReviewWithFindings(this.db, values, findings);
+  }
+
   insertFindings(reviewId: string, findings: Finding[]): Promise<FindingRow[]> {
     return reviewRepo.insertFindings(this.db, reviewId, findings);
   }

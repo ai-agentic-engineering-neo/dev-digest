@@ -7,7 +7,7 @@ import { useTranslations } from "next-intl";
 import { Icon } from "@devdigest/ui";
 import type { PrFile } from "@/lib/types";
 import { AUTO_EXPAND_MAX_LINES } from "../constants";
-import { parsePatch, type Line } from "../helpers";
+import { lineKeys, parsePatch, type Line } from "../helpers";
 import {
   buildThreads,
   keysForLine,
@@ -18,7 +18,6 @@ import {
 import { s, chevronFor } from "../styles";
 import { CodeLine } from "../CodeLine";
 import { OutdatedComments } from "../OutdatedComments";
-import { dedupeKeys } from "@/lib/stable-keys";
 
 /** Threads anchored to a given parsed line (RIGHT=new, LEFT=old). */
 function threadsForLine(ln: Line, matched: Map<string, CommentThread[]>): CommentThread[] {
@@ -29,27 +28,6 @@ function threadsForLine(ln: Line, matched: Map<string, CommentThread[]>): Commen
     if (list) out.push(...list);
   }
   return out;
-}
-
-/** React key per parsed line, from its line numbers rather than its position.
- *  Within one well-formed patch, newNo strictly increases over add lines, oldNo
- *  over del lines, and the (oldNo, newNo) pair over context lines, so the
- *  kind-prefixed numbers are unique (an add and a del may share a number; the
- *  prefix separates them). Hunk headers carry no numbers and key by their text.
- *  A malformed patch (overlapping hunks) could still repeat one, so a repeat
- *  gets an occurrence suffix instead of becoming a duplicate key. */
-function lineKeys(lines: Line[]): string[] {
-  return dedupeKeys(
-    lines.map((ln) =>
-      ln.kind === "add"
-        ? `a${ln.newNo}`
-        : ln.kind === "del"
-          ? `d${ln.oldNo}`
-          : ln.kind === "ctx"
-            ? `c${ln.oldNo}:${ln.newNo}`
-            : `h${ln.text}`,
-    ),
-  );
 }
 
 export function FileCard({ file, commenting }: { file: PrFile; commenting?: DiffCommentApi }) {

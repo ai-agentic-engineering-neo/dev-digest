@@ -1,5 +1,6 @@
 import type { LogLine } from "@devdigest/ui";
-import type { RunTrace } from "@devdigest/shared";
+import type { RunTrace, ToolCall } from "@devdigest/shared";
+import { dedupeKeys } from "@/lib/stable-keys";
 
 interface RawEvent {
   t: string;
@@ -25,4 +26,11 @@ export function formatSeconds(ms: number): string {
 /** Token in→out summary (e.g. "12k→1.5k"). */
 export function formatTokens(tokensIn: number, tokensOut: number): string {
   return `${(tokensIn / 1000).toFixed(0)}k→${(tokensOut / 1000).toFixed(1)}k`;
+}
+
+/** ToolCall has no id, so key by what identifies the call: the tool and its
+ *  args (a ToolCallRow's open state then follows the call, not the slot). The
+ *  same call can legitimately repeat, so repeats get an occurrence suffix. */
+export function toolCallKeys(calls: readonly Pick<ToolCall, "tool" | "args">[]): string[] {
+  return dedupeKeys(calls.map((tc) => `${tc.tool}(${tc.args})`));
 }

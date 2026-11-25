@@ -10,16 +10,7 @@ import type { PrFile } from "@/lib/types";
 import { type DiffCommentApi } from "../comments";
 import { s } from "../styles";
 import { FileCard } from "../FileCard";
-import { dedupeKeys } from "@/lib/stable-keys";
-
-/** React key per file: its path, which identifies the file within a PR (GitHub
- *  lists each filename once), so a FileCard's open/collapsed state follows the
- *  file when the list is reordered or filtered. pr_files has no DB uniqueness on
- *  (pr_id, path), so a repeated path gets an occurrence suffix instead of
- *  producing a duplicate key. */
-function fileKeys(files: PrFile[]): string[] {
-  return dedupeKeys(files.map((f) => f.path));
-}
+import { fileKeys } from "../helpers";
 
 export function DiffViewer({
   files,

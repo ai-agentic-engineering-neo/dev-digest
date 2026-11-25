@@ -21,13 +21,20 @@ export function CreateAgentModal({ onClose }: { onClose: () => void }) {
   const [systemPrompt, setSystemPrompt] = React.useState(t("create.defaultSystemPrompt"));
 
   const submit = async () => {
-    const agent = await create.mutateAsync({
-      name: name.trim() || t("create.defaultName"),
-      description,
-      provider,
-      model,
-      system_prompt: systemPrompt,
-    });
+    let agent;
+    try {
+      agent = await create.mutateAsync({
+        name: name.trim() || t("create.defaultName"),
+        description,
+        provider,
+        model,
+        system_prompt: systemPrompt,
+      });
+    } catch {
+      // Shown by the global MutationCache error toast (lib/providers.tsx);
+      // keep the modal open so the user can fix and retry.
+      return;
+    }
     onClose();
     router.push(`/agents/${agent.id}?tab=config`);
   };

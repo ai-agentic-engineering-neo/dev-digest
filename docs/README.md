@@ -30,5 +30,5 @@ quick start are in the [main README](../README.md).
   `engineering-insights` skill.
 - A lasting fact about a package that the code does not show → the Key Facts
   section of the same `INSIGHTS.md`.
-- A rule the agent must always follow → the nearest `CLAUDE.md`, as one line
+- A rule the agent must always follow → the nearest `AGENTS.md`, as one line
   with a pointer to the doc that explains it.

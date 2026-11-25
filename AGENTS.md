@@ -20,7 +20,7 @@ Link to them; never copy their text here.
 ./scripts/e2e.sh     # hermetic browser e2e on its own ports and DB
 ```
 
-Per-package build/test commands live in each package's `CLAUDE.md`.
+Per-package build/test commands live in each package's `AGENTS.md`.
 
 ## Where things live
 
@@ -68,10 +68,12 @@ Per-package build/test commands live in each package's `CLAUDE.md`.
 - `*/src/vendor/**` — vendored; change deliberately and keep copies in sync.
 - `.github/workflows/*` `paths:` filters encode the cross-package aliases;
   update them when a new alias dependency appears.
+- `CLAUDE.md`, here and in each package — a symlink to the `AGENTS.md` beside
+  it, for Claude Code. Edit `AGENTS.md`; never replace the link with a copy.
 
 ## Read when
 
-- Working inside a package → read that package's `CLAUDE.md` first
+- Working inside a package → read that package's `AGENTS.md` first
   (`server/`, `client/`, `reviewer-core/`, `e2e/`).
 - Changing how a review runs end to end, or adding a cross-package dependency →
   read `docs/architecture.md`.

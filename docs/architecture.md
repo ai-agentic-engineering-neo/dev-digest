@@ -87,7 +87,8 @@ Each touched package gets its own spec, with the same file name, in its
 
 ```
 dev-digest/
-├── CLAUDE.md            agent map: rules and "read when" pointers
+├── AGENTS.md            agent map: rules and "read when" pointers
+├── CLAUDE.md            symlink to AGENTS.md, for Claude Code
 ├── README.md            project overview, quick start, roadmap
 ├── TESTING.md           test and CI strategy
 ├── docs/
@@ -95,12 +96,19 @@ dev-digest/
 │   ├── architecture.md  this file: what spans packages
 │   └── agent-prompts/   reviewer system prompts
 └── <package>/           server, client, reviewer-core, e2e
-    ├── CLAUDE.md        package rules, loaded when work happens there
+    ├── AGENTS.md        package rules, loaded when work happens there
+    ├── CLAUDE.md        symlink to AGENTS.md, for Claude Code
     ├── README.md        what the package is and how to run it
     ├── INSIGHTS.md      lasting facts and session lessons (engineering-insights skill)
     ├── docs/            README.md (index) + architecture.md
     └── specs/           README.md (index) + _template.md + feature specs
 ```
 
-Each fact has one home. `CLAUDE.md` files hold only short rules and pointers;
+Each fact has one home. `AGENTS.md` files hold only short rules and pointers;
 READMEs and `docs/` hold the explanations, and are linked rather than copied.
+
+`AGENTS.md` is the name most coding agents read. Claude Code reads `CLAUDE.md`,
+so each folder has a `CLAUDE.md` symlink to its `AGENTS.md`; the text exists
+once. On Windows, git creates the links only with Developer Mode on and
+`git config core.symlinks true` set before the checkout. Without them
+`CLAUDE.md` is a text file that holds the word `AGENTS.md`.

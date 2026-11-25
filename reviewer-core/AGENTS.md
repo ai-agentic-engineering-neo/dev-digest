@@ -1,7 +1,7 @@
 # reviewer-core — `@devdigest/reviewer-core`
 
 The pure review engine: diff → prompt → LLM → grounded findings. Repo-wide
-rules are in [../CLAUDE.md](../CLAUDE.md); project overview in
+rules are in [../AGENTS.md](../AGENTS.md); project overview in
 [../README.md](../README.md); pipeline and public API in [README.md](README.md).
 Do not repeat them here.
 

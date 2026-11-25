@@ -1,7 +1,7 @@
 # e2e — `@devdigest/e2e`
 
 Deterministic browser flows over the real stack. Repo-wide rules are in
-[../CLAUDE.md](../CLAUDE.md); project overview in [../README.md](../README.md);
+[../AGENTS.md](../AGENTS.md); project overview in [../README.md](../README.md);
 flow format, env knobs and coverage in [README.md](README.md). Do not repeat
 them here.
 

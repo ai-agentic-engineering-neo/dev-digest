@@ -1,6 +1,6 @@
 # client — `@devdigest/web`
 
-Next.js 15 studio UI. Repo-wide rules are in [../CLAUDE.md](../CLAUDE.md);
+Next.js 15 studio UI. Repo-wide rules are in [../AGENTS.md](../AGENTS.md);
 project overview in [../README.md](../README.md); UI route map in
 [README.md](README.md). Do not repeat them here.
 

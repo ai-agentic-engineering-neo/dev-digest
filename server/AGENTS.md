@@ -1,7 +1,7 @@
 # server — `@devdigest/api`
 
 Fastify 5 API + Drizzle/Postgres. Repo-wide rules are in
-[../CLAUDE.md](../CLAUDE.md); project overview in [../README.md](../README.md);
+[../AGENTS.md](../AGENTS.md); project overview in [../README.md](../README.md);
 API map, DI flow and env vars in [README.md](README.md). Do not repeat them here.
 
 ## Commands (pnpm, run from `server/`)

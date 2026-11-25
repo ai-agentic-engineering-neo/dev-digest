@@ -1,0 +1,115 @@
+{
+  "$comment": "Which repo skill reviews which changed files. Read by scripts/collect.mjs. A file matches a skill when it matches `paths` (and no `exclude`), or when it matches `triggers.scope` and one of `triggers.patterns` (JS regex) occurs in its ADDED lines. Lower `priority` runs first when the reviewer-agent cap is hit. Every directory in .claude/skills/ must be listed under `skills` or `excluded`, otherwise collect.mjs fails. Globs: `**`, `*`, `?`, `{a,b}`; paths are repo-relative with forward slashes.",
+  "version": 1,
+  "ignore": [
+    "**/pnpm-lock.yaml",
+    "**/package-lock.json",
+    "**/*.snap",
+    "**/node_modules/**",
+    "**/.next/**",
+    "**/dist/**",
+    "server/.dependency-cruiser-known-violations.json"
+  ],
+  "excluded": {
+    "mermaid-diagram": "authoring aid for diagrams, not a code-review rule set",
+    "engineering-insights": "knowledge loop for INSIGHTS.md, not a code-review rule set",
+    "pr-self-review": "this skill — it runs the others"
+  },
+  "skills": {
+    "frontend-ui-architecture": {
+      "side": "frontend",
+      "priority": 1,
+      "paths": ["client/src/**/*.{ts,tsx}"],
+      "exclude": ["client/src/vendor/**", "**/*.test.{ts,tsx}"],
+      "references": ["references/structure.md", "references/components.md", "references/data-and-logic.md", "references/conventions.md"]
+    },
+    "onion-architecture": {
+      "side": "backend",
+      "priority": 1,
+      "paths": ["server/src/**/*.ts", "reviewer-core/src/**/*.ts"],
+      "exclude": ["server/src/vendor/**", "**/*.test.ts"],
+      "references": ["references/layers.md", "references/composition-root.md"]
+    },
+    "security": {
+      "side": "fullstack",
+      "priority": 2,
+      "paths": ["server/src/**/*.ts", "reviewer-core/src/**/*.ts", "client/src/**/*.{ts,tsx}", "client/next.config.*"],
+      "exclude": ["**/vendor/**", "**/*.test.{ts,tsx}"],
+      "references": ["checklists.md"]
+    },
+    "react-best-practices": {
+      "side": "frontend",
+      "priority": 3,
+      "paths": ["client/src/**/*.tsx", "client/src/lib/hooks/**/*.ts"],
+      "exclude": ["client/src/vendor/**", "**/*.test.{ts,tsx}"],
+      "references": []
+    },
+    "next-best-practices": {
+      "side": "frontend",
+      "priority": 3,
+      "paths": ["client/src/app/**/*.{ts,tsx}", "client/next.config.*", "client/src/middleware.ts", "client/src/i18n/**/*.{ts,tsx}"],
+      "exclude": ["**/*.test.{ts,tsx}"],
+      "triggers": {
+        "scope": ["client/src/**/*.{ts,tsx}"],
+        "patterns": ["^\\s*['\"]use (client|server)['\"]", "from ['\"]next/"]
+      },
+      "references": ["rsc-boundaries.md", "directives.md"]
+    },
+    "fastify-best-practices": {
+      "side": "backend",
+      "priority": 3,
+      "paths": ["server/src/**/routes.ts", "server/src/**/routes/**/*.ts", "server/src/app.ts", "server/src/server.ts"],
+      "exclude": ["**/*.test.ts"],
+      "triggers": {
+        "scope": ["server/src/**/*.ts"],
+        "patterns": ["from ['\"]fastify['\"]", "from ['\"]@fastify/"]
+      },
+      "references": []
+    },
+    "drizzle-orm-patterns": {
+      "side": "backend",
+      "priority": 3,
+      "paths": ["server/src/db/**/*.ts", "server/src/**/repository.ts", "server/src/**/repository/**/*.ts", "server/src/**/*.repo.ts", "server/drizzle.config.ts"],
+      "exclude": ["**/*.test.ts"],
+      "triggers": {
+        "scope": ["server/src/**/*.ts"],
+        "patterns": ["from ['\"]drizzle-orm"]
+      },
+      "references": []
+    },
+    "postgresql-table-design": {
+      "side": "backend",
+      "priority": 3,
+      "paths": ["server/src/db/schema.ts", "server/src/db/schema/**/*.ts", "server/src/db/migrations/**/*.sql"],
+      "triggers": {
+        "scope": ["server/src/**/*.ts"],
+        "patterns": ["pgTable\\("]
+      },
+      "references": []
+    },
+    "zod": {
+      "side": "fullstack",
+      "priority": 4,
+      "paths": ["server/src/vendor/shared/**/*.ts", "client/src/vendor/shared/**/*.ts"],
+      "triggers": {
+        "scope": ["{client,server,reviewer-core}/src/**/*.{ts,tsx}"],
+        "patterns": ["from ['\"]zod['\"]"]
+      },
+      "references": []
+    },
+    "react-testing-library": {
+      "side": "frontend",
+      "priority": 5,
+      "maxSeverity": "WARNING",
+      "paths": ["client/**/*.test.{ts,tsx}"],
+      "references": []
+    },
+    "typescript-expert": {
+      "side": "fullstack",
+      "priority": 6,
+      "paths": ["{client,server,reviewer-core,e2e}/**/*.{ts,tsx}"],
+      "exclude": ["**/vendor/**", "**/*.d.ts"],
+      "references": []
+    }
+  }
+}

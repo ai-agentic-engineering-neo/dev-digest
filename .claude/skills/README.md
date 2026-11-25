@@ -19,6 +19,10 @@ Reusable AI skills that provide specialized knowledge and workflows. Canonical l
 | [security](security/SKILL.md) | Full-stack | OWASP Top 10:2025, auth, injection, uploads, secrets |
 | [mermaid-diagram](mermaid-diagram/SKILL.md) | Shared | Mermaid diagrams in markdown (flowcharts, sequence, ERD, …) |
 | [engineering-insights](engineering-insights/SKILL.md) | Shared | Learnings loop: reads and append-only writes per-module INSIGHTS.md; read/wrapup/guard hooks in ../settings.json |
+| [pr-self-review](pr-self-review/SKILL.md) | Shared | Our own: reviews all local changes before a PR — lint/typecheck/tests for touched packages, then the skills above on the files they cover (map: `skill-map.json`), Opus-verified CRITICALs → PASS/BLOCK verdict; `pr-gate` PreToolUse hook in ../settings.json refuses `gh pr create` / `git push` (open PR) without a PASS; `scripts/ci.mjs` runs the same repo rules in CI |
+
+**Adding or vendoring a skill?** Map it in `pr-self-review/skill-map.json` (paths it reviews +
+priority) or list it under `excluded` — the self-review refuses to run with an unmapped skill.
 
 ## What Are Skills?
 

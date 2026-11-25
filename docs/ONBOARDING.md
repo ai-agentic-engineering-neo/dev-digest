@@ -115,7 +115,8 @@ sequenceDiagram
 5. **Three LLM providers in two places.** OpenAI and Anthropic are implemented as server adapters. OpenRouter lives in `reviewer-core`, and the container imports it from there. Meanwhile the root README says the LLM is called "via OpenRouter".
 6. **The documentation lags slightly behind the code.** The reviewer-core README says the starter passes only the diff, the system prompt and the repo map. In reality the executor also passes a callers digest and a rank note ("high blast-radius").
 7. **RunBus lives in memory.** If the server restarts mid-review, the live log is lost and the run is cleaned up by the reaper. That's fine for a local tool, but worth knowing.
-8. **`.claude/skills` holds many vendored skills** for AI assistants: zod, fastify, drizzle, next… They are not product code. The exception is our own `engineering-insights` skill, which maintains the per-module INSIGHTS.md files.
+8. **`.claude/skills` holds many vendored skills** for AI assistants: zod, fastify, drizzle, next… They are not product code. The exceptions are our own skills: `engineering-insights` (maintains the per-module INSIGHTS.md files), `onion-architecture` and `frontend-ui-architecture` (layering and placement rules), and `pr-self-review` (below).
+9. **Opening a PR is gated.** Before `gh pr create` run `/pr-self-review`: it runs lint/typecheck/tests for the packages you touched, then the repo's skills on the files they cover, and writes a PASS/BLOCK verdict for the exact diff. A Claude Code hook refuses `gh pr create` (and `git push` to a branch with an open PR) without a fresh PASS; any edit after the review needs a new review. In CI, `pr-self-review.yml` → `gate` is the required check. Optional, for pushes from any tool: `node .claude/skills/pr-self-review/scripts/install-git-hook.mjs` installs a git pre-push check.
 
 ## 6. What is entirely standard here (and done well)
 

@@ -17,16 +17,18 @@ export class SettingsRepository {
     return rows.map((r) => ({ key: r.key, value: r.value }));
   }
 
-  /** Upsert each key for (workspace, user). One statement per key, in order. */
+  /** Upsert each key for (workspace, user) in one transaction: a PUT saves all keys or none. */
   async upsertMany(workspaceId: string, userId: string, entries: [string, unknown][]): Promise<void> {
-    for (const [key, value] of entries) {
-      await this.db
-        .insert(t.settings)
-        .values({ workspaceId, userId, key, value })
-        .onConflictDoUpdate({
-          target: [t.settings.workspaceId, t.settings.userId, t.settings.key],
-          set: { value },
-        });
-    }
+    await this.db.transaction(async (tx) => {
+      for (const [key, value] of entries) {
+        await tx
+          .insert(t.settings)
+          .values({ workspaceId, userId, key, value })
+          .onConflictDoUpdate({
+            target: [t.settings.workspaceId, t.settings.userId, t.settings.key],
+            set: { value },
+          });
+      }
+    });
   }
 }

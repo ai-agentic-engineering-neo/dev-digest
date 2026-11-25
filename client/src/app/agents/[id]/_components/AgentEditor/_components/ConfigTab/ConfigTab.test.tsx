@@ -65,7 +65,7 @@ describe("ConfigTab", () => {
   it("saves the edited form as the agent patch", () => {
     render(editor(AGENT));
     fireEvent.change(screen.getByDisplayValue("Security Reviewer"), { target: { value: "Sec v2" } });
-    fireEvent.click(screen.getByText("Save agent"));
+    fireEvent.click(screen.getByRole("button", { name: /Save agent/ }));
     expect(mutate).toHaveBeenCalledTimes(1);
     expect(mutate.mock.calls[0]![0]).toEqual({
       id: "ag1",

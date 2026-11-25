@@ -32,7 +32,7 @@ describe("FilterBar", () => {
     for (const label of ["All", "Needs review", "Reviewed", "Stale"]) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
-    fireEvent.click(screen.getByText("Stale"));
+    fireEvent.click(screen.getByRole("button", { name: "Stale" }));
     expect(props.onActive).toHaveBeenCalledWith("stale");
   });
 

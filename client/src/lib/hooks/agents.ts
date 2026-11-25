@@ -65,7 +65,7 @@ export function useUpdateAgent() {
     mutationFn: ({ id, patch }: UpdateAgentInput) => api.put<Agent>(`/agents/${id}`, patch),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: queryKeys.agents() });
-      qc.setQueryData(["agent", data.id], data);
+      qc.setQueryData(queryKeys.agent(data.id), data);
     },
   });
 }

@@ -32,7 +32,7 @@ export function useUpdateSettings() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (patch: SettingsUpdate) => api.put<Settings>("/settings", patch),
-    onSuccess: (data) => qc.setQueryData(["settings"], data),
+    onSuccess: (data) => qc.setQueryData(queryKeys.settings(), data),
   });
 }
 

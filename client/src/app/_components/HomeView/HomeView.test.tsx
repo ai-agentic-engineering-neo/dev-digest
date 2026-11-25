@@ -37,7 +37,7 @@ describe("HomeView", () => {
     renderView();
     expect(screen.getByText("Welcome to DevDigest")).toBeInTheDocument();
     expect(screen.getByText("No repositories yet")).toBeInTheDocument();
-    fireEvent.click(screen.getByText("Add repository"));
+    fireEvent.click(screen.getByRole("button", { name: "Add repository" }));
     expect(push).toHaveBeenCalledWith("/onboarding");
     expect(replace).not.toHaveBeenCalled();
   });

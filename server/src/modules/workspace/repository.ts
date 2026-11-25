@@ -1,15 +1,7 @@
 import { eq } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
-
-/** One cloned repo in the workspace overview (API field names). */
-export interface WorkspaceRepoSummary {
-  id: string;
-  full_name: string;
-  clone_path: string | null;
-  last_polled_at: string | null;
-  cloned: boolean;
-}
+import type { WorkspaceRepoSummary } from './service.js';
 
 /** workspace — infrastructure: reads repos and maps rows to the summary shape. */
 export class WorkspaceRepository {

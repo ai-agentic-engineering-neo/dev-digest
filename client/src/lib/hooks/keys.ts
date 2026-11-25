@@ -1,5 +1,5 @@
 /* hooks/keys.ts — the single source of TanStack Query keys.
-   Every useQuery / invalidateQueries / removeQueries goes through these
+   Every useQuery / invalidateQueries / removeQueries / setQueryData goes through these
    factories, so a key is spelled once and invalidation can't silently miss
    (frontend-architecture §11). The arrays are the exact keys used before the
    factories existed — changing one changes cache identity. */

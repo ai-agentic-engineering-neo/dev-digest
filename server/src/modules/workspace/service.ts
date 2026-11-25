@@ -1,4 +1,11 @@
-import type { WorkspaceRepoSummary } from './repository.js';
+/** One cloned repo in the workspace overview (API field names). */
+export interface WorkspaceRepoSummary {
+  id: string;
+  full_name: string;
+  clone_path: string | null;
+  last_polled_at: string | null;
+  cloned: boolean;
+}
 
 /** What the overview needs from storage (implemented by WorkspaceRepository). */
 export interface WorkspaceRepoStore {

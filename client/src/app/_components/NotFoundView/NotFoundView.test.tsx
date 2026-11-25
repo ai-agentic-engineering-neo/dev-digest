@@ -21,7 +21,7 @@ describe("NotFoundView", () => {
       </NextIntlClientProvider>,
     );
     expect(screen.getByText("Page not found")).toBeInTheDocument();
-    fireEvent.click(screen.getByText("Go to DevDigest"));
+    fireEvent.click(screen.getByRole("button", { name: "Go to DevDigest" }));
     expect(push).toHaveBeenCalledWith("/");
   });
 });

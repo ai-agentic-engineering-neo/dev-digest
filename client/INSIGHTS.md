@@ -18,6 +18,7 @@ Selection rules, review and promotion to CLAUDE.md — skill `engineering-insigh
 
 - 2026-11-20 · pnpm · global pnpm ≥11 ignores the package.json "pnpm.overrides" field, so `pnpm install --frozen-lockfile` fails with ERR_PNPM_LOCKFILE_CONFIG_MISMATCH and every `pnpm <script>` with ERR_PNPM_VERIFY_DEPS_BEFORE_RUN → run `npx -y pnpm@10 install --frozen-lockfile` / `npx -y pnpm@10 test`, because pnpm 10 still honours the field and leaves pnpm-lock.yaml untouched · run-cost feature session, client/package.json pnpm.overrides
 - 2026-11-24 · Next.js / next-intl docs · nextjs.org and next-intl.dev now document Next 16 and next-intl v4 (proxy.ts instead of middleware.ts, refresh()/updateTag(), next/root-params), while client pins next ^15.5 and next-intl ^3.26 → check client/package.json before copying any example from the live docs and translate 16/v4-only APIs back (middleware.ts, src/i18n/request.ts), because those examples compile-fail or silently do nothing on our versions · frontend-ui-architecture research, skill references/nextjs.md 'Version traps'
+- 2026-11-25 · TanStack Query v5 + vi.useFakeTimers · renderHook's result.current stays stale under fake timers even though the cache updated, because notifyManager captured the real setTimeout at import → in fake-timer hook tests call notifyManager.setScheduler(queueMicrotask) in beforeEach and restore (cb) => setTimeout(cb, 0) in afterEach, because otherwise polling assertions see old data and look like the hook never refetched · src/lib/hooks/polling.test.tsx
 
 ## Recurring Errors & Fixes
 

@@ -156,6 +156,14 @@ export type Repo = z.infer<typeof Repo>;
 export const PrStatus = z.enum(['needs_review', 'reviewed', 'stale', 'open', 'closed', 'merged']);
 export type PrStatus = z.infer<typeof PrStatus>;
 
+/** Per-severity count of open findings (PR list FINDINGS column). */
+export const PrFindingCounts = z.object({
+  critical: z.number().int(),
+  warning: z.number().int(),
+  suggestion: z.number().int(),
+});
+export type PrFindingCounts = z.infer<typeof PrFindingCounts>;
+
 export const PrMeta = z.object({
   id: z.string().nullish(),
   number: z.number().int(),
@@ -170,11 +178,18 @@ export const PrMeta = z.object({
   status: PrStatus,
   opened_at: z.string().nullish(),
   updated_at: z.string().nullish(),
-  // Latest-review score (list endpoint only; null/absent until reviewed).
+  // Lowest score over the latest review per agent (list endpoint only;
+  // null/absent until reviewed).
   score: z.number().int().nullish(),
-  // Sum of cost_usd over the latest completed run per distinct agent for this
-  // PR; null when any contributing run has unknown cost (list endpoint only).
+  // Total cost_usd over ALL agent runs for this PR (every agent, every re-run);
+  // null when a completed run has unknown cost (list endpoint only).
   cost_usd: z.number().nullish(),
+  // Open (non-dismissed) finding counts over the latest review per agent;
+  // null/absent until reviewed (list endpoint only).
+  findings: PrFindingCounts.nullish(),
+  // Ids of the reviews those counts/score come from — the latest review per
+  // agent — so the list's findings popover can show exactly those findings.
+  latest_review_ids: z.array(z.string()).nullish(),
 });
 export type PrMeta = z.infer<typeof PrMeta>;
 

@@ -1,13 +1,20 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import type { PrMeta, PrDetail, GitHubClient, PrReviewComment } from '@devdigest/shared';
 import { PrCommentInput } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { AppError, NotFoundError } from '../../platform/errors.js';
-import { deriveReviewStatus } from './status.js';
+import {
+  deriveReviewStatus,
+  latestReviewPerAgent,
+  rollupSeverities,
+  totalRunCostByPr,
+  worstLatestScoreByPr,
+  type SeverityCounts,
+} from './status.js';
 
 /**
  * F1 — pulls module. PR import via Octokit (list + per-PR detail).
@@ -111,58 +118,64 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
-    // Latest-review SCORE per PR for the list's score ring. Computed on read
-    // from reviews (no FK denorm); the list is small, so one IN-query + JS
-    // grouping is cheap. (The per-severity FINDINGS breakdown is intentionally
-    // not surfaced on the list — findings live on the PR detail page.)
+    // PR SCORE + FINDINGS for the list, both over each agent's LATEST review
+    // (a multi-agent run writes one review per agent; the newest single review
+    // would hide the others). Score = the LOWEST of those (worst agent gates
+    // the PR, see worstLatestScoreByPr); findings = open (non-dismissed)
+    // per-severity counts across them. Computed on read; the list is small, so
+    // two IN-queries + JS grouping are cheap.
     const prIds = rows.map((r) => r.id);
-    const latestReviewByPr = new Map<string, { score: number | null }>();
+    let scoreByPr = new Map<string, number | null>();
+    const reviewIdsByPr = new Map<string, string[]>();
+    const findingsByPr = new Map<string, SeverityCounts>();
     if (prIds.length > 0) {
       const reviewRows = await container.db
-        .select({ prId: t.reviews.prId, score: t.reviews.score })
+        .select({
+          id: t.reviews.id,
+          prId: t.reviews.prId,
+          agentId: t.reviews.agentId,
+          score: t.reviews.score,
+        })
         .from(t.reviews)
         .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review')))
         .orderBy(desc(t.reviews.createdAt));
-      // Rows are newest-first → first seen per PR is the latest review.
-      for (const rv of reviewRows) {
-        if (!latestReviewByPr.has(rv.prId)) latestReviewByPr.set(rv.prId, { score: rv.score });
-      }
-    }
+      scoreByPr = worstLatestScoreByPr(reviewRows);
 
-    // PR-list cost: sum of cost_usd over the LATEST completed run per distinct
-    // agent for this PR. Any contributing run with a null cost → PR total null
-    // (don't under-report). Multi-agent batches aren't modelled yet, so the
-    // "latest per agent" is the closest proxy to "cost of current state".
-    const costByPr = new Map<string, number | null>();
-    if (prIds.length > 0) {
-      const runRows = await container.db
-        .select({
-          prId: t.agentRuns.prId,
-          agentId: t.agentRuns.agentId,
-          costUsd: t.agentRuns.costUsd,
-        })
-        .from(t.agentRuns)
-        .where(and(inArray(t.agentRuns.prId, prIds), eq(t.agentRuns.status, 'done')))
-        .orderBy(desc(t.agentRuns.ranAt));
-      // First-seen per (pr, agent) = that agent's latest completed run.
-      const seenAgent = new Set<string>();
-      for (const r of runRows) {
-        if (r.prId == null) continue;
-        const key = `${r.prId}::${r.agentId ?? ''}`;
-        if (seenAgent.has(key)) continue;
-        seenAgent.add(key);
-        const existing = costByPr.has(r.prId) ? costByPr.get(r.prId)! : 0;
-        if (existing === null || r.costUsd == null) {
-          costByPr.set(r.prId, null);
-        } else {
-          costByPr.set(r.prId, existing + r.costUsd);
+      const current = latestReviewPerAgent(reviewRows);
+      const prByReview = new Map<string, string>();
+      for (const rv of current) {
+        prByReview.set(rv.id, rv.prId);
+        reviewIdsByPr.set(rv.prId, [...(reviewIdsByPr.get(rv.prId) ?? []), rv.id]);
+      }
+      if (prByReview.size > 0) {
+        const findingRows = await container.db
+          .select({ reviewId: t.findings.reviewId, severity: t.findings.severity })
+          .from(t.findings)
+          .where(and(inArray(t.findings.reviewId, [...prByReview.keys()]), isNull(t.findings.dismissedAt)));
+        const severitiesByPr = new Map<string, { severity: string }[]>();
+        for (const f of findingRows) {
+          const prId = prByReview.get(f.reviewId)!;
+          severitiesByPr.set(prId, [...(severitiesByPr.get(prId) ?? []), f]);
+        }
+        for (const prId of reviewIdsByPr.keys()) {
+          findingsByPr.set(prId, rollupSeverities(severitiesByPr.get(prId) ?? []));
         }
       }
     }
 
+    // PR-list COST: total spend over ALL agent runs on the PR (every agent,
+    // every re-run) — see totalRunCostByPr for how unknown costs are handled.
+    let costByPr = new Map<string, number | null>();
+    if (prIds.length > 0) {
+      const runRows = await container.db
+        .select({ prId: t.agentRuns.prId, status: t.agentRuns.status, costUsd: t.agentRuns.costUsd })
+        .from(t.agentRuns)
+        .where(inArray(t.agentRuns.prId, prIds));
+      costByPr = totalRunCostByPr(runRows);
+    }
+
     const now = Date.now();
     return rows.map((r) => {
-      const review = latestReviewByPr.get(r.id);
       return {
         id: r.id,
         number: r.number,
@@ -183,8 +196,10 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         }),
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
-        score: review ? review.score : null,
+        score: scoreByPr.get(r.id) ?? null,
         cost_usd: costByPr.has(r.id) ? costByPr.get(r.id)! : null,
+        findings: findingsByPr.get(r.id) ?? null,
+        latest_review_ids: reviewIdsByPr.get(r.id) ?? null,
       };
     });
   });

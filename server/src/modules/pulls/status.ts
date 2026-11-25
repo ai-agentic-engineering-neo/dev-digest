@@ -53,3 +53,67 @@ export function deriveReviewStatus(args: {
   if (updatedAt && now - updatedAt.getTime() > staleMs) return 'stale';
   return 'reviewed';
 }
+
+/**
+ * The reviews that represent a PR's CURRENT multi-agent state: each agent's
+ * LATEST review (an agent re-run supersedes its older reviews, other agents'
+ * reviews stay). `rows` must be ordered newest-first. Reviews without an agent
+ * (seed data, legacy rows) are treated as one "agent". Order is preserved.
+ */
+export function latestReviewPerAgent<R extends { prId: string; agentId: string | null }>(rows: R[]): R[] {
+  const seen = new Set<string>();
+  return rows.filter((r) => {
+    const key = `${r.prId}::${r.agentId ?? ''}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/**
+ * PR-list SCORE across a multi-agent review: each agent's latest review, then
+ * the LOWEST score among them (the worst agent gates the PR). Using only the
+ * single newest review lets whichever agent happened to finish last mask the
+ * others — e.g. a 100 from a performance pass hiding two 0s from security and
+ * general reviewers that completed in the same second.
+ *
+ * `rows` must be ordered newest-first. Null scores are ignored; returns a map
+ * of prId → score (null when no agent produced a score).
+ */
+export function worstLatestScoreByPr(
+  rows: { prId: string; agentId: string | null; score: number | null }[],
+): Map<string, number | null> {
+  const byPr = new Map<string, number | null>();
+  for (const r of latestReviewPerAgent(rows)) {
+    const current = byPr.get(r.prId) ?? null;
+    if (r.score == null) {
+      if (!byPr.has(r.prId)) byPr.set(r.prId, null);
+      continue;
+    }
+    byPr.set(r.prId, current == null ? r.score : Math.min(current, r.score));
+  }
+  return byPr;
+}
+
+/**
+ * PR-list COST: total spend across ALL agent runs on the PR — every agent,
+ * every re-run. Runs that never recorded a cost (failed / cancelled / still
+ * running — they store `costUsd: null`) add nothing. A COMPLETED run with an
+ * unknown cost makes the PR total null rather than silently under-reporting.
+ * PRs with no runs are absent from the map.
+ */
+export function totalRunCostByPr(
+  rows: { prId: string | null; status: string | null; costUsd: number | null }[],
+): Map<string, number | null> {
+  const byPr = new Map<string, number | null>();
+  for (const r of rows) {
+    if (r.prId == null) continue;
+    const current = byPr.has(r.prId) ? byPr.get(r.prId)! : 0;
+    if (r.costUsd == null) {
+      byPr.set(r.prId, r.status === 'done' ? null : current);
+      continue;
+    }
+    byPr.set(r.prId, current === null ? null : current + r.costUsd);
+  }
+  return byPr;
+}

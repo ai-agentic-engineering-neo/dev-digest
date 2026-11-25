@@ -7,15 +7,17 @@ import { useTranslations } from "next-intl";
 import { Icon, Avatar, Badge, CircularScore } from "@devdigest/ui";
 import type { PrMeta } from "@/lib/types";
 import { SIZE_COLOR, STATUS_META } from "../../constants";
-import { relativeTime, sizeOf } from "../../helpers";
+import { relativeTime, sizeOf, statusColor } from "../../helpers";
 import { s } from "../../styles";
 import { RunCostBadge } from "../../[number]/_components/RunCostBadge";
+import { FindingsCell } from "../FindingsCell";
 
 export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
   const t = useTranslations("prReview");
   const router = useRouter();
   const [h, setH] = React.useState(false);
   const st = STATUS_META[pr.status] ?? STATUS_META.needs_review!;
+  const stColor = statusColor(pr, st.c); // "reviewed" is green only with no open blockers/warnings
   const { size, lines } = sizeOf(pr);
   const reviewed = pr.score != null; // null score ⇒ PR has never been reviewed
   return (
@@ -26,7 +28,7 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
       style={s.row(h)}
     >
       <div style={s.rowTitleCell}>
-        <Icon.GitPullRequest size={15} style={s.rowIcon(st.c)} />
+        <Icon.GitPullRequest size={15} style={s.rowIcon(stColor)} />
         <div style={s.rowTitleWrap}>
           <div style={s.rowTitle(h)}>{pr.title}</div>
           <span className="mono" style={s.rowNumber}>
@@ -55,10 +57,13 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
         )}
       </div>
       <div>
+        <FindingsCell pr={pr} />
+      </div>
+      <div>
         <RunCostBadge cost={pr.cost_usd ?? null} />
       </div>
       <div>
-        <Badge dot color={st.c} bg="transparent">
+        <Badge dot color={stColor} bg="transparent">
           {t(`list.status.${st.labelKey}`)}
         </Badge>
       </div>

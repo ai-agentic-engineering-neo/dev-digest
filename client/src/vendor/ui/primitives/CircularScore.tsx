@@ -15,7 +15,9 @@ export function CircularScore({
   return (
     <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
       <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--bg-hover)" strokeWidth={stroke} />
+        {/* Track tinted with the score colour so a low score (even 0, which draws
+            no arc) still reads as red/orange at a glance. */}
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={c} strokeOpacity={0.22} strokeWidth={stroke} />
         <circle
           cx={size / 2}
           cy={size / 2}

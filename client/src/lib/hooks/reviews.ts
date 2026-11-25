@@ -48,11 +48,12 @@ export function usePrRuns(prId: string | null | undefined) {
 }
 
 // ---- Persisted reviews + findings for a PR ----
-export function usePrReviews(prId: string | null | undefined) {
+/** `enabled=false` defers the fetch (e.g. the PR list's findings popover loads on open). */
+export function usePrReviews(prId: string | null | undefined, enabled = true) {
   return useQuery({
     queryKey: ["reviews", prId],
     queryFn: () => api.get<ReviewRecord[]>(`/pulls/${prId}/reviews`),
-    enabled: !!prId,
+    enabled: !!prId && enabled,
   });
 }
 
@@ -66,6 +67,7 @@ export function useDeleteRun(prId: string | null | undefined) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["pr-runs", prId] });
       qc.invalidateQueries({ queryKey: ["reviews", prId] });
+      qc.invalidateQueries({ queryKey: ["pulls"] }); // list score + findings rollup
     },
   });
 }
@@ -82,7 +84,10 @@ export function useDeleteReview(prId: string | null | undefined) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (reviewId: string) => api.del<{ ok: boolean }>(`/reviews/${reviewId}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["reviews", prId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["reviews", prId] });
+      qc.invalidateQueries({ queryKey: ["pulls"] }); // list score + findings rollup
+    },
   });
 }
 
@@ -156,6 +161,9 @@ export function useFindingAction() {
       ),
     onSuccess: (_d, { prId }) => {
       if (prId) qc.invalidateQueries({ queryKey: ["reviews", prId] });
+      // The PR list's FINDINGS counts exclude dismissed findings — refresh them
+      // too, or the list keeps the pre-dismiss counts until an unrelated refetch.
+      qc.invalidateQueries({ queryKey: ["pulls"] });
     },
   });
 }

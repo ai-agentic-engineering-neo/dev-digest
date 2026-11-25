@@ -150,4 +150,4 @@ write-ups (useful for nuance, weaker as authority).
 
 - [client/AGENTS.md](../../../client/AGENTS.md) — thin routes, `_components/<Name>/`, hooks only in `src/lib/hooks`, UI only from `@devdigest/ui`, strings in `messages/`
 - [client/src/vendor/ui/README.md](../../../client/src/vendor/ui/README.md) — design system rules
-- Example of the target folder anatomy: [AgentCard/](../../../client/src/app/agents/_components/AgentCard/)
+- Example of the component folder anatomy: [AgentCard/](../../../client/src/app/agents/_components/AgentCard/)

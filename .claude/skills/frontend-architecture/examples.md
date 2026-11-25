@@ -214,7 +214,7 @@ export const RUN_POLL_INTERVAL_MS = 3_000;
 const s = { row: { display: "flex", gap: 8 } };
 ```
 
-## 10. Feature module (target layout) and its enforcement
+## 10. Feature module (`features/` layout, for projects that use it) and its enforcement
 
 ```ts
 // ✅ features/agents/index.ts — the module's public API (like Angular NgModule exports)

@@ -312,31 +312,27 @@ Source of truth: the Next.js Metadata docs and Google Search Central.
 
 Read `client/AGENTS.md` first.
 
-**Current layout ≠ target layout.** The client today uses the route-colocated layout:
-`app/<route>/_components/<Name>/`, data hooks in `src/lib/hooks/<domain>.ts`, shared UI in
-`src/components/` and `src/vendor/ui/`. The target in §2 is `features/` + `shared/`. Until a
-migration is agreed and `client/AGENTS.md` is updated, **follow the existing layout in client
-code** (consistency, §1.5) and don't half-migrate a single feature inside an unrelated PR. Target mapping for that migration:
+DevDigest already follows §2 in its own form, so nothing has to be moved. Map the
+terms like this and keep writing code in the existing layout:
 
-| Today | Target |
+| §2 term | DevDigest client |
 |---|---|
-| `app/agents/_components/*` | `features/agents/views/` + `features/agents/components/` |
-| `lib/hooks/agents.ts` | `features/agents/api/` |
-| `lib/api.ts` | `shared/lib/api-client.ts` |
-| `lib/format.ts`, `github-urls.ts` | `shared/lib/` |
-| `components/app-shell`, `page-shell`, … | `shared/components/` |
-| `vendor/ui` (`@devdigest/ui`) | stays a vendored package; acts as `shared/ui` |
+| pages layer (`app/`) | `src/app/**/page.tsx`: thin **server** files (`generateMetadata` + one client view) |
+| feature module | a route folder: `src/app/<route>/_components/<Name>/` (views, components, helpers, constants, tests) |
+| feature data access (`api/`) | `src/lib/hooks/<domain>.ts` over `src/lib/api.ts`, keys from `src/lib/hooks/keys.ts` |
+| shared UI | `src/vendor/ui/` (`@devdigest/ui`) and `src/components/` (app shell, diff viewer, …) |
+| shared lib | `src/lib/<topic>.ts` (`format.ts`, `github-urls.ts`, …) |
 
-Current rules (they still apply):
-- Routes: `src/app/**/page.tsx` stays thin, and the view lives in `_components/<Name>/` with `Name.tsx`, `index.ts`, `constants.ts`, `helpers.ts`, `styles.ts` and `Name.test.tsx` (see `app/agents/_components/AgentCard/`).
-- Data: only via hooks in `src/lib/hooks/<domain>.ts` over `src/lib/api.ts`.
+Rules:
+- Routes: `page.tsx` is a server component that exports `generateMetadata` (title from `messages/en/meta.json`) and renders one `_components/<Name>View`. The root `layout.tsx` adds the `%s · DevDigest` template and `noindex`. `app/error.tsx` and `app/not-found.tsx` are the boundaries.
+- Components: `_components/<Name>/` with `Name.tsx`, `index.ts`, and only the `constants.ts` / `helpers.ts` / `styles.ts` it needs, plus `Name.test.tsx` (see `app/agents/_components/AgentCard/`).
+- Data: only via hooks in `src/lib/hooks/<domain>.ts`. Query keys only from `queryKeys` in `keys.ts`. Import hooks from the domain file (`@/lib/hooks/agents`), not the `lib/hooks/index.ts` barrel.
 - UI primitives: only from `@devdigest/ui`. Contracts and types: from `@devdigest/shared`.
 - Colors: CSS variables only. Text: `messages/<locale>/*.json` via `next-intl`.
-- Alias: `@/*` → `src/*`. Use it instead of deep relative paths. There is existing debt: about 30 files use `../../../`-style chains (e.g. `../../../../lib/hooks/agents` in `AgentCard.tsx`). Fix them in files you touch. Don't mass-rewrite unrelated files in a feature PR.
-- `src/lib/hooks/index.ts` is an existing `export *` barrel. Keep it working, but import from the domain file (`@/lib/hooks/agents`) in new code.
+- Imports: `@/*` → `src/*`. ESLint (`pnpm lint`) rejects `../../../` chains and deep `@devdigest/ui/*` imports.
 - Caching: the global defaults in `src/lib/providers.tsx` are `staleTime: 30_000` and `refetchOnWindowFocus: false`. Override per hook when a domain needs it (e.g. `agents.ts` uses 5 min). Don't add local copies of query data.
 - React Compiler is **not** enabled, so §11's manual memo rules apply.
-- SEO: only the root `layout.tsx` exports `metadata`, and there is no `robots.ts`/`sitemap.ts` yet. New pages export their own `metadata`/`generateMetadata` with a unique title. Repo, PR and settings screens are private app data, so they should be `noindex` if the app is ever deployed publicly. Public or marketing pages get the full §12.
+- SEO: every screen is private workspace data (`noindex`). If a public page is ever added (landing, docs), it gets the full §12.
 
 ## 14. Review checklist
 

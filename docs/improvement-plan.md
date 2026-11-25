@@ -174,7 +174,7 @@ Don't mass-refactor inside feature PRs.
 
 ## P2 — target architecture and polish
 
-- **T1 · `features/` + `shared/` layout in client** (L, incremental). This is the target from `frontend-architecture` §2, with the mapping table in §13. Do it one feature per PR, starting with `agents` (smallest, well tested). First update `client/AGENTS.md`, so agents don't follow two layouts. Lint zones from `frontend-architecture/examples.md` §10.
+- ~~**T1 · `features/` + `shared/` layout in client**~~ — dropped (2026-11-25): skills are guidance only, never a migration. `frontend-architecture` §13 now maps §2's terms onto the existing route-colocated layout, so no code has to move.
 - **T2 · Styling decision.** The stack lists Tailwind 4, but components use `styles.ts` style objects and inline `style={}`. Pick one, write it in `client/AGENTS.md`, and stop mixing (`react-best-practices` Tailwind section vs the current convention).
 - **T3 · Move ports out of `@devdigest/shared`** (`vendor/shared/adapters.ts`) into `server/src/application/ports/`. This is a separate migration (`onion-architecture` §5).
 - **T4 · SEO**, only if anything is ever public (landing, docs): full `frontend-architecture` §12 (`robots.ts`, `sitemap.ts`, canonical, OG, JSON-LD). App screens stay `noindex`.

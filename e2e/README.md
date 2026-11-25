@@ -64,6 +64,11 @@ npm i -g agent-browser && agent-browser install
 # or: cd e2e && npm install && npm run e2e:hermetic
 ```
 
+Needs Docker, a global `pnpm` (used in `server/`) and `npx`: the script runs
+`client/` through `npx -y pnpm@10`, because pnpm ≥11 ignores the
+`pnpm.overrides` field in `client/package.json` and refuses to run scripts
+(`ERR_PNPM_VERIFY_DEPS_BEFORE_RUN`). No pnpm wrapper or shim is needed.
+
 The isolated Postgres is ephemeral (no persistent volume), so it's empty every
 run and the seeded demo repo `acme/payments-api` is the only one — which is
 exactly what flows 02/04/05 need.

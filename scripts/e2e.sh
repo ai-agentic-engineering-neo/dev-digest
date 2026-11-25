@@ -48,6 +48,15 @@ warn() { printf '\033[1;33m! %s\033[0m\n' "$*"; }
 # --- prerequisites -----------------------------------------------------------
 command -v docker >/dev/null || { echo "docker not found"; exit 1; }
 command -v pnpm   >/dev/null || { echo "pnpm not found (npm i -g pnpm)"; exit 1; }
+command -v npx    >/dev/null || { echo "npx not found (comes with Node/npm)"; exit 1; }
+
+# Package managers per package (see the root CLAUDE.md):
+#  - server/: the global pnpm. Its node_modules may have been installed by
+#    pnpm ≥11 (store v11), which pnpm 10 refuses to reuse.
+#  - client/: pinned pnpm 10 via npx. pnpm ≥11 ignores the "pnpm.overrides"
+#    field in client/package.json and fails every run with
+#    ERR_PNPM_VERIFY_DEPS_BEFORE_RUN; pnpm 10 still honours it.
+CLIENT_PNPM=(npx -y pnpm@10)
 command -v agent-browser >/dev/null || \
   warn "agent-browser not found — install once: npm i -g agent-browser && agent-browser install"
 
@@ -105,13 +114,14 @@ log "Postgres healthy"
 
 # --- install deps (only if missing) ------------------------------------------
 install_if_needed() {
-  if [ ! -d "$1/node_modules" ]; then
-    log "installing deps in $1"
-    (cd "$1" && pnpm install)
+  local dir="$1"; shift
+  if [ ! -d "$dir/node_modules" ]; then
+    log "installing deps in $dir"
+    (cd "$dir" && "$@" install)
   fi
 }
-install_if_needed server
-install_if_needed client
+install_if_needed server pnpm
+install_if_needed client "${CLIENT_PNPM[@]}"
 # reviewer-core's RAW source is imported by the API at runtime (tsconfig alias);
 # without its deps the API crashes at boot with ERR_MODULE_NOT_FOUND. It uses npm.
 [ -d reviewer-core/node_modules ] || { log "installing deps in reviewer-core"; (cd reviewer-core && npm ci); }
@@ -145,7 +155,7 @@ log "API healthy"
 
 # --- web on :$WEB_PORT (next dev → reads NEXT_PUBLIC_API_BASE from env) -------
 log "starting web on :$WEB_PORT"
-(cd client && pnpm exec next dev -p "$WEB_PORT") &
+(cd client && "${CLIENT_PNPM[@]}" exec next dev -p "$WEB_PORT") &
 WEB_PID=$!
 log "waiting for web :$WEB_PORT"
 web_up=0

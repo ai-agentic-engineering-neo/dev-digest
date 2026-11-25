@@ -29,6 +29,11 @@ actionable cold.
 **Rule:** ALWAYS format run cost only through `formatUsd()` in `client/src/lib/format.ts` (`toPrecision(2)` then trim zeros past the 2nd decimal) — because ad-hoc `toFixed` breaks the agreed table in `docs/specs/m1-run-cost/SPEC.md` §5.1.
 **Evidence:** `client/src/lib/format.ts` → `formatUsd()`; test `src/lib/format.test.ts` "0.06 → $0.06"
 
+### 2026-11-25 — Awaiting mutateAsync in a click handler without catch
+**Insight:** `CreateAgentModal.submit` awaited `create.mutateAsync` with no `catch`, so a failed create raised an unhandled promise rejection (vitest fails the run on it) even though the global `MutationCache` toast already reports the error.
+**Rule:** ALWAYS wrap `await mutation.mutateAsync(...)` in event handlers with `try/catch` and return early — because the error is shown by `lib/providers.tsx` and the rejection otherwise escapes.
+**Evidence:** `CreateAgentModal.tsx` → `submit` | test `CreateAgentModal.test.tsx` "does not navigate when creation fails"
+
 ## Codebase Patterns
 
 ### 2026-11-21 — Keep shared src/components free of their own i18n namespace
@@ -55,6 +60,11 @@ actionable cold.
 **Insight:** `client/src/vendor/shared` has drifted functionally from the server copy: `LLMProvider.id` and the `productionize.ts` provider enum lack `'openrouter'`, and `AgentVersionConfig`, `AgentManifest`, `CommitFile` are missing — while the UI already sends `provider: "openrouter"`.
 **Rule:** ALWAYS run `diff -rq server/src/vendor/shared client/src/vendor/shared` after touching a contract and copy server → client — because typecheck passes on the stale copy, so drift is silent.
 **Evidence:** `client/src/vendor/shared/adapters.ts` → `LLMProvider` | `SettingsModels.tsx` → `feature_models` | `docs/improvement-plan.md` P0-2
+
+### 2026-11-25 — page.tsx is a server shell; the screen is a client *View
+**Insight:** A `'use client'` page cannot export `metadata`, so every route now has a thin server `page.tsx` (`generateMetadata` from `messages/en/meta.json`) rendering one client `_components/<Name>View`; titles come from the URL only (no fetch).
+**Rule:** ALWAYS add new routes as server `page.tsx` + client `<Name>View` and give them a `meta.json` title — because the root layout supplies the `%s · DevDigest` template and `noindex`, and a client page would silently drop both.
+**Evidence:** `src/app/repos/[repoId]/pulls/[number]/page.tsx` → `generateMetadata` | `src/app/layout.tsx` → `generateMetadata`
 
 ## Tool & Library Notes
 

@@ -24,6 +24,11 @@ actionable cold.
 
 ## What Doesn't Work
 
+### 2026-11-25 — Persisting a review and its findings as two inserts
+**Insight:** `run-executor` wrote `reviews` then `findings` separately, so a failed findings insert left a review with zero findings that the UI shows as a clean run.
+**Rule:** ALWAYS persist a review through `ReviewRepository.insertReviewWithFindings` (one `db.transaction`) — because the two rows are one aggregate and must commit together.
+**Evidence:** `src/modules/reviews/repository/review.repo.ts` → `insertReviewWithFindings` | test `review-persist-atomic.it.test.ts` (rollback case)
+
 ## Codebase Patterns
 
 ### 2026-11-21 — [REVIEW NEEDED] Run cost is computed per LLM call but never persisted
@@ -49,6 +54,11 @@ actionable cold.
 **Rule:** ALWAYS match packages as unanchored `node_modules/(drizzle-orm|openai|…)/` and set `tsPreCompilationDeps: true` to see `import type` edges (exempt with `dependencyTypesNot: ['type-only']`) — because anchored patterns silently pass every import and nested groups abort the run.
 **Evidence:** `.claude/skills/onion-architecture/templates/dependency-cruiser.example.cjs` → `pkg()`; `./node_modules/.bin/depcruise src --config <template> --output-type err`
 
+### 2026-11-25 — A response schema with .default() rewrites the reply
+**Insight:** `fastify-type-provider-zod`'s serializer parses the handler result with the response schema, so `schema.response[200]: Settings` would inject every `.default()` (theme, density…) into `GET /settings` and 500 on a stored value that no longer validates.
+**Rule:** ALWAYS add a response schema only when the contract matches the returned shape exactly (no `.default()`/transforms), e.g. `SecretsStatus`, `ConnTestResult` — because otherwise the schema silently changes the API output.
+**Evidence:** `src/modules/settings/routes.ts` → `/settings/secrets-status`, `/settings/test-connection` | `@devdigest/shared` → `SettingsKnown`
+
 ## Recurring Errors & Fixes
 
 ## Session Notes
@@ -58,3 +68,5 @@ actionable cold.
 - 2026-11-25 — onion-architecture skill (rules only, enforcement not wired): template run on server/src reports 34 errors + 5 cycles as starting baseline; see "Keep dependency-cruiser rule regexes flat and unanchored for pnpm"
 
 ## Open Questions
+
+- 2026-11-25 — The onion template rule `routes-no-data-access` flags `new XRepository(container.db)` wiring in `routes.ts`, which onion-architecture §6 prescribes as the module composition root — change the rule or move wiring to a dedicated file? Blocks wiring depcruise into CI (context: `.claude/skills/onion-architecture/templates/dependency-cruiser.example.cjs` → `routes-no-data-access`; `src/modules/settings/routes.ts`)

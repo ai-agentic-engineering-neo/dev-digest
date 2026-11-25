@@ -22,6 +22,20 @@ Priority: **P0** = safety net, cheap, unblocks the rest · **P1** = real archite
 | P0-3 hex colors | ✅ dead hex fallbacks removed from `lib/toast.tsx`. ⏸ `MODEL_COLOR` needs a design decision: no token for `#8b5cf6`, and the light theme redefines `--accent`/`--ok`/`--warn`, so switching would change how the chips look |
 | P0-3 `any` in server | ❌ false positive: both hits were the word "any" in comments. There are no `any` types |
 | B1 `pulls/routes.ts` | ⚠ uncommitted work in progress from another session touches `server/src/modules/pulls/*`. Left untouched here |
+| F4 deep imports | ✅ codemod: 47 specifiers in 24 files → `@/`. `no-restricted-imports` is now an **error** |
+| F2 query keys | ✅ `lib/hooks/keys.ts` (exact old arrays, pinned by `keys.test.ts`), `useInvalidatePrRuns` for the PR page |
+| F3 state/effects | ✅ `ConfigTab`: one form object + `key={agent.id}` instead of 9 `useState` + a reset effect. `FindingsPanel`: focus reset in the handlers. `ReviewRunAccordion` effect kept (scroll is a DOM sync) |
+| F1 thin pages | ✅ pages moved to `_components/<Name>View`. Each `page.tsx` is a server component with `generateMetadata`. Title template + `noindex` in the root layout. `app/error.tsx` + `app/not-found.tsx` (real 404). Checked on `next start` |
+| F5 tests | 🟡 added for `AddRepoView`, `ConfigTab`, `HomeView`, `NotFoundView`, `FilterBar`, `CreateAgentModal` (this one found and fixed an unhandled rejection). Still missing: `AgentsListView`, `SettingsView` (+2 sections), `FindingsTab`, `PrDetailHeader`, `ReviewRunAccordion`, `OverviewTab`, `DiffTab`, 6 `RunTraceDrawer` parts, the 4 new `*View` route bodies |
+| F6 split big components | ⏳ not started |
+| B1 settings + workspace | ✅ Drizzle moved into `SettingsRepository` / `WorkspaceRepository`. Thin services. `feature-models.ts` reads through the repository. `polling` left alone (overlaps the pulls WIP) |
+| B2 response schemas | 🟡 `secrets-status`, `test-connection`. `GET/PUT /settings` skipped on purpose: the `Settings` contract has `.default()`s the serializer would inject. Other modules not done |
+| B3 explicit deps | 🟡 `AgentsService({ repo, llm })`. `reviews`, `repos` and `repo-intel` services still take `Container` |
+| B4 Drizzle in application | 🟡 queries gone from `settings`. Left: `reviews/run-executor.ts`, `reviews/diff-loader.ts`, `repos/helpers.ts` use **row types** (not queries), so the fix is repositories returning DTOs (module migration) |
+| B5 transactions | ✅ verified and fixed: review + findings were two separate inserts. Now `insertReviewWithFindings` in one transaction. The rollback test fails without it |
+| B6 split god files | ⏳ not started (L, high risk) |
+| B7 ports | ✅ `modules/repo-intel/ports.ts` owns `DepGraph`/`FileEdge`/`Tokenizer` + adapter constants. Adapters import only it. `repos` goes through the repo-intel facade. Dependency-rule template: 34 → 20 errors |
+| B8 enforcement | ⏳ blocked: (1) the pulls WIP is uncommitted. (2) The template's `routes-no-data-access` rule flags module wiring in `routes.ts`, which `onion-architecture` §6 prescribes. Resolve that conflict first |
 
 ---
 

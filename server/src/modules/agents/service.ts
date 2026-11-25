@@ -1,4 +1,3 @@
-import type { Container } from '../../platform/container.js';
 import type {
   Agent,
   AgentSkillLink,
@@ -8,7 +7,7 @@ import type {
   Provider,
   ReviewStrategy,
 } from '@devdigest/shared';
-import { AgentsRepository } from './repository.js';
+import type { AgentsRepository } from './repository.js';
 import { toAgentDto, toAgentVersionDto } from './helpers.js';
 
 /**
@@ -48,11 +47,32 @@ export interface UpdateAgentInput {
   enabled?: boolean;
 }
 
-export class AgentsService {
-  private repo: AgentsRepository;
+/** Storage the agents use cases need (implemented by AgentsRepository). */
+export type AgentsStore = Pick<
+  AgentsRepository,
+  | 'list'
+  | 'getById'
+  | 'deleteById'
+  | 'insert'
+  | 'update'
+  | 'listVersions'
+  | 'getVersion'
+  | 'linkedSkills'
+  | 'linkSkill'
+  | 'setSkills'
+>;
 
-  constructor(private container: Container) {
-    this.repo = new AgentsRepository(container.db);
+/** Resolves the LLM adapter for a provider (Container.llm in production). */
+export type LlmResolver = (provider: Provider) => Promise<{ listModels(): Promise<ModelInfo[]> }>;
+
+export class AgentsService {
+  private readonly repo: AgentsStore;
+  private readonly llm: LlmResolver;
+
+  /** Explicit deps (onion-architecture §10): no Container, no repository built here. */
+  constructor(deps: { repo: AgentsStore; llm: LlmResolver }) {
+    this.repo = deps.repo;
+    this.llm = deps.llm;
   }
 
   async list(workspaceId: string): Promise<Agent[]> {
@@ -177,7 +197,7 @@ export class AgentsService {
    */
   async listModels(provider: Provider): Promise<ModelInfo[]> {
     try {
-      const llm = await this.container.llm(provider);
+      const llm = await this.llm(provider);
       return await llm.listModels();
     } catch {
       return [];

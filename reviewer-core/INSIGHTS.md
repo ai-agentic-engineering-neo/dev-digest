@@ -10,6 +10,9 @@ Selection rules, review and promotion to CLAUDE.md — skill `engineering-insigh
 
 ## Codebase Patterns
 
+- 2026-11-25 · reduce + grounding · neither reduceReviews nor groundFindings dedupes findings, and buildLineIndex lets a second diff entry for the same path overwrite the first's covered lines → when changing map-reduce chunking or the diff parser, dedupe explicitly and keep one diff entry per path, because overlapping chunks otherwise emit duplicate findings that each cost score (scoreFromFindings penalises every copy) · test/reduce.test.ts, test/grounding.test.ts (pinned current behaviour)
+- 2026-11-25 · typecheck scope · tsconfig.json includes only src/**, so npm run typecheck never checks test/*.ts and vitest strips types without checking them → typecheck new tests with a throwaway tsconfig that includes test/ (or run tsc on the files) before relying on them, because a wrong fixture type only shows up as a confusing runtime failure · reviewer-core/tsconfig.json include, R1 test session
+
 ## Tool & Library Notes
 
 ## Recurring Errors & Fixes

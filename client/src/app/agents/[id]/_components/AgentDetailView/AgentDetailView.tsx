@@ -27,9 +27,9 @@ export function AgentDetailView() {
   const update = useUpdateAgent();
 
   const tab = VALID_TABS.includes(search.get("tab") ?? "") ? search.get("tab")! : "config";
-  const setTab = (t: string) => {
+  const setTab = (next: string) => {
     const sp = new URLSearchParams(search.toString());
-    sp.set("tab", t);
+    sp.set("tab", next);
     router.replace(`/agents/${id}?${sp.toString()}`);
   };
 

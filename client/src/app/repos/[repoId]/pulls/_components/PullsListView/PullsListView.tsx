@@ -20,9 +20,7 @@ import { COLUMN_KEYS, SKELETON_ROWS } from "../../constants";
 import { s } from "../../styles";
 import { PRRow } from "../PRRow";
 import { FilterBar } from "../FilterBar";
-
-/** Open PRs carry a derived review status; everything else is merged/closed. */
-const OPEN_STATUSES = new Set(["needs_review", "reviewed", "stale"]);
+import { pullCounts, visiblePulls } from "./helpers";
 
 export function PullsListView() {
   const t = useTranslations("prReview");
@@ -46,19 +44,9 @@ export function PullsListView() {
   const [query, setQuery] = React.useState("");
   const [sort, setSort] = React.useState("newest");
 
-  const q = query.trim().toLowerCase();
-  const filtered = (pulls ?? [])
-    .filter((p) => status === "all" || p.status === status)
-    .filter((p) => !q || p.title.toLowerCase().includes(q) || String(p.number).includes(q))
-    .slice()
-    .sort((a, b) => {
-      const ta = Date.parse(a.updated_at ?? "") || 0;
-      const tb = Date.parse(b.updated_at ?? "") || 0;
-      return sort === "oldest" ? ta - tb : tb - ta;
-    });
+  const filtered = visiblePulls(pulls ?? [], { status, query, sort });
   const repoName = activeRepo?.full_name ?? repoId;
-  const openCount = (pulls ?? []).filter((p) => OPEN_STATUSES.has(p.status)).length;
-  const needsReviewCount = (pulls ?? []).filter((p) => p.status === "needs_review").length;
+  const { open: openCount, needsReview: needsReviewCount } = pullCounts(pulls ?? []);
 
   // Stale/unknown :repoId → friendly empty state instead of a 404 error.
   if (repoNotFound) {

@@ -14,6 +14,8 @@ Selection rules, review and promotion to CLAUDE.md — skill `engineering-insigh
 
 ## Recurring Errors & Fixes
 
+- 2026-11-25 · find … click race · 'Command failed: agent-browser find text <row> click' right after 'wait --url /pulls' (flows 04/05) while flow 02 passes: find does not wait for the element, and locally the PR list loads slower because the API first tries a GitHub sync with the real token in ~/.devdigest/secrets.json (404 + retries for the demo repo) → ALWAYS put a 'wait --text <same text>' step before any 'find … click' on async data, because CI (no token) is fast enough to hide the race · specs/04-pr-findings.flow.json, specs/05-pr-diff.flow.json
+
 ## Session Notes
 
 ## Open Questions

@@ -3,7 +3,7 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { FormField, SearchableSelect, Icon } from "@devdigest/ui";
-import { useSettings, useUpdateSettings } from "@/lib/hooks";
+import { useSettings, useUpdateSettings } from "@/lib/hooks/core";
 import { useProviderModels } from "@/lib/hooks/agents";
 import { toModelOptions } from "@/lib/model-label";
 import { FEATURE_MODELS } from "@/lib/feature-models";

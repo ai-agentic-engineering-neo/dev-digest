@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, waitFor, act } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import messages from "../../../../../../../messages/en/agents.json";
 
@@ -52,9 +52,15 @@ describe("CreateAgentModal", () => {
   it("does not navigate when creation fails", async () => {
     mutateAsync.mockRejectedValue(new Error("boom"));
     const onClose = renderModal();
-    fireEvent.click(createButton());
-    await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
+    // Click inside act and flush microtasks, so the rejected mutateAsync and the
+    // handler's catch have fully settled before asserting nothing happened.
+    await act(async () => {
+      fireEvent.click(createButton());
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(mutateAsync).toHaveBeenCalledTimes(1);
     expect(push).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
+    expect(createButton()).toBeInTheDocument(); // the modal stayed open
   });
 });

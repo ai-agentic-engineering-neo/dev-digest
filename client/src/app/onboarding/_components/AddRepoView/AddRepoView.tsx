@@ -9,7 +9,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Button, Icon, IconBtn, Kbd, TextInput, FormField } from "@devdigest/ui";
-import { useAddRepo } from "@/lib/hooks";
+import { useAddRepo } from "@/lib/hooks/core";
 import { ApiError } from "@/lib/api";
 
 export function AddRepoView() {

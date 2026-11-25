@@ -15,7 +15,7 @@ import { OverviewTab } from "../OverviewTab";
 import { FindingsTab } from "../FindingsTab";
 import { DiffTab } from "../DiffTab";
 import RunTraceDrawer from "../RunTraceDrawer";
-import { usePullDetail, usePulls } from "@/lib/hooks";
+import { usePullDetail, usePulls } from "@/lib/hooks/core";
 import {
   usePrReviews,
   useCancelRun,

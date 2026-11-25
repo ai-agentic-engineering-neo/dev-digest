@@ -4,7 +4,7 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useRepos } from "@/lib/hooks";
+import { useRepos } from "@/lib/hooks/core";
 import { AppShell } from "@/components/app-shell";
 import { PageContainer } from "@/components/page-shell";
 import { EmptyState, Button, Skeleton } from "@devdigest/ui";

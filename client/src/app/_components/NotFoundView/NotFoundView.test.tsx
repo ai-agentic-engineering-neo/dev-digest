@@ -1,27 +1,19 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { describe, it, expect, afterEach } from "vitest";
+import { render, screen, cleanup } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import common from "../../../../messages/en/common.json";
-
-const { push } = vi.hoisted(() => ({ push: vi.fn() }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
-
 import { NotFoundView } from "./NotFoundView";
 
-afterEach(() => {
-  cleanup();
-  push.mockReset();
-});
+afterEach(cleanup);
 
 describe("NotFoundView", () => {
-  it("explains the missing page and links home", () => {
+  it("explains the missing page and offers a real link home", () => {
     render(
       <NextIntlClientProvider locale="en" messages={{ common }}>
         <NotFoundView />
       </NextIntlClientProvider>,
     );
     expect(screen.getByText("Page not found")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Go to DevDigest" }));
-    expect(push).toHaveBeenCalledWith("/");
+    expect(screen.getByRole("link", { name: "Go to DevDigest" })).toHaveAttribute("href", "/");
   });
 });

@@ -9,7 +9,7 @@ const { replace, push, repos } = vi.hoisted(() => ({
   repos: { current: { data: undefined as unknown, isLoading: false, isError: false } },
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace, push }) }));
-vi.mock("@/lib/hooks", () => ({ useRepos: () => repos.current }));
+vi.mock("@/lib/hooks/core", () => ({ useRepos: () => repos.current }));
 // The shell has its own data hooks; it isn't what this test is about.
 vi.mock("@/components/app-shell", () => ({
   AppShell: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,

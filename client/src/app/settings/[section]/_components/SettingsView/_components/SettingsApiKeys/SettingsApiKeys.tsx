@@ -3,7 +3,7 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Button, Icon, FormField, TextInput } from "@devdigest/ui";
-import { useTestConnection, useSecretsStatus } from "@/lib/hooks";
+import { useTestConnection, useSecretsStatus } from "@/lib/hooks/core";
 import { ApiError } from "@/lib/api";
 import type { ConnTestProvider } from "@/lib/types";
 import { SectionTitle } from "../SectionTitle";

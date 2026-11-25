@@ -13,11 +13,9 @@ on:
       - 'reviewer-core/**'
       - 'server/src/vendor/shared/**'
       - '.github/workflows/reviewer-core.yml'
-  pull_request:
-    paths:
-      - 'reviewer-core/**'
-      - 'server/src/vendor/shared/**'
-      - '.github/workflows/reviewer-core.yml'
+  # Pull requests: called by pr-self-review.yml (the required check) when the diff touches
+  # this suite — see the `triggers` table in .claude/skills/pr-self-review/scripts/checks.mjs.
+  workflow_call:
 
 permissions:
   contents: read

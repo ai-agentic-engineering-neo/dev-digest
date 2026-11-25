@@ -20,11 +20,9 @@ on:
       - 'server/**'
       - 'reviewer-core/**'
       - '.github/workflows/server-unit.yml'
-  pull_request:
-    paths:
-      - 'server/**'
-      - 'reviewer-core/**'
-      - '.github/workflows/server-unit.yml'
+  # Pull requests: called by pr-self-review.yml (the required check) when the diff touches
+  # this suite — see the `triggers` table in .claude/skills/pr-self-review/scripts/checks.mjs.
+  workflow_call:
 
 permissions:
   contents: read

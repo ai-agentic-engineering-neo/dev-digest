@@ -12,12 +12,9 @@ on:
       - 'server/src/vendor/shared/**'
       - 'scripts/check-contracts.sh'
       - '.github/workflows/client.yml'
-  pull_request:
-    paths:
-      - 'client/**'
-      - 'server/src/vendor/shared/**'
-      - 'scripts/check-contracts.sh'
-      - '.github/workflows/client.yml'
+  # Pull requests: called by pr-self-review.yml (the required check) when the diff touches
+  # this suite — see the `triggers` table in .claude/skills/pr-self-review/scripts/checks.mjs.
+  workflow_call:
 
 permissions:
   contents: read

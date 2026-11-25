@@ -31,6 +31,17 @@ If a test wouldn't catch a class of regression we care about, we don't write it.
 | server-integration | `server/` | integration (real Postgres) | vitest | `server-integration.yml` | **yes** |
 | reviewer-core | `reviewer-core/` | unit (engine) | vitest | `reviewer-core.yml` | no |
 | e2e web | `e2e/` | browser e2e (deterministic) | agent-browser + `run.ts` | `e2e-web.yml` | yes (stack) |
+| pr-self-review | repo | repo rules + calls client / server-unit / reviewer-core | node `ci.mjs` | `pr-self-review.yml` | no |
+
+**Pull requests into `main`** run through `pr-self-review.yml`, the single required
+check (`gate`): it runs the repo rules of the local `pr-self-review` skill (contract
+drift, package-manager mix, lockfile sync, secrets, English-only), then calls
+`client.yml`, `server-unit.yml` and `reviewer-core.yml` as reusable workflows for the
+packages the diff touches, and fails if any of them failed. Those three no longer have a
+`pull_request` trigger of their own (only `push` to `main`); which suite a path triggers
+is the `triggers` table in `.claude/skills/pr-self-review/scripts/checks.mjs` — change it
+together with their `push.paths`. `server-integration.yml` and `e2e-web.yml` stay
+path-filtered and are not required.
 
 ## What each suite covers
 
@@ -93,6 +104,9 @@ cd e2e && npm install && npm test
   only `--url` / `--text` / `find` locators — never the AI `chat` command.
 - **CI is path-filtered per package.** Cross-package source aliases are encoded
   in each workflow's `paths:` (e.g. `reviewer-core/**` triggers `server-unit`
-  because the server type-checks against `../reviewer-core/src`).
+  because the server type-checks against `../reviewer-core/src`). For pull
+  requests the same mapping lives in the `triggers` table of
+  `.claude/skills/pr-self-review/scripts/checks.mjs` (see `pr-self-review.yml`);
+  docs-only (`*.md`) changes run no package suite.
 - **`server/clones/**` is runtime data** (git-ignored) and never collected by
   any suite.

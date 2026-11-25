@@ -1,0 +1,81 @@
+# PR self-review — the single REQUIRED check for pull requests into main
+# (docs/pr-self-review-plan.md, decision D1: deterministic only, no LLM in CI).
+#
+# Runs on every PR (no path filter — a required check that never starts blocks the merge):
+#  - rules: the same repo rules as the local /pr-self-review skill (contract drift, package-manager
+#    mix, lockfile sync, secrets, English-only) via .claude/skills/pr-self-review/scripts/ci.mjs,
+#    which also decides which package suites the diff touches (same table as checks.mjs);
+#  - the touched suites: client.yml, server-unit.yml, reviewer-core.yml are called as reusable
+#    workflows, so they run once per PR (their own `pull_request` trigger was removed);
+#  - gate: fails when anything above failed or was cancelled; skipped suites are fine.
+# server-integration.yml and e2e-web.yml stay separate, path-filtered and not required.
+name: pr-self-review
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-self-review-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rules:
+    name: rules
+    runs-on: ubuntu-latest
+    outputs:
+      client: ${{ steps.ci.outputs.client }}
+      server: ${{ steps.ci.outputs.server }}
+      reviewer-core: ${{ steps.ci.outputs.reviewer-core }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the diff is computed against merge-base(HEAD, origin/<base>)
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Repo rules + touched suites
+        id: ci
+        run: node .claude/skills/pr-self-review/scripts/ci.mjs --base "origin/${{ github.base_ref }}"
+
+  client:
+    needs: rules
+    if: ${{ !cancelled() && needs.rules.outputs.client == 'true' }}
+    uses: ./.github/workflows/client.yml
+
+  server-unit:
+    needs: rules
+    if: ${{ !cancelled() && needs.rules.outputs.server == 'true' }}
+    uses: ./.github/workflows/server-unit.yml
+
+  reviewer-core:
+    needs: rules
+    if: ${{ !cancelled() && needs.rules.outputs.reviewer-core == 'true' }}
+    uses: ./.github/workflows/reviewer-core.yml
+
+  gate:
+    name: gate
+    if: ${{ always() }}
+    needs: [rules, client, server-unit, reviewer-core]
+    runs-on: ubuntu-latest
+    steps:
+      - name: All required checks passed
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS" | node -e '
+            let s = ""; process.stdin.on("data", (d) => (s += d)).on("end", () => {
+              const needs = JSON.parse(s);
+              let bad = false;
+              for (const [job, r] of Object.entries(needs)) {
+                console.log(`${job}: ${r.result}`);
+                if (r.result === "failure" || r.result === "cancelled") bad = true;
+              }
+              if (needs.rules.result !== "success") bad = true; // rules must always run and pass
+              process.exit(bad ? 1 : 0);
+            });'

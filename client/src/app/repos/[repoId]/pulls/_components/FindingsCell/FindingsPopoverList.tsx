@@ -6,7 +6,7 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { CategoryTag, ConfidenceNum, Icon, SEV, Skeleton, type Category } from "@devdigest/ui";
 import type { FindingRecord } from "@devdigest/shared";
-import { location } from "./helpers";
+import { formatFindingLocation } from "../../helpers";
 import { s } from "./styles";
 
 export function FindingsPopoverList({
@@ -47,7 +47,7 @@ export function FindingsPopoverList({
               </div>
               <div style={s.meta}>
                 <span className="mono" style={s.location}>
-                  {location(f)}
+                  {formatFindingLocation(f)}
                 </span>
                 <ConfidenceNum value={f.confidence} />
               </div>

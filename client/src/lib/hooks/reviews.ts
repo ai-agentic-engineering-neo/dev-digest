@@ -8,29 +8,29 @@ import { api, API_BASE } from "../api";
 import { notify } from "../toast";
 import type {
   FindingActionKind,
+  PrCommentInput,
   PrReviewComment,
   ReviewRecord,
   ReviewRunResponse,
   RunEvent,
   RunSummary,
 } from "@devdigest/shared";
+import { pullKeys } from "./keys";
+
+/** Poll interval while a PR has in-flight runs. */
+const RUNNING_POLL_MS = 4000;
 
 // ---- Active (in-flight) runs — server-side source of truth ----
-export interface ActiveRun {
-  run_id: string;
-  agent_id: string | null;
-  agent_name: string | null;
-  ran_at: string | null;
-}
+export type ActiveRun = Pick<RunSummary, "run_id" | "agent_id" | "agent_name" | "ran_at">;
 
 /** In-flight runs for a PR, from the server (agent_runs where status='running').
    Survives reloads/devices; polls while anything is running so it self-clears. */
 export function usePrActiveRuns(prId: string | null | undefined) {
   return useQuery({
-    queryKey: ["pr-active-runs", prId],
+    queryKey: pullKeys.activeRuns(prId),
     queryFn: () => api.get<ActiveRun[]>(`/pulls/${prId}/runs/active`),
     enabled: !!prId,
-    refetchInterval: (query) => ((query.state.data?.length ?? 0) > 0 ? 4000 : false),
+    refetchInterval: (query) => ((query.state.data?.length ?? 0) > 0 ? RUNNING_POLL_MS : false),
   });
 }
 
@@ -39,19 +39,37 @@ export function usePrActiveRuns(prId: string | null | undefined) {
    reload (DB-backed). Polls while anything is running so it self-updates. */
 export function usePrRuns(prId: string | null | undefined) {
   return useQuery({
-    queryKey: ["pr-runs", prId],
+    queryKey: pullKeys.runs(prId),
     queryFn: () => api.get<RunSummary[]>(`/pulls/${prId}/runs`),
     enabled: !!prId,
     refetchInterval: (query) =>
-      (query.state.data ?? []).some((r) => r.status === "running") ? 4000 : false,
+      (query.state.data ?? []).some((r) => r.status === "running") ? RUNNING_POLL_MS : false,
   });
+}
+
+/** Refresh a PR's run state after runs start or settle. `history` also drops
+   the full run timeline + persisted reviews (a just-failed run shows up in
+   "Run history" immediately, no reload). Keeps raw keys out of components. */
+export function useInvalidatePrRuns(prId: string | null | undefined) {
+  const qc = useQueryClient();
+  return React.useCallback(
+    ({ history = false }: { history?: boolean } = {}) => {
+      if (!prId) return;
+      qc.invalidateQueries({ queryKey: pullKeys.activeRuns(prId) });
+      if (history) {
+        qc.invalidateQueries({ queryKey: pullKeys.runs(prId) });
+        qc.invalidateQueries({ queryKey: pullKeys.reviews(prId) });
+      }
+    },
+    [qc, prId],
+  );
 }
 
 // ---- Persisted reviews + findings for a PR ----
 /** `enabled=false` defers the fetch (e.g. the PR list's findings popover loads on open). */
 export function usePrReviews(prId: string | null | undefined, enabled = true) {
   return useQuery({
-    queryKey: ["reviews", prId],
+    queryKey: pullKeys.reviews(prId),
     queryFn: () => api.get<ReviewRecord[]>(`/pulls/${prId}/reviews`),
     enabled: !!prId && enabled,
   });
@@ -65,9 +83,9 @@ export function useDeleteRun(prId: string | null | undefined) {
     // Deleting a run also deletes the review it produced (server-side), so drop
     // both the timeline and the Review Runs list from cache.
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["pr-runs", prId] });
-      qc.invalidateQueries({ queryKey: ["reviews", prId] });
-      qc.invalidateQueries({ queryKey: ["pulls"] }); // list score + findings rollup
+      qc.invalidateQueries({ queryKey: pullKeys.runs(prId) });
+      qc.invalidateQueries({ queryKey: pullKeys.reviews(prId) });
+      qc.invalidateQueries({ queryKey: pullKeys.lists }); // list score + findings rollup
     },
   });
 }
@@ -85,8 +103,8 @@ export function useDeleteReview(prId: string | null | undefined) {
   return useMutation({
     mutationFn: (reviewId: string) => api.del<{ ok: boolean }>(`/reviews/${reviewId}`),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["reviews", prId] });
-      qc.invalidateQueries({ queryKey: ["pulls"] }); // list score + findings rollup
+      qc.invalidateQueries({ queryKey: pullKeys.reviews(prId) });
+      qc.invalidateQueries({ queryKey: pullKeys.lists }); // list score + findings rollup
     },
   });
 }
@@ -95,27 +113,19 @@ export function useDeleteReview(prId: string | null | undefined) {
 /** Existing GitHub PR review comments, fetched live. */
 export function usePrComments(prId: string | null | undefined) {
   return useQuery({
-    queryKey: ["pr-comments", prId],
+    queryKey: pullKeys.comments(prId),
     queryFn: () => api.get<PrReviewComment[]>(`/pulls/${prId}/comments`),
     enabled: !!prId,
   });
-}
-
-export interface CreateCommentInput {
-  path: string;
-  line: number;
-  side?: "LEFT" | "RIGHT";
-  body: string;
-  in_reply_to?: number;
 }
 
 /** Post one inline comment (or reply) to GitHub; refreshes the thread list. */
 export function useCreatePrComment(prId: string | null | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: CreateCommentInput) =>
+    mutationFn: (input: PrCommentInput) =>
       api.post<PrReviewComment>(`/pulls/${prId}/comments`, input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["pr-comments", prId] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: pullKeys.comments(prId) }),
   });
 }
 
@@ -135,7 +145,7 @@ export function useRunReview() {
         ...(all ? { all } : {}),
       }),
     onSuccess: (_d, { prId }) => {
-      qc.invalidateQueries({ queryKey: ["reviews", prId] });
+      qc.invalidateQueries({ queryKey: pullKeys.reviews(prId) });
     },
   });
 }
@@ -160,10 +170,10 @@ export function useFindingAction() {
         reply ? { reply } : undefined,
       ),
     onSuccess: (_d, { prId }) => {
-      if (prId) qc.invalidateQueries({ queryKey: ["reviews", prId] });
+      if (prId) qc.invalidateQueries({ queryKey: pullKeys.reviews(prId) });
       // The PR list's FINDINGS counts exclude dismissed findings — refresh them
       // too, or the list keeps the pre-dismiss counts until an unrelated refetch.
-      qc.invalidateQueries({ queryKey: ["pulls"] });
+      qc.invalidateQueries({ queryKey: pullKeys.lists });
     },
   });
 }

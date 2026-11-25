@@ -1,10 +1,6 @@
 import type { FindingRecord, Severity } from "@devdigest/shared";
+import type { SeverityCount } from "../types";
 import { LOW_CONFIDENCE_THRESHOLD, SEVERITY_ORDER } from "./constants";
-
-export interface SeverityCount {
-  severity: Severity;
-  count: number;
-}
 
 const bySeverity = (a: string, b: string) => (SEVERITY_ORDER[a] ?? 9) - (SEVERITY_ORDER[b] ?? 9);
 

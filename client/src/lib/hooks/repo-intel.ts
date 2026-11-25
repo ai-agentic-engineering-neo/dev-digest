@@ -8,6 +8,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
+import { repoIntelKeys } from "./keys";
 
 /** Subset of the server's IndexState the badge + completion-poll need (kept
     local — not in @devdigest/shared, since repo-intel types live server-side). */
@@ -30,7 +31,7 @@ export interface RepoIntelState {
     `lastIndexedSha`/`updatedAt` advance, not by status). */
 export function useRepoIntelStatus(repoId: string | null | undefined, poll = false) {
   return useQuery({
-    queryKey: ["repo-intel-state", repoId],
+    queryKey: repoIntelKeys.state(repoId),
     queryFn: () => api.get<RepoIntelState>(`/repos/${repoId}/index-state`),
     enabled: !!repoId,
     refetchInterval: poll ? 1500 : false,
@@ -43,7 +44,7 @@ export function useResyncRepoIntel(repoId: string | null | undefined) {
   return useMutation({
     mutationFn: () => api.post<{ status: string }>(`/repos/${repoId}/resync`),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["repo-intel-state", repoId] });
+      qc.invalidateQueries({ queryKey: repoIntelKeys.state(repoId) });
     },
   });
 }

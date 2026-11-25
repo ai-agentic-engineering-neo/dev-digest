@@ -9,7 +9,7 @@ import type { FindingRecord, Severity } from "@devdigest/shared";
 import { FindingCard } from "../FindingCard";
 import { SeverityCounters } from "../SeverityCounters";
 import { SeverityFindingsModal } from "../SeverityFindingsModal";
-import { useFindingAction } from "../../../../../../../lib/hooks/reviews";
+import { useFindingAction } from "@/lib/hooks/reviews";
 import { KEY_TO_ACTION } from "./constants";
 import { countBySeverity, visibleFindings } from "./helpers";
 import { s } from "./styles";

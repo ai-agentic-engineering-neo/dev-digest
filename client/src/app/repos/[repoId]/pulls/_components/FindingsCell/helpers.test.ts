@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { location, placePopover, popoverFindings } from "./helpers";
+import { placePopover, popoverFindings } from "./helpers";
 import { LATEST_IDS, REVIEWS, finding } from "./fixtures.test-data";
 
 describe("popoverFindings", () => {
@@ -10,13 +10,6 @@ describe("popoverFindings", () => {
   it("returns [] while reviews or ids are missing", () => {
     expect(popoverFindings(undefined, LATEST_IDS)).toEqual([]);
     expect(popoverFindings(REVIEWS, null)).toEqual([]);
-  });
-});
-
-describe("location", () => {
-  it("formats single lines and ranges", () => {
-    expect(location(finding("a", "WARNING", { file: "x.ts", start_line: 4, end_line: 4 }))).toBe("x.ts:4");
-    expect(location(finding("a", "WARNING", { file: "x.ts", start_line: 4, end_line: 9 }))).toBe("x.ts:4–9");
   });
 });
 

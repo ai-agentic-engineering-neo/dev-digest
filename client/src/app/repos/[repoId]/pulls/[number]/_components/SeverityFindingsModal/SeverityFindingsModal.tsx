@@ -7,13 +7,8 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Button, ConfidenceNum, Icon, Modal, SEV } from "@devdigest/ui";
 import type { FindingRecord, Severity } from "@devdigest/shared";
+import { formatFindingLocation } from "../../../helpers";
 import { s } from "./styles";
-
-function location(f: FindingRecord): string {
-  return f.end_line && f.end_line !== f.start_line
-    ? `${f.file}:${f.start_line}–${f.end_line}`
-    : `${f.file}:${f.start_line}`;
-}
 
 export function SeverityFindingsModal({
   severity,
@@ -68,7 +63,7 @@ export function SeverityFindingsModal({
               <span style={s.title}>{f.title}</span>
               <span style={s.meta}>
                 <span className="mono" style={s.location}>
-                  {location(f)}
+                  {formatFindingLocation(f)}
                 </span>
                 <ConfidenceNum value={f.confidence} />
               </span>

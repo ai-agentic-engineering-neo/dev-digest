@@ -47,11 +47,15 @@ Pages are thin (`page.tsx` delegates to a `_components/` feature component). Fea
 ## Data layer
 
 - `src/lib/api.ts` — raw fetch wrappers, one function per API endpoint
-- `src/lib/hooks/core.ts` — shared query client setup
+- `src/lib/hooks/keys.ts` — **all** query keys (`pullKeys`, `agentKeys`, …). Components never write raw key arrays; invalidation lives inside hooks (e.g. `useInvalidatePrRuns`)
+- `src/lib/hooks/settings.ts` / `repos.ts` / `pulls.ts` — settings + key status, repos, PR list/detail
 - `src/lib/hooks/reviews.ts` — review runs, findings, SSE trace
 - `src/lib/hooks/agents.ts` — agent CRUD
 - `src/lib/hooks/repo-intel.ts` — index state polling
 - `src/lib/hooks/trace.ts` — SSE run trace streaming
+- `src/lib/search-params.ts` — `useSetSearchParam()` for URL state (`?tab`, `?trace`, `?status`)
+
+There is no `lib/hooks/index.ts` barrel — import the domain file directly (`@/lib/hooks/pulls`) and mock that same specifier in tests.
 
 ## Testing conventions
 

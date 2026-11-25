@@ -7,7 +7,7 @@ import { SettingsApiKeys } from "./SettingsApiKeys";
 /** S11 (security hardening) — a verified key leaves the input; a failed one stays for fixing. */
 
 const mutateAsync = vi.fn();
-vi.mock("@/lib/hooks", () => ({
+vi.mock("@/lib/hooks/settings", () => ({
   useTestConnection: () => ({ mutateAsync, isPending: false }),
   useSecretsStatus: () => ({ data: { openai: true, anthropic: false, openrouter: false, github: false } }),
 }));

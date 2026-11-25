@@ -7,7 +7,7 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Button, Icon, SEV } from "@devdigest/ui";
 import type { Severity } from "@devdigest/shared";
-import type { SeverityCount } from "../FindingsPanel/helpers";
+import type { SeverityCount } from "../types";
 import { s } from "./styles";
 
 export function SeverityCounters({

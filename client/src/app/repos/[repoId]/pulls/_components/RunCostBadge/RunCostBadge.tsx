@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { formatCost } from "../RunTraceDrawer/helpers";
+import { formatCost } from "@/lib/format";
 
 /**
  * Presentational cost badge. Compact, mono-numeric. Used in three places:

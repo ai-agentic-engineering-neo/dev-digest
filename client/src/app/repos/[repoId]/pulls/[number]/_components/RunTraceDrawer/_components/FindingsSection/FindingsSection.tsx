@@ -6,6 +6,7 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Badge } from "@devdigest/ui";
 import type { FindingRecord } from "@devdigest/shared";
+import { formatFindingLocation } from "../../../../../helpers";
 import { s } from "../../styles";
 import { TraceSection } from "../TraceSection";
 
@@ -44,8 +45,7 @@ export function FindingsSection({ findings }: { findings: FindingRecord[] }) {
                 <span style={{ fontSize: 13, fontWeight: 600 }}>{f.title}</span>
               </div>
               <div className="mono" style={{ fontSize: 11.5, color: "var(--text-muted)", marginBottom: 6 }}>
-                {f.file}:{f.start_line}
-                {f.end_line !== f.start_line ? `-${f.end_line}` : ""}
+                {formatFindingLocation(f)}
               </div>
               <div style={{ fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.5 }}>
                 {f.rationale}

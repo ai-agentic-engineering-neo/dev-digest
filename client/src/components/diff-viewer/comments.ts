@@ -2,7 +2,7 @@
    Pure helpers + the API shape the viewer needs; React bits live in
    DiffComments.tsx. Comments are GitHub PR review comments, proxied live. */
 import type { CSSProperties } from "react";
-import type { PrReviewComment } from "../../lib/types";
+import type { PrCommentInput, PrReviewComment } from "@/lib/types";
 import type { Line } from "./helpers";
 
 /** What the viewer needs to read + write inline comments. */
@@ -12,13 +12,7 @@ export interface DiffCommentApi {
   /** When false, existing comment threads are hidden (the "+" still works). */
   showComments: boolean;
   posting: boolean;
-  onSubmit: (input: {
-    path: string;
-    line: number;
-    side: "LEFT" | "RIGHT";
-    body: string;
-    in_reply_to?: number;
-  }) => Promise<unknown>;
+  onSubmit: (input: PrCommentInput & Required<Pick<PrCommentInput, "side">>) => Promise<unknown>;
 }
 
 /** One review-comment thread anchored to a diff line (or outdated). */

@@ -54,12 +54,21 @@ The PR list's score + FINDINGS counts are derived server-side from reviews and n
 **Date:** 2026-11-22
 **Evidence:** `client/src/app/repos/[repoId]/pulls/[number]/_components/RunCostBadge/RunCostBadge.tsx`
 
-Feature added COST to the PR list column, the RunHistory timeline row, and the TraceBody Stats section. Followed the existing colocation convention: shared primitive (`RunCostBadge` + `formatCost`) lives under `pulls/[number]/_components/`, imported by the PR-list row via a relative path. Spec rules in `formatCost`: null / undefined / exactly 0 → em-dash `—`; otherwise 3 sig figs (`$0.012`, `$1.23`); never `$0.00`.
+Feature added COST to the PR list column, the RunHistory timeline row, and the TraceBody Stats section. (Superseded 2026-11-25: `RunCostBadge` moved to `pulls/_components/` and `formatCost` to `lib/format.ts` — a parent route must not import a child route's private `_components`.) Spec rules in `formatCost`: null / undefined / exactly 0 → em-dash `—`; otherwise 3 sig figs (`$0.012`, `$1.23`); never `$0.00`.
 
 ### 2026-11-22 — Per-run severity counters + filter + modal
 **Date:** 2026-11-22
 **Evidence:** `client/src/app/repos/[repoId]/pulls/[number]/_components/FindingsPanel/FindingsPanel.tsx`
 
 SeverityCounters (pill = filter button + sibling ⓘ button) and SeverityFindingsModal live next to FindingsPanel, which owns the single-select `severity` + `detailsFor` state per run. Counts come from all findings (`countBySeverity`) so they stay fixed when hide-low is on; only `visibleFindings(findings, hideLow, severity)` drives the list. Shared fixtures: `FindingsPanel/fixtures.test-data.ts` (name avoids the `*.test.ts` glob).
+
+### 2026-11-25 — UI architecture pass (react-architecture skill)
+**Date:** 2026-11-25
+**Evidence:** `client/src/lib/hooks/keys.ts`, `client/src/app/repos/[repoId]/pulls/[number]/_components/PrDetailView/`
+
+- Every `page.tsx` is a thin entry that reads params and renders one `_components/<X>View`. Orchestration goes in a colocated hook (e.g. `usePrDetailData`), and pure derivations go in `helpers.ts` with tests.
+- Query keys come only from `lib/hooks/keys.ts`. The factory arrays are byte-identical to the old literals (`["pulls", repoId]`, `["pr-runs", prId]`, …), so prefix invalidation such as `pullKeys.lists` (`["pulls"]`) still matches. Keep it that way when adding keys.
+- `vi.mock` must use the same specifier style the component imports. After the barrel was removed, tests mock `@/lib/hooks/<domain>`, not `@/lib/hooks`.
+- Code shared by sibling routes goes up to the nearest common route: `formatFindingLocation` lives in `pulls/helpers.ts` and `RunCostBadge` in `pulls/_components/`. It goes to `lib/` only when domain-agnostic, like `formatCost`.
 
 ## Open Questions

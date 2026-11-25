@@ -6,7 +6,7 @@ import messages from "../../../../../../../../messages/en/prReview.json";
 import { MIXED, finding } from "./fixtures.test-data";
 
 const mutate = vi.fn();
-vi.mock("../../../../../../../lib/hooks/reviews", () => ({
+vi.mock("@/lib/hooks/reviews", () => ({
   useFindingAction: () => ({ mutate, isPending: false }),
 }));
 

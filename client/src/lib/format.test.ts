@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatCost } from "./helpers";
+import { formatCost } from "./format";
 
 describe("formatCost", () => {
   it("renders em-dash for null / undefined / exactly 0", () => {

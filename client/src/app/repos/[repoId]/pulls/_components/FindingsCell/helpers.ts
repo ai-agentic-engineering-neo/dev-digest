@@ -23,13 +23,6 @@ export function popoverFindings(
     );
 }
 
-/** "file:12" or "file:12–18". */
-export function location(f: FindingRecord): string {
-  return f.end_line && f.end_line !== f.start_line
-    ? `${f.file}:${f.start_line}–${f.end_line}`
-    : `${f.file}:${f.start_line}`;
-}
-
 /**
  * Fixed-position placement for a popover anchored under (or, when there is
  * more room, above) a trigger. `maxHeight` shrinks to the space on the chosen

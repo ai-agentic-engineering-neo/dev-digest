@@ -1,0 +1,12 @@
+  {
+    "hooks": {
+      "PreToolUse": [
+        {
+          "matcher": "Bash",
+          "hooks": [
+            { "type": "command", "command": ".claude/skills/pr-self-review/run.sh" }
+          ]
+        }
+      ]
+    }
+  }

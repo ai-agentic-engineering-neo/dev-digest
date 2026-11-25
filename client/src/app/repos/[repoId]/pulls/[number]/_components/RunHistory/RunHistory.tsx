@@ -4,7 +4,7 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { Badge, Icon, CircularScore, type IconName } from "@devdigest/ui";
 import type { RunSummary, PrCommit } from "@devdigest/shared";
-import { RunCostBadge } from "../RunCostBadge";
+import { RunCostBadge } from "../../../_components/RunCostBadge";
 
 /**
  * PR timeline — every agent run interleaved with the PR's commits, newest-first

@@ -1,0 +1,11 @@
+{
+  "name": "devdigest/onion-architecture",
+  "version": "0.1.0",
+  "private": true,
+  "summary": "Guides backend module design following Onion Architecture. Use when adding or restructuring a module under server/src/modules/, choosing where a piece of code belongs (route vs service vs repository vs adapter), designing a new adapter/port, or reviewing a module for layering violations. Covers the Dependency Rule, ports-and-adapters, the DevDigest DI container pattern, unit/integration test split, and 12 concrete anti-patterns with fixes. Trigger terms: onion architecture, clean architecture, dependency rule, ports and adapters, layered architecture, module structure, service vs repository, where should this code live, DI container, adapter pattern.",
+  "skills": {
+    "onion-architecture": {
+      "path": "SKILL.md"
+    }
+  }
+}

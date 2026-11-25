@@ -3,7 +3,7 @@ import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import messages from "../../../../../../../../messages/en/prReview.json";
 import { SeverityCounters } from "./SeverityCounters";
-import type { SeverityCount } from "../FindingsPanel/helpers";
+import type { SeverityCount } from "../types";
 
 afterEach(cleanup);
 

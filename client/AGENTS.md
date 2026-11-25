@@ -5,7 +5,10 @@ Inherits the root `AGENTS.md`; only client-specific rules here.
 - `pnpm dev` (:3000) · `pnpm test` (vitest + jsdom, fetch mocked) · `pnpm typecheck`
 
 ## Layout
-- `src/app/**/page.tsx` — thin routes; feature logic in colocated `_components/<Name>/`
+- `src/app/**/page.tsx` — thin **server** routes: export `generateMetadata` (title from
+  `messages/en/meta.json`) and render one client `_components/<Name>View`; feature logic in
+  colocated `_components/<Name>/`. Root `layout.tsx` sets the title template + `noindex`;
+  `app/error.tsx` / `app/not-found.tsx` are the boundaries
 - `src/lib/api.ts` — the only API client; `src/lib/hooks/*` — all data hooks
 - `src/components/app-shell/` — nav, breadcrumbs, keyboard shortcuts
 - `src/vendor/ui/` — design system (`@devdigest/ui`)

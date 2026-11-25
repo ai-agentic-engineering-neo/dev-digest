@@ -37,14 +37,19 @@ export function PullsView() {
 
   // Default to "needs review" — the most actionable filter on open.
   const status = search.get("status") ?? "needs_review";
-  const setStatus = (k: string) => {
+  // Sort is URL state too (survives reload, shareable); the default stays out of the URL.
+  const sort = search.get("sort") === "oldest" ? "oldest" : "newest";
+  const replaceQuery = (edit: (sp: URLSearchParams) => void) => {
     const sp = new URLSearchParams(search.toString());
-    sp.set("status", k); // always explicit so "all" sticks over the needs_review default
+    edit(sp);
     router.replace(`/repos/${repoId}/pulls?${sp.toString()}`);
   };
+  // always explicit so "all" sticks over the needs_review default
+  const setStatus = (k: string) => replaceQuery((sp) => sp.set("status", k));
+  const setSort = (v: string) =>
+    replaceQuery((sp) => (v === "oldest" ? sp.set("sort", v) : sp.delete("sort")));
 
   const [query, setQuery] = React.useState("");
-  const [sort, setSort] = React.useState("newest");
 
   const q = query.trim().toLowerCase();
   const filtered = (pulls ?? [])

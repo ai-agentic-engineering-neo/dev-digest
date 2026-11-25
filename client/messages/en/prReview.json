@@ -113,5 +113,10 @@
     "openTrace": "Open run trace & logs",
     "deleteRun": "Delete run",
     "tokens": "{count} tok"
+  },
+  "detail": {
+    "loadErrorTitle": "Couldn't load this pull request",
+    "loadErrorBody": "PR #{number} could not be loaded.",
+    "deleteRunConfirm": "Delete this run from history? (its logs are removed too)"
   }
 }

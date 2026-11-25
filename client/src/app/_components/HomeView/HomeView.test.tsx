@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import home from "../../../../messages/en/home.json";
 
@@ -37,8 +37,7 @@ describe("HomeView", () => {
     renderView();
     expect(screen.getByText("Welcome to DevDigest")).toBeInTheDocument();
     expect(screen.getByText("No repositories yet")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Add repository" }));
-    expect(push).toHaveBeenCalledWith("/onboarding");
+    expect(screen.getByRole("link", { name: "Add repository" })).toHaveAttribute("href", "/onboarding");
     expect(replace).not.toHaveBeenCalled();
   });
 
@@ -46,6 +45,6 @@ describe("HomeView", () => {
     repos.current = { data: [{ id: "r1", full_name: "acme/payments-api" }], isLoading: false, isError: false };
     renderView();
     expect(replace).toHaveBeenCalledWith("/repos/r1/pulls");
-    expect(screen.getByText("Open acme/payments-api")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open acme/payments-api" })).toHaveAttribute("href", "/repos/r1/pulls");
   });
 });

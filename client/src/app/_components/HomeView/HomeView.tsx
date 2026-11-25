@@ -2,12 +2,17 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useRepos } from "@/lib/hooks/core";
 import { AppShell } from "@/components/app-shell";
 import { PageContainer } from "@/components/page-shell";
-import { EmptyState, Button, Skeleton } from "@devdigest/ui";
+import { EmptyState, Skeleton } from "@devdigest/ui";
+
+/* Navigation is a real <Link href> (open-in-new-tab, crawlable), not a button
+   calling router.push (frontend-architecture §12). */
+const linkStyle = { color: "var(--accent-text)", fontSize: 14 } as const;
 
 export function HomeView() {
   const t = useTranslations("home");
@@ -30,19 +35,18 @@ export function HomeView() {
             <Skeleton height={48} />
           </div>
         ) : isError || !repos || repos.length === 0 ? (
-          <EmptyState
-            icon="GitBranch"
-            title={t("empty.title")}
-            body={t("empty.body")}
-            cta={t("empty.cta")}
-            onCta={() => router.push("/onboarding")}
-          />
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+            <EmptyState icon="GitBranch" title={t("empty.title")} body={t("empty.body")} />
+            <Link href="/onboarding" style={linkStyle}>
+              {t("empty.cta")}
+            </Link>
+          </div>
         ) : (
           <div>
             <p style={{ color: "var(--text-secondary)", marginBottom: 14 }}>{t("redirecting")}</p>
-            <Button kind="primary" onClick={() => router.push(`/repos/${repos[0]!.id}/pulls`)}>
+            <Link href={`/repos/${repos[0]!.id}/pulls`} style={linkStyle}>
               {t("openRepo", { name: repos[0]!.full_name })}
-            </Button>
+            </Link>
           </div>
         )}
       </PageContainer>

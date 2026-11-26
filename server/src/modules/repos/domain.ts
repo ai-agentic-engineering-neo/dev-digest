@@ -1,6 +1,4 @@
-import { type Repo } from '@devdigest/shared';
-import * as t from '../../db/schema.js';
-import { AppError } from '../../platform/errors.js';
+import { BadRequestError } from '../../platform/errors.js';
 import {
   GITHUB_HOST,
   GITHUB_OWNER_RE,
@@ -9,8 +7,9 @@ import {
 } from './constants.js';
 
 /**
- * F1 — repos pure helpers (extracted from routes.ts; no behaviour change).
- * Pure functions only — no I/O, no DB, no container.
+ * F1 — repos domain rules: what counts as a GitHub repo reference and which
+ * URL we are willing to clone. Pure functions only — no I/O, no DB, no
+ * framework; `pnpm deps:validate` (rule `domain-is-pure`) enforces it.
  */
 
 /** A validated GitHub repo reference plus the canonical URL to clone from. */
@@ -25,11 +24,10 @@ export interface ParsedRepoUrl {
   cloneUrl: string;
 }
 
-function invalidRepoUrl(url: string): AppError {
-  return new AppError(
+function invalidRepoUrl(url: string): BadRequestError {
+  return new BadRequestError(
     'invalid_repo_url',
     `Not a GitHub repository URL: '${url.slice(0, 200)}' (expected https://github.com/<owner>/<repo>)`,
-    400,
   );
 }
 
@@ -103,19 +101,4 @@ export function parseRepoUrl(url: string): ParsedRepoUrl {
 /** The one URL shape we ever clone or fetch from. */
 export function canonicalCloneUrl(owner: string, name: string): string {
   return `https://${GITHUB_HOST}/${owner}/${name}.git`;
-}
-
-/** Map a persisted repo row to the API `Repo` DTO. */
-export function toRepoDto(row: typeof t.repos.$inferSelect): Repo {
-  return {
-    id: row.id,
-    workspace_id: row.workspaceId,
-    owner: row.owner,
-    name: row.name,
-    full_name: row.fullName,
-    default_branch: row.defaultBranch,
-    clone_path: row.clonePath,
-    last_polled_at: row.lastPolledAt?.toISOString() ?? null,
-    created_by: row.createdBy,
-  };
 }

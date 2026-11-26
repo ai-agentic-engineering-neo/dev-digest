@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseRepoUrl, canonicalCloneUrl, isValidRepoRef } from '../src/modules/repos/helpers.js';
+import { parseRepoUrl, canonicalCloneUrl, isValidRepoRef } from '../src/modules/repos/domain.js';
 
 /**
  * S1 (security hardening) — only `github.com/<owner>/<repo>` may reach

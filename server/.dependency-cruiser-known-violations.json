@@ -101,35 +101,6 @@
   },
   {
     "type": "dependency",
-    "from": "src/modules/repos/helpers.ts",
-    "to": "src/db/schema.ts",
-    "unresolvedTo": "../../db/schema.js",
-    "dependencyTypes": [
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "core-no-infrastructure"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/modules/repos/service.ts",
-    "to": "src/platform/container.ts",
-    "unresolvedTo": "../../platform/container.js",
-    "dependencyTypes": [
-      "local",
-      "type-only",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "core-no-infrastructure"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/modules/reviews/diff-loader.ts",
     "to": "src/adapters/git/diff-parser.ts",
     "unresolvedTo": "../../adapters/git/diff-parser.js",
@@ -333,34 +304,6 @@
   },
   {
     "type": "dependency",
-    "from": "src/modules/repo-intel/index.ts",
-    "to": "src/modules/repo-intel/repository.ts",
-    "unresolvedTo": "./repository.js",
-    "dependencyTypes": [
-      "local",
-      "export"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "core-uses-ports"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/modules/repo-intel/index.ts",
-    "to": "src/modules/repo-intel/routes.ts",
-    "unresolvedTo": "./routes.js",
-    "dependencyTypes": [
-      "local",
-      "export"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "core-uses-ports"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/modules/repo-intel/service.ts",
     "to": "src/modules/repo-intel/pipeline/full.ts",
     "unresolvedTo": "./pipeline/full.js",
@@ -391,20 +334,6 @@
     "type": "dependency",
     "from": "src/modules/repo-intel/service.ts",
     "to": "src/modules/repo-intel/repository.ts",
-    "unresolvedTo": "./repository.js",
-    "dependencyTypes": [
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "core-uses-ports"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/modules/repos/service.ts",
-    "to": "src/modules/repos/repository.ts",
     "unresolvedTo": "./repository.js",
     "dependencyTypes": [
       "local",
@@ -675,20 +604,6 @@
         ]
       }
     ]
-  },
-  {
-    "type": "dependency",
-    "from": "src/modules/repos/service.ts",
-    "to": "src/modules/repo-intel/constants.ts",
-    "unresolvedTo": "../repo-intel/constants.js",
-    "dependencyTypes": [
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "no-cross-module-internals"
-    }
   },
   {
     "type": "dependency",

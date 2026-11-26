@@ -16,6 +16,17 @@ export class AppError extends Error {
   }
 }
 
+/**
+ * A request the caller got wrong, with its own stable `code`. Use this from
+ * services and domain rules instead of `new AppError(code, message, 400)`, so
+ * HTTP status numbers stay in this file.
+ */
+export class BadRequestError extends AppError {
+  constructor(code: string, message: string, details?: unknown) {
+    super(code, message, 400, details);
+  }
+}
+
 export class NotFoundError extends AppError {
   constructor(message = 'Not found', details?: unknown) {
     super('not_found', message, 404, details);

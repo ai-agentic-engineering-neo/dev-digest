@@ -135,4 +135,61 @@ describe('reviewPullRequest (engine)', () => {
     expect(seen.length).toBeGreaterThan(0);
     expect(seen.every((s) => s === 'sess-abc')).toBe(true);
   });
+  describe('run cost (M1 cost badge)', () => {
+    const TWO_FILES =
+      'diff --git a/src/a.ts b/src/a.ts\n--- a/src/a.ts\n+++ b/src/a.ts\n@@ -1,1 +1,2 @@\n a\n+b\n' +
+      'diff --git a/src/b.ts b/src/b.ts\n--- a/src/b.ts\n+++ b/src/b.ts\n@@ -1,1 +1,2 @@\n c\n+d\n';
+
+    /** Provider that reports the queued per-call cost (one per chunk). */
+    const pricedProvider = (costs: (number | null)[]): LLMProvider => ({
+      id: 'openrouter',
+      async completeStructured<T>(req): Promise<StructuredResult<T>> {
+        return {
+          data: { verdict: 'approve', summary: 'ok', score: 100, findings: [] } as unknown as T,
+          model: req.model,
+          tokensIn: 1000,
+          tokensOut: 100,
+          costUsd: costs.shift() ?? null,
+          raw: '',
+          attempts: 1,
+        };
+      },
+      async listModels() {
+        return [];
+      },
+      async complete() {
+        throw new Error('not used');
+      },
+      async embed() {
+        return [];
+      },
+    });
+
+    it('sums tokens and cost across map-reduce chunks', async () => {
+      const diff = await new MockGitClient({ diff: TWO_FILES }).diff();
+      const out = await reviewPullRequest({
+        systemPrompt: 's',
+        model: 'm',
+        diff,
+        llm: pricedProvider([0.001, 0.0025]),
+        strategy: 'map-reduce',
+      });
+      expect(out.mode).toBe('map-reduce');
+      expect(out.tokensIn).toBe(2000);
+      expect(out.tokensOut).toBe(200);
+      expect(out.costUsd).toBeCloseTo(0.0035);
+    });
+
+    it('cost is null (unknown, not $0) when any chunk has no cost', async () => {
+      const diff = await new MockGitClient({ diff: TWO_FILES }).diff();
+      const out = await reviewPullRequest({
+        systemPrompt: 's',
+        model: 'm',
+        diff,
+        llm: pricedProvider([0.001, null]),
+        strategy: 'map-reduce',
+      });
+      expect(out.costUsd).toBeNull();
+    });
+  });
 });

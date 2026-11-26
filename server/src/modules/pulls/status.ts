@@ -53,3 +53,28 @@ export function deriveReviewStatus(args: {
   if (updatedAt && now - updatedAt.getTime() > staleMs) return 'stale';
   return 'reviewed';
 }
+
+/**
+ * USD cost of each PR's LATEST review round (M1 run cost).
+ *
+ * `runs` must be newest-first (by `ran_at`). The first `roundId` seen per PR is
+ * its latest round; the result sums that round's known costs. A round where no
+ * run has a known cost (all failed / unpriced) maps to null — the UI shows "—",
+ * never "$0.00". Runs without a round (pre-M1 rows) are ignored.
+ */
+export function latestRoundCostByPr(
+  runs: { prId: string | null; roundId: string | null; costUsd: number | null }[],
+): Map<string, number | null> {
+  const latestRound = new Map<string, string>();
+  const cost = new Map<string, number | null>();
+  for (const r of runs) {
+    if (!r.prId || !r.roundId) continue;
+    if (!latestRound.has(r.prId)) {
+      latestRound.set(r.prId, r.roundId);
+      cost.set(r.prId, null);
+    }
+    if (latestRound.get(r.prId) !== r.roundId || r.costUsd == null) continue;
+    cost.set(r.prId, (cost.get(r.prId) ?? 0) + r.costUsd);
+  }
+  return cost;
+}

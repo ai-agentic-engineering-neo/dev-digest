@@ -4,7 +4,7 @@ import { waitForPrRuns } from './helpers/runs.js';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/platform/config.js';
 import { seed } from '../src/db/seed.js';
-import { MockLLMProvider, MockEmbedder, MockGitClient } from '../src/adapters/mocks.js';
+import { MockLLMProvider, MockEmbedder, MockGitClient, MockGitHubClient } from '../src/adapters/mocks.js';
 import * as t from '../src/db/schema.js';
 import { eq } from 'drizzle-orm';
 import type { Review } from '@devdigest/shared';
@@ -209,6 +209,88 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(run!.findingsCount).toBe(1);
     expect(run!.grounding).toBe('1/2 passed');
 
+    // M1 run cost: the LLM's reported cost is persisted on the row + the trace,
+    // and the run belongs to a review round.
+    expect(run!.costUsd).toBeCloseTo(0.001, 10);
+    expect(run!.roundId).toBeTruthy();
+    expect(trace.stats.cost_usd).toBeCloseTo(0.001, 10);
+    const runs = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(runs[0].cost_usd).toBeCloseTo(0.001, 10);
+
+    await app.close();
+  });
+
+  it('M1 run cost: unpriced model stores null cost (shown as "—", never $0.00)', async () => {
+    const app = await buildApp({
+      config: config(),
+      db: pg.handle.db,
+      overrides: {
+        embedder: new MockEmbedder(),
+        git: new MockGitClient({ diff: DIFF }),
+        llm: { openai: new MockLLMProvider('openai', { structured: REVIEW_FIXTURE, costUsd: null }) },
+      },
+    });
+    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'Unpriced', provider: 'openai', model: 'gpt-x', system_prompt: 'p' },
+      })
+    ).json();
+    const res = (
+      await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } })
+    ).json();
+    const [run] = await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+    expect(run!.status).toBe('done');
+    expect(run!.costUsd).toBeNull();
+    const trace = (await app.inject({ method: 'GET', url: `/runs/${res.runs[0].run_id}/trace` })).json();
+    expect(trace.stats.cost_usd).toBeNull();
+    await app.close();
+  });
+
+  it('M1 run cost: PR list shows the latest round total; unreviewed PR → null', async () => {
+    const db = pg.handle.db;
+    const { repo, pr } = await setupRepoAndPr(db, workspaceId);
+    const [fresh] = await db
+      .insert(t.pullRequests)
+      .values({
+        workspaceId,
+        repoId: repo.id,
+        number: 483,
+        title: 'Never reviewed',
+        author: 'a',
+        branch: 'b',
+        base: 'main',
+        headSha: 'ffff',
+        additions: 1,
+        deletions: 0,
+        filesCount: 1,
+        status: 'open',
+      })
+      .returning();
+    const old = new Date(Date.now() - 60_000);
+    const now = new Date();
+    const r1 = '00000000-0000-4000-8000-000000000001';
+    const r2 = '00000000-0000-4000-8000-000000000002';
+    await db.insert(t.agentRuns).values([
+      { workspaceId, prId: pr.id, roundId: r1, costUsd: 0.5, status: 'done', ranAt: old },
+      { workspaceId, prId: pr.id, roundId: r2, costUsd: 0.002, status: 'done', ranAt: now },
+      { workspaceId, prId: pr.id, roundId: r2, costUsd: 0.003, status: 'done', ranAt: now },
+      { workspaceId, prId: pr.id, roundId: r2, costUsd: null, status: 'failed', ranAt: now },
+    ]);
+
+    const app = await buildApp({
+      config: config(),
+      db,
+      overrides: { github: new MockGitHubClient({ pulls: [] }) },
+    });
+    const list = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json() as {
+      id: string;
+      cost_usd: number | null;
+    }[];
+    expect(list.find((p) => p.id === pr.id)!.cost_usd).toBeCloseTo(0.005, 10);
+    expect(list.find((p) => p.id === fresh!.id)!.cost_usd).toBeNull();
     await app.close();
   });
 

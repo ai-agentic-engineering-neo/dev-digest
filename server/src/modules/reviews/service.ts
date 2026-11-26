@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { Container } from '../../platform/container.js';
 import type { FindingActionKind, RunEventKind, RunTrace } from '@devdigest/shared';
 import { AppError, NotFoundError } from '../../platform/errors.js';
@@ -116,6 +117,8 @@ export class ReviewService {
     // stream. The actual (slow) review runs in the background below.
     const runs: { run_id: string; agent_id: string; agent_name: string }[] = [];
     const jobs: { agent: AgentRow; runId: string }[] = [];
+    // One round = all runs of this request; the PR list shows the latest round's cost.
+    const roundId = randomUUID();
     for (const agent of targets) {
       const runId = await this.repo.createAgentRun({
         workspaceId,
@@ -123,6 +126,7 @@ export class ReviewService {
         prId,
         provider: agent.provider,
         model: agent.model,
+        roundId,
       });
       runs.push({ run_id: runId, agent_id: agent.id, agent_name: agent.name });
       jobs.push({ agent, runId });

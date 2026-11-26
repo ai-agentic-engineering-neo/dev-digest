@@ -42,6 +42,14 @@ export const s = {
     gap: 5,
     flexShrink: 0,
   } satisfies CSSProperties,
+  costRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 5,
+    marginTop: 5,
+    paddingTop: 6,
+    borderTop: "1px solid var(--border)",
+  },
   scoreLabel: {
     fontSize: 12,
     color: "var(--text-muted)",

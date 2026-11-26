@@ -10,7 +10,7 @@ against one shared browser session by `run.ts`.
 
 ## How a flow works
 
-A spec lives in `specs/NN-name.flow.json`:
+A flow lives in `flows/NN-name.flow.json`:
 
 ```jsonc
 {
@@ -91,7 +91,7 @@ a CI artifact by `.github/workflows/e2e-web.yml`).
 
 ## Coverage (typological, not exhaustive)
 
-| Spec | Flow |
+| Flow file | What it covers |
 |------|------|
 | `01-app-boot` | root → redirect to first repo's PR list → seeded PR #482 |
 | `02-repo-pulls-detail` | PR list → open PR #482 → review detail route |

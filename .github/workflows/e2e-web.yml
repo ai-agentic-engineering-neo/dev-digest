@@ -2,10 +2,10 @@
 #
 # Boots exactly what scripts/dev.sh boots: Postgres (pgvector) in Docker, the
 # Fastify API on :3001 (migrated + seeded), and the Next.js app on :3000 built
-# against that API. Then runs the e2e/ specs through the agent-browser CLI.
+# against that API. Then runs the e2e/ flows through the agent-browser CLI.
 #
 # No API keys: loadConfig() marks every secret optional, so the API boots and
-# serves the seeded read-only data the specs exercise — no LLM is called.
+# serves the seeded read-only data the flows exercise — no LLM is called.
 name: e2e web
 
 on:

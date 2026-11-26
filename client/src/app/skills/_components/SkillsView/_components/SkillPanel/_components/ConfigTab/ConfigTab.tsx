@@ -26,21 +26,33 @@ const toDraft = (sk: Skill): Draft => ({
 });
 
 export function ConfigTab({ skill }: { skill: Skill }) {
+  // Lives above the keyed form so the confirmation survives the post-save remount.
+  const [savedVersion, setSavedVersion] = React.useState<number | null>(null);
+  // A new version (body save or restore) remounts the form with fresh values.
+  return (
+    <ConfigForm key={skill.version} skill={skill} savedVersion={savedVersion} onSaved={setSavedVersion} />
+  );
+}
+
+function ConfigForm({
+  skill,
+  savedVersion,
+  onSaved,
+}: {
+  skill: Skill;
+  savedVersion: number | null;
+  onSaved: (version: number) => void;
+}) {
   const t = useTranslations("skills");
   const toast = useToast();
   const update = useUpdateSkill();
   const [draft, setDraft] = React.useState<Draft>(() => toDraft(skill));
-  const [enabled, setEnabled] = React.useState(skill.enabled);
+  // Only an unsaved switch change is state; otherwise follow the skill (card toggle).
+  const [enabledEdit, setEnabledEdit] = React.useState<boolean | null>(null);
+  if (enabledEdit === skill.enabled) setEnabledEdit(null);
+  const enabled = enabledEdit ?? skill.enabled;
   const [errors, setErrors] = React.useState<FieldErrors>({});
   const [serverError, setServerError] = React.useState<string | null>(null);
-  const [savedVersion, setSavedVersion] = React.useState<number | null>(null);
-
-  // A restore (or another tab/editor) changes the skill under us: follow it.
-  React.useEffect(() => {
-    setDraft(toDraft(skill));
-    setEnabled(skill.enabled);
-    setSavedVersion(null);
-  }, [skill.id, skill.version, skill.name, skill.description, skill.type, skill.body, skill.enabled]);
 
   const save = () => {
     const clean = normalizeDraft(draft);
@@ -52,7 +64,7 @@ export function ConfigTab({ skill }: { skill: Skill }) {
       { id: skill.id, patch: { ...clean, enabled } },
       {
         onSuccess: (data) => {
-          setSavedVersion(data.version);
+          onSaved(data.version);
           toast.success(t("detail.config.savedToast", { version: data.version }));
         },
         onError: (e) => setServerError(`${t("editor.errors.saveFailed")}: ${saveErrorMessage(e)}`),
@@ -72,14 +84,14 @@ export function ConfigTab({ skill }: { skill: Skill }) {
         onChange={(patch) => setDraft((d) => ({ ...d, ...patch }))}
         errors={errors}
         enabled={enabled}
-        onEnabledChange={setEnabled}
+        onEnabledChange={setEnabledEdit}
         bodyHint
       />
       <div style={s.footer}>
         <Button kind="primary" onClick={save} disabled={update.isPending}>
           {update.isPending ? t("detail.config.saving") : t("detail.config.save")}
         </Button>
-        {savedVersion !== null && (
+        {savedVersion !== null && savedVersion >= skill.version && (
           <span style={s.saved}>{t("detail.config.saved", { version: savedVersion })}</span>
         )}
       </div>

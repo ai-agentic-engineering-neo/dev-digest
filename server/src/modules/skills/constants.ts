@@ -3,7 +3,7 @@
 /** Every skill starts at v1. */
 export const INITIAL_SKILL_VERSION = 1;
 
-/** The only source this milestone creates (imports come later). */
+/** Default source of a new skill (the Conventions Extractor passes `extracted`). */
 export const MANUAL_SOURCE = 'manual' as const;
 
 export const INITIAL_VERSION_MESSAGE = 'Initial version';

@@ -8,5 +8,6 @@
   "pull": "PR #{number}",
   "settings": "Settings",
   "skills": "Skills",
-  "skill": "Skill"
+  "skill": "Skill",
+  "conventions": "Conventions"
 }

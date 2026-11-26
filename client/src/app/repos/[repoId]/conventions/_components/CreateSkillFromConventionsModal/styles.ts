@@ -1,0 +1,51 @@
+import type { CSSProperties } from "react";
+
+/** Co-located styles for CreateSkillFromConventionsModal. */
+export const s = {
+  body: { display: "flex", flexDirection: "column", gap: 16 } satisfies CSSProperties,
+  banner: {
+    padding: "10px 12px",
+    borderRadius: 7,
+    border: "1px solid var(--border)",
+    background: "var(--bg-primary)",
+    fontSize: 13,
+    color: "var(--text-secondary)",
+  } satisfies CSSProperties,
+  row: { display: "flex", gap: 16 } satisfies CSSProperties,
+  col: { flex: 1, minWidth: 0 } satisfies CSSProperties,
+  preview: { border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" } satisfies CSSProperties,
+  previewHead: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "7px 12px",
+    borderBottom: "1px solid var(--border)",
+    fontSize: 12,
+  } satisfies CSSProperties,
+  previewName: { fontFamily: "var(--font-mono)", color: "var(--text-primary)" } satisfies CSSProperties,
+  readOnly: {
+    fontSize: 11,
+    padding: "1px 6px",
+    borderRadius: 4,
+    border: "1px solid var(--border)",
+    color: "var(--text-muted)",
+  } satisfies CSSProperties,
+  tokens: { marginLeft: "auto", color: "var(--text-muted)" } satisfies CSSProperties,
+  previewBody: {
+    margin: 0,
+    padding: "10px 12px",
+    maxHeight: 280,
+    overflow: "auto",
+    fontFamily: "var(--font-mono)",
+    fontSize: 12.5,
+    lineHeight: 1.55,
+    whiteSpace: "pre-wrap",
+    color: "var(--text-primary)",
+    background: "var(--bg-primary)",
+  } satisfies CSSProperties,
+  footer: { display: "flex", alignItems: "center", gap: 12, marginTop: 4 } satisfies CSSProperties,
+  footerActions: { marginLeft: "auto", display: "flex", gap: 8 } satisfies CSSProperties,
+  muted: { fontSize: 12.5, color: "var(--text-muted)" } satisfies CSSProperties,
+  error: { fontSize: 12, color: "var(--crit)", marginTop: 6 } satisfies CSSProperties,
+  link: { color: "var(--accent)" } satisfies CSSProperties,
+} as const;

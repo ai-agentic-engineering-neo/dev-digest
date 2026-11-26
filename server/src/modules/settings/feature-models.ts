@@ -3,7 +3,9 @@ import {
   FeatureModelChoice,
   type FeatureModelId,
 } from '@devdigest/shared';
+import type { LLMProvider } from '@devdigest/shared';
 import type { Container } from '../../platform/container.js';
+import { ConfigError } from '../../platform/errors.js';
 import { rowsToSettings } from './helpers.js';
 import { SettingsRepository } from './repository.js';
 
@@ -41,6 +43,42 @@ export async function getFeatureModelOverride(
   const fm = (rowsToSettings(rows) as { feature_models?: Record<string, unknown> }).feature_models;
   const parsed = FeatureModelChoice.safeParse(fm?.[id]);
   return parsed.success ? parsed.data : undefined;
+}
+
+/**
+ * Tried in this order when the chosen provider has no key (cheapest first).
+ * Each provider gets a model it is known to serve in this project.
+ */
+export const FALLBACK_FEATURE_MODELS: readonly FeatureModelChoice[] = [
+  { provider: 'openrouter', model: 'deepseek/deepseek-v4-flash' },
+  { provider: 'openai', model: 'gpt-4.1' },
+  { provider: 'anthropic', model: 'claude-sonnet-4-6' },
+];
+
+/** The chosen model first, then one fallback per OTHER provider. */
+export function featureModelCandidates(choice: FeatureModelChoice): FeatureModelChoice[] {
+  return [choice, ...FALLBACK_FEATURE_MODELS.filter((f) => f.provider !== choice.provider)];
+}
+
+/**
+ * The first candidate whose provider can be built. A missing key surfaces as
+ * `ConfigError` from `llmFor` and moves on to the next provider; any other
+ * error is real and is rethrown. When no provider has a key → ConfigError.
+ */
+export async function pickAvailableLLM(
+  choice: FeatureModelChoice,
+  llmFor: (provider: FeatureModelChoice['provider']) => Promise<LLMProvider>,
+): Promise<{ llm: LLMProvider; choice: FeatureModelChoice }> {
+  for (const candidate of featureModelCandidates(choice)) {
+    try {
+      return { llm: await llmFor(candidate.provider), choice: candidate };
+    } catch (err) {
+      if (!(err instanceof ConfigError)) throw err;
+    }
+  }
+  throw new ConfigError(
+    'No LLM provider key is configured — add an OpenRouter, OpenAI or Anthropic key in Settings → API Keys.',
+  );
 }
 
 /** Resolve `id` to a concrete provider+model: workspace override, else registry default. */

@@ -30,6 +30,11 @@ export const queryKeys = {
   skillStats: (skillId: Id) => ["skill-stats", skillId] as const,
   skillVersions: (skillId: Id) => ["skill-versions", skillId] as const,
 
+  conventions: (repoId: Id) => ["conventions", repoId] as const,
+  /** Draft preview of a skill from the given convention ids (order-insensitive). */
+  conventionSkillDraft: (repoId: Id, ids: readonly string[]) =>
+    ["convention-skill-draft", repoId, [...ids].sort().join(",")] as const,
+
   prActiveRuns: (prId: Id) => ["pr-active-runs", prId] as const,
   prRuns: (prId: Id) => ["pr-runs", prId] as const,
   reviews: (prId: Id) => ["reviews", prId] as const,

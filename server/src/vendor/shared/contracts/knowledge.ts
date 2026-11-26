@@ -207,15 +207,118 @@ export const CommunitySkill = z.object({
 export type CommunitySkill = z.infer<typeof CommunitySkill>;
 
 // ---- Conventions ----
+export const ConventionCategory = z.enum([
+  'naming',
+  'structure',
+  'errors',
+  'imports',
+  'typing',
+  'testing',
+  'api',
+  'general',
+]);
+export type ConventionCategory = z.infer<typeof ConventionCategory>;
+
+// pending = not decided yet; a re-scan replaces only pending rows.
+export const ConventionStatus = z.enum(['pending', 'accepted', 'rejected']);
+export type ConventionStatus = z.infer<typeof ConventionStatus>;
+
+// One piece of evidence, verified against the file by the server: the lines
+// are where the snippet really is, the snippet is sliced from the file.
+export const ConventionEvidence = z.object({
+  path: z.string(),
+  line_start: z.number().int().positive(),
+  line_end: z.number().int().positive(),
+  snippet: z.string(),
+});
+export type ConventionEvidence = z.infer<typeof ConventionEvidence>;
+
 export const ConventionCandidate = z.object({
   id: z.string(),
   rule: z.string(),
+  // First evidence (mirrors evidence[0]); kept for existing readers.
   evidence_path: z.string(),
   evidence_snippet: z.string(),
   confidence: z.number().min(0).max(1),
   accepted: z.boolean(),
+  // Conventions Extractor fields — optional, so older producers still validate.
+  status: ConventionStatus.optional(),
+  category: ConventionCategory.optional(),
+  bad_example: z.string().nullish(),
+  evidence: z.array(ConventionEvidence).optional(),
+  // HEAD of the scan that verified this row's evidence lines — pins its GitHub
+  // links (accepted rows outlive later scans, whose SHA may differ).
+  commit_sha: z.string().nullish(),
+  // Names of the skills this rule was merged into.
+  skill_names: z.array(z.string()).optional(),
 });
 export type ConventionCandidate = z.infer<typeof ConventionCandidate>;
+
+// The latest scan of a repo (null when it was never scanned).
+export const ConventionScan = z.object({
+  at: z.string(),
+  // HEAD the sample was read at — pins GitHub evidence links to real lines.
+  commit_sha: z.string().nullable(),
+  files_sampled: z.number().int(),
+  model: z.string(),
+});
+export type ConventionScan = z.infer<typeof ConventionScan>;
+
+export const ConventionsPage = z.object({
+  scan: ConventionScan.nullable(),
+  candidates: z.array(ConventionCandidate),
+});
+export type ConventionsPage = z.infer<typeof ConventionsPage>;
+
+// A scan's reply: the page plus what happened to the model's proposals, so a
+// scan that kept nothing reads as "nothing found", not as "never scanned".
+export const ConventionScanResult = ConventionsPage.extend({
+  proposed: z.number().int(),
+  kept: z.number().int(),
+  dropped_ungrounded: z.number().int(),
+  dropped_duplicate: z.number().int(),
+});
+export type ConventionScanResult = z.infer<typeof ConventionScanResult>;
+
+export const UpdateConventionInput = z
+  .object({
+    rule: z.string().trim().min(1).max(300),
+    category: ConventionCategory,
+    bad_example: z.string().max(2000).nullable(),
+    status: ConventionStatus,
+    // Drop one evidence (its code cannot be rewritten — it is verified).
+    remove_evidence_index: z.number().int().min(0).max(2),
+  })
+  .partial()
+  .refine((v) => Object.keys(v).length > 0, { message: 'Nothing to update' });
+export type UpdateConventionInput = z.infer<typeof UpdateConventionInput>;
+
+export const ConventionIds = z.array(z.string().uuid()).min(1).max(50);
+
+export const ConventionSkillDraftInput = z.object({ convention_ids: ConventionIds });
+export type ConventionSkillDraftInput = z.infer<typeof ConventionSkillDraftInput>;
+
+// Preview of the skill the selected rules would make; nothing is persisted.
+export const ConventionSkillDraft = z.object({
+  name: z.string(),
+  description: z.string(),
+  body: z.string(),
+  tokens: z.number().int(),
+});
+export type ConventionSkillDraft = z.infer<typeof ConventionSkillDraft>;
+
+export const CreateSkillFromConventionsInput = z.object({
+  convention_ids: ConventionIds,
+  name: SkillName,
+  description: z.string().max(200).default(''),
+  type: SkillType.default('convention'),
+  // Off by default: a new extracted skill reaches no prompt until enabled.
+  enabled: z.boolean().default(false),
+});
+export type CreateSkillFromConventionsInput = z.infer<typeof CreateSkillFromConventionsInput>;
+
+export const ConventionSkillResult = z.object({ skill: Skill });
+export type ConventionSkillResult = z.infer<typeof ConventionSkillResult>;
 
 // ---- Agents ----
 // 'openrouter' routes through the OpenAI-compatible API (OpenAIProvider with a

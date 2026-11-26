@@ -48,3 +48,25 @@ export function formatTokenCount(n: number): string {
 export function formatTokens(tokensIn: number, tokensOut: number): string {
   return `${(tokensIn / 1000).toFixed(0)}k→${(tokensOut / 1000).toFixed(1)}k`;
 }
+
+const RELATIVE_STEPS: Array<[Intl.RelativeTimeFormatUnit, number]> = [
+  ["second", 60],
+  ["minute", 60],
+  ["hour", 24],
+  ["day", 30],
+  ["month", 12],
+  ["year", Infinity],
+];
+
+/** ISO timestamp → locale relative text ("2 days ago") against `now`; "—" when unparsable. */
+export function formatRelative(iso: string, now: Date, locale: string): string {
+  const ms = Date.parse(iso);
+  if (Number.isNaN(ms)) return NO_VALUE;
+  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
+  let value = (ms - now.getTime()) / 1000;
+  for (const [unit, size] of RELATIVE_STEPS) {
+    if (Math.abs(value) < size) return rtf.format(Math.round(value), unit);
+    value /= size;
+  }
+  return rtf.format(Math.round(value), "year");
+}

@@ -44,6 +44,11 @@ actionable cold.
 **Rule:** NEVER set `retry` on an individual hook — because it beats the test client's default and makes error-state tests slow/flaky; change retry policy centrally in `lib/providers.tsx` if needed.
 **Evidence:** `client/src/lib/hooks/skills.ts` → `useSkill()` | test `SkillDetail > shows a load error with retry for other failures`
 
+### 2026-11-26 — A plain-object route in mockFetch cannot fail
+**Insight:** In `app/skills/_components/test-utils.tsx` `mockFetch`, a route given as an object is sent as the BODY with status 200; `{ status: 409, body: … }` therefore "succeeds" and the component receives `{status, body}` as data (here: `name` undefined → crash in `isValidSkillName`).
+**Rule:** ALWAYS give error (and non-200) routes as functions: `"POST /x": () => ({ status: 409, body: {...} })` — because only the function form is read for `status`.
+**Evidence:** `client/src/app/skills/_components/test-utils.tsx` → `mockFetch()` | `CreateSkillFromConventionsModal.test.tsx` "on 409 says the name is taken"
+
 ## Codebase Patterns
 
 ### 2026-11-21 — Keep shared src/components free of their own i18n namespace
@@ -141,6 +146,11 @@ actionable cold.
 **Rule:** ALWAYS import `@devdigest/shared` with `import type` in client code and keep enum value lists as local constants (`as const satisfies readonly X[]`) — because a value import compiles in tsc/vitest but crashes the page at runtime.
 **Evidence:** `client/src/vendor/shared/index.ts` → `export * from './contracts/findings.js'`; fix in `client/src/app/skills/_components/constants.ts` → `SKILL_TYPES`
 
+### 2026-11-26 — findByRole("status") returns the empty toast region
+**Insight:** `ToastProvider` renders a `role="status"` live region, so in any test wrapped with it `findByRole("status")` matches the (empty) toast container instead of your own status banner.
+**Rule:** ALWAYS find a status banner by its text and then `.closest("[role=status]")` — because the toast region is always mounted first.
+**Evidence:** `client/src/lib/toast.tsx` → `role="status"` | test `ConventionsView.test.tsx` "a scan that keeps nothing keeps the header…"
+
 ## Session Notes
 
 - 2026-11-21 — M1 run cost (client: RunCostBadge in PR list, timeline, trace drawer, verdict banner): done, 68 tests green; see "Keep shared src/components free of their own i18n namespace"
@@ -150,6 +160,8 @@ actionable cold.
 - 2026-11-25 — Researched React/Next.js architecture practices and added `.claude/skills/frontend-architecture` (SKILL, examples, references): done; see "Use the @/ alias in new imports despite existing ../../../ chains"
 
 - 2026-11-26 — M2 Skills client (Skills page 4 tabs, Agent Skills tab, SKILLS LAB nav, list-detail shell, Dropdown `disabled` items): 198 tests green; see "Per-query retry overrides on hooks"
+
+- 2026-11-26 — Conventions Extractor stage 1 client (/repos/:repoId/conventions page, card, edit + create modals, nav g c, formatRelative moved to lib/format): 233 tests green; see "A plain-object route in mockFetch cannot fail"
 
 ## Open Questions
 

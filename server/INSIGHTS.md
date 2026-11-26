@@ -34,6 +34,11 @@ actionable cold.
 **Rule:** NEVER put tests that import from `server/test/` under `src/` — because it silently moves the build output; put them in `server/test/`.
 **Evidence:** `server/test/skills.it.test.ts`, `server/test/run-executor-skills.test.ts`
 
+### 2026-11-26 — Storing scan meta only on the rows a scan kept
+**Insight:** Conventions keep scan meta in each row's `details.scan`; a scan that keeps nothing writes no row, so answering with `latestScan(rows)` returned null (first scan → empty state again) or an older scan's time/SHA. The tech-lead review caught it; both tests had mocked a page that already had scan meta.
+**Rule:** ALWAYS return the scan's own meta object in the scan reply (`scan: scanMeta`) and test a FIRST scan with zero candidates — because derived meta lags whenever nothing is stored.
+**Evidence:** `server/src/modules/conventions/service.ts` → `scan()` | test `conventions.it.test.ts` "a FIRST scan that keeps nothing still answers with this scan's meta"
+
 ## Codebase Patterns
 
 ### 2026-11-21 — [REVIEW NEEDED] Run cost is computed per LLM call but never persisted
@@ -83,6 +88,32 @@ actionable cold.
 **Rule:** ALWAYS order links by `order, skill_id` and bump the agent version inside the relink transaction comparing (id, order) before/after — because ids alone miss order-only changes and a post-write re-read races.
 **Evidence:** `server/src/modules/agents/repository.ts` → `relink()` | `server/src/modules/reviews/repository/skill.repo.ts` | test `agents-skills.it.test.ts`
 
+### 2026-11-26 — Conventions state lives in accepted + rejected_at + details jsonb
+**Insight:** The user required minimal schema change, so migration 0012 only ADDs `conventions.details` (jsonb: evidence[] with lines, category, bad_example, scan meta, skill_ids) and `rejected_at`; there is no status column and no scans/convention_skills table. pending = `!accepted && rejected_at IS NULL`; the scan header and the "in skill" badge are derived from `details`.
+**Rule:** ALWAYS derive status via `deriveStatus()` and read/write `details` only through `ConventionsRepository` (Zod-parsed, tolerant) — because a new column or table was explicitly rejected and `evidence_path`/`evidence_snippet` must keep mirroring `details.evidence[0]` for older readers.
+**Evidence:** `server/src/modules/conventions/repository.ts` → `parseDetails()`, `detailColumns()`, `replacePending()` | `helpers.ts` → `deriveStatus()`, `latestScan()` | migration `0012_thick_blackheart.sql`
+
+### 2026-11-26 — Conventions scan has no unindexed fallback by decision
+**Insight:** Walking the clone when repo-intel has no rank would need `walkClone` from `repo-intel/pipeline` (forbidden: repo-intel is read only through its facade) or a new facade method; the user chose neither.
+**Rule:** NEVER add a clone-walk fallback to `ConventionsService.scan()` without asking — because the agreed behaviour is 422 "Repo is not indexed yet" when `getConventionSamples()` returns [].
+**Evidence:** `server/src/modules/conventions/service.ts` → `scan()` | test `conventions.it.test.ts` "422s when the repo is not cloned, then when it is not indexed"
+
+### 2026-11-26 — [REVIEW NEEDED] The conventions feature model defaults to an OpenAI model
+**Insight:** `FEATURE_MODELS.conventions` defaults to `openai / gpt-5.4`; a workspace with only an OpenRouter key (the local dev setup on 2026-11-26) fails every scan in `container.llm('openai')` until Settings → Feature Models → Conventions is switched to an OpenRouter model.
+**Rule:** ALWAYS check `/settings/secrets-status` and the `conventions` feature model before testing a live scan — because the failure is a config error, not a bug in the extractor.
+**Evidence:** `server/src/vendor/shared/contracts/platform.ts` → `FEATURE_MODELS` | `server/src/modules/conventions/routes.ts` → `model.resolve`
+> **Update 2026-11-26:** the user asked for no hard failure: conventions now resolve through `pickAvailableLLM()` (`settings/feature-models.ts`), falling back OpenRouter → OpenAI → Anthropic on a missing key; only when none has a key does the scan fail. Test `feature-model-fallback.test.ts`.
+
+### 2026-11-26 — Fall back across LLM providers on ConfigError only
+**Insight:** `container.llm(provider)` throws `ConfigError` (HTTP 500) when that provider's key is missing, and that is the only signal of "no key"; network/auth errors are different classes. A system feature can therefore try providers in order by catching just `ConfigError`.
+**Rule:** ALWAYS resolve a system feature's LLM via `pickAvailableLLM(resolveFeatureModel(...), p => container.llm(p))` and keep each provider's fallback model in `FALLBACK_FEATURE_MODELS` — because swallowing other errors would hide real outages, and a provider switch needs its own model id (an OpenAI id is not valid on OpenRouter).
+**Evidence:** `server/src/modules/settings/feature-models.ts` → `pickAvailableLLM()`, `FALLBACK_FEATURE_MODELS` | `server/src/platform/container.ts` → `buildLlm()` | test `feature-model-fallback.test.ts`
+
+### 2026-11-26 — Wrap repo content in non-review LLM prompts yourself
+**Insight:** `INJECTION_GUARD` is private to `reviewer-core/src/prompt.ts` (and must not be touched), so features outside the review engine get no guard unless they add one; only `wrapUntrusted` is re-exported via `platform/prompt.ts`. Skill bodies also reach the review prompt UNwrapped, so repo code inside them needs a fence longer than any backtick run.
+**Rule:** ALWAYS wrap repo content with `wrapUntrusted()` plus a feature-local guard (e.g. `EXTRACTION_INJECTION_GUARD`) and fence skill-body code with `codeFence()` — because sampled files include AGENTS.md/CONTRIBUTING.md and a stray ``` would turn code into reviewer instructions.
+**Evidence:** `server/src/modules/conventions/prompt.ts` → `EXTRACTION_INJECTION_GUARD`, `buildExtractionUserPrompt()` | `helpers.ts` → `codeFence()`, `ruleBlock()`
+
 ## Tool & Library Notes
 
 ### 2026-11-25 — Keep dependency-cruiser rule regexes flat and unanchored for pnpm
@@ -116,6 +147,8 @@ actionable cold.
 - 2026-11-26 — M2 Skills spec + plan written (docs/specs/m2-skills), no code; see "Skill plumbing exists end to end except the run executor"
 
 - 2026-11-26 — M2 Skills server (migration 0011, skills module + stats, agent link checks, executor skills, seed): 262 tests green; see "Sort agent_skills by order then skill_id"
+
+- 2026-11-26 — Conventions Extractor stage 1 server (migration 0012, conventions module scan/triage/draft/create, skills insert source+evidence_files, container.skillsRepo): 290 tests green; see "Conventions state lives in accepted + rejected_at + details jsonb"
 
 ## Open Questions
 

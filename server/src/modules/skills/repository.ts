@@ -1,5 +1,5 @@
 import { and, asc, count, countDistinct, desc, eq, gte, inArray, sql, type SQL } from 'drizzle-orm';
-import type { Skill, SkillType, SkillUsage, SkillVersion } from '@devdigest/shared';
+import type { Skill, SkillSource, SkillType, SkillUsage, SkillVersion } from '@devdigest/shared';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import { ConflictError } from './errors.js';
@@ -36,6 +36,10 @@ export interface InsertSkill {
   type: SkillType;
   body: string;
   enabled: boolean;
+  /** Provenance; `manual` unless another feature creates it (e.g. `extracted`). */
+  source?: SkillSource;
+  /** Repo files the skill was derived from (Conventions Extractor). */
+  evidenceFiles?: string[];
 }
 
 export interface UpdateSkill {
@@ -73,7 +77,7 @@ export class SkillsRepository {
     return skill;
   }
 
-  /** Insert a manual skill at v1 and its `Initial version` snapshot, atomically. */
+  /** Insert a skill (manual by default) at v1 and its `Initial version` snapshot, atomically. */
   async insert(workspaceId: string, values: InsertSkill): Promise<Skill> {
     return this.mapConflict(() =>
       this.db.transaction(async (tx) => {
@@ -84,9 +88,10 @@ export class SkillsRepository {
             name: values.name,
             description: values.description,
             type: values.type,
-            source: MANUAL_SOURCE,
+            source: values.source ?? MANUAL_SOURCE,
             body: values.body,
             enabled: values.enabled,
+            evidenceFiles: values.evidenceFiles ?? null,
             version: INITIAL_SKILL_VERSION,
           })
           .returning();

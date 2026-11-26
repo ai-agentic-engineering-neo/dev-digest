@@ -22,6 +22,11 @@ actionable cold.
 
 ## What Works
 
+### 2026-11-26 — Test optimistic rollback with a never-resolving refetch
+**Insight:** After an optimistic mutation fails, `onSettled` refetches and restores server state, so a rollback test passes even if `onError` restores nothing.
+**Rule:** ALWAYS make `api.get` after the first load return a never-resolving promise in rollback tests — because otherwise the refetch masks a broken `onError`.
+**Evidence:** `AgentEditor/_components/SkillsTab/SkillsTab.test.tsx` → "rolls back the optimistic attach…" | `client/src/lib/hooks/agents.ts` → `useSetAgentSkills()`
+
 ## What Doesn't Work
 
 ### 2026-11-21 — toFixed after 2-significant-digit rounding pads the design's USD values
@@ -33,6 +38,11 @@ actionable cold.
 **Insight:** `CreateAgentModal.submit` awaited `create.mutateAsync` with no `catch`, so a failed create raised an unhandled promise rejection (vitest fails the run on it) even though the global `MutationCache` toast already reports the error.
 **Rule:** ALWAYS wrap `await mutation.mutateAsync(...)` in event handlers with `try/catch` and return early — because the error is shown by `lib/providers.tsx` and the rejection otherwise escapes.
 **Evidence:** `CreateAgentModal.tsx` → `submit` | test `CreateAgentModal.test.tsx` "does not navigate when creation fails"
+
+### 2026-11-26 — Per-query retry overrides on hooks
+**Insight:** Adding `retry: (n, e) => …` to `useSkill` (skip retry on 404) overrode the test QueryClient's `retry: false`, so the 500 case waited a real ~1 s backoff and `SkillDetail.test.tsx` "load error with retry" timed out.
+**Rule:** NEVER set `retry` on an individual hook — because it beats the test client's default and makes error-state tests slow/flaky; change retry policy centrally in `lib/providers.tsx` if needed.
+**Evidence:** `client/src/lib/hooks/skills.ts` → `useSkill()` | test `SkillDetail > shows a load error with retry for other failures`
 
 ## Codebase Patterns
 
@@ -66,6 +76,21 @@ actionable cold.
 **Rule:** ALWAYS add new routes as server `page.tsx` + client `<Name>View` and give them a `meta.json` title — because the root layout supplies the `%s · DevDigest` template and `noindex`, and a client page would silently drop both.
 **Evidence:** `src/app/repos/[repoId]/pulls/[number]/page.tsx` → `generateMetadata` | `src/app/layout.tsx` → `generateMetadata`
 
+### 2026-11-26 — Don't toast mutation errors in components
+**Insight:** `lib/providers.tsx` `MutationCache.onError` already toasts every failed mutation; a per-caller `toast.error` shows two toasts.
+**Rule:** ALWAYS rely on the global mutation error toast and only add success toasts locally — because a second error toast duplicates it; use mutation `meta` if a custom message is ever needed.
+**Evidence:** `client/src/lib/providers.tsx` → `MutationCache` | `AgentEditor/_components/SkillsTab/useSkillsTab.ts`
+
+### 2026-11-26 — Status colour tokens are --ok / --warn / --crit
+**Insight:** Specs say `--success` / `--warning` / `--danger`, but the theme defines none of them; the semantic tokens are `--ok`, `--warn`, `--crit` (+ `-bg` variants). An undefined var renders as inherited colour with no error.
+**Rule:** ALWAYS map spec colour names to `--ok`/`--warn`/`--crit` — because the spec names don't exist and fail silently.
+**Evidence:** `client/src/app/skills/_components/SkillDetail/_components/StatsTab/helpers.ts` → `acceptTone()`
+
+### 2026-11-26 — Skills mirror the Agents list (card grid), not master-detail
+**Insight:** The first Skills implementation reused `ListDetail` (list on the left, detail on the right) because the designs showed it, but the user wanted the same card-grid page as `/agents` and a full-width detail page, and the Versions tab to show per-version Diff against the PREVIOUS version, inline, with Diff on the current row too.
+**Rule:** ALWAYS model a new list page on `AgentsListView` (header + search + Add menu + `repeat(auto-fill, minmax(280px, 1fr))` grid, click → `/<thing>/:id`) unless the user asks for a side list — because the user corrected the layout once already; `ListDetail` stays only for the Agent Editor.
+**Evidence:** `client/src/app/skills/_components/SkillsView/SkillsView.tsx`, `SkillDetailView/SkillDetailView.tsx`, `VersionsTab/_components/VersionRow/VersionRow.tsx`; spec `docs/specs/m2-skills/SPEC.md` §3.5, §5.6
+
 ## Tool & Library Notes
 
 ### 2026-11-22 — @testing-library/user-event is not installed in client
@@ -94,6 +119,11 @@ actionable cold.
 **Rule:** ALWAYS keep `eslint: { ignoreDuringBuilds: true }` in `next.config.mjs` and run `pnpm lint` as its own CI step — because a new lint error must not break the build or the e2e stack.
 **Evidence:** `client/next.config.mjs` → `eslint.ignoreDuringBuilds` | `.github/workflows/client.yml` → `pnpm lint`
 
+### 2026-11-26 — vendor/ui Markdown drops raw HTML instead of escaping it
+**Insight:** `<Markdown>` from `@devdigest/ui` removes raw HTML blocks entirely (`<script>…</script>` disappears), so a "shown as text" acceptance check is not literally met — it is safe, but invisible.
+**Rule:** ALWAYS phrase XSS acceptance checks as "no element created" for `<Markdown>` — because escaping-as-text would need a change to the shared component.
+**Evidence:** `client/src/app/skills/_components/SkillDetail/_components/PreviewTab/PreviewTab.test.tsx`
+
 ## Recurring Errors & Fixes
 
 ### 2026-11-22 — "borderColor … conflicting borderLeftColor" warning in FindingsPanel tests is pre-existing
@@ -106,6 +136,11 @@ actionable cold.
 **Rule:** ALWAYS keep any component that imports `@devdigest/ui` a `"use client"` file (server `page.tsx`/`not-found.tsx` render it) and run `e2e:hermetic` after making a component server-only — because the production build does not reproduce the dev-mode crash.
 **Evidence:** `src/app/_components/NotFoundView/NotFoundView.tsx` → `"use client"` | `./scripts/e2e.sh` ("web never became reachable" + the TypeError in the web log)
 
+### 2026-11-26 — Value import from @devdigest/shared breaks the Next build
+**Insight:** `Module not found: Can't resolve './contracts/findings.js'` (page 500) when a component imports a runtime value (e.g. `SkillType.options`) from `@devdigest/shared`. The barrel re-exports with `.js` extensions, which Next's webpack does not map to `.ts`; `import type` works only because it is erased. Typecheck and vitest both pass, so only the dev server shows it.
+**Rule:** ALWAYS import `@devdigest/shared` with `import type` in client code and keep enum value lists as local constants (`as const satisfies readonly X[]`) — because a value import compiles in tsc/vitest but crashes the page at runtime.
+**Evidence:** `client/src/vendor/shared/index.ts` → `export * from './contracts/findings.js'`; fix in `client/src/app/skills/_components/constants.ts` → `SKILL_TYPES`
+
 ## Session Notes
 
 - 2026-11-21 — M1 run cost (client: RunCostBadge in PR list, timeline, trace drawer, verdict banner): done, 68 tests green; see "Keep shared src/components free of their own i18n namespace"
@@ -113,6 +148,8 @@ actionable cold.
 - 2026-11-22 — M1 severity counters & filter (client: FindingsPanel chips + filter, 21 panel/helper tests, 87 client tests green): done; see "Iterate severity levels from the contract, not from SEV"
 
 - 2026-11-25 — Researched React/Next.js architecture practices and added `.claude/skills/frontend-architecture` (SKILL, examples, references): done; see "Use the @/ alias in new imports despite existing ../../../ chains"
+
+- 2026-11-26 — M2 Skills client (Skills page 4 tabs, Agent Skills tab, SKILLS LAB nav, list-detail shell, Dropdown `disabled` items): 198 tests green; see "Per-query retry overrides on hooks"
 
 ## Open Questions
 

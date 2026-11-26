@@ -8,8 +8,11 @@ import type { AgentRow, AgentVersionRow } from './repository.js';
  * implementations.
  */
 
-/** Map a persisted agent row to the public `Agent` DTO. */
-export function toAgentDto(row: AgentRow): Agent {
+/**
+ * Map a persisted agent row to the public `Agent` DTO. `skillCount` = attached
+ * skills (disabled ones included), counted by the repository.
+ */
+export function toAgentDto(row: AgentRow, skillCount: number): Agent {
   return {
     id: row.id,
     name: row.name,
@@ -23,7 +26,23 @@ export function toAgentDto(row: AgentRow): Agent {
     strategy: row.strategy as ReviewStrategy,
     ci_fail_on: row.ciFailOn as CiFailOn,
     repo_intel: row.repoIntel,
+    skill_count: skillCount,
   };
+}
+
+/**
+ * True when two ordered skill-link lists are identical (same skills, same
+ * order values, same sequence) — i.e. a relink changed nothing and must NOT
+ * bump the agent version.
+ */
+export function isSameLinkSet(
+  a: readonly { skill: { id: string }; order: number }[],
+  b: readonly { skill: { id: string }; order: number }[],
+): boolean {
+  return (
+    a.length === b.length &&
+    a.every((l, i) => l.skill.id === b[i]!.skill.id && l.order === b[i]!.order)
+  );
 }
 
 /**

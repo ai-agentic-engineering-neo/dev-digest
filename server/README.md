@@ -71,8 +71,9 @@ flowchart TB
   subgraph Review["Review & runs"]
     reviews["reviews<br/>/pulls/:id/review · /reviews · /findings/:id/(accept|dismiss)<br/>/runs/:id/(events|trace)"]
   end
-  subgraph Agents["Agents"]
-    agents["agents<br/>/agents · /agents/:id"]
+  subgraph Agents["Agents & skills"]
+    agents["agents<br/>/agents · /agents/:id · /agents/:id/skills"]
+    skills["skills<br/>/skills · /skills/:id · /skills/:id/(agents|stats)<br/>/skills/:id/versions · /versions/:version · /versions/:version/restore"]
   end
   subgraph Intel["Repo intelligence"]
     repoIntel["repo-intel<br/>/repos/:id/index-state · /resync"]
@@ -83,6 +84,24 @@ flowchart TB
   end
   HEALTH["/health (liveness) · /health/ready (DB ping → 200/503)"]
 ```
+
+### Skills routes (M2, `modules/skills/`)
+
+All workspace-scoped: a skill from another workspace is `404`. Body validation
+failures return `422` (app-wide Zod handler).
+
+| Method | Path | Body → Response | Errors |
+|---|---|---|---|
+| GET | `/skills` | → `Skill[]` (name asc, with `agent_count`) | |
+| GET | `/skills/:id` | → `Skill` | 404 |
+| POST | `/skills` | `CreateSkillInput` → `201 Skill` (v1, `Initial version`) | 422, 409 name taken |
+| PUT | `/skills/:id` | `UpdateSkillInput` → `Skill` (only a body change → new version) | 422, 404, 409 |
+| DELETE | `/skills/:id` | → `{ ok: true }` (links + versions cascade) | 404 |
+| GET | `/skills/:id/agents` | → `SkillUsage[]` | 404 |
+| GET | `/skills/:id/stats` | → `SkillStats` (each agent's own last-30-day activity) | 404 |
+| GET | `/skills/:id/versions` | → `SkillVersion[]` (newest first) | 404 |
+| GET | `/skills/:id/versions/:version` | → `SkillVersion` | 404 |
+| POST | `/skills/:id/versions/:version/restore` | → `Skill` (new version `Restored from vN`) | 404, 409 if current |
 
 ## Environment
 
@@ -106,7 +125,8 @@ through `SecretsProvider` (`~/.devdigest/secrets.json`, mode `0600`, with
 
 Migrations are **not** applied on boot — run `pnpm db:migrate` (pgvector is
 enabled by migration `0000`). `pnpm db:seed` is idempotent demo data
-(`acme/payments-api`, PR #482, the two built-in agents).
+(`acme/payments-api`, PR #482, the built-in agents, and six demo skills, three
+of them attached to Security Reviewer; existing skills are matched by name and left as is).
 
 ## Review context (non-obvious)
 

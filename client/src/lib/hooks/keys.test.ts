@@ -16,6 +16,12 @@ describe("queryKeys", () => {
     expect(queryKeys.repoIntelState("r1")).toEqual(["repo-intel-state", "r1"]);
     expect(queryKeys.agents()).toEqual(["agents"]);
     expect(queryKeys.agent("a1")).toEqual(["agent", "a1"]);
+    expect(queryKeys.agentSkills("a1")).toEqual(["agent-skills", "a1"]);
+    expect(queryKeys.skills()).toEqual(["skills"]);
+    expect(queryKeys.skill("s1")).toEqual(["skill", "s1"]);
+    expect(queryKeys.skillUsage("s1")).toEqual(["skill-usage", "s1"]);
+    expect(queryKeys.skillStats("s1")).toEqual(["skill-stats", "s1"]);
+    expect(queryKeys.skillVersions("s1")).toEqual(["skill-versions", "s1"]);
     expect(queryKeys.prActiveRuns("p1")).toEqual(["pr-active-runs", "p1"]);
     expect(queryKeys.prRuns("p1")).toEqual(["pr-runs", "p1"]);
     expect(queryKeys.reviews("p1")).toEqual(["reviews", "p1"]);

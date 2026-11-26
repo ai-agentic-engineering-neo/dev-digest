@@ -7,6 +7,8 @@ export interface DropdownItemDef {
   icon?: IconName;
   hint?: string;
   muted?: boolean;
+  /** Not actionable yet: rendered muted, ignores clicks and keeps the menu open. */
+  disabled?: boolean;
   divider?: boolean;
   onClick?: () => void;
   /** Optional trailing remove (trash) action shown on the right of the row. */

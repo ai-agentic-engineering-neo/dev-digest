@@ -189,6 +189,7 @@ export function Gallery() {
             { label: "Run all", icon: "Play" },
             { divider: true },
             { label: "Configure…", icon: "Settings", muted: true },
+            { label: "Import…", icon: "Upload", disabled: true, hint: "soon" },
           ]}
         />
         <Button kind="ghost" onClick={() => setDrawer(true)}>

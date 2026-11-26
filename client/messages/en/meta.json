@@ -6,5 +6,7 @@
   "agent": "Agent",
   "pulls": "Pull requests",
   "pull": "PR #{number}",
-  "settings": "Settings"
+  "settings": "Settings",
+  "skills": "Skills",
+  "skill": "Skill"
 }

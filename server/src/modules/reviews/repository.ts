@@ -21,8 +21,10 @@ export type ReviewRow = typeof t.reviews.$inferSelect;
 import * as reviewRepo from './repository/review.repo.js';
 import * as runRepo from './repository/run.repo.js';
 import * as pullRepo from './repository/pull.repo.js';
+import * as skillRepo from './repository/skill.repo.js';
+import type { PromptSkill, PromptSkillsSource } from './ports.js';
 
-export class ReviewRepository {
+export class ReviewRepository implements PromptSkillsSource {
   constructor(private db: Db) {}
 
   // ---- PR lookup (workspace-scoped) --------------------------------------
@@ -37,6 +39,13 @@ export class ReviewRepository {
 
   getPrFiles(prId: string): Promise<(typeof t.prFiles.$inferSelect)[]> {
     return pullRepo.getPrFiles(this.db, prId);
+  }
+
+  // ---- prompt skills (PromptSkillsSource port) ---------------------------
+
+  /** Agent's enabled skills in link order — the review prompt's `skills`. */
+  loadPromptSkills(agentId: string): Promise<PromptSkill[]> {
+    return skillRepo.loadPromptSkills(this.db, agentId);
   }
 
   // ---- reviews + findings -------------------------------------------------

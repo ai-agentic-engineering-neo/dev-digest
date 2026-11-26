@@ -1,9 +1,12 @@
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import type { CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
 import { DEFAULT_AGENT_DESCRIPTION, INITIAL_AGENT_VERSION } from './constants.js';
-import { isConfigChange } from './helpers.js';
+import { isConfigChange, isSameLinkSet } from './helpers.js';
+
+/** The app Db or a transaction handle — repository internals accept either. */
+type DbOrTx = Db | Parameters<Parameters<Db['transaction']>[0]>[0];
 
 /**
  * A2 — agents data-access. Owns `agents`, `agent_versions`, and the
@@ -53,6 +56,39 @@ export class AgentsRepository {
 
   async list(workspaceId: string): Promise<AgentRow[]> {
     return this.db.select().from(t.agents).where(eq(t.agents.workspaceId, workspaceId));
+  }
+
+  /**
+   * Attached-skill count per agent in the workspace (disabled skills included),
+   * as ONE grouped count — agents with no links are absent from the map.
+   */
+  async skillCounts(workspaceId: string): Promise<Map<string, number>> {
+    const rows = await this.db
+      .select({ agentId: t.agentSkills.agentId, n: count() })
+      .from(t.agentSkills)
+      .innerJoin(t.agents, eq(t.agentSkills.agentId, t.agents.id))
+      .where(eq(t.agents.workspaceId, workspaceId))
+      .groupBy(t.agentSkills.agentId);
+    return new Map(rows.map((r) => [r.agentId, Number(r.n)]));
+  }
+
+  /** Attached-skill count for one agent (disabled skills included). */
+  async skillCount(agentId: string): Promise<number> {
+    const [row] = await this.db
+      .select({ n: count() })
+      .from(t.agentSkills)
+      .where(eq(t.agentSkills.agentId, agentId));
+    return Number(row?.n ?? 0);
+  }
+
+  /** Which of `skillIds` are skills of `workspaceId` (ownership check). */
+  async skillIdsInWorkspace(workspaceId: string, skillIds: string[]): Promise<string[]> {
+    if (skillIds.length === 0) return [];
+    const rows = await this.db
+      .select({ id: t.skills.id })
+      .from(t.skills)
+      .where(and(eq(t.skills.workspaceId, workspaceId), inArray(t.skills.id, skillIds)));
+    return rows.map((r) => r.id);
   }
 
   async listEnabled(workspaceId: string): Promise<AgentRow[]> {
@@ -145,9 +181,13 @@ export class AgentsRepository {
     return row;
   }
 
-  private async snapshotVersion(row: AgentRow, version: number): Promise<void> {
-    const skills = await this.skillIdsForAgent(row.id);
-    await this.db
+  private async snapshotVersion(
+    row: AgentRow,
+    version: number,
+    db: DbOrTx = this.db,
+  ): Promise<void> {
+    const skills = (await linkedSkillsOf(db, row.id)).map((l) => l.skill.id);
+    await db
       .insert(t.agentVersions)
       .values({
         agentId: row.id,
@@ -190,13 +230,7 @@ export class AgentsRepository {
 
   /** Skills linked to an agent, in `order` ascending. */
   async linkedSkills(agentId: string): Promise<LinkedSkillRow[]> {
-    const rows = await this.db
-      .select({ skill: t.skills, order: t.agentSkills.order })
-      .from(t.agentSkills)
-      .innerJoin(t.skills, eq(t.agentSkills.skillId, t.skills.id))
-      .where(eq(t.agentSkills.agentId, agentId))
-      .orderBy(asc(t.agentSkills.order));
-    return rows.map((r) => ({ skill: r.skill, order: r.order }));
+    return linkedSkillsOf(this.db, agentId);
   }
 
   async skillIdsForAgent(agentId: string): Promise<string[]> {
@@ -204,33 +238,83 @@ export class AgentsRepository {
     return links.map((l) => l.skill.id);
   }
 
-  /** Link a skill to an agent at a given order (idempotent: upserts order). */
+  /**
+   * Link a skill to an agent at a given order (idempotent: upserts order).
+   * Runs in one transaction; when the attached set or order changes, bumps the
+   * agent version and snapshots `agent_versions`.
+   */
   async linkSkill(agentId: string, skillId: string, order: number): Promise<void> {
-    await this.db
-      .insert(t.agentSkills)
-      .values({ agentId, skillId, order })
-      .onConflictDoUpdate({
-        target: [t.agentSkills.agentId, t.agentSkills.skillId],
-        set: { order },
-      });
+    await this.relink(agentId, async (tx) => {
+      await tx
+        .insert(t.agentSkills)
+        .values({ agentId, skillId, order })
+        .onConflictDoUpdate({
+          target: [t.agentSkills.agentId, t.agentSkills.skillId],
+          set: { order },
+        });
+    });
   }
 
   async unlinkSkill(agentId: string, skillId: string): Promise<void> {
-    await this.db
-      .delete(t.agentSkills)
-      .where(and(eq(t.agentSkills.agentId, agentId), eq(t.agentSkills.skillId, skillId)));
+    await this.relink(agentId, async (tx) => {
+      await tx
+        .delete(t.agentSkills)
+        .where(and(eq(t.agentSkills.agentId, agentId), eq(t.agentSkills.skillId, skillId)));
+    });
   }
 
   /**
    * Replace the full set of linked skills for an agent with `skillIds`, assigning
    * order = index. Used by the "Skills" editor tab (attach/reorder). Skills not in
-   * the list are unlinked.
+   * the list are unlinked. Delete + insert + version bump run in ONE transaction.
    */
   async setSkills(agentId: string, skillIds: string[]): Promise<void> {
-    await this.db.delete(t.agentSkills).where(eq(t.agentSkills.agentId, agentId));
-    if (skillIds.length === 0) return;
-    await this.db
-      .insert(t.agentSkills)
-      .values(skillIds.map((skillId, i) => ({ agentId, skillId, order: i })));
+    await this.relink(agentId, async (tx) => {
+      await tx.delete(t.agentSkills).where(eq(t.agentSkills.agentId, agentId));
+      if (skillIds.length === 0) return;
+      await tx
+        .insert(t.agentSkills)
+        .values(skillIds.map((skillId, i) => ({ agentId, skillId, order: i })));
+    });
   }
+
+  /**
+   * Apply a change to the agent's `agent_skills` rows inside one transaction.
+   * If the ordered (skill, order) list differs afterwards, bump `agents.version`
+   * and snapshot the new config (config.skills = ordered ids) — so the latest
+   * snapshot never lies about the skills the agent uses.
+   */
+  private async relink(agentId: string, change: (tx: DbOrTx) => Promise<void>): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      // Lock the agent row: concurrent relinks serialize and bump once each.
+      const [agent] = await tx
+        .select()
+        .from(t.agents)
+        .where(eq(t.agents.id, agentId))
+        .for('update');
+      if (!agent) return;
+      const before = await linkedSkillsOf(tx, agentId);
+      await change(tx);
+      const after = await linkedSkillsOf(tx, agentId);
+      if (isSameLinkSet(before, after)) return;
+      const nextVersion = agent.version + 1;
+      const [row] = await tx
+        .update(t.agents)
+        .set({ version: nextVersion })
+        .where(eq(t.agents.id, agentId))
+        .returning();
+      await this.snapshotVersion(row!, nextVersion, tx);
+    });
+  }
+}
+
+/** Skills linked to an agent, in `order` ascending (skill id breaks ties). */
+async function linkedSkillsOf(db: DbOrTx, agentId: string): Promise<LinkedSkillRow[]> {
+  const rows = await db
+    .select({ skill: t.skills, order: t.agentSkills.order })
+    .from(t.agentSkills)
+    .innerJoin(t.skills, eq(t.agentSkills.skillId, t.skills.id))
+    .where(eq(t.agentSkills.agentId, agentId))
+    .orderBy(asc(t.agentSkills.order), asc(t.agentSkills.skillId));
+  return rows.map((r) => ({ skill: r.skill, order: r.order }));
 }

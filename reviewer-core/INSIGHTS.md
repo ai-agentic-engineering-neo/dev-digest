@@ -26,6 +26,11 @@ actionable cold.
 
 ## Codebase Patterns
 
+### 2026-11-26 — Skills render in the user message, not the system message
+**Insight:** `assemblePrompt()` puts skill bodies under `## Skills / rules` in the **user** message (after the PR description), not appended to the system prompt. The client Config tab hint `config.systemPromptHint` says skills are "appended below" the system message, which describes order, not role.
+**Rule:** NEVER move skills into the system message to match UI wording — because the CI runner shares this engine and prompt-role changes alter every agent's behaviour; change the hint text instead if it confuses users.
+**Evidence:** `reviewer-core/src/prompt.ts` → `assemblePrompt()` `userSections`; `client/messages/en/agents.json` → `config.systemPromptHint`
+
 ## Tool & Library Notes
 
 ## Recurring Errors & Fixes

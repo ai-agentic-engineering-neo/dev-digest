@@ -9,6 +9,7 @@ import type {
 } from '@devdigest/shared';
 import type { AgentsRepository } from './repository.js';
 import { toAgentDto, toAgentVersionDto } from './helpers.js';
+import { AppError } from '../../platform/errors.js';
 
 /**
  * A2 — agents service. Business logic for the Agents tab + Agent Editor.
@@ -51,6 +52,9 @@ export interface UpdateAgentInput {
 export type AgentsStore = Pick<
   AgentsRepository,
   | 'list'
+  | 'skillCounts'
+  | 'skillCount'
+  | 'skillIdsInWorkspace'
   | 'getById'
   | 'deleteById'
   | 'insert'
@@ -76,13 +80,16 @@ export class AgentsService {
   }
 
   async list(workspaceId: string): Promise<Agent[]> {
-    const rows = await this.repo.list(workspaceId);
-    return rows.map(toAgentDto);
+    const [rows, counts] = await Promise.all([
+      this.repo.list(workspaceId),
+      this.repo.skillCounts(workspaceId),
+    ]);
+    return rows.map((row) => toAgentDto(row, counts.get(row.id) ?? 0));
   }
 
   async get(workspaceId: string, id: string): Promise<Agent | undefined> {
     const row = await this.repo.getById(workspaceId, id);
-    return row ? toAgentDto(row) : undefined;
+    return row ? toAgentDto(row, await this.repo.skillCount(row.id)) : undefined;
   }
 
   /** Delete an agent (and its versions/skill-links, via cascade). */
@@ -105,7 +112,7 @@ export class AgentsService {
       enabled: input.enabled,
       createdBy: userId ?? null,
     });
-    return toAgentDto(row);
+    return toAgentDto(row, 0);
   }
 
   async update(
@@ -125,7 +132,7 @@ export class AgentsService {
       ...(patch.repo_intel !== undefined ? { repoIntel: patch.repo_intel } : {}),
       ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
     });
-    return row ? toAgentDto(row) : undefined;
+    return row ? toAgentDto(row, await this.repo.skillCount(row.id)) : undefined;
   }
 
   /**
@@ -172,6 +179,7 @@ export class AgentsService {
   ): Promise<AgentSkillLink[] | undefined> {
     const agent = await this.repo.getById(workspaceId, agentId);
     if (!agent) return undefined;
+    await this.assertWorkspaceSkills(workspaceId, skillIds);
     await this.repo.setSkills(agentId, skillIds);
     return this.skillLinks(agentId);
   }
@@ -185,10 +193,30 @@ export class AgentsService {
   ): Promise<AgentSkillLink[] | undefined> {
     const agent = await this.repo.getById(workspaceId, agentId);
     if (!agent) return undefined;
+    await this.assertWorkspaceSkills(workspaceId, [skillId]);
     const existing = await this.repo.linkedSkills(agentId);
     const resolvedOrder = order ?? existing.length;
     await this.repo.linkSkill(agentId, skillId, resolvedOrder);
     return this.skillLinks(agentId);
+  }
+
+  /**
+   * Every id must be a distinct skill of the agent's workspace — the FK alone
+   * accepts any existing skill, so without this a foreign tenant's skill could
+   * be linked (and its body would land in this workspace's prompts).
+   */
+  private async assertWorkspaceSkills(workspaceId: string, skillIds: string[]): Promise<void> {
+    const unique = [...new Set(skillIds)];
+    if (unique.length !== skillIds.length) {
+      throw new AppError('invalid_skill_ids', 'Duplicate skill ids', 400);
+    }
+    const owned = new Set(await this.repo.skillIdsInWorkspace(workspaceId, unique));
+    const unknown = unique.filter((id) => !owned.has(id));
+    if (unknown.length > 0) {
+      throw new AppError('invalid_skill_ids', 'Unknown skill ids for this workspace', 400, {
+        skill_ids: unknown,
+      });
+    }
   }
 
   /**

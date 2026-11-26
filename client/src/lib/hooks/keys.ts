@@ -22,6 +22,13 @@ export const queryKeys = {
 
   agents: () => ["agents"] as const,
   agent: (agentId: Id) => ["agent", agentId] as const,
+  agentSkills: (agentId: Id) => ["agent-skills", agentId] as const,
+
+  skills: () => ["skills"] as const,
+  skill: (skillId: Id) => ["skill", skillId] as const,
+  skillUsage: (skillId: Id) => ["skill-usage", skillId] as const,
+  skillStats: (skillId: Id) => ["skill-stats", skillId] as const,
+  skillVersions: (skillId: Id) => ["skill-versions", skillId] as const,
 
   prActiveRuns: (prId: Id) => ["pr-active-runs", prId] as const,
   prRuns: (prId: Id) => ["pr-runs", prId] as const,

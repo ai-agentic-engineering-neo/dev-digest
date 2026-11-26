@@ -128,8 +128,74 @@ export const Skill = z.object({
   enabled: z.boolean(),
   version: z.number().int(),
   evidence_files: z.array(z.string()).nullish(),
+  created_at: z.string(),
+  updated_at: z.string(),
+  // Number of agents the skill is attached to (card footer); filled on list + get.
+  agent_count: z.number().int(),
 });
 export type Skill = z.infer<typeof Skill>;
+
+// Kebab-case slug, unique per workspace — M6 Export to CI resolves
+// `.devdigest/skills/<slug>.md` from it.
+export const SkillName = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/);
+export type SkillName = z.infer<typeof SkillName>;
+
+export const SkillBody = z.string().min(1).max(20_000);
+export type SkillBody = z.infer<typeof SkillBody>;
+
+export const CreateSkillInput = z.object({
+  name: SkillName,
+  description: z.string().max(200).default(''),
+  type: SkillType.default('custom'),
+  body: SkillBody,
+  enabled: z.boolean().default(true),
+});
+export type CreateSkillInput = z.infer<typeof CreateSkillInput>;
+
+export const UpdateSkillInput = CreateSkillInput.partial().extend({
+  // Version message; used only when the body changes.
+  message: z.string().max(120).optional(),
+});
+export type UpdateSkillInput = z.infer<typeof UpdateSkillInput>;
+
+export const SkillVersion = z.object({
+  skill_id: z.string(),
+  version: z.number().int(),
+  body: z.string(),
+  message: z.string(),
+  created_at: z.string(),
+});
+export type SkillVersion = z.infer<typeof SkillVersion>;
+
+export const SkillUsage = z.object({
+  agent_id: z.string(),
+  agent_name: z.string(),
+});
+export type SkillUsage = z.infer<typeof SkillUsage>;
+
+// The agent's OWN last-30-day activity — nothing here is attributed to the skill.
+export const SkillAgentActivity = SkillUsage.extend({
+  enabled: z.boolean(),
+  runs_30d: z.number().int(),
+  findings_30d: z.number().int(),
+  // accepted ÷ (accepted + dismissed); null = nothing decided.
+  accept_rate_30d: z.number().min(0).max(1).nullable(),
+});
+export type SkillAgentActivity = z.infer<typeof SkillAgentActivity>;
+
+export const SkillStats = z.object({
+  agent_count: z.number().int(),
+  enabled_agent_count: z.number().int(),
+  version_count: z.number().int(),
+  created_at: z.string(),
+  updated_at: z.string(),
+  agents: z.array(SkillAgentActivity),
+});
+export type SkillStats = z.infer<typeof SkillStats>;
 
 export const CommunitySkill = z.object({
   name: z.string(),
@@ -188,6 +254,8 @@ export const Agent = z.object({
   // Inject repo-intel context (repo skeleton + callers + rank note) into this
   // agent's review prompt. Default on; gated again by the global flag.
   repo_intel: z.boolean().default(true),
+  // Attached skills, globally disabled ones included ("N skills" on cards).
+  skill_count: z.number().int().default(0),
 });
 export type Agent = z.infer<typeof Agent>;
 

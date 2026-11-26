@@ -7,12 +7,11 @@ import React from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button, Dropdown, ErrorState, Skeleton, Icon, Badge } from "@devdigest/ui";
 import { AppShell } from "@/components/app-shell";
+import { ListDetail } from "@/components/list-detail";
 import { AgentCard } from "@/app/agents/_components/AgentCard";
-import { AgentEditor } from "../AgentEditor";
+import { AgentEditor, VALID_TABS, DEFAULT_TAB } from "../AgentEditor";
 import { useAgents, useAgent, useUpdateAgent } from "@/lib/hooks/agents";
 import { ApiError } from "@/lib/api";
-
-const VALID_TABS = ["config"];
 
 export function AgentEditorView() {
   const params = useParams<{ id: string }>();
@@ -24,7 +23,7 @@ export function AgentEditorView() {
   const { data: agent, isLoading, isError, error, refetch } = useAgent(id);
   const update = useUpdateAgent();
 
-  const tab = VALID_TABS.includes(search.get("tab") ?? "") ? search.get("tab")! : "config";
+  const tab = VALID_TABS.includes(search.get("tab") ?? "") ? search.get("tab")! : DEFAULT_TAB;
   const setTab = (t: string) => {
     const sp = new URLSearchParams(search.toString());
     sp.set("tab", t);
@@ -52,46 +51,33 @@ export function AgentEditorView() {
 
   return (
     <AppShell crumb={crumb}>
-      <div style={{ display: "flex", height: "calc(100vh - 52px)" }}>
-        {/* left: agent list */}
-        <div
-          style={{
-            width: 280,
-            flexShrink: 0,
-            borderRight: "1px solid var(--border)",
-            display: "flex",
-            flexDirection: "column",
-            background: "var(--bg-surface)",
-          }}
-        >
-          <div style={{ padding: "16px 16px 12px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-              <h1 style={{ fontSize: 18, fontWeight: 700, flex: 1 }}>Agents</h1>
-              <Dropdown
-                width={210}
-                align="right"
-                trigger={
-                  <Button kind="primary" size="sm" icon="Plus">
-                    Add
-                  </Button>
-                }
-                items={[{ label: "Create from scratch", icon: "Edit", onClick: () => router.push("/agents") }]}
-              />
-            </div>
+      <ListDetail
+        listHeader={
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+            <h1 style={{ fontSize: 18, fontWeight: 700, flex: 1 }}>Agents</h1>
+            <Dropdown
+              width={210}
+              align="right"
+              trigger={
+                <Button kind="primary" size="sm" icon="Plus">
+                  Add
+                </Button>
+              }
+              items={[{ label: "Create from scratch", icon: "Edit", onClick: () => router.push("/agents") }]}
+            />
           </div>
-          <div style={{ flex: 1, overflow: "auto", padding: "0 12px 12px" }}>
-            {(agents ?? []).map((a) => (
-              <AgentCard
-                key={a.id}
-                ag={a}
-                active={a.id === id}
-                onClick={() => router.push(`/agents/${a.id}?tab=${tab}`)}
-                onToggle={(enabled) => update.mutate({ id: a.id, patch: { enabled } })}
-              />
-            ))}
-          </div>
-        </div>
-
+        }
+        list={(agents ?? []).map((a) => (
+          <AgentCard
+            key={a.id}
+            ag={a}
+            active={a.id === id}
+            skillCount={a.skill_count}
+            onClick={() => router.push(`/agents/${a.id}?tab=${tab}`)}
+            onToggle={(enabled) => update.mutate({ id: a.id, patch: { enabled } })}
+          />
+        ))}
+      >
         {/* editor */}
         {isLoading || !agent ? (
           <div style={{ flex: 1, padding: 28, display: "flex", flexDirection: "column", gap: 16 }}>
@@ -99,7 +85,7 @@ export function AgentEditorView() {
             <Skeleton height={200} />
           </div>
         ) : (
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 }}>
+          <>
             <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 28px 0", flexShrink: 0 }}>
               <Icon.Cpu size={18} style={{ color: "var(--accent)" }} />
               <h1 style={{ fontSize: 18, fontWeight: 700 }}>{agent.name}</h1>
@@ -116,9 +102,9 @@ export function AgentEditorView() {
             <div style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
               <AgentEditor agent={agent} tab={tab} onTab={setTab} />
             </div>
-          </div>
+          </>
         )}
-      </div>
+      </ListDetail>
     </AppShell>
   );
 }

@@ -27,6 +27,8 @@ Entry: `YYYY-MM-DD — claim — why / what to do (`path` · `symbol`)`. No line
 
 - 2026-11-23 — Skill Config/Preview/Versioning live in the right-hand `SkillPanel` on `/skills`, NOT a `/skills/:id` page (deliberately removed): the panel is re-keyed per skill (`key={selected.id}`) so tab and form state reset on selection (`app/skills/_components/SkillsView/_components/SkillPanel`).
 
+- 2026-11-26 — `ConfigTab` resets its form by remounting on `key={skill.version}`, not by a prop-sync effect (which wiped drafts when the card toggle refetched the list); name/description/type edits made elsewhere don't bump the version, so an open form won't follow them (`SkillPanel/_components/ConfigTab`).
+
 ## Tool & Library Notes
 <!-- Dependency / CLI quirks, versions. -->
 
@@ -60,6 +62,9 @@ Entry: `YYYY-MM-DD — claim — why / what to do (`path` · `symbol`)`. No line
 
 ### 2026-11-23 — Skill tabs moved into the side panel
 - Removed `/skills/:id`; noted the re-key behaviour and the stale generated route types after deleting a route.
+
+### 2026-11-26 — ConfigTab prop-sync fix
+- Added how the form resets and what it deliberately does not follow.
 
 ## Open Questions
 <!-- - [ ] YYYY-MM-DD — question — look at: … -->

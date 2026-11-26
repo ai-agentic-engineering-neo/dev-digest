@@ -27,7 +27,7 @@ const REVIEWER_CORE = '^\\.\\./reviewer-core/src/';
 // Platform files that are pure and safe for ring 1. Everything else in
 // platform/ does I/O or wiring and reaches a service only through a port.
 const PURE_PLATFORM =
-  '^src/platform/(errors|resilience|local-only|model-router|trace-builder)\\.ts$';
+  '^src/platform/(errors|resilience|local-only|model-router|trace-builder|run-logger)\\.ts$';
 
 // Node built-ins that perform I/O. node:path, node:crypto, node:url stay legal.
 const IO_BUILTINS =

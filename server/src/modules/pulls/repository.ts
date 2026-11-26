@@ -81,6 +81,18 @@ export class PullsRepository implements PullStore {
     await this.db.update(t.pullRequests).set(stats).where(eq(t.pullRequests.id, pullId));
   }
 
+  /**
+   * Record the commit a review just ran against, so the PR list can derive
+   * `reviewed` vs `needs_review` (head moved since the last review) vs `stale`.
+   * Called by the reviews module through its `PullAccess` port.
+   */
+  async markReviewed(pullId: string, sha: string): Promise<void> {
+    await this.db
+      .update(t.pullRequests)
+      .set({ lastReviewedSha: sha })
+      .where(eq(t.pullRequests.id, pullId));
+  }
+
   async saveDetail(pullId: string, detail: PrDetail): Promise<void> {
     await this.db.transaction(async (tx) => {
       await tx.delete(t.prFiles).where(eq(t.prFiles.prId, pullId));

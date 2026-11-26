@@ -1,16 +1,11 @@
-import type { Container } from '../../platform/container.js';
 import type { Agent, FindingActionKind, RunEventKind, RunTrace } from '@devdigest/shared';
-import { AppError, NotFoundError } from '../../platform/errors.js';
-import { ReviewRepository } from './repository.js';
-import { type ReviewDto, type ReviewDtoFinding } from './helpers.js';
-import { ReviewRunExecutor, type Logger } from './run-executor.js';
+import { BadRequestError, NotFoundError } from '../../platform/errors.js';
+import type { ReviewDto, ReviewDtoFinding } from './domain.js';
+import { ReviewRunExecutor, type RunExecutorDeps } from './run-executor.js';
 import { actOnFinding as actOnFindingImpl } from './findings.js';
-import { reviewToDto } from './helpers.js';
+import type { AgentLookup, Logger, RepoLookup } from './ports.js';
 
-// Re-export DTO types + converters for backward-compatible imports from
-// './service.js' (these previously lived here; logic now in ./helpers.ts).
-export { findingRowToDto, reviewToDto } from './helpers.js';
-export type { ReviewDto, ReviewDtoFinding } from './helpers.js';
+export type { ReviewDto, ReviewDtoFinding } from './domain.js';
 
 /**
  * Review service (the core). Orchestrates:
@@ -18,21 +13,23 @@ export type { ReviewDto, ReviewDtoFinding } from './helpers.js';
  *        → llm.completeStructured({ schema: Review }) (single-pass)
  *        → groundFindings(...) (citation gate — drops findings off the diff)
  *        → persist reviews + kept findings (+ grounding summary)
- *   while streaming RunEvents over container.runBus, and on completion writing
+ *   while streaming RunEvents over the run bus, and on completion writing
  *   the whole log as ONE RunTrace doc + an agent_runs row.
  *
  * Also: the finding accept/dismiss actions. The bulky run execution lives in
  * run-executor; this class keeps the public method surface.
  */
+
+export interface ReviewServiceDeps extends RunExecutorDeps {
+  agents: AgentLookup;
+  repos: RepoLookup;
+}
+
 export class ReviewService {
-  private repo: ReviewRepository;
-  private agents: Container['agentsRepo'];
   private executor: ReviewRunExecutor;
 
-  constructor(private container: Container) {
-    this.repo = new ReviewRepository(container.db);
-    this.agents = container.agentsRepo;
-    this.executor = new ReviewRunExecutor(container, this.repo, this.agents);
+  constructor(private deps: ReviewServiceDeps) {
+    this.executor = new ReviewRunExecutor(deps);
   }
 
   // ===========================================================================
@@ -46,33 +43,33 @@ export class ReviewService {
     workspaceId: string,
     opts: { agentId?: string; all?: boolean },
   ): Promise<Agent[]> {
-    if (opts.all) return this.agents.listEnabled(workspaceId);
+    if (opts.all) return this.deps.agents.listEnabled(workspaceId);
     if (opts.agentId) {
-      const agent = await this.agents.getById(workspaceId, opts.agentId);
+      const agent = await this.deps.agents.getById(workspaceId, opts.agentId);
       if (!agent) throw new NotFoundError('Agent not found');
       return [agent];
     }
-    throw new AppError('invalid_run_request', 'Provide agentId or all:true', 400);
+    throw new BadRequestError('invalid_run_request', 'Provide agentId or all:true');
   }
 
   /** Delete a whole review run (one agent's pass) + its findings (cascade). */
   async deleteReview(workspaceId: string, reviewId: string): Promise<boolean> {
-    return this.repo.deleteReview(workspaceId, reviewId);
+    return this.deps.store.deleteReview(workspaceId, reviewId);
   }
 
   /** In-flight runs for a PR (server-side source of truth, survives reload). */
   async activeRuns(workspaceId: string, prId: string) {
-    return this.repo.activeRunsForPull(workspaceId, prId);
+    return this.deps.store.activeRunsForPull(workspaceId, prId);
   }
 
   /** All runs for a PR (any status), newest first — the run history (incl. failures). */
   async listRuns(workspaceId: string, prId: string) {
-    return this.repo.listRunsForPull(workspaceId, prId);
+    return this.deps.store.listRunsForPull(workspaceId, prId);
   }
 
   /** Delete one run from the history (+ its trace). */
   async deleteRun(workspaceId: string, runId: string): Promise<boolean> {
-    return this.repo.deleteAgentRun(workspaceId, runId);
+    return this.deps.store.deleteAgentRun(workspaceId, runId);
   }
 
   /**
@@ -83,14 +80,9 @@ export class ReviewService {
    */
   async cancelRun(runId: string): Promise<void> {
     this.publish(runId, 'info', 'Cancellation requested — stopping…');
-    this.container.runBus.cancel(runId);
-    await this.repo.cancelRunIfRunning(runId);
-    this.container.runBus.complete(runId);
-  }
-
-  /** Reap runs left 'running' by a previous (now-dead) process. Called on boot. */
-  async reapStaleRuns(): Promise<number> {
-    return this.repo.reapStaleRunningRuns();
+    this.deps.events.cancel(runId);
+    await this.deps.store.cancelRunIfRunning(runId);
+    this.deps.events.complete(runId);
   }
 
   /**
@@ -105,9 +97,9 @@ export class ReviewService {
     targets: Agent[],
     logger?: Logger,
   ): Promise<{ runs: { run_id: string; agent_id: string; agent_name: string }[]; reviews: ReviewDto[] }> {
-    const pull = await this.repo.getPull(workspaceId, prId);
+    const pull = await this.deps.pulls.getById(workspaceId, prId);
     if (!pull) throw new NotFoundError('Pull request not found');
-    const repo = await this.repo.getRepo(pull.repoId);
+    const repo = await this.deps.repos.getById(workspaceId, pull.repoId);
     if (!repo) throw new NotFoundError('Repo not found');
 
     // Create the agent_run rows up front so a runId is available IMMEDIATELY —
@@ -116,7 +108,7 @@ export class ReviewService {
     const runs: { run_id: string; agent_id: string; agent_name: string }[] = [];
     const jobs: { agent: Agent; runId: string }[] = [];
     for (const agent of targets) {
-      const runId = await this.repo.createAgentRun({
+      const runId = await this.deps.store.createAgentRun({
         workspaceId,
         agentId: agent.id,
         prId,
@@ -137,7 +129,7 @@ export class ReviewService {
   }
 
   private publish(runId: string, kind: RunEventKind, msg: string, data?: unknown) {
-    return this.container.runBus.publish(runId, kind, msg, data);
+    return this.deps.events.publish(runId, kind, msg, data);
   }
 
   // ===========================================================================
@@ -149,7 +141,7 @@ export class ReviewService {
     findingId: string,
     action: FindingActionKind,
   ): Promise<{ finding: ReviewDtoFinding }> {
-    return actOnFindingImpl(this.repo, workspaceId, findingId, action);
+    return actOnFindingImpl(this.deps.store, workspaceId, findingId, action);
   }
 
   // ===========================================================================
@@ -157,22 +149,23 @@ export class ReviewService {
   // ===========================================================================
 
   async reviewsForPull(workspaceId: string, prId: string): Promise<ReviewDto[]> {
-    const pull = await this.repo.getPull(workspaceId, prId);
+    const pull = await this.deps.pulls.getById(workspaceId, prId);
     if (!pull) throw new NotFoundError('Pull request not found');
-    const rows = await this.repo.reviewsForPull(prId);
+    const reviews = await this.deps.store.reviewsForPull(prId);
     const names = new Map<string, string>();
-    for (const { review } of rows) {
-      if (review.agentId && !names.has(review.agentId)) {
-        const a = await this.agents.getById(workspaceId, review.agentId);
-        if (a) names.set(review.agentId, a.name);
+    for (const review of reviews) {
+      if (review.agent_id && !names.has(review.agent_id)) {
+        const a = await this.deps.agents.getById(workspaceId, review.agent_id);
+        if (a) names.set(review.agent_id, a.name);
       }
     }
-    return rows.map(({ review, findings }) =>
-      reviewToDto(review, findings, review.agentId ? names.get(review.agentId) : null),
-    );
+    return reviews.map((review) => ({
+      ...review,
+      agent_name: (review.agent_id ? names.get(review.agent_id) : null) ?? null,
+    }));
   }
 
   async getRunTrace(runId: string): Promise<RunTrace | undefined> {
-    return this.repo.getRunTrace(runId);
+    return this.deps.store.getRunTrace(runId);
   }
 }

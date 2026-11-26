@@ -162,6 +162,24 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     await app.close();
   });
 
+  it('review trigger tolerates an empty body: it reaches the use case (400), not the validator (422)', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+
+    // No payload at all, and an empty object: neither names an agent.
+    for (const payload of [undefined, {}]) {
+      const res = await app.inject({
+        method: 'POST',
+        url: `/pulls/${pr.id}/review`,
+        ...(payload ? { payload } : {}),
+      });
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error.code).toBe('invalid_run_request');
+    }
+
+    await app.close();
+  });
+
   it('runs a review: map-reduce + grounding drops the hallucinated finding, keeps the valid one', async () => {
     const app = await appWith(REVIEW_FIXTURE);
     const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);

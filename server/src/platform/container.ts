@@ -15,6 +15,7 @@ import { LocalSecretsProvider } from '../adapters/secrets/local.js';
 import { LocalNoAuthProvider } from '../adapters/auth/local.js';
 import { OctokitGitHubClient } from '../adapters/github/octokit.js';
 import { SimpleGitClient } from '../adapters/git/simple-git.js';
+import { parseUnifiedDiff } from '../adapters/git/diff-parser.js';
 import { RipgrepCodeIndex } from '../adapters/codeindex/ripgrep.js';
 import { OpenAIProvider } from '../adapters/llm/openai.js';
 import { AnthropicProvider } from '../adapters/llm/anthropic.js';
@@ -97,6 +98,9 @@ export class Container {
     });
     return this._git;
   }
+
+  /** Unified-diff text → `UnifiedDiff`. Pure; lives with the git adapter. */
+  readonly parseDiff = parseUnifiedDiff;
 
   get agentsRepo(): AgentsRepository {
     return (this._agentsRepo ??= new AgentsRepository(this.db));

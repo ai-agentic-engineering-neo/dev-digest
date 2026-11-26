@@ -22,7 +22,7 @@ Worked code from this repo: [examples.md](examples.md). Sources:
 | Ring | Files | May import |
 |---|---|---|
 | 0 Domain | `modules/<m>/domain.ts`, `constants.ts`; `@devdigest/shared` contracts; `platform/errors.ts` | ring 0, `zod`, `@devdigest/reviewer-core` |
-| 1 Application | `modules/<m>/service.ts`, `ports.ts`, and any other module file not named below | ring 0, its own `ports.ts`, another module's `index.ts`, pure platform files (`errors`, `resilience`, `local-only`, `model-router`, `trace-builder`) |
+| 1 Application | `modules/<m>/service.ts`, `ports.ts`, and any other module file not named below | ring 0, its own `ports.ts`, another module's `index.ts`, pure platform files (`errors`, `resilience`, `local-only`, `model-router`, `trace-builder`, `run-logger`) |
 | 2 Infrastructure | `modules/<m>/repository.ts` (or `repository/`), `routes.ts`, `repo-intel/pipeline/`, `adapters/`, `db/`, the rest of `platform/`, `modules/_shared/` | anything inward |
 | 3 Composition root | `platform/container.ts`, `app.ts`, `server.ts`, `modules/index.ts`, the top of each `routes.ts` plugin | everything |
 
@@ -61,7 +61,9 @@ rules by default. `reviewer-core/` is rings 0–1 as a whole; its one adapter is
 **Fastify**
 - A handler does three things: `getContext`, one service call, status code.
 - Schemas go in the route options (`schema: { body, params, querystring }`).
-  Never `Schema.parse(req.body)` in a handler.
+  Never `Schema.parse(req.body)` in a handler. For a body that may be absent,
+  use `z.preprocess((b) => b ?? {}, Schema)`; `.default({})` still 422s on a
+  request with no body.
 - `req`, `reply`, `app` and `req.log` stay in `routes.ts`. Pass plain values
   and, if the use case logs, a `Logger` port.
 - `routes.ts` imports no `drizzle-orm`, `db/`, `adapters/` or SDK. A query in

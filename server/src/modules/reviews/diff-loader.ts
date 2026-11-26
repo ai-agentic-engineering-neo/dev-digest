@@ -1,8 +1,11 @@
-import type { Container } from '../../platform/container.js';
 import type { UnifiedDiff } from '@devdigest/shared';
-import { parseUnifiedDiff } from '../../adapters/git/diff-parser.js';
-import * as schema from '../../db/schema.js';
-import type { ReviewRepository, PullRow } from './repository.js';
+import type { DiffParser, DiffSource, PullAccess, RepoRef, ReviewPull } from './ports.js';
+
+export interface DiffLoaderDeps {
+  git: DiffSource;
+  pulls: PullAccess;
+  parseDiff: DiffParser;
+}
 
 /**
  * Load the unified diff for a PR. Prefers a real `git diff base...head`; falls
@@ -10,28 +13,25 @@ import type { ReviewRepository, PullRow } from './repository.js';
  * patches (so the reviewer works even before a clone completes / in tests).
  */
 export async function loadDiff(
-  container: Container,
-  repo: ReviewRepository,
-  workspaceId: string,
-  pull: PullRow,
-  repoRow: typeof schema.repos.$inferSelect,
+  deps: DiffLoaderDeps,
+  pull: ReviewPull,
+  repo: RepoRef,
 ): Promise<UnifiedDiff> {
   try {
-    const diff = await container.git.diff(
-      { owner: repoRow.owner, name: repoRow.name },
-      pull.base,
-      pull.headSha,
-    );
+    const diff = await deps.git.diff({ owner: repo.owner, name: repo.name }, pull.base, pull.headSha);
     if (diff.files.length > 0) return diff;
   } catch {
     /* fall through to pr_files reconstruction */
   }
-  return diffFromPrFiles(repo, pull.id);
+  return diffFromPrFiles(deps, pull.id);
 }
 
 /** Reconstruct a UnifiedDiff from persisted pr_files patches. */
-export async function diffFromPrFiles(repo: ReviewRepository, prId: string): Promise<UnifiedDiff> {
-  const files = await repo.getPrFiles(prId);
+export async function diffFromPrFiles(
+  deps: Pick<DiffLoaderDeps, 'pulls' | 'parseDiff'>,
+  prId: string,
+): Promise<UnifiedDiff> {
+  const { files } = await deps.pulls.filesAndCommits(prId);
   const parts: string[] = [];
   for (const f of files) {
     if (!f.patch) continue;
@@ -40,5 +40,5 @@ export async function diffFromPrFiles(repo: ReviewRepository, prId: string): Pro
     parts.push(`+++ b/${f.path}`);
     parts.push(f.patch);
   }
-  return parseUnifiedDiff(parts.join('\n'));
+  return deps.parseDiff(parts.join('\n'));
 }

@@ -1,0 +1,149 @@
+import type {
+  Agent,
+  Finding,
+  GitClient,
+  LLMProvider,
+  Provider,
+  RunSummary,
+  RunTrace,
+  UnifiedDiff,
+} from '@devdigest/shared';
+import type { RepoIntel } from '../repo-intel/index.js';
+import type { RunEventBus } from '../../platform/run-logger.js';
+import type { ReviewDto, ReviewDtoFinding } from './domain.js';
+
+/**
+ * A2 — what the review use cases need from the outside world. `routes.ts`
+ * wires the real implementations; nothing in the service, the run executor or
+ * the diff loader names a concrete class.
+ */
+
+/** The pull request under review. The pulls repository's `StoredPull` fits. */
+export interface ReviewPull {
+  id: string;
+  repoId: string;
+  number: number;
+  title: string;
+  author: string;
+  base: string;
+  headSha: string;
+  body: string | null;
+}
+
+export interface RepoRef {
+  owner: string;
+  name: string;
+}
+
+/** Pull requests, owned by the pulls module. */
+export interface PullAccess {
+  getById(workspaceId: string, id: string): Promise<ReviewPull | undefined>;
+  filesAndCommits(pullId: string): Promise<{ files: { path: string; patch?: string | null }[] }>;
+  /** Record the head SHA a review ran against (PR-list freshness derivation). */
+  markReviewed(pullId: string, sha: string): Promise<void>;
+}
+
+/** Repos, owned by the repos module. */
+export interface RepoLookup {
+  getById(workspaceId: string, id: string): Promise<RepoRef | undefined>;
+}
+
+/** Agents, owned by the agents module. */
+export interface AgentLookup {
+  listEnabled(workspaceId: string): Promise<Agent[]>;
+  getById(workspaceId: string, id: string): Promise<Agent | undefined>;
+}
+
+export interface NewReview {
+  workspaceId: string;
+  prId: string;
+  agentId: string | null;
+  runId: string | null;
+  kind: 'summary' | 'review';
+  verdict: string | null;
+  summary: string | null;
+  score: number | null;
+  model: string | null;
+}
+
+export interface RunCompletion {
+  status: 'done' | 'failed' | 'cancelled';
+  durationMs: number;
+  tokensIn: number;
+  tokensOut: number;
+  /** USD cost; null when unknown or the run did not complete. */
+  costUsd: number | null;
+  findingsCount: number;
+  grounding: string;
+  /** Review score (0-100); null on failed/cancelled runs. */
+  score?: number | null;
+  /** Findings that tripped the agent's gate; 0 on failed/cancelled runs. */
+  blockers?: number | null;
+  /** Failure reason (status='failed') / cancellation note. Null clears it. */
+  error?: string | null;
+}
+
+/** Persistence for reviews, findings, agent runs and run traces. */
+export interface ReviewStore {
+  insertReview(values: NewReview): Promise<{ id: string }>;
+  /** Returns how many findings were stored. */
+  insertFindings(reviewId: string, findings: Finding[]): Promise<number>;
+  /** Reviews for a PR (newest first), each with its findings; `agent_name` unset. */
+  reviewsForPull(prId: string): Promise<ReviewDto[]>;
+  /** False when the review is not in the workspace. */
+  deleteReview(workspaceId: string, reviewId: string): Promise<boolean>;
+
+  /** The workspace a finding belongs to (through its review), if it exists. */
+  findingWorkspace(findingId: string): Promise<string | undefined>;
+  setFindingAccepted(findingId: string, at: Date | null): Promise<ReviewDtoFinding | undefined>;
+  setFindingDismissed(findingId: string, at: Date | null): Promise<ReviewDtoFinding | undefined>;
+
+  /** In-flight runs for a PR — the server-side source of truth. */
+  activeRunsForPull(
+    workspaceId: string,
+    prId: string,
+  ): Promise<{ run_id: string; agent_id: string | null; agent_name: string | null; ran_at: string | null }[]>;
+  /** All runs for a PR (any status), newest first. */
+  listRunsForPull(workspaceId: string, prId: string): Promise<RunSummary[]>;
+  deleteAgentRun(workspaceId: string, runId: string): Promise<boolean>;
+  /** Mark a still-running run as cancelled (no-op if it already finished). */
+  cancelRunIfRunning(runId: string): Promise<boolean>;
+  /** Create a run in `running` state; returns its id. */
+  createAgentRun(values: {
+    workspaceId: string;
+    agentId: string | null;
+    prId: string;
+    provider: string | null;
+    model: string | null;
+  }): Promise<string>;
+  completeAgentRun(runId: string, values: RunCompletion): Promise<void>;
+  /** Persist the WHOLE run log as ONE document. */
+  saveRunTrace(runId: string, trace: RunTrace): Promise<void>;
+  getRunTrace(runId: string): Promise<RunTrace | undefined>;
+}
+
+/** A resolver, not an instance: the adapter is built from a key that can change. */
+export type LlmResolver = (provider: Provider) => Promise<LLMProvider>;
+
+export type DiffSource = Pick<GitClient, 'diff'>;
+
+/** Parses raw unified-diff text. Pure; injected because it lives with the git adapter. */
+export type DiffParser = (raw: string) => UnifiedDiff;
+
+/** The repo-intel facade, as far as a review run uses it. */
+export type RepoContext = Pick<RepoIntel, 'getCallerSignatures' | 'getRepoMap' | 'getFileRank'>;
+
+/** The live run stream: publish and buffer (via RunLogger), plus cancel and completion. */
+export interface RunEvents extends RunEventBus {
+  cancel(runId: string): void;
+  isCancelled(runId: string): boolean;
+  complete(runId: string): void;
+}
+
+/** Minimal structured logger (pino-compatible: (obj, msg)) for runtime logs. */
+export type Logger = {
+  info: (obj: unknown, msg?: string) => void;
+  warn: (obj: unknown, msg?: string) => void;
+  error: (obj: unknown, msg?: string) => void;
+  debug: (obj: unknown, msg?: string) => void;
+};

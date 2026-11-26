@@ -702,33 +702,5 @@
       "severity": "error",
       "name": "routes-are-thin"
     }
-  },
-  {
-    "type": "dependency",
-    "from": "src/modules/workspace/routes.ts",
-    "to": "node_modules/drizzle-orm/index.d.ts",
-    "unresolvedTo": "drizzle-orm",
-    "dependencyTypes": [
-      "npm",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "routes-are-thin"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/modules/workspace/routes.ts",
-    "to": "src/db/schema.ts",
-    "unresolvedTo": "../../db/schema.js",
-    "dependencyTypes": [
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "routes-are-thin"
-    }
   }
 ]

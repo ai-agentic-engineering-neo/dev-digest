@@ -4,18 +4,21 @@
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { Button, ProgressBar, TextInput } from "@devdigest/ui";
+import { Button, MonoLink, ProgressBar, TextInput } from "@devdigest/ui";
 import type { ConventionCandidate } from "@devdigest/shared";
 import { confidenceColor } from "../../helpers";
 import { s } from "./styles";
 
 export function ConventionCard({
   candidate,
+  fileHref,
   onAccept,
   onReject,
   onEditRule,
 }: {
   candidate: ConventionCandidate;
+  /** github.com link to the evidence file; null while the repo isn't known. */
+  fileHref?: string | null;
   onAccept: (accepted: boolean) => void;
   onReject: () => void;
   onEditRule: (rule: string) => void;
@@ -72,7 +75,11 @@ export function ConventionCard({
 
         <div style={s.evidence}>
           <div className="mono" style={s.evidencePath}>
-            <span>{candidate.evidence_path}</span>
+            {fileHref ? (
+              <MonoLink href={fileHref}>{candidate.evidence_path}</MonoLink>
+            ) : (
+              <span>{candidate.evidence_path}</span>
+            )}
           </div>
           <pre className="mono" style={s.snippet}>
             {candidate.evidence_snippet}

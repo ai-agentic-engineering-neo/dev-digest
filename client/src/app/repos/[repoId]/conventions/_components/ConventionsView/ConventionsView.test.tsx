@@ -20,7 +20,7 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/components/app-shell", () => ({ AppShell: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }));
 vi.mock("@/lib/repo-context", () => ({
-  useActiveRepo: () => ({ activeRepo: { full_name: "acme/payments-api" } }),
+  useActiveRepo: () => ({ activeRepo: { full_name: "acme/payments-api", default_branch: "main" } }),
   useRepoNotFound: () => false,
 }));
 vi.mock("@/lib/hooks/conventions", () => ({
@@ -84,6 +84,14 @@ describe("ConventionsView", () => {
     expect(screen.getByText("Rule a")).toBeTruthy();
     expect(screen.getByText("0 of 2 accepted")).toBeTruthy();
     expect((screen.getByRole("button", { name: /Create skill/ }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("links each evidence file to the repo's default branch on GitHub", () => {
+    mocks.list.data = [cand("a", false)];
+    renderView();
+    expect(screen.getByRole("link", { name: "src/a.ts" }).getAttribute("href")).toBe(
+      "https://github.com/acme/payments-api/blob/main/src/a.ts",
+    );
   });
 
   it("select all / deselect all go through the bulk call", () => {

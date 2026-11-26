@@ -20,6 +20,7 @@ import {
 } from "@/lib/hooks/conventions";
 import { useActiveRepo, useRepoNotFound } from "@/lib/repo-context";
 import { ApiError } from "@/lib/api";
+import { githubBlobUrl } from "@/lib/github-urls";
 import { SKELETON_CARDS } from "./constants";
 import { buildConventionSkillDraft, repoShortName } from "./helpers";
 import { ConventionCard } from "./_components/ConventionCard";
@@ -144,6 +145,11 @@ export function ConventionsView() {
                 <ConventionCard
                   key={c.id}
                   candidate={c}
+                  fileHref={
+                    activeRepo && c.evidence_path
+                      ? githubBlobUrl(activeRepo.full_name, activeRepo.default_branch, c.evidence_path)
+                      : null
+                  }
                   onAccept={(v) => update.mutate({ id: c.id, patch: { accepted: v } })}
                   onReject={() => reject.mutate(c.id)}
                   onEditRule={(rule) => update.mutate({ id: c.id, patch: { rule } })}

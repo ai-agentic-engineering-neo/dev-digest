@@ -16,11 +16,11 @@ const candidate: ConventionCandidate = {
   accepted: false,
 };
 
-function setup(over: Partial<ConventionCandidate> = {}) {
+function setup(over: Partial<ConventionCandidate> = {}, fileHref?: string) {
   const handlers = { onAccept: vi.fn(), onReject: vi.fn(), onEditRule: vi.fn() };
   render(
     <NextIntlClientProvider locale="en" messages={{ conventions: messages }}>
-      <ConventionCard candidate={{ ...candidate, ...over }} {...handlers} />
+      <ConventionCard candidate={{ ...candidate, ...over }} fileHref={fileHref} {...handlers} />
     </NextIntlClientProvider>,
   );
   return handlers;
@@ -33,6 +33,19 @@ describe("ConventionCard", () => {
     expect(screen.getByText("src/api/users.ts")).toBeTruthy();
     expect(screen.getByText("const user = await db.users.find(id);")).toBeTruthy();
     expect(screen.getByText("91%")).toBeTruthy();
+  });
+
+  it("links the evidence path to GitHub in a new tab", () => {
+    const href = "https://github.com/acme/payments-api/blob/main/src/api/users.ts";
+    setup({}, href);
+    const link = screen.getByRole("link", { name: "src/api/users.ts" });
+    expect(link.getAttribute("href")).toBe(href);
+    expect(link.getAttribute("target")).toBe("_blank");
+  });
+
+  it("shows the path as plain text without a link target", () => {
+    setup();
+    expect(screen.queryByRole("link")).toBeNull();
   });
 
   it("accept toggles on, and off when already accepted", () => {

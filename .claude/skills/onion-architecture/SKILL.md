@@ -36,7 +36,7 @@ rules by default. `reviewer-core/` is rings 0–1 as a whole; its one adapter is
 |---|---|
 | A rule or calculation that needs no I/O | `domain.ts` — take the clock, ids and config as arguments |
 | A type shared with the client | the Zod contract in `@devdigest/shared` (both vendored copies) |
-| A type only the server uses | `domain.ts`, or `ports.ts` if it is a port's input or output |
+| A type only the server uses | `ports.ts` if only a port mentions it; `domain.ts` if a domain rule uses it too (`ports.ts` then imports it — never the reverse) |
 | A use case: load, decide, save, notify | a method on the service |
 | Something the service needs from outside | an interface in `ports.ts` |
 | SQL, a Drizzle call, a row-to-contract mapper | `repository.ts` |
@@ -135,7 +135,7 @@ reassigns a private field means the service is missing a port.
 
 | Rule | Meaning | Fix |
 |---|---|---|
-| `domain-is-pure` | `domain.ts` reached outside ring 0 | pass the value in as an argument, or move the code to the service |
+| `domain-is-pure` | `domain.ts` reached outside ring 0 | pass the value in as an argument, or move the code to the service; a type it shares with `ports.ts` is declared in `domain.ts` |
 | `core-no-infrastructure` | a service imports `db/`, `adapters/`, the container or impure `platform/` | declare a port in `ports.ts` and inject it |
 | `core-no-packages` | a service imports an npm package other than `zod` | wrap it in an adapter behind a port |
 | `core-no-io-builtins` | `node:fs`, `node:child_process`, … in the core | move it to an adapter or repository |

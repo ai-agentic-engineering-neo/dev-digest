@@ -1,4 +1,3 @@
-import type { Container } from '../../platform/container.js';
 import type {
   Agent,
   AgentSkillLink,
@@ -8,19 +7,17 @@ import type {
   Provider,
   ReviewStrategy,
 } from '@devdigest/shared';
-import { AgentsRepository } from './repository.js';
-import { toAgentDto, toAgentVersionDto } from './helpers.js';
+import { isConfigChange } from './domain.js';
+import type { AgentPatch, AgentStore, ModelCatalog } from './ports.js';
 
 /**
  * A2 — agents service. Business logic for the Agents tab + Agent Editor.
  * Provider/model selection uses the LLM adapter's dynamic model list.
  *
  * An Agent = provider + model + system_prompt + linked skills + output_schema +
- * enabled. Config changes are versioned via `agent_versions` (repository).
+ * enabled. A config change bumps the version and is snapshotted to
+ * `agent_versions`; whether a patch is one is decided here (domain.ts).
  */
-
-// Re-exported for backwards compatibility; implementation lives in ./helpers.
-export { toAgentDto } from './helpers.js';
 
 export interface CreateAgentInput {
   name: string;
@@ -48,21 +45,24 @@ export interface UpdateAgentInput {
   enabled?: boolean;
 }
 
-export class AgentsService {
-  private repo: AgentsRepository;
+export interface AgentsServiceDeps {
+  agents: AgentStore;
+  models: ModelCatalog;
+}
 
-  constructor(private container: Container) {
-    this.repo = new AgentsRepository(container.db);
+export class AgentsService {
+  private repo: AgentStore;
+
+  constructor(private deps: AgentsServiceDeps) {
+    this.repo = deps.agents;
   }
 
   async list(workspaceId: string): Promise<Agent[]> {
-    const rows = await this.repo.list(workspaceId);
-    return rows.map(toAgentDto);
+    return this.repo.list(workspaceId);
   }
 
   async get(workspaceId: string, id: string): Promise<Agent | undefined> {
-    const row = await this.repo.getById(workspaceId, id);
-    return row ? toAgentDto(row) : undefined;
+    return this.repo.getById(workspaceId, id);
   }
 
   /** Delete an agent (and its versions/skill-links, via cascade). */
@@ -71,7 +71,7 @@ export class AgentsService {
   }
 
   async create(workspaceId: string, input: CreateAgentInput, userId?: string): Promise<Agent> {
-    const row = await this.repo.insert({
+    return this.repo.insert({
       workspaceId,
       name: input.name,
       description: input.description,
@@ -85,7 +85,6 @@ export class AgentsService {
       enabled: input.enabled,
       createdBy: userId ?? null,
     });
-    return toAgentDto(row);
   }
 
   async update(
@@ -93,7 +92,10 @@ export class AgentsService {
     id: string,
     patch: UpdateAgentInput,
   ): Promise<Agent | undefined> {
-    const row = await this.repo.update(workspaceId, id, {
+    const existing = await this.repo.getById(workspaceId, id);
+    if (!existing) return undefined;
+
+    const change: AgentPatch = {
       ...(patch.name !== undefined ? { name: patch.name } : {}),
       ...(patch.description !== undefined ? { description: patch.description } : {}),
       ...(patch.provider !== undefined ? { provider: patch.provider } : {}),
@@ -104,8 +106,11 @@ export class AgentsService {
       ...(patch.ci_fail_on !== undefined ? { ciFailOn: patch.ci_fail_on } : {}),
       ...(patch.repo_intel !== undefined ? { repoIntel: patch.repo_intel } : {}),
       ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
-    });
-    return row ? toAgentDto(row) : undefined;
+    };
+    // A config-affecting change (anything except just toggling enabled) bumps
+    // the version; the store records the snapshot for it.
+    const newVersion = isConfigChange(existing, change) ? existing.version + 1 : undefined;
+    return this.repo.update(workspaceId, id, change, newVersion);
   }
 
   /**
@@ -116,8 +121,7 @@ export class AgentsService {
   async listVersions(workspaceId: string, agentId: string): Promise<AgentVersion[] | undefined> {
     const agent = await this.repo.getById(workspaceId, agentId);
     if (!agent) return undefined;
-    const rows = await this.repo.listVersions(agentId);
-    return rows.map(toAgentVersionDto);
+    return this.repo.listVersions(agentId);
   }
 
   /**
@@ -131,14 +135,13 @@ export class AgentsService {
   ): Promise<AgentVersion | undefined> {
     const agent = await this.repo.getById(workspaceId, agentId);
     if (!agent) return undefined;
-    const row = await this.repo.getVersion(agentId, version);
-    return row ? toAgentVersionDto(row) : undefined;
+    return this.repo.getVersion(agentId, version);
   }
 
   /** Linked skills for an agent as AgentSkillLink[] (ordered). */
   async skillLinks(agentId: string): Promise<AgentSkillLink[]> {
     const links = await this.repo.linkedSkills(agentId);
-    return links.map((l) => ({ agent_id: agentId, skill_id: l.skill.id, order: l.order }));
+    return links.map((l) => ({ agent_id: agentId, skill_id: l.skillId, order: l.order }));
   }
 
   /**
@@ -177,7 +180,7 @@ export class AgentsService {
    */
   async listModels(provider: Provider): Promise<ModelInfo[]> {
     try {
-      const llm = await this.container.llm(provider);
+      const llm = await this.deps.models(provider);
       return await llm.listModels();
     } catch {
       return [];

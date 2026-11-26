@@ -1,7 +1,8 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { makeSkill } from "@/app/skills/_components/fixtures";
-import { fetchCalls, mockFetch, renderWithProviders } from "@/app/skills/_components/test-utils";
+import { fetchCalls, makeTestQueryClient, mockFetch, renderWithProviders } from "@/app/skills/_components/test-utils";
+import { queryKeys } from "@/lib/hooks/keys";
 import { DeleteSkillDialog } from "./DeleteSkillDialog";
 
 afterEach(() => {
@@ -34,6 +35,19 @@ describe("DeleteSkillDialog", () => {
     expect(onClose).toHaveBeenCalled();
     expect(fetchCalls(spy)).toContainEqual(["DELETE", "/skills/sk1", undefined]);
     expect(await screen.findByText("Deleted secret-leakage-gate")).toBeInTheDocument();
+  });
+
+  it("a delete marks every conventions page stale, so the deleted skill's 'in skill' badges go", async () => {
+    const qc = makeTestQueryClient();
+    qc.setQueryData(queryKeys.conventions("repo-1"), { scan: null, candidates: [] });
+    qc.setQueryData(queryKeys.conventions("repo-2"), { scan: null, candidates: [] });
+    mockFetch({ "GET /skills/sk1/agents": [], "DELETE /skills/sk1": { ok: true } });
+    const onDeleted = vi.fn();
+    renderWithProviders(<DeleteSkillDialog skill={makeSkill()} onClose={vi.fn()} onDeleted={onDeleted} />, qc);
+    fireEvent.click(await screen.findByRole("button", { name: "Delete skill" }));
+    await waitFor(() => expect(onDeleted).toHaveBeenCalled());
+    expect(qc.getQueryState(queryKeys.conventions("repo-1"))?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(queryKeys.conventions("repo-2"))?.isInvalidated).toBe(true);
   });
 
   it("says when no agent uses it, and stays open when the delete fails", async () => {

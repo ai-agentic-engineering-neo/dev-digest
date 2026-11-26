@@ -169,6 +169,24 @@ describe("ConventionsView", () => {
     expect(screen.getByText("1 accepted rule selected")).toBeInTheDocument();
   });
 
+  it("a rule already in a skill shows its badge, is not preselected, but can be picked by hand", async () => {
+    mockFetch({ [LIST]: makePage([accepted, inSkill]) });
+    renderWithProviders(<ConventionsView />);
+
+    const card = await screen.findByRole("article", { name: "Already in skill" });
+    expect(within(card).getByText("in payments-api-conventions")).toBeInTheDocument();
+    const box = within(card).getByRole("checkbox");
+    expect(box).toHaveAttribute("aria-checked", "false");
+    expect(within(screen.getByRole("article", { name: "Accepted rule" })).getByRole("checkbox")).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+
+    fireEvent.click(box);
+    expect(box).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByText("2 accepted rules selected")).toBeInTheDocument();
+  });
+
   it("accepting a rule PATCHes its status and updates the card", async () => {
     const spy = mockFetch({
       [LIST]: makePage([pending]),

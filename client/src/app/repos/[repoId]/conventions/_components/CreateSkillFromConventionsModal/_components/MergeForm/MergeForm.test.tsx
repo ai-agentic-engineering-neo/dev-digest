@@ -7,7 +7,9 @@ import {
   REPO_ID,
   fetchCalls,
   makeCandidate,
+  makePage,
   makeSkill,
+  makeTestQueryClient,
   mockFetch,
   renderWithProviders,
 } from "@/app/repos/[repoId]/conventions/test-utils";
@@ -70,6 +72,22 @@ describe("MergeForm", () => {
     });
     expect(readConflicts()).toEqual([CONFLICT]);
     expect(await screen.findByText(/Merged 1 into “house-style”/)).toBeInTheDocument();
+  });
+
+  it("marks the conventions page stale, so its 'in skill' badges show without a reload", async () => {
+    const qc = makeTestQueryClient();
+    qc.setQueryData(queryKeys.conventions(REPO_ID), makePage(CONVENTIONS));
+    mockFetch({
+      [ROUTE]: () => ({ status: 201, body: { skill: SKILL, added: 1, duplicates: 1, conflicts: [] } }),
+    });
+    renderWithProviders(
+      <MergeForm repoId={REPO_ID} repoName="payments-api" conventions={CONVENTIONS} skill={SKILL} onClose={vi.fn()} />,
+      qc,
+    );
+    expect(qc.getQueryState(queryKeys.conventions(REPO_ID))?.isInvalidated).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Merge" }));
+    await waitFor(() => expect(nav.push).toHaveBeenCalled());
+    expect(qc.getQueryState(queryKeys.conventions(REPO_ID))?.isInvalidated).toBe(true);
   });
 
   it("stays open when the merge fails (e.g. 409 skill changed meanwhile)", async () => {

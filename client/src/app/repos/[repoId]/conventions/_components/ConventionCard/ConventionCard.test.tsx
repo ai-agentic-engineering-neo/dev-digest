@@ -86,6 +86,19 @@ describe("ConventionCard", () => {
     expect(screen.getByText("in payments-api-conventions")).toBeInTheDocument();
   });
 
+  it("shows one badge per skill, and none when no live skill holds the rule", () => {
+    renderCard({
+      candidate: makeCandidate({ status: "accepted", accepted: true, skill_names: ["api-rules", "house-style"] }),
+    });
+    expect(screen.getByText("in api-rules")).toBeInTheDocument();
+    expect(screen.getByText("in house-style")).toBeInTheDocument();
+    cleanup();
+
+    // A deleted skill's name is dropped by the server → skill_names: [] → no badge at all.
+    renderCard({ candidate: makeCandidate({ status: "accepted", accepted: true, skill_names: [] }) });
+    expect(screen.queryByText(/^in /)).not.toBeInTheDocument();
+  });
+
   it("copies a snippet", async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.assign(navigator, { clipboard: { writeText } });

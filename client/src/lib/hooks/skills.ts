@@ -79,11 +79,13 @@ export function useUpdateSkill() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, patch }: UpdateSkillVars) => api.put<Skill>(skillPath(id), patch),
-    onSuccess: (data) => {
+    onSuccess: (data, { patch }) => {
       qc.setQueryData(queryKeys.skill(data.id), data);
       qc.invalidateQueries({ queryKey: queryKeys.skills() });
       qc.invalidateQueries({ queryKey: queryKeys.skillVersions(data.id) });
       qc.invalidateQueries({ queryKey: queryKeys.skillStats(data.id) });
+      // A rename changes the "in <skill>" badges on conventions pages.
+      if (patch.name !== undefined) qc.invalidateQueries({ queryKey: queryKeys.conventionsAll() });
     },
   });
 }
@@ -101,6 +103,8 @@ export function useDeleteSkill() {
       // links cascade: skill_count on agent cards and every agent's Skills tab
       qc.invalidateQueries({ queryKey: queryKeys.agents() });
       qc.invalidateQueries({ queryKey: ["agent-skills"] });
+      // The server drops a deleted skill's name, so its "in skill" badges go.
+      qc.invalidateQueries({ queryKey: queryKeys.conventionsAll() });
     },
   });
 }

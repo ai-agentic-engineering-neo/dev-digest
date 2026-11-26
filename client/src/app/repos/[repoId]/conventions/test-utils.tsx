@@ -59,8 +59,11 @@ export function makeSkill(over: Partial<Skill> = {}): Skill {
   };
 }
 
-export function renderWithProviders(ui: React.ReactElement) {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+export function makeTestQueryClient(): QueryClient {
+  return new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+}
+
+export function renderWithProviders(ui: React.ReactElement, qc: QueryClient = makeTestQueryClient()) {
   return render(
     <QueryClientProvider client={qc}>
       <NextIntlClientProvider locale="en" messages={{ conventions: messages }}>

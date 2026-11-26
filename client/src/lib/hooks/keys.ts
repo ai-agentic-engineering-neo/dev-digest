@@ -30,6 +30,8 @@ export const queryKeys = {
   skillStats: (skillId: Id) => ["skill-stats", skillId] as const,
   skillVersions: (skillId: Id) => ["skill-versions", skillId] as const,
 
+  /** Prefix: every repo's conventions page (its "in skill" badges name skills). */
+  conventionsAll: () => ["conventions"] as const,
   conventions: (repoId: Id) => ["conventions", repoId] as const,
   /** Draft preview of a skill from the given convention ids (order-insensitive). */
   conventionSkillDraft: (repoId: Id, ids: readonly string[]) =>

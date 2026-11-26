@@ -101,6 +101,11 @@ actionable cold.
 **Rule:** ALWAYS seed that key in tests via `renderWithProviders(ui, qc)` from `app/skills/_components/test-utils` — because the hook never fetches and an empty cache shows no dialog.
 **Evidence:** `client/src/lib/hooks/conventions.ts` → `useMergeConflicts()`, `useClearMergeConflicts()` | test `ConfigTab.test.tsx` "after a merge, the conflicts dialog fills the form on Apply"
 
+### 2026-11-26 — Skill delete and rename must invalidate every conventions page
+**Insight:** The "in <skill>" badges on `/repos/:id/conventions` come from server-resolved `skill_names` cached under `["conventions", repoId]` (staleTime 30 s); `useDeleteSkill` / `useUpdateSkill` invalidated only skill keys, so a deleted or renamed skill kept its badge after navigating back.
+**Rule:** ALWAYS invalidate `queryKeys.conventionsAll()` in a skill mutation that changes a name or removes a skill — because the dependency crosses features (skills → conventions) and no key in the skills hooks mentions it.
+**Evidence:** `client/src/lib/hooks/skills.ts` → `useDeleteSkill()`, `useUpdateSkill()` | `lib/hooks/keys.ts` → `conventionsAll` | test `DeleteSkillDialog.test.tsx` "a delete marks every conventions page stale…"
+
 ## Tool & Library Notes
 
 ### 2026-11-22 — @testing-library/user-event is not installed in client

@@ -1,7 +1,17 @@
 import React from "react";
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
-import { REPO_ID, fetchCalls, makeCandidate, makeSkill, mockFetch, renderWithProviders } from "../../test-utils";
+import { queryKeys } from "@/lib/hooks/keys";
+import {
+  REPO_ID,
+  fetchCalls,
+  makeCandidate,
+  makePage,
+  makeSkill,
+  makeTestQueryClient,
+  mockFetch,
+  renderWithProviders,
+} from "../../test-utils";
 import { previewBody } from "./helpers";
 
 const nav = vi.hoisted(() => ({ push: vi.fn() }));
@@ -28,7 +38,7 @@ const CONVENTIONS = [
 const DRAFT_ROUTE = `POST /repos/${REPO_ID}/conventions/skill-draft`;
 const CREATE_ROUTE = `POST /repos/${REPO_ID}/conventions/skill`;
 
-function open(onClose = vi.fn()) {
+function open(onClose = vi.fn(), qc = makeTestQueryClient()) {
   renderWithProviders(
     <CreateSkillFromConventionsModal
       repoId={REPO_ID}
@@ -36,6 +46,7 @@ function open(onClose = vi.fn()) {
       conventions={CONVENTIONS}
       onClose={onClose}
     />,
+    qc,
   );
   return onClose;
 }
@@ -78,6 +89,25 @@ describe("CreateSkillFromConventionsModal", () => {
       type: "convention",
       enabled: false,
     });
+  });
+
+  it("after Create, the conventions page is stale, so its 'in skill' badges show without a reload", async () => {
+    const qc = makeTestQueryClient();
+    qc.setQueryData(queryKeys.conventions(REPO_ID), makePage(CONVENTIONS));
+    mockFetch({
+      [DRAFT_ROUTE]: DRAFT,
+      [CREATE_ROUTE]: () => ({
+        status: 201,
+        body: { skill: makeSkill({ id: "sk9" }), added: 2, duplicates: 0, conflicts: [] },
+      }),
+      "GET /skills": [],
+    });
+    open(vi.fn(), qc);
+    await screen.findByDisplayValue(DRAFT.name);
+    expect(qc.getQueryState(queryKeys.conventions(REPO_ID))?.isInvalidated).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Create skill" }));
+    await waitFor(() => expect(nav.push).toHaveBeenCalled());
+    expect(qc.getQueryState(queryKeys.conventions(REPO_ID))?.isInvalidated).toBe(true);
   });
 
   it("blocks an invalid name", async () => {

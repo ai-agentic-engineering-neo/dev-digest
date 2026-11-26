@@ -32,6 +32,9 @@ const csp = [
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Lint is its own step (`pnpm lint`, client.yml); keep `next build` lint-free,
+  // as it was before ESLint was added.
+  eslint: { ignoreDuringBuilds: true },
   env: {
     NEXT_PUBLIC_API_BASE: API_BASE,
   },

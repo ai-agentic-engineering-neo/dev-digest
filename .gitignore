@@ -13,10 +13,14 @@ coverage/
 .env.local
 .DS_Store
 .idea/
+.vscode/
+__pycache__/
+*.pyc
 .turbo/
 .pnpm-store/
 *.log
 .devdigest/cache/
+.devdigest/self-review/
 clones/
 playwright-report/
 test-results/

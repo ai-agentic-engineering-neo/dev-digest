@@ -39,8 +39,9 @@ export const notify = {
 };
 
 const COLORS: Record<ToastKind, { bg: string; border: string; icon: string }> = {
-  success: { bg: "var(--ok-bg, #052e1c)", border: "var(--ok)", icon: "✓" },
-  error: { bg: "var(--crit-bg, #2e0a0a)", border: "var(--crit)", icon: "✕" },
+  // --ok-bg / --crit-bg are defined on :root and both themes, so no hex fallback is needed.
+  success: { bg: "var(--ok-bg)", border: "var(--ok)", icon: "✓" },
+  error: { bg: "var(--crit-bg)", border: "var(--crit)", icon: "✕" },
   info: { bg: "var(--bg-elevated)", border: "var(--border-strong)", icon: "ℹ" },
 };
 

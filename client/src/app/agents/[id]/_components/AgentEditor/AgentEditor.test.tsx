@@ -1,17 +1,23 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import type { Agent } from "@devdigest/shared";
 import messages from "../../../../../../messages/en/agents.json";
-import { ToastProvider } from "../../../../../lib/toast";
+import { ToastProvider } from "@/lib/toast";
 
 // Mock the data hooks so the editor renders without a network/query client.
-vi.mock("../../../../../lib/hooks/agents", () => ({
+vi.mock("@/lib/hooks/agents", () => ({
   useUpdateAgent: () => ({ mutate: vi.fn(), isPending: false, isSuccess: false, data: undefined }),
   useProviderModels: () => ({ data: [{ id: "gpt-4.1", provider: "openai" }] }),
+  useAgentSkills: () => ({ data: [], isLoading: false, isError: false }),
+  useSetAgentSkills: () => ({ mutate: vi.fn() }),
+}));
+vi.mock("@/lib/hooks/skills", () => ({
+  useSkills: () => ({ data: [], isLoading: false, isError: false }),
 }));
 
 import { AgentEditor } from "./AgentEditor";
+import { VALID_TABS } from "./constants";
 
 afterEach(cleanup);
 
@@ -26,6 +32,7 @@ const AGENT: Agent = {
   strategy: "single-pass",
   ci_fail_on: "critical",
   repo_intel: true,
+  skill_count: 0,
   enabled: true,
   version: 1,
 };
@@ -44,5 +51,18 @@ describe("A2 Agent Editor (smoke)", () => {
     expect(screen.getByText("Config")).toBeInTheDocument();
     expect(screen.getByText("Configuration")).toBeInTheDocument();
     expect(screen.getByText("Save agent")).toBeInTheDocument();
+  });
+
+  it("offers a Skills tab that ?tab=skills selects", () => {
+    expect(VALID_TABS).toEqual(["config", "skills"]);
+    const onTab = vi.fn();
+    renderWithIntl(<AgentEditor agent={AGENT} tab="config" onTab={onTab} />);
+    fireEvent.click(screen.getByText("Skills"));
+    expect(onTab).toHaveBeenCalledWith("skills");
+
+    cleanup();
+    renderWithIntl(<AgentEditor agent={AGENT} tab="skills" onTab={onTab} />);
+    expect(screen.getByText("No skills in this workspace")).toBeInTheDocument();
+    expect(screen.queryByText("Configuration")).not.toBeInTheDocument();
   });
 });

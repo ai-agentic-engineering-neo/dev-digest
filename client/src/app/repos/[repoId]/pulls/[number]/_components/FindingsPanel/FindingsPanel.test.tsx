@@ -4,8 +4,9 @@ import { NextIntlClientProvider } from "next-intl";
 import type { FindingRecord, Severity } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/prReview.json";
 
-vi.mock("../../../../../../../lib/hooks/reviews", () => ({
-  useFindingAction: () => ({ mutate: vi.fn(), isPending: false }),
+const { mutate } = vi.hoisted(() => ({ mutate: vi.fn() }));
+vi.mock("@/lib/hooks/reviews", () => ({
+  useFindingAction: () => ({ mutate, isPending: false }),
 }));
 
 import { FindingsPanel } from "./FindingsPanel";
@@ -177,5 +178,26 @@ describe("FindingsPanel severity counters", () => {
   it("renders no chip group for a run without findings", () => {
     renderWithIntl(<FindingsPanel findings={[]} prId="pr1" />);
     expect(screen.queryByRole("group")).toBeNull();
+  });
+});
+
+describe("FindingsPanel keyboard focus", () => {
+  afterEach(() => mutate.mockReset());
+
+  it("resets j/k focus to the first shown card when a filter changes", () => {
+    renderWithIntl(<FindingsPanel findings={RUN} prId="pr1" />);
+    fireEvent.keyDown(window, { key: "j" });
+    fireEvent.keyDown(window, { key: "j" }); // focus on the 3rd card
+    fireEvent.click(chip("3 WARNING")); // filter → focus back to the 1st shown
+    fireEvent.keyDown(window, { key: "a" });
+    expect(mutate).toHaveBeenCalledWith({ findingId: "w1", action: "accept", prId: "pr1" });
+  });
+
+  it("resets focus when Hide low confidence toggles", () => {
+    renderWithIntl(<FindingsPanel findings={RUN} prId="pr1" />);
+    fireEvent.keyDown(window, { key: "j" });
+    toggleHideLow();
+    fireEvent.keyDown(window, { key: "d" });
+    expect(mutate).toHaveBeenCalledWith({ findingId: titles()[0]!.replace("title-", ""), action: "dismiss", prId: "pr1" });
   });
 });

@@ -6,10 +6,13 @@ import type { FindingRow, PullRow } from '../../../db/rows.js';
 
 export type ReviewRow = typeof t.reviews.$inferSelect;
 
+/** The db handle or an open transaction — inserts work the same on both. */
+type DbOrTx = Db | Parameters<Parameters<Db['transaction']>[0]>[0];
+
 // ---- reviews + findings ---------------------------------------------------
 
 export async function insertReview(
-  db: Db,
+  db: DbOrTx,
   values: {
     workspaceId: string;
     prId: string;
@@ -27,7 +30,7 @@ export async function insertReview(
 }
 
 export async function insertFindings(
-  db: Db,
+  db: DbOrTx,
   reviewId: string,
   findings: Finding[],
 ): Promise<FindingRow[]> {
@@ -52,6 +55,23 @@ export async function insertFindings(
     )
     .returning();
   return rows;
+}
+
+/**
+ * Insert a review and its findings atomically. Both rows or neither: a crash
+ * between the two inserts must not leave a review that looks clean because its
+ * findings were never written.
+ */
+export async function insertReviewWithFindings(
+  db: Db,
+  values: Parameters<typeof insertReview>[1],
+  findings: Finding[],
+): Promise<{ review: ReviewRow; findings: FindingRow[] }> {
+  return db.transaction(async (tx) => {
+    const review = await insertReview(tx, values);
+    const rows = await insertFindings(tx, review.id, findings);
+    return { review, findings: rows };
+  });
 }
 
 /** Reviews for a PR (newest first), each with its findings. */

@@ -1,0 +1,12 @@
+{
+  "appName": "DevDigest",
+  "description": "Local-first AI PR review tool",
+  "addRepo": "Add a repository",
+  "agents": "Agents",
+  "agent": "Agent",
+  "pulls": "Pull requests",
+  "pull": "PR #{number}",
+  "settings": "Settings",
+  "skills": "Skills",
+  "skill": "Skill"
+}

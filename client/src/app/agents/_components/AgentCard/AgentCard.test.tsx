@@ -19,6 +19,7 @@ const AGENT: Agent = {
   strategy: "single-pass",
   ci_fail_on: "critical",
   repo_intel: true,
+  skill_count: 0,
   enabled: true,
   version: 1,
 };
@@ -40,6 +41,14 @@ describe("AgentCard (smoke)", () => {
     expect(screen.getByText("Security Reviewer")).toBeInTheDocument();
     expect(screen.getByText("gpt-4.1")).toBeInTheDocument();
     expect(screen.getByText("3 skills")).toBeInTheDocument();
+  });
+
+  it("uses the singular for one skill and shows 0 skills", () => {
+    renderWithIntl(<AgentCard ag={AGENT} skillCount={1} />);
+    expect(screen.getByText("1 skill")).toBeInTheDocument();
+    cleanup();
+    renderWithIntl(<AgentCard ag={AGENT} skillCount={0} />);
+    expect(screen.getByText("0 skills")).toBeInTheDocument();
   });
 
   it("falls back to a translated placeholder when description is empty", () => {

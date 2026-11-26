@@ -7,6 +7,8 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "./keys";
+import { isUuid, repoPath } from "../ids";
 import { api } from "../api";
 
 /** Subset of the server's IndexState the badge + completion-poll need (kept
@@ -30,9 +32,9 @@ export interface RepoIntelState {
     `lastIndexedSha`/`updatedAt` advance, not by status). */
 export function useRepoIntelStatus(repoId: string | null | undefined, poll = false) {
   return useQuery({
-    queryKey: ["repo-intel-state", repoId],
-    queryFn: () => api.get<RepoIntelState>(`/repos/${repoId}/index-state`),
-    enabled: !!repoId,
+    queryKey: queryKeys.repoIntelState(repoId),
+    queryFn: () => api.get<RepoIntelState>(`${repoPath(repoId)}/index-state`),
+    enabled: isUuid(repoId),
     refetchInterval: poll ? 1500 : false,
   });
 }
@@ -41,9 +43,9 @@ export function useRepoIntelStatus(repoId: string | null | undefined, poll = fal
 export function useResyncRepoIntel(repoId: string | null | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => api.post<{ status: string }>(`/repos/${repoId}/resync`),
+    mutationFn: () => api.post<{ status: string }>(`${repoPath(repoId)}/resync`),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["repo-intel-state", repoId] });
+      qc.invalidateQueries({ queryKey: queryKeys.repoIntelState(repoId) });
     },
   });
 }

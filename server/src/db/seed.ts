@@ -7,6 +7,7 @@ import {
   SECURITY_REVIEWER_PROMPT,
   PERFORMANCE_REVIEWER_PROMPT,
 } from './seed-prompts.js';
+import { seedSkills } from './seed-skills.js';
 
 /** Default provider/model for the built-in reviewer agents. */
 const DEFAULT_PROVIDER = 'openrouter' as const;
@@ -21,8 +22,9 @@ const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
  * with a few findings, and the three built-in agents (General + Security +
  * Performance), all on the default openrouter/deepseek-v4-flash provider+model.
  *
- * Later milestones populate the other tables (skills, conventions, memory, eval,
- * …) once their features are built — they start empty here.
+ * Plus the six M2 demo skills (./seed-skills.ts), three of them attached to
+ * Security Reviewer. Later milestones populate the other tables (conventions,
+ * memory, eval, …) once their features are built — they start empty here.
  */
 
 export const DEFAULT_WORKSPACE_NAME = 'default';
@@ -219,6 +221,9 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, a.name)));
     if (!existing) await db.insert(t.agents).values(a);
   }
+
+  // ---- M2 demo skills (after agents: three attach to Security Reviewer) ----
+  await seedSkills(db, workspaceId);
 
   return { workspaceId, userId };
 }

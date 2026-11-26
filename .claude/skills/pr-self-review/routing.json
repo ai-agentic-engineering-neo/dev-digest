@@ -1,0 +1,84 @@
+{
+  "$comment": "Diff file -> review sources. A source is a skill (.claude/skills/<name>/SKILL.md) or a built-in reviewer prompt (docs/agent-prompts/*.md). Each source belongs to exactly one group; one subagent runs per group. route_skills.py warns about any skill in .claude/skills/ that is neither in a group nor in skip_skills.",
+  "groups": {
+    "ui": {
+      "title": "Frontend (client/)",
+      "sources": {
+        "frontend-architecture": { "checklist": "§14 Review checklist" },
+        "react-best-practices": { "checklist": "CRITICAL + HIGH rules" },
+        "next-best-practices": { "checklist": "RSC boundaries, async APIs, metadata, error handling" },
+        "react-testing-library": { "checklist": "query priority, userEvent, async, anti-patterns" }
+      },
+      "context": ["client/AGENTS.md", "client/INSIGHTS.md"]
+    },
+    "backend": {
+      "title": "Backend architecture (server/, reviewer-core/)",
+      "sources": {
+        "onion-architecture": { "checklist": "§15 Review checklist (+ §11 for reviewer-core)" },
+        "fastify-best-practices": { "checklist": "routes, plugins, validation, error handling" },
+        "drizzle-orm-patterns": { "checklist": "queries, transactions, relations" },
+        "postgresql-table-design": { "checklist": "Core Rules + Gotchas" },
+        "zod": { "checklist": "parse vs safeParse, inference, composition" }
+      },
+      "context": ["server/AGENTS.md", "server/INSIGHTS.md", "reviewer-core/AGENTS.md", "reviewer-core/INSIGHTS.md"]
+    },
+    "security": {
+      "title": "Security (all code)",
+      "sources": {
+        "security": { "checklist": "checklists.md; report HIGH confidence only as CRITICAL" },
+        "agent-prompt:security-reviewer": { "path": "docs/agent-prompts/security-reviewer.md", "checklist": "What to look for" }
+      },
+      "context": []
+    },
+    "performance": {
+      "title": "Performance (server/, reviewer-core/)",
+      "sources": {
+        "agent-prompt:performance-reviewer": { "path": "docs/agent-prompts/performance-reviewer.md", "checklist": "What to look for" }
+      },
+      "context": ["server/INSIGHTS.md"]
+    }
+  },
+  "routes": [
+    { "glob": "client/src/**/*.ts", "sources": ["frontend-architecture", "react-best-practices"] },
+    { "glob": "client/src/**/*.tsx", "sources": ["frontend-architecture", "react-best-practices"] },
+    { "glob": "client/src/app/**", "sources": ["next-best-practices"] },
+    { "glob": "client/next.config.*", "sources": ["next-best-practices"] },
+    { "glob": "client/**/*.test.tsx", "sources": ["react-testing-library"] },
+    { "glob": "client/**/*.test.ts", "sources": ["react-testing-library"] },
+
+    { "glob": "server/src/modules/**", "sources": ["onion-architecture", "fastify-best-practices"] },
+    { "glob": "server/src/adapters/**", "sources": ["onion-architecture"] },
+    { "glob": "server/src/platform/**", "sources": ["onion-architecture", "fastify-best-practices"] },
+    { "glob": "server/src/app.ts", "sources": ["onion-architecture", "fastify-best-practices"] },
+    { "glob": "server/src/server.ts", "sources": ["fastify-best-practices"] },
+    { "glob": "server/src/**/repository.ts", "sources": ["drizzle-orm-patterns"] },
+    { "glob": "server/src/db/**", "sources": ["drizzle-orm-patterns"] },
+    { "glob": "server/src/db/schema/**", "sources": ["postgresql-table-design"] },
+    { "glob": "server/src/db/schema.ts", "sources": ["postgresql-table-design"] },
+    { "glob": "server/src/db/migrations/**", "sources": ["postgresql-table-design"] },
+    { "glob": "reviewer-core/src/**", "sources": ["onion-architecture"] },
+    { "glob": "*/src/vendor/shared/**", "sources": ["zod"] },
+    { "glob": "server/src/**/*.ts", "contains": "\\bz\\.(object|enum|union|discriminatedUnion)\\(", "sources": ["zod"] },
+    { "glob": "reviewer-core/src/**/*.ts", "contains": "\\bz\\.(object|enum|union|discriminatedUnion)\\(", "sources": ["zod"] },
+
+    { "glob": "server/src/**/*.ts", "sources": ["agent-prompt:performance-reviewer"] },
+    { "glob": "reviewer-core/src/**/*.ts", "sources": ["agent-prompt:performance-reviewer"] },
+
+    { "glob": "server/src/**/*.ts", "sources": ["security", "agent-prompt:security-reviewer"] },
+    { "glob": "reviewer-core/src/**/*.ts", "sources": ["security", "agent-prompt:security-reviewer"] },
+    { "glob": "client/src/**/*.ts", "sources": ["security"] },
+    { "glob": "client/src/**/*.tsx", "sources": ["security"] },
+    { "glob": "scripts/**", "sources": ["security"] },
+    { "glob": ".github/workflows/**", "sources": ["security"] }
+  ],
+  "skip_skills": {
+    "mermaid-diagram": "authoring aid, nothing to check",
+    "engineering-insights": "procedural (writes INSIGHTS.md), not a reviewer",
+    "typescript-expert": "generic; the typecheck step covers type errors",
+    "pr-self-review": "this skill"
+  },
+  "limits": {
+    "max_changed_lines": 800,
+    "max_packages": 3
+  }
+}

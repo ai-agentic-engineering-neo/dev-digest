@@ -1,15 +1,22 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { NextIntlClientProvider } from "next-intl";
-import { getLocale, getMessages } from "next-intl/server";
+import { getLocale, getMessages, getTranslations } from "next-intl/server";
 import "./globals.css";
-import { Providers } from "../lib/providers";
-import { themeNoFlashScript } from "../lib/theme";
+import { Providers } from "@/lib/providers";
+import { themeNoFlashScript } from "@/lib/theme";
 
-export const metadata: Metadata = {
-  title: "DevDigest",
-  description: "Local-first AI PR review tool",
-};
+/* Each page.tsx sets its own `title`; the template adds the app name.
+   noindex: every screen shows private, local workspace data (repos, PRs,
+   settings) — nothing here should land in a search index (frontend-architecture §12). */
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("meta");
+  return {
+    title: { default: t("appName"), template: `%s · ${t("appName")}` },
+    description: t("description"),
+    robots: { index: false, follow: false },
+  };
+}
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const locale = await getLocale();

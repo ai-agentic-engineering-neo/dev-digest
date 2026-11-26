@@ -13,6 +13,15 @@
     "empty": "Nothing here yet",
     "error": "Something went wrong"
   },
+  "errorPage": {
+    "title": "Something went wrong",
+    "body": "This screen hit an unexpected error. Try again, or go back to your repositories."
+  },
+  "notFound": {
+    "title": "Page not found",
+    "body": "This link doesn't match any page in DevDigest.",
+    "cta": "Go to DevDigest"
+  },
   "repoNotFound": {
     "title": "No repo selected",
     "body": "This repository isn't in your workspace — it may have been removed, or the link is stale. Add a repo or pick another from the switcher to get started.",

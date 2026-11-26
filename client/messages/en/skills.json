@@ -6,19 +6,19 @@
     "addSkill": "Add Skill",
     "searchPlaceholder": "Search skills…",
     "loadError": "Could not load skills.",
+    "subtitle": "Reusable rules that agents add to their review prompt.",
+    "noMatch": "No skills match “{query}”.",
     "menu": {
+      "createFromScratch": "Create from scratch",
+      "soon": "soon",
       "fromFile": "Import from file",
       "fromUrl": "Import from URL",
       "community": "Search community skills…"
     },
     "empty": {
       "title": "No skills yet",
-      "body": "Import a skill from a file, a URL, or the community catalog.",
-      "cta": "Import from file"
-    },
-    "selectPrompt": {
-      "title": "Select a skill",
-      "body": "Pick a skill on the left to preview its body."
+      "body": "A skill is a reusable rule that agents put into their review prompt. Create one to share it across agents.",
+      "cta": "Create your first skill"
     }
   },
   "detail": {
@@ -28,7 +28,72 @@
     "notFound": {
       "title": "Skill not found",
       "body": "It may have been deleted."
+    },
+    "tabs": {
+      "config": "Config",
+      "preview": "Preview",
+      "stats": "Stats",
+      "versions": "Versions"
     }
+  },
+  "card": {
+    "footer": "{count, plural, one {# agent} other {# agents}} · v{version}"
+  },
+  "form": {
+    "name": "Name",
+    "namePlaceholder": "secret-leakage-gate",
+    "nameHint": "Lowercase letters, digits and dashes (kebab-case), up to 64 characters.",
+    "description": "Description",
+    "descriptionPlaceholder": "One line shown on the skill card",
+    "type": "Type",
+    "body": "Body (Markdown)",
+    "bodyPlaceholder": "# Rule\nDescribe the rule the reviewer must apply…",
+    "bodyCounter": "{count, number} / {max, number}",
+    "errors": {
+      "nameRequired": "Name is required.",
+      "nameFormat": "Use kebab-case: lowercase letters, digits and single dashes, up to 64 characters.",
+      "nameTaken": "A skill with this name already exists.",
+      "descriptionTooLong": "Keep the description under {max, number} characters.",
+      "bodyRequired": "Body is required.",
+      "bodyTooLong": "The body is limited to {max, number} characters.",
+      "messageTooLong": "Keep the message under {max, number} characters."
+    }
+  },
+  "create": {
+    "title": "Create skill",
+    "subtitle": "A skill is a Markdown rule that agents add to their review prompt.",
+    "cancel": "Cancel",
+    "create": "Create skill",
+    "creating": "Creating…",
+    "createdToast": "Created {name}"
+  },
+  "config": {
+    "title": "Config",
+    "enabled": "Enabled",
+    "message": "What changed?",
+    "messagePlaceholder": "Edited body",
+    "save": "Save skill",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "usedBy": "{count, plural, =0 {Not used by any agent yet} one {Used by # agent — changes apply to its next run} other {Used by # agents — changes apply to their next run}}",
+    "savedToast": "Skill saved (v{version})",
+    "savedToastNoVersion": "Skill saved",
+    "danger": {
+      "title": "Danger zone",
+      "body": "Deleting a skill detaches it from every agent and deletes its version history. This cannot be undone.",
+      "delete": "Delete skill"
+    }
+  },
+  "deleteDialog": {
+    "title": "Delete {name}?",
+    "loading": "Checking which agents use it…",
+    "loadError": "Could not load the agents that use this skill.",
+    "usedBy": "Used by {count, plural, one {# agent} other {# agents}}: {names}",
+    "unused": "No agent uses this skill.",
+    "cancel": "Cancel",
+    "confirm": "Delete skill",
+    "deleting": "Deleting…",
+    "deletedToast": "Deleted {name}"
   },
   "drawer": {
     "title": "Add a skill",
@@ -96,6 +161,48 @@
     "untrustedNotice": "This skill came from an untrusted source. Its body is stored as data (delimiter-wrapped) and must be vetted before it is enabled for an agent.",
     "bodyLabel": "Skill body (Markdown)",
     "bodyHint": "Saving a changed body creates a new immutable version.",
-    "version": "v{version}"
+    "version": "v{version}",
+    "title": "Preview",
+    "subtitle": "Rendered as the reviewing agent receives it"
+  },
+  "stats": {
+    "loading": "Loading stats…",
+    "loadError": "Could not load stats.",
+    "usedBy": "Used by",
+    "usedByValue": "{count, plural, one {# agent} other {# agents}}",
+    "enabledSub": "{count} enabled",
+    "versions": "Versions",
+    "lastEdited": "Last edited",
+    "created": "Created",
+    "panelTitle": "Agents using this skill",
+    "panelSub": "Agent activity, last 30 days",
+    "activity": "{runs, plural, one {# run} other {# runs}} · {findings, plural, one {# finding} other {# findings}}",
+    "accept": "{rate} accept",
+    "disabled": "disabled",
+    "open": "Open",
+    "openLabel": "Open {name}",
+    "empty": {
+      "title": "Not used by any agent",
+      "body": "Attach it from an agent's Skills tab."
+    }
+  },
+  "versions": {
+    "loading": "Loading versions…",
+    "loadError": "Could not load versions.",
+    "title": "Version history",
+    "count": "{count, plural, one {# version} other {# versions}}",
+    "subtitle": "Every save snapshots the body. Diff shows what changed from the previous version; restoring creates a new version and never rewrites history.",
+    "empty": "No versions yet",
+    "chip": "v{version}",
+    "current": "Current",
+    "diff": "Diff",
+    "restore": "Restore",
+    "diffCaption": "v{from} → v{to}",
+    "noChanges": "No differences from the previous version.",
+    "confirmTitle": "Restore v{version}?",
+    "confirmBody": "This creates v{next} with the body of v{version}. History is never rewritten.",
+    "confirm": "Restore",
+    "cancel": "Cancel",
+    "restored": "Restored v{from} as v{to}"
   }
 }

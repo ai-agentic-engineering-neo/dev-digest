@@ -31,6 +31,7 @@ If a test wouldn't catch a class of regression we care about, we don't write it.
 | server-integration | `server/` | integration (real Postgres) | vitest | `server-integration.yml` | **yes** |
 | reviewer-core | `reviewer-core/` | unit (engine) | vitest | `reviewer-core.yml` | no |
 | e2e web | `e2e/` | browser e2e (deterministic) | agent-browser + `run.ts` | `e2e-web.yml` | yes (stack) |
+| contracts | `server/` + `client/` `src/vendor/shared` | guard: both Zod contract copies are byte-identical | `scripts/check-contracts.sh` | `contracts.yml` | no |
 
 ## What each suite covers
 
@@ -72,6 +73,9 @@ cd server && pnpm test                                          # both
 ./scripts/dev.sh
 npm i -g agent-browser && agent-browser install
 cd e2e && npm install && npm test
+
+# pr-self-review skill scripts (stdlib python, throwaway git repos, no CI job)
+python3 -m unittest discover -s .claude/skills/pr-self-review/tests
 ```
 
 ## Conventions

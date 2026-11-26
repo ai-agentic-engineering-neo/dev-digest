@@ -1,0 +1,34 @@
+# Contracts guard — the Zod contracts exist in two copies
+# (server/src/vendor/shared and client/src/vendor/shared, see root AGENTS.md).
+# Typecheck passes on a stale copy, so this job fails the PR when they differ.
+name: contracts
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/src/vendor/shared/**'
+      - 'client/src/vendor/shared/**'
+      - 'scripts/check-contracts.sh'
+      - '.github/workflows/contracts.yml'
+  pull_request:
+    paths:
+      - 'server/src/vendor/shared/**'
+      - 'client/src/vendor/shared/**'
+      - 'scripts/check-contracts.sh'
+      - '.github/workflows/contracts.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: contracts-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  identical:
+    name: copies identical
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/check-contracts.sh

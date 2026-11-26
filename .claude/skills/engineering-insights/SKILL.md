@@ -62,7 +62,7 @@ wrap-up at **5 entries** and keep the highest-ranked:
 Route by **where the next agent will be working when it needs the lesson**,
 not by where you were editing. If a file is missing, create it from
 [assets/INSIGHTS.template.md](assets/INSIGHTS.template.md).
-NEVER write insights into this skill's own files, into `CLAUDE.md`, or into
+NEVER write insights into this skill's own files, into `AGENTS.md` / `CLAUDE.md`, or into
 your personal memory instead of `INSIGHTS.md`.
 
 ## 4. Rubrics — the fixed sections
@@ -186,7 +186,7 @@ Even here you don't overwrite the file:
 ## 10. Reading side (closing the loop)
 
 - When starting work in a package, read its `INSIGHTS.md` (only that one, on
-  demand). Don't `@import` it into `CLAUDE.md`, because then every turn pays
+  demand). Don't `@import` it into `AGENTS.md` / `CLAUDE.md`, because then every turn pays
   for its size.
 - Name the 1–3 entries that are relevant to the task, or say none are. This
   proves the file was actually read.

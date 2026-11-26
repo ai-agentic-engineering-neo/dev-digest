@@ -7,7 +7,7 @@ import { useTranslations } from "next-intl";
 import { Toggle, EmptyState } from "@devdigest/ui";
 import type { FindingRecord, Severity } from "@devdigest/shared";
 import { FindingCard } from "../FindingCard";
-import { useFindingAction } from "../../../../../../../lib/hooks/reviews";
+import { useFindingAction } from "@/lib/hooks/reviews";
 import { KEY_TO_ACTION } from "./constants";
 import { applyConfidence, countBySeverity, visibleFindings } from "./helpers";
 import { SeverityCounters } from "./SeverityCounters";
@@ -42,13 +42,16 @@ export function FindingsPanel({
     [findings, hideLow, severity],
   );
 
-  // Filters change the list → keep j/k and a/d pointing at a shown card.
-  React.useEffect(() => setFocusIdx(0), [hideLow, severity]);
-
-  const toggleSeverity = React.useCallback(
-    (level: Severity) => setSeverity((cur) => (cur === level ? null : level)),
-    [],
-  );
+  // Filters change the list → reset focus in the same handler, so j/k and a/d
+  // point at a shown card (no effect, no extra render).
+  const toggleSeverity = React.useCallback((level: Severity) => {
+    setSeverity((cur) => (cur === level ? null : level));
+    setFocusIdx(0);
+  }, []);
+  const changeHideLow = (next: boolean) => {
+    setHideLow(next);
+    setFocusIdx(0);
+  };
 
   // j/k navigation + a/d shortcuts on the focused finding (keyboard).
   React.useEffect(() => {
@@ -71,7 +74,7 @@ export function FindingsPanel({
         <SeverityCounters counts={counts} active={severity} onToggle={toggleSeverity} />
         <div style={s.toggleGroup}>
           {t("panel.hideLowConfidence")}
-          <Toggle on={hideLow} onChange={setHideLow} size={16} />
+          <Toggle on={hideLow} onChange={changeHideLow} size={16} />
         </div>
       </div>
 

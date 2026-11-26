@@ -6,6 +6,7 @@ import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { NotFoundError } from '../../platform/errors.js';
 import { AgentsService } from './service.js';
+import { AgentsRepository } from './repository.js';
 
 /** `/providers/:id` addresses a provider by name, not a uuid. */
 const ProviderParams = z.object({ id: Provider });
@@ -69,7 +70,11 @@ const SetSkillsBody = z
 
 export default async function agentsRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
-  const service = new AgentsService(app.container);
+  // Module composition root: the service gets its ports explicitly.
+  const service = new AgentsService({
+    repo: new AgentsRepository(app.container.db),
+    llm: (provider) => app.container.llm(provider),
+  });
 
   app.get('/agents', async (req) => {
     const { workspaceId } = await getContext(app.container, req);

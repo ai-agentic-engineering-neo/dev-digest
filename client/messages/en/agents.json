@@ -1,7 +1,7 @@
 {
   "card": {
     "noDescription": "No description",
-    "skillCount": "{count} skills"
+    "skillCount": "{count, plural, one {# skill} other {# skills}}"
   },
   "list": {
     "breadcrumbLab": "Skills Lab",
@@ -91,7 +91,28 @@
     "title": "Skills",
     "enabledCount": "{linked} of {total} enabled",
     "filterPlaceholder": "Filter skills…",
-    "orderHint": "Order matters — earlier skills appear earlier in the assembled prompt. Toggle to attach."
+    "orderHint": "Order matters — earlier skills appear earlier in the assembled prompt. Toggle to attach.",
+    "filterLabel": "Filter skills",
+    "listLabel": "Workspace skills",
+    "keyboardHint": "Drag a row, or focus it and press Alt+↑ / Alt+↓.",
+    "dragHandle": "Drag to reorder",
+    "dragDisabled": "Clear the filter to reorder.",
+    "moved": "{name} moved to position {position} of {total}",
+    "disabled": "disabled",
+    "disabledTitle": "Disabled globally — left out of every agent's prompt",
+    "noMatches": "No skills match “{query}”",
+    "loadError": "Could not load skills.",
+    "types": {
+      "rubric": "Rubric",
+      "convention": "Convention",
+      "security": "Security",
+      "custom": "Custom"
+    },
+    "empty": {
+      "title": "No skills in this workspace",
+      "body": "Create a skill first, then attach it to this agent.",
+      "link": "Go to Skills"
+    }
   },
   "mount": {
     "body": "Mount point for {owner}. The Agent Editor shell + tab routing are wired by A2 — {owner} renders this tab."

@@ -22,12 +22,27 @@ actionable cold.
 
 ## What Works
 
+### 2026-11-26 — Test optimistic rollback with a never-resolving refetch
+**Insight:** After an optimistic mutation fails, `onSettled` refetches and restores server state, so a rollback test passes even if `onError` restores nothing.
+**Rule:** ALWAYS make `api.get` after the first load return a never-resolving promise in rollback tests — because otherwise the refetch masks a broken `onError`.
+**Evidence:** `AgentEditor/_components/SkillsTab/SkillsTab.test.tsx` → "rolls back the optimistic attach…" | `client/src/lib/hooks/agents.ts` → `useSetAgentSkills()`
+
 ## What Doesn't Work
 
 ### 2026-11-21 — toFixed after 2-significant-digit rounding pads the design's USD values
 **Insight:** Rounding a cost to 2 significant digits and printing with `toFixed(decimals)` yields `$0.060` for 0.06, while the design shows `$0.06` (and `$0.0013`, `$0.014`); `0.0999` also carries into `$0.10`.
 **Rule:** ALWAYS format run cost only through `formatUsd()` in `client/src/lib/format.ts` (`toPrecision(2)` then trim zeros past the 2nd decimal) — because ad-hoc `toFixed` breaks the agreed table in `docs/specs/m1-run-cost/SPEC.md` §5.1.
 **Evidence:** `client/src/lib/format.ts` → `formatUsd()`; test `src/lib/format.test.ts` "0.06 → $0.06"
+
+### 2026-11-25 — Awaiting mutateAsync in a click handler without catch
+**Insight:** `CreateAgentModal.submit` awaited `create.mutateAsync` with no `catch`, so a failed create raised an unhandled promise rejection (vitest fails the run on it) even though the global `MutationCache` toast already reports the error.
+**Rule:** ALWAYS wrap `await mutation.mutateAsync(...)` in event handlers with `try/catch` and return early — because the error is shown by `lib/providers.tsx` and the rejection otherwise escapes.
+**Evidence:** `CreateAgentModal.tsx` → `submit` | test `CreateAgentModal.test.tsx` "does not navigate when creation fails"
+
+### 2026-11-26 — Per-query retry overrides on hooks
+**Insight:** Adding `retry: (n, e) => …` to `useSkill` (skip retry on 404) overrode the test QueryClient's `retry: false`, so the 500 case waited a real ~1 s backoff and `SkillDetail.test.tsx` "load error with retry" timed out.
+**Rule:** NEVER set `retry` on an individual hook — because it beats the test client's default and makes error-state tests slow/flaky; change retry policy centrally in `lib/providers.tsx` if needed.
+**Evidence:** `client/src/lib/hooks/skills.ts` → `useSkill()` | test `SkillDetail > shows a load error with retry for other failures`
 
 ## Codebase Patterns
 
@@ -46,6 +61,36 @@ actionable cold.
 **Rule:** ALWAYS put `var(--bg-primary)` as text color on a background of `SEV[lvl].c` — because it is a theme token and was the agreed choice over `#fff`.
 **Evidence:** `FindingsPanel/styles.ts` → `severityChip()`; `client/specs/m1-severity-filter/SPEC.md` §3 Look
 
+### 2026-11-25 — Use the @/ alias in new imports despite existing ../../../ chains
+**Insight:** About 30 files under `client/src` import shared code via `../../../`+ chains although `tsconfig.json` maps `@/*` → `./src/*`; copying a neighbour's import spreads the debt.
+**Rule:** ALWAYS write `@/lib/...` for imports leaving the component folder and import hooks from the domain file (`@/lib/hooks/agents`), not the `export *` barrel `src/lib/hooks/index.ts` — because deep chains break on moves and aggregate barrels invite cycles; fix chains only in files you touch.
+**Evidence:** `src/app/agents/_components/AgentCard/AgentCard.tsx` → `useDeleteAgent` import | `grep -rlE 'from "(\.\./){3,}' client/src`
+
+### 2026-11-25 — Client contract copy lacks openrouter and newer schemas
+**Insight:** `client/src/vendor/shared` has drifted functionally from the server copy: `LLMProvider.id` and the `productionize.ts` provider enum lack `'openrouter'`, and `AgentVersionConfig`, `AgentManifest`, `CommitFile` are missing — while the UI already sends `provider: "openrouter"`.
+**Rule:** ALWAYS run `diff -rq server/src/vendor/shared client/src/vendor/shared` after touching a contract and copy server → client — because typecheck passes on the stale copy, so drift is silent.
+**Evidence:** `client/src/vendor/shared/adapters.ts` → `LLMProvider` | `SettingsModels.tsx` → `feature_models` | `docs/improvement-plan.md` P0-2
+
+### 2026-11-25 — page.tsx is a server shell; the screen is a client *View
+**Insight:** A `'use client'` page cannot export `metadata`, so every route now has a thin server `page.tsx` (`generateMetadata` from `messages/en/meta.json`) rendering one client `_components/<Name>View`; titles come from the URL only (no fetch).
+**Rule:** ALWAYS add new routes as server `page.tsx` + client `<Name>View` and give them a `meta.json` title — because the root layout supplies the `%s · DevDigest` template and `noindex`, and a client page would silently drop both.
+**Evidence:** `src/app/repos/[repoId]/pulls/[number]/page.tsx` → `generateMetadata` | `src/app/layout.tsx` → `generateMetadata`
+
+### 2026-11-26 — Don't toast mutation errors in components
+**Insight:** `lib/providers.tsx` `MutationCache.onError` already toasts every failed mutation; a per-caller `toast.error` shows two toasts.
+**Rule:** ALWAYS rely on the global mutation error toast and only add success toasts locally — because a second error toast duplicates it; use mutation `meta` if a custom message is ever needed.
+**Evidence:** `client/src/lib/providers.tsx` → `MutationCache` | `AgentEditor/_components/SkillsTab/useSkillsTab.ts`
+
+### 2026-11-26 — Status colour tokens are --ok / --warn / --crit
+**Insight:** Specs say `--success` / `--warning` / `--danger`, but the theme defines none of them; the semantic tokens are `--ok`, `--warn`, `--crit` (+ `-bg` variants). An undefined var renders as inherited colour with no error.
+**Rule:** ALWAYS map spec colour names to `--ok`/`--warn`/`--crit` — because the spec names don't exist and fail silently.
+**Evidence:** `client/src/app/skills/_components/SkillDetail/_components/StatsTab/helpers.ts` → `acceptTone()`
+
+### 2026-11-26 — Skills mirror the Agents list (card grid), not master-detail
+**Insight:** The first Skills implementation reused `ListDetail` (list on the left, detail on the right) because the designs showed it, but the user wanted the same card-grid page as `/agents` and a full-width detail page, and the Versions tab to show per-version Diff against the PREVIOUS version, inline, with Diff on the current row too.
+**Rule:** ALWAYS model a new list page on `AgentsListView` (header + search + Add menu + `repeat(auto-fill, minmax(280px, 1fr))` grid, click → `/<thing>/:id`) unless the user asks for a side list — because the user corrected the layout once already; `ListDetail` stays only for the Agent Editor.
+**Evidence:** `client/src/app/skills/_components/SkillsView/SkillsView.tsx`, `SkillDetailView/SkillDetailView.tsx`, `VersionsTab/_components/VersionRow/VersionRow.tsx`; spec `docs/specs/m2-skills/SPEC.md` §3.5, §5.6
+
 ## Tool & Library Notes
 
 ### 2026-11-22 — @testing-library/user-event is not installed in client
@@ -58,6 +103,27 @@ actionable cold.
 **Rule:** ALWAYS use pnpm 10 (`npm i -g pnpm@10`), or set `pnpm_config_verify_deps_before_run=false` for a one-off run, and NEVER run `pnpm install` under pnpm 12 here — because it would drop the overrides from the lockfile.
 **Evidence:** `client/package.json` → `pnpm.overrides`; command `pnpm_config_verify_deps_before_run=false pnpm typecheck`
 
+### 2026-11-25 — eslint-disable comments in client suppress nothing
+**Insight:** No package has an ESLint config or `lint` script, so `// eslint-disable-line react-hooks/exhaustive-deps` in `ConfigTab.tsx` and `ReviewRunAccordion.tsx` is decorative and hook-rule violations go unchecked.
+**Rule:** NEVER treat an eslint-disable comment as proof a rule was considered — because no linter runs; verify hook deps by hand until P0-1 in `docs/improvement-plan.md` lands.
+**Evidence:** `client/package.json` (no lint script) | `ConfigTab.tsx` → reset `useEffect`
+> **Superseded 2026-11-25:** ESLint now runs (`client/eslint.config.mjs`, `pnpm lint`, `client.yml`); disable comments are live again and an unused one is reported.
+
+### 2026-11-25 — no-restricted-imports group negation ignores ../ paths
+**Insight:** In `no-restricted-imports`, a `group` like `["../../../*", "!**/messages/**"]` still flags `../../../../messages/en/x.json`, because the gitignore-style matcher doesn't apply `**` negations to paths starting with `../`.
+**Rule:** ALWAYS express "deep relative except X" with the `regex` option (`^(?:\.\./){3,}(?!\.\./)(?!messages/)`) — because `group` negation silently keeps the false positives.
+**Evidence:** `client/eslint.config.mjs` → `no-restricted-imports` pattern | `pnpm lint` (0 `messages/` hits after the switch)
+
+### 2026-11-25 — Next 15 lints during next build once ESLint is installed
+**Insight:** Adding `eslint` + `eslint-config-next` makes `next build` run ESLint and fail on lint errors, which silently couples the production build (and e2e, which builds the web app) to lint.
+**Rule:** ALWAYS keep `eslint: { ignoreDuringBuilds: true }` in `next.config.mjs` and run `pnpm lint` as its own CI step — because a new lint error must not break the build or the e2e stack.
+**Evidence:** `client/next.config.mjs` → `eslint.ignoreDuringBuilds` | `.github/workflows/client.yml` → `pnpm lint`
+
+### 2026-11-26 — vendor/ui Markdown drops raw HTML instead of escaping it
+**Insight:** `<Markdown>` from `@devdigest/ui` removes raw HTML blocks entirely (`<script>…</script>` disappears), so a "shown as text" acceptance check is not literally met — it is safe, but invisible.
+**Rule:** ALWAYS phrase XSS acceptance checks as "no element created" for `<Markdown>` — because escaping-as-text would need a change to the shared component.
+**Evidence:** `client/src/app/skills/_components/SkillDetail/_components/PreviewTab/PreviewTab.test.tsx`
+
 ## Recurring Errors & Fixes
 
 ### 2026-11-22 — "borderColor … conflicting borderLeftColor" warning in FindingsPanel tests is pre-existing
@@ -65,10 +131,28 @@ actionable cold.
 **Rule:** NEVER chase this warning in FindingsPanel changes — because it comes from FindingCard, which the severity-filter spec leaves untouched; fix it only in a FindingCard task (split `borderColor` into per-side colors).
 **Evidence:** `FindingCard/styles.ts` → card style (`borderColor`, `borderLeftColor`); test `FindingsPanel severity counters` stderr
 
+### 2026-11-25 — "Super expression must either be null or a function" on every route in next dev
+**Insight:** Importing the `@devdigest/ui` barrel from a Server Component (here the root `not-found` view) pulls its client-only class components into the RSC graph; `next dev` then 500s on every page, while `next build` + `next start` still pass, so only e2e catches it.
+**Rule:** ALWAYS keep any component that imports `@devdigest/ui` a `"use client"` file (server `page.tsx`/`not-found.tsx` render it) and run `e2e:hermetic` after making a component server-only — because the production build does not reproduce the dev-mode crash.
+**Evidence:** `src/app/_components/NotFoundView/NotFoundView.tsx` → `"use client"` | `./scripts/e2e.sh` ("web never became reachable" + the TypeError in the web log)
+
+### 2026-11-26 — Value import from @devdigest/shared breaks the Next build
+**Insight:** `Module not found: Can't resolve './contracts/findings.js'` (page 500) when a component imports a runtime value (e.g. `SkillType.options`) from `@devdigest/shared`. The barrel re-exports with `.js` extensions, which Next's webpack does not map to `.ts`; `import type` works only because it is erased. Typecheck and vitest both pass, so only the dev server shows it.
+**Rule:** ALWAYS import `@devdigest/shared` with `import type` in client code and keep enum value lists as local constants (`as const satisfies readonly X[]`) — because a value import compiles in tsc/vitest but crashes the page at runtime.
+**Evidence:** `client/src/vendor/shared/index.ts` → `export * from './contracts/findings.js'`; fix in `client/src/app/skills/_components/constants.ts` → `SKILL_TYPES`
+
 ## Session Notes
 
 - 2026-11-21 — M1 run cost (client: RunCostBadge in PR list, timeline, trace drawer, verdict banner): done, 68 tests green; see "Keep shared src/components free of their own i18n namespace"
 
 - 2026-11-22 — M1 severity counters & filter (client: FindingsPanel chips + filter, 21 panel/helper tests, 87 client tests green): done; see "Iterate severity levels from the contract, not from SEV"
 
+- 2026-11-25 — Researched React/Next.js architecture practices and added `.claude/skills/frontend-architecture` (SKILL, examples, references): done; see "Use the @/ alias in new imports despite existing ../../../ chains"
+
+- 2026-11-26 — M2 Skills client (Skills page 4 tabs, Agent Skills tab, SKILLS LAB nav, list-detail shell, Dropdown `disabled` items): 198 tests green; see "Per-query retry overrides on hooks"
+
 ## Open Questions
+
+- 2026-11-25 — Is the hard-coded hex `MODEL_COLOR` map an accepted exception to "no hard-coded colors / CSS variables only"? (context: `src/app/agents/_components/AgentCard/constants.ts` → `MODEL_COLOR`)
+
+- 2026-11-25 — Will the client ever be deployed publicly? It decides SEO scope: today only root `metadata` exists, there is no `robots.ts`/`sitemap.ts`, and repo/PR/settings screens would need `noindex` (context: `src/app/layout.tsx` → `metadata`; `.claude/skills/frontend-architecture/SKILL.md` §12–13)

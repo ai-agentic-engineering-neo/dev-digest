@@ -46,4 +46,8 @@ jobs:
 
       - run: pnpm typecheck
 
+      # Errors fail the job; architecture rules are warnings for now
+      # (docs/improvement-plan.md P0-1 / F4).
+      - run: pnpm lint
+
       - run: pnpm test

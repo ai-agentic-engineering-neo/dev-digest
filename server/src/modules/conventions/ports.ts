@@ -1,8 +1,14 @@
-import type { LLMProvider, RepoRef, Skill, SkillSource, SkillType } from '@devdigest/shared';
+import type {
+  ConventionScan,
+  LLMProvider,
+  RepoRef,
+  Skill,
+  SkillSource,
+  SkillType,
+} from '@devdigest/shared';
 import type {
   ConventionPatch,
   ConventionRecord,
-  ConventionScanMeta,
   RepoRefRecord,
   VerifiedRule,
 } from './helpers.js';
@@ -18,7 +24,6 @@ import type {
 export interface ConventionsStore {
   getRepo(workspaceId: string, repoId: string): Promise<RepoRefRecord | undefined>;
   listForRepo(workspaceId: string, repoId: string): Promise<ConventionRecord[]>;
-  getById(workspaceId: string, id: string): Promise<ConventionRecord | undefined>;
   getMany(workspaceId: string, repoId: string, ids: string[]): Promise<ConventionRecord[]>;
   skillNames(workspaceId: string, ids: string[]): Promise<Map<string, string>>;
   /** Delete the repo's pending rows and insert `rules`, atomically. */
@@ -26,9 +31,19 @@ export interface ConventionsStore {
     workspaceId: string,
     repoId: string,
     rules: VerifiedRule[],
-    scan: ConventionScanMeta,
+    scan: ConventionScan,
   ): Promise<void>;
-  update(workspaceId: string, id: string, patch: ConventionPatch): Promise<ConventionRecord | undefined>;
+  /**
+   * Lock the row, compute the patch from its CURRENT state, write it — one
+   * transaction, so a concurrent `markInSkill` is never overwritten.
+   * `undefined` when the convention is not in the workspace.
+   */
+  update(
+    workspaceId: string,
+    id: string,
+    makePatch: (current: ConventionRecord) => ConventionPatch,
+  ): Promise<ConventionRecord | undefined>;
+  /** Add `skillId` to `details.skill_ids` of these conventions (one statement). */
   markInSkill(workspaceId: string, ids: string[], skillId: string): Promise<void>;
 }
 
@@ -59,9 +74,40 @@ export interface NewExtractedSkill {
   evidenceFiles: string[];
 }
 
-/** Writes that skill (the shared skills repository; 409 when the name is taken). */
+/** A merge's write to an existing skill: new body = new version. */
+export interface SkillMergePatch {
+  body: string;
+  /** Version message ("Merged N conventions from <repo>"). */
+  message: string;
+  evidenceFiles: string[];
+  /** The version the merge was computed on; a different one → 409. */
+  expectedVersion: number;
+}
+
+/** Writes skills (the shared skills repository; 409 on a taken name or a stale version). */
 export interface SkillWriter {
   insert(workspaceId: string, values: NewExtractedSkill): Promise<Skill>;
+  /** `undefined` when the skill is not in the workspace. */
+  update(workspaceId: string, id: string, patch: SkillMergePatch): Promise<Skill | undefined>;
+}
+
+/** Reads the merge target (outside the transaction: the model call is slow). */
+export interface SkillReader {
+  getById(workspaceId: string, id: string): Promise<Skill | undefined>;
+}
+
+/** The stores one skill write needs, all bound to the same transaction. */
+export interface ConventionsTx {
+  conventions: Pick<ConventionsStore, 'markInSkill'>;
+  skills: SkillWriter;
+}
+
+/**
+ * Runs `work` in ONE transaction: the skill row, its version snapshot and the
+ * conventions' "in skill" mark commit together or not at all.
+ */
+export interface ConventionsUnitOfWork {
+  run<T>(work: (tx: ConventionsTx) => Promise<T>): Promise<T>;
 }
 
 /** Token counter for the draft preview. */

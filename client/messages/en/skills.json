@@ -204,5 +204,23 @@
     "confirm": "Restore",
     "cancel": "Cancel",
     "restored": "Restored v{from} as v{to}"
+  },
+  "conflicts": {
+    "title": "{count, plural, one {# merge conflict} other {# merge conflicts}}",
+    "subtitle": "These conventions contradict the skill and were not inserted. Choose per rule, then Save on Config.",
+    "existing": "In the skill now",
+    "incoming": "From conventions",
+    "noExcerpt": "(the model quoted no text)",
+    "noReason": "Contradicts the skill.",
+    "choice": "Resolution",
+    "resolution": {
+      "keep_existing": "Keep existing",
+      "replace": "Replace with new",
+      "keep_both": "Keep both"
+    },
+    "apply": "Apply to form",
+    "dismiss": "Keep all existing",
+    "versionMessage": "Resolved {count, plural, one {# convention conflict} other {# convention conflicts}}",
+    "appendedNote": "{count, plural, one {The existing text for # rule was not found, so it was appended at the end.} other {The existing text for # rules was not found, so they were appended at the end.}} Review the body before saving."
   }
 }

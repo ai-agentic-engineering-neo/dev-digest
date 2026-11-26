@@ -96,6 +96,22 @@
     "createdToast": "Skill “{name}” created",
     "create": "Create skill",
     "creating": "Creating…",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "target": "Save to",
+    "targetHint": "A new skill, or one existing skill to merge into.",
+    "targetNew": "+ New skill",
+    "targetSearch": "Search skills…",
+    "orPickAbove": "— or pick it in the list above to merge into it."
+  },
+  "merge": {
+    "title": "Merge conventions into a skill",
+    "banner": "{count, plural, one {# accepted convention} other {# accepted conventions}} from {repo} go into “{name}”.",
+    "fromSkill": "From the selected skill",
+    "rules": "Conventions to merge",
+    "note": "Duplicates will be skipped, conflicts shown after save.",
+    "footer": "Saved as v{version} if anything is added · opens on the skill page",
+    "submit": "Merge",
+    "merging": "Merging…",
+    "doneToast": "Merged {added} into “{name}” · {duplicates} duplicate(s) skipped · {conflicts} conflict(s)"
   }
 }

@@ -1,54 +1,86 @@
-/* CreateSkillFromConventionsModal — turn the selected accepted conventions into
-   a NEW skill (type convention, source extracted, disabled by default). Name and
-   description come from the server draft and are editable; the body is a
-   read-only preview (edited on the skill page, where Create lands). A taken
-   name links to the existing skill. */
+/* CreateSkillFromConventionsModal — the selected accepted conventions go into a
+   skill. First pick the target (SearchableSelect): a NEW skill (type convention,
+   source extracted, disabled by default; name/description from the server
+   draft, body a read-only preview) or ONE existing skill (merge: a new version;
+   duplicates skipped, conflicts shown on the skill's Config tab). Both land on
+   the skill's Config tab. A taken name links to the existing skill. */
 "use client";
 
 import React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Button, FormField, Modal, SelectInput, TextInput, Toggle } from "@devdigest/ui";
-import type { ConventionSkillDraft, SkillType } from "@devdigest/shared";
+import { Button, FormField, Modal, SearchableSelect, SelectInput, TextInput, Toggle } from "@devdigest/ui";
+import type { ConventionCandidate, ConventionSkillDraft, SkillType } from "@devdigest/shared";
 import { ApiError } from "@/lib/api";
 import { useToast } from "@/lib/toast";
 import { useConventionSkillDraft, useCreateSkillFromConventions } from "@/lib/hooks/conventions";
 import { useSkills } from "@/lib/hooks/skills";
-import { SKILL_DESCRIPTION_MAX, SKILL_TYPES } from "../../constants";
+import { NEW_SKILL_TARGET, SKILL_DESCRIPTION_MAX, SKILL_TYPES } from "../../constants";
 import { isValidSkillName, skillConfigHref } from "../../helpers";
+import { MergeForm } from "./_components/MergeForm";
 import { previewBody } from "./helpers";
 import { s } from "./styles";
 
 export interface CreateSkillFromConventionsModalProps {
   repoId: string;
   repoName: string;
-  conventionIds: string[];
+  /** The selected accepted conventions. */
+  conventions: ConventionCandidate[];
   onClose: () => void;
 }
 
 export function CreateSkillFromConventionsModal(props: CreateSkillFromConventionsModalProps) {
   const t = useTranslations("conventions");
-  const draft = useConventionSkillDraft(props.repoId, props.conventionIds, true);
+  const skills = useSkills();
+  const [target, setTarget] = React.useState<string>(NEW_SKILL_TARGET);
+  const targetSkill = skills.data?.find((sk) => sk.id === target);
+  const options = [
+    { value: NEW_SKILL_TARGET, label: t("create.targetNew") },
+    ...(skills.data ?? []).map((sk) => ({ value: sk.id, label: sk.name })),
+  ];
 
   return (
-    <Modal width={760} title={t("create.title")} subtitle={draft.data?.name} onClose={props.onClose}>
-      {draft.isLoading ? (
-        <p style={s.muted}>{t("create.loadingDraft")}</p>
-      ) : draft.isError || !draft.data ? (
-        <p style={s.error}>{t("create.draftError")}</p>
-      ) : (
-        // Keyed so a new draft re-seeds the form instead of syncing it in an effect.
-        <CreateForm key={draft.data.name} {...props} draft={draft.data} />
-      )}
+    <Modal
+      width={760}
+      title={targetSkill ? t("merge.title") : t("create.title")}
+      subtitle={targetSkill?.name}
+      onClose={props.onClose}
+    >
+      <div style={s.body}>
+        <FormField label={t("create.target")} hint={t("create.targetHint")}>
+          <SearchableSelect
+            value={target}
+            onChange={setTarget}
+            options={options}
+            placeholder={t("create.targetSearch")}
+            mono={false}
+          />
+        </FormField>
+        {targetSkill ? (
+          <MergeForm key={targetSkill.id} {...props} skill={targetSkill} />
+        ) : (
+          <NewSkillPane {...props} />
+        )}
+      </div>
     </Modal>
   );
+}
+
+function NewSkillPane(props: CreateSkillFromConventionsModalProps) {
+  const t = useTranslations("conventions");
+  const ids = props.conventions.map((c) => c.id);
+  const draft = useConventionSkillDraft(props.repoId, ids, true);
+  if (draft.isLoading) return <p style={s.muted}>{t("create.loadingDraft")}</p>;
+  if (draft.isError || !draft.data) return <p style={s.error}>{t("create.draftError")}</p>;
+  // Keyed so a new draft re-seeds the form instead of syncing it in an effect.
+  return <CreateForm key={draft.data.name} {...props} draft={draft.data} />;
 }
 
 function CreateForm({
   repoId,
   repoName,
-  conventionIds,
+  conventions,
   onClose,
   draft,
 }: CreateSkillFromConventionsModalProps & { draft: ConventionSkillDraft }) {
@@ -71,7 +103,7 @@ function CreateForm({
     if (!nameValid || taken) return;
     try {
       const { skill } = await create.mutateAsync({
-        convention_ids: conventionIds,
+        convention_ids: conventions.map((c) => c.id),
         name,
         description: description.slice(0, SKILL_DESCRIPTION_MAX),
         type,
@@ -87,9 +119,9 @@ function CreateForm({
   };
 
   return (
-    <div style={s.body}>
+    <>
       <div style={s.banner}>
-        {t("create.banner", { count: conventionIds.length, repo: repoName })}
+        {t("create.banner", { count: conventions.length, repo: repoName })}
       </div>
 
       <FormField label={t("create.name")} required hint={t("create.nameHint")}>
@@ -102,7 +134,8 @@ function CreateForm({
               <Link href={skillConfigHref(existing.id)} style={s.link}>
                 {t("create.openExisting")}
               </Link>
-            )}
+            )}{" "}
+            {t("create.orPickAbove")}
           </p>
         )}
       </FormField>
@@ -154,6 +187,6 @@ function CreateForm({
           </Button>
         </div>
       </div>
-    </div>
+    </>
   );
 }

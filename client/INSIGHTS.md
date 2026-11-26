@@ -96,6 +96,11 @@ actionable cold.
 **Rule:** ALWAYS model a new list page on `AgentsListView` (header + search + Add menu + `repeat(auto-fill, minmax(280px, 1fr))` grid, click → `/<thing>/:id`) unless the user asks for a side list — because the user corrected the layout once already; `ListDetail` stays only for the Agent Editor.
 **Evidence:** `client/src/app/skills/_components/SkillsView/SkillsView.tsx`, `SkillDetailView/SkillDetailView.tsx`, `VersionsTab/_components/VersionRow/VersionRow.tsx`; spec `docs/specs/m2-skills/SPEC.md` §3.5, §5.6
 
+### 2026-11-26 — Merge conflicts travel to the Config tab through a never-fetched query
+**Insight:** Conflicts from `POST /repos/:id/conventions/skill` (merge) are not stored on the server (plan decision F5); `useCreateSkillFromConventions` puts them at `queryKeys.mergeConflicts(skillId)` and `ConfigTab` reads them with `useMergeConflicts()` (`enabled: false`, `staleTime: Infinity`) after the redirect; clearing writes `[]` so the mounted observer re-renders.
+**Rule:** ALWAYS seed that key in tests via `renderWithProviders(ui, qc)` from `app/skills/_components/test-utils` — because the hook never fetches and an empty cache shows no dialog.
+**Evidence:** `client/src/lib/hooks/conventions.ts` → `useMergeConflicts()`, `useClearMergeConflicts()` | test `ConfigTab.test.tsx` "after a merge, the conflicts dialog fills the form on Apply"
+
 ## Tool & Library Notes
 
 ### 2026-11-22 — @testing-library/user-event is not installed in client
@@ -129,6 +134,11 @@ actionable cold.
 **Rule:** ALWAYS phrase XSS acceptance checks as "no element created" for `<Markdown>` — because escaping-as-text would need a change to the shared component.
 **Evidence:** `client/src/app/skills/_components/SkillDetail/_components/PreviewTab/PreviewTab.test.tsx`
 
+### 2026-11-26 — vendor/ui Modal closes only through onClose (backdrop + X), never on Esc
+**Insight:** `Modal` in `@devdigest/ui` wires `onClose` to the backdrop click AND renders the X only when `onClose` is set; it has no Escape handler. Omitting `onClose` therefore makes a dialog closable only by its own footer buttons.
+**Rule:** ALWAYS omit `onClose` for a dialog whose state would be lost on close (e.g. MergeConflictsDialog, conflicts live only in the client cache) — because a stray backdrop click otherwise discards it with no confirmation.
+**Evidence:** `client/src/vendor/ui/kit/Modal.tsx` → `Modal` | test `MergeConflictsDialog.test.tsx` "has no X / backdrop close"
+
 ## Recurring Errors & Fixes
 
 ### 2026-11-22 — "borderColor … conflicting borderLeftColor" warning in FindingsPanel tests is pre-existing
@@ -151,6 +161,11 @@ actionable cold.
 **Rule:** ALWAYS find a status banner by its text and then `.closest("[role=status]")` — because the toast region is always mounted first.
 **Evidence:** `client/src/lib/toast.tsx` → `role="status"` | test `ConventionsView.test.tsx` "a scan that keeps nothing keeps the header…"
 
+### 2026-11-26 — Create-skill mocks without conflicts break the success path
+**Insight:** Since stage 2, `useCreateSkillFromConventions` onSuccess reads `conflicts.length`; a mock body `{ skill }` (the stage-1 shape) throws inside onSuccess, so `router.push` is never called and the test fails on navigation, not on the data.
+**Rule:** ALWAYS mock `ConventionSkillResult` in full: `{ skill, added, duplicates, conflicts: [] }` — because the contract fields are required and the hook trusts them.
+**Evidence:** `CreateSkillFromConventionsModal.test.tsx` "prefills from the draft…" | `client/src/lib/hooks/conventions.ts` → `useCreateSkillFromConventions()`
+
 ## Session Notes
 
 - 2026-11-21 — M1 run cost (client: RunCostBadge in PR list, timeline, trace drawer, verdict banner): done, 68 tests green; see "Keep shared src/components free of their own i18n namespace"
@@ -162,6 +177,8 @@ actionable cold.
 - 2026-11-26 — M2 Skills client (Skills page 4 tabs, Agent Skills tab, SKILLS LAB nav, list-detail shell, Dropdown `disabled` items): 198 tests green; see "Per-query retry overrides on hooks"
 
 - 2026-11-26 — Conventions Extractor stage 1 client (/repos/:repoId/conventions page, card, edit + create modals, nav g c, formatRelative moved to lib/format): 233 tests green; see "A plain-object route in mockFetch cannot fail"
+
+- 2026-11-26 — Conventions Extractor stage 2 client (target SearchableSelect + MergeForm, MergeConflictsDialog → ConfigTab form, single-PATCH edit): 247 tests green; see "Merge conflicts travel to the Config tab through a never-fetched query"
 
 ## Open Questions
 

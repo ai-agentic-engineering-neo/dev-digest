@@ -288,6 +288,8 @@ export const UpdateConventionInput = z
     status: ConventionStatus,
     // Drop one evidence (its code cannot be rewritten — it is verified).
     remove_evidence_index: z.number().int().min(0).max(2),
+    // Drop several at once, in one atomic update (indices into the CURRENT list).
+    remove_evidence_indices: z.array(z.number().int().min(0).max(2)).min(1).max(3),
   })
   .partial()
   .refine((v) => Object.keys(v).length > 0, { message: 'Nothing to update' });
@@ -307,17 +309,44 @@ export const ConventionSkillDraft = z.object({
 });
 export type ConventionSkillDraft = z.infer<typeof ConventionSkillDraft>;
 
+// Where accepted rules go: a NEW skill, or merged into ONE existing skill.
+export const ConventionSkillTarget = z.discriminatedUnion('mode', [
+  z.object({ mode: z.literal('new') }),
+  z.object({ mode: z.literal('merge'), skill_id: z.string().uuid() }),
+]);
+export type ConventionSkillTarget = z.infer<typeof ConventionSkillTarget>;
+
 export const CreateSkillFromConventionsInput = z.object({
   convention_ids: ConventionIds,
+  // On a merge, name / description / type / enabled are the existing skill's
+  // and these fields are ignored.
   name: SkillName,
   description: z.string().max(200).default(''),
   type: SkillType.default('convention'),
   // Off by default: a new extracted skill reaches no prompt until enabled.
   enabled: z.boolean().default(false),
+  target: ConventionSkillTarget.default({ mode: 'new' }),
 });
 export type CreateSkillFromConventionsInput = z.infer<typeof CreateSkillFromConventionsInput>;
 
-export const ConventionSkillResult = z.object({ skill: Skill });
+// A selected rule that contradicts the skill: NOT inserted; `rule_block` is the
+// ready markdown to apply on the Config tab, `existing_excerpt` the clashing text.
+export const ConventionMergeConflict = z.object({
+  convention_id: z.string(),
+  rule: z.string(),
+  rule_block: z.string(),
+  existing_excerpt: z.string(),
+  reason: z.string(),
+});
+export type ConventionMergeConflict = z.infer<typeof ConventionMergeConflict>;
+
+// `added` rules went into the body; `duplicates` were already there (skipped).
+export const ConventionSkillResult = z.object({
+  skill: Skill,
+  added: z.number().int(),
+  duplicates: z.number().int(),
+  conflicts: z.array(ConventionMergeConflict),
+});
 export type ConventionSkillResult = z.infer<typeof ConventionSkillResult>;
 
 // ---- Agents ----

@@ -34,6 +34,8 @@ export const queryKeys = {
   /** Draft preview of a skill from the given convention ids (order-insensitive). */
   conventionSkillDraft: (repoId: Id, ids: readonly string[]) =>
     ["convention-skill-draft", repoId, [...ids].sort().join(",")] as const,
+  /** Conflicts left by the last merge into a skill — client cache only, never fetched. */
+  mergeConflicts: (skillId: Id) => ["merge-conflicts", skillId] as const,
 
   prActiveRuns: (prId: Id) => ["pr-active-runs", prId] as const,
   prRuns: (prId: Id) => ["pr-runs", prId] as const,

@@ -10,7 +10,7 @@ import type { ConventionCandidate, ConventionCategory } from "@devdigest/shared"
 import { useUpdateConvention } from "@/lib/hooks/conventions";
 import { CONVENTION_CATEGORIES } from "../../constants";
 import { evidenceLabel, evidenceOf } from "../../helpers";
-import { buildPatches, canRemove, formFrom, type EditForm } from "./helpers";
+import { buildPatch, canRemove, formFrom, type EditForm } from "./helpers";
 import { s } from "./styles";
 
 export function EditConventionModal({
@@ -36,10 +36,10 @@ export function EditConventionModal({
 
   const save = async () => {
     if (ruleEmpty) return;
+    const patch = buildPatch(candidate, form);
+    if (!patch) return onClose();
     try {
-      for (const patch of buildPatches(candidate, form)) {
-        await update.mutateAsync({ id: candidate.id, patch });
-      }
+      await update.mutateAsync({ id: candidate.id, patch });
       onClose();
     } catch {
       // The global mutation toast reports the error; keep the modal open.

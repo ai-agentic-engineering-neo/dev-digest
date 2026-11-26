@@ -45,8 +45,12 @@ export function fetchCalls(spy: ReturnType<typeof mockFetch>) {
   ]);
 }
 
-export function renderWithProviders(ui: React.ReactElement) {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+export function makeTestQueryClient() {
+  return new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+}
+
+/** `qc` lets a test seed the cache first (e.g. merge conflicts, which are never fetched). */
+export function renderWithProviders(ui: React.ReactElement, qc: QueryClient = makeTestQueryClient()) {
   return render(
     <QueryClientProvider client={qc}>
       <NextIntlClientProvider locale="en" messages={{ skills: messages }}>

@@ -1,6 +1,6 @@
 import { and, asc, count, countDistinct, desc, eq, gte, inArray, sql, type SQL } from 'drizzle-orm';
 import type { Skill, SkillSource, SkillType, SkillUsage, SkillVersion } from '@devdigest/shared';
-import type { Db } from '../../db/client.js';
+import type { DbExecutor, DbTx } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import { ConflictError } from './errors.js';
 import {
@@ -27,8 +27,8 @@ import {
  * never leave this file.
  */
 
-type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
-type Executor = Db | Tx;
+type Tx = DbTx;
+type Executor = DbExecutor;
 
 export interface InsertSkill {
   name: string;
@@ -50,6 +50,13 @@ export interface UpdateSkill {
   enabled?: boolean;
   /** "What changed?" — used only when the body changes. */
   message?: string;
+  /** Replace `evidence_files` (Conventions Extractor merge). Internal, not in the API. */
+  evidenceFiles?: string[];
+  /**
+   * Optimistic check: the version the caller based its new body on. A
+   * different current version (someone saved meanwhile) → 409. Internal.
+   */
+  expectedVersion?: number;
 }
 
 /** Outcome of a restore: the service maps the failure kinds to 404 / 409. */
@@ -65,7 +72,8 @@ export interface SkillAgentRef extends SkillUsage {
 }
 
 export class SkillsRepository {
-  constructor(private readonly db: Db) {}
+  /** On a transaction handle every method joins it (own transactions become savepoints). */
+  constructor(private readonly db: Executor) {}
 
   /** Skills in the workspace, name asc, each with its agent count (one grouped query). */
   async list(workspaceId: string): Promise<Skill[]> {
@@ -116,6 +124,9 @@ export class SkillsRepository {
       this.db.transaction(async (tx) => {
         const existing = await this.lockSkill(tx, workspaceId, id);
         if (!existing) return undefined;
+        if (patch.expectedVersion !== undefined && existing.version !== patch.expectedVersion) {
+          throw new ConflictError('Skill changed while merging — try again');
+        }
 
         const bodyChanged = isBodyChange(existing.body, patch.body);
         const nextVersion = bodyChanged ? existing.version + 1 : existing.version;
@@ -127,6 +138,7 @@ export class SkillsRepository {
             ...(patch.description !== undefined ? { description: patch.description } : {}),
             ...(patch.type !== undefined ? { type: patch.type } : {}),
             ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
+            ...(patch.evidenceFiles !== undefined ? { evidenceFiles: patch.evidenceFiles } : {}),
             ...(bodyChanged ? { body: patch.body!, version: nextVersion } : {}),
             updatedAt: sql`now()`,
           })

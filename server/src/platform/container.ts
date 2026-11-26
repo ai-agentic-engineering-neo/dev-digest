@@ -8,7 +8,7 @@ import type {
   LLMProvider,
 } from '@devdigest/shared';
 import type { AppConfig } from './config.js';
-import type { Db } from '../db/client.js';
+import type { Db, DbTx } from '../db/client.js';
 import { JobRunner } from './jobs.js';
 import { runBus, type RunBus } from './sse.js';
 import { LocalSecretsProvider } from '../adapters/secrets/local.js';
@@ -108,6 +108,11 @@ export class Container {
   /** Shared skills repository — the Conventions Extractor writes skills through it. */
   get skillsRepo(): SkillsRepository {
     return (this._skillsRepo ??= new SkillsRepository(this.db));
+  }
+
+  /** A skills repository bound to an open transaction (for a module's UnitOfWork). */
+  skillsRepoOn(tx: DbTx): SkillsRepository {
+    return new SkillsRepository(tx);
   }
 
   get codeIndex(): CodeIndex {

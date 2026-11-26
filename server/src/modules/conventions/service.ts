@@ -16,7 +16,13 @@ import {
   EXTRACT_TIMEOUT_MS,
   EXTRACTED_SOURCE,
   EXTRACTION_SCHEMA_NAME,
+  MAX_EXCERPT_CHARS,
   MAX_SAMPLE_CHARS,
+  MERGE_CHECK_SCHEMA_NAME,
+  MERGE_MAX_TOKENS,
+  MERGE_TEMPERATURE,
+  MERGE_TIMEOUT_MS,
+  SKILL_BODY_MAX_CHARS,
   TOP_CODE_SAMPLES,
 } from './constants.js';
 import {
@@ -24,8 +30,14 @@ import {
   defaultSkillDescription,
   defaultSkillName,
   evidenceFiles,
+  insertRuleBlocks,
+  isRuleInBody,
   latestScan,
   mergeAndDedupe,
+  mergeVersionMessage,
+  ruleBlock,
+  usableExcerpt,
+  verdictsById,
   renderSamples,
   ruleKey,
   toCandidateDto,
@@ -43,14 +55,19 @@ import {
   EXTRACTION_INJECTION_GUARD,
   EXTRACTION_SYSTEM_PROMPT,
   ExtractionSchema,
+  MERGE_CHECK_INJECTION_GUARD,
+  MERGE_CHECK_SYSTEM_PROMPT,
+  MergeCheckSchema,
   buildExtractionUserPrompt,
+  buildMergeCheckUserPrompt,
 } from './prompt.js';
 import type {
   CloneReader,
   ConventionSampler,
   ConventionsStore,
+  ConventionsUnitOfWork,
   ExtractionModelResolver,
-  SkillWriter,
+  SkillReader,
   TokenCounter,
 } from './ports.js';
 
@@ -67,13 +84,20 @@ export interface ConventionsDeps {
   sampler: ConventionSampler;
   clone: CloneReader;
   model: ExtractionModelResolver;
-  skills: SkillWriter;
+  /** Skill writes + the "in skill" mark, in one transaction. */
+  uow: ConventionsUnitOfWork;
+  /** The merge target, read before the (slow) merge check. */
+  skills: SkillReader;
   tokens: TokenCounter;
   now?: () => Date;
 }
 
 const REPO_NOT_FOUND = 'Repo not found';
 const CONVENTION_NOT_FOUND = 'Convention not found';
+const SKILL_NOT_FOUND = 'Skill not found';
+
+/** A selected accepted convention, with what the merge needs to know. */
+type SelectedRule = SkillRule & { id: string; skillIds: string[] };
 
 export class ConventionsService {
   private readonly d: ConventionsDeps;
@@ -166,9 +190,10 @@ export class ConventionsService {
     id: string,
     input: UpdateConventionInput,
   ): Promise<ConventionCandidate> {
-    const current = await this.d.store.getById(workspaceId, id);
-    if (!current) throw new NotFoundError(CONVENTION_NOT_FOUND);
-    const updated = await this.d.store.update(workspaceId, id, this.patchFor(current, input));
+    // The patch is computed from the LOCKED row, not from an earlier read.
+    const updated = await this.d.store.update(workspaceId, id, (current) =>
+      this.patchFor(current, input),
+    );
     if (!updated) throw new NotFoundError(CONVENTION_NOT_FOUND);
     const names = await this.d.store.skillNames(workspaceId, updated.details.skill_ids ?? []);
     return toCandidateDto(updated, names);
@@ -191,7 +216,10 @@ export class ConventionsService {
     };
   }
 
-  /** Create a NEW skill from accepted conventions (409 when the name is taken). */
+  /**
+   * Accepted conventions → a NEW skill (409 on a taken name), or merged into
+   * ONE existing skill (`target.mode = 'merge'`).
+   */
   async createSkill(
     workspaceId: string,
     repoId: string,
@@ -199,17 +227,120 @@ export class ConventionsService {
   ): Promise<ConventionSkillResult> {
     const repo = await this.repo(workspaceId, repoId);
     const rules = await this.acceptedRules(workspaceId, repoId, input.convention_ids);
-    const skill = await this.d.skills.insert(workspaceId, {
-      name: input.name,
-      description: input.description,
-      type: input.type ?? CONVENTION_SKILL_TYPE,
-      body: buildSkillBody(input.name, repo.fullName, rules),
-      enabled: input.enabled,
-      source: EXTRACTED_SOURCE,
-      evidenceFiles: evidenceFiles(rules),
+    if (input.target?.mode === 'merge') {
+      return this.mergeIntoSkill(workspaceId, repo, rules, input.target.skill_id);
+    }
+    // Skill + v1 snapshot + "in skill" mark commit together (a failed mark
+    // must not leave a skill without its badge).
+    const skill = await this.d.uow.run(async (tx) => {
+      const created = await tx.skills.insert(workspaceId, {
+        name: input.name,
+        description: input.description,
+        type: input.type ?? CONVENTION_SKILL_TYPE,
+        body: buildSkillBody(input.name, repo.fullName, rules),
+        enabled: input.enabled,
+        source: EXTRACTED_SOURCE,
+        evidenceFiles: evidenceFiles(rules),
+      });
+      await tx.conventions.markInSkill(workspaceId, rules.map((r) => r.id), created.id);
+      return created;
     });
-    await this.d.store.markInSkill(workspaceId, input.convention_ids, skill.id);
-    return { skill };
+    return { skill, added: rules.length, duplicates: 0, conflicts: [] };
+  }
+
+  /**
+   * MERGE: (1) code marks duplicates — already linked to this skill, or the
+   * rule text is already in the body; (2) one `ConventionMergeCheck` call
+   * labels the rest new / duplicate / conflict; (3) new rules go into their
+   * category sections as ONE new version, with evidence_files and the "in
+   * skill" mark (new + duplicates) in the same transaction; (4) conflicts are
+   * not inserted — they come back with a ready `rule_block`.
+   */
+  private async mergeIntoSkill(
+    workspaceId: string,
+    repo: RepoRefRecord,
+    rules: SelectedRule[],
+    skillId: string,
+  ): Promise<ConventionSkillResult> {
+    const target = await this.d.skills.getById(workspaceId, skillId);
+    if (!target) throw new NotFoundError(SKILL_NOT_FOUND);
+
+    const codeDuplicates = rules.filter(
+      (r) => r.skillIds.includes(target.id) || isRuleInBody(target.body, r.rule),
+    );
+    const toCheck = rules.filter((r) => !codeDuplicates.includes(r));
+    const verdicts = await this.mergeCheck(workspaceId, target.name, target.body, toCheck);
+
+    const added: SelectedRule[] = [];
+    const duplicates: SelectedRule[] = [...codeDuplicates];
+    const conflicts: ConventionSkillResult['conflicts'] = [];
+    for (const r of toCheck) {
+      const v = verdicts.get(r.id)!;
+      if (v.verdict === 'new') added.push(r);
+      else if (v.verdict === 'duplicate') duplicates.push(r);
+      else {
+        conflicts.push({
+          convention_id: r.id,
+          rule: r.rule,
+          rule_block: ruleBlock(r),
+          existing_excerpt: usableExcerpt(target.body, v.excerpt, MAX_EXCERPT_CHARS),
+          reason: v.reason,
+        });
+      }
+    }
+
+    const body = insertRuleBlocks(target.body, added);
+    if (body.length > SKILL_BODY_MAX_CHARS) {
+      throw new AppError(
+        'body_too_long',
+        `The merged skill would exceed ${SKILL_BODY_MAX_CHARS} characters — merge fewer conventions.`,
+      );
+    }
+
+    const marked = [...added, ...duplicates].map((r) => r.id);
+    const skill = await this.d.uow.run(async (tx) => {
+      let current = target;
+      if (added.length > 0) {
+        const updated = await tx.skills.update(workspaceId, target.id, {
+          body,
+          message: mergeVersionMessage(added.length, repo.fullName),
+          evidenceFiles: [...new Set([...(target.evidence_files ?? []), ...evidenceFiles(added)])],
+          expectedVersion: target.version,
+        });
+        if (!updated) throw new NotFoundError(SKILL_NOT_FOUND);
+        current = updated;
+      }
+      await tx.conventions.markInSkill(workspaceId, marked, target.id);
+      return current;
+    });
+    return { skill, added: added.length, duplicates: duplicates.length, conflicts };
+  }
+
+  /** One structured call for the rules code could not settle; none → no call. */
+  private async mergeCheck(
+    workspaceId: string,
+    skillName: string,
+    body: string,
+    rules: SelectedRule[],
+  ): Promise<ReturnType<typeof verdictsById>> {
+    if (rules.length === 0) return new Map();
+    // Short ids keep the model from echoing (and mangling) uuids.
+    const short = rules.map((r, i) => ({ id: `r${i + 1}`, rule: r.rule, category: r.category }));
+    const { llm, model } = await this.d.model.resolve(workspaceId);
+    const res = await llm.completeStructured({
+      model,
+      schema: MergeCheckSchema,
+      schemaName: MERGE_CHECK_SCHEMA_NAME,
+      messages: [
+        { role: 'system', content: `${MERGE_CHECK_SYSTEM_PROMPT}\n\n${MERGE_CHECK_INJECTION_GUARD}` },
+        { role: 'user', content: buildMergeCheckUserPrompt(skillName, body, short) },
+      ],
+      temperature: MERGE_TEMPERATURE,
+      maxTokens: MERGE_MAX_TOKENS,
+      timeoutMs: MERGE_TIMEOUT_MS,
+    });
+    const byShort = verdictsById(short.map((x) => x.id), res.data.verdicts);
+    return new Map(rules.map((r, i) => [r.id, byShort.get(`r${i + 1}`)!]));
   }
 
   // ---- internals ------------------------------------------------------------
@@ -254,7 +385,7 @@ export class ConventionsService {
     workspaceId: string,
     repoId: string,
     ids: string[],
-  ): Promise<SkillRule[]> {
+  ): Promise<SelectedRule[]> {
     const unique = [...new Set(ids)];
     const records = await this.d.store.getMany(workspaceId, repoId, unique);
     if (records.length !== unique.length) throw new NotFoundError(CONVENTION_NOT_FOUND);
@@ -262,6 +393,8 @@ export class ConventionsService {
       throw new AppError('not_accepted', 'Only accepted conventions can go into a skill');
     }
     return records.map((r) => ({
+      id: r.id,
+      skillIds: r.details.skill_ids ?? [],
       rule: r.rule,
       category: r.details.category ?? 'general',
       bad_example: r.details.bad_example ?? null,
@@ -277,23 +410,28 @@ export class ConventionsService {
     if (input.status === 'rejected') Object.assign(patch, { accepted: false, rejectedAt: this.now() });
     if (input.status === 'pending') Object.assign(patch, { accepted: false, rejectedAt: null });
 
+    // Indices into the CURRENT evidence list, all removed in this one update.
+    const removals = [
+      ...new Set([
+        ...(input.remove_evidence_index !== undefined ? [input.remove_evidence_index] : []),
+        ...(input.remove_evidence_indices ?? []),
+      ]),
+    ];
     const touchesDetails =
-      input.category !== undefined ||
-      input.bad_example !== undefined ||
-      input.remove_evidence_index !== undefined;
+      input.category !== undefined || input.bad_example !== undefined || removals.length > 0;
     if (!touchesDetails) return patch;
 
     const details: ConventionDetails = { ...current.details, evidence: [...current.details.evidence] };
     if (input.category !== undefined) details.category = input.category;
     if (input.bad_example !== undefined) details.bad_example = input.bad_example?.trim() || null;
-    if (input.remove_evidence_index !== undefined) {
-      if (input.remove_evidence_index >= details.evidence.length) {
+    if (removals.length > 0) {
+      if (removals.some((i) => i >= details.evidence.length)) {
         throw new AppError('bad_evidence_index', 'No evidence at that index');
       }
-      if (details.evidence.length <= 1) {
+      if (details.evidence.length - removals.length < 1) {
         throw new AppError('last_evidence', 'A convention keeps at least one piece of evidence');
       }
-      details.evidence.splice(input.remove_evidence_index, 1);
+      details.evidence = details.evidence.filter((_, i) => !removals.includes(i));
     }
     patch.details = details;
     return patch;

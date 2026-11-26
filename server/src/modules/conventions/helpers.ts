@@ -22,19 +22,13 @@ import {
 
 // ---- the `details` jsonb shape ---------------------------------------------
 
-export interface ConventionScanMeta {
-  at: string;
-  commit_sha: string | null;
-  files_sampled: number;
-  model: string;
-}
-
 /** What `conventions.details` holds (validated by the repository on read). */
 export interface ConventionDetails {
   category?: ConventionCategory;
   bad_example?: string | null;
   evidence: ConventionEvidence[];
-  scan?: ConventionScanMeta;
+  /** The scan that verified this row (same shape as the `ConventionScan` contract). */
+  scan?: ConventionScan;
   skill_ids?: string[];
 }
 
@@ -101,7 +95,7 @@ export function toCandidateDto(
 
 /** The newest scan among a repo's rows (scan meta lives in each row's details). */
 export function latestScan(records: ConventionRecord[]): ConventionScan | null {
-  let best: ConventionScanMeta | undefined;
+  let best: ConventionScan | undefined;
   for (const r of records) {
     const s = r.details.scan;
     if (s && (!best || s.at > best.at)) best = s;
@@ -441,13 +435,19 @@ export interface SkillRule {
   evidence: ConventionEvidence[];
 }
 
+/** Collapse all whitespace (incl. newlines) to single spaces. */
+export function oneLine(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
+}
+
 /**
  * One rule's markdown block: the rule, the first evidence as the ✅ example
  * (other evidence only as references, to save tokens), the ❌ counter-example.
  */
 export function ruleBlock(r: SkillRule): string {
   const [first, ...rest] = r.evidence;
-  const lines = [`### ${r.rule.trim()}`];
+  // One line: a rule with a newline must not write extra headings / lines into the body.
+  const lines = [`### ${oneLine(r.rule)}`];
   if (first) {
     const also = rest.length ? ` (also ${rest.map((e) => `\`${evidenceRef(e)}\``).join(', ')})` : '';
     const f = codeFence(first.snippet);
@@ -481,4 +481,126 @@ export function buildSkillBody(name: string, repoFullName: string, rules: SkillR
 /** Distinct evidence paths, for `skills.evidence_files`. */
 export function evidenceFiles(rules: { evidence: ConventionEvidence[] }[]): string[] {
   return [...new Set(rules.flatMap((r) => r.evidence.map((e) => e.path)))];
+}
+
+// ---- merge into an existing skill -----------------------------------------
+
+/**
+ * Is the rule already written in the body? Same normalisation as `ruleKey`
+ * (case, punctuation, whitespace), so `### Use x.` matches "use x". Code-only
+ * dedupe — paraphrases are left to the merge check.
+ */
+export function isRuleInBody(body: string, rule: string): boolean {
+  const key = ruleKey(rule);
+  return key.length > 0 && ruleKey(body).includes(key);
+}
+
+interface Section {
+  title: string;
+  /** Line index of the `## ` heading. */
+  start: number;
+  /** Exclusive: the next level-1/2 heading, or the end. */
+  end: number;
+}
+
+/**
+ * Level-2 sections of a markdown body. Headings inside code fences do not
+ * count (a ✅ snippet may well contain `## `); a fence closes only with the
+ * same character, at least as long as it opened.
+ */
+export function markdownSections(lines: string[]): Section[] {
+  const out: Section[] = [];
+  let fence: { ch: string; len: number } | null = null;
+  const close = (at: number) => {
+    const last = out.at(-1);
+    if (last && last.end === -1) last.end = at;
+  };
+  lines.forEach((line, i) => {
+    const f = line.match(/^\s{0,3}(`{3,}|~{3,})(.*)$/);
+    if (f) {
+      const marker = f[1]!;
+      if (!fence) fence = { ch: marker[0]!, len: marker.length };
+      else if (marker[0] === fence.ch && marker.length >= fence.len && !f[2]!.trim()) fence = null;
+      return;
+    }
+    if (fence) return;
+    const h = line.match(/^(#{1,2})\s+(.+?)\s*#*\s*$/);
+    if (!h) return;
+    close(i);
+    if (h[1] === '##') out.push({ title: h[2]!, start: i, end: -1 });
+  });
+  close(lines.length);
+  return out;
+}
+
+/**
+ * Insert rule blocks into the body: each category's rules go at the end of
+ * its `## <Heading>` section (the first one, case-insensitive); a category
+ * the body has no section for is appended as a new section, in
+ * CATEGORY_HEADINGS order. Nothing else in the body moves.
+ */
+export function insertRuleBlocks(body: string, rules: SkillRule[]): string {
+  if (rules.length === 0) return body;
+  const lines = body.replace(/\s+$/, '').split('\n');
+  const sections = markdownSections(lines);
+  const inserts: { at: number; text: string[] }[] = [];
+  const appended: string[] = [];
+  for (const cat of Object.keys(CATEGORY_HEADINGS) as ConventionCategory[]) {
+    const inCat = rules.filter((r) => r.category === cat);
+    if (inCat.length === 0) continue;
+    const blocks = inCat.map(ruleBlock).join('\n\n');
+    const heading = CATEGORY_HEADINGS[cat].toLowerCase();
+    const sec = sections.find((s) => s.title.toLowerCase() === heading);
+    if (!sec) {
+      appended.push(`## ${CATEGORY_HEADINGS[cat]}\n\n${blocks}`);
+      continue;
+    }
+    let at = sec.end;
+    while (at > sec.start + 1 && lines[at - 1]!.trim() === '') at -= 1;
+    inserts.push({ at, text: ['', ...blocks.split('\n')] });
+  }
+  inserts.sort((a, b) => b.at - a.at).forEach((ins) => lines.splice(ins.at, 0, ...ins.text));
+  const merged = lines.join('\n');
+  return appended.length ? `${merged}\n\n${appended.join('\n\n')}` : merged;
+}
+
+/** Version message of a merge (fits the 120-char UpdateSkillInput.message cap). */
+export function mergeVersionMessage(count: number, repoFullName: string): string {
+  return `Merged ${count} convention${count === 1 ? '' : 's'} from ${repoFullName}`.slice(0, 120);
+}
+
+export type MergeVerdict = 'new' | 'duplicate' | 'conflict';
+
+/**
+ * The model's verdicts by rule id. An id it skipped counts as `new` (code has
+ * already removed exact duplicates); unknown ids are ignored; the first
+ * verdict for an id wins.
+ */
+export function verdictsById(
+  ids: string[],
+  verdicts: { id: string; verdict: MergeVerdict; existing_excerpt: string; reason: string }[],
+): Map<string, { verdict: MergeVerdict; excerpt: string; reason: string }> {
+  const known = new Set(ids);
+  const out = new Map<string, { verdict: MergeVerdict; excerpt: string; reason: string }>();
+  for (const v of verdicts) {
+    const id = v.id.trim();
+    if (!known.has(id) || out.has(id)) continue;
+    out.set(id, { verdict: v.verdict, excerpt: v.existing_excerpt.trim(), reason: v.reason.trim() });
+  }
+  for (const id of ids) if (!out.has(id)) out.set(id, { verdict: 'new', excerpt: '', reason: '' });
+  return out;
+}
+
+/**
+ * The model's quote of the existing body, kept only when the client can use
+ * it safely for "Replace with new": at most `maxChars`, and found EXACTLY once
+ * in the body. Otherwise '' — the client then appends the rule and says so.
+ * Never truncated: a cut quote would replace only the head of the old rule.
+ */
+export function usableExcerpt(body: string, excerpt: string, maxChars: number): string {
+  const e = excerpt.trim();
+  if (!e || e.length > maxChars) return '';
+  const first = body.indexOf(e);
+  if (first === -1 || body.indexOf(e, first + 1) !== -1) return '';
+  return e;
 }

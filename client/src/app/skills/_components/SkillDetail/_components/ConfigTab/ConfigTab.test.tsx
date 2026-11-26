@@ -2,7 +2,8 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import { screen, cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import type { Skill } from "@devdigest/shared";
 import { makeSkill } from "@/app/skills/_components/fixtures";
-import { fetchCalls, mockFetch, renderWithProviders } from "@/app/skills/_components/test-utils";
+import { fetchCalls, makeTestQueryClient, mockFetch, renderWithProviders } from "@/app/skills/_components/test-utils";
+import { queryKeys } from "@/lib/hooks/keys";
 
 const { push } = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
@@ -102,5 +103,34 @@ describe("ConfigTab", () => {
     const dialog = screen.getByRole("dialog");
     fireEvent.click(within(dialog).getByRole("button", { name: "Delete skill" }));
     await waitFor(() => expect(push).toHaveBeenCalledWith("/skills"));
+  });
+
+  it("after a merge, the conflicts dialog fills the form on Apply; Save sends it as a new version", async () => {
+    const qc = makeTestQueryClient();
+    const excerpt = SKILL.body.split("\n").find((l) => l.trim())!;
+    qc.setQueryData(queryKeys.mergeConflicts(SKILL.id), [
+      { convention_id: "c1", rule: "New rule", rule_block: "### New rule", existing_excerpt: excerpt, reason: "clash" },
+      { convention_id: "c2", rule: "Lost rule", rule_block: "### Lost rule", existing_excerpt: "nowhere", reason: "clash" },
+    ]);
+    const spy = mockFetch({ "PUT /skills/sk1": (patch) => ({ body: { ...SKILL, ...(patch as object), version: 3 } }) });
+    renderWithProviders(<ConfigTab skill={SKILL} />, qc);
+
+    const dialog = await screen.findByRole("dialog");
+    const items = within(dialog).getAllByRole("listitem");
+    fireEvent.click(within(items[0]!).getByRole("radio", { name: "Replace with new" }));
+    fireEvent.click(within(items[1]!).getByRole("radio", { name: "Replace with new" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Apply to form" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.getByText(/was not found, so it was appended/).closest("[role=status]")).not.toBeNull();
+    expect(screen.getByLabelText("What changed?")).toHaveValue("Resolved 2 convention conflicts");
+    fireEvent.click(saveButton());
+
+    await screen.findByText("Skill saved (v3)");
+    const [[, , body]] = putCalls(spy) as [[string, string, { body: string; message: string }]];
+    expect(body.message).toBe("Resolved 2 convention conflicts");
+    expect(body.body.startsWith("### New rule")).toBe(true);
+    expect(body.body.trimEnd().endsWith("### Lost rule")).toBe(true);
+    expect(qc.getQueryData(queryKeys.mergeConflicts(SKILL.id))).toEqual([]);
   });
 });

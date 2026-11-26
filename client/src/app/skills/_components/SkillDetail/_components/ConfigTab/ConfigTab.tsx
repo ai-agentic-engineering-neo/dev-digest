@@ -1,6 +1,8 @@
 /* ConfigTab — edit name · description · type · body (+ "What changed?" when the
    body is dirty). Mirrors the agent Config tab; the enabled switch is the global
-   kill switch and saves immediately, like the card toggle. Danger zone → delete. */
+   kill switch and saves immediately, like the card toggle. Danger zone → delete.
+   After a merge of conventions, its conflicts open MergeConflictsDialog; Apply
+   fills this form (the user still saves). */
 "use client";
 
 import React from "react";
@@ -9,11 +11,14 @@ import { useTranslations } from "next-intl";
 import { Button, FormField, TextInput, Toggle } from "@devdigest/ui";
 import type { Skill } from "@devdigest/shared";
 import { useUpdateSkill } from "@/lib/hooks/skills";
+import { useClearMergeConflicts, useMergeConflicts } from "@/lib/hooks/conventions";
 import { ApiError } from "@/lib/api";
 import { useToast } from "@/lib/toast";
 import { hasErrors, validateSkillForm, type SkillFormValues } from "@/app/skills/_components/helpers";
 import { FieldErrorText, SkillFormFields } from "@/app/skills/_components/SkillFormFields";
 import { DeleteSkillDialog } from "./_components/DeleteSkillDialog";
+import { MergeConflictsDialog } from "./_components/MergeConflictsDialog";
+import { applyResolutions, type Resolution } from "./_components/MergeConflictsDialog/helpers";
 import { buildSkillPatch, formFromSkill, isBodyChanged } from "./helpers";
 import { s } from "./styles";
 
@@ -28,6 +33,10 @@ export function ConfigTab({ skill }: { skill: Skill }) {
   const [form, setForm] = React.useState(() => formFromSkill(skill));
   const [takenName, setTakenName] = React.useState<string | null>(null);
   const [deleting, setDeleting] = React.useState(false);
+  const conflicts = useMergeConflicts(skill.id).data ?? [];
+  const clearConflicts = useClearMergeConflicts();
+  // Rules whose existing text was not found when applying "Replace" (appended instead).
+  const [appendedInstead, setAppendedInstead] = React.useState<string[]>([]);
 
   const bodyChanged = isBodyChanged(form, skill);
   const errors = validateSkillForm(bodyChanged ? form : { ...form, message: "" });
@@ -37,6 +46,19 @@ export function ConfigTab({ skill }: { skill: Skill }) {
 
   const setField = <K extends keyof SkillFormValues>(field: K, value: SkillFormValues[K]) =>
     setForm((prev) => ({ ...prev, [field]: value }));
+
+  const applyConflicts = (choices: Record<string, Resolution>) => {
+    const res = applyResolutions(form.body, conflicts, choices);
+    if (res.changed > 0) {
+      setForm((prev) => ({
+        ...prev,
+        body: res.body,
+        message: prev.message || t("conflicts.versionMessage", { count: res.changed }),
+      }));
+    }
+    setAppendedInstead(res.appendedInstead);
+    clearConflicts(skill.id);
+  };
 
   const save = () =>
     update.mutate(
@@ -68,6 +90,12 @@ export function ConfigTab({ skill }: { skill: Skill }) {
           />
         </label>
       </div>
+
+      {appendedInstead.length > 0 && (
+        <p style={s.note} role="status">
+          {t("conflicts.appendedNote", { count: appendedInstead.length })}
+        </p>
+      )}
 
       <SkillFormFields values={form} errors={errors} onChange={setField} bodyHint={t("preview.bodyHint")} />
 
@@ -110,6 +138,14 @@ export function ConfigTab({ skill }: { skill: Skill }) {
           {t("config.danger.delete")}
         </Button>
       </section>
+
+      {conflicts.length > 0 && (
+        <MergeConflictsDialog
+          conflicts={conflicts}
+          onApply={applyConflicts}
+          onDismiss={() => clearConflicts(skill.id)}
+        />
+      )}
 
       {deleting && (
         <DeleteSkillDialog skill={skill} onClose={() => setDeleting(false)} onDeleted={() => router.push("/skills")} />

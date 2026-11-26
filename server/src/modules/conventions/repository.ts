@@ -1,16 +1,16 @@
-import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, not, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { ConventionCategory, ConventionEvidence } from '@devdigest/shared';
-import type { Db } from '../../db/client.js';
+import { ConventionCategory, ConventionEvidence, ConventionScan } from '@devdigest/shared';
+import type { Db, DbExecutor, DbTx } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import type {
   ConventionDetails,
   ConventionPatch,
   ConventionRecord,
-  ConventionScanMeta,
   RepoRefRecord,
   VerifiedRule,
 } from './helpers.js';
+import type { ConventionsTx, ConventionsUnitOfWork, SkillWriter } from './ports.js';
 
 /**
  * Conventions data access. Owns `conventions`; reads `repos` (clone ref) and
@@ -19,7 +19,6 @@ import type {
  * (a row written by older code has no details) and mapped to contract types.
  */
 
-type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 type Row = typeof t.conventions.$inferSelect;
 
 /** Boundary parse of `conventions.details` — tolerant: bad parts are dropped, not thrown. */
@@ -27,15 +26,7 @@ const DetailsSchema = z.object({
   category: ConventionCategory.optional().catch(undefined),
   bad_example: z.string().nullish().catch(null),
   evidence: z.array(ConventionEvidence).catch([]),
-  scan: z
-    .object({
-      at: z.string(),
-      commit_sha: z.string().nullable(),
-      files_sampled: z.number().int(),
-      model: z.string(),
-    })
-    .optional()
-    .catch(undefined),
+  scan: ConventionScan.optional().catch(undefined),
   skill_ids: z.array(z.string()).optional().catch(undefined),
 });
 
@@ -69,7 +60,8 @@ function detailColumns(details: ConventionDetails) {
 }
 
 export class ConventionsRepository {
-  constructor(private readonly db: Db) {}
+  /** On a transaction handle every method joins it (own transactions become savepoints). */
+  constructor(private readonly db: DbExecutor) {}
 
   async getRepo(workspaceId: string, repoId: string): Promise<RepoRefRecord | undefined> {
     const [row] = await this.db
@@ -93,14 +85,6 @@ export class ConventionsRepository {
       .where(and(eq(t.conventions.workspaceId, workspaceId), eq(t.conventions.repoId, repoId)))
       .orderBy(desc(t.conventions.confidence), t.conventions.id);
     return rows.map(toRecord);
-  }
-
-  async getById(workspaceId: string, id: string): Promise<ConventionRecord | undefined> {
-    const [row] = await this.db
-      .select()
-      .from(t.conventions)
-      .where(and(eq(t.conventions.workspaceId, workspaceId), eq(t.conventions.id, id)));
-    return row ? toRecord(row) : undefined;
   }
 
   /** The given ids that belong to this workspace + repo (others are silently absent). */
@@ -139,7 +123,7 @@ export class ConventionsRepository {
     workspaceId: string,
     repoId: string,
     rules: VerifiedRule[],
-    scan: ConventionScanMeta,
+    scan: ConventionScan,
   ): Promise<void> {
     await this.db.transaction(async (tx) => {
       await tx
@@ -171,43 +155,77 @@ export class ConventionsRepository {
     });
   }
 
+  /**
+   * Read-modify-write under a row lock: `makePatch` sees the row as it is NOW,
+   * so a concurrent `markInSkill` (or another edit) is never lost. Errors thrown
+   * by `makePatch` roll the transaction back.
+   */
   async update(
     workspaceId: string,
     id: string,
-    patch: ConventionPatch,
+    makePatch: (current: ConventionRecord) => ConventionPatch,
   ): Promise<ConventionRecord | undefined> {
-    const [row] = await this.db
-      .update(t.conventions)
-      .set({
-        ...(patch.rule !== undefined ? { rule: patch.rule } : {}),
-        ...(patch.accepted !== undefined ? { accepted: patch.accepted } : {}),
-        ...(patch.rejectedAt !== undefined ? { rejectedAt: patch.rejectedAt } : {}),
-        ...(patch.details !== undefined ? detailColumns(patch.details) : {}),
-      })
-      .where(and(eq(t.conventions.workspaceId, workspaceId), eq(t.conventions.id, id)))
-      .returning();
-    return row ? toRecord(row) : undefined;
-  }
-
-  /** Record that these conventions went into `skillId` (details.skill_ids), atomically. */
-  async markInSkill(workspaceId: string, ids: string[], skillId: string): Promise<void> {
-    if (ids.length === 0) return;
-    await this.db.transaction(async (tx: Tx) => {
-      const rows = await tx
+    return this.db.transaction(async (tx) => {
+      const [locked] = await tx
         .select()
         .from(t.conventions)
-        .where(and(eq(t.conventions.workspaceId, workspaceId), inArray(t.conventions.id, ids)))
+        .where(and(eq(t.conventions.workspaceId, workspaceId), eq(t.conventions.id, id)))
         .for('update');
-      for (const row of rows) {
-        const details = parseDetails(row.details);
-        const skillIds = new Set(details.skill_ids ?? []);
-        if (skillIds.has(skillId)) continue;
-        skillIds.add(skillId);
-        await tx
-          .update(t.conventions)
-          .set({ details: { ...details, skill_ids: [...skillIds] } })
-          .where(eq(t.conventions.id, row.id));
-      }
+      if (!locked) return undefined;
+      const patch = makePatch(toRecord(locked));
+      const [row] = await tx
+        .update(t.conventions)
+        .set({
+          ...(patch.rule !== undefined ? { rule: patch.rule } : {}),
+          ...(patch.accepted !== undefined ? { accepted: patch.accepted } : {}),
+          ...(patch.rejectedAt !== undefined ? { rejectedAt: patch.rejectedAt } : {}),
+          ...(patch.details !== undefined ? detailColumns(patch.details) : {}),
+        })
+        .where(eq(t.conventions.id, id))
+        .returning();
+      return row ? toRecord(row) : undefined;
     });
+  }
+
+  /**
+   * Append `skillId` to `details.skill_ids` in ONE statement (jsonb in SQL, no
+   * read-modify-write); rows that already hold it are skipped. A legacy row
+   * without details gets `{ skill_ids: [id] }` (its evidence stays in the flat
+   * columns, which the reader falls back to).
+   */
+  async markInSkill(workspaceId: string, ids: string[], skillId: string): Promise<void> {
+    if (ids.length === 0) return;
+    const current = sql`coalesce(${t.conventions.details} -> 'skill_ids', '[]'::jsonb)`;
+    const idJson = sql`jsonb_build_array(${skillId}::text)`;
+    await this.db
+      .update(t.conventions)
+      .set({
+        details: sql`jsonb_set(coalesce(${t.conventions.details}, '{}'::jsonb), '{skill_ids}', ${current} || ${idJson})`,
+      })
+      .where(
+        and(
+          eq(t.conventions.workspaceId, workspaceId),
+          inArray(t.conventions.id, ids),
+          not(sql`${current} @> ${idJson}`),
+        ),
+      );
+  }
+}
+
+/**
+ * The conventions UnitOfWork: one `db.transaction`, with the conventions store
+ * and the skills writer both bound to it. `skillsOn` comes from the composition
+ * root (the skills repository belongs to another module).
+ */
+export class DrizzleConventionsUnitOfWork implements ConventionsUnitOfWork {
+  constructor(
+    private readonly db: Db,
+    private readonly skillsOn: (tx: DbTx) => SkillWriter,
+  ) {}
+
+  run<T>(work: (tx: ConventionsTx) => Promise<T>): Promise<T> {
+    return this.db.transaction((tx) =>
+      work({ conventions: new ConventionsRepository(tx), skills: this.skillsOn(tx) }),
+    );
   }
 }

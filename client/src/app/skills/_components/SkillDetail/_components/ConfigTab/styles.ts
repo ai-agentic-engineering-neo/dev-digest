@@ -13,6 +13,15 @@ export const s = {
     color: "var(--text-secondary)",
   } satisfies CSSProperties,
   actions: { display: "flex", alignItems: "center", gap: 10, marginTop: 4 } satisfies CSSProperties,
+  note: {
+    margin: "0 0 14px",
+    padding: "8px 12px",
+    borderRadius: 7,
+    border: "1px solid var(--warn)",
+    background: "var(--warn-bg)",
+    fontSize: 13,
+    color: "var(--text-primary)",
+  } satisfies CSSProperties,
   usedBy: { fontSize: 13, color: "var(--text-muted)", marginLeft: 6 } satisfies CSSProperties,
   danger: {
     marginTop: 36,

@@ -1,7 +1,7 @@
 import React from "react";
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
-import { REPO_ID, fetchCalls, makeSkill, mockFetch, renderWithProviders } from "../../test-utils";
+import { REPO_ID, fetchCalls, makeCandidate, makeSkill, mockFetch, renderWithProviders } from "../../test-utils";
 import { previewBody } from "./helpers";
 
 const nav = vi.hoisted(() => ({ push: vi.fn() }));
@@ -21,6 +21,10 @@ const DRAFT = {
   body: "# payments-api-errors-conventions\n\n## Error handling\n\n### Return Result<T, ApiError>",
   tokens: 187,
 };
+const CONVENTIONS = [
+  makeCandidate({ id: "c1", status: "accepted", accepted: true }),
+  makeCandidate({ id: "c2", rule: "Return Result<T, ApiError>", status: "accepted", accepted: true }),
+];
 const DRAFT_ROUTE = `POST /repos/${REPO_ID}/conventions/skill-draft`;
 const CREATE_ROUTE = `POST /repos/${REPO_ID}/conventions/skill`;
 
@@ -29,7 +33,7 @@ function open(onClose = vi.fn()) {
     <CreateSkillFromConventionsModal
       repoId={REPO_ID}
       repoName="payments-api"
-      conventionIds={["c1", "c2"]}
+      conventions={CONVENTIONS}
       onClose={onClose}
     />,
   );
@@ -48,7 +52,7 @@ describe("CreateSkillFromConventionsModal", () => {
     const created = makeSkill({ id: "sk9", name: "my-conventions" });
     const spy = mockFetch({
       [DRAFT_ROUTE]: DRAFT,
-      [CREATE_ROUTE]: () => ({ status: 201, body: { skill: created } }),
+      [CREATE_ROUTE]: () => ({ status: 201, body: { skill: created, added: 2, duplicates: 0, conflicts: [] } }),
       "GET /skills": [],
     });
     const onClose = open();
@@ -98,6 +102,7 @@ describe("CreateSkillFromConventionsModal", () => {
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(`A skill named “${DRAFT.name}” already exists.`);
     expect(screen.getByRole("link", { name: "Open it" })).toHaveAttribute("href", "/skills/old1?tab=config");
+    expect(alert).toHaveTextContent("or pick it in the list above");
     expect(screen.getByRole("button", { name: "Create skill" })).toBeDisabled();
     expect(onClose).not.toHaveBeenCalled();
     expect(nav.push).not.toHaveBeenCalled();
@@ -107,5 +112,27 @@ describe("CreateSkillFromConventionsModal", () => {
     mockFetch({ [DRAFT_ROUTE]: () => ({ status: 400, body: { error: { message: "no" } } }), "GET /skills": [] });
     open();
     expect(await screen.findByText("Could not build the draft.")).toBeInTheDocument();
+  });
+
+  it("picking an existing skill switches to merge mode: its fields read-only, the rules listed, no draft", async () => {
+    const target = makeSkill({ id: "sk2", name: "house-style", description: "Hand-written", type: "custom", version: 4 });
+    const spy = mockFetch({ [DRAFT_ROUTE]: DRAFT, "GET /skills": [target] });
+    open();
+    await screen.findByDisplayValue(DRAFT.name);
+    const draftCalls = fetchCalls(spy).filter(([, p]) => p.endsWith("/skill-draft")).length;
+
+    fireEvent.click(screen.getByText("+ New skill"));
+    fireEvent.click(await screen.findByText("house-style"));
+
+    expect(await screen.findByText("Merge conventions into a skill")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
+    const facts = screen.getByLabelText("From the selected skill");
+    expect(facts).toHaveTextContent("house-style");
+    expect(facts).toHaveTextContent("Hand-written");
+    expect(facts).toHaveTextContent("custom");
+    expect(screen.getByText("Return Result<T, ApiError>")).toBeInTheDocument();
+    expect(screen.getByText("Duplicates will be skipped, conflicts shown after save.")).toBeInTheDocument();
+    expect(screen.getByText(/Saved as v5/)).toBeInTheDocument();
+    expect(fetchCalls(spy).filter(([, p]) => p.endsWith("/skill-draft"))).toHaveLength(draftCalls);
   });
 });

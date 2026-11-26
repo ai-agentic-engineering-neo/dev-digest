@@ -3,6 +3,13 @@ import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { schema } from './schema.js';
 
 export type Db = PostgresJsDatabase<typeof schema>;
+/** The handle a `db.transaction(cb)` callback receives. */
+export type DbTx = Parameters<Parameters<Db['transaction']>[0]>[0];
+/**
+ * Either the pool or an open transaction. A repository built on a `DbTx` runs
+ * inside that transaction; its own `transaction()` calls become savepoints.
+ */
+export type DbExecutor = Db | DbTx;
 
 export interface DbHandle {
   db: Db;

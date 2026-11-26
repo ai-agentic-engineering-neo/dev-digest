@@ -8,7 +8,7 @@ import {
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { pickAvailableLLM, resolveFeatureModel } from '../settings/feature-models.js';
-import { ConventionsRepository } from './repository.js';
+import { ConventionsRepository, DrizzleConventionsUnitOfWork } from './repository.js';
 import { ConventionsService } from './service.js';
 
 /**
@@ -17,7 +17,8 @@ import { ConventionsService } from './service.js';
  *   POST  /repos/:id/conventions/scan         → ConventionScanResult (one model call; 422 not cloned / not indexed)
  *   PATCH /conventions/:id                    → ConventionCandidate (accept / reject / edit)
  *   POST  /repos/:id/conventions/skill-draft  → ConventionSkillDraft (writes nothing)
- *   POST  /repos/:id/conventions/skill        → 201 ConventionSkillResult (409 name taken)
+ *   POST  /repos/:id/conventions/skill        → 201 ConventionSkillResult: new skill (409 name taken)
+ *                                               or merge into one (404 foreign skill, 409 changed meanwhile)
  */
 export default async function conventionsRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
@@ -37,6 +38,7 @@ export default async function conventionsRoutes(appBase: FastifyInstance) {
         return { llm, model: choice.model };
       },
     },
+    uow: new DrizzleConventionsUnitOfWork(container.db, (tx) => container.skillsRepoOn(tx)),
     skills: container.skillsRepo,
     tokens: container.tokenizer,
   });

@@ -2,7 +2,7 @@ import React from "react";
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
 import { EditConventionModal } from "./EditConventionModal";
-import { buildPatches, canRemove, formFrom } from "./helpers";
+import { buildPatch, canRemove, formFrom } from "./helpers";
 import { REPO_ID, fetchCalls, makeCandidate, mockFetch, renderWithProviders } from "../../test-utils";
 
 afterEach(() => {
@@ -14,18 +14,20 @@ const C = makeCandidate();
 
 describe("EditConventionModal helpers", () => {
   it("sends nothing when nothing changed", () => {
-    expect(buildPatches(C, formFrom(C))).toEqual([]);
+    expect(buildPatch(C, formFrom(C))).toBeNull();
   });
 
-  it("puts field changes and the highest removal on the first request, other removals after", () => {
+  it("puts field changes and every removal into ONE patch", () => {
     const three = makeCandidate({
       evidence: [...C.evidence!, { path: "c.ts", line_start: 1, line_end: 1, snippet: "x" }],
     });
-    const form = { ...formFrom(three), rule: " New rule ", category: "naming" as const, badExample: "", removed: [0, 2] };
-    expect(buildPatches(three, form)).toEqual([
-      { rule: "New rule", category: "naming", bad_example: null, remove_evidence_index: 2 },
-      { remove_evidence_index: 0 },
-    ]);
+    const form = { ...formFrom(three), rule: " New rule ", category: "naming" as const, badExample: "", removed: [2, 0] };
+    expect(buildPatch(three, form)).toEqual({
+      rule: "New rule",
+      category: "naming",
+      bad_example: null,
+      remove_evidence_indices: [0, 2],
+    });
   });
 
   it("keeps at least one evidence", () => {
@@ -50,7 +52,7 @@ describe("EditConventionModal", () => {
 
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     expect(fetchCalls(spy)).toEqual([
-      ["PATCH", "/conventions/c1", { rule: "Always use async/await", remove_evidence_index: 1 }],
+      ["PATCH", "/conventions/c1", { rule: "Always use async/await", remove_evidence_indices: [1] }],
     ]);
   });
 

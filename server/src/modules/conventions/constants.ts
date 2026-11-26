@@ -58,3 +58,14 @@ export const EXTRACTION_SCHEMA_NAME = 'ConventionExtraction';
 /** Default type of a skill made from conventions. */
 export const CONVENTION_SKILL_TYPE = 'convention' as const;
 export const EXTRACTED_SOURCE = 'extracted' as const;
+
+/** Merge check (stage 2): one call labels each selected rule against the skill body. */
+export const MERGE_CHECK_SCHEMA_NAME = 'ConventionMergeCheck';
+export const MERGE_TEMPERATURE = 0;
+export const MERGE_MAX_TOKENS = 3_000;
+export const MERGE_TIMEOUT_MS = 60_000;
+/** A conflict's excerpt longer than this is dropped (never cut): the rule is then appended. */
+export const MAX_EXCERPT_CHARS = 600;
+
+/** Mirrors the `SkillBody` contract cap: a merge that would exceed it is refused. */
+export const SKILL_BODY_MAX_CHARS = 20_000;

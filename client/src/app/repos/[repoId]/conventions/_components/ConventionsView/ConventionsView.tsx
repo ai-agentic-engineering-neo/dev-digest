@@ -48,7 +48,8 @@ export function ConventionsView() {
   const [filter, setFilter] = React.useState<StatusFilter>("all");
   // null = the default selection (accepted, not yet in a skill), derived from data.
   const [selection, setSelection] = React.useState<Set<string> | null>(null);
-  const [editing, setEditing] = React.useState<ConventionCandidate | null>(null);
+  // An id, not a snapshot: the modal always edits the row as the cache has it now.
+  const [editingId, setEditingId] = React.useState<string | null>(null);
   const [creating, setCreating] = React.useState(false);
 
   const repoFullName = activeRepo?.id === repoId ? activeRepo.full_name : null;
@@ -69,6 +70,7 @@ export function ConventionsView() {
   const selectedIds = selectedAccepted(candidates, selected);
   const counts = countByStatus(candidates);
   const visible = filterByStatus(candidates, filter);
+  const editing = editingId ? candidates.find((c) => c.id === editingId) : undefined;
   const acceptedIds = candidates.filter((c) => statusOf(c) === "accepted").map((c) => c.id);
   const allSelected = acceptedIds.length > 0 && selectedIds.length === acceptedIds.length;
   const scanError = scan.error instanceof ApiError ? scan.error.message : null;
@@ -86,8 +88,10 @@ export function ConventionsView() {
       { id: c.id, patch: { status } },
       {
         // An explicit selection picks up a newly accepted rule; the default one derives it.
+        // Functional update: the selection may have changed while the PATCH was in flight.
         onSuccess: (updated) => {
-          if (selection && statusOf(updated) === "accepted") setSelection(new Set(selection).add(updated.id));
+          if (statusOf(updated) !== "accepted") return;
+          setSelection((prev) => (prev ? new Set(prev).add(updated.id) : prev));
         },
       },
     );
@@ -95,12 +99,19 @@ export function ConventionsView() {
 
   return (
     <AppShell crumb={crumb}>
-      {editing && <EditConventionModal repoId={repoId} candidate={editing} onClose={() => setEditing(null)} />}
+      {editing && (
+        <EditConventionModal
+          key={editing.id}
+          repoId={repoId}
+          candidate={editing}
+          onClose={() => setEditingId(null)}
+        />
+      )}
       {creating && (
         <CreateSkillFromConventionsModal
           repoId={repoId}
           repoName={repoName}
-          conventionIds={selectedIds}
+          conventions={candidates.filter((c) => selectedIds.includes(c.id))}
           onClose={() => setCreating(false)}
         />
       )}
@@ -230,7 +241,7 @@ export function ConventionsView() {
                     busy={update.isPending && update.variables?.id === c.id}
                     onToggleSelect={() => setSelection(toggleId(selected, c.id))}
                     onStatus={(status) => setStatus(c, status)}
-                    onEdit={() => setEditing(c)}
+                    onEdit={() => setEditingId(c.id)}
                   />
                 ))
               )}

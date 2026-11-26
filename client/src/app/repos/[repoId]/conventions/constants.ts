@@ -32,3 +32,6 @@ export const FALLBACK_REF = "HEAD";
 
 /** Stable keys for the loading placeholders (one per skeleton card). */
 export const SKELETON_KEYS = ["skeleton-1", "skeleton-2", "skeleton-3"] as const;
+
+/** SearchableSelect value for "create a NEW skill" (any other value is a skill id). */
+export const NEW_SKILL_TARGET = "__new__";

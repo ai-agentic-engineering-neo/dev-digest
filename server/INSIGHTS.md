@@ -39,6 +39,11 @@ actionable cold.
 **Rule:** ALWAYS return the scan's own meta object in the scan reply (`scan: scanMeta`) and test a FIRST scan with zero candidates — because derived meta lags whenever nothing is stored.
 **Evidence:** `server/src/modules/conventions/service.ts` → `scan()` | test `conventions.it.test.ts` "a FIRST scan that keeps nothing still answers with this scan's meta"
 
+### 2026-11-26 — Read-then-UPDATE of conventions.details loses a concurrent skill_ids mark
+**Insight:** `ConventionsService.update()` read the row, built a new `details` object and wrote it back; a `markInSkill` committed in between was overwritten, because the UPDATE only waits for the lock and then writes the stale object.
+**Rule:** ALWAYS change `details` via `ConventionsRepository.update(ws, id, makePatch)` (SELECT … FOR UPDATE, patch computed from the locked row) or a single jsonb statement like `markInSkill()` — because any whole-object write from an earlier read races with the badge mark.
+**Evidence:** `server/src/modules/conventions/repository.ts` → `update()`, `markInSkill()` | test `conventions.it.test.ts` "a PATCH racing a markInSkill keeps the new skill id"
+
 ## Codebase Patterns
 
 ### 2026-11-21 — [REVIEW NEEDED] Run cost is computed per LLM call but never persisted
@@ -114,6 +119,16 @@ actionable cold.
 **Rule:** ALWAYS wrap repo content with `wrapUntrusted()` plus a feature-local guard (e.g. `EXTRACTION_INJECTION_GUARD`) and fence skill-body code with `codeFence()` — because sampled files include AGENTS.md/CONTRIBUTING.md and a stray ``` would turn code into reviewer instructions.
 **Evidence:** `server/src/modules/conventions/prompt.ts` → `EXTRACTION_INJECTION_GUARD`, `buildExtractionUserPrompt()` | `helpers.ts` → `codeFence()`, `ruleBlock()`
 
+### 2026-11-26 — Cross-module atomic writes: build tx-bound repositories through the container
+**Insight:** `SkillsRepository` and `ConventionsRepository` take a `DbExecutor` (`Db | DbTx` from `db/client.ts`); on a transaction handle their own `db.transaction()` calls become savepoints, so the conventions UnitOfWork can write skills + skill_versions + conventions.details atomically without importing the skills module.
+**Rule:** ALWAYS give a module UoW a factory from the composition root (`container.skillsRepoOn(tx)`) and construct repositories on the `tx` — because importing another module's repository breaks onion §3 and `db.transaction` in a service breaks §8.
+**Evidence:** `server/src/modules/conventions/repository.ts` → `DrizzleConventionsUnitOfWork` | `platform/container.ts` → `skillsRepoOn()` | test `conventions.it.test.ts` "UnitOfWork: a failure after the skill insert rolls back the skill and the mark"
+
+### 2026-11-26 — Merge into a skill guards the slow LLM call with expectedVersion
+**Insight:** The `ConventionMergeCheck` call runs outside the transaction (seconds), so `SkillsRepository.update` got an internal `expectedVersion`: under the row lock a different version throws 409 "Skill changed while merging"; `evidenceFiles` is also internal-only (the Zod `UpdateSkillInput` strips both from the public PUT).
+**Rule:** ALWAYS pass `expectedVersion: skill.version` (read before the model call) when writing a body computed from an earlier read — because otherwise a human edit saved during the call is silently overwritten.
+**Evidence:** `server/src/modules/conventions/service.ts` → `mergeIntoSkill()` | `skills/repository.ts` → `update()` | test `conventions.it.test.ts` "merge: 404 … 409 when the skill changed meanwhile"
+
 ## Tool & Library Notes
 
 ### 2026-11-25 — Keep dependency-cruiser rule regexes flat and unanchored for pnpm
@@ -149,6 +164,8 @@ actionable cold.
 - 2026-11-26 — M2 Skills server (migration 0011, skills module + stats, agent link checks, executor skills, seed): 262 tests green; see "Sort agent_skills by order then skill_id"
 
 - 2026-11-26 — Conventions Extractor stage 1 server (migration 0012, conventions module scan/triage/draft/create, skills insert source+evidence_files, container.skillsRepo): 290 tests green; see "Conventions state lives in accepted + rejected_at + details jsonb"
+
+- 2026-11-26 — Conventions Extractor stage 2 server (UoW, locked details update, merge into existing skill with code dedupe + ConventionMergeCheck + 409 on stale version): 318 tests green; see "Cross-module atomic writes: build tx-bound repositories through the container"
 
 ## Open Questions
 

@@ -1,8 +1,8 @@
 # Onion Architecture — examples from this repo
 
 Before/after pairs for the rules in [SKILL.md](SKILL.md). The "after" code is
-live in `server/src/modules/repos/` and `server/src/modules/workspace/`; read
-those modules for the full picture.
+live in `server/src/modules/` (`repos`, `workspace`, `pulls`); read those
+modules for the full picture.
 
 ## 1. A query in a route → service + port
 
@@ -207,51 +207,70 @@ the service, the repository or the routes plugin.
 
 ## 6. A transaction: one repository method, named for the use case
 
+`modules/pulls/`. The route used to run five statements against
+`container.db`, one after another, between GitHub calls.
+
 ```ts
 // BAD — the port leaks the transaction; the service now knows Drizzle
 interface PullStore {
-  upsertPull(tx: Tx, pull: PullInput): Promise<string>;
   replaceFiles(tx: Tx, pullId: string, files: PrFile[]): Promise<void>;
+  replaceCommits(tx: Tx, pullId: string, commits: PrCommit[]): Promise<void>;
 }
 
-// GOOD — ports.ts
+// GOOD — modules/pulls/ports.ts
 interface PullStore {
-  /** Upsert the pull and replace its files and commits, atomically. */
-  saveSnapshot(snapshot: PullSnapshot): Promise<string>;
+  /** Replace the PR's files and commits and store its body + diff stats, atomically. */
+  saveDetail(pullId: string, detail: PrDetail): Promise<void>;
 }
 
-// repository.ts
-async saveSnapshot(snapshot: PullSnapshot): Promise<string> {
-  return this.db.transaction(async (tx) => {
-    const [row] = await tx.insert(t.pullRequests).values(/* … */).onConflictDoUpdate(/* … */).returning();
-    await tx.delete(t.prFiles).where(eq(t.prFiles.prId, row!.id));
-    await tx.insert(t.prFiles).values(/* … */);
-    return row!.id;
+// modules/pulls/repository.ts
+async saveDetail(pullId: string, detail: PrDetail): Promise<void> {
+  await this.db.transaction(async (tx) => {
+    await tx.delete(t.prFiles).where(eq(t.prFiles.prId, pullId));
+    if (detail.files.length > 0) await tx.insert(t.prFiles).values(/* … */);
+    await tx.delete(t.prCommits).where(eq(t.prCommits.prId, pullId));
+    if (detail.commits.length > 0) await tx.insert(t.prCommits).values(/* … */);
+    await tx.update(t.pullRequests).set(/* … */).where(eq(t.pullRequests.id, pullId));
   });
 }
+
+// modules/pulls/service.ts — fetch first, then one atomic write
+const detail = await gh.getPullRequest(ref, pull.number);
+await this.deps.pulls.saveDetail(pull.id, detail);
 ```
 
-The service fetches from GitHub first, then calls `saveSnapshot`. The
-transaction never stays open across a network call.
+The transaction never stays open across a network call.
 
-## 7. An adapter that depends on a changeable secret
+## 7. An adapter that depends on a changeable secret, and a logger
 
 `container.github()` and `container.llm(id)` are async and re-resolve after
 `invalidateSecretCaches()`. Inject the resolver, not an instance captured at
-plugin registration.
+plugin registration. `req.log` / `app.log` reach a service the same way: as a
+small port.
 
 ```ts
-// ports.ts
-export type GitHubResolver = () => Promise<Pick<GitHubClient, 'listPullRequests'>>;
+// modules/pulls/ports.ts
+export type PullsGitHub = Pick<GitHubClient, 'listPullRequests' | 'getPullRequest' | /* … */>;
+export type GitHubResolver = () => Promise<PullsGitHub>;
+export interface Logger {
+  warn(obj: object, msg: string): void;
+}
 
-// routes.ts
-const service = new PollingService({
-  github: () => app.container.github(),
-  pulls: app.container.reviewRepo,
+// modules/pulls/routes.ts
+const service = new PullsService({
+  pulls: container.pullStore,
+  repos: container.repoStore,
+  reviews: container.reviewRepo,   // another module's data, through a port (example 5)
+  github: () => container.github(),
+  log: app.log,
 });
 
-// service.ts
-const github = await this.deps.github();
+// modules/pulls/service.ts
+try {
+  gh = await this.deps.github();
+} catch (err) {
+  this.deps.log.warn({ err }, 'GitHub client unavailable; serving persisted PRs');
+}
 ```
 
 ## 8. A pure rule that needs the time

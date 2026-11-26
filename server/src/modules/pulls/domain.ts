@@ -1,7 +1,7 @@
 import type { PrStatus } from '@devdigest/shared';
 
 /**
- * PR-list rollup helpers (pure — no DB / `this`, so they unit-test cleanly).
+ * PR-list rollup rules (pure — no DB, no clock; `now` is an argument).
  *
  * The Pull Requests list shows, per PR: the latest review's SCORE, a FINDINGS
  * severity breakdown, and a review STATUS. The DB `status` column holds

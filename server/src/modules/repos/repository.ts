@@ -83,6 +83,11 @@ export class RepoRepository implements RepoStore {
       .where(eq(t.repos.id, repoId));
   }
 
+  /** Record that the repo's PR list was just synced (polling module). */
+  async markPolled(repoId: string): Promise<void> {
+    await this.db.update(t.repos).set({ lastPolledAt: new Date() }).where(eq(t.repos.id, repoId));
+  }
+
   async remove(workspaceId: string, id: string): Promise<boolean> {
     const deleted = await this.db
       .delete(t.repos)

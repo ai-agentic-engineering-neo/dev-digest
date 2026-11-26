@@ -25,6 +25,7 @@ import { PriceBook } from './price-book.js';
 import { ConfigError } from './errors.js';
 import { AgentsRepository } from '../modules/agents/repository.js';
 import { RepoRepository } from '../modules/repos/repository.js';
+import { PullsRepository } from '../modules/pulls/repository.js';
 import { ReviewRepository } from '../modules/reviews/repository.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
@@ -73,6 +74,7 @@ export class Container {
   // `container.agentsRepo` instead of reaching into another module's folder.
   private _agentsRepo?: AgentsRepository;
   private _repoStore?: RepoRepository;
+  private _pullStore?: PullsRepository;
   private _reviewRepo?: ReviewRepository;
   private _repoIntel?: RepoIntel;
   private _depgraph?: DepGraph;
@@ -103,6 +105,11 @@ export class Container {
   /** The `repos` table. Shared by the repos and workspace modules. */
   get repoStore(): RepoRepository {
     return (this._repoStore ??= new RepoRepository(this.db));
+  }
+
+  /** Imported pull requests. Shared by the pulls and polling modules. */
+  get pullStore(): PullsRepository {
+    return (this._pullStore ??= new PullsRepository(this.db));
   }
 
   get reviewRepo(): ReviewRepository {

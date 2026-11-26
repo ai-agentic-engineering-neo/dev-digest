@@ -73,6 +73,37 @@ export async function reviewsForPull(
   }));
 }
 
+// ---- PR-list rollups (read by the pulls module through a port) ------------
+
+/** Reviews (kind = 'review') of these PRs, newest first. */
+export async function reviewRefsForPulls(
+  db: Db,
+  prIds: string[],
+): Promise<{ id: string; prId: string; agentId: string | null; score: number | null }[]> {
+  if (prIds.length === 0) return [];
+  return db
+    .select({
+      id: t.reviews.id,
+      prId: t.reviews.prId,
+      agentId: t.reviews.agentId,
+      score: t.reviews.score,
+    })
+    .from(t.reviews)
+    .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review')))
+    .orderBy(desc(t.reviews.createdAt));
+}
+
+export async function findingSeverities(
+  db: Db,
+  reviewIds: string[],
+): Promise<{ reviewId: string; severity: string }[]> {
+  if (reviewIds.length === 0) return [];
+  return db
+    .select({ reviewId: t.findings.reviewId, severity: t.findings.severity })
+    .from(t.findings)
+    .where(inArray(t.findings.reviewId, reviewIds));
+}
+
 export async function getReview(db: Db, reviewId: string): Promise<ReviewRow | undefined> {
   const [row] = await db.select().from(t.reviews).where(eq(t.reviews.id, reviewId));
   return row;

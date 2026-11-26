@@ -104,6 +104,22 @@ export class ReviewRepository {
     return reviewRepo.deleteReview(this.db, workspaceId, reviewId);
   }
 
+  // ---- PR-list rollups (the pulls module reads these through a port) -----
+
+  reviewRefsForPulls(
+    prIds: string[],
+  ): Promise<{ id: string; prId: string; agentId: string | null; score: number | null }[]> {
+    return reviewRepo.reviewRefsForPulls(this.db, prIds);
+  }
+
+  findingSeverities(reviewIds: string[]): Promise<{ reviewId: string; severity: string }[]> {
+    return reviewRepo.findingSeverities(this.db, reviewIds);
+  }
+
+  runCostsForPulls(prIds: string[]): Promise<{ prId: string; costUsd: number }[]> {
+    return runRepo.runCostsForPulls(this.db, prIds);
+  }
+
   // ---- finding actions ----------------------------------------------------
 
   getFinding(findingId: string): Promise<FindingRow | undefined> {

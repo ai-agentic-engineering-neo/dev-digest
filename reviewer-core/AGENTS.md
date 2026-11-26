@@ -56,6 +56,8 @@ npm run typecheck   # this is also the build; the package emits no JS
 ## Read when
 
 - Changing the pipeline or public API → read `README.md`.
+- Adding an import, or the server's `pnpm deps:validate` reports a
+  `reviewer-core-*` rule → use the `onion-architecture` skill.
 - Adding a prompt slot or gate, or changing what the server passes in → read
   `docs/architecture.md`.
 - Building a milestone change → read its spec in `specs/` (write it first).

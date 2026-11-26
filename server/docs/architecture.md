@@ -53,7 +53,8 @@ What to know when changing this flow:
 
 - The server gathers context; `reviewer-core` formats it and calls the model.
   New context for the model is a new optional input slot on
-  `reviewPullRequest`, filled in `run-executor.ts`.
+  `reviewPullRequest`, filled in `run-executor.ts` from a port declared in
+  `src/modules/reviews/ports.ts`.
 - Agents run independently. A failed or cancelled run stores its status, error
   text and log so far and does not abort the others. If the diff cannot be
   loaded, every run in the request fails.
@@ -67,4 +68,8 @@ What to know when changing this flow:
 
 Create `src/modules/<name>/` as a Fastify plugin, register it in
 `src/modules/index.ts`, and use tables that already exist in `src/db/schema/`.
-Write the spec in [`../specs/`](../specs/README.md) first.
+Write the spec in [`../specs/`](../specs/README.md) first. Lay the module out
+inside-out (`domain.ts` → `ports.ts` → `service.ts` → `repository.ts` →
+`routes.ts`) as the
+[`onion-architecture` skill](../../.claude/skills/onion-architecture/SKILL.md)
+describes, and run `pnpm deps:validate`.

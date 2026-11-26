@@ -35,12 +35,14 @@ flowchart LR
   REQ["HTTP request"] --> MW["plugins (registered before modules)<br/>helmet · cors · rate-limit · SSE"]
   MW --> VAL["route zod schema<br/>params/body validation"]
   VAL --> MOD["feature module plugin<br/>modules/&lt;name&gt;/routes.ts"]
+  DI{"DI container<br/>platform/container.ts"} -. "wires at plugin registration" .-> MOD
   MOD --> SVC["service<br/>(e.g. ReviewService)"]
-  SVC --> DI{"DI container<br/>platform/container.ts"}
-  DI --> ADP["adapters (ports)<br/>llm · github · git · astgrep · tokenizer · secrets"]
+  SVC --> PORTS["ports<br/>modules/&lt;name&gt;/ports.ts"]
+  REPO["repository<br/>modules/&lt;name&gt;/repository.ts"] -. "implements" .-> PORTS
+  ADP["adapters<br/>llm · github · git · astgrep · tokenizer · secrets"] -. "implement" .-> PORTS
+  REPO --> DB[("Drizzle → Postgres")]
   ADP -->|"prod"| EXT["LLM (OpenAI/Anthropic) · GitHub · git · pgvector"]
   ADP -->|"tests"| MOCK["src/adapters/mocks.ts<br/>MockLLMProvider · MockGitClient · …"]
-  SVC --> DB[("Drizzle → Postgres")]
   SVC -. "run traces" .-> SSE["SSE stream → client"]
   VAL -. "invalid" .-> ERR["error handler (structured envelope)<br/>validation → 422 · AppError → status<br/>response serialization → 500"]
   SVC -. "throws" .-> ERR
@@ -48,6 +50,11 @@ flowchart LR
 
 - **Plugins register before modules** so the encapsulated module plugins inherit
   them (helmet, cors, rate-limit, SSE) and the shared error handler.
+- **Imports point inward.** A service knows only the interfaces in its module's
+  `ports.ts`; repositories and adapters implement them, and the container (or
+  the top of the module's `routes.ts`) passes them in. `pnpm deps:validate`
+  checks this on every CI run; the rules and their rationale are in the
+  [`onion-architecture` skill](../.claude/skills/onion-architecture/SKILL.md).
 - **Validation is schema-first.** Each route declares zod `params`/`body` schemas
   (`fastify-type-provider-zod`); invalid input is rejected with a `422` **before**
   the handler runs — handlers no longer hand-roll `Schema.parse(req.body)`.

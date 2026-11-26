@@ -1,15 +1,16 @@
 import { describe, it, expect } from 'vitest';
 import type { LLMProvider, StructuredResult } from '@devdigest/shared';
-import { MockLLMProvider, MockGitClient } from '../../server/src/adapters/mocks.js';
+import { CONFIG_DIFF, stubLLM } from './stubs.js';
 import { reviewPullRequest } from '../src/index.js';
 
 /**
  * Engine-level test for reviewPullRequest (the core lifted out of the server's
- * runOneAgent). Uses the server's mock LLM + git so we exercise the real
- * assemble → completeStructured → reduce → grounding pipeline with no DB/SSE.
+ * runOneAgent). Uses a stub LLM and a fixed diff (test/stubs.ts) so we exercise
+ * the real assemble → completeStructured → reduce → grounding pipeline with no
+ * DB/SSE and no import from server/.
  */
 describe('reviewPullRequest (engine)', () => {
-  // One grounded finding (line 11 is in the MockGitClient diff) + one
+  // One grounded finding (line 11 is in CONFIG_DIFF) + one
   // hallucinated finding (line 999) the grounding gate must drop.
   const fixture = {
     verdict: 'request_changes',
@@ -44,8 +45,8 @@ describe('reviewPullRequest (engine)', () => {
   };
 
   it('single-pass: assembles, grounds, drops the hallucinated finding', async () => {
-    const llm = new MockLLMProvider('openai', { structured: fixture });
-    const diff = await new MockGitClient().diff();
+    const llm = stubLLM(fixture);
+    const diff = CONFIG_DIFF;
 
     const events: string[] = [];
     const outcome = await reviewPullRequest({
@@ -73,8 +74,8 @@ describe('reviewPullRequest (engine)', () => {
     // Model "approves" but reports a nonsense low score (the cheap-model bug).
     // The engine must ignore that and score the zero findings as a perfect 100.
     const clean = { verdict: 'approve', summary: 'looks good', score: 10, findings: [] };
-    const llm = new MockLLMProvider('openai', { structured: clean });
-    const diff = await new MockGitClient().diff();
+    const llm = stubLLM(clean);
+    const diff = CONFIG_DIFF;
 
     const outcome = await reviewPullRequest({
       systemPrompt: 'security reviewer',
@@ -89,8 +90,8 @@ describe('reviewPullRequest (engine)', () => {
   });
 
   it('checkCancelled throwing aborts before the LLM call', async () => {
-    const llm = new MockLLMProvider('openai', { structured: fixture });
-    const diff = await new MockGitClient().diff();
+    const llm = stubLLM(fixture);
+    const diff = CONFIG_DIFF;
     await expect(
       reviewPullRequest({
         systemPrompt: 's',
@@ -130,7 +131,7 @@ describe('reviewPullRequest (engine)', () => {
         return [];
       },
     };
-    const diff = await new MockGitClient().diff();
+    const diff = CONFIG_DIFF;
     await reviewPullRequest({ systemPrompt: 's', model: 'm', diff, llm: recorder, sessionId: 'sess-abc' });
     expect(seen.length).toBeGreaterThan(0);
     expect(seen.every((s) => s === 'sess-abc')).toBe(true);

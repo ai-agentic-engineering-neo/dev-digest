@@ -9,6 +9,7 @@ API map, DI flow and env vars in [README.md](README.md). Do not repeat them here
 ```sh
 pnpm dev                                            # API on :3001 (tsx watch)
 pnpm typecheck
+pnpm deps:validate                                  # import boundaries (onion rings)
 pnpm exec vitest run --exclude '**/*.it.test.ts'    # unit, no Docker
 pnpm exec vitest run .it.test                       # integration, needs Docker
 pnpm db:generate                                    # new migration from schema/
@@ -17,10 +18,12 @@ pnpm db:migrate && pnpm db:seed
 
 ## Where things live
 
-- `src/modules/<name>/` — one feature = one Fastify plugin (`routes.ts`,
-  `service.ts`, `repository.ts`)
+- `src/modules/<name>/` — one feature = one Fastify plugin: `domain.ts` (pure
+  rules), `ports.ts` (what the service needs), `service.ts`, `repository.ts`,
+  `routes.ts`; `index.ts` is the only file another module may import
 - `src/modules/index.ts` — static module registry
-- `src/platform/` — config, DI container, errors, SSE, jobs
+- `src/platform/` — config, DI container (the composition root), errors, SSE,
+  jobs
 - `src/adapters/` — ports for LLM, GitHub, git, ast-grep, secrets; `mocks.ts`
 - `src/db/schema/` — Drizzle tables; `src/db/migrations/` — generated SQL
 - `src/vendor/shared/` — `@devdigest/shared` Zod contracts
@@ -32,8 +35,10 @@ pnpm db:migrate && pnpm db:seed
 - Relative imports carry a `.js` suffix (ESM), even though the files are `.ts`.
 - Routes declare Zod `params`/`body`/response schemas from `@devdigest/shared`.
   Do not call `Schema.parse(req.body)` inside handlers.
-- Services reach the outside world only through the DI container
-  (`platform/container.ts`). Do not import an SDK client into a service.
+- Imports point inward (Onion Architecture). A service takes the ports it
+  uses as a `deps` object and never imports the container, `db/`, an adapter
+  or an SDK; wiring happens at the top of `routes.ts` or in
+  `platform/container.ts`. `pnpm deps:validate` enforces it and fails CI.
 - Throw `AppError` (`platform/errors.ts`); the shared handler builds the envelope.
 - A milestone feature is a new `modules/<name>/`; it should not edit other modules.
 
@@ -64,6 +69,8 @@ pnpm db:migrate && pnpm db:seed
 
 ## Read when
 
+- Adding or moving backend code (module, route, service, repository, adapter,
+  port), or `pnpm deps:validate` fails → use the `onion-architecture` skill.
 - Adding a route, env var or adapter → read `README.md`.
 - Adding a cross-package dependency → read `../docs/architecture.md`.
 - Touching review execution → read `docs/architecture.md`, then

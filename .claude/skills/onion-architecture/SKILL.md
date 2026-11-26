@@ -102,8 +102,8 @@ rules by default. `reviewer-core/` is rings 0–1 as a whole; its one adapter is
 - Another module is used through its `index.ts` (types and constants) or
   through a port wired in the container. No other cross-module import, type-only
   included.
-- An adapter may import a module's `ports.ts` to implement it, and nothing else
-  from `modules/`.
+- An adapter looks inward only: it may import a module's `ports.ts`,
+  `domain.ts` and `constants.ts`, and nothing else from `modules/`.
 
 **Errors**
 - The core throws named errors from `platform/errors.ts` (`NotFoundError`,
@@ -145,14 +145,14 @@ reassigns a private field means the service is missing a port.
 | `routes-are-thin` | a route imports `db/`, `drizzle-orm`, an adapter or an SDK | add a service method |
 | `repository-is-persistence-only` | a repository imports HTTP code, an adapter or a service | move the decision to the service |
 | `no-cross-module-internals` | module A imports module B's internals | export it from B's `index.ts`, or wire a port in the container |
-| `adapters-implement-ports` | an adapter imports module code other than `ports.ts` | move the constant into the adapter or pass it in |
+| `adapters-implement-ports` | an adapter imports module code other than `ports.ts`, `domain.ts`, `constants.ts` | move the value into `constants.ts`, or pass it in |
 | `platform-below-modules` | `platform/` imports a module | wire it in `container.ts` |
 | `reviewer-core-*`, `contracts-are-pure` | the pure packages reached outward | inject it through the function's input |
-| `no-circular` | an import cycle | usually a symptom of one of the above |
+| `no-import-of-cli-scripts` | something imports `db/seed.ts` or `db/migrate.ts` | move the shared constant to its own file (`db/defaults.ts`) |
+| `no-circular` | a runtime import cycle (type-only cycles are not reported) | usually a symptom of one of the above |
 
 Fix the code. Do not edit `.dependency-cruiser.cjs` to let a violation through,
-and do not add to `.dependency-cruiser-known-violations.json`: that file only
-shrinks (`pnpm deps:baseline` after removing violations) until it is deleted.
+and do not reintroduce a known-violations baseline: the check runs with none.
 
 ## What the checker cannot see
 
@@ -160,13 +160,14 @@ It reads imports, nothing else. Check these by hand in every backend diff:
 
 ```sh
 # from server/
-grep -rnE "container\.db|\.db\.(select|insert|update|delete|query|execute)" src/modules --include='routes.ts'
+grep -rnE "container\.db|\.db\.(select|insert|update|delete|query|execute)" src/modules --include='routes.ts' | grep -v "Repository("
 grep -rn "process\.env" src --include='*.ts' | grep -vE "platform/config\.ts|adapters/secrets/local\.ts|db/(migrate|seed)\.ts|adapters/git/simple-git\.ts"
 grep -rnE "Date\.now\(\)|new Date\(\)|Math\.random\(\)" src/modules --include='domain.ts'
 grep -rnE "new AppError\([^)]*, *[0-9]{3}" src/modules
 ```
 
-Also by reading: a service parameter typed `unknown` or `any` that receives
+Each should print nothing (the first one skips `new XRepository(container.db)`,
+which is wiring). Also by reading: a service parameter typed `unknown` or `any` that receives
 `req` or `reply`; a repository method that returns a query builder; a handler
 that calls two service methods and decides between them.
 
@@ -180,7 +181,7 @@ that calls two service methods and decides between them.
 | "The service needs five things, passing the container is simpler" | Then its signature should say five things. The container hides them and cannot be faked. |
 | "A port with one implementation is over-engineering" | The second implementation is the in-memory fake in the unit test. |
 | "It's urgent, I'll move it later" | `deps:validate` fails now, in CI, on the same commit. |
-| "I'll add it to the baseline" | The baseline only shrinks. |
+| "I'll add it to a baseline / relax the rule" | There is no baseline. A rule changes only when the architecture decision changes, in its own commit. |
 | "helpers.ts is pure, it just maps the row" | A row mapper imports the schema. It belongs in `repository.ts`. |
 | "Reading `process.env` here is harmless" | It skips validation in `platform/config.ts` and makes the code untestable without mutating globals. |
 

@@ -72,8 +72,8 @@ function seedRunTrace(agent: typeof t.agents.$inferSelect, run: SeedRunStats) {
   };
 }
 
-export const DEFAULT_WORKSPACE_NAME = 'default';
-export const SYSTEM_USER_EMAIL = 'you@local';
+import { DEFAULT_WORKSPACE_NAME, SYSTEM_USER_EMAIL } from './defaults.js';
+export { DEFAULT_WORKSPACE_NAME, SYSTEM_USER_EMAIL };
 
 export async function seed(db: Db): Promise<{ workspaceId: string; userId: string }> {
   // ---- workspace + user (no-auth defaults) ----

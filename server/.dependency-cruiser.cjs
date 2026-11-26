@@ -40,10 +40,13 @@ module.exports = {
   forbidden: [
     {
       name: 'no-circular',
-      comment: 'Cycles break module init order and make the rings meaningless.',
+      comment:
+        'Cycles break module init order and make the rings meaningless. A cycle ' +
+        'that exists only through `import type` has no runtime effect and is ' +
+        'not reported; the ring rules below still see type-only imports.',
       severity: 'error',
       from: {},
-      to: { circular: true },
+      to: { circular: true, viaOnly: { dependencyTypesNot: ['type-only'] } },
     },
     {
       name: 'domain-is-pure',
@@ -149,13 +152,14 @@ module.exports = {
     {
       name: 'adapters-implement-ports',
       comment:
-        'An adapter may import a module\'s ports.ts to implement it, and ' +
-        'nothing else from modules/. It never imports the container.',
+        'An adapter looks inward only: it may import a module\'s ports.ts, ' +
+        'domain.ts and constants.ts, and nothing else from modules/. It never ' +
+        'imports the container.',
       severity: 'error',
       from: { path: '^src/adapters/' },
       to: {
         path: ['^src/modules/', '^src/platform/container\\.ts$'],
-        pathNot: ['^src/modules/[^/]+/ports\\.ts$'],
+        pathNot: ['^src/modules/[^/]+/(ports\\.ts|domain\\.ts|domain/.+|constants\\.ts)$'],
       },
     },
     {

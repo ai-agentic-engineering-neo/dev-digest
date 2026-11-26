@@ -1,12 +1,9 @@
-import { eq } from 'drizzle-orm';
 import {
   FEATURE_MODELS,
   FeatureModelChoice,
   type FeatureModelId,
 } from '@devdigest/shared';
-import type { Container } from '../../platform/container.js';
-import * as t from '../../db/schema.js';
-import { rowsToSettings } from './helpers.js';
+import type { SettingsStore } from './ports.js';
 
 /**
  * Per-feature model configuration.
@@ -22,6 +19,9 @@ const DEFAULTS = Object.fromEntries(
   FEATURE_MODELS.map((f) => [f.id, { provider: f.defaultProvider, model: f.defaultModel }]),
 ) as Record<FeatureModelId, FeatureModelChoice>;
 
+/** The one thing these lookups need: read a workspace's settings. */
+export type SettingsReader = Pick<SettingsStore, 'get'>;
+
 /** The registry default (provider+model) for a feature — no DB read. */
 export function defaultFeatureModel(id: FeatureModelId): FeatureModelChoice {
   return DEFAULTS[id];
@@ -34,24 +34,21 @@ export function defaultFeatureModel(id: FeatureModelId): FeatureModelChoice {
  * `resolveFeatureModel` instead.
  */
 export async function getFeatureModelOverride(
-  container: Container,
+  settings: SettingsReader,
   workspaceId: string,
   id: FeatureModelId,
 ): Promise<FeatureModelChoice | undefined> {
-  const rows = await container.db
-    .select({ key: t.settings.key, value: t.settings.value })
-    .from(t.settings)
-    .where(eq(t.settings.workspaceId, workspaceId));
-  const fm = (rowsToSettings(rows) as { feature_models?: Record<string, unknown> }).feature_models;
+  const stored = await settings.get(workspaceId);
+  const fm = (stored as { feature_models?: Record<string, unknown> }).feature_models;
   const parsed = FeatureModelChoice.safeParse(fm?.[id]);
   return parsed.success ? parsed.data : undefined;
 }
 
 /** Resolve `id` to a concrete provider+model: workspace override, else registry default. */
 export async function resolveFeatureModel(
-  container: Container,
+  settings: SettingsReader,
   workspaceId: string,
   id: FeatureModelId,
 ): Promise<FeatureModelChoice> {
-  return (await getFeatureModelOverride(container, workspaceId, id)) ?? DEFAULTS[id];
+  return (await getFeatureModelOverride(settings, workspaceId, id)) ?? DEFAULTS[id];
 }

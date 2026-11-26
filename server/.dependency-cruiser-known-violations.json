@@ -187,49 +187,6 @@
   },
   {
     "type": "dependency",
-    "from": "src/modules/settings/feature-models.ts",
-    "to": "src/db/schema.ts",
-    "unresolvedTo": "../../db/schema.js",
-    "dependencyTypes": [
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "core-no-infrastructure"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/modules/settings/feature-models.ts",
-    "to": "src/platform/container.ts",
-    "unresolvedTo": "../../platform/container.js",
-    "dependencyTypes": [
-      "local",
-      "type-only",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "core-no-infrastructure"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/modules/settings/feature-models.ts",
-    "to": "node_modules/drizzle-orm/index.d.ts",
-    "unresolvedTo": "drizzle-orm",
-    "dependencyTypes": [
-      "npm",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "core-no-packages"
-    }
-  },
-  {
-    "type": "dependency",
     "from": "src/modules/repo-intel/service.ts",
     "to": "src/modules/repo-intel/pipeline/full.ts",
     "unresolvedTo": "./pipeline/full.js",
@@ -558,34 +515,6 @@
   {
     "type": "dependency",
     "from": "src/modules/pulls/routes.ts",
-    "to": "src/db/schema.ts",
-    "unresolvedTo": "../../db/schema.js",
-    "dependencyTypes": [
-      "local",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "routes-are-thin"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/modules/settings/routes.ts",
-    "to": "node_modules/drizzle-orm/index.d.ts",
-    "unresolvedTo": "drizzle-orm",
-    "dependencyTypes": [
-      "npm",
-      "import"
-    ],
-    "rule": {
-      "severity": "error",
-      "name": "routes-are-thin"
-    }
-  },
-  {
-    "type": "dependency",
-    "from": "src/modules/settings/routes.ts",
     "to": "src/db/schema.ts",
     "unresolvedTo": "../../db/schema.js",
     "dependencyTypes": [

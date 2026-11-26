@@ -24,13 +24,13 @@
 
 **User correction (highest priority signal)**
 - Situation: the agent edited `0003_minor_overlord.sql`; the user said "never edit migrations, generate a new one".
-- Already in CLAUDE.md → write nothing. If the correction were NOT in CLAUDE.md, record it in Decisions and propose adding it to CLAUDE.md.
+- Already in AGENTS.md → write nothing. If the correction were NOT in AGENTS.md, record it in Decisions and propose adding it to AGENTS.md.
 
 ## Do NOT write
 - `Always validate input with Zod.` — general knowledge.
 - `Fixed typo in AgentCard.` — trivial, no future impact.
 - `GitHub API timed out once.` — transient.
-- `Migrations must not be edited.` — already in CLAUDE.md.
+- `Migrations must not be edited.` — already in AGENTS.md.
 - `Maybe the timeout is caused by ripgrep.` — unverified → Open Questions, or nothing.
 - `Be careful with the database layer.` — not actionable: no file, no symptom, no fix.
 - Anything that restates an entry already in the target INSIGHTS.md — add an `extended` comment under it, or skip.

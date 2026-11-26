@@ -27,7 +27,7 @@ Treat relevant entries as high-confidence guidance unless the user says otherwis
    5. a decision with a trade-off or a convention the code doesn't state;
    6. a dependency version changed (`package.json` or a lockfile): find entries that mention that library and check they still hold.
 2. Re-read the target file now and compare every candidate with what is recorded:
-   - not recorded anywhere (INSIGHTS files, CLAUDE.md, README) → new entry;
+   - not recorded anywhere (INSIGHTS files, AGENTS.md, README) → new entry;
    - an existing entry was confirmed again, needs a detail added, turned out wrong, or is obsolete (e.g. after an upgrade) → comment under that entry (see Comment format);
    - already recorded with nothing to add → drop.
 3. Drop every candidate that fails the quality gate. Keep at most 5 new entries + comments in total.
@@ -93,7 +93,7 @@ An indented sub-bullet directly under the entry (below earlier comments); the en
 
 ## Rules
 - Only add — new entries or comments. Never rewrite or delete an entry or a comment; a near-duplicate becomes an `extended` comment, not a new entry.
-- Touch only INSIGHTS files. Never edit CLAUDE.md, READMEs, or this skill; if an insight has become a permanent rule, propose moving it to CLAUDE.md and let the user decide.
+- Touch only INSIGHTS files. Never edit AGENTS.md, READMEs, or this skill; if an insight has become a permanent rule, propose moving it to AGENTS.md and let the user decide.
 - INSIGHTS files are drafts under human review: every write is reported, and changes are reviewed in the PR diff.
 
 ## Gotchas

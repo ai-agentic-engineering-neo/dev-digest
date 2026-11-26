@@ -49,6 +49,11 @@ actionable cold.
 **Rule:** ALWAYS give error (and non-200) routes as functions: `"POST /x": () => ({ status: 409, body: {...} })` — because only the function form is read for `status`.
 **Evidence:** `client/src/app/skills/_components/test-utils.tsx` → `mockFetch()` | `CreateSkillFromConventionsModal.test.tsx` "on 409 says the name is taken"
 
+### 2026-11-26 — Invalidating the suggestions list after each link empties the open dialog
+**Insight:** `useLinkAgentSkill` first invalidated `queryKeys.agentSuggestions(skillId)` normally; the active dialog refetched after every successful POST and the server (which excludes already-linked agents) returned a shorter list, so on a partial failure the "Linked" rows vanished. The RTL test missed it because a plain-object `mockFetch` route returns the same list forever.
+**Rule:** ALWAYS invalidate a list that an open dialog iterates with `refetchType: "none"` and mock it as a stateful function that drops linked items like the server — because a normal invalidate refetches active observers at once and a static mock cannot reveal it.
+**Evidence:** `client/src/lib/hooks/agents.ts` → `useLinkAgentSkill()` | test `AgentSuggestionsDialog.test.tsx` "a failed link keeps the dialog…" (fails without `refetchType: "none"`)
+
 ## Codebase Patterns
 
 ### 2026-11-21 — Keep shared src/components free of their own i18n namespace
@@ -105,6 +110,11 @@ actionable cold.
 **Insight:** The "in <skill>" badges on `/repos/:id/conventions` come from server-resolved `skill_names` cached under `["conventions", repoId]` (staleTime 30 s); `useDeleteSkill` / `useUpdateSkill` invalidated only skill keys, so a deleted or renamed skill kept its badge after navigating back.
 **Rule:** ALWAYS invalidate `queryKeys.conventionsAll()` in a skill mutation that changes a name or removes a skill — because the dependency crosses features (skills → conventions) and no key in the skills hooks mentions it.
 **Evidence:** `client/src/lib/hooks/skills.ts` → `useDeleteSkill()`, `useUpdateSkill()` | `lib/hooks/keys.ts` → `conventionsAll` | test `DeleteSkillDialog.test.tsx` "a delete marks every conventions page stale…"
+
+### 2026-11-26 — A dialog opened by a URL flag must clear the flag when it shows nothing
+**Insight:** `AgentSuggestionsDialog` returned `null` for an empty list or a failed request, so `?suggest=1` stayed and a reload / Back reopened the dialog outside the create flow; its `onClose` is an inline `router.replace` arrow, new on every render.
+**Rule:** ALWAYS call `onClose` once (ref guard + latest-callback ref, effect keyed on the "nothing to show" flag) when a URL-triggered dialog decides not to render, and ignore X / backdrop while its mutation is in flight — because otherwise the flag outlives the flow and a mid-flight close loses the per-row outcomes.
+**Evidence:** `client/src/app/skills/_components/AgentSuggestionsDialog/useAgentSuggestionsDialog.ts` → `nothingToShow`, `dismiss` | tests `AgentSuggestionsDialog.test.tsx` "no agent fits…", "while links are in flight…"
 
 ## Tool & Library Notes
 
@@ -184,6 +194,8 @@ actionable cold.
 - 2026-11-26 — Conventions Extractor stage 1 client (/repos/:repoId/conventions page, card, edit + create modals, nav g c, formatRelative moved to lib/format): 233 tests green; see "A plain-object route in mockFetch cannot fail"
 
 - 2026-11-26 — Conventions Extractor stage 2 client (target SearchableSelect + MergeForm, MergeConflictsDialog → ConfigTab form, single-PATCH edit): 247 tests green; see "Merge conflicts travel to the Config tab through a never-fetched query"
+
+- 2026-11-26 — Conventions Extractor stage 3 client (AgentSuggestionsDialog after create / merge via ?suggest=1, after MergeConflictsDialog; useLinkAgentSkill; skill delete/rename invalidate conventions): 262 tests green; see "Invalidating the suggestions list after each link empties the open dialog"
 
 ## Open Questions
 

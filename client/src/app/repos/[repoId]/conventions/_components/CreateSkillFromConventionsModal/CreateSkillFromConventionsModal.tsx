@@ -111,7 +111,7 @@ function CreateForm({
       });
       toast.success(t("create.createdToast", { name: skill.name }));
       onClose();
-      router.push(skillConfigHref(skill.id));
+      router.push(skillConfigHref(skill.id, { suggestAgents: true }));
     } catch (err) {
       // Other failures are toasted by the global MutationCache (lib/providers.tsx).
       if (err instanceof ApiError && err.status === 409) setTakenName(name);

@@ -104,7 +104,11 @@ export function confidenceColor(confidence: number): string {
   return "var(--crit)";
 }
 
-/** `/skills/:id?tab=config` — where a new skill's body is edited. */
-export function skillConfigHref(skillId: string): string {
-  return `/skills/${encodeURIComponent(skillId)}?tab=config`;
+/**
+ * `/skills/:id?tab=config` — where a new skill's body is edited. After a create /
+ * merge, `suggestAgents` adds `&suggest=1` (the page then offers agents to link).
+ */
+export function skillConfigHref(skillId: string, opts: { suggestAgents?: boolean } = {}): string {
+  const suggest = opts.suggestAgents ? "&suggest=1" : "";
+  return `/skills/${encodeURIComponent(skillId)}?tab=config${suggest}`;
 }

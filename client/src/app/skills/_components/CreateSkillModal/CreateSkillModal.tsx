@@ -49,7 +49,7 @@ export function CreateSkillModal({ onClose }: { onClose: () => void }) {
     }
     toast.success(t("create.createdToast", { name: skill.name }));
     onClose();
-    router.push(skillHref(skill.id, "config"));
+    router.push(skillHref(skill.id, "config", { suggestAgents: true }));
   };
 
   return (

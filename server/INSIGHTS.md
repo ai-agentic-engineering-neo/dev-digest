@@ -129,6 +129,16 @@ actionable cold.
 **Rule:** ALWAYS pass `expectedVersion: skill.version` (read before the model call) when writing a body computed from an earlier read — because otherwise a human edit saved during the call is silently overwritten.
 **Evidence:** `server/src/modules/conventions/service.ts` → `mergeIntoSkill()` | `skills/repository.ts` → `update()` | test `conventions.it.test.ts` "merge: 404 … 409 when the skill changed meanwhile"
 
+### 2026-11-26 — Agent suggestions score in skills/helpers; CATEGORY_KEYWORDS overlap ordinary words
+**Insight:** `GET /skills/:id/agent-suggestions` is code-only: `rankAgentSuggestions()` mixes category (0.4), type (0.3), keywords (0.3; 0/0.3/0.7 when the skill has no category) with values from `skills/constants.ts`; categories come from `conventions.details.category` where `skill_ids` contains the skill, read via the `AgentSuggestionSignals` port. Category words like `handling`, `type`, `name`, `design` are common in descriptions, so an agent can score a category hit and a keyword hit from one word.
+**Rule:** ALWAYS compute test expectations against `CATEGORY_KEYWORDS` and `SUGGESTION_STOP_WORDS` (trailing -s/-es stripped, fenced code ignored) and change weights only in `constants.ts` — because two of my first expected scores were wrong on exactly this overlap, and the user fixed the keyword lists in plan decision F16.
+**Evidence:** `server/src/modules/skills/helpers.ts` → `scoreAgentForSkill()`, `rankAgentSuggestions()` | `repository.ts` → `DrizzleAgentSuggestionSignals` | tests `skills-helpers.test.ts` "rankAgentSuggestions…", `skills.it.test.ts` "GET /skills/:id/agent-suggestions…"
+
+### 2026-11-26 — The markdown fence rule lives in two modules; keep them in step
+**Insight:** `conventions/helpers.ts` `markdownSections()` and `skills/helpers.ts` `stripCodeFences()` both scan fences line by line (close = same char, at least as long, no info string); a regex version (`^\1$`, lazy) ate the text between two blocks when the closing fence was longer. Skills keeps its own copy because importing the conventions module from skills breaks onion module boundaries.
+**Rule:** ALWAYS change both scanners together (skills also accepts any indent and treats an unclosed fence as running to the end) and NEVER go back to a regex — because fences with different lengths or list indentation silently leak code into suggestion keywords or mis-split sections.
+**Evidence:** `server/src/modules/skills/helpers.ts` → `stripCodeFences()` | `conventions/helpers.ts` → `markdownSections()` | test `skills-helpers.test.ts` "a longer closing fence closes; text between two blocks survives"
+
 ## Tool & Library Notes
 
 ### 2026-11-25 — Keep dependency-cruiser rule regexes flat and unanchored for pnpm
@@ -166,6 +176,8 @@ actionable cold.
 - 2026-11-26 — Conventions Extractor stage 1 server (migration 0012, conventions module scan/triage/draft/create, skills insert source+evidence_files, container.skillsRepo): 290 tests green; see "Conventions state lives in accepted + rejected_at + details jsonb"
 
 - 2026-11-26 — Conventions Extractor stage 2 server (UoW, locked details update, merge into existing skill with code dedupe + ConventionMergeCheck + 409 on stale version): 318 tests green; see "Cross-module atomic writes: build tx-bound repositories through the container"
+
+- 2026-11-26 — Conventions Extractor stage 3 server (GET /skills/:id/agent-suggestions, read-only port, code-only scoring): 333 tests green; see "Agent suggestions score in skills/helpers; CATEGORY_KEYWORDS overlap ordinary words"
 
 ## Open Questions
 

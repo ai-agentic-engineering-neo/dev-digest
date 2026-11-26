@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { makeSkill } from "./fixtures";
-import { filterSkills, resolveSkillTab, skillHref, validateSkillForm } from "./helpers";
+import { filterSkills, resolveSkillTab, skillHref, validateSkillForm, wantsAgentSuggestions } from "./helpers";
 
 const VALID = { name: "pr-quality-rubric", description: "", type: "rubric" as const, body: "# Rubric" };
 
@@ -36,6 +36,13 @@ describe("resolveSkillTab", () => {
 describe("skillHref", () => {
   it("encodes the id", () => {
     expect(skillHref("a/b", "stats")).toBe("/skills/a%2Fb?tab=stats");
+    expect(skillHref("s1", "config", { suggestAgents: true })).toBe("/skills/s1?tab=config&suggest=1");
+  });
+
+  it("only suggest=1 asks for agent suggestions", () => {
+    expect(wantsAgentSuggestions("1")).toBe(true);
+    expect(wantsAgentSuggestions("0")).toBe(false);
+    expect(wantsAgentSuggestions(null)).toBe(false);
   });
 });
 

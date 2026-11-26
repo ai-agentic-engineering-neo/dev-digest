@@ -79,7 +79,7 @@ describe("CreateSkillFromConventionsModal", () => {
     expect(screen.getByLabelText("Skill body")).toHaveTextContent("# my-conventions");
     fireEvent.click(screen.getByRole("button", { name: "Create skill" }));
 
-    await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/skills/sk9?tab=config"));
+    await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/skills/sk9?tab=config&suggest=1"));
     expect(onClose).toHaveBeenCalled();
     const create = fetchCalls(spy).find(([m, p]) => m === "POST" && p.endsWith("/conventions/skill"));
     expect(create?.[2]).toEqual({

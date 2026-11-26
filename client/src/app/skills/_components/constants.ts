@@ -6,6 +6,8 @@ import type { SkillType } from "@devdigest/shared";
 export const SKILL_TABS = ["config", "preview", "stats", "versions"] as const;
 export type SkillTab = (typeof SKILL_TABS)[number];
 export const DEFAULT_SKILL_TAB: SkillTab = "config";
+/** `?suggest=1` → after a create / merge, offer the agents that may want the skill. */
+export const SUGGEST_AGENTS_PARAM = "suggest";
 
 /** Skill types in select order — mirrors the `SkillType` enum in `@devdigest/shared`.
     A local list, not `SkillType.options`: the client imports `@devdigest/shared`

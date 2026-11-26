@@ -8,6 +8,7 @@ import {
   SKILL_NAME_MAX,
   SKILL_NAME_PATTERN,
   SKILL_TABS,
+  SUGGEST_AGENTS_PARAM,
   type SkillTab,
 } from "./constants";
 
@@ -25,9 +26,18 @@ export function resolveSkillTab(raw: string | null | undefined): SkillTab {
   return (SKILL_TABS as readonly string[]).includes(raw ?? "") ? (raw as SkillTab) : DEFAULT_SKILL_TAB;
 }
 
-/** Detail URL for a skill on a given tab. */
-export function skillHref(id: string, tab: SkillTab): string {
-  return `/skills/${encodeURIComponent(id)}?tab=${tab}`;
+/**
+ * Detail URL for a skill on a given tab. `suggestAgents` adds `&suggest=1`: right
+ * after a create / merge the page offers the agents that may want the skill.
+ */
+export function skillHref(id: string, tab: SkillTab, opts: { suggestAgents?: boolean } = {}): string {
+  const suggest = opts.suggestAgents ? `&${SUGGEST_AGENTS_PARAM}=1` : "";
+  return `/skills/${encodeURIComponent(id)}?tab=${tab}${suggest}`;
+}
+
+/** `?suggest=1` on the detail page → show the agent-suggestions dialog. */
+export function wantsAgentSuggestions(raw: string | null | undefined): boolean {
+  return raw === "1";
 }
 
 /** The editable text fields shared by the create modal and the Config tab. */

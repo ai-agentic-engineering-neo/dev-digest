@@ -222,5 +222,36 @@
     "dismiss": "Keep all existing",
     "versionMessage": "Resolved {count, plural, one {# convention conflict} other {# convention conflicts}}",
     "appendedNote": "{count, plural, one {The existing text for # rule was not found, so it was appended at the end.} other {The existing text for # rules was not found, so they were appended at the end.}} Review the body before saving."
+  },
+  "suggestions": {
+    "title": "Link this skill to agents",
+    "subtitle": "Agents that look like a fit by convention category, skill type and shared words. Nothing is linked until you confirm.",
+    "disabledNote": "Skill is disabled — enable it on Config to include it in prompts.",
+    "score": "fit {score, number, percent}",
+    "decision": "Link to {name}?",
+    "accept": "Accept",
+    "reject": "Reject",
+    "linked": "Linked",
+    "failed": "Could not link",
+    "skip": "Skip",
+    "link": "{count, plural, =0 {Nothing to link} one {Link to # agent} other {Link to # agents}}",
+    "linking": "Linking…",
+    "retry": "Retry failed ({count})",
+    "linkedToast": "{count, plural, one {Linked to # agent} other {Linked to # agents}}",
+    "reasons": {
+      "category": "matches {categories}",
+      "type": "{count, plural, one {already uses # {type} skill} other {already uses # {type} skills}}",
+      "keywords": "shared words: {keywords}"
+    },
+    "categories": {
+      "naming": "naming",
+      "structure": "structure",
+      "errors": "error handling",
+      "imports": "imports",
+      "typing": "typing",
+      "testing": "testing",
+      "api": "API",
+      "general": "general"
+    }
   }
 }

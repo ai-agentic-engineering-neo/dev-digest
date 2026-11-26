@@ -1,4 +1,5 @@
-import { and, asc, count, countDistinct, desc, eq, gte, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, asc, count, countDistinct, desc, eq, gte, inArray, isNull, notExists, sql, type SQL } from 'drizzle-orm';
+import { ConventionCategory } from '@devdigest/shared';
 import type { Skill, SkillSource, SkillType, SkillUsage, SkillVersion } from '@devdigest/shared';
 import type { DbExecutor, DbTx } from '../../db/client.js';
 import * as t from '../../db/schema.js';
@@ -15,7 +16,9 @@ import {
   toSkillVersionDto,
   versionMessage,
   type AgentActivityCounts,
+  type SuggestionAgent,
 } from './helpers.js';
+import type { AgentSuggestionSignals } from './ports.js';
 
 /**
  * Skills data access. Owns `skills` + `skill_versions`; reads `agent_skills`,
@@ -329,5 +332,76 @@ export class SkillsRepository {
       if (isUniqueViolation(err)) throw new ConflictError('A skill with this name already exists');
       throw err;
     }
+  }
+}
+
+/**
+ * Read-only facts for agent suggestions (`AgentSuggestionSignals`, ports.ts).
+ * Reads `conventions` (categories of the non-rejected rules marked as in the skill),
+ * `agents`, `agent_skills` and `skills`; writes nothing.
+ */
+export class DrizzleAgentSuggestionSignals implements AgentSuggestionSignals {
+  constructor(private readonly db: Executor) {}
+
+  async skillCategories(workspaceId: string, skillId: string): Promise<ConventionCategory[]> {
+    const category = sql<string | null>`${t.conventions.details} ->> 'category'`;
+    const rows = await this.db
+      .selectDistinct({ category })
+      .from(t.conventions)
+      .where(
+        and(
+          eq(t.conventions.workspaceId, workspaceId),
+          // A rule rejected after it went into the skill no longer speaks for it.
+          isNull(t.conventions.rejectedAt),
+          sql`coalesce(${t.conventions.details} -> 'skill_ids', '[]'::jsonb) @> jsonb_build_array(${skillId}::text)`,
+        ),
+      );
+    // A legacy row without a category, or an unknown value, carries no signal.
+    return rows.flatMap((r) => {
+      const parsed = ConventionCategory.safeParse(r.category);
+      return parsed.success ? [parsed.data] : [];
+    });
+  }
+
+  async candidateAgents(workspaceId: string, skillId: string): Promise<SuggestionAgent[]> {
+    const agents = await this.db
+      .select({ id: t.agents.id, name: t.agents.name, description: t.agents.description })
+      .from(t.agents)
+      .where(
+        and(
+          eq(t.agents.workspaceId, workspaceId),
+          eq(t.agents.enabled, true),
+          notExists(
+            this.db
+              .select({ one: sql`1` })
+              .from(t.agentSkills)
+              .where(and(eq(t.agentSkills.agentId, t.agents.id), eq(t.agentSkills.skillId, skillId))),
+          ),
+        ),
+      )
+      .orderBy(asc(t.agents.name), asc(t.agents.id));
+    if (agents.length === 0) return [];
+
+    const typeRows = await this.db
+      .select({ agentId: t.agentSkills.agentId, type: t.skills.type, n: count() })
+      .from(t.agentSkills)
+      .innerJoin(t.skills, eq(t.agentSkills.skillId, t.skills.id))
+      .where(
+        and(
+          inArray(
+            t.agentSkills.agentId,
+            agents.map((a) => a.id),
+          ),
+          eq(t.skills.workspaceId, workspaceId),
+        ),
+      )
+      .groupBy(t.agentSkills.agentId, t.skills.type);
+    const types = new Map<string, Partial<Record<SkillType, number>>>();
+    for (const r of typeRows) {
+      const byType = types.get(r.agentId) ?? {};
+      byType[r.type] = r.n;
+      types.set(r.agentId, byType);
+    }
+    return agents.map((a) => ({ ...a, linkedSkillTypes: types.get(a.id) ?? {} }));
   }
 }

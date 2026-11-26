@@ -44,7 +44,7 @@ describe("CreateSkillModal", () => {
     fill("secret-leakage-gate", "# Secrets");
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "security" } });
     submit();
-    await waitFor(() => expect(push).toHaveBeenCalledWith("/skills/sk9?tab=config"));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/skills/sk9?tab=config&suggest=1"));
     expect(mutateAsync).toHaveBeenCalledWith({
       name: "secret-leakage-gate",
       description: "",

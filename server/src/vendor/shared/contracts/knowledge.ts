@@ -349,6 +349,28 @@ export const ConventionSkillResult = z.object({
 });
 export type ConventionSkillResult = z.infer<typeof ConventionSkillResult>;
 
+// ---- Agent suggestions (code-only match of a skill to agents, no LLM) ----
+// Why an agent was suggested; the client renders the words (i18n).
+export const AgentSuggestionReason = z.discriminatedUnion('kind', [
+  // The skill's convention categories found in the agent's name / description.
+  z.object({ kind: z.literal('category'), categories: z.array(ConventionCategory).min(1) }),
+  // The agent already uses `count` skills of the skill's type.
+  z.object({ kind: z.literal('type'), type: SkillType, count: z.number().int().min(1) }),
+  // Words the skill and the agent's name / description share.
+  z.object({ kind: z.literal('keywords'), keywords: z.array(z.string()).min(1) }),
+]);
+export type AgentSuggestionReason = z.infer<typeof AgentSuggestionReason>;
+
+export const AgentSuggestion = z.object({
+  agent_id: z.string(),
+  agent_name: z.string(),
+  score: z.number().min(0).max(1),
+  // score ≥ the preselect threshold → the dialog starts on "Accept".
+  preselected: z.boolean(),
+  reasons: z.array(AgentSuggestionReason),
+});
+export type AgentSuggestion = z.infer<typeof AgentSuggestion>;
+
 // ---- Agents ----
 // 'openrouter' routes through the OpenAI-compatible API (OpenAIProvider with a
 // custom baseURL) — used by the CI runner for cheap models (DeepSeek/GLM/MiniMax).

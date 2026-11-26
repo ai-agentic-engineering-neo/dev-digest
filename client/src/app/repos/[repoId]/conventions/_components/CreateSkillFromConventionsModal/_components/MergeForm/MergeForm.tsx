@@ -45,7 +45,7 @@ export function MergeForm({ repoId, repoName, conventions, skill, onClose }: Mer
         }),
       );
       onClose();
-      router.push(skillConfigHref(res.skill.id));
+      router.push(skillConfigHref(res.skill.id, { suggestAgents: true }));
     } catch {
       // The global MutationCache toasts it (404, 409 "changed while merging", …).
     }

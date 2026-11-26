@@ -140,3 +140,33 @@ export function useSetAgentSkills(agentId: string) {
     },
   });
 }
+
+export interface LinkAgentSkillVars {
+  agentId: string;
+  skillId: string;
+}
+
+/**
+ * Attach ONE skill to an agent (appended after its current skills). Not
+ * optimistic: the agent-suggestions dialog shows per-agent results itself.
+ */
+export function useLinkAgentSkill() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ agentId, skillId }: LinkAgentSkillVars) =>
+      api.post<AgentSkillLink[]>(`/agents/${encodeURIComponent(agentId)}/skills`, { skill_id: skillId }),
+    onSuccess: (links, { agentId, skillId }) => {
+      qc.setQueryData(queryKeys.agentSkills(agentId), links);
+      // skill_count / version on the agent, agent_count + usage + stats on the skill
+      qc.invalidateQueries({ queryKey: queryKeys.agents() });
+      qc.invalidateQueries({ queryKey: queryKeys.agent(agentId) });
+      qc.invalidateQueries({ queryKey: queryKeys.skills() });
+      qc.invalidateQueries({ queryKey: queryKeys.skill(skillId) });
+      qc.invalidateQueries({ queryKey: queryKeys.skillUsage(skillId) });
+      qc.invalidateQueries({ queryKey: queryKeys.skillStats(skillId) });
+      // Stale, but NOT refetched while the dialog is open: the server drops linked
+      // agents from the list, and the dialog must keep showing them as "Linked".
+      qc.invalidateQueries({ queryKey: queryKeys.agentSuggestions(skillId), refetchType: "none" });
+    },
+  });
+}

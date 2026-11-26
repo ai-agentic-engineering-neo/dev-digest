@@ -87,5 +87,6 @@ describe("conventions helpers", () => {
     expect(confidenceColor(0.7)).toBe("var(--warn)");
     expect(confidenceColor(0.5)).toBe("var(--crit)");
     expect(skillConfigHref("sk 1")).toBe("/skills/sk%201?tab=config");
+    expect(skillConfigHref("sk1", { suggestAgents: true })).toBe("/skills/sk1?tab=config&suggest=1");
   });
 });

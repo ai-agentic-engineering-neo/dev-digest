@@ -29,6 +29,7 @@ export const queryKeys = {
   skillUsage: (skillId: Id) => ["skill-usage", skillId] as const,
   skillStats: (skillId: Id) => ["skill-stats", skillId] as const,
   skillVersions: (skillId: Id) => ["skill-versions", skillId] as const,
+  agentSuggestions: (skillId: Id) => ["agent-suggestions", skillId] as const,
 
   /** Prefix: every repo's conventions page (its "in skill" badges name skills). */
   conventionsAll: () => ["conventions"] as const,

@@ -73,7 +73,7 @@ flowchart TB
   end
   subgraph Agents["Agents & skills"]
     agents["agents<br/>/agents · /agents/:id · /agents/:id/skills"]
-    skills["skills<br/>/skills · /skills/:id · /skills/:id/(agents|stats)<br/>/skills/:id/versions · /versions/:version · /versions/:version/restore"]
+    skills["skills<br/>/skills · /skills/:id · /skills/:id/(agents|stats|agent-suggestions)<br/>/skills/:id/versions · /versions/:version · /versions/:version/restore"]
   end
   subgraph Intel["Repo intelligence"]
     repoIntel["repo-intel<br/>/repos/:id/index-state · /resync"]
@@ -99,6 +99,7 @@ failures return `422` (app-wide Zod handler).
 | DELETE | `/skills/:id` | → `{ ok: true }` (links + versions cascade) | 404 |
 | GET | `/skills/:id/agents` | → `SkillUsage[]` | 404 |
 | GET | `/skills/:id/stats` | → `SkillStats` (each agent's own last-30-day activity) | 404 |
+| GET | `/skills/:id/agent-suggestions` | → `AgentSuggestion[]` (enabled, not-yet-linked agents scored by convention category, skill type, shared words; no LLM, top 10) | 404 |
 | GET | `/skills/:id/versions` | → `SkillVersion[]` (newest first) | 404 |
 | GET | `/skills/:id/versions/:version` | → `SkillVersion` | 404 |
 | POST | `/skills/:id/versions/:version/restore` | → `Skill` (new version `Restored from vN`) | 404, 409 if current |

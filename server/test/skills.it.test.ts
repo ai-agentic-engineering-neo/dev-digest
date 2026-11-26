@@ -281,6 +281,7 @@ d('skills module', () => {
       { method: 'PUT', url: `/skills/${id}`, payload: { body: 'hijack' } },
       { method: 'GET', url: `/skills/${id}/agents` },
       { method: 'GET', url: `/skills/${id}/stats` },
+      { method: 'GET', url: `/skills/${id}/agent-suggestions` },
       { method: 'GET', url: `/skills/${id}/versions` },
       { method: 'GET', url: `/skills/${id}/versions/1` },
       { method: 'POST', url: `/skills/${id}/versions/1/restore` },
@@ -431,5 +432,76 @@ d('skills module', () => {
       .where(eq(t.agentSkills.agentId, security!.id))
       .orderBy(t.agentSkills.order);
     expect(links.map((l) => l.name)).toEqual(SECURITY_REVIEWER_SKILLS);
+  });
+
+  // ---- agent suggestions (plan §D) ------------------------------------------
+
+  it('GET /skills/:id/agent-suggestions: enabled, unlinked agents by score; categories only from this workspace', async () => {
+    const skill = await createSkill('ledger-rounding', {
+      type: 'convention',
+      description: 'Ledger rounding conventions',
+      body: '# ledger-rounding\n\nRound half-even.\n\n```ts\nconst hunter = 1;\n```',
+    });
+    const conv = (ws: string, category: string) => ({
+      workspaceId: ws,
+      rule: `rule ${category}`,
+      confidence: 0.9,
+      accepted: true,
+      details: { category, evidence: [], skill_ids: [skill.id] },
+    });
+    const [otherWs] = await db().insert(t.workspaces).values({ name: 'suggest-other-ws' }).returning();
+    await db().insert(t.conventions).values([
+      conv(workspaceId, 'errors'),
+      conv(workspaceId, 'general'), // carries no signal
+      conv(otherWs!.id, 'api'), // another workspace: must not dilute the category share
+      { ...conv(workspaceId, 'testing'), accepted: false, rejectedAt: new Date() }, // rejected later: no signal
+    ]);
+
+    const hunter = await createAgent('Ledger Error Hunter');
+    await db().update(t.agents).set({ description: 'Finds exceptions in ledger rounding' }).where(eq(t.agents.id, hunter.id));
+    const keeper = await createAgent('Ledger Keeper');
+    for (const n of ['keeper-a', 'keeper-b']) await link(keeper.id, (await createSkill(n, { type: 'convention' })).id);
+    const disabled = await createAgent('Ledger Error Disabled', false);
+    const linked = await createAgent('Ledger Error Linked');
+    await link(linked.id, skill.id);
+    const unrelated = await createAgent('Unrelated Bot');
+    const [foreignAgent] = await db()
+      .insert(t.agents)
+      .values({ workspaceId: otherWs!.id, name: 'Ledger Error Hunter', description: 'ledger rounding', provider: 'openai', model: 'm', systemPrompt: 'x' })
+      .returning();
+
+    const res = await app.inject({ url: `/skills/${skill.id}/agent-suggestions` });
+    expect(res.statusCode).toBe(200);
+    const all = res.json() as Array<{ agent_id: string }>;
+    const ours = new Set([hunter.id, keeper.id, disabled.id, linked.id, unrelated.id, foreignAgent!.id]);
+    expect(all.filter((x) => ours.has(x.agent_id))).toEqual([
+      {
+        agent_id: hunter.id,
+        agent_name: 'Ledger Error Hunter',
+        score: 0.6, // category 0.4 × 1/1 (not 1/2: rejected + foreign ignored) + keywords 0.3 × 2/3 (fenced "hunter" ignored)
+        preselected: true,
+        reasons: [
+          { kind: 'category', categories: ['errors'] },
+          { kind: 'keywords', keywords: ['ledger', 'rounding'] },
+        ],
+      },
+      {
+        agent_id: keeper.id,
+        agent_name: 'Ledger Keeper',
+        score: 0.4, // type 0.3 (2 convention skills) + keywords 0.1
+        preselected: false,
+        reasons: [
+          { kind: 'type', type: 'convention', count: 2 },
+          { kind: 'keywords', keywords: ['ledger'] },
+        ],
+      },
+    ]);
+    expect(all.length).toBeLessThanOrEqual(10);
+    const scores = (all as Array<{ score: number }>).map((x) => x.score);
+    expect([...scores].sort((a, b) => b - a)).toEqual(scores);
+
+    // Read-only: nothing was linked.
+    const links = await db().select().from(t.agentSkills).where(eq(t.agentSkills.skillId, skill.id));
+    expect(links.map((l) => l.agentId)).toEqual([linked.id]);
   });
 });

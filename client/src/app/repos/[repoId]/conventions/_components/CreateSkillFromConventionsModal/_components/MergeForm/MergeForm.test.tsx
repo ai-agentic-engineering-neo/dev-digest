@@ -63,7 +63,7 @@ describe("MergeForm", () => {
     const onClose = renderForm();
     fireEvent.click(screen.getByRole("button", { name: "Merge" }));
 
-    await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/skills/sk2?tab=config"));
+    await waitFor(() => expect(nav.push).toHaveBeenCalledWith("/skills/sk2?tab=config&suggest=1"));
     expect(onClose).toHaveBeenCalled();
     expect(fetchCalls(spy).find(([m]) => m === "POST")?.[2]).toEqual({
       convention_ids: ["c1", "c2"],

@@ -2,6 +2,8 @@ import type { CSSProperties } from "react";
 
 /** Co-located styles for MergeConflictsDialog. */
 export const s = {
+  // Modal renders children unpadded; 24px sides line up with its header and footer.
+  body: { padding: "20px 24px" } satisfies CSSProperties,
   list: { margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 14 } satisfies CSSProperties,
   item: {
     border: "1px solid var(--border)",

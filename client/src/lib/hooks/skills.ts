@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "./keys";
 import { api } from "../api";
 import type {
+  AgentSuggestion,
   CreateSkillInput,
   Skill,
   SkillStats,
@@ -44,6 +45,18 @@ export function useSkillStats(id: string | null | undefined) {
     queryKey: queryKeys.skillStats(id),
     queryFn: () => api.get<SkillStats>(`${skillPath(id!)}/stats`),
     enabled: !!id,
+  });
+}
+
+/** Agents that may want this skill (code-only match; GET writes nothing). */
+export function useAgentSuggestions(id: string | null | undefined) {
+  return useQuery({
+    queryKey: queryKeys.agentSuggestions(id),
+    queryFn: () => api.get<AgentSuggestion[]>(`${skillPath(id!)}/agent-suggestions`),
+    enabled: !!id,
+    // Fresh on every open: a merge or a link made elsewhere (agent Skills tab) changes
+    // the list, and a cached one would offer an agent that already has the skill.
+    staleTime: 0,
   });
 }
 

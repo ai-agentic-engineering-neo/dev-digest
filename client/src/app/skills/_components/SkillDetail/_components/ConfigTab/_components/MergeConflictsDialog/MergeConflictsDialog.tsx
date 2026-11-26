@@ -40,37 +40,39 @@ export function MergeConflictsDialog({ conflicts, onApply, onDismiss }: MergeCon
         </div>
       }
     >
-      <ol style={s.list}>
-        {conflicts.map((c) => (
-          <li key={c.convention_id} style={s.item} aria-label={c.rule}>
-            <div style={s.reason}>{c.reason || t("conflicts.noReason")}</div>
-            <div style={s.sides}>
-              <div style={s.side}>
-                <div style={s.sideLabel}>{t("conflicts.existing")}</div>
-                <pre style={s.code}>{c.existing_excerpt || t("conflicts.noExcerpt")}</pre>
+      <div style={s.body}>
+        <ol style={s.list}>
+          {conflicts.map((c) => (
+            <li key={c.convention_id} style={s.item} aria-label={c.rule}>
+              <div style={s.reason}>{c.reason || t("conflicts.noReason")}</div>
+              <div style={s.sides}>
+                <div style={s.side}>
+                  <div style={s.sideLabel}>{t("conflicts.existing")}</div>
+                  <pre style={s.code}>{c.existing_excerpt || t("conflicts.noExcerpt")}</pre>
+                </div>
+                <div style={s.side}>
+                  <div style={s.sideLabel}>{t("conflicts.incoming")}</div>
+                  <pre style={s.code}>{c.rule_block}</pre>
+                </div>
               </div>
-              <div style={s.side}>
-                <div style={s.sideLabel}>{t("conflicts.incoming")}</div>
-                <pre style={s.code}>{c.rule_block}</pre>
+              <div role="radiogroup" aria-label={t("conflicts.choice")} style={s.choices}>
+                {RESOLUTIONS.map((r) => (
+                  <Button
+                    key={r}
+                    size="sm"
+                    kind={choiceOf(c.convention_id) === r ? "primary" : "ghost"}
+                    role="radio"
+                    aria-checked={choiceOf(c.convention_id) === r}
+                    onClick={() => setChoices((prev) => ({ ...prev, [c.convention_id]: r }))}
+                  >
+                    {t(`conflicts.resolution.${r}`)}
+                  </Button>
+                ))}
               </div>
-            </div>
-            <div role="radiogroup" aria-label={t("conflicts.choice")} style={s.choices}>
-              {RESOLUTIONS.map((r) => (
-                <Button
-                  key={r}
-                  size="sm"
-                  kind={choiceOf(c.convention_id) === r ? "primary" : "ghost"}
-                  role="radio"
-                  aria-checked={choiceOf(c.convention_id) === r}
-                  onClick={() => setChoices((prev) => ({ ...prev, [c.convention_id]: r }))}
-                >
-                  {t(`conflicts.resolution.${r}`)}
-                </Button>
-              ))}
-            </div>
-          </li>
-        ))}
-      </ol>
+            </li>
+          ))}
+        </ol>
+      </div>
     </Modal>
   );
 }

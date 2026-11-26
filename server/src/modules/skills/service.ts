@@ -1,4 +1,5 @@
 import type {
+  AgentSuggestion,
   CreateSkillInput,
   Skill,
   SkillStats,
@@ -10,7 +11,8 @@ import { NotFoundError } from '../../platform/errors.js';
 import { ConflictError } from './errors.js';
 import type { SkillsRepository } from './repository.js';
 import { STATS_WINDOW_DAYS } from './constants.js';
-import { toAgentActivity, windowStart } from './helpers.js';
+import { rankAgentSuggestions, toAgentActivity, windowStart } from './helpers.js';
+import type { AgentSuggestionSignals } from './ports.js';
 
 /**
  * Skills use cases (SPEC §4.3). Workspace-scoped throughout: a skill from
@@ -37,11 +39,13 @@ const SKILL_NOT_FOUND = 'Skill not found';
 
 export class SkillsService {
   private readonly repo: SkillsStore;
+  private readonly signals: AgentSuggestionSignals;
   private readonly now: () => Date;
 
   /** Explicit deps (onion-architecture §10). `now` is injectable for the stats window. */
-  constructor(deps: { repo: SkillsStore; now?: () => Date }) {
+  constructor(deps: { repo: SkillsStore; signals: AgentSuggestionSignals; now?: () => Date }) {
     this.repo = deps.repo;
+    this.signals = deps.signals;
     this.now = deps.now ?? (() => new Date());
   }
 
@@ -132,5 +136,19 @@ export class SkillsService {
       updated_at: skill.updated_at,
       agents: agents.map((a) => toAgentActivity(a, activity.get(a.agent_id))),
     };
+  }
+
+  /**
+   * Agents that would likely want this skill (plan §D): enabled, not linked yet,
+   * scored by convention category, skill type and shared words — no LLM, no
+   * writes. Agents scoring 0 are left out; best first, at most 10.
+   */
+  async agentSuggestions(workspaceId: string, id: string): Promise<AgentSuggestion[]> {
+    const skill = await this.get(workspaceId, id);
+    const [categories, agents] = await Promise.all([
+      this.signals.skillCategories(workspaceId, id),
+      this.signals.candidateAgents(workspaceId, id),
+    ]);
+    return rankAgentSuggestions({ ...skill, categories }, agents);
   }
 }

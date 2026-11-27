@@ -31,6 +31,21 @@ async function main() {
     });
   }
 
+  // Reap runs left 'running' by a previous (now-dead) process — otherwise they
+  // show as perpetually "running" in the UI and can't be cancelled (no runner).
+  // Lives here, not in buildApp, so tests that build the app never query the
+  // database. AWAITED before listen: a fresh process has no in-flight runs of
+  // its own (runs only start via POST /review once listening), so every
+  // 'running' row is genuinely orphaned, and a brand-new run cannot be reaped.
+  // NOTE: assumes a SINGLE API instance per DB; replicas would need
+  // per-instance scoping / heartbeats.
+  try {
+    const reaped = await app.container.reviewRepo.reapStaleRunningRuns();
+    if (reaped > 0) app.log.info({ reaped }, 'reaped stale running agent_runs on boot');
+  } catch (err) {
+    app.log.warn({ err: (err as Error).message }, 'stale-run reaping failed (non-fatal)');
+  }
+
   try {
     await app.listen({ port: config.apiPort, host: config.apiHost });
     app.log.info(`DevDigest API listening on http://${config.apiHost}:${config.apiPort}`);

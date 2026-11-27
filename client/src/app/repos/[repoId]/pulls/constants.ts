@@ -1,3 +1,4 @@
+import type { Severity } from "@devdigest/shared";
 import type { PrMeta } from "../../../../lib/types";
 
 /** Constants for the PR list page (/repos/:repoId/pulls). */
@@ -58,3 +59,17 @@ export type SizeInfo = { size: PrSize; lines: number };
 
 /** Re-exported for helpers that consume PrMeta. */
 export type { PrMeta };
+
+/** Sort weight per severity (lower = shown first). */
+export const SEVERITY_ORDER: Record<string, number> = {
+  CRITICAL: 0,
+  WARNING: 1,
+  SUGGESTION: 2,
+  INFO: 3,
+};
+
+/** Levels shown in the severity filter, in display order. */
+export const SEVERITY_FILTERS: readonly Severity[] = ["CRITICAL", "WARNING", "SUGGESTION"];
+
+/** Placeholder for a run with no cost data — never "$0.00". */
+export const NO_COST = "—";

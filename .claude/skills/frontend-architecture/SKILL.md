@@ -110,6 +110,10 @@ file's untouched lines is.
 
 ## Imports
 
+`pnpm deps:validate` enforces these (rules `lib-and-components-never-import-app`,
+`lib-never-imports-components`, `route-never-imports-unrelated-route`,
+`component-folder-entered-through-index`, `helpers-and-constants-stay-pure`).
+
 - `src/lib` and `src/components` never import from `src/app`. `src/lib` never
   imports from `src/components`.
 - A route never imports from an unrelated route (`app/agents` ↔ `app/repos`).
@@ -144,8 +148,14 @@ file's untouched lines is.
 
 ## Check before you finish
 
-From `client/`. These print the offenders that already exist; your diff must
-not add a line to any of them.
+From `client/`. First the import rules, which `pnpm deps:validate` checks
+mechanically (config: `.dependency-cruiser.cjs`; CI runs it) and which must
+print no violation. Checks 2, 3 and 4 below are now covered by it; run the rest
+by hand, and your diff must not add a line to any of them.
+
+```sh
+pnpm deps:validate
+```
 
 ```sh
 # 1. top-level constants and helper functions in a .tsx

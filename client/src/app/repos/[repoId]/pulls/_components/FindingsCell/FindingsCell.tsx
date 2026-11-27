@@ -11,7 +11,7 @@ import { useTranslations } from "next-intl";
 import { SeverityBadge } from "@devdigest/ui";
 import type { PrMeta } from "@devdigest/shared";
 import { usePrReviews } from "@/lib/hooks/reviews";
-import { SEVERITY_FILTERS } from "../../[number]/_components/FindingsPanel/constants";
+import { SEVERITY_FILTERS } from "../../constants";
 import { latestFindingsPerAgent, totalFindings } from "../../helpers";
 import { POPOVER_MIN_ROOM, POPOVER_WIDTH, VIEWPORT_MARGIN } from "./constants";
 import { FindingsPopover } from "./FindingsPopover";

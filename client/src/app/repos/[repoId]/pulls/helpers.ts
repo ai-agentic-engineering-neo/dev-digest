@@ -1,6 +1,5 @@
 import type { FindingRecord, PrFindingsCounts, ReviewRecord } from "@devdigest/shared";
-import { SEVERITY_ORDER } from "./[number]/_components/FindingsPanel/constants";
-import { SIZE_MEDIUM_MAX, SIZE_SMALL_MAX, type PrMeta, type SizeInfo } from "./constants";
+import { NO_COST, SEVERITY_ORDER, SIZE_MEDIUM_MAX, SIZE_SMALL_MAX, type PrMeta, type SizeInfo } from "./constants";
 
 /** One line of the FINDINGS preview: a finding and the agent that reported it. */
 export interface PreviewFinding {
@@ -53,4 +52,36 @@ export function relativeTime(iso: string | null | undefined): string {
   const h = Math.round(m / 60);
   if (h < 24) return `${h}h`;
   return `${Math.round(h / 24)}d`;
+}
+
+/* Formatting for the run cost badge and the trace drawer's COST tile: one
+   definition of "readable cost". */
+
+/**
+ * USD cost with at least 3 significant digits of signal:
+ * - ≥ $0.01 → 3 decimals ("$0.012", "$1.250"; never "$0.01")
+ * - < $0.01 → 2 significant digits ("$0.0013")
+ * - exactly 0 (free model) → "$0.000"
+ * - null / undefined / non-finite → "—"
+ */
+export function formatCost(usd: number | null | undefined): string {
+  if (usd == null || !Number.isFinite(usd) || usd < 0) return NO_COST;
+  if (usd === 0) return "$0.000";
+  // Round to 2 significant digits first so 0.00999 lands on the ≥ $0.01 branch.
+  const rounded = Number(usd.toPrecision(2));
+  if (rounded >= 0.01) return `$${usd.toFixed(3)}`;
+  const decimals = 1 - Math.floor(Math.log10(rounded));
+  return `$${rounded.toFixed(decimals)}`;
+}
+
+/** Compact token count: 800 → "800", 8_200 → "8.2K", 15_000 → "15K", 1_250_000 → "1.3M". */
+export function formatTokenCount(n: number): string {
+  if (n < 1000) return String(n);
+  const [div, unit] = n < 1_000_000 ? [1000, "K"] : [1_000_000, "M"];
+  return `${(n / div).toFixed(1).replace(/\.0$/, "")}${unit}`;
+}
+
+/** "8.2K→1.3K" token in→out summary. */
+export function formatTokenPair(tokensIn: number, tokensOut: number): string {
+  return `${formatTokenCount(tokensIn)}→${formatTokenCount(tokensOut)}`;
 }

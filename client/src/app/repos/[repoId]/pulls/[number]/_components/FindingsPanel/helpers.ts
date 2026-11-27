@@ -1,7 +1,8 @@
 import type { FindingRecord, Severity } from "@devdigest/shared";
 import { isTextInput } from "../../../../../../../components/app-shell/helpers";
 import { G_NAV_TIMEOUT_MS } from "../../../../../../../components/app-shell/constants";
-import { LOW_CONFIDENCE_THRESHOLD, SEVERITY_FILTERS, SEVERITY_ORDER } from "./constants";
+import { SEVERITY_FILTERS, SEVERITY_ORDER } from "../../../constants";
+import { LOW_CONFIDENCE_THRESHOLD } from "./constants";
 
 export interface FindingFilters {
   /** Drop findings below LOW_CONFIDENCE_THRESHOLD. */

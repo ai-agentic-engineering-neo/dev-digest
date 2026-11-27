@@ -41,6 +41,8 @@ also uses.
 
 - 2026-11-26 — `Schema.default({})` as a route `body` schema still answers 422 when the request has no body at all; Fastify hands the validator a missing body that `.default()` does not cover. For a body that may be absent use `z.preprocess((b) => b ?? {}, Schema)`. Evidence: server/src/modules/reviews/routes.ts:26
 
+- 2026-11-27 — Do not treat the server unit lane as database-free: `buildApp` runs the stale-run reaper (`UPDATE agent_runs SET status='failed' WHERE status='running'`) before it returns, and three unit test files call `buildApp({ config })` with no `db` override, so `pnpm exec vitest run --exclude '**/*.it.test.ts'` runs that statement against the `DATABASE_URL` from `.env`. Do not run the unit lane while a review is running on the dev database; a run marked `failed` with no `error` and no `duration_ms` was reaped this way. Until the reaper moves to `server.ts`, give a no-DB test a stub `db`. Evidence: server/src/app.ts:81
+
 ## Codebase Patterns
 
 <!-- Conventions and structure that are not obvious from one file. -->
@@ -96,6 +98,8 @@ also uses.
 - 2026-11-23 — Built the M1 findings column (server): `PrMeta.findings_counts` on `GET /repos/:id/pulls`, `pickLatestReviewPerAgent`, and a second seeded run and review on PR #482 (Performance Reviewer); spec server/specs/M1-findings-column.md. Merged `LEARNINGS.md` into this file.
 
 - 2026-11-26 — Added the `onion-architecture` skill and `pnpm deps:validate` (dependency-cruiser, 15 rules, no baseline, run in CI), and refactored every module to `domain.ts` / `ports.ts` / `service.ts` / `repository.ts` / `routes.ts` with services on injected ports; 49 boundary violations went to 0. No HTTP contract, schema or migration changed.
+
+- 2026-11-27 — Audited the package against the project skills (onion, Fastify, Drizzle, Postgres, Zod, security); no source changed. The findings and their order are in `docs/improvement-plan.md` (sections 2, 5 and 6): four high items in the backend (a failed job crashes the process, cancel does not cancel, two grounding and prompt-fence gaps) and one in persistence (a non-atomic re-index).
 
 ## Open Questions
 

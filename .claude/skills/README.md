@@ -11,6 +11,7 @@ Reusable AI skills that provide specialized knowledge and workflows. Canonical l
 | [postgresql-table-design](postgresql-table-design/SKILL.md) | Backend | Postgres schema design, data types, indexing, constraints |
 | [onion-architecture](onion-architecture/SKILL.md) | Backend | Layering for `server/` and `reviewer-core/`: rings, ports, wiring, and what `pnpm deps:validate` enforces |
 | [next-best-practices](next-best-practices/SKILL.md) | Frontend | Next.js App Router, RSC boundaries, data fetching, optimization |
+| [frontend-architecture](frontend-architecture/SKILL.md) | Frontend | Where code goes in `client/`: what a `.tsx` may hold, `constants.ts` / `helpers.ts` / `styles.ts`, where shared code lives, import direction |
 | [react-best-practices](react-best-practices/SKILL.md) | Frontend | React anti-patterns, state management, hooks rules |
 | [react-testing-library](react-testing-library/SKILL.md) | Frontend | General-purpose React Testing Library guide with Vitest |
 | [zod](zod/SKILL.md) | Full-stack | Zod schema validation, parsing, error handling, type inference |

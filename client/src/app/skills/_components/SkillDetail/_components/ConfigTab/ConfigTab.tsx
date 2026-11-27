@@ -16,7 +16,7 @@ import { ApiError } from "@/lib/api";
 import { useToast } from "@/lib/toast";
 import { hasErrors, validateSkillForm, type SkillFormValues } from "@/app/skills/_components/helpers";
 import { FieldErrorText, SkillFormFields } from "@/app/skills/_components/SkillFormFields";
-import { DeleteSkillDialog } from "./_components/DeleteSkillDialog";
+import { DeleteSkillDialog } from "@/app/skills/_components/DeleteSkillDialog";
 import { MergeConflictsDialog } from "./_components/MergeConflictsDialog";
 import { applyResolutions, type Resolution } from "./_components/MergeConflictsDialog/helpers";
 import { buildSkillPatch, formFromSkill, isBodyChanged } from "./helpers";

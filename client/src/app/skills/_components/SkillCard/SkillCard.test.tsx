@@ -11,12 +11,19 @@ afterEach(cleanup);
 function renderCard(skill: Skill) {
   const onSelect = vi.fn();
   const onToggle = vi.fn();
+  const onDelete = vi.fn();
   render(
     <NextIntlClientProvider locale="en" messages={{ skills: messages }}>
-      <SkillCard skill={skill} href="/skills/sk1?tab=config" onSelect={onSelect} onToggle={onToggle} />
+      <SkillCard
+        skill={skill}
+        href="/skills/sk1?tab=config"
+        onSelect={onSelect}
+        onToggle={onToggle}
+        onDelete={onDelete}
+      />
     </NextIntlClientProvider>,
   );
-  return { onSelect, onToggle };
+  return { onSelect, onToggle, onDelete };
 }
 
 describe("SkillCard", () => {
@@ -41,5 +48,12 @@ describe("SkillCard", () => {
     expect(onToggle).toHaveBeenCalledWith(true);
     expect(onSelect).not.toHaveBeenCalled();
     expect(screen.getByText("1 agent · v1")).toBeInTheDocument();
+  });
+
+  it("the trash button asks to delete without selecting the card", () => {
+    const { onSelect, onDelete } = renderCard(makeSkill());
+    fireEvent.click(screen.getByRole("button", { name: "Delete skill" }));
+    expect(onDelete).toHaveBeenCalledTimes(1);
+    expect(onSelect).not.toHaveBeenCalled();
   });
 });

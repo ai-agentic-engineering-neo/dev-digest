@@ -42,14 +42,18 @@ export function newestScan(
   return a.at >= b.at ? a : b;
 }
 
+/** `all` counts the rules still in play: rejected ones only show under the Rejected filter. */
 export function countByStatus(list: ConventionCandidate[]): Record<StatusFilter, number> {
-  const out: Record<StatusFilter, number> = { all: list.length, pending: 0, accepted: 0, rejected: 0 };
+  const out: Record<StatusFilter, number> = { all: 0, pending: 0, accepted: 0, rejected: 0 };
   for (const c of list) out[statusOf(c)] += 1;
+  out.all = out.pending + out.accepted;
   return out;
 }
 
+/** A rejected rule leaves All / Pending at once; the Rejected filter keeps it so it can be restored. */
 export function filterByStatus(list: ConventionCandidate[], filter: StatusFilter): ConventionCandidate[] {
-  return filter === "all" ? list : list.filter((c) => statusOf(c) === filter);
+  if (filter === "all") return list.filter((c) => statusOf(c) !== "rejected");
+  return list.filter((c) => statusOf(c) === filter);
 }
 
 /** Default selection: accepted rules not yet in any skill. */

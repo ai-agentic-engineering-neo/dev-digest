@@ -73,9 +73,11 @@ describe("ConventionsView", () => {
     mockFetch({ [LIST]: makePage([pending, accepted, inSkill, rejected]) });
     renderWithProviders(<ConventionsView />);
 
-    expect(await screen.findByText("2 of 4 accepted")).toBeInTheDocument();
+    // All lists the rules still in play; the rejected one is only under Rejected.
+    expect(await screen.findByText("2 of 3 accepted")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Re-scan" })).toBeInTheDocument();
-    expect(screen.getAllByRole("article")).toHaveLength(4);
+    expect(screen.getAllByRole("article")).toHaveLength(3);
+    expect(screen.queryByText("Rejected rule")).not.toBeInTheDocument();
 
     // Filter chips render before the cards, so the first match is the chip.
     fireEvent.click(screen.getAllByRole("button", { name: /Rejected/ })[0]!);
@@ -199,6 +201,26 @@ describe("ConventionsView", () => {
     expect(await within(card).findByRole("button", { name: "Accepted" })).toBeInTheDocument();
     expect(fetchCalls(spy)).toContainEqual(["PATCH", "/conventions/p1", { status: "accepted" }]);
     expect(screen.getByText("1 of 1 accepted")).toBeInTheDocument();
+  });
+
+  it("rejecting a rule removes it from All; the Rejected filter keeps it and Accept restores it", async () => {
+    const spy = mockFetch({
+      [LIST]: makePage([pending, accepted]),
+      "PATCH /conventions/p1": { ...pending, status: "rejected" },
+    });
+    renderWithProviders(<ConventionsView />);
+    const card = await screen.findByRole("article", { name: "Pending rule" });
+    fireEvent.click(within(card).getByRole("button", { name: "Reject" }));
+
+    await waitFor(() => expect(screen.queryByText("Pending rule")).not.toBeInTheDocument());
+    expect(fetchCalls(spy)).toContainEqual(["PATCH", "/conventions/p1", { status: "rejected" }]);
+    expect(screen.getAllByRole("article")).toHaveLength(1);
+    expect(screen.getByText("1 of 1 accepted")).toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Rejected/ })[0]!);
+    const rejectedCard = await screen.findByRole("article", { name: "Pending rule" });
+    expect(within(rejectedCard).getByRole("button", { name: "Rejected" })).toBeInTheDocument();
+    expect(within(rejectedCard).getByRole("button", { name: "Accept" })).toBeEnabled();
   });
 
   it("opens the create modal with the selected ids, and the edit modal", async () => {

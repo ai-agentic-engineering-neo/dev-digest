@@ -37,7 +37,8 @@
     }
   },
   "card": {
-    "footer": "{count, plural, one {# agent} other {# agents}} · v{version}"
+    "footer": "{count, plural, one {# agent} other {# agents}} · v{version}",
+    "delete": "Delete skill"
   },
   "form": {
     "name": "Name",

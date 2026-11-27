@@ -39,6 +39,14 @@ export const s = {
     fontSize: 12,
     color: "var(--text-muted)",
   } satisfies CSSProperties,
+  deleteBtn: {
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    color: "var(--text-muted)",
+    display: "inline-flex",
+    padding: 4,
+  } satisfies CSSProperties,
   divider: { height: 1, background: "var(--border)", margin: "10px 0 8px" } satisfies CSSProperties,
   footer: { fontSize: 12, color: "var(--text-secondary)" } satisfies CSSProperties,
   visuallyHidden: {

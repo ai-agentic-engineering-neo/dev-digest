@@ -32,9 +32,14 @@ describe("conventions helpers", () => {
   });
 
   it("counts and filters by status", () => {
-    expect(countByStatus(ALL)).toEqual({ all: 4, pending: 1, accepted: 2, rejected: 1 });
+    expect(countByStatus(ALL)).toEqual({ all: 3, pending: 1, accepted: 2, rejected: 1 });
     expect(filterByStatus(ALL, "accepted").map((c) => c.id)).toEqual(["a", "s"]);
-    expect(filterByStatus(ALL, "all")).toHaveLength(4);
+    expect(filterByStatus(ALL, "rejected").map((c) => c.id)).toEqual(["r"]);
+  });
+
+  it("hides rejected rules from All but keeps them under Rejected", () => {
+    expect(filterByStatus(ALL, "all").map((c) => c.id)).toEqual(["p", "a", "s"]);
+    expect(filterByStatus(ALL, "pending").map((c) => c.id)).toEqual(["p"]);
   });
 
   it("selects accepted rules not yet in a skill by default; only accepted ones count", () => {

@@ -12,6 +12,7 @@ import { DEFAULT_SKILL_TAB } from "../constants";
 import { filterSkills, skillHref } from "../helpers";
 import { AddSkillMenu } from "../AddSkillMenu";
 import { CreateSkillModal } from "../CreateSkillModal";
+import { DeleteSkillDialog } from "../DeleteSkillDialog";
 import { SkillCard } from "../SkillCard";
 import { SKELETON_COUNT } from "./constants";
 import { s } from "./styles";
@@ -23,12 +24,17 @@ export function SkillsView() {
   const update = useUpdateSkill();
   const [creating, setCreating] = React.useState(false);
   const [query, setQuery] = React.useState("");
+  // An id, not a snapshot: the dialog shows the skill as the cache has it now.
+  const [deletingId, setDeletingId] = React.useState<string | null>(null);
 
   const visible = filterSkills(skills ?? [], query);
+  const deleting = deletingId ? skills?.find((sk) => sk.id === deletingId) : undefined;
+  const closeDelete = () => setDeletingId(null);
 
   return (
     <AppShell crumb={[{ label: t("page.crumbLab") }, { label: t("page.crumbSkills") }]}>
       {creating && <CreateSkillModal onClose={() => setCreating(false)} />}
+      {deleting && <DeleteSkillDialog skill={deleting} onClose={closeDelete} onDeleted={closeDelete} />}
       <div style={s.page}>
         <div style={s.header}>
           <div style={s.headerText}>
@@ -80,6 +86,7 @@ export function SkillsView() {
                   href={href}
                   onSelect={() => router.push(href)}
                   onToggle={(enabled) => update.mutate({ id: skill.id, patch: { enabled } })}
+                  onDelete={() => setDeletingId(skill.id)}
                 />
               );
             })}

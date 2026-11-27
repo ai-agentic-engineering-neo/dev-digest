@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { screen, cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import { makeSkill } from "../fixtures";
 import { fetchCalls, mockFetch, renderWithProviders } from "../test-utils";
 
@@ -66,6 +66,37 @@ describe("SkillsView", () => {
     await waitFor(() =>
       expect(fetchCalls(spy).filter(([m]) => m === "PUT")).toEqual([["PUT", "/skills/sk1", { enabled: false }]]),
     );
+  });
+
+  it("deletes a skill from its card after confirming; Cancel deletes nothing", async () => {
+    let deleted = false;
+    const spy = mockFetch({
+      "GET /skills": () => ({ body: deleted ? [RUBRIC] : [GATE, RUBRIC] }),
+      "GET /skills/sk1/agents": [{ agent_id: "a1", agent_name: "Security Reviewer" }],
+      "DELETE /skills/sk1": () => {
+        deleted = true;
+        return { body: { ok: true } };
+      },
+    });
+    renderWithProviders(<SkillsView />);
+
+    const trash = await screen.findAllByRole("button", { name: "Delete skill" });
+    fireEvent.click(trash[0]!);
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Delete secret-leakage-gate?");
+    expect(nav.push).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(fetchCalls(spy).map(([m]) => m)).not.toContain("DELETE");
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Delete skill" })[0]!);
+    expect(await screen.findByText("Used by 1 agent: Security Reviewer")).toBeInTheDocument();
+    // The dialog's confirm button has the same name as the card buttons: query inside the dialog.
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete skill" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(fetchCalls(spy)).toContainEqual(["DELETE", "/skills/sk1", undefined]);
+    await waitFor(() => expect(screen.queryByText("secret-leakage-gate")).not.toBeInTheDocument());
+    expect(screen.getByText("pr-quality-rubric")).toBeInTheDocument();
   });
 
   it("shows the empty state with a create CTA, and a load error with retry", async () => {

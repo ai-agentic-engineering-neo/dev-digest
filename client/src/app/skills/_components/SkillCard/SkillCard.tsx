@@ -1,5 +1,6 @@
-/* SkillCard — one skill in the grid: type icon · name · enabled toggle ·
-   description · type badge · source · footer `{n} agents · v{version}`. */
+/* SkillCard — one skill in the grid: type icon · name · enabled toggle · delete ·
+   description · type badge · source · footer `{n} agents · v{version}`.
+   Delete only asks the parent to open the confirm dialog (DeleteSkillDialog). */
 "use client";
 
 import React from "react";
@@ -16,11 +17,12 @@ export interface SkillCardProps {
   href: string;
   onSelect: () => void;
   onToggle: (enabled: boolean) => void;
+  onDelete: () => void;
 }
 
 const stop = (e: React.SyntheticEvent) => e.stopPropagation();
 
-export function SkillCard({ skill, href, onSelect, onToggle }: SkillCardProps) {
+export function SkillCard({ skill, href, onSelect, onToggle, onDelete }: SkillCardProps) {
   const t = useTranslations("skills");
   const SourceIcon = Icon[SOURCE_ICON[skill.source]];
   return (
@@ -34,6 +36,18 @@ export function SkillCard({ skill, href, onSelect, onToggle }: SkillCardProps) {
           <span style={s.visuallyHidden}>{t("preview.enabled")}</span>
           <Toggle on={skill.enabled} onChange={onToggle} size={14} />
         </label>
+        <button
+          type="button"
+          onClick={(e) => {
+            stop(e);
+            onDelete();
+          }}
+          title={t("card.delete")}
+          aria-label={t("card.delete")}
+          style={s.deleteBtn}
+        >
+          <Icon.Trash size={14} />
+        </button>
       </div>
       <div style={s.description} title={skill.description}>
         {skill.description}

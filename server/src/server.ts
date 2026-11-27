@@ -6,6 +6,12 @@ async function main() {
   const config = loadConfig();
   const app = await buildApp({ config });
 
+  // Last-resort net: a stray rejection must be visible but must not take the
+  // API (and every in-flight review) down. Deliberately does not exit.
+  process.on('unhandledRejection', (reason) => {
+    app.log.error({ err: reason }, 'unhandled promise rejection');
+  });
+
   // Graceful shutdown: on SIGTERM/SIGINT close the server, which runs the
   // onClose hooks (drains in-flight requests/SSE, closes the postgres pool).
   // Guarded so a second signal during shutdown doesn't double-close.

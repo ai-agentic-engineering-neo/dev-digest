@@ -21,10 +21,21 @@ export interface JobRunnerOptions {
   retries?: number;
 }
 
+export type JobOutcome = { ok: true } | { ok: false; error: Error };
+
+/** Minimal logger shape (satisfied by the Fastify/pino logger). */
+export interface JobLogger {
+  error(obj: object, msg?: string): void;
+}
+
 export interface EnqueuedJob {
   id: string;
-  /** Resolves when the job finishes (or rejects if it ultimately fails). */
-  done: Promise<void>;
+  /**
+   * Resolves when the job finishes. NEVER rejects: a failure is recorded in the
+   * `jobs` row and logged, and surfaces here as `{ ok: false, error }` for a
+   * caller that wants the outcome. Fire-and-forget callers need no `.catch`.
+   */
+  done: Promise<JobOutcome>;
 }
 
 export class JobRunner {
@@ -32,6 +43,7 @@ export class JobRunner {
   private handlers = new Map<string, JobHandler>();
   private timeoutMs: number;
   private retries: number;
+  private log: JobLogger | undefined;
 
   constructor(
     private db: Db,
@@ -40,6 +52,11 @@ export class JobRunner {
     this.queue = new PQueue({ concurrency: opts.concurrency ?? 3 });
     this.timeoutMs = opts.timeoutMs ?? 120_000;
     this.retries = opts.retries ?? 2;
+  }
+
+  /** Late-bound because the container is built before/independently of the app logger. */
+  setLogger(log: JobLogger): void {
+    this.log = log;
   }
 
   register(kind: string, handler: JobHandler): void {
@@ -56,7 +73,7 @@ export class JobRunner {
       .returning({ id: t.jobs.id });
     const jobId = row!.id;
 
-    const done = this.queue.add(async () => {
+    const done: Promise<JobOutcome> = this.queue.add(async (): Promise<JobOutcome> => {
       await this.db
         .update(t.jobs)
         .set({ status: 'running', startedAt: new Date() })
@@ -84,18 +101,22 @@ export class JobRunner {
           .update(t.jobs)
           .set({ status: 'done', finishedAt: new Date() })
           .where(eq(t.jobs.id, jobId));
+        return { ok: true };
       } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        this.log?.error({ jobId, kind, err: error.message }, 'job failed');
         await this.db
           .update(t.jobs)
-          .set({
-            status: 'failed',
-            finishedAt: new Date(),
-            error: (err as Error).message,
-          })
+          .set({ status: 'failed', finishedAt: new Date(), error: error.message })
           .where(eq(t.jobs.id, jobId));
-        throw err;
+        return { ok: false, error };
       }
-    }) as Promise<void>;
+    }).catch((err: unknown): JobOutcome => {
+      // Bookkeeping writes themselves failed (e.g. DB down); still never reject.
+      const error = err instanceof Error ? err : new Error(String(err));
+      this.log?.error({ jobId, kind, err: error.message }, 'job bookkeeping failed');
+      return { ok: false, error };
+    }) as Promise<JobOutcome>;
 
     return { id: jobId, done };
   }

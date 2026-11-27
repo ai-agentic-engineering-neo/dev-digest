@@ -1,4 +1,5 @@
 import type { FindingRecord, Severity } from "@devdigest/shared";
+import { isTextInput } from "../../../../../../../components/app-shell/helpers";
 import { LOW_CONFIDENCE_THRESHOLD, SEVERITY_FILTERS, SEVERITY_ORDER } from "./constants";
 
 export interface FindingFilters {
@@ -28,5 +29,18 @@ export function visibleFindings(findings: FindingRecord[], filters: FindingFilte
   if (filters.severity) shown = shown.filter((f) => f.severity === filters.severity);
   return [...shown].sort(
     (a, b) => (SEVERITY_ORDER[a.severity] ?? 9) - (SEVERITY_ORDER[b.severity] ?? 9),
+  );
+}
+
+/** Whether a keydown must not trigger a findings shortcut: a chord, an auto-repeat,
+ *  typing in a field, or an open dialog. */
+export function shouldIgnoreShortcut(e: KeyboardEvent): boolean {
+  return (
+    e.metaKey ||
+    e.ctrlKey ||
+    e.altKey ||
+    e.repeat ||
+    isTextInput(e.target) ||
+    document.querySelector('[role="dialog"]') !== null
   );
 }

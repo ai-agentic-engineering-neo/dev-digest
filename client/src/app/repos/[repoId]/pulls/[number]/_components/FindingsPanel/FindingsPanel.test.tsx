@@ -4,13 +4,17 @@ import { NextIntlClientProvider } from "next-intl";
 import type { FindingRecord } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/prReview.json";
 
+const mutate = vi.hoisted(() => vi.fn());
 vi.mock("../../../../../../../lib/hooks/reviews", () => ({
-  useFindingAction: () => ({ mutate: vi.fn(), isPending: false }),
+  useFindingAction: () => ({ mutate, isPending: false }),
 }));
 
 import { FindingsPanel } from "./FindingsPanel";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  mutate.mockClear();
+});
 
 const FINDINGS: FindingRecord[] = [
   {
@@ -103,5 +107,51 @@ describe("FindingsPanel severity filter", () => {
     fireEvent.click(screen.getByRole("switch"));
     expect(screen.getByText("No findings match")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "0 WARNING" })).toBeEnabled();
+  });
+});
+
+describe("FindingsPanel shortcuts", () => {
+  it("accepts the focused finding on a plain `a`", () => {
+    renderWithIntl(<FindingsPanel findings={MIXED} prId="pr1" />);
+    fireEvent.keyDown(window, { key: "a" });
+    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate).toHaveBeenCalledWith({ findingId: "c1", action: "accept", prId: "pr1" });
+  });
+
+  it("ignores Cmd/Ctrl/Alt chords, key repeat and an open dialog", () => {
+    renderWithIntl(<FindingsPanel findings={MIXED} prId="pr1" />);
+    fireEvent.keyDown(window, { key: "a", metaKey: true });
+    fireEvent.keyDown(window, { key: "a", ctrlKey: true });
+    fireEvent.keyDown(window, { key: "d", altKey: true });
+    fireEvent.keyDown(window, { key: "a", repeat: true });
+    const dialog = document.body.appendChild(document.createElement("div"));
+    dialog.setAttribute("role", "dialog");
+    fireEvent.keyDown(window, { key: "a" });
+    dialog.remove();
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
+  it("ignores keys typed into a text field", () => {
+    renderWithIntl(
+      <>
+        <input aria-label="note" />
+        <FindingsPanel findings={MIXED} prId="pr1" />
+      </>,
+    );
+    fireEvent.keyDown(screen.getByLabelText("note"), { key: "a" });
+    expect(mutate).not.toHaveBeenCalled();
+  });
+
+  it("with two panels mounted, one `a` press triggers one mutation, from the panel last touched", () => {
+    renderWithIntl(
+      <>
+        <FindingsPanel findings={[finding("x1", "WARNING", 0.9)]} prId="pr1" />
+        <FindingsPanel findings={[finding("y1", "WARNING", 0.9)]} prId="pr1" />
+      </>,
+    );
+    fireEvent.pointerDown(screen.getByText("WARNING y1"));
+    fireEvent.keyDown(window, { key: "a" });
+    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate).toHaveBeenCalledWith({ findingId: "y1", action: "accept", prId: "pr1" });
   });
 });

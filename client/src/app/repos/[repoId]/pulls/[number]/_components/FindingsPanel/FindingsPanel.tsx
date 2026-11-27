@@ -5,13 +5,13 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Toggle, EmptyState } from "@devdigest/ui";
-import type { FindingRecord, Severity } from "@devdigest/shared";
+import type { FindingActionKind, FindingRecord, Severity } from "@devdigest/shared";
 import { FindingCard } from "../FindingCard";
 import { SeverityFilter } from "../SeverityFilter";
 import { useFindingAction } from "../../../../../../../lib/hooks/reviews";
-import { KEY_TO_ACTION } from "./constants";
 import { confidentFindings, countBySeverity, visibleFindings } from "./helpers";
 import { s } from "./styles";
+import { useFindingShortcuts } from "./useFindingShortcuts";
 
 export function FindingsPanel({
   findings,
@@ -44,23 +44,21 @@ export function FindingsPanel({
   // A changed filter changes the list, so keyboard focus returns to its first card.
   React.useEffect(() => setFocusIdx(0), [hideLow, severity]);
 
-  // j/k navigation + a/d shortcuts on the focused finding (keyboard).
-  React.useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
-      if (e.key === "j") setFocusIdx((i) => Math.min(i + 1, shown.length - 1));
-      else if (e.key === "k") setFocusIdx((i) => Math.max(i - 1, 0));
-      else if (KEY_TO_ACTION[e.key] && shown[focusIdx]) {
-        action.mutate({ findingId: shown[focusIdx]!.id, action: KEY_TO_ACTION[e.key]!, prId });
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [shown, focusIdx, action, prId]);
+  const { mutate } = action;
+  const act = React.useCallback(
+    (findingId: string, kind: FindingActionKind) => mutate({ findingId, action: kind, prId }),
+    [mutate, prId],
+  );
+  const shortcutProps = useFindingShortcuts({
+    shown,
+    focusIdx,
+    setFocusIdx,
+    pending: action.isPending,
+    act,
+  });
 
   return (
-    <div>
+    <div {...shortcutProps}>
       <div style={s.toolbar}>
         <SeverityFilter counts={counts} active={severity} onChange={setSeverity} />
         <div style={s.toggleGroup}>
@@ -82,7 +80,7 @@ export function FindingsPanel({
               pending={action.isPending}
               repoFullName={repoFullName}
               headSha={headSha}
-              onAction={(act) => action.mutate({ findingId: f.id, action: act, prId })}
+              onAction={(kind) => act(f.id, kind)}
             />
           ))
         )}

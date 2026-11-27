@@ -55,6 +55,8 @@ jobs:
         working-directory: .
         run: diff -r server/src/vendor/shared client/src/vendor/shared
 
+      - run: pnpm lint
+
       - run: pnpm typecheck
 
       - run: pnpm test

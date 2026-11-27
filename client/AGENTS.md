@@ -8,6 +8,7 @@ project overview in [../README.md](../README.md); UI route map in
 
 ```sh
 pnpm dev          # web on :3000, expects the API on :3001
+pnpm lint         # eslint 9 flat config; src/vendor ignored
 pnpm typecheck
 pnpm test         # vitest + jsdom, fetch mocked, no API needed
 pnpm build

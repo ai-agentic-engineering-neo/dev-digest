@@ -143,7 +143,6 @@ export function useFindingAction() {
       findingId,
       action,
       reply,
-      prId: _prId,
     }: {
       findingId: string;
       action: FindingActionKind;

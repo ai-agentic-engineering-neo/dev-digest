@@ -4,6 +4,7 @@ export const s = {
   wrap: { maxWidth: 860 } satisfies CSSProperties,
   h2: { fontSize: 18, fontWeight: 700 } satisfies CSSProperties,
   subtitle: { fontSize: 13, color: "var(--text-secondary)", margin: "4px 0 16px" } satisfies CSSProperties,
+  highlight: { marginBottom: 16 } satisfies CSSProperties,
   card: {
     border: "1px solid var(--border)",
     borderRadius: 10,

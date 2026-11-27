@@ -6,10 +6,13 @@ export function Checkbox({
   checked,
   onChange,
   label,
+  disabled,
 }: {
   checked: boolean;
   onChange?: (v: boolean) => void;
   label?: React.ReactNode;
+  /** Locked: no click, dimmed, `not-allowed` cursor. */
+  disabled?: boolean;
 }) {
   return (
     <label
@@ -19,15 +22,18 @@ export function Checkbox({
         gap: 10,
         fontSize: 14,
         color: "var(--text-secondary)",
-        cursor: "pointer",
+        cursor: disabled ? "not-allowed" : "pointer",
       }}
     >
       <button
         type="button"
         role="checkbox"
         aria-checked={checked}
+        disabled={disabled}
         onClick={() => onChange?.(!checked)}
         style={{
+          cursor: disabled ? "not-allowed" : "pointer",
+          opacity: disabled ? 0.45 : 1,
           width: 16,
           height: 16,
           borderRadius: 4,

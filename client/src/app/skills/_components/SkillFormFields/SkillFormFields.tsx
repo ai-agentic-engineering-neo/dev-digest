@@ -20,9 +20,18 @@ export interface SkillFormFieldsProps {
   /** Hint under the body (e.g. "Saving a changed body creates a new version"). */
   bodyHint?: string;
   bodyRows?: number;
+  /** The body failed the injection scan: red outline around the editor. */
+  bodyFlagged?: boolean;
 }
 
-export function SkillFormFields({ values, errors, onChange, bodyHint, bodyRows = 12 }: SkillFormFieldsProps) {
+export function SkillFormFields({
+  values,
+  errors,
+  onChange,
+  bodyHint,
+  bodyRows = 12,
+  bodyFlagged = false,
+}: SkillFormFieldsProps) {
   const t = useTranslations("skills");
   const typeOptions = SKILL_TYPES.map((type) => ({ value: type, label: t(`listItem.type.${type}`) }));
   return (
@@ -67,13 +76,15 @@ export function SkillFormFields({ values, errors, onChange, bodyHint, bodyRows =
           </span>
         }
       >
-        <Textarea
-          value={values.body}
-          onChange={(v) => onChange("body", v)}
-          placeholder={t("form.bodyPlaceholder")}
-          rows={bodyRows}
-          mono
-        />
+        <div style={s.bodyFrame(bodyFlagged)} data-flagged={bodyFlagged || undefined}>
+          <Textarea
+            value={values.body}
+            onChange={(v) => onChange("body", v)}
+            placeholder={t("form.bodyPlaceholder")}
+            rows={bodyRows}
+            mono
+          />
+        </div>
         <FieldErrorText id="skill-body-error" error={errors.body} />
       </FormField>
     </>

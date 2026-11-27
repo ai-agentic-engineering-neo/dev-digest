@@ -7,4 +7,5 @@ export const SOURCE_ICON: Record<SkillSource, IconName> = {
   extracted: "Code",
   community: "Users",
   imported_url: "Link",
+  imported_file: "Upload",
 };

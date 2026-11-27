@@ -43,13 +43,13 @@ function open(enabled = false) {
 }
 
 const row = (name: string) => screen.getByRole("listitem", { name });
-const choice = (name: string, option: "Accept" | "Reject") =>
-  within(within(row(name)).getByRole("radiogroup")).getByRole("radio", { name: option });
+const button = (name: string, label: "Accept" | "Reject" | "Linking…") =>
+  within(row(name)).getByRole("button", { name: label });
 const posts = (spy: ReturnType<typeof mockFetch>) =>
   fetchCalls(spy).filter(([m]) => m === "POST").map(([, path, body]) => [path, body]);
 
 describe("AgentSuggestionsDialog", () => {
-  it("lists agents with readable reasons; high scores start on Accept; notes a disabled skill", async () => {
+  it("lists agents with readable reasons, a Recommended badge for high scores, and a note for a disabled skill", async () => {
     mockFetch({ [SUGGEST]: [API, SEC, PERF] });
     open(false);
 
@@ -59,14 +59,23 @@ describe("AgentSuggestionsDialog", () => {
     expect(within(row("API Contract Reviewer")).getByText("shared words: api, schema")).toBeInTheDocument();
     expect(within(row("API Contract Reviewer")).getByText("fit 70%")).toBeInTheDocument();
     expect(within(row("Security Reviewer")).getByText("already uses 2 convention skills")).toBeInTheDocument();
-
-    expect(choice("API Contract Reviewer", "Accept")).toHaveAttribute("aria-checked", "true");
-    expect(choice("Security Reviewer", "Accept")).toHaveAttribute("aria-checked", "true");
-    expect(choice("Performance Reviewer", "Reject")).toHaveAttribute("aria-checked", "true");
-    expect(screen.getByRole("button", { name: "Link to 2 agents" })).toBeEnabled();
+    expect(within(row("API Contract Reviewer")).getByText("Recommended")).toBeInTheDocument();
+    expect(within(row("Performance Reviewer")).queryByText("Recommended")).not.toBeInTheDocument();
   });
 
-  it("writes nothing until confirm, then links only the accepted agents and closes", async () => {
+  it("Reject removes the agent from the list and writes nothing", async () => {
+    const spy = mockFetch({ [SUGGEST]: [API, SEC] });
+    const onClose = open(true);
+    await screen.findByRole("dialog");
+
+    fireEvent.click(button("Security Reviewer", "Reject"));
+    expect(screen.queryByRole("listitem", { name: "Security Reviewer" })).not.toBeInTheDocument();
+    expect(row("API Contract Reviewer")).toBeInTheDocument();
+    expect(posts(spy)).toEqual([]);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("Accept links that agent at once and marks the row Linked; the last decision closes the dialog with a toast", async () => {
     const spy = mockFetch({
       [SUGGEST]: [API, SEC, PERF],
       "POST /agents/a1/skills": [{ agent_id: "a1", skill_id: "sk1", order: 0 }],
@@ -74,14 +83,16 @@ describe("AgentSuggestionsDialog", () => {
     });
     const onClose = open(true);
     await screen.findByRole("dialog");
-    expect(screen.queryByText(/Skill is disabled/)).not.toBeInTheDocument();
 
-    fireEvent.click(choice("Security Reviewer", "Reject"));
-    fireEvent.click(choice("Performance Reviewer", "Accept"));
-    expect(posts(spy)).toEqual([]);
+    fireEvent.click(button("API Contract Reviewer", "Accept"));
+    expect(await within(row("API Contract Reviewer")).findByText("Linked")).toBeInTheDocument();
+    expect(within(row("API Contract Reviewer")).queryByRole("button", { name: "Accept" })).not.toBeInTheDocument();
+    expect(posts(spy)).toEqual([["/agents/a1/skills", { skill_id: "sk1" }]]);
+    expect(onClose).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Link to 2 agents" }));
-    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    fireEvent.click(button("Security Reviewer", "Reject"));
+    fireEvent.click(button("Performance Reviewer", "Accept"));
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
     expect(posts(spy)).toEqual([
       ["/agents/a1/skills", { skill_id: "sk1" }],
       ["/agents/a3/skills", { skill_id: "sk1" }],
@@ -89,40 +100,46 @@ describe("AgentSuggestionsDialog", () => {
     expect(await screen.findByText("Linked to 2 agents")).toBeInTheDocument();
   });
 
-  it("a failed link keeps the dialog: linked rows lock, Retry failed re-sends only the failed agent", async () => {
-    let secFails = true;
-    let linkedA1 = false;
-    const spy = mockFetch({
-      // Like the server: an agent that has the skill is no longer suggested.
-      [SUGGEST]: () => ({ body: linkedA1 ? [SEC] : [API, SEC] }),
-      "POST /agents/a1/skills": () => {
-        linkedA1 = true;
-        return { body: [] };
-      },
-      "POST /agents/a2/skills": () =>
-        secFails ? { status: 500, body: { error: { code: "boom", message: "down" } } } : { body: [] },
-    });
+  it("rejecting every agent closes the dialog without a toast", async () => {
+    const spy = mockFetch({ [SUGGEST]: [API, SEC] });
     const onClose = open(true);
-    fireEvent.click(await screen.findByRole("button", { name: "Link to 2 agents" }));
-
-    expect(await within(row("API Contract Reviewer")).findByText("Linked")).toBeInTheDocument();
-    expect(within(row("API Contract Reviewer")).queryByRole("radiogroup")).not.toBeInTheDocument();
-    expect(within(row("Security Reviewer")).getByText("Could not link")).toBeInTheDocument();
-    expect(onClose).not.toHaveBeenCalled();
-
-    secFails = false;
-    fireEvent.click(screen.getByRole("button", { name: "Retry failed (1)" }));
-    await waitFor(() => expect(onClose).toHaveBeenCalled());
-    expect(posts(spy).map(([path]) => path)).toEqual(["/agents/a1/skills", "/agents/a2/skills", "/agents/a2/skills"]);
-    expect(await screen.findByText("Linked to 2 agents")).toBeInTheDocument();
+    await screen.findByRole("dialog");
+    fireEvent.click(button("API Contract Reviewer", "Reject"));
+    fireEvent.click(button("Security Reviewer", "Reject"));
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText(/Linked to/)).not.toBeInTheDocument();
+    expect(posts(spy)).toEqual([]);
   });
 
-  it("Skip closes without writing", async () => {
-    const spy = mockFetch({ [SUGGEST]: [API] });
+  it("a failed link keeps the row with 'Could not link'; Accept again retries only that agent", async () => {
+    let fails = true;
+    const spy = mockFetch({
+      [SUGGEST]: [API, SEC],
+      "POST /agents/a2/skills": () =>
+        fails ? { status: 500, body: { error: { code: "boom", message: "down" } } } : { body: [] },
+    });
     const onClose = open(true);
-    fireEvent.click(await screen.findByRole("button", { name: "Skip" }));
-    expect(onClose).toHaveBeenCalled();
-    expect(posts(spy)).toEqual([]);
+    await screen.findByRole("dialog");
+
+    fireEvent.click(button("Security Reviewer", "Accept"));
+    expect(await within(row("Security Reviewer")).findByText("Could not link")).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+
+    fails = false;
+    fireEvent.click(button("Security Reviewer", "Accept"));
+    expect(await within(row("Security Reviewer")).findByText("Linked")).toBeInTheDocument();
+    expect(posts(spy).map(([path]) => path)).toEqual(["/agents/a2/skills", "/agents/a2/skills"]);
+  });
+
+  it("Done closes it; a toast says how many were linked", async () => {
+    mockFetch({ [SUGGEST]: [API, SEC], "POST /agents/a1/skills": [] });
+    const onClose = open(true);
+    await screen.findByRole("dialog");
+    fireEvent.click(button("API Contract Reviewer", "Accept"));
+    await within(row("API Contract Reviewer")).findByText("Linked");
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText("Linked to 1 agent")).toBeInTheDocument();
   });
 
   it("no agent fits → renders nothing and closes itself once (suggest leaves the URL)", async () => {
@@ -139,18 +156,17 @@ describe("AgentSuggestionsDialog", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("X and the backdrop close it without writing", async () => {
+  it("X and the backdrop close it without writing (once)", async () => {
     const spy = mockFetch({ [SUGGEST]: [API] });
     const onClose = open(true);
     fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Close" }));
-    expect(onClose).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole("dialog").previousElementSibling!);
-    expect(onClose).toHaveBeenCalledTimes(2);
+    expect(onClose).toHaveBeenCalledTimes(1);
     expect(posts(spy)).toEqual([]);
   });
 
-  it("while links are in flight nothing closes it and the choices are locked; after success it cannot link twice", async () => {
-    const spy = mockFetch({ [SUGGEST]: [API], "POST /agents/a1/skills": [] });
+  it("while a link is in flight the row is locked and nothing closes the dialog; a second Accept sends nothing", async () => {
+    const spy = mockFetch({ [SUGGEST]: [API, SEC], "POST /agents/a1/skills": [] });
     // Hold the POST until the test releases it.
     let release!: () => void;
     const gate = new Promise<void>((r) => (release = r));
@@ -159,22 +175,18 @@ describe("AgentSuggestionsDialog", () => {
       return spy(url, init);
     });
     const onClose = open(true);
-    fireEvent.click(await screen.findByRole("button", { name: "Link to 1 agent" }));
+    await screen.findByRole("dialog");
+    fireEvent.click(button("API Contract Reviewer", "Accept"));
 
-    expect(await screen.findByRole("button", { name: "Linking…" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Skip" })).toBeDisabled();
-    expect(choice("API Contract Reviewer", "Reject")).toBeDisabled();
+    expect(await within(row("API Contract Reviewer")).findByRole("button", { name: "Linking…" })).toBeDisabled();
+    expect(button("API Contract Reviewer", "Reject")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Done" })).toBeDisabled();
     fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Close" }));
     fireEvent.click(screen.getByRole("dialog").previousElementSibling!);
     expect(onClose).not.toHaveBeenCalled();
 
     release();
-    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
-    // The parent has not unmounted it yet (router.replace is async): the row is locked, nothing left to link.
-    expect(within(row("API Contract Reviewer")).getByText("Linked")).toBeInTheDocument();
-    const again = screen.getByRole("button", { name: "Nothing to link" });
-    expect(again).toBeDisabled();
-    fireEvent.click(again);
+    expect(await within(row("API Contract Reviewer")).findByText("Linked")).toBeInTheDocument();
     expect(posts(spy)).toEqual([["/agents/a1/skills", { skill_id: "sk1" }]]);
   });
 });

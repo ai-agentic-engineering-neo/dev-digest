@@ -154,6 +154,16 @@ actionable cold.
 **Rule:** NEVER plan a task step that relies on importing a skill — because there is no import path; create the skill via `POST /skills` (Create from scratch), or build the import feature first.
 **Evidence:** `client/src/app/skills/_components/AddSkillMenu/constants.ts` → `IMPORT_ITEMS` | `server/src/vendor/shared/contracts/knowledge.ts` → `SkillSource` | `server/src/modules/skills/routes.ts`
 
+### 2026-11-27 — Do the SSRF IP check inside the https socket lookup
+**Insight:** Validating a URL's resolved IP and then calling `fetch` resolves DNS twice, so a rebinding host can pass the check and connect to 169.254.169.254; `SafeHttpTextFetcher` passes its own `lookup` to `node:https.request`, so the address that is checked is the address that is connected, and every redirect hop goes through `assertImportableUrl()` again.
+**Rule:** ALWAYS route user-supplied outbound URLs through `container.textFetcher` (or the same lookup-hook pattern) — because a pre-flight `dns.lookup` + global `fetch` leaves a TOCTOU gap and follows redirects unchecked.
+**Evidence:** `server/src/adapters/http/safe-fetch.ts` → `publicOnlyLookup`, `isPrivateAddress()`, `SafeHttpTextFetcher.fetchText()` | test `skills-import.test.ts` "safe-fetch — SSRF rules"
+
+### 2026-11-27 — The skill injection scanner lives in reviewer-core
+**Insight:** skills (write + enable gate), agents (link gate) and reviews (`loadPromptSkills` filter) all need `scanSkillBody()`; a module-local copy would force a cross-module import, so it sits in `reviewer-core/src/skill-safety.ts` and is exported through its `index.ts`. A flagged write switches the skill off in `SkillsRepository` (under the row lock), so conventions create/merge get the same rule.
+**Rule:** ALWAYS bump `SKILL_SCANNER_VERSION` when a rule changes — because `effectiveSkillSafety()` trusts a stored `skills.safety` only for the current version and rescans older ones on read.
+**Evidence:** `reviewer-core/src/skill-safety.ts` → `scanSkillBody()`, `effectiveSkillSafety()` | `server/src/modules/skills/repository.ts` → `insert()`, `update()`, `restore()` | `agents/service.ts` → `assertNotFlagged()`
+
 ## Tool & Library Notes
 
 ### 2026-11-25 — Keep dependency-cruiser rule regexes flat and unanchored for pnpm
@@ -176,6 +186,11 @@ actionable cold.
 **Rule:** ALWAYS keep the it-test asserting `PUT {}` leaves fields untouched when upgrading zod — because patch semantics depend on this zod 3 behaviour.
 **Evidence:** `server/src/vendor/shared/contracts/knowledge.ts` → `UpdateSkillInput` | test `skills.it.test.ts`
 
+### 2026-11-27 — A new value in a Drizzle text enum needs no migration
+**Insight:** `skills.source` is `text('source', { enum: [...] })`: the enum is TypeScript-only, there is no CHECK constraint, so adding `imported_file` made `pnpm db:generate` print "No schema changes"; only the Zod `SkillSource` contracts (both copies) gate the value.
+**Rule:** ALWAYS add a new source / type value to the schema enum AND both `vendor/shared` contracts, and do not expect a migration — because the DB accepts any text and only the contract rejects unknown values.
+**Evidence:** `server/src/db/schema/skills.ts` → `source` | `vendor/shared/contracts/knowledge.ts` → `SkillSource` | `pnpm db:generate`
+
 ## Recurring Errors & Fixes
 
 ## Session Notes
@@ -195,6 +210,8 @@ actionable cold.
 - 2026-11-26 — Conventions Extractor stage 3 server (GET /skills/:id/agent-suggestions, read-only port, code-only scoring): 333 tests green; see "Agent suggestions score in skills/helpers; CATEGORY_KEYWORDS overlap ordinary words"
 
 - 2026-11-27 — Final phase (API Contract Reviewer experiment on CookBook_fool#22, pr-self-review PASS, PR description): done; see "Skill rules copied into the agent system prompt hide the skills' effect"
+
+- 2026-11-27 — Skills safety + import (migration 0013 `skills.safety`, rule scanner in reviewer-core, 422 skill_flagged on enable/link, POST /skills/scan, SSRF-safe POST /skills/import-url, source imported_file/url stored disabled): server 399 green; see "Do the SSRF IP check inside the https socket lookup"
 
 ## Open Questions
 

@@ -28,6 +28,16 @@ export class ValidationError extends AppError {
   }
 }
 
+/**
+ * 422 — the skill's body failed the prompt-injection scan, so it may not be
+ * enabled or linked to an agent until it is fixed. Thrown by skills + agents.
+ */
+export class SkillFlaggedError extends AppError {
+  constructor(message: string, details?: unknown) {
+    super('skill_flagged', message, 422, details);
+  }
+}
+
 export class ExternalServiceError extends AppError {
   constructor(message: string, details?: unknown) {
     super('external_service_error', message, 502, details);

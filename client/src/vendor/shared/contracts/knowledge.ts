@@ -115,8 +115,46 @@ export type MemoryItem = z.infer<typeof MemoryItem>;
 export const SkillType = z.enum(['rubric', 'convention', 'security', 'custom']);
 export type SkillType = z.infer<typeof SkillType>;
 
-export const SkillSource = z.enum(['manual', 'imported_url', 'extracted', 'community']);
+export const SkillSource = z.enum(['manual', 'imported_url', 'imported_file', 'extracted', 'community']);
 export type SkillSource = z.infer<typeof SkillSource>;
+
+// Prompt-injection scan of a skill body (rules only, no LLM). A `block` finding
+// flags the skill: it cannot be enabled or linked to an agent until fixed.
+export const SkillSafetyRule = z.enum([
+  'override-instructions',
+  'role-spoofing',
+  'delimiter-escape',
+  'suppress-findings',
+  'exfiltration',
+  'hidden-text',
+  'encoded-payload',
+]);
+export type SkillSafetyRule = z.infer<typeof SkillSafetyRule>;
+
+export const SkillSafetySeverity = z.enum(['block', 'warn']);
+export type SkillSafetySeverity = z.infer<typeof SkillSafetySeverity>;
+
+export const SkillSafetyFinding = z.object({
+  rule: SkillSafetyRule,
+  severity: SkillSafetySeverity,
+  // 1-based line of `start`; `start`/`end` are char offsets into the body (highlight).
+  line: z.number().int(),
+  start: z.number().int(),
+  end: z.number().int(),
+  excerpt: z.string(),
+});
+export type SkillSafetyFinding = z.infer<typeof SkillSafetyFinding>;
+
+export const SkillSafetyStatus = z.enum(['clean', 'flagged']);
+export type SkillSafetyStatus = z.infer<typeof SkillSafetyStatus>;
+
+export const SkillSafety = z.object({
+  status: SkillSafetyStatus,
+  findings: z.array(SkillSafetyFinding),
+  scanner_version: z.number().int(),
+  scanned_at: z.string(),
+});
+export type SkillSafety = z.infer<typeof SkillSafety>;
 
 export const Skill = z.object({
   id: z.string(),
@@ -132,6 +170,8 @@ export const Skill = z.object({
   updated_at: z.string(),
   // Number of agents the skill is attached to (card footer); filled on list + get.
   agent_count: z.number().int(),
+  // Injection scan of the current body; always set by the server.
+  safety: SkillSafety.optional(),
 });
 export type Skill = z.infer<typeof Skill>;
 
@@ -147,20 +187,49 @@ export type SkillName = z.infer<typeof SkillName>;
 export const SkillBody = z.string().min(1).max(20_000);
 export type SkillBody = z.infer<typeof SkillBody>;
 
-export const CreateSkillInput = z.object({
+// How a create came in: an import is stored disabled (vet it first).
+export const ImportedSkillSource = z.enum(['imported_file', 'imported_url']);
+export type ImportedSkillSource = z.infer<typeof ImportedSkillSource>;
+
+const SkillFields = z.object({
   name: SkillName,
   description: z.string().max(200).default(''),
   type: SkillType.default('custom'),
   body: SkillBody,
   enabled: z.boolean().default(true),
 });
+
+export const CreateSkillInput = SkillFields.extend({
+  // Omitted = typed in ("manual"). Set by the import tabs of the Add skill dialog.
+  source: ImportedSkillSource.optional(),
+});
 export type CreateSkillInput = z.infer<typeof CreateSkillInput>;
 
-export const UpdateSkillInput = CreateSkillInput.partial().extend({
+export const UpdateSkillInput = SkillFields.partial().extend({
   // Version message; used only when the body changes.
   message: z.string().max(120).optional(),
 });
 export type UpdateSkillInput = z.infer<typeof UpdateSkillInput>;
+
+// POST /skills/import-url — fetch a Markdown skill server-side (https only,
+// public hosts, size-capped) and return a DRAFT; nothing is saved.
+export const ImportSkillUrlInput = z.object({ url: z.string().url().max(2048) });
+export type ImportSkillUrlInput = z.infer<typeof ImportSkillUrlInput>;
+
+export const ImportedSkillDraft = z.object({
+  name: z.string(),
+  description: z.string(),
+  type: SkillType,
+  body: z.string(),
+  // The URL actually fetched (after a GitHub blob → raw rewrite and redirects).
+  source_url: z.string(),
+  safety: SkillSafety,
+});
+export type ImportedSkillDraft = z.infer<typeof ImportedSkillDraft>;
+
+// POST /skills/scan — scan a body before saving it (writes nothing).
+export const ScanSkillInput = z.object({ body: SkillBody });
+export type ScanSkillInput = z.infer<typeof ScanSkillInput>;
 
 export const SkillVersion = z.object({
   skill_id: z.string(),

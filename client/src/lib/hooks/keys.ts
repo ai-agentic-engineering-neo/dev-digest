@@ -30,6 +30,8 @@ export const queryKeys = {
   skillStats: (skillId: Id) => ["skill-stats", skillId] as const,
   skillVersions: (skillId: Id) => ["skill-versions", skillId] as const,
   agentSuggestions: (skillId: Id) => ["agent-suggestions", skillId] as const,
+  /** Injection scan of a draft body (POST /skills/scan, keyed by the text itself). */
+  skillScan: (body: string) => ["skill-scan", body] as const,
 
   /** Prefix: every repo's conventions page (its "in skill" badges name skills). */
   conventionsAll: () => ["conventions"] as const,

@@ -9,6 +9,7 @@ import { useTranslations } from "next-intl";
 import { Icon, Toggle } from "@devdigest/ui";
 import type { Skill } from "@devdigest/shared";
 import { SkillTypeBadge, SkillTypeIcon } from "../SkillTypeBadge";
+import { SafetyBadge, isFlagged } from "../SkillSafety";
 import { SOURCE_ICON } from "./constants";
 import { s } from "./styles";
 
@@ -25,8 +26,9 @@ const stop = (e: React.SyntheticEvent) => e.stopPropagation();
 export function SkillCard({ skill, href, onSelect, onToggle, onDelete }: SkillCardProps) {
   const t = useTranslations("skills");
   const SourceIcon = Icon[SOURCE_ICON[skill.source]];
+  const flagged = isFlagged(skill);
   return (
-    <article onClick={onSelect} style={s.card(skill.enabled)}>
+    <article onClick={onSelect} style={s.card(skill.enabled, flagged)} data-flagged={flagged || undefined}>
       <div style={s.headerRow}>
         <SkillTypeIcon type={skill.type} />
         <Link href={href} onClick={stop} className="mono" style={s.name}>
@@ -34,7 +36,13 @@ export function SkillCard({ skill, href, onSelect, onToggle, onDelete }: SkillCa
         </Link>
         <label onClick={stop}>
           <span style={s.visuallyHidden}>{t("preview.enabled")}</span>
-          <Toggle on={skill.enabled} onChange={onToggle} size={14} />
+          <Toggle
+            on={skill.enabled}
+            onChange={onToggle}
+            size={14}
+            disabled={flagged}
+            title={flagged ? t("safety.toggleLocked") : undefined}
+          />
         </label>
         <button
           type="button"
@@ -54,6 +62,7 @@ export function SkillCard({ skill, href, onSelect, onToggle, onDelete }: SkillCa
       </div>
       <div style={s.metaRow}>
         <SkillTypeBadge type={skill.type} />
+        {flagged && <SafetyBadge />}
         <span style={s.source}>
           <SourceIcon size={12} />
           {t(`listItem.source.${skill.source}`)}

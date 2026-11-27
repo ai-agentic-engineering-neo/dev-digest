@@ -19,22 +19,24 @@ function renderMenu() {
 const openMenu = () => fireEvent.click(screen.getByRole("button", { name: "Add Skill" }));
 
 describe("AddSkillMenu", () => {
-  it("lists the import entries as disabled 'soon' items", () => {
+  it.each([
+    ["Create from scratch", "create"],
+    ["Import from file", "file"],
+    ["Import from URL", "url"],
+  ])("'%s' opens the dialog on the %s tab", (name, tab) => {
     const onCreate = renderMenu();
     openMenu();
-    for (const name of ["Import from file", "Import from URL", "Search community skills…"]) {
-      const item = screen.getByRole("button", { name: new RegExp(name) });
-      expect(item).toHaveTextContent("soon");
-      expect(item).toBeDisabled();
-    }
-    fireEvent.click(screen.getByRole("button", { name: /Import from file/ }));
-    expect(onCreate).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(name) }));
+    expect(onCreate).toHaveBeenCalledWith(tab);
   });
 
-  it("opens the create flow from 'Create from scratch'", () => {
+  it("community search is still a disabled 'soon' item", () => {
     const onCreate = renderMenu();
     openMenu();
-    fireEvent.click(screen.getByRole("button", { name: "Create from scratch" }));
-    expect(onCreate).toHaveBeenCalledTimes(1);
+    const item = screen.getByRole("button", { name: /Search community skills…/ });
+    expect(item).toHaveTextContent("soon");
+    expect(item).toBeDisabled();
+    fireEvent.click(item);
+    expect(onCreate).not.toHaveBeenCalled();
   });
 });

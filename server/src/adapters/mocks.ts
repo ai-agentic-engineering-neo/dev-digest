@@ -33,6 +33,8 @@ import type {
   SecretKey,
 } from '@devdigest/shared';
 import { parseUnifiedDiff } from './git/diff-parser.js';
+import { ValidationError } from '../platform/errors.js';
+import type { FetchedText, RemoteTextFetcher } from '../modules/skills/ports.js';
 
 /**
  * Deterministic MOCK adapters for tests/dev — NO real network. Each mirrors the
@@ -319,6 +321,22 @@ export class MockAuthProvider implements AuthProvider {
   }
   async currentWorkspace(): Promise<AuthWorkspace> {
     return this.workspace;
+  }
+}
+
+/**
+ * "Import skill from URL" fetcher with no network: answers from a URL → text
+ * table, or throws the error mapped to a URL (to test refusals).
+ */
+export class MockTextFetcher implements RemoteTextFetcher {
+  readonly calls: string[] = [];
+  constructor(private readonly table: Record<string, string | Error> = {}) {}
+  async fetchText(url: string): Promise<FetchedText> {
+    this.calls.push(url);
+    const hit = this.table[url];
+    if (hit === undefined) throw new ValidationError(`The URL answered HTTP 404`);
+    if (hit instanceof Error) throw hit;
+    return { url, text: hit };
   }
 }
 

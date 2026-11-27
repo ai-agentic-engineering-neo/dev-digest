@@ -4,13 +4,18 @@ import type {
   ConventionCategory,
   Skill,
   SkillAgentActivity,
+  SkillSafety,
   SkillSource,
   SkillType,
   SkillVersion,
 } from '@devdigest/shared';
+import { effectiveSkillSafety } from '@devdigest/reviewer-core';
 import {
   CATEGORY_KEYWORDS,
   EDITED_BODY_MESSAGE,
+  IMPORT_DESCRIPTION_MAX,
+  IMPORT_FALLBACK_NAME,
+  IMPORT_NAME_MAX,
   INITIAL_VERSION_MESSAGE,
   KEYWORD_SATURATION,
   MAX_AGENT_SUGGESTIONS,
@@ -43,6 +48,8 @@ export interface SkillRecord {
   enabled: boolean;
   version: number;
   evidenceFiles: string[] | null;
+  /** Stored injection scan; NULL / outdated → scanned from `body` here. */
+  safety?: SkillSafety | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -70,6 +77,7 @@ export function toSkillDto(row: SkillRecord, agentCount: number): Skill {
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
     agent_count: agentCount,
+    safety: effectiveSkillSafety(row.safety, row.body, row.updatedAt.toISOString()),
   };
 }
 
@@ -290,4 +298,51 @@ export function rankAgentSuggestions(
       preselected: s.score >= PRESELECT_THRESHOLD,
       reasons: s.reasons,
     }));
+}
+
+// ---- Import (file / URL) ----------------------------------------------------
+
+/** Kebab-case slug for the `SkillName` contract (a–z, 0–9, single dashes, ≤ 64). */
+export function toSkillSlug(text: string): string {
+  return text
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, IMPORT_NAME_MAX)
+    .replace(/-+$/g, '');
+}
+
+/** Body as stored: BOM dropped, CRLF → LF, trailing whitespace trimmed. */
+export function normalizeImportedBody(text: string): string {
+  return text.replace(/^﻿/, '').replace(/\r\n?/g, '\n').trimEnd();
+}
+
+/**
+ * Draft fields from a Markdown file: name = the first `# heading` (else the
+ * file name), description = the first plain paragraph (capped), type `custom`.
+ */
+export function draftFromMarkdown(
+  body: string,
+  fallbackName: string,
+): { name: string; description: string; type: 'custom' } {
+  const lines = body.split('\n');
+  const heading = lines.find((l) => /^#{1,6}\s+\S/.test(l))?.replace(/^#{1,6}\s+/, '') ?? '';
+  const name = toSkillSlug(heading) || toSkillSlug(fallbackName) || IMPORT_FALLBACK_NAME;
+  const paragraph = lines
+    .map((l) => l.trim())
+    .find((l) => l.length > 0 && !/^(#|```|~~~|[-*+>|]|\d+\.)/.test(l));
+  const description = (paragraph ?? '').slice(0, IMPORT_DESCRIPTION_MAX);
+  return { name, description, type: 'custom' };
+}
+
+/** File name (without extension) from a URL path, for the fallback skill name. */
+export function nameFromUrl(url: string): string {
+  try {
+    const last = new URL(url).pathname.split('/').filter(Boolean).pop() ?? '';
+    return decodeURIComponent(last).replace(/\.(md|markdown|txt)$/i, '');
+  } catch {
+    return '';
+  }
 }

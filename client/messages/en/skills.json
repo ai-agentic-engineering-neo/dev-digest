@@ -96,6 +96,40 @@
     "deleting": "Deleting…",
     "deletedToast": "Deleted {name}"
   },
+  "add": {
+    "title": "Add skill",
+    "tabs": {
+      "create": "Create",
+      "file": "From file",
+      "url": "Import from URL"
+    },
+    "file": {
+      "pick": "Choose a Markdown file",
+      "dropHint": "or drop it here · .md, .markdown or .txt · up to 20,000 characters",
+      "loaded": "Loaded from {file}",
+      "another": "Choose another file",
+      "wrongType": "Only .md, .markdown or .txt files can be imported.",
+      "tooLong": "The file is longer than 20,000 characters.",
+      "empty": "The file is empty.",
+      "readFailed": "Could not read the file."
+    },
+    "url": {
+      "label": "URL (https:// only)",
+      "nameLabel": "Skill name",
+      "nameHint": "Optional — taken from the file's first heading if left blank.",
+      "namePlaceholder": "my-skill",
+      "hint": "Fetched by the server: https only, public hosts only, up to 64 KB. Nothing is saved until you click Import skill.",
+      "fetch": "Fetch",
+      "fetching": "Fetching…",
+      "loaded": "Fetched from {url}",
+      "another": "Fetch another URL",
+      "failed": "Could not import from this URL."
+    },
+    "importNote": "Imported skills are saved switched off — review them, then enable them on the Config tab.",
+    "import": "Import skill",
+    "importing": "Importing…",
+    "importedToast": "Imported {name} — switched off until you enable it"
+  },
   "drawer": {
     "title": "Add a skill",
     "subtitle": "Import from a file, a URL, or search vetted community skills",
@@ -150,7 +184,8 @@
       "manual": "Manual",
       "extracted": "Extracted",
       "community": "Community",
-      "imported_url": "Imported"
+      "imported_url": "Imported (URL)",
+      "imported_file": "Imported (file)"
     }
   },
   "preview": {
@@ -226,7 +261,9 @@
   },
   "suggestions": {
     "title": "Link this skill to agents",
-    "subtitle": "Agents that look like a fit by convention category, skill type and shared words. Nothing is linked until you confirm.",
+    "subtitle": "Agents that look like a fit by convention category, skill type and shared words. Accept links the skill to that agent right away; Reject removes it from this list.",
+    "recommended": "Recommended",
+    "done": "Done",
     "disabledNote": "Skill is disabled — enable it on Config to include it in prompts.",
     "score": "fit {score, number, percent}",
     "decision": "Link to {name}?",
@@ -234,10 +271,7 @@
     "reject": "Reject",
     "linked": "Linked",
     "failed": "Could not link",
-    "skip": "Skip",
-    "link": "{count, plural, =0 {Nothing to link} one {Link to # agent} other {Link to # agents}}",
     "linking": "Linking…",
-    "retry": "Retry failed ({count})",
     "linkedToast": "{count, plural, one {Linked to # agent} other {Linked to # agents}}",
     "reasons": {
       "category": "matches {categories}",
@@ -253,6 +287,30 @@
       "testing": "testing",
       "api": "API",
       "general": "general"
+    }
+  },
+  "safety": {
+    "badge": "Injection detected",
+    "bannerTitle": "INJECTION DETECTED — DO NOT ENABLE",
+    "bannerBody": "This skill contains prompt-injection patterns, so it is switched off and cannot be enabled or linked to an agent. Remove the highlighted text and save to make it a normal skill.",
+    "editorTitle": "Possible vulnerability — be careful",
+    "editorBody": "The highlighted text looks like a prompt injection. You can still save, but a flagged skill stays switched off and cannot be linked to an agent.",
+    "checking": "Checking for prompt injection…",
+    "scanFailed": "Could not check the body; the server checks it again on save.",
+    "fixedNote": "No prompt-injection patterns left. Save to make this a normal skill again.",
+    "toggleLocked": "Flagged as a possible prompt injection — fix the body before enabling it",
+    "findingsLabel": "Flagged text",
+    "highlightTitle": "Body with the flagged text highlighted",
+    "line": "line {line}",
+    "warnOnly": "warning only",
+    "rules": {
+      "override-instructions": "Overrides instructions",
+      "role-spoofing": "Pretends to be the system",
+      "delimiter-escape": "Escapes the prompt sections",
+      "suppress-findings": "Suppresses findings",
+      "exfiltration": "Sends data out",
+      "hidden-text": "Hidden text",
+      "encoded-payload": "Encoded payload"
     }
   }
 }

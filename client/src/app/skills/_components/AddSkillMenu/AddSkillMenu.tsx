@@ -1,13 +1,15 @@
-/* AddSkillMenu — "Add Skill ▾": Create from scratch, then the import entries,
-   which are not built yet and render as disabled items with a "soon" hint. */
+/* AddSkillMenu — "Add Skill ▾": Create from scratch, Import from file, Import
+   from URL (each opens the Add skill dialog on that tab), then community search,
+   which is not built yet and renders as a disabled item with a "soon" hint. */
 "use client";
 
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Button, Dropdown } from "@devdigest/ui";
-import { IMPORT_ITEMS } from "./constants";
+import type { AddSkillTab } from "../CreateSkillModal/constants";
+import { IMPORT_ITEMS, SOON_ITEMS } from "./constants";
 
-export function AddSkillMenu({ onCreate }: { onCreate: () => void }) {
+export function AddSkillMenu({ onCreate }: { onCreate: (tab: AddSkillTab) => void }) {
   const t = useTranslations("skills");
   return (
     <Dropdown
@@ -19,9 +21,14 @@ export function AddSkillMenu({ onCreate }: { onCreate: () => void }) {
         </Button>
       }
       items={[
-        { label: t("page.menu.createFromScratch"), icon: "Edit", onClick: onCreate },
+        { label: t("page.menu.createFromScratch"), icon: "Edit", onClick: () => onCreate("create") },
         { divider: true },
         ...IMPORT_ITEMS.map((it) => ({
+          label: t(`page.menu.${it.labelKey}`),
+          icon: it.icon,
+          onClick: () => onCreate(it.tab),
+        })),
+        ...SOON_ITEMS.map((it) => ({
           label: t(`page.menu.${it.labelKey}`),
           icon: it.icon,
           disabled: true,

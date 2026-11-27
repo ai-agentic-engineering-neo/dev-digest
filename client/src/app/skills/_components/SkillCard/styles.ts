@@ -2,13 +2,15 @@ import type { CSSProperties } from "react";
 
 /** Co-located styles for SkillCard (mirrors AgentCard). */
 export const s = {
-  card: (enabled: boolean): CSSProperties => ({
+  // A flagged skill keeps full opacity (it must stand out) and gets a red frame.
+  card: (enabled: boolean, flagged = false): CSSProperties => ({
     padding: 14,
     borderRadius: 8,
     cursor: "pointer",
-    border: "1px solid var(--border)",
+    border: flagged ? "1px solid var(--crit)" : "1px solid var(--border)",
+    boxShadow: flagged ? "0 0 0 1px var(--crit)" : "none",
     background: "var(--bg-elevated)",
-    opacity: enabled ? 1 : 0.6,
+    opacity: enabled || flagged ? 1 : 0.6,
   }),
   headerRow: { display: "flex", alignItems: "center", gap: 10 } satisfies CSSProperties,
   name: {

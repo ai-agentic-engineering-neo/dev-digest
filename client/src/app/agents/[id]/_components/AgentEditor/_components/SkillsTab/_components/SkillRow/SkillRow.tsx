@@ -29,11 +29,17 @@ export interface SkillRowProps {
 
 const MOVE_KEYS: Record<string, -1 | 1> = { ArrowUp: -1, ArrowDown: 1 };
 
-/** One skill: drag handle (attached only) · checkbox · name · disabled badge · type badge. */
+/**
+ * One skill: drag handle (attached only) · checkbox · name · disabled / injection
+ * badge · type badge. A skill flagged as a possible prompt injection is shown in
+ * a red frame and cannot be ticked (the server refuses the link too); if it was
+ * linked before it got flagged, it can only be unticked, not reordered.
+ */
 export function SkillRow({ row, reorderable, hintId, dnd, onToggle, onMove, rowRef }: SkillRowProps) {
   const t = useTranslations("agents");
   const { skill, attached } = row;
-  const canMove = attached && reorderable;
+  const flagged = skill.safety?.status === "flagged";
+  const canMove = attached && reorderable && !flagged;
   const typeColor = SKILL_TYPE_COLOR[skill.type];
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -75,7 +81,9 @@ export function SkillRow({ row, reorderable, hintId, dnd, onToggle, onMove, rowR
       onDragEnd={dnd.onEnd}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
-      style={s.row({ attached, dragging: dnd.isDragging, dimmed: !skill.enabled })}
+      title={flagged ? t(attached ? "skills.flaggedLinkedTitle" : "skills.flaggedTitle") : undefined}
+      data-flagged={flagged || undefined}
+      style={s.row({ attached, dragging: dnd.isDragging, dimmed: !skill.enabled && !flagged, flagged })}
     >
       <span
         aria-hidden="true"
@@ -84,9 +92,19 @@ export function SkillRow({ row, reorderable, hintId, dnd, onToggle, onMove, rowR
       >
         <Icon.Menu size={14} />
       </span>
-      <Checkbox checked={attached} onChange={onToggle} label={<span className="mono" style={s.name}>{skill.name}</span>} />
+      <Checkbox
+        checked={attached}
+        onChange={onToggle}
+        disabled={flagged && !attached}
+        label={<span className="mono" style={s.name}>{skill.name}</span>}
+      />
       <span style={s.badges}>
-        {!skill.enabled && (
+        {flagged && (
+          <Badge color="var(--crit)" bg="var(--crit-bg)" icon="AlertOctagon">
+            {t("skills.flagged")}
+          </Badge>
+        )}
+        {!skill.enabled && !flagged && (
           <span title={t("skills.disabledTitle")}>
             <Badge color="var(--text-muted)">{t("skills.disabled")}</Badge>
           </span>

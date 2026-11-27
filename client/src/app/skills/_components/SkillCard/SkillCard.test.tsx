@@ -50,6 +50,28 @@ describe("SkillCard", () => {
     expect(screen.getByText("1 agent · v1")).toBeInTheDocument();
   });
 
+  it("a flagged skill shows the injection badge, a red frame and a locked toggle", () => {
+    const { onToggle } = renderCard(
+      makeSkill({
+        enabled: false,
+        safety: {
+          status: "flagged",
+          findings: [
+            { rule: "suppress-findings", severity: "block", line: 1, start: 0, end: 5, excerpt: "x" },
+          ],
+          scanner_version: 1,
+          scanned_at: "t",
+        },
+      }),
+    );
+    expect(screen.getByText("Injection detected")).toBeInTheDocument();
+    expect(screen.getByRole("article")).toHaveAttribute("data-flagged", "true");
+    const toggle = screen.getByRole("switch", { name: "Enabled" });
+    expect(toggle).toBeDisabled();
+    fireEvent.click(toggle);
+    expect(onToggle).not.toHaveBeenCalled();
+  });
+
   it("the trash button asks to delete without selecting the card", () => {
     const { onSelect, onDelete } = renderCard(makeSkill());
     fireEvent.click(screen.getByRole("button", { name: "Delete skill" }));

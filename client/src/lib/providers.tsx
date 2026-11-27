@@ -39,7 +39,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
           },
         }),
         mutationCache: new MutationCache({
-          onError: (err) => notify.error(errorMessage(err)),
+          // A mutation that shows its own error inline opts out with `meta: { inlineError: true }`.
+          onError: (err, _vars, _ctx, mutation) => {
+            if (mutation.meta?.inlineError) return;
+            notify.error(errorMessage(err));
+          },
         }),
       })
   );

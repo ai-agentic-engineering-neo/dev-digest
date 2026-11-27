@@ -3,6 +3,8 @@ import { ConventionCategory } from '@devdigest/shared';
 import type { Skill, SkillSource, SkillType, SkillUsage, SkillVersion } from '@devdigest/shared';
 import type { DbExecutor, DbTx } from '../../db/client.js';
 import * as t from '../../db/schema.js';
+import { effectiveSkillSafety, isSkillFlagged, scanSkillBody } from '@devdigest/reviewer-core';
+import { SkillFlaggedError } from '../../platform/errors.js';
 import { ConflictError } from './errors.js';
 import {
   DONE_RUN_STATUS,
@@ -92,6 +94,8 @@ export class SkillsRepository {
   async insert(workspaceId: string, values: InsertSkill): Promise<Skill> {
     return this.mapConflict(() =>
       this.db.transaction(async (tx) => {
+        // A flagged body can be saved, but never enabled (it stays out of prompts).
+        const safety = scanSkillBody(values.body, new Date().toISOString());
         const [row] = await tx
           .insert(t.skills)
           .values({
@@ -101,8 +105,9 @@ export class SkillsRepository {
             type: values.type,
             source: values.source ?? MANUAL_SOURCE,
             body: values.body,
-            enabled: values.enabled,
+            enabled: values.enabled && !isSkillFlagged(safety),
             evidenceFiles: values.evidenceFiles ?? null,
+            safety,
             version: INITIAL_SKILL_VERSION,
           })
           .returning();
@@ -134,15 +139,32 @@ export class SkillsRepository {
         const bodyChanged = isBodyChange(existing.body, patch.body);
         const nextVersion = bodyChanged ? existing.version + 1 : existing.version;
 
+        // Re-scan on a body change; a legacy / outdated scan is refreshed too.
+        const at = new Date().toISOString();
+        const safety = bodyChanged
+          ? scanSkillBody(patch.body!, at)
+          : effectiveSkillSafety(existing.safety, existing.body, at);
+        const flagged = isSkillFlagged(safety);
+        // Turning a flagged skill on is refused; a save that makes it flagged
+        // still goes through, but the skill is switched off.
+        if (flagged && patch.enabled === true && !bodyChanged) {
+          throw new SkillFlaggedError(
+            `Skill "${existing.name}" is flagged as a possible prompt injection; fix its body before enabling it`,
+            { skill_id: id },
+          );
+        }
+        const enabled = flagged ? false : patch.enabled;
+
         await tx
           .update(t.skills)
           .set({
             ...(patch.name !== undefined ? { name: patch.name } : {}),
             ...(patch.description !== undefined ? { description: patch.description } : {}),
             ...(patch.type !== undefined ? { type: patch.type } : {}),
-            ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
+            ...(enabled !== undefined ? { enabled } : {}),
             ...(patch.evidenceFiles !== undefined ? { evidenceFiles: patch.evidenceFiles } : {}),
             ...(bodyChanged ? { body: patch.body!, version: nextVersion } : {}),
+            safety,
             updatedAt: sql`now()`,
           })
           .where(this.scope(workspaceId, id));
@@ -238,9 +260,17 @@ export class SkillsRepository {
       if (!source) return { kind: 'version_not_found' };
 
       const nextVersion = existing.version + 1;
+      // An old version can be flagged too: restoring it switches the skill off.
+      const safety = scanSkillBody(source.body, new Date().toISOString());
       await tx
         .update(t.skills)
-        .set({ body: source.body, version: nextVersion, updatedAt: sql`now()` })
+        .set({
+          body: source.body,
+          version: nextVersion,
+          safety,
+          ...(isSkillFlagged(safety) ? { enabled: false } : {}),
+          updatedAt: sql`now()`,
+        })
         .where(this.scope(workspaceId, skillId));
       await tx.insert(t.skillVersions).values({
         skillId,

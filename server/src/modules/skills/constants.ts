@@ -66,3 +66,12 @@ export const SUGGESTION_STOP_WORDS: ReadonlySet<string> = new Set([
   'review', 'reviewer', 'code', 'diff', 'flag', 'catch', 'merge', 'skill', 'rule', 'agent',
   'file', 'repo',
 ]);
+
+// ---- Import (file / URL) ----------------------------------------------------
+/** Mirrors the `SkillBody` contract max. */
+export const IMPORT_BODY_MAX = 20_000;
+/** Mirrors the `SkillName` / description contract caps. */
+export const IMPORT_NAME_MAX = 64;
+export const IMPORT_DESCRIPTION_MAX = 200;
+/** Name used when neither the heading nor the URL gives one. */
+export const IMPORT_FALLBACK_NAME = 'imported-skill';

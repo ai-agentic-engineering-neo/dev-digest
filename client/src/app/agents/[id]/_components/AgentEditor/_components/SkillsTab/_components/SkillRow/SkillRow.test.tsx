@@ -65,4 +65,37 @@ describe("SkillRow", () => {
     fireEvent.keyDown(row, { key: "ArrowUp", altKey: true });
     expect(onMove).not.toHaveBeenCalled();
   });
+
+  const FLAGGED: Skill = {
+    ...SKILL,
+    enabled: false,
+    safety: {
+      status: "flagged",
+      findings: [{ rule: "suppress-findings", severity: "block", line: 1, start: 0, end: 4, excerpt: "x" }],
+      scanner_version: 1,
+      scanned_at: "t",
+    },
+  };
+
+  it("a flagged skill is framed in red, says so, and cannot be ticked", () => {
+    const { onToggle, row } = renderRow({ row: { skill: FLAGGED, attached: false, position: null } });
+    expect(row).toHaveAttribute("data-flagged", "true");
+    expect(row).toHaveAttribute("title", expect.stringContaining("fix it on the skill's Config tab"));
+    expect(screen.getByText("Injection detected")).toBeInTheDocument();
+    expect(screen.queryByText("disabled")).not.toBeInTheDocument();
+    const box = screen.getByRole("checkbox", { name: SKILL.name });
+    expect(box).toBeDisabled();
+    fireEvent.click(box);
+    expect(onToggle).not.toHaveBeenCalled();
+  });
+
+  it("a linked skill that got flagged can only be unticked, not moved", () => {
+    const { onToggle, onMove, row } = renderRow({ row: { skill: FLAGGED, attached: true, position: 0 } });
+    expect(row).toHaveAttribute("draggable", "false");
+    expect(row).toHaveAttribute("title", expect.stringContaining("you can only unlink it"));
+    fireEvent.keyDown(row, { key: "ArrowDown", altKey: true });
+    expect(onMove).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("checkbox", { name: SKILL.name }));
+    expect(onToggle).toHaveBeenCalledOnce();
+  });
 });

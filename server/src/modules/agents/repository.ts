@@ -2,6 +2,7 @@ import { and, asc, count, desc, eq, inArray } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
 import type { CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
+import { effectiveSkillSafety, isSkillFlagged } from '@devdigest/reviewer-core';
 import { DEFAULT_AGENT_DESCRIPTION, INITIAL_AGENT_VERSION } from './constants.js';
 import { isConfigChange, isSameLinkSet } from './helpers.js';
 
@@ -89,6 +90,24 @@ export class AgentsRepository {
       .from(t.skills)
       .where(and(eq(t.skills.workspaceId, workspaceId), inArray(t.skills.id, skillIds)));
     return rows.map((r) => r.id);
+  }
+
+  /** Of the given workspace skills, the ones whose body fails the injection scan. */
+  async flaggedSkills(workspaceId: string, skillIds: string[]): Promise<{ id: string; name: string }[]> {
+    if (skillIds.length === 0) return [];
+    const rows = await this.db
+      .select({
+        id: t.skills.id,
+        name: t.skills.name,
+        body: t.skills.body,
+        safety: t.skills.safety,
+        updatedAt: t.skills.updatedAt,
+      })
+      .from(t.skills)
+      .where(and(eq(t.skills.workspaceId, workspaceId), inArray(t.skills.id, skillIds)));
+    return rows
+      .filter((r) => isSkillFlagged(effectiveSkillSafety(r.safety, r.body, r.updatedAt.toISOString())))
+      .map((r) => ({ id: r.id, name: r.name }));
   }
 
   async listEnabled(workspaceId: string): Promise<AgentRow[]> {

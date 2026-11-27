@@ -82,7 +82,7 @@ describe("SkillDetailView", () => {
     expect(await screen.findByText("Link this skill to agents")).toBeInTheDocument();
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
 
-    fireEvent.click(screen.getByRole("button", { name: "Skip" }));
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(nav.replace).toHaveBeenCalledWith("/skills/sk1?tab=config");
   });
 

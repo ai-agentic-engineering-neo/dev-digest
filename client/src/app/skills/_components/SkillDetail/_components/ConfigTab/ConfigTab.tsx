@@ -17,6 +17,7 @@ import { useToast } from "@/lib/toast";
 import { hasErrors, validateSkillForm, type SkillFormValues } from "@/app/skills/_components/helpers";
 import { FieldErrorText, SkillFormFields } from "@/app/skills/_components/SkillFormFields";
 import { DeleteSkillDialog } from "@/app/skills/_components/DeleteSkillDialog";
+import { DraftSafetyNotes, isFlagged, useDraftSafety } from "@/app/skills/_components/SkillSafety";
 import { MergeConflictsDialog } from "./_components/MergeConflictsDialog";
 import { applyResolutions, type Resolution } from "./_components/MergeConflictsDialog/helpers";
 import { buildSkillPatch, formFromSkill, isBodyChanged } from "./helpers";
@@ -43,6 +44,10 @@ export function ConfigTab({ skill }: { skill: Skill }) {
   if (!errors.name && takenName === form.name) errors.name = { key: "nameTaken" };
   const patch = buildSkillPatch(form, skill);
   const isPristine = Object.keys(patch).length === 0;
+  // Every body edit is re-scanned; Save waits for the scan of the exact text.
+  const draft = useDraftSafety(form.body, skill);
+  const draftFlagged = draft.safety?.status === "flagged";
+  const savedFlagged = isFlagged(skill);
 
   const setField = <K extends keyof SkillFormValues>(field: K, value: SkillFormValues[K]) =>
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -87,6 +92,8 @@ export function ConfigTab({ skill }: { skill: Skill }) {
             on={skill.enabled}
             onChange={(enabled) => toggleEnabled.mutate({ id: skill.id, patch: { enabled } })}
             size={16}
+            disabled={savedFlagged}
+            title={savedFlagged ? t("safety.toggleLocked") : undefined}
           />
         </label>
       </div>
@@ -97,7 +104,16 @@ export function ConfigTab({ skill }: { skill: Skill }) {
         </p>
       )}
 
-      <SkillFormFields values={form} errors={errors} onChange={setField} bodyHint={t("preview.bodyHint")} />
+      <SkillFormFields
+        values={form}
+        errors={errors}
+        onChange={setField}
+        bodyHint={t("preview.bodyHint")}
+        bodyFlagged={draftFlagged}
+      />
+
+      {/* The saved skill's own banner sits above the tabs, so only an edit shows one here. */}
+      <DraftSafetyNotes draft={draft} body={form.body} edited={bodyChanged} wasFlagged={savedFlagged} />
 
       {bodyChanged && (
         <FormField label={t("config.message")}>
@@ -117,9 +133,9 @@ export function ConfigTab({ skill }: { skill: Skill }) {
           kind="primary"
           icon="Check"
           onClick={save}
-          disabled={isPristine || hasErrors(errors) || update.isPending}
+          disabled={isPristine || hasErrors(errors) || update.isPending || draft.checking}
         >
-          {update.isPending ? t("config.saving") : t("config.save")}
+          {update.isPending ? t("config.saving") : draft.checking ? t("safety.checking") : t("config.save")}
         </Button>
         <Button kind="ghost" onClick={() => setForm(formFromSkill(skill))} disabled={isPristine}>
           {t("config.cancel")}

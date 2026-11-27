@@ -31,6 +31,8 @@ import { RepoIntelService } from '../modules/repo-intel/service.js';
 import { DepCruiseGraph } from '../adapters/depgraph/index.js';
 import { TiktokenTokenizer } from '../adapters/tokenizer/index.js';
 import type { DepGraph, Tokenizer } from '../modules/repo-intel/ports.js';
+import type { RemoteTextFetcher } from '../modules/skills/ports.js';
+import { SafeHttpTextFetcher } from '../adapters/http/safe-fetch.js';
 
 /**
  * DI container. One per app instance. Holds config, db, the JobRunner,
@@ -53,6 +55,8 @@ export interface ContainerOverrides {
   /** repo-intel T3 adapters — only the indexer pipeline reads these. */
   depgraph?: DepGraph;
   tokenizer?: Tokenizer;
+  /** "Import skill from URL" fetcher — tests inject a mock (no network). */
+  textFetcher?: RemoteTextFetcher;
 }
 
 export class Container {
@@ -79,6 +83,7 @@ export class Container {
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
   private _priceBook?: PriceBook;
+  private _textFetcher?: RemoteTextFetcher;
 
   constructor(config: AppConfig, db: Db, private overrides: ContainerOverrides = {}) {
     this.config = config;
@@ -108,6 +113,13 @@ export class Container {
   /** Shared skills repository — the Conventions Extractor writes skills through it. */
   get skillsRepo(): SkillsRepository {
     return (this._skillsRepo ??= new SkillsRepository(this.db));
+  }
+
+  /** SSRF-safe fetcher of a remote skill file (Import from URL). */
+  get textFetcher(): RemoteTextFetcher {
+    if (this.overrides.textFetcher) return this.overrides.textFetcher;
+    this._textFetcher ??= new SafeHttpTextFetcher();
+    return this._textFetcher;
   }
 
   /** A skills repository bound to an open transaction (for a module's UnitOfWork). */

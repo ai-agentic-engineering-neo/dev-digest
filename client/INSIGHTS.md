@@ -90,6 +90,7 @@ actionable cold.
 **Insight:** `lib/providers.tsx` `MutationCache.onError` already toasts every failed mutation; a per-caller `toast.error` shows two toasts.
 **Rule:** ALWAYS rely on the global mutation error toast and only add success toasts locally — because a second error toast duplicates it; use mutation `meta` if a custom message is ever needed.
 **Evidence:** `client/src/lib/providers.tsx` → `MutationCache` | `AgentEditor/_components/SkillsTab/useSkillsTab.ts`
+> **Update 2026-11-27:** a mutation that shows its own error inline (e.g. `useImportSkillUrl`, the 422 reason under the URL field) sets `meta: { inlineError: true }`; `MutationCache.onError` in `lib/providers.tsx` then skips the global toast.
 
 ### 2026-11-26 — Status colour tokens are --ok / --warn / --crit
 **Insight:** Specs say `--success` / `--warning` / `--danger`, but the theme defines none of them; the semantic tokens are `--ok`, `--warn`, `--crit` (+ `-bg` variants). An undefined var renders as inherited colour with no error.
@@ -154,6 +155,11 @@ actionable cold.
 **Rule:** ALWAYS omit `onClose` for a dialog whose state would be lost on close (e.g. MergeConflictsDialog, conflicts live only in the client cache) — because a stray backdrop click otherwise discards it with no confirmation.
 **Evidence:** `client/src/vendor/ui/kit/Modal.tsx` → `Modal` | test `MergeConflictsDialog.test.tsx` "has no X / backdrop close"
 
+### 2026-11-27 — jsdom has no Blob.text(): read files with FileReader
+**Insight:** `File.text()` works in browsers but is missing in the client's jsdom, so `await file.text()` throws in tests and an import helper silently returns its "readFailed" branch.
+**Rule:** ALWAYS read a picked / dropped file through `FileReader.readAsText` — because it works in browsers and in jsdom, so the same code path is tested.
+**Evidence:** `client/src/app/skills/_components/CreateSkillModal/helpers.ts` → `readAsText()`, `readSkillFile()` | test `helpers.test.ts` "readSkillFile reads a Markdown file"
+
 ## Recurring Errors & Fixes
 
 ### 2026-11-22 — "borderColor … conflicting borderLeftColor" warning in FindingsPanel tests is pre-existing
@@ -196,6 +202,8 @@ actionable cold.
 - 2026-11-26 — Conventions Extractor stage 2 client (target SearchableSelect + MergeForm, MergeConflictsDialog → ConfigTab form, single-PATCH edit): 247 tests green; see "Merge conflicts travel to the Config tab through a never-fetched query"
 
 - 2026-11-26 — Conventions Extractor stage 3 client (AgentSuggestionsDialog after create / merge via ?suggest=1, after MergeConflictsDialog; useLinkAgentSkill; skill delete/rename invalidate conventions): 262 tests green; see "Invalidating the suggestions list after each link empties the open dialog"
+
+- 2026-11-27 — Skills safety UI + import tabs (card delete, rejected conventions hidden, SkillSafety banner/yellow highlight/Save gating, Add skill dialog Create · From file · Import from URL, agent suggestions act per row): client 299 green; see "jsdom has no Blob.text(): read files with FileReader"
 
 ## Open Questions
 

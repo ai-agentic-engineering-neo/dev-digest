@@ -100,6 +100,9 @@
     "moved": "{name} moved to position {position} of {total}",
     "disabled": "disabled",
     "disabledTitle": "Disabled globally — left out of every agent's prompt",
+    "flagged": "Injection detected",
+    "flaggedTitle": "Flagged as a possible prompt injection — fix it on the skill's Config tab before linking it",
+    "flaggedLinkedTitle": "Flagged as a possible prompt injection — left out of this agent's prompt; you can only unlink it",
     "noMatches": "No skills match “{query}”",
     "loadError": "Could not load skills.",
     "types": {

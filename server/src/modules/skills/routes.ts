@@ -1,7 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { AgentSuggestion, CreateSkillInput, UpdateSkillInput } from '@devdigest/shared';
+import {
+  AgentSuggestion,
+  CreateSkillInput,
+  ImportSkillUrlInput,
+  ScanSkillInput,
+  UpdateSkillInput,
+} from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { SkillsService } from './service.js';
@@ -18,7 +24,9 @@ const VersionParams = z.object({
  *   GET    /skills                                → Skill[] (name asc, with agent_count)
  *   GET    /skills/:id                            → Skill
  *   POST   /skills                                → 201 Skill (v1, "Initial version")
- *   PUT    /skills/:id                            → Skill (body change → new version)
+ *   POST   /skills/scan                           → SkillSafety (injection scan, writes nothing)
+ *   POST   /skills/import-url                     → ImportedSkillDraft (SSRF-safe fetch + scan, writes nothing)
+ *   PUT    /skills/:id                            → Skill (body change → new version; flagged → disabled)
  *   DELETE /skills/:id                            → { ok: true }
  *   GET    /skills/:id/agents                     → SkillUsage[]
  *   GET    /skills/:id/stats                      → SkillStats
@@ -33,6 +41,7 @@ export default async function skillsRoutes(appBase: FastifyInstance) {
   const service = new SkillsService({
     repo: new SkillsRepository(app.container.db),
     signals: new DrizzleAgentSuggestionSignals(app.container.db),
+    fetcher: app.container.textFetcher,
   });
 
   app.get('/skills', async (req) => {
@@ -50,6 +59,22 @@ export default async function skillsRoutes(appBase: FastifyInstance) {
     const skill = await service.create(workspaceId, req.body);
     reply.status(201);
     return skill;
+  });
+
+  // Rate-limited like any outbound call a user can trigger in a loop.
+  app.post(
+    '/skills/import-url',
+    { schema: { body: ImportSkillUrlInput }, config: { rateLimit: { max: 20, timeWindow: '1 minute' } } },
+    async (req) => {
+      await getContext(app.container, req);
+      return service.importFromUrl(req.body.url);
+    },
+  );
+
+  app.post('/skills/scan', { schema: { body: ScanSkillInput } }, async (req) => {
+    // Workspace context still resolved: the route is as authenticated as the rest.
+    await getContext(app.container, req);
+    return service.scan(req.body.body);
   });
 
   app.put(

@@ -114,6 +114,7 @@ export function Gallery() {
         <MonoLink>src/config.ts:12</MonoLink>
         <Kbd>⌘K</Kbd>
         <Toggle on={toggle} onChange={setToggle} />
+        <Toggle on={false} onChange={() => {}} disabled title="Locked" />
       </Group>
 
       <Group title="Progress & Score">
@@ -168,6 +169,7 @@ export function Gallery() {
           </FormField>
         </div>
         <Checkbox checked={check} onChange={setCheck} label="On new PR" />
+        <Checkbox checked={false} disabled label="Locked" />
       </Group>
 
       <Group title="Tabs / Dropdown / Overlays">

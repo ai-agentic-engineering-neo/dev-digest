@@ -4,17 +4,27 @@ export function Toggle({
   on,
   onChange,
   size = 18,
+  disabled,
+  title,
 }: {
   on: boolean;
   onChange: (v: boolean) => void;
   size?: number;
+  /** Locked: no click, dimmed, `not-allowed` cursor (e.g. a flagged skill). */
+  disabled?: boolean;
+  title?: string;
 }) {
   return (
     <button
+      type="button"
       onClick={() => onChange(!on)}
       role="switch"
       aria-checked={on}
+      disabled={disabled}
+      title={title}
       style={{
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.45 : 1,
         width: size * 1.85,
         height: size + 4,
         borderRadius: 99,

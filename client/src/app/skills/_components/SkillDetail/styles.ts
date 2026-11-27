@@ -16,6 +16,7 @@ export const s = {
     overflow: "hidden",
     textOverflow: "ellipsis",
   } satisfies CSSProperties,
+  banner: { padding: "14px 28px 0", flexShrink: 0, maxHeight: 260, overflow: "auto" } satisfies CSSProperties,
   tabsBar: { marginTop: 14, flexShrink: 0 } satisfies CSSProperties,
   body: { flex: 1, minHeight: 0, overflow: "auto", padding: 28 } satisfies CSSProperties,
   loading: { flex: 1, padding: 28, display: "flex", flexDirection: "column", gap: 16 } satisfies CSSProperties,

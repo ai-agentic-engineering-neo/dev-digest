@@ -1,17 +1,17 @@
 /* AgentSuggestionsDialog — after a skill is created (or conventions merged into
-   it), the enabled agents that may want it, each with its reasons and an
-   Accept / Reject toggle (high scores start on Accept). One confirm links every
-   accepted agent; nothing is written before it. Renders nothing while loading,
-   on error or when no agent fits (then it closes itself). Skip / X / backdrop
-   close it, except while links are in flight (cf. MergeConflictsDialog, which
-   has no onClose because its state would be lost). */
+   it), the enabled agents that may want it, each with its reasons and two
+   buttons that act at once: Accept links the skill to that agent (the row then
+   says "Linked"), Reject removes the row. High scores carry a "Recommended"
+   badge. It closes itself when every row is decided; Done / X / backdrop close
+   it too, except while a link is in flight. Renders nothing while loading, on
+   error or when no agent fits (then it closes itself). */
 "use client";
 
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Badge, Button, Modal } from "@devdigest/ui";
 import type { AgentSuggestion, AgentSuggestionReason, Skill } from "@devdigest/shared";
-import { DECISIONS, decisionOf, type Decision, type LinkOutcome } from "./helpers";
+import type { RowState } from "./helpers";
 import { useAgentSuggestionsDialog } from "./useAgentSuggestionsDialog";
 import { s } from "./styles";
 
@@ -23,7 +23,7 @@ export interface AgentSuggestionsDialogProps {
 export function AgentSuggestionsDialog({ skill, onClose }: AgentSuggestionsDialogProps) {
   const t = useTranslations("skills");
   const d = useAgentSuggestionsDialog(skill.id, onClose);
-  if (d.list.length === 0) return null;
+  if (d.visible.length === 0) return null;
 
   return (
     <Modal
@@ -33,15 +33,8 @@ export function AgentSuggestionsDialog({ skill, onClose }: AgentSuggestionsDialo
       onClose={d.dismiss}
       footer={
         <div style={s.footer}>
-          <Button kind="ghost" onClick={onClose} disabled={d.busy}>
-            {t("suggestions.skip")}
-          </Button>
-          <Button kind="primary" icon="Check" onClick={d.confirm} disabled={d.busy || d.toLink.length === 0}>
-            {d.busy
-              ? t("suggestions.linking")
-              : d.hasFailures
-                ? t("suggestions.retry", { count: d.toLink.length })
-                : t("suggestions.link", { count: d.toLink.length })}
+          <Button kind="primary" onClick={d.dismiss} disabled={d.busy}>
+            {t("suggestions.done")}
           </Button>
         </div>
       }
@@ -49,14 +42,13 @@ export function AgentSuggestionsDialog({ skill, onClose }: AgentSuggestionsDialo
       <div style={s.body}>
         {!skill.enabled && <p style={s.note}>{t("suggestions.disabledNote")}</p>}
         <ul style={s.list}>
-          {d.list.map((sug) => (
+          {d.visible.map((sug) => (
             <SuggestionRow
               key={sug.agent_id}
               suggestion={sug}
-              decision={decisionOf(sug, d.overrides)}
-              outcome={d.outcomes[sug.agent_id]}
-              disabled={d.busy}
-              onDecide={(next) => d.decide(sug.agent_id, next)}
+              state={d.states[sug.agent_id]}
+              onAccept={() => void d.accept(sug.agent_id)}
+              onReject={() => d.reject(sug.agent_id)}
             />
           ))}
         </ul>
@@ -67,25 +59,24 @@ export function AgentSuggestionsDialog({ skill, onClose }: AgentSuggestionsDialo
 
 function SuggestionRow({
   suggestion,
-  decision,
-  outcome,
-  disabled,
-  onDecide,
+  state,
+  onAccept,
+  onReject,
 }: {
   suggestion: AgentSuggestion;
-  decision: Decision;
-  outcome: LinkOutcome | undefined;
-  disabled: boolean;
-  onDecide: (d: Decision) => void;
+  state: RowState | undefined;
+  onAccept: () => void;
+  onReject: () => void;
 }) {
   const t = useTranslations("skills");
-  const linked = outcome === "linked";
+  const linking = state === "linking";
   return (
     <li style={s.item} aria-label={suggestion.agent_name}>
       <div style={s.main}>
         <div style={s.head}>
           <span style={s.name}>{suggestion.agent_name}</span>
           <span style={s.score}>{t("suggestions.score", { score: suggestion.score })}</span>
+          {suggestion.preselected && <Badge color="var(--accent)">{t("suggestions.recommended")}</Badge>}
         </div>
         <ul style={s.reasons}>
           {suggestion.reasons.map((r) => (
@@ -96,26 +87,19 @@ function SuggestionRow({
         </ul>
       </div>
       <div style={s.side}>
-        {outcome === "failed" && <span style={s.failed}>{t("suggestions.failed")}</span>}
-        {linked ? (
+        {state === "failed" && <span style={s.failed}>{t("suggestions.failed")}</span>}
+        {state === "linked" ? (
           <Badge icon="Check" color="var(--ok)">
             {t("suggestions.linked")}
           </Badge>
         ) : (
-          <div role="radiogroup" aria-label={t("suggestions.decision", { name: suggestion.agent_name })} style={s.side}>
-            {DECISIONS.map((option) => (
-              <Button
-                key={option}
-                size="sm"
-                kind={decision === option ? "primary" : "ghost"}
-                role="radio"
-                aria-checked={decision === option}
-                disabled={disabled}
-                onClick={() => onDecide(option)}
-              >
-                {t(`suggestions.${option}`)}
-              </Button>
-            ))}
+          <div role="group" aria-label={t("suggestions.decision", { name: suggestion.agent_name })} style={s.side}>
+            <Button size="sm" kind="primary" icon="Check" disabled={linking} onClick={onAccept}>
+              {linking ? t("suggestions.linking") : t("suggestions.accept")}
+            </Button>
+            <Button size="sm" kind="ghost" icon="X" disabled={linking} onClick={onReject}>
+              {t("suggestions.reject")}
+            </Button>
           </div>
         )}
       </div>

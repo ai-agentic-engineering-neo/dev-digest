@@ -7,7 +7,9 @@ import { api } from "../api";
 import type {
   AgentSuggestion,
   CreateSkillInput,
+  ImportedSkillDraft,
   Skill,
+  SkillSafety,
   SkillStats,
   SkillUsage,
   SkillVersion,
@@ -28,6 +30,33 @@ export function useSkill(id: string | null | undefined) {
     queryKey: queryKeys.skill(id),
     queryFn: () => api.get<Skill>(skillPath(id!)),
     enabled: !!id,
+  });
+}
+
+/**
+ * Prompt-injection scan of a draft body before it is saved (writes nothing; the
+ * server scans again on save). Keyed by the text, so the same text is scanned
+ * once; the caller passes an already-debounced body. Off for an empty body.
+ */
+export function useSkillScan(body: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.skillScan(body),
+    queryFn: () => api.post<SkillSafety>("/skills/scan", { body }),
+    enabled: enabled && body.trim().length > 0,
+    staleTime: Infinity,
+    retry: false,
+  });
+}
+
+/**
+ * "Import from URL": the server fetches the file (https, public hosts, ≤ 64 KB)
+ * and returns a scanned draft; nothing is saved. A refused URL (422) is shown
+ * inline in the dialog, so the global error toast is skipped.
+ */
+export function useImportSkillUrl() {
+  return useMutation({
+    mutationFn: (url: string) => api.post<ImportedSkillDraft>("/skills/import-url", { url }),
+    meta: { inlineError: true },
   });
 }
 

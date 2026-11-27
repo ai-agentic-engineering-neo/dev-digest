@@ -34,6 +34,16 @@ export {
 // Map-reduce helpers (reduce partials, slice a file's diff).
 export { reduceReviews, sliceDiff } from './review/reduce.js';
 
+// Rule-based prompt-injection scan of skill bodies (gate in front of the prompt).
+export {
+  scanSkillBody,
+  findSkillInjections,
+  effectiveSkillSafety,
+  isSkillFlagged,
+  SKILL_SCANNER_VERSION,
+  MAX_SKILL_FINDINGS,
+} from './skill-safety.js';
+
 // The engine entry point: given (diff + resolved agent inputs + LLM) → grounded Review.
 export {
   reviewPullRequest,

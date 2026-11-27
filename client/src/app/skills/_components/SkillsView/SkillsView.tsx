@@ -12,6 +12,7 @@ import { DEFAULT_SKILL_TAB } from "../constants";
 import { filterSkills, skillHref } from "../helpers";
 import { AddSkillMenu } from "../AddSkillMenu";
 import { CreateSkillModal } from "../CreateSkillModal";
+import type { AddSkillTab } from "../CreateSkillModal/constants";
 import { DeleteSkillDialog } from "../DeleteSkillDialog";
 import { SkillCard } from "../SkillCard";
 import { SKELETON_COUNT } from "./constants";
@@ -22,7 +23,8 @@ export function SkillsView() {
   const router = useRouter();
   const { data: skills, isLoading, isError, refetch } = useSkills();
   const update = useUpdateSkill();
-  const [creating, setCreating] = React.useState(false);
+  // The Add skill dialog's tab while it is open (null = closed).
+  const [creating, setCreating] = React.useState<AddSkillTab | null>(null);
   const [query, setQuery] = React.useState("");
   // An id, not a snapshot: the dialog shows the skill as the cache has it now.
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
@@ -33,7 +35,7 @@ export function SkillsView() {
 
   return (
     <AppShell crumb={[{ label: t("page.crumbLab") }, { label: t("page.crumbSkills") }]}>
-      {creating && <CreateSkillModal onClose={() => setCreating(false)} />}
+      {creating && <CreateSkillModal initialTab={creating} onClose={() => setCreating(null)} />}
       {deleting && <DeleteSkillDialog skill={deleting} onClose={closeDelete} onDeleted={closeDelete} />}
       <div style={s.page}>
         <div style={s.header}>
@@ -52,7 +54,7 @@ export function SkillsView() {
               style={s.searchInput}
             />
           </div>
-          <AddSkillMenu onCreate={() => setCreating(true)} />
+          <AddSkillMenu onCreate={setCreating} />
         </div>
 
         {isLoading && (
@@ -69,7 +71,7 @@ export function SkillsView() {
             title={t("page.empty.title")}
             body={t("page.empty.body")}
             cta={t("page.empty.cta")}
-            onCta={() => setCreating(true)}
+            onCta={() => setCreating("create")}
           />
         )}
         {!!skills?.length && visible.length === 0 && (

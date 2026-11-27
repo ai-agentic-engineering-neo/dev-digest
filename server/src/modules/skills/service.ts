@@ -1,18 +1,28 @@
 import type {
   AgentSuggestion,
   CreateSkillInput,
+  ImportedSkillDraft,
   Skill,
+  SkillSafety,
   SkillStats,
   SkillUsage,
   SkillVersion,
   UpdateSkillInput,
 } from '@devdigest/shared';
-import { NotFoundError } from '../../platform/errors.js';
+import { scanSkillBody } from '@devdigest/reviewer-core';
+import { NotFoundError, ValidationError } from '../../platform/errors.js';
 import { ConflictError } from './errors.js';
 import type { SkillsRepository } from './repository.js';
-import { STATS_WINDOW_DAYS } from './constants.js';
-import { rankAgentSuggestions, toAgentActivity, windowStart } from './helpers.js';
-import type { AgentSuggestionSignals } from './ports.js';
+import { IMPORT_BODY_MAX, STATS_WINDOW_DAYS } from './constants.js';
+import {
+  draftFromMarkdown,
+  nameFromUrl,
+  normalizeImportedBody,
+  rankAgentSuggestions,
+  toAgentActivity,
+  windowStart,
+} from './helpers.js';
+import type { AgentSuggestionSignals, RemoteTextFetcher } from './ports.js';
 
 /**
  * Skills use cases (SPEC §4.3). Workspace-scoped throughout: a skill from
@@ -40,12 +50,19 @@ const SKILL_NOT_FOUND = 'Skill not found';
 export class SkillsService {
   private readonly repo: SkillsStore;
   private readonly signals: AgentSuggestionSignals;
+  private readonly fetcher: RemoteTextFetcher;
   private readonly now: () => Date;
 
   /** Explicit deps (onion-architecture §10). `now` is injectable for the stats window. */
-  constructor(deps: { repo: SkillsStore; signals: AgentSuggestionSignals; now?: () => Date }) {
+  constructor(deps: {
+    repo: SkillsStore;
+    signals: AgentSuggestionSignals;
+    fetcher: RemoteTextFetcher;
+    now?: () => Date;
+  }) {
     this.repo = deps.repo;
     this.signals = deps.signals;
+    this.fetcher = deps.fetcher;
     this.now = deps.now ?? (() => new Date());
   }
 
@@ -59,14 +76,41 @@ export class SkillsService {
     return skill;
   }
 
+  /** Create a skill; an imported one (file / URL) is always stored disabled — vet it first. */
   create(workspaceId: string, input: CreateSkillInput): Promise<Skill> {
     return this.repo.insert(workspaceId, {
       name: input.name,
       description: input.description,
       type: input.type,
       body: input.body,
-      enabled: input.enabled,
+      enabled: input.source ? false : input.enabled,
+      ...(input.source ? { source: input.source } : {}),
     });
+  }
+
+  /** Injection scan of a body before it is saved (writes nothing; the write re-scans). */
+  scan(body: string): SkillSafety {
+    return scanSkillBody(body, this.now().toISOString());
+  }
+
+  /**
+   * "Import from URL": fetch the file (SSRF rules live in the fetcher), turn it
+   * into a draft and scan it. Writes nothing — the user reviews the draft and
+   * saves it through `create` with `source: imported_url`.
+   */
+  async importFromUrl(url: string): Promise<ImportedSkillDraft> {
+    const fetched = await this.fetcher.fetchText(url);
+    const body = normalizeImportedBody(fetched.text);
+    if (body.trim().length === 0) throw new ValidationError('The file at this URL is empty');
+    if (body.length > IMPORT_BODY_MAX) {
+      throw new ValidationError(`The file is longer than ${IMPORT_BODY_MAX.toLocaleString('en')} characters`);
+    }
+    return {
+      ...draftFromMarkdown(body, nameFromUrl(fetched.url)),
+      body,
+      source_url: fetched.url,
+      safety: this.scan(body),
+    };
   }
 
   async update(workspaceId: string, id: string, patch: UpdateSkillInput): Promise<Skill> {

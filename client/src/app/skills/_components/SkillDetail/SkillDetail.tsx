@@ -11,6 +11,7 @@ import { useSkill } from "@/lib/hooks/skills";
 import { ApiError } from "@/lib/api";
 import type { SkillTab } from "../constants";
 import { SkillTypeBadge, SkillTypeIcon } from "../SkillTypeBadge";
+import { SafetyBadge, SafetyBanner, isFlagged } from "../SkillSafety";
 import { ConfigTab } from "./_components/ConfigTab";
 import { PreviewTab } from "./_components/PreviewTab";
 import { StatsTab } from "./_components/StatsTab";
@@ -55,7 +56,14 @@ export function SkillDetail({ skillId, tab, onTab }: SkillDetailProps) {
         <Badge icon="History" mono>
           {t("preview.version", { version: skill.version })}
         </Badge>
+        {isFlagged(skill) && <SafetyBadge />}
       </div>
+      {isFlagged(skill) && skill.safety && (
+        <div style={s.banner}>
+          {/* A finding not on this tab (Stats/Versions) opens Preview, which highlights the body. */}
+          <SafetyBanner safety={skill.safety} onMissingAnchor={() => onTab("preview")} />
+        </div>
+      )}
       <div style={s.tabsBar}>
         <Tabs tabs={tabs} value={tab} onChange={(key) => onTab(key as SkillTab)} pad="0 24px" />
       </div>

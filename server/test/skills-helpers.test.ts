@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { SKILL_SCANNER_VERSION } from '@devdigest/reviewer-core';
 import {
   isBodyChange,
   isUniqueViolation,
@@ -51,6 +52,13 @@ describe('skills helpers', () => {
       created_at: '2026-11-01T10:00:00.000Z',
       updated_at: '2026-11-20T12:30:00.000Z',
       agent_count: 2,
+      // No stored scan → scanned from the body, dated by updated_at.
+      safety: {
+        status: 'clean',
+        findings: [],
+        scanner_version: SKILL_SCANNER_VERSION,
+        scanned_at: '2026-11-20T12:30:00.000Z',
+      },
     });
   });
 

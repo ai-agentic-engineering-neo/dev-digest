@@ -9,7 +9,7 @@ import type {
 } from '@devdigest/shared';
 import type { AgentsRepository } from './repository.js';
 import { toAgentDto, toAgentVersionDto } from './helpers.js';
-import { AppError } from '../../platform/errors.js';
+import { AppError, SkillFlaggedError } from '../../platform/errors.js';
 
 /**
  * A2 — agents service. Business logic for the Agents tab + Agent Editor.
@@ -55,6 +55,7 @@ export type AgentsStore = Pick<
   | 'skillCounts'
   | 'skillCount'
   | 'skillIdsInWorkspace'
+  | 'flaggedSkills'
   | 'getById'
   | 'deleteById'
   | 'insert'
@@ -180,6 +181,10 @@ export class AgentsService {
     const agent = await this.repo.getById(workspaceId, agentId);
     if (!agent) return undefined;
     await this.assertWorkspaceSkills(workspaceId, skillIds);
+    // Already-linked skills may stay (and be reordered / unlinked); only new
+    // links are checked, so a skill flagged after linking is never stuck.
+    const linked = new Set((await this.repo.linkedSkills(agentId)).map((l) => l.skill.id));
+    await this.assertNotFlagged(workspaceId, skillIds.filter((id) => !linked.has(id)));
     await this.repo.setSkills(agentId, skillIds);
     return this.skillLinks(agentId);
   }
@@ -195,6 +200,9 @@ export class AgentsService {
     if (!agent) return undefined;
     await this.assertWorkspaceSkills(workspaceId, [skillId]);
     const existing = await this.repo.linkedSkills(agentId);
+    if (!existing.some((l) => l.skill.id === skillId)) {
+      await this.assertNotFlagged(workspaceId, [skillId]);
+    }
     const resolvedOrder = order ?? existing.length;
     await this.repo.linkSkill(agentId, skillId, resolvedOrder);
     return this.skillLinks(agentId);
@@ -217,6 +225,17 @@ export class AgentsService {
         skill_ids: unknown,
       });
     }
+  }
+
+  /** A skill whose body fails the injection scan cannot be newly linked (422). */
+  private async assertNotFlagged(workspaceId: string, skillIds: string[]): Promise<void> {
+    const flagged = await this.repo.flaggedSkills(workspaceId, skillIds);
+    if (flagged.length === 0) return;
+    const names = flagged.map((f) => `"${f.name}"`).join(', ');
+    throw new SkillFlaggedError(
+      `Skill ${names} is flagged as a possible prompt injection; fix it before linking it to an agent`,
+      { skill_ids: flagged.map((f) => f.id) },
+    );
   }
 
   /**

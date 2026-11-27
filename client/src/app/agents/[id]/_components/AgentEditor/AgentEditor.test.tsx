@@ -63,7 +63,7 @@ describe("A2 Agent Editor (smoke)", () => {
     fireEvent.change(screen.getByDisplayValue("Security Reviewer"), { target: { value: "Renamed" } });
     fireEvent.click(screen.getByText("Save agent"));
     expect(mutate).toHaveBeenCalledTimes(1);
-    expect(mutate.mock.calls[0][0]).toEqual({ id: "ag1", patch: { name: "Renamed" } });
+    expect(mutate.mock.calls[0]?.[0]).toEqual({ id: "ag1", patch: { name: "Renamed" } });
   });
 
   it("disables Save until something changes", () => {

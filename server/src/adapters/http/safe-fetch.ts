@@ -14,7 +14,10 @@ import type { FetchedText, RemoteTextFetcher } from '../../modules/skills/ports.
  *   the socket's own `lookup`, so the IP that is validated is the IP that is
  *   connected to (no DNS-rebinding gap between "check" and "connect").
  * - Redirects are followed by hand (≤ 3), each hop re-validated.
- * - 5 s timeout, 64 KB cap (streamed, the socket is cut at the cap), text only.
+ * - One 5 s wall-clock deadline for the whole chain (plus the socket idle
+ *   timeout), 64 KB cap (streamed, the socket is cut at the cap), text only.
+ * - IPv6: only global unicast 2000::/3 (minus Teredo, 6to4, documentation);
+ *   IPv4-mapped addresses are judged by their embedded IPv4.
  * - No cookies, no auth headers. A GitHub `blob` page URL is rewritten to the raw file.
  */
 
@@ -79,18 +82,39 @@ export function isPrivateAddress(ip: string): boolean {
       return (n & mask) === (ipv4ToInt(base) & mask);
     });
   }
-  const v6 = ip.toLowerCase();
-  if (v6 === '::' || v6 === '::1') return true;
-  // IPv4-mapped, dotted (::ffff:127.0.0.1) or hex (::ffff:7f00:1 — what URL() normalises to).
-  const mapped = v6.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-  if (mapped) return isPrivateAddress(mapped[1]!);
-  const mappedHex = v6.match(/^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
-  if (mappedHex) {
-    const hi = parseInt(mappedHex[1]!, 16);
-    const lo = parseInt(mappedHex[2]!, 16);
-    return isPrivateAddress(`${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`);
+  const h = expandIpv6(ip);
+  if (!h) return true; // unparsable → refuse
+  // IPv4-mapped ::ffff:a.b.c.d → judge the embedded IPv4.
+  if (h.slice(0, 5).every((x) => x === 0) && h[5] === 0xffff) {
+    return isPrivateAddress(`${h[6]! >> 8}.${h[6]! & 255}.${h[7]! >> 8}.${h[7]! & 255}`);
   }
-  return /^f[cd]/.test(v6) || /^fe[89ab]/.test(v6) || /^ff/.test(v6); // ULA, link-local, multicast
+  // Allow-list: only global unicast 2000::/3. That refuses ::, ::1, IPv4-compatible
+  // ::/96, NAT64 64:ff9b::/96, ULA fc00::/7, link-local / site-local fe80::/9,
+  // multicast ff00::/8 and the rest of the reserved space in one rule.
+  if ((h[0]! & 0xe000) !== 0x2000) return true;
+  if (h[0] === 0x2001 && h[1] === 0x0000) return true; // Teredo (tunnels an IPv4)
+  if (h[0] === 0x2001 && h[1] === 0x0db8) return true; // documentation
+  if (h[0] === 0x2002) return true; // 6to4 (embeds an IPv4)
+  return false;
+}
+
+/** The 8 hextets of an IPv6 address (handles `::` and a dotted IPv4 tail), or null. */
+function expandIpv6(ip: string): number[] | null {
+  let s = ip.toLowerCase().replace(/^\[|\]$/g, '').split('%')[0]!;
+  const v4Tail = s.match(/:(\d+\.\d+\.\d+\.\d+)$/);
+  if (v4Tail) {
+    const n = ipv4ToInt(v4Tail[1]!);
+    s = `${s.slice(0, -v4Tail[1]!.length)}${(n >>> 16).toString(16)}:${(n & 0xffff).toString(16)}`;
+  }
+  const halves = s.split('::');
+  if (halves.length > 2) return null;
+  const head = halves[0] ? halves[0].split(':') : [];
+  const tail = halves.length === 2 && halves[1] ? halves[1].split(':') : [];
+  const fill = halves.length === 2 ? 8 - head.length - tail.length : 0;
+  if (fill < 0 || (halves.length === 1 && head.length !== 8)) return null;
+  const parts = [...head, ...Array<string>(fill).fill('0'), ...tail];
+  if (parts.length !== 8 || parts.some((p) => !/^[0-9a-f]{1,4}$/.test(p))) return null;
+  return parts.map((p) => parseInt(p, 16));
 }
 
 /** dns.lookup that refuses to hand a private address to the socket. */
@@ -114,8 +138,24 @@ interface HopResult {
   body?: string;
 }
 
-function fetchOnce(url: URL): Promise<HopResult> {
-  return new Promise((resolve, reject) => {
+const timeoutError = () => Object.assign(new Error('timeout'), { code: 'ETIMEDOUT' });
+
+/**
+ * One GET. `deadline` (epoch ms) is a WALL-CLOCK limit shared by every hop: the
+ * socket `timeout` is only an idle timeout, so a server that trickles a byte
+ * every few seconds would otherwise hold the request open far past 5 s.
+ */
+function fetchOnce(url: URL, deadline: number): Promise<HopResult> {
+  const remaining = deadline - Date.now();
+  if (remaining <= 0) return Promise.reject(timeoutError());
+  return new Promise((resolveRaw, rejectRaw) => {
+    let timer: NodeJS.Timeout | undefined;
+    const settle = <T>(fn: (v: T) => void) => (v: T) => {
+      clearTimeout(timer);
+      fn(v);
+    };
+    const resolve = settle(resolveRaw);
+    const reject = settle(rejectRaw);
     const req = httpsRequest(
       url,
       {
@@ -154,7 +194,8 @@ function fetchOnce(url: URL): Promise<HopResult> {
         res.on('error', reject);
       },
     );
-    req.on('timeout', () => req.destroy(Object.assign(new Error('timeout'), { code: 'ETIMEDOUT' })));
+    timer = setTimeout(() => req.destroy(timeoutError()), remaining);
+    req.on('timeout', () => req.destroy(timeoutError()));
     req.on('error', reject);
     req.end();
   });
@@ -173,10 +214,12 @@ function toAppError(err: unknown): Error {
 export class SafeHttpTextFetcher implements RemoteTextFetcher {
   async fetchText(raw: string): Promise<FetchedText> {
     let url = rawGitHubUrl(assertImportableUrl(raw));
+    // One 5 s budget for the whole chain, redirects included.
+    const deadline = Date.now() + FETCH_TIMEOUT_MS;
     for (let hop = 0; hop <= FETCH_MAX_REDIRECTS; hop++) {
       let res: HopResult;
       try {
-        res = await fetchOnce(url);
+        res = await fetchOnce(url, deadline);
       } catch (err) {
         throw toAppError(err);
       }

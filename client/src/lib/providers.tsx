@@ -33,7 +33,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
         // toast (they are user actions). Queries only toast on network/5xx —
         // expected 4xx like a 404 "no tour yet" stay silent for inline empty states.
         queryCache: new QueryCache({
-          onError: (err) => {
+          onError: (err, query) => {
+            // A query that shows its own error inline (the skill scan) opts out.
+            if (query.meta?.inlineError) return;
             const status = err instanceof ApiError ? err.status : 500;
             if (status === 0 || status >= 500) notify.error(errorMessage(err));
           },

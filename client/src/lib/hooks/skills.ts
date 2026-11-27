@@ -45,6 +45,8 @@ export function useSkillScan(body: string, enabled = true) {
     enabled: enabled && body.trim().length > 0,
     staleTime: Infinity,
     retry: false,
+    // The editor shows "could not check" inline; no global toast per typing pause.
+    meta: { inlineError: true },
   });
 }
 

@@ -36,6 +36,12 @@ interface Rule {
 }
 
 // Each pattern MUST carry the `g` flag (matchAll).
+//
+// ReDoS budget: a body is up to 20 000 chars and is scanned synchronously on
+// every write (and on read for legacy rows). So every repeat that could run
+// over the same chars as its neighbour is BOUNDED ({0,N}) and adjacent runs use
+// disjoint classes — no `[^x]*` next to `[^x]*`. `skill-safety.test.ts` pins a
+// time budget on adversarial 20 000-char bodies; keep it green when adding rules.
 const RULES: readonly Rule[] = [
   {
     rule: 'override-instructions',
@@ -44,7 +50,7 @@ const RULES: readonly Rule[] = [
       // "ignore all previous instructions", "forget your system prompt"
       /\b(?:ignore|disregard|forget|override|bypass)\b[^\n.]{0,40}?\b(?:previous|prior|above|earlier|preceding|all|any|system|your|these)\b[^\n.]{0,30}?\b(?:instructions?|rules?|prompts?|guidelines?|directives?)\b/gi,
       // "disregard the rules above" — the qualifier comes after the noun
-      /\b(?:ignore|disregard|forget|override|bypass)\s+(?:\w+\s+){0,3}?(?:instructions?|rules?|prompts?|guidelines?|directives?)\s+(?:above|before|so far|earlier|you (?:were|have been) given)\b/gi,
+      /\b(?:ignore|disregard|forget|override|bypass)[ \t]{1,5}(?:\w{1,30}[ \t]{1,5}){0,3}?(?:instructions?|rules?|prompts?|guidelines?|directives?)[ \t]{1,5}(?:above|before|so far|earlier|you (?:were|have been) given)\b/gi,
     ],
   },
   {
@@ -54,7 +60,7 @@ const RULES: readonly Rule[] = [
       /\byou are now\b/gi,
       /\bnew system prompt\b/gi,
       /\bact as (?:the )?system\b/gi,
-      /<\/?\s*system\s*>/gi,
+      /<\/?\s{0,10}system\s{0,10}>/gi,
       /\[\/?INST\]/gi,
       /<\|im_(?:start|end)\|>/gi,
       /^[ \t]*#{1,6}[ \t]*system\b/gim,
@@ -65,7 +71,7 @@ const RULES: readonly Rule[] = [
     rule: 'delimiter-escape',
     severity: 'block',
     patterns: [
-      /<\/?\s*untrusted\b/gi,
+      /<\/?\s{0,10}untrusted\b/gi,
       /^[ \t]*#{1,6}[ \t]*(?:diff to review|skills \/ rules|pr description|repo skeleton|project context|callers of changed symbols)[ \t]*$/gim,
     ],
   },
@@ -73,22 +79,24 @@ const RULES: readonly Rule[] = [
     rule: 'suppress-findings',
     severity: 'block',
     patterns: [
-      /\b(?:always|auto-?)\s*approve\b/gi,
-      /\b(?:do not|don't|never)\s+(?:report|flag|mention|raise)\s+(?:any\s+(?:issues?|findings?|problems?|vulnerabilit\w*)|anything|security\b|vulnerabilit\w*|secrets?\b|injections?\b|critical\b)/gi,
+      /\b(?:always|auto-?)\s{0,5}approve\b/gi,
+      /\b(?:do not|don't|never)\s{1,5}(?:report|flag|mention|raise)\s{1,5}(?:any\s{1,5}(?:issues?|findings?|problems?|vulnerabilit\w*)|anything|security\b|vulnerabilit\w*|secrets?\b|injections?\b|critical\b)/gi,
       /\bmark (?:it|this|the pr|everything|all findings) as (?:safe|approved|clean)\b/gi,
       /\bset (?:the )?score to 100\b/gi,
-      /\bverdict\s*[:=]\s*["']?approve\b/gi,
+      /\bverdict\s{0,5}[:=]\s{0,5}["']?approve\b/gi,
     ],
   },
   {
     rule: 'exfiltration',
     severity: 'block',
     patterns: [
-      // Markdown image / link to an external URL carrying a query string.
-      /!?\[[^\]\n]*\]\(\s*https?:\/\/[^)\s]*\?[^)\s]*=[^)\s]*\)/gi,
-      /\b(?:curl|wget)\b[^\n]*https?:\/\//gi,
-      /\bfetch\(\s*["'`]https?:\/\//gi,
-      /\b(?:send|post|upload|exfiltrate|forward|leak)\b[^\n.]{0,40}?\bto\s+https?:\/\//gi,
+      // Markdown image / link to an external URL carrying a query string. The
+      // runs are split by the char that ends them (`?`, `=`, `)`), so they cannot
+      // overlap: linear time even without a closing `)`.
+      /!?\[[^\]\n]{0,200}\]\([ \t]{0,5}https?:\/\/[^)\s?]{1,2048}\?[^)\s=]{0,512}=[^)\s]{0,2048}\)/gi,
+      /\b(?:curl|wget)\b[^\n]{0,300}?https?:\/\//gi,
+      /\bfetch\([ \t]{0,5}["'`]https?:\/\//gi,
+      /\b(?:send|post|upload|exfiltrate|forward|leak)\b[^\n.]{0,40}?\bto\s{1,5}https?:\/\//gi,
     ],
   },
   {
@@ -97,7 +105,9 @@ const RULES: readonly Rule[] = [
     patterns: [
       // Zero-width + BOM, and bidi overrides / isolates (text that reads differently).
       /[​-‍⁠﻿‪-‮⁦-⁩]+/g,
-      /<!--[\s\S]*?-->/g,
+      // An HTML comment (hidden in rendered Markdown), closed or not; bounded so
+      // many unclosed `<!--` cannot scan to the end of the body each.
+      /<!--(?:(?!-->)[\s\S]){0,500}(?:-->)?/g,
     ],
   },
   {

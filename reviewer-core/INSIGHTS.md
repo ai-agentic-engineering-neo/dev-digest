@@ -29,6 +29,11 @@ actionable cold.
 
 ## What Doesn't Work
 
+### 2026-11-27 — Adjacent unbounded regex runs made the skill scanner a ReDoS
+**Insight:** The first exfiltration pattern `\]\(\s*https?:\/\/[^)\s]*\?[^)\s]*=[^)\s]*\)` has three runs that can all eat `?` and `=`, so a body like `[a](https://` + `?=`×n with no `)` backtracks in O(n³): 4 000 chars took 9 s, 20 000 would block the event loop for minutes — and the scan runs synchronously on every skill write and on read for legacy rows. Unit tests with short inputs never showed it; the pr-self-review performance pass did.
+**Rule:** ALWAYS bound every repeat in `skill-safety.ts` (`{0,N}`), split neighbouring runs by the char that ends them, and keep the 20 000-char adversarial time-budget tests green — because the input is user-controlled and the scan is on the request path.
+**Evidence:** `reviewer-core/src/skill-safety.ts` → `RULES` (exfiltration, hidden-text) | test `skill-safety.test.ts` "ReDoS budget"
+
 ## Codebase Patterns
 
 ### 2026-11-26 — Skills render in the user message, not the system message

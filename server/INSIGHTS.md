@@ -22,6 +22,11 @@ actionable cold.
 
 ## What Works
 
+### 2026-11-27 — Read the `Skills:` run-log line before trusting a with-skills run
+**Insight:** `loadPromptSkills()` drops skills that are not linked or are disabled and gives no warning, so a run planned with 4 skills actually ran with 3 (`response-schema` was never ticked), and the order follows `agent_skills.order`, not creation order.
+**Rule:** ALWAYS check the trace's Live log line `Skills: name@vN, …` (from `skillsLogLine()`) against the intended list and order before comparing runs — because the UI shows no error for a missing skill.
+**Evidence:** `server/src/modules/reviews/repository/skill.repo.ts` → `loadPromptSkills()` | `reviews/helpers.ts` → `skillsLogLine()` | `GET /runs/:id/trace`
+
 ## What Doesn't Work
 
 ### 2026-11-25 — Persisting a review and its findings as two inserts
@@ -43,6 +48,11 @@ actionable cold.
 **Insight:** `ConventionsService.update()` read the row, built a new `details` object and wrote it back; a `markInSkill` committed in between was overwritten, because the UPDATE only waits for the lock and then writes the stale object.
 **Rule:** ALWAYS change `details` via `ConventionsRepository.update(ws, id, makePatch)` (SELECT … FOR UPDATE, patch computed from the locked row) or a single jsonb statement like `markInSkill()` — because any whole-object write from an earlier read races with the badge mark.
 **Evidence:** `server/src/modules/conventions/repository.ts` → `update()`, `markInSkill()` | test `conventions.it.test.ts` "a PATCH racing a markInSkill keeps the new skill id"
+
+### 2026-11-27 — [REVIEW NEEDED] Skill rules copied into the agent system prompt hide the skills' effect
+**Insight:** an API Contract Reviewer whose system prompt already listed the rules ("changed HTTP method → CRITICAL", "nullable output → WARNING") found every planted break with `Skills: none`, so comparing runs with and without skills showed nothing; a role-only prompt went from 0 CRITICAL / score 70 (no skills) to 4 CRITICAL / score 0 (4 skills) on the same PR.
+**Rule:** ALWAYS keep an agent's system prompt role-only and put review rules in skills when you measure skill impact — because the prompt is sent on every run, so rules in it make the without-skills baseline already contain the skills.
+**Evidence:** `reviewer-core/src/prompt.ts` → `assemblePrompt()` (system + `## Skills / rules`) | experiment CookBook_fool#22, agent "API Contract Reviewer (lite)"
 
 ## Codebase Patterns
 
@@ -139,6 +149,11 @@ actionable cold.
 **Rule:** ALWAYS change both scanners together (skills also accepts any indent and treats an unclosed fence as running to the end) and NEVER go back to a regex — because fences with different lengths or list indentation silently leak code into suggestion keywords or mis-split sections.
 **Evidence:** `server/src/modules/skills/helpers.ts` → `stripCodeFences()` | `conventions/helpers.ts` → `markdownSections()` | test `skills-helpers.test.ts` "a longer closing fence closes; text between two blocks survives"
 
+### 2026-11-27 — Skill import exists only as disabled menu items
+**Insight:** "Import from file / URL / Community" on the Skills page are disabled "soon" items, and no server route imports a skill; `SkillSource` includes `imported_url` but nothing writes it, so every UI- or API-created skill is `source: manual` (or `extracted` from conventions).
+**Rule:** NEVER plan a task step that relies on importing a skill — because there is no import path; create the skill via `POST /skills` (Create from scratch), or build the import feature first.
+**Evidence:** `client/src/app/skills/_components/AddSkillMenu/constants.ts` → `IMPORT_ITEMS` | `server/src/vendor/shared/contracts/knowledge.ts` → `SkillSource` | `server/src/modules/skills/routes.ts`
+
 ## Tool & Library Notes
 
 ### 2026-11-25 — Keep dependency-cruiser rule regexes flat and unanchored for pnpm
@@ -178,6 +193,8 @@ actionable cold.
 - 2026-11-26 — Conventions Extractor stage 2 server (UoW, locked details update, merge into existing skill with code dedupe + ConventionMergeCheck + 409 on stale version): 318 tests green; see "Cross-module atomic writes: build tx-bound repositories through the container"
 
 - 2026-11-26 — Conventions Extractor stage 3 server (GET /skills/:id/agent-suggestions, read-only port, code-only scoring): 333 tests green; see "Agent suggestions score in skills/helpers; CATEGORY_KEYWORDS overlap ordinary words"
+
+- 2026-11-27 — Final phase (API Contract Reviewer experiment on CookBook_fool#22, pr-self-review PASS, PR description): done; see "Skill rules copied into the agent system prompt hide the skills' effect"
 
 ## Open Questions
 

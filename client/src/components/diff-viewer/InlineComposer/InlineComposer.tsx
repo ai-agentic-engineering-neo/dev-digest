@@ -24,9 +24,12 @@ export function InlineComposer({
 }) {
   const t = useTranslations("shell");
   const [text, setText] = React.useState("");
+  // A ref, not `commenting.posting`: a repeated shortcut can fire before the re-render.
+  const submitting = React.useRef(false);
   const submit = async () => {
     const body = text.trim();
-    if (!body) return;
+    if (!body || submitting.current || commenting.posting) return;
+    submitting.current = true;
     try {
       await commenting.onSubmit({
         path,
@@ -39,6 +42,8 @@ export function InlineComposer({
       onClose();
     } catch {
       /* error toast is raised by the caller; keep the draft open */
+    } finally {
+      submitting.current = false;
     }
   };
   return (

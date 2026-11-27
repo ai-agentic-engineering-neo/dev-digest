@@ -3,17 +3,30 @@ import type { Finding, UnifiedDiff } from '@devdigest/shared';
 /**
  * Citation grounding — the mandatory mechanical gate for diff-findings.
  *
- * A diff-finding is kept ONLY if its [start_line, end_line] range intersects a
- * real hunk in the unified diff for the same file. Findings that fail are
- * dropped (the model "hallucinated" a location).
+ * A diff-finding is kept ONLY if its [start_line, end_line] range is valid
+ * (start <= end, span capped) and contains a real new-side line of a hunk in the
+ * unified diff for the same file. Findings that fail are dropped (the model
+ * "hallucinated" a location). Spec: specs/grounding-model-findings.md.
  *
- * EXCEPTION: findings from full-file scanners (hooks / blast / onboarding) are
- * not tied to a diff hunk — they ground against the file existing in the diff
- * (or are exempted entirely). We treat `kind` in {secret_leak, lethal_trifecta,
- * phantom, hook} as full-file: they only require the file to be present.
+ * EXCEPTION (opt-in only): findings from server-side full-file scanners (hooks /
+ * blast / onboarding) are not tied to a diff hunk. When the caller passes
+ * `{ fullFileScanner: true }`, a finding whose `kind` is in FULL_FILE_KINDS only
+ * requires its file to be present. Model output must never use this option:
+ * `kind` is a model-controlled field.
  */
 
 const FULL_FILE_KINDS = new Set(['secret_leak', 'lethal_trifecta', 'phantom', 'hook']);
+
+/** Widest [start_line, end_line] span a finding may cite; wider spans are dropped. */
+export const MAX_FINDING_SPAN_LINES = 500;
+
+export interface GroundingOptions {
+  /**
+   * True only when the findings come from a server-side full-file scanner.
+   * Default false: every finding is line-grounded whatever its `kind`.
+   */
+  fullFileScanner?: boolean;
+}
 
 export interface GroundingResult {
   kept: Finding[];
@@ -38,10 +51,9 @@ export function buildLineIndex(diff: UnifiedDiff): Map<string, Set<number>> {
   return idx;
 }
 
+/** Iterates the diff's lines (bounded by the diff), never the cited integer range. */
 function rangeIntersects(lines: Set<number>, start: number, end: number): boolean {
-  const lo = Math.min(start, end);
-  const hi = Math.max(start, end);
-  for (let n = lo; n <= hi; n++) if (lines.has(n)) return true;
+  for (const n of lines) if (n >= start && n <= end) return true;
   return false;
 }
 
@@ -49,14 +61,19 @@ function rangeIntersects(lines: Set<number>, start: number, end: number): boolea
  * Apply the grounding gate to a set of findings against a unified diff.
  * Returns the kept findings and the dropped ones with reasons (for the trace).
  */
-export function groundFindings(findings: Finding[], diff: UnifiedDiff): GroundingResult {
+export function groundFindings(
+  findings: Finding[],
+  diff: UnifiedDiff,
+  options: GroundingOptions = {},
+): GroundingResult {
   const lineIndex = buildLineIndex(diff);
   const filesInDiff = new Set(diff.files.map((f) => f.path));
   const kept: Finding[] = [];
   const dropped: { finding: Finding; reason: string }[] = [];
 
   for (const finding of findings) {
-    const isFullFile = finding.kind ? FULL_FILE_KINDS.has(finding.kind) : false;
+    const isFullFile =
+      options.fullFileScanner === true && finding.kind != null && FULL_FILE_KINDS.has(finding.kind);
 
     if (!filesInDiff.has(finding.file)) {
       dropped.push({ finding, reason: `file '${finding.file}' not present in diff` });
@@ -69,13 +86,26 @@ export function groundFindings(findings: Finding[], diff: UnifiedDiff): Groundin
       continue;
     }
 
+    const { start_line: start, end_line: end } = finding;
+    if (start > end) {
+      dropped.push({ finding, reason: `start_line ${start} is after end_line ${end}` });
+      continue;
+    }
+    if (end - start + 1 > MAX_FINDING_SPAN_LINES) {
+      dropped.push({
+        finding,
+        reason: `span of ${end - start + 1} lines exceeds ${MAX_FINDING_SPAN_LINES}`,
+      });
+      continue;
+    }
+
     const lines = lineIndex.get(finding.file) ?? new Set<number>();
-    if (rangeIntersects(lines, finding.start_line, finding.end_line)) {
+    if (rangeIntersects(lines, start, end)) {
       kept.push(finding);
     } else {
       dropped.push({
         finding,
-        reason: `lines ${finding.start_line}-${finding.end_line} do not intersect any diff hunk in '${finding.file}'`,
+        reason: `lines ${start}-${end} do not intersect any diff hunk in '${finding.file}'`,
       });
     }
   }

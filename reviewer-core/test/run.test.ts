@@ -70,6 +70,25 @@ describe('reviewPullRequest (engine)', () => {
     expect(events.some((m) => m.includes('Citation grounding'))).toBe(true);
   });
 
+  it('a model-labelled secret_leak finding off the diff is dropped (no full-file exemption)', async () => {
+    const leak = {
+      verdict: 'request_changes',
+      summary: 'secret',
+      score: 10,
+      findings: [{ ...fixture.findings[0]!, id: 'leak', start_line: 1, end_line: 1, kind: 'secret_leak' }],
+    };
+    const outcome = await reviewPullRequest({
+      systemPrompt: 's',
+      model: 'm',
+      diff: CONFIG_DIFF,
+      llm: stubLLM(leak),
+    });
+
+    expect(outcome.review.findings).toHaveLength(0);
+    expect(outcome.dropped[0]!.reason).toMatch(/do not intersect/);
+    expect(outcome.review.score).toBe(100);
+  });
+
   it('score is deterministic from findings: a clean approve scores 100', async () => {
     // Model "approves" but reports a nonsense low score (the cheap-model bug).
     // The engine must ignore that and score the zero findings as a perfect 100.

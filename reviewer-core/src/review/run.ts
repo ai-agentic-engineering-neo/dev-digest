@@ -197,7 +197,9 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
   );
 
   // SHARED citation-grounding gate (the only post-step; not duplicated per strategy).
-  const ground = groundFindings(merged.findings, input.diff);
+  // Model output is never a full-file scanner: every finding is line-grounded,
+  // whatever `kind` the model wrote (specs/grounding-model-findings.md).
+  const ground = groundFindings(merged.findings, input.diff, { fullFileScanner: false });
   const grounding = groundingSummary(ground);
   for (const d of ground.dropped) {
     emit('info', `grounding dropped "${d.finding.title}": ${d.reason}`);

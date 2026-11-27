@@ -26,6 +26,8 @@ edit it.
 
 - 2026-11-22 — Do not read a score of 100 as "the reviewer found the code clean": the score is 100 minus penalties over the grounded findings, so every zero-finding run is exactly 100 whatever the model thought (its own scores in such runs were 0, 95 and 100). To judge a reviewer, run it on a known-defect diff: upstream `ai-agentic-engineering-neo/dev-digest` PR #13 (SSRF through `fetch(req.body.url)`) and PR #12 (N+1 queries in a loop) are such fixtures and #14 is the clean control. On them the three seeded agents scored 18–97 with 1–3 findings each, while the same agents returned 0 findings in all 12 runs on three feature PRs. Evidence: reviewer-core/src/review/run.ts:208
 
+- 2026-11-27 — A timing test for the grounding range loop must cite a range that misses the diff (e.g. start 13 on a diff ending at 12): with start 1 the old integer loop hit a diff line at once and the "prompt" test passed against the buggy code. Check a regression test fails on the old code before trusting it. Evidence: reviewer-core/test/grounding.test.ts:38
+
 ## Codebase Patterns
 
 <!-- Conventions and structure that are not obvious from one file. -->
@@ -44,6 +46,8 @@ edit it.
 
 ## Decisions
 
+- 2026-11-27 — The grounding full-file exemption is opt-in (`groundFindings(..., { fullFileScanner: true })`) and the LLM path never sets it, because `kind` is model-written; spans are capped at `MAX_FINDING_SPAN_LINES` (500) and the range check iterates the diff's lines. Spec: specs/grounding-model-findings.md. Evidence: reviewer-core/src/grounding.ts:66
+
 <!-- A decision and the reason for it. -->
 
 ## Recurring Errors & Fixes
@@ -61,6 +65,8 @@ edit it.
 - 2026-11-23 — Merged `LEARNINGS.md` into this file; no source code changed.
 
 - 2026-11-26 — `test/run.test.ts` moved from the server's mocks to local stubs; the package is now covered by the server's import-boundary check. No source code changed.
+
+- 2026-11-27 — BE-3: model findings are always line-grounded; reversed and over-wide ranges dropped; spec written first.
 
 ## Open Questions
 

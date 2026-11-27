@@ -17,6 +17,9 @@ export function stubLLM(structured: unknown): LLMProvider {
     async listModels() {
       return [];
     },
+    async embed() {
+      return [];
+    },
     async complete(req) {
       return { text: 'stub completion', model: req.model, tokensIn: 100, tokensOut: 50, costUsd: 0.001 };
     },
@@ -34,7 +37,7 @@ export function stubLLM(structured: unknown): LLMProvider {
         attempts: 1,
       };
     },
-  } as LLMProvider;
+  };
 }
 
 /** One file, one hunk: line 11 of src/config.ts is added (lines 10–12 are in the diff). */

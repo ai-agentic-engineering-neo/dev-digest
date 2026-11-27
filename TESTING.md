@@ -41,7 +41,9 @@ surface (list, diff, findings, run controls) and the agent editor.
 **server-unit** — the DB-free majority: adapters, prompt assembly, grounding,
 repo-intel ranking & indexing, pricing, route smoke. The `typecheck` job also
 runs on Windows, which doubles as the `@ast-grep/napi` prebuilt gate (install
-fails there if the win32 prebuilt is missing).
+fails there if the win32 prebuilt is missing). In `server/` and `reviewer-core/`
+`pnpm typecheck` / `npm run typecheck` checks `src/` and `test/` (via
+`tsconfig.test.json`), so a test file with a type error fails CI.
 
 **server-integration** — the `*.it.test.ts` files. Each starts a real Postgres
 (pgvector) via testcontainers, builds the Fastify app, migrates + seeds, and

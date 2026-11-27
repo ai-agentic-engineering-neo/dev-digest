@@ -300,7 +300,7 @@ export class MockCodeIndex implements CodeIndex {
   async grep(_repo: RepoRef, pattern: string): Promise<CodeMatch[]> {
     return [{ path: 'src/config.ts', line: 12, text: `match for ${pattern}` }];
   }
-  async symbols(): Promise<CodeSymbol[]> {
+  async symbols(_repo: RepoRef): Promise<CodeSymbol[]> {
     return [{ path: 'src/middleware/ratelimit.ts', name: 'rateLimit', kind: 'function', line: 25 }];
   }
   async references(_repo: RepoRef, symbol: string): Promise<CodeReference[]> {

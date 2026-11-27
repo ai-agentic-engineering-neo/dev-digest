@@ -6,7 +6,7 @@ import { FormField, SearchableSelect, Icon } from "@devdigest/ui";
 import { useSettings, useUpdateSettings } from "../../../../../../../lib/hooks";
 import { useProviderModels } from "../../../../../../../lib/hooks/agents";
 import { toModelOptions } from "../../../../../../../lib/model-label";
-import { FEATURE_MODELS } from "../../../../../../../lib/feature-models";
+import { FEATURE_MODELS } from "@devdigest/shared";
 import type { FeatureModelChoice, FeatureModelId } from "../../../../../../../lib/types";
 import { SectionTitle } from "../SectionTitle";
 import { s } from "./styles";

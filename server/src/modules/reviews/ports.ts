@@ -83,11 +83,25 @@ export interface RunCompletion {
   error?: string | null;
 }
 
+/** Everything a successful run stores, saved together or not at all. */
+export interface ReviewOutcome {
+  runId: string;
+  review: NewReview;
+  /** The findings that survived grounding. */
+  findings: Finding[];
+  /** The run's `done` state; `findingsCount` must equal `findings.length`. */
+  completion: RunCompletion;
+  trace: RunTrace;
+}
+
 /** Persistence for reviews, findings, agent runs and run traces. */
 export interface ReviewStore {
-  insertReview(values: NewReview): Promise<{ id: string }>;
-  /** Returns how many findings were stored. */
-  insertFindings(reviewId: string, findings: Finding[]): Promise<number>;
+  /**
+   * Save a finished run in one transaction: the review, its findings, the
+   * run's completion and its trace. Returns null and saves nothing when the run
+   * is no longer `running` (cancelled meanwhile).
+   */
+  saveReviewOutcome(outcome: ReviewOutcome): Promise<{ reviewId: string } | null>;
   /** Reviews for a PR (newest first), each with its findings; `agent_name` unset. */
   reviewsForPull(prId: string): Promise<ReviewDto[]>;
   /** False when the review is not in the workspace. */
@@ -116,6 +130,7 @@ export interface ReviewStore {
     provider: string | null;
     model: string | null;
   }): Promise<string>;
+  /** Record a terminal state; a no-op unless the run is still `running`. */
   completeAgentRun(runId: string, values: RunCompletion): Promise<void>;
   /** Persist the WHOLE run log as ONE document. */
   saveRunTrace(runId: string, trace: RunTrace): Promise<void>;
@@ -137,6 +152,8 @@ export type RepoContext = Pick<RepoIntel, 'getCallerSignatures' | 'getRepoMap' |
 export interface RunEvents extends RunEventBus {
   cancel(runId: string): void;
   isCancelled(runId: string): boolean;
+  /** Forget a cancellation request; the run executor calls it when a run exits. */
+  clearCancelled(runId: string): void;
   complete(runId: string): void;
 }
 

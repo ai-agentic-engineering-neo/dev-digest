@@ -34,6 +34,13 @@ export class RunBus {
     return this.cancelled.has(runId);
   }
 
+  /** Forget a run's cancellation request. Called by the run executor when the
+   *  run exits — not by `complete()`, which a cancel request itself calls to end
+   *  the stream while the runner may still be working. */
+  clearCancelled(runId: string): void {
+    this.cancelled.delete(runId);
+  }
+
   private emitterFor(runId: string): EventEmitter {
     let e = this.emitters.get(runId);
     if (!e) {
@@ -72,11 +79,11 @@ export class RunBus {
     return this.buffers.get(runId) ?? [];
   }
 
-  /** Signal completion and release buffers/emitters. */
+  /** Signal completion and release buffers/emitters. Leaves a cancellation
+   *  request in place: the runner clears it with `clearCancelled` on exit. */
   complete(runId: string): void {
     const e = this.emitters.get(runId);
     this.completed.add(runId);
-    this.cancelled.delete(runId);
     e?.emit('done');
     // Keep the buffer briefly available for late subscribers; clear emitter.
     this.emitters.delete(runId);

@@ -1,5 +1,5 @@
 import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm';
-import type { Db } from '../../../db/client.js';
+import type { Db, DbExecutor } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
 import type { RunSummary, RunTrace } from '@devdigest/shared';
 
@@ -139,8 +139,13 @@ export async function createAgentRun(
   return row!.id;
 }
 
+/**
+ * Record a run's terminal state. Only a run still `running` is updated, so a
+ * run the user cancelled (or the boot reaper failed) is never flipped back.
+ * Returns false when the row was no longer running and nothing changed.
+ */
 export async function completeAgentRun(
-  db: Db,
+  db: DbExecutor,
   runId: string,
   values: {
     status: 'done' | 'failed' | 'cancelled';
@@ -158,8 +163,8 @@ export async function completeAgentRun(
     /** Failure reason (status='failed') / cancellation note. Null clears it. */
     error?: string | null;
   },
-): Promise<void> {
-  await db
+): Promise<boolean> {
+  const rows = await db
     .update(t.agentRuns)
     .set({
       status: values.status,
@@ -173,11 +178,13 @@ export async function completeAgentRun(
       blockers: values.blockers ?? null,
       error: values.error ?? null,
     })
-    .where(eq(t.agentRuns.id, runId));
+    .where(and(eq(t.agentRuns.id, runId), eq(t.agentRuns.status, 'running')))
+    .returning({ id: t.agentRuns.id });
+  return rows.length > 0;
 }
 
 /** Persist the WHOLE run log as ONE document. PK = runId → agent_runs. */
-export async function saveRunTrace(db: Db, runId: string, trace: RunTrace): Promise<void> {
+export async function saveRunTrace(db: DbExecutor, runId: string, trace: RunTrace): Promise<void> {
   await db
     .insert(t.runTraces)
     .values({ runId, trace })

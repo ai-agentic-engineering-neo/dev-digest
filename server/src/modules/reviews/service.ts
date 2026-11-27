@@ -77,11 +77,16 @@ export class ReviewService {
    * checkpoint AND marks the DB row cancelled + completes the bus immediately —
    * so cancel also works for ORPHANED runs (whose background process died on a
    * server restart) where signalling alone would do nothing.
+   *
+   * The cancellation flag outlives `complete()`: a live runner still reads it
+   * after the LLM returns, and clears it itself when it exits. A run that had
+   * already finished has no runner left to clear it, so it is cleared here.
    */
   async cancelRun(runId: string): Promise<void> {
     this.publish(runId, 'info', 'Cancellation requested — stopping…');
     this.deps.events.cancel(runId);
-    await this.deps.store.cancelRunIfRunning(runId);
+    const wasRunning = await this.deps.store.cancelRunIfRunning(runId);
+    if (!wasRunning) this.deps.events.clearCancelled(runId);
     this.deps.events.complete(runId);
   }
 

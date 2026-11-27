@@ -43,6 +43,8 @@ also uses.
 
 - 2026-11-27 — Do not treat the server unit lane as database-free: `buildApp` runs the stale-run reaper (`UPDATE agent_runs SET status='failed' WHERE status='running'`) before it returns, and three unit test files call `buildApp({ config })` with no `db` override, so `pnpm exec vitest run --exclude '**/*.it.test.ts'` runs that statement against the `DATABASE_URL` from `.env`. Do not run the unit lane while a review is running on the dev database; a run marked `failed` with no `error` and no `duration_ms` was reaped this way. Until the reaper moves to `server.ts`, give a no-DB test a stub `db`. Evidence: server/src/app.ts:81
 
+- 2026-11-27 — Do not clear a run's cancellation flag in `RunBus.complete()`: `cancelRun` calls `complete()` right after `cancel()` (to end SSE for orphaned runs), so clearing there made cancel a no-op for a live run — it finished, saved findings and flipped back to `done`. The flag is now cleared by the run executor in `runOneAgent`'s `finally` (and in `failAll`), and by `cancelRun` only when the row was no longer running. A new path that ends a run must call `clearCancelled`. Evidence: server/src/modules/reviews/run-executor.ts:332
+
 ## Codebase Patterns
 
 <!-- Conventions and structure that are not obvious from one file. -->
@@ -79,6 +81,8 @@ also uses.
 
 - 2026-11-26 — Polling and the PR list now import pull requests through one repository method, so a PR first seen by `POST /repos/:id/poll` gets `opened_at` stored (it used to stay null forever). Evidence: server/src/modules/pulls/repository.ts:54
 
+- 2026-11-27 — `completeAgentRun` only updates rows still `status = 'running'`, so nothing overwrites a cancelled (or reaped) run. Side effect: on the cancel path the executor's `completeAgentRun(..., 'cancelled', error: 'Cancelled by user')` is a no-op because `cancelRunIfRunning` already flipped the row, so a cancelled run stores no `error` or `duration_ms`; only its trace (log so far) is saved. If the UI needs the note, set it in `cancelRunIfRunning`, not by loosening the guard. The success path goes through `saveReviewOutcome`, which runs the guarded update first inside the transaction and returns null (writes nothing) when the run is no longer running. Evidence: server/src/modules/reviews/repository/run.repo.ts:181
+
 ## Recurring Errors & Fixes
 
 <!-- An error seen more than once, with its fix. -->
@@ -100,6 +104,8 @@ also uses.
 - 2026-11-26 — Added the `onion-architecture` skill and `pnpm deps:validate` (dependency-cruiser, 15 rules, no baseline, run in CI), and refactored every module to `domain.ts` / `ports.ts` / `service.ts` / `repository.ts` / `routes.ts` with services on injected ports; 49 boundary violations went to 0. No HTTP contract, schema or migration changed.
 
 - 2026-11-27 — Audited the package against the project skills (onion, Fastify, Drizzle, Postgres, Zod, security); no source changed. The findings and their order are in `docs/improvement-plan.md` (sections 2, 5 and 6): four high items in the backend (a failed job crashes the process, cancel does not cancel, two grounding and prompt-fence gaps) and one in persistence (a non-atomic re-index).
+
+- 2026-11-27 — BE-2 + DB-4: cancel now cancels (flag cleared by the executor, checked again after the LLM, `status = 'running'` guard), and a run's outcome is saved by `saveReviewOutcome` in one transaction; `markReviewed` is best-effort after commit.
 
 ## Open Questions
 

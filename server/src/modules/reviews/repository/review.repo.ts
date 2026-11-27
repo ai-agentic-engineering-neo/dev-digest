@@ -1,5 +1,5 @@
 import { and, desc, eq, inArray } from 'drizzle-orm';
-import type { Db } from '../../../db/client.js';
+import type { Db, DbExecutor } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
 import type { Finding } from '@devdigest/shared';
 import type { ReviewDto, ReviewDtoFinding } from '../domain.js';
@@ -50,14 +50,14 @@ function toReview(review: ReviewRow, findings: FindingRow[]): ReviewDto {
 
 // ---- reviews + findings ---------------------------------------------------
 
-export async function insertReview(db: Db, values: NewReview): Promise<{ id: string }> {
+export async function insertReview(db: DbExecutor, values: NewReview): Promise<{ id: string }> {
   const [row] = await db.insert(t.reviews).values(values).returning({ id: t.reviews.id });
   return row!;
 }
 
 /** Returns how many findings were stored. */
 export async function insertFindings(
-  db: Db,
+  db: DbExecutor,
   reviewId: string,
   findings: Finding[],
 ): Promise<number> {

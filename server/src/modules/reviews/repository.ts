@@ -1,6 +1,6 @@
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
-import type { Finding, Intent, RunSummary, RunTrace } from '@devdigest/shared';
+import type { Intent, RunSummary, RunTrace } from '@devdigest/shared';
 
 /**
  * A2 — review data-access. The ONLY layer touching the DB for the review
@@ -19,20 +19,28 @@ import * as reviewRepo from './repository/review.repo.js';
 import * as runRepo from './repository/run.repo.js';
 import * as pullRepo from './repository/pull.repo.js';
 import type { ReviewDto, ReviewDtoFinding } from './domain.js';
-import type { NewReview, ReviewStore, RunCompletion } from './ports.js';
+import type { ReviewOutcome, ReviewStore, RunCompletion } from './ports.js';
 
 export class ReviewRepository implements ReviewStore {
   constructor(private db: Db) {}
 
   // ---- reviews + findings -------------------------------------------------
 
-  insertReview(values: NewReview): Promise<{ id: string }> {
-    return reviewRepo.insertReview(this.db, values);
-  }
-
-  /** Returns how many findings were stored. */
-  insertFindings(reviewId: string, findings: Finding[]): Promise<number> {
-    return reviewRepo.insertFindings(this.db, reviewId, findings);
+  /**
+   * A finished run, saved atomically. The guarded run update goes first: when
+   * the run is no longer `running` (cancelled meanwhile) nothing is written and
+   * the result is null. Any failure rolls the whole outcome back, so a run never
+   * ends with a review that has lost its findings or its trace.
+   */
+  saveReviewOutcome(outcome: ReviewOutcome): Promise<{ reviewId: string } | null> {
+    return this.db.transaction(async (tx) => {
+      const stillRunning = await runRepo.completeAgentRun(tx, outcome.runId, outcome.completion);
+      if (!stillRunning) return null;
+      const review = await reviewRepo.insertReview(tx, outcome.review);
+      await reviewRepo.insertFindings(tx, review.id, outcome.findings);
+      await runRepo.saveRunTrace(tx, outcome.runId, outcome.trace);
+      return { reviewId: review.id };
+    });
   }
 
   /** Reviews for a PR (newest first), each with its findings. */
@@ -130,8 +138,8 @@ export class ReviewRepository implements ReviewStore {
     return runRepo.createAgentRun(this.db, values);
   }
 
-  completeAgentRun(runId: string, values: RunCompletion): Promise<void> {
-    return runRepo.completeAgentRun(this.db, runId, values);
+  async completeAgentRun(runId: string, values: RunCompletion): Promise<void> {
+    await runRepo.completeAgentRun(this.db, runId, values);
   }
 
   /** Persist the WHOLE run log as ONE document. PK = runId → agent_runs. */

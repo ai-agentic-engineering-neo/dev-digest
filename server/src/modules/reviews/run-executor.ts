@@ -87,6 +87,7 @@ export class ReviewRunExecutor {
           .saveRunTrace(runId, this.traceFromBuffer(runId, pull, agent, '0/0 passed'))
           .catch(() => undefined);
         this.deps.events.complete(runId);
+        this.deps.events.clearCancelled(runId);
       }
     };
 
@@ -210,47 +211,19 @@ export class ReviewRunExecutor {
       });
       const { tokensIn, tokensOut, costUsd, grounding } = outcome;
 
+      // Cancel may have arrived while the model was answering — the engine's
+      // own checkpoints are all before the call. A cancelled run saves nothing.
+      if (this.deps.events.isCancelled(runId)) throw new RunCancelledError();
+
       const keptFindings = outcome.review.findings;
-
-      // ---- Persist review + findings ----------------------------------------
-      const review = await this.deps.store.insertReview({
-        workspaceId,
-        prId: pull.id,
-        agentId: agent.id,
-        runId,
-        kind: 'review',
-        verdict: outcome.review.verdict,
-        summary: outcome.review.summary,
-        score: outcome.review.score,
-        model: agent.model,
-      });
-      const findingsCount = await this.deps.store.insertFindings(review.id, keptFindings);
-      runLog.result(`Persisted review ${review.id} with ${findingsCount} finding(s)`);
-
-      // Mark the commit this review ran against so the PR list can tell
-      // reviewed / needs-review (head moved) / stale apart.
-      await this.deps.pulls.markReviewed(pull.id, pull.headSha);
-
+      const findingsCount = keptFindings.length;
       const durationMs = Date.now() - start;
 
       // Deterministic blocker count (severity ≥ the agent's gate) — the signal
       // the timeline colors on, NOT the model's self-reported verdict.
       const blockers = countBlockers(keptFindings, agent.ci_fail_on);
 
-      // ---- Observability: agent_runs + ONE run_traces document --------------
-      await this.deps.store.completeAgentRun(runId, {
-        status: 'done',
-        durationMs,
-        tokensIn,
-        tokensOut,
-        costUsd,
-        findingsCount,
-        grounding,
-        score: outcome.review.score,
-        blockers,
-        error: null,
-      });
-
+      runLog.info(`Persisting review with ${findingsCount} finding(s) and the run trace`);
       const trace: RunTrace = {
         config: {
           agent: agent.name,
@@ -282,14 +255,57 @@ export class ReviewRunExecutor {
         // diff load + intent), not just events recorded inside this method.
         log: runLog.logFor(runId),
       };
+
+      // ---- Persist review + findings + agent_runs + run_traces, atomically --
+      const saved = await this.deps.store.saveReviewOutcome({
+        runId,
+        review: {
+          workspaceId,
+          prId: pull.id,
+          agentId: agent.id,
+          runId,
+          kind: 'review',
+          verdict: outcome.review.verdict,
+          summary: outcome.review.summary,
+          score: outcome.review.score,
+          model: agent.model,
+        },
+        findings: keptFindings,
+        completion: {
+          status: 'done',
+          durationMs,
+          tokensIn,
+          tokensOut,
+          costUsd,
+          findingsCount,
+          grounding,
+          score: outcome.review.score,
+          blockers,
+          error: null,
+        },
+        trace,
+      });
+      // Null: the run stopped being `running` between the check above and the
+      // save (cancelled meanwhile) — the transaction wrote nothing.
+      if (!saved) throw new RunCancelledError();
+      runLog.result(`Persisted review ${saved.reviewId} with ${findingsCount} finding(s)`);
+
+      // Mark the commit this review ran against so the PR list can tell
+      // reviewed / needs-review (head moved) / stale apart. After the commit,
+      // and best-effort: the review is already saved, so a failure here must
+      // not turn the run into a failed one.
+      await this.deps.pulls.markReviewed(pull.id, pull.headSha).catch((err: unknown) => {
+        runLog.info(`Could not record the reviewed commit: ${(err as Error).message}`);
+      });
+
       runLog.info('Run complete; trace persisted');
-      await this.deps.store.saveRunTrace(runId, trace);
       this.deps.events.complete(runId);
 
-      return { reviewId: review.id, findingsCount, grounding, raw: outcome.review };
+      return { reviewId: saved.reviewId, findingsCount, grounding, raw: outcome.review };
     } catch (err) {
       // Failure/cancel: persist status + the error text + the log-so-far so the
-      // run (and WHY it failed) is visible on the UI after a reload.
+      // run (and WHY it failed) is visible on the UI after a reload. A cancelled
+      // run is already `cancelled` in the DB, so the guarded update is a no-op.
       const cancelled = err instanceof RunCancelledError;
       const status = cancelled ? 'cancelled' : 'failed';
       const msg = cancelled ? 'Cancelled by user' : (err as Error).message;
@@ -311,6 +327,9 @@ export class ReviewRunExecutor {
         .catch(() => undefined);
       this.deps.events.complete(runId);
       throw err;
+    } finally {
+      // The run has exited: its cancellation request (if any) is spent.
+      this.deps.events.clearCancelled(runId);
     }
   }
 

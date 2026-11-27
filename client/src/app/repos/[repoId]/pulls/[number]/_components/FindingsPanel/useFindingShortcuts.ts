@@ -4,11 +4,18 @@
 
 import React from "react";
 import type { FindingActionKind, FindingRecord } from "@devdigest/shared";
+import { isTextInput } from "../../../../../../../components/app-shell/helpers";
 import { KEY_TO_ACTION } from "./constants";
 import { shouldIgnoreShortcut } from "./helpers";
 
-/** Id of the panel that last had focus or a pointer press; shared by every mounted panel. */
-let activePanelId: string | null = null;
+/** Mounted panels in claim order; the last one is active (last focused or pressed). */
+const mountedPanels: string[] = [];
+
+function claim(id: string) {
+  const i = mountedPanels.indexOf(id);
+  if (i !== -1) mountedPanels.splice(i, 1);
+  mountedPanels.push(id);
+}
 
 export function useFindingShortcuts({
   shown,
@@ -25,17 +32,26 @@ export function useFindingShortcuts({
 }) {
   const id = React.useId();
 
-  // The first panel to mount is the active one until the user touches another.
+  // A new panel joins at the back of the claim order, so the first mounted panel stays
+  // active until another is touched; on unmount the claim passes to a surviving panel.
+  const gSince = React.useRef<number | null>(null);
   React.useEffect(() => {
-    activePanelId ??= id;
+    mountedPanels.unshift(id);
     return () => {
-      if (activePanelId === id) activePanelId = null;
+      mountedPanels.splice(mountedPanels.indexOf(id), 1);
     };
   }, [id]);
 
   React.useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (activePanelId !== id || shouldIgnoreShortcut(e)) return;
+      // `g` starts the global nav chord; its next key belongs to the router, not to us.
+      if (e.key === "g" && !isTextInput(e.target)) {
+        gSince.current = Date.now();
+        return;
+      }
+      const since = gSince.current;
+      gSince.current = null;
+      if (mountedPanels[mountedPanels.length - 1] !== id || shouldIgnoreShortcut(e, since)) return;
       if (e.key === "j") setFocusIdx((i) => Math.min(i + 1, shown.length - 1));
       else if (e.key === "k") setFocusIdx((i) => Math.max(i - 1, 0));
       else if (KEY_TO_ACTION[e.key] && shown[focusIdx] && !pending) {
@@ -47,7 +63,7 @@ export function useFindingShortcuts({
   }, [id, shown, focusIdx, setFocusIdx, pending, act]);
 
   const activate = React.useCallback(() => {
-    activePanelId = id;
+    claim(id);
   }, [id]);
   return { onPointerDownCapture: activate, onFocusCapture: activate };
 }

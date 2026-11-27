@@ -1,5 +1,6 @@
 import type { FindingRecord, Severity } from "@devdigest/shared";
 import { isTextInput } from "../../../../../../../components/app-shell/helpers";
+import { G_NAV_TIMEOUT_MS } from "../../../../../../../components/app-shell/constants";
 import { LOW_CONFIDENCE_THRESHOLD, SEVERITY_FILTERS, SEVERITY_ORDER } from "./constants";
 
 export interface FindingFilters {
@@ -33,14 +34,20 @@ export function visibleFindings(findings: FindingRecord[], filters: FindingFilte
 }
 
 /** Whether a keydown must not trigger a findings shortcut: a chord, an auto-repeat,
- *  typing in a field, or an open dialog. */
-export function shouldIgnoreShortcut(e: KeyboardEvent): boolean {
+ *  typing in a field, an open dialog, or the second key of a pending `g` nav chord
+ *  (`gSince` = when `g` was pressed, null if none). */
+export function shouldIgnoreShortcut(
+  e: KeyboardEvent,
+  gSince: number | null = null,
+  now: number = Date.now(),
+): boolean {
   return (
     e.metaKey ||
     e.ctrlKey ||
     e.altKey ||
     e.repeat ||
     isTextInput(e.target) ||
-    document.querySelector('[role="dialog"]') !== null
+    document.querySelector('[role="dialog"]') !== null ||
+    (gSince !== null && now - gSince < G_NAV_TIMEOUT_MS)
   );
 }

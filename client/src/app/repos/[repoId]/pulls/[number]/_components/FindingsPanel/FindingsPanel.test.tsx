@@ -5,8 +5,9 @@ import type { FindingRecord } from "@devdigest/shared";
 import messages from "../../../../../../../../messages/en/prReview.json";
 
 const mutate = vi.hoisted(() => vi.fn());
+const state = vi.hoisted(() => ({ isPending: false }));
 vi.mock("../../../../../../../lib/hooks/reviews", () => ({
-  useFindingAction: () => ({ mutate, isPending: false }),
+  useFindingAction: () => ({ mutate, isPending: state.isPending }),
 }));
 
 import { FindingsPanel } from "./FindingsPanel";
@@ -14,6 +15,7 @@ import { FindingsPanel } from "./FindingsPanel";
 afterEach(() => {
   cleanup();
   mutate.mockClear();
+  state.isPending = false;
 });
 
 const FINDINGS: FindingRecord[] = [
@@ -153,5 +155,35 @@ describe("FindingsPanel shortcuts", () => {
     fireEvent.keyDown(window, { key: "a" });
     expect(mutate).toHaveBeenCalledTimes(1);
     expect(mutate).toHaveBeenCalledWith({ findingId: "y1", action: "accept", prId: "pr1" });
+  });
+
+  it("hands the claim to the surviving panel when the active one unmounts", () => {
+    const first = <FindingsPanel key="a" findings={[finding("x1", "WARNING", 0.9)]} prId="pr1" />;
+    const second = <FindingsPanel key="b" findings={[finding("y1", "WARNING", 0.9)]} prId="pr1" />;
+    const { rerender } = renderWithIntl(<>{first}{second}</>);
+    rerender(
+      <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
+        {second}
+      </NextIntlClientProvider>,
+    );
+    fireEvent.keyDown(window, { key: "a" });
+    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate).toHaveBeenCalledWith({ findingId: "y1", action: "accept", prId: "pr1" });
+  });
+
+  it("does not accept on the second key of a `g` nav chord", () => {
+    renderWithIntl(<FindingsPanel findings={MIXED} prId="pr1" />);
+    fireEvent.keyDown(window, { key: "g" });
+    fireEvent.keyDown(window, { key: "a" });
+    expect(mutate).not.toHaveBeenCalled();
+    fireEvent.keyDown(window, { key: "a" });
+    expect(mutate).toHaveBeenCalledTimes(1);
+  });
+
+  it("does nothing on `a` while an action is pending", () => {
+    state.isPending = true;
+    renderWithIntl(<FindingsPanel findings={MIXED} prId="pr1" />);
+    fireEvent.keyDown(window, { key: "a" });
+    expect(mutate).not.toHaveBeenCalled();
   });
 });

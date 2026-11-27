@@ -29,19 +29,46 @@ export const MAX_SKILL_FINDINGS = 50;
 
 const EXCERPT_MAX = 120;
 
+type Span = { start: number; end: number };
+
 interface Rule {
   rule: SkillSafetyRule;
   severity: SkillSafetySeverity;
   patterns: RegExp[];
+  /** Extra matcher in plain code, for checks one regex cannot do in linear time. */
+  find?: (body: string) => Span[];
+}
+
+/**
+ * `curl` / `wget` and a URL anywhere later on the same line. A regex such as
+ * `curl[^\n]*https?://` is quadratic on a long line full of "curl", and a
+ * bounded `{0,N}` gap can be padded past — so this walks the lines once.
+ */
+function commandWithUrlSpans(body: string): Span[] {
+  const spans: Span[] = [];
+  let offset = 0;
+  for (const line of body.split('\n')) {
+    const tool = /\b(?:curl|wget)\b/i.exec(line);
+    if (tool) {
+      const url = /https?:\/\//i.exec(line.slice(tool.index));
+      if (url) {
+        const start = offset + tool.index;
+        spans.push({ start, end: start + url.index + url[0].length });
+      }
+    }
+    offset += line.length + 1;
+  }
+  return spans;
 }
 
 // Each pattern MUST carry the `g` flag (matchAll).
 //
 // ReDoS budget: a body is up to 20 000 chars and is scanned synchronously on
-// every write (and on read for legacy rows). So every repeat that could run
-// over the same chars as its neighbour is BOUNDED ({0,N}) and adjacent runs use
-// disjoint classes — no `[^x]*` next to `[^x]*`. `skill-safety.test.ts` pins a
-// time budget on adversarial 20 000-char bodies; keep it green when adding rules.
+// every write (and on read for legacy rows). Adjacent runs use DISJOINT classes
+// split by the literal that ends them (no `[^x]*` next to `[^x]*`), and a gap
+// between two key words is bounded only when padding it cannot hide an attack;
+// otherwise the check lives in code (`find`). `skill-safety.test.ts` pins a time
+// budget on adversarial 20 000-char bodies AND padded-bypass cases; keep both green.
 const RULES: readonly Rule[] = [
   {
     rule: 'override-instructions',
@@ -50,7 +77,7 @@ const RULES: readonly Rule[] = [
       // "ignore all previous instructions", "forget your system prompt"
       /\b(?:ignore|disregard|forget|override|bypass)\b[^\n.]{0,40}?\b(?:previous|prior|above|earlier|preceding|all|any|system|your|these)\b[^\n.]{0,30}?\b(?:instructions?|rules?|prompts?|guidelines?|directives?)\b/gi,
       // "disregard the rules above" — the qualifier comes after the noun
-      /\b(?:ignore|disregard|forget|override|bypass)[ \t]{1,5}(?:\w{1,30}[ \t]{1,5}){0,3}?(?:instructions?|rules?|prompts?|guidelines?|directives?)[ \t]{1,5}(?:above|before|so far|earlier|you (?:were|have been) given)\b/gi,
+      /\b(?:ignore|disregard|forget|override|bypass)\s{1,5}(?:\w{1,30}\s{1,5}){0,3}?(?:instructions?|rules?|prompts?|guidelines?|directives?)\s{1,5}(?:above|before|so far|earlier|you (?:were|have been) given)\b/gi,
     ],
   },
   {
@@ -90,14 +117,16 @@ const RULES: readonly Rule[] = [
     rule: 'exfiltration',
     severity: 'block',
     patterns: [
-      // Markdown image / link to an external URL carrying a query string. The
-      // runs are split by the char that ends them (`?`, `=`, `)`), so they cannot
-      // overlap: linear time even without a closing `)`.
-      /!?\[[^\]\n]{0,200}\]\([ \t]{0,5}https?:\/\/[^)\s?]{1,2048}\?[^)\s=]{0,512}=[^)\s]{0,2048}\)/gi,
-      /\b(?:curl|wget)\b[^\n]{0,300}?https?:\/\//gi,
-      /\bfetch\([ \t]{0,5}["'`]https?:\/\//gi,
+      // Markdown image / link to an external URL carrying `?key=`. It stops at the
+      // first `=`, so neither a long value nor a missing `)` matters; each run ends
+      // at a char it cannot contain (`[`/`]`, `?`, `=`), and the URL runs exclude
+      // `(` so they stop at the next link — no overlap between links, and no
+      // length cap that padding could get past.
+      /!?\[[^[\]\n]*\]\(\s{0,5}https?:\/\/[^()\s?]*\?[^()\s=]*=/gi,
+      /\bfetch\(\s{0,5}["'`]https?:\/\//gi,
       /\b(?:send|post|upload|exfiltrate|forward|leak)\b[^\n.]{0,40}?\bto\s{1,5}https?:\/\//gi,
     ],
+    find: commandWithUrlSpans,
   },
   {
     rule: 'hidden-text',
@@ -135,11 +164,9 @@ function lineOf(body: string, offset: number): number {
   return line;
 }
 
-type Span = { start: number; end: number };
-
-/** Every match of the rule's patterns, sorted, with overlapping matches merged. */
-function ruleSpans(body: string, patterns: readonly RegExp[]): Span[] {
-  const spans: Span[] = [];
+/** Every match of the rule's patterns (and its `find`), sorted, overlaps merged. */
+function ruleSpans(body: string, { patterns, find }: Rule): Span[] {
+  const spans: Span[] = find ? find(body) : [];
   for (const re of patterns) {
     for (const m of body.matchAll(re)) {
       const start = m.index ?? 0;
@@ -159,8 +186,9 @@ function ruleSpans(body: string, patterns: readonly RegExp[]): Span[] {
 /** All findings in the body, by position. */
 export function findSkillInjections(body: string): SkillSafetyFinding[] {
   const found: SkillSafetyFinding[] = [];
-  for (const { rule, severity, patterns } of RULES) {
-    for (const { start, end } of ruleSpans(body, patterns)) {
+  for (const r of RULES) {
+    const { rule, severity } = r;
+    for (const { start, end } of ruleSpans(body, r)) {
       found.push({
         rule,
         severity,

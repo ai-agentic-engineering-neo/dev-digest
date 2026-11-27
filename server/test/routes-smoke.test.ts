@@ -64,4 +64,28 @@ describe('routes (no DB)', () => {
     expect(res.json().error.code).toBe('validation_error');
     await app.close();
   });
+
+  it('unknown 5xx errors never leak their internal message', async () => {
+    const app = await buildApp({ config });
+    app.get('/__boom', async () => {
+      throw new Error('connect ECONNREFUSED 10.0.0.5:5432 password=hunter2');
+    });
+    const res = await app.inject({ method: 'GET', url: '/__boom' });
+    expect(res.statusCode).toBe(500);
+    expect(res.json()).toEqual({ error: { code: 'internal_error', message: 'Internal error' } });
+    await app.close();
+  });
+
+  it('Fastify 4xx errors keep their client-safe message', async () => {
+    const app = await buildApp({ config });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/settings/test-connection',
+      headers: { 'content-type': 'application/json' },
+      payload: '{not json',
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.message).not.toBe('Internal error');
+    await app.close();
+  });
 });

@@ -6,7 +6,7 @@
  * No template engine / dependency — a small mustache-style replace is enough.
  *
  * Dynamic, per-request DATA (facts, diffs, file trees) is still assembled in
- * code and wrapped via platform/prompt.ts; only the stable instruction text
+ * code and wrapped via `wrapUntrusted` (@devdigest/reviewer-core); only the stable instruction text
  * belongs in a template.
  *
  * NOTE: templates are read relative to this module, i.e. `src/prompts` under

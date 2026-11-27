@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Finding } from '@devdigest/shared';
-import { groundFindings, groundingSummary } from '../src/platform/grounding.js';
+import { groundFindings, groundingSummary } from '@devdigest/reviewer-core';
 import { parseUnifiedDiff } from '../src/adapters/git/diff-parser.js';
 
 const DIFF = `diff --git a/src/config.ts b/src/config.ts

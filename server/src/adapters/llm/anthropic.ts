@@ -9,7 +9,7 @@ import type {
   ChatMessage,
 } from '@devdigest/shared';
 import { withRetry, withTimeout } from '../../platform/resilience.js';
-import { toJsonSchema, parseWithRepair } from '../../platform/structured.js';
+import { toJsonSchema, parseWithRepair } from '@devdigest/reviewer-core';
 import { estimateCost } from './pricing.js';
 import { ExternalServiceError } from '../../platform/errors.js';
 

@@ -45,4 +45,8 @@ export const s = {
     display: "flex",
     gap: 8,
   } satisfies CSSProperties,
+  sectionHint: {
+    fontSize: 12,
+    color: "var(--text-muted)",
+  } satisfies CSSProperties,
 } as const;

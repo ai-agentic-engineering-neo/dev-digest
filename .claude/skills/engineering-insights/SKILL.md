@@ -9,7 +9,7 @@ description: Reads and maintains the per-module INSIGHTS.md (server/, client/, r
 
 **End (required check, write only if substantive):**
 1. Collect candidates, strongest signal first: user corrections → approaches that failed → errors that recurred or took several attempts → decisions made for a reason → tool/library surprises → questions left unresolved.
-2. Keep a candidate only if **all** hold: not obvious from reading the code · would save the next agent 5+ minutes or change what it does · confirmed (an unresolved issue goes to Open Questions instead) · likely to recur, not a one-off or temporary state · not already in CLAUDE.md, docs/ or specs/. If nothing survives, write nothing and tell the user "no new insights".
+2. Keep a candidate only if **all** hold: not obvious from reading the code · would save the next agent 5+ minutes or change what it does · confirmed (an unresolved issue goes to Open Questions instead) · likely to recur, not a one-off or temporary state · not already in AGENTS.md, docs/ or specs/. If nothing survives, write nothing and tell the user "no new insights".
 3. Re-read the target `INSIGHTS.md` right before writing. If the insight is already there in any wording, drop it. If an existing bullet is now wrong, add `- YYYY-MM-DD · CORRECTION: …` directly below it.
 4. **Never overwrite or rewrite the file.** Existing text is never edited, reordered, reformatted or deleted. Procedure:
    - `.claude/skills/engineering-insights/scripts/append-guard.sh snapshot <module>/INSIGHTS.md`

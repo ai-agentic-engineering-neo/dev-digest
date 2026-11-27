@@ -7,8 +7,8 @@ import {
   MockCodeIndex,
   MockEmbedder,
 } from '../src/adapters/mocks.js';
-import { assemblePrompt } from '../src/platform/prompt.js';
-import { groundFindings } from '../src/platform/grounding.js';
+import { assemblePrompt } from '@devdigest/reviewer-core';
+import { groundFindings } from '@devdigest/reviewer-core';
 import { estimateCost } from '../src/adapters/llm/pricing.js';
 
 describe('mock adapters (no network)', () => {

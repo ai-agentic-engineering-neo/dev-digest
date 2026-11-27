@@ -2,7 +2,7 @@
 
 Non-obvious learnings for this module, maintained by the `engineering-insights` skill.
 Read before non-trivial changes. **Append-only**: correct an entry with a dated
-`CORRECTION:` bullet below it; don't edit or delete. Promote an entry to `CLAUDE.md`
+`CORRECTION:` bullet below it; don't edit or delete. Promote an entry to `AGENTS.md`
 only if an agent is likely to hit it on most tasks. Prune in a periodic human review
 when the file passes ~200 entries.
 
@@ -14,8 +14,10 @@ when the file passes ~200 entries.
 
 ## Codebase Patterns
 - 2026-11-26 · Grounding/prompt code lives in reviewer-core: `src/platform/grounding.ts` / `prompt.ts` / `structured.ts` are re-export shims of `@devdigest/reviewer-core`, so edits there have no effect or get lost — edit `reviewer-core/src/` instead.
+  - CORRECTION 2026-11-27: the `src/platform/{grounding,prompt,structured}.ts` shims were deleted — import from `@devdigest/reviewer-core` directly; the rest of this entry (edit `reviewer-core/src/`) still holds.
 - 2026-11-26 · `@devdigest/shared` is vendored twice (`server/src/vendor/shared` and `client/src/vendor/shared`) and the copies already differ (adapters, trace, knowledge, eval-ci, productionize) — a contract change that works in the API leaves client types disagreeing unless you update both copies and diff them.
 - 2026-11-26 · Run cost (M1): reviewer-core always computed `ReviewOutcome.costUsd`, but run-executor dropped it and migration 0009 had dropped `agent_runs.cost_usd`; 0010 re-adds it. `RunStats.cost_usd` must stay `nullish` (not `nullable`): `run_traces` jsonb docs written before M1 lack the key and are parsed with the current contract.
+- 2026-11-27 · NEVER copy the `constructor(private container: Container)` service shape from `repos`/`agents`/`reviews`/`repo-intel` into new code, because it is a service locator that hides the real dependencies and makes service tests build the whole container. Use `modules/pulls/` as the template instead: ports and `XxxServiceDeps` in `types.ts`, with the service composed in `routes.ts`. Rules are in `.claude/skills/onion-architecture/` — evidence: server/src/modules/pulls/types.ts (PullsServiceDeps)
 
 ## Tool & Library Notes
 - 2026-11-26 · do NOT read the `{ severity: 'NOTICE', routine: 'transformCreateStmt' … }` objects printed by `pnpm db:migrate` as a failure because they are Postgres "already exists, skipping" notices (vector extension, `drizzle` schema, `__drizzle_migrations`) emitted on every run; success is the final `✓ migrations applied` — confirm a new column via `information_schema.columns` if in doubt — evidence: server/src/db/migrate.ts (runMigrations)

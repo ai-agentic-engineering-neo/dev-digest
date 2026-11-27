@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback } from "react";
+import { useTranslations } from "next-intl";
 import { Icon, Avatar, Badge, Button, Tabs } from "@devdigest/ui";
 import { RunReviewDropdown } from "../RunReviewDropdown";
 import { s } from "./styles";
@@ -28,6 +29,7 @@ export function PrDetailHeader({
   onRunStart,
   onRunsStarted,
 }: PrDetailHeaderProps) {
+  const t = useTranslations("prReview.header");
   const handleRunStart = useCallback(() => {
     onRunStart();
   }, [onRunStart]);
@@ -87,7 +89,7 @@ export function PrDetailHeader({
               githubUrl && window.open(githubUrl, "_blank", "noopener,noreferrer")
             }
           >
-            View on GitHub
+            {t("viewOnGitHub")}
           </Button>
           {prId && (
             <RunReviewDropdown
@@ -102,10 +104,7 @@ export function PrDetailHeader({
       {(pr.status === "merged" || pr.status === "closed") && (
         <div style={s.staleBanner}>
           <Icon.AlertTriangle size={13} style={{ color: "var(--warn)", flexShrink: 0 }} />
-          <span>
-            This PR is already {pr.status} — running a review is informational and won't affect the
-            merged code.
-          </span>
+          <span>{t("closedNotice", { status: pr.status })}</span>
         </div>
       )}
       <Tabs
@@ -113,9 +112,9 @@ export function PrDetailHeader({
         onChange={onSetTab}
         pad="0"
         tabs={[
-          { key: "overview", label: "Overview", icon: "FileText" },
-          { key: "findings", label: "Agent runs", icon: "AlertOctagon", count: findingsCount || undefined },
-          { key: "diff", label: "Files changed", icon: "Code", count: pr.files_count },
+          { key: "overview", label: t("tabs.overview"), icon: "FileText" },
+          { key: "findings", label: t("tabs.findings"), icon: "AlertOctagon", count: findingsCount || undefined },
+          { key: "diff", label: t("tabs.diff"), icon: "Code", count: pr.files_count },
         ]}
       />
     </div>

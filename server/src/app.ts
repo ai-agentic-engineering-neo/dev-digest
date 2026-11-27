@@ -172,9 +172,12 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
     }
     app.log.error(err);
     const e = err as { statusCode?: number; message?: string };
-    reply.status(e.statusCode ?? 500).send({
-      error: { code: 'internal_error', message: e.message ?? 'Internal error' },
-    });
+    const status = e.statusCode ?? 500;
+    // Only Fastify's own 4xx errors (bad JSON, payload too large, 429 …) carry a
+    // client-safe message. A 5xx message can hold driver/SQL/stack text — never
+    // echo it; the real error is in the log above.
+    const message = status < 500 && e.message ? e.message : 'Internal error';
+    reply.status(status).send({ error: { code: 'internal_error', message } });
   });
 
   // Register feature modules from the static registry (src/modules/index.ts).

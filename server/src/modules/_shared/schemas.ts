@@ -10,3 +10,10 @@ import { z } from 'zod';
  */
 export const IdParams = z.object({ id: z.string().uuid() });
 export type IdParams = z.infer<typeof IdParams>;
+
+/** `/repos/:id/pulls/:number` — repo uuid + positive PR number (coerced from the path string). */
+export const RepoPrNumberParams = z.object({
+  id: z.string().uuid(),
+  number: z.coerce.number().int().positive(),
+});
+export type RepoPrNumberParams = z.infer<typeof RepoPrNumberParams>;

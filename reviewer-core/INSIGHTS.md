@@ -2,7 +2,7 @@
 
 Non-obvious learnings for this module, maintained by the `engineering-insights` skill.
 Read before non-trivial changes. **Append-only**: correct an entry with a dated
-`CORRECTION:` bullet below it; don't edit or delete. Promote an entry to `CLAUDE.md`
+`CORRECTION:` bullet below it; don't edit or delete. Promote an entry to `AGENTS.md`
 only if an agent is likely to hit it on most tasks. Prune in a periodic human review
 when the file passes ~200 entries.
 

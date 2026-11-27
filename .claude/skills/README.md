@@ -9,14 +9,19 @@ Reusable AI skills that provide specialized knowledge and workflows. Canonical l
 | [fastify-best-practices](fastify-best-practices/SKILL.md) | Backend | Fastify routes, plugins, JSON-schema validation, error handling |
 | [drizzle-orm-patterns](drizzle-orm-patterns/SKILL.md) | Backend | Drizzle schema, queries, relations, transactions, migrations |
 | [postgresql-table-design](postgresql-table-design/SKILL.md) | Backend | Postgres schema design, data types, indexing, constraints |
+| [onion-architecture](onion-architecture/SKILL.md) | Backend | Onion rings for server/ and reviewer-core: inward-only imports, ports & adapters, repositories, composition root (local, not vendored) |
 | [next-best-practices](next-best-practices/SKILL.md) | Frontend | Next.js App Router, RSC boundaries, data fetching, optimization |
 | [react-best-practices](react-best-practices/SKILL.md) | Frontend | React anti-patterns, state management, hooks rules |
+| [frontend-ui-architecture](frontend-ui-architecture/SKILL.md) | Frontend | Where components/constants/helpers/hooks/business logic live, component splitting, Next.js App Router architecture, import boundaries (local, not vendored) |
 | [react-testing-library](react-testing-library/SKILL.md) | Frontend | General-purpose React Testing Library guide with Vitest |
 | [zod](zod/SKILL.md) | Full-stack | Zod schema validation, parsing, error handling, type inference |
 | [typescript-expert](typescript-expert/SKILL.md) | Full-stack | Type-level programming, performance, tooling, migrations |
 | [security](security/SKILL.md) | Full-stack | OWASP Top 10:2025, auth, injection, uploads, secrets |
 | [mermaid-diagram](mermaid-diagram/SKILL.md) | Shared | Mermaid diagrams in markdown (flowcharts, sequence, ERD, …) |
 | [engineering-insights](engineering-insights/SKILL.md) | Shared | Reads `<module>/INSIGHTS.md` at task start; appends new non-obvious learnings at the end (local, not vendored) |
+| [pr-self-review](pr-self-review/SKILL.md) | Shared | Pre-PR gate: routes the local diff to the skills above, reviews in parallel + typecheck/test; a verified CRITICAL blocks `gh pr create` and the `devdigest/self-review` status (local, not vendored) |
+
+> Adding a skill to this catalog? Also add it to [`pr-self-review/skill-map.json`](pr-self-review/skill-map.json) — under `skills` (with the globs it should review) or under `not_reviewed` — otherwise the self-review never applies it.
 
 ## What Are Skills?
 

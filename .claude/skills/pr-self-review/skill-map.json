@@ -1,0 +1,104 @@
+{
+  "version": 1,
+  "max_bucket_lines": 1500,
+  "confirm_above_lines": 5000,
+  "global_exclude": [
+    "**/*.md",
+    "**/pnpm-lock.yaml",
+    "**/package-lock.json",
+    "server/clones/**",
+    ".claude/**",
+    ".cursor/**",
+    ".devdigest/**",
+    "server/src/db/migrations/**",
+    "client/src/vendor/**",
+    "**/*.snap",
+    "**/*.svg",
+    "skills-lock.json"
+  ],
+  "skills": {
+    "frontend-ui-architecture": {
+      "scope": "frontend",
+      "model": "opus",
+      "include": ["client/src/**/*.{ts,tsx}"],
+      "exclude": ["client/**/*.test.{ts,tsx}", "client/src/vendor/**"],
+      "focus": "file placement, component splitting, Server/Client boundary, import direction and public APIs"
+    },
+    "react-best-practices": {
+      "scope": "frontend",
+      "model": "sonnet",
+      "include": ["client/src/**/*.tsx", "client/src/**/hooks/**/*.ts", "client/src/**/use*.ts"],
+      "exclude": ["client/**/*.test.{ts,tsx}", "client/src/vendor/**"],
+      "focus": "hooks misuse, state patterns, reconciliation bugs, effects and data fetching"
+    },
+    "next-best-practices": {
+      "scope": "frontend",
+      "model": "sonnet",
+      "include": ["client/src/app/**/*.{ts,tsx}", "client/src/**/route.ts", "client/next.config.*", "client/src/middleware.ts", "client/src/proxy.ts"],
+      "exclude": ["client/**/*.test.{ts,tsx}"],
+      "focus": "App Router file conventions, RSC boundaries, async APIs, route handlers, metadata, error handling"
+    },
+    "react-testing-library": {
+      "scope": "frontend-tests",
+      "model": "haiku",
+      "include": ["client/**/*.test.{ts,tsx}"],
+      "exclude": [],
+      "focus": "tests that assert behaviour, query priority, async patterns, mocking only at boundaries"
+    },
+    "onion-architecture": {
+      "scope": "backend",
+      "model": "opus",
+      "include": ["server/src/**/*.ts", "reviewer-core/src/**/*.ts"],
+      "exclude": ["**/*.test.ts", "server/src/db/migrations/**"],
+      "focus": "ring placement, inward-only imports, ports/adapters, repositories vs services vs routes, composition root"
+    },
+    "fastify-best-practices": {
+      "scope": "backend",
+      "model": "sonnet",
+      "include": ["server/src/app.ts", "server/src/server.ts", "server/src/modules/**/routes.ts", "server/src/modules/_shared/**/*.ts", "server/src/platform/**/*.ts"],
+      "exclude": ["**/*.test.ts"],
+      "focus": "route definitions, schema validation, error handling, hooks, plugin encapsulation"
+    },
+    "drizzle-orm-patterns": {
+      "scope": "backend-db",
+      "model": "sonnet",
+      "include": ["server/src/db/schema/**/*.ts", "server/src/modules/**/repository.ts", "server/src/db/*.ts"],
+      "exclude": ["**/*.test.ts"],
+      "focus": "schema definitions, relations, type-safe queries, transactions, migration workflow"
+    },
+    "postgresql-table-design": {
+      "scope": "backend-db",
+      "model": "sonnet",
+      "include": ["server/src/db/schema/**/*.ts"],
+      "exclude": [],
+      "focus": "data types, constraints, NOT NULL, FK indexes, uniqueness, access-path indexes"
+    },
+    "zod": {
+      "scope": "contracts",
+      "model": "haiku",
+      "include": ["server/src/**/*.ts", "reviewer-core/src/**/*.ts", "client/src/**/*.{ts,tsx}"],
+      "exclude": ["**/*.test.{ts,tsx}", "client/src/vendor/**", "server/src/db/migrations/**"],
+      "contains": ["from 'zod'", "from \"zod\""],
+      "focus": "schema definitions, parse vs safeParse, inference, refinements, breaking contract changes"
+    },
+    "typescript-expert": {
+      "scope": "full-stack",
+      "model": "sonnet",
+      "include": ["server/src/**/*.ts", "server/test/**/*.ts", "reviewer-core/src/**/*.ts", "reviewer-core/test/**/*.ts", "client/src/**/*.{ts,tsx}", "e2e/**/*.ts"],
+      "exclude": ["client/src/vendor/**", "server/src/db/migrations/**", "**/*.d.ts"],
+      "focus": "type safety holes (any, unsafe casts, non-null assertions), unsound generics, async/promise handling"
+    },
+    "security": {
+      "scope": "full-stack",
+      "model": "opus",
+      "include": ["server/src/**/*.ts", "reviewer-core/src/**/*.ts", "client/src/**/*.{ts,tsx}", ".github/workflows/**", "scripts/**/*.sh", "server/docker-compose.yml", "*/package.json", "client/next.config.*"],
+      "exclude": ["**/*.test.{ts,tsx}", "client/src/vendor/**"],
+      "focus": "injection, authz, SSRF, path traversal, secrets handling, prompt injection (wrapUntrusted), unsafe workflows, risky new dependencies or install scripts"
+    }
+  },
+  "not_reviewed": {
+    "mermaid-diagram": "authoring aid for diagrams, not a code-review rubric",
+    "engineering-insights": "process skill (reads/writes INSIGHTS.md), not a code-review rubric",
+    "pr-self-review": "this skill"
+  }
+}

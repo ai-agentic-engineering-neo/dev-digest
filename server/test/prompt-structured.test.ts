@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
-import { assemblePrompt, wrapUntrusted } from '../src/platform/prompt.js';
-import { toJsonSchema, parseWithRepair, extractJson } from '../src/platform/structured.js';
+import { assemblePrompt, wrapUntrusted } from '@devdigest/reviewer-core';
+import { toJsonSchema, parseWithRepair, extractJson } from '@devdigest/reviewer-core';
 import { Review } from '@devdigest/shared';
 
 describe('prompt assembly + injection hardening', () => {

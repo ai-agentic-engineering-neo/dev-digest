@@ -20,6 +20,7 @@ when the file passes ~200 entries.
 ## Tool & Library Notes
 
 ## Recurring Errors & Fixes
+- 2026-11-27 · Home shows "No repositories yet" while `curl :3001/repos` returns data → the browser bundle has a stale `NEXT_PUBLIC_API_BASE` baked in (it is inlined at compile time): a second `next dev` in client/ (scripts/e2e.sh, :3101) shared `.next` and recompiled chunks the :3000 server then served. Fix: stop client, `rm -rf client/.next`, restart. Prevented by `NEXT_DIST_DIR` (e2e uses `.next-e2e`); HomeView now shows an ErrorState with the real URL instead of the empty state — evidence: client/next.config.mjs (distDir), client/src/app/_components/HomeView/HomeView.tsx
 
 ## Session Notes
 

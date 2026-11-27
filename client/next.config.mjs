@@ -32,6 +32,10 @@ const csp = [
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // A second `next dev` in this dir (scripts/e2e.sh on :3100) must NOT share
+  // `.next` with the dev server on :3000: it recompiles the shared chunks with
+  // its own NEXT_PUBLIC_API_BASE (:3101) baked in, and :3000 then serves them.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   env: {
     NEXT_PUBLIC_API_BASE: API_BASE,
   },

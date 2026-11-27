@@ -5,8 +5,9 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { EmptyState, Button, Skeleton } from "@devdigest/ui";
+import { EmptyState, ErrorState, Button, Skeleton } from "@devdigest/ui";
 import { useRepos } from "@/lib/hooks";
+import { ApiError } from "@/lib/api";
 import { AppShell } from "@/components/app-shell";
 import { PageContainer } from "@/components/page-shell";
 import { s } from "./styles";
@@ -14,7 +15,7 @@ import { s } from "./styles";
 export function HomeView() {
   const t = useTranslations("common.home");
   const router = useRouter();
-  const { data: repos, isLoading, isError } = useRepos();
+  const { data: repos, isLoading, isError, error, refetch } = useRepos();
   const first = repos?.[0];
 
   // Navigation to an external-to-render target is a side effect → effect.
@@ -31,7 +32,15 @@ export function HomeView() {
             <Skeleton height={48} />
             <Skeleton height={48} />
           </div>
-        ) : isError || !first ? (
+        ) : isError ? (
+          // A failed fetch is NOT "no repos" — showing onboarding here hides a
+          // down/misconfigured API (e.g. wrong NEXT_PUBLIC_API_BASE).
+          <ErrorState
+            title={t("errorTitle")}
+            body={error instanceof ApiError ? error.message : t("errorBody")}
+            onRetry={() => refetch()}
+          />
+        ) : !first ? (
           <EmptyState
             icon="GitBranch"
             title={t("emptyTitle")}

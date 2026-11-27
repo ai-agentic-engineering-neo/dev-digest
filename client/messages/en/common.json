@@ -25,6 +25,8 @@
     "emptyTitle": "No repositories yet",
     "emptyBody": "Add a repository to start reviewing pull requests. Set your API keys once in Settings → API Keys.",
     "emptyCta": "Add repository",
+    "errorTitle": "Can’t reach the DevDigest API",
+    "errorBody": "The repository list failed to load. Check that the API is running, then retry.",
     "redirecting": "Taking you to your repository…",
     "openRepo": "Open {name}"
   },

@@ -19,11 +19,15 @@ on:
     branches: [main]
     paths:
       - 'server/**'
+      - 'server/src/vendor/shared/**'
+      - 'client/src/vendor/shared/**'
       - 'reviewer-core/**'
       - '.github/workflows/server-unit.yml'
   pull_request:
     paths:
       - 'server/**'
+      - 'server/src/vendor/shared/**'
+      - 'client/src/vendor/shared/**'
       - 'reviewer-core/**'
       - '.github/workflows/server-unit.yml'
 
@@ -55,6 +59,12 @@ jobs:
           cache-dependency-path: server/pnpm-lock.yaml
 
       - run: pnpm install --frozen-lockfile
+
+      # The two @devdigest/shared copies must stay byte-identical (run from the
+      # repo root: the job's working-directory is the package).
+      - name: Contract copies agree
+        working-directory: .
+        run: diff -r server/src/vendor/shared client/src/vendor/shared
 
       # The server type-checks reviewer-core's RAW source: tsconfig aliases
       # @devdigest/reviewer-core → ../reviewer-core/src, and platform/structured.ts

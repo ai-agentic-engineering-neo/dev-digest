@@ -43,13 +43,23 @@ export NEXT_PUBLIC_API_BASE="http://localhost:${API_PORT}"
 export E2E_BASE_URL="http://localhost:${WEB_PORT}"
 
 log()  { printf '\033[1;36m▸ %s\033[0m\n' "$*"; }
-warn() { printf '\033[1;33m! %s\033[0m\n' "$*"; }
 
 # --- prerequisites -----------------------------------------------------------
 command -v docker >/dev/null || { echo "docker not found"; exit 1; }
 command -v pnpm   >/dev/null || { echo "pnpm not found (npm i -g pnpm)"; exit 1; }
 command -v agent-browser >/dev/null || \
-  warn "agent-browser not found — install once: npm i -g agent-browser && agent-browser install"
+  { echo "agent-browser not found — install once: npm i -g agent-browser && agent-browser install"; exit 1; }
+[ -d e2e/node_modules ] || \
+  { echo "e2e/node_modules missing — run: (cd e2e && npm ci)"; exit 1; }
+
+# --- hermetic secrets --------------------------------------------------------
+# The API must not read the real ~/.devdigest/secrets.json or provider/GitHub
+# keys from server/.env. dotenv does not override already-set env, so empty
+# values win over the file; the secrets file is an empty temp file.
+E2E_SECRETS_FILE="$(mktemp)"
+export DEVDIGEST_SECRETS_PATH="$E2E_SECRETS_FILE"
+export OPENAI_API_KEY="" ANTHROPIC_API_KEY="" OPENROUTER_API_KEY="" \
+  GITHUB_TOKEN="" GITHUB_PAT=""
 
 # --- teardown trap (installed before we start anything) ----------------------
 SERVER_PID=""
@@ -77,6 +87,7 @@ cleanup() {
     [ -n "$pids" ] && kill $pids 2>/dev/null || true
   done
   docker rm -f "$PG_CONTAINER" >/dev/null 2>&1 || true
+  rm -f "$E2E_SECRETS_FILE"
   exit "$code"
 }
 trap cleanup EXIT INT TERM

@@ -3,8 +3,8 @@
 # Each spins up a real Postgres (pgvector) via testcontainers, builds the
 # Fastify app, migrates + seeds, and exercises the routes end-to-end against
 # the DB. Docker is present on ubuntu-latest, so testcontainers can pull the
-# image; the tests also self-skip (`dockerAvailable()`) if Docker is somehow
-# absent, so this job degrades to a no-op rather than a hard failure.
+# image. The tests self-skip (`dockerAvailable()`) if Docker is absent locally;
+# under CI=true (set by Actions) a missing Docker daemon fails the suite instead, so this job can never go green by skipping everything.
 #
 # Linux only — testcontainers needs a Linux Docker daemon (Windows runners
 # don't provide one).
@@ -15,10 +15,12 @@ on:
     branches: [main]
     paths:
       - 'server/**'
+      - 'reviewer-core/**'
       - '.github/workflows/server-integration.yml'
   pull_request:
     paths:
       - 'server/**'
+      - 'reviewer-core/**'
       - '.github/workflows/server-integration.yml'
 
 permissions:
@@ -32,6 +34,7 @@ jobs:
   integration:
     name: tests (postgres)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: server

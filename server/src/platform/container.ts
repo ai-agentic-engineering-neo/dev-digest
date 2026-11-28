@@ -30,6 +30,10 @@ import { PullsRepository } from '../modules/pulls/repository.js';
 import { ReviewRepository } from '../modules/reviews/repository.js';
 import { SkillsRepository } from '../modules/skills/repository.js';
 import { SkillsService } from '../modules/skills/service.js';
+import { ConventionsRepository, InMemoryScanLog } from '../modules/conventions/repository.js';
+import { ConventionsService } from '../modules/conventions/service.js';
+import { SettingsRepository } from '../modules/settings/repository.js';
+import { resolveFeatureModel } from '../modules/settings/feature-models.js';
 import { FflateArchiveReader, YamlFrontmatterParser } from '../adapters/skill-import/index.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
@@ -93,6 +97,7 @@ export class Container {
   private _reviewRepo?: ReviewRepository;
   private _skillsRepo?: SkillsRepository;
   private _skillsService?: SkillsService;
+  private _conventionsService?: ConventionsService;
   private _repoIntelService?: RepoIntelService;
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
@@ -156,6 +161,26 @@ export class Container {
       archive: this.skillArchive,
       frontmatter: this.skillFrontmatter,
       links: this.agentsRepo,
+    }));
+  }
+
+  /**
+   * Conventions Extractor (M2). Samples files through the repo-intel facade,
+   * reads them from the clone, calls the `conventions` feature model once and
+   * saves accepted candidates as an `extracted` skill via the skills service.
+   */
+  get conventionsService(): ConventionsService {
+    return (this._conventionsService ??= new ConventionsService({
+      store: new ConventionsRepository(this.db),
+      repos: this.repoStore,
+      samples: (repoId, n) => this.repoIntel.getConventionSamples(repoId, n),
+      readFile: (clonePath, file) => readContainedFile(clonePath, file),
+      llm: (provider) => this.llm(provider),
+      model: (workspaceId) =>
+        resolveFeatureModel(new SettingsRepository(this.db), workspaceId, 'conventions'),
+      writeSkill: (workspaceId, input, evidence) =>
+        this.skillsService.create(workspaceId, input, 'extracted', evidence),
+      scans: new InMemoryScanLog(),
     }));
   }
 

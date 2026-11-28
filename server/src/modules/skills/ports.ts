@@ -18,6 +18,8 @@ export interface NewSkill extends SkillContent {
   workspaceId: string;
   source: SkillSource;
   enabled?: boolean;
+  /** Files the skill was derived from (extracted skills only). */
+  evidenceFiles?: string[];
 }
 
 /** Persistence for skills and their version history. Workspace-scoped. */

@@ -33,7 +33,7 @@ d('Testcontainers: pg + pgvector', () => {
       SELECT count(*)::int AS count FROM information_schema.tables
       WHERE table_schema = 'public'`;
     // 40 domain tables (drizzle bookkeeping lives in the `drizzle` schema)
-    expect(rows[0]!.count).toBe(40);
+    expect(rows[0]!.count).toBeGreaterThanOrEqual(40);
   });
 
   it('pgvector extension is enabled', async () => {

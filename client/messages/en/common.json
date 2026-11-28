@@ -30,5 +30,11 @@
     "title": "Page not found",
     "body": "This page doesn’t exist — the link may be stale or mistyped.",
     "cta": "Go to home"
+  },
+  "skillType": {
+    "rubric": "rubric",
+    "convention": "convention",
+    "security": "security",
+    "custom": "custom"
   }
 }

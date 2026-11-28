@@ -115,7 +115,7 @@ export type MemoryItem = z.infer<typeof MemoryItem>;
 export const SkillType = z.enum(['rubric', 'convention', 'security', 'custom']);
 export type SkillType = z.infer<typeof SkillType>;
 
-export const SkillSource = z.enum(['manual', 'imported_url', 'extracted', 'community']);
+export const SkillSource = z.enum(['manual', 'imported_url', 'imported_file', 'extracted', 'community']);
 export type SkillSource = z.infer<typeof SkillSource>;
 
 export const Skill = z.object({
@@ -128,8 +128,69 @@ export const Skill = z.object({
   enabled: z.boolean(),
   version: z.number().int(),
   evidence_files: z.array(z.string()).nullish(),
+  /** Agents whose link to this skill is enabled. */
+  agent_count: z.number().int().default(0),
+  /** Body size in tokens; only on GET /skills/:id. */
+  token_count: z.number().int().nullish(),
+  created_at: z.string().nullish(),
+  updated_at: z.string().nullish(),
 });
 export type Skill = z.infer<typeof Skill>;
+
+/** Kebab-case slug: the skill's file stem and its prompt-block heading. */
+export const SkillName = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[a-z0-9][a-z0-9-]*$/, 'Use lowercase letters, digits and dashes');
+
+export const SkillInput = z.object({
+  name: SkillName,
+  description: z.string().min(1).max(1024),
+  type: SkillType,
+  body: z.string().min(1).max(256_000),
+  enabled: z.boolean().optional(),
+});
+export type SkillInput = z.infer<typeof SkillInput>;
+
+/** Max length of a version's change note. */
+export const SKILL_NOTE_MAX = 200;
+
+export const SkillUpdate = SkillInput.partial().extend({
+  note: z.string().max(SKILL_NOTE_MAX).optional(),
+});
+export type SkillUpdate = z.infer<typeof SkillUpdate>;
+
+export const SkillEnabledInput = z.object({ enabled: z.boolean() });
+export type SkillEnabledInput = z.infer<typeof SkillEnabledInput>;
+
+export const SkillVersion = z.object({
+  version: z.number().int(),
+  name: z.string(),
+  description: z.string(),
+  type: SkillType,
+  body: z.string(),
+  note: z.string().nullable(),
+  created_at: z.string(),
+});
+export type SkillVersion = z.infer<typeof SkillVersion>;
+
+export const SkillImportRequest = z.object({
+  filename: z.string().min(1).max(255),
+  content_base64: z.string().min(1).base64(),
+});
+export type SkillImportRequest = z.infer<typeof SkillImportRequest>;
+
+export const SkillImportPreview = z.object({
+  name: z.string(),
+  description: z.string(),
+  type: SkillType,
+  body: z.string(),
+  source_file: z.string(),
+  skipped_files: z.array(z.object({ path: z.string(), size: z.number().int() })),
+  warnings: z.array(z.string()),
+});
+export type SkillImportPreview = z.infer<typeof SkillImportPreview>;
 
 export const CommunitySkill = z.object({
   name: z.string(),
@@ -188,6 +249,8 @@ export const Agent = z.object({
   // Inject repo-intel context (repo skeleton + callers + rank note) into this
   // agent's review prompt. Default on; gated again by the global flag.
   repo_intel: z.boolean().default(true),
+  /** Number of enabled skill links. */
+  skill_count: z.number().int().default(0),
 });
 export type Agent = z.infer<typeof Agent>;
 
@@ -195,6 +258,12 @@ export const AgentSkillLink = z.object({
   agent_id: z.string(),
   skill_id: z.string(),
   order: z.number().int(),
+  /** Enabled on this link (per agent). */
+  enabled: z.boolean(),
+  name: z.string(),
+  type: SkillType,
+  /** The skill's global flag; a link to a globally disabled skill is inactive. */
+  skill_enabled: z.boolean(),
 });
 export type AgentSkillLink = z.infer<typeof AgentSkillLink>;
 
@@ -212,6 +281,8 @@ export const AgentVersionConfig = z.object({
   ci_fail_on: CiFailOn,
   repo_intel: z.boolean(),
   skills: z.array(z.string()),
+  /** Ordered links with their per-agent flag (M2+); absent on older snapshots. */
+  skill_links: z.array(z.object({ skill_id: z.string(), enabled: z.boolean() })).nullish(),
 });
 export type AgentVersionConfig = z.infer<typeof AgentVersionConfig>;
 

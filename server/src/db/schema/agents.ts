@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, integer, boolean, jsonb, primaryKey } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, integer, boolean, jsonb, primaryKey, index } from 'drizzle-orm/pg-core';
 import { now } from './_shared';
 import { workspaces, users } from './core';
 import { skills } from './skills';
@@ -58,6 +58,12 @@ export const agentSkills = pgTable(
       .notNull()
       .references(() => skills.id, { onDelete: 'cascade' }),
     order: integer('order').notNull().default(0),
+    // Per-agent flag: a disabled link stays in the list but never enters the prompt.
+    enabled: boolean('enabled').notNull().default(true),
   },
-  (t) => ({ pk: primaryKey({ columns: [t.agentId, t.skillId] }) }),
+  // The PK leads with agent_id; per-skill lookups (agent counts, cascades) need their own index.
+  (t) => ({
+    pk: primaryKey({ columns: [t.agentId, t.skillId] }),
+    skillIdx: index('agent_skills_skill_id_idx').on(t.skillId),
+  }),
 );

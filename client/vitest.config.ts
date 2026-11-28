@@ -17,5 +17,7 @@ export default defineConfig({
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
     css: false,
+    // mockApi stubs global fetch; restore it after every test.
+    unstubGlobals: true,
   },
 });

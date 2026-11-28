@@ -166,6 +166,7 @@ d('GET /agents/:id/versions', () => {
     const service = new AgentsService({
       agents: repo,
       models: async () => ({ listModels: async () => [] }),
+      skills: { existingIds: async () => [], summaries: async () => [] },
     });
     const [defaultWsRow] = await db
       .select({ id: t.workspaces.id })

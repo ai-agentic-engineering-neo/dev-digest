@@ -1,7 +1,7 @@
 {
   "card": {
     "noDescription": "No description",
-    "skillCount": "{count} skills",
+    "skillCount": "{count, plural, one {# skill} other {# skills}}",
     "deleteButton": "Delete agent",
     "deleteTitle": "Delete agent",
     "deleteConfirm": "Delete agent \"{name}\"? This cannot be undone.",
@@ -94,9 +94,19 @@
   },
   "skills": {
     "title": "Skills",
-    "enabledCount": "{linked} of {total} enabled",
+    "enabledCount": "{enabled} of {linked} enabled",
     "filterPlaceholder": "Filter skills…",
-    "orderHint": "Order matters — earlier skills appear earlier in the assembled prompt. Toggle to attach."
+    "orderHint": "Order matters — earlier skills appear earlier in the assembled prompt. Drag to reorder.",
+    "attach": "Attach skill",
+    "detach": "Detach {name}",
+    "offGlobally": "disabled globally",
+    "offGloballyTitle": "Disabled on the Skills page — it will not load",
+    "dragHandle": "Reorder {name} (Alt+↑ / Alt+↓)",
+    "empty": "No skills attached",
+    "noMatch": "No attached skill matches “{q}”.",
+    "noWorkspaceSkills": "No skills in this workspace yet.",
+    "goToSkills": "Create one on the Skills page",
+    "loadError": "Could not load this agent's skills."
   },
   "mount": {
     "body": "Mount point for {owner}. The Agent Editor shell + tab routing are wired by A2 — {owner} renders this tab."

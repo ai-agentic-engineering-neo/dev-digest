@@ -16,6 +16,14 @@ export const queryKeys = {
 
   agents: () => ["agents"] as const,
   agent: (id: Id) => ["agent", id] as const,
+  /** Prefix of every agent's skill links (invalidates them all). */
+  agentSkillsAll: () => ["agent-skills"] as const,
+  agentSkills: (agentId: Id) => ["agent-skills", agentId] as const,
+
+  skills: () => ["skills"] as const,
+  skill: (id: Id) => ["skill", id] as const,
+  skillVersions: (id: Id) => ["skill-versions", id] as const,
+  skillVersion: (id: Id, version: number | null | undefined) => ["skill-version", id, version] as const,
   /** Prefix of every provider's model list (invalidates them all). */
   providerModelsAll: () => ["provider-models"] as const,
   providerModels: (provider: Provider | null | undefined) => ["provider-models", provider] as const,

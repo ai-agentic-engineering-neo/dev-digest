@@ -22,3 +22,5 @@ Add a row when a spec is created.
 | [M1-cost-badge.md](M1-cost-badge.md) | M1 | built |
 | [M1-severity-filter.md](M1-severity-filter.md) | M1 | built |
 | [M1-findings-column.md](M1-findings-column.md) | M1 | built |
+| [M2-skills.md](M2-skills.md) | M2 | draft |
+| [M6-eval-dashboard.md](M6-eval-dashboard.md) | M6 | draft (not scheduled) |

@@ -45,6 +45,8 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
     parseDiff: container.parseDiff,
     repoIntel: container.repoIntel,
     events: container.runBus,
+    skills: container.skillsService,
+    tokens: container.tokenizer,
   });
 
   // ---- Run a review (manual trigger) -------------------------------

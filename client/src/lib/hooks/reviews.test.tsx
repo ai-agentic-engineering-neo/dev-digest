@@ -1,10 +1,8 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useRunReview } from "./reviews";
 import { queryKeys } from "./query-keys";
-
-afterEach(() => vi.unstubAllGlobals());
 
 function setup() {
   const qc = new QueryClient({ defaultOptions: { mutations: { retry: false } } });

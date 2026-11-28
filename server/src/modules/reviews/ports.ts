@@ -12,6 +12,7 @@ import type {
   ReviewRecord,
 } from '@devdigest/shared';
 import type { RepoIntel } from '../repo-intel/index.js';
+import type { EffectiveSkill } from '../skills/index.js';
 import type { RunEventBus } from '../../platform/run-logger.js';
 
 /**
@@ -148,6 +149,17 @@ export type DiffSource = Pick<GitClient, 'diff'>;
 
 /** Parses raw unified-diff text. Pure; injected because it lives with the git adapter. */
 export type DiffParser = (raw: string) => UnifiedDiff;
+
+/** Skills, owned by the skills module: what a run of this agent loads. */
+export interface AgentSkills {
+  /** Linked, enabled on the link and enabled globally, in link order. */
+  effectiveSkills(agentId: string): Promise<EffectiveSkill[]>;
+}
+
+/** Counts tokens of a text (the tokenizer adapter's `count`). */
+export interface TokenCounter {
+  count(text: string): number;
+}
 
 /** The repo-intel facade, as far as a review run uses it. */
 export type RepoContext = Pick<RepoIntel, 'getCallerSignatures' | 'getRepoMap' | 'getFileRank'>;

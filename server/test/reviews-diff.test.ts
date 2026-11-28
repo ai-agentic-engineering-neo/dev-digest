@@ -104,6 +104,8 @@ describe('ReviewService with an empty diff', () => {
       parseDiff: parseUnifiedDiff,
       repoIntel: {} as never,
       events: new RunBus(),
+      skills: { effectiveSkills: async () => [] },
+      tokens: { count: (s: string) => Math.ceil(s.length / 4) },
     });
 
     await service.runReview('ws-1', pull.id, [agent]);

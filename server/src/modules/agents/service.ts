@@ -7,8 +7,15 @@ import type {
   Provider,
   ReviewStrategy,
 } from '@devdigest/shared';
-import { isConfigChange } from './domain.js';
-import type { AgentPatch, AgentStore, ModelCatalog } from './ports.js';
+import { BadRequestError } from '../../platform/errors.js';
+import {
+  assertNoDuplicateSkills,
+  isConfigChange,
+  linksChanged,
+  upsertLink,
+  type LinkSpec,
+} from './domain.js';
+import type { AgentPatch, AgentStore, ModelCatalog, SkillLookup } from './ports.js';
 
 /**
  * A2 — agents service. Business logic for the Agents tab + Agent Editor.
@@ -45,9 +52,18 @@ export interface UpdateAgentInput {
   enabled?: boolean;
 }
 
+/**
+ * A change to an agent's links: replace the whole ordered set (`skills`,
+ * order = index) or link one skill (`skill_id`, upsert).
+ */
+export type LinkUpdateInput =
+  | { skills: { skill_id: string; enabled: boolean }[] }
+  | { skill_id: string; order?: number | undefined; enabled?: boolean | undefined };
+
 export interface AgentsServiceDeps {
   agents: AgentStore;
   models: ModelCatalog;
+  skills: SkillLookup;
 }
 
 export class AgentsService {
@@ -137,40 +153,107 @@ export class AgentsService {
     return this.repo.getVersion(agentId, version);
   }
 
-  /** Linked skills for an agent as AgentSkillLink[] (ordered). */
-  async skillLinks(agentId: string): Promise<AgentSkillLink[]> {
+  /**
+   * Linked skills for an agent as AgentSkillLink[] (link order). The link
+   * columns come from the agents store, name/type/global flag from the skills
+   * module. Undefined when the agent is not in this workspace.
+   */
+  async skillLinks(workspaceId: string, agentId: string): Promise<AgentSkillLink[] | undefined> {
+    const agent = await this.repo.getById(workspaceId, agentId);
+    if (!agent) return undefined;
+    return this.linksOf(workspaceId, agentId);
+  }
+
+  /** Apply a link change of either shape — the one entry point for POST /agents/:id/skills. */
+  async updateLinks(
+    workspaceId: string,
+    agentId: string,
+    input: LinkUpdateInput,
+  ): Promise<AgentSkillLink[] | undefined> {
+    if ('skills' in input) {
+      return this.setSkills(
+        workspaceId,
+        agentId,
+        input.skills.map((s) => ({ skillId: s.skill_id, enabled: s.enabled })),
+      );
+    }
+    return this.linkSkill(workspaceId, agentId, input.skill_id, input.order, input.enabled);
+  }
+
+  private async linksOf(workspaceId: string, agentId: string): Promise<AgentSkillLink[]> {
     const links = await this.repo.linkedSkills(agentId);
-    return links.map((l) => ({ agent_id: agentId, skill_id: l.skillId, order: l.order }));
+    if (links.length === 0) return [];
+    const summaries = await this.deps.skills.summaries(
+      workspaceId,
+      links.map((l) => l.skillId),
+    );
+    const byId = new Map(summaries.map((s) => [s.id, s]));
+    return links.flatMap((l) => {
+      const skill = byId.get(l.skillId);
+      if (!skill) return [];
+      return [
+        {
+          agent_id: agentId,
+          skill_id: l.skillId,
+          order: l.order,
+          enabled: l.enabled,
+          name: skill.name,
+          type: skill.type,
+          skill_enabled: skill.enabled,
+        },
+      ];
+    });
   }
 
   /**
-   * Set / reorder the agent's linked skills. If `skillIds` is provided, replaces
-   * the whole set in that order. Returns the resulting ordered links.
+   * Replace the agent's links with `links` (order = index). Every id must be
+   * a skill of the workspace, listed once. A real change bumps the agent's
+   * version and snapshots the links; an identical set writes nothing.
    */
   async setSkills(
     workspaceId: string,
     agentId: string,
-    skillIds: string[],
+    links: LinkSpec[],
   ): Promise<AgentSkillLink[] | undefined> {
     const agent = await this.repo.getById(workspaceId, agentId);
     if (!agent) return undefined;
-    await this.repo.setSkills(agentId, skillIds);
-    return this.skillLinks(agentId);
+    assertNoDuplicateSkills(links);
+    await this.assertWorkspaceSkills(workspaceId, links.map((l) => l.skillId));
+    await this.applyLinks(agentId, links);
+    return this.linksOf(workspaceId, agentId);
   }
 
-  /** Link a single skill (append or set order) — additive to existing links. */
+  /** Link a single skill (upsert; `enabled` defaults to true), keeping the others. */
   async linkSkill(
     workspaceId: string,
     agentId: string,
     skillId: string,
     order?: number,
+    enabled?: boolean,
   ): Promise<AgentSkillLink[] | undefined> {
     const agent = await this.repo.getById(workspaceId, agentId);
     if (!agent) return undefined;
-    const existing = await this.repo.linkedSkills(agentId);
-    const resolvedOrder = order ?? existing.length;
-    await this.repo.linkSkill(agentId, skillId, resolvedOrder);
-    return this.skillLinks(agentId);
+    await this.assertWorkspaceSkills(workspaceId, [skillId]);
+    const current = await this.currentLinks(agentId);
+    await this.applyLinks(agentId, upsertLink(current, skillId, order, enabled), current);
+    return this.linksOf(workspaceId, agentId);
+  }
+
+  private async currentLinks(agentId: string): Promise<LinkSpec[]> {
+    const links = await this.repo.linkedSkills(agentId);
+    return links.map((l) => ({ skillId: l.skillId, enabled: l.enabled }));
+  }
+
+  private async applyLinks(agentId: string, next: LinkSpec[], current?: LinkSpec[]): Promise<void> {
+    const before = current ?? (await this.currentLinks(agentId));
+    if (linksChanged(before, next)) await this.repo.setSkills(agentId, next);
+  }
+
+  private async assertWorkspaceSkills(workspaceId: string, ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const found = new Set(await this.deps.skills.existingIds(workspaceId, ids));
+    const unknown = ids.find((id) => !found.has(id));
+    if (unknown) throw new BadRequestError('unknown_skill', `Skill ${unknown} is not in this workspace`);
   }
 
   /**

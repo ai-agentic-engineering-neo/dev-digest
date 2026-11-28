@@ -123,6 +123,15 @@ export const s = {
   specsNone: { color: "var(--text-muted)" } satisfies CSSProperties,
   spec: { fontSize: 12, color: "var(--text-secondary)" } satisfies CSSProperties,
   statsRow: { display: "flex", gap: 10 } satisfies CSSProperties,
+  skillsMeta: { display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap", minWidth: 0 } satisfies CSSProperties,
+  skillsTokens: { fontSize: 12, color: "var(--text-secondary)" } satisfies CSSProperties,
+  skillChip: {
+    fontSize: 11,
+    padding: "1px 6px",
+    borderRadius: 4,
+    color: "var(--accent-text)",
+    background: "var(--accent-bg)",
+  } satisfies CSSProperties,
   rawPre: {
     margin: 0,
     padding: "12px 14px",

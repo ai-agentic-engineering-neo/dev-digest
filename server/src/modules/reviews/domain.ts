@@ -34,6 +34,19 @@ export function taskLine(pull: { number: number }): string {
   );
 }
 
+/**
+ * The run log's one line about skills (M2). Only effective skills are named;
+ * a skill disabled on the link or globally never reaches this list.
+ */
+export function skillsLogLine(
+  skills: readonly { name: string; version: number }[],
+  tokens: number,
+): string {
+  if (skills.length === 0) return 'No skills enabled for this agent';
+  const names = skills.map((s) => `${s.name} v${s.version}`).join(', ');
+  return `Loaded ${skills.length} skill(s) (+${tokens} tokens): ${names}`;
+}
+
 /** How the events route streams a run: from the live bus, or a replay of its stored log. */
 export type RunEventSource = { kind: 'live' } | { kind: 'replay'; events: RunEvent[] };
 

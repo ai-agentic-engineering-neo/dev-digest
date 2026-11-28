@@ -28,6 +28,9 @@ import { AgentsRepository } from '../modules/agents/repository.js';
 import { RepoRepository } from '../modules/repos/repository.js';
 import { PullsRepository } from '../modules/pulls/repository.js';
 import { ReviewRepository } from '../modules/reviews/repository.js';
+import { SkillsRepository } from '../modules/skills/repository.js';
+import { SkillsService } from '../modules/skills/service.js';
+import { FflateArchiveReader, YamlFrontmatterParser } from '../adapters/skill-import/index.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
 import { RepoIntelRepository } from '../modules/repo-intel/repository.js';
@@ -88,6 +91,8 @@ export class Container {
   private _repoStore?: RepoRepository;
   private _pullStore?: PullsRepository;
   private _reviewRepo?: ReviewRepository;
+  private _skillsRepo?: SkillsRepository;
+  private _skillsService?: SkillsService;
   private _repoIntelService?: RepoIntelService;
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
@@ -130,6 +135,35 @@ export class Container {
   get reviewRepo(): ReviewRepository {
     return (this._reviewRepo ??= new ReviewRepository(this.db));
   }
+
+  /**
+   * Skills and their versions (M2). The skills service writes through it; the
+   * agents module checks link ids and reads link display fields with it.
+   */
+  get skillsRepo(): SkillsRepository {
+    return (this._skillsRepo ??= new SkillsRepository(this.db));
+  }
+
+  /**
+   * Skills use cases (M2). Shared: the skills routes serve it, and the review
+   * run reads `effectiveSkills` from it (agent link ids from `agentsRepo`,
+   * skill content from `skillsRepo`).
+   */
+  get skillsService(): SkillsService {
+    return (this._skillsService ??= new SkillsService({
+      skills: this.skillsRepo,
+      tokens: this.tokenizer,
+      archive: this.skillArchive,
+      frontmatter: this.skillFrontmatter,
+      links: this.agentsRepo,
+    }));
+  }
+
+  /** In-memory zip reader for the skill import (M2). Stateless. */
+  readonly skillArchive = new FflateArchiveReader();
+
+  /** YAML frontmatter parser for the skill import (M2). Stateless. */
+  readonly skillFrontmatter = new YamlFrontmatterParser();
 
   get codeIndex(): CodeIndex {
     if (this.overrides.codeIndex) return this.overrides.codeIndex;
@@ -183,7 +217,7 @@ export class Container {
     return this._depgraph;
   }
 
-  /** Token counter (js-tiktoken) for the repo-map budget search. */
+  /** Token counter (js-tiktoken): repo-map budget, skill token counts, run skill tokens. */
   get tokenizer(): Tokenizer {
     if (this.overrides.tokenizer) return this.overrides.tokenizer;
     this._tokenizer ??= new TiktokenTokenizer();

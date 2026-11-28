@@ -48,6 +48,12 @@ export const PromptAssembly = z.object({
   repo_map: z.string().nullish(),
   /** PR author's description/body (truncated); null when absent. */
   pr_description: z.string().nullish(),
+  /** Tokens of the skills block (one copy); null when no skills were used. */
+  skills_tokens: z.number().int().nullish(),
+  /** Effective skills injected into this run, in link order. */
+  skills_used: z
+    .array(z.object({ id: z.string(), name: z.string(), version: z.number().int() }))
+    .nullish(),
   user: z.string(),
 });
 export type PromptAssembly = z.infer<typeof PromptAssembly>;

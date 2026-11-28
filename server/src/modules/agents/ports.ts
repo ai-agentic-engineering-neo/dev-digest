@@ -5,16 +5,17 @@ import type {
   LLMProvider,
   Provider,
   ReviewStrategy,
+  SkillType,
 } from '@devdigest/shared';
 
-import type { AgentPatch } from './domain.js';
+import type { AgentPatch, LinkSpec } from './domain.js';
 
 /**
  * A2 — what AgentsService needs from the outside world. `routes.ts` wires the
  * real implementations; tests pass in-memory fakes.
  */
 
-export type { AgentPatch };
+export type { AgentPatch, LinkSpec };
 
 export interface NewAgent {
   workspaceId: string;
@@ -31,9 +32,21 @@ export interface NewAgent {
   createdBy?: string | null;
 }
 
-export interface LinkedSkill {
+/** One stored link of an agent to a skill: the agents module's own columns. */
+export interface SkillLink {
   skillId: string;
   order: number;
+  /** Enabled on this link (per agent). */
+  enabled: boolean;
+}
+
+/** What the agents module shows of a skill, read through the skills module. */
+export interface SkillSummary {
+  id: string;
+  name: string;
+  type: SkillType;
+  /** The skill's global flag. */
+  enabled: boolean;
 }
 
 /** Persistence for agents, their config versions and skill links. */
@@ -57,12 +70,21 @@ export interface AgentStore {
   /** Config snapshots, newest version first. */
   listVersions(agentId: string): Promise<AgentVersion[]>;
   getVersion(agentId: string, version: number): Promise<AgentVersion | undefined>;
-  /** Skills linked to an agent, in `order` ascending. */
-  linkedSkills(agentId: string): Promise<LinkedSkill[]>;
-  /** Link a skill at a given order (idempotent: upserts the order). */
-  linkSkill(agentId: string, skillId: string, order: number): Promise<void>;
-  /** Replace the whole set of linked skills; order = index. */
-  setSkills(agentId: string, skillIds: string[]): Promise<void>;
+  /** The agent's links (link columns only), in `order` ascending. */
+  linkedSkills(agentId: string): Promise<SkillLink[]>;
+  /**
+   * Replace the whole set of linked skills (order = index), bump the agent's
+   * version and snapshot `skills` + `skill_links`, in one transaction.
+   */
+  setSkills(agentId: string, links: LinkSpec[]): Promise<void>;
+}
+
+/** Skills, owned by the skills module: the workspace check on link ids and the link display fields. */
+export interface SkillLookup {
+  /** The ids among `ids` that are skills of the workspace. */
+  existingIds(workspaceId: string, ids: readonly string[]): Promise<string[]>;
+  /** Name, type and global flag of the workspace's skills among `ids` (any order). */
+  summaries(workspaceId: string, ids: readonly string[]): Promise<SkillSummary[]>;
 }
 
 /**

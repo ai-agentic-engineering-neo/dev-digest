@@ -19,8 +19,9 @@ const TRACE: RunTrace = {
   ],
 };
 
+const traceRef = vi.hoisted(() => ({ current: null as RunTrace | null }));
 vi.mock("../../../../../../../lib/hooks/trace", () => ({
-  useRunTrace: () => ({ data: TRACE, isLoading: false }),
+  useRunTrace: () => ({ data: traceRef.current ?? TRACE, isLoading: false }),
 }));
 vi.mock("../../../../../../../lib/hooks/reviews", () => ({
   useRunEvents: () => ({ events: [], running: false }),
@@ -28,7 +29,10 @@ vi.mock("../../../../../../../lib/hooks/reviews", () => ({
 
 import RunTraceDrawer from "./RunTraceDrawer";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  traceRef.current = null;
+});
 
 function renderWithIntl(ui: React.ReactElement) {
   return render(
@@ -54,5 +58,33 @@ describe("A5 Run Trace drawer (smoke)", () => {
     fireEvent.click(screen.getByText("log"));
     // LiveLogStream renders its filter input
     expect(screen.getByPlaceholderText("Filter log…")).toBeInTheDocument();
+  });
+});
+
+describe("Run Trace drawer — skills (M2)", () => {
+  it("shows the skills tokens and one chip per loaded skill, in order", () => {
+    traceRef.current = {
+      ...TRACE,
+      prompt_assembly: {
+        ...TRACE.prompt_assembly,
+        skills_tokens: 412,
+        skills_used: [
+          { id: "s1", name: "pr-quality-rubric", version: 5 },
+          { id: "s2", name: "secret-leakage-gate", version: 1 },
+        ],
+      },
+    };
+    renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    fireEvent.click(screen.getByText("Prompt assembly"));
+    expect(screen.getByText("+412 tokens")).toBeInTheDocument();
+    const chips = screen.getAllByText(/ v\d+$/).map((el) => el.textContent);
+    expect(chips).toEqual(["pr-quality-rubric v5", "secret-leakage-gate v1"]);
+  });
+
+  it("renders a pre-M2 trace's skills block without the token chip", () => {
+    renderWithIntl(<RunTraceDrawer runId="r1" agentName="Security" prNumber={482} onClose={() => {}} />);
+    fireEvent.click(screen.getByText("Prompt assembly"));
+    expect(screen.getByText("Skills (dynamic)")).toBeInTheDocument();
+    expect(screen.queryByText(/tokens$/)).not.toBeInTheDocument();
   });
 });

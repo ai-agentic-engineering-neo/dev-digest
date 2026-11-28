@@ -19,6 +19,7 @@ const agent: Agent = {
   strategy: 'single-pass',
   ci_fail_on: 'never',
   repo_intel: true,
+  skill_count: 0,
 };
 
 describe('isConfigChange', () => {

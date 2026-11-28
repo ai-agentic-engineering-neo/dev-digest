@@ -17,7 +17,7 @@ import { RepoService } from './service.js';
  * The clone runs as a JobRunner job (kind 'clone') — real `git clone` via the
  * GitClient adapter into <cloneDir>/<owner>/<repo>.
  */
-const DeleteRepoResponse = z.object({ deleted: z.string() });
+const DeleteRepoResponse = z.object({ removedId: z.string() });
 
 export default async function reposRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
@@ -61,7 +61,7 @@ export default async function reposRoutes(appBase: FastifyInstance) {
     async (req) => {
       const { workspaceId } = await getContext(app.container, req);
       await service.remove(workspaceId, req.params.id);
-      return { deleted: req.params.id };
+      return { removedId: req.params.id };
     },
   );
 }

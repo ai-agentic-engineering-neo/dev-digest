@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
 import type OpenAI from 'openai';
 import type Anthropic from '@anthropic-ai/sdk';
-import { StructuredOutputError } from '@devdigest/shared';
+import { StructuredOutputError } from '@devdigest/reviewer-core';
 import { OpenAIProvider } from '../src/adapters/llm/openai.js';
 import { AnthropicProvider } from '../src/adapters/llm/anthropic.js';
 
@@ -95,7 +95,8 @@ describe('AnthropicProvider.completeStructured', () => {
     });
 
     expect(res.data).toEqual({ answer: '42' });
-    expect(options[0]).toEqual({ timeout: 60_000, signal: controller.signal });
+    // No timeoutMs: the client's own default deadline applies.
+    expect(options[0]).toEqual({ signal: controller.signal });
   });
 
   it('a schema failure on every attempt throws with the accumulated usage', async () => {
@@ -108,5 +109,20 @@ describe('AnthropicProvider.completeStructured', () => {
     expect(err).toBeInstanceOf(StructuredOutputError);
     expect((err as StructuredOutputError).usage).toMatchObject({ tokensIn: 20, tokensOut: 8 });
     expect((err as StructuredOutputError).attempts).toBe(2);
+  });
+});
+
+describe('default SDK clients', () => {
+  // These replaced the withRetry/withTimeout wrappers: falling back to the SDK
+  // defaults (10 min timeout) must fail here.
+  it('are built with a 60 s timeout and 2 retries', () => {
+    const openai = new OpenAIProvider('key')['client'];
+    const anthropic = new AnthropicProvider('key')['client'];
+
+    expect({ timeout: openai.timeout, maxRetries: openai.maxRetries }).toEqual({ timeout: 60_000, maxRetries: 2 });
+    expect({ timeout: anthropic.timeout, maxRetries: anthropic.maxRetries }).toEqual({
+      timeout: 60_000,
+      maxRetries: 2,
+    });
   });
 });

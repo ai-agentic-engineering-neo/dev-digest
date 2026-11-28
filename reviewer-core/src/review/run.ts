@@ -6,7 +6,8 @@ import type {
   RunEventKind,
   UnifiedDiff,
 } from '@devdigest/shared';
-import { Review as ReviewSchema, StructuredOutputError } from '@devdigest/shared';
+import { Review as ReviewSchema } from '@devdigest/shared';
+import { StructuredOutputError } from '../llm/structured.js';
 import { assemblePrompt } from '../prompt.js';
 import { groundFindings, groundingSummary } from '../grounding.js';
 import { reduceReviews, scoreFromFindings, sliceDiff } from './reduce.js';

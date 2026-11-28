@@ -90,23 +90,6 @@ export interface LlmUsage {
   costUsd: number | null;
 }
 
-/**
- * Thrown by `completeStructured` when every attempt failed schema validation.
- * Carries what the attempts consumed (the calls were billed) and the last raw
- * output, so the caller can record them on the failed run.
- */
-export class StructuredOutputError extends Error {
-  constructor(
-    message: string,
-    public readonly usage: LlmUsage,
-    public readonly raw: string,
-    public readonly attempts: number,
-  ) {
-    super(message);
-    this.name = 'StructuredOutputError';
-  }
-}
-
 export interface LLMProvider {
   readonly id: 'openai' | 'anthropic' | 'openrouter';
   listModels(): Promise<ModelInfo[]>;

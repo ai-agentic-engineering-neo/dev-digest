@@ -1,8 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { LLMProvider, StructuredRequest, StructuredResult } from '@devdigest/shared';
-import { StructuredOutputError } from '@devdigest/shared';
 import { CONFIG_DIFF, stubLLM } from './stubs.js';
-import { reviewPullRequest } from '../src/index.js';
+import { reviewPullRequest, StructuredOutputError } from '../src/index.js';
 
 /**
  * Engine-level test for reviewPullRequest (the core lifted out of the server's

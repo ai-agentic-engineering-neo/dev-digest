@@ -113,7 +113,7 @@ also uses.
 
 - 2026-11-28 — BE-8: `/runs/:id/events` resolves the run through `ReviewService.runEventSource` (404 unknown; finished and off the bus → replay of the stored trace log, then end), unsubscribes on disconnect, sends a `:heartbeat` comment every 15 s; `RunBus` frees a completed run 5 min after `complete()`.
 
-- 2026-11-28 — BE-9: cancel aborts the in-flight LLM call (`RunBus.signal(runId)`, aborted by `cancel`, released by `clearCancelled`; the executor passes it through `reviewPullRequest` to `StructuredRequest.signal`), and a schema-validation failure throws `StructuredOutputError` (shared contract) whose usage, cost and raw output the executor stores on the failed run.
+- 2026-11-28 — BE-9: cancel aborts the in-flight LLM call (`RunBus.signal(runId)`, aborted by `cancel`, released by `clearCancelled`; the executor passes it through `reviewPullRequest` to `StructuredRequest.signal`), and a schema-validation failure throws `StructuredOutputError` (reviewer-core `llm/structured.ts`, re-exported by `platform/structured.ts`; the shared contract stays data-only) whose usage, cost and raw output the executor stores on the failed run.
 
 ## Open Questions
 

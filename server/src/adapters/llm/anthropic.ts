@@ -8,8 +8,7 @@ import type {
   StructuredResult,
   ChatMessage,
 } from '@devdigest/shared';
-import { StructuredOutputError } from '@devdigest/shared';
-import { toJsonSchema, parseWithRepair } from '../../platform/structured.js';
+import { toJsonSchema, parseWithRepair, StructuredOutputError } from '../../platform/structured.js';
 import { estimateCost } from './pricing.js';
 import { ExternalServiceError } from '../../platform/errors.js';
 
@@ -71,7 +70,7 @@ export class AnthropicProvider implements LLMProvider {
         max_tokens: req.maxTokens ?? DEFAULT_MAX_TOKENS,
         temperature: req.temperature ?? 0.2,
       },
-      { timeout: req.timeoutMs ?? DEFAULT_TIMEOUT },
+      req.timeoutMs ? { timeout: req.timeoutMs } : {},
     );
     const text = res.content
       .filter((b): b is Anthropic.TextBlock => b.type === 'text')
@@ -116,7 +115,7 @@ export class AnthropicProvider implements LLMProvider {
           tool_choice: { type: 'tool', name: toolName },
         },
         {
-          timeout: req.timeoutMs ?? DEFAULT_TIMEOUT,
+          ...(req.timeoutMs ? { timeout: req.timeoutMs } : {}),
           ...(req.signal ? { signal: req.signal } : {}),
         },
       );

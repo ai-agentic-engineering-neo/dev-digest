@@ -1,6 +1,5 @@
 import type { Agent, LlmUsage, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
-import { StructuredOutputError } from '@devdigest/shared';
-import { reviewPullRequest, countBlockers } from '@devdigest/reviewer-core';
+import { reviewPullRequest, countBlockers, StructuredOutputError } from '@devdigest/reviewer-core';
 import { RunLogger } from '../../platform/run-logger.js';
 import { MAX_DIFF_CHARS, REVIEW_MAX_OUTPUT_TOKENS, REVIEW_STRATEGY } from './constants.js';
 import { RunCancelledError, capDiff, taskLine } from './domain.js';

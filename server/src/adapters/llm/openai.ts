@@ -7,8 +7,7 @@ import type {
   StructuredRequest,
   StructuredResult,
 } from '@devdigest/shared';
-import { StructuredOutputError } from '@devdigest/shared';
-import { toJsonSchema, parseWithRepair } from '../../platform/structured.js';
+import { toJsonSchema, parseWithRepair, StructuredOutputError } from '../../platform/structured.js';
 import { estimateCost } from './pricing.js';
 
 /** Per-request deadline; the SDK aborts the request when it passes. */
@@ -70,7 +69,7 @@ export class OpenAIProvider implements LLMProvider {
         messages: req.messages,
         ...tuningParams(req.model, req.temperature ?? 0.2, req.maxTokens),
       },
-      { timeout: req.timeoutMs ?? DEFAULT_TIMEOUT },
+      req.timeoutMs ? { timeout: req.timeoutMs } : {},
     );
     const text = res.choices?.[0]?.message?.content ?? '';
     const tokensIn = res.usage?.prompt_tokens ?? 0;
@@ -104,7 +103,7 @@ export class OpenAIProvider implements LLMProvider {
           },
         },
         {
-          timeout: req.timeoutMs ?? DEFAULT_TIMEOUT,
+          ...(req.timeoutMs ? { timeout: req.timeoutMs } : {}),
           ...(req.signal ? { signal: req.signal } : {}),
         },
       );

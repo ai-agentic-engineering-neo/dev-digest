@@ -33,6 +33,7 @@ export {
   toJsonSchema,
   extractJson,
   parseWithRepair,
+  StructuredOutputError,
   type JsonSchema,
   type ParseResult,
 } from './llm/structured.js';

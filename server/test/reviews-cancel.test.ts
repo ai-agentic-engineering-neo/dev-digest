@@ -14,7 +14,7 @@ import type {
   StructuredRequest,
   StructuredResult,
 } from '@devdigest/shared';
-import { StructuredOutputError } from '@devdigest/shared';
+import { StructuredOutputError } from '@devdigest/reviewer-core';
 import { ReviewService } from '../src/modules/reviews/service.js';
 import type { ReviewOutcome, ReviewPull, ReviewStore, RunCompletion } from '../src/modules/reviews/ports.js';
 import { RunBus } from '../src/platform/sse.js';

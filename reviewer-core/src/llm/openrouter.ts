@@ -7,8 +7,7 @@ import type {
   StructuredRequest,
   StructuredResult,
 } from '@devdigest/shared';
-import { StructuredOutputError } from '@devdigest/shared';
-import { toJsonSchema, parseWithRepair } from './structured.js';
+import { toJsonSchema, parseWithRepair, StructuredOutputError } from './structured.js';
 
 /**
  * The single OpenAI-compatible structured provider, owned by the engine because

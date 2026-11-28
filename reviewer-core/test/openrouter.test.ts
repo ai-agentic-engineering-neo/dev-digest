@@ -6,8 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import { z } from 'zod';
 import type OpenAI from 'openai';
-import { StructuredOutputError } from '@devdigest/shared';
-import { OpenRouterProvider } from '../src/index.js';
+import { OpenRouterProvider, StructuredOutputError } from '../src/index.js';
 
 const Schema = z.object({ answer: z.string() });
 

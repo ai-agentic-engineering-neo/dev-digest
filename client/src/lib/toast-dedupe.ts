@@ -12,6 +12,10 @@ export function createToastDeduper(windowMs = TOAST_DEDUPE_MS, now: () => number
     const t = now();
     const prev = lastShown.get(key);
     if (prev !== undefined && t - prev < windowMs) return false;
+    // Forget toasts older than the window so the map stays small.
+    for (const [k, shownAt] of lastShown) {
+      if (t - shownAt >= windowMs) lastShown.delete(k);
+    }
     lastShown.set(key, t);
     return true;
   };

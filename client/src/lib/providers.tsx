@@ -16,6 +16,13 @@ import { createErrorPolicy } from "./error-policy";
 export function Providers({ children }: { children: React.ReactNode }) {
   const [qc] = React.useState(() => {
     const policy = createErrorPolicy(notify.error);
+    const queryCache = new QueryCache({
+      onError: (err, query) => policy.onQueryError(err, query),
+      onSuccess: (_data, query) => policy.onQuerySuccess(query),
+    });
+    queryCache.subscribe((event) => {
+      if (event.type === "removed") policy.onQueryRemoved(event.query);
+    });
     return new QueryClient({
       defaultOptions: {
         queries: {
@@ -25,10 +32,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         },
       },
       // Global error surfacing — which errors toast is decided in error-policy.ts.
-      queryCache: new QueryCache({
-        onError: (err, query) => policy.onQueryError(err, query),
-        onSuccess: (_data, query) => policy.onQuerySuccess(query),
-      }),
+      queryCache,
       mutationCache: new MutationCache({
         onError: (err, _vars, _ctx, mutation) => policy.onMutationError(err, mutation),
       }),

@@ -27,4 +27,23 @@ describe("createErrorPolicy", () => {
     policy.onQueryError(new ApiError("no tour yet", 404), { queryHash: '["tour"]' });
     expect(toast).toHaveBeenCalledTimes(2);
   });
+
+  it("toasts again when a removed query is re-mounted and fails again", () => {
+    const toast = vi.fn();
+    const policy = createErrorPolicy(toast);
+    const query = { queryHash: '["pulls","repo1"]' };
+    policy.onQueryError(new ApiError("down", 503), query);
+    policy.onQueryRemoved(query);
+    policy.onQueryError(new ApiError("down", 503), query);
+    expect(toast).toHaveBeenCalledTimes(2);
+  });
+
+  it("a 4xx does not swallow the next system error of the same query", () => {
+    const toast = vi.fn();
+    const policy = createErrorPolicy(toast);
+    const query = { queryHash: '["tour","repo1"]' };
+    policy.onQueryError(new ApiError("no tour yet", 404), query);
+    policy.onQueryError(new ApiError("down", 503), query);
+    expect(toast).toHaveBeenCalledWith("down");
+  });
 });

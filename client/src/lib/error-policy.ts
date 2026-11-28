@@ -4,7 +4,8 @@
      inline and says so with `meta: { errorUi: "inline" }`.
    - Queries toast only on network / 5xx (an expected 4xx such as a 404 stays
      silent for the inline empty state), and only once per failure streak: a
-     polling query that keeps failing does not repeat the toast on every poll. */
+     polling query that keeps failing does not repeat the toast on every poll.
+     The streak ends when the query succeeds or is removed from the cache. */
 import type { Mutation, Query } from "@tanstack/react-query";
 import { ApiError } from "./api";
 
@@ -32,15 +33,20 @@ type QueryLike = Pick<Query, "queryHash">;
 
 /** Cache callbacks that send errors to `toast` under the policy above. */
 export function createErrorPolicy(toast: (message: string) => void) {
-  // Hashes of the queries whose last fetch failed (the current failure streak).
+  // Hashes of the queries whose system error has already toasted in the
+  // current failure streak.
   const failing = new Set<string>();
   return {
     onQueryError(err: unknown, query: QueryLike) {
-      const repeated = failing.has(query.queryHash);
+      if (!isSystemError(err) || failing.has(query.queryHash)) return;
       failing.add(query.queryHash);
-      if (!repeated && isSystemError(err)) toast(errorMessage(err));
+      toast(errorMessage(err));
     },
     onQuerySuccess(query: QueryLike) {
+      failing.delete(query.queryHash);
+    },
+    /** A removed query starts afresh: re-mounted and failing again, it toasts again. */
+    onQueryRemoved(query: QueryLike) {
       failing.delete(query.queryHash);
     },
     onMutationError(err: unknown, mutation: MutationLike) {

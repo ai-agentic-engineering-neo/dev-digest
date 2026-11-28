@@ -112,9 +112,12 @@ Secrets (API keys, `GITHUB_TOKEN`) are **not** part of `AppConfig` — they go
 through `SecretsProvider` (`~/.devdigest/secrets.json`, mode `0600`, with
 `process.env` as a fallback), per the **Where keys live** note at the top.
 
-Migrations are **not** applied on boot — run `pnpm db:migrate` (pgvector is
-enabled by migration `0000`). `pnpm db:seed` is idempotent demo data
-(`acme/payments-api`, PR #482, the two built-in agents).
+Migrations are **not** applied on boot — run `pnpm db:migrate` (`migrate.ts`
+runs `CREATE EXTENSION IF NOT EXISTS vector` before the migrations, because
+migration `0000` already uses `vector` columns; plain `drizzle-kit migrate` on
+an empty database fails at `0000` unless pgvector is enabled first. Migration
+`0011` also starts with the same statement). `pnpm db:seed` is idempotent demo
+data (`acme/payments-api`, PR #482, the two built-in agents).
 
 ## Review context (non-obvious)
 

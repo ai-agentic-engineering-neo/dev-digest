@@ -78,6 +78,13 @@
       "when": 1795259818850,
       "tag": "0010_fair_hydra",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1795852302805,
+      "tag": "0011_square_nitro",
+      "breakpoints": true
     }
   ]
 }

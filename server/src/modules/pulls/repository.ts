@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import type { PrDetail, PrMeta } from '@devdigest/shared';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
@@ -34,11 +34,11 @@ export class PullsRepository implements PullStore {
   constructor(private db: Db) {}
 
   async upsertFromGitHub(workspaceId: string, repoId: string, pulls: PrMeta[]): Promise<void> {
-    for (const pr of pulls) {
-      const updatedAt = pr.updated_at ? new Date(pr.updated_at) : null;
-      await this.db
-        .insert(t.pullRequests)
-        .values({
+    if (pulls.length === 0) return;
+    await this.db
+      .insert(t.pullRequests)
+      .values(
+        pulls.map((pr) => ({
           workspaceId,
           repoId,
           number: pr.number,
@@ -52,13 +52,22 @@ export class PullsRepository implements PullStore {
           filesCount: pr.files_count,
           status: pr.status,
           openedAt: pr.opened_at ? new Date(pr.opened_at) : null,
-          updatedAt,
-        })
-        .onConflictDoUpdate({
-          target: [t.pullRequests.repoId, t.pullRequests.number],
-          set: { title: pr.title, headSha: pr.head_sha, status: pr.status, updatedAt },
-        });
-    }
+          updatedAt: pr.updated_at ? new Date(pr.updated_at) : null,
+        })),
+      )
+      .onConflictDoUpdate({
+        target: [t.pullRequests.repoId, t.pullRequests.number],
+        // Diff stats are left alone: the PR-list payload carries none, they are
+        // backfilled from the detail fetch.
+        set: {
+          title: sql`excluded.title`,
+          base: sql`excluded.base`,
+          headSha: sql`excluded.head_sha`,
+          status: sql`excluded.status`,
+          updatedAt: sql`excluded.updated_at`,
+          openedAt: sql`coalesce(${t.pullRequests.openedAt}, excluded.opened_at)`,
+        },
+      });
   }
 
   async listForRepo(repoId: string): Promise<StoredPull[]> {
@@ -95,29 +104,46 @@ export class PullsRepository implements PullStore {
 
   async saveDetail(pullId: string, detail: PrDetail): Promise<void> {
     await this.db.transaction(async (tx) => {
-      await tx.delete(t.prFiles).where(eq(t.prFiles.prId, pullId));
-      if (detail.files.length > 0) {
-        await tx.insert(t.prFiles).values(
-          detail.files.map((f) => ({
-            prId: pullId,
-            path: f.path,
-            additions: f.additions,
-            deletions: f.deletions,
-            patch: f.patch ?? null,
-          })),
-        );
-      }
-      await tx.delete(t.prCommits).where(eq(t.prCommits.prId, pullId));
-      if (detail.commits.length > 0) {
-        await tx.insert(t.prCommits).values(
-          detail.commits.map((c) => ({
-            prId: pullId,
-            sha: c.sha,
-            message: c.message,
-            author: c.author,
-            committedAt: c.committed_at ? new Date(c.committed_at) : null,
-          })),
-        );
+      // Files and commits are rewritten only when the head moved (or on first
+      // load). The list sync overwrites `head_sha` before the detail fetch, so
+      // equality alone cannot prove the stored files belong to that sha: also
+      // require that a stored commit is the incoming head.
+      const [stored] = await tx
+        .select({ headSha: t.pullRequests.headSha })
+        .from(t.pullRequests)
+        .where(eq(t.pullRequests.id, pullId));
+      const [headCommit] = await tx
+        .select({ id: t.prCommits.id })
+        .from(t.prCommits)
+        .where(and(eq(t.prCommits.prId, pullId), eq(t.prCommits.sha, detail.head_sha)))
+        .limit(1);
+      const unchanged = stored?.headSha === detail.head_sha && headCommit !== undefined;
+
+      if (!unchanged) {
+        await tx.delete(t.prFiles).where(eq(t.prFiles.prId, pullId));
+        if (detail.files.length > 0) {
+          await tx.insert(t.prFiles).values(
+            detail.files.map((f) => ({
+              prId: pullId,
+              path: f.path,
+              additions: f.additions,
+              deletions: f.deletions,
+              patch: f.patch ?? null,
+            })),
+          );
+        }
+        await tx.delete(t.prCommits).where(eq(t.prCommits.prId, pullId));
+        if (detail.commits.length > 0) {
+          await tx.insert(t.prCommits).values(
+            detail.commits.map((c) => ({
+              prId: pullId,
+              sha: c.sha,
+              message: c.message,
+              author: c.author,
+              committedAt: c.committed_at ? new Date(c.committed_at) : null,
+            })),
+          );
+        }
       }
       await tx
         .update(t.pullRequests)

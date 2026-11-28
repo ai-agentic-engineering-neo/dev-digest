@@ -134,10 +134,11 @@ describe('AnthropicProvider repair turn', () => {
     });
 
     expect(res.attempts).toBe(2);
-    const second = bodies[1].messages;
+    const second = bodies[1]?.messages ?? [];
+    expect(second).toHaveLength(3);
     expect(second.map((m) => m.role)).toEqual(['user', 'assistant', 'user']);
-    expect(second[1].content).toEqual([expect.objectContaining({ type: 'tool_use', id: 't1' })]);
-    expect(second[2].content).toEqual([
+    expect(second[1]?.content).toEqual([expect.objectContaining({ type: 'tool_use', id: 't1' })]);
+    expect(second[2]?.content).toEqual([
       {
         type: 'tool_result',
         tool_use_id: 't1',

@@ -8,6 +8,7 @@ project overview in [../README.md](../README.md); UI route map in
 
 ```sh
 pnpm dev          # web on :3000, expects the API on :3001
+pnpm lint         # eslint 9 flat config; src/vendor ignored
 pnpm typecheck
 pnpm test         # vitest + jsdom, fetch mocked, no API needed
 pnpm build
@@ -28,6 +29,10 @@ pnpm build
 
 - Pages stay thin. Logic goes into `_components/<Name>/` with a `*.test.tsx`
   beside it.
+- A `.tsx` is a view: imports, a props type, components. Constants go in a
+  sibling `constants.ts`, pure rules and formatting in `helpers.ts` (with
+  `helpers.test.ts`), style objects in `styles.ts` — also when the file you are
+  editing does it differently. Rules: the `frontend-architecture` skill.
 - Data access is `page → hook in src/lib/hooks → src/lib/api.ts`. Do not call
   `fetch` from a component.
 - Types for API data come from `@devdigest/shared`. Do not redeclare them.
@@ -56,6 +61,10 @@ pnpm build
 
 ## Read when
 
+- Adding or changing anything under `src/` (a component, page, constant,
+  helper, hook or style), or deciding which file or folder it belongs in → use
+  the `frontend-architecture` skill
+  (`../.claude/skills/frontend-architecture/SKILL.md`).
 - Adding a page or hook → read `README.md` (route map).
 - Adding or changing a UI component → read `src/vendor/ui/README.md`.
 - Adding a hook or touching the API boundary → read `docs/architecture.md`.

@@ -73,3 +73,6 @@ export type SizeInfo = { size: PrSize; lines: number };
 
 /** Re-exported for helpers that consume PrMeta. */
 export type { PrMeta };
+
+/** Placeholder for a run with no cost data — never "$0.00". */
+export const NO_COST = "—";

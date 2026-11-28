@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { FindingRecord, ReviewRecord } from "@devdigest/shared";
-import { latestFindingsPerAgent, totalFindings } from "./helpers";
+import { formatCost, formatTokenCount, latestFindingsPerAgent, totalFindings } from "./helpers";
 
 function finding(id: string, severity: FindingRecord["severity"]): FindingRecord {
   return {
@@ -85,5 +85,30 @@ describe("totalFindings", () => {
     expect(totalFindings({ CRITICAL: 1, WARNING: 2, SUGGESTION: 2 })).toBe(5);
     expect(totalFindings(null)).toBe(0);
     expect(totalFindings(undefined)).toBe(0);
+  });
+});
+
+describe("formatCost", () => {
+  it("keeps 3 decimals at ≥ $0.01 and 2 significant digits below", () => {
+    expect(formatCost(0.0142)).toBe("$0.014");
+    expect(formatCost(0.012)).toBe("$0.012"); // not "$0.01"
+    expect(formatCost(1.25)).toBe("$1.250");
+    expect(formatCost(0.00134)).toBe("$0.0013");
+    expect(formatCost(0.00999)).toBe("$0.010");
+  });
+
+  it("no data → '—', a real free run → '$0.000'", () => {
+    expect(formatCost(null)).toBe("—");
+    expect(formatCost(undefined)).toBe("—");
+    expect(formatCost(0)).toBe("$0.000");
+  });
+});
+
+describe("formatTokenCount", () => {
+  it("compacts thousands and millions", () => {
+    expect(formatTokenCount(800)).toBe("800");
+    expect(formatTokenCount(8200)).toBe("8.2K");
+    expect(formatTokenCount(15000)).toBe("15K");
+    expect(formatTokenCount(1_250_000)).toBe("1.3M");
   });
 });

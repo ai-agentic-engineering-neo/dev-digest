@@ -19,4 +19,4 @@ Add a row when a spec is created.
 
 | Spec | Milestone | Status |
 |------|-----------|--------|
-| —    | —         | —      |
+| [grounding-model-findings.md](grounding-model-findings.md) | — (audit BE-3) | built |

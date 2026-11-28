@@ -108,6 +108,7 @@ export function partitionThreads(
 // ---- styles (layout only; cards/inputs/buttons reuse @devdigest/ui) ----
 export const cs = {
   rowWrap: { position: "relative" } satisfies CSSProperties,
+  addBtnHidden: { opacity: 0 } satisfies CSSProperties,
   addBtn: {
     position: "absolute",
     left: 2,

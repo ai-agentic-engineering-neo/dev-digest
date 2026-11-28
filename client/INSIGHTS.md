@@ -68,9 +68,13 @@ disable the control that clears the active filter.
 
 - 2026-11-23 — To load data only when a control is opened, pass `null` as the id to the existing query hook (`usePrReviews(open ? pr.id : null)`): every hook here is `enabled: !!id`, so no `enabled` parameter is needed, and the result is cached for the next open. Evidence: client/src/app/repos/[repoId]/pulls/_components/FindingsCell/FindingsCell.tsx:43
 
+- 2026-11-26 — Code added to a `.tsx` copies that file's habits: in a folder that already has `constants.ts` / `helpers.ts`, an agent put new thresholds and rules there unprompted, while in a `.tsx` with an inline constant it added two more inline, wrote the rule into JSX and hardcoded English labels "like the rest of this header's strings". 19 such declarations exist (grep 1 of the skill lists them). When you edit one of those files, create the sibling `constants.ts` / `helpers.ts` / `styles.ts` and the message key for what you add, move only the declarations you change, and name what you left. Evidence: .claude/skills/frontend-architecture/SKILL.md:79
+
 ## Tool & Library Notes
 
 <!-- Quirks of dependencies and tooling. -->
+
+- 2026-11-28 — React Query keys live only in `src/lib/hooks/query-keys.ts`, and a mutation that renders its own error must set `meta: { errorUi: "inline" }` (typed via the `Register` augmentation in `src/lib/error-policy.ts`), or the global MutationCache toasts it a second time. Prefer `mutate(vars, { onSuccess })` over `mutateAsync` in a component: an un-caught `mutateAsync` rejection is an unhandled promise on top of the toast. Evidence: client/src/lib/error-policy.ts:36
 
 - 2026-11-22 — A vitest path filter that contains the route folders `[repoId]` / `[number]` matches nothing ("No test files found"), with or without escaping the brackets. Filter by a plain name fragment instead: `pnpm exec vitest run FindingsPanel SeverityFilter`. Evidence: client/vitest.config.ts:18
 
@@ -83,6 +87,8 @@ disable the control that clears the active filter.
 - 2026-11-22 — Severity counters are computed after `Hide low confidence` and before the severity filter, so a counter always equals the number of cards a click on it shows; counting the unfiltered run would break "the number matches the list" as soon as the toggle is on. A level with 0 findings is disabled, except when it is the active filter, because the toggle can empty the active level and the filter must still be clearable. Evidence: client/src/app/repos/[repoId]/pulls/[number]/_components/FindingsPanel/FindingsPanel.tsx:36
 
 - 2026-11-23 — The PR list's findings preview does not trust the list's numbers for its heading: it applies the server's rule itself (`latestFindingsPerAgent`: each agent's latest `kind = "review"` review) to the loaded reviews and heads the list with the number of findings it shows. The chips come from `PrMeta.findings_counts`, which refreshes every 60 s, so the two can differ for a moment after a new run; a heading taken from the chips would then disagree with the list under it. If the server rule changes, change this helper with it. Evidence: client/src/app/repos/[repoId]/pulls/helpers.ts:16
+
+- 2026-11-26 — Where code goes in `client/src` is decided by its kind, not its size or reuse: every constant leaves the `.tsx` for `constants.ts` and every pure rule for `helpers.ts`, however small. Several published sources would keep small single-use code inline, and others reject the names `helpers.ts` and a per-component `index.ts`; the repo keeps all three because the convention already covered most folders and a rule without a judgement call can be checked with a grep. Do not relax it to "extract when reused" or rename the files without reading the trade-off first. Evidence: .claude/skills/frontend-architecture/references.md:28
 
 ## Recurring Errors & Fixes
 
@@ -99,6 +105,8 @@ disable the control that clears the active filter.
 - 2026-11-22 — Built the M1 severity filter (client only): `SeverityFilter` counters above each run's findings, `countBySeverity` / `visibleFindings({ hideLow, severity })`; spec client/specs/M1-severity-filter.md. Checked live on seeded PR #482; the combination with `Hide low confidence` is covered by tests only, because no stored finding is below 0.65 confidence.
 
 - 2026-11-23 — Built the M1 findings column (client): `FindingsCell` with severity chips and a hover preview headed `N findings in this run` on the PR list; spec client/specs/M1-findings-column.md. Checked live on seeded PR #482 (two agents, 5 findings), including the severity counters and `Hide low confidence` on the Performance Reviewer run, which now has a finding below 0.65 confidence. Merged `LEARNINGS.md` into this file.
+
+- 2026-11-26 — Added the `frontend-architecture` skill (placement rules for `client/src`, with its source catalogue in `references.md`) and pointed `AGENTS.md` at it; removed the Axios, Vite, react-router and Tailwind-class advice from `react-best-practices`. No source code under `client/src` changed; the 19 inline declarations and 3 imports into another component folder's internals that the skill's greps list are still there.
 
 ## Open Questions
 

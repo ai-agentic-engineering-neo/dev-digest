@@ -1,9 +1,17 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
+import {
+  Agent,
+  AgentSkillLink,
+  AgentVersion,
+  CiFailOn,
+  ModelInfo,
+  Provider,
+  ReviewStrategy,
+} from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
-import { IdParams } from '../_shared/schemas.js';
+import { IdParams, OkResponse } from '../_shared/schemas.js';
 import { NotFoundError } from '../../platform/errors.js';
 import { AgentsService } from './service.js';
 
@@ -74,19 +82,19 @@ export default async function agentsRoutes(appBase: FastifyInstance) {
     models: (provider) => app.container.llm(provider),
   });
 
-  app.get('/agents', async (req) => {
+  app.get('/agents', { schema: { response: { 200: z.array(Agent) } } }, async (req) => {
     const { workspaceId } = await getContext(app.container, req);
     return service.list(workspaceId);
   });
 
-  app.get('/agents/:id', { schema: { params: IdParams } }, async (req) => {
+  app.get('/agents/:id', { schema: { params: IdParams, response: { 200: Agent } } }, async (req) => {
     const { workspaceId } = await getContext(app.container, req);
     const agent = await service.get(workspaceId, req.params.id);
     if (!agent) throw new NotFoundError('Agent not found');
     return agent;
   });
 
-  app.post('/agents', { schema: { body: CreateAgentBody } }, async (req, reply) => {
+  app.post('/agents', { schema: { body: CreateAgentBody, response: { 201: Agent } } }, async (req, reply) => {
     const { workspaceId, userId } = await getContext(app.container, req);
     const body = req.body;
     const agent = await service.create(
@@ -111,7 +119,7 @@ export default async function agentsRoutes(appBase: FastifyInstance) {
 
   app.put(
     '/agents/:id',
-    { schema: { params: IdParams, body: UpdateAgentBody } },
+    { schema: { params: IdParams, body: UpdateAgentBody, response: { 200: Agent } } },
     async (req) => {
       const { workspaceId } = await getContext(app.container, req);
       const agent = await service.update(workspaceId, req.params.id, req.body);
@@ -120,14 +128,17 @@ export default async function agentsRoutes(appBase: FastifyInstance) {
     },
   );
 
-  app.delete('/agents/:id', { schema: { params: IdParams } }, async (req) => {
+  app.delete('/agents/:id', { schema: { params: IdParams, response: { 200: OkResponse } } }, async (req) => {
     const { workspaceId } = await getContext(app.container, req);
     const ok = await service.delete(workspaceId, req.params.id);
     if (!ok) throw new NotFoundError('Agent not found');
     return { ok: true };
   });
 
-  app.get('/agents/:id/versions', { schema: { params: IdParams } }, async (req) => {
+  app.get(
+    '/agents/:id/versions',
+    { schema: { params: IdParams, response: { 200: z.array(AgentVersion) } } },
+    async (req) => {
     const { workspaceId } = await getContext(app.container, req);
     const versions = await service.listVersions(workspaceId, req.params.id);
     if (!versions) throw new NotFoundError('Agent not found');
@@ -136,7 +147,7 @@ export default async function agentsRoutes(appBase: FastifyInstance) {
 
   app.get(
     '/agents/:id/versions/:version',
-    { schema: { params: VersionParams } },
+    { schema: { params: VersionParams, response: { 200: AgentVersion } } },
     async (req) => {
       const { workspaceId } = await getContext(app.container, req);
       const version = await service.getVersion(workspaceId, req.params.id, req.params.version);
@@ -145,7 +156,10 @@ export default async function agentsRoutes(appBase: FastifyInstance) {
     },
   );
 
-  app.get('/agents/:id/skills', { schema: { params: IdParams } }, async (req) => {
+  app.get(
+    '/agents/:id/skills',
+    { schema: { params: IdParams, response: { 200: z.array(AgentSkillLink) } } },
+    async (req) => {
     const { workspaceId } = await getContext(app.container, req);
     const agent = await service.get(workspaceId, req.params.id);
     if (!agent) throw new NotFoundError('Agent not found');
@@ -154,7 +168,7 @@ export default async function agentsRoutes(appBase: FastifyInstance) {
 
   app.post(
     '/agents/:id/skills',
-    { schema: { params: IdParams, body: SetSkillsBody } },
+    { schema: { params: IdParams, body: SetSkillsBody, response: { 200: z.array(AgentSkillLink) } } },
     async (req) => {
       const { workspaceId } = await getContext(app.container, req);
       const body = req.body;
@@ -167,14 +181,20 @@ export default async function agentsRoutes(appBase: FastifyInstance) {
     },
   );
 
-  app.get('/agents/:id/models', { schema: { params: IdParams } }, async (req) => {
+  app.get(
+    '/agents/:id/models',
+    { schema: { params: IdParams, response: { 200: z.array(ModelInfo) } } },
+    async (req) => {
     const { workspaceId } = await getContext(app.container, req);
     const agent = await service.get(workspaceId, req.params.id);
     if (!agent) throw new NotFoundError('Agent not found');
     return service.listModels(agent.provider);
   });
 
-  app.get('/providers/:id/models', { schema: { params: ProviderParams } }, async (req) => {
+  app.get(
+    '/providers/:id/models',
+    { schema: { params: ProviderParams, response: { 200: z.array(ModelInfo) } } },
+    async (req) => {
     await getContext(app.container, req);
     return service.listModels(req.params.id);
   });

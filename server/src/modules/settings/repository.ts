@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import type { Settings } from '@devdigest/shared';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
@@ -23,14 +23,14 @@ export class SettingsRepository implements SettingsStore {
   }
 
   async put(workspaceId: string, userId: string, values: Record<string, unknown>): Promise<void> {
-    for (const [key, value] of Object.entries(values)) {
-      await this.db
-        .insert(t.settings)
-        .values({ workspaceId, userId, key, value })
-        .onConflictDoUpdate({
-          target: [t.settings.workspaceId, t.settings.userId, t.settings.key],
-          set: { value },
-        });
-    }
+    const entries = Object.entries(values);
+    if (entries.length === 0) return;
+    await this.db
+      .insert(t.settings)
+      .values(entries.map(([key, value]) => ({ workspaceId, userId, key, value })))
+      .onConflictDoUpdate({
+        target: [t.settings.workspaceId, t.settings.userId, t.settings.key],
+        set: { value: sql`excluded.value` },
+      });
   }
 }

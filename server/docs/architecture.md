@@ -44,7 +44,8 @@ sequenceDiagram
     end
     API->>CORE: reviewPullRequest(diff, system prompt, context slots, llm)
     CORE-->>API: grounded findings + recomputed score
-    API->>DB: insert review + findings, mark PR reviewed, complete run, save trace
+    API->>DB: one transaction: complete run (if still running), insert review + findings, save trace
+    API->>DB: mark PR reviewed
   end
   API-->>UI: run events, then final state
 ```
@@ -58,6 +59,10 @@ What to know when changing this flow:
 - Agents run independently. A failed or cancelled run stores its status, error
   text and log so far and does not abort the others. If the diff cannot be
   loaded, every run in the request fails.
+- A run's outcome is saved by one repository method, `saveReviewOutcome`, in
+  one transaction, and only while the run is still `running`. Cancel sets a
+  flag on the run bus that the executor checks again after the model answers;
+  the executor, not `complete()`, clears it when the run exits.
 - Repo-intel context is best-effort: an unindexed repo yields empty results and
   the review continues on the diff alone.
 - Only findings that survive grounding are persisted, with the recomputed score.

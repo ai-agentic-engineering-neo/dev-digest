@@ -1,4 +1,5 @@
 import React from "react";
+import { useFormFieldId } from "./FormField";
 
 /** REAL controlled text input (prototype TextInput was display-only). */
 export function TextInput({
@@ -8,6 +9,7 @@ export function TextInput({
   mono,
   type = "text",
   suffix,
+  id,
   ...rest
 }: {
   value: string;
@@ -17,6 +19,7 @@ export function TextInput({
   type?: string;
   suffix?: React.ReactNode;
 } & Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange" | "type" | "size">) {
+  const fieldId = useFormFieldId();
   return (
     <div
       style={{
@@ -31,6 +34,7 @@ export function TextInput({
     >
       <input
         {...rest}
+        id={id ?? fieldId}
         type={type}
         className={mono ? "mono" : undefined}
         value={value}

@@ -3,6 +3,7 @@
  * key is verified with a throwaway client first and saved only if it works.
  */
 import { describe, it, expect } from 'vitest';
+import { Settings } from '@devdigest/shared';
 import { SettingsService } from '../src/modules/settings/service.js';
 import type { ProviderClients, SecretVault } from '../src/modules/settings/ports.js';
 
@@ -28,7 +29,7 @@ function setup(opts: { llmFails?: string } = {}) {
     },
   };
   const service = new SettingsService({
-    settings: { get: async () => ({}), put: async () => {} },
+    settings: { get: async () => Settings.parse({}), put: async () => {} },
     secrets,
     clients,
   });

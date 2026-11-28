@@ -24,9 +24,12 @@ export function InlineComposer({
 }) {
   const t = useTranslations("shell");
   const [text, setText] = React.useState("");
+  // A ref, not `commenting.posting`: a repeated shortcut can fire before the re-render.
+  const submitting = React.useRef(false);
   const submit = async () => {
     const body = text.trim();
-    if (!body) return;
+    if (!body || submitting.current || commenting.posting) return;
+    submitting.current = true;
     try {
       await commenting.onSubmit({
         path,
@@ -39,9 +42,13 @@ export function InlineComposer({
       onClose();
     } catch {
       /* error toast is raised by the caller; keep the draft open */
+    } finally {
+      submitting.current = false;
     }
   };
   return (
+    // Keydown bubbles up from the textarea (Esc cancels, Cmd/Ctrl+Enter posts).
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions
     <div
       style={cs.thread}
       onKeyDown={(e) => {
@@ -54,6 +61,7 @@ export function InlineComposer({
         onChange={setText}
         rows={3}
         placeholder={t("diffViewer.commentPlaceholder")}
+        aria-label={t("diffViewer.commentPlaceholder")}
       />
       <div style={cs.composerActions}>
         <Button

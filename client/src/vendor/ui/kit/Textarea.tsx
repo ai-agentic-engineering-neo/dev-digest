@@ -1,4 +1,5 @@
 import React from "react";
+import { useFormFieldId } from "./FormField";
 
 /** REAL controlled textarea. */
 export function Textarea({
@@ -7,15 +8,22 @@ export function Textarea({
   placeholder,
   rows = 5,
   mono,
+  id,
+  "aria-label": ariaLabel,
 }: {
   value: string;
   onChange?: (v: string) => void;
   placeholder?: string;
   rows?: number;
   mono?: boolean;
+  id?: string;
+  "aria-label"?: string;
 }) {
+  const fieldId = useFormFieldId();
   return (
     <textarea
+      id={id ?? fieldId}
+      aria-label={ariaLabel}
       className={mono ? "mono" : undefined}
       value={value}
       rows={rows}

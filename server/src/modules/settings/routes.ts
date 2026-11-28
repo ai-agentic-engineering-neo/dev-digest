@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { SettingsUpdate, ConnTestRequest } from '@devdigest/shared';
+import { ConnTestRequest, ConnTestResult, SecretsStatus, Settings, SettingsUpdate } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { SettingsRepository } from './repository.js';
 import { SettingsService } from './service.js';
@@ -26,17 +26,17 @@ export default async function settingsRoutes(appBase: FastifyInstance) {
     },
   });
 
-  app.get('/settings', async (req) => {
+  app.get('/settings', { schema: { response: { 200: Settings } } }, async (req) => {
     const { workspaceId } = await getContext(container, req);
     return service.get(workspaceId);
   });
 
-  app.get('/settings/secrets-status', async (req) => {
+  app.get('/settings/secrets-status', { schema: { response: { 200: SecretsStatus } } }, async (req) => {
     await getContext(container, req);
     return service.secretsStatus();
   });
 
-  app.put('/settings', { schema: { body: SettingsUpdate } }, async (req) => {
+  app.put('/settings', { schema: { body: SettingsUpdate, response: { 200: Settings } } }, async (req) => {
     const { workspaceId, userId } = await getContext(container, req);
     return service.update(workspaceId, userId, req.body);
   });
@@ -44,7 +44,7 @@ export default async function settingsRoutes(appBase: FastifyInstance) {
   app.post(
     '/settings/test-connection',
     {
-      schema: { body: ConnTestRequest },
+      schema: { body: ConnTestRequest, response: { 200: ConnTestResult } },
       config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
     },
     async (req) => service.testConnection(req.body.provider, req.body.key),

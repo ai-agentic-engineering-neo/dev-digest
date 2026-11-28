@@ -108,9 +108,8 @@ export class AgentsService {
       ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
     };
     // A config-affecting change (anything except just toggling enabled) bumps
-    // the version; the store records the snapshot for it.
-    const newVersion = isConfigChange(existing, change) ? existing.version + 1 : undefined;
-    return this.repo.update(workspaceId, id, change, newVersion);
+    // the version; the store bumps it atomically and records the snapshot.
+    return this.repo.update(workspaceId, id, change, isConfigChange(existing, change));
   }
 
   /**

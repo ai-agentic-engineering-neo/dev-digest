@@ -35,5 +35,9 @@ export interface JobQueue {
   enqueue(workspaceId: string, kind: string, payload: unknown): Promise<unknown>;
 }
 
-/** The one git operation this module uses. */
-export type RepoCloner = Pick<GitClient, 'clone'>;
+/** The git operations this module uses. */
+export type RepoCloner = Pick<GitClient, 'clone' | 'removeClone'>;
+
+export interface Logger {
+  warn(obj: object, msg: string): void;
+}

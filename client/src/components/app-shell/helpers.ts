@@ -13,15 +13,6 @@ export function toShellRepo(r: Repo): RepoSummary {
   };
 }
 
-/** Whether an event target is a text-entry element (guards typing-aware shortcuts). */
-export function isTextInput(el: EventTarget | null): boolean {
-  const node = el as HTMLElement | null;
-  return (
-    !!node &&
-    (node.tagName === "INPUT" || node.tagName === "TEXTAREA" || node.isContentEditable)
-  );
-}
-
 /** Derive the active sidebar key from the current pathname. */
 export function activeKeyFor(pathname: string): string {
   if (pathname.startsWith("/settings")) return "settings";

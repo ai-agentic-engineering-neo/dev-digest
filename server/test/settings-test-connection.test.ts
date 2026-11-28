@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/platform/config.js';
-import type { SecretsProvider } from '../src/domain/ports/secrets.js';
-import type { LLMProvider } from '../src/domain/ports/llm.js';
-import type { GitHubClient } from '../src/domain/ports/github.js';
+import type { SecretsProvider } from '@devdigest/shared';
+import type { LLMProvider } from '@devdigest/shared';
+import type { GitHubClient } from '@devdigest/shared';
 
 /** S11 (security hardening) — a failed check must not overwrite the saved key. */
 

@@ -6,11 +6,14 @@
 "use client";
 
 import React from "react";
+import { useTranslations } from "next-intl";
 import { Icon, Badge } from "@devdigest/ui";
 import type { ReviewRecord, Verdict } from "@devdigest/shared";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { FindingsPanel } from "../FindingsPanel";
 import { VerdictBanner } from "../VerdictBanner";
 import { RunCostBadge } from "../../../_components/RunCostBadge";
+import { reviewRunDomId } from "../../helpers";
 import { useDeleteReview } from "../../../../../../../lib/hooks/reviews";
 
 const VERDICT_COLOR: Record<string, string> = {
@@ -27,43 +30,32 @@ function formatWhen(iso: string): string {
 export function ReviewRunAccordion({
   review,
   prId,
-  defaultOpen = false,
+  open,
+  onToggle,
   repoFullName,
   headSha,
-  targetRunId = null,
-  targetNonce = 0,
   costUsd = null,
 }: {
   review: ReviewRecord;
   /** Cost of the run behind this review (done runs only); null → "—". */
   costUsd?: number | null;
   prId: string;
-  defaultOpen?: boolean;
+  /** Controlled by FindingsTab, which also opens a run from the Timeline. */
+  open: boolean;
+  onToggle: () => void;
   repoFullName?: string | null;
   headSha?: string | null;
-  /** When this matches review.run_id, the accordion opens and scrolls into view
-   *  (driven from the Timeline: clicking an agent name navigates here). */
-  targetRunId?: string | null;
-  targetNonce?: number;
 }) {
-  const [open, setOpen] = React.useState(defaultOpen);
-  const rootRef = React.useRef<HTMLDivElement | null>(null);
-  React.useEffect(() => {
-    if (review.run_id && review.run_id === targetRunId) {
-      setOpen(true);
-      rootRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [targetRunId, targetNonce, review.run_id]);
+  const t = useTranslations("prReview");
   const del = useDeleteReview(prId);
+  const [confirming, setConfirming] = React.useState(false);
   const findings = review.findings;
   const blockers = findings.filter((f) => f.severity === "CRITICAL" && !f.dismissed_at).length;
   const verdictColor = review.verdict ? VERDICT_COLOR[review.verdict] ?? "var(--text-muted)" : "var(--text-muted)";
 
   return (
     <div
-      ref={rootRef}
-      id={review.run_id ? `review-run-${review.run_id}` : undefined}
+      id={review.run_id ? reviewRunDomId(review.run_id) : undefined}
       style={{
         border: "1px solid var(--border)",
         borderRadius: 10,
@@ -73,54 +65,58 @@ export function ReviewRunAccordion({
         scrollMarginTop: 16,
       }}
     >
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={() => setOpen((o) => !o)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") setOpen((o) => !o);
-        }}
-        style={{
-          width: "100%",
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          padding: "13px 16px",
-          cursor: "pointer",
-          color: "var(--text-primary)",
-        }}
-      >
-        <Icon.Cpu size={15} style={{ color: "var(--text-muted)" }} />
-        <span style={{ fontWeight: 600, fontSize: 14 }}>{review.agent_name ?? "Agent"}</span>
-        {review.verdict && (
-          <Badge color={verdictColor} bg="transparent">
-            {review.verdict.replace("_", " ")}
-          </Badge>
-        )}
-        <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
-          {findings.length} finding{findings.length === 1 ? "" : "s"}
-          {blockers > 0 ? ` · ${blockers} blocker${blockers === 1 ? "" : "s"}` : ""}
-        </span>
-        <span style={{ flex: 1 }} />
-        {review.score != null && (
-          <Badge mono color="var(--text-secondary)">
-            {review.score}
-          </Badge>
-        )}
-        <RunCostBadge costUsd={costUsd} />
-        <span className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>
-          {formatWhen(review.created_at)}
-        </span>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 16px" }}>
         <button
-          onClick={(e) => {
-            e.stopPropagation();
-            if (window.confirm(`Delete this "${review.agent_name ?? "agent"}" review run and its findings?`)) {
-              del.mutate(review.id);
-            }
+          type="button"
+          aria-expanded={open}
+          onClick={onToggle}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            padding: 0,
+            border: "none",
+            background: "none",
+            font: "inherit",
+            textAlign: "left",
+            cursor: "pointer",
+            color: "var(--text-primary)",
           }}
+        >
+          <Icon.Cpu size={15} style={{ color: "var(--text-muted)" }} />
+          <span style={{ fontWeight: 600, fontSize: 14 }}>{review.agent_name ?? "Agent"}</span>
+          {review.verdict && (
+            <Badge color={verdictColor} bg="transparent">
+              {review.verdict.replace("_", " ")}
+            </Badge>
+          )}
+          <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
+            {findings.length} finding{findings.length === 1 ? "" : "s"}
+            {blockers > 0 ? ` · ${blockers} blocker${blockers === 1 ? "" : "s"}` : ""}
+          </span>
+          <span style={{ flex: 1 }} />
+          {review.score != null && (
+            <Badge mono color="var(--text-secondary)">
+              {review.score}
+            </Badge>
+          )}
+          <RunCostBadge costUsd={costUsd} />
+          <span className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>
+            {formatWhen(review.created_at)}
+          </span>
+          <Icon.ChevronDown
+            size={16}
+            style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .15s", color: "var(--text-muted)" }}
+          />
+        </button>
+        <button
+          type="button"
+          onClick={() => setConfirming(true)}
           disabled={del.isPending}
-          title="Delete this review run"
-          aria-label="Delete this review run"
+          title={t("deleteReview.button")}
+          aria-label={t("deleteReview.button")}
           style={{
             background: "none",
             border: "none",
@@ -132,10 +128,6 @@ export function ReviewRunAccordion({
         >
           <Icon.Trash size={14} style={del.isPending ? { animation: "ddspin 1s linear infinite" } : undefined} />
         </button>
-        <Icon.ChevronDown
-          size={16}
-          style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .15s", color: "var(--text-muted)" }}
-        />
       </div>
 
       {open && (
@@ -159,6 +151,18 @@ export function ReviewRunAccordion({
             headSha={headSha}
           />
         </div>
+      )}
+      {confirming && (
+        <ConfirmDialog
+          title={t("deleteReview.title")}
+          message={t("deleteReview.confirm", { agent: review.agent_name ?? t("deleteReview.fallbackAgent") })}
+          confirmLabel={t("deleteReview.confirmLabel")}
+          onConfirm={() => {
+            setConfirming(false);
+            del.mutate(review.id);
+          }}
+          onCancel={() => setConfirming(false)}
+        />
       )}
     </div>
   );

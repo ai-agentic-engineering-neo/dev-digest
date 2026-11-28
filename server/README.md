@@ -104,6 +104,7 @@ flowchart TB
 | `EMBEDDINGS_ENABLED` | `false` | memory/RAG embeddings (OpenAI); off → **zero** OpenAI calls |
 | `REPO_INTEL_ENABLED` | `true` | repo skeleton + callers in the prompt; `false` → ripgrep-only |
 | `DEVDIGEST_CLONE_DIR` | `./clones` | imported-repo checkouts (git-ignored) |
+| `DEVDIGEST_SECRETS_PATH` | `~/.devdigest/secrets.json` | overrides the secrets file path (the hermetic e2e stack points it at an empty temp file) |
 | `LOG_LEVEL` | `info` (`silent` in test) | pino level |
 | `NODE_ENV` | `development` | `test` → silent logs + global rate-limit disabled |
 
@@ -111,9 +112,12 @@ Secrets (API keys, `GITHUB_TOKEN`) are **not** part of `AppConfig` — they go
 through `SecretsProvider` (`~/.devdigest/secrets.json`, mode `0600`, with
 `process.env` as a fallback), per the **Where keys live** note at the top.
 
-Migrations are **not** applied on boot — run `pnpm db:migrate` (pgvector is
-enabled by migration `0000`). `pnpm db:seed` is idempotent demo data
-(`acme/payments-api`, PR #482, the two built-in agents).
+Migrations are **not** applied on boot — run `pnpm db:migrate` (`migrate.ts`
+runs `CREATE EXTENSION IF NOT EXISTS vector` before the migrations, because
+migration `0000` already uses `vector` columns; plain `drizzle-kit migrate` on
+an empty database fails at `0000` unless pgvector is enabled first. Migration
+`0011` also starts with the same statement). `pnpm db:seed` is idempotent demo
+data (`acme/payments-api`, PR #482, the two built-in agents).
 
 ## Review context (non-obvious)
 

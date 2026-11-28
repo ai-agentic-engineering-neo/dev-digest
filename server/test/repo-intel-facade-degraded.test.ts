@@ -35,15 +35,15 @@ function buildDegradedService(opts: {
     enabled: opts.flag,
     store,
     indexer: {
-      runFull: (repoId) => runFullIndex(container, repository, { repoId }),
-      runIncremental: (repoId) => runIncremental(container, repository, { repoId }),
+      runFull: (repoId: string) => runFullIndex(container, repository, { repoId }),
+      runIncremental: (repoId: string) => runIncremental(container, repository, { repoId }),
     },
     // codeIndex is reached by getBlastRadius; we stub minimal behaviour.
     codeIndex: {
       symbols: async () => [],
       references: async () => [],
     },
-  } as Partial<RepoIntelDeps> as RepoIntelDeps);
+  } as unknown as RepoIntelDeps);
 }
 
 describe('RepoIntel facade — degraded contract (flag off)', () => {
@@ -115,17 +115,17 @@ describe('RepoIntel facade — degraded contract (flag off)', () => {
 
 describe('RepoIntel facade — degraded contract (flag on, but no data)', () => {
   it('getCallerSignatures with no clone → [] (graceful degrade, no throw)', async () => {
-    const svc = buildDegradedService({ flag: true, basics: { id: 'r1', owner: 'a', name: 'b', clonePath: null } });
+    const svc = buildDegradedService({ flag: true, basics: { id: 'r1', owner: 'a', name: 'b', defaultBranch: 'main', clonePath: null } });
     await expect(svc.getCallerSignatures('r1', ['a.ts'])).resolves.toEqual([]);
   });
 
   it('getUnresolvedReferences with no clone → []', async () => {
-    const svc = buildDegradedService({ flag: true, basics: { id: 'r1', owner: 'a', name: 'b', clonePath: null } });
+    const svc = buildDegradedService({ flag: true, basics: { id: 'r1', owner: 'a', name: 'b', defaultBranch: 'main', clonePath: null } });
     await expect(svc.getUnresolvedReferences('r1', ['a.ts'])).resolves.toEqual([]);
   });
 
   it('getCallerSignatures with empty changedFiles → []', async () => {
-    const svc = buildDegradedService({ flag: true, basics: { id: 'r1', owner: 'a', name: 'b', clonePath: '/tmp' } });
+    const svc = buildDegradedService({ flag: true, basics: { id: 'r1', owner: 'a', name: 'b', defaultBranch: 'main', clonePath: '/tmp' } });
     await expect(svc.getCallerSignatures('r1', [])).resolves.toEqual([]);
   });
 });

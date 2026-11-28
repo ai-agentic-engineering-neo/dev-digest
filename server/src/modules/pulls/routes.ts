@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { PrCommentInput } from '@devdigest/shared';
+import { z } from 'zod';
+import { PrCommentInput, PrDetail, PrMeta, PrReviewComment } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { PullsService } from './service.js';
@@ -24,24 +25,24 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
     log: app.log,
   });
 
-  app.get('/repos/:id/pulls', { schema: { params: IdParams } }, async (req) => {
+  app.get('/repos/:id/pulls', { schema: { params: IdParams, response: { 200: z.array(PrMeta) } } }, async (req) => {
     const { workspaceId } = await getContext(container, req);
     return service.listForRepo(workspaceId, req.params.id);
   });
 
-  app.get('/pulls/:id', { schema: { params: IdParams } }, async (req) => {
+  app.get('/pulls/:id', { schema: { params: IdParams, response: { 200: PrDetail } } }, async (req) => {
     const { workspaceId } = await getContext(container, req);
     return service.detail(workspaceId, req.params.id);
   });
 
-  app.get('/pulls/:id/comments', { schema: { params: IdParams } }, async (req) => {
+  app.get('/pulls/:id/comments', { schema: { params: IdParams, response: { 200: z.array(PrReviewComment) } } }, async (req) => {
     const { workspaceId } = await getContext(container, req);
     return service.listComments(workspaceId, req.params.id);
   });
 
   app.post(
     '/pulls/:id/comments',
-    { schema: { params: IdParams, body: PrCommentInput } },
+    { schema: { params: IdParams, body: PrCommentInput, response: { 200: PrReviewComment } } },
     async (req) => {
       const { workspaceId } = await getContext(container, req);
       return service.addComment(workspaceId, req.params.id, req.body);

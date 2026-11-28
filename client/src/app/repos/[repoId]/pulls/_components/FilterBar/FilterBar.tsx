@@ -35,7 +35,12 @@ export function FilterBar({
     <div style={s.filterBar}>
       <div style={s.filterChips}>
         <div style={{ width: 240 }}>
-          <TextInput value={query} onChange={onQuery} placeholder={t("list.filterPlaceholder")} />
+          <TextInput
+            value={query}
+            onChange={onQuery}
+            placeholder={t("list.filterPlaceholder")}
+            aria-label={t("list.filterPlaceholder")}
+          />
         </div>
         {STATUS_FILTERS.map(({ key, labelKey }) => (
           <Chip key={key} active={active === key} onClick={() => onActive(key)}>
@@ -44,7 +49,13 @@ export function FilterBar({
         ))}
       </div>
       <div style={s.filterActions}>
-        <SelectInput value={sort} onChange={onSort} options={sortOptions} mono={false} />
+        <SelectInput
+          value={sort}
+          onChange={onSort}
+          options={sortOptions}
+          mono={false}
+          aria-label={t("list.sort.label")}
+        />
         <Button
           kind="secondary"
           size="sm"

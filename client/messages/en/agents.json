@@ -1,7 +1,11 @@
 {
   "card": {
     "noDescription": "No description",
-    "skillCount": "{count} skills"
+    "skillCount": "{count} skills",
+    "deleteButton": "Delete agent",
+    "deleteTitle": "Delete agent",
+    "deleteConfirm": "Delete agent \"{name}\"? This cannot be undone.",
+    "deleteLabel": "Delete"
   },
   "list": {
     "breadcrumbLab": "Skills Lab",
@@ -14,7 +18,8 @@
     "loadError": "Could not load agents.",
     "emptyTitle": "No agents yet",
     "emptyBody": "An agent is a configured reviewer — a model, a prompt, and the skills it uses. Create one to start reviewing.",
-    "emptyCta": "Create your first agent"
+    "emptyCta": "Create your first agent",
+    "sidebarLoadError": "Could not load agents."
   },
   "create": {
     "title": "Create agent",

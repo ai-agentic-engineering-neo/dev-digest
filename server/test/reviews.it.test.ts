@@ -472,6 +472,34 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     await app.close();
   });
 
+  it('SSE: an unknown run is a 404; a finished run off the bus replays its stored log and ends', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const missing = await app.inject({
+      method: 'GET',
+      url: '/runs/00000000-0000-4000-8000-000000000000/events',
+    });
+    expect(missing.statusCode).toBe(404);
+    expect(missing.json().error.code).toBe('not_found');
+
+    // A run the bus never saw (as after the buffer expired or a restart).
+    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const [run] = await pg.handle.db
+      .insert(t.agentRuns)
+      .values({ workspaceId, prId: pr.id, status: 'done' })
+      .returning();
+    await pg.handle.db.insert(t.runTraces).values({
+      runId: run!.id,
+      trace: { log: [{ t: '10:00:00', kind: 'info', msg: 'Stored line' }] },
+    });
+
+    const sse = await app.inject({ method: 'GET', url: `/runs/${run!.id}/events` });
+    expect(sse.statusCode).toBe(200);
+    expect(sse.headers['content-type']).toContain('text/event-stream');
+    expect(sse.payload).toContain('id: 1\nevent: info\n');
+    expect(sse.payload).toContain('"msg":"Stored line"');
+    await app.close();
+  });
+
   it('run all enabled agents reviews with each enabled agent', async () => {
     const app = await appWith(REVIEW_FIXTURE);
     const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);

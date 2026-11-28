@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { FindingRecord } from "@devdigest/shared";
-import { countBySeverity, visibleFindings } from "./helpers";
+import { countBySeverity, shouldIgnoreShortcut, visibleFindings } from "./helpers";
 
 function finding(id: string, severity: FindingRecord["severity"], confidence: number): FindingRecord {
   return {
@@ -49,5 +49,40 @@ describe("visibleFindings", () => {
   it("returns every finding, most severe first, when no filter is set", () => {
     const shown = visibleFindings(FINDINGS, { hideLow: false, severity: null });
     expect(shown.map((f) => f.id)).toEqual(["c-high", "w-high", "w-low"]);
+  });
+});
+
+describe("shouldIgnoreShortcut", () => {
+  const key = (init: KeyboardEventInit, target?: EventTarget) => {
+    const e = new KeyboardEvent("keydown", { key: "a", ...init });
+    if (target) Object.defineProperty(e, "target", { value: target });
+    return e;
+  };
+
+  it("lets a plain key through", () => {
+    expect(shouldIgnoreShortcut(key({}))).toBe(false);
+  });
+
+  it("ignores modifiers and key repeat", () => {
+    expect(shouldIgnoreShortcut(key({ metaKey: true }))).toBe(true);
+    expect(shouldIgnoreShortcut(key({ ctrlKey: true }))).toBe(true);
+    expect(shouldIgnoreShortcut(key({ altKey: true }))).toBe(true);
+    expect(shouldIgnoreShortcut(key({ repeat: true }))).toBe(true);
+  });
+
+  it("ignores a text input target", () => {
+    expect(shouldIgnoreShortcut(key({}, document.createElement("textarea")))).toBe(true);
+  });
+
+  it("ignores keys while a dialog is open", () => {
+    const d = document.body.appendChild(document.createElement("div"));
+    d.setAttribute("role", "dialog");
+    expect(shouldIgnoreShortcut(key({}))).toBe(true);
+    d.remove();
+  });
+
+  it("ignores the key right after `g`, but not once the chord has timed out", () => {
+    expect(shouldIgnoreShortcut(key({}), 1000, 1500)).toBe(true);
+    expect(shouldIgnoreShortcut(key({}), 1000, 1000 + 5000)).toBe(false);
   });
 });

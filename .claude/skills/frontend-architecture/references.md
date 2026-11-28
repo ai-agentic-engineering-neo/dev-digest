@@ -1,8 +1,50 @@
 # Frontend architecture — sources
 
-The research behind the frontend code-organisation skill for `client/`. Kept as
-a reusable catalogue: every entry has the exact URL, what it supports, one
-verbatim quote and its limits.
+The research behind [SKILL.md](SKILL.md), the code-organisation skill for
+`client/`. Kept as a reusable catalogue: every entry has the exact URL, what it
+supports, one verbatim quote and its limits.
+
+## How the skill uses these sources
+
+Rules the sources back:
+
+| Rule in the skill | Sources |
+|---|---|
+| Logic that calls no hooks is a plain function outside the component | B1 B7 B8 C-S9 |
+| Derive during render, do not copy query data into state | B2 B4 B12 B45 |
+| Values that do not depend on props or state leave the component body | B7 B17 A18 |
+| Single-consumer code lives with its consumer; move up on the second consumer | A1 A3 A5 A8 A15 |
+| Imports flow one way: shared code never imports a route | A2 A3 A19 |
+| Shared modules are named by subject, never `lib/utils.ts` | A16 A3 A7 B20 B39 B40 |
+| No aggregating barrels | A2 A4 A6 A10 A12 A25 |
+| Tests sit beside the code; pure helpers get plain unit cases | A8 A16 B27 B28 B30 |
+| Helpers return keys and values; the component calls `t()` | B48 B49 |
+| A helper takes `now` as a parameter | B29 B30 (testability; the parameter form is this repo's choice) |
+| An always-on pointer in `client/AGENTS.md`, not the skill alone | C4 C24 |
+| Greps as the check, and a list of what they cannot see | C3 C25 |
+
+Where the skill deliberately departs from the majority of the sources:
+
+- **Extraction by kind, not by threshold.** Every constant and every pure rule
+  leaves the `.tsx`, however small. B1, B8, B21, B24 and B26 would keep small
+  single-use code inline. The reason: the convention already existed in 18
+  `constants.ts` and 9 `helpers.ts` files, a rule with no judgement call can be
+  followed by an agent and checked with a grep, and the judgement-based version
+  is what produced the inline offenders. In a control run without the skill, an
+  agent editing a file with inline constants added two more and hardcoded
+  English labels "like the rest of this header's strings".
+- **The names `helpers.ts` and `constants.ts`** inside a component folder,
+  against A16, A3, B20 and C13. The folder scopes them to one component; the
+  subject-name rule applies from `src/lib` up.
+- **A per-component `index.ts`**, against A6, A10 and A17. It is a single
+  re-export of the component, and the measured costs come from codebases
+  hundreds of times larger (A11) or from aggregating barrels (A25).
+- **A named hook per query in `src/lib/hooks/`**, where B10 and B11 now prefer
+  `queryOptions` factories. One pattern in the codebase outweighs the newer one
+  until Server Component prefetching is needed.
+
+Not adopted, and worth revisiting: an import checker for `client/`
+(dependency-cruiser, see part C) for the import-direction rules.
 
 ## How this list was built
 

@@ -7,7 +7,8 @@
 "use client";
 
 import React from "react";
-import { NO_COST, formatCost, formatTokenPair } from "./helpers";
+import { NO_COST } from "../../constants";
+import { formatCost, formatTokenPair } from "../../helpers";
 
 export interface RunCostBadgeProps {
   costUsd: number | null | undefined;

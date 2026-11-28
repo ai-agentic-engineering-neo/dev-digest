@@ -1,8 +1,7 @@
 import { and, desc, eq, inArray } from 'drizzle-orm';
-import type { Db } from '../../../db/client.js';
+import type { Db, DbExecutor } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
-import type { Finding } from '@devdigest/shared';
-import type { ReviewDto, ReviewDtoFinding } from '../domain.js';
+import type { Finding, FindingRecord, ReviewRecord, Verdict } from '@devdigest/shared';
 import type { NewReview } from '../ports.js';
 
 type ReviewRow = typeof t.reviews.$inferSelect;
@@ -10,7 +9,7 @@ type FindingRow = typeof t.findings.$inferSelect;
 
 // ---- row → domain mappers (rows stop in this file) -------------------------
 
-function toFinding(row: FindingRow): ReviewDtoFinding {
+function toFinding(row: FindingRow): FindingRecord {
   return {
     id: row.id,
     severity: row.severity as Finding['severity'],
@@ -31,7 +30,7 @@ function toFinding(row: FindingRow): ReviewDtoFinding {
   };
 }
 
-function toReview(review: ReviewRow, findings: FindingRow[]): ReviewDto {
+function toReview(review: ReviewRow, findings: FindingRow[]): ReviewRecord {
   return {
     id: review.id,
     pr_id: review.prId,
@@ -39,7 +38,7 @@ function toReview(review: ReviewRow, findings: FindingRow[]): ReviewDto {
     run_id: review.runId,
     agent_name: null,
     kind: review.kind as 'summary' | 'review',
-    verdict: review.verdict,
+    verdict: review.verdict as Verdict | null,
     summary: review.summary,
     score: review.score,
     model: review.model,
@@ -50,14 +49,14 @@ function toReview(review: ReviewRow, findings: FindingRow[]): ReviewDto {
 
 // ---- reviews + findings ---------------------------------------------------
 
-export async function insertReview(db: Db, values: NewReview): Promise<{ id: string }> {
+export async function insertReview(db: DbExecutor, values: NewReview): Promise<{ id: string }> {
   const [row] = await db.insert(t.reviews).values(values).returning({ id: t.reviews.id });
   return row!;
 }
 
 /** Returns how many findings were stored. */
 export async function insertFindings(
-  db: Db,
+  db: DbExecutor,
   reviewId: string,
   findings: Finding[],
 ): Promise<number> {
@@ -85,7 +84,7 @@ export async function insertFindings(
 }
 
 /** Reviews for a PR (newest first), each with its findings. */
-export async function reviewsForPull(db: Db, prId: string): Promise<ReviewDto[]> {
+export async function reviewsForPull(db: Db, prId: string): Promise<ReviewRecord[]> {
   const reviews = await db
     .select()
     .from(t.reviews)
@@ -163,7 +162,7 @@ export async function setFindingAccepted(
   db: Db,
   findingId: string,
   at: Date | null,
-): Promise<ReviewDtoFinding | undefined> {
+): Promise<FindingRecord | undefined> {
   const [row] = await db
     .update(t.findings)
     .set({ acceptedAt: at, dismissedAt: null })
@@ -176,7 +175,7 @@ export async function setFindingDismissed(
   db: Db,
   findingId: string,
   at: Date | null,
-): Promise<ReviewDtoFinding | undefined> {
+): Promise<FindingRecord | undefined> {
   const [row] = await db
     .update(t.findings)
     .set({ dismissedAt: at, acceptedAt: null })

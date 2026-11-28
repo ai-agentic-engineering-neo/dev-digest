@@ -41,6 +41,10 @@ also uses.
 
 - 2026-11-26 — `Schema.default({})` as a route `body` schema still answers 422 when the request has no body at all; Fastify hands the validator a missing body that `.default()` does not cover. For a body that may be absent use `z.preprocess((b) => b ?? {}, Schema)`. Evidence: server/src/modules/reviews/routes.ts:26
 
+- 2026-11-27 — Do not treat the server unit lane as database-free: `buildApp` runs the stale-run reaper (`UPDATE agent_runs SET status='failed' WHERE status='running'`) before it returns, and three unit test files call `buildApp({ config })` with no `db` override, so `pnpm exec vitest run --exclude '**/*.it.test.ts'` runs that statement against the `DATABASE_URL` from `.env`. Do not run the unit lane while a review is running on the dev database; a run marked `failed` with no `error` and no `duration_ms` was reaped this way. Until the reaper moves to `server.ts`, give a no-DB test a stub `db`. Evidence: server/src/app.ts:81
+
+- 2026-11-27 — Do not clear a run's cancellation flag in `RunBus.complete()`: `cancelRun` calls `complete()` right after `cancel()` (to end SSE for orphaned runs), so clearing there made cancel a no-op for a live run — it finished, saved findings and flipped back to `done`. The flag is now cleared by the run executor in `runOneAgent`'s `finally` (and in `failAll`), and by `cancelRun` only when the row was no longer running. A new path that ends a run must call `clearCancelled`. Evidence: server/src/modules/reviews/run-executor.ts:332
+
 ## Codebase Patterns
 
 <!-- Conventions and structure that are not obvious from one file. -->
@@ -63,6 +67,10 @@ also uses.
 
 - 2026-11-26 — `depcruise --output-type json` exits 0 even when it reports violations; only the default reporter exits 1. A CI step or script that gates on the exit code must not set an output type. Evidence: .github/workflows/server-unit.yml:73
 
+- 2026-11-28 — `reply.sse()` (fastify-sse-v2) hijacks the reply and never calls `return()` on the source iterator when the client disconnects, so a generator's `finally` does not run. Drop the bus subscription from an abort handler (`reply.raw` `close` → AbortController), not only in `finally`; and resolve/404 the run before calling `reply.sse`. Evidence: server/src/platform/sse.ts (`liveRunFrames`)
+
+- 2026-11-28 — The installed SDKs (openai 4.104, @anthropic-ai/sdk 0.33) take `signal`, `timeout` and `maxRetries` per request as the second argument of `create(body, options)` and as client defaults in the constructor; an aborted request rejects with the SDK's `APIUserAbortError`. The LLM adapters set timeout and retries on the client and pass `{ timeout, signal }` per call; do not wrap them in `withRetry`/`withTimeout` again (that nested the retries and the timeout only raced, never aborted). Evidence: server/src/adapters/llm/openai.ts:54
+
 ## Decisions
 
 <!-- A decision and the reason for it. -->
@@ -76,6 +84,8 @@ also uses.
 - 2026-11-26 — `no-circular` ignores cycles that exist only through `import type`, because `modules/repo-intel/pipeline/**` (do-not-touch) takes the `Container` type and the container wires the pipeline. A runtime cycle is still an error; do not widen the exemption. Evidence: server/.dependency-cruiser.cjs:49
 
 - 2026-11-26 — Polling and the PR list now import pull requests through one repository method, so a PR first seen by `POST /repos/:id/poll` gets `opened_at` stored (it used to stay null forever). Evidence: server/src/modules/pulls/repository.ts:54
+
+- 2026-11-27 — `completeAgentRun` only updates rows still `status = 'running'`, so nothing overwrites a cancelled (or reaped) run. Side effect: on the cancel path the executor's `completeAgentRun(..., 'cancelled', error: 'Cancelled by user')` is a no-op because `cancelRunIfRunning` already flipped the row, so a cancelled run stores no `error` or `duration_ms`; only its trace (log so far) is saved. If the UI needs the note, set it in `cancelRunIfRunning`, not by loosening the guard. The success path goes through `saveReviewOutcome`, which runs the guarded update first inside the transaction and returns null (writes nothing) when the run is no longer running. Evidence: server/src/modules/reviews/repository/run.repo.ts:181
 
 ## Recurring Errors & Fixes
 
@@ -96,6 +106,14 @@ also uses.
 - 2026-11-23 — Built the M1 findings column (server): `PrMeta.findings_counts` on `GET /repos/:id/pulls`, `pickLatestReviewPerAgent`, and a second seeded run and review on PR #482 (Performance Reviewer); spec server/specs/M1-findings-column.md. Merged `LEARNINGS.md` into this file.
 
 - 2026-11-26 — Added the `onion-architecture` skill and `pnpm deps:validate` (dependency-cruiser, 15 rules, no baseline, run in CI), and refactored every module to `domain.ts` / `ports.ts` / `service.ts` / `repository.ts` / `routes.ts` with services on injected ports; 49 boundary violations went to 0. No HTTP contract, schema or migration changed.
+
+- 2026-11-27 — Audited the package against the project skills (onion, Fastify, Drizzle, Postgres, Zod, security); no source changed. The findings and their order are in `docs/improvement-plan.md` (sections 2, 5 and 6): four high items in the backend (a failed job crashes the process, cancel does not cancel, two grounding and prompt-fence gaps) and one in persistence (a non-atomic re-index).
+
+- 2026-11-27 — BE-2 + DB-4: cancel now cancels (flag cleared by the executor, checked again after the LLM, `status = 'running'` guard), and a run's outcome is saved by `saveReviewOutcome` in one transaction; `markReviewed` is best-effort after commit.
+
+- 2026-11-28 — BE-8: `/runs/:id/events` resolves the run through `ReviewService.runEventSource` (404 unknown; finished and off the bus → replay of the stored trace log, then end), unsubscribes on disconnect, sends a `:heartbeat` comment every 15 s; `RunBus` frees a completed run 5 min after `complete()`.
+
+- 2026-11-28 — BE-9: cancel aborts the in-flight LLM call (`RunBus.signal(runId)`, aborted by `cancel`, released by `clearCancelled`; the executor passes it through `reviewPullRequest` to `StructuredRequest.signal`), and a schema-validation failure throws `StructuredOutputError` (reviewer-core `llm/structured.ts`, re-exported by `platform/structured.ts`; the shared contract stays data-only) whose usage, cost and raw output the executor stores on the failed run.
 
 ## Open Questions
 

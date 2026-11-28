@@ -11,6 +11,7 @@ quick start are in the [main README](../README.md).
 | [architecture.md](architecture.md) | changing how packages depend on each other, or how a review flows across them |
 | [agent-prompts/](agent-prompts/README.md) | editing reviewer system prompts or choosing a model |
 | [../TESTING.md](../TESTING.md) | writing tests or touching CI |
+| [improvement-plan.md](improvement-plan.md) | picking what to fix next: the 2026-11-27 audit of every package against the project skills |
 
 ## Per package
 

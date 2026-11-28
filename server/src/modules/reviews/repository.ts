@@ -1,6 +1,6 @@
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
-import type { Finding, Intent, RunSummary, RunTrace } from '@devdigest/shared';
+import type { ActiveRun, FindingRecord, Intent, ReviewRecord, RunSummary, RunTrace } from '@devdigest/shared';
 
 /**
  * A2 — review data-access. The ONLY layer touching the DB for the review
@@ -18,25 +18,32 @@ import type { Finding, Intent, RunSummary, RunTrace } from '@devdigest/shared';
 import * as reviewRepo from './repository/review.repo.js';
 import * as runRepo from './repository/run.repo.js';
 import * as pullRepo from './repository/pull.repo.js';
-import type { ReviewDto, ReviewDtoFinding } from './domain.js';
-import type { NewReview, ReviewStore, RunCompletion } from './ports.js';
+import type { ReviewOutcome, ReviewStore, RunCompletion } from './ports.js';
 
 export class ReviewRepository implements ReviewStore {
   constructor(private db: Db) {}
 
   // ---- reviews + findings -------------------------------------------------
 
-  insertReview(values: NewReview): Promise<{ id: string }> {
-    return reviewRepo.insertReview(this.db, values);
-  }
-
-  /** Returns how many findings were stored. */
-  insertFindings(reviewId: string, findings: Finding[]): Promise<number> {
-    return reviewRepo.insertFindings(this.db, reviewId, findings);
+  /**
+   * A finished run, saved atomically. The guarded run update goes first: when
+   * the run is no longer `running` (cancelled meanwhile) nothing is written and
+   * the result is null. Any failure rolls the whole outcome back, so a run never
+   * ends with a review that has lost its findings or its trace.
+   */
+  saveReviewOutcome(outcome: ReviewOutcome): Promise<{ reviewId: string } | null> {
+    return this.db.transaction(async (tx) => {
+      const stillRunning = await runRepo.completeAgentRun(tx, outcome.runId, outcome.completion);
+      if (!stillRunning) return null;
+      const review = await reviewRepo.insertReview(tx, outcome.review);
+      await reviewRepo.insertFindings(tx, review.id, outcome.findings);
+      await runRepo.saveRunTrace(tx, outcome.runId, outcome.trace);
+      return { reviewId: review.id };
+    });
   }
 
   /** Reviews for a PR (newest first), each with its findings. */
-  reviewsForPull(prId: string): Promise<ReviewDto[]> {
+  reviewsForPull(prId: string): Promise<ReviewRecord[]> {
     return reviewRepo.reviewsForPull(this.db, prId);
   }
 
@@ -45,7 +52,7 @@ export class ReviewRepository implements ReviewStore {
   activeRunsForPull(
     workspaceId: string,
     prId: string,
-  ): Promise<{ run_id: string; agent_id: string | null; agent_name: string | null; ran_at: string | null }[]> {
+  ): Promise<ActiveRun[]> {
     return runRepo.activeRunsForPull(this.db, workspaceId, prId);
   }
 
@@ -57,6 +64,11 @@ export class ReviewRepository implements ReviewStore {
   /** Delete one agent run (+ its trace via FK cascade). Workspace-scoped. */
   deleteAgentRun(workspaceId: string, runId: string): Promise<boolean> {
     return runRepo.deleteAgentRun(this.db, workspaceId, runId);
+  }
+
+  /** A run's status in the workspace; undefined when there is no such run. */
+  getRunStatus(workspaceId: string, runId: string): Promise<{ status: string | null } | undefined> {
+    return runRepo.getRunStatus(this.db, workspaceId, runId);
   }
 
   /** Mark a still-running run as cancelled (no-op if it already finished). */
@@ -99,11 +111,11 @@ export class ReviewRepository implements ReviewStore {
     return reviewRepo.findingWorkspace(this.db, findingId);
   }
 
-  setFindingAccepted(findingId: string, at: Date | null): Promise<ReviewDtoFinding | undefined> {
+  setFindingAccepted(findingId: string, at: Date | null): Promise<FindingRecord | undefined> {
     return reviewRepo.setFindingAccepted(this.db, findingId, at);
   }
 
-  setFindingDismissed(findingId: string, at: Date | null): Promise<ReviewDtoFinding | undefined> {
+  setFindingDismissed(findingId: string, at: Date | null): Promise<FindingRecord | undefined> {
     return reviewRepo.setFindingDismissed(this.db, findingId, at);
   }
 
@@ -130,8 +142,8 @@ export class ReviewRepository implements ReviewStore {
     return runRepo.createAgentRun(this.db, values);
   }
 
-  completeAgentRun(runId: string, values: RunCompletion): Promise<void> {
-    return runRepo.completeAgentRun(this.db, runId, values);
+  async completeAgentRun(runId: string, values: RunCompletion): Promise<void> {
+    await runRepo.completeAgentRun(this.db, runId, values);
   }
 
   /** Persist the WHOLE run log as ONE document. PK = runId → agent_runs. */

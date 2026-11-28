@@ -1,8 +1,8 @@
-import type { Agent, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
-import { reviewPullRequest, countBlockers } from '@devdigest/reviewer-core';
+import type { Agent, LlmUsage, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
+import { reviewPullRequest, countBlockers, StructuredOutputError } from '@devdigest/reviewer-core';
 import { RunLogger } from '../../platform/run-logger.js';
-import { REVIEW_STRATEGY } from './constants.js';
-import { RunCancelledError, taskLine } from './domain.js';
+import { MAX_DIFF_CHARS, REVIEW_MAX_OUTPUT_TOKENS, REVIEW_STRATEGY } from './constants.js';
+import { RunCancelledError, capDiff, taskLine } from './domain.js';
 import { loadDiff } from './diff-loader.js';
 import type {
   DiffParser,
@@ -87,18 +87,42 @@ export class ReviewRunExecutor {
           .saveRunTrace(runId, this.traceFromBuffer(runId, pull, agent, '0/0 passed'))
           .catch(() => undefined);
         this.deps.events.complete(runId);
+        this.deps.events.clearCancelled(runId);
       }
     };
 
     let diff: UnifiedDiff;
+    let skippedFiles = 0;
     try {
-      diff = await runLog.step('Loading PR diff', () => loadDiff(this.deps, pull, repo), {
-        kind: 'tool',
-      });
+      const loaded = await runLog.step(
+        'Loading PR diff',
+        () => loadDiff(this.deps, pull, repo, runLog),
+        { kind: 'tool' },
+      );
+      diff = loaded.diff;
+      skippedFiles = loaded.skippedFiles;
     } catch (err) {
       runLog.error(`Failed to load PR diff: ${(err as Error).message}`);
       await failAll(`Failed to load PR diff: ${(err as Error).message}`);
       return;
+    }
+    // BE-11: an empty diff is a failed run, not a clean review of nothing.
+    // Before any LLM call, and the head is never marked reviewed.
+    if (diff.files.length === 0) {
+      const msg = 'The PR diff is empty — nothing to review';
+      runLog.error(msg);
+      await failAll(msg);
+      return;
+    }
+    // XC-5: a bounded prompt. The cut is visible in every run's log, and a
+    // partial review never marks the head reviewed (it did not see all of it).
+    const capped = capDiff(diff, MAX_DIFF_CHARS, this.deps.parseDiff);
+    diff = capped.diff;
+    if (capped.truncated) {
+      runLog.info(
+        `Diff truncated to ${diff.raw.length} characters (limit ${MAX_DIFF_CHARS}): ` +
+          `${capped.omittedFiles} file(s) not reviewed — this review is partial`,
+      );
     }
     runLog.info(`Diff ready — ${diff.files.length} changed file(s); starting ${jobs.length} agent run(s)`);
 
@@ -109,7 +133,16 @@ export class ReviewRunExecutor {
         `review: agent "${agent.name}" started (${agent.provider}/${agent.model})`,
       );
       try {
-        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, agent, runId, runLog);
+        const outcome = await this.runOneAgent(
+          workspaceId,
+          pull,
+          repo,
+          diff,
+          agent,
+          runId,
+          runLog,
+          capped.truncated || skippedFiles > 0,
+        );
         logger?.info(
           {
             runId,
@@ -141,6 +174,7 @@ export class ReviewRunExecutor {
     agent: Agent,
     runId: string,
     parentLog: RunLogger,
+    partial: boolean,
   ): Promise<RunOutcome> {
     const start = Date.now();
     // Narrow the fanned-out pre-work logger to THIS run; the shared diff/intent
@@ -190,6 +224,7 @@ export class ReviewRunExecutor {
         model: agent.model,
         diff,
         llm,
+        maxTokens: REVIEW_MAX_OUTPUT_TOKENS,
         // Per-agent review strategy (configured in the Agent editor); falls back
         // to the studio default. single-pass = whole diff in one call.
         strategy: agent.strategy ?? REVIEW_STRATEGY,
@@ -201,56 +236,31 @@ export class ReviewRunExecutor {
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
+        prMeta: { title: pull.title, author: pull.author },
         task,
         sessionId: `${repo.owner}/${repo.name}#${pull.number}:${agent.name}`,
         onEvent: (e) => runLog.event(e.kind, e.msg, e.data),
         checkCancelled: () => {
           if (this.deps.events.isCancelled(runId)) throw new RunCancelledError();
         },
+        // Cancel aborts the LLM request in flight, not just the next checkpoint.
+        signal: this.deps.events.signal(runId),
       });
       const { tokensIn, tokensOut, costUsd, grounding } = outcome;
 
+      // Cancel may have arrived while the model was answering — the engine's
+      // own checkpoints are all before the call. A cancelled run saves nothing.
+      if (this.deps.events.isCancelled(runId)) throw new RunCancelledError();
+
       const keptFindings = outcome.review.findings;
-
-      // ---- Persist review + findings ----------------------------------------
-      const review = await this.deps.store.insertReview({
-        workspaceId,
-        prId: pull.id,
-        agentId: agent.id,
-        runId,
-        kind: 'review',
-        verdict: outcome.review.verdict,
-        summary: outcome.review.summary,
-        score: outcome.review.score,
-        model: agent.model,
-      });
-      const findingsCount = await this.deps.store.insertFindings(review.id, keptFindings);
-      runLog.result(`Persisted review ${review.id} with ${findingsCount} finding(s)`);
-
-      // Mark the commit this review ran against so the PR list can tell
-      // reviewed / needs-review (head moved) / stale apart.
-      await this.deps.pulls.markReviewed(pull.id, pull.headSha);
-
+      const findingsCount = keptFindings.length;
       const durationMs = Date.now() - start;
 
       // Deterministic blocker count (severity ≥ the agent's gate) — the signal
       // the timeline colors on, NOT the model's self-reported verdict.
       const blockers = countBlockers(keptFindings, agent.ci_fail_on);
 
-      // ---- Observability: agent_runs + ONE run_traces document --------------
-      await this.deps.store.completeAgentRun(runId, {
-        status: 'done',
-        durationMs,
-        tokensIn,
-        tokensOut,
-        costUsd,
-        findingsCount,
-        grounding,
-        score: outcome.review.score,
-        blockers,
-        error: null,
-      });
-
+      runLog.info(`Persisting review with ${findingsCount} finding(s) and the run trace`);
       const trace: RunTrace = {
         config: {
           agent: agent.name,
@@ -282,35 +292,90 @@ export class ReviewRunExecutor {
         // diff load + intent), not just events recorded inside this method.
         log: runLog.logFor(runId),
       };
+
+      // ---- Persist review + findings + agent_runs + run_traces, atomically --
+      const saved = await this.deps.store.saveReviewOutcome({
+        runId,
+        review: {
+          workspaceId,
+          prId: pull.id,
+          agentId: agent.id,
+          runId,
+          kind: 'review',
+          verdict: outcome.review.verdict,
+          summary: outcome.review.summary,
+          score: outcome.review.score,
+          model: agent.model,
+        },
+        findings: keptFindings,
+        completion: {
+          status: 'done',
+          durationMs,
+          tokensIn,
+          tokensOut,
+          costUsd,
+          findingsCount,
+          grounding,
+          score: outcome.review.score,
+          blockers,
+          error: null,
+        },
+        trace,
+      });
+      // Null: the run stopped being `running` between the check above and the
+      // save (cancelled meanwhile) — the transaction wrote nothing.
+      if (!saved) throw new RunCancelledError();
+      runLog.result(`Persisted review ${saved.reviewId} with ${findingsCount} finding(s)`);
+
+      // Mark the commit this review ran against so the PR list can tell
+      // reviewed / needs-review (head moved) / stale apart. After the commit,
+      // and best-effort: the review is already saved, so a failure here must
+      // not turn the run into a failed one.
+      if (partial) {
+        runLog.info('Partial review (diff truncated or files without a patch) — the commit is not marked reviewed');
+      } else {
+        await this.deps.pulls.markReviewed(pull.id, pull.headSha).catch((err: unknown) => {
+          runLog.info(`Could not record the reviewed commit: ${(err as Error).message}`);
+        });
+      }
+
       runLog.info('Run complete; trace persisted');
-      await this.deps.store.saveRunTrace(runId, trace);
       this.deps.events.complete(runId);
 
-      return { reviewId: review.id, findingsCount, grounding, raw: outcome.review };
+      return { reviewId: saved.reviewId, findingsCount, grounding, raw: outcome.review };
     } catch (err) {
       // Failure/cancel: persist status + the error text + the log-so-far so the
-      // run (and WHY it failed) is visible on the UI after a reload.
-      const cancelled = err instanceof RunCancelledError;
+      // run (and WHY it failed) is visible on the UI after a reload. A cancelled
+      // run is already `cancelled` in the DB, so the guarded update is a no-op.
+      // An aborted LLM call surfaces as the SDK's abort error: still a cancel.
+      const cancelled = err instanceof RunCancelledError || this.deps.events.isCancelled(runId);
       const status = cancelled ? 'cancelled' : 'failed';
       const msg = cancelled ? 'Cancelled by user' : (err as Error).message;
+      // Output that never validated was still billed: keep its usage on the run.
+      const failed = !cancelled && err instanceof StructuredOutputError ? err : null;
+      const usage: LlmUsage = failed?.usage ?? { tokensIn: 0, tokensOut: 0, costUsd: null };
       runLog.error(cancelled ? 'Run cancelled by user' : `Run failed: ${msg}`);
       await this.deps.store
         .completeAgentRun(runId, {
           status,
           durationMs: Date.now() - start,
-          tokensIn: 0,
-          tokensOut: 0,
-          costUsd: null,
+          ...usage,
           findingsCount: 0,
           grounding: '0/0 passed',
           error: msg,
         })
         .catch(() => undefined);
       await this.deps.store
-        .saveRunTrace(runId, this.traceFromBuffer(runId, pull, agent, '0/0 passed', Date.now() - start))
+        .saveRunTrace(
+          runId,
+          this.traceFromBuffer(runId, pull, agent, '0/0 passed', Date.now() - start, usage, failed?.raw),
+        )
         .catch(() => undefined);
       this.deps.events.complete(runId);
-      throw err;
+      throw cancelled && !(err instanceof RunCancelledError) ? new RunCancelledError() : err;
+    } finally {
+      // The run has exited: its cancellation request (if any) is spent.
+      this.deps.events.clearCancelled(runId);
     }
   }
 
@@ -412,6 +477,8 @@ export class ReviewRunExecutor {
     agent: Agent,
     grounding: string,
     durationMs = 0,
+    usage: LlmUsage = { tokensIn: 0, tokensOut: 0, costUsd: null },
+    rawOutput = '',
   ): RunTrace {
     return {
       config: {
@@ -422,10 +489,17 @@ export class ReviewRunExecutor {
         pr: pull.number,
         source: 'local',
       },
-      stats: { duration_ms: durationMs, tokens_in: 0, tokens_out: 0, cost_usd: null, findings: 0, grounding },
+      stats: {
+        duration_ms: durationMs,
+        tokens_in: usage.tokensIn,
+        tokens_out: usage.tokensOut,
+        cost_usd: usage.costUsd,
+        findings: 0,
+        grounding,
+      },
       prompt_assembly: { system: agent.system_prompt, skills: null, memory: null, specs: null, user: '' },
       tool_calls: [],
-      raw_output: '',
+      raw_output: rawOutput,
       memory_pulled: [],
       specs_read: [],
       log: this.deps.events.buffer(runId).map((e) => ({ t: e.t, kind: e.kind, msg: e.msg })),

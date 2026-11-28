@@ -23,6 +23,8 @@ export const s = {
   rowIcon: (color: string): CSSProperties => ({ color, flexShrink: 0 }),
   rowTitleWrap: { minWidth: 0 } satisfies CSSProperties,
   rowTitle: (hover: boolean): CSSProperties => ({
+    display: "block",
+    textDecoration: "none",
     fontSize: 14,
     fontWeight: 550,
     whiteSpace: "nowrap",

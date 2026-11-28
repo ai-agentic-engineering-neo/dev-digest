@@ -50,3 +50,13 @@ export class ConfigError extends AppError {
     super('config_error', message, 500, details);
   }
 }
+
+/**
+ * A capability the caller asked for needs setup first (missing API key or
+ * token, feature switched off). A 4xx the user can act on, not a server fault.
+ */
+export class NotConfiguredError extends AppError {
+  constructor(message: string, details?: unknown) {
+    super('not_configured', message, 409, details);
+  }
+}

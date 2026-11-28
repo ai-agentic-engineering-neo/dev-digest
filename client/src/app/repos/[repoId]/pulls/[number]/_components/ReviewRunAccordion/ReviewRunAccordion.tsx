@@ -6,8 +6,10 @@
 "use client";
 
 import React from "react";
+import { useTranslations } from "next-intl";
 import { Icon, Badge } from "@devdigest/ui";
 import type { ReviewRecord, Verdict } from "@devdigest/shared";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { FindingsPanel } from "../FindingsPanel";
 import { VerdictBanner } from "../VerdictBanner";
 import { RunCostBadge } from "../../../_components/RunCostBadge";
@@ -44,7 +46,9 @@ export function ReviewRunAccordion({
   repoFullName?: string | null;
   headSha?: string | null;
 }) {
+  const t = useTranslations("prReview");
   const del = useDeleteReview(prId);
+  const [confirming, setConfirming] = React.useState(false);
   const findings = review.findings;
   const blockers = findings.filter((f) => f.severity === "CRITICAL" && !f.dismissed_at).length;
   const verdictColor = review.verdict ? VERDICT_COLOR[review.verdict] ?? "var(--text-muted)" : "var(--text-muted)";
@@ -102,9 +106,7 @@ export function ReviewRunAccordion({
         <button
           onClick={(e) => {
             e.stopPropagation();
-            if (window.confirm(`Delete this "${review.agent_name ?? "agent"}" review run and its findings?`)) {
-              del.mutate(review.id);
-            }
+            setConfirming(true);
           }}
           disabled={del.isPending}
           title="Delete this review run"
@@ -145,6 +147,20 @@ export function ReviewRunAccordion({
             prId={prId}
             repoFullName={repoFullName}
             headSha={headSha}
+          />
+        </div>
+      )}
+      {confirming && (
+        <div onClick={(e) => e.stopPropagation()}>
+          <ConfirmDialog
+            title={t("deleteReview.title")}
+            message={t("deleteReview.confirm", { agent: review.agent_name ?? t("deleteReview.fallbackAgent") })}
+            confirmLabel={t("deleteReview.confirmLabel")}
+            onConfirm={() => {
+              setConfirming(false);
+              del.mutate(review.id);
+            }}
+            onCancel={() => setConfirming(false)}
           />
         </div>
       )}

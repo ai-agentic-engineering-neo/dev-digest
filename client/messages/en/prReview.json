@@ -130,5 +130,16 @@
     "commentsLoading": "Loading comments…",
     "commentsError": "Couldn’t load comments",
     "commentsRetry": "Retry"
+  },
+  "deleteRun": {
+    "title": "Delete run",
+    "confirm": "Delete this run from history? (its logs are removed too)",
+    "confirmLabel": "Delete"
+  },
+  "deleteReview": {
+    "title": "Delete review run",
+    "confirm": "Delete this \"{agent}\" review run and its findings?",
+    "fallbackAgent": "agent",
+    "confirmLabel": "Delete"
   }
 }

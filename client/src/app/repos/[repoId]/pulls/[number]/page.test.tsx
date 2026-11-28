@@ -1,6 +1,8 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, cleanup, waitFor } from "@testing-library/react";
 import type { QueryClient } from "@tanstack/react-query";
+import { NextIntlClientProvider } from "next-intl";
+import messages from "../../../../../../messages/en/prReview.json";
 
 const h = vi.hoisted(() => ({
   trace: "r1" as string | null,
@@ -60,15 +62,21 @@ afterEach(() => {
   h.active = [{ run_id: "r1" }];
 });
 
+const wrapper = ({ children }: { children: React.ReactNode }) => (
+  <NextIntlClientProvider locale="en" messages={{ prReview: messages }}>
+    {children}
+  </NextIntlClientProvider>
+);
+
 describe("PR detail page trace drawer", () => {
   it("opens the drawer live for an active run", () => {
-    render(<PRDetailPage />);
+    render(<PRDetailPage />, { wrapper });
     expect(h.drawerProps.at(-1)).toMatchObject({ runId: "r1", running: true });
     expect(h.invalidate).not.toHaveBeenCalled();
   });
 
   it("invalidates the run trace when the run ends", async () => {
-    const { rerender } = render(<PRDetailPage />);
+    const { rerender } = render(<PRDetailPage />, { wrapper });
     h.active = [];
     rerender(<PRDetailPage />);
     await waitFor(() =>

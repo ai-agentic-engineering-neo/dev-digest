@@ -7,8 +7,10 @@
 
 import React from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Skeleton, ErrorState } from "@devdigest/ui";
 import { AppShell } from "../../../../../components/app-shell";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { RepoNotFound } from "@/components/repo-not-found";
 import { PrDetailHeader } from "./_components/PrDetailHeader";
 import { OverviewTab } from "./_components/OverviewTab";
@@ -35,6 +37,8 @@ export default function PRDetailPage() {
   const params = useParams<{ repoId: string; number: string }>();
   const search = useSearchParams();
   const router = useRouter();
+  const t = useTranslations("prReview");
+  const [deleteRunId, setDeleteRunId] = React.useState<string | null>(null);
   const { repoId, number } = params;
   const { activeRepo } = useActiveRepo();
   const repoNotFound = useRepoNotFound(repoId);
@@ -73,7 +77,7 @@ export default function PRDetailPage() {
     else sp.set(key, val);
     router.replace(`/repos/${repoId}/pulls/${number}${sp.toString() ? `?${sp.toString()}` : ""}`);
   };
-  const setTab = (t: string) => setParam("tab", t);
+  const setTab = (name: string) => setParam("tab", name);
 
   // The drawer streams live while its run is active; when the run ends, refetch
   // the persisted trace (a trace cached mid-run would otherwise stay stale).
@@ -172,10 +176,7 @@ export default function PRDetailPage() {
             headSha={pr.head_sha}
             cancelMutation={cancel}
             onOpenTrace={(id) => setParam("trace", id)}
-            onDelete={(id) => {
-              if (window.confirm("Delete this run from history? (its logs are removed too)"))
-                deleteRun.mutate(id);
-            }}
+            onDelete={setDeleteRunId}
             onRunDone={refreshRuns}
           />
         )}
@@ -189,6 +190,19 @@ export default function PRDetailPage() {
           />
         )}
       </div>
+
+      {deleteRunId && (
+        <ConfirmDialog
+          title={t("deleteRun.title")}
+          message={t("deleteRun.confirm")}
+          confirmLabel={t("deleteRun.confirmLabel")}
+          onConfirm={() => {
+            deleteRun.mutate(deleteRunId);
+            setDeleteRunId(null);
+          }}
+          onCancel={() => setDeleteRunId(null)}
+        />
+      )}
 
       {prId && traceRunId && (
         <RunTraceDrawer

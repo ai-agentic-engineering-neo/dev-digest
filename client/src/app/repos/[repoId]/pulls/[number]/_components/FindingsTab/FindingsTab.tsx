@@ -1,10 +1,12 @@
 "use client";
 
-import React, { useCallback } from "react";
-import { Icon, Badge, Button, SectionLabel, EmptyState } from "@devdigest/ui";
+import React, { useCallback, useMemo } from "react";
+import { useTranslations } from "next-intl";
+import { Icon, Badge, Button, SectionLabel, EmptyState, ErrorState, Skeleton } from "@devdigest/ui";
 import { RunStatus } from "../RunStatus";
 import { RunHistory } from "../RunHistory/RunHistory";
 import { ReviewRunAccordion } from "../ReviewRunAccordion";
+import { reviewRunDomId } from "../../helpers";
 import { s } from "./styles";
 import type { FindingRecord, ReviewRecord, RunSummary, PrCommit } from "@devdigest/shared";
 import type { UseMutationResult } from "@tanstack/react-query";
@@ -15,9 +17,13 @@ interface FindingsTabProps {
   reviewRunning: boolean;
   lethalTrifecta: FindingRecord[];
   runs: ReviewRecord[];
+  /** The reviews query is loading / failed — distinct from "no runs yet". */
+  runsLoading?: boolean;
+  runsError?: boolean;
+  onRetryRuns?: () => void;
   prRuns: RunSummary[] | undefined;
   prCommits: PrCommit[];
-  cancelMutation: UseMutationResult<any, any, string, any>;
+  cancelMutation: Pick<UseMutationResult<unknown, Error, string>, "mutate" | "isPending">;
   /** owner/repo + head sha — used to deep-link a finding's file:line to GitHub. */
   repoFullName?: string | null;
   headSha?: string | null;
@@ -32,6 +38,9 @@ export function FindingsTab({
   reviewRunning,
   lethalTrifecta,
   runs,
+  runsLoading = false,
+  runsError = false,
+  onRetryRuns,
   prRuns,
   prCommits,
   cancelMutation,
@@ -41,9 +50,20 @@ export function FindingsTab({
   onDelete,
   onRunDone,
 }: FindingsTabProps) {
+  const t = useTranslations("prReview");
   const handleCancelAll = useCallback(() => {
     liveRunIds.forEach((id) => cancelMutation.mutate(id));
   }, [liveRunIds, cancelMutation]);
+
+  // run_id → cost of completed runs, for the review-run headers (M1). Reuses
+  // the already-loaded run history instead of widening the reviews contract.
+  const costByRunId = useMemo(
+    () =>
+      new Map(
+        (prRuns ?? []).filter((r) => r.status === "done").map((r) => [r.run_id, r.cost_usd] as const),
+      ),
+    [prRuns],
+  );
 
   const handleOpenFirstTrace = useCallback(() => {
     if (liveRunIds[0]) onOpenTrace(liveRunIds[0]);
@@ -63,13 +83,30 @@ export function FindingsTab({
     [onDelete],
   );
 
+  // Open state per review run. A run's default is recorded the first time it is
+  // seen (open when it is the newest), so a run arriving later does not collapse
+  // the one that was open. Seeded during render (React's derive-from-props
+  // pattern) rather than in an effect.
+  const [openById, setOpenById] = React.useState<Record<string, boolean>>({});
+  const unseen = runs.filter((r) => !(r.id in openById));
+  if (unseen.length > 0) {
+    const newestId = runs[0]?.id;
+    setOpenById((prev) => ({
+      ...prev,
+      ...Object.fromEntries(unseen.map((r) => [r.id, r.id === newestId] as const)),
+    }));
+  }
+  const toggleRun = (reviewId: string) =>
+    setOpenById((prev) => ({ ...prev, [reviewId]: !prev[reviewId] }));
+
   // Timeline → Review-runs navigation: clicking an agent name in the timeline
-  // opens + scrolls to that run's accordion below. The nonce re-triggers the
-  // scroll even when the same run is clicked twice.
-  const [target, setTarget] = React.useState<{ runId: string; n: number } | null>(null);
-  const handleGoToReview = useCallback((runId: string) => {
-    setTarget((p) => ({ runId, n: (p?.n ?? 0) + 1 }));
-  }, []);
+  // opens + scrolls to that run's accordion below.
+  const handleGoToReview = (runId: string) => {
+    const review = runs.find((r) => r.run_id === runId);
+    if (!review) return;
+    setOpenById((prev) => ({ ...prev, [review.id]: true }));
+    document.getElementById(reviewRunDomId(runId))?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   return (
     <section>
@@ -144,7 +181,14 @@ export function FindingsTab({
       >
         Review runs
       </SectionLabel>
-      {runs.length === 0 ? (
+      {runsLoading ? (
+        <div style={s.reviewsLoading}>
+          <Skeleton height={48} />
+          <Skeleton height={48} />
+        </div>
+      ) : runsError ? (
+        <ErrorState title={t("findingsTab.loadErrorTitle")} body={t("findingsTab.loadErrorBody")} onRetry={onRetryRuns} />
+      ) : runs.length === 0 ? (
         reviewRunning || liveRunIds.length > 0 ? null : (
           <EmptyState
             icon="Sparkles"
@@ -159,11 +203,11 @@ export function FindingsTab({
             key={review.id}
             review={review}
             prId={prId}
-            defaultOpen={i === 0}
+            open={openById[review.id] ?? i === 0}
+            onToggle={() => toggleRun(review.id)}
             repoFullName={repoFullName}
             headSha={headSha}
-            targetRunId={target?.runId ?? null}
-            targetNonce={target?.n ?? 0}
+            costUsd={review.run_id ? costByRunId.get(review.run_id) ?? null : null}
           />
         ))
       )}

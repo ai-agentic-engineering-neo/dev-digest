@@ -7,8 +7,10 @@
 
 import React from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Skeleton, ErrorState } from "@devdigest/ui";
 import { AppShell } from "../../../../../components/app-shell";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { RepoNotFound } from "@/components/repo-not-found";
 import { PrDetailHeader } from "./_components/PrDetailHeader";
 import { OverviewTab } from "./_components/OverviewTab";
@@ -17,7 +19,15 @@ import { DiffTab } from "./_components/DiffTab";
 import RunTraceDrawer from "./_components/RunTraceDrawer";
 import { usePullDetail, usePulls } from "../../../../../lib/hooks";
 import { useQueryClient } from "@tanstack/react-query";
-import { usePrReviews, useCancelRun, usePrActiveRuns, usePrRuns, useDeleteRun } from "../../../../../lib/hooks/reviews";
+import {
+  usePrReviews,
+  useCancelRun,
+  usePrActiveRuns,
+  usePrRuns,
+  useDeleteRun,
+  useRefreshPrRuns,
+} from "../../../../../lib/hooks/reviews";
+import { queryKeys } from "@/lib/hooks/query-keys";
 import { useActiveRepo, useRepoNotFound } from "../../../../../lib/repo-context";
 import { ApiError } from "../../../../../lib/api";
 import { githubPrUrl } from "../../../../../lib/github-urls";
@@ -27,17 +37,24 @@ export default function PRDetailPage() {
   const params = useParams<{ repoId: string; number: string }>();
   const search = useSearchParams();
   const router = useRouter();
+  const t = useTranslations("prReview");
+  const [deleteRunId, setDeleteRunId] = React.useState<string | null>(null);
   const { repoId, number } = params;
   const { activeRepo } = useActiveRepo();
   const repoNotFound = useRepoNotFound(repoId);
   // The route is keyed by PR number, but every PR API is keyed by the row's
   // uuid — resolve number → uuid via the (cached) pulls list before fetching.
-  const { data: pulls, isLoading: pullsLoading } = usePulls(repoId);
+  const { data: pulls, isLoading: pullsLoading, refetch: refetchPulls } = usePulls(repoId);
   const prId = pulls?.find((p) => p.number === Number(number))?.id ?? null;
   const { data: pr, isLoading: detailLoading, isError, error, refetch } = usePullDetail(prId);
 
   const isLoading = pullsLoading || (prId != null && detailLoading);
-  const { data: reviews, refetch: refetchReviews } = usePrReviews(prId);
+  const {
+    data: reviews,
+    isLoading: reviewsLoading,
+    isError: reviewsError,
+    refetch: refetchReviews,
+  } = usePrReviews(prId);
 
   // Live run tracking is SERVER-SOURCED (agent_runs status='running'): survives
   // navigation AND reload, and self-clears via polling when runs finish.
@@ -47,15 +64,10 @@ export default function PRDetailPage() {
   const deleteRun = useDeleteRun(prId);
   const liveRunIds = (activeRuns ?? []).map((r) => r.run_id);
   const reviewRunning = liveRunIds.length > 0;
-  const cancel = useCancelRun();
-  const invalidateActiveRuns = () => {
-    if (prId) qc.invalidateQueries({ queryKey: ["pr-active-runs", prId] });
-  };
-  // When a run settles (done OR failed) refresh the full run history too, so a
-  // just-failed run shows up in "Run history" immediately — no page reload.
-  const invalidateRunHistory = () => {
-    if (prId) qc.invalidateQueries({ queryKey: ["pr-runs", prId] });
-  };
+  const cancel = useCancelRun(prId);
+  // When a run settles (done OR failed) refresh the live list, the run history
+  // and the reviews, so a just-failed run shows up immediately — no reload.
+  const refreshRuns = useRefreshPrRuns(prId);
 
   const tab = search.get("tab") ?? "overview";
   const traceRunId = search.get("trace");
@@ -65,13 +77,24 @@ export default function PRDetailPage() {
     else sp.set(key, val);
     router.replace(`/repos/${repoId}/pulls/${number}${sp.toString() ? `?${sp.toString()}` : ""}`);
   };
-  const setTab = (t: string) => setParam("tab", t);
+  const setTab = (name: string) => setParam("tab", name);
+
+  // The drawer streams live while its run is active; when the run ends, refetch
+  // the persisted trace (a trace cached mid-run would otherwise stay stale).
+  const traceRunning = traceRunId != null && liveRunIds.includes(traceRunId);
+  const wasTraceRunning = React.useRef(false);
+  React.useEffect(() => {
+    if (wasTraceRunning.current && !traceRunning && traceRunId) {
+      qc.invalidateQueries({ queryKey: queryKeys.runTrace(traceRunId) });
+    }
+    wasTraceRunning.current = traceRunning;
+  }, [traceRunning, traceRunId, qc]);
 
   // Reviews come newest-first; each is its own run (grouped into accordions).
-  const runs = reviews ?? [];
+  const runs = React.useMemo(() => reviews ?? [], [reviews]);
   const allFindings: FindingRecord[] = React.useMemo(
     () => runs.flatMap((r) => r.findings),
-    [reviews],
+    [runs],
   );
   const lethalTrifecta = allFindings.filter((f) => f.kind === "lethal_trifecta");
   const findingsCount = allFindings.length;
@@ -114,7 +137,9 @@ export default function PRDetailPage() {
           fullScreen
           title="Couldn't load this pull request"
           body={error instanceof ApiError ? error.message : `PR #${number} could not be loaded.`}
-          onRetry={() => refetch()}
+          // Until the pulls list resolves the PR's id the detail query is
+          // disabled, so Retry refetches the list instead.
+          onRetry={() => (prId ? refetch() : refetchPulls())}
         />
       </AppShell>
     );
@@ -130,7 +155,6 @@ export default function PRDetailPage() {
         githubUrl={repoFullName ? githubPrUrl(repoFullName, pr.number) : null}
         onSetTab={setTab}
         onRunStart={() => setTab("findings")}
-        onRunsStarted={() => invalidateActiveRuns()}
       />
 
       <div style={{ padding: "24px 32px 44px", display: "flex", flexDirection: "column", gap: 24, maxWidth: 1080, margin: "0 auto" }}>
@@ -143,21 +167,17 @@ export default function PRDetailPage() {
             reviewRunning={reviewRunning}
             lethalTrifecta={lethalTrifecta}
             runs={runs}
+            runsLoading={reviewsLoading}
+            runsError={reviewsError && !reviews}
+            onRetryRuns={() => refetchReviews()}
             prRuns={prRuns}
             prCommits={pr.commits}
             repoFullName={repoFullName}
             headSha={pr.head_sha}
             cancelMutation={cancel}
             onOpenTrace={(id) => setParam("trace", id)}
-            onDelete={(id) => {
-              if (window.confirm("Delete this run from history? (its logs are removed too)"))
-                deleteRun.mutate(id);
-            }}
-            onRunDone={() => {
-              invalidateActiveRuns();
-              invalidateRunHistory();
-              refetchReviews();
-            }}
+            onDelete={setDeleteRunId}
+            onRunDone={refreshRuns}
           />
         )}
 
@@ -171,9 +191,24 @@ export default function PRDetailPage() {
         )}
       </div>
 
+      {deleteRunId && (
+        <ConfirmDialog
+          title={t("deleteRun.title")}
+          message={t("deleteRun.confirm")}
+          confirmLabel={t("deleteRun.confirmLabel")}
+          onConfirm={() => {
+            deleteRun.mutate(deleteRunId);
+            setDeleteRunId(null);
+          }}
+          onCancel={() => setDeleteRunId(null)}
+        />
+      )}
+
       {prId && traceRunId && (
         <RunTraceDrawer
+          key={traceRunId}
           runId={traceRunId}
+          running={traceRunning}
           prNumber={pr.number}
           findings={runs.find((r) => r.run_id === traceRunId)?.findings ?? []}
           agentName={runs.find((r) => r.run_id === traceRunId)?.agent_name ?? null}

@@ -21,8 +21,13 @@ export function RunStatus({
   const wasRunning = React.useRef(false);
 
   React.useEffect(() => {
-    if (running) wasRunning.current = true;
-    if (!running && wasRunning.current) onDone?.();
+    if (running) {
+      wasRunning.current = true;
+    } else if (wasRunning.current) {
+      // One call per running → done transition, however often this re-runs.
+      wasRunning.current = false;
+      onDone?.();
+    }
   }, [running, onDone]);
 
   if (runIds.length === 0) return null;

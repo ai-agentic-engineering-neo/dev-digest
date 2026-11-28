@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { taskLine } from '../src/modules/reviews/helpers.js';
+import { taskLine } from '../src/modules/reviews/domain.js';
 
 /**
  * Unit coverage for the review task-line. The key invariant: our trusted
@@ -13,7 +13,8 @@ describe('taskLine', () => {
   it('names the PR being reviewed', () => {
     const line = taskLine(pull);
     expect(line).toContain('#3');
-    expect(line).toContain('test: vulnerable fixture');
+    expect(line).not.toContain('test: vulnerable fixture');
+    expect(line).not.toContain('burnjohn');
   });
 
   it('keeps the non-negotiable "never withhold security" rule', () => {

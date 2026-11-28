@@ -9,10 +9,14 @@ on:
     branches: [main]
     paths:
       - 'client/**'
+      - 'server/src/vendor/shared/**'
+      - 'client/src/vendor/shared/**'
       - '.github/workflows/client.yml'
   pull_request:
     paths:
       - 'client/**'
+      - 'server/src/vendor/shared/**'
+      - 'client/src/vendor/shared/**'
       - '.github/workflows/client.yml'
 
 permissions:
@@ -26,6 +30,7 @@ jobs:
   test:
     name: tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: client
@@ -44,6 +49,20 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # The two @devdigest/shared copies must stay byte-identical (run from the
+      # repo root: the job's working-directory is the package).
+      - name: Contract copies agree
+        working-directory: .
+        run: diff -r server/src/vendor/shared client/src/vendor/shared
+
+      - run: pnpm lint
+
+      - run: pnpm deps:validate
+
       - run: pnpm typecheck
 
       - run: pnpm test
+
+      - run: pnpm build
+        env:
+          NEXT_TELEMETRY_DISABLED: 1

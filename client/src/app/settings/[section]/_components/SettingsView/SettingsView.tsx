@@ -11,7 +11,8 @@ import { useTranslations } from "next-intl";
 import { AppShell } from "../../../../../components/app-shell";
 import { SettingsApiKeys } from "./_components/SettingsApiKeys";
 import { SettingsModels } from "./_components/SettingsModels";
-import { DEFAULT_SECTION, SECTION_API_KEYS, SECTION_MODELS } from "./constants";
+import { DEFAULT_SECTION } from "../../../constants";
+import { SECTION_API_KEYS, SECTION_MODELS } from "./constants";
 import { s } from "./styles";
 
 export function SettingsView() {

@@ -44,6 +44,7 @@ export function PromptModalBody({ text }: { text: string }) {
           value={q}
           onChange={setQ}
           placeholder={t("trace.prompt.search")}
+          aria-label={t("trace.prompt.search")}
           suffix={
             ql ? (
               <span style={{ fontSize: 12, color: "var(--text-muted)", whiteSpace: "nowrap" }}>

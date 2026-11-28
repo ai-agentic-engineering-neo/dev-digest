@@ -35,6 +35,15 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_API_BASE: API_BASE,
   },
+  webpack(config) {
+    // `@devdigest/shared` re-exports `./contracts/*.js` from `.ts` sources; let
+    // webpack resolve the `.js` specifier to the TypeScript file.
+    config.resolve.extensionAlias = {
+      ...config.resolve.extensionAlias,
+      ".js": [".ts", ".tsx", ".js"],
+    };
+    return config;
+  },
   async headers() {
     return [
       {

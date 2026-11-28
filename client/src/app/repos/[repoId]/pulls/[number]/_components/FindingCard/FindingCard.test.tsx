@@ -57,4 +57,13 @@ describe("FindingCard (smoke, both themes)", () => {
     fireEvent.click(screen.getByText("Dismiss"));
     expect(onAction).toHaveBeenCalledWith("dismiss");
   });
+
+  it("toggles through a title button that exposes aria-expanded", () => {
+    renderWithIntl(<FindingCard f={FINDING} onAction={() => {}} />);
+    const toggle = screen.getByRole("button", { name: "Hardcoded Stripe secret key" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Accept")).toBeInTheDocument();
+  });
 });

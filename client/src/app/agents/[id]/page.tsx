@@ -5,27 +5,29 @@
 
 import React from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Button, Dropdown, ErrorState, Skeleton, Icon, Badge } from "@devdigest/ui";
 import { AppShell } from "../../../components/app-shell";
 import { AgentCard } from "../_components/AgentCard";
 import { AgentEditor } from "./_components/AgentEditor";
 import { useAgents, useAgent, useUpdateAgent } from "../../../lib/hooks/agents";
 import { ApiError } from "../../../lib/api";
-
-const VALID_TABS = ["config"];
+import type { AgentTab } from "./constants";
+import { parseAgentTab } from "./helpers";
 
 export default function AgentEditorPage() {
   const params = useParams<{ id: string }>();
   const search = useSearchParams();
   const router = useRouter();
   const { id } = params;
+  const t = useTranslations("agents");
 
-  const { data: agents } = useAgents();
+  const { data: agents, isLoading: agentsLoading, isError: agentsError, refetch: refetchAgents } = useAgents();
   const { data: agent, isLoading, isError, error, refetch } = useAgent(id);
   const update = useUpdateAgent();
 
-  const tab = VALID_TABS.includes(search.get("tab") ?? "") ? search.get("tab")! : "config";
-  const setTab = (t: string) => {
+  const tab = parseAgentTab(search.get("tab"));
+  const setTab = (t: AgentTab) => {
     const sp = new URLSearchParams(search.toString());
     sp.set("tab", t);
     router.replace(`/agents/${id}?${sp.toString()}`);
@@ -80,12 +82,21 @@ export default function AgentEditorPage() {
             </div>
           </div>
           <div style={{ flex: 1, overflow: "auto", padding: "0 12px 12px" }}>
+            {agentsLoading && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <Skeleton height={64} />
+                <Skeleton height={64} />
+              </div>
+            )}
+            {agentsError && !agents && (
+              <ErrorState body={t("list.sidebarLoadError")} onRetry={() => refetchAgents()} />
+            )}
             {(agents ?? []).map((a) => (
               <AgentCard
                 key={a.id}
                 ag={a}
                 active={a.id === id}
-                onClick={() => router.push(`/agents/${a.id}?tab=${tab}`)}
+                href={`/agents/${a.id}?tab=${tab}`}
                 onToggle={(enabled) => update.mutate({ id: a.id, patch: { enabled } })}
               />
             ))}

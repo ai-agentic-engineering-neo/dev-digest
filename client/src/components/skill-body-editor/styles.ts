@@ -1,0 +1,50 @@
+import type { CSSProperties } from "react";
+
+/** Styles for the bordered body editor with a line-number gutter. */
+export const s = {
+  box: {
+    border: "1px solid var(--border-strong)",
+    borderRadius: 8,
+    overflow: "hidden",
+    background: "var(--code-bg)",
+  } satisfies CSSProperties,
+  head: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "8px 12px",
+    borderBottom: "1px solid var(--border)",
+    background: "var(--bg-elevated)",
+    fontSize: 13,
+  } satisfies CSSProperties,
+  headIcon: { color: "var(--text-muted)" } satisfies CSSProperties,
+  fileName: { fontWeight: 600 } satisfies CSSProperties,
+  tokens: { marginLeft: "auto", fontSize: 12, color: "var(--text-muted)" } satisfies CSSProperties,
+  body: { display: "flex", alignItems: "stretch" } satisfies CSSProperties,
+  gutter: {
+    margin: 0,
+    padding: "12px 10px 12px 14px",
+    textAlign: "right",
+    color: "var(--text-muted)",
+    fontSize: 13,
+    lineHeight: "20px",
+    userSelect: "none",
+    overflow: "hidden",
+    borderRight: "1px solid var(--border)",
+    minWidth: 44,
+  } satisfies CSSProperties,
+  textarea: {
+    flex: 1,
+    minWidth: 0,
+    resize: "vertical",
+    padding: "12px 14px",
+    border: "none",
+    outline: "none",
+    background: "transparent",
+    color: "var(--text-primary)",
+    fontSize: 13,
+    lineHeight: "20px",
+    whiteSpace: "pre",
+    overflowWrap: "normal",
+  } satisfies CSSProperties,
+} as const;

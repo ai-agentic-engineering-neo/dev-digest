@@ -1,4 +1,3 @@
-import type { Container } from '../../platform/container.js';
 import type {
   Agent,
   AgentSkillLink,
@@ -8,19 +7,24 @@ import type {
   Provider,
   ReviewStrategy,
 } from '@devdigest/shared';
-import { AgentsRepository } from './repository.js';
-import { toAgentDto, toAgentVersionDto } from './helpers.js';
+import { BadRequestError } from '../../platform/errors.js';
+import {
+  assertNoDuplicateSkills,
+  isConfigChange,
+  linksChanged,
+  upsertLink,
+  type LinkSpec,
+} from './domain.js';
+import type { AgentPatch, AgentStore, ModelCatalog, SkillLookup } from './ports.js';
 
 /**
  * A2 — agents service. Business logic for the Agents tab + Agent Editor.
  * Provider/model selection uses the LLM adapter's dynamic model list.
  *
  * An Agent = provider + model + system_prompt + linked skills + output_schema +
- * enabled. Config changes are versioned via `agent_versions` (repository).
+ * enabled. A config change bumps the version and is snapshotted to
+ * `agent_versions`; whether a patch is one is decided here (domain.ts).
  */
-
-// Re-exported for backwards compatibility; implementation lives in ./helpers.
-export { toAgentDto } from './helpers.js';
 
 export interface CreateAgentInput {
   name: string;
@@ -48,21 +52,33 @@ export interface UpdateAgentInput {
   enabled?: boolean;
 }
 
-export class AgentsService {
-  private repo: AgentsRepository;
+/**
+ * A change to an agent's links: replace the whole ordered set (`skills`,
+ * order = index) or link one skill (`skill_id`, upsert).
+ */
+export type LinkUpdateInput =
+  | { skills: { skill_id: string; enabled: boolean }[] }
+  | { skill_id: string; order?: number | undefined; enabled?: boolean | undefined };
 
-  constructor(private container: Container) {
-    this.repo = new AgentsRepository(container.db);
+export interface AgentsServiceDeps {
+  agents: AgentStore;
+  models: ModelCatalog;
+  skills: SkillLookup;
+}
+
+export class AgentsService {
+  private repo: AgentStore;
+
+  constructor(private deps: AgentsServiceDeps) {
+    this.repo = deps.agents;
   }
 
   async list(workspaceId: string): Promise<Agent[]> {
-    const rows = await this.repo.list(workspaceId);
-    return rows.map(toAgentDto);
+    return this.repo.list(workspaceId);
   }
 
   async get(workspaceId: string, id: string): Promise<Agent | undefined> {
-    const row = await this.repo.getById(workspaceId, id);
-    return row ? toAgentDto(row) : undefined;
+    return this.repo.getById(workspaceId, id);
   }
 
   /** Delete an agent (and its versions/skill-links, via cascade). */
@@ -71,7 +87,7 @@ export class AgentsService {
   }
 
   async create(workspaceId: string, input: CreateAgentInput, userId?: string): Promise<Agent> {
-    const row = await this.repo.insert({
+    return this.repo.insert({
       workspaceId,
       name: input.name,
       description: input.description,
@@ -85,7 +101,6 @@ export class AgentsService {
       enabled: input.enabled,
       createdBy: userId ?? null,
     });
-    return toAgentDto(row);
   }
 
   async update(
@@ -93,7 +108,10 @@ export class AgentsService {
     id: string,
     patch: UpdateAgentInput,
   ): Promise<Agent | undefined> {
-    const row = await this.repo.update(workspaceId, id, {
+    const existing = await this.repo.getById(workspaceId, id);
+    if (!existing) return undefined;
+
+    const change: AgentPatch = {
       ...(patch.name !== undefined ? { name: patch.name } : {}),
       ...(patch.description !== undefined ? { description: patch.description } : {}),
       ...(patch.provider !== undefined ? { provider: patch.provider } : {}),
@@ -104,8 +122,10 @@ export class AgentsService {
       ...(patch.ci_fail_on !== undefined ? { ciFailOn: patch.ci_fail_on } : {}),
       ...(patch.repo_intel !== undefined ? { repoIntel: patch.repo_intel } : {}),
       ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
-    });
-    return row ? toAgentDto(row) : undefined;
+    };
+    // A config-affecting change (anything except just toggling enabled) bumps
+    // the version; the store bumps it atomically and records the snapshot.
+    return this.repo.update(workspaceId, id, change, isConfigChange(existing, change));
   }
 
   /**
@@ -116,8 +136,7 @@ export class AgentsService {
   async listVersions(workspaceId: string, agentId: string): Promise<AgentVersion[] | undefined> {
     const agent = await this.repo.getById(workspaceId, agentId);
     if (!agent) return undefined;
-    const rows = await this.repo.listVersions(agentId);
-    return rows.map(toAgentVersionDto);
+    return this.repo.listVersions(agentId);
   }
 
   /**
@@ -131,44 +150,110 @@ export class AgentsService {
   ): Promise<AgentVersion | undefined> {
     const agent = await this.repo.getById(workspaceId, agentId);
     if (!agent) return undefined;
-    const row = await this.repo.getVersion(agentId, version);
-    return row ? toAgentVersionDto(row) : undefined;
-  }
-
-  /** Linked skills for an agent as AgentSkillLink[] (ordered). */
-  async skillLinks(agentId: string): Promise<AgentSkillLink[]> {
-    const links = await this.repo.linkedSkills(agentId);
-    return links.map((l) => ({ agent_id: agentId, skill_id: l.skill.id, order: l.order }));
+    return this.repo.getVersion(agentId, version);
   }
 
   /**
-   * Set / reorder the agent's linked skills. If `skillIds` is provided, replaces
-   * the whole set in that order. Returns the resulting ordered links.
+   * Linked skills for an agent as AgentSkillLink[] (link order). The link
+   * columns come from the agents store, name/type/global flag from the skills
+   * module. Undefined when the agent is not in this workspace.
+   */
+  async skillLinks(workspaceId: string, agentId: string): Promise<AgentSkillLink[] | undefined> {
+    const agent = await this.repo.getById(workspaceId, agentId);
+    if (!agent) return undefined;
+    return this.linksOf(workspaceId, agentId);
+  }
+
+  /** Apply a link change of either shape — the one entry point for POST /agents/:id/skills. */
+  async updateLinks(
+    workspaceId: string,
+    agentId: string,
+    input: LinkUpdateInput,
+  ): Promise<AgentSkillLink[] | undefined> {
+    if ('skills' in input) {
+      return this.setSkills(
+        workspaceId,
+        agentId,
+        input.skills.map((s) => ({ skillId: s.skill_id, enabled: s.enabled })),
+      );
+    }
+    return this.linkSkill(workspaceId, agentId, input.skill_id, input.order, input.enabled);
+  }
+
+  private async linksOf(workspaceId: string, agentId: string): Promise<AgentSkillLink[]> {
+    const links = await this.repo.linkedSkills(agentId);
+    if (links.length === 0) return [];
+    const summaries = await this.deps.skills.summaries(
+      workspaceId,
+      links.map((l) => l.skillId),
+    );
+    const byId = new Map(summaries.map((s) => [s.id, s]));
+    return links.flatMap((l) => {
+      const skill = byId.get(l.skillId);
+      if (!skill) return [];
+      return [
+        {
+          agent_id: agentId,
+          skill_id: l.skillId,
+          order: l.order,
+          enabled: l.enabled,
+          name: skill.name,
+          type: skill.type,
+          skill_enabled: skill.enabled,
+        },
+      ];
+    });
+  }
+
+  /**
+   * Replace the agent's links with `links` (order = index). Every id must be
+   * a skill of the workspace, listed once. A real change bumps the agent's
+   * version and snapshots the links; an identical set writes nothing.
    */
   async setSkills(
     workspaceId: string,
     agentId: string,
-    skillIds: string[],
+    links: LinkSpec[],
   ): Promise<AgentSkillLink[] | undefined> {
     const agent = await this.repo.getById(workspaceId, agentId);
     if (!agent) return undefined;
-    await this.repo.setSkills(agentId, skillIds);
-    return this.skillLinks(agentId);
+    assertNoDuplicateSkills(links);
+    await this.assertWorkspaceSkills(workspaceId, links.map((l) => l.skillId));
+    await this.applyLinks(agentId, links);
+    return this.linksOf(workspaceId, agentId);
   }
 
-  /** Link a single skill (append or set order) — additive to existing links. */
+  /** Link a single skill (upsert; `enabled` defaults to true), keeping the others. */
   async linkSkill(
     workspaceId: string,
     agentId: string,
     skillId: string,
     order?: number,
+    enabled?: boolean,
   ): Promise<AgentSkillLink[] | undefined> {
     const agent = await this.repo.getById(workspaceId, agentId);
     if (!agent) return undefined;
-    const existing = await this.repo.linkedSkills(agentId);
-    const resolvedOrder = order ?? existing.length;
-    await this.repo.linkSkill(agentId, skillId, resolvedOrder);
-    return this.skillLinks(agentId);
+    await this.assertWorkspaceSkills(workspaceId, [skillId]);
+    const current = await this.currentLinks(agentId);
+    await this.applyLinks(agentId, upsertLink(current, skillId, order, enabled), current);
+    return this.linksOf(workspaceId, agentId);
+  }
+
+  private async currentLinks(agentId: string): Promise<LinkSpec[]> {
+    const links = await this.repo.linkedSkills(agentId);
+    return links.map((l) => ({ skillId: l.skillId, enabled: l.enabled }));
+  }
+
+  private async applyLinks(agentId: string, next: LinkSpec[], current?: LinkSpec[]): Promise<void> {
+    const before = current ?? (await this.currentLinks(agentId));
+    if (linksChanged(before, next)) await this.repo.setSkills(agentId, next);
+  }
+
+  private async assertWorkspaceSkills(workspaceId: string, ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const found = new Set(await this.deps.skills.existingIds(workspaceId, ids));
+    const unknown = ids.find((id) => !found.has(id));
+    if (unknown) throw new BadRequestError('unknown_skill', `Skill ${unknown} is not in this workspace`);
   }
 
   /**
@@ -177,7 +262,7 @@ export class AgentsService {
    */
   async listModels(provider: Provider): Promise<ModelInfo[]> {
     try {
-      const llm = await this.container.llm(provider);
+      const llm = await this.deps.models(provider);
       return await llm.listModels();
     } catch {
       return [];

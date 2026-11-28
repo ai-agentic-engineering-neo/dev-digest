@@ -63,3 +63,16 @@ export type PrIntentRecord = z.infer<typeof PrIntentRecord>;
 /** Smart-diff response for a PR (the SmartDiff). */
 export const SmartDiffResponse = SmartDiff;
 export type SmartDiffResponse = z.infer<typeof SmartDiffResponse>;
+
+/** Response of `POST /findings/:id/(accept|dismiss)`. */
+export const FindingActionResponse = z.object({ finding: FindingRecord });
+export type FindingActionResponse = z.infer<typeof FindingActionResponse>;
+
+/** One in-flight run of a PR (`GET /pulls/:id/runs/active`). */
+export const ActiveRun = z.object({
+  run_id: z.string(),
+  agent_id: z.string().nullable(),
+  agent_name: z.string().nullable(),
+  ran_at: z.string().nullable(),
+});
+export type ActiveRun = z.infer<typeof ActiveRun>;

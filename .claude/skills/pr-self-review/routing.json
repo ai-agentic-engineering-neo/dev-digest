@@ -1,0 +1,179 @@
+{
+  "base": "origin/main",
+  "baseFallbacks": ["main"],
+  "exclude": [
+    "server/clones/**",
+    ".claude/worktrees/**",
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/.next/**",
+    "**/coverage/**",
+    "**/*.tsbuildinfo",
+    "**/pnpm-lock.yaml",
+    "**/package-lock.json",
+    "server/src/db/migrations/meta/**"
+  ],
+  "notReviewSkills": ["engineering-insights", "mermaid-diagram", "pr-self-review"],
+  "depsValidate": {
+    "when": ["server/src/**", "reviewer-core/src/**"],
+    "cwd": "server",
+    "command": ["pnpm", "deps:validate"]
+  },
+  "groups": [
+    {
+      "id": "backend-architecture",
+      "lenses": [
+        {
+          "skill": "onion-architecture",
+          "include": ["server/src/**/*.ts", "reviewer-core/src/**/*.ts"],
+          "exclude": ["server/src/vendor/**", "server/src/db/migrations/**"]
+        },
+        {
+          "skill": "fastify-best-practices",
+          "include": [
+            "server/src/app.ts",
+            "server/src/server.ts",
+            "server/src/platform/**/*.ts",
+            "server/src/modules/**/routes.ts"
+          ],
+          "includeIfContent": {
+            "paths": ["server/src/**/*.ts"],
+            "pattern": "from ['\"](fastify|@fastify/|fastify-)"
+          },
+          "exclude": ["server/src/vendor/**", "**/*.test.ts"]
+        }
+      ]
+    },
+    {
+      "id": "backend-data",
+      "lenses": [
+        {
+          "skill": "drizzle-orm-patterns",
+          "include": [
+            "server/src/db/**/*.ts",
+            "server/src/modules/**/repository.ts",
+            "server/src/modules/**/repository/**/*.ts",
+            "server/drizzle.config.ts"
+          ],
+          "includeIfContent": {
+            "paths": ["server/src/**/*.ts"],
+            "pattern": "from ['\"]drizzle-orm"
+          },
+          "exclude": ["server/src/vendor/**"]
+        },
+        {
+          "skill": "postgresql-table-design",
+          "include": [
+            "server/src/db/schema.ts",
+            "server/src/db/schema/**/*.ts",
+            "server/src/db/migrations/*.sql"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "frontend-architecture",
+      "lenses": [
+        {
+          "skill": "frontend-architecture",
+          "include": ["client/src/**/*.{ts,tsx}"],
+          "exclude": ["client/src/vendor/**"]
+        },
+        {
+          "skill": "next-best-practices",
+          "include": [
+            "client/src/app/**/*.{ts,tsx}",
+            "client/src/middleware.ts",
+            "client/next.config.*"
+          ],
+          "exclude": ["**/*.test.{ts,tsx}"]
+        }
+      ]
+    },
+    {
+      "id": "react",
+      "lenses": [
+        {
+          "skill": "react-best-practices",
+          "include": [
+            "client/src/**/*.tsx",
+            "client/src/lib/hooks/**/*.ts",
+            "client/src/**/use[A-Z]*.ts"
+          ],
+          "exclude": ["client/src/vendor/**", "**/*.test.{ts,tsx}"]
+        },
+        {
+          "skill": "react-testing-library",
+          "include": ["client/src/**/*.test.{ts,tsx}", "client/src/test/**/*.{ts,tsx}"],
+          "exclude": ["client/src/vendor/**"]
+        }
+      ]
+    },
+    {
+      "id": "cross-cutting",
+      "lenses": [
+        {
+          "skill": "zod",
+          "include": ["server/src/vendor/shared/**/*.ts", "client/src/vendor/shared/**/*.ts"],
+          "includeIfContent": {
+            "paths": [
+              "server/**/*.ts",
+              "client/**/*.{ts,tsx}",
+              "reviewer-core/**/*.ts"
+            ],
+            "pattern": "from ['\"]zod['\"/]"
+          }
+        },
+        {
+          "skill": "typescript-expert",
+          "include": [
+            "server/**/*.ts",
+            "client/**/*.{ts,tsx}",
+            "reviewer-core/**/*.ts",
+            "e2e/**/*.ts"
+          ],
+          "exclude": ["**/*.d.ts", "client/src/vendor/ui/**"]
+        }
+      ]
+    },
+    {
+      "id": "security",
+      "lenses": [
+        {
+          "skill": "security",
+          "include": [
+            "server/src/**/*.ts",
+            "client/src/**/*.{ts,tsx}",
+            "reviewer-core/src/**/*.ts"
+          ],
+          "exclude": ["**/*.test.{ts,tsx}", "client/src/vendor/ui/**", "server/src/db/migrations/**"]
+        }
+      ]
+    },
+    {
+      "id": "repo-rules",
+      "lenses": [
+        {
+          "docs": [
+            "AGENTS.md",
+            "server/AGENTS.md",
+            "client/AGENTS.md",
+            "reviewer-core/AGENTS.md",
+            "e2e/AGENTS.md"
+          ],
+          "name": "repo-rules",
+          "include": [
+            "server/**",
+            "client/**",
+            "reviewer-core/**",
+            "e2e/**",
+            ".github/**",
+            "scripts/**",
+            "docker-compose.yml"
+          ],
+          "exclude": ["**/*.md"]
+        }
+      ]
+    }
+  ]
+}

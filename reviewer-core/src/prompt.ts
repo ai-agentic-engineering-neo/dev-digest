@@ -29,8 +29,26 @@ const INJECTION_GUARD =
 
 export function wrapUntrusted(label: string, content: string): string {
   // strip any attempt to close our own delimiter
-  const safe = content.replaceAll('</untrusted>', '<\\/untrusted>');
+  // (any case, optional whitespace: </UNTRUSTED >, < / untrusted>)
+  const safe = content.replace(/<\s*\/\s*untrusted\s*>/gi, '<\\/untrusted>');
   return `<untrusted source="${label}">\n${safe}\n</untrusted>`;
+}
+
+/** One resolved skill, as the server passes it in. */
+export interface SkillPromptInput {
+  name: string;
+  description: string;
+  body: string;
+}
+
+/**
+ * Render skills into the prompt blocks `assemblePrompt` expects, in the given
+ * order (the agent's link order). Skills are trusted instructions the user
+ * approved, so they are NOT wrapped in `wrapUntrusted`. The name and the
+ * description head each block: the description is the skill's interface.
+ */
+export function formatSkills(skills: readonly SkillPromptInput[]): string[] {
+  return skills.map((s) => `### ${s.name}\n_${s.description}_\n\n${s.body}`);
 }
 
 /** Cap the PR description so a huge author body can't blow the token budget. */
@@ -39,7 +57,7 @@ const MAX_PR_DESCRIPTION_CHARS = 4000;
 export interface PromptParts {
   /** Agent's system prompt (trusted). */
   system: string;
-  /** Linked skill bodies (trusted-ish; community skills should be sanitized upstream). */
+  /** Formatted skill blocks (see `formatSkills`). Trusted: user-approved instructions. */
   skills?: string[];
   /** Relevant memory items (trusted, curated). */
   memory?: string[];
@@ -66,6 +84,11 @@ export interface PromptParts {
    * undefined → section omitted.
    */
   prDescription?: string;
+  /**
+   * PR title and author (untrusted — author-controlled). Rendered inside a
+   * `pr-meta` untrusted fence right after the task line. Undefined → omitted.
+   */
+  prMeta?: { title: string; author: string };
   /** The unified diff / user task (untrusted content). */
   diff: string;
   /** Optional task framing line, e.g. "Review PR #482 '…'". */
@@ -103,6 +126,14 @@ export function assemblePrompt(parts: PromptParts): AssembledPrompt {
 
   const userSections: string[] = [];
   if (parts.task) userSections.push(parts.task);
+  if (parts.prMeta) {
+    userSections.push(
+      `## PR metadata\n${wrapUntrusted(
+        'pr-meta',
+        `Title: ${parts.prMeta.title}\nAuthor: ${parts.prMeta.author}`,
+      )}`,
+    );
+  }
   if (prDescription) {
     userSections.push(`## PR description\n${wrapUntrusted('pr-description', prDescription)}`);
   }

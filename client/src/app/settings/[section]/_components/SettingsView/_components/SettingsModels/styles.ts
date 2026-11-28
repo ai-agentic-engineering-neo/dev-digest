@@ -3,6 +3,7 @@ import type { CSSProperties } from "react";
 /** Co-located styles for SettingsModels (per-feature model picker). */
 export const s = {
   wrap: { maxWidth: 640 } satisfies CSSProperties,
+  loading: { display: "flex", flexDirection: "column", gap: 14 } satisfies CSSProperties,
   row: { marginBottom: 18 } satisfies CSSProperties,
   defaultTag: {
     marginLeft: 8,

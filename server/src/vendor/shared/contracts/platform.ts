@@ -152,9 +152,37 @@ export const Repo = z.object({
 });
 export type Repo = z.infer<typeof Repo>;
 
+/** Response of `POST /repos/:id/refresh` (a clone + incremental reindex were enqueued). */
+export const RepoRefreshResponse = z.object({ status: z.literal('refreshing') });
+export type RepoRefreshResponse = z.infer<typeof RepoRefreshResponse>;
+
+/** Response of `GET /workspace`: where clones live + a summary of cloned repos. */
+export const WorkspaceOverview = z.object({
+  workspaceId: z.string(),
+  cloneDir: z.string(),
+  repos: z.array(
+    z.object({
+      id: z.string(),
+      full_name: z.string(),
+      clone_path: z.string().nullable(),
+      last_polled_at: z.string().nullable(),
+      cloned: z.boolean(),
+    }),
+  ),
+});
+export type WorkspaceOverview = z.infer<typeof WorkspaceOverview>;
+
 // ---- Pull requests ----
 export const PrStatus = z.enum(['needs_review', 'reviewed', 'stale', 'open', 'closed', 'merged']);
 export type PrStatus = z.infer<typeof PrStatus>;
+
+/** Findings per severity for one PR — the PR list's FINDINGS column. */
+export const PrFindingsCounts = z.object({
+  CRITICAL: z.number().int(),
+  WARNING: z.number().int(),
+  SUGGESTION: z.number().int(),
+});
+export type PrFindingsCounts = z.infer<typeof PrFindingsCounts>;
 
 export const PrMeta = z.object({
   id: z.string().nullish(),
@@ -172,6 +200,12 @@ export const PrMeta = z.object({
   updated_at: z.string().nullish(),
   // Latest-review score (list endpoint only; null/absent until reviewed).
   score: z.number().int().nullish(),
+  // Total USD cost of all agent runs on the PR (list endpoint only;
+  // null/absent when no run has a known cost).
+  total_cost_usd: z.number().nullish(),
+  // Findings per severity, summed over each agent's latest review (list
+  // endpoint only; null/absent until the PR has a review).
+  findings_counts: PrFindingsCounts.nullish(),
 });
 export type PrMeta = z.infer<typeof PrMeta>;
 
@@ -256,6 +290,35 @@ export const IndexStatus = z.object({
   chunks_indexed: z.number().int().nullish(),
 });
 export type IndexStatus = z.infer<typeof IndexStatus>;
+
+/**
+ * Response of `GET /repos/:id/index-state` (repo-intel). Always answers: a repo
+ * with no index row gets a degraded state (`degraded: true`, `lastIndexedSha: ''`).
+ * `updatedAt` is an ISO timestamp; it advances when a resync writes a new row.
+ */
+export const RepoIntelState = z.object({
+  repoId: z.string(),
+  status: z.enum(['full', 'partial', 'degraded', 'failed']),
+  filesIndexed: z.number().int(),
+  filesSkipped: z.number().int(),
+  durationMs: z.number(),
+  reason: z.string().optional(),
+  lastIndexedSha: z.string(),
+  indexerVersion: z.number().int(),
+  updatedAt: z.string(),
+  degraded: z.boolean().optional(),
+  degradedReason: z.string().optional(),
+});
+export type RepoIntelState = z.infer<typeof RepoIntelState>;
+
+/** 202 body of `POST /repos/:id/resync`: queued (`jobId`), or accepted but degraded. */
+export const ResyncResponse = z.object({
+  status: z.literal('accepted'),
+  jobId: z.string().optional(),
+  degraded: z.boolean().optional(),
+  reason: z.string().optional(),
+});
+export type ResyncResponse = z.infer<typeof ResyncResponse>;
 
 // ---- Run request (review trigger; owned by A2, contract lives here) ----
 export const RunRequest = z.object({

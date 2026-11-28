@@ -67,6 +67,17 @@ export default function PRDetailPage() {
   };
   const setTab = (t: string) => setParam("tab", t);
 
+  // The drawer streams live while its run is active; when the run ends, refetch
+  // the persisted trace (a trace cached mid-run would otherwise stay stale).
+  const traceRunning = traceRunId != null && liveRunIds.includes(traceRunId);
+  const wasTraceRunning = React.useRef(false);
+  React.useEffect(() => {
+    if (wasTraceRunning.current && !traceRunning && traceRunId) {
+      qc.invalidateQueries({ queryKey: ["run-trace", traceRunId] });
+    }
+    wasTraceRunning.current = traceRunning;
+  }, [traceRunning, traceRunId, qc]);
+
   // Reviews come newest-first; each is its own run (grouped into accordions).
   const runs = reviews ?? [];
   const allFindings: FindingRecord[] = React.useMemo(
@@ -173,7 +184,9 @@ export default function PRDetailPage() {
 
       {prId && traceRunId && (
         <RunTraceDrawer
+          key={traceRunId}
           runId={traceRunId}
+          running={traceRunning}
           prNumber={pr.number}
           findings={runs.find((r) => r.run_id === traceRunId)?.findings ?? []}
           agentName={runs.find((r) => r.run_id === traceRunId)?.agent_name ?? null}

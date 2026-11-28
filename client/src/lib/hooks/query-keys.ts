@@ -24,6 +24,7 @@ export const queryKeys = {
   skill: (id: Id) => ["skill", id] as const,
   skillVersions: (id: Id) => ["skill-versions", id] as const,
   skillVersion: (id: Id, version: number | null | undefined) => ["skill-version", id, version] as const,
+  conventions: (repoId: Id) => ["conventions", repoId] as const,
   /** Prefix of every provider's model list (invalidates them all). */
   providerModelsAll: () => ["provider-models"] as const,
   providerModels: (provider: Provider | null | undefined) => ["provider-models", provider] as const,

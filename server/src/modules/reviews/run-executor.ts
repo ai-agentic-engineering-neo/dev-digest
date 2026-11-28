@@ -1,8 +1,8 @@
 import type { Agent, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
 import { reviewPullRequest, countBlockers } from '@devdigest/reviewer-core';
 import { RunLogger } from '../../platform/run-logger.js';
-import { REVIEW_STRATEGY } from './constants.js';
-import { RunCancelledError, taskLine } from './domain.js';
+import { MAX_DIFF_CHARS, REVIEW_MAX_OUTPUT_TOKENS, REVIEW_STRATEGY } from './constants.js';
+import { RunCancelledError, capDiff, taskLine } from './domain.js';
 import { loadDiff } from './diff-loader.js';
 import type {
   DiffParser,
@@ -101,6 +101,16 @@ export class ReviewRunExecutor {
       await failAll(`Failed to load PR diff: ${(err as Error).message}`);
       return;
     }
+    // XC-5: a bounded prompt. The cut is visible in every run's log, and a
+    // partial review never marks the head reviewed (it did not see all of it).
+    const capped = capDiff(diff, MAX_DIFF_CHARS, this.deps.parseDiff);
+    diff = capped.diff;
+    if (capped.truncated) {
+      runLog.info(
+        `Diff truncated to ${diff.raw.length} characters (limit ${MAX_DIFF_CHARS}): ` +
+          `${capped.omittedFiles} file(s) not reviewed — this review is partial`,
+      );
+    }
     runLog.info(`Diff ready — ${diff.files.length} changed file(s); starting ${jobs.length} agent run(s)`);
 
     for (const { agent, runId } of jobs) {
@@ -110,7 +120,16 @@ export class ReviewRunExecutor {
         `review: agent "${agent.name}" started (${agent.provider}/${agent.model})`,
       );
       try {
-        const outcome = await this.runOneAgent(workspaceId, pull, repo, diff, agent, runId, runLog);
+        const outcome = await this.runOneAgent(
+          workspaceId,
+          pull,
+          repo,
+          diff,
+          agent,
+          runId,
+          runLog,
+          capped.truncated,
+        );
         logger?.info(
           {
             runId,
@@ -142,6 +161,7 @@ export class ReviewRunExecutor {
     agent: Agent,
     runId: string,
     parentLog: RunLogger,
+    partial: boolean,
   ): Promise<RunOutcome> {
     const start = Date.now();
     // Narrow the fanned-out pre-work logger to THIS run; the shared diff/intent
@@ -191,6 +211,7 @@ export class ReviewRunExecutor {
         model: agent.model,
         diff,
         llm,
+        maxTokens: REVIEW_MAX_OUTPUT_TOKENS,
         // Per-agent review strategy (configured in the Agent editor); falls back
         // to the studio default. single-pass = whole diff in one call.
         strategy: agent.strategy ?? REVIEW_STRATEGY,
@@ -295,9 +316,13 @@ export class ReviewRunExecutor {
       // reviewed / needs-review (head moved) / stale apart. After the commit,
       // and best-effort: the review is already saved, so a failure here must
       // not turn the run into a failed one.
-      await this.deps.pulls.markReviewed(pull.id, pull.headSha).catch((err: unknown) => {
-        runLog.info(`Could not record the reviewed commit: ${(err as Error).message}`);
-      });
+      if (partial) {
+        runLog.info('Partial review (diff truncated) — the commit is not marked reviewed');
+      } else {
+        await this.deps.pulls.markReviewed(pull.id, pull.headSha).catch((err: unknown) => {
+          runLog.info(`Could not record the reviewed commit: ${(err as Error).message}`);
+        });
+      }
 
       runLog.info('Run complete; trace persisted');
       this.deps.events.complete(runId);

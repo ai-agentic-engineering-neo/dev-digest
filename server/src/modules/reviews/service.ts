@@ -27,6 +27,7 @@ export interface ReviewServiceDeps extends RunExecutorDeps {
 
 export class ReviewService {
   private executor: ReviewRunExecutor;
+  private startQueue: Promise<void> = Promise.resolve();
 
   constructor(private deps: ReviewServiceDeps) {
     this.executor = new ReviewRunExecutor(deps);
@@ -124,27 +125,50 @@ export class ReviewService {
     // Create the agent_run rows up front so a runId is available IMMEDIATELY —
     // the client persists these in global state and subscribes to the SSE
     // stream. The actual (slow) review runs in the background below.
+    // A run already `running` for the same (PR, agent) is returned as is, not
+    // duplicated (XC-5). The check and the insert are serialized so two
+    // simultaneous requests cannot both pass the check.
     const runs: { run_id: string; agent_id: string; agent_name: string }[] = [];
     const jobs: { agent: Agent; runId: string }[] = [];
-    for (const agent of targets) {
-      const runId = await this.deps.store.createAgentRun({
-        workspaceId,
-        agentId: agent.id,
-        prId,
-        provider: agent.provider,
-        model: agent.model,
-      });
-      runs.push({ run_id: runId, agent_id: agent.id, agent_name: agent.name });
-      jobs.push({ agent, runId });
-    }
+    await this.serialized(async () => {
+      const active = await this.deps.store.activeRunsForPull(workspaceId, prId);
+      for (const agent of targets) {
+        const existing = active.find((r) => r.agent_id === agent.id);
+        if (existing) {
+          runs.push({ run_id: existing.run_id, agent_id: agent.id, agent_name: agent.name });
+          continue;
+        }
+        const runId = await this.deps.store.createAgentRun({
+          workspaceId,
+          agentId: agent.id,
+          prId,
+          provider: agent.provider,
+          model: agent.model,
+        });
+        runs.push({ run_id: runId, agent_id: agent.id, agent_name: agent.name });
+        jobs.push({ agent, runId });
+      }
+    });
 
     // Fire-and-forget: the HTTP response returns now with the runIds; reviews
     // are persisted as each agent finishes and the client refetches on SSE done.
-    void this.executor.executeRuns(workspaceId, pull, repo, jobs, logger).catch((err) => {
-      logger?.error({ prId, err: (err as Error).message }, 'review: background execution crashed');
-    });
+    if (jobs.length > 0) {
+      void this.executor.executeRuns(workspaceId, pull, repo, jobs, logger).catch((err) => {
+        logger?.error({ prId, err: (err as Error).message }, 'review: background execution crashed');
+      });
+    }
 
     return { runs, reviews: [] };
+  }
+
+  /** Run `fn` after every earlier serialized call has settled. */
+  private serialized<T>(fn: () => Promise<T>): Promise<T> {
+    const result = this.startQueue.then(fn);
+    this.startQueue = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
   }
 
   private publish(runId: string, kind: RunEventKind, msg: string, data?: unknown) {

@@ -80,6 +80,11 @@ export interface ReviewInput {
   /** Override the map-reduce line threshold. */
   mapThresholdLines?: number;
   /**
+   * Output-token cap forwarded on every LLM call (reasoning tokens count on
+   * reasoning models). Omitted → the provider's own default.
+   */
+  maxTokens?: number;
+  /**
    * OpenRouter session id — forwarded on every LLM call so all chunks of this
    * review group into one session in the OpenRouter dashboard.
    */
@@ -180,6 +185,7 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
       schemaName: 'Review',
       messages: a.messages,
       maxRetries,
+      ...(input.maxTokens ? { maxTokens: input.maxTokens } : {}),
       ...(input.sessionId ? { sessionId: input.sessionId } : {}),
     });
     tokensIn += res.tokensIn;

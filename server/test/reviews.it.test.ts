@@ -159,7 +159,7 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
 
   it('runs a review: map-reduce + grounding drops the hallucinated finding, keeps the valid one', async () => {
     const app = await appWith(REVIEW_FIXTURE);
-    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
 
     const agent = (
       await app.inject({
@@ -209,6 +209,24 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(run!.findingsCount).toBe(1);
     expect(run!.grounding).toBe('1/2 passed');
 
+    // Run cost badge: the run's LLM cost is persisted in the trace stats and
+    // surfaced on the PR list as the latest run's cost.
+    expect(trace.stats.cost_usd).toBeGreaterThan(0);
+    // ...and the usage/cost line is in the PERSISTED log, not only the live stream.
+    expect(trace.log.some((l: { msg: string }) => /^Usage: \d+ in \/ \d+ out tokens, cost \$/.test(l.msg))).toBe(true);
+    const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const listed = pulls.find((p: { id: string }) => p.id === pr.id);
+    expect(listed.last_run_cost_usd).toBeCloseTo(trace.stats.cost_usd, 10);
+
+    await app.close();
+  });
+
+  it('PR list has no run cost for a PR that was never reviewed', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const listed = pulls.find((p: { id: string }) => p.id === pr.id);
+    expect(listed.last_run_cost_usd).toBeNull();
     await app.close();
   });
 

@@ -9,6 +9,7 @@ import type { PrMeta } from "@/lib/types";
 import { SIZE_COLOR, STATUS_META } from "../../constants";
 import { relativeTime, sizeOf } from "../../helpers";
 import { s } from "../../styles";
+import { formatUsd } from "@/lib/format-usd";
 
 export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
   const t = useTranslations("prReview");
@@ -28,8 +29,21 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
         <Icon.GitPullRequest size={15} style={s.rowIcon(st.c)} />
         <div style={s.rowTitleWrap}>
           <div style={s.rowTitle(h)}>{pr.title}</div>
-          <span className="mono" style={s.rowNumber}>
-            #{pr.number}
+          <span style={s.rowMeta}>
+            <span className="mono" style={s.rowNumber}>
+              #{pr.number}
+            </span>
+            {pr.last_run_cost_usd != null && (
+              <span
+                data-testid="run-cost-badge"
+                title={t("list.runCost.title")}
+                aria-label={t("list.runCost.aria", { cost: formatUsd(pr.last_run_cost_usd) })}
+              >
+                <Badge mono color="var(--text-secondary)" style={s.costBadge}>
+                  {formatUsd(pr.last_run_cost_usd)}
+                </Badge>
+              </span>
+            )}
           </span>
         </div>
       </div>

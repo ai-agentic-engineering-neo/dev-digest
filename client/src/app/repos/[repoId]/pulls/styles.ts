@@ -31,6 +31,8 @@ export const s = {
     color: hover ? "var(--accent-text)" : "var(--text-primary)",
   }),
   rowNumber: { fontSize: 12, color: "var(--text-muted)" } satisfies CSSProperties,
+  rowMeta: { display: "flex", alignItems: "center", gap: 8 } satisfies CSSProperties,
+  costBadge: { fontSize: 11, padding: "0 6px" } satisfies CSSProperties,
   authorCell: {
     display: "flex",
     alignItems: "center",

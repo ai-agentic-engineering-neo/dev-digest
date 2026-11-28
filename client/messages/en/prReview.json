@@ -65,6 +65,10 @@
     "title": "Pull Requests",
     "summary": "{open} open · {needsReview} need review",
     "loading": "Loading pull requests…",
+    "runCost": {
+      "title": "LLM cost of the latest review run",
+      "aria": "Latest review run cost {cost}"
+    },
     "status": {
       "open": "Open",
       "closed": "Closed",

@@ -32,7 +32,11 @@ export function CreateConventionSkillModal({ repoId, repoName, accepted, onClose
       DEFAULT_SKILL_NAME,
       accepted,
       accepted.map(evidenceLocation),
-      { intro: t("modal.bodyIntro"), detectedIn: (location) => t("modal.detectedIn", { location }) },
+      {
+        intro: t("modal.bodyIntro"),
+        detectedIn: (location) => t("modal.detectedIn", { location }),
+        fallbackCategory: t("modal.fallbackCategory"),
+      },
     ),
     enabled: false,
   }));

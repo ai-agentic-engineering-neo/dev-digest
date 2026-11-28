@@ -32,6 +32,7 @@ import type {
   LlmResolver,
   RepoLookup,
   ScanLog,
+  StoredConvention,
 } from './ports.js';
 
 export interface ConventionsServiceDeps {
@@ -106,11 +107,13 @@ export class ConventionsService {
     await this.requireRepo(workspaceId, repoId);
     const all = await this.deps.store.listByRepo(workspaceId, repoId);
     const byId = new Map(all.map((c) => [c.id, c]));
-    const picked = input.convention_ids.map((id) => byId.get(id));
-    if (picked.some((c) => !c || c.status !== 'accepted')) {
+    const picked = input.convention_ids
+      .map((id) => byId.get(id))
+      .filter((c): c is StoredConvention => c?.status === 'accepted');
+    if (picked.length !== input.convention_ids.length) {
       throw new BadRequestError('convention_not_accepted', 'Only accepted conventions of this repository can go into a skill.');
     }
-    const evidence = [...new Set(picked.map((c) => c!.evidencePath))];
+    const evidence = [...new Set(picked.map((c) => c.evidencePath))];
     return this.deps.writeSkill(
       workspaceId,
       {

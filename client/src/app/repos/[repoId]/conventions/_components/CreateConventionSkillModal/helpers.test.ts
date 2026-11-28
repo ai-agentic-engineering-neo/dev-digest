@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { buildSkillBody, canSaveSkillDraft } from "./helpers";
 
-const text = { intro: "Flag violations.", detectedIn: (loc: string) => `Detected in \`${loc}\`.` };
+const text = {
+  intro: "Flag violations.",
+  detectedIn: (loc: string) => `Detected in \`${loc}\`.`,
+  fallbackCategory: "general",
+};
 
 describe("buildSkillBody", () => {
   it("groups the given candidates by category", () => {

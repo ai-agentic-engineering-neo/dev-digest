@@ -1,18 +1,14 @@
-import { SkillName, type ConventionCandidate } from "@devdigest/shared";
-import { FALLBACK_CATEGORY } from "./constants";
+import { SkillName, type ConventionCandidate, type ConventionSkillInput } from "@devdigest/shared";
 
-/** What the modal edits before the skill is saved. */
-export interface ConventionSkillDraft {
-  name: string;
-  description: string;
-  body: string;
-  enabled: boolean;
-}
+/** What the modal edits before the skill is saved: the contract minus the ids, `enabled` always set. */
+export type ConventionSkillDraft = Required<Omit<ConventionSkillInput, "convention_ids">>;
 
 /** Translated pieces of the generated body (helpers do not call `t`). */
 export interface BodyText {
   intro: string;
   detectedIn: (location: string) => string;
+  /** Heading for candidates without a category. */
+  fallbackCategory: string;
 }
 
 /**
@@ -28,7 +24,7 @@ export function buildSkillBody(
 ): string {
   const sections = new Map<string, string[]>();
   accepted.forEach((c, i) => {
-    const category = c.category?.trim() || FALLBACK_CATEGORY;
+    const category = c.category?.trim() || text.fallbackCategory;
     const entry = `${c.rule.trim()}\n${text.detectedIn(locations[i] ?? "")}`;
     sections.set(category, [...(sections.get(category) ?? []), entry]);
   });

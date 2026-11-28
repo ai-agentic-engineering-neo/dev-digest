@@ -1,14 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { evidenceLocation } from "../../helpers";
 import { confidenceColor, confidencePercent, evidenceUrl, nextStatus } from "./helpers";
 
 const c = { evidence_path: "src/api/users.ts", evidence_start_line: 23, evidence_end_line: 31 };
 
 describe("ConventionCard helpers", () => {
-  it("formats the evidence location and its GitHub link", () => {
-    expect(evidenceLocation(c)).toBe("src/api/users.ts:23-31");
-    expect(evidenceLocation({ ...c, evidence_end_line: 23 })).toBe("src/api/users.ts:23");
-    expect(evidenceLocation({ ...c, evidence_start_line: null, evidence_end_line: null })).toBe("src/api/users.ts");
+  it("links the evidence lines on GitHub", () => {
     expect(evidenceUrl({ full_name: "acme/api", default_branch: "main" }, c)).toBe(
       "https://github.com/acme/api/blob/main/src/api/users.ts#L23-L31",
     );

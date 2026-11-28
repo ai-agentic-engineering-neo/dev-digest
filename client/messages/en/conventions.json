@@ -59,6 +59,7 @@
     "creating": "Creating…",
     "defaultDescription": "{count, plural, one {# house convention} other {# house conventions}} extracted from {repo}",
     "bodyIntro": "House conventions detected in this repo. Flag changes that violate any rule below and cite the offending `file:line`.",
-    "detectedIn": "Detected in `{location}`."
+    "detectedIn": "Detected in `{location}`.",
+    "fallbackCategory": "general"
   }
 }

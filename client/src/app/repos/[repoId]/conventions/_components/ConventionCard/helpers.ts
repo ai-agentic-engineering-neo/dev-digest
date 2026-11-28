@@ -1,4 +1,4 @@
-import type { ConventionCandidate } from "@devdigest/shared";
+import type { ConventionCandidate, Repo } from "@devdigest/shared";
 import { githubBlobUrl } from "@/lib/github-urls";
 import { CONFIDENCE_COLOR, HIGH_CONFIDENCE, MEDIUM_CONFIDENCE } from "./constants";
 
@@ -16,7 +16,7 @@ export function confidenceColor(confidence: number): string {
 
 /** GitHub link to the evidence lines on the repo's default branch, or null without a repo. */
 export function evidenceUrl(
-  repo: { full_name: string; default_branch: string } | null,
+  repo: Pick<Repo, "full_name" | "default_branch"> | null,
   c: Pick<ConventionCandidate, "evidence_path" | "evidence_start_line" | "evidence_end_line">,
 ): string | null {
   if (!repo) return null;

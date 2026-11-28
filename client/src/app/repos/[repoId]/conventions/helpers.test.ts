@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ConventionCandidate } from "@devdigest/shared";
-import { acceptedOnly, scanAge } from "./helpers";
+import { acceptedOnly, evidenceLocation, scanAge } from "./helpers";
 
 const NOW = Date.parse("2026-11-28T12:00:00Z");
 
@@ -17,5 +17,14 @@ describe("acceptedOnly", () => {
   it("drops pending and rejected candidates", () => {
     const c = (id: string, status: ConventionCandidate["status"]) => ({ id, status }) as ConventionCandidate;
     expect(acceptedOnly([c("a", "accepted"), c("b", "rejected"), c("c", "pending")]).map((x) => x.id)).toEqual(["a"]);
+  });
+});
+
+describe("evidenceLocation", () => {
+  it("formats a range, a single line and a bare path", () => {
+    const c = { evidence_path: "src/api/users.ts", evidence_start_line: 23, evidence_end_line: 31 };
+    expect(evidenceLocation(c)).toBe("src/api/users.ts:23-31");
+    expect(evidenceLocation({ ...c, evidence_end_line: 23 })).toBe("src/api/users.ts:23");
+    expect(evidenceLocation({ ...c, evidence_start_line: null, evidence_end_line: null })).toBe("src/api/users.ts");
   });
 });

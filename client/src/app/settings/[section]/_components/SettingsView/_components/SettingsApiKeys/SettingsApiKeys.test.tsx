@@ -26,13 +26,19 @@ afterEach(() => {
 });
 
 async function typeAndTest(value: string) {
-  const input = screen.getAllByPlaceholderText(messages.apiKeys.placeholder)[0] as HTMLInputElement;
+  const input = screen.getByLabelText(messages.apiKeys.openaiLabel) as HTMLInputElement;
   fireEvent.change(input, { target: { value } });
   fireEvent.click(screen.getAllByRole("button", { name: messages.apiKeys.testConnection })[0]!);
   return input;
 }
 
 describe("SettingsApiKeys", () => {
+  it("labels each key input and gives the reveal toggle a name", () => {
+    renderView();
+    expect(screen.getByLabelText(messages.apiKeys.anthropicLabel)).toBeInstanceOf(HTMLInputElement);
+    expect(screen.getAllByRole("button", { name: messages.apiKeys.showKey })).toHaveLength(4);
+  });
+
   it("clears the input after the key is verified and saved", async () => {
     mutateAsync.mockResolvedValue({ provider: "openai", ok: true, message: "OK — 3 models available" });
     renderView();

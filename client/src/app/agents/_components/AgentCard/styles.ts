@@ -26,6 +26,8 @@ export const s = {
     fontSize: 14,
     fontWeight: 600,
     flex: 1,
+    color: "inherit",
+    textDecoration: "none",
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",

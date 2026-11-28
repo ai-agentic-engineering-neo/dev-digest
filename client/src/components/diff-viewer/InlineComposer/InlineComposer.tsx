@@ -47,6 +47,8 @@ export function InlineComposer({
     }
   };
   return (
+    // Keydown bubbles up from the textarea (Esc cancels, Cmd/Ctrl+Enter posts).
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions
     <div
       style={cs.thread}
       onKeyDown={(e) => {
@@ -59,6 +61,7 @@ export function InlineComposer({
         onChange={setText}
         rows={3}
         placeholder={t("diffViewer.commentPlaceholder")}
+        aria-label={t("diffViewer.commentPlaceholder")}
       />
       <div style={cs.composerActions}>
         <Button

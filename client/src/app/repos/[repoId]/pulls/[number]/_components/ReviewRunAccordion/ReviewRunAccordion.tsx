@@ -65,52 +65,58 @@ export function ReviewRunAccordion({
         scrollMarginTop: 16,
       }}
     >
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={onToggle}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") onToggle();
-        }}
-        style={{
-          width: "100%",
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          padding: "13px 16px",
-          cursor: "pointer",
-          color: "var(--text-primary)",
-        }}
-      >
-        <Icon.Cpu size={15} style={{ color: "var(--text-muted)" }} />
-        <span style={{ fontWeight: 600, fontSize: 14 }}>{review.agent_name ?? "Agent"}</span>
-        {review.verdict && (
-          <Badge color={verdictColor} bg="transparent">
-            {review.verdict.replace("_", " ")}
-          </Badge>
-        )}
-        <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
-          {findings.length} finding{findings.length === 1 ? "" : "s"}
-          {blockers > 0 ? ` · ${blockers} blocker${blockers === 1 ? "" : "s"}` : ""}
-        </span>
-        <span style={{ flex: 1 }} />
-        {review.score != null && (
-          <Badge mono color="var(--text-secondary)">
-            {review.score}
-          </Badge>
-        )}
-        <RunCostBadge costUsd={costUsd} />
-        <span className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>
-          {formatWhen(review.created_at)}
-        </span>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "13px 16px" }}>
         <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setConfirming(true);
+          type="button"
+          aria-expanded={open}
+          onClick={onToggle}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            padding: 0,
+            border: "none",
+            background: "none",
+            font: "inherit",
+            textAlign: "left",
+            cursor: "pointer",
+            color: "var(--text-primary)",
           }}
+        >
+          <Icon.Cpu size={15} style={{ color: "var(--text-muted)" }} />
+          <span style={{ fontWeight: 600, fontSize: 14 }}>{review.agent_name ?? "Agent"}</span>
+          {review.verdict && (
+            <Badge color={verdictColor} bg="transparent">
+              {review.verdict.replace("_", " ")}
+            </Badge>
+          )}
+          <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
+            {findings.length} finding{findings.length === 1 ? "" : "s"}
+            {blockers > 0 ? ` · ${blockers} blocker${blockers === 1 ? "" : "s"}` : ""}
+          </span>
+          <span style={{ flex: 1 }} />
+          {review.score != null && (
+            <Badge mono color="var(--text-secondary)">
+              {review.score}
+            </Badge>
+          )}
+          <RunCostBadge costUsd={costUsd} />
+          <span className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>
+            {formatWhen(review.created_at)}
+          </span>
+          <Icon.ChevronDown
+            size={16}
+            style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .15s", color: "var(--text-muted)" }}
+          />
+        </button>
+        <button
+          type="button"
+          onClick={() => setConfirming(true)}
           disabled={del.isPending}
-          title="Delete this review run"
-          aria-label="Delete this review run"
+          title={t("deleteReview.button")}
+          aria-label={t("deleteReview.button")}
           style={{
             background: "none",
             border: "none",
@@ -122,10 +128,6 @@ export function ReviewRunAccordion({
         >
           <Icon.Trash size={14} style={del.isPending ? { animation: "ddspin 1s linear infinite" } : undefined} />
         </button>
-        <Icon.ChevronDown
-          size={16}
-          style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .15s", color: "var(--text-muted)" }}
-        />
       </div>
 
       {open && (
@@ -151,18 +153,16 @@ export function ReviewRunAccordion({
         </div>
       )}
       {confirming && (
-        <div onClick={(e) => e.stopPropagation()}>
-          <ConfirmDialog
-            title={t("deleteReview.title")}
-            message={t("deleteReview.confirm", { agent: review.agent_name ?? t("deleteReview.fallbackAgent") })}
-            confirmLabel={t("deleteReview.confirmLabel")}
-            onConfirm={() => {
-              setConfirming(false);
-              del.mutate(review.id);
-            }}
-            onCancel={() => setConfirming(false)}
-          />
-        </div>
+        <ConfirmDialog
+          title={t("deleteReview.title")}
+          message={t("deleteReview.confirm", { agent: review.agent_name ?? t("deleteReview.fallbackAgent") })}
+          confirmLabel={t("deleteReview.confirmLabel")}
+          onConfirm={() => {
+            setConfirming(false);
+            del.mutate(review.id);
+          }}
+          onCancel={() => setConfirming(false)}
+        />
       )}
     </div>
   );

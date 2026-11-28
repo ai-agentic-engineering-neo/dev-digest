@@ -96,7 +96,7 @@ export default function AgentEditorPage() {
                 key={a.id}
                 ag={a}
                 active={a.id === id}
-                onClick={() => router.push(`/agents/${a.id}?tab=${tab}`)}
+                href={`/agents/${a.id}?tab=${tab}`}
                 onToggle={(enabled) => update.mutate({ id: a.id, patch: { enabled } })}
               />
             ))}

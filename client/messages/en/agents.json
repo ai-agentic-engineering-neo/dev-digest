@@ -2,6 +2,7 @@
   "card": {
     "noDescription": "No description",
     "skillCount": "{count} skills",
+    "deleteButton": "Delete agent",
     "deleteTitle": "Delete agent",
     "deleteConfirm": "Delete agent \"{name}\"? This cannot be undone.",
     "deleteLabel": "Delete"

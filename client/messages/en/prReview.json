@@ -92,6 +92,7 @@
     "refreshing": "Refreshing…",
     "filterPlaceholder": "Filter pull requests…",
     "sort": {
+      "label": "Sort pull requests",
       "newest": "Sort: Newest",
       "oldest": "Sort: Oldest"
     },
@@ -137,6 +138,7 @@
     "confirmLabel": "Delete"
   },
   "deleteReview": {
+    "button": "Delete this review run",
     "title": "Delete review run",
     "confirm": "Delete this \"{agent}\" review run and its findings?",
     "fallbackAgent": "agent",

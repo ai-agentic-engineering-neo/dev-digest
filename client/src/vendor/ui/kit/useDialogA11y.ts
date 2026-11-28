@@ -32,6 +32,7 @@ export function useDialogA11y(onClose?: () => void) {
   }, []);
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.defaultPrevented) return; // a nested dialog already handled this key
     if (e.key === "Escape" && onClose) {
       e.stopPropagation();
       onClose();

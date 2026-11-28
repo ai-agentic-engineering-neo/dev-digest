@@ -21,6 +21,7 @@ export function CodeLine({
   commenting?: DiffCommentApi;
 }) {
   const [hover, setHover] = React.useState(false);
+  const [focused, setFocused] = React.useState(false);
   const [composing, setComposing] = React.useState(false);
 
   if (ln.kind === "hunk") {
@@ -33,13 +34,18 @@ export function CodeLine({
 
   const sign = ln.kind === "add" ? "+" : ln.kind === "del" ? "−" : "";
   const target = commenting?.canComment ? commentTargetFor(ln) : null;
-  const showAdd = hover && !!target && !composing;
+  const showAdd = !!target && !composing;
+  const addVisible = hover || focused;
 
   return (
+    // Hover/focus only reveal the "+" button; it is a real button and stays in the tab order.
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions
     <div
       style={cs.rowWrap}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
     >
       <div style={lineRowFor(ln.kind)}>
         <span className="mono tnum" style={{ ...s.lineNo, position: "relative" }}>
@@ -49,7 +55,7 @@ export function CodeLine({
               title="Add a comment on this line"
               aria-label="Add a comment on this line"
               onClick={() => setComposing(true)}
-              style={cs.addBtn}
+              style={addVisible ? cs.addBtn : { ...cs.addBtn, ...cs.addBtnHidden }}
             >
               +
             </button>

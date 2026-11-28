@@ -6,11 +6,13 @@
 "use client";
 
 import React from "react";
+import { useTranslations } from "next-intl";
 import { Icon, Badge } from "@devdigest/ui";
 import type { ReviewRecord, Verdict } from "@devdigest/shared";
 import { FindingsPanel } from "../FindingsPanel";
 import { VerdictBanner } from "../VerdictBanner";
 import { useDeleteReview } from "../../../../../../../lib/hooks/reviews";
+import { RunCostBadge } from "@/components/run-cost-badge";
 
 const VERDICT_COLOR: Record<string, string> = {
   request_changes: "var(--crit)",
@@ -42,6 +44,7 @@ export function ReviewRunAccordion({
   targetRunId?: string | null;
   targetNonce?: number;
 }) {
+  const t = useTranslations("prReview");
   const [open, setOpen] = React.useState(defaultOpen);
   const rootRef = React.useRef<HTMLDivElement | null>(null);
   React.useEffect(() => {
@@ -103,6 +106,14 @@ export function ReviewRunAccordion({
             {review.score}
           </Badge>
         )}
+        <RunCostBadge
+          variant="detailed"
+          costUsd={review.cost_usd}
+          tokensIn={review.tokens_in}
+          tokensOut={review.tokens_out}
+          title={t("reviewRun.cost.title")}
+          ariaLabel={(cost) => t("reviewRun.cost.aria", { cost })}
+        />
         <span className="mono" style={{ fontSize: 12, color: "var(--text-muted)" }}>
           {formatWhen(review.created_at)}
         </span>

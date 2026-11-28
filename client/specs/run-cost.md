@@ -62,6 +62,7 @@ Both vendored contract copies (`server/src/vendor/shared`, `client/src/vendor/sh
 | PR list | `pulls/_components/PRRow` | new grid cell between Score and Status; old inline badge next to `#number` removed |
 | PR list | `pulls/constants.ts` `GRID`, `COLUMN_KEYS`; `messages/en/prReview.json` `list.columns.cost` | new "Cost" header |
 | PR page | `[number]/_components/ReviewRunAccordion` | `RunCostBadge variant="detailed"` (`$0.014 · 8.2K→1.3K`) before the time |
+| PR page | `[number]/_components/RunHistory` (timeline row) | same detailed badge before the run time; only for `done` runs |
 | Run drawer | `RunTraceDrawer/_components/TraceBody` | Cost stat (kept from v1, unknown → `—`) |
 
 ## Tests
@@ -71,4 +72,6 @@ Both vendored contract copies (`server/src/vendor/shared`, `client/src/vendor/sh
 - server integration: `test/reviews.it.test.ts` asserts `agent_runs.cost_usd`
   is persisted and exposed by `/pulls/:id/reviews` and `/repos/:id/pulls`.
 - client: `RunCostBadge.test.tsx` (both variants, `—`, no `$0.00`),
-  `PRRow.test.tsx` (Cost column), `ReviewRunAccordion.test.tsx` (cost next to time).
+  `PRRow.test.tsx` (Cost column), `ReviewRunAccordion.test.tsx` and
+  `RunHistory.test.tsx` (cost next to time, no price for failed/running runs),
+  `RunTraceDrawer.test.tsx` (Cost stat, `—` when unknown).

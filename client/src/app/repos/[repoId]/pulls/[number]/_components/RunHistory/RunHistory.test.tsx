@@ -73,3 +73,28 @@ describe("RunHistory — outcome badge", () => {
     expect(screen.getByText("running")).toBeInTheDocument();
   });
 });
+
+describe("RunHistory — run cost next to the run time", () => {
+  it("a done run shows its cost and tokens before the time it ran", () => {
+    renderRuns([run({ status: "done", cost_usd: 0.0017, tokens_in: 16181, tokens_out: 1214 })]);
+    const badge = screen.getByTestId("run-cost-badge");
+    expect(badge.textContent).toBe("$0.0017 · 16.2K→1.2K");
+    expect(badge.nextElementSibling?.textContent).toBe(
+      new Date("2026-06-11T18:44:34.000Z").toLocaleTimeString(),
+    );
+  });
+
+  it("a failed or running run never shows a price", () => {
+    renderRuns([
+      run({ run_id: "r-failed", status: "failed", error: "quota", cost_usd: 0.5 }),
+      run({ run_id: "r-running", status: "running", cost_usd: 0.5 }),
+    ]);
+    expect(screen.queryByTestId("run-cost-badge")).toBeNull();
+  });
+
+  it("a done run without a recorded cost shows no price (not $0.00)", () => {
+    renderRuns([run({ status: "done", cost_usd: null })]);
+    expect(screen.queryByTestId("run-cost-badge")).toBeNull();
+    expect(screen.queryByText(/\$0\.00/)).toBeNull();
+  });
+});

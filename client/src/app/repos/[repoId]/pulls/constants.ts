@@ -51,14 +51,8 @@ export const COLUMN_KEYS: string[] = [
   "updated",
 ];
 
-/** Number of skeleton rows shown while loading. */
-export const SKELETON_ROWS = 4;
-
-export type PrSize = "S" | "M" | "L";
-export type SizeInfo = { size: PrSize; lines: number };
-
-/** Re-exported for helpers that consume PrMeta. */
-export type { PrMeta };
+/* Severity order and filter levels: shared by the PR list (FindingsCell) and
+   the PR detail (FindingsPanel, SeverityFilter), so they live at the route. */
 
 /** Sort weight per severity (lower = shown first). */
 export const SEVERITY_ORDER: Record<string, number> = {
@@ -70,6 +64,15 @@ export const SEVERITY_ORDER: Record<string, number> = {
 
 /** Levels shown in the severity filter, in display order. */
 export const SEVERITY_FILTERS: readonly Severity[] = ["CRITICAL", "WARNING", "SUGGESTION"];
+
+/** Number of skeleton rows shown while loading. */
+export const SKELETON_ROWS = 4;
+
+export type PrSize = "S" | "M" | "L";
+export type SizeInfo = { size: PrSize; lines: number };
+
+/** Re-exported for helpers that consume PrMeta. */
+export type { PrMeta };
 
 /** Placeholder for a run with no cost data — never "$0.00". */
 export const NO_COST = "—";

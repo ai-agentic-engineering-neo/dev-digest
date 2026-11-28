@@ -110,37 +110,18 @@ file's untouched lines is.
 
 ## Imports
 
-`pnpm deps:validate` (config `client/.dependency-cruiser.cjs`) enforces the
-bullets marked **[enforced]**; the others are by convention and unchecked. Its
-rules: `lib-and-components-never-import-app`, `lib-never-imports-components`,
-`route-never-imports-unrelated-route`, `component-folder-entered-through-index`,
-`nested-component-folder-entered-through-index`,
-`nested-loose-file-enters-component-through-index`,
-`shared-component-folder-entered-through-index`,
-`non-component-file-enters-component-through-index`,
-`helpers-and-constants-stay-pure`.
-
-- **[enforced]** `src/lib` and `src/components` never import from `src/app`.
-  `src/lib` never imports from `src/components`.
-- **[enforced]** A route never imports from an unrelated route (`app/agents` ↔
-  `app/repos`).
-- A route folder's own files never import from a route nested below it
-  **[not enforced]**, and never from inside a component folder **[enforced]**
-  (for its `constants`/`helpers`/`styles`).
-- **[enforced]** Another component folder is entered only through its
-  `index.ts`: `from "../FindingCard"`, never
-  `from "../FindingsPanel/constants"`. This covers route components, nested
-  ones (a nested component may use its parent's files, not a sibling's),
-  `src/components/<name>/` folders, and files in no component (pages, route
-  `helpers.ts`, `src/lib`). Only `constants`, `helpers` and `styles` are
-  checked, not other files in the folder. Needing another folder's constant
-  or helper means it has two consumers: move it down a row in the table above.
-- **[enforced]** `helpers.ts` and `constants.ts` import no React, Next,
-  TanStack Query or next-intl.
+- `src/lib` and `src/components` never import from `src/app`. `src/lib` never
+  imports from `src/components`.
+- A route never imports from an unrelated route (`app/agents` ↔ `app/repos`).
+- A route folder's own files never import from a route nested below it, and
+  never from inside a component folder.
+- Another component folder is entered only through its `index.ts`:
+  `from "../FindingCard"`, never `from "../FindingsPanel/constants"`. Needing
+  another folder's constant or helper means it has two consumers: move it down
+  a row in the table above.
 - Reach shared code as `@/lib/…` and `@/components/…`, not by climbing with
-  `../../..`. Inside a route folder use relative paths. **[not enforced]**
+  `../../..`. Inside a route folder use relative paths.
 - UI comes from the `@devdigest/ui` barrel, API types from `@devdigest/shared`.
-  **[not enforced]**
 
 ## Data
 
@@ -163,17 +144,8 @@ rules: `lib-and-components-never-import-app`, `lib-never-imports-components`,
 
 ## Check before you finish
 
-From `client/`. First the import rules, which `pnpm deps:validate` checks
-mechanically (config: `.dependency-cruiser.cjs`; CI runs it) and which must
-print no violation. It replaces checks 2, 3 and 4 below (they are kept as the
-by-hand cross-check of what it covers: another component folder's internals
-anywhere in `src/app` or `src/components`, imports upward into `src/app` or
-`src/components`, and framework imports in a pure file). Run the others by
-hand; your diff must not add a line to any of them.
-
-```sh
-pnpm deps:validate
-```
+From `client/`. These print the offenders that already exist; your diff must
+not add a line to any of them.
 
 ```sh
 # 1. top-level constants and helper functions in a .tsx

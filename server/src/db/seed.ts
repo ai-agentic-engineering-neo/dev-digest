@@ -289,26 +289,30 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       findingsCount: 2,
       grounding: '2/2 passed',
     };
-    const [run] = await db
-      .insert(t.agentRuns)
-      .values({
-        workspaceId,
-        agentId: securityAgent.id,
-        prId: pr!.id,
-        provider: securityAgent.provider,
-        model: securityAgent.model,
-        status: 'done',
-        score: 61,
-        blockers: 1,
-        ...seedRun,
-      })
-      .returning();
-    await db.insert(t.runTraces).values({ runId: run!.id, trace: seedRunTrace(securityAgent, seedRun) });
-    // Attach the sample review (created above without a run) to this run.
-    await db
-      .update(t.reviews)
-      .set({ runId: run!.id, agentId: securityAgent.id })
-      .where(and(eq(t.reviews.prId, pr!.id), eq(t.reviews.model, 'seed'), isNull(t.reviews.runId)));
+    // One transaction: a half-written run would make the idempotency guard
+    // above skip this block forever, leaving a run with no trace.
+    await db.transaction(async (tx) => {
+      const [run] = await tx
+        .insert(t.agentRuns)
+        .values({
+          workspaceId,
+          agentId: securityAgent.id,
+          prId: pr!.id,
+          provider: securityAgent.provider,
+          model: securityAgent.model,
+          status: 'done',
+          score: 61,
+          blockers: 1,
+          ...seedRun,
+        })
+        .returning();
+      await tx.insert(t.runTraces).values({ runId: run!.id, trace: seedRunTrace(securityAgent, seedRun) });
+      // Attach the sample review (created above without a run) to this run.
+      await tx
+        .update(t.reviews)
+        .set({ runId: run!.id, agentId: securityAgent.id })
+        .where(and(eq(t.reviews.prId, pr!.id), eq(t.reviews.model, 'seed'), isNull(t.reviews.runId)));
+    });
   }
 
   // ---- PR #482: a second agent's run and review (Performance Reviewer) ----
@@ -339,76 +343,80 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
         findingsCount: 3,
         grounding: '3/3 passed',
       };
-      const [run] = await db
-        .insert(t.agentRuns)
-        .values({
-          workspaceId,
-          agentId: performanceAgent.id,
-          prId: pr!.id,
-          provider: performanceAgent.provider,
-          model: performanceAgent.model,
-          status: 'done',
-          score: 84,
-          blockers: 0,
-          ranAt,
-          ...seedRun,
-        })
-        .returning();
-      await db.insert(t.runTraces).values({ runId: run!.id, trace: seedRunTrace(performanceAgent, seedRun) });
-      const [review] = await db
-        .insert(t.reviews)
-        .values({
-          workspaceId,
-          prId: pr!.id,
-          agentId: performanceAgent.id,
-          runId: run!.id,
-          kind: 'review',
-          verdict: 'comment',
-          summary:
-            'The limiter is correct but adds a Redis round-trip to every public request, and two smaller hot-path costs are worth removing.',
-          score: 84,
-          model: 'seed',
-          createdAt: ranAt,
-        })
-        .returning();
-      await db.insert(t.findings).values([
-        {
-          reviewId: review!.id,
-          file: 'src/middleware/ratelimit.ts',
-          startLine: 41,
-          endLine: 48,
-          severity: 'WARNING',
-          category: 'perf',
-          title: 'Rate limiter makes a Redis round-trip on every request',
-          rationale: 'Each request awaits INCR and EXPIRE as two separate commands before the handler runs.',
-          suggestion: 'Send both commands in one pipeline, or use a Lua script.',
-          confidence: 0.82,
-        },
-        {
-          reviewId: review!.id,
-          file: 'src/middleware/ratelimit.ts',
-          startLine: 17,
-          endLine: 17,
-          severity: 'SUGGESTION',
-          category: 'perf',
-          title: 'Compile the route patterns once at startup',
-          rationale: 'The limiter builds a RegExp from the route table inside the request handler.',
-          suggestion: 'Build the patterns when the middleware is created and reuse them.',
-          confidence: 0.74,
-        },
-        {
-          reviewId: review!.id,
-          file: 'src/api/public/webhooks.ts',
-          startLine: 22,
-          endLine: 25,
-          severity: 'SUGGESTION',
-          category: 'perf',
-          title: 'Webhook handler may parse the body twice',
-          rationale: 'The signature check and the handler each appear to call JSON.parse on the raw body.',
-          suggestion: 'Parse once and pass the parsed payload to the handler.',
-          confidence: 0.55,
-        },
-      ]);
+      // One transaction, so a failure cannot leave an orphan run and trace
+      // that the review-based idempotency guard would re-add on every seed.
+      await db.transaction(async (tx) => {
+        const [run] = await tx
+          .insert(t.agentRuns)
+          .values({
+            workspaceId,
+            agentId: performanceAgent.id,
+            prId: pr!.id,
+            provider: performanceAgent.provider,
+            model: performanceAgent.model,
+            status: 'done',
+            score: 84,
+            blockers: 0,
+            ranAt,
+            ...seedRun,
+          })
+          .returning();
+        await tx.insert(t.runTraces).values({ runId: run!.id, trace: seedRunTrace(performanceAgent, seedRun) });
+        const [review] = await tx
+          .insert(t.reviews)
+          .values({
+            workspaceId,
+            prId: pr!.id,
+            agentId: performanceAgent.id,
+            runId: run!.id,
+            kind: 'review',
+            verdict: 'comment',
+            summary:
+              'The limiter is correct but adds a Redis round-trip to every public request, and two smaller hot-path costs are worth removing.',
+            score: 84,
+            model: 'seed',
+            createdAt: ranAt,
+          })
+          .returning();
+        await tx.insert(t.findings).values([
+          {
+            reviewId: review!.id,
+            file: 'src/middleware/ratelimit.ts',
+            startLine: 41,
+            endLine: 48,
+            severity: 'WARNING',
+            category: 'perf',
+            title: 'Rate limiter makes a Redis round-trip on every request',
+            rationale: 'Each request awaits INCR and EXPIRE as two separate commands before the handler runs.',
+            suggestion: 'Send both commands in one pipeline, or use a Lua script.',
+            confidence: 0.82,
+          },
+          {
+            reviewId: review!.id,
+            file: 'src/middleware/ratelimit.ts',
+            startLine: 17,
+            endLine: 17,
+            severity: 'SUGGESTION',
+            category: 'perf',
+            title: 'Compile the route patterns once at startup',
+            rationale: 'The limiter builds a RegExp from the route table inside the request handler.',
+            suggestion: 'Build the patterns when the middleware is created and reuse them.',
+            confidence: 0.74,
+          },
+          {
+            reviewId: review!.id,
+            file: 'src/api/public/webhooks.ts',
+            startLine: 22,
+            endLine: 25,
+            severity: 'SUGGESTION',
+            category: 'perf',
+            title: 'Webhook handler may parse the body twice',
+            rationale: 'The signature check and the handler each appear to call JSON.parse on the raw body.',
+            suggestion: 'Parse once and pass the parsed payload to the handler.',
+            confidence: 0.55,
+          },
+        ]);
+      });
     }
   }
 

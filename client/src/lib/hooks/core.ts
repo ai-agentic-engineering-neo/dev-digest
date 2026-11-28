@@ -5,6 +5,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import type { RepoRefreshResponse } from "@devdigest/shared";
 import { api } from "../api";
 import type {
   Settings,
@@ -82,7 +83,7 @@ export function useAddRepo() {
 export function useRefreshRepo() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (repoId: string) => api.post<Repo>(`/repos/${repoId}/refresh`),
+    mutationFn: (repoId: string) => api.post<RepoRefreshResponse>(`/repos/${repoId}/refresh`),
     onSuccess: (_d, repoId) => {
       qc.invalidateQueries({ queryKey: ["repos"] });
       qc.invalidateQueries({ queryKey: ["pulls", repoId] });

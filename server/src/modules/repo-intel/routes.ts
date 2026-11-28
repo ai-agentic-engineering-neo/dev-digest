@@ -12,9 +12,18 @@
  */
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
+import { z } from 'zod';
+import { RepoIntelState } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
-import type { IndexState } from './types.js';
+
+/** 202 body of POST /repos/:id/resync — queued, or accepted-but-degraded. */
+const ResyncResponse = z.object({
+  status: z.literal('accepted'),
+  jobId: z.string().optional(),
+  degraded: z.boolean().optional(),
+  reason: z.string().optional(),
+});
 
 export default async function repoIntelRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
@@ -27,18 +36,19 @@ export default async function repoIntelRoutes(appBase: FastifyInstance) {
 
   app.get(
     '/repos/:id/index-state',
-    { schema: { params: IdParams } },
-    async (req): Promise<IndexState> => {
+    { schema: { params: IdParams, response: { 200: RepoIntelState } } },
+    async (req) => {
       // Resolve tenancy so the request is workspace-scoped even though the
       // facade itself is tenant-agnostic (consistent with blast routes).
       await getContext(container, req);
-      return container.repoIntel.getIndexState(req.params.id);
+      const state = await container.repoIntel.getIndexState(req.params.id);
+      return { ...state, updatedAt: state.updatedAt.toISOString() };
     },
   );
 
   app.post(
     '/repos/:id/resync',
-    { schema: { params: IdParams } },
+    { schema: { params: IdParams, response: { 202: ResyncResponse } } },
     async (req, reply) => {
       const { workspaceId } = await getContext(container, req);
       // 202 even when the job could not be queued, so the UI can still poll
@@ -46,8 +56,8 @@ export default async function repoIntelRoutes(appBase: FastifyInstance) {
       const jobId = await service.requestResync(workspaceId, req.params.id);
       reply.code(202);
       return jobId
-        ? { status: 'accepted', jobId }
-        : { status: 'accepted', degraded: true, reason: 'no_handler' };
+        ? { status: 'accepted' as const, jobId }
+        : { status: 'accepted' as const, degraded: true, reason: 'no_handler' };
     },
   );
 }

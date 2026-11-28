@@ -1,3 +1,4 @@
+import type { WorkspaceOverview } from '@devdigest/shared';
 import type { RepoLister } from './ports.js';
 
 /**
@@ -5,18 +6,6 @@ import type { RepoLister } from './ports.js';
  * Cleanup/re-pull of individual repos is handled by the repos module
  * (refresh/delete); this surface gives the UI an overview.
  */
-
-export interface WorkspaceOverview {
-  workspaceId: string;
-  cloneDir: string;
-  repos: {
-    id: string;
-    full_name: string;
-    clone_path: string | null;
-    last_polled_at: string | null;
-    cloned: boolean;
-  }[];
-}
 
 export interface WorkspaceServiceDeps {
   repos: RepoLister;

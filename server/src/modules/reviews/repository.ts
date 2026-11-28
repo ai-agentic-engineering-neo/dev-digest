@@ -1,6 +1,6 @@
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
-import type { Intent, RunSummary, RunTrace } from '@devdigest/shared';
+import type { FindingRecord, Intent, ReviewRecord, RunSummary, RunTrace } from '@devdigest/shared';
 
 /**
  * A2 — review data-access. The ONLY layer touching the DB for the review
@@ -18,7 +18,6 @@ import type { Intent, RunSummary, RunTrace } from '@devdigest/shared';
 import * as reviewRepo from './repository/review.repo.js';
 import * as runRepo from './repository/run.repo.js';
 import * as pullRepo from './repository/pull.repo.js';
-import type { ReviewDto, ReviewDtoFinding } from './domain.js';
 import type { ReviewOutcome, ReviewStore, RunCompletion } from './ports.js';
 
 export class ReviewRepository implements ReviewStore {
@@ -44,7 +43,7 @@ export class ReviewRepository implements ReviewStore {
   }
 
   /** Reviews for a PR (newest first), each with its findings. */
-  reviewsForPull(prId: string): Promise<ReviewDto[]> {
+  reviewsForPull(prId: string): Promise<ReviewRecord[]> {
     return reviewRepo.reviewsForPull(this.db, prId);
   }
 
@@ -112,11 +111,11 @@ export class ReviewRepository implements ReviewStore {
     return reviewRepo.findingWorkspace(this.db, findingId);
   }
 
-  setFindingAccepted(findingId: string, at: Date | null): Promise<ReviewDtoFinding | undefined> {
+  setFindingAccepted(findingId: string, at: Date | null): Promise<FindingRecord | undefined> {
     return reviewRepo.setFindingAccepted(this.db, findingId, at);
   }
 
-  setFindingDismissed(findingId: string, at: Date | null): Promise<ReviewDtoFinding | undefined> {
+  setFindingDismissed(findingId: string, at: Date | null): Promise<FindingRecord | undefined> {
     return reviewRepo.setFindingDismissed(this.db, findingId, at);
   }
 

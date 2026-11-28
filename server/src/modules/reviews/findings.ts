@@ -1,6 +1,5 @@
-import type { FindingActionKind } from '@devdigest/shared';
+import type { FindingActionKind, FindingRecord } from '@devdigest/shared';
 import { BadRequestError, NotFoundError } from '../../platform/errors.js';
-import type { ReviewDtoFinding } from './domain.js';
 import type { ReviewStore } from './ports.js';
 
 /**
@@ -13,7 +12,7 @@ export async function actOnFinding(
   workspaceId: string,
   findingId: string,
   action: FindingActionKind,
-): Promise<{ finding: ReviewDtoFinding }> {
+): Promise<{ finding: FindingRecord }> {
   if ((await store.findingWorkspace(findingId)) !== workspaceId) {
     throw new NotFoundError('Finding not found');
   }

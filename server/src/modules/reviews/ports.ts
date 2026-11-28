@@ -7,10 +7,11 @@ import type {
   RunSummary,
   RunTrace,
   UnifiedDiff,
+  FindingRecord,
+  ReviewRecord,
 } from '@devdigest/shared';
 import type { RepoIntel } from '../repo-intel/index.js';
 import type { RunEventBus } from '../../platform/run-logger.js';
-import type { ReviewDto, ReviewDtoFinding } from './domain.js';
 
 /**
  * A2 — what the review use cases need from the outside world. `routes.ts`
@@ -103,14 +104,14 @@ export interface ReviewStore {
    */
   saveReviewOutcome(outcome: ReviewOutcome): Promise<{ reviewId: string } | null>;
   /** Reviews for a PR (newest first), each with its findings; `agent_name` unset. */
-  reviewsForPull(prId: string): Promise<ReviewDto[]>;
+  reviewsForPull(prId: string): Promise<ReviewRecord[]>;
   /** False when the review is not in the workspace. */
   deleteReview(workspaceId: string, reviewId: string): Promise<boolean>;
 
   /** The workspace a finding belongs to (through its review), if it exists. */
   findingWorkspace(findingId: string): Promise<string | undefined>;
-  setFindingAccepted(findingId: string, at: Date | null): Promise<ReviewDtoFinding | undefined>;
-  setFindingDismissed(findingId: string, at: Date | null): Promise<ReviewDtoFinding | undefined>;
+  setFindingAccepted(findingId: string, at: Date | null): Promise<FindingRecord | undefined>;
+  setFindingDismissed(findingId: string, at: Date | null): Promise<FindingRecord | undefined>;
 
   /** In-flight runs for a PR — the server-side source of truth. */
   activeRunsForPull(

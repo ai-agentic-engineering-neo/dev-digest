@@ -1,11 +1,11 @@
-import type { Agent, FindingActionKind, RunEventKind, RunTrace } from '@devdigest/shared';
+import type { Agent, FindingActionKind, FindingRecord, ReviewRecord, RunEventKind, RunTrace } from '@devdigest/shared';
 import { BadRequestError, NotFoundError } from '../../platform/errors.js';
-import { replayEvents, type ReviewDto, type ReviewDtoFinding, type RunEventSource } from './domain.js';
+import { replayEvents, type RunEventSource } from './domain.js';
 import { ReviewRunExecutor, type RunExecutorDeps } from './run-executor.js';
 import { actOnFinding as actOnFindingImpl } from './findings.js';
 import type { AgentLookup, Logger, RepoLookup } from './ports.js';
 
-export type { ReviewDto, ReviewDtoFinding, RunEventSource } from './domain.js';
+export type { RunEventSource } from './domain.js';
 
 /**
  * Review service (the core). Orchestrates:
@@ -116,7 +116,7 @@ export class ReviewService {
     prId: string,
     targets: Agent[],
     logger?: Logger,
-  ): Promise<{ runs: { run_id: string; agent_id: string; agent_name: string }[]; reviews: ReviewDto[] }> {
+  ): Promise<{ runs: { run_id: string; agent_id: string; agent_name: string }[]; reviews: ReviewRecord[] }> {
     const pull = await this.deps.pulls.getById(workspaceId, prId);
     if (!pull) throw new NotFoundError('Pull request not found');
     const repo = await this.deps.repos.getById(workspaceId, pull.repoId);
@@ -183,7 +183,7 @@ export class ReviewService {
     workspaceId: string,
     findingId: string,
     action: FindingActionKind,
-  ): Promise<{ finding: ReviewDtoFinding }> {
+  ): Promise<{ finding: FindingRecord }> {
     return actOnFindingImpl(this.deps.store, workspaceId, findingId, action);
   }
 
@@ -191,7 +191,7 @@ export class ReviewService {
   // Reads
   // ===========================================================================
 
-  async reviewsForPull(workspaceId: string, prId: string): Promise<ReviewDto[]> {
+  async reviewsForPull(workspaceId: string, prId: string): Promise<ReviewRecord[]> {
     const pull = await this.deps.pulls.getById(workspaceId, prId);
     if (!pull) throw new NotFoundError('Pull request not found');
     const reviews = await this.deps.store.reviewsForPull(prId);

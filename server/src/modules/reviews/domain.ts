@@ -2,29 +2,7 @@
  * Review domain: the shapes the service returns and the rules that need no
  * I/O. Side-effect free — no DB, no network, no clock.
  */
-import type { Finding, RunEvent, RunLogLine, UnifiedDiff } from '@devdigest/shared';
-
-export interface ReviewDtoFinding extends Finding {
-  review_id: string;
-  accepted_at: string | null;
-  dismissed_at: string | null;
-}
-
-export interface ReviewDto {
-  id: string;
-  pr_id: string;
-  agent_id: string | null;
-  run_id: string | null;
-  agent_name?: string | null;
-  kind: 'summary' | 'review';
-  verdict: string | null;
-  summary: string | null;
-  score: number | null;
-  model: string | null;
-  grounding?: string | null;
-  created_at: string;
-  findings: ReviewDtoFinding[];
-}
+import type { RunEvent, RunLogLine, UnifiedDiff } from '@devdigest/shared';
 
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
 export class RunCancelledError extends Error {

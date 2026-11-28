@@ -1,9 +1,17 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { RunRequest } from '@devdigest/shared';
+import {
+  ActiveRun,
+  FindingActionResponse,
+  ReviewRecord,
+  ReviewRunResponse,
+  RunRequest,
+  RunSummary,
+  RunTrace,
+} from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
-import { IdParams } from '../_shared/schemas.js';
+import { IdParams, OkResponse } from '../_shared/schemas.js';
 import { NotFoundError } from '../../platform/errors.js';
 import { liveRunFrames, toSseFrame } from '../../platform/sse.js';
 import { ReviewService } from './service.js';
@@ -44,7 +52,7 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
   app.post(
     '/pulls/:id/review',
     {
-      schema: { params: IdParams, body: RunRequestBody },
+      schema: { params: IdParams, body: RunRequestBody, response: { 200: ReviewRunResponse } },
       config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
     },
     async (req) => {
@@ -92,33 +100,41 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
   });
 
   // ---- Active (in-flight) runs for a PR (server source of truth) ----------
-  app.get('/pulls/:id/runs/active', { schema: { params: IdParams } }, async (req) => {
+  app.get(
+    '/pulls/:id/runs/active',
+    { schema: { params: IdParams, response: { 200: z.array(ActiveRun) } } },
+    async (req) => {
     const { workspaceId } = await getContext(container, req);
     return service.activeRuns(workspaceId, req.params.id);
-  });
+  },
+  );
 
   // ---- All runs for a PR (any status; the run history, incl. failures) -----
-  app.get('/pulls/:id/runs', { schema: { params: IdParams } }, async (req) => {
+  app.get(
+    '/pulls/:id/runs',
+    { schema: { params: IdParams, response: { 200: z.array(RunSummary) } } },
+    async (req) => {
     const { workspaceId } = await getContext(container, req);
     return service.listRuns(workspaceId, req.params.id);
-  });
+  },
+  );
 
   // ---- Delete one run from the history (+ its trace) ----------------------
-  app.delete('/runs/:id', { schema: { params: IdParams } }, async (req) => {
+  app.delete('/runs/:id', { schema: { params: IdParams, response: { 200: OkResponse } } }, async (req) => {
     const { workspaceId } = await getContext(container, req);
     const ok = await service.deleteRun(workspaceId, req.params.id);
     return { ok };
   });
 
   // ---- Cancel an in-flight run --------------------------------------------
-  app.post('/runs/:id/cancel', { schema: { params: IdParams } }, async (req) => {
+  app.post('/runs/:id/cancel', { schema: { params: IdParams, response: { 200: OkResponse } } }, async (req) => {
     await getContext(container, req);
     await service.cancelRun(req.params.id);
     return { ok: true };
   });
 
   // ---- Run trace (single document; A5 enriches with multi-agent/stats) ----
-  app.get('/runs/:id/trace', { schema: { params: IdParams } }, async (req) => {
+  app.get('/runs/:id/trace', { schema: { params: IdParams, response: { 200: RunTrace } } }, async (req) => {
     await getContext(container, req);
     const trace = await service.getRunTrace(req.params.id);
     if (!trace) throw new NotFoundError('Run trace not found');
@@ -126,13 +142,17 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
   });
 
   // ---- Reads --------------------------------------------------------------
-  app.get('/pulls/:id/reviews', { schema: { params: IdParams } }, async (req) => {
+  app.get(
+    '/pulls/:id/reviews',
+    { schema: { params: IdParams, response: { 200: z.array(ReviewRecord) } } },
+    async (req) => {
     const { workspaceId } = await getContext(container, req);
     return service.reviewsForPull(workspaceId, req.params.id);
-  });
+  },
+  );
 
   // ---- Delete a whole review run (one agent's pass) + its findings --------
-  app.delete('/reviews/:id', { schema: { params: IdParams } }, async (req) => {
+  app.delete('/reviews/:id', { schema: { params: IdParams, response: { 200: OkResponse } } }, async (req) => {
     const { workspaceId } = await getContext(container, req);
     const ok = await service.deleteReview(workspaceId, req.params.id);
     if (!ok) throw new NotFoundError('Review not found');
@@ -141,10 +161,14 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
 
   // ---- Finding actions (accept / dismiss) ---------------------------------
   for (const action of FINDING_ACTIONS) {
-    app.post(`/findings/:id/${action}`, { schema: { params: IdParams } }, async (req) => {
+    app.post(
+      `/findings/:id/${action}`,
+      { schema: { params: IdParams, response: { 200: FindingActionResponse } } },
+      async (req) => {
       const { workspaceId } = await getContext(container, req);
       const result = await service.actOnFinding(workspaceId, req.params.id, action);
       return result;
-    });
+      },
+    );
   }
 }

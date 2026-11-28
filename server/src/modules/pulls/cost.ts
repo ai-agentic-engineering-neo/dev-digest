@@ -1,5 +1,5 @@
 /**
- * Run cost badge (M1): pure helpers that turn persisted agent runs into the
+ * Run cost (PR list COST column): pure helpers that turn persisted agent runs into the
  * "cost of the latest run" shown on each PR row of the list.
  */
 
@@ -12,17 +12,17 @@ export interface PricedRun {
   model: string | null;
   tokensIn: number | null;
   tokensOut: number | null;
-  /** `run_traces.trace.stats.cost_usd`; undefined for traces written before it existed. */
-  traceCostUsd: number | null | undefined;
+  /** `agent_runs.cost_usd`; null when the run predates cost tracking or the price is unknown. */
+  costUsd: number | null | undefined;
 }
 
 /**
- * USD cost of one run. Prefers the cost recorded in the run trace (summed by
+ * USD cost of one run. Prefers the persisted `agent_runs.cost_usd` (summed by
  * reviewer-core over every model call, real OpenRouter cost when available);
- * falls back to estimating from the run's token usage for older traces.
+ * falls back to estimating from the run's token usage for older runs.
  */
 export function runCostUsd(run: PricedRun, estimate: CostEstimator): number | null {
-  if (typeof run.traceCostUsd === 'number') return run.traceCostUsd;
+  if (typeof run.costUsd === 'number') return run.costUsd;
   if (!run.model || run.tokensIn == null || run.tokensOut == null) return null;
   if (run.tokensIn === 0 && run.tokensOut === 0) return null;
   return estimate(run.model, run.tokensIn, run.tokensOut);

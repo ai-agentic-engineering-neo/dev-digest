@@ -9,7 +9,7 @@ import type { PrMeta } from "@/lib/types";
 import { SIZE_COLOR, STATUS_META } from "../../constants";
 import { relativeTime, sizeOf } from "../../helpers";
 import { s } from "../../styles";
-import { formatUsd } from "@/lib/format-usd";
+import { RunCostBadge } from "@/components/run-cost-badge";
 
 export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
   const t = useTranslations("prReview");
@@ -33,17 +33,6 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
             <span className="mono" style={s.rowNumber}>
               #{pr.number}
             </span>
-            {pr.last_run_cost_usd != null && (
-              <span
-                data-testid="run-cost-badge"
-                title={t("list.runCost.title")}
-                aria-label={t("list.runCost.aria", { cost: formatUsd(pr.last_run_cost_usd) })}
-              >
-                <Badge mono color="var(--text-secondary)" style={s.costBadge}>
-                  {formatUsd(pr.last_run_cost_usd)}
-                </Badge>
-              </span>
-            )}
           </span>
         </div>
       </div>
@@ -66,6 +55,13 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
         ) : (
           <span style={s.muted}>—</span>
         )}
+      </div>
+      <div style={s.costCell}>
+        <RunCostBadge
+          costUsd={pr.last_run_cost_usd}
+          title={t("list.runCost.title")}
+          ariaLabel={(cost) => t("list.runCost.aria", { cost })}
+        />
       </div>
       <div>
         <Badge dot color={st.c} bg="transparent">

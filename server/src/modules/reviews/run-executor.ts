@@ -250,6 +250,7 @@ export class ReviewRunExecutor {
         score: outcome.review.score,
         blockers,
         error: null,
+        costUsd,
       });
 
       // Must be emitted BEFORE the trace snapshots the log buffer below, or the

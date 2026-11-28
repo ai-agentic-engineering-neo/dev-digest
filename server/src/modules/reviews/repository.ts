@@ -163,9 +163,16 @@ export class ReviewRepository {
       blockers?: number | null;
       /** Failure reason (status='failed') / cancellation note. Null clears it. */
       error?: string | null;
+      /** Total LLM cost in USD; null when unknown and on failed/cancelled runs. */
+      costUsd?: number | null;
     },
   ): Promise<void> {
     return runRepo.completeAgentRun(this.db, runId, values);
+  }
+
+  /** Tokens + cost of COMPLETED runs, keyed by run id (for review DTOs). */
+  runUsageByIds(runIds: string[]): Promise<Map<string, runRepo.RunUsage>> {
+    return runRepo.runUsageByIds(this.db, runIds);
   }
 
   /** Record the head SHA a review ran against (PR-list freshness derivation). */

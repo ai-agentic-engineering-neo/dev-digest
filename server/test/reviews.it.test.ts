@@ -209,9 +209,15 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(run!.findingsCount).toBe(1);
     expect(run!.grounding).toBe('1/2 passed');
 
-    // Run cost badge: the run's LLM cost is persisted in the trace stats and
-    // surfaced on the PR list as the latest run's cost.
+    // Run cost: persisted on the agent_runs row (cost_usd column) and in the
+    // trace stats, and surfaced on all three screens' endpoints.
     expect(trace.stats.cost_usd).toBeGreaterThan(0);
+    expect(run!.costUsd).toBeCloseTo(trace.stats.cost_usd, 10);
+    expect(review.cost_usd).toBeCloseTo(trace.stats.cost_usd, 10);
+    expect(review.tokens_in).toBe(run!.tokensIn);
+    expect(review.tokens_out).toBe(run!.tokensOut);
+    const runs = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(runs[0].cost_usd).toBeCloseTo(trace.stats.cost_usd, 10);
     // ...and the usage/cost line is in the PERSISTED log, not only the live stream.
     expect(trace.log.some((l: { msg: string }) => /^Usage: \d+ in \/ \d+ out tokens, cost \$/.test(l.msg))).toBe(true);
     const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();

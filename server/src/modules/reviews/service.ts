@@ -168,8 +168,15 @@ export class ReviewService {
         if (a) names.set(review.agentId, a.name);
       }
     }
+    const runIds = rows.map(({ review }) => review.runId).filter((id): id is string => !!id);
+    const usage = await this.repo.runUsageByIds(runIds);
     return rows.map(({ review, findings }) =>
-      reviewToDto(review, findings, review.agentId ? names.get(review.agentId) : null),
+      reviewToDto(
+        review,
+        findings,
+        review.agentId ? names.get(review.agentId) : null,
+        review.runId ? usage.get(review.runId) : null,
+      ),
     );
   }
 

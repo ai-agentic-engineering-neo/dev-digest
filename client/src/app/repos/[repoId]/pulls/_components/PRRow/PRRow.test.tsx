@@ -1,6 +1,6 @@
 /**
- * PRRow — run cost badge: the row shows the USD cost of the PR's latest review
- * run, and shows no badge at all when the PR has never been run.
+ * PRRow — COST column: the row shows the USD cost of the PR's latest completed
+ * review run in its own cell, and a dash (never $0.00) when there is none.
  */
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
@@ -44,22 +44,26 @@ function renderRow(p: PrMeta) {
   );
 }
 
-describe("PRRow run cost badge", () => {
-  it("shows the latest run cost in USD", () => {
+describe("PRRow COST column", () => {
+  it("shows the latest run cost in its own column", () => {
     renderRow(pr({ last_run_cost_usd: 0.00421 }));
     const badge = screen.getByTestId("run-cost-badge");
     expect(badge.textContent).toBe("$0.0042");
     expect(badge.getAttribute("aria-label")).toBe("Latest review run cost $0.0042");
+    // its own grid cell, not inline next to the PR number
+    expect(screen.getByText("#42").contains(badge)).toBe(false);
+    expect(screen.getByText("#42").parentElement!.contains(badge)).toBe(false);
   });
 
-  it("renders no badge when the PR has no runs", () => {
+  it("shows a dash, not $0.00, when the PR has no completed runs", () => {
     renderRow(pr({ score: null, last_run_cost_usd: null }));
-    expect(screen.queryByTestId("run-cost-badge")).toBeNull();
+    expect(screen.getByTestId("run-cost-badge").textContent).toBe("—");
+    expect(screen.queryByText("$0.00")).toBeNull();
   });
 
-  it("renders no badge when the field is absent (older API)", () => {
+  it("shows a dash when the field is absent (older API)", () => {
     renderRow(pr({}));
-    expect(screen.queryByTestId("run-cost-badge")).toBeNull();
+    expect(screen.getByTestId("run-cost-badge").textContent).toBe("—");
   });
 });
 

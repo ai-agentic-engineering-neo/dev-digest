@@ -311,6 +311,15 @@ export const RepoIntelState = z.object({
 });
 export type RepoIntelState = z.infer<typeof RepoIntelState>;
 
+/** 202 body of `POST /repos/:id/resync`: queued (`jobId`), or accepted but degraded. */
+export const ResyncResponse = z.object({
+  status: z.literal('accepted'),
+  jobId: z.string().optional(),
+  degraded: z.boolean().optional(),
+  reason: z.string().optional(),
+});
+export type ResyncResponse = z.infer<typeof ResyncResponse>;
+
 // ---- Run request (review trigger; owned by A2, contract lives here) ----
 export const RunRequest = z.object({
   agentId: z.string().optional(),

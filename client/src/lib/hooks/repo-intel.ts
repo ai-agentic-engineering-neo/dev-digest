@@ -7,7 +7,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { RepoIntelState } from "@devdigest/shared";
+import type { RepoIntelState, ResyncResponse } from "@devdigest/shared";
 import { api } from "../api";
 
 /** GET /repos/:id/index-state → current repo-intel index state.
@@ -28,7 +28,7 @@ export function useRepoIntelStatus(repoId: string | null | undefined, poll = fal
 export function useResyncRepoIntel(repoId: string | null | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => api.post<{ status: string; jobId?: string }>(`/repos/${repoId}/resync`),
+    mutationFn: () => api.post<ResyncResponse>(`/repos/${repoId}/resync`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["repo-intel-state", repoId] });
     },

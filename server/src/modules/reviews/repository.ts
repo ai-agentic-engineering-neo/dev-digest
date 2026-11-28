@@ -1,6 +1,6 @@
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
-import type { FindingRecord, Intent, ReviewRecord, RunSummary, RunTrace } from '@devdigest/shared';
+import type { ActiveRun, FindingRecord, Intent, ReviewRecord, RunSummary, RunTrace } from '@devdigest/shared';
 
 /**
  * A2 — review data-access. The ONLY layer touching the DB for the review
@@ -52,7 +52,7 @@ export class ReviewRepository implements ReviewStore {
   activeRunsForPull(
     workspaceId: string,
     prId: string,
-  ): Promise<{ run_id: string; agent_id: string | null; agent_name: string | null; ran_at: string | null }[]> {
+  ): Promise<ActiveRun[]> {
     return runRepo.activeRunsForPull(this.db, workspaceId, prId);
   }
 

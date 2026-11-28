@@ -1,4 +1,5 @@
 import type {
+  ActiveRun,
   Agent,
   Finding,
   GitClient,
@@ -117,7 +118,7 @@ export interface ReviewStore {
   activeRunsForPull(
     workspaceId: string,
     prId: string,
-  ): Promise<{ run_id: string; agent_id: string | null; agent_name: string | null; ran_at: string | null }[]>;
+  ): Promise<ActiveRun[]>;
   /** All runs for a PR (any status), newest first. */
   listRunsForPull(workspaceId: string, prId: string): Promise<RunSummary[]>;
   deleteAgentRun(workspaceId: string, runId: string): Promise<boolean>;

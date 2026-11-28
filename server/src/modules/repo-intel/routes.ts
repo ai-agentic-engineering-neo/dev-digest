@@ -12,18 +12,9 @@
  */
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { z } from 'zod';
-import { RepoIntelState } from '@devdigest/shared';
+import { RepoIntelState, ResyncResponse } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
-
-/** 202 body of POST /repos/:id/resync — queued, or accepted-but-degraded. */
-const ResyncResponse = z.object({
-  status: z.literal('accepted'),
-  jobId: z.string().optional(),
-  degraded: z.boolean().optional(),
-  reason: z.string().optional(),
-});
 
 export default async function repoIntelRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();

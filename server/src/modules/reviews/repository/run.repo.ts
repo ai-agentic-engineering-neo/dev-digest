@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm';
 import type { Db, DbExecutor } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
-import type { RunSummary, RunTrace } from '@devdigest/shared';
+import type { ActiveRun, RunSummary, RunTrace } from '@devdigest/shared';
 
 // ---- in-flight / history --------------------------------------------------
 
@@ -11,7 +11,7 @@ export async function activeRunsForPull(
   db: Db,
   workspaceId: string,
   prId: string,
-): Promise<{ run_id: string; agent_id: string | null; agent_name: string | null; ran_at: string | null }[]> {
+): Promise<ActiveRun[]> {
   const rows = await db
     .select({
       id: t.agentRuns.id,

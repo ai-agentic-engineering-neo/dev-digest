@@ -9,6 +9,7 @@ import { notify } from "../toast";
 import type {
   ActiveRun,
   FindingActionKind,
+  FindingActionResponse,
   PrReviewComment,
   ReviewRecord,
   ReviewRunResponse,
@@ -144,7 +145,7 @@ export function useFindingAction() {
       reply?: string;
       prId?: string;
     }) =>
-      api.post<{ finding: ReviewRecord["findings"][number]; memoryId?: string }>(
+      api.post<FindingActionResponse>(
         `/findings/${findingId}/${action}`,
         reply ? { reply } : undefined,
       ),

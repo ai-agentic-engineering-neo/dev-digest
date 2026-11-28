@@ -41,4 +41,5 @@ pnpm exec vitest run PRRow   # filter by plain substring — `[repoId]` paths br
 - Hooks: `useXxx` in `src/lib/hooks/<area>.ts`.
 - `@devdigest/shared` resolves to the client's OWN copy in `src/vendor/shared/`;
   a new API field must be added here as well as in the server copy.
-- Money: format with `src/lib/format-usd.ts`; unknown cost renders `—`, never `$0.00`.
+- Money: format with `src/lib/format-usd.ts`; unknown cost renders a dash or nothing, never `$0.00`.
+- Design reference: `DevDigest Design (standalone).html` (course materials); match column order and stat order to it.

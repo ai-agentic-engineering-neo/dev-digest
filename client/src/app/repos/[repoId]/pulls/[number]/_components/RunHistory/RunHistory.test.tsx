@@ -74,12 +74,12 @@ describe("RunHistory — outcome badge", () => {
   });
 });
 
-describe("RunHistory — run cost next to the run time", () => {
-  it("a done run shows its cost and tokens before the time it ran", () => {
-    renderRuns([run({ status: "done", cost_usd: 0.0017, tokens_in: 16181, tokens_out: 1214 })]);
+describe("RunHistory — run cost under the run time", () => {
+  it("a done run shows total tokens and cost under the time it ran", () => {
+    renderRuns([run({ status: "done", cost_usd: 0.0013, tokens_in: 8000, tokens_out: 1119 })]);
     const badge = screen.getByTestId("run-cost-badge");
-    expect(badge.textContent).toBe("$0.0017 · 16.2K→1.2K");
-    expect(badge.nextElementSibling?.textContent).toBe(
+    expect(badge.textContent).toBe("9,119 tok · $0.0013");
+    expect(badge.previousElementSibling?.textContent).toBe(
       new Date("2026-06-11T18:44:34.000Z").toLocaleTimeString(),
     );
   });

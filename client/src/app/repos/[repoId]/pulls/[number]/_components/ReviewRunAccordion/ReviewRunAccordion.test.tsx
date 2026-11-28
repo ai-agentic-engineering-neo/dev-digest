@@ -1,6 +1,6 @@
 /**
- * ReviewRunAccordion — the run header shows the run's cost and tokens next to
- * the time it ran, and no price at all when the run's cost is unknown.
+ * ReviewRunAccordion — the run header shows the run's cost next to the time it
+ * ran (design: score · $0.001 · date), and no price when the cost is unknown.
  */
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
@@ -42,10 +42,10 @@ function renderRun(r: ReviewRecord) {
 }
 
 describe("ReviewRunAccordion run cost", () => {
-  it("shows cost and tokens right before the run time", () => {
+  it("shows the run cost right before the run time", () => {
     renderRun(review({ cost_usd: 0.014, tokens_in: 8240, tokens_out: 1290 }));
     const badge = screen.getByTestId("run-cost-badge");
-    expect(badge.textContent).toBe("$0.014 · 8.2K→1.3K");
+    expect(badge.textContent).toBe("$0.014");
     expect(badge.getAttribute("aria-label")).toBe("Review run cost $0.014");
     const time = badge.nextElementSibling as HTMLElement;
     expect(time.textContent).toBe(new Date("2026-11-28T09:00:00.000Z").toLocaleString());

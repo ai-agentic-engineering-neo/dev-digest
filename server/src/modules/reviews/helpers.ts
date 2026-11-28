@@ -9,6 +9,11 @@ import type { FindingRow, PullRow, ReviewRow } from './repository.js';
 // shared with the CI runner); re-exported here for backward-compatible imports.
 export { reduceReviews, sliceDiff } from '@devdigest/reviewer-core';
 
+/** Human-readable USD amount for run logs: 4 decimals, or "unknown" when null. */
+export function formatUsd(usd: number | null | undefined): string {
+  return usd == null ? 'unknown' : `$${usd.toFixed(4)}`;
+}
+
 export interface ReviewDtoFinding extends Finding {
   review_id: string;
   accepted_at: string | null;

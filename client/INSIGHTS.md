@@ -71,6 +71,7 @@ disable the control that clears the active filter.
 - 2026-11-26 — Code added to a `.tsx` copies that file's habits: in a folder that already has `constants.ts` / `helpers.ts`, an agent put new thresholds and rules there unprompted, while in a `.tsx` with an inline constant it added two more inline, wrote the rule into JSX and hardcoded English labels "like the rest of this header's strings". 19 such declarations exist (grep 1 of the skill lists them). When you edit one of those files, create the sibling `constants.ts` / `helpers.ts` / `styles.ts` and the message key for what you add, move only the declarations you change, and name what you left. Evidence: .claude/skills/frontend-architecture/SKILL.md:79
 
 - 2026-11-28 — Component tests that need data go through `renderWithProviders` + `mockApi` (`src/test/render.tsx`), never `vi.mock` of `@/lib/hooks/*`. `renderWithProviders` passes the providers as RTL's `wrapper`, so `view.rerender(<X … />)` keeps them and the query cache; `mockApi` answers an error status when `respond` returns `new ApiErrorReply(status, body)`; `vitest.config.ts` sets `unstubGlobals: true`, so no test file calls `vi.unstubAllGlobals()`. Evidence: client/src/test/render.tsx:18
+- 2026-11-28 — A helper needed by two component folders of one route (the evidence `path:start-end` label used by ConventionCard and CreateConventionSkillModal) goes to the route's own `helpers.ts`; importing it from the other folder's `helpers.ts` is the fe-arch import-direction critical. Evidence: client/src/app/repos/[repoId]/conventions/helpers.ts:22
 
 ## Tool & Library Notes
 
@@ -117,6 +118,7 @@ disable the control that clears the active filter.
 - 2026-11-28 — Built M2 Skills (client): `/skills` list + detail (Config, Preview, Versions; Context/Evals/Stats empty states), create and two-step import modals, agent editor Skills tab (linked skills only, optimistic `POST /agents/:id/skills`), trace skills tokens/chips; e2e flow 08. `src/test/render.tsx` (`renderWithProviders`, `mockApi`) lets a component test run the real hooks against a stubbed `fetch` and assert the exact method/path/body. Built against the server spec while the server was in progress; not checked live.
 
 - 2026-11-28 — M2 Skills review fixes (client): rules moved to helpers (SkillsTab, SkillDetail, PreviewTab, SkillsLayout, `parseAgentTab`), agent `TABS` moved to the route folder, import step held as one union in `useImportFlow`, `formatBytes`/read error translated, CreateSkillModal tests, e2e 08 made read-only. Not checked live.
+- 2026-11-28 — Conventions page (`/repos/:repoId/conventions`); `SkillBodyEditor` moved to `src/components/skill-body-editor` to be shared by Skills and Conventions.
 
 ## Open Questions
 

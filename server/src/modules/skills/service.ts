@@ -80,11 +80,15 @@ export class SkillsService {
     });
   }
 
-  /** Create at v1 with `source = 'manual'` (or `imported_file` from the import confirm). */
+  /**
+   * Create at v1 with `source = 'manual'` (or `imported_file` from the import
+   * confirm, `extracted` from the conventions extractor with its evidence files).
+   */
   async create(
     workspaceId: string,
     input: SkillInput,
-    source: 'manual' | 'imported_file' = 'manual',
+    source: 'manual' | 'imported_file' | 'extracted' = 'manual',
+    evidenceFiles?: string[],
   ): Promise<Skill> {
     await this.assertNameFree(workspaceId, input.name);
     const skill = await this.deps.skills.insert({
@@ -95,6 +99,7 @@ export class SkillsService {
       body: input.body,
       source,
       ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
+      ...(evidenceFiles ? { evidenceFiles } : {}),
     });
     return { ...skill, agent_count: 0 };
   }

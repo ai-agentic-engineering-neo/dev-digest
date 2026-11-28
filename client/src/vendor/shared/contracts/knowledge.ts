@@ -202,15 +202,74 @@ export const CommunitySkill = z.object({
 export type CommunitySkill = z.infer<typeof CommunitySkill>;
 
 // ---- Conventions ----
+export const ConventionStatus = z.enum(['pending', 'accepted', 'rejected']);
+export type ConventionStatus = z.infer<typeof ConventionStatus>;
+
+/** One convention found in a repo, with the code that proves it. */
 export const ConventionCandidate = z.object({
   id: z.string(),
+  category: z.string().nullable(),
   rule: z.string(),
   evidence_path: z.string(),
   evidence_snippet: z.string(),
+  /** 1-based line range of the snippet in the file, computed by code. */
+  evidence_start_line: z.number().int().positive().nullable(),
+  evidence_end_line: z.number().int().positive().nullable(),
   confidence: z.number().min(0).max(1),
+  status: ConventionStatus,
+  /** Mirrors `status === 'accepted'`. */
   accepted: z.boolean(),
 });
 export type ConventionCandidate = z.infer<typeof ConventionCandidate>;
+
+/** GET/POST conventions response: the repo's candidates and the last scan. */
+export const ConventionList = z.object({
+  candidates: z.array(ConventionCandidate),
+  /** Files sent to the model on the last scan; null before the first one. */
+  sample_count: z.number().int().nonnegative().nullable(),
+  last_scan_at: z.string().nullable(),
+});
+export type ConventionList = z.infer<typeof ConventionList>;
+
+/** PATCH one candidate: accept / reject / reset, or edit its rule text. */
+export const ConventionPatch = z
+  .object({
+    status: ConventionStatus.optional(),
+    rule: z.string().trim().min(1).max(500).optional(),
+  })
+  .refine((p) => p.status !== undefined || p.rule !== undefined, {
+    message: 'Nothing to update',
+  });
+export type ConventionPatch = z.infer<typeof ConventionPatch>;
+
+/**
+ * What the model returns in the one extraction call. Line numbers are not
+ * asked for: code finds the snippet in the file and computes them. Kept free
+ * of bounds (strict JSON-schema mode rejects some keywords); the server caps
+ * the count and clamps confidence.
+ */
+export const ConventionExtraction = z.object({
+  candidates: z.array(
+    z.object({
+      category: z.string(),
+      rule: z.string(),
+      evidence_path: z.string(),
+      evidence_snippet: z.string(),
+      confidence: z.number(),
+    }),
+  ),
+});
+export type ConventionExtraction = z.infer<typeof ConventionExtraction>;
+
+/**
+ * POST /repos/:id/conventions/skill — the edited draft from the modal plus the
+ * accepted candidates it was built from. The server saves it as a
+ * `convention` skill with source `extracted`.
+ */
+export const ConventionSkillInput = SkillInput.omit({ type: true }).extend({
+  convention_ids: z.array(z.string().uuid()).min(1).max(100),
+});
+export type ConventionSkillInput = z.infer<typeof ConventionSkillInput>;
 
 // ---- Agents ----
 // 'openrouter' routes through the OpenAI-compatible API (OpenAIProvider with a

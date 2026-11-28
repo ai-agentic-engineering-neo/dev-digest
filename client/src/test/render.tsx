@@ -8,11 +8,12 @@ import { vi } from "vitest";
 import { ToastProvider } from "@/lib/toast";
 import agents from "../../messages/en/agents.json";
 import common from "../../messages/en/common.json";
+import conventions from "../../messages/en/conventions.json";
 import runs from "../../messages/en/runs.json";
 import shell from "../../messages/en/shell.json";
 import skills from "../../messages/en/skills.json";
 
-const MESSAGES = { agents, common, runs, shell, skills };
+const MESSAGES = { agents, common, conventions, runs, shell, skills };
 
 /** Render inside the app's providers; `rerender(ui)` keeps them (and the query cache). */
 export function renderWithProviders(ui: React.ReactElement) {

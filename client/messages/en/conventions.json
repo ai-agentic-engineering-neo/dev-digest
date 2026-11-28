@@ -15,12 +15,51 @@
       "body": "Scan the repo to surface house-rules — naming, error handling, structure — each backed by evidence you can turn into a Skill.",
       "cta": "Run extraction"
     },
-    "candidateCount": "{count, plural, one {# candidate} other {# candidates}} · grounded against sampled files"
+    "candidateCount": "{count, plural, one {# candidate} other {# candidates}} · grounded against sampled files",
+    "scanSummary": "Detected from {count, plural, one {# sample file} other {# sample files}} · last scan {age}",
+    "scanSummaryNoCount": "Last scan {age}",
+    "noneFound": "The last scan found no convention with verifiable evidence. Re-scan to try again.",
+    "acceptedCount": "{accepted} of {total} accepted",
+    "createSkill": "Create skill",
+    "skillCreated": "Skill {name} created.",
+    "openSkill": "Open skill",
+    "age": {
+      "justNow": "just now",
+      "minutes": "{count}m ago",
+      "hours": "{count}h ago",
+      "days": "{count}d ago"
+    }
   },
   "card": {
     "confidence": "Confidence",
+    "confidenceValue": "{percent}% confidence",
     "accepted": "Accepted",
+    "rejected": "Rejected",
+    "accept": "Accept",
+    "reject": "Reject",
     "accepting": "Accepting…",
-    "acceptAsSkill": "Accept as Skill"
+    "acceptAsSkill": "Accept as Skill",
+    "edit": "Edit rule",
+    "save": "Save",
+    "cancel": "Cancel",
+    "ruleLabel": "Convention rule",
+    "openOnGitHub": "Open {path} on GitHub"
+  },
+  "modal": {
+    "title": "Create skill from conventions",
+    "subtitle": "Merged from {count, plural, one {# accepted convention} other {# accepted conventions}} in {repo}. Everything below is editable before you save.",
+    "name": "Name",
+    "nameHint": "A slug — lowercase letters, digits and dashes.",
+    "description": "Description",
+    "enabled": "Enabled",
+    "enabledHint": "Off by default — review the merged body before it reaches an agent's prompt.",
+    "body": "Skill body (Markdown)",
+    "cancel": "Cancel",
+    "create": "Create skill",
+    "creating": "Creating…",
+    "defaultDescription": "{count, plural, one {# house convention} other {# house conventions}} extracted from {repo}",
+    "bodyIntro": "House conventions detected in this repo. Flag changes that violate any rule below and cite the offending `file:line`.",
+    "detectedIn": "Detected in `{location}`.",
+    "fallbackCategory": "general"
   }
 }

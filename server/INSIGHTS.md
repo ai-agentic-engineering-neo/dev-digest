@@ -44,6 +44,7 @@ also uses.
 - 2026-11-27 — Do not treat the server unit lane as database-free: `buildApp` runs the stale-run reaper (`UPDATE agent_runs SET status='failed' WHERE status='running'`) before it returns, and three unit test files call `buildApp({ config })` with no `db` override, so `pnpm exec vitest run --exclude '**/*.it.test.ts'` runs that statement against the `DATABASE_URL` from `.env`. Do not run the unit lane while a review is running on the dev database; a run marked `failed` with no `error` and no `duration_ms` was reaped this way. Until the reaper moves to `server.ts`, give a no-DB test a stub `db`. Evidence: server/src/app.ts:81
 
 - 2026-11-27 — Do not clear a run's cancellation flag in `RunBus.complete()`: `cancelRun` calls `complete()` right after `cancel()` (to end SSE for orphaned runs), so clearing there made cancel a no-op for a live run — it finished, saved findings and flipped back to `done`. The flag is now cleared by the run executor in `runOneAgent`'s `finally` (and in `failAll`), and by `cancelRun` only when the row was no longer running. A new path that ends a run must call `clearCancelled`. Evidence: server/src/modules/reviews/run-executor.ts:332
+- 2026-11-28 — `pnpm db:generate` asks an interactive rename question when one change drops a column and adds another, and fails in a non-TTY shell (agents, CI). Add columns without dropping (the M2 conventions migration kept `accepted` and mirrors `status`), or drop in a separate migration. Evidence: server/src/db/schema/knowledge.ts:49
 
 ## Codebase Patterns
 
@@ -74,6 +75,8 @@ also uses.
 - 2026-11-28 — The installed SDKs (openai 4.104, @anthropic-ai/sdk 0.33) take `signal`, `timeout` and `maxRetries` per request as the second argument of `create(body, options)` and as client defaults in the constructor; an aborted request rejects with the SDK's `APIUserAbortError`. The LLM adapters set timeout and retries on the client and pass `{ timeout, signal }` per call; do not wrap them in `withRetry`/`withTimeout` again (that nested the retries and the timeout only raced, never aborted). Evidence: server/src/adapters/llm/openai.ts:54
 
 - 2026-11-28 — `fflate.unzipSync` with a `filter` that returns false walks the zip's central directory and inflates nothing; the skill import lists entries this way and inflates only the core `.md` with a second filtered call. `originalSize` is what the archive declares, so the 256 KB limit is checked again on the inflated bytes. Evidence: server/src/adapters/skill-import/index.ts:22
+- 2026-11-28 — OpenRouter strict `json_schema` with a reasoning model (`openai/gpt-5-nano`) failed `ConventionExtraction` validation every attempt while the schema had `.min()/.max()` bounds and `maxTokens` was 4000 (reasoning tokens count against it). Keep LLM output schemas bound-free, clamp/cap in the server, and give reasoning models ≥16k output tokens. Evidence: server/src/vendor/shared/contracts/knowledge.ts:258, server/src/modules/conventions/constants.ts:35
+- 2026-11-28 — A `:batch` model id (e.g. `x-ai/grok-4.3:batch`) saved in Settings → feature models cannot be called through chat/completions: OpenRouter answers 404 and the API returns `internal_error`. Pick a non-batch model for synchronous features such as `conventions`. Evidence: server/src/platform/container.ts:180
 
 ## Decisions
 
@@ -102,6 +105,7 @@ also uses.
 <!-- An error seen more than once, with its fix. -->
 
 - 2026-11-28 — Request validation failures (zod type provider) answer **422** `validation_error`, not 400 (`app.ts` error handler); e.g. a non-base64 `content_base64` on `/skills/import/preview`. Test for 422. Evidence: server/src/app.ts:121
+- 2026-11-28 — "The PR diff is empty — nothing to review" on a freshly synced PR when the API runs from a worktree: the worktree has no `server/clones`, `git diff` fails, and the stored PR files are empty until the PR detail is fetched. Open the PR page (or `GET /pulls/:id`) once before running the review. Evidence: server/src/modules/reviews/diff-loader.ts:38
 
 ## Session Notes
 
@@ -130,6 +134,7 @@ also uses.
 - 2026-11-28 — Built M2 Skills (server): `skills` module (CRUD, versions, restore, import preview/confirm), `adapters/skill-import` (fflate + yaml), migration 0014, agent link flags with version snapshots and `skill_count`, effective skills in the run prompt/trace/log, Test Quality Reviewer + 11 seeded skills + demo PRs #483/#484; spec server/specs/M2-skills.md.
 
 - 2026-11-28 — M2 review fixes: `updateLinks` dispatch in `AgentsService`, cross-module table reads moved behind ports, `agent_skills_skill_id_idx` + `skill_versions` backfill/drop-defaults in migration 0015, enum casts removed, seed links only for newly created agents.
+- 2026-11-28 — M2 Conventions Extractor built (`modules/conventions`, migration 0016); second dev stack run from a worktree on API_PORT=3101 / WEB_PORT=3100 with `.env` symlinked.
 
 ## Open Questions
 

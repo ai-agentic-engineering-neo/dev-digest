@@ -113,6 +113,20 @@
       "when": 1795862264650,
       "tag": "0015_public_skullbuster",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1795875779300,
+      "tag": "0016_safe_luckman",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1795878669204,
+      "tag": "0017_backfill_convention_status",
+      "breakpoints": true
     }
   ]
 }

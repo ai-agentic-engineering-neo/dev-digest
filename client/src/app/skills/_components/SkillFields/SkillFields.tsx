@@ -6,7 +6,7 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { FormField, SelectInput, TextInput } from "@devdigest/ui";
 import { SkillType } from "@devdigest/shared";
-import { SkillBodyEditor } from "../SkillBodyEditor";
+import { SkillBodyEditor } from "@/components/skill-body-editor";
 import { isSkillType, type SkillDraft } from "../../helpers";
 import { s } from "./styles";
 

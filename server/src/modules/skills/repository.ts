@@ -111,6 +111,7 @@ export class SkillsRepository implements SkillStore {
               source: values.source,
               body: values.body,
               enabled: values.enabled ?? true,
+              evidenceFiles: values.evidenceFiles ?? null,
               version: INITIAL_SKILL_VERSION,
             })
             .returning();

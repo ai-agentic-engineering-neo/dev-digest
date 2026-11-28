@@ -42,7 +42,14 @@ export function FindingsPanel({
   );
 
   // A changed filter changes the list, so keyboard focus returns to its first card.
-  React.useEffect(() => setFocusIdx(0), [hideLow, severity]);
+  const changeSeverity = (next: Severity | null) => {
+    setSeverity(next);
+    setFocusIdx(0);
+  };
+  const changeHideLow = (next: boolean) => {
+    setHideLow(next);
+    setFocusIdx(0);
+  };
 
   const { mutate } = action;
   const act = React.useCallback(
@@ -60,10 +67,10 @@ export function FindingsPanel({
   return (
     <div {...shortcutProps}>
       <div style={s.toolbar}>
-        <SeverityFilter counts={counts} active={severity} onChange={setSeverity} />
+        <SeverityFilter counts={counts} active={severity} onChange={changeSeverity} />
         <div style={s.toggleGroup}>
           {t("panel.hideLowConfidence")}
-          <Toggle on={hideLow} onChange={setHideLow} size={16} />
+          <Toggle on={hideLow} onChange={changeHideLow} size={16} />
         </div>
       </div>
 

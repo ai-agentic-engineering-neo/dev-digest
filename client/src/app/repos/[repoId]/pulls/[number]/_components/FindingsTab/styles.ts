@@ -1,6 +1,11 @@
 import type { CSSProperties } from "react";
 
 export const s = {
+  reviewsLoading: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 12,
+  } satisfies CSSProperties,
   reviewInProgress: {
     marginBottom: 18,
     display: "flex",

@@ -17,5 +17,9 @@
     "title": "No repo selected",
     "body": "This repository isn't in your workspace — it may have been removed, or the link is stale. Add a repo or pick another from the switcher to get started.",
     "cta": "Add repository"
+  },
+  "home": {
+    "loadErrorTitle": "Couldn’t load repositories",
+    "loadErrorBody": "Your repositories could not be loaded. Check that the API is running and try again."
   }
 }

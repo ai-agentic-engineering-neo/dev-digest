@@ -45,7 +45,12 @@ export default function PRDetailPage() {
   const { data: pr, isLoading: detailLoading, isError, error, refetch } = usePullDetail(prId);
 
   const isLoading = pullsLoading || (prId != null && detailLoading);
-  const { data: reviews } = usePrReviews(prId);
+  const {
+    data: reviews,
+    isLoading: reviewsLoading,
+    isError: reviewsError,
+    refetch: refetchReviews,
+  } = usePrReviews(prId);
 
   // Live run tracking is SERVER-SOURCED (agent_runs status='running'): survives
   // navigation AND reload, and self-clears via polling when runs finish.
@@ -82,10 +87,10 @@ export default function PRDetailPage() {
   }, [traceRunning, traceRunId, qc]);
 
   // Reviews come newest-first; each is its own run (grouped into accordions).
-  const runs = reviews ?? [];
+  const runs = React.useMemo(() => reviews ?? [], [reviews]);
   const allFindings: FindingRecord[] = React.useMemo(
     () => runs.flatMap((r) => r.findings),
-    [reviews],
+    [runs],
   );
   const lethalTrifecta = allFindings.filter((f) => f.kind === "lethal_trifecta");
   const findingsCount = allFindings.length;
@@ -158,6 +163,9 @@ export default function PRDetailPage() {
             reviewRunning={reviewRunning}
             lethalTrifecta={lethalTrifecta}
             runs={runs}
+            runsLoading={reviewsLoading}
+            runsError={reviewsError && !reviews}
+            onRetryRuns={() => refetchReviews()}
             prRuns={prRuns}
             prCommits={pr.commits}
             repoFullName={repoFullName}

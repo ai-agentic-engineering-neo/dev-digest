@@ -11,6 +11,7 @@ import type { ReviewRecord, Verdict } from "@devdigest/shared";
 import { FindingsPanel } from "../FindingsPanel";
 import { VerdictBanner } from "../VerdictBanner";
 import { RunCostBadge } from "../../../_components/RunCostBadge";
+import { reviewRunDomId } from "./helpers";
 import { useDeleteReview } from "../../../../../../../lib/hooks/reviews";
 
 const VERDICT_COLOR: Record<string, string> = {
@@ -27,33 +28,22 @@ function formatWhen(iso: string): string {
 export function ReviewRunAccordion({
   review,
   prId,
-  defaultOpen = false,
+  open,
+  onToggle,
   repoFullName,
   headSha,
-  targetRunId = null,
-  targetNonce = 0,
   costUsd = null,
 }: {
   review: ReviewRecord;
   /** Cost of the run behind this review (done runs only); null → "—". */
   costUsd?: number | null;
   prId: string;
-  defaultOpen?: boolean;
+  /** Controlled by FindingsTab, which also opens a run from the Timeline. */
+  open: boolean;
+  onToggle: () => void;
   repoFullName?: string | null;
   headSha?: string | null;
-  /** When this matches review.run_id, the accordion opens and scrolls into view
-   *  (driven from the Timeline: clicking an agent name navigates here). */
-  targetRunId?: string | null;
-  targetNonce?: number;
 }) {
-  const [open, setOpen] = React.useState(defaultOpen);
-  const rootRef = React.useRef<HTMLDivElement | null>(null);
-  React.useEffect(() => {
-    if (review.run_id && review.run_id === targetRunId) {
-      setOpen(true);
-      rootRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, [targetRunId, targetNonce, review.run_id]);
   const del = useDeleteReview(prId);
   const findings = review.findings;
   const blockers = findings.filter((f) => f.severity === "CRITICAL" && !f.dismissed_at).length;
@@ -61,8 +51,7 @@ export function ReviewRunAccordion({
 
   return (
     <div
-      ref={rootRef}
-      id={review.run_id ? `review-run-${review.run_id}` : undefined}
+      id={review.run_id ? reviewRunDomId(review.run_id) : undefined}
       style={{
         border: "1px solid var(--border)",
         borderRadius: 10,
@@ -75,9 +64,9 @@ export function ReviewRunAccordion({
       <div
         role="button"
         tabIndex={0}
-        onClick={() => setOpen((o) => !o)}
+        onClick={onToggle}
         onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") setOpen((o) => !o);
+          if (e.key === "Enter" || e.key === " ") onToggle();
         }}
         style={{
           width: "100%",

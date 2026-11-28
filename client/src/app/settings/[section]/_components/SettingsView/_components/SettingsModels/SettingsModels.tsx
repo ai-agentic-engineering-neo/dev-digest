@@ -2,7 +2,7 @@
 
 import React from "react";
 import { useTranslations } from "next-intl";
-import { FormField, SearchableSelect, Icon } from "@devdigest/ui";
+import { FormField, SearchableSelect, Icon, ErrorState, Skeleton } from "@devdigest/ui";
 import { useSettings, useUpdateSettings } from "../../../../../../../lib/hooks";
 import { useProviderModels } from "../../../../../../../lib/hooks/agents";
 import { toModelOptions } from "../../../../../../../lib/model-label";
@@ -19,7 +19,7 @@ import { s } from "./styles";
  */
 export function SettingsModels() {
   const t = useTranslations("settings");
-  const { data: settings } = useSettings();
+  const { data: settings, isLoading: settingsLoading, isError: settingsError, refetch } = useSettings();
   const update = useUpdateSettings();
   const { data: models } = useProviderModels("openrouter");
 
@@ -36,7 +36,20 @@ export function SettingsModels() {
     <div style={s.wrap}>
       <SectionTitle title={t("models.title")} body={t("models.body")} />
 
-      {FEATURE_MODELS.map((f) => {
+      {/* A change writes the whole feature_models map, so the pickers appear only
+          once the current choices have loaded. */}
+      {settingsLoading && (
+        <div style={s.loading}>
+          {FEATURE_MODELS.map((f) => (
+            <Skeleton key={f.id} height={56} />
+          ))}
+        </div>
+      )}
+      {settingsError && !settings && (
+        <ErrorState title={t("models.loadErrorTitle")} body={t("models.loadErrorBody")} onRetry={() => refetch()} />
+      )}
+
+      {settings && FEATURE_MODELS.map((f) => {
         const current = chosen[f.id]?.model ?? f.defaultModel;
         const isDefault = !chosen[f.id];
         // Ensure the current value is selectable even if it isn't in the live

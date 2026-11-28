@@ -1,10 +1,12 @@
 "use client";
 
 import React, { useCallback, useMemo } from "react";
-import { Icon, Badge, Button, SectionLabel, EmptyState } from "@devdigest/ui";
+import { useTranslations } from "next-intl";
+import { Icon, Badge, Button, SectionLabel, EmptyState, ErrorState, Skeleton } from "@devdigest/ui";
 import { RunStatus } from "../RunStatus";
 import { RunHistory } from "../RunHistory/RunHistory";
 import { ReviewRunAccordion } from "../ReviewRunAccordion";
+import { reviewRunDomId } from "../ReviewRunAccordion/helpers";
 import { s } from "./styles";
 import type { FindingRecord, ReviewRecord, RunSummary, PrCommit } from "@devdigest/shared";
 import type { UseMutationResult } from "@tanstack/react-query";
@@ -15,6 +17,10 @@ interface FindingsTabProps {
   reviewRunning: boolean;
   lethalTrifecta: FindingRecord[];
   runs: ReviewRecord[];
+  /** The reviews query is loading / failed — distinct from "no runs yet". */
+  runsLoading?: boolean;
+  runsError?: boolean;
+  onRetryRuns?: () => void;
   prRuns: RunSummary[] | undefined;
   prCommits: PrCommit[];
   cancelMutation: Pick<UseMutationResult<unknown, Error, string>, "mutate" | "isPending">;
@@ -32,6 +38,9 @@ export function FindingsTab({
   reviewRunning,
   lethalTrifecta,
   runs,
+  runsLoading = false,
+  runsError = false,
+  onRetryRuns,
   prRuns,
   prCommits,
   cancelMutation,
@@ -41,6 +50,7 @@ export function FindingsTab({
   onDelete,
   onRunDone,
 }: FindingsTabProps) {
+  const t = useTranslations("prReview");
   const handleCancelAll = useCallback(() => {
     liveRunIds.forEach((id) => cancelMutation.mutate(id));
   }, [liveRunIds, cancelMutation]);
@@ -73,13 +83,21 @@ export function FindingsTab({
     [onDelete],
   );
 
+  // Which review runs are open. Only the user's choices are stored; a run the
+  // user has not touched is open when it is the newest.
+  const [openOverride, setOpenOverride] = React.useState<Record<string, boolean>>({});
+  const isOpen = (reviewId: string, index: number) => openOverride[reviewId] ?? index === 0;
+  const toggleRun = (reviewId: string, index: number) =>
+    setOpenOverride((prev) => ({ ...prev, [reviewId]: !(prev[reviewId] ?? index === 0) }));
+
   // Timeline → Review-runs navigation: clicking an agent name in the timeline
-  // opens + scrolls to that run's accordion below. The nonce re-triggers the
-  // scroll even when the same run is clicked twice.
-  const [target, setTarget] = React.useState<{ runId: string; n: number } | null>(null);
-  const handleGoToReview = useCallback((runId: string) => {
-    setTarget((p) => ({ runId, n: (p?.n ?? 0) + 1 }));
-  }, []);
+  // opens + scrolls to that run's accordion below.
+  const handleGoToReview = (runId: string) => {
+    const review = runs.find((r) => r.run_id === runId);
+    if (!review) return;
+    setOpenOverride((prev) => ({ ...prev, [review.id]: true }));
+    document.getElementById(reviewRunDomId(runId))?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   return (
     <section>
@@ -154,7 +172,14 @@ export function FindingsTab({
       >
         Review runs
       </SectionLabel>
-      {runs.length === 0 ? (
+      {runsLoading ? (
+        <div style={s.reviewsLoading}>
+          <Skeleton height={48} />
+          <Skeleton height={48} />
+        </div>
+      ) : runsError ? (
+        <ErrorState title={t("findingsTab.loadErrorTitle")} body={t("findingsTab.loadErrorBody")} onRetry={onRetryRuns} />
+      ) : runs.length === 0 ? (
         reviewRunning || liveRunIds.length > 0 ? null : (
           <EmptyState
             icon="Sparkles"
@@ -169,11 +194,10 @@ export function FindingsTab({
             key={review.id}
             review={review}
             prId={prId}
-            defaultOpen={i === 0}
+            open={isOpen(review.id, i)}
+            onToggle={() => toggleRun(review.id, i)}
             repoFullName={repoFullName}
             headSha={headSha}
-            targetRunId={target?.runId ?? null}
-            targetNonce={target?.n ?? 0}
             costUsd={review.run_id ? costByRunId.get(review.run_id) ?? null : null}
           />
         ))

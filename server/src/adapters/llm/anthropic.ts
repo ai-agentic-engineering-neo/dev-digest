@@ -140,9 +140,21 @@ export class AnthropicProvider implements LLMProvider {
         };
       }
       messages.push({ role: 'assistant', content: res.content });
+      // The API requires every tool_use to be answered by a tool_result in the
+      // next user turn; a plain-text user message there is a 400.
+      const toolUses = res.content.filter(
+        (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use',
+      );
       messages.push({
         role: 'user',
-        content: parsed.repromptMessage,
+        content: toolUses.length
+          ? toolUses.map((b) => ({
+              type: 'tool_result' as const,
+              tool_use_id: b.id,
+              is_error: true,
+              content: parsed.repromptMessage,
+            }))
+          : parsed.repromptMessage,
       });
     }
 

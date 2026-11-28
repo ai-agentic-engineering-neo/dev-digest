@@ -112,6 +112,42 @@ describe('AnthropicProvider.completeStructured', () => {
   });
 });
 
+describe('AnthropicProvider repair turn', () => {
+  it('answers the tool_use with an is_error tool_result carrying the repair text', async () => {
+    const bodies: { messages: Anthropic.MessageParam[] }[] = [];
+    const inputs: unknown[] = [{ wrong: 1 }, { answer: '42' }];
+    const client = {
+      messages: {
+        create: async (body: { messages: Anthropic.MessageParam[] }) => {
+          bodies.push({ messages: structuredClone(body.messages) });
+          return {
+            content: [{ type: 'tool_use', id: `t${bodies.length}`, name: 'Answer', input: inputs.shift() }],
+            usage: { input_tokens: 10, output_tokens: 4 },
+          };
+        },
+      },
+    } as unknown as Anthropic;
+
+    const res = await new AnthropicProvider('key', client).completeStructured({
+      ...base,
+      model: 'claude-sonnet-4',
+    });
+
+    expect(res.attempts).toBe(2);
+    const second = bodies[1].messages;
+    expect(second.map((m) => m.role)).toEqual(['user', 'assistant', 'user']);
+    expect(second[1].content).toEqual([expect.objectContaining({ type: 'tool_use', id: 't1' })]);
+    expect(second[2].content).toEqual([
+      {
+        type: 'tool_result',
+        tool_use_id: 't1',
+        is_error: true,
+        content: expect.stringContaining('answer'),
+      },
+    ]);
+  });
+});
+
 describe('default SDK clients', () => {
   // These replaced the withRetry/withTimeout wrappers: falling back to the SDK
   // defaults (10 min timeout) must fail here.

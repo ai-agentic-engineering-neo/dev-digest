@@ -252,6 +252,13 @@ export class ReviewRunExecutor {
         error: null,
       });
 
+      // Must be emitted BEFORE the trace snapshots the log buffer below, or the
+      // line only reaches the live stream and not the persisted trace.
+      runLog.result(
+        `Usage: ${tokensIn} in / ${tokensOut} out tokens, cost ${formatUsd(costUsd)}`,
+        { tokens_in: tokensIn, tokens_out: tokensOut, cost_usd: costUsd },
+      );
+
       const trace: RunTrace = {
         config: {
           agent: agent.name,
@@ -283,10 +290,6 @@ export class ReviewRunExecutor {
         // diff load + intent), not just events recorded inside this method.
         log: runLog.logFor(runId),
       };
-      runLog.result(
-        `Usage: ${tokensIn} in / ${tokensOut} out tokens, cost ${formatUsd(costUsd)}`,
-        { tokens_in: tokensIn, tokens_out: tokensOut, cost_usd: costUsd },
-      );
       runLog.info('Run complete; trace persisted');
       await this.repo.saveRunTrace(runId, trace);
       this.container.runBus.complete(runId);

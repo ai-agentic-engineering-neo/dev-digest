@@ -56,17 +56,17 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
           <span style={s.muted}>—</span>
         )}
       </div>
+      <div>
+        <Badge dot color={st.c} bg="transparent">
+          {t(`list.status.${st.labelKey}`)}
+        </Badge>
+      </div>
       <div style={s.costCell}>
         <RunCostBadge
           costUsd={pr.last_run_cost_usd}
           title={t("list.runCost.title")}
           ariaLabel={(cost) => t("list.runCost.aria", { cost })}
         />
-      </div>
-      <div>
-        <Badge dot color={st.c} bg="transparent">
-          {t(`list.status.${st.labelKey}`)}
-        </Badge>
       </div>
       <div style={s.updatedCell}>{relativeTime(pr.updated_at)}</div>
     </div>

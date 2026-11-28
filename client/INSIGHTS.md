@@ -16,6 +16,8 @@ Review and prune periodically; stale entries are harmful.
 - **2026-11-28** · `Badge` from `@devdigest/ui` has no `title`/`aria-*`/`data-*` props, so tooltips and test ids must go on a wrapping `<span>` — evidence: `client/src/vendor/ui/primitives/Badge.tsx:5`, `client/src/app/repos/[repoId]/pulls/_components/PRRow/PRRow.tsx:36`
 - **2026-11-28** · Components that call `useRouter()` (e.g. `PRRow`) crash in jsdom unless the test mocks `next/navigation`; copy the `vi.mock("next/navigation", …)` pattern — evidence: `client/src/app/repos/[repoId]/pulls/_components/PRRow/PRRow.test.tsx:13`
 - **2026-11-28** · Trace drawer `Stat` renders label and value as sibling divs with no test id; assert a stat with `getByText("COST").nextElementSibling` (labels come upper-case from `runs.json`) — evidence: `client/src/app/repos/[repoId]/pulls/[number]/_components/RunTraceDrawer/RunTraceDrawer.test.tsx:54`
+- **2026-11-28** · `DevDigest Design (standalone).html` is a JS bundle (grep finds no UI text); render it headless with Playwright, dump `document.body.innerText` and screenshot the element around a known string (e.g. `9,119 tok · $0.0013`) to read exact column order and formats — evidence: `client/specs/run-cost.md:57`
+  The design shows cost in 5 places with 4 formats; they map to the `RunCostBadge` variants.
 
 ## Measured facts
 

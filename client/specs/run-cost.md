@@ -54,16 +54,19 @@ without opening logs.
 
 Both vendored contract copies (`server/src/vendor/shared`, `client/src/vendor/shared`) change.
 
-## UI components
+## UI components (matched to `DevDigest Design (standalone).html`)
 
-| Screen | Component | Change |
+| Screen | Component | Design |
 |---|---|---|
-| PR list | `client/src/components/run-cost-badge/RunCostBadge` (new, shared) | `variant="compact"` → `$0.012`; `null` → `—` |
-| PR list | `pulls/_components/PRRow` | new grid cell between Score and Status; old inline badge next to `#number` removed |
-| PR list | `pulls/constants.ts` `GRID`, `COLUMN_KEYS`; `messages/en/prReview.json` `list.columns.cost` | new "Cost" header |
-| PR page | `[number]/_components/ReviewRunAccordion` | `RunCostBadge variant="detailed"` (`$0.014 · 8.2K→1.3K`) before the time |
-| PR page | `[number]/_components/RunHistory` (timeline row) | same detailed badge before the run time; only for `done` runs |
-| Run drawer | `RunTraceDrawer/_components/TraceBody` | Cost stat (kept from v1, unknown → `—`) |
+| shared | `client/src/components/run-cost-badge/RunCostBadge` | variants `cell`, `cost`, `usage`, `tokTotal` |
+| PR list | `pulls/_components/PRRow` + `GRID` / `COLUMN_KEYS` | COST column between STATUS and UPDATED, plain mono `$0.014`, `–` when none |
+| PR page · timeline | `[number]/_components/RunHistory` | under the run time: `9,119 tok · $0.0013` (done runs only) |
+| PR page · review run header | `[number]/_components/ReviewRunAccordion` | `score · $0.001 · date`: cost alone before the time |
+| PR page · verdict banner | `[number]/_components/VerdictBanner` | under PR SCORE: `$ $0.014  8.2K→1.3K` |
+| Agent Run sidebar | `RunTraceDrawer/_components/TraceBody` | Stats order DURATION · TOKENS · COST · FINDINGS; unknown → `—` |
+
+Not in scope (present in the design, not part of the cost feature): FINDINGS column
+and per-row "Run Review" button on the PR list, "trace" link in the run header.
 
 ## Tests
 

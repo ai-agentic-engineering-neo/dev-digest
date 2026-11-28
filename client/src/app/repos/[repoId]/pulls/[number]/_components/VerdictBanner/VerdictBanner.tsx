@@ -8,6 +8,7 @@ import { Icon, Badge, CircularScore } from "@devdigest/ui";
 import type { Verdict } from "@devdigest/shared";
 import { VERDICT_META } from "./constants";
 import { s } from "./styles";
+import { RunCostBadge } from "@/components/run-cost-badge";
 
 export function VerdictBanner({
   verdict,
@@ -16,6 +17,9 @@ export function VerdictBanner({
   findingsCount,
   blockers,
   agentName,
+  costUsd,
+  tokensIn,
+  tokensOut,
 }: {
   verdict: Verdict;
   summary: string | null;
@@ -23,6 +27,10 @@ export function VerdictBanner({
   findingsCount: number;
   blockers: number;
   agentName?: string | null;
+  /** Usage of the run behind this verdict; the cost line is hidden when unknown. */
+  costUsd?: number | null;
+  tokensIn?: number | null;
+  tokensOut?: number | null;
 }) {
   const t = useTranslations("prReview");
   const m = VERDICT_META[verdict] ?? VERDICT_META.comment;
@@ -51,6 +59,18 @@ export function VerdictBanner({
         <div style={s.scoreCol}>
           <CircularScore score={score} size={52} stroke={5} />
           <span style={s.scoreLabel}>{t("verdict.prScore")}</span>
+          {costUsd != null && (
+            <div style={s.costLine}>
+              <RunCostBadge
+                variant="usage"
+                costUsd={costUsd}
+                tokensIn={tokensIn}
+                tokensOut={tokensOut}
+                title={t("reviewRun.cost.title")}
+                ariaLabel={(cost) => t("reviewRun.cost.aria", { cost })}
+              />
+            </div>
+          )}
         </div>
       )}
     </div>

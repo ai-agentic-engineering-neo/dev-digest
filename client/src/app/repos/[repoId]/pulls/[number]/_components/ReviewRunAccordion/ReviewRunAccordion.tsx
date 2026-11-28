@@ -107,10 +107,8 @@ export function ReviewRunAccordion({
           </Badge>
         )}
         <RunCostBadge
-          variant="detailed"
+          variant="cost"
           costUsd={review.cost_usd}
-          tokensIn={review.tokens_in}
-          tokensOut={review.tokens_out}
           title={t("reviewRun.cost.title")}
           ariaLabel={(cost) => t("reviewRun.cost.aria", { cost })}
         />
@@ -155,6 +153,9 @@ export function ReviewRunAccordion({
                 findingsCount={findings.length}
                 blockers={blockers}
                 agentName={review.agent_name}
+                costUsd={review.cost_usd}
+                tokensIn={review.tokens_in}
+                tokensOut={review.tokens_out}
               />
             </div>
           )}

@@ -55,15 +55,24 @@ describe("PRRow COST column", () => {
     expect(screen.getByText("#42").parentElement!.contains(badge)).toBe(false);
   });
 
+  it("puts COST between Status and Updated, as in the design", () => {
+    const { container } = renderRow(pr({ last_run_cost_usd: 0.014 }));
+    const cells = Array.from(container.firstElementChild!.children);
+    const costIdx = cells.findIndex((c) => c.querySelector("[data-testid=run-cost-badge]"));
+    const statusIdx = cells.findIndex((c) => c.textContent === "Reviewed");
+    expect(costIdx).toBe(statusIdx + 1);
+    expect(costIdx).toBe(cells.length - 2);
+  });
+
   it("shows a dash, not $0.00, when the PR has no completed runs", () => {
     renderRow(pr({ score: null, last_run_cost_usd: null }));
-    expect(screen.getByTestId("run-cost-badge").textContent).toBe("—");
+    expect(screen.getByTestId("run-cost-badge").textContent).toBe("–");
     expect(screen.queryByText("$0.00")).toBeNull();
   });
 
   it("shows a dash when the field is absent (older API)", () => {
     renderRow(pr({}));
-    expect(screen.getByTestId("run-cost-badge").textContent).toBe("—");
+    expect(screen.getByTestId("run-cost-badge").textContent).toBe("–");
   });
 });
 

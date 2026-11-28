@@ -56,7 +56,7 @@ Categories (sections of the file):
 Bad (vague): "Be careful with shared contracts."
 Good: "**2026-11-28** · `@devdigest/shared` exists as two vendored copies that
 have drifted; a contract change must be applied to both or the client silently
-keeps the old shape — evidence: `client/tsconfig.json:53`,
+keeps the old shape — evidence: `client/tsconfig.json:24`,
 `server/tsconfig.json:22`."
 
 Bad: "Run cost is computed somewhere."

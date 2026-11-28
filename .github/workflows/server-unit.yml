@@ -1,7 +1,8 @@
 # Server unit suite — Fastify API (@devdigest/api), hermetic tests only.
 #
 # Two jobs:
-#  - typecheck: type-check on Linux only — the platform CI and the exported
+#  - typecheck: type-check and the Onion Architecture import boundaries
+#    (dependency-cruiser over server/src and reviewer-core/src), on Linux only — the platform CI and the exported
 #    agent-runner both run on. We deliberately do NOT matrix over Windows/macOS:
 #    macOS is covered by daily local dev, Windows is not a ship target, and
 #    `@ast-grep/napi` is exact-pinned so its native binary only changes on a
@@ -64,6 +65,13 @@ jobs:
         run: npm ci
 
       - run: pnpm typecheck
+
+      # Onion Architecture boundaries: imports point inward. Rules live in
+      # server/.dependency-cruiser.cjs; rationale in
+      # .claude/skills/onion-architecture/SKILL.md. Inlined (not
+      # `pnpm deps:validate`) for the same reason as the vitest call below.
+      - name: Import boundaries
+        run: pnpm exec depcruise src ../reviewer-core/src --config .dependency-cruiser.cjs
 
   unit:
     name: tests

@@ -54,15 +54,6 @@ export interface IndexStateUpsert {
   stats: Record<string, unknown>;
 }
 
-/** Minimal repo shape the facade needs to call CodeIndex on a clone. */
-export interface RepoBasics {
-  id: string;
-  owner: string;
-  name: string;
-  defaultBranch: string;
-  clonePath: string | null;
-}
-
 /** Cached row from the existing `symbols` table (blast persists these). */
 export interface CachedSymbolRow {
   path: string;
@@ -80,12 +71,6 @@ export interface CachedReferenceRow {
 
 // --- T3 row shapes ----------------------------------------------------------
 
-/** Import-graph edge (importer → imported), repo-relative paths. */
-export interface IndexerEdgeRow {
-  fromFile: string;
-  toFile: string;
-}
-
 /** One `file_rank` row the rank step buffers before persistence. */
 export interface IndexerFileRankRow {
   filePath: string;
@@ -93,13 +78,6 @@ export interface IndexerFileRankRow {
   hotness: number;
   rank: number;
   percentile: number;
-}
-
-/** Precomputed per-file facts (endpoints/crons) the indexer writes for blast. */
-export interface IndexerFileFactsRow {
-  filePath: string;
-  endpoints: string[];
-  crons: string[];
 }
 
 /** Candidate row for the repo-map renderer (symbols × file_rank). */
@@ -111,26 +89,25 @@ export interface RepoMapCandidateRow {
   rank: number;
 }
 
-/** Full symbol row (with the T2 columns) — for getSymbolsInFiles + blast. */
-export interface FullSymbolRow {
-  path: string;
-  name: string;
-  kind: string;
-  line: number | null;
-  endLine: number | null;
-  exported: boolean;
-  signature: string | null;
-}
+// These shapes are part of the facade's store port, so they are declared in
+// ports.ts; re-exported here for the pipeline, which imports from this file.
+import type {
+  FullSymbolRow,
+  IndexerEdgeRow,
+  IndexerFileFactsRow,
+  RepoBasics,
+  RepoIntelStore,
+  ResolvedCallerRow,
+} from './ports.js';
+export type {
+  FullSymbolRow,
+  IndexerEdgeRow,
+  IndexerFileFactsRow,
+  RepoBasics,
+  ResolvedCallerRow,
+} from './ports.js';
 
-/** A resolved cross-file caller (reference whose decl_file is a changed file). */
-export interface ResolvedCallerRow {
-  fromPath: string;
-  toSymbol: string;
-  line: number;
-  rank: number;
-}
-
-export class RepoIntelRepository {
+export class RepoIntelRepository implements RepoIntelStore {
   constructor(private db: Db) {}
 
   async getRepoBasics(repoId: string): Promise<RepoBasics | null> {

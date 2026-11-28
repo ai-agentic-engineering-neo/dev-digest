@@ -47,3 +47,7 @@ mocked, so they need neither the API nor a browser. The real browser journeys
 (client + API + seeded DB) are covered by the deterministic agent-browser suite
 in [`../e2e`](../e2e/README.md) and the `e2e-web.yml` workflow. See
 [`../TESTING.md`](../TESTING.md).
+
+## More
+
+[Docs](docs/README.md) · [Repo docs](../docs/README.md) · [Specs](specs/README.md) · [Insights](INSIGHTS.md) · [Main README](../README.md)

@@ -1,7 +1,7 @@
 import type { PrStatus } from '@devdigest/shared';
 
 /**
- * PR-list rollup helpers (pure — no DB / `this`, so they unit-test cleanly).
+ * PR-list rollup rules (pure — no DB, no clock; `now` is an argument).
  *
  * The Pull Requests list shows, per PR: the latest review's SCORE, a FINDINGS
  * severity breakdown, and a review STATUS. The DB `status` column holds
@@ -28,6 +28,34 @@ export function rollupSeverities(rows: { severity: string }[]): SeverityCounts {
     else if (r.severity === 'SUGGESTION') c.suggestion += 1;
   }
   return c;
+}
+
+/** The columns of a review that decide whether the list counts its findings. */
+export interface ReviewRef {
+  id: string;
+  prId: string;
+  agentId: string | null;
+}
+
+/**
+ * The reviews whose findings the list's FINDINGS column counts: each agent's
+ * LATEST review on a PR, so a PR reviewed by several agents shows the sum of
+ * what each of them currently reports and a re-run replaces that agent's
+ * earlier result instead of adding to it. Reviews without an agent share one
+ * key per PR.
+ *
+ * Returns reviewId → prId. Input must be newest-first.
+ */
+export function pickLatestReviewPerAgent(rows: ReviewRef[]): Map<string, string> {
+  const counted = new Map<string, string>();
+  const seen = new Set<string>();
+  for (const rv of rows) {
+    const key = `${rv.prId}|${rv.agentId ?? 'none'}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    counted.set(rv.id, rv.prId);
+  }
+  return counted;
 }
 
 /**

@@ -9,6 +9,8 @@ import type { PrMeta } from "@/lib/types";
 import { SIZE_COLOR, STATUS_META } from "../../constants";
 import { relativeTime, sizeOf } from "../../helpers";
 import { s } from "../../styles";
+import { FindingsCell } from "../FindingsCell";
+import { RunCostBadge } from "../RunCostBadge";
 
 export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
   const t = useTranslations("prReview");
@@ -53,10 +55,18 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
           <span style={s.muted}>—</span>
         )}
       </div>
+      <div style={s.findingsColumn}>
+        {/* Findings per severity over each agent's latest review; hover previews them. */}
+        <FindingsCell pr={pr} repoId={repoId} />
+      </div>
       <div>
         <Badge dot color={st.c} bg="transparent">
           {t(`list.status.${st.labelKey}`)}
         </Badge>
+      </div>
+      <div>
+        {/* Total cost of all agent runs on the PR; "—" when none has a known cost. */}
+        <RunCostBadge costUsd={pr.total_cost_usd} style={{ fontSize: 13 }} />
       </div>
       <div style={s.updatedCell}>{relativeTime(pr.updated_at)}</div>
     </div>

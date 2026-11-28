@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { RepoIntelService } from '../src/modules/repo-intel/service.js';
-import type { RepoBasics } from '../src/modules/repo-intel/repository.js';
+import { RepoIntelService, type RepoIntelDeps } from '../src/modules/repo-intel/service.js';
+import type { RepoBasics } from '../src/modules/repo-intel/ports.js';
+import type { RepoIntelRepository } from '../src/modules/repo-intel/repository.js';
+import { runFullIndex } from '../src/modules/repo-intel/pipeline/full.js';
+import { runIncremental } from '../src/modules/repo-intel/pipeline/incremental.js';
 import type { IndexState } from '../src/modules/repo-intel/types.js';
 
 /**
@@ -11,8 +14,8 @@ import type { IndexState } from '../src/modules/repo-intel/types.js';
  * blast, hooks) downgrade to their pre-T1.3 behavior on these returns; if any
  * method threw or returned malformed shape, every consumer would crash.
  *
- * No Postgres, no clone. The service's `repo` (RepoIntelRepository) is patched
- * to return null/[] so we exercise the degraded paths cleanly.
+ * No Postgres, no clone. The service gets a store port that returns null/[]
+ * so we exercise the degraded paths cleanly.
  */
 
 function buildDegradedService(opts: {
@@ -20,24 +23,27 @@ function buildDegradedService(opts: {
   basics?: RepoBasics | null;
   indexStateRow?: IndexState | null;
 }): RepoIntelService {
-  const container = {
-    config: { repoIntelEnabled: opts.flag },
-    db: {} as never,
+  const store = {
+    getRepoBasics: async () => opts.basics ?? null,
+    tryGetIndexState: async () => opts.indexStateRow ?? null,
+  };
+  // The real pipeline, wired the way platform/container.ts wires it, so
+  // indexRepo / refreshIndex exercise its own degraded branches.
+  const container = { config: { repoIntelEnabled: opts.flag } } as never;
+  const repository = store as unknown as RepoIntelRepository;
+  return new RepoIntelService({
+    enabled: opts.flag,
+    store,
+    indexer: {
+      runFull: (repoId) => runFullIndex(container, repository, { repoId }),
+      runIncremental: (repoId) => runIncremental(container, repository, { repoId }),
+    },
     // codeIndex is reached by getBlastRadius; we stub minimal behaviour.
     codeIndex: {
       symbols: async () => [],
       references: async () => [],
-    } as never,
-  } as never;
-  const svc = new RepoIntelService(container);
-  (svc as unknown as { repo: Record<string, unknown> }).repo = {
-    getRepoBasics: async () => opts.basics ?? null,
-    tryGetIndexState: async () => opts.indexStateRow ?? null,
-    getCachedSymbols: async () => [],
-    getCachedSymbolsForFiles: async () => [],
-    getCachedReferencesTo: async () => [],
-  };
-  return svc;
+    },
+  } as Partial<RepoIntelDeps> as RepoIntelDeps);
 }
 
 describe('RepoIntel facade — degraded contract (flag off)', () => {

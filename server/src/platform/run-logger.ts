@@ -1,5 +1,4 @@
-import type { RunEventKind, RunLogLine } from '@devdigest/shared';
-import type { RunBus } from './sse.js';
+import type { RunEvent, RunEventKind, RunLogLine } from '@devdigest/shared';
 
 /**
  * Structured run logger — the SINGLE sink for everything a run does.
@@ -16,6 +15,16 @@ import type { RunBus } from './sse.js';
  * at once — used for shared pre-work (diff/intent) that happens before the
  * per-agent loop, so each target agent's stream shows it too.
  */
+
+/**
+ * The part of the run stream this logger writes to and reads back. Declared
+ * here so the logger depends on a shape, not on the SSE bus (`sse.ts`), and
+ * use cases can import it without reaching into infrastructure.
+ */
+export interface RunEventBus {
+  publish(runId: string, kind: RunEventKind, msg: string, data?: unknown): RunEvent;
+  buffer(runId: string): RunEvent[];
+}
 
 /** Minimal pino-compatible logger: (obj, msg). Optional stdout mirror. */
 export type PinoLike = {
@@ -35,7 +44,7 @@ const LEVEL: Record<RunEventKind, keyof PinoLike> = {
 
 export class RunLogger {
   constructor(
-    private readonly bus: RunBus,
+    private readonly bus: RunEventBus,
     private readonly runIds: string[],
     private readonly base?: PinoLike,
     private readonly ctx: Record<string, unknown> = {},

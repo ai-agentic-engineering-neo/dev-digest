@@ -18,7 +18,14 @@ import { RepoService } from './service.js';
  */
 export default async function reposRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
-  const service = new RepoService(app.container);
+
+  // Composition: the service gets exactly the ports it uses. The repository
+  // comes from the container because the workspace module reads it too.
+  const service = new RepoService({
+    repos: app.container.repoStore,
+    git: app.container.git,
+    jobs: app.container.jobs,
+  });
 
   // Register the clone job handler once.
   service.registerCloneJobHandler();

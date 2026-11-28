@@ -100,3 +100,7 @@ a CI artifact by `.github/workflows/e2e-web.yml`).
 | `05-pr-diff` | PR #482 → Files changed tab → seeded file renders in the diff viewer |
 | `06-onboarding` | `/onboarding` → add-repository form renders (no submit) |
 | `07-settings` | `/settings/api-keys` + `/settings/models` → section titles render |
+
+## More
+
+[Docs](docs/README.md) · [Repo docs](../docs/README.md) · [Specs](specs/README.md) · [Insights](INSIGHTS.md) · [Main README](../README.md)

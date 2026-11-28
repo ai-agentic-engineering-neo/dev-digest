@@ -69,7 +69,10 @@ const SetSkillsBody = z
 
 export default async function agentsRoutes(appBase: FastifyInstance) {
   const app = appBase.withTypeProvider<ZodTypeProvider>();
-  const service = new AgentsService(app.container);
+  const service = new AgentsService({
+    agents: app.container.agentsRepo,
+    models: (provider) => app.container.llm(provider),
+  });
 
   app.get('/agents', async (req) => {
     const { workspaceId } = await getContext(app.container, req);

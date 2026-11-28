@@ -46,7 +46,9 @@ export class RunBus {
    *  run exits — not by `complete()`, which a cancel request itself calls to end
    *  the stream while the runner may still be working. */
   clearCancelled(runId: string): void {
-    this.cancelled.delete(runId);
+    if (!this.cancelled.delete(runId)) return;
+    // A cancelled run's expiry waits for the runner to exit (see `complete`).
+    if (this.completed.has(runId)) this.armExpiry(runId);
   }
 
   private emitterFor(runId: string): EventEmitter {
@@ -93,15 +95,27 @@ export class RunBus {
   }
 
   /** Signal completion, drop the emitter, and free the buffer `bufferTtlMs`
-   *  later. Leaves a cancellation request in place: the runner clears it with
+   *  later (for a cancelled run: `bufferTtlMs` after `clearCancelled`). Leaves a cancellation request in place: the runner clears it with
    *  `clearCancelled` on exit. */
   complete(runId: string): void {
     const e = this.emitters.get(runId);
     this.completed.add(runId);
     e?.emit('done');
     this.emitters.delete(runId);
-    // Keep the buffer briefly for late subscribers, then forget the run. A
-    // second `complete` (cancel, then the runner's own) restarts the clock.
+    // Keep the buffer briefly for late subscribers, then forget the run. While
+    // the run is flagged cancelled its runner may still be working and will
+    // persist the trace from this buffer on exit, so the clock starts only when
+    // the flag is cleared (`clearCancelled`, called by the runner on exit).
+    if (this.cancelled.has(runId)) {
+      clearTimeout(this.expiry.get(runId));
+      this.expiry.delete(runId);
+      return;
+    }
+    this.armExpiry(runId);
+  }
+
+  /** (Re)start the countdown after which a completed run is forgotten. */
+  private armExpiry(runId: string): void {
     clearTimeout(this.expiry.get(runId));
     const timer = setTimeout(() => this.forget(runId), this.bufferTtlMs);
     timer.unref();

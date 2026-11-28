@@ -32,6 +32,21 @@ describe('RunBus buffer expiry', () => {
     expect(bus.buffer('run-1')).toEqual([]);
     expect(bus.isComplete('run-1')).toBe(false);
   });
+
+  it('waits for a cancelled run\'s runner to exit before starting the clock', () => {
+    vi.useFakeTimers();
+    const bus = new RunBus();
+    bus.publish('run-1', 'info', 'Starting review');
+    bus.cancel('run-1');
+    bus.complete('run-1'); // cancelRun ends the stream; the runner is still in the LLM call
+
+    vi.advanceTimersByTime(RUN_BUFFER_TTL_MS + 1);
+    expect(bus.buffer('run-1')).toHaveLength(1);
+
+    bus.clearCancelled('run-1'); // the runner exits
+    vi.advanceTimersByTime(RUN_BUFFER_TTL_MS);
+    expect(bus.has('run-1')).toBe(false);
+  });
 });
 
 describe('liveRunFrames', () => {

@@ -15,6 +15,8 @@ import type {
 import { withRetry, withTimeout } from '../../platform/resilience.js';
 
 const TIMEOUT = 30_000;
+/** Hard cap on listFiles pages (GitHub itself stops at 3000 files). */
+export const MAX_FILE_PAGES = 30;
 
 function mapStatus(state: string, merged: boolean | undefined): PrStatus {
   if (merged) return 'merged';
@@ -71,17 +73,22 @@ export class OctokitGitHubClient implements GitHubClient {
     return withRetry(() =>
       withTimeout(
         (async () => {
+          let pages = 0;
           const { data: pr } = await this.octokit.rest.pulls.get({
             owner: repo.owner,
             repo: repo.name,
             pull_number: n,
           });
-          const { data: files } = await this.octokit.rest.pulls.listFiles({
-            owner: repo.owner,
-            repo: repo.name,
-            pull_number: n,
-            per_page: 100,
-          });
+          // GitHub caps the files listing at 3000 (30 pages of 100).
+          const files = await this.octokit.paginate(
+            this.octokit.rest.pulls.listFiles,
+            { owner: repo.owner, repo: repo.name, pull_number: n, per_page: 100 },
+            (res, done) => {
+              pages++;
+              if (pages >= MAX_FILE_PAGES) done();
+              return res.data;
+            },
+          );
           const { data: commits } = await this.octokit.rest.pulls.listCommits({
             owner: repo.owner,
             repo: repo.name,

@@ -92,13 +92,26 @@ export class ReviewRunExecutor {
     };
 
     let diff: UnifiedDiff;
+    let skippedFiles = 0;
     try {
-      diff = await runLog.step('Loading PR diff', () => loadDiff(this.deps, pull, repo), {
-        kind: 'tool',
-      });
+      const loaded = await runLog.step(
+        'Loading PR diff',
+        () => loadDiff(this.deps, pull, repo, runLog),
+        { kind: 'tool' },
+      );
+      diff = loaded.diff;
+      skippedFiles = loaded.skippedFiles;
     } catch (err) {
       runLog.error(`Failed to load PR diff: ${(err as Error).message}`);
       await failAll(`Failed to load PR diff: ${(err as Error).message}`);
+      return;
+    }
+    // BE-11: an empty diff is a failed run, not a clean review of nothing.
+    // Before any LLM call, and the head is never marked reviewed.
+    if (diff.files.length === 0) {
+      const msg = 'The PR diff is empty — nothing to review';
+      runLog.error(msg);
+      await failAll(msg);
       return;
     }
     // XC-5: a bounded prompt. The cut is visible in every run's log, and a
@@ -128,7 +141,7 @@ export class ReviewRunExecutor {
           agent,
           runId,
           runLog,
-          capped.truncated,
+          capped.truncated || skippedFiles > 0,
         );
         logger?.info(
           {
@@ -319,7 +332,7 @@ export class ReviewRunExecutor {
       // and best-effort: the review is already saved, so a failure here must
       // not turn the run into a failed one.
       if (partial) {
-        runLog.info('Partial review (diff truncated) — the commit is not marked reviewed');
+        runLog.info('Partial review (diff truncated or files without a patch) — the commit is not marked reviewed');
       } else {
         await this.deps.pulls.markReviewed(pull.id, pull.headSha).catch((err: unknown) => {
           runLog.info(`Could not record the reviewed commit: ${(err as Error).message}`);

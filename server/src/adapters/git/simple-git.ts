@@ -19,6 +19,19 @@ import { parseUnifiedDiff } from './diff-parser.js';
  */
 const RESYNC_FETCH_DEPTH = 50;
 
+/** A ref from GitHub that starts with `-` could be read by git as a flag. */
+export class UnsafeRefError extends Error {
+  constructor(ref: string) {
+    super(`Refusing git ref ${JSON.stringify(ref)}: refs must not start with "-"`);
+    this.name = 'UnsafeRefError';
+  }
+}
+
+function assertSafeRef(ref: string): string {
+  if (ref.startsWith('-')) throw new UnsafeRefError(ref);
+  return ref;
+}
+
 /** Only origin whose clones/fetches ever receive the GitHub token. */
 const GITHUB_ORIGIN = 'https://github.com/';
 
@@ -207,7 +220,7 @@ export class SimpleGitClient implements GitClient {
     // Fetch the PR head ref into a local ref (GitHub exposes pull/<n>/head).
     const dest = this.clonePathFor(repo);
     await this.scrubRemote(dest, repo);
-    await (await this.netGit(dest)).fetch(['origin', `pull/${n}/head:pr-${n}`]);
+    await (await this.netGit(dest)).fetch(['--end-of-options', 'origin', `pull/${n}/head:pr-${n}`]);
   }
 
   async sync(repo: RepoRef, branch: string): Promise<{ head: string }> {
@@ -217,9 +230,16 @@ export class SimpleGitClient implements GitClient {
     // Fetch a bounded depth (> the shallow CLONE_DEPTH) so the prior indexed sha
     // is usually reachable for an incremental diff; the indexer falls back to a
     // full reindex when it isn't.
+    assertSafeRef(branch);
     const dest = this.clonePathFor(repo);
     await this.scrubRemote(dest, repo);
-    await (await this.netGit(dest)).fetch(['origin', branch, '--depth', String(RESYNC_FETCH_DEPTH)]);
+    await (await this.netGit(dest)).fetch([
+      '--depth',
+      String(RESYNC_FETCH_DEPTH),
+      '--end-of-options',
+      'origin',
+      branch,
+    ]);
     const g = this.git(repo);
     await g.reset(['--hard', `origin/${branch}`]);
     return { head: (await g.revparse(['HEAD'])).trim() };
@@ -230,7 +250,9 @@ export class SimpleGitClient implements GitClient {
   }
 
   async diff(repo: RepoRef, base: string, head: string): Promise<UnifiedDiff> {
-    const raw = await this.git(repo).diff([`${base}...${head}`]);
+    assertSafeRef(base);
+    assertSafeRef(head);
+    const raw = await this.git(repo).diff(['--end-of-options', `${base}...${head}`]);
     return parseUnifiedDiff(raw);
   }
 

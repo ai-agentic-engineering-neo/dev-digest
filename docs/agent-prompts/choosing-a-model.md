@@ -66,3 +66,17 @@ tokens) as surfaced by the studio's model list; verify live before relying on th
 Because `score` and the merge gate are derived deterministically from the grounded
 findings (not the model's self-report), the comparison is apples-to-apples across
 models — only the findings and their severities change.
+
+## Where to see what a run actually cost
+
+Every completed run stores its real cost in `agent_runs.cost_usd` (OpenRouter's
+`usage.cost`, or a price-book estimate for other providers). The studio shows it
+in four places:
+
+- **PR list** — the COST column (latest completed run; `–` when there is none);
+- **PR page → Agent runs → timeline** — `tokens · $cost` under the run time;
+- **review run header and verdict banner** — the run's cost, and tokens in→out
+  under the PR score;
+- **Agent run drawer → Stats** — Duration · Tokens · Cost · Findings.
+
+Compare these numbers with the estimate above after switching models.

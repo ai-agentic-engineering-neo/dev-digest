@@ -13,6 +13,7 @@ Hygiene: monthly `/engineering-insights review` (logged under Review log); split
 ## Decisions
 
 ## Context
+- 2026-11-28 · Without `npm ci` in `e2e/`, `npm run typecheck` falls back to a global `tsc` and fails with TS2688 "Cannot find type definition file for node" plus a `moduleResolution` error — install the package deps first; the code is fine. Evidence: `e2e/tsconfig.json`
 
 ## Open Questions
 

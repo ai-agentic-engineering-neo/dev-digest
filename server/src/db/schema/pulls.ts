@@ -42,7 +42,9 @@ export const prFiles = pgTable('pr_files', {
   additions: integer('additions').notNull().default(0),
   deletions: integer('deletions').notNull().default(0),
   patch: text('patch'),
-});
+}, (t) => ({
+  prIdx: index('pr_files_pr_idx').on(t.prId),
+}));
 
 export const prCommits = pgTable('pr_commits', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -53,4 +55,6 @@ export const prCommits = pgTable('pr_commits', {
   message: text('message').notNull(),
   author: text('author').notNull(),
   committedAt: timestamp('committed_at', { withTimezone: true }),
-});
+}, (t) => ({
+  prIdx: index('pr_commits_pr_idx').on(t.prId),
+}));

@@ -59,6 +59,18 @@ export class ReviewRepository {
     return reviewRepo.insertFindings(this.db, reviewId, findings);
   }
 
+  /** Review + its findings in one transaction — never a review without findings. */
+  insertReviewWithFindings(
+    values: Parameters<ReviewRepository['insertReview']>[0],
+    findings: Finding[],
+  ): Promise<{ review: ReviewRow; findings: FindingRow[] }> {
+    return this.db.transaction(async (tx) => {
+      const review = await reviewRepo.insertReview(tx, values);
+      const rows = await reviewRepo.insertFindings(tx, review.id, findings);
+      return { review, findings: rows };
+    });
+  }
+
   /** Reviews for a PR (newest first), each with its findings. */
   reviewsForPull(prId: string): Promise<{ review: ReviewRow; findings: FindingRow[] }[]> {
     return reviewRepo.reviewsForPull(this.db, prId);

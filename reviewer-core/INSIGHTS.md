@@ -14,6 +14,7 @@ Hygiene: monthly `/engineering-insights review` (logged under Review log); split
 
 ## Context
 - 2026-11-23 · In map-reduce mode one chunk with an unknown price makes the whole run's `costUsd` null while tokens still sum — treat null cost as "unknown", never as 0. Evidence: `reviewer-core/src/review/run.ts` (chunk loop)
+- 2026-11-28 · Unit tests for `groundFindings` live in the server, not here: `server/test/grounding.test.ts` imports it through the `platform/grounding.ts` re-export shim. Look there before adding grounding tests to `reviewer-core/test/`. Evidence: `server/src/platform/grounding.ts`, `server/test/grounding.test.ts`
 
 ## Open Questions
 

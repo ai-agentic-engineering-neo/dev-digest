@@ -1,9 +1,9 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
-import { Gallery } from "../components/showcase";
-import { DiffViewer } from "../components/diff-viewer";
-import type { PrFile } from "../lib/types";
+import { Gallery } from "@/components/showcase";
+import { DiffViewer } from "@/components/diff-viewer";
+import type { PrFile } from "@/lib/types";
 import shellMessages from "../../messages/en/shell.json";
 
 afterEach(cleanup);

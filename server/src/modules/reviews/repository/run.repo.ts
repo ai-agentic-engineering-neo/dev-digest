@@ -79,14 +79,18 @@ export async function deleteAgentRun(
   workspaceId: string,
   runId: string,
 ): Promise<boolean> {
-  await db
-    .delete(t.reviews)
-    .where(and(eq(t.reviews.runId, runId), eq(t.reviews.workspaceId, workspaceId)));
-  const rows = await db
-    .delete(t.agentRuns)
-    .where(and(eq(t.agentRuns.id, runId), eq(t.agentRuns.workspaceId, workspaceId)))
-    .returning({ id: t.agentRuns.id });
-  return rows.length > 0;
+  // One transaction: a failure between the two deletes must not leave a run
+  // whose reviews are gone (or reviews pointing at a deleted run).
+  return db.transaction(async (tx) => {
+    await tx
+      .delete(t.reviews)
+      .where(and(eq(t.reviews.runId, runId), eq(t.reviews.workspaceId, workspaceId)));
+    const rows = await tx
+      .delete(t.agentRuns)
+      .where(and(eq(t.agentRuns.id, runId), eq(t.agentRuns.workspaceId, workspaceId)))
+      .returning({ id: t.agentRuns.id });
+    return rows.length > 0;
+  });
 }
 
 /** Mark a still-running run as cancelled (no-op if it already finished). */

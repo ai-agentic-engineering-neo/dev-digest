@@ -15,6 +15,7 @@ Hygiene: monthly `/engineering-insights review` (logged under Review log); split
 
 ## Context
 - 2026-11-23 · Hooks added to `.claude/settings.json` mid-session take effect immediately in that session — protect-insights.py blocked an Edit right after the file was created, no restart needed. Evidence: `.claude/settings.json` (PreToolUse)
+- 2026-11-28 · `e2e-web.yml` already runs `pnpm build` for the client on every `client/**` or `server/**` change, so `client.yml` (typecheck + test only) does not need its own build step. Evidence: `.github/workflows/e2e-web.yml` (Web build step), `.github/workflows/client.yml`
 
 ## Open Questions
 

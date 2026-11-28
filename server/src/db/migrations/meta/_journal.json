@@ -71,6 +71,62 @@
       "when": 1781464392464,
       "tag": "0009_complex_runaways",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1795259818850,
+      "tag": "0010_fair_hydra",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1795852302805,
+      "tag": "0011_square_nitro",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1795852538014,
+      "tag": "0012_medical_vector",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1795852683658,
+      "tag": "0013_slimy_yellowjacket",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1795860657548,
+      "tag": "0014_kind_thor",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1795862264650,
+      "tag": "0015_public_skullbuster",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1795875779300,
+      "tag": "0016_safe_luckman",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1795878669204,
+      "tag": "0017_backfill_convention_status",
+      "breakpoints": true
     }
   ]
 }

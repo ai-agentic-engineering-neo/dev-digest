@@ -54,15 +54,6 @@ export interface IndexStateUpsert {
   stats: Record<string, unknown>;
 }
 
-/** Minimal repo shape the facade needs to call CodeIndex on a clone. */
-export interface RepoBasics {
-  id: string;
-  owner: string;
-  name: string;
-  defaultBranch: string;
-  clonePath: string | null;
-}
-
 /** Cached row from the existing `symbols` table (blast persists these). */
 export interface CachedSymbolRow {
   path: string;
@@ -80,12 +71,6 @@ export interface CachedReferenceRow {
 
 // --- T3 row shapes ----------------------------------------------------------
 
-/** Import-graph edge (importer → imported), repo-relative paths. */
-export interface IndexerEdgeRow {
-  fromFile: string;
-  toFile: string;
-}
-
 /** One `file_rank` row the rank step buffers before persistence. */
 export interface IndexerFileRankRow {
   filePath: string;
@@ -93,13 +78,6 @@ export interface IndexerFileRankRow {
   hotness: number;
   rank: number;
   percentile: number;
-}
-
-/** Precomputed per-file facts (endpoints/crons) the indexer writes for blast. */
-export interface IndexerFileFactsRow {
-  filePath: string;
-  endpoints: string[];
-  crons: string[];
 }
 
 /** Candidate row for the repo-map renderer (symbols × file_rank). */
@@ -111,26 +89,25 @@ export interface RepoMapCandidateRow {
   rank: number;
 }
 
-/** Full symbol row (with the T2 columns) — for getSymbolsInFiles + blast. */
-export interface FullSymbolRow {
-  path: string;
-  name: string;
-  kind: string;
-  line: number | null;
-  endLine: number | null;
-  exported: boolean;
-  signature: string | null;
-}
+// These shapes are part of the facade's store port, so they are declared in
+// ports.ts; re-exported here for the pipeline, which imports from this file.
+import type {
+  FullSymbolRow,
+  IndexerEdgeRow,
+  IndexerFileFactsRow,
+  RepoBasics,
+  RepoIntelStore,
+  ResolvedCallerRow,
+} from './ports.js';
+export type {
+  FullSymbolRow,
+  IndexerEdgeRow,
+  IndexerFileFactsRow,
+  RepoBasics,
+  ResolvedCallerRow,
+} from './ports.js';
 
-/** A resolved cross-file caller (reference whose decl_file is a changed file). */
-export interface ResolvedCallerRow {
-  fromPath: string;
-  toSymbol: string;
-  line: number;
-  rank: number;
-}
-
-export class RepoIntelRepository {
+export class RepoIntelRepository implements RepoIntelStore {
   constructor(private db: Db) {}
 
   async getRepoBasics(repoId: string): Promise<RepoBasics | null> {
@@ -242,10 +219,19 @@ export class RepoIntelRepository {
   // T2 indexer-pipeline writes.
   // -------------------------------------------------------------------------
 
-  /** Wipe every cached symbol + reference row for a repo (full-index reset). */
+  /**
+   * Wipe every cached symbol + reference row for a repo (full-index reset),
+   * and the repo's `repo_index_state` row in the same transaction. The pipeline
+   * re-writes the index in several later statements; if it is interrupted after
+   * this wipe, the missing state row makes the next refresh run a full index
+   * instead of trusting an empty index that still reads "full".
+   */
   async deleteAllForRepo(repoId: string): Promise<void> {
-    await this.db.delete(t.symbols).where(eq(t.symbols.repoId, repoId));
-    await this.db.delete(t.references).where(eq(t.references.repoId, repoId));
+    await this.db.transaction(async (tx) => {
+      await tx.delete(t.symbols).where(eq(t.symbols.repoId, repoId));
+      await tx.delete(t.references).where(eq(t.references.repoId, repoId));
+      await tx.delete(t.repoIndexState).where(eq(t.repoIndexState.repoId, repoId));
+    });
   }
 
   /**
@@ -255,14 +241,16 @@ export class RepoIntelRepository {
    */
   async deleteForFiles(repoId: string, paths: string[]): Promise<void> {
     if (paths.length === 0) return;
-    await this.db
-      .delete(t.symbols)
-      .where(and(eq(t.symbols.repoId, repoId), inArray(t.symbols.path, paths)));
-    await this.db
-      .delete(t.references)
-      .where(
-        and(eq(t.references.repoId, repoId), inArray(t.references.fromPath, paths)),
-      );
+    await this.db.transaction(async (tx) => {
+      await tx
+        .delete(t.symbols)
+        .where(and(eq(t.symbols.repoId, repoId), inArray(t.symbols.path, paths)));
+      await tx
+        .delete(t.references)
+        .where(
+          and(eq(t.references.repoId, repoId), inArray(t.references.fromPath, paths)),
+        );
+    });
   }
 
   /** Batched insert into `symbols`. Uses the same chunk size as blast. */
@@ -349,38 +337,41 @@ export class RepoIntelRepository {
 
   /** Replace the whole import-graph for a repo (full index / incremental). */
   async replaceEdges(repoId: string, edges: IndexerEdgeRow[]): Promise<void> {
-    await this.db.delete(t.fileEdges).where(eq(t.fileEdges.repoId, repoId));
-    if (edges.length === 0) return;
     const rows = edges.map((e) => ({ repoId, fromFile: e.fromFile, toFile: e.toFile }));
-    for (let i = 0; i < rows.length; i += INSERT_CHUNK_SIZE) {
-      await this.db.insert(t.fileEdges).values(rows.slice(i, i + INSERT_CHUNK_SIZE));
-    }
+    await this.db.transaction(async (tx) => {
+      await tx.delete(t.fileEdges).where(eq(t.fileEdges.repoId, repoId));
+      for (let i = 0; i < rows.length; i += INSERT_CHUNK_SIZE) {
+        await tx.insert(t.fileEdges).values(rows.slice(i, i + INSERT_CHUNK_SIZE));
+      }
+    });
   }
 
   /** Replace the whole file_rank table for a repo. */
   async replaceFileRank(repoId: string, rows: IndexerFileRankRow[]): Promise<void> {
-    await this.db.delete(t.fileRank).where(eq(t.fileRank.repoId, repoId));
-    if (rows.length === 0) return;
     const values = rows.map((r) => ({ repoId, ...r }));
-    for (let i = 0; i < values.length; i += INSERT_CHUNK_SIZE) {
-      await this.db.insert(t.fileRank).values(values.slice(i, i + INSERT_CHUNK_SIZE));
-    }
+    await this.db.transaction(async (tx) => {
+      await tx.delete(t.fileRank).where(eq(t.fileRank.repoId, repoId));
+      for (let i = 0; i < values.length; i += INSERT_CHUNK_SIZE) {
+        await tx.insert(t.fileRank).values(values.slice(i, i + INSERT_CHUNK_SIZE));
+      }
+    });
   }
 
   /** Replace per-file facts; only rows with at least one endpoint/cron persist. */
   async replaceFileFacts(repoId: string, rows: IndexerFileFactsRow[]): Promise<void> {
-    await this.db.delete(t.fileFacts).where(eq(t.fileFacts.repoId, repoId));
     const nonEmpty = rows.filter((r) => r.endpoints.length > 0 || r.crons.length > 0);
-    if (nonEmpty.length === 0) return;
     const values = nonEmpty.map((r) => ({
       repoId,
       filePath: r.filePath,
       endpoints: r.endpoints,
       crons: r.crons,
     }));
-    for (let i = 0; i < values.length; i += INSERT_CHUNK_SIZE) {
-      await this.db.insert(t.fileFacts).values(values.slice(i, i + INSERT_CHUNK_SIZE));
-    }
+    await this.db.transaction(async (tx) => {
+      await tx.delete(t.fileFacts).where(eq(t.fileFacts.repoId, repoId));
+      for (let i = 0; i < values.length; i += INSERT_CHUNK_SIZE) {
+        await tx.insert(t.fileFacts).values(values.slice(i, i + INSERT_CHUNK_SIZE));
+      }
+    });
   }
 
   /**
@@ -598,21 +589,23 @@ export class RepoIntelRepository {
     files: string[],
     rows: IndexerFileFactsRow[],
   ): Promise<void> {
-    if (files.length > 0) {
-      await this.db
-        .delete(t.fileFacts)
-        .where(and(eq(t.fileFacts.repoId, repoId), inArray(t.fileFacts.filePath, files)));
-    }
     const nonEmpty = rows.filter((r) => r.endpoints.length > 0 || r.crons.length > 0);
-    if (nonEmpty.length === 0) return;
     const values = nonEmpty.map((r) => ({
       repoId,
       filePath: r.filePath,
       endpoints: r.endpoints,
       crons: r.crons,
     }));
-    for (let i = 0; i < values.length; i += INSERT_CHUNK_SIZE) {
-      await this.db.insert(t.fileFacts).values(values.slice(i, i + INSERT_CHUNK_SIZE));
-    }
+    if (files.length === 0 && values.length === 0) return;
+    await this.db.transaction(async (tx) => {
+      if (files.length > 0) {
+        await tx
+          .delete(t.fileFacts)
+          .where(and(eq(t.fileFacts.repoId, repoId), inArray(t.fileFacts.filePath, files)));
+      }
+      for (let i = 0; i < values.length; i += INSERT_CHUNK_SIZE) {
+        await tx.insert(t.fileFacts).values(values.slice(i, i + INSERT_CHUNK_SIZE));
+      }
+    });
   }
 }

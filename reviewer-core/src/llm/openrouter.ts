@@ -7,7 +7,7 @@ import type {
   StructuredRequest,
   StructuredResult,
 } from '@devdigest/shared';
-import { toJsonSchema, parseWithRepair } from './structured.js';
+import { toJsonSchema, parseWithRepair, StructuredOutputError } from './structured.js';
 
 /**
  * The single OpenAI-compatible structured provider, owned by the engine because
@@ -34,6 +34,8 @@ export interface OpenRouterProviderOptions {
   maxRetries?: number;
   /** Injected cost estimator; returns USD or null when the model is unknown. */
   estimateCost?: (model: string, tokensIn: number, tokensOut: number) => number | null;
+  /** Pre-built client (tests inject a fake); default: an OpenAI SDK client for `baseURL`. */
+  client?: OpenAI;
 }
 
 export class OpenRouterProvider implements LLMProvider {
@@ -48,7 +50,7 @@ export class OpenRouterProvider implements LLMProvider {
     this.apiKey = apiKey;
     this.baseURL = opts.baseURL ?? 'https://openrouter.ai/api/v1';
     this.estimateCost = opts.estimateCost;
-    this.client = new OpenAI({
+    this.client = opts.client ?? new OpenAI({
       apiKey,
       baseURL: this.baseURL,
       timeout: opts.timeoutMs ?? 90_000,
@@ -65,7 +67,11 @@ export class OpenRouterProvider implements LLMProvider {
     let costFromApi: number | null = null;
     let lastRaw = '';
 
+    const cost = () => costFromApi ?? this.estimateCost?.(req.model, tokensIn, tokensOut) ?? null;
+
     for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+      // The SDK enforces the deadline and retries timeouts/429/5xx itself; the
+      // signal aborts the request in flight (no extra wrapper around it).
       const res = await this.client.chat.completions.create({
         model: req.model,
         messages,
@@ -81,6 +87,9 @@ export class OpenRouterProvider implements LLMProvider {
         // OpenRouter usage accounting — ask it to return the REAL generation
         // cost (USD) in `usage.cost`, instead of estimating from a price book.
         ...(this.id === 'openrouter' ? { usage: { include: true } } : {}),
+      }, {
+        ...(req.signal ? { signal: req.signal } : {}),
+        ...(req.timeoutMs ? { timeout: req.timeoutMs } : {}),
       });
 
       // OpenRouter can return HTTP 200 with no `choices` (an upstream provider
@@ -104,7 +113,7 @@ export class OpenRouterProvider implements LLMProvider {
           model: req.model,
           tokensIn,
           tokensOut,
-          costUsd: costFromApi ?? this.estimateCost?.(req.model, tokensIn, tokensOut) ?? null,
+          costUsd: cost(),
           raw: lastRaw,
           attempts: attempt,
         };
@@ -112,7 +121,12 @@ export class OpenRouterProvider implements LLMProvider {
       messages.push({ role: 'assistant', content: lastRaw });
       messages.push({ role: 'user', content: parsed.repromptMessage });
     }
-    throw new Error(`OpenRouter structured output failed schema validation for ${req.schemaName}`);
+    throw new StructuredOutputError(
+      `OpenRouter structured output failed schema validation for ${req.schemaName}`,
+      { tokensIn, tokensOut, costUsd: cost() },
+      lastRaw,
+      maxRetries + 1,
+    );
   }
 
   /**

@@ -5,9 +5,10 @@
 import React from "react";
 import { useTranslations } from "next-intl";
 import { Badge } from "@devdigest/ui";
-import type { RunTrace, FindingRecord } from "@devdigest/shared";
+import type { RunTrace, FindingRecord, PromptAssembly } from "@devdigest/shared";
 import { PROMPT_COLORS } from "../../constants";
 import { formatSeconds, formatTokens } from "../../helpers";
+import { formatCost } from "../../../../../helpers";
 import { s } from "../../styles";
 import { TraceSection } from "../TraceSection";
 import { ToolCallRow } from "../ToolCallRow";
@@ -63,6 +64,7 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
         <div style={s.statsRow}>
           <Stat label={t("trace.stat.duration")} val={formatSeconds(stats.duration_ms)} />
           <Stat label={t("trace.stat.tokens")} val={formatTokens(stats.tokens_in, stats.tokens_out)} />
+          <Stat label={t("trace.stat.cost")} val={formatCost(stats.cost_usd)} />
           <Stat label={t("trace.stat.findings")} val={stats.findings} />
         </div>
       </TraceSection>
@@ -72,7 +74,12 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
       <TraceSection icon="FileText" title={t("trace.promptAssembly")} defaultOpen={false}>
         <PromptBlock label={t("trace.prompt.system")} text={trace.prompt_assembly.system} color={PROMPT_COLORS.system} />
         {trace.prompt_assembly.skills != null && (
-          <PromptBlock label={t("trace.prompt.skills")} text={trace.prompt_assembly.skills} color={PROMPT_COLORS.skills} />
+          <PromptBlock
+            label={t("trace.prompt.skills")}
+            text={trace.prompt_assembly.skills}
+            color={PROMPT_COLORS.skills}
+            meta={<SkillsMeta assembly={trace.prompt_assembly} />}
+          />
         )}
         {trace.prompt_assembly.memory != null && (
           <PromptBlock label={t("trace.prompt.memory")} text={trace.prompt_assembly.memory} color={PROMPT_COLORS.memory} />
@@ -107,5 +114,23 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
         </pre>
       </TraceSection>
     </>
+  );
+}
+
+/** `+T tokens` and one `name vN` chip per loaded skill; nothing for a pre-M2 trace. */
+function SkillsMeta({ assembly }: { assembly: PromptAssembly }) {
+  const t = useTranslations("runs");
+  if (assembly.skills_tokens == null) return null;
+  return (
+    <span style={s.skillsMeta}>
+      <span className="mono" style={s.skillsTokens}>
+        {t("trace.prompt.skillsTokens", { count: assembly.skills_tokens })}
+      </span>
+      {(assembly.skills_used ?? []).map((sk) => (
+        <span key={sk.id} className="mono" style={s.skillChip}>
+          {t("trace.prompt.skillChip", { name: sk.name, version: sk.version })}
+        </span>
+      ))}
+    </span>
   );
 }

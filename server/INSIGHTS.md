@@ -1,0 +1,143 @@
+# server — insights
+
+What the code of this module does not show: lasting facts about it, and the
+lessons of past work sessions. Read it before working here. It is the one place
+for this knowledge: the `engineering-insights` skill appends to it, and people
+edit it.
+
+- **Key Facts** is curated. Edit or remove an entry when it stops being true.
+  Format: `### YYYY-MM-DD — short title`, then **What happened**, **Why** and
+  **Rule**.
+- Every other section is append-only. Add entries, never rewrite or delete
+  them; correct one by appending a new dated entry that names it. Format:
+  `- YYYY-MM-DD — <specific lesson and the action to take>. Evidence: path:line`
+
+## Key Facts
+
+<!-- Lasting facts about the module, promoted from the sections below. -->
+
+### 2026-11-21 — The two `@devdigest/shared` copies have already drifted
+
+**What happened:** `server/src/vendor/shared` and `client/src/vendor/shared`
+differ in five files (`adapters.ts`, and `contracts/eval-ci.ts`,
+`knowledge.ts`, `productionize.ts`, `trace.ts`).
+
+**Why:** the contracts are vendored per package, and nothing checks that the
+copies match.
+
+**Rule:** when changing a contract, apply the change to both copies in the same
+commit, and diff the two folders before relying on a contract that the client
+also uses.
+
+## What Works
+
+<!-- Approaches and solutions that worked here. -->
+
+## What Doesn't Work
+
+<!-- Dead ends and antipatterns. The most valuable section; do not skip it. -->
+
+- 2026-11-22 — Do not rely on the PR list sync to import every open PR: `listPullRequests` reads one page — the 50 most-recently-updated PRs with `state: 'all'` — so on a repo with more than 50 PRs an open PR nobody touched lately is silently absent (importing `ai-agentic-engineering-neo/dev-digest` brought 4 of its 5 open PRs; #14 was cut off). `GET /repos/:id/pulls` and `POST /repos/:id/poll` both go through that call and no route imports a PR by number. To fix it, paginate or add a `state: 'open'` pass in the adapter; as a stopgap, one row in `pull_requests` with the importer's columns is enough — `GET /pulls/:id` then loads files, commits and body from GitHub. Evidence: server/src/adapters/github/octokit.ts:42
+
+- 2026-11-26 — `Schema.default({})` as a route `body` schema still answers 422 when the request has no body at all; Fastify hands the validator a missing body that `.default()` does not cover. For a body that may be absent use `z.preprocess((b) => b ?? {}, Schema)`. Evidence: server/src/modules/reviews/routes.ts:26
+
+- 2026-11-27 — Do not treat the server unit lane as database-free: `buildApp` runs the stale-run reaper (`UPDATE agent_runs SET status='failed' WHERE status='running'`) before it returns, and three unit test files call `buildApp({ config })` with no `db` override, so `pnpm exec vitest run --exclude '**/*.it.test.ts'` runs that statement against the `DATABASE_URL` from `.env`. Do not run the unit lane while a review is running on the dev database; a run marked `failed` with no `error` and no `duration_ms` was reaped this way. Until the reaper moves to `server.ts`, give a no-DB test a stub `db`. Evidence: server/src/app.ts:81
+
+- 2026-11-27 — Do not clear a run's cancellation flag in `RunBus.complete()`: `cancelRun` calls `complete()` right after `cancel()` (to end SSE for orphaned runs), so clearing there made cancel a no-op for a live run — it finished, saved findings and flipped back to `done`. The flag is now cleared by the run executor in `runOneAgent`'s `finally` (and in `failAll`), and by `cancelRun` only when the row was no longer running. A new path that ends a run must call `clearCancelled`. Evidence: server/src/modules/reviews/run-executor.ts:332
+- 2026-11-28 — `pnpm db:generate` asks an interactive rename question when one change drops a column and adds another, and fails in a non-TTY shell (agents, CI). Add columns without dropping (the M2 conventions migration kept `accepted` and mirrors `status`), or drop in a separate migration. Evidence: server/src/db/schema/knowledge.ts:49
+
+## Codebase Patterns
+
+<!-- Conventions and structure that are not obvious from one file. -->
+
+- 2026-11-21 — Run cost is already computed per LLM call (OpenRouter `usage.cost`, else `estimateCost`) and summed by reviewer-core into `ReviewOutcome.costUsd`; to surface it, persist it in `run-executor` — never add a model call or recompute from tokens. Failed/cancelled paths hard-code tokens 0 and cost null, so read cost only from `status='done'` runs. Evidence: server/src/modules/reviews/run-executor.ts:214
+
+- 2026-11-23 — A review seeded on PR #482 must be dated before the seeded Security Reviewer review. The newest review on a PR drives the list's score and is the run the Agent runs tab opens by default, and e2e flow 04 asserts that run's `2 findings` and `1 CRITICAL`; a newer seeded review would take both over. Each seeded block also needs its own idempotency check (the Performance Reviewer block keys on a `model = 'seed'` review by that agent), because the first block's "PR has any run" check would skip it on a database that was seeded earlier. Evidence: server/src/db/seed.ts:333
+
+- 2026-11-26 — A type that both a domain rule and a port mention is declared in `domain.ts` and imported by `ports.ts`. The other direction (`domain.ts` importing `ports.ts`) fails `domain-is-pure`. Evidence: server/src/modules/agents/domain.ts:8
+
+- 2026-11-26 — An adapter built from a secret that can change (`container.github()`, `container.llm(id)`) is passed to a service as a resolver function, never as an instance captured when the plugin registers; an instance would survive `invalidateSecretCaches()` with the old key. Evidence: server/src/modules/pulls/routes.ts:23
+
+- 2026-11-26 — `container.repoIntelService` is always the real service and owns the index/refresh/resync job handlers; `container.repoIntel` is the read facade a test may replace. Register job handlers on the former, read through the latter. Evidence: server/src/platform/container.ts:157
+
+- 2026-11-28 — A contract field with `.default()` (e.g. `Agent.skill_count`) still parses old payloads, but `z.infer` makes it required, so every typed `Agent` literal in tests must add the field or `pnpm typecheck` fails (the unit lane alone does not catch it). Evidence: server/src/vendor/shared/contracts/knowledge.ts:250
+
+## Tool & Library Notes
+
+<!-- Quirks of dependencies and tooling. -->
+
+- 2026-11-26 — dependency-cruiser sees `import type` only with `tsPreCompilationDeps: true`; without it a service typed by a Drizzle row passes every rule. Keep the option on. Evidence: server/.dependency-cruiser.cjs:228
+
+- 2026-11-26 — `depcruise --output-type json` exits 0 even when it reports violations; only the default reporter exits 1. A CI step or script that gates on the exit code must not set an output type. Evidence: .github/workflows/server-unit.yml:73
+
+- 2026-11-28 — `reply.sse()` (fastify-sse-v2) hijacks the reply and never calls `return()` on the source iterator when the client disconnects, so a generator's `finally` does not run. Drop the bus subscription from an abort handler (`reply.raw` `close` → AbortController), not only in `finally`; and resolve/404 the run before calling `reply.sse`. Evidence: server/src/platform/sse.ts (`liveRunFrames`)
+
+- 2026-11-28 — The installed SDKs (openai 4.104, @anthropic-ai/sdk 0.33) take `signal`, `timeout` and `maxRetries` per request as the second argument of `create(body, options)` and as client defaults in the constructor; an aborted request rejects with the SDK's `APIUserAbortError`. The LLM adapters set timeout and retries on the client and pass `{ timeout, signal }` per call; do not wrap them in `withRetry`/`withTimeout` again (that nested the retries and the timeout only raced, never aborted). Evidence: server/src/adapters/llm/openai.ts:54
+
+- 2026-11-28 — `fflate.unzipSync` with a `filter` that returns false walks the zip's central directory and inflates nothing; the skill import lists entries this way and inflates only the core `.md` with a second filtered call. `originalSize` is what the archive declares, so the 256 KB limit is checked again on the inflated bytes. Evidence: server/src/adapters/skill-import/index.ts:22
+- 2026-11-28 — OpenRouter strict `json_schema` with a reasoning model (`openai/gpt-5-nano`) failed `ConventionExtraction` validation every attempt while the schema had `.min()/.max()` bounds and `maxTokens` was 4000 (reasoning tokens count against it). Keep LLM output schemas bound-free, clamp/cap in the server, and give reasoning models ≥16k output tokens. Evidence: server/src/vendor/shared/contracts/knowledge.ts:258, server/src/modules/conventions/constants.ts:35
+- 2026-11-28 — A `:batch` model id (e.g. `x-ai/grok-4.3:batch`) saved in Settings → feature models cannot be called through chat/completions: OpenRouter answers 404 and the API returns `internal_error`. Pick a non-batch model for synchronous features such as `conventions`. Evidence: server/src/platform/container.ts:180
+
+## Decisions
+
+<!-- A decision and the reason for it. -->
+
+- 2026-11-21 — M1 cost badge edited the existing `reviews` and `pulls` modules instead of adding a new module: the cost originates in `reviews` and the list route lives in `pulls`; a new module would only duplicate those reads. `PrMeta.last_run_cost_usd` = newest `done` run, so a running/failed newer run never replaces it with a fake price. Evidence: server/src/modules/pulls/routes.ts:172
+
+- 2026-11-22 — Corrects the 2026-11-21 entry above: the PR list cost is now `PrMeta.total_cost_usd`, the sum of `cost_usd` over every run on the PR, because the list should show what the PR cost in total, not the last run. It sums runs with a stored cost and has no `status` filter (failed and cancelled runs store null, so they add nothing), and it is null when no run has a known cost; keep per-run cost on `RunSummary.cost_usd`. The sum is rounded to 10 decimals so float addition noise does not reach the client's unrounded hover value. Evidence: server/src/modules/pulls/routes.ts:175
+
+- 2026-11-23 — The PR list's `PrMeta.findings_counts` is summed over each agent's latest review on the PR (`kind = 'review'`, newest first, one per `prId|agentId`, reviews without an agent share one key), not over the PR's single latest review: a PR reviewed by several agents must show all of them, and a re-run must replace that agent's earlier findings instead of adding to them. It counts every stored finding, dismissed and low-confidence ones included, to match `N findings` in a run's header. `null` means "never reviewed"; a reviewed PR with no findings gets an all-zero object. The client's hover preview applies the same rule to `/pulls/:id/reviews`, so change both together. Evidence: server/src/modules/pulls/status.ts:49
+
+- 2026-11-26 — `no-circular` ignores cycles that exist only through `import type`, because `modules/repo-intel/pipeline/**` (do-not-touch) takes the `Container` type and the container wires the pipeline. A runtime cycle is still an error; do not widen the exemption. Evidence: server/.dependency-cruiser.cjs:49
+
+- 2026-11-26 — Polling and the PR list now import pull requests through one repository method, so a PR first seen by `POST /repos/:id/poll` gets `opened_at` stored (it used to stay null forever). Evidence: server/src/modules/pulls/repository.ts:54
+
+- 2026-11-27 — `completeAgentRun` only updates rows still `status = 'running'`, so nothing overwrites a cancelled (or reaped) run. Side effect: on the cancel path the executor's `completeAgentRun(..., 'cancelled', error: 'Cancelled by user')` is a no-op because `cancelRunIfRunning` already flipped the row, so a cancelled run stores no `error` or `duration_ms`; only its trace (log so far) is saved. If the UI needs the note, set it in `cancelRunIfRunning`, not by loosening the guard. The success path goes through `saveReviewOutcome`, which runs the guarded update first inside the transaction and returns null (writes nothing) when the run is no longer running. Evidence: server/src/modules/reviews/repository/run.repo.ts:181
+
+- 2026-11-28 — M2 agent links: every link change (set, link one, reorder, toggle) goes through `AgentStore.setSkills`, which bumps the agent version and snapshots `skills` + `skill_links` in one transaction; linking one skill is computed in `domain.ts` (`upsertLink`) and an unchanged set writes nothing (`linksChanged`). The seed inserts links directly without a bump, and only for an agent with no links, so user edits survive a re-seed. Evidence: server/src/modules/agents/domain.ts:72
+
+- 2026-11-28 — Corrects the M2 agent-links entry above: the seed links an agent only while it has no links AND no `agent_versions` row whose `config_json` has a `skill_links` array. Every M2 link change (and every post-M2 version bump) writes that snapshot, so a user who detached every skill keeps that after `pnpm db:seed`, while pre-M2 seeded agents still get links. Caveat: a post-M2 config edit of a seeded agent before it had links also writes `skill_links: []` and blocks seeding. "Created in this seed run" was tried and dropped: it left pre-M2 dev DBs with unlinked agents. Evidence: server/src/db/seed.ts (seedSkills)
+
+- 2026-11-28 — M2 cross-module reads go through ports, not joins: the agents repo returns link columns only and `AgentsService` adds name/type/flag via `SkillLookup.summaries`; `agent_count` comes from `AgentLinks.enabledLinkCounts` (agents repo) in `SkillsService`; the run's effective skills are `SkillsService.effectiveSkills` (agents port's ordered enabled ids + `SkillStore.enabledByIds`, re-ordered by link), shared via `container.skillsService`. Do not add a join across `skills` and `agent_skills` back into either repository. Evidence: server/src/modules/skills/service.ts (effectiveSkills)
+
+## Recurring Errors & Fixes
+
+<!-- An error seen more than once, with its fix. -->
+
+- 2026-11-28 — Request validation failures (zod type provider) answer **422** `validation_error`, not 400 (`app.ts` error handler); e.g. a non-base64 `content_base64` on `/skills/import/preview`. Test for 422. Evidence: server/src/app.ts:121
+- 2026-11-28 — "The PR diff is empty — nothing to review" on a freshly synced PR when the API runs from a worktree: the worktree has no `server/clones`, `git diff` fails, and the stored PR files are empty until the PR detail is fetched. Open the PR page (or `GET /pulls/:id`) once before running the review. Evidence: server/src/modules/reviews/diff-loader.ts:38
+
+## Session Notes
+
+<!-- One dated line per work session. -->
+
+- 2026-11-21 — Added CLAUDE.md, INSIGHTS.md, docs/ and specs/ for the package; no source code changed.
+
+- 2026-11-21 — Built M1 run cost badge (server): `agent_runs.cost_usd` (migration 0010), cost in RunSummary/RunStats/PrMeta, idempotent seeded run for PR #482; spec server/specs/M1-cost-badge.md.
+
+- 2026-11-22 — Imported the upstream repo `ai-agentic-engineering-neo/dev-digest` into the local app through the API (repo, clone, index, 50 PRs) and added its open PR #14 as a hand-written row; no source code changed.
+
+- 2026-11-22 — Changed the PR list cost from the latest run to the total of all runs: `PrMeta.last_run_cost_usd` renamed to `total_cost_usd` in both contract copies, `pulls/routes.ts`, specs and tests updated.
+
+- 2026-11-23 — Built the M1 findings column (server): `PrMeta.findings_counts` on `GET /repos/:id/pulls`, `pickLatestReviewPerAgent`, and a second seeded run and review on PR #482 (Performance Reviewer); spec server/specs/M1-findings-column.md. Merged `LEARNINGS.md` into this file.
+
+- 2026-11-26 — Added the `onion-architecture` skill and `pnpm deps:validate` (dependency-cruiser, 15 rules, no baseline, run in CI), and refactored every module to `domain.ts` / `ports.ts` / `service.ts` / `repository.ts` / `routes.ts` with services on injected ports; 49 boundary violations went to 0. No HTTP contract, schema or migration changed.
+
+- 2026-11-27 — Audited the package against the project skills (onion, Fastify, Drizzle, Postgres, Zod, security); no source changed. The findings and their order are in `docs/improvement-plan.md` (sections 2, 5 and 6): four high items in the backend (a failed job crashes the process, cancel does not cancel, two grounding and prompt-fence gaps) and one in persistence (a non-atomic re-index).
+
+- 2026-11-27 — BE-2 + DB-4: cancel now cancels (flag cleared by the executor, checked again after the LLM, `status = 'running'` guard), and a run's outcome is saved by `saveReviewOutcome` in one transaction; `markReviewed` is best-effort after commit.
+
+- 2026-11-28 — BE-8: `/runs/:id/events` resolves the run through `ReviewService.runEventSource` (404 unknown; finished and off the bus → replay of the stored trace log, then end), unsubscribes on disconnect, sends a `:heartbeat` comment every 15 s; `RunBus` frees a completed run 5 min after `complete()`.
+
+- 2026-11-28 — BE-9: cancel aborts the in-flight LLM call (`RunBus.signal(runId)`, aborted by `cancel`, released by `clearCancelled`; the executor passes it through `reviewPullRequest` to `StructuredRequest.signal`), and a schema-validation failure throws `StructuredOutputError` (reviewer-core `llm/structured.ts`, re-exported by `platform/structured.ts`; the shared contract stays data-only) whose usage, cost and raw output the executor stores on the failed run.
+
+- 2026-11-28 — Built M2 Skills (server): `skills` module (CRUD, versions, restore, import preview/confirm), `adapters/skill-import` (fflate + yaml), migration 0014, agent link flags with version snapshots and `skill_count`, effective skills in the run prompt/trace/log, Test Quality Reviewer + 11 seeded skills + demo PRs #483/#484; spec server/specs/M2-skills.md.
+
+- 2026-11-28 — M2 review fixes: `updateLinks` dispatch in `AgentsService`, cross-module table reads moved behind ports, `agent_skills_skill_id_idx` + `skill_versions` backfill/drop-defaults in migration 0015, enum casts removed, seed links only for newly created agents.
+- 2026-11-28 — M2 Conventions Extractor built (`modules/conventions`, migration 0016); second dev stack run from a worktree on API_PORT=3101 / WEB_PORT=3100 with `.env` symlinked.
+
+## Open Questions
+
+<!-- What is still unresolved. -->
+
+- 2026-11-21 — `TESTING.md` says `server/package.json` is `skip-worktree`, but `git ls-files -v` shows no skip-worktree file in this clone. Until confirmed, run the test split with `pnpm exec vitest run …` as CI does and do not add `test:unit` / `test:integration` scripts. Evidence: TESTING.md:83

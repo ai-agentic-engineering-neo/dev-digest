@@ -15,6 +15,8 @@ import {
   Settings,
   Repo,
   PrDetail,
+  Agent,
+  AgentVersionConfig,
 } from '@devdigest/shared';
 
 /**
@@ -166,6 +168,10 @@ describe('AI contracts parse fixtures', () => {
       log: [{ t: '00.00', kind: 'info', msg: 'started' }],
     });
     expect(trace.tool_calls).toHaveLength(1);
+    // Traces stored before M1 have no cost_usd; they must still parse.
+    expect(trace.stats.cost_usd).toBeUndefined();
+    const withCost = RunTrace.parse({ ...trace, stats: { ...trace.stats, cost_usd: 0.0142 } });
+    expect(withCost.stats.cost_usd).toBe(0.0142);
   });
 });
 
@@ -206,5 +212,42 @@ describe('platform DTOs', () => {
         commits: [],
       }),
     ).not.toThrow();
+  });
+
+  it('pre-M2 RunTrace and Agent still parse (M2 fields are optional)', () => {
+    const trace = RunTrace.parse({
+      config: { agent: 'Sec', version: '1', provider: 'openai', model: 'gpt-4.1', pr: 482, source: 'local' },
+      stats: { duration_ms: 10, tokens_in: 1, tokens_out: 1, cost_usd: null, findings: 0, grounding: '0/0 passed' },
+      prompt_assembly: { system: 's', skills: null, memory: null, specs: null, user: 'u' },
+      tool_calls: [],
+      raw_output: '',
+      memory_pulled: [],
+      specs_read: [],
+      log: [],
+    });
+    expect(trace.prompt_assembly.skills_tokens).toBeUndefined();
+
+    const agent = Agent.parse({
+      id: 'a1',
+      name: 'Sec',
+      description: '',
+      provider: 'openai',
+      model: 'gpt-4.1',
+      system_prompt: 's',
+      enabled: true,
+      version: 1,
+    });
+    expect(agent.skill_count).toBe(0);
+
+    const config = AgentVersionConfig.parse({
+      provider: 'openai',
+      model: 'gpt-4.1',
+      system_prompt: 's',
+      strategy: 'single-pass',
+      ci_fail_on: 'critical',
+      repo_intel: true,
+      skills: [],
+    });
+    expect(config.skill_links).toBeUndefined();
   });
 });

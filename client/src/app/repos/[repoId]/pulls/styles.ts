@@ -23,6 +23,8 @@ export const s = {
   rowIcon: (color: string): CSSProperties => ({ color, flexShrink: 0 }),
   rowTitleWrap: { minWidth: 0 } satisfies CSSProperties,
   rowTitle: (hover: boolean): CSSProperties => ({
+    display: "block",
+    textDecoration: "none",
     fontSize: 14,
     fontWeight: 550,
     whiteSpace: "nowrap",
@@ -40,6 +42,7 @@ export const s = {
   } satisfies CSSProperties,
   sizeBadgeBorder: (color: string): CSSProperties => ({ border: `1px solid ${color}` }),
   scoreCell: { display: "flex", alignItems: "center" } satisfies CSSProperties,
+  findingsColumn: { display: "flex", alignItems: "center", minWidth: 0 } satisfies CSSProperties,
   updatedCell: {
     fontSize: 12,
     color: "var(--text-muted)",

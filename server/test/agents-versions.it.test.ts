@@ -8,7 +8,6 @@ import * as t from '../src/db/schema.js';
 import { MockGitClient, MockGitHubClient } from '../src/adapters/mocks.js';
 import { AgentsService } from '../src/modules/agents/service.js';
 import { AgentsRepository } from '../src/modules/agents/repository.js';
-import type { Container } from '../src/platform/container.js';
 
 const hasDocker = await dockerAvailable();
 const d = hasDocker ? describe : describe.skip;
@@ -164,15 +163,43 @@ d('GET /agents/:id/versions', () => {
       systemPrompt: 'x',
     });
 
-    const service = new AgentsService({ db } as unknown as Container);
-    const [{ id: defaultWs }] = await db
+    const service = new AgentsService({
+      agents: repo,
+      models: async () => ({ listModels: async () => [] }),
+      skills: { existingIds: async () => [], summaries: async () => [] },
+    });
+    const [defaultWsRow] = await db
       .select({ id: t.workspaces.id })
       .from(t.workspaces)
       .where(eq(t.workspaces.name, 'default'));
+    const defaultWs = defaultWsRow!.id;
 
     // Owner can read; a different workspace is denied (undefined → 404 at route).
     expect(await service.listVersions(otherWs!.id, foreign.id)).toHaveLength(1);
-    expect(await service.listVersions(defaultWs!, foreign.id)).toBeUndefined();
-    expect(await service.getVersion(defaultWs!, foreign.id, 1)).toBeUndefined();
+    expect(await service.listVersions(defaultWs, foreign.id)).toBeUndefined();
+    expect(await service.getVersion(defaultWs, foreign.id, 1)).toBeUndefined();
+  });
+
+  it('two concurrent config updates get versions N+1 and N+2 with matching snapshots', async () => {
+    const app = await makeApp();
+    const agentId = (
+      await app.inject({ method: 'POST', url: '/agents', payload: createBody })
+    ).json().id as string;
+
+    const put = (model: string) =>
+      app.inject({ method: 'PUT', url: `/agents/${agentId}`, payload: { model } });
+    const results = await Promise.all([put('model-a'), put('model-b')]);
+    expect(results.map((r) => r.statusCode)).toEqual([200, 200]);
+
+    const versions = (
+      await app.inject({ method: 'GET', url: `/agents/${agentId}/versions` })
+    ).json() as { version: number; config: { model: string } }[];
+    expect(versions.map((v) => v.version)).toEqual([3, 2, 1]);
+    // Each response's version matches the snapshot recorded for that version.
+    for (const r of results) {
+      const { version, model } = r.json();
+      expect(versions.find((v) => v.version === version)?.config.model).toBe(model);
+    }
+    await app.close();
   });
 });

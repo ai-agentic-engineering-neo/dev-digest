@@ -75,7 +75,6 @@ export const symbols = pgTable(
     contentHash: text('content_hash'), // [T2] NEW (nullable — backfilled by indexer)
   },
   (t) => ({
-    lookupIdx: index('symbols_repo_path_idx').on(t.repoId, t.path),
     nameIdx: index('symbols_repo_name_idx').on(t.repoId, t.name),
     uq: uniqueIndex('symbols_repo_path_name_kind_line_uq').on(
       t.repoId,

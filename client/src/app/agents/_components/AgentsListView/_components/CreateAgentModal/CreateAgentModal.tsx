@@ -20,16 +20,23 @@ export function CreateAgentModal({ onClose }: { onClose: () => void }) {
   const [model, setModel] = React.useState(DEFAULT_MODEL);
   const [systemPrompt, setSystemPrompt] = React.useState(t("create.defaultSystemPrompt"));
 
-  const submit = async () => {
-    const agent = await create.mutateAsync({
-      name: name.trim() || t("create.defaultName"),
-      description,
-      provider,
-      model,
-      system_prompt: systemPrompt,
-    });
-    onClose();
-    router.push(`/agents/${agent.id}?tab=config`);
+  // A failure is toasted by the global error policy and keeps the modal open.
+  const submit = () => {
+    create.mutate(
+      {
+        name: name.trim() || t("create.defaultName"),
+        description,
+        provider,
+        model,
+        system_prompt: systemPrompt,
+      },
+      {
+        onSuccess: (agent) => {
+          onClose();
+          router.push(`/agents/${agent.id}?tab=config`);
+        },
+      },
+    );
   };
 
   return (

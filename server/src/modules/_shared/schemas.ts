@@ -10,3 +10,7 @@ import { z } from 'zod';
  */
 export const IdParams = z.object({ id: z.string().uuid() });
 export type IdParams = z.infer<typeof IdParams>;
+
+/** Response body of routes that only acknowledge (`{ ok: true }`). */
+export const OkResponse = z.object({ ok: z.boolean() });
+export type OkResponse = z.infer<typeof OkResponse>;

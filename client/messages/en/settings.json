@@ -13,6 +13,8 @@
     "openrouterHint": "One key, many cheap models (DeepSeek/GLM/MiniMax). Used by CI reviewers + openrouter agents.",
     "githubLabel": "GitHub PAT (fine-grained)",
     "githubHint": "Contents (read), Pull requests (read+write), Metadata (read), Actions (read).",
+    "showKey": "Show key",
+    "hideKey": "Hide key",
     "placeholder": "•••• stored via SecretsProvider (.env)",
     "testConnection": "Test connection",
     "testing": "Testing…",
@@ -26,7 +28,9 @@
     "usingDefault": "default",
     "search": "Search models…",
     "liveNote": "Prices are pulled live from OpenRouter — USD per 1M input/output tokens.",
-    "noKeyNote": "Add an OpenRouter API key under API Keys to load the model list and prices."
+    "noKeyNote": "Add an OpenRouter API key under API Keys to load the model list and prices.",
+    "loadErrorTitle": "Couldn’t load settings",
+    "loadErrorBody": "Feature models are shown once your settings have loaded."
   },
   "workspace": {
     "title": "Workspace",

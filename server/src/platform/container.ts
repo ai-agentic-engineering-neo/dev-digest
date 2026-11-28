@@ -15,6 +15,7 @@ import { LocalSecretsProvider } from '../adapters/secrets/local.js';
 import { LocalNoAuthProvider } from '../adapters/auth/local.js';
 import { OctokitGitHubClient } from '../adapters/github/octokit.js';
 import { SimpleGitClient } from '../adapters/git/simple-git.js';
+import { parseUnifiedDiff } from '../adapters/git/diff-parser.js';
 import { RipgrepCodeIndex } from '../adapters/codeindex/ripgrep.js';
 import { OpenAIProvider } from '../adapters/llm/openai.js';
 import { AnthropicProvider } from '../adapters/llm/anthropic.js';
@@ -22,11 +23,31 @@ import { OpenAIEmbedder } from '../adapters/embedder/openai.js';
 import { OpenRouterProvider } from '@devdigest/reviewer-core';
 import { estimateCost } from '../adapters/llm/pricing.js';
 import { PriceBook } from './price-book.js';
-import { ConfigError } from './errors.js';
+import { NotConfiguredError } from './errors.js';
 import { AgentsRepository } from '../modules/agents/repository.js';
+import { RepoRepository } from '../modules/repos/repository.js';
+import { PullsRepository } from '../modules/pulls/repository.js';
 import { ReviewRepository } from '../modules/reviews/repository.js';
+import { SkillsRepository } from '../modules/skills/repository.js';
+import { SkillsService } from '../modules/skills/service.js';
+import { ConventionsRepository, InMemoryScanLog } from '../modules/conventions/repository.js';
+import { ConventionsService } from '../modules/conventions/service.js';
+import { SettingsRepository } from '../modules/settings/repository.js';
+import { resolveFeatureModel } from '../modules/settings/feature-models.js';
+import { FflateArchiveReader, YamlFrontmatterParser } from '../adapters/skill-import/index.js';
 import type { RepoIntel } from '../modules/repo-intel/types.js';
 import { RepoIntelService } from '../modules/repo-intel/service.js';
+import { RepoIntelRepository } from '../modules/repo-intel/repository.js';
+import { runFullIndex } from '../modules/repo-intel/pipeline/full.js';
+import { runIncremental } from '../modules/repo-intel/pipeline/incremental.js';
+import {
+  langForFile,
+  parseImports,
+  parseInvocationHeads,
+  parseSymbols,
+} from '../adapters/astgrep/index.js';
+import { extractEndpoints } from '../adapters/codeindex/extract.js';
+import { readContainedFile } from './contained-read.js';
 import { type DepGraph, DepCruiseGraph } from '../adapters/depgraph/index.js';
 import { type Tokenizer, TiktokenTokenizer } from '../adapters/tokenizer/index.js';
 
@@ -71,8 +92,13 @@ export class Container {
   // runs). Constructed here, in the composition root, so consuming modules use
   // `container.agentsRepo` instead of reaching into another module's folder.
   private _agentsRepo?: AgentsRepository;
+  private _repoStore?: RepoRepository;
+  private _pullStore?: PullsRepository;
   private _reviewRepo?: ReviewRepository;
-  private _repoIntel?: RepoIntel;
+  private _skillsRepo?: SkillsRepository;
+  private _skillsService?: SkillsService;
+  private _conventionsService?: ConventionsService;
+  private _repoIntelService?: RepoIntelService;
   private _depgraph?: DepGraph;
   private _tokenizer?: Tokenizer;
   private _priceBook?: PriceBook;
@@ -94,13 +120,75 @@ export class Container {
     return this._git;
   }
 
+  /** Unified-diff text → `UnifiedDiff`. Pure; lives with the git adapter. */
+  readonly parseDiff = parseUnifiedDiff;
+
   get agentsRepo(): AgentsRepository {
     return (this._agentsRepo ??= new AgentsRepository(this.db));
+  }
+
+  /** The `repos` table. Shared by the repos and workspace modules. */
+  get repoStore(): RepoRepository {
+    return (this._repoStore ??= new RepoRepository(this.db));
+  }
+
+  /** Imported pull requests. Shared by the pulls and polling modules. */
+  get pullStore(): PullsRepository {
+    return (this._pullStore ??= new PullsRepository(this.db));
   }
 
   get reviewRepo(): ReviewRepository {
     return (this._reviewRepo ??= new ReviewRepository(this.db));
   }
+
+  /**
+   * Skills and their versions (M2). The skills service writes through it; the
+   * agents module checks link ids and reads link display fields with it.
+   */
+  get skillsRepo(): SkillsRepository {
+    return (this._skillsRepo ??= new SkillsRepository(this.db));
+  }
+
+  /**
+   * Skills use cases (M2). Shared: the skills routes serve it, and the review
+   * run reads `effectiveSkills` from it (agent link ids from `agentsRepo`,
+   * skill content from `skillsRepo`).
+   */
+  get skillsService(): SkillsService {
+    return (this._skillsService ??= new SkillsService({
+      skills: this.skillsRepo,
+      tokens: this.tokenizer,
+      archive: this.skillArchive,
+      frontmatter: this.skillFrontmatter,
+      links: this.agentsRepo,
+    }));
+  }
+
+  /**
+   * Conventions Extractor (M2). Samples files through the repo-intel facade,
+   * reads them from the clone, calls the `conventions` feature model once and
+   * saves accepted candidates as an `extracted` skill via the skills service.
+   */
+  get conventionsService(): ConventionsService {
+    return (this._conventionsService ??= new ConventionsService({
+      store: new ConventionsRepository(this.db),
+      repos: this.repoStore,
+      samples: (repoId, n) => this.repoIntel.getConventionSamples(repoId, n),
+      readFile: (clonePath, file) => readContainedFile(clonePath, file),
+      llm: (provider) => this.llm(provider),
+      model: (workspaceId) =>
+        resolveFeatureModel(new SettingsRepository(this.db), workspaceId, 'conventions'),
+      writeSkill: (workspaceId, input, evidence) =>
+        this.skillsService.create(workspaceId, input, 'extracted', evidence),
+      scans: new InMemoryScanLog(),
+    }));
+  }
+
+  /** In-memory zip reader for the skill import (M2). Stateless. */
+  readonly skillArchive = new FflateArchiveReader();
+
+  /** YAML frontmatter parser for the skill import (M2). Stateless. */
+  readonly skillFrontmatter = new YamlFrontmatterParser();
 
   get codeIndex(): CodeIndex {
     if (this.overrides.codeIndex) return this.overrides.codeIndex;
@@ -114,9 +202,37 @@ export class Container {
    * Tests inject a mock via `ContainerOverrides.repoIntel`.
    */
   get repoIntel(): RepoIntel {
-    if (this.overrides.repoIntel) return this.overrides.repoIntel;
-    this._repoIntel ??= new RepoIntelService(this);
-    return this._repoIntel;
+    return this.overrides.repoIntel ?? this.repoIntelService;
+  }
+
+  /**
+   * The real repo-intel service. It owns the index/refresh/resync job
+   * handlers, so the routes plugin uses it even when a test replaces the read
+   * facade above. Composed here: the store, the indexing pipeline, the
+   * parsers and the clone reader are infrastructure the service only knows as
+   * ports. Adapters are reached through the getters at call time, so test
+   * overrides and lazy construction behave as before.
+   */
+  get repoIntelService(): RepoIntelService {
+    if (this._repoIntelService) return this._repoIntelService;
+    const store = new RepoIntelRepository(this.db);
+    this._repoIntelService = new RepoIntelService({
+      store,
+      indexer: {
+        runFull: (repoId) => runFullIndex(this, store, { repoId }),
+        runIncremental: (repoId) => runIncremental(this, store, { repoId }),
+      },
+      parser: { langForFile, parseSymbols, parseImports, parseInvocationHeads, extractEndpoints },
+      readCloneFile: readContainedFile,
+      git: { sync: (repo, branch) => this.git.sync(repo, branch) },
+      codeIndex: {
+        symbols: (repo) => this.codeIndex.symbols(repo),
+        references: (repo, symbol) => this.codeIndex.references(repo, symbol),
+      },
+      jobs: this.jobs,
+      enabled: this.config.repoIntelEnabled,
+    });
+    return this._repoIntelService;
   }
 
   /** Import-graph builder (dependency-cruiser). T3 indexer pipeline only. */
@@ -126,7 +242,7 @@ export class Container {
     return this._depgraph;
   }
 
-  /** Token counter (js-tiktoken) for the repo-map budget search. */
+  /** Token counter (js-tiktoken): repo-map budget, skill token counts, run skill tokens. */
   get tokenizer(): Tokenizer {
     if (this.overrides.tokenizer) return this.overrides.tokenizer;
     this._tokenizer ??= new TiktokenTokenizer();
@@ -156,7 +272,7 @@ export class Container {
     if (this.overrides.github) return this.overrides.github;
     if (this._github) return this._github;
     const token = await this.secrets.get('GITHUB_TOKEN');
-    if (!token) throw new ConfigError('GITHUB_TOKEN is not configured');
+    if (!token) throw new NotConfiguredError('GITHUB_TOKEN is not configured');
     this._github = new OctokitGitHubClient(token);
     return this._github;
   }
@@ -195,7 +311,7 @@ export class Container {
   ): Promise<LLMProvider> {
     if (id === 'openai') {
       const key = keyOverride ?? (await this.secrets.get('OPENAI_API_KEY'));
-      if (!key) throw new ConfigError('OPENAI_API_KEY is not configured');
+      if (!key) throw new NotConfiguredError('OPENAI_API_KEY is not configured');
       return new OpenAIProvider(key);
     }
     if (id === 'openrouter') {
@@ -203,14 +319,14 @@ export class Container {
       // runner); inject the PriceBook so cost attribution uses LIVE OpenRouter
       // prices (with the static table as a fallback) rather than a hardcoded one.
       const key = keyOverride ?? (await this.secrets.get('OPENROUTER_API_KEY'));
-      if (!key) throw new ConfigError('OPENROUTER_API_KEY is not configured');
+      if (!key) throw new NotConfiguredError('OPENROUTER_API_KEY is not configured');
       return new OpenRouterProvider(key, {
         estimateCost: (model, tokensIn, tokensOut) =>
           this.priceBook.estimate(model, tokensIn, tokensOut),
       });
     }
     const key = keyOverride ?? (await this.secrets.get('ANTHROPIC_API_KEY'));
-    if (!key) throw new ConfigError('ANTHROPIC_API_KEY is not configured');
+    if (!key) throw new NotConfiguredError('ANTHROPIC_API_KEY is not configured');
     return new AnthropicProvider(key);
   }
 
@@ -221,7 +337,7 @@ export class Container {
     // degrade gracefully (memory/RAG simply returns no hits).
     if (this.overrides.embedder) return this.overrides.embedder;
     if (!this.config.embeddingsEnabled) {
-      throw new ConfigError('Embeddings are disabled (set EMBEDDINGS_ENABLED=true to enable memory/RAG)');
+      throw new NotConfiguredError('Embeddings are disabled (set EMBEDDINGS_ENABLED=true to enable memory/RAG)');
     }
     if (this._embedder) return this._embedder;
     const openai = await this.llm('openai');

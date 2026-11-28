@@ -8,7 +8,8 @@ import { runMigrations } from '../../src/db/migrate.js';
  * docker-compose so the `vector` extension is available.
  *
  * Integration tests gate on `dockerAvailable()` and skip cleanly when Docker is
- * not reachable (CI/sandbox without a Docker daemon).
+ * not reachable locally. Under `CI=true` a missing Docker daemon is a hard
+ * failure, so the integration lane can never go green by skipping everything.
  */
 export interface PgFixture {
   container: StartedPostgreSqlContainer;
@@ -28,6 +29,9 @@ export async function dockerAvailable(): Promise<boolean> {
     dockerCache = true;
   } catch {
     dockerCache = false;
+  }
+  if (!dockerCache && process.env.CI === 'true') {
+    throw new Error('Docker is unavailable but CI=true: integration tests must not skip in CI');
   }
   return dockerCache;
 }

@@ -29,7 +29,13 @@
   "panel": {
     "hideLowConfidence": "Hide low confidence",
     "noMatchTitle": "No findings match",
-    "noMatchBody": "Adjust the filters above, or run a review to generate findings."
+    "noMatchBody": "Adjust the filters above, or run a review to generate findings.",
+    "severityFilterLabel": "Filter findings by severity",
+    "severity": {
+      "CRITICAL": "{count} CRITICAL",
+      "WARNING": "{count} WARNING",
+      "SUGGESTION": "{count} SUGGESTION"
+    }
   },
   "runReview": {
     "runAll": "Run all enabled agents",
@@ -37,7 +43,10 @@
     "running": "Running…",
     "runReview": "Run Review",
     "mergedWarning": "Already merged — review is informational",
-    "mergedTooltip": "This PR is already merged; running a review won’t affect the merged code."
+    "mergedTooltip": "This PR is already merged; running a review won’t affect the merged code.",
+    "agentsLoading": "Loading agents…",
+    "agentsError": "Couldn’t load agents",
+    "noAgents": "No agents yet — create one"
   },
   "runStatus": {
     "elapsed": "Running · {count} agent(s)",
@@ -83,6 +92,7 @@
     "refreshing": "Refreshing…",
     "filterPlaceholder": "Filter pull requests…",
     "sort": {
+      "label": "Sort pull requests",
       "newest": "Sort: Newest",
       "oldest": "Sort: Oldest"
     },
@@ -91,9 +101,16 @@
       "author": "Author",
       "size": "Size",
       "score": "Score",
+      "findings": "Findings",
       "status": "Status",
+      "cost": "Cost",
       "updated": "Updated"
     },
+    "findingsPopoverTitle": "{count, plural, one {# finding} other {# findings}} in this run",
+    "findingsMore": "+{count} more",
+    "findingsLoading": "Loading findings…",
+    "findingsError": "Couldn’t load the findings.",
+    "findingsLabel": "Findings: {critical} critical, {warning} warning, {suggestion} suggestion. Open the agent runs.",
     "filesCount": "{count} files",
     "errorTitle": "Couldn’t load pull requests",
     "errorBody": "The engine returned an error.",
@@ -105,5 +122,26 @@
     "goToReview": "Jump to this run’s findings below",
     "openTrace": "Open run trace & logs",
     "deleteRun": "Delete run"
+  },
+  "findingsTab": {
+    "loadErrorTitle": "Couldn’t load review runs",
+    "loadErrorBody": "The reviews for this pull request could not be loaded."
+  },
+  "diffTab": {
+    "commentsLoading": "Loading comments…",
+    "commentsError": "Couldn’t load comments",
+    "commentsRetry": "Retry"
+  },
+  "deleteRun": {
+    "title": "Delete run",
+    "confirm": "Delete this run from history? (its logs are removed too)",
+    "confirmLabel": "Delete"
+  },
+  "deleteReview": {
+    "button": "Delete this review run",
+    "title": "Delete review run",
+    "confirm": "Delete this \"{agent}\" review run and its findings?",
+    "fallbackAgent": "agent",
+    "confirmLabel": "Delete"
   }
 }

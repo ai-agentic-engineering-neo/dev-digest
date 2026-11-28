@@ -9,7 +9,8 @@ export default defineConfig({
   out: './src/db/migrations',
   dialect: 'postgresql',
   dbCredentials: { url: DATABASE_URL },
-  // pgvector `vector` type is provided by the extension enabled in migration 0000.
+  // pgvector `vector` type is provided by the extension enabled by `migrate.ts` before the
+  // migrations run (migration 0000 needs it; 0011 repeats the statement).
   verbose: true,
   strict: true,
 });

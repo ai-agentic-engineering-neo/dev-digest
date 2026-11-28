@@ -1,7 +1,6 @@
-import type { FindingActionKind } from '@devdigest/shared';
-import { AppError, NotFoundError } from '../../platform/errors.js';
-import type { ReviewRepository } from './repository.js';
-import { findingRowToDto, type ReviewDtoFinding } from './helpers.js';
+import type { FindingActionKind, FindingRecord } from '@devdigest/shared';
+import { BadRequestError, NotFoundError } from '../../platform/errors.js';
+import type { ReviewStore } from './ports.js';
 
 /**
  * Finding actions available in the starter: accept / dismiss. These decisions
@@ -9,26 +8,25 @@ import { findingRowToDto, type ReviewDtoFinding } from './helpers.js';
  * `learn → memory` action, etc.).
  */
 export async function actOnFinding(
-  repo: ReviewRepository,
+  store: Pick<ReviewStore, 'findingWorkspace' | 'setFindingAccepted' | 'setFindingDismissed'>,
   workspaceId: string,
   findingId: string,
   action: FindingActionKind,
-): Promise<{ finding: ReviewDtoFinding }> {
-  const ctx = await repo.findingContext(findingId);
-  if (!ctx || ctx.pull.workspaceId !== workspaceId) {
+): Promise<{ finding: FindingRecord }> {
+  if ((await store.findingWorkspace(findingId)) !== workspaceId) {
     throw new NotFoundError('Finding not found');
   }
 
   switch (action) {
     case 'accept': {
-      const row = await repo.setFindingAccepted(findingId, new Date());
-      return { finding: findingRowToDto(row!) };
+      const finding = await store.setFindingAccepted(findingId, new Date());
+      return { finding: finding! };
     }
     case 'dismiss': {
-      const row = await repo.setFindingDismissed(findingId, new Date());
-      return { finding: findingRowToDto(row!) };
+      const finding = await store.setFindingDismissed(findingId, new Date());
+      return { finding: finding! };
     }
     default:
-      throw new AppError('invalid_action', `Action '${action}' is not available in the starter`, 400);
+      throw new BadRequestError('invalid_action', `Action '${action}' is not available in the starter`);
   }
 }

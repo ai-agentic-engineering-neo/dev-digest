@@ -73,8 +73,8 @@ return <div><BlogCard blog={blog} /></div>;
 // BAD: New array on every render
 <CategoryFilter categories={['Tech', 'Startup', 'Lifestyle']} />
 
-// GOOD: Stable reference (module-level constant)
-const CATEGORIES = ['Tech', 'Startup', 'Lifestyle'];
+// GOOD: Stable reference, in the component folder's constants.ts
+import { CATEGORIES } from './constants';
 <CategoryFilter categories={CATEGORIES} />
 ```
 
@@ -82,8 +82,9 @@ const CATEGORIES = ['Tech', 'Startup', 'Lifestyle'];
 // BAD: Inline style object on every render
 <div style={{ padding: '16px', background: '#fff' }}>
 
-// GOOD: Use Tailwind utility classes
-<div className="p-4 bg-white">
+// GOOD: A named style in the component folder's styles.ts, CSS variables for colour
+import { s } from './styles';
+<div style={s.card}>
 ```
 
 ---
@@ -215,37 +216,6 @@ return <BlogGrid blogs={data.blogs} />;
 
 ---
 
-## Error Boundaries
-
-```jsx
-import { ErrorBoundary } from 'react-error-boundary';
-import { useLocation } from 'react-router-dom';
-
-// BAD: No error boundary — unhandled errors crash the whole app
-const App = () => <Routes>...</Routes>;
-
-// GOOD: Error boundary with route-aware reset and recovery
-const ErrorFallback = ({ error, resetErrorBoundary }) => (
-  <div className="p-8 text-center">
-    <p className="text-red-500">Something went wrong</p>
-    <button onClick={resetErrorBoundary} className="mt-4 px-4 py-2 bg-blue-500 text-white rounded">
-      Try again
-    </button>
-  </div>
-);
-
-const App = () => {
-  const location = useLocation();
-  return (
-    <ErrorBoundary resetKeys={[location.pathname]} FallbackComponent={ErrorFallback}>
-      <Routes>...</Routes>
-    </ErrorBoundary>
-  );
-};
-```
-
----
-
 ## Key Prop Patterns
 
 ```jsx
@@ -303,53 +273,6 @@ const App = () => {
 
 // GOOD: Live region for dynamic updates
 <div aria-live="polite">{searchResults.length} results found</div>
-```
-
----
-
-## Route-Level Code Splitting
-
-```jsx
-import { lazy, Suspense } from 'react';
-
-// BAD: All pages in main bundle
-import AdminDashboard from './pages/admin/Dashboard';
-import AddBlog from './pages/admin/AddBlog';
-
-// GOOD: Lazy-loaded routes
-const AdminDashboard = lazy(() => import('./pages/admin/Dashboard'));
-const AddBlog = lazy(() => import('./pages/admin/AddBlog'));
-
-const App = () => (
-  <Suspense fallback={<PageLoader />}>
-    <Routes>
-      <Route path="/admin" element={<AdminDashboard />} />
-      <Route path="/admin/add" element={<AddBlog />} />
-    </Routes>
-  </Suspense>
-);
-```
-
----
-
-## Axios Request Cancellation
-
-```jsx
-// BAD: No cleanup — stale responses update unmounted component
-useEffect(() => {
-  axios.get('/api/blogs').then(res => setBlogs(res.data));
-}, []);
-
-// GOOD: Cancel on cleanup with AbortController
-useEffect(() => {
-  const controller = new AbortController();
-  axios.get('/api/blogs', { signal: controller.signal })
-    .then(res => setBlogs(res.data.blogs))
-    .catch(err => {
-      if (!axios.isCancel(err)) setError(err.message);
-    });
-  return () => controller.abort();
-}, []);
 ```
 
 ---

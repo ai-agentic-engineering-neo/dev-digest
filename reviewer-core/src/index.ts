@@ -14,19 +14,28 @@
 // Prompt assembly + prompt-injection hardening.
 export {
   assemblePrompt,
+  formatSkills,
   wrapUntrusted,
   type PromptParts,
+  type SkillPromptInput,
   type AssembledPrompt,
 } from './prompt.js';
 
 // Citation grounding — the mandatory mechanical gate for diff findings.
-export { groundFindings, groundingSummary, type GroundingResult } from './grounding.js';
+export {
+  groundFindings,
+  groundingSummary,
+  MAX_FINDING_SPAN_LINES,
+  type GroundingOptions,
+  type GroundingResult,
+} from './grounding.js';
 
 // Structured-output helpers (Zod → JSON Schema + parse-with-repair).
 export {
   toJsonSchema,
   extractJson,
   parseWithRepair,
+  StructuredOutputError,
   type JsonSchema,
   type ParseResult,
 } from './llm/structured.js';

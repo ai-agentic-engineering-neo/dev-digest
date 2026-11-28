@@ -1,37 +1,66 @@
 import { and, desc, eq, inArray } from 'drizzle-orm';
-import type { Db } from '../../../db/client.js';
+import type { Db, DbExecutor } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
-import type { Finding } from '@devdigest/shared';
-import type { FindingRow, PullRow } from '../../../db/rows.js';
+import type { Finding, FindingRecord, ReviewRecord, Verdict } from '@devdigest/shared';
+import type { NewReview } from '../ports.js';
 
-export type ReviewRow = typeof t.reviews.$inferSelect;
+type ReviewRow = typeof t.reviews.$inferSelect;
+type FindingRow = typeof t.findings.$inferSelect;
+
+// ---- row → domain mappers (rows stop in this file) -------------------------
+
+function toFinding(row: FindingRow): FindingRecord {
+  return {
+    id: row.id,
+    severity: row.severity as Finding['severity'],
+    category: row.category as Finding['category'],
+    title: row.title,
+    file: row.file,
+    start_line: row.startLine,
+    end_line: row.endLine,
+    rationale: row.rationale,
+    suggestion: row.suggestion ?? null,
+    confidence: row.confidence,
+    kind: (row.kind as Finding['kind']) ?? 'finding',
+    trifecta_components: (row.trifectaComponents as Finding['trifecta_components']) ?? null,
+    evidence: null,
+    review_id: row.reviewId,
+    accepted_at: row.acceptedAt?.toISOString() ?? null,
+    dismissed_at: row.dismissedAt?.toISOString() ?? null,
+  };
+}
+
+function toReview(review: ReviewRow, findings: FindingRow[]): ReviewRecord {
+  return {
+    id: review.id,
+    pr_id: review.prId,
+    agent_id: review.agentId,
+    run_id: review.runId,
+    agent_name: null,
+    kind: review.kind as 'summary' | 'review',
+    verdict: review.verdict as Verdict | null,
+    summary: review.summary,
+    score: review.score,
+    model: review.model,
+    created_at: review.createdAt.toISOString(),
+    findings: findings.map(toFinding),
+  };
+}
 
 // ---- reviews + findings ---------------------------------------------------
 
-export async function insertReview(
-  db: Db,
-  values: {
-    workspaceId: string;
-    prId: string;
-    agentId: string | null;
-    runId: string | null;
-    kind: 'summary' | 'review';
-    verdict: string | null;
-    summary: string | null;
-    score: number | null;
-    model: string | null;
-  },
-): Promise<ReviewRow> {
-  const [row] = await db.insert(t.reviews).values(values).returning();
+export async function insertReview(db: DbExecutor, values: NewReview): Promise<{ id: string }> {
+  const [row] = await db.insert(t.reviews).values(values).returning({ id: t.reviews.id });
   return row!;
 }
 
+/** Returns how many findings were stored. */
 export async function insertFindings(
-  db: Db,
+  db: DbExecutor,
   reviewId: string,
   findings: Finding[],
-): Promise<FindingRow[]> {
-  if (findings.length === 0) return [];
+): Promise<number> {
+  if (findings.length === 0) return 0;
   const rows = await db
     .insert(t.findings)
     .values(
@@ -50,15 +79,12 @@ export async function insertFindings(
         trifectaComponents: f.trifecta_components ?? null,
       })),
     )
-    .returning();
-  return rows;
+    .returning({ id: t.findings.id });
+  return rows.length;
 }
 
 /** Reviews for a PR (newest first), each with its findings. */
-export async function reviewsForPull(
-  db: Db,
-  prId: string,
-): Promise<{ review: ReviewRow; findings: FindingRow[] }[]> {
+export async function reviewsForPull(db: Db, prId: string): Promise<ReviewRecord[]> {
   const reviews = await db
     .select()
     .from(t.reviews)
@@ -67,15 +93,43 @@ export async function reviewsForPull(
   if (reviews.length === 0) return [];
   const ids = reviews.map((r) => r.id);
   const findings = await db.select().from(t.findings).where(inArray(t.findings.reviewId, ids));
-  return reviews.map((review) => ({
-    review,
-    findings: findings.filter((f) => f.reviewId === review.id),
-  }));
+  return reviews.map((review) =>
+    toReview(
+      review,
+      findings.filter((f) => f.reviewId === review.id),
+    ),
+  );
 }
 
-export async function getReview(db: Db, reviewId: string): Promise<ReviewRow | undefined> {
-  const [row] = await db.select().from(t.reviews).where(eq(t.reviews.id, reviewId));
-  return row;
+// ---- PR-list rollups (read by the pulls module through a port) ------------
+
+/** Reviews (kind = 'review') of these PRs, newest first. */
+export async function reviewRefsForPulls(
+  db: Db,
+  prIds: string[],
+): Promise<{ id: string; prId: string; agentId: string | null; score: number | null }[]> {
+  if (prIds.length === 0) return [];
+  return db
+    .select({
+      id: t.reviews.id,
+      prId: t.reviews.prId,
+      agentId: t.reviews.agentId,
+      score: t.reviews.score,
+    })
+    .from(t.reviews)
+    .where(and(inArray(t.reviews.prId, prIds), eq(t.reviews.kind, 'review')))
+    .orderBy(desc(t.reviews.createdAt));
+}
+
+export async function findingSeverities(
+  db: Db,
+  reviewIds: string[],
+): Promise<{ reviewId: string; severity: string }[]> {
+  if (reviewIds.length === 0) return [];
+  return db
+    .select({ reviewId: t.findings.reviewId, severity: t.findings.severity })
+    .from(t.findings)
+    .where(inArray(t.findings.reviewId, reviewIds));
 }
 
 /** Delete a whole review (one agent's run) + its findings (cascade), scoped
@@ -94,50 +148,38 @@ export async function deleteReview(
 
 // ---- finding actions ------------------------------------------------------
 
-export async function getFinding(db: Db, findingId: string): Promise<FindingRow | undefined> {
-  const [row] = await db.select().from(t.findings).where(eq(t.findings.id, findingId));
-  return row;
-}
-
-/** Resolve workspace_id + pr_id for a finding (via review → pr). */
-export async function findingContext(
-  db: Db,
-  findingId: string,
-): Promise<{ finding: FindingRow; review: ReviewRow; pull: PullRow } | undefined> {
-  const finding = await getFinding(db, findingId);
-  if (!finding) return undefined;
-  const review = await getReview(db, finding.reviewId);
-  if (!review) return undefined;
-  const [pull] = await db
-    .select()
-    .from(t.pullRequests)
-    .where(eq(t.pullRequests.id, review.prId));
-  if (!pull) return undefined;
-  return { finding, review, pull };
+/** The workspace a finding belongs to, through its review. */
+export async function findingWorkspace(db: Db, findingId: string): Promise<string | undefined> {
+  const [row] = await db
+    .select({ workspaceId: t.reviews.workspaceId })
+    .from(t.findings)
+    .innerJoin(t.reviews, eq(t.reviews.id, t.findings.reviewId))
+    .where(eq(t.findings.id, findingId));
+  return row?.workspaceId;
 }
 
 export async function setFindingAccepted(
   db: Db,
   findingId: string,
   at: Date | null,
-): Promise<FindingRow | undefined> {
+): Promise<FindingRecord | undefined> {
   const [row] = await db
     .update(t.findings)
     .set({ acceptedAt: at, dismissedAt: null })
     .where(eq(t.findings.id, findingId))
     .returning();
-  return row;
+  return row && toFinding(row);
 }
 
 export async function setFindingDismissed(
   db: Db,
   findingId: string,
   at: Date | null,
-): Promise<FindingRow | undefined> {
+): Promise<FindingRecord | undefined> {
   const [row] = await db
     .update(t.findings)
     .set({ dismissedAt: at, acceptedAt: null })
     .where(eq(t.findings.id, findingId))
     .returning();
-  return row;
+  return row && toFinding(row);
 }

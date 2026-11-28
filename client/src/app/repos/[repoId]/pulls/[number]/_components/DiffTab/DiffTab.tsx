@@ -1,10 +1,10 @@
 "use client";
 
 import React from "react";
+import { useTranslations } from "next-intl";
 import { SectionLabel, Button } from "@devdigest/ui";
 import { DiffViewer, type DiffCommentApi } from "@/components/diff-viewer";
 import { usePrComments, useCreatePrComment } from "@/lib/hooks/reviews";
-import { notify } from "@/lib/toast";
 import type { PrFile } from "@devdigest/shared";
 
 interface DiffTabProps {
@@ -16,7 +16,13 @@ interface DiffTabProps {
 }
 
 export function DiffTab({ prId, filesCount, files, canComment }: DiffTabProps) {
-  const { data: comments } = usePrComments(prId);
+  const t = useTranslations("prReview");
+  const {
+    data: comments,
+    isLoading: commentsLoading,
+    isError: commentsError,
+    refetch: refetchComments,
+  } = usePrComments(prId);
   const create = useCreatePrComment(prId);
   // Comments start hidden so the diff is clean by default — toggle to reveal.
   const [showComments, setShowComments] = React.useState(false);
@@ -28,15 +34,12 @@ export function DiffTab({ prId, filesCount, files, canComment }: DiffTabProps) {
     canComment: !!canComment && !!prId,
     showComments,
     posting: create.isPending,
+    // A failure is toasted by the global error policy; the rejection reaches
+    // the composer, which keeps the draft open.
     onSubmit: async (input) => {
-      try {
-        const res = await create.mutateAsync(input);
-        setShowComments(true); // a just-posted comment shouldn't stay hidden
-        return res;
-      } catch (err) {
-        notify.error(err instanceof Error ? err.message : "Couldn't post the comment to GitHub.");
-        throw err;
-      }
+      const res = await create.mutateAsync(input);
+      setShowComments(true); // a just-posted comment shouldn't stay hidden
+      return res;
     },
   };
 
@@ -45,7 +48,16 @@ export function DiffTab({ prId, filesCount, files, canComment }: DiffTabProps) {
       <SectionLabel
         icon="Code"
         right={
-          commentCount > 0 ? (
+          commentsLoading ? (
+            <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{t("diffTab.commentsLoading")}</span>
+          ) : commentsError && !comments ? (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{t("diffTab.commentsError")}</span>
+              <Button kind="ghost" size="sm" icon="RefreshCw" onClick={() => refetchComments()}>
+                {t("diffTab.commentsRetry")}
+              </Button>
+            </span>
+          ) : commentCount > 0 ? (
             <Button
               kind="ghost"
               size="sm"

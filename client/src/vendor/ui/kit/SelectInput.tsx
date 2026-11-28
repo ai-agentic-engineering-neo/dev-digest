@@ -1,5 +1,6 @@
 import React from "react";
 import { Icon } from "../icons";
+import { useFormFieldId } from "./FormField";
 
 /** REAL controlled <select>. */
 export function SelectInput({
@@ -7,12 +8,17 @@ export function SelectInput({
   onChange,
   options,
   mono = true,
+  id,
+  "aria-label": ariaLabel,
 }: {
   value: string;
   onChange?: (v: string) => void;
   options: (string | { value: string; label: string })[];
   mono?: boolean;
+  id?: string;
+  "aria-label"?: string;
 }) {
+  const fieldId = useFormFieldId();
   return (
     <div
       style={{
@@ -27,6 +33,8 @@ export function SelectInput({
       }}
     >
       <select
+        id={id ?? fieldId}
+        aria-label={ariaLabel}
         className={mono ? "mono" : undefined}
         value={value}
         onChange={(e) => onChange?.(e.target.value)}

@@ -254,6 +254,7 @@ export interface MockGitOptions {
 export class MockGitClient implements GitClient {
   public cloned: { repo: RepoRef; url: string }[] = [];
   public syncs: { repo: RepoRef; branch: string }[] = [];
+  public removed: RepoRef[] = [];
   private syncedHead?: string;
 
   constructor(private opts: MockGitOptions = {}) {}
@@ -264,6 +265,9 @@ export class MockGitClient implements GitClient {
   async clone(repo: RepoRef, url: string, _opts?: CloneOptions): Promise<{ path: string }> {
     this.cloned.push({ repo, url });
     return { path: this.clonePathFor(repo) };
+  }
+  async removeClone(repo: RepoRef): Promise<void> {
+    this.removed.push(repo);
   }
   async fetchPullHead(): Promise<void> {}
   async sync(repo: RepoRef, branch: string): Promise<{ head: string }> {
@@ -300,7 +304,7 @@ export class MockCodeIndex implements CodeIndex {
   async grep(_repo: RepoRef, pattern: string): Promise<CodeMatch[]> {
     return [{ path: 'src/config.ts', line: 12, text: `match for ${pattern}` }];
   }
-  async symbols(): Promise<CodeSymbol[]> {
+  async symbols(_repo: RepoRef): Promise<CodeSymbol[]> {
     return [{ path: 'src/middleware/ratelimit.ts', name: 'rateLimit', kind: 'function', line: 25 }];
   }
   async references(_repo: RepoRef, symbol: string): Promise<CodeReference[]> {

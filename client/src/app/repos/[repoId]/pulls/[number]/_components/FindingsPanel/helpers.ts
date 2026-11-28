@@ -1,6 +1,5 @@
 import type { FindingRecord, Severity } from "@devdigest/shared";
-import { isTextInput } from "../../../../../../../components/app-shell/helpers";
-import { G_NAV_TIMEOUT_MS } from "../../../../../../../components/app-shell/constants";
+import { G_NAV_TIMEOUT_MS, isTextInput } from "@/lib/keyboard";
 import { SEVERITY_FILTERS, SEVERITY_ORDER } from "../../../constants";
 import { LOW_CONFIDENCE_THRESHOLD } from "./constants";
 

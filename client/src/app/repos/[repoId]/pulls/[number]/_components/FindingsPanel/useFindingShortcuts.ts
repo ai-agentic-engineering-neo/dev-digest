@@ -4,7 +4,7 @@
 
 import React from "react";
 import type { FindingActionKind, FindingRecord } from "@devdigest/shared";
-import { isTextInput } from "../../../../../../../components/app-shell/helpers";
+import { isTextInput } from "@/lib/keyboard";
 import { KEY_TO_ACTION } from "./constants";
 import { shouldIgnoreShortcut } from "./helpers";
 

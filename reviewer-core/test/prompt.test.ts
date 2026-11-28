@@ -4,7 +4,7 @@
  * truncation, and ordering (before the diff).
  */
 import { describe, it, expect } from 'vitest';
-import { assemblePrompt } from '../src/prompt.js';
+import { assemblePrompt, formatSkills } from '../src/prompt.js';
 
 function userOf(parts: Parameters<typeof assemblePrompt>[0]): string {
   const { messages } = assemblePrompt(parts);
@@ -88,5 +88,28 @@ describe('assemblePrompt — PR title/author fence', () => {
     const m = user.match(/<untrusted source="pr-meta">\n([\s\S]*?)\n<\/untrusted>/);
     expect(m?.[1]).not.toMatch(/<\s*\/\s*untrusted\s*>/i);
     expect(m?.[1]).toContain('<\\/untrusted>');
+  });
+});
+
+describe('assemblePrompt — ## Skills / rules', () => {
+  const a = { name: 'branch-coverage', description: 'Flag untested branches.', body: 'Check every if/else.' };
+  const b = { name: 'mocking-discipline', description: 'Flag over-mocking.', body: 'Mock only boundaries.' };
+
+  it('renders skills in link order, outside the untrusted fences', () => {
+    const blocks = formatSkills([a, b]);
+    expect(blocks[0]).toBe('### branch-coverage\n_Flag untested branches._\n\nCheck every if/else.');
+    const { messages, assembly } = assemblePrompt({ system: 'S', skills: blocks, diff: 'd' });
+    const user = messages[1]!.content;
+    const section = user.slice(user.indexOf('## Skills / rules'), user.indexOf('## Diff to review'));
+    expect(section.indexOf('### branch-coverage')).toBeLessThan(section.indexOf('### mocking-discipline'));
+    expect(section).not.toContain('<untrusted');
+    expect(assembly.skills).toBe(blocks.join('\n\n'));
+  });
+
+  it('omits the section when there are no skills', () => {
+    expect(formatSkills([])).toEqual([]);
+    const { messages, assembly } = assemblePrompt({ system: 'S', skills: formatSkills([]), diff: 'd' });
+    expect(messages[1]!.content).not.toContain('## Skills / rules');
+    expect(assembly.skills).toBeNull();
   });
 });

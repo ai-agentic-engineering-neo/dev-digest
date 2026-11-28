@@ -29,6 +29,7 @@
     "fastify": "^5.12.8",
     "fastify-sse-v2": "^4.2.2",
     "fastify-type-provider-zod": "^4.0.2",
+    "fflate": "^0.8.3",
     "graphology": "^0.26.0",
     "graphology-metrics": "^2.4.2",
     "js-tiktoken": "^1.0.21",
@@ -37,6 +38,7 @@
     "p-queue": "^8.1.1",
     "postgres": "^3.4.9",
     "simple-git": "^4.1.0",
+    "yaml": "^2.9.1",
     "zod": "^3.25.76"
   },
   "devDependencies": {

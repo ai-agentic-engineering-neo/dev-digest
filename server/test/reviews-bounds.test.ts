@@ -24,6 +24,7 @@ const agent: Agent = {
   strategy: 'single-pass',
   ci_fail_on: 'critical',
   repo_intel: false,
+  skill_count: 0,
 };
 
 const pull: ReviewPull = {
@@ -102,6 +103,8 @@ function setup(rawDiff: string) {
       getFileRank: async () => [],
     } as never,
     events: new RunBus(),
+    skills: { effectiveSkills: async () => [] },
+    tokens: { count: (s: string) => Math.ceil(s.length / 4) },
   });
   // The run is over once its trace-bearing save resolved and markReviewed had its turn.
   const settle = async () => {

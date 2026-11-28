@@ -60,6 +60,7 @@ const agent: Agent = {
   strategy: 'single-pass',
   ci_fail_on: 'critical',
   repo_intel: false,
+  skill_count: 0,
 };
 
 const pull: ReviewPull = {
@@ -196,6 +197,8 @@ function setup<L extends Partial<LLMProvider> = SlowLLM>(llm: L = new SlowLLM() 
       getFileRank: async () => [],
     } as never,
     events: bus,
+    skills: { effectiveSkills: async () => [] },
+    tokens: { count: (s: string) => Math.ceil(s.length / 4) },
   });
 
   return { service, store, runs, reviews, traces, exited, marked, llm, bus, save };

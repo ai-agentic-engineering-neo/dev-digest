@@ -1,0 +1,1 @@
+export { SkillsLayout } from "./SkillsLayout";

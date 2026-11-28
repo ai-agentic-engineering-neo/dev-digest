@@ -395,6 +395,58 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     await app.close();
   });
 
+  it('M2 seed: skills with history, links on every agent, an enabled imported skill, demo PRs — idempotent', async () => {
+    await seed(pg.handle.db); // run again: nothing may be duplicated
+    const db = pg.handle.db;
+    const skills = await db.select().from(t.skills).where(eq(t.skills.workspaceId, workspaceId));
+    const names = skills.map((s) => s.name);
+    for (const name of [
+      'pr-quality-rubric',
+      'no-then-chains',
+      'secret-leakage-gate',
+      'lethal-trifecta',
+      'phantom-api-gate',
+      'test-coverage-nudge',
+      'branch-coverage-check',
+      'mocking-discipline',
+      'flaky-test-signals',
+      'api-contract-compat',
+      'route-signature-gate',
+    ]) {
+      expect(names.filter((n) => n === name), name).toHaveLength(1);
+    }
+
+    const rubric = skills.find((s) => s.name === 'pr-quality-rubric')!;
+    expect(rubric.version).toBe(5);
+    const rubricVersions = await db.select().from(t.skillVersions).where(eq(t.skillVersions.skillId, rubric.id));
+    expect(rubricVersions).toHaveLength(5);
+    expect(skills.some((s) => s.source === 'imported_file' && s.enabled)).toBe(true);
+
+    const app = await appWith(REVIEW_FIXTURE, 'openai', { github: new MockGitHubClient({ pulls: [] }) });
+    const agents = (await app.inject({ method: 'GET', url: '/agents' })).json() as { name: string; skill_count: number }[];
+    expect(agents.map((a) => a.name)).toContain('Test Quality Reviewer');
+    const seeded = ['General Reviewer', 'Security Reviewer', 'Performance Reviewer', 'Test Quality Reviewer'];
+    for (const name of seeded) {
+      expect(agents.find((a) => a.name === name)!.skill_count, name).toBeGreaterThan(0);
+    }
+    const counts = (await app.inject({ method: 'GET', url: '/skills' })).json() as { name: string; agent_count: number }[];
+    const countOf = (n: string) => counts.find((c) => c.name === n)!.agent_count;
+    expect(['pr-quality-rubric', 'no-then-chains', 'secret-leakage-gate', 'lethal-trifecta'].map(countOf)).toEqual([3, 1, 1, 1]);
+    await app.close();
+
+    const [repo] = await db.select().from(t.repos).where(eq(t.repos.fullName, 'acme/payments-api'));
+    for (const number of [483, 484]) {
+      const prs = await db.select().from(t.pullRequests).where(eq(t.pullRequests.number, number));
+      const pr = prs.find((p) => p.repoId === repo!.id)!;
+      expect(prs.filter((p) => p.repoId === repo!.id)).toHaveLength(1);
+      const files = await db.select().from(t.prFiles).where(eq(t.prFiles.prId, pr.id));
+      expect(files.length, `#${number}`).toBeGreaterThan(0);
+      expect(files.every((f) => (f.patch ?? '').startsWith('@@ '))).toBe(true);
+      const runs = await db.select().from(t.agentRuns).where(eq(t.agentRuns.prId, pr.id));
+      expect(runs).toHaveLength(0);
+    }
+  });
+
   it('dual-provider structured output: anthropic provider returns the same Review shape', async () => {
     const app = await appWith(REVIEW_FIXTURE, 'anthropic');
     const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);

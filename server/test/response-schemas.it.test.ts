@@ -77,6 +77,15 @@ d('response schemas: routes not covered elsewhere', () => {
       expect(Array.isArray(res.json()), url).toBe(true);
     }
 
+    // M2 skills: the list, one skill, its history and one version.
+    const skills = await server.inject({ method: 'GET', url: '/skills' });
+    expect(skills.statusCode).toBe(200);
+    const skillId = skills.json()[0].id as string;
+    for (const url of [`/skills/${skillId}`, `/skills/${skillId}/versions`, `/skills/${skillId}/versions/1`]) {
+      const res = await server.inject({ method: 'GET', url });
+      expect(res.statusCode, url).toBe(200);
+    }
+
     const del = await server.inject({ method: 'DELETE', url: `/repos/${repoId}` });
     expect(del.statusCode).toBe(200);
     expect(del.json()).toEqual({ deleted: repoId });

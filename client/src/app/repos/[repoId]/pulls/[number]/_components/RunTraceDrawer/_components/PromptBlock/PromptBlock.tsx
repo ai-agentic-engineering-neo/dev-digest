@@ -20,7 +20,18 @@ const miniBtnStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
-export function PromptBlock({ label, text, color }: { label: string; text: string; color: string }) {
+export function PromptBlock({
+  label,
+  text,
+  color,
+  meta,
+}: {
+  label: string;
+  text: string;
+  color: string;
+  /** Extra facts shown next to the label (e.g. the skills block's tokens and chips). */
+  meta?: React.ReactNode;
+}) {
   const t = useTranslations("runs");
   const [open, setOpen] = React.useState(false);
   const [full, setFull] = React.useState(false);
@@ -36,6 +47,7 @@ export function PromptBlock({ label, text, color }: { label: string; text: strin
         <button type="button" aria-expanded={open} onClick={() => setOpen((o) => !o)} style={s.promptToggleBtn}>
           <span style={s.promptDot(color)} />
           <span style={s.promptLabel}>{label}</span>
+          {meta}
           <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-muted)" }}>
             {open ? t("trace.collapse") : t("trace.expand")}
           </span>

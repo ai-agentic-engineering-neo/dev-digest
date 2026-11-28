@@ -59,6 +59,8 @@ also uses.
 
 - 2026-11-26 — `container.repoIntelService` is always the real service and owns the index/refresh/resync job handlers; `container.repoIntel` is the read facade a test may replace. Register job handlers on the former, read through the latter. Evidence: server/src/platform/container.ts:157
 
+- 2026-11-28 — A contract field with `.default()` (e.g. `Agent.skill_count`) still parses old payloads, but `z.infer` makes it required, so every typed `Agent` literal in tests must add the field or `pnpm typecheck` fails (the unit lane alone does not catch it). Evidence: server/src/vendor/shared/contracts/knowledge.ts:250
+
 ## Tool & Library Notes
 
 <!-- Quirks of dependencies and tooling. -->
@@ -70,6 +72,8 @@ also uses.
 - 2026-11-28 — `reply.sse()` (fastify-sse-v2) hijacks the reply and never calls `return()` on the source iterator when the client disconnects, so a generator's `finally` does not run. Drop the bus subscription from an abort handler (`reply.raw` `close` → AbortController), not only in `finally`; and resolve/404 the run before calling `reply.sse`. Evidence: server/src/platform/sse.ts (`liveRunFrames`)
 
 - 2026-11-28 — The installed SDKs (openai 4.104, @anthropic-ai/sdk 0.33) take `signal`, `timeout` and `maxRetries` per request as the second argument of `create(body, options)` and as client defaults in the constructor; an aborted request rejects with the SDK's `APIUserAbortError`. The LLM adapters set timeout and retries on the client and pass `{ timeout, signal }` per call; do not wrap them in `withRetry`/`withTimeout` again (that nested the retries and the timeout only raced, never aborted). Evidence: server/src/adapters/llm/openai.ts:54
+
+- 2026-11-28 — `fflate.unzipSync` with a `filter` that returns false walks the zip's central directory and inflates nothing; the skill import lists entries this way and inflates only the core `.md` with a second filtered call. `originalSize` is what the archive declares, so the 256 KB limit is checked again on the inflated bytes. Evidence: server/src/adapters/skill-import/index.ts:22
 
 ## Decisions
 
@@ -87,9 +91,17 @@ also uses.
 
 - 2026-11-27 — `completeAgentRun` only updates rows still `status = 'running'`, so nothing overwrites a cancelled (or reaped) run. Side effect: on the cancel path the executor's `completeAgentRun(..., 'cancelled', error: 'Cancelled by user')` is a no-op because `cancelRunIfRunning` already flipped the row, so a cancelled run stores no `error` or `duration_ms`; only its trace (log so far) is saved. If the UI needs the note, set it in `cancelRunIfRunning`, not by loosening the guard. The success path goes through `saveReviewOutcome`, which runs the guarded update first inside the transaction and returns null (writes nothing) when the run is no longer running. Evidence: server/src/modules/reviews/repository/run.repo.ts:181
 
+- 2026-11-28 — M2 agent links: every link change (set, link one, reorder, toggle) goes through `AgentStore.setSkills`, which bumps the agent version and snapshots `skills` + `skill_links` in one transaction; linking one skill is computed in `domain.ts` (`upsertLink`) and an unchanged set writes nothing (`linksChanged`). The seed inserts links directly without a bump, and only for an agent with no links, so user edits survive a re-seed. Evidence: server/src/modules/agents/domain.ts:72
+
+- 2026-11-28 — Corrects the M2 agent-links entry above: the seed links an agent only while it has no links AND no `agent_versions` row whose `config_json` has a `skill_links` array. Every M2 link change (and every post-M2 version bump) writes that snapshot, so a user who detached every skill keeps that after `pnpm db:seed`, while pre-M2 seeded agents still get links. Caveat: a post-M2 config edit of a seeded agent before it had links also writes `skill_links: []` and blocks seeding. "Created in this seed run" was tried and dropped: it left pre-M2 dev DBs with unlinked agents. Evidence: server/src/db/seed.ts (seedSkills)
+
+- 2026-11-28 — M2 cross-module reads go through ports, not joins: the agents repo returns link columns only and `AgentsService` adds name/type/flag via `SkillLookup.summaries`; `agent_count` comes from `AgentLinks.enabledLinkCounts` (agents repo) in `SkillsService`; the run's effective skills are `SkillsService.effectiveSkills` (agents port's ordered enabled ids + `SkillStore.enabledByIds`, re-ordered by link), shared via `container.skillsService`. Do not add a join across `skills` and `agent_skills` back into either repository. Evidence: server/src/modules/skills/service.ts (effectiveSkills)
+
 ## Recurring Errors & Fixes
 
 <!-- An error seen more than once, with its fix. -->
+
+- 2026-11-28 — Request validation failures (zod type provider) answer **422** `validation_error`, not 400 (`app.ts` error handler); e.g. a non-base64 `content_base64` on `/skills/import/preview`. Test for 422. Evidence: server/src/app.ts:121
 
 ## Session Notes
 
@@ -114,6 +126,10 @@ also uses.
 - 2026-11-28 — BE-8: `/runs/:id/events` resolves the run through `ReviewService.runEventSource` (404 unknown; finished and off the bus → replay of the stored trace log, then end), unsubscribes on disconnect, sends a `:heartbeat` comment every 15 s; `RunBus` frees a completed run 5 min after `complete()`.
 
 - 2026-11-28 — BE-9: cancel aborts the in-flight LLM call (`RunBus.signal(runId)`, aborted by `cancel`, released by `clearCancelled`; the executor passes it through `reviewPullRequest` to `StructuredRequest.signal`), and a schema-validation failure throws `StructuredOutputError` (reviewer-core `llm/structured.ts`, re-exported by `platform/structured.ts`; the shared contract stays data-only) whose usage, cost and raw output the executor stores on the failed run.
+
+- 2026-11-28 — Built M2 Skills (server): `skills` module (CRUD, versions, restore, import preview/confirm), `adapters/skill-import` (fflate + yaml), migration 0014, agent link flags with version snapshots and `skill_count`, effective skills in the run prompt/trace/log, Test Quality Reviewer + 11 seeded skills + demo PRs #483/#484; spec server/specs/M2-skills.md.
+
+- 2026-11-28 — M2 review fixes: `updateLinks` dispatch in `AgentsService`, cross-module table reads moved behind ports, `agent_skills_skill_id_idx` + `skill_versions` backfill/drop-defaults in migration 0015, enum casts removed, seed links only for newly created agents.
 
 ## Open Questions
 

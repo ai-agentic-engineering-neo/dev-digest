@@ -70,9 +70,13 @@ disable the control that clears the active filter.
 
 - 2026-11-26 — Code added to a `.tsx` copies that file's habits: in a folder that already has `constants.ts` / `helpers.ts`, an agent put new thresholds and rules there unprompted, while in a `.tsx` with an inline constant it added two more inline, wrote the rule into JSX and hardcoded English labels "like the rest of this header's strings". 19 such declarations exist (grep 1 of the skill lists them). When you edit one of those files, create the sibling `constants.ts` / `helpers.ts` / `styles.ts` and the message key for what you add, move only the declarations you change, and name what you left. Evidence: .claude/skills/frontend-architecture/SKILL.md:79
 
+- 2026-11-28 — Component tests that need data go through `renderWithProviders` + `mockApi` (`src/test/render.tsx`), never `vi.mock` of `@/lib/hooks/*`. `renderWithProviders` passes the providers as RTL's `wrapper`, so `view.rerender(<X … />)` keeps them and the query cache; `mockApi` answers an error status when `respond` returns `new ApiErrorReply(status, body)`; `vitest.config.ts` sets `unstubGlobals: true`, so no test file calls `vi.unstubAllGlobals()`. Evidence: client/src/test/render.tsx:18
+
 ## Tool & Library Notes
 
 <!-- Quirks of dependencies and tooling. -->
+
+- 2026-11-28 — next-intl messages are ICU: a literal `<name>` in a string is parsed as an unclosed rich-text tag and the message fails at render (`INVALID_MESSAGE: UNCLOSED_TAG`, logged, not thrown), so tests still pass while the UI shows the key. Avoid `<…>` in `messages/en/*.json` text, or escape it. Evidence: client/messages/en/skills.json
 
 - 2026-11-28 — React Query keys live only in `src/lib/hooks/query-keys.ts`, and a mutation that renders its own error must set `meta: { errorUi: "inline" }` (typed via the `Register` augmentation in `src/lib/error-policy.ts`), or the global MutationCache toasts it a second time. Prefer `mutate(vars, { onSuccess })` over `mutateAsync` in a component: an un-caught `mutateAsync` rejection is an unhandled promise on top of the toast. Evidence: client/src/lib/error-policy.ts:36
 
@@ -89,6 +93,8 @@ disable the control that clears the active filter.
 - 2026-11-23 — The PR list's findings preview does not trust the list's numbers for its heading: it applies the server's rule itself (`latestFindingsPerAgent`: each agent's latest `kind = "review"` review) to the loaded reviews and heads the list with the number of findings it shows. The chips come from `PrMeta.findings_counts`, which refreshes every 60 s, so the two can differ for a moment after a new run; a heading taken from the chips would then disagree with the list under it. If the server rule changes, change this helper with it. Evidence: client/src/app/repos/[repoId]/pulls/helpers.ts:16
 
 - 2026-11-26 — Where code goes in `client/src` is decided by its kind, not its size or reuse: every constant leaves the `.tsx` for `constants.ts` and every pure rule for `helpers.ts`, however small. Several published sources would keep small single-use code inline, and others reject the names `helpers.ts` and a per-component `index.ts`; the repo keeps all three because the convention already covered most folders and a rule without a judgement call can be checked with a grep. Do not relax it to "extract when reused" or rename the files without reading the trade-off first. Evidence: .claude/skills/frontend-architecture/references.md:28
+
+- 2026-11-28 — An unsaved-edits guard for in-app navigation needs no router hook: `SkillDetail/useUnsavedGuard.ts` adds a capture-phase `click` listener on `document` while dirty, which runs before React's root listener, so `preventDefault()` + `stopPropagation()` stops a `next/link` before it navigates (sidebar, breadcrumb, cards). For a whole-card click, forward it to the card's own `<Link>` (`linkRef.current.click()`) instead of calling `router.push`, so it passes through the same guard. `router.push` calls and `g`-key shortcuts are not guarded. Evidence: client/src/app/skills/_components/SkillDetail/useUnsavedGuard.ts:22
 
 ## Recurring Errors & Fixes
 
@@ -107,6 +113,10 @@ disable the control that clears the active filter.
 - 2026-11-23 — Built the M1 findings column (client): `FindingsCell` with severity chips and a hover preview headed `N findings in this run` on the PR list; spec client/specs/M1-findings-column.md. Checked live on seeded PR #482 (two agents, 5 findings), including the severity counters and `Hide low confidence` on the Performance Reviewer run, which now has a finding below 0.65 confidence. Merged `LEARNINGS.md` into this file.
 
 - 2026-11-26 — Added the `frontend-architecture` skill (placement rules for `client/src`, with its source catalogue in `references.md`) and pointed `AGENTS.md` at it; removed the Axios, Vite, react-router and Tailwind-class advice from `react-best-practices`. No source code under `client/src` changed; the 19 inline declarations and 3 imports into another component folder's internals that the skill's greps list are still there.
+
+- 2026-11-28 — Built M2 Skills (client): `/skills` list + detail (Config, Preview, Versions; Context/Evals/Stats empty states), create and two-step import modals, agent editor Skills tab (linked skills only, optimistic `POST /agents/:id/skills`), trace skills tokens/chips; e2e flow 08. `src/test/render.tsx` (`renderWithProviders`, `mockApi`) lets a component test run the real hooks against a stubbed `fetch` and assert the exact method/path/body. Built against the server spec while the server was in progress; not checked live.
+
+- 2026-11-28 — M2 Skills review fixes (client): rules moved to helpers (SkillsTab, SkillDetail, PreviewTab, SkillsLayout, `parseAgentTab`), agent `TABS` moved to the route folder, import step held as one union in `useImportFlow`, `formatBytes`/read error translated, CreateSkillModal tests, e2e 08 made read-only. Not checked live.
 
 ## Open Questions
 

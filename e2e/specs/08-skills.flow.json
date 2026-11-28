@@ -1,0 +1,29 @@
+{
+  "name": "Skills Lab: browse a seeded skill and an agent's linked skills",
+  "description": "M2 Skills, read-only on seeded data. Loads /skills, opens the seeded pr-quality-rubric and sees v5 on its Config tab; opens Preview (the prompt block as the agent receives it) and Versions (the v5 note and the v1 note); then opens the seeded Security Reviewer's Skills tab and sees 3 of 6 enabled (server seed). Creates, saves and attaches nothing, and calls no LLM.",
+  "steps": [
+    { "cmd": ["open", "{BASE}/skills"], "label": "load the Skills page" },
+    { "cmd": ["wait", "--url", "/skills"], "label": "skills route reached" },
+    { "cmd": ["wait", "--load", "networkidle"], "label": "skills fetch settles" },
+    { "cmd": ["wait", "--text", "pr-quality-rubric"], "label": "seeded skill card is visible" },
+    { "cmd": ["find", "text", "pr-quality-rubric", "click"], "label": "open pr-quality-rubric" },
+    { "cmd": ["wait", "--url", "tab=config"], "label": "land on the skill's Config tab" },
+    { "cmd": ["wait", "--text", "pr-quality-rubric.md"], "label": "the body editor shows the file name" },
+    { "cmd": ["wait", "--text", "v5"], "label": "the header shows the current version v5" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Preview"], "label": "open the Preview tab" },
+    { "cmd": ["wait", "--url", "tab=preview"], "label": "preview tab is active in the URL" },
+    { "cmd": ["wait", "--text", "Rendered as the reviewing agent receives it."], "label": "the preview subtitle renders" },
+    { "cmd": ["wait", "--text", "Scope and volume"], "label": "the v5 body is in the preview" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Versions"], "label": "open the Versions tab" },
+    { "cmd": ["wait", "--url", "tab=versions"], "label": "versions tab is active in the URL" },
+    { "cmd": ["wait", "--text", "Tightened scope rule"], "label": "the v5 change note is in the history" },
+    { "cmd": ["wait", "--text", "Initial rubric"], "label": "the v1 change note is in the history" },
+    { "cmd": ["open", "{BASE}/agents"], "label": "load the agents page" },
+    { "cmd": ["wait", "--text", "Security Reviewer"], "label": "seeded agent card is visible" },
+    { "cmd": ["find", "text", "Security Reviewer", "click"], "label": "open the Security Reviewer editor" },
+    { "cmd": ["wait", "--url", "/agents/"], "label": "agent editor route reached" },
+    { "cmd": ["find", "role", "button", "click", "--name", "Skills"], "label": "switch to the Skills tab" },
+    { "cmd": ["wait", "--url", "tab=skills"], "label": "skills tab is active in the URL" },
+    { "cmd": ["wait", "--text", "3 of 6 enabled"], "label": "seeded links: 3 of 6 enabled" }
+  ]
+}

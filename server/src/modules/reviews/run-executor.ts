@@ -1,10 +1,16 @@
 import type { Agent, LlmUsage, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
-import { reviewPullRequest, countBlockers, StructuredOutputError } from '@devdigest/reviewer-core';
+import {
+  reviewPullRequest,
+  countBlockers,
+  formatSkills,
+  StructuredOutputError,
+} from '@devdigest/reviewer-core';
 import { RunLogger } from '../../platform/run-logger.js';
 import { MAX_DIFF_CHARS, REVIEW_MAX_OUTPUT_TOKENS, REVIEW_STRATEGY } from './constants.js';
-import { RunCancelledError, capDiff, taskLine } from './domain.js';
+import { RunCancelledError, capDiff, skillsLogLine, taskLine } from './domain.js';
 import { loadDiff } from './diff-loader.js';
 import type {
+  AgentSkills,
   DiffParser,
   DiffSource,
   LlmResolver,
@@ -15,6 +21,7 @@ import type {
   ReviewPull,
   ReviewStore,
   RunEvents,
+  TokenCounter,
 } from './ports.js';
 
 // A reduced "Review per file" — same schema as Review (the model returns a small
@@ -34,6 +41,10 @@ export interface RunExecutorDeps {
   parseDiff: DiffParser;
   repoIntel: RepoContext;
   events: RunEvents;
+  /** Effective skills of an agent (M2). */
+  skills: AgentSkills;
+  /** Counts the skills block's tokens for the trace. */
+  tokens: TokenCounter;
 }
 
 /**
@@ -193,6 +204,16 @@ export class ReviewRunExecutor {
         { kind: 'tool' },
       );
 
+      // M2 — the agent's effective skills (linked + enabled on the link +
+      // enabled globally, in link order), read once: this snapshot serves the
+      // whole run, so an edit made mid-run does not change it. Unlike
+      // repo-intel context, a failed read fails the run.
+      const skills = await this.deps.skills.effectiveSkills(agent.id);
+      const skillBlocks = skills.length > 0 ? formatSkills(skills) : undefined;
+      // Exactly the string assemblePrompt stores as `prompt_assembly.skills`.
+      const skillsTokens = skillBlocks ? this.deps.tokens.count(skillBlocks.join('\n\n')) : null;
+      runLog.info(skillsLogLine(skills, skillsTokens ?? 0));
+
       // Per-agent repo-intel toggle (Agent editor). When an agent opts out we
       // skip all enrichment entirely so its prompt is identical to the
       // repo-intel-off baseline — independent of the global REPO_INTEL_ENABLED
@@ -233,6 +254,8 @@ export class ReviewRunExecutor {
         ...(callersDigest ? { callers: callersDigest } : {}),
         // T3 — repo skeleton, same omit-when-empty contract.
         ...(repoMap ? { repoMap } : {}),
+        // M2 — skill blocks; omitted (no `## Skills / rules`) with no skill.
+        ...(skillBlocks ? { skills: skillBlocks } : {}),
         // PR author's description/body — untrusted; assemblePrompt wraps +
         // truncates it. Omitted when the PR has no body.
         ...(pull.body ? { prDescription: pull.body } : {}),
@@ -278,7 +301,11 @@ export class ReviewRunExecutor {
           findings: findingsCount,
           grounding,
         },
-        prompt_assembly: outcome.assembly,
+        prompt_assembly: {
+          ...outcome.assembly,
+          skills_tokens: skillsTokens,
+          skills_used: skills.length > 0 ? skills.map((s) => ({ id: s.id, name: s.name, version: s.version })) : null,
+        },
         tool_calls: outcome.chunks.map((c) => ({
           tool: 'review_file',
           args: c.label,
@@ -497,7 +524,15 @@ export class ReviewRunExecutor {
         findings: 0,
         grounding,
       },
-      prompt_assembly: { system: agent.system_prompt, skills: null, memory: null, specs: null, user: '' },
+      prompt_assembly: {
+        system: agent.system_prompt,
+        skills: null,
+        skills_tokens: null,
+        skills_used: null,
+        memory: null,
+        specs: null,
+        user: '',
+      },
       tool_calls: [],
       raw_output: rawOutput,
       memory_pulled: [],

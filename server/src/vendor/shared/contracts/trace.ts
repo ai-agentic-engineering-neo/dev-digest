@@ -64,6 +64,9 @@ export const RunStats = z.object({
   tokens_out: z.number().int(),
   findings: z.number().int(),
   grounding: z.string(),
+  /** Total LLM cost of the run in USD (summed over all model calls); null when
+      the model's price is unknown, absent on traces written before it existed. */
+  cost_usd: z.number().nullish(),
 });
 export type RunStats = z.infer<typeof RunStats>;
 
@@ -102,6 +105,8 @@ export const RunSummary = z.object({
   duration_ms: z.number().int().nullable(),
   tokens_in: z.number().int().nullable(),
   tokens_out: z.number().int().nullable(),
+  /** agent_runs.cost_usd — USD; null when unknown or the run did not complete. */
+  cost_usd: z.number().nullish(),
   findings_count: z.number().int().nullable(),
   grounding: z.string().nullable(),
   ran_at: z.string().nullable(),

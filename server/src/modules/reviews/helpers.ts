@@ -9,6 +9,11 @@ import type { FindingRow, PullRow, ReviewRow } from './repository.js';
 // shared with the CI runner); re-exported here for backward-compatible imports.
 export { reduceReviews, sliceDiff } from '@devdigest/reviewer-core';
 
+/** Human-readable USD amount for run logs: 4 decimals, or "unknown" when null. */
+export function formatUsd(usd: number | null | undefined): string {
+  return usd == null ? 'unknown' : `$${usd.toFixed(4)}`;
+}
+
 export interface ReviewDtoFinding extends Finding {
   review_id: string;
   accepted_at: string | null;
@@ -28,7 +33,19 @@ export interface ReviewDto {
   model: string | null;
   grounding?: string | null;
   created_at: string;
+  /** Usage of the run that produced this review; null when unknown or the run
+   *  did not complete. */
+  cost_usd: number | null;
+  tokens_in: number | null;
+  tokens_out: number | null;
   findings: ReviewDtoFinding[];
+}
+
+/** Tokens + cost of the run behind a review (see `runUsageByIds`). */
+export interface ReviewRunUsage {
+  tokensIn: number | null;
+  tokensOut: number | null;
+  costUsd: number | null;
 }
 
 export function findingRowToDto(row: FindingRow): ReviewDtoFinding {
@@ -56,6 +73,7 @@ export function reviewToDto(
   review: ReviewRow,
   findings: FindingRow[],
   agentName?: string | null,
+  usage?: ReviewRunUsage | null,
 ): ReviewDto {
   return {
     id: review.id,
@@ -69,6 +87,9 @@ export function reviewToDto(
     score: review.score,
     model: review.model,
     created_at: review.createdAt.toISOString(),
+    cost_usd: usage?.costUsd ?? null,
+    tokens_in: usage?.tokensIn ?? null,
+    tokens_out: usage?.tokensOut ?? null,
     findings: findings.map(findingRowToDto),
   };
 }

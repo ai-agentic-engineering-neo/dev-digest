@@ -9,6 +9,7 @@ import type { PrMeta } from "@/lib/types";
 import { SIZE_COLOR, STATUS_META } from "../../constants";
 import { relativeTime, sizeOf } from "../../helpers";
 import { s } from "../../styles";
+import { RunCostBadge } from "@/components/run-cost-badge";
 
 export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
   const t = useTranslations("prReview");
@@ -28,8 +29,10 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
         <Icon.GitPullRequest size={15} style={s.rowIcon(st.c)} />
         <div style={s.rowTitleWrap}>
           <div style={s.rowTitle(h)}>{pr.title}</div>
-          <span className="mono" style={s.rowNumber}>
-            #{pr.number}
+          <span style={s.rowMeta}>
+            <span className="mono" style={s.rowNumber}>
+              #{pr.number}
+            </span>
           </span>
         </div>
       </div>
@@ -57,6 +60,13 @@ export function PRRow({ pr, repoId }: { pr: PrMeta; repoId: string }) {
         <Badge dot color={st.c} bg="transparent">
           {t(`list.status.${st.labelKey}`)}
         </Badge>
+      </div>
+      <div style={s.costCell}>
+        <RunCostBadge
+          costUsd={pr.last_run_cost_usd}
+          title={t("list.runCost.title")}
+          ariaLabel={(cost) => t("list.runCost.aria", { cost })}
+        />
       </div>
       <div style={s.updatedCell}>{relativeTime(pr.updated_at)}</div>
     </div>

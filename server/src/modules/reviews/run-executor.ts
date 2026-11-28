@@ -6,7 +6,7 @@ import * as schema from '../../db/schema.js';
 import type { AgentRow } from '../../db/rows.js';
 import type { ReviewRepository, FindingRow, PullRow, ReviewRow } from './repository.js';
 import { REVIEW_STRATEGY } from './constants.js';
-import { taskLine } from './helpers.js';
+import { formatUsd, taskLine } from './helpers.js';
 import { loadDiff } from './diff-loader.js';
 
 /** Thrown by a run when the user cancels it mid-flight (between map files). */
@@ -210,7 +210,7 @@ export class ReviewRunExecutor {
           if (this.container.runBus.isCancelled(runId)) throw new RunCancelledError();
         },
       });
-      const { tokensIn, tokensOut, grounding } = outcome;
+      const { tokensIn, tokensOut, costUsd, grounding } = outcome;
 
       const keptFindings = outcome.review.findings;
 
@@ -250,7 +250,15 @@ export class ReviewRunExecutor {
         score: outcome.review.score,
         blockers,
         error: null,
+        costUsd,
       });
+
+      // Must be emitted BEFORE the trace snapshots the log buffer below, or the
+      // line only reaches the live stream and not the persisted trace.
+      runLog.result(
+        `Usage: ${tokensIn} in / ${tokensOut} out tokens, cost ${formatUsd(costUsd)}`,
+        { tokens_in: tokensIn, tokens_out: tokensOut, cost_usd: costUsd },
+      );
 
       const trace: RunTrace = {
         config: {
@@ -267,6 +275,7 @@ export class ReviewRunExecutor {
           tokens_out: tokensOut,
           findings: findingRows.length,
           grounding,
+          cost_usd: costUsd,
         },
         prompt_assembly: outcome.assembly,
         tool_calls: outcome.chunks.map((c) => ({

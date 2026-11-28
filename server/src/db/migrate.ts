@@ -5,6 +5,7 @@ import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { existsSync } from 'node:fs';
+import { isEntrypoint } from './entrypoint.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = join(__dirname, 'migrations');
@@ -34,7 +35,7 @@ export async function runMigrations(databaseUrl: string): Promise<void> {
 }
 
 // CLI entrypoint
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isEntrypoint(import.meta.url)) {
   const url = process.env.DATABASE_URL;
   if (!url) {
     console.error('DATABASE_URL is required');

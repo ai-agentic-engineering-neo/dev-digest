@@ -31,6 +31,7 @@ export const s = {
     color: hover ? "var(--accent-text)" : "var(--text-primary)",
   }),
   rowNumber: { fontSize: 12, color: "var(--text-muted)" } satisfies CSSProperties,
+  rowMeta: { display: "flex", alignItems: "center", gap: 8 } satisfies CSSProperties,
   authorCell: {
     display: "flex",
     alignItems: "center",
@@ -40,6 +41,7 @@ export const s = {
   } satisfies CSSProperties,
   sizeBadgeBorder: (color: string): CSSProperties => ({ border: `1px solid ${color}` }),
   scoreCell: { display: "flex", alignItems: "center" } satisfies CSSProperties,
+  costCell: { display: "flex", alignItems: "center", fontSize: 12 } satisfies CSSProperties,
   updatedCell: {
     fontSize: 12,
     color: "var(--text-muted)",

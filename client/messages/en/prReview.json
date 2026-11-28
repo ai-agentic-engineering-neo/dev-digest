@@ -65,6 +65,10 @@
     "title": "Pull Requests",
     "summary": "{open} open · {needsReview} need review",
     "loading": "Loading pull requests…",
+    "runCost": {
+      "title": "LLM cost of the latest review run",
+      "aria": "Latest review run cost {cost}"
+    },
     "status": {
       "open": "Open",
       "closed": "Closed",
@@ -91,6 +95,7 @@
       "author": "Author",
       "size": "Size",
       "score": "Score",
+      "cost": "Cost",
       "status": "Status",
       "updated": "Updated"
     },
@@ -105,5 +110,11 @@
     "goToReview": "Jump to this run’s findings below",
     "openTrace": "Open run trace & logs",
     "deleteRun": "Delete run"
+  },
+  "reviewRun": {
+    "cost": {
+      "title": "LLM cost and tokens (in→out) of this review run",
+      "aria": "Review run cost {cost}"
+    }
   }
 }

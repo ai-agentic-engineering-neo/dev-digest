@@ -8,6 +8,7 @@ import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { AppError, NotFoundError } from '../../platform/errors.js';
 import { deriveReviewStatus } from './status.js';
+import { latestRunCostByPr } from './cost.js';
 
 /**
  * F1 — pulls module. PR import via Octokit (list + per-PR detail).
@@ -129,6 +130,27 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
+    // COST column: USD of the latest COMPLETED agent run per PR, from
+    // agent_runs.cost_usd; runs recorded before cost was tracked fall back to a
+    // token-based estimate.
+    let latestCostByPr = new Map<string, number | null>();
+    if (prIds.length > 0) {
+      const runRows = await container.db
+        .select({
+          prId: t.agentRuns.prId,
+          model: t.agentRuns.model,
+          tokensIn: t.agentRuns.tokensIn,
+          tokensOut: t.agentRuns.tokensOut,
+          costUsd: t.agentRuns.costUsd,
+        })
+        .from(t.agentRuns)
+        .where(and(inArray(t.agentRuns.prId, prIds), eq(t.agentRuns.status, 'done')))
+        .orderBy(desc(t.agentRuns.ranAt));
+      latestCostByPr = latestRunCostByPr(runRows, (model, tokensIn, tokensOut) =>
+        container.priceBook.estimate(model, tokensIn, tokensOut),
+      );
+    }
+
     const now = Date.now();
     return rows.map((r) => {
       const review = latestReviewByPr.get(r.id);
@@ -153,6 +175,7 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
         opened_at: r.openedAt?.toISOString() ?? null,
         updated_at: r.updatedAt?.toISOString() ?? null,
         score: review ? review.score : null,
+        last_run_cost_usd: latestCostByPr.get(r.id) ?? null,
       };
     });
   });

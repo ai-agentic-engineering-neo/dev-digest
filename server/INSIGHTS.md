@@ -1,0 +1,33 @@
+# server — engineering insights
+
+Append-only log of non-obvious findings, written by agents via the
+`engineering-insights` skill. Newest entries at the bottom of each section.
+Review and prune periodically; stale entries are harmful.
+
+## Non-obvious dependencies
+
+- **2026-11-28** · The PR list's run cost comes from the `run_traces.trace` jsonb (`stats.cost_usd`), read with a single jsonb path so the whole log document is not loaded; traces written before that field existed fall back to `priceBook.estimate(model, tokens)` — evidence: `server/src/modules/pulls/routes.ts:144`, `server/src/modules/pulls/cost.ts:24`
+- **2026-11-28** · Run cost has three readers with one rule — only `status = 'done'` runs expose a price: the PR list filters done runs, `runUsageByIds` skips non-done runs for review DTOs, and `listRunsForPull` nulls `cost_usd` for failed/cancelled/running rows; keep the rule in all three when adding a reader — evidence: `server/src/modules/reviews/repository/run.repo.ts:62`, `server/src/modules/pulls/routes.ts:147`
+- **2026-11-28** · Supersedes 2026-11-28 entry on the PR list cost source: the list now reads `agent_runs.cost_usd` (no `run_traces` join); `run_traces.trace.stats.cost_usd` is still written for the trace drawer, and token-based `priceBook.estimate` remains the fallback for pre-cost runs — evidence: `server/src/modules/pulls/routes.ts:144`, `server/src/modules/pulls/cost.ts:24`
+
+## Fixes & gotchas
+
+- **2026-11-28** · Integration tests (`*.it.test.ts`) skip silently ("7 skipped") when the Docker daemon is not running, even if the `docker` CLI exists; start `dockerd` (or Docker Desktop) and re-run, a skip is not a pass — evidence: `server/test/helpers/pg.ts:23`
+- **2026-11-28** · `test/git-adapter-safety.test.ts` fails in sandboxes that inject `GIT_SSL_CAINFO` / `GIT_CONFIG_*` (simple-git's env guard rejects them); it fails identically on untouched `main`, so treat it as environmental, not a regression — evidence: `server/test/git-adapter-safety.test.ts:62`, `server/src/adapters/git/simple-git.ts:47`
+
+- **2026-11-28** · On Windows `pnpm db:migrate` / `pnpm db:seed` exit 0 but do NOTHING: the entry-point guard compares `import.meta.url` with `file://${process.argv[1]}`, which never matches a `C:\…` path, so tables are never created; call `runMigrations()` / `seed()` directly or fix the guard with `pathToFileURL(process.argv[1]).href` — evidence: `server/src/db/migrate.ts:37`, `server/src/db/seed.ts:227`
+- **2026-11-28** · The persisted run log is a SNAPSHOT taken when the trace object is built (`runLog.logFor(runId)`); any `runLog.*` call after that reaches only the live SSE stream and stdout, never the trace drawer's log tab — emit lines before building the trace — evidence: `server/src/modules/reviews/run-executor.ts:291`
+- **2026-11-28** · Supersedes 2026-11-28 entry on Windows `db:migrate`/`db:seed`: both CLIs now use `isEntrypoint(import.meta.url)`, which builds the URL with `pathToFileURL`; reuse it for any new `tsx` CLI script instead of comparing with `file://${process.argv[1]}` — evidence: `server/src/db/entrypoint.ts:14`, `server/src/db/migrate.ts:38`
+- **2026-11-28** · drizzle-kit `db:generate` writes only DDL; a data backfill can be appended to the newly generated `.sql` after a `--> statement-breakpoint` line and still runs inside `db:migrate` — verified on a pgvector container (done run backfilled, failed run and null jsonb cost left NULL) — evidence: `server/src/db/migrations/0010_gorgeous_legion.sql:2`
+
+## Measured facts
+
+- **2026-11-28** · Server unit lane: 22 files / 181 tests in ~5 s; `test/reviews.it.test.ts` with a testcontainers Postgres ~13 s — evidence: `pnpm exec vitest run --exclude '**/*.it.test.ts'`, `pnpm exec vitest run test/reviews.it.test.ts`
+
+- **2026-11-28** · First real review run on PR #1 with `deepseek/deepseek-v4-flash` via OpenRouter: 16,181 tokens in / 1,214 out, $0.0017, 15.3 s, 4 findings (4/4 grounded); the repo map block alone was ~1,500 tokens — evidence: run trace of PR #1, log line "repo map: 1500 token(s) attached"
+
+## Surprises
+
+- **2026-11-28** · reviewer-core already summed the run's `costUsd` over all model calls, but the executor destructured only tokens and dropped the cost, so it was never persisted or logged; it is now written to `trace.stats.cost_usd` and a `Usage: … cost $X` log line — evidence: `reviewer-core/src/review/run.ts:184`, `server/src/modules/reviews/run-executor.ts:277`
+- **2026-11-28** · A PR's "latest run" for cost is the newest `agent_runs` row with `status='done'`; with "Run all agents" each agent is a separate run, so the badge shows the last agent's cost, not the batch sum — evidence: `server/src/modules/pulls/routes.ts:148`
+- **2026-11-28** · `agent_runs.cost_usd` is not new: it existed in `0000_init` and was dropped by `0009`; re-adding it needs a NEW generated migration (`0010`), and runs from the jsonb era only get a cost through the backfill `UPDATE` appended to that new file — evidence: `server/src/db/migrations/0009_complex_runaways.sql:1`, `server/src/db/migrations/0010_gorgeous_legion.sql:4`

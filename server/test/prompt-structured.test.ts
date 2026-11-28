@@ -14,7 +14,7 @@ describe('prompt assembly + injection hardening', () => {
   it('assembles system + skills + memory + specs + diff with the guard', () => {
     const { messages, assembly } = assemblePrompt({
       system: 'You are a reviewer.',
-      skills: ['## secret-gate\nDetect sk_live'],
+      skills: [{ name: 'secret-gate', body: 'Detect sk_live' }],
       memory: ['Do not flag try/catch around JSON.parse'],
       specs: ['# Security baseline\nNo secrets in code.'],
       diff: '@@ -1 +1 @@\n+ stripeKey',

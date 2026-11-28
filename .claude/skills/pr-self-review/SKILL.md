@@ -2,6 +2,7 @@
 name: pr-self-review
 description: "Pre-PR self-review gate for DevDigest. Collects every change on the branch (commits since merge-base with main + staged + unstaged + untracked), routes each changed file to the project skills that cover it (UI files → frontend-ui-architecture / react / next; backend → onion-architecture / fastify / drizzle / postgres; zod, typescript, security across both), reviews them in parallel, runs typecheck/tests and repo-rule checks, and returns a verdict — any verified CRITICAL blocks opening or merging the PR. Use BEFORE every `gh pr create` / opening a pull request, when the user says 'self-review', 'review my changes', 'ready for PR', 'check before PR', or when the pr-self-review gate hook blocked a command. Also runnable manually: /pr-self-review."
 argument-hint: '[--override "<reason>"]'
+disable-model-invocation: true
 metadata:
   version: 1.0.0
   updated: 2026-11-27

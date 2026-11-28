@@ -1,0 +1,42 @@
+import type { CSSProperties } from "react";
+
+export const s = {
+  drop: {
+    border: "1px dashed var(--border-strong)",
+    borderRadius: 10,
+    padding: "32px 20px",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 10,
+    textAlign: "center",
+    color: "var(--text-secondary)",
+  },
+  limits: { fontSize: 12, color: "var(--text-muted)" },
+  body: { display: "flex", flexDirection: "column", gap: 4 },
+  trustBox: {
+    display: "flex",
+    gap: 10,
+    padding: "10px 12px",
+    borderRadius: 8,
+    background: "var(--warn-bg)",
+    color: "var(--warn)",
+    fontSize: 13,
+    lineHeight: 1.45,
+    marginBottom: 12,
+  },
+  sourceFile: { fontSize: 12, color: "var(--text-muted)", marginBottom: 10 },
+  bodyPreview: {
+    maxHeight: 280,
+    overflow: "auto",
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    padding: "4px 14px",
+    background: "var(--bg-surface)",
+  },
+  listTitle: { fontSize: 12, fontWeight: 600, color: "var(--text-muted)", margin: "12px 0 6px" },
+  list: { margin: 0, paddingLeft: 18, fontSize: 12.5, color: "var(--text-secondary)" },
+  error: { fontSize: 13, color: "var(--crit)", marginTop: 10 },
+  footer: { display: "flex", alignItems: "center", gap: 8 },
+  footerRight: { marginLeft: "auto", display: "flex", gap: 8 },
+} satisfies Record<string, CSSProperties>;

@@ -1,7 +1,8 @@
-import { pgTable, uuid, text, integer, jsonb, timestamp, doublePrecision, index } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, integer, jsonb, timestamp, doublePrecision, index, primaryKey } from 'drizzle-orm/pg-core';
 import { workspaces } from './core';
 import { agents } from './agents';
 import { pullRequests } from './pulls';
+import { skills } from './skills';
 
 // ============================================================ Observability
 
@@ -38,6 +39,30 @@ export const agentRuns = pgTable(
     // PR detail: active-runs polling (pr_id + status) and run history (pr_id).
     prStatusIdx: index('agent_runs_pr_status_idx').on(t.prId, t.status),
     agentIdx: index('agent_runs_agent_idx').on(t.agentId),
+  }),
+);
+
+/**
+ * Which skills (and which version of each) were in an agent run's prompt (M2).
+ * Feeds the skill Stats tab (pull frequency, findings, accept rate) without
+ * parsing run_traces jsonb.
+ */
+export const agentRunSkills = pgTable(
+  'agent_run_skills',
+  {
+    runId: uuid('run_id')
+      .notNull()
+      .references(() => agentRuns.id, { onDelete: 'cascade' }),
+    skillId: uuid('skill_id')
+      .notNull()
+      .references(() => skills.id, { onDelete: 'cascade' }),
+    skillVersion: integer('skill_version').notNull(),
+    position: integer('position').notNull(),
+    tokens: integer('tokens').notNull(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.runId, t.skillId] }),
+    skillIdx: index('agent_run_skills_skill_idx').on(t.skillId),
   }),
 );
 

@@ -85,6 +85,13 @@
       "when": 1795816502034,
       "tag": "0011_stormy_bloodstrike",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1795822197984,
+      "tag": "0012_empty_synch",
+      "breakpoints": true
     }
   ]
 }

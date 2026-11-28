@@ -6,7 +6,10 @@ import {
   GENERAL_REVIEWER_PROMPT,
   SECURITY_REVIEWER_PROMPT,
   PERFORMANCE_REVIEWER_PROMPT,
+  TEST_QUALITY_REVIEWER_PROMPT,
 } from './seed-prompts.js';
+import { SEED_AGENT_SKILLS, SEED_SKILLS } from './seed-skills.js';
+import { SEED_FIXTURE_PRS } from './seed-prs.js';
 
 /** Default provider/model for the built-in reviewer agents. */
 const DEFAULT_PROVIDER = 'openrouter' as const;
@@ -18,11 +21,15 @@ const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
  *
  * Seeds: default workspace + system user + membership, default settings,
  * demo repo (acme/payments-api), PR #482 with files/commits, a sample review
- * with a few findings, and the three built-in agents (General + Security +
- * Performance), all on the default openrouter/deepseek-v4-flash provider+model.
+ * with a few findings, and the built-in agents (General + Security +
+ * Performance + Test Quality), all on the default openrouter/deepseek-v4-flash
+ * provider+model.
  *
- * Later milestones populate the other tables (skills, conventions, memory, eval,
- * …) once their features are built — they start empty here.
+ * M2: built-in skills (seed-skills.ts) linked to Test Quality + General, and the
+ * control-experiment PRs #483/#484 (seed-prs.ts) with diff patches.
+ *
+ * Later milestones populate the other tables (conventions, memory, eval, …)
+ * once their features are built — they start empty here.
  */
 
 export const DEFAULT_WORKSPACE_NAME = 'default';
@@ -211,6 +218,18 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
       version: 1,
       createdBy: userId,
     },
+    {
+      workspaceId,
+      name: 'Test Quality Reviewer',
+      description:
+        'Checks test quality: uncovered branches, missed corner cases, over-mocking, flakiness.',
+      provider: DEFAULT_PROVIDER,
+      model: DEFAULT_MODEL,
+      systemPrompt: TEST_QUALITY_REVIEWER_PROMPT,
+      enabled: true,
+      version: 1,
+      createdBy: userId,
+    },
   ];
   for (const a of seedAgents) {
     const [existing] = await db
@@ -220,7 +239,100 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
     if (!existing) await db.insert(t.agents).values(a);
   }
 
+  // ---- M2: built-in skills + their links (idempotent by name) ----
+  await seedSkills(db, workspaceId);
+
+  // ---- M2: control-experiment PRs on the demo repo ----
+  await seedFixturePrs(db, workspaceId, repoId);
+
   return { workspaceId, userId };
+}
+
+async function seedSkills(db: Db, workspaceId: string): Promise<void> {
+  const idByName = new Map<string, string>();
+  for (const s of SEED_SKILLS) {
+    const [existing] = await db
+      .select({ id: t.skills.id })
+      .from(t.skills)
+      .where(and(eq(t.skills.workspaceId, workspaceId), eq(t.skills.name, s.name)));
+    if (existing) {
+      idByName.set(s.name, existing.id);
+      continue;
+    }
+    const [row] = await db
+      .insert(t.skills)
+      .values({ workspaceId, ...s, source: 'manual', enabled: true, version: 1 })
+      .returning({ id: t.skills.id });
+    await db
+      .insert(t.skillVersions)
+      .values({ skillId: row!.id, version: 1, body: s.body, changeNote: 'Initial version' });
+    idByName.set(s.name, row!.id);
+  }
+  // Link only agents that have NO skills yet — never override a user's setup.
+  for (const [agentName, skillNames] of Object.entries(SEED_AGENT_SKILLS)) {
+    const [agent] = await db
+      .select({ id: t.agents.id })
+      .from(t.agents)
+      .where(and(eq(t.agents.workspaceId, workspaceId), eq(t.agents.name, agentName)));
+    if (!agent) continue;
+    const [anyLink] = await db
+      .select({ id: t.agentSkills.skillId })
+      .from(t.agentSkills)
+      .where(eq(t.agentSkills.agentId, agent.id))
+      .limit(1);
+    if (anyLink) continue;
+    await db.insert(t.agentSkills).values(
+      skillNames.map((name, order) => ({
+        agentId: agent.id,
+        skillId: idByName.get(name)!,
+        order,
+        enabled: true,
+      })),
+    );
+  }
+}
+
+async function seedFixturePrs(db: Db, workspaceId: string, repoId: string): Promise<void> {
+  for (const fx of SEED_FIXTURE_PRS) {
+    const [existing] = await db
+      .select({ id: t.pullRequests.id })
+      .from(t.pullRequests)
+      .where(and(eq(t.pullRequests.repoId, repoId), eq(t.pullRequests.number, fx.number)));
+    if (existing) continue;
+    const [pr] = await db
+      .insert(t.pullRequests)
+      .values({
+        workspaceId,
+        repoId,
+        number: fx.number,
+        title: fx.title,
+        author: fx.author,
+        branch: fx.branch,
+        base: 'main',
+        headSha: fx.headSha,
+        additions: fx.files.reduce((n, f) => n + f.additions, 0),
+        deletions: fx.files.reduce((n, f) => n + f.deletions, 0),
+        filesCount: fx.files.length,
+        status: 'needs_review',
+        body: fx.body,
+      })
+      .returning();
+    await db.insert(t.prFiles).values(
+      fx.files.map((f) => ({
+        prId: pr!.id,
+        path: f.path,
+        additions: f.additions,
+        deletions: f.deletions,
+        patch: f.patch,
+      })),
+    );
+    await db.insert(t.prCommits).values({
+      prId: pr!.id,
+      sha: fx.headSha,
+      message: fx.commit,
+      author: fx.author,
+    });
+  }
 }
 
 // CLI entrypoint

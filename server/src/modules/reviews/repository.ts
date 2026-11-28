@@ -180,6 +180,13 @@ export class ReviewRepository {
     return runRepo.saveRunTrace(this.db, runId, trace);
   }
 
+  recordRunSkills(
+    runId: string,
+    rows: { skillId: string; skillVersion: number; position: number; tokens: number }[],
+  ): Promise<void> {
+    return runRepo.recordRunSkills(this.db, runId, rows);
+  }
+
   getRunTrace(runId: string): Promise<RunTrace | undefined> {
     return runRepo.getRunTrace(this.db, runId);
   }

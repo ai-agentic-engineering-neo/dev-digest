@@ -184,6 +184,19 @@ export async function saveRunTrace(db: Db, runId: string, trace: RunTrace): Prom
     .onConflictDoUpdate({ target: t.runTraces.runId, set: { trace } });
 }
 
+/** Which skills (version, position, tokens) were in this run's prompt (M2 stats). */
+export async function recordRunSkills(
+  db: Db,
+  runId: string,
+  rows: { skillId: string; skillVersion: number; position: number; tokens: number }[],
+): Promise<void> {
+  if (rows.length === 0) return;
+  await db
+    .insert(t.agentRunSkills)
+    .values(rows.map((r) => ({ runId, ...r })))
+    .onConflictDoNothing();
+}
+
 export async function getRunTrace(db: Db, runId: string): Promise<RunTrace | undefined> {
   const [row] = await db.select().from(t.runTraces).where(eq(t.runTraces.runId, runId));
   return row ? (row.trace as RunTrace) : undefined;

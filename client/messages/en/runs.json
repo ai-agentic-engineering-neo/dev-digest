@@ -53,12 +53,19 @@
       "copy": "Copy",
       "fullscreen": "Open fullscreen",
       "search": "Search in this block…",
-      "noMatches": "No matches for “{q}”."
+      "noMatches": "No matches for “{q}”.",
+      "skillsWithTokens": "Skills — appended to system (+{tokens} tok)"
     },
     "tools": {
       "args": "args",
       "result": "result",
       "previewTruncated": "(preview truncated)"
+    },
+    "skillBlocks": {
+      "aria": "Skills applied in this run",
+      "tokens": "{count} tok",
+      "imported": "imported",
+      "version": "v{version}"
     }
   },
   "drawer": {

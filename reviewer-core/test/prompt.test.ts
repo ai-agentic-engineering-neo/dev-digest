@@ -4,7 +4,7 @@
  * truncation, and ordering (before the diff).
  */
 import { describe, it, expect } from 'vitest';
-import { assemblePrompt } from '../src/prompt.js';
+import { assemblePrompt, renderSkillBlock } from '../src/prompt.js';
 
 function userOf(parts: Parameters<typeof assemblePrompt>[0]): string {
   const { messages } = assemblePrompt(parts);
@@ -62,5 +62,49 @@ describe('assemblePrompt — ## PR description', () => {
       prDescription: 'x'.repeat(10_000),
     });
     expect((assembly.pr_description as string).length).toBe(4000);
+  });
+});
+
+describe('assemblePrompt — ## Skills (M2: system message, ordered blocks)', () => {
+  const skills = [
+    { name: 'untested-branches', body: 'Flag every new branch without a test.' },
+    { name: 'edge-case-checklist', body: 'List boundary inputs.\n' },
+  ];
+
+  it('appends each skill as its own block after the agent prompt, in order', () => {
+    const sys = systemOf({ system: 'AGENT-SYS', diff: 'DIFF', skills });
+    expect(sys.startsWith('AGENT-SYS')).toBe(true);
+    expect(sys).toContain('## Skills');
+    const a = sys.indexOf('### Skill: untested-branches');
+    const b = sys.indexOf('### Skill: edge-case-checklist');
+    expect(a).toBeGreaterThan(sys.indexOf('AGENT-SYS'));
+    expect(b).toBeGreaterThan(a);
+  });
+
+  it('keeps the injection guard LAST, after every skill', () => {
+    const sys = systemOf({ system: 'AGENT-SYS', diff: 'DIFF', skills });
+    expect(sys.indexOf('SECURITY — read carefully')).toBeGreaterThan(
+      sys.indexOf('List boundary inputs.'),
+    );
+  });
+
+  it('does not put skills in the user message and records them in the assembly', () => {
+    const { messages, assembly } = assemblePrompt({ system: 's', diff: 'DIFF', skills });
+    expect(messages[1]!.content).not.toContain('Skill:');
+    expect(messages[1]!.content).not.toContain('## Skills');
+    expect(assembly.skills).toBe(
+      '### Skill: untested-branches\n\nFlag every new branch without a test.\n\n' +
+        '### Skill: edge-case-checklist\n\nList boundary inputs.',
+    );
+  });
+
+  it('omits the section entirely when no skills are enabled', () => {
+    const { messages, assembly } = assemblePrompt({ system: 's', diff: 'DIFF', skills: [] });
+    expect(messages[0]!.content).not.toContain('## Skills');
+    expect(assembly.skills ?? null).toBeNull();
+  });
+
+  it('renderSkillBlock matches the block used in the prompt', () => {
+    expect(renderSkillBlock({ name: 'x', body: '  body \n' })).toBe('### Skill: x\n\nbody');
   });
 });

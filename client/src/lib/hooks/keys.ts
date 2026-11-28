@@ -28,4 +28,14 @@ export const queryKeys = {
 
   agents: () => ["agents"] as const,
   agent: (id: Id) => ["agent", id] as const,
+  agentSkills: (agentId: Id) => ["agent-skills", agentId] as const,
+
+  skills: () => ["skills"] as const,
+  /** Prefix: everything cached for one skill (detail, preview, stats, versions). */
+  skillAll: (id: Id) => ["skill", id] as const,
+  skill: (id: Id) => ["skill", id, "detail"] as const,
+  skillPreview: (id: Id) => ["skill", id, "preview"] as const,
+  skillStats: (id: Id) => ["skill", id, "stats"] as const,
+  skillVersions: (id: Id) => ["skill", id, "versions"] as const,
+  skillVersion: (id: Id, version: Id) => ["skill", id, "versions", version] as const,
 };

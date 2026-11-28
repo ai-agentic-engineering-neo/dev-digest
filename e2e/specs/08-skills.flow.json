@@ -1,0 +1,167 @@
+{
+  "name": "Skills page + agent Skills tab (M2)",
+  "description": "Loads /skills, opens a seeded skill, checks the Preview tab renders the exact `### Skill:` block the agent receives and that Versions lists v1; then opens the seeded Test Quality Reviewer's Skills tab and confirms its three linked skills are enabled. Read-only over seeded data.",
+  "steps": [
+    {
+      "cmd": [
+        "open",
+        "{BASE}/skills"
+      ],
+      "label": "load the skills page"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--load",
+        "networkidle"
+      ],
+      "label": "skills fetch settles"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "untested-branches"
+      ],
+      "label": "seeded skill card is visible"
+    },
+    {
+      "cmd": [
+        "find",
+        "text",
+        "untested-branches",
+        "click"
+      ],
+      "label": "open the skill"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "/skills/"
+      ],
+      "label": "skill editor route reached"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Configuration"
+      ],
+      "label": "Config tab renders"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Preview"
+      ],
+      "label": "switch to Preview"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Rendered as the reviewing agent receives it"
+      ],
+      "label": "preview header"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Skill: untested-branches"
+      ],
+      "label": "the system-prompt block heading"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Versions"
+      ],
+      "label": "switch to Versions"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Initial version"
+      ],
+      "label": "v1 snapshot listed"
+    },
+    {
+      "cmd": [
+        "open",
+        "{BASE}/agents"
+      ],
+      "label": "go to agents"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Test Quality Reviewer"
+      ],
+      "label": "new seeded agent visible"
+    },
+    {
+      "cmd": [
+        "find",
+        "text",
+        "Test Quality Reviewer",
+        "click"
+      ],
+      "label": "open Test Quality Reviewer"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--url",
+        "/agents/"
+      ],
+      "label": "agent editor route reached"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Configuration"
+      ],
+      "label": "agent Config tab renders"
+    },
+    {
+      "cmd": [
+        "find",
+        "role",
+        "button",
+        "click",
+        "--name",
+        "Skills"
+      ],
+      "label": "switch to the Skills tab"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "Order matters"
+      ],
+      "label": "skills tab hint renders"
+    },
+    {
+      "cmd": [
+        "wait",
+        "--text",
+        "over-mocking-gate"
+      ],
+      "label": "linked skill listed"
+    }
+  ]
+}

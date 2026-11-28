@@ -12,6 +12,7 @@ import { s } from "../../styles";
 import { TraceSection } from "../TraceSection";
 import { ToolCallRow } from "../ToolCallRow";
 import { PromptBlock } from "../PromptBlock";
+import { SkillBlocksList } from "../SkillBlocksList";
 import { FindingsSection } from "../FindingsSection";
 import { Row, Stat } from "../atoms";
 import { formatUsd } from "@/lib/format-cost";
@@ -74,7 +75,20 @@ export function TraceBody({ trace, findings }: { trace: RunTrace; findings: Find
       <TraceSection icon="FileText" title={t("trace.promptAssembly")} defaultOpen={false}>
         <PromptBlock label={t("trace.prompt.system")} text={trace.prompt_assembly.system} color={PROMPT_COLORS.system} />
         {trace.prompt_assembly.skills != null && (
-          <PromptBlock label={t("trace.prompt.skills")} text={trace.prompt_assembly.skills} color={PROMPT_COLORS.skills} />
+          <>
+            <PromptBlock
+              label={
+                trace.prompt_assembly.skills_tokens != null
+                  ? t("trace.prompt.skillsWithTokens", { tokens: trace.prompt_assembly.skills_tokens })
+                  : t("trace.prompt.skills")
+              }
+              text={trace.prompt_assembly.skills}
+              color={PROMPT_COLORS.skills}
+            />
+            {trace.prompt_assembly.skill_blocks && trace.prompt_assembly.skill_blocks.length > 0 && (
+              <SkillBlocksList blocks={trace.prompt_assembly.skill_blocks} />
+            )}
+          </>
         )}
         {trace.prompt_assembly.memory != null && (
           <PromptBlock label={t("trace.prompt.memory")} text={trace.prompt_assembly.memory} color={PROMPT_COLORS.memory} />

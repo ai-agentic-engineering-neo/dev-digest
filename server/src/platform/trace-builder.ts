@@ -58,5 +58,5 @@ export function buildRunTrace(input: BuildTraceInput): RunTrace {
 
 /** An empty prompt-assembly for detectors that don't call an LLM. */
 export function emptyPromptAssembly(system: string, user: string): PromptAssembly {
-  return { system, skills: null, memory: null, specs: null, user };
+  return { system, skills: null, skill_blocks: null, skills_tokens: null, memory: null, specs: null, user };
 }

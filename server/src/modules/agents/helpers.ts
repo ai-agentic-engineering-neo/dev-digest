@@ -1,4 +1,5 @@
-import type { Agent, AgentVersion, CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
+import type { Agent, AgentSkillView, AgentVersion, CiFailOn, Provider, ReviewStrategy } from '@devdigest/shared';
+import type { SkillRow } from '../../db/rows.js';
 import { AgentVersionConfig } from '@devdigest/shared';
 import type { AgentRow, AgentVersionRow } from './repository.js';
 
@@ -83,4 +84,22 @@ export function isConfigChange(
     (patch.repoIntel !== undefined && patch.repoIntel !== existing.repoIntel) ||
     patch.outputSchema !== undefined
   );
+}
+
+/** agent_skills ⨝ skills row → the Skills-tab DTO. */
+export function toAgentSkillView(
+  agentId: string,
+  l: { skill: SkillRow; order: number; enabled: boolean },
+): AgentSkillView {
+  return {
+    agent_id: agentId,
+    skill_id: l.skill.id,
+    order: l.order,
+    enabled: l.enabled,
+    name: l.skill.name,
+    description: l.skill.description,
+    type: l.skill.type,
+    source: l.skill.source,
+    skill_enabled: l.skill.enabled,
+  };
 }

@@ -36,9 +36,22 @@ export const ToolCall = z.object({
 });
 export type ToolCall = z.infer<typeof ToolCall>;
 
+export const SkillBlockTrace = z.object({
+  skill_id: z.string(),
+  name: z.string(),
+  source: z.string(),
+  version: z.number().int(),
+  tokens: z.number().int(),
+});
+export type SkillBlockTrace = z.infer<typeof SkillBlockTrace>;
+
 export const PromptAssembly = z.object({
   system: z.string(),
   skills: z.string().nullish(),
+  /** Per-skill breakdown of the skills block (M2); nullish for older traces. */
+  skill_blocks: z.array(SkillBlockTrace).nullish(),
+  /** Total tokens added by the skills block (M2). */
+  skills_tokens: z.number().int().nullish(),
   memory: z.string().nullish(),
   specs: z.string().nullish(),
   /** Callers-of-changed-symbols digest (T1.3); null when absent. */

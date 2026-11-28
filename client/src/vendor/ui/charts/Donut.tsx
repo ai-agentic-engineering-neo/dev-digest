@@ -13,12 +13,16 @@ export function Donut({
   size = 130,
   stroke = 22,
   valuePrefix = "$",
+  formatValue,
 }: {
   segments: DonutSegment[];
   size?: number;
   stroke?: number;
   valuePrefix?: string;
+  /** Legend value formatter; defaults to `${valuePrefix}${v.toFixed(2)}` (money). */
+  formatValue?: (v: number) => string;
 }) {
+  const fmt = formatValue ?? ((v: number) => `${valuePrefix}${v.toFixed(2)}`);
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
       <PieChart width={size} height={size}>
@@ -36,7 +40,8 @@ export function Donut({
           stroke="none"
         >
           {segments.map((s, i) => (
-            <Cell key={i} fill={s.color} />
+            // style.fill (not just the attribute) so CSS custom properties resolve
+            <Cell key={i} fill={s.color} style={{ fill: s.color }} />
           ))}
         </Pie>
       </PieChart>
@@ -46,8 +51,7 @@ export function Donut({
             <span style={{ width: 9, height: 9, borderRadius: 2, background: s.color }} />
             <span style={{ color: "var(--text-secondary)", flex: 1 }}>{s.label}</span>
             <span className="mono tnum" style={{ color: "var(--text-primary)", fontWeight: 600 }}>
-              {valuePrefix}
-              {s.value.toFixed(2)}
+              {fmt(s.value)}
             </span>
           </div>
         ))}

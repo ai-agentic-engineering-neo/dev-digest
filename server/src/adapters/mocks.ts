@@ -33,6 +33,7 @@ import type {
   SecretKey,
 } from '@devdigest/shared';
 import { parseUnifiedDiff } from './git/diff-parser.js';
+import type { ArchiveListing, ArchiveReader } from './archive/index.js';
 
 /**
  * Deterministic MOCK adapters for tests/dev — NO real network. Each mirrors the
@@ -326,5 +327,19 @@ export class MockSecretsProvider implements SecretsProvider {
   constructor(private secrets: Partial<Record<string, string>> = {}) {}
   async get(key: SecretKey): Promise<string | undefined> {
     return this.secrets[key as string];
+  }
+}
+
+/**
+ * Mock archive reader (M2 skill import): serves a fixed in-memory file map as
+ * if it were a zip, honouring `select` the same way the real reader does.
+ */
+export class MockArchiveReader implements ArchiveReader {
+  constructor(private files: Record<string, string>) {}
+  readZip(_data: Uint8Array, select: (name: string) => boolean): ArchiveListing {
+    const entries = Object.keys(this.files);
+    const texts: Record<string, string> = {};
+    for (const name of entries) if (select(name)) texts[name] = this.files[name]!;
+    return { entries, texts, rejected: [] };
   }
 }

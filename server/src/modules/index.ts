@@ -7,6 +7,7 @@ import workspace from './workspace/routes.js';
 import agents from './agents/routes.js';
 import reviews from './reviews/routes.js';
 import repoIntel from './repo-intel/routes.js';
+import skills from './skills/routes.js';
 
 /**
  * Module registry. Each feature module is a Fastify plugin in
@@ -18,7 +19,7 @@ import repoIntel from './repo-intel/routes.js';
  * bundler, and vitest — native dynamic import() of .ts files is not portable.)
  *
  * This is the starter set. Each later milestone adds its own module here
- * (skills, intent/smart-diff, blast, brief/context/onboarding, eval/ci/hooks,
+ * (intent/smart-diff, blast, brief/context/onboarding, eval/ci/hooks,
  * memory, plugins, …) without touching any other module or the shared schema.
  */
 export const modules: Record<string, FastifyPluginAsync> = {
@@ -30,4 +31,5 @@ export const modules: Record<string, FastifyPluginAsync> = {
   agents,
   reviews,
   repoIntel,
+  skills,
 };

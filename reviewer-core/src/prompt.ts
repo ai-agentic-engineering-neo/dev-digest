@@ -33,14 +33,41 @@ export function wrapUntrusted(label: string, content: string): string {
   return `<untrusted source="${label}">\n${safe}\n</untrusted>`;
 }
 
+/**
+ * A skill as the engine sees it: a named, trusted markdown block. Trust is
+ * established upstream (the studio asks the user to review + confirm an
+ * imported skill) — it is NOT `<untrusted>`-wrapped, because the injection
+ * guard would then tell the model to ignore exactly the rules the skill adds.
+ */
+export interface PromptSkill {
+  name: string;
+  body: string;
+}
+
+/**
+ * Render ONE skill exactly as it appears in the system message. Shared by the
+ * engine and the studio's skill Preview tab so "what the agent receives" never
+ * drifts from what we show.
+ */
+export function renderSkillBlock(skill: PromptSkill): string {
+  return `### Skill: ${skill.name}\n\n${skill.body.trim()}`;
+}
+
+/** Header that introduces the skills section inside the system message. */
+export const SKILLS_SECTION_HEADER =
+  '## Skills\nApply each skill below, in order, as additional review rules.';
+
 /** Cap the PR description so a huge author body can't blow the token budget. */
 const MAX_PR_DESCRIPTION_CHARS = 4000;
 
 export interface PromptParts {
   /** Agent's system prompt (trusted). */
   system: string;
-  /** Linked skill bodies (trusted-ish; community skills should be sanitized upstream). */
-  skills?: string[];
+  /**
+   * Enabled skills in prompt order. Appended to the SYSTEM message after the
+   * agent prompt (before the injection guard), one `### Skill:` block each.
+   */
+  skills?: PromptSkill[];
   /** Relevant memory items (trusted, curated). */
   memory?: string[];
   /** Project-context spec chunks (untrusted content). */
@@ -79,14 +106,20 @@ export interface AssembledPrompt {
 
 /**
  * Assemble the messages array + the PromptAssembly record for the run trace.
- * Untrusted blocks (specs, diff) are delimiter-wrapped; the injection guard is
- * appended to the system message.
+ * Untrusted blocks (specs, diff) are delimiter-wrapped; skills and the
+ * injection guard are appended to the system message.
  */
 export function assemblePrompt(parts: PromptParts): AssembledPrompt {
-  const system = `${parts.system}\n\n${INJECTION_GUARD}`;
-
   const skillsBlock =
-    parts.skills && parts.skills.length > 0 ? parts.skills.join('\n\n') : undefined;
+    parts.skills && parts.skills.length > 0
+      ? parts.skills.map(renderSkillBlock).join('\n\n')
+      : undefined;
+  // Order: agent prompt → skills → injection guard (the guard stays LAST so no
+  // skill text can follow, and thereby override, it).
+  const systemSections = [parts.system];
+  if (skillsBlock) systemSections.push(`${SKILLS_SECTION_HEADER}\n\n${skillsBlock}`);
+  systemSections.push(INJECTION_GUARD);
+  const system = systemSections.join('\n\n');
   const memoryBlock =
     parts.memory && parts.memory.length > 0
       ? parts.memory.map((m) => `- ${m}`).join('\n')
@@ -106,7 +139,6 @@ export function assemblePrompt(parts: PromptParts): AssembledPrompt {
   if (prDescription) {
     userSections.push(`## PR description\n${wrapUntrusted('pr-description', prDescription)}`);
   }
-  if (skillsBlock) userSections.push(`## Skills / rules\n${skillsBlock}`);
   if (memoryBlock) userSections.push(`## Relevant memory\n${memoryBlock}`);
   if (parts.repoMap && parts.repoMap.trim().length > 0) {
     userSections.push(`## Repo skeleton\n${wrapUntrusted('repo-map', parts.repoMap)}`);

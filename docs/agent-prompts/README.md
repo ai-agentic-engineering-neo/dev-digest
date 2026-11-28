@@ -9,6 +9,7 @@ in the DB). The canonical, reviewable copies live next to this file:
 - [`general-reviewer.md`](./general-reviewer.md)
 - [`security-reviewer.md`](./security-reviewer.md)
 - [`performance-reviewer.md`](./performance-reviewer.md)
+- [`test-quality-reviewer.md`](./test-quality-reviewer.md) (M2 — its rules come from linked skills)
 
 > The DB is the source of truth at run time. These files are the human-readable
 > originals — when you change a prompt, edit the file here **and** push it to the
@@ -19,13 +20,27 @@ in the DB). The canonical, reviewable copies live next to this file:
 Assembly happens in `reviewer-core/src/prompt.ts` (`assemblePrompt`). The model
 receives exactly two messages:
 
-**System message** = your agent prompt **+** a fixed injection guard:
+**System message** = your agent prompt **+** the agent's enabled skills **+** a
+fixed injection guard:
 
 ```
 <your system_prompt>
 
-<INJECTION_GUARD>   // appended verbatim to EVERY agent, every run
+## Skills                       // omitted when no skill is enabled (M2)
+Apply each skill below, in order, as additional review rules.
+
+### Skill: <name>               // one block per enabled skill, in the order
+<skill body>                    // set on the agent's Skills tab
+
+<INJECTION_GUARD>   // appended verbatim to EVERY agent, every run — always LAST
 ```
+
+A skill reaches the prompt only when it is linked to the agent, enabled for that
+agent, **and** enabled globally on the Skills page. Skills are trusted text (not
+`<untrusted>`-wrapped — the guard would make the model ignore them); trust for an
+imported skill is established by the human who reviews and confirms its preview.
+The run trace shows the skills block plus a per-skill token count
+(`prompt_assembly.skill_blocks`).
 
 `INJECTION_GUARD` (`prompt.ts:16`) tells the model that everything inside
 `<untrusted>…</untrusted>` is data, never instructions, and that claims like "test
@@ -33,12 +48,11 @@ fixture / not for production / ignore this" never descope the review. You do not
 need to repeat any of this in your prompt — it is always there.
 
 **User message** = the task and all context, in this order, each untrusted block
-delimiter-wrapped (`prompt.ts:104-122`):
+delimiter-wrapped:
 
 ```
 <task line, e.g. "Review PR #7 '…'">
 ## PR description        (untrusted, author-controlled, truncated to 4000 chars)
-## Skills / rules        (linked skill bodies)
 ## Relevant memory       (curated memory items)
 ## Repo skeleton         (untrusted, repo-derived)
 ## Project context       (untrusted spec chunks)

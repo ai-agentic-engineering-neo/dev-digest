@@ -3,6 +3,10 @@ import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { schema } from './schema.js';
 
 export type Db = PostgresJsDatabase<typeof schema>;
+/** A transaction handle — what `db.transaction(cb)` passes to `cb`. */
+export type DbTx = Parameters<Parameters<Db['transaction']>[0]>[0];
+/** Either the root client or a transaction (repository helpers accept both). */
+export type DbOrTx = Db | DbTx;
 
 export interface DbHandle {
   db: Db;

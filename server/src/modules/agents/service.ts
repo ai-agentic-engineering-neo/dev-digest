@@ -1,7 +1,7 @@
 import type { Container } from '../../platform/container.js';
 import type {
   Agent,
-  AgentSkillLink,
+  AgentSkillView,
   AgentVersion,
   CiFailOn,
   ModelInfo,
@@ -9,7 +9,8 @@ import type {
   ReviewStrategy,
 } from '@devdigest/shared';
 import { AgentsRepository } from './repository.js';
-import { toAgentDto, toAgentVersionDto } from './helpers.js';
+import { toAgentDto, toAgentVersionDto, toAgentSkillView } from './helpers.js';
+import { ValidationError } from '../../platform/errors.js';
 
 /**
  * A2 — agents service. Business logic for the Agents tab + Agent Editor.
@@ -56,13 +57,18 @@ export class AgentsService {
   }
 
   async list(workspaceId: string): Promise<Agent[]> {
-    const rows = await this.repo.list(workspaceId);
-    return rows.map(toAgentDto);
+    const [rows, counts] = await Promise.all([
+      this.repo.list(workspaceId),
+      this.repo.promptSkillCounts(workspaceId),
+    ]);
+    return rows.map((r) => ({ ...toAgentDto(r), skill_count: counts.get(r.id) ?? 0 }));
   }
 
   async get(workspaceId: string, id: string): Promise<Agent | undefined> {
     const row = await this.repo.getById(workspaceId, id);
-    return row ? toAgentDto(row) : undefined;
+    if (!row) return undefined;
+    const counts = await this.repo.promptSkillCounts(workspaceId);
+    return { ...toAgentDto(row), skill_count: counts.get(row.id) ?? 0 };
   }
 
   /** Delete an agent (and its versions/skill-links, via cascade). */
@@ -135,40 +141,37 @@ export class AgentsService {
     return row ? toAgentVersionDto(row) : undefined;
   }
 
-  /** Linked skills for an agent as AgentSkillLink[] (ordered). */
-  async skillLinks(agentId: string): Promise<AgentSkillLink[]> {
+  /**
+   * Every skill linked to the agent (enabled or not), in prompt order, with the
+   * skill metadata the Skills tab renders. undefined → agent not in workspace.
+   */
+  async skillLinks(workspaceId: string, agentId: string): Promise<AgentSkillView[] | undefined> {
+    const agent = await this.repo.getById(workspaceId, agentId);
+    if (!agent) return undefined;
     const links = await this.repo.linkedSkills(agentId);
-    return links.map((l) => ({ agent_id: agentId, skill_id: l.skill.id, order: l.order }));
+    return links.map((l) => toAgentSkillView(agentId, l));
   }
 
   /**
-   * Set / reorder the agent's linked skills. If `skillIds` is provided, replaces
-   * the whole set in that order. Returns the resulting ordered links.
+   * Replace the agent's whole ordered skill list. Rejects ids from another
+   * workspace (or unknown) and duplicates — a link must never cross tenants.
    */
   async setSkills(
     workspaceId: string,
     agentId: string,
-    skillIds: string[],
-  ): Promise<AgentSkillLink[] | undefined> {
+    entries: { skill_id: string; enabled: boolean }[],
+  ): Promise<AgentSkillView[] | undefined> {
     const agent = await this.repo.getById(workspaceId, agentId);
     if (!agent) return undefined;
-    await this.repo.setSkills(agentId, skillIds);
-    return this.skillLinks(agentId);
-  }
-
-  /** Link a single skill (append or set order) — additive to existing links. */
-  async linkSkill(
-    workspaceId: string,
-    agentId: string,
-    skillId: string,
-    order?: number,
-  ): Promise<AgentSkillLink[] | undefined> {
-    const agent = await this.repo.getById(workspaceId, agentId);
-    if (!agent) return undefined;
-    const existing = await this.repo.linkedSkills(agentId);
-    const resolvedOrder = order ?? existing.length;
-    await this.repo.linkSkill(agentId, skillId, resolvedOrder);
-    return this.skillLinks(agentId);
+    const ids = entries.map((e) => e.skill_id);
+    if (new Set(ids).size !== ids.length) throw new ValidationError('Duplicate skill ids');
+    const owned = await this.repo.countWorkspaceSkills(workspaceId, ids);
+    if (owned !== ids.length) throw new ValidationError('Unknown skill id(s) for this workspace');
+    await this.repo.setSkills(
+      agent,
+      entries.map((e) => ({ skillId: e.skill_id, enabled: e.enabled })),
+    );
+    return this.skillLinks(workspaceId, agentId);
   }
 
   /**

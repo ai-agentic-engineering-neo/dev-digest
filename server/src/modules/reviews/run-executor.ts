@@ -1,6 +1,6 @@
 import type { Container } from '../../platform/container.js';
-import type { Provider, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
-import { reviewPullRequest, countBlockers } from '@devdigest/reviewer-core';
+import type { Provider, Review, RunTrace, SkillBlockTrace, UnifiedDiff } from '@devdigest/shared';
+import { reviewPullRequest, countBlockers, renderSkillBlock } from '@devdigest/reviewer-core';
 import { RunLogger } from '../../platform/run-logger.js';
 import * as schema from '../../db/schema.js';
 import type { AgentRow } from '../../db/rows.js';
@@ -186,6 +186,10 @@ export class ReviewRunExecutor {
 
       const task = taskLine(pull) + rankNote;
 
+      // M2 — skills: linked + enabled for this agent + globally enabled, in the
+      // agent's order. Each becomes one `### Skill:` block in the SYSTEM message.
+      const skillBlocks = await this.resolveSkills(agent.id, runLog);
+
       // ---- Engine: assemble → single-pass → grounding -----------------------
       // The pure review pipeline lives in @devdigest/reviewer-core (shared with
       // the CI runner). The service owns only I/O: repo-intel context resolution
@@ -195,6 +199,9 @@ export class ReviewRunExecutor {
         model: agent.model,
         diff,
         llm,
+        ...(skillBlocks.length > 0
+          ? { skills: skillBlocks.map((b) => ({ name: b.name, body: b.body })) }
+          : {}),
         // Per-agent review strategy (configured in the Agent editor); falls back
         // to the studio default. single-pass = whole diff in one call.
         strategy: agent.strategy ?? REVIEW_STRATEGY,
@@ -242,20 +249,9 @@ export class ReviewRunExecutor {
       // the timeline colors on, NOT the model's self-reported verdict.
       const blockers = countBlockers(keptFindings, agent.ciFailOn);
 
-      // ---- Observability: agent_runs + ONE run_traces document --------------
-      await this.repo.completeAgentRun(runId, {
-        status: 'done',
-        durationMs,
-        tokensIn,
-        tokensOut,
-        costUsd,
-        findingsCount: findingRows.length,
-        grounding,
-        score: outcome.review.score,
-        blockers,
-        error: null,
-      });
-
+      // ---- Observability: ONE run_traces document, then agent_runs -----------
+      // The trace (and agent_run_skills) are written BEFORE the run flips to
+      // 'done', so anyone waiting on status sees the final trace, not a stub.
       const trace: RunTrace = {
         config: {
           agent: agent.name,
@@ -273,7 +269,12 @@ export class ReviewRunExecutor {
           findings: findingRows.length,
           grounding,
         },
-        prompt_assembly: outcome.assembly,
+        prompt_assembly: {
+          ...outcome.assembly,
+          skill_blocks: skillBlocks.length > 0 ? skillBlocks.map((b) => b.trace) : null,
+          skills_tokens:
+            skillBlocks.length > 0 ? skillBlocks.reduce((n, b) => n + b.trace.tokens, 0) : null,
+        },
         tool_calls: outcome.chunks.map((c) => ({
           tool: 'review_file',
           args: c.label,
@@ -287,8 +288,30 @@ export class ReviewRunExecutor {
         // diff load + intent), not just events recorded inside this method.
         log: runLog.logFor(runId),
       };
+      await this.repo.recordRunSkills(
+        runId,
+        skillBlocks.map((b, i) => ({
+          skillId: b.trace.skill_id,
+          skillVersion: b.trace.version,
+          position: i,
+          tokens: b.trace.tokens,
+        })),
+      );
       runLog.info('Run complete; trace persisted');
       await this.repo.saveRunTrace(runId, trace);
+      await this.repo.completeAgentRun(runId, {
+        status: 'done',
+        durationMs,
+        tokensIn,
+        tokensOut,
+        costUsd,
+        findingsCount: findingRows.length,
+        grounding,
+        score: outcome.review.score,
+        blockers,
+        error: null,
+      });
+
       this.container.runBus.complete(runId);
 
       return { review, findings: findingRows, grounding, raw: outcome.review, costUsd };
@@ -329,6 +352,38 @@ export class ReviewRunExecutor {
    * rows per `getCallerSignatures` call) so the section stays under ~600
    * tokens even on heavy PRs.
    */
+  /**
+   * M2 — the agent's prompt skills, in order, each with the token cost of its
+   * rendered block (same renderer as the prompt, so counts match the trace).
+   * Logged as ONE line so the run log shows exactly which skills were applied.
+   */
+  private async resolveSkills(
+    agentId: string,
+    runLog: RunLogger,
+  ): Promise<{ name: string; body: string; trace: SkillBlockTrace }[]> {
+    const links = await this.container.agentsRepo.promptSkills(agentId);
+    const blocks = links.map(({ skill }) => ({
+      name: skill.name,
+      body: skill.body,
+      trace: {
+        skill_id: skill.id,
+        name: skill.name,
+        source: skill.source,
+        version: skill.version,
+        tokens: this.container.tokenizer.count(renderSkillBlock(skill)),
+      },
+    }));
+    if (blocks.length === 0) {
+      runLog.info('Skills: none enabled for this agent');
+    } else {
+      const total = blocks.reduce((n, b) => n + b.trace.tokens, 0);
+      runLog.info(
+        `Skills: ${blocks.length} enabled (+${total} tokens): ${blocks.map((b) => b.name).join(', ')}`,
+      );
+    }
+    return blocks;
+  }
+
   private async buildCallersDigest(
     repoId: string,
     diff: UnifiedDiff,
@@ -427,7 +482,15 @@ export class ReviewRunExecutor {
         source: 'local',
       },
       stats: { duration_ms: durationMs, tokens_in: 0, tokens_out: 0, findings: 0, grounding },
-      prompt_assembly: { system: agent.systemPrompt, skills: null, memory: null, specs: null, user: '' },
+      prompt_assembly: {
+        system: agent.systemPrompt,
+        skills: null,
+        skill_blocks: null,
+        skills_tokens: null,
+        memory: null,
+        specs: null,
+        user: '',
+      },
       tool_calls: [],
       raw_output: '',
       memory_pulled: [],

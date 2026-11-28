@@ -1,0 +1,45 @@
+import type { CSSProperties } from "react";
+
+export const s = {
+  wrap: { maxWidth: 820 },
+  header: { display: "flex", alignItems: "center", gap: 10, marginBottom: 6 },
+  h2: { fontSize: 18, fontWeight: 700 },
+  count: {
+    fontSize: 12,
+    color: "var(--accent)",
+    background: "var(--accent-bg)",
+    padding: "2px 8px",
+    borderRadius: 6,
+  },
+  filter: { marginLeft: "auto", width: 220 },
+  hint: { fontSize: 13, color: "var(--text-muted)", margin: "0 0 14px" },
+  list: { display: "flex", flexDirection: "column", gap: 6 },
+  row: (dragging: boolean, over: boolean): CSSProperties => ({
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "8px 10px",
+    borderRadius: 8,
+    border: "1px solid " + (over ? "var(--accent)" : "var(--border)"),
+    background: "var(--bg-elevated)",
+    opacity: dragging ? 0.4 : 1,
+  }),
+  handle: (enabled: boolean): CSSProperties => ({
+    cursor: enabled ? "grab" : "default",
+    color: "var(--text-muted)",
+    display: "inline-flex",
+    opacity: enabled ? 1 : 0.3,
+  }),
+  name: { fontSize: 13.5, fontWeight: 600, flex: 1, minWidth: 0 },
+  off: { fontSize: 11.5, color: "var(--warn)" },
+  arrows: { display: "flex", gap: 2 },
+  arrowBtn: {
+    background: "none",
+    border: "none",
+    padding: 3,
+    color: "var(--text-muted)",
+    cursor: "pointer",
+    display: "inline-flex",
+  },
+  actions: { display: "flex", gap: 10, marginTop: 16 },
+} satisfies Record<string, CSSProperties | ((...a: never[]) => CSSProperties)>;

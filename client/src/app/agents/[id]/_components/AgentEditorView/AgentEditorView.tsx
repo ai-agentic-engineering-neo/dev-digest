@@ -84,6 +84,7 @@ export function AgentEditorView() {
                 key={a.id}
                 ag={a}
                 active={a.id === id}
+                skillCount={a.skill_count ?? undefined}
                 onClick={() => router.push(`/agents/${a.id}?tab=${tab}`)}
                 onToggle={(enabled) => update.mutate({ id: a.id, patch: { enabled } })}
               />

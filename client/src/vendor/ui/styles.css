@@ -291,3 +291,21 @@ p {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Markdown primitive (.dd-md): restore heading / list rhythm that the global
+   reset removes, so rendered skill bodies and PR descriptions keep structure. */
+.dd-md h1, .dd-md h2, .dd-md h3, .dd-md h4 {
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 16px 0 8px;
+  line-height: 1.3;
+}
+.dd-md h1 { font-size: 1.45em; }
+.dd-md h2 { font-size: 1.25em; }
+.dd-md h3 { font-size: 1.1em; }
+.dd-md h4 { font-size: 1em; }
+.dd-md > :first-child { margin-top: 8px; }
+.dd-md ul, .dd-md ol { margin: 0 0 10px; padding-left: 22px; }
+.dd-md ul { list-style: disc; }
+.dd-md ol { list-style: decimal; }
+.dd-md li { margin: 3px 0; }

@@ -23,7 +23,7 @@ import { OpenAIEmbedder } from '../adapters/embedder/openai.js';
 import { OpenRouterProvider } from '@devdigest/reviewer-core';
 import { estimateCost } from '../adapters/llm/pricing.js';
 import { PriceBook } from './price-book.js';
-import { ConfigError } from './errors.js';
+import { NotConfiguredError } from './errors.js';
 import { AgentsRepository } from '../modules/agents/repository.js';
 import { RepoRepository } from '../modules/repos/repository.js';
 import { PullsRepository } from '../modules/pulls/repository.js';
@@ -213,7 +213,7 @@ export class Container {
     if (this.overrides.github) return this.overrides.github;
     if (this._github) return this._github;
     const token = await this.secrets.get('GITHUB_TOKEN');
-    if (!token) throw new ConfigError('GITHUB_TOKEN is not configured');
+    if (!token) throw new NotConfiguredError('GITHUB_TOKEN is not configured');
     this._github = new OctokitGitHubClient(token);
     return this._github;
   }
@@ -252,7 +252,7 @@ export class Container {
   ): Promise<LLMProvider> {
     if (id === 'openai') {
       const key = keyOverride ?? (await this.secrets.get('OPENAI_API_KEY'));
-      if (!key) throw new ConfigError('OPENAI_API_KEY is not configured');
+      if (!key) throw new NotConfiguredError('OPENAI_API_KEY is not configured');
       return new OpenAIProvider(key);
     }
     if (id === 'openrouter') {
@@ -260,14 +260,14 @@ export class Container {
       // runner); inject the PriceBook so cost attribution uses LIVE OpenRouter
       // prices (with the static table as a fallback) rather than a hardcoded one.
       const key = keyOverride ?? (await this.secrets.get('OPENROUTER_API_KEY'));
-      if (!key) throw new ConfigError('OPENROUTER_API_KEY is not configured');
+      if (!key) throw new NotConfiguredError('OPENROUTER_API_KEY is not configured');
       return new OpenRouterProvider(key, {
         estimateCost: (model, tokensIn, tokensOut) =>
           this.priceBook.estimate(model, tokensIn, tokensOut),
       });
     }
     const key = keyOverride ?? (await this.secrets.get('ANTHROPIC_API_KEY'));
-    if (!key) throw new ConfigError('ANTHROPIC_API_KEY is not configured');
+    if (!key) throw new NotConfiguredError('ANTHROPIC_API_KEY is not configured');
     return new AnthropicProvider(key);
   }
 
@@ -278,7 +278,7 @@ export class Container {
     // degrade gracefully (memory/RAG simply returns no hits).
     if (this.overrides.embedder) return this.overrides.embedder;
     if (!this.config.embeddingsEnabled) {
-      throw new ConfigError('Embeddings are disabled (set EMBEDDINGS_ENABLED=true to enable memory/RAG)');
+      throw new NotConfiguredError('Embeddings are disabled (set EMBEDDINGS_ENABLED=true to enable memory/RAG)');
     }
     if (this._embedder) return this._embedder;
     const openai = await this.llm('openai');

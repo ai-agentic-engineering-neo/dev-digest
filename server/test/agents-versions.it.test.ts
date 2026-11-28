@@ -178,4 +178,27 @@ d('GET /agents/:id/versions', () => {
     expect(await service.listVersions(defaultWs, foreign.id)).toBeUndefined();
     expect(await service.getVersion(defaultWs, foreign.id, 1)).toBeUndefined();
   });
+
+  it('two concurrent config updates get versions N+1 and N+2 with matching snapshots', async () => {
+    const app = await makeApp();
+    const agentId = (
+      await app.inject({ method: 'POST', url: '/agents', payload: createBody })
+    ).json().id as string;
+
+    const put = (model: string) =>
+      app.inject({ method: 'PUT', url: `/agents/${agentId}`, payload: { model } });
+    const results = await Promise.all([put('model-a'), put('model-b')]);
+    expect(results.map((r) => r.statusCode)).toEqual([200, 200]);
+
+    const versions = (
+      await app.inject({ method: 'GET', url: `/agents/${agentId}/versions` })
+    ).json() as { version: number; config: { model: string } }[];
+    expect(versions.map((v) => v.version)).toEqual([3, 2, 1]);
+    // Each response's version matches the snapshot recorded for that version.
+    for (const r of results) {
+      const { version, model } = r.json();
+      expect(versions.find((v) => v.version === version)?.config.model).toBe(model);
+    }
+    await app.close();
+  });
 });

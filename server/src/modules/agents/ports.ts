@@ -45,14 +45,14 @@ export interface AgentStore {
   /** Insert the agent and record its first config snapshot. */
   insert(values: NewAgent): Promise<Agent>;
   /**
-   * Apply a patch. When `newVersion` is given, store it as the agent's version
-   * and record a config snapshot for it. Undefined when the agent is gone.
+   * Apply a patch. When `bumpVersion` is set, increment the agent's version
+   * atomically and record a config snapshot for the new version. Undefined when the agent is gone.
    */
   update(
     workspaceId: string,
     id: string,
     patch: AgentPatch,
-    newVersion?: number,
+    bumpVersion?: boolean,
   ): Promise<Agent | undefined>;
   /** Config snapshots, newest version first. */
   listVersions(agentId: string): Promise<AgentVersion[]>;

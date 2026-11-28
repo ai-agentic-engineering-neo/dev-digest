@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import type { Db } from '../../../db/client.js';
 import * as t from '../../../db/schema.js';
 import type { RunSummary, RunTrace } from '@devdigest/shared';
@@ -59,6 +59,7 @@ export async function listRunsForPull(
     duration_ms: run.durationMs,
     tokens_in: run.tokensIn,
     tokens_out: run.tokensOut,
+    cost_usd: run.status === 'done' ? run.costUsd : null,
     findings_count: run.findingsCount,
     grounding: run.grounding,
     ran_at: run.ranAt ? run.ranAt.toISOString() : null,
@@ -154,6 +155,8 @@ export async function completeAgentRun(
     blockers?: number | null;
     /** Failure reason (status='failed') / cancellation note. Null clears it. */
     error?: string | null;
+    /** Total LLM cost in USD; null when unknown and on failed/cancelled runs. */
+    costUsd?: number | null;
   },
 ): Promise<void> {
   await db
@@ -168,8 +171,41 @@ export async function completeAgentRun(
       score: values.score ?? null,
       blockers: values.blockers ?? null,
       error: values.error ?? null,
+      costUsd: values.costUsd ?? null,
     })
     .where(eq(t.agentRuns.id, runId));
+}
+
+/** Usage of a set of runs (tokens + cost), keyed by run id. Cost and tokens
+ *  are only reported for COMPLETED runs, so a failed/cancelled/running run
+ *  never shows a price. */
+export async function runUsageByIds(
+  db: Db,
+  runIds: string[],
+): Promise<Map<string, RunUsage>> {
+  const out = new Map<string, RunUsage>();
+  if (runIds.length === 0) return out;
+  const rows = await db
+    .select({
+      id: t.agentRuns.id,
+      status: t.agentRuns.status,
+      tokensIn: t.agentRuns.tokensIn,
+      tokensOut: t.agentRuns.tokensOut,
+      costUsd: t.agentRuns.costUsd,
+    })
+    .from(t.agentRuns)
+    .where(inArray(t.agentRuns.id, runIds));
+  for (const r of rows) {
+    if (r.status !== 'done') continue;
+    out.set(r.id, { tokensIn: r.tokensIn, tokensOut: r.tokensOut, costUsd: r.costUsd });
+  }
+  return out;
+}
+
+export interface RunUsage {
+  tokensIn: number | null;
+  tokensOut: number | null;
+  costUsd: number | null;
 }
 
 /** Persist the WHOLE run log as ONE document. PK = runId → agent_runs. */

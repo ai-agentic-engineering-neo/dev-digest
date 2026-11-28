@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { and, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import type { PrMeta, PrDetail, GitHubClient, PrReviewComment } from '@devdigest/shared';
 import { PrCommentInput } from '@devdigest/shared';
 import * as t from '../../db/schema.js';
@@ -130,9 +130,9 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
       }
     }
 
-    // Run cost badge: USD of the latest COMPLETED agent run per PR. The cost is
-    // read from the run trace's stats (only that jsonb path, not the whole log
-    // document); older traces without it fall back to a token-based estimate.
+    // COST column: USD of the latest COMPLETED agent run per PR, from
+    // agent_runs.cost_usd; runs recorded before cost was tracked fall back to a
+    // token-based estimate.
     let latestCostByPr = new Map<string, number | null>();
     if (prIds.length > 0) {
       const runRows = await container.db
@@ -141,10 +141,9 @@ export default async function pullsRoutes(appBase: FastifyInstance) {
           model: t.agentRuns.model,
           tokensIn: t.agentRuns.tokensIn,
           tokensOut: t.agentRuns.tokensOut,
-          traceCostUsd: sql<number | null>`(${t.runTraces.trace} -> 'stats' ->> 'cost_usd')::float8`,
+          costUsd: t.agentRuns.costUsd,
         })
         .from(t.agentRuns)
-        .leftJoin(t.runTraces, eq(t.runTraces.runId, t.agentRuns.id))
         .where(and(inArray(t.agentRuns.prId, prIds), eq(t.agentRuns.status, 'done')))
         .orderBy(desc(t.agentRuns.ranAt));
       latestCostByPr = latestRunCostByPr(runRows, (model, tokensIn, tokensOut) =>

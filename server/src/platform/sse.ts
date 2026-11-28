@@ -16,12 +16,20 @@ function clockTime(): string {
   return new Date().toTimeString().slice(0, 8);
 }
 
+/** How long a completed run's buffer stays replayable before it is freed. */
+export const RUN_BUFFER_TTL_MS = 5 * 60_000;
+/** Interval of the SSE comment frame that keeps an idle stream open. */
+export const SSE_HEARTBEAT_MS = 15_000;
+
 export class RunBus {
   private emitters = new Map<string, EventEmitter>();
   private buffers = new Map<string, RunEvent[]>();
   private seq = new Map<string, number>();
   private completed = new Set<string>();
   private cancelled = new Set<string>();
+  private expiry = new Map<string, NodeJS.Timeout>();
+
+  constructor(private readonly bufferTtlMs = RUN_BUFFER_TTL_MS) {}
 
   /** Request cancellation of an in-flight run. The runner checks `isCancelled`
    *  at its next checkpoint (between map-reduce files) and stops. */
@@ -79,14 +87,33 @@ export class RunBus {
     return this.buffers.get(runId) ?? [];
   }
 
-  /** Signal completion and release buffers/emitters. Leaves a cancellation
-   *  request in place: the runner clears it with `clearCancelled` on exit. */
+  /** Whether the bus holds a buffer for a run (live, or completed and not yet expired). */
+  has(runId: string): boolean {
+    return this.buffers.has(runId);
+  }
+
+  /** Signal completion, drop the emitter, and free the buffer `bufferTtlMs`
+   *  later. Leaves a cancellation request in place: the runner clears it with
+   *  `clearCancelled` on exit. */
   complete(runId: string): void {
     const e = this.emitters.get(runId);
     this.completed.add(runId);
     e?.emit('done');
-    // Keep the buffer briefly available for late subscribers; clear emitter.
     this.emitters.delete(runId);
+    // Keep the buffer briefly for late subscribers, then forget the run. A
+    // second `complete` (cancel, then the runner's own) restarts the clock.
+    clearTimeout(this.expiry.get(runId));
+    const timer = setTimeout(() => this.forget(runId), this.bufferTtlMs);
+    timer.unref();
+    this.expiry.set(runId, timer);
+  }
+
+  private forget(runId: string): void {
+    this.expiry.delete(runId);
+    this.emitters.delete(runId);
+    this.buffers.delete(runId);
+    this.seq.delete(runId);
+    this.completed.delete(runId);
   }
 
   /** Whether a run has already completed (for replay-then-end late subscribers). */
@@ -108,3 +135,86 @@ export class RunBus {
 }
 
 export const runBus = new RunBus();
+
+/** One SSE frame as fastify-sse-v2 serializes it. */
+export interface SseFrame {
+  id?: string;
+  event?: string;
+  data?: string;
+  comment?: string;
+}
+
+/** A run event on the wire: `id` = seq, `event` = kind, `data` = the JSON event. */
+export function toSseFrame(e: RunEvent): SseFrame {
+  return { id: String(e.seq), event: e.kind, data: JSON.stringify(e) };
+}
+
+/**
+ * A live run as SSE frames: the buffered events first, then live ones, ending
+ * when the run completes. A comment frame goes out every `heartbeatMs` so idle
+ * proxies and clients keep the connection. When `signal` aborts (the client
+ * went away) the subscription is dropped at once, whatever the generator is
+ * waiting on, and the stream ends.
+ */
+export async function* liveRunFrames(
+  bus: Pick<RunBus, 'subscribe' | 'onDone'>,
+  runId: string,
+  signal: AbortSignal,
+  heartbeatMs = SSE_HEARTBEAT_MS,
+): AsyncGenerator<SseFrame> {
+  const queue: RunEvent[] = [];
+  let done = false;
+  let beat = false;
+  let wake: (() => void) | null = null;
+  const notify = () => {
+    const w = wake;
+    wake = null;
+    w?.();
+  };
+
+  const unsubscribe = bus.subscribe(runId, (e) => {
+    queue.push(e);
+    notify();
+  });
+  const offDone = bus.onDone(runId, () => {
+    done = true;
+    notify();
+  });
+  const heartbeat = setInterval(() => {
+    beat = true;
+    notify();
+  }, heartbeatMs);
+  let released = false;
+  const release = () => {
+    if (released) return;
+    released = true;
+    clearInterval(heartbeat);
+    unsubscribe();
+    offDone();
+    signal.removeEventListener('abort', onAbort);
+  };
+  const onAbort = () => {
+    release();
+    notify();
+  };
+  signal.addEventListener('abort', onAbort);
+
+  try {
+    while (!signal.aborted) {
+      const e = queue.shift();
+      if (e) {
+        yield toSseFrame(e);
+        continue;
+      }
+      if (done) return;
+      if (beat) {
+        beat = false;
+        yield { comment: 'heartbeat' };
+        continue;
+      }
+      await new Promise<void>((r) => (wake = r));
+    }
+  } finally {
+    release();
+  }
+}

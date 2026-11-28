@@ -120,6 +120,8 @@ export interface ReviewStore {
   /** All runs for a PR (any status), newest first. */
   listRunsForPull(workspaceId: string, prId: string): Promise<RunSummary[]>;
   deleteAgentRun(workspaceId: string, runId: string): Promise<boolean>;
+  /** A run's status in the workspace; undefined when there is no such run. */
+  getRunStatus(workspaceId: string, runId: string): Promise<{ status: string | null } | undefined>;
   /** Mark a still-running run as cancelled (no-op if it already finished). */
   cancelRunIfRunning(runId: string): Promise<boolean>;
   /** Create a run in `running` state; returns its id. */
@@ -155,6 +157,8 @@ export interface RunEvents extends RunEventBus {
   /** Forget a cancellation request; the run executor calls it when a run exits. */
   clearCancelled(runId: string): void;
   complete(runId: string): void;
+  /** Whether the bus still holds the run's events (live, or recently completed). */
+  has(runId: string): boolean;
 }
 
 /** Minimal structured logger (pino-compatible: (obj, msg)) for runtime logs. */

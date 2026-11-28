@@ -110,6 +110,10 @@ function setup() {
       runs.set(id, { status: 'running' });
       return id;
     },
+    getRunStatus: async (_ws, runId) => {
+      const run = runs.get(runId);
+      return run && { status: run.status };
+    },
     cancelRunIfRunning: async (runId) => {
       const run = runs.get(runId);
       if (run?.status !== 'running') return false;

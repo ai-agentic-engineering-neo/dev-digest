@@ -67,6 +67,8 @@ also uses.
 
 - 2026-11-26 — `depcruise --output-type json` exits 0 even when it reports violations; only the default reporter exits 1. A CI step or script that gates on the exit code must not set an output type. Evidence: .github/workflows/server-unit.yml:73
 
+- 2026-11-28 — `reply.sse()` (fastify-sse-v2) hijacks the reply and never calls `return()` on the source iterator when the client disconnects, so a generator's `finally` does not run. Drop the bus subscription from an abort handler (`reply.raw` `close` → AbortController), not only in `finally`; and resolve/404 the run before calling `reply.sse`. Evidence: server/src/platform/sse.ts (`liveRunFrames`)
+
 ## Decisions
 
 <!-- A decision and the reason for it. -->
@@ -106,6 +108,8 @@ also uses.
 - 2026-11-27 — Audited the package against the project skills (onion, Fastify, Drizzle, Postgres, Zod, security); no source changed. The findings and their order are in `docs/improvement-plan.md` (sections 2, 5 and 6): four high items in the backend (a failed job crashes the process, cancel does not cancel, two grounding and prompt-fence gaps) and one in persistence (a non-atomic re-index).
 
 - 2026-11-27 — BE-2 + DB-4: cancel now cancels (flag cleared by the executor, checked again after the LLM, `status = 'running'` guard), and a run's outcome is saved by `saveReviewOutcome` in one transaction; `markReviewed` is best-effort after commit.
+
+- 2026-11-28 — BE-8: `/runs/:id/events` resolves the run through `ReviewService.runEventSource` (404 unknown; finished and off the bus → replay of the stored trace log, then end), unsubscribes on disconnect, sends a `:heartbeat` comment every 15 s; `RunBus` frees a completed run 5 min after `complete()`.
 
 ## Open Questions
 

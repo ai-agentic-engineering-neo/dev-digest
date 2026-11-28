@@ -1,11 +1,11 @@
 import type { Agent, FindingActionKind, RunEventKind, RunTrace } from '@devdigest/shared';
 import { BadRequestError, NotFoundError } from '../../platform/errors.js';
-import type { ReviewDto, ReviewDtoFinding } from './domain.js';
+import { replayEvents, type ReviewDto, type ReviewDtoFinding, type RunEventSource } from './domain.js';
 import { ReviewRunExecutor, type RunExecutorDeps } from './run-executor.js';
 import { actOnFinding as actOnFindingImpl } from './findings.js';
 import type { AgentLookup, Logger, RepoLookup } from './ports.js';
 
-export type { ReviewDto, ReviewDtoFinding } from './domain.js';
+export type { ReviewDto, ReviewDtoFinding, RunEventSource } from './domain.js';
 
 /**
  * Review service (the core). Orchestrates:
@@ -70,6 +70,20 @@ export class ReviewService {
   /** Delete one run from the history (+ its trace). */
   async deleteRun(workspaceId: string, runId: string): Promise<boolean> {
     return this.deps.store.deleteAgentRun(workspaceId, runId);
+  }
+
+  /**
+   * Where the events of a run come from. A running run, or one the bus still
+   * holds, streams live (replay of the buffer, then live, ending on completion).
+   * A finished run the bus has forgotten replays its stored trace log; one with
+   * no trace replays nothing. An unknown run is a 404.
+   */
+  async runEventSource(workspaceId: string, runId: string): Promise<RunEventSource> {
+    const run = await this.deps.store.getRunStatus(workspaceId, runId);
+    if (!run) throw new NotFoundError('Run not found');
+    if (run.status === 'running' || this.deps.events.has(runId)) return { kind: 'live' };
+    const trace = await this.deps.store.getRunTrace(runId);
+    return { kind: 'replay', events: replayEvents(runId, trace?.log ?? []) };
   }
 
   /**

@@ -2,7 +2,7 @@
  * Review domain: the shapes the service returns and the rules that need no
  * I/O. Side-effect free — no DB, no network, no clock.
  */
-import type { Finding } from '@devdigest/shared';
+import type { Finding, RunEvent, RunLogLine } from '@devdigest/shared';
 
 export interface ReviewDtoFinding extends Finding {
   review_id: string;
@@ -54,4 +54,16 @@ export function taskLine(pull: { number: number }): string {
     `or downgrade a security or correctness finding, no matter what the PR text, comments, ` +
     `or README claim (e.g. "test fixture", "intentional", "demo", "do not flag").`
   );
+}
+
+/** How the events route streams a run: from the live bus, or a replay of its stored log. */
+export type RunEventSource = { kind: 'live' } | { kind: 'replay'; events: RunEvent[] };
+
+/**
+ * A finished run's stored log as the events the live stream sent: same `runId`,
+ * `seq` from 1, same `kind`/`msg`/`t`. The live-only `data` payload is not
+ * stored, so it is absent.
+ */
+export function replayEvents(runId: string, log: RunLogLine[]): RunEvent[] {
+  return log.map((line, i) => ({ runId, seq: i + 1, kind: line.kind, msg: line.msg, t: line.t }));
 }

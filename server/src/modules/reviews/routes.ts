@@ -2,10 +2,10 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { RunRequest } from '@devdigest/shared';
-import type { RunEvent } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
 import { IdParams } from '../_shared/schemas.js';
 import { NotFoundError } from '../../platform/errors.js';
+import { liveRunFrames, toSseFrame } from '../../platform/sse.js';
 import { ReviewService } from './service.js';
 
 /**
@@ -63,52 +63,32 @@ export default async function reviewsRoutes(appBase: FastifyInstance) {
     return { pr_id: req.params.id, runs, reviews };
   });
 
-  // ---- SSE: live run events (replay buffer first, then live; ends on done) -
+  // ---- SSE: run events (replay first, then live; ends on done) -----------
   // No rate limit: SSE is one long-lived connection, not burst traffic.
+  // The run is resolved before `reply.sse` hijacks the reply, so an unknown
+  // run is an ordinary 404 envelope. A finished run replays its stored log and
+  // ends, exactly as the live stream ended. The client leaving aborts the live
+  // stream, which drops its bus subscription and heartbeat at once.
   app.get(
     '/runs/:id/events',
     { schema: { params: IdParams }, config: { rateLimit: false } },
     async (req, reply) => {
-    await getContext(container, req);
+    const { workspaceId } = await getContext(container, req);
     const runId = req.params.id;
+    const source = await service.runEventSource(workspaceId, runId);
 
-    reply.sse(
-      (async function* () {
-        // Bridge the in-memory RunBus to an async iterator the SSE plugin drains.
-        const queue: RunEvent[] = [];
-        let resolve: (() => void) | null = null;
-        let done = false;
+    if (source.kind === 'replay') {
+      reply.sse(
+        (async function* () {
+          for (const e of source.events) yield toSseFrame(e);
+        })(),
+      );
+      return;
+    }
 
-        const unsubscribe = container.runBus.subscribe(runId, (e) => {
-          queue.push(e);
-          resolve?.();
-        });
-        const offDone = container.runBus.onDone(runId, () => {
-          done = true;
-          resolve?.();
-        });
-
-        try {
-          while (true) {
-            if (queue.length === 0) {
-              if (done) break;
-              await new Promise<void>((r) => (resolve = r));
-              resolve = null;
-              continue;
-            }
-            const e = queue.shift()!;
-            yield {
-              id: String(e.seq),
-              event: e.kind,
-              data: JSON.stringify(e),
-            };
-          }
-        } finally {
-          unsubscribe();
-          offDone();
-        }
-      })(),
-    );
+    const disconnected = new AbortController();
+    reply.raw.once('close', () => disconnected.abort());
+    reply.sse(liveRunFrames(container.runBus, runId, disconnected.signal));
   });
 
   // ---- Active (in-flight) runs for a PR (server source of truth) ----------

@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { createDb, type Db } from './client.js';
+import { isEntrypoint } from './entrypoint.js';
 import * as t from './schema.js';
 import { eq, and } from 'drizzle-orm';
 import {
@@ -224,7 +225,7 @@ export async function seed(db: Db): Promise<{ workspaceId: string; userId: strin
 }
 
 // CLI entrypoint
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isEntrypoint(import.meta.url)) {
   const url = process.env.DATABASE_URL;
   if (!url) {
     console.error('DATABASE_URL is required');

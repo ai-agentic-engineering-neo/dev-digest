@@ -15,6 +15,7 @@ Review and prune periodically; stale entries are harmful.
 
 - **2026-11-28** · On Windows `pnpm db:migrate` / `pnpm db:seed` exit 0 but do NOTHING: the entry-point guard compares `import.meta.url` with `file://${process.argv[1]}`, which never matches a `C:\…` path, so tables are never created; call `runMigrations()` / `seed()` directly or fix the guard with `pathToFileURL(process.argv[1]).href` — evidence: `server/src/db/migrate.ts:37`, `server/src/db/seed.ts:227`
 - **2026-11-28** · The persisted run log is a SNAPSHOT taken when the trace object is built (`runLog.logFor(runId)`); any `runLog.*` call after that reaches only the live SSE stream and stdout, never the trace drawer's log tab — emit lines before building the trace — evidence: `server/src/modules/reviews/run-executor.ts:291`
+- **2026-11-28** · Supersedes 2026-11-28 entry on Windows `db:migrate`/`db:seed`: both CLIs now use `isEntrypoint(import.meta.url)`, which builds the URL with `pathToFileURL`; reuse it for any new `tsx` CLI script instead of comparing with `file://${process.argv[1]}` — evidence: `server/src/db/entrypoint.ts:14`, `server/src/db/migrate.ts:38`
 
 ## Measured facts
 

@@ -44,6 +44,7 @@ vi.mock("../../../../../lib/hooks/reviews", () => ({
   usePrRuns: () => ({ data: [] }),
   useCancelRun: () => ({}),
   useDeleteRun: () => ({ mutate: vi.fn() }),
+  useRefreshPrRuns: () => vi.fn(),
 }));
 vi.mock("../../../../../lib/repo-context", () => ({
   useActiveRepo: () => ({ activeRepo: { full_name: "o/r" } }),

@@ -11,38 +11,29 @@ import {
 import { ThemeProvider } from "./theme";
 import { RepoProvider } from "./repo-context";
 import { ToastProvider, notify } from "./toast";
-import { ApiError } from "./api";
-
-function errorMessage(e: unknown): string {
-  if (e instanceof Error) return e.message;
-  return "Something went wrong";
-}
+import { createErrorPolicy } from "./error-policy";
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  const [qc] = React.useState(
-    () =>
-      new QueryClient({
-        defaultOptions: {
-          queries: {
-            retry: 1,
-            staleTime: 30_000,
-            refetchOnWindowFocus: false,
-          },
+  const [qc] = React.useState(() => {
+    const policy = createErrorPolicy(notify.error);
+    return new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: 1,
+          staleTime: 30_000,
+          refetchOnWindowFocus: false,
         },
-        // Global error surfacing (errors anywhere → toast). Mutations always
-        // toast (they are user actions). Queries only toast on network/5xx —
-        // expected 4xx like a 404 "no tour yet" stay silent for inline empty states.
-        queryCache: new QueryCache({
-          onError: (err) => {
-            const status = err instanceof ApiError ? err.status : 500;
-            if (status === 0 || status >= 500) notify.error(errorMessage(err));
-          },
-        }),
-        mutationCache: new MutationCache({
-          onError: (err) => notify.error(errorMessage(err)),
-        }),
-      })
-  );
+      },
+      // Global error surfacing — which errors toast is decided in error-policy.ts.
+      queryCache: new QueryCache({
+        onError: (err, query) => policy.onQueryError(err, query),
+        onSuccess: (_data, query) => policy.onQuerySuccess(query),
+      }),
+      mutationCache: new MutationCache({
+        onError: (err, _vars, _ctx, mutation) => policy.onMutationError(err, mutation),
+      }),
+    });
+  });
   return (
     <QueryClientProvider client={qc}>
       <ThemeProvider>

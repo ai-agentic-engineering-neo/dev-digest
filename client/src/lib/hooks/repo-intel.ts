@@ -9,6 +9,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { RepoIntelState, ResyncResponse } from "@devdigest/shared";
 import { api } from "../api";
+import { queryKeys } from "./query-keys";
 
 /** GET /repos/:id/index-state → current repo-intel index state.
     While `poll` is true, refetch on an interval so a running resync's result
@@ -17,7 +18,7 @@ import { api } from "../api";
     `lastIndexedSha`/`updatedAt` advance, not by status). */
 export function useRepoIntelStatus(repoId: string | null | undefined, poll = false) {
   return useQuery({
-    queryKey: ["repo-intel-state", repoId],
+    queryKey: queryKeys.repoIntelState(repoId),
     queryFn: () => api.get<RepoIntelState>(`/repos/${repoId}/index-state`),
     enabled: !!repoId,
     refetchInterval: poll ? 1500 : false,
@@ -30,7 +31,7 @@ export function useResyncRepoIntel(repoId: string | null | undefined) {
   return useMutation({
     mutationFn: () => api.post<ResyncResponse>(`/repos/${repoId}/resync`),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["repo-intel-state", repoId] });
+      qc.invalidateQueries({ queryKey: queryKeys.repoIntelState(repoId) });
     },
   });
 }

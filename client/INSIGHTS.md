@@ -74,6 +74,8 @@ disable the control that clears the active filter.
 
 <!-- Quirks of dependencies and tooling. -->
 
+- 2026-11-28 — React Query keys live only in `src/lib/hooks/query-keys.ts`, and a mutation that renders its own error must set `meta: { errorUi: "inline" }` (typed via the `Register` augmentation in `src/lib/error-policy.ts`), or the global MutationCache toasts it a second time. Prefer `mutate(vars, { onSuccess })` over `mutateAsync` in a component: an un-caught `mutateAsync` rejection is an unhandled promise on top of the toast. Evidence: client/src/lib/error-policy.ts:36
+
 - 2026-11-22 — A vitest path filter that contains the route folders `[repoId]` / `[number]` matches nothing ("No test files found"), with or without escaping the brackets. Filter by a plain name fragment instead: `pnpm exec vitest run FindingsPanel SeverityFilter`. Evidence: client/vitest.config.ts:18
 
 ## Decisions

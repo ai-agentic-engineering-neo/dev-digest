@@ -3,9 +3,10 @@
 "use client";
 
 import React from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { api, API_BASE } from "../api";
 import { notify } from "../toast";
+import { queryKeys } from "./query-keys";
 import type {
   ActiveRun,
   FindingActionKind,
@@ -23,7 +24,7 @@ import type {
    Survives reloads/devices; polls while anything is running so it self-clears. */
 export function usePrActiveRuns(prId: string | null | undefined) {
   return useQuery({
-    queryKey: ["pr-active-runs", prId],
+    queryKey: queryKeys.prActiveRuns(prId),
     queryFn: () => api.get<ActiveRun[]>(`/pulls/${prId}/runs/active`),
     enabled: !!prId,
     refetchInterval: (query) => ((query.state.data?.length ?? 0) > 0 ? 4000 : false),
@@ -35,7 +36,7 @@ export function usePrActiveRuns(prId: string | null | undefined) {
    reload (DB-backed). Polls while anything is running so it self-updates. */
 export function usePrRuns(prId: string | null | undefined) {
   return useQuery({
-    queryKey: ["pr-runs", prId],
+    queryKey: queryKeys.prRuns(prId),
     queryFn: () => api.get<RunSummary[]>(`/pulls/${prId}/runs`),
     enabled: !!prId,
     refetchInterval: (query) =>
@@ -46,39 +47,62 @@ export function usePrRuns(prId: string | null | undefined) {
 // ---- Persisted reviews + findings for a PR ----
 export function usePrReviews(prId: string | null | undefined) {
   return useQuery({
-    queryKey: ["reviews", prId],
+    queryKey: queryKeys.reviews(prId),
     queryFn: () => api.get<ReviewRecord[]>(`/pulls/${prId}/reviews`),
     enabled: !!prId,
   });
 }
 
+/** Refetch everything a PR's run lifecycle touches: the in-flight list, the
+   run history and the persisted reviews. Called when a run starts, is
+   cancelled or settles. */
+function invalidatePrRuns(qc: QueryClient, prId: string) {
+  qc.invalidateQueries({ queryKey: queryKeys.prActiveRuns(prId) });
+  qc.invalidateQueries({ queryKey: queryKeys.prRuns(prId) });
+  qc.invalidateQueries({ queryKey: queryKeys.reviews(prId) });
+}
+
+/** Refresh a PR's runs when a live run settles (seen on the SSE stream, not a
+   mutation). Returns a stable callback; a no-op until `prId` is known. */
+export function useRefreshPrRuns(prId: string | null) {
+  const qc = useQueryClient();
+  return React.useCallback(() => {
+    if (prId) invalidatePrRuns(qc, prId);
+  }, [qc, prId]);
+}
+
 /** Delete one run from the PR's run history (+ its trace). */
-export function useDeleteRun(prId: string | null | undefined) {
+export function useDeleteRun(prId: string | null) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (runId: string) => api.del<{ ok: boolean }>(`/runs/${runId}`),
     // Deleting a run also deletes the review it produced (server-side), so drop
     // both the timeline and the Review Runs list from cache.
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["pr-runs", prId] });
-      qc.invalidateQueries({ queryKey: ["reviews", prId] });
+      if (prId) invalidatePrRuns(qc, prId);
     },
   });
 }
 
 /** Request cancellation of an in-flight run (takes effect at the next step). */
-export function useCancelRun() {
+export function useCancelRun(prId: string | null) {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: (runId: string) => api.post<{ ok: boolean }>(`/runs/${runId}/cancel`),
+    // The server marks the run cancelled at once — refresh the live list and
+    // the history so the run leaves "running" without waiting for a poll.
+    onSuccess: () => {
+      if (prId) invalidatePrRuns(qc, prId);
+    },
   });
 }
 
 /** Delete a whole review run (one agent's pass) + its findings. */
-export function useDeleteReview(prId: string | null | undefined) {
+export function useDeleteReview(prId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (reviewId: string) => api.del<{ ok: boolean }>(`/reviews/${reviewId}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["reviews", prId] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.reviews(prId) }),
   });
 }
 
@@ -86,7 +110,7 @@ export function useDeleteReview(prId: string | null | undefined) {
 /** Existing GitHub PR review comments, fetched live. */
 export function usePrComments(prId: string | null | undefined) {
   return useQuery({
-    queryKey: ["pr-comments", prId],
+    queryKey: queryKeys.prComments(prId),
     queryFn: () => api.get<PrReviewComment[]>(`/pulls/${prId}/comments`),
     enabled: !!prId,
   });
@@ -106,7 +130,7 @@ export function useCreatePrComment(prId: string | null | undefined) {
   return useMutation({
     mutationFn: (input: CreateCommentInput) =>
       api.post<PrReviewComment>(`/pulls/${prId}/comments`, input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["pr-comments", prId] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.prComments(prId) }),
   });
 }
 
@@ -125,9 +149,9 @@ export function useRunReview() {
         ...(agentId ? { agentId } : {}),
         ...(all ? { all } : {}),
       }),
-    onSuccess: (_d, { prId }) => {
-      qc.invalidateQueries({ queryKey: ["reviews", prId] });
-    },
+    // The server creates the agent_runs rows before it answers, so the live
+    // status, the run history and the review list can all refetch now.
+    onSuccess: (_d, { prId }) => invalidatePrRuns(qc, prId),
   });
 }
 
@@ -143,15 +167,13 @@ export function useFindingAction() {
       findingId: string;
       action: FindingActionKind;
       reply?: string;
-      prId?: string;
+      prId: string;
     }) =>
       api.post<FindingActionResponse>(
         `/findings/${findingId}/${action}`,
         reply ? { reply } : undefined,
       ),
-    onSuccess: (_d, { prId }) => {
-      if (prId) qc.invalidateQueries({ queryKey: ["reviews", prId] });
-    },
+    onSuccess: (_d, { prId }) => qc.invalidateQueries({ queryKey: queryKeys.reviews(prId) }),
   });
 }
 

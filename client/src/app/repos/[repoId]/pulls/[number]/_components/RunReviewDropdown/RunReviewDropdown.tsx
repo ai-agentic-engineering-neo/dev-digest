@@ -1,6 +1,7 @@
 /* RunReviewDropdown — ported from components2.jsx.
-   "Run all enabled agents" / a specific agent → kicks off POST /pulls/:id/review
-   and hands the resulting runIds up so the parent can stream SSE live status. */
+   "Run all enabled agents" / a specific agent → kicks off POST /pulls/:id/review.
+   useRunReview refreshes the PR's live runs on success, so the parent picks the
+   new runs up from the server; a failure is toasted by the global error policy. */
 "use client";
 
 import React from "react";
@@ -17,7 +18,6 @@ export function RunReviewDropdown({
   kind = "primary",
   warnMerged = false,
   onRunStart,
-  onRunsStarted,
   onRunSettled,
 }: {
   prId: string;
@@ -27,7 +27,6 @@ export function RunReviewDropdown({
   warnMerged?: boolean;
   /** Fired the moment a run is kicked off (before it completes). */
   onRunStart?: () => void;
-  onRunsStarted?: (runIds: string[]) => void;
   /** Fired when the run request settles (success or error). */
   onRunSettled?: () => void;
 }) {
@@ -38,14 +37,9 @@ export function RunReviewDropdown({
   const all = agents ?? [];
   const hasEnabled = all.some((a) => a.enabled);
 
-  const kick = async (opts: { all?: boolean; agentId?: string }) => {
+  const kick = (opts: { all?: boolean; agentId?: string }) => {
     onRunStart?.();
-    try {
-      const res = await run.mutateAsync({ prId, ...opts });
-      onRunsStarted?.(res.runs.map((r) => r.run_id));
-    } finally {
-      onRunSettled?.();
-    }
+    run.mutate({ prId, ...opts }, { onSettled: () => onRunSettled?.() });
   };
 
   // List EVERY agent (not just enabled) so they're always visible; a specific

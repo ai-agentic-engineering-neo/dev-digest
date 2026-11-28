@@ -4,6 +4,7 @@
 "use client";
 
 import React from "react";
+import { createToastDeduper } from "./toast-dedupe";
 
 type ToastKind = "success" | "error" | "info";
 interface Toast {
@@ -47,13 +48,15 @@ const COLORS: Record<ToastKind, { bg: string; border: string; icon: string }> = 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = React.useState<Toast[]>([]);
   const seq = React.useRef(1);
+  const [accept] = React.useState(() => createToastDeduper());
 
   const push = React.useCallback((message: string, kind: ToastKind = "info") => {
+    if (!accept(kind, message)) return;
     const id = seq.current++;
     setItems((prev) => [...prev, { id, kind, message }]);
     // auto-dismiss after 4s
     setTimeout(() => setItems((prev) => prev.filter((t) => t.id !== id)), 4000);
-  }, []);
+  }, [accept]);
 
   const api = React.useMemo<ToastApi>(
     () => ({

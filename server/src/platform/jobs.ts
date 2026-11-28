@@ -1,5 +1,5 @@
 import PQueue from 'p-queue';
-import { eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, lt } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import * as t from '../db/schema.js';
 import { withTimeout, withRetry } from './resilience.js';
@@ -117,6 +117,8 @@ export class JobRunner {
    * On boot: a job still 'queued' or 'running' belongs to a process that died
    * (the queue is in memory), so it will never run. Mark it failed so the table
    * tells the truth. Assumes a single API instance per DB. Returns the count.
+   * Only jobs scheduled before this call are reaped, so a job enqueued by this
+   * process afterwards is never touched.
    */
   async reapStaleJobs(): Promise<number> {
     const rows = await this.db
@@ -126,7 +128,9 @@ export class JobRunner {
         finishedAt: new Date(),
         error: 'interrupted by a server restart',
       })
-      .where(inArray(t.jobs.status, ['queued', 'running']))
+      .where(
+        and(inArray(t.jobs.status, ['queued', 'running']), lt(t.jobs.scheduledAt, new Date())),
+      )
       .returning({ id: t.jobs.id });
     return rows.length;
   }

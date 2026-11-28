@@ -3,7 +3,7 @@ import { BadRequestError, NotFoundError } from '../../platform/errors.js';
 import { INDEX_JOB_KIND, REFRESH_JOB_KIND } from '../repo-intel/index.js';
 import { parseRepoUrl, canonicalCloneUrl, isValidRepoRef } from './domain.js';
 import { CLONE_JOB_KIND, CLONE_DEPTH } from './constants.js';
-import type { JobQueue, RepoCloner, RepoStore } from './ports.js';
+import type { JobQueue, Logger, RepoCloner, RepoStore } from './ports.js';
 
 /**
  * F1 — repos service. Business logic for the Repositories feature:
@@ -26,6 +26,7 @@ export interface RepoServiceDeps {
   repos: RepoStore;
   git: RepoCloner;
   jobs: JobQueue;
+  log: Logger;
 }
 
 export class RepoService {
@@ -145,8 +146,11 @@ export class RepoService {
     // removal into an error response.
     try {
       await this.deps.git.removeClone({ owner: repo.owner, name: repo.name });
-    } catch {
-      // best-effort
+    } catch (err) {
+      this.deps.log.warn(
+        { repoId: id, repo: repo.full_name, err: (err as Error).message },
+        'repo removed but its clone directory could not be deleted',
+      );
     }
   }
 }

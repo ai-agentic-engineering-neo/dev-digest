@@ -71,7 +71,9 @@ function setup() {
       return { path: '/clones/acme/widgets' };
     },
   };
-  return { service: new RepoService({ repos, git, jobs }), repos, enqueued, cloned, removed };
+  const warns: { obj: object; msg: string }[] = [];
+  const log = { warn: (obj: object, msg: string) => void warns.push({ obj, msg }) };
+  return { service: new RepoService({ repos, git, jobs, log }), warns, log, repos, enqueued, cloned, removed };
 }
 
 describe('RepoService', () => {
@@ -133,10 +135,11 @@ describe('RepoService', () => {
   });
 
   it('remove still succeeds when the clone cannot be deleted', async () => {
-    const { repos, service } = setup();
+    const { repos, service, warns, log } = setup();
     const { repo } = await service.add('ws-1', 'user-1', 'https://github.com/acme/widgets');
     const failing = new RepoService({
       repos,
+      log,
       jobs: { register: () => {}, enqueue: async () => undefined },
       git: {
         clone: async () => ({ path: '' }),
@@ -146,6 +149,8 @@ describe('RepoService', () => {
       },
     });
     await expect(failing.remove('ws-1', repo.id)).resolves.toBeUndefined();
+    expect(warns).toHaveLength(1);
+    expect(warns[0]?.obj).toMatchObject({ repo: 'acme/widgets', err: 'EACCES' });
     expect(repos.rows).toHaveLength(0);
   });
 

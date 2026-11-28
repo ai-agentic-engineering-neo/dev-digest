@@ -37,3 +37,7 @@ export interface JobQueue {
 
 /** The git operations this module uses. */
 export type RepoCloner = Pick<GitClient, 'clone' | 'removeClone'>;
+
+export interface Logger {
+  warn(obj: object, msg: string): void;
+}

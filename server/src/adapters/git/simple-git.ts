@@ -1,5 +1,5 @@
 import { simpleGit, type SimpleGit } from 'simple-git';
-import { join, resolve, sep } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import { mkdir, readFile, access, rm, realpath } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import type {
@@ -217,8 +217,17 @@ export class SimpleGitClient implements GitClient {
   }
 
   async removeClone(repo: RepoRef): Promise<void> {
-    // clonePathFor proves the path is inside the clone root before the rm.
-    await rm(this.clonePathFor(repo), { recursive: true, force: true });
+    // clonePathFor proves the path is lexically inside the clone root; the
+    // realpath check below also catches a symlinked owner directory.
+    const dest = this.clonePathFor(repo);
+    let parent: string;
+    try {
+      parent = await realpath(dirname(dest));
+    } catch {
+      return; // owner directory absent: nothing to remove
+    }
+    if (!parent.startsWith((await realpath(this.root)) + sep)) throw new UnsafeClonePathError(repo);
+    await rm(dest, { recursive: true, force: true });
   }
 
   async fetchPullHead(repo: RepoRef, n: number): Promise<void> {

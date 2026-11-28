@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, rm, mkdir, writeFile, readFile, access } from 'node:fs/promises';
+import { mkdtemp, rm, mkdir, symlink, writeFile, readFile, access } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { SimpleGitClient, UnsafeClonePathError } from '../src/adapters/git/simple-git.js';
@@ -107,5 +107,18 @@ describe('SimpleGitClient.removeClone', () => {
     await expect(client.removeClone({ owner: 'rm-owner', name: 'rm-repo' })).resolves.toBeUndefined();
 
     await expect(client.removeClone({ owner: '..', name: 'clones' })).rejects.toThrow(UnsafeClonePathError);
+  });
+
+  it('refuses to follow a symlinked owner directory out of cloneDir', async () => {
+    const client = new SimpleGitClient(cloneDir);
+    const outside = join(work, 'outside');
+    await mkdir(join(outside, 'victim'), { recursive: true });
+    await mkdir(cloneDir, { recursive: true });
+    await symlink(outside, join(cloneDir, 'linked'));
+
+    await expect(client.removeClone({ owner: 'linked', name: 'victim' })).rejects.toThrow(
+      UnsafeClonePathError,
+    );
+    await expect(access(join(outside, 'victim'))).resolves.toBeUndefined();
   });
 });

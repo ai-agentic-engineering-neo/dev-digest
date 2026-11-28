@@ -25,6 +25,7 @@ export default async function reposRoutes(appBase: FastifyInstance) {
     repos: app.container.repoStore,
     git: app.container.git,
     jobs: app.container.jobs,
+    log: app.log,
   });
 
   // Register the clone job handler once.

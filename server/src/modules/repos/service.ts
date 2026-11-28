@@ -136,7 +136,17 @@ export class RepoService {
   }
 
   async remove(workspaceId: string, id: string): Promise<void> {
+    const repo = await this.deps.repos.getById(workspaceId, id);
+    if (!repo) throw new NotFoundError('Repo not found');
     const ok = await this.deps.repos.remove(workspaceId, id);
     if (!ok) throw new NotFoundError('Repo not found');
+    // The row is gone; the clone is disk-only cleanup. A failure here (or the
+    // adapter's containment check refusing the path) must not turn a completed
+    // removal into an error response.
+    try {
+      await this.deps.git.removeClone({ owner: repo.owner, name: repo.name });
+    } catch {
+      // best-effort
+    }
   }
 }

@@ -254,6 +254,7 @@ export interface MockGitOptions {
 export class MockGitClient implements GitClient {
   public cloned: { repo: RepoRef; url: string }[] = [];
   public syncs: { repo: RepoRef; branch: string }[] = [];
+  public removed: RepoRef[] = [];
   private syncedHead?: string;
 
   constructor(private opts: MockGitOptions = {}) {}
@@ -264,6 +265,9 @@ export class MockGitClient implements GitClient {
   async clone(repo: RepoRef, url: string, _opts?: CloneOptions): Promise<{ path: string }> {
     this.cloned.push({ repo, url });
     return { path: this.clonePathFor(repo) };
+  }
+  async removeClone(repo: RepoRef): Promise<void> {
+    this.removed.push(repo);
   }
   async fetchPullHead(): Promise<void> {}
   async sync(repo: RepoRef, branch: string): Promise<{ head: string }> {

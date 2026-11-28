@@ -1,5 +1,5 @@
 import PQueue from 'p-queue';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import * as t from '../db/schema.js';
 import { withTimeout, withRetry } from './resilience.js';
@@ -78,28 +78,20 @@ export class JobRunner {
         .update(t.jobs)
         .set({ status: 'running', startedAt: new Date() })
         .where(eq(t.jobs.id, jobId));
+      // Real attempt count: one per handler invocation, whether the job then
+      // succeeds, is retried, or fails for good.
+      let attempts = 0;
       try {
         await withRetry(
-          () =>
-            withTimeout(handler(payload, { jobId }), this.timeoutMs).then(async () => {
-              await this.db
-                .update(t.jobs)
-                .set({ attempts: 1 })
-                .where(eq(t.jobs.id, jobId));
-            }),
-          {
-            retries: this.retries,
-            onRetry: async (attempt) => {
-              await this.db
-                .update(t.jobs)
-                .set({ attempts: attempt })
-                .where(eq(t.jobs.id, jobId));
-            },
+          () => {
+            attempts += 1;
+            return withTimeout(handler(payload, { jobId }), this.timeoutMs);
           },
+          { retries: this.retries },
         );
         await this.db
           .update(t.jobs)
-          .set({ status: 'done', finishedAt: new Date() })
+          .set({ status: 'done', attempts, finishedAt: new Date() })
           .where(eq(t.jobs.id, jobId));
         return { ok: true };
       } catch (err) {
@@ -107,7 +99,7 @@ export class JobRunner {
         this.log?.error({ jobId, kind, err: error.message }, 'job failed');
         await this.db
           .update(t.jobs)
-          .set({ status: 'failed', finishedAt: new Date(), error: error.message })
+          .set({ status: 'failed', attempts, finishedAt: new Date(), error: error.message })
           .where(eq(t.jobs.id, jobId));
         return { ok: false, error };
       }
@@ -119,6 +111,24 @@ export class JobRunner {
     }) as Promise<JobOutcome>;
 
     return { id: jobId, done };
+  }
+
+  /**
+   * On boot: a job still 'queued' or 'running' belongs to a process that died
+   * (the queue is in memory), so it will never run. Mark it failed so the table
+   * tells the truth. Assumes a single API instance per DB. Returns the count.
+   */
+  async reapStaleJobs(): Promise<number> {
+    const rows = await this.db
+      .update(t.jobs)
+      .set({
+        status: 'failed',
+        finishedAt: new Date(),
+        error: 'interrupted by a server restart',
+      })
+      .where(inArray(t.jobs.status, ['queued', 'running']))
+      .returning({ id: t.jobs.id });
+    return rows.length;
   }
 
   /** Wait for the queue to drain (useful in tests). */

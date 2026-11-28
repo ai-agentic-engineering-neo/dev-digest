@@ -46,6 +46,15 @@ async function main() {
     app.log.warn({ err: (err as Error).message }, 'stale-run reaping failed (non-fatal)');
   }
 
+  // Same reasoning for background jobs: the queue is in memory, so a job left
+  // 'queued'/'running' by the previous process will never run.
+  try {
+    const reaped = await app.container.jobs.reapStaleJobs();
+    if (reaped > 0) app.log.info({ reaped }, 'reaped stale queued/running jobs on boot');
+  } catch (err) {
+    app.log.warn({ err: (err as Error).message }, 'stale-job reaping failed (non-fatal)');
+  }
+
   try {
     await app.listen({ port: config.apiPort, host: config.apiHost });
     app.log.info(`DevDigest API listening on http://${config.apiHost}:${config.apiPort}`);

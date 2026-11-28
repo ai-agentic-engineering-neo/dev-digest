@@ -216,6 +216,11 @@ export class SimpleGitClient implements GitClient {
     return { path: dest };
   }
 
+  async removeClone(repo: RepoRef): Promise<void> {
+    // clonePathFor proves the path is inside the clone root before the rm.
+    await rm(this.clonePathFor(repo), { recursive: true, force: true });
+  }
+
   async fetchPullHead(repo: RepoRef, n: number): Promise<void> {
     // Fetch the PR head ref into a local ref (GitHub exposes pull/<n>/head).
     const dest = this.clonePathFor(repo);

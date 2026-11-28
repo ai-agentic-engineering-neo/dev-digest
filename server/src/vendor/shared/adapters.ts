@@ -236,6 +236,8 @@ export interface GitClient {
   log(repo: RepoRef, path?: string): Promise<GitCommit[]>;
   readFile(repo: RepoRef, path: string): Promise<string>;
   clonePathFor(repo: RepoRef): string;
+  /** Delete the repo's clone directory (contained in the clone root). No-op if absent. */
+  removeClone(repo: RepoRef): Promise<void>;
 }
 
 // ---------- CodeIndex (ripgrep + tree-sitter) ----------

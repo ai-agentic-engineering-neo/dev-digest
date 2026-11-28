@@ -94,3 +94,18 @@ describe('SimpleGitClient.clone', () => {
     await expect(access(sentinel)).resolves.toBeUndefined();
   });
 });
+
+describe('SimpleGitClient.removeClone', () => {
+  it('deletes the repo directory but refuses a path outside cloneDir', async () => {
+    const client = new SimpleGitClient(cloneDir);
+    const dir = client.clonePathFor({ owner: 'rm-owner', name: 'rm-repo' });
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, 'f.txt'), 'x');
+
+    await client.removeClone({ owner: 'rm-owner', name: 'rm-repo' });
+    await expect(access(dir)).rejects.toThrow();
+    await expect(client.removeClone({ owner: 'rm-owner', name: 'rm-repo' })).resolves.toBeUndefined();
+
+    await expect(client.removeClone({ owner: '..', name: 'clones' })).rejects.toThrow(UnsafeClonePathError);
+  });
+});

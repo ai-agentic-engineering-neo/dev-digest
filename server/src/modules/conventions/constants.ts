@@ -32,7 +32,10 @@ export const MAX_PROMPT_FILE_CHARS = 60_000;
 export const EXTRACTION_SCHEMA_NAME = 'ConventionExtraction';
 
 /** Output cap for the one extraction call. */
-export const EXTRACTION_MAX_TOKENS = 4_000;
+export const EXTRACTION_MAX_TOKENS = 16_000;
+
+/** Candidates kept from one run, highest confidence first. */
+export const MAX_CANDIDATES = 12;
 
 /** Low temperature: the same repo should give similar candidates. */
 export const EXTRACTION_TEMPERATURE = 0.2;

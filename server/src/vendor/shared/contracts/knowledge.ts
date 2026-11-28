@@ -244,20 +244,20 @@ export type ConventionPatch = z.infer<typeof ConventionPatch>;
 
 /**
  * What the model returns in the one extraction call. Line numbers are not
- * asked for: code finds the snippet in the file and computes them.
+ * asked for: code finds the snippet in the file and computes them. Kept free
+ * of bounds (strict JSON-schema mode rejects some keywords); the server caps
+ * the count and clamps confidence.
  */
 export const ConventionExtraction = z.object({
-  candidates: z
-    .array(
-      z.object({
-        category: z.string(),
-        rule: z.string(),
-        evidence_path: z.string(),
-        evidence_snippet: z.string(),
-        confidence: z.number().min(0).max(1),
-      }),
-    )
-    .max(20),
+  candidates: z.array(
+    z.object({
+      category: z.string(),
+      rule: z.string(),
+      evidence_path: z.string(),
+      evidence_snippet: z.string(),
+      confidence: z.number(),
+    }),
+  ),
 });
 export type ConventionExtraction = z.infer<typeof ConventionExtraction>;
 

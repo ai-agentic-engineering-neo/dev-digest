@@ -1,6 +1,12 @@
 import { wrapUntrusted } from '@devdigest/reviewer-core';
 import type { ChatMessage, ConventionCandidate, ConventionStatus } from '@devdigest/shared';
-import { CONFIG_FILE_NAMES, MAX_CONFIG_FILES, MAX_FILE_CHARS, MAX_PROMPT_FILE_CHARS } from './constants.js';
+import {
+  CONFIG_FILE_NAMES,
+  MAX_CANDIDATES,
+  MAX_CONFIG_FILES,
+  MAX_FILE_CHARS,
+  MAX_PROMPT_FILE_CHARS,
+} from './constants.js';
 
 /**
  * M2 Conventions Extractor: pure rules. Evidence verification is what makes
@@ -91,7 +97,7 @@ export interface RawCandidate {
  */
 export function verifyCandidates(raw: readonly RawCandidate[], files: readonly SampleFile[]): VerifiedCandidate[] {
   const byPath = new Map(files.map((f) => [f.path, f.content]));
-  return raw.flatMap((c) => {
+  const verified = raw.flatMap((c) => {
     const content = byPath.get(c.evidence_path);
     const rule = c.rule.trim();
     if (content === undefined || rule === '') return [];
@@ -105,10 +111,11 @@ export function verifyCandidates(raw: readonly RawCandidate[], files: readonly S
         evidenceSnippet: c.evidence_snippet.trim(),
         evidenceStartLine: range.startLine,
         evidenceEndLine: range.endLine,
-        confidence: c.confidence,
+        confidence: Math.min(1, Math.max(0, c.confidence)),
       },
     ];
   });
+  return verified.sort((a, b) => b.confidence - a.confidence).slice(0, MAX_CANDIDATES);
 }
 
 /** Lower-case, collapse whitespace and drop a trailing period: the key for "same rule". */

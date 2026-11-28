@@ -20,8 +20,10 @@ export default function GlobalError({
   }, [error]);
 
   return (
-    <html lang="en" data-theme="dark" data-density="regular">
-      <body>
+    // Hardcodes the dark theme: the no-flash theme script and the providers
+    // live in the root layout, which is unavailable here.
+    <html lang="en" data-theme="dark" data-density="regular" suppressHydrationWarning>
+      <body suppressHydrationWarning>
         <ErrorState fullScreen title={messages.errorPage.title} body={messages.errorPage.body} onRetry={reset} />
       </body>
     </html>

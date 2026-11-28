@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
+import { DEFAULT_SECTION } from "./constants";
 
-/* Route: /settings — no section given, send to the default one
-   (SettingsView's DEFAULT_SECTION). */
+/* Route: /settings — no section given, send to the default one. */
 export default function SettingsIndexPage() {
-  redirect("/settings/api-keys");
+  redirect(`/settings/${DEFAULT_SECTION}`);
 }

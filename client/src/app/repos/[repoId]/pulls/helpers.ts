@@ -1,6 +1,5 @@
 import type { FindingRecord, PrFindingsCounts, ReviewRecord } from "@devdigest/shared";
-import { SEVERITY_ORDER } from "./[number]/_components/FindingsPanel/constants";
-import { SIZE_MEDIUM_MAX, SIZE_SMALL_MAX, type PrMeta, type SizeInfo } from "./constants";
+import { SEVERITY_ORDER, SIZE_MEDIUM_MAX, SIZE_SMALL_MAX, type PrMeta, type SizeInfo } from "./constants";
 
 /** One line of the FINDINGS preview: a finding and the agent that reported it. */
 export interface PreviewFinding {

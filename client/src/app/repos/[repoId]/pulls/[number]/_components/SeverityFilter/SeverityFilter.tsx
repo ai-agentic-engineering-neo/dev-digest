@@ -8,7 +8,7 @@ import React from "react";
 import { useTranslations } from "next-intl";
 import { SEV } from "@devdigest/ui";
 import type { Severity } from "@devdigest/shared";
-import { SEVERITY_FILTERS } from "../FindingsPanel/constants";
+import { SEVERITY_FILTERS } from "../../../constants";
 import { s } from "./styles";
 
 export interface SeverityFilterProps {

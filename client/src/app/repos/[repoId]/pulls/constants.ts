@@ -1,3 +1,4 @@
+import type { Severity } from "@devdigest/shared";
 import type { PrMeta } from "../../../../lib/types";
 
 /** Constants for the PR list page (/repos/:repoId/pulls). */
@@ -49,6 +50,20 @@ export const COLUMN_KEYS: string[] = [
   "cost",
   "updated",
 ];
+
+/* Severity order and filter levels: shared by the PR list (FindingsCell) and
+   the PR detail (FindingsPanel, SeverityFilter), so they live at the route. */
+
+/** Sort weight per severity (lower = shown first). */
+export const SEVERITY_ORDER: Record<string, number> = {
+  CRITICAL: 0,
+  WARNING: 1,
+  SUGGESTION: 2,
+  INFO: 3,
+};
+
+/** Levels shown in the severity filter, in display order. */
+export const SEVERITY_FILTERS: readonly Severity[] = ["CRITICAL", "WARNING", "SUGGESTION"];
 
 /** Number of skeleton rows shown while loading. */
 export const SKELETON_ROWS = 4;

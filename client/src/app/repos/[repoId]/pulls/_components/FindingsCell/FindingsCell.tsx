@@ -11,24 +11,11 @@ import { useTranslations } from "next-intl";
 import { SeverityBadge } from "@devdigest/ui";
 import type { PrMeta } from "@devdigest/shared";
 import { usePrReviews } from "@/lib/hooks/reviews";
-import { SEVERITY_FILTERS } from "../../[number]/_components/FindingsPanel/constants";
+import { SEVERITY_FILTERS } from "../../constants";
 import { latestFindingsPerAgent, totalFindings } from "../../helpers";
-import { POPOVER_MIN_ROOM, POPOVER_WIDTH, VIEWPORT_MARGIN } from "./constants";
 import { FindingsPopover } from "./FindingsPopover";
+import { popoverAnchor } from "./helpers";
 import { s, type PopoverAnchor } from "./styles";
-
-/** Pin the preview under the cell, or above it when there is no room below. */
-function anchorFor(cell: HTMLElement): PopoverAnchor {
-  const rect = cell.getBoundingClientRect();
-  const left = Math.max(
-    VIEWPORT_MARGIN,
-    Math.min(rect.left, window.innerWidth - POPOVER_WIDTH - VIEWPORT_MARGIN),
-  );
-  const roomBelow = window.innerHeight - rect.bottom;
-  return roomBelow < POPOVER_MIN_ROOM && rect.top > roomBelow
-    ? { left, bottom: window.innerHeight - rect.top }
-    : { left, top: rect.bottom };
-}
 
 export function FindingsCell({ pr, repoId }: { pr: PrMeta; repoId: string }) {
   const t = useTranslations("prReview");
@@ -61,7 +48,12 @@ export function FindingsCell({ pr, repoId }: { pr: PrMeta; repoId: string }) {
 
   if (!counts || total === 0) return <span style={s.muted}>—</span>;
 
-  const open = (e: React.SyntheticEvent<HTMLElement>) => setAnchor(anchorFor(e.currentTarget));
+  const open = (e: React.SyntheticEvent<HTMLElement>) => setAnchor(
+      popoverAnchor(e.currentTarget.getBoundingClientRect(), {
+        width: window.innerWidth,
+        height: window.innerHeight,
+      }),
+    );
   const goToRuns = () => router.push(`/repos/${repoId}/pulls/${pr.number}?tab=findings`);
 
   return (

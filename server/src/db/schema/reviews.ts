@@ -3,6 +3,8 @@ import { pgTable, uuid, text, integer, jsonb, timestamp, doublePrecision, index 
 import { now } from './_shared';
 import { workspaces } from './core';
 import { pullRequests } from './pulls';
+import { agents } from './agents';
+import { agentRuns } from './runs';
 
 // ============================================================ Review & findings
 
@@ -16,9 +18,9 @@ export const reviews = pgTable(
     prId: uuid('pr_id')
       .notNull()
       .references(() => pullRequests.id, { onDelete: 'cascade' }),
-    agentId: uuid('agent_id'),
+    agentId: uuid('agent_id').references(() => agents.id, { onDelete: 'set null' }),
     /** The agent_run that produced this review (links the timeline run ↔ review). */
-    runId: uuid('run_id'),
+    runId: uuid('run_id').references(() => agentRuns.id, { onDelete: 'cascade' }),
     kind: text('kind', { enum: ['summary', 'review'] }).notNull(),
     verdict: text('verdict'),
     summary: text('summary'),

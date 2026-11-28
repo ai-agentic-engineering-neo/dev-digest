@@ -8,12 +8,14 @@ import type {
   StructuredResult,
   ChatMessage,
 } from '@devdigest/shared';
-import { withRetry, withTimeout } from '../../platform/resilience.js';
-import { toJsonSchema, parseWithRepair } from '../../platform/structured.js';
+import { toJsonSchema, parseWithRepair, StructuredOutputError } from '../../platform/structured.js';
 import { estimateCost } from './pricing.js';
 import { ExternalServiceError } from '../../platform/errors.js';
 
+/** Per-request deadline; the SDK aborts the request when it passes. */
 const DEFAULT_TIMEOUT = 60_000;
+/** SDK retries (timeout, connection error, 408/409/429/5xx), with its own backoff. */
+const SDK_MAX_RETRIES = 2;
 const DEFAULT_MAX_TOKENS = 4096;
 
 /** Anthropic has no embeddings API; embeddings come from the OpenAI Embedder. */
@@ -42,35 +44,34 @@ export class AnthropicProvider implements LLMProvider {
   readonly id = 'anthropic' as const;
   private client: Anthropic;
 
-  constructor(apiKey: string) {
-    this.client = new Anthropic({ apiKey });
+  /** `client` lets tests inject a fake; by default the SDK client owns timeout and retries. */
+  constructor(apiKey: string, client?: Anthropic) {
+    this.client =
+      client ?? new Anthropic({ apiKey, timeout: DEFAULT_TIMEOUT, maxRetries: SDK_MAX_RETRIES });
   }
 
   async listModels(): Promise<ModelInfo[]> {
-    return withRetry(async () => {
-      // SDK 0.33 exposes models.list()
-      const res = await this.client.models.list();
-      return res.data.map((m) => ({
-        id: m.id,
-        provider: 'anthropic' as const,
-        label: m.display_name,
-      }));
-    });
+    // SDK 0.33 exposes models.list()
+    const res = await this.client.models.list();
+    return res.data.map((m) => ({
+      id: m.id,
+      provider: 'anthropic' as const,
+      label: m.display_name,
+    }));
   }
 
   async complete(req: CompletionRequest): Promise<CompletionResult> {
-    return withRetry(() => withTimeout(this.doComplete(req), req.timeoutMs ?? DEFAULT_TIMEOUT));
-  }
-
-  private async doComplete(req: CompletionRequest): Promise<CompletionResult> {
     const { system, rest } = splitSystem(req.messages);
-    const res = await this.client.messages.create({
-      model: req.model,
-      system: system || undefined,
-      messages: rest,
-      max_tokens: req.maxTokens ?? DEFAULT_MAX_TOKENS,
-      temperature: req.temperature ?? 0.2,
-    });
+    const res = await this.client.messages.create(
+      {
+        model: req.model,
+        system: system || undefined,
+        messages: rest,
+        max_tokens: req.maxTokens ?? DEFAULT_MAX_TOKENS,
+        temperature: req.temperature ?? 0.2,
+      },
+      req.timeoutMs ? { timeout: req.timeoutMs } : {},
+    );
     const text = res.content
       .filter((b): b is Anthropic.TextBlock => b.type === 'text')
       .map((b) => b.text)
@@ -97,25 +98,26 @@ export class AnthropicProvider implements LLMProvider {
     let lastRaw = '';
 
     for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
-      const res = await withRetry(() =>
-        withTimeout(
-          this.client.messages.create({
-            model: req.model,
-            system: system || undefined,
-            messages,
-            max_tokens: req.maxTokens ?? DEFAULT_MAX_TOKENS,
-            temperature: req.temperature ?? 0,
-            tools: [
-              {
-                name: toolName,
-                description: `Return the result as ${req.schemaName}.`,
-                input_schema: jsonSchema.schema as Anthropic.Tool.InputSchema,
-              },
-            ],
-            tool_choice: { type: 'tool', name: toolName },
-          }),
-          req.timeoutMs ?? DEFAULT_TIMEOUT,
-        ),
+      const res = await this.client.messages.create(
+        {
+          model: req.model,
+          system: system || undefined,
+          messages,
+          max_tokens: req.maxTokens ?? DEFAULT_MAX_TOKENS,
+          temperature: req.temperature ?? 0,
+          tools: [
+            {
+              name: toolName,
+              description: `Return the result as ${req.schemaName}.`,
+              input_schema: jsonSchema.schema as Anthropic.Tool.InputSchema,
+            },
+          ],
+          tool_choice: { type: 'tool', name: toolName },
+        },
+        {
+          ...(req.timeoutMs ? { timeout: req.timeoutMs } : {}),
+          ...(req.signal ? { signal: req.signal } : {}),
+        },
       );
       tokensIn += res.usage.input_tokens;
       tokensOut += res.usage.output_tokens;
@@ -138,15 +140,30 @@ export class AnthropicProvider implements LLMProvider {
         };
       }
       messages.push({ role: 'assistant', content: res.content });
+      // The API requires every tool_use to be answered by a tool_result in the
+      // next user turn; a plain-text user message there is a 400.
+      const toolUses = res.content.filter(
+        (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use',
+      );
       messages.push({
         role: 'user',
-        content: parsed.repromptMessage,
+        content: toolUses.length
+          ? toolUses.map((b) => ({
+              type: 'tool_result' as const,
+              tool_use_id: b.id,
+              is_error: true,
+              content: parsed.repromptMessage,
+            }))
+          : parsed.repromptMessage,
       });
     }
 
-    throw new ExternalServiceError('Anthropic structured output failed schema validation', {
-      raw: lastRaw,
-    });
+    throw new StructuredOutputError(
+      'Anthropic structured output failed schema validation',
+      { tokensIn, tokensOut, costUsd: estimateCost(req.model, tokensIn, tokensOut) },
+      lastRaw,
+      maxRetries + 1,
+    );
   }
 
   async embed(): Promise<number[][]> {

@@ -5,7 +5,7 @@ import { MockGitHubClient, MockLLMProvider } from '../src/adapters/mocks.js';
 
 /**
  * No-DB route smoke tests via app.inject(). `/health` and the validation/error
- * envelope don't touch the database (postgres-js connects lazily), so these run
+ * envelope don't touch the database (buildApp never queries; the stale-run reaper lives in server.ts), so these run
  * without Docker. DB-backed routes are covered in integration.test.ts.
  */
 const config = loadConfig({ ...process.env, NODE_ENV: 'test' } as NodeJS.ProcessEnv);

@@ -1,12 +1,26 @@
-import { describe, it, expect, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Agent } from "@devdigest/shared";
+import common from "../../../../../messages/en/common.json";
 import messages from "../../../../../messages/en/agents.json";
 import { AgentCard } from "./AgentCard";
 
-afterEach(cleanup);
+const deleteAgent = vi.hoisted(() => vi.fn());
+const push = vi.hoisted(() => vi.fn());
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+vi.mock("../../../../lib/hooks/agents", () => ({
+  useDeleteAgent: () => ({ mutate: deleteAgent, isPending: false }),
+}));
+
+afterEach(() => {
+  cleanup();
+  deleteAgent.mockClear();
+  push.mockClear();
+});
+
+const HREF = "/agents/ag1?tab=config";
 
 const AGENT: Agent = {
   id: "ag1",
@@ -27,7 +41,7 @@ function renderWithIntl(ui: React.ReactElement) {
   const qc = new QueryClient();
   return render(
     <QueryClientProvider client={qc}>
-      <NextIntlClientProvider locale="en" messages={{ agents: messages }}>
+      <NextIntlClientProvider locale="en" messages={{ agents: messages, common }}>
         {ui}
       </NextIntlClientProvider>
     </QueryClientProvider>,
@@ -36,14 +50,49 @@ function renderWithIntl(ui: React.ReactElement) {
 
 describe("AgentCard (smoke)", () => {
   it("renders the agent name, model chip and skill count", () => {
-    renderWithIntl(<AgentCard ag={AGENT} skillCount={3} />);
+    renderWithIntl(<AgentCard ag={AGENT} href={HREF} skillCount={3} />);
     expect(screen.getByText("Security Reviewer")).toBeInTheDocument();
     expect(screen.getByText("gpt-4.1")).toBeInTheDocument();
     expect(screen.getByText("3 skills")).toBeInTheDocument();
   });
 
   it("falls back to a translated placeholder when description is empty", () => {
-    renderWithIntl(<AgentCard ag={{ ...AGENT, description: "" }} />);
+    renderWithIntl(<AgentCard ag={{ ...AGENT, description: "" }} href={HREF} />);
     expect(screen.getByText("No description")).toBeInTheDocument();
+  });
+});
+
+describe("AgentCard navigation", () => {
+  it("renders the name as a real link and opens the agent on a card click", () => {
+    renderWithIntl(<AgentCard ag={AGENT} href={HREF} />);
+    expect(screen.getByRole("link", { name: "Security Reviewer" })).toHaveAttribute("href", HREF);
+    fireEvent.click(screen.getByText("Flags secrets and injection"));
+    expect(push).toHaveBeenCalledWith(HREF);
+  });
+
+  it("does not navigate when a control inside the card is used", () => {
+    renderWithIntl(<AgentCard ag={AGENT} href={HREF} onToggle={() => {}} />);
+    fireEvent.click(screen.getByRole("switch"));
+    fireEvent.click(screen.getByRole("button", { name: "Delete agent" }));
+    expect(push).not.toHaveBeenCalled();
+  });
+});
+
+describe("AgentCard delete confirmation", () => {
+  it("deletes only after confirming in the dialog", () => {
+    renderWithIntl(<AgentCard ag={AGENT} href={HREF} />);
+    fireEvent.click(screen.getByRole("button", { name: "Delete agent" }));
+    expect(deleteAgent).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Delete agent" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(deleteAgent).toHaveBeenCalledWith("ag1");
+  });
+
+  it("does not delete when cancelled", () => {
+    renderWithIntl(<AgentCard ag={AGENT} href={HREF} />);
+    fireEvent.click(screen.getByRole("button", { name: "Delete agent" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(deleteAgent).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

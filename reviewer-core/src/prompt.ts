@@ -29,7 +29,8 @@ const INJECTION_GUARD =
 
 export function wrapUntrusted(label: string, content: string): string {
   // strip any attempt to close our own delimiter
-  const safe = content.replaceAll('</untrusted>', '<\\/untrusted>');
+  // (any case, optional whitespace: </UNTRUSTED >, < / untrusted>)
+  const safe = content.replace(/<\s*\/\s*untrusted\s*>/gi, '<\\/untrusted>');
   return `<untrusted source="${label}">\n${safe}\n</untrusted>`;
 }
 
@@ -66,6 +67,11 @@ export interface PromptParts {
    * undefined → section omitted.
    */
   prDescription?: string;
+  /**
+   * PR title and author (untrusted — author-controlled). Rendered inside a
+   * `pr-meta` untrusted fence right after the task line. Undefined → omitted.
+   */
+  prMeta?: { title: string; author: string };
   /** The unified diff / user task (untrusted content). */
   diff: string;
   /** Optional task framing line, e.g. "Review PR #482 '…'". */
@@ -103,6 +109,14 @@ export function assemblePrompt(parts: PromptParts): AssembledPrompt {
 
   const userSections: string[] = [];
   if (parts.task) userSections.push(parts.task);
+  if (parts.prMeta) {
+    userSections.push(
+      `## PR metadata\n${wrapUntrusted(
+        'pr-meta',
+        `Title: ${parts.prMeta.title}\nAuthor: ${parts.prMeta.author}`,
+      )}`,
+    );
+  }
   if (prDescription) {
     userSections.push(`## PR description\n${wrapUntrusted('pr-description', prDescription)}`);
   }

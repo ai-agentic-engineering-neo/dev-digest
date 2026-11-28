@@ -7,6 +7,8 @@ description: "Modern React best practices and anti-pattern catalog (2025-26). Us
 
 Modern React conventions (2025-26). Covers what to do and what to avoid. For code examples, see [examples.md](examples.md).
 
+Which file and folder code goes in (`constants.ts`, `helpers.ts`, `styles.ts`, shared code, import direction) is the `frontend-architecture` skill. Routing, Server Components, `error.tsx` and bundling are `next-best-practices`.
+
 ## Severity Levels
 
 Each rule is tagged with a severity for use by consuming agents:
@@ -22,7 +24,7 @@ Each rule is tagged with a severity for use by consuming agents:
 - Components must be pure — same inputs = same outputs, no side effects during render
 - Business logic in hooks/helpers, NOT in component bodies
 - Container components fetch data; presentational components receive props and render UI
-- Helper functions extracted OUTSIDE the component body
+- Helper functions live in the component folder's `helpers.ts`, not in the component body or the `.tsx`
 - Max 200 lines per component — split if larger
 - Max 5-7 props — more suggests the component does too much
 - One component per file (small colocated internal helpers are fine)
@@ -90,7 +92,7 @@ camelCase functions returning JSX are NOT React components. They break reconcili
 
 New arrays, objects, and functions created inline in JSX props break `React.memo` on children.
 
-- Extract static arrays/objects to module-level constants
+- Extract static arrays/objects to the component folder's `constants.ts`
 - Extract dynamic arrays/objects to `useMemo`
 - Extract inline functions to `useCallback` (only when passed to memoized children)
 
@@ -108,22 +110,20 @@ New arrays, objects, and functions created inline in JSX props break `React.memo
 ## Data Fetching (HIGH)
 
 - ALL data fetching in custom hooks, never in component bodies
-- Use the project's `useApiQuery`/`useApiMutation` core hooks
+- Use the TanStack Query hooks in `src/lib/hooks/`; `src/lib/api.ts` is the only caller of `fetch`
 - Handle loading, error, and empty states in the container component
 - Use try-catch in async functions within hooks
 
-## Tailwind CSS (MEDIUM)
+## Styling (MEDIUM)
 
-- Use utility classes for all styling — no inline `style={}` objects
-- Use responsive prefixes (`sm:`, `md:`, `lg:`) for responsive design
-- Extract repeated class combinations into reusable components (Button, Card, Badge)
-- Prefer the project's `components/ui/` over recreating common elements
+- No inline `style={{ … }}` object literals in JSX — name the style in the component folder's `styles.ts` and use `style={s.name}`
+- Colours and spacing come from the CSS variables of the UI stylesheet, not literal values
+- Prefer a component from the `@devdigest/ui` barrel over recreating a common element
 
 ## Error Boundaries (HIGH)
 
-- Use `react-error-boundary` package for function component-friendly API
-- Include `resetKeys={[location.pathname]}` so boundaries reset on navigation
-- Provide a "Try again" button that calls `resetErrorBoundary` in fallback UI
+- Use the App Router's `error.tsx` per route segment (see `next-best-practices`)
+- Provide a "Try again" button that calls the `reset` prop in the fallback UI
 - Error boundaries do NOT catch errors in event handlers, async code, or SSR — use try/catch there
 
 ## Key Prop Patterns (CRITICAL)
@@ -149,15 +149,8 @@ New arrays, objects, and functions created inline in JSX props break `React.memo
 
 ## Performance Beyond Memoization (MEDIUM)
 
-- Use `React.lazy()` + `<Suspense>` for route-level code splitting
-- Use Vite `manualChunks` to split vendor bundles for better caching
-- Use top-level static paths in `lazy(() => import('./X'))` — dynamic paths break build analysis
-
-## Axios + React Patterns (HIGH)
-
-- Cancel in-flight requests in `useEffect` cleanup using `AbortController`
-- Use centralized Axios instance with `baseURL`, default headers, and interceptors
-- Use request interceptors for auth tokens, response interceptors for 401/403 handling
+- Routes are split by the App Router; use `next/dynamic` for a heavy client-only component (see `next-best-practices`)
+- Use static paths in `import('./X')` — dynamic paths break build analysis
 
 ## React 19 Patterns (MEDIUM)
 
@@ -166,10 +159,5 @@ New arrays, objects, and functions created inline in JSX props break `React.memo
 
 ## Code Organization (MEDIUM)
 
-### Feature-Based Structure
-- Colocate component + hook + helpers + tests per feature
-- Shared utilities go in `utils/` or `components/ui/`
-
-### File Quality
-- Order: imports, constants, helpers, component, exports
+- Where each kind of code lives is the `frontend-architecture` skill: a `.tsx` holds a view only; constants, pure helpers and styles have their own files beside it
 - Reuse existing types and constants over creating new ones

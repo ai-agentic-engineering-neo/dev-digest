@@ -59,10 +59,11 @@ describe('citation grounding gate', () => {
     expect(res.dropped[0]!.reason).toMatch(/not present in diff/);
   });
 
-  it('full-file kinds (secret_leak) ground against the file, not a hunk', () => {
+  it('full-file kinds (secret_leak) from a scanner ground against the file, not a hunk', () => {
     const res = groundFindings(
       [f({ file: 'src/config.ts', start_line: 1, end_line: 1, kind: 'secret_leak' })],
       diff,
+      { fullFileScanner: true },
     );
     expect(res.kept).toHaveLength(1);
   });

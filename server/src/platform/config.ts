@@ -36,6 +36,10 @@ const EnvSchema = z.object({
   API_ALLOWED_HOSTS: z.string().optional(),
   WEB_PORT: z.coerce.number().int().default(3000),
   DEVDIGEST_CLONE_DIR: z.string().optional(),
+  // Overrides the secrets file (default ~/.devdigest/secrets.json). The hermetic
+  // e2e stack points it at an empty file so it never reads the user's real keys.
+  // '' (an empty `.env` line) falls back to the default.
+  DEVDIGEST_SECRETS_PATH: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   // `.env` (and .env.example) ship `LOG_LEVEL=` empty; an empty string is not a
   // valid enum member, so coerce '' → undefined to fall through to the default.
@@ -82,6 +86,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const cloneDirRaw =
     parsed.DEVDIGEST_CLONE_DIR ?? join(homedir(), '.devdigest', 'workspace');
   const cloneDir = isAbsolute(cloneDirRaw) ? cloneDirRaw : resolve(process.cwd(), cloneDirRaw);
+  const secretsPath = parsed.DEVDIGEST_SECRETS_PATH
+    ? resolve(process.cwd(), parsed.DEVDIGEST_SECRETS_PATH)
+    : join(homedir(), '.devdigest', 'secrets.json');
   return {
     databaseUrl: parsed.DATABASE_URL,
     apiPort: parsed.API_PORT,
@@ -98,7 +105,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     allowedOrigins: [`http://localhost:${parsed.WEB_PORT}`, `http://127.0.0.1:${parsed.WEB_PORT}`],
     webPort: parsed.WEB_PORT,
     cloneDir,
-    secretsPath: join(homedir(), '.devdigest', 'secrets.json'),
+    secretsPath,
     nodeEnv: parsed.NODE_ENV,
     logLevel: parsed.LOG_LEVEL ?? (parsed.NODE_ENV === 'test' ? 'silent' : 'info'),
     webOrigin: `http://localhost:${parsed.WEB_PORT}`,

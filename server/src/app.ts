@@ -17,7 +17,6 @@ import { Container, type ContainerOverrides } from './platform/container.js';
 import { AppError } from './platform/errors.js';
 import { isAllowedHost, isAllowedOrigin } from './platform/local-only.js';
 import { modules } from './modules/index.js';
-import { ReviewService } from './modules/reviews/service.js';
 
 // Attach the DI container to every request/instance.
 declare module 'fastify' {
@@ -30,6 +29,15 @@ export interface BuildAppOptions {
   config?: AppConfig;
   db?: Db;
   overrides?: ContainerOverrides;
+}
+
+/** Stable envelope code for a framework-raised 4xx (no AppError). */
+function frameworkErrorCode(status: number, fastifyCode?: string): string {
+  if (fastifyCode?.includes('JSON')) return 'invalid_json';
+  if (status === 413) return 'payload_too_large';
+  if (status === 429) return 'rate_limited';
+  if (status === 404) return 'not_found';
+  return 'bad_request';
 }
 
 /**
@@ -66,24 +74,8 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
   app.setSerializerCompiler(serializerCompiler);
 
   const container = new Container(config, db, opts.overrides);
+  container.jobs.setLogger(app.log);
   app.decorate('container', container);
-
-  // Reap runs left 'running' by a previous (now-dead) process — otherwise they
-  // show as perpetually "running" in the UI and can't be cancelled (no runner).
-  //
-  // AWAITED before the server accepts requests: a fresh process has no in-flight
-  // runs of its own yet (runs only start via POST /review once listening), so
-  // every 'running' row here is genuinely orphaned. Awaiting also closes the
-  // race where a brand-new run could be created (and wrongly reaped) in the gap
-  // between listening and an async reaper finishing.
-  // NOTE: assumes a SINGLE API instance per DB. With multiple replicas this
-  // would need per-instance scoping / heartbeats (not this app's deployment).
-  try {
-    const reaped = await new ReviewService(container).reapStaleRuns();
-    if (reaped > 0) app.log.info({ reaped }, 'reaped stale running agent_runs on boot');
-  } catch (err) {
-    app.log.warn({ err: (err as Error).message }, 'stale-run reaping failed (non-fatal)');
-  }
 
   // Security headers (X-Content-Type-Options, X-Frame-Options, …). The API
   // serves JSON only, so the default CSP is fine.
@@ -127,7 +119,7 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
 
   // Structured error handler. Registered BEFORE modules so encapsulated
   // module plugins inherit it. Validation → 422; AppError → its status.
-  app.setErrorHandler((err: unknown, _req, reply) => {
+  app.setErrorHandler((err: unknown, req, reply) => {
     // Request validation failure from the zod type provider (schema.body/params).
     if (hasZodFastifySchemaValidationErrors(err)) {
       reply.status(422).send({
@@ -142,7 +134,7 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
     // Response failed its own serialization schema — never leak the raw object;
     // log it and return a generic 500.
     if (isResponseSerializationError(err)) {
-      app.log.error({ err }, 'response serialization failed');
+      req.log.error({ err }, 'response serialization failed');
       reply.status(500).send({ error: { code: 'internal_error', message: 'Internal error' } });
       return;
     }
@@ -170,10 +162,31 @@ export async function buildApp(opts: BuildAppOptions = {}): Promise<FastifyInsta
       });
       return;
     }
-    app.log.error(err);
-    const e = err as { statusCode?: number; message?: string };
-    reply.status(e.statusCode ?? 500).send({
-      error: { code: 'internal_error', message: e.message ?? 'Internal error' },
+    // Framework 4xx (malformed JSON, 413, 429, …): the message is safe to show;
+    // give each a stable code instead of "internal_error".
+    const e = err as { statusCode?: number; message?: string; code?: string };
+    if (typeof e.statusCode === 'number' && e.statusCode >= 400 && e.statusCode < 500) {
+      req.log.warn({ err }, 'request rejected');
+      reply.status(e.statusCode).send({
+        error: { code: frameworkErrorCode(e.statusCode, e.code), message: e.message ?? 'Bad request' },
+      });
+      return;
+    }
+    // Everything else is a 5xx. The detail stays in the log (with the request
+    // id); the client gets a generic message outside development.
+    req.log.error({ err }, 'unhandled error');
+    reply.status(typeof e.statusCode === 'number' ? e.statusCode : 500).send({
+      error: {
+        code: 'internal_error',
+        message: config.nodeEnv === 'development' ? (e.message ?? 'Internal error') : 'Internal error',
+      },
+    });
+  });
+
+  // Unknown routes return the same envelope as every other failure.
+  app.setNotFoundHandler((req, reply) => {
+    reply.status(404).send({
+      error: { code: 'not_found', message: `Route ${req.method} ${req.url} not found` },
     });
   });
 

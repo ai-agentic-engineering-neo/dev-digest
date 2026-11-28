@@ -5,6 +5,7 @@
 
 import React from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Button, Dropdown, ErrorState, Skeleton, Icon, Badge } from "@devdigest/ui";
 import { AppShell } from "../../../components/app-shell";
 import { AgentCard } from "../_components/AgentCard";
@@ -19,8 +20,9 @@ export default function AgentEditorPage() {
   const search = useSearchParams();
   const router = useRouter();
   const { id } = params;
+  const t = useTranslations("agents");
 
-  const { data: agents } = useAgents();
+  const { data: agents, isLoading: agentsLoading, isError: agentsError, refetch: refetchAgents } = useAgents();
   const { data: agent, isLoading, isError, error, refetch } = useAgent(id);
   const update = useUpdateAgent();
 
@@ -80,12 +82,21 @@ export default function AgentEditorPage() {
             </div>
           </div>
           <div style={{ flex: 1, overflow: "auto", padding: "0 12px 12px" }}>
+            {agentsLoading && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <Skeleton height={64} />
+                <Skeleton height={64} />
+              </div>
+            )}
+            {agentsError && !agents && (
+              <ErrorState body={t("list.sidebarLoadError")} onRetry={() => refetchAgents()} />
+            )}
             {(agents ?? []).map((a) => (
               <AgentCard
                 key={a.id}
                 ag={a}
                 active={a.id === id}
-                onClick={() => router.push(`/agents/${a.id}?tab=${tab}`)}
+                href={`/agents/${a.id}?tab=${tab}`}
                 onToggle={(enabled) => update.mutate({ id: a.id, patch: { enabled } })}
               />
             ))}

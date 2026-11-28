@@ -59,8 +59,11 @@ export interface StructuredRequest<T> {
   messages: ChatMessage[];
   temperature?: number;
   maxTokens?: number;
+  /** Per-HTTP-request deadline, enforced by the provider SDK (which aborts the request). */
   timeoutMs?: number;
   maxRetries?: number;
+  /** Aborts the in-flight provider request (e.g. the user cancelled the run). */
+  signal?: AbortSignal;
   /**
    * OpenRouter session id — groups related generations (e.g. all map-reduce
    * chunks of one review) into a session in the OpenRouter dashboard. Sent as
@@ -77,6 +80,14 @@ export interface StructuredResult<T> {
   costUsd: number | null;
   raw: string;
   attempts: number;
+}
+
+/** Token usage and cost of one or more LLM calls. */
+export interface LlmUsage {
+  tokensIn: number;
+  tokensOut: number;
+  /** USD; null when unknown. */
+  costUsd: number | null;
 }
 
 export interface LLMProvider {
@@ -225,6 +236,8 @@ export interface GitClient {
   log(repo: RepoRef, path?: string): Promise<GitCommit[]>;
   readFile(repo: RepoRef, path: string): Promise<string>;
   clonePathFor(repo: RepoRef): string;
+  /** Delete the repo's clone directory (contained in the clone root). No-op if absent. */
+  removeClone(repo: RepoRef): Promise<void>;
 }
 
 // ---------- CodeIndex (ripgrep + tree-sitter) ----------

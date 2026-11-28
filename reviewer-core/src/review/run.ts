@@ -7,6 +7,7 @@ import type {
   UnifiedDiff,
 } from '@devdigest/shared';
 import { Review as ReviewSchema } from '@devdigest/shared';
+import { StructuredOutputError } from '../llm/structured.js';
 import { assemblePrompt } from '../prompt.js';
 import { groundFindings, groundingSummary } from '../grounding.js';
 import { reduceReviews, scoreFromFindings, sliceDiff } from './reduce.js';
@@ -71,12 +72,19 @@ export interface ReviewInput {
   /** PR author's description/body (untrusted; truncated + delimiter-wrapped in
       the prompt). Empty/undefined → section omitted. */
   prDescription?: string;
+  /** PR title + author (untrusted; fenced as `pr-meta` in the prompt). */
+  prMeta?: { title: string; author: string };
   /** Task framing line, e.g. "Review PR #482 …". */
   task?: string;
   /** Override the structured-output retry budget. */
   maxRetries?: number;
   /** Override the map-reduce line threshold. */
   mapThresholdLines?: number;
+  /**
+   * Output-token cap forwarded on every LLM call (reasoning tokens count on
+   * reasoning models). Omitted → the provider's own default.
+   */
+  maxTokens?: number;
   /**
    * OpenRouter session id — forwarded on every LLM call so all chunks of this
    * review group into one session in the OpenRouter dashboard.
@@ -90,6 +98,8 @@ export interface ReviewInput {
    * type, e.g. the server's RunCancelledError); the engine stays agnostic.
    */
   checkCancelled?: () => void;
+  /** Forwarded on every LLM call: aborting it aborts the request in flight. */
+  signal?: AbortSignal;
 }
 
 export interface ReviewOutcome {
@@ -135,6 +145,7 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
     callers: input.callers,
     repoMap: input.repoMap,
     prDescription: input.prDescription,
+    prMeta: input.prMeta,
     task: input.task,
   };
 
@@ -171,14 +182,36 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
     );
     const a = assemblePrompt({ ...promptParts, diff: chunk.diffText });
     if (mode === 'single-pass') assembly = a.assembly;
-    const res = await input.llm.completeStructured<Review>({
-      model: input.model,
-      schema: ReviewSchema,
-      schemaName: 'Review',
-      messages: a.messages,
-      maxRetries,
-      ...(input.sessionId ? { sessionId: input.sessionId } : {}),
-    });
+    let res;
+    try {
+      res = await input.llm.completeStructured<Review>({
+        model: input.model,
+        schema: ReviewSchema,
+        schemaName: 'Review',
+        messages: a.messages,
+        maxRetries,
+        ...(input.maxTokens ? { maxTokens: input.maxTokens } : {}),
+        ...(input.sessionId ? { sessionId: input.sessionId } : {}),
+        ...(input.signal ? { signal: input.signal } : {}),
+      });
+    } catch (err) {
+      // A chunk that failed validation still billed its attempts: report the
+      // whole review's usage so far (earlier chunks included), not just its own.
+      if (err instanceof StructuredOutputError) {
+        const u = err.usage;
+        throw new StructuredOutputError(
+          err.message,
+          {
+            tokensIn: tokensIn + u.tokensIn,
+            tokensOut: tokensOut + u.tokensOut,
+            costUsd: costUsd == null || u.costUsd == null ? null : costUsd + u.costUsd,
+          },
+          [...raws, err.raw].join('\n---\n'),
+          err.attempts,
+        );
+      }
+      throw err;
+    }
     tokensIn += res.tokensIn;
     tokensOut += res.tokensOut;
     costUsd = costUsd == null || res.costUsd == null ? null : costUsd + res.costUsd;
@@ -194,7 +227,9 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
   );
 
   // SHARED citation-grounding gate (the only post-step; not duplicated per strategy).
-  const ground = groundFindings(merged.findings, input.diff);
+  // Model output is never a full-file scanner: every finding is line-grounded,
+  // whatever `kind` the model wrote (specs/grounding-model-findings.md).
+  const ground = groundFindings(merged.findings, input.diff, { fullFileScanner: false });
   const grounding = groundingSummary(ground);
   for (const d of ground.dropped) {
     emit('info', `grounding dropped "${d.finding.title}": ${d.reason}`);

@@ -44,8 +44,23 @@ export function RepoProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const list = repos ?? [];
+  // A stored id that the loaded list no longer contains (repo deleted or the DB
+  // re-seeded) is ignored, so the shell never polls a dead id.
+  const storedValid = stored != null && (!reposLoaded || list.some((r) => r.id === stored));
+  const validStored = storedValid ? stored : null;
+
+  React.useEffect(() => {
+    if (stored == null || storedValid) return;
+    setStored(null);
+    try {
+      localStorage.removeItem("dd-repo");
+    } catch {
+      /* ignore */
+    }
+  }, [stored, storedValid]);
+
   const fromPath = repoIdFromPath(pathname);
-  const repoId = fromPath ?? stored ?? list[0]?.id ?? null;
+  const repoId = fromPath ?? validStored ?? list[0]?.id ?? null;
   const activeRepo = list.find((r) => r.id === repoId) ?? null;
 
   return (

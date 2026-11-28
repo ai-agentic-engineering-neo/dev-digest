@@ -1,34 +1,22 @@
 import type { FastifyInstance } from 'fastify';
-import { eq } from 'drizzle-orm';
-import * as t from '../../db/schema.js';
+import type { ZodTypeProvider } from 'fastify-type-provider-zod';
+import { WorkspaceOverview } from '@devdigest/shared';
 import { getContext } from '../_shared/context.js';
+import { WorkspaceService } from './service.js';
 
 /**
- * F1 — workspace manager: where clones live + a summary of cloned repos.
+ * F1 — workspace manager. Transport layer only.
  *   GET /workspace        → workspace info + cloneDir + cloned repos summary
- *
- * Cleanup/re-pull of individual repos is handled by the repos module
- * (refresh/delete); this surface gives the UI an overview.
  */
-export default async function workspaceRoutes(app: FastifyInstance) {
-  const { container } = app;
+export default async function workspaceRoutes(appBase: FastifyInstance) {
+  const app = appBase.withTypeProvider<ZodTypeProvider>();
+  const service = new WorkspaceService({
+    repos: app.container.repoStore,
+    cloneDir: app.container.config.cloneDir,
+  });
 
-  app.get('/workspace', async (req) => {
-    const { workspaceId } = await getContext(container, req);
-    const repos = await container.db
-      .select()
-      .from(t.repos)
-      .where(eq(t.repos.workspaceId, workspaceId));
-    return {
-      workspaceId,
-      cloneDir: container.config.cloneDir,
-      repos: repos.map((r) => ({
-        id: r.id,
-        full_name: r.fullName,
-        clone_path: r.clonePath,
-        last_polled_at: r.lastPolledAt?.toISOString() ?? null,
-        cloned: Boolean(r.clonePath),
-      })),
-    };
+  app.get('/workspace', { schema: { response: { 200: WorkspaceOverview } } }, async (req) => {
+    const { workspaceId } = await getContext(app.container, req);
+    return service.overview(workspaceId);
   });
 }

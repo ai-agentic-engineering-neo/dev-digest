@@ -2,7 +2,7 @@ import type { AuthProvider, AuthUser, AuthWorkspace } from '@devdigest/shared';
 import { eq } from 'drizzle-orm';
 import type { Db } from '../../db/client.js';
 import * as t from '../../db/schema.js';
-import { DEFAULT_WORKSPACE_NAME, SYSTEM_USER_EMAIL } from '../../db/seed.js';
+import { DEFAULT_WORKSPACE_NAME, SYSTEM_USER_EMAIL } from '../../db/defaults.js';
 
 /**
  * LocalNoAuthProvider — MVP no-login mode. Always returns the single

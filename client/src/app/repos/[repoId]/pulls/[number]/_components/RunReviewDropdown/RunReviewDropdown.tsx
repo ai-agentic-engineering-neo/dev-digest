@@ -1,6 +1,7 @@
 /* RunReviewDropdown — ported from components2.jsx.
-   "Run all enabled agents" / a specific agent → kicks off POST /pulls/:id/review
-   and hands the resulting runIds up so the parent can stream SSE live status. */
+   "Run all enabled agents" / a specific agent → kicks off POST /pulls/:id/review.
+   useRunReview refreshes the PR's live runs on success, so the parent picks the
+   new runs up from the server; a failure is toasted by the global error policy. */
 "use client";
 
 import React from "react";
@@ -17,7 +18,6 @@ export function RunReviewDropdown({
   kind = "primary",
   warnMerged = false,
   onRunStart,
-  onRunsStarted,
   onRunSettled,
 }: {
   prId: string;
@@ -27,30 +27,32 @@ export function RunReviewDropdown({
   warnMerged?: boolean;
   /** Fired the moment a run is kicked off (before it completes). */
   onRunStart?: () => void;
-  onRunsStarted?: (runIds: string[]) => void;
   /** Fired when the run request settles (success or error). */
   onRunSettled?: () => void;
 }) {
   const t = useTranslations("prReview");
   const router = useRouter();
-  const { data: agents } = useAgents();
+  const { data: agents, isLoading: agentsLoading, isError: agentsError } = useAgents();
   const run = useRunReview();
   const all = agents ?? [];
   const hasEnabled = all.some((a) => a.enabled);
 
-  const kick = async (opts: { all?: boolean; agentId?: string }) => {
+  const kick = (opts: { all?: boolean; agentId?: string }) => {
     onRunStart?.();
-    try {
-      const res = await run.mutateAsync({ prId, ...opts });
-      onRunsStarted?.(res.runs.map((r) => r.run_id));
-    } finally {
-      onRunSettled?.();
-    }
+    run.mutate({ prId, ...opts }, { onSettled: () => onRunSettled?.() });
   };
 
   // List EVERY agent (not just enabled) so they're always visible; a specific
   // agent can be run regardless of its enabled flag. "Run all" still targets
   // only enabled agents.
+  // Loading and failed are not "no agents": say which, and only offer to create
+  // an agent once the list has loaded empty.
+  const agentsPlaceholder: DropdownItemDef = agentsLoading
+    ? { label: t("runReview.agentsLoading"), icon: "RefreshCw", muted: true }
+    : agentsError
+      ? { label: t("runReview.agentsError"), icon: "AlertTriangle", muted: true }
+      : { label: t("runReview.noAgents"), icon: "Plus", muted: true, onClick: () => router.push("/agents") };
+
   const agentItems: DropdownItemDef[] = all.length
     ? all.map((a) => ({
         label: a.name,
@@ -58,7 +60,7 @@ export function RunReviewDropdown({
         hint: a.enabled ? a.model : `${a.model} · disabled`,
         onClick: () => kick({ agentId: a.id }),
       }))
-    : [{ label: "No agents yet — create one", icon: "Plus", muted: true, onClick: () => router.push("/agents") }];
+    : [agentsPlaceholder];
 
   const items: DropdownItemDef[] = [
     // Merged/closed PRs can still be reviewed (informational only); lead with a

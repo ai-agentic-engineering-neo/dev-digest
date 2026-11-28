@@ -12,7 +12,8 @@
  * sync→delegate handoff without re-running the parse.
  */
 import { describe, it, expect } from 'vitest';
-import { RepoIntelService } from '../src/modules/repo-intel/service.js';
+import { RepoIntelService, type RepoIntelDeps } from '../src/modules/repo-intel/service.js';
+import { runIncremental } from '../src/modules/repo-intel/pipeline/incremental.js';
 import { MockGitClient } from '../src/adapters/mocks.js';
 import { INDEXER_VERSION } from '../src/modules/repo-intel/constants.js';
 import type { RepoIntelRepository } from '../src/modules/repo-intel/repository.js';
@@ -27,7 +28,11 @@ interface Basics {
   clonePath: string | null;
 }
 
-/** Build a service with a stubbed repository (no DB) + a MockGitClient. */
+/**
+ * Build a service from its ports: a stubbed store (no DB), a MockGitClient,
+ * and the REAL incremental indexer wired the way platform/container.ts does —
+ * the sync → delegate handoff is what these tests cover.
+ */
 function makeService(opts: { basics: Basics | null; state?: IndexState | null; git: MockGitClient }) {
   let state = opts.state ?? null;
   const touched = { n: 0 };
@@ -40,15 +45,24 @@ function makeService(opts: { basics: Basics | null; state?: IndexState | null; g
     },
   } as unknown as RepoIntelRepository;
 
+  // What the pipeline reaches through the container.
   const container = {
     git: opts.git,
-    db: {}, // never queried — service.repo is overridden below
     depgraph: { buildEdges: async () => [] },
     tokenizer: { count: (text: string) => Math.ceil(text.length / 4) },
   } as unknown as Container;
 
-  const service = new RepoIntelService(container);
-  (service as unknown as { repo: RepoIntelRepository }).repo = repo;
+  const service = new RepoIntelService({
+    store: repo,
+    git: opts.git,
+    indexer: {
+      runFull: async () => {
+        throw new Error('full index is not expected in these tests');
+      },
+      runIncremental: (repoId) => runIncremental(container, repo, { repoId }),
+    },
+    enabled: true,
+  } as Partial<RepoIntelDeps> as RepoIntelDeps);
   return { service, touched };
 }
 

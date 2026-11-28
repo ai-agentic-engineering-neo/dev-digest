@@ -7,21 +7,9 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { RepoIntelState, ResyncResponse } from "@devdigest/shared";
 import { api } from "../api";
-
-/** Subset of the server's IndexState the badge + completion-poll need (kept
-    local — not in @devdigest/shared, since repo-intel types live server-side). */
-export interface RepoIntelState {
-  status: "full" | "partial" | "degraded" | "failed";
-  filesIndexed: number;
-  filesSkipped: number;
-  /** Advances when a resync writes a new index row → the UI's completion signal. */
-  lastIndexedSha: string;
-  updatedAt: string;
-  degraded?: boolean;
-  degradedReason?: string;
-  reason?: string;
-}
+import { queryKeys } from "./query-keys";
 
 /** GET /repos/:id/index-state → current repo-intel index state.
     While `poll` is true, refetch on an interval so a running resync's result
@@ -30,7 +18,7 @@ export interface RepoIntelState {
     `lastIndexedSha`/`updatedAt` advance, not by status). */
 export function useRepoIntelStatus(repoId: string | null | undefined, poll = false) {
   return useQuery({
-    queryKey: ["repo-intel-state", repoId],
+    queryKey: queryKeys.repoIntelState(repoId),
     queryFn: () => api.get<RepoIntelState>(`/repos/${repoId}/index-state`),
     enabled: !!repoId,
     refetchInterval: poll ? 1500 : false,
@@ -41,9 +29,9 @@ export function useRepoIntelStatus(repoId: string | null | undefined, poll = fal
 export function useResyncRepoIntel(repoId: string | null | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => api.post<{ status: string }>(`/repos/${repoId}/resync`),
+    mutationFn: () => api.post<ResyncResponse>(`/repos/${repoId}/resync`),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["repo-intel-state", repoId] });
+      qc.invalidateQueries({ queryKey: queryKeys.repoIntelState(repoId) });
     },
   });
 }

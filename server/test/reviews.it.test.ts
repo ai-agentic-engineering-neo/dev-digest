@@ -4,7 +4,7 @@ import { waitForPrRuns } from './helpers/runs.js';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/platform/config.js';
 import { seed } from '../src/db/seed.js';
-import { MockLLMProvider, MockEmbedder, MockGitClient } from '../src/adapters/mocks.js';
+import { MockLLMProvider, MockEmbedder, MockGitClient, MockGitHubClient } from '../src/adapters/mocks.js';
 import * as t from '../src/db/schema.js';
 import { eq } from 'drizzle-orm';
 import type { Review } from '@devdigest/shared';
@@ -110,11 +110,16 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     await pg?.stop();
   });
 
-  function appWith(structured: unknown, provider: 'openai' | 'anthropic' = 'openai') {
+  function appWith(
+    structured: unknown,
+    provider: 'openai' | 'anthropic' = 'openai',
+    extra: { github?: MockGitHubClient } = {},
+  ) {
     return buildApp({
       config: config(),
       db: pg.handle.db,
       overrides: {
+        ...extra,
         embedder: new MockEmbedder(),
         git: new MockGitClient({ diff: DIFF }),
         llm: {
@@ -153,6 +158,24 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
       })
     ).json();
     expect(updated.version).toBe(2);
+
+    await app.close();
+  });
+
+  it('review trigger tolerates an empty body: it reaches the use case (400), not the validator (422)', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+
+    // No payload at all, and an empty object: neither names an agent.
+    for (const payload of [undefined, {}]) {
+      const res = await app.inject({
+        method: 'POST',
+        url: `/pulls/${pr.id}/review`,
+        ...(payload ? { payload } : {}),
+      });
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error.code).toBe('invalid_run_request');
+    }
 
     await app.close();
   });
@@ -208,6 +231,166 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     expect(run!.status).toBe('done');
     expect(run!.findingsCount).toBe(1);
     expect(run!.grounding).toBe('1/2 passed');
+
+    await app.close();
+  });
+
+  it('M1 run cost: a done run persists usage cost and every read route returns it', async () => {
+    // GitHub mocked with no remote PRs so the list route serves persisted rows only.
+    const app = await appWith(REVIEW_FIXTURE, 'openai', { github: new MockGitHubClient({ pulls: [] }) });
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'CostAgent', provider: 'openai', model: 'gpt-4.1', system_prompt: 's' },
+      })
+    ).json();
+    const body = (
+      await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } })
+    ).json();
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+    const runId = body.runs[0].run_id;
+
+    // MockLLMProvider reports costUsd 0.001 per call; the run sums its calls.
+    const [run] = await pg.handle.db.select().from(t.agentRuns).where(eq(t.agentRuns.id, runId));
+    expect(run!.status).toBe('done');
+    expect(run!.costUsd).toBeGreaterThan(0);
+    const cost = run!.costUsd;
+
+    const trace = (await app.inject({ method: 'GET', url: `/runs/${runId}/trace` })).json();
+    expect(trace.stats.cost_usd).toBe(cost);
+
+    const runs = (await app.inject({ method: 'GET', url: `/pulls/${pr.id}/runs` })).json();
+    expect(runs[0].cost_usd).toBe(cost);
+
+    const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    expect(pulls.find((p: { id: string }) => p.id === pr.id).total_cost_usd).toBe(cost);
+
+    await app.close();
+  });
+
+  it('M1 run cost: the PR list totals the cost of every run on the PR, not just the latest', async () => {
+    const app = await appWith(REVIEW_FIXTURE, 'openai', { github: new MockGitHubClient({ pulls: [] }) });
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'TotalCostAgent', provider: 'openai', model: 'gpt-4.1', system_prompt: 's' },
+      })
+    ).json();
+    // Two separate reviews of the same PR → two done runs, each with its own cost.
+    await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } });
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+    await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } });
+    const runs = await waitForPrRuns(pg.handle.db, pr.id, { expected: 2 });
+
+    const costs = runs.map((r) => r.costUsd ?? 0);
+    expect(costs).toHaveLength(2);
+    expect(Math.min(...costs)).toBeGreaterThan(0);
+
+    const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    expect(pulls.find((p: { id: string }) => p.id === pr.id).total_cost_usd).toBeCloseTo(costs[0]! + costs[1]!, 10);
+
+    await app.close();
+  });
+
+  it('M1 run cost: a failed run stores no cost and the PR list shows none', async () => {
+    // `{}` fails the Review schema inside MockLLMProvider → the run fails.
+    const app = await appWith({}, 'openai', { github: new MockGitHubClient({ pulls: [] }) });
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const agent = (
+      await app.inject({
+        method: 'POST',
+        url: '/agents',
+        payload: { name: 'FailAgent', provider: 'openai', model: 'gpt-4.1', system_prompt: 's' },
+      })
+    ).json();
+    const body = (
+      await app.inject({ method: 'POST', url: `/pulls/${pr.id}/review`, payload: { agentId: agent.id } })
+    ).json();
+    await waitForPrRuns(pg.handle.db, pr.id, { expected: 1 });
+
+    const [run] = await pg.handle.db
+      .select()
+      .from(t.agentRuns)
+      .where(eq(t.agentRuns.id, body.runs[0].run_id));
+    expect(run!.status).toBe('failed');
+    expect(run!.costUsd).toBeNull();
+
+    const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    expect(pulls.find((p: { id: string }) => p.id === pr.id).total_cost_usd).toBeNull();
+
+    await app.close();
+  });
+
+  it("M1 findings column: the PR list sums each agent's latest review and skips superseded ones", async () => {
+    const app = await appWith(REVIEW_FIXTURE, 'openai', { github: new MockGitHubClient({ pulls: [] }) });
+    const { repo, pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    // A second PR in the same repo that nobody reviewed.
+    const [unreviewed] = await pg.handle.db
+      .insert(t.pullRequests)
+      .values({
+        workspaceId,
+        repoId: repo.id,
+        number: 483,
+        title: 'Unreviewed',
+        author: 'marisa.koch',
+        branch: 'feat/x',
+        base: 'main',
+        headSha: 'ffff0000',
+        status: 'needs_review',
+      })
+      .returning();
+    const agents = await pg.handle.db.select().from(t.agents);
+    const [security, performance] = [agents[0]!.id, agents[1]!.id];
+
+    // Reviews are written directly, with explicit timestamps, so "latest per
+    // agent" does not depend on run timing.
+    const review = async (agentId: string, createdAt: string, severities: string[]) => {
+      const [rv] = await pg.handle.db
+        .insert(t.reviews)
+        .values({ workspaceId, prId: pr.id, agentId, kind: 'review', score: 50, createdAt: new Date(createdAt) })
+        .returning();
+      if (severities.length === 0) return;
+      await pg.handle.db.insert(t.findings).values(
+        severities.map((severity) => ({
+          reviewId: rv!.id,
+          file: 'src/config.ts',
+          startLine: 11,
+          endLine: 11,
+          severity,
+          category: 'security',
+          title: `${severity} finding`,
+          rationale: 'r',
+          confidence: 0.9,
+        })),
+      );
+    };
+    await review(security, '2026-01-01T10:00:00Z', ['CRITICAL', 'CRITICAL', 'WARNING']); // superseded
+    await review(security, '2026-01-01T12:00:00Z', ['CRITICAL']);
+    await review(performance, '2026-01-01T11:00:00Z', ['WARNING', 'SUGGESTION', 'SUGGESTION']);
+
+    const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo.id}/pulls` })).json();
+    const byId = (id: string) => pulls.find((p: { id: string }) => p.id === id);
+    expect(byId(pr.id).findings_counts).toEqual({ CRITICAL: 1, WARNING: 1, SUGGESTION: 2 });
+    expect(byId(unreviewed!.id).findings_counts).toBeNull();
+
+    await app.close();
+  });
+
+  it('M1 findings column: the seeded PR #482 sums its two seeded agents, and re-seeding adds nothing', async () => {
+    const app = await appWith(REVIEW_FIXTURE, 'openai', { github: new MockGitHubClient({ pulls: [] }) });
+    const [repo] = await pg.handle.db.select().from(t.repos).where(eq(t.repos.fullName, 'acme/payments-api'));
+
+    await seed(pg.handle.db); // second run of the seed (beforeAll ran the first)
+    const pulls = (await app.inject({ method: 'GET', url: `/repos/${repo!.id}/pulls` })).json();
+    const seeded = pulls.find((p: { number: number }) => p.number === 482);
+    // Security Reviewer: 1 CRITICAL + 1 WARNING; Performance Reviewer: 1 WARNING + 2 SUGGESTION.
+    expect(seeded.findings_counts).toEqual({ CRITICAL: 1, WARNING: 2, SUGGESTION: 2 });
+    expect(seeded.score).toBe(61); // the Security review stays the latest one
+    expect(seeded.total_cost_usd).toBeCloseTo(0.0142 + 0.0098, 10);
 
     await app.close();
   });
@@ -286,6 +469,34 @@ d('A2 reviews + agents (Testcontainers pg)', () => {
     // The replay buffer should contain our log lines as SSE `data:` frames.
     expect(sse.payload).toContain('Starting review');
     expect(sse.payload).toContain('Citation grounding');
+    await app.close();
+  });
+
+  it('SSE: an unknown run is a 404; a finished run off the bus replays its stored log and ends', async () => {
+    const app = await appWith(REVIEW_FIXTURE);
+    const missing = await app.inject({
+      method: 'GET',
+      url: '/runs/00000000-0000-4000-8000-000000000000/events',
+    });
+    expect(missing.statusCode).toBe(404);
+    expect(missing.json().error.code).toBe('not_found');
+
+    // A run the bus never saw (as after the buffer expired or a restart).
+    const { pr } = await setupRepoAndPr(pg.handle.db, workspaceId);
+    const [run] = await pg.handle.db
+      .insert(t.agentRuns)
+      .values({ workspaceId, prId: pr.id, status: 'done' })
+      .returning();
+    await pg.handle.db.insert(t.runTraces).values({
+      runId: run!.id,
+      trace: { log: [{ t: '10:00:00', kind: 'info', msg: 'Stored line' }] },
+    });
+
+    const sse = await app.inject({ method: 'GET', url: `/runs/${run!.id}/events` });
+    expect(sse.statusCode).toBe(200);
+    expect(sse.headers['content-type']).toContain('text/event-stream');
+    expect(sse.payload).toContain('id: 1\nevent: info\n');
+    expect(sse.payload).toContain('"msg":"Stored line"');
     await app.close();
   });
 

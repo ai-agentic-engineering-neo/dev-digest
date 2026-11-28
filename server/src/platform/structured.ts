@@ -7,6 +7,7 @@ export {
   toJsonSchema,
   extractJson,
   parseWithRepair,
+  StructuredOutputError,
   type JsonSchema,
   type ParseResult,
 } from '@devdigest/reviewer-core';

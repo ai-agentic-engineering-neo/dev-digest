@@ -35,12 +35,14 @@ flowchart LR
   REQ["HTTP request"] --> MW["plugins (registered before modules)<br/>helmet · cors · rate-limit · SSE"]
   MW --> VAL["route zod schema<br/>params/body validation"]
   VAL --> MOD["feature module plugin<br/>modules/&lt;name&gt;/routes.ts"]
+  DI{"DI container<br/>platform/container.ts"} -. "wires at plugin registration" .-> MOD
   MOD --> SVC["service<br/>(e.g. ReviewService)"]
-  SVC --> DI{"DI container<br/>platform/container.ts"}
-  DI --> ADP["adapters (ports)<br/>llm · github · git · astgrep · tokenizer · secrets"]
+  SVC --> PORTS["ports<br/>modules/&lt;name&gt;/ports.ts"]
+  REPO["repository<br/>modules/&lt;name&gt;/repository.ts"] -. "implements" .-> PORTS
+  ADP["adapters<br/>llm · github · git · astgrep · tokenizer · secrets"] -. "implement" .-> PORTS
+  REPO --> DB[("Drizzle → Postgres")]
   ADP -->|"prod"| EXT["LLM (OpenAI/Anthropic) · GitHub · git · pgvector"]
   ADP -->|"tests"| MOCK["src/adapters/mocks.ts<br/>MockLLMProvider · MockGitClient · …"]
-  SVC --> DB[("Drizzle → Postgres")]
   SVC -. "run traces" .-> SSE["SSE stream → client"]
   VAL -. "invalid" .-> ERR["error handler (structured envelope)<br/>validation → 422 · AppError → status<br/>response serialization → 500"]
   SVC -. "throws" .-> ERR
@@ -48,6 +50,11 @@ flowchart LR
 
 - **Plugins register before modules** so the encapsulated module plugins inherit
   them (helmet, cors, rate-limit, SSE) and the shared error handler.
+- **Imports point inward.** A service knows only the interfaces in its module's
+  `ports.ts`; repositories and adapters implement them, and the container (or
+  the top of the module's `routes.ts`) passes them in. `pnpm deps:validate`
+  checks this on every CI run; the rules and their rationale are in the
+  [`onion-architecture` skill](../.claude/skills/onion-architecture/SKILL.md).
 - **Validation is schema-first.** Each route declares zod `params`/`body` schemas
   (`fastify-type-provider-zod`); invalid input is rejected with a `422` **before**
   the handler runs — handlers no longer hand-roll `Schema.parse(req.body)`.
@@ -97,6 +104,7 @@ flowchart TB
 | `EMBEDDINGS_ENABLED` | `false` | memory/RAG embeddings (OpenAI); off → **zero** OpenAI calls |
 | `REPO_INTEL_ENABLED` | `true` | repo skeleton + callers in the prompt; `false` → ripgrep-only |
 | `DEVDIGEST_CLONE_DIR` | `./clones` | imported-repo checkouts (git-ignored) |
+| `DEVDIGEST_SECRETS_PATH` | `~/.devdigest/secrets.json` | overrides the secrets file path (the hermetic e2e stack points it at an empty temp file) |
 | `LOG_LEVEL` | `info` (`silent` in test) | pino level |
 | `NODE_ENV` | `development` | `test` → silent logs + global rate-limit disabled |
 
@@ -104,9 +112,12 @@ Secrets (API keys, `GITHUB_TOKEN`) are **not** part of `AppConfig` — they go
 through `SecretsProvider` (`~/.devdigest/secrets.json`, mode `0600`, with
 `process.env` as a fallback), per the **Where keys live** note at the top.
 
-Migrations are **not** applied on boot — run `pnpm db:migrate` (pgvector is
-enabled by migration `0000`). `pnpm db:seed` is idempotent demo data
-(`acme/payments-api`, PR #482, the two built-in agents).
+Migrations are **not** applied on boot — run `pnpm db:migrate` (`migrate.ts`
+runs `CREATE EXTENSION IF NOT EXISTS vector` before the migrations, because
+migration `0000` already uses `vector` columns; plain `drizzle-kit migrate` on
+an empty database fails at `0000` unless pgvector is enabled first. Migration
+`0011` also starts with the same statement). `pnpm db:seed` is idempotent demo
+data (`acme/payments-api`, PR #482, the two built-in agents).
 
 ## Review context (non-obvious)
 
@@ -147,3 +158,7 @@ hermetic:
 
 A DB-backed test (one that imports `test/helpers/pg.ts`) **must** use the
 `*.it.test.ts` suffix so the split stays correct. See [`../TESTING.md`](../TESTING.md).
+
+## More
+
+[Docs](docs/README.md) · [Repo docs](../docs/README.md) · [Specs](specs/README.md) · [Insights](INSIGHTS.md) · [Main README](../README.md)

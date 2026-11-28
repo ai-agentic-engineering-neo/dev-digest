@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { LlmUsage } from '@devdigest/shared';
 import { zodResponseFormat } from 'openai/helpers/zod';
 
 /**
@@ -45,6 +46,23 @@ export function extractJson(text: string): string {
     }
   }
   return trimmed.slice(start);
+}
+
+/**
+ * Thrown by `completeStructured` when every attempt failed schema validation.
+ * Carries what the attempts consumed (the calls were billed) and the last raw
+ * output, so the caller can record them on the failed run.
+ */
+export class StructuredOutputError extends Error {
+  constructor(
+    message: string,
+    public readonly usage: LlmUsage,
+    public readonly raw: string,
+    public readonly attempts: number,
+  ) {
+    super(message);
+    this.name = 'StructuredOutputError';
+  }
 }
 
 export type ParseResult<T> =

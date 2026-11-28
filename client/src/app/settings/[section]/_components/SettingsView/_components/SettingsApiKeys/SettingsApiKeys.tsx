@@ -68,7 +68,15 @@ function KeyRow({
             type={reveal ? "text" : "password"}
             placeholder={t("apiKeys.placeholder")}
             suffix={
-              <Icon.EyeOff size={14} style={s.revealIcon} onClick={() => setReveal((r) => !r)} />
+              <button
+                type="button"
+                aria-label={reveal ? t("apiKeys.hideKey") : t("apiKeys.showKey")}
+                aria-pressed={reveal}
+                onClick={() => setReveal((r) => !r)}
+                style={s.revealBtn}
+              >
+                <Icon.EyeOff size={14} />
+              </button>
             }
           />
         </div>

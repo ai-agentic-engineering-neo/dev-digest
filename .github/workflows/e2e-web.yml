@@ -14,12 +14,16 @@ on:
     paths:
       - 'client/**'
       - 'server/**'
+      - 'reviewer-core/**'
+      - 'docker-compose.yml'
       - 'e2e/**'
       - '.github/workflows/e2e-web.yml'
   pull_request:
     paths:
       - 'client/**'
       - 'server/**'
+      - 'reviewer-core/**'
+      - 'docker-compose.yml'
       - 'e2e/**'
       - '.github/workflows/e2e-web.yml'
 
@@ -39,6 +43,7 @@ jobs:
   e2e:
     name: browser flows
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 

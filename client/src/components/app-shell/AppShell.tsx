@@ -4,7 +4,9 @@
 "use client";
 
 import React from "react";
+import { useTranslations } from "next-intl";
 import { AppFrame, CommandPalette, ShortcutsHelp, type Crumb } from "@devdigest/ui";
+import { ConfirmDialog } from "../confirm-dialog";
 import { useGlobalShortcuts, useShellCommands, useShellContext } from "./hooks";
 
 export function AppShell({ children, crumb }: { children: React.ReactNode; crumb?: Crumb[] }) {
@@ -17,7 +19,8 @@ export function AppShell({ children, crumb }: { children: React.ReactNode; crumb
 
   useGlobalShortcuts({ onOpenPalette: openPalette, onOpenHelp: openHelp });
   const commands = useShellCommands();
-  const ctx = useShellContext({ onOpenCommandPalette: openPalette });
+  const t = useTranslations("shell");
+  const { ctx, pendingRemoval } = useShellContext({ onOpenCommandPalette: openPalette });
 
   return (
     <>
@@ -26,6 +29,15 @@ export function AppShell({ children, crumb }: { children: React.ReactNode; crumb
       </AppFrame>
       <CommandPalette open={paletteOpen} commands={commands} onClose={closePalette} />
       <ShortcutsHelp open={helpOpen} onClose={closeHelp} />
+      {pendingRemoval && (
+        <ConfirmDialog
+          title={t("removeRepo.title")}
+          message={t("removeRepo.confirm", { name: pendingRemoval.name })}
+          confirmLabel={t("removeRepo.confirmLabel")}
+          onConfirm={pendingRemoval.confirm}
+          onCancel={pendingRemoval.cancel}
+        />
+      )}
     </>
   );
 }

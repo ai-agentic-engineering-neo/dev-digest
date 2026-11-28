@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { LLMProvider, StructuredRequest, StructuredResult } from '@devdigest/shared';
+import { StructuredOutputError } from '@devdigest/shared';
 import { CONFIG_DIFF, stubLLM } from './stubs.js';
 import { reviewPullRequest } from '../src/index.js';
 
@@ -154,5 +155,63 @@ describe('reviewPullRequest (engine)', () => {
     await reviewPullRequest({ systemPrompt: 's', model: 'm', diff, llm: recorder, sessionId: 'sess-abc' });
     expect(seen.length).toBeGreaterThan(0);
     expect(seen.every((s) => s === 'sess-abc')).toBe(true);
+  });
+
+  it('forwards the abort signal, and a failed chunk reports the usage of the chunks before it', async () => {
+    const signals: (AbortSignal | undefined)[] = [];
+    let call = 0;
+    const llm: LLMProvider = {
+      id: 'openrouter',
+      async completeStructured<T>(req: StructuredRequest<T>): Promise<StructuredResult<T>> {
+        signals.push(req.signal);
+        call++;
+        if (call === 2) {
+          throw new StructuredOutputError('bad output', { tokensIn: 7, tokensOut: 3, costUsd: 0.02 }, 'oops', 3);
+        }
+        return {
+          data: { verdict: 'approve', summary: 'ok', score: 100, findings: [] } as unknown as T,
+          model: req.model,
+          tokensIn: 100,
+          tokensOut: 50,
+          costUsd: 0.01,
+          raw: '{"first":true}',
+          attempts: 1,
+        };
+      },
+      async listModels() {
+        return [];
+      },
+      async complete() {
+        throw new Error('not used');
+      },
+      async embed() {
+        return [];
+      },
+    };
+    const twoFiles = {
+      raw: `${CONFIG_DIFF.raw}\ndiff --git a/src/b.ts b/src/b.ts\n--- a/src/b.ts\n+++ b/src/b.ts\n@@ -1,1 +1,2 @@\n a\n+b`,
+      files: [
+        ...CONFIG_DIFF.files,
+        { path: 'src/b.ts', additions: 1, deletions: 0, hunks: [] },
+      ],
+    };
+    const controller = new AbortController();
+
+    const err = await reviewPullRequest({
+      systemPrompt: 's',
+      model: 'm',
+      diff: twoFiles,
+      llm,
+      strategy: 'map-reduce',
+      signal: controller.signal,
+    }).catch((e: unknown) => e);
+
+    expect(signals).toEqual([controller.signal, controller.signal]);
+    expect(err).toBeInstanceOf(StructuredOutputError);
+    const failed = err as StructuredOutputError;
+    expect(failed.usage.tokensIn).toBe(107);
+    expect(failed.usage.tokensOut).toBe(53);
+    expect(failed.usage.costUsd).toBeCloseTo(0.03);
+    expect(failed.raw).toContain('oops');
   });
 });

@@ -1,17 +1,20 @@
 /**
- * Run cancellation against in-memory ports (BE-2): a cancel that arrives while
- * the model is still answering must stop the run — no review is saved and the
- * run stays `cancelled`. The happy path saves one review through
- * `saveReviewOutcome` and marks the commit reviewed.
+ * Run cancellation against in-memory ports (BE-2, BE-9): a cancel that arrives
+ * while the model is still answering must stop the run — no review is saved and
+ * the run stays `cancelled` — and it aborts the request in flight. A run whose
+ * output never validates is `failed` with the usage it consumed. The happy path
+ * saves one review through `saveReviewOutcome` and marks the commit reviewed.
  */
 import { describe, it, expect } from 'vitest';
 import type {
   Agent,
   LLMProvider,
   Review,
+  RunTrace,
   StructuredRequest,
   StructuredResult,
 } from '@devdigest/shared';
+import { StructuredOutputError } from '@devdigest/shared';
 import { ReviewService } from '../src/modules/reviews/service.js';
 import type { ReviewOutcome, ReviewPull, ReviewStore, RunCompletion } from '../src/modules/reviews/ports.js';
 import { RunBus } from '../src/platform/sse.js';
@@ -96,7 +99,32 @@ class SlowLLM implements Partial<LLMProvider> {
   }
 }
 
-function setup() {
+/** An LLM that answers only when its request is aborted — and then rejects, like the SDK. */
+class AbortableLLM implements Partial<LLMProvider> {
+  readonly id = 'openai' as const;
+  readonly called = deferred();
+  async completeStructured<T>(req: StructuredRequest<T>): Promise<StructuredResult<T>> {
+    this.called.resolve();
+    return new Promise((_, reject) => {
+      req.signal?.addEventListener('abort', () => reject(new Error('Request was aborted.')));
+    });
+  }
+}
+
+/** An LLM whose output never validates. */
+class InvalidOutputLLM implements Partial<LLMProvider> {
+  readonly id = 'openai' as const;
+  async completeStructured<T>(): Promise<StructuredResult<T>> {
+    throw new StructuredOutputError(
+      'structured output failed schema validation',
+      { tokensIn: 300, tokensOut: 120, costUsd: 0.004 },
+      '{"bad":true}',
+      3,
+    );
+  }
+}
+
+function setup<L extends Partial<LLMProvider> = SlowLLM>(llm: L = new SlowLLM() as unknown as L) {
   const runs = new Map<string, { status: string; completion?: RunCompletion }>();
   const reviews: ReviewOutcome[] = [];
   const traces = new Map<string, unknown>();
@@ -149,7 +177,6 @@ function setup() {
     deleteAgentRun: async () => false,
   };
 
-  const llm = new SlowLLM();
   const bus = new RunBus();
   const service = new ReviewService({
     store,
@@ -176,7 +203,7 @@ function setup() {
 
 describe('ReviewService run cancellation', () => {
   it('a cancel during the LLM call leaves the run cancelled with no review', async () => {
-    const { service, runs, reviews, traces, exited, marked, llm, bus, save } = setup();
+    const { service, runs, reviews, traces, exited, marked, llm, bus, save } = setup(new SlowLLM());
 
     const { runs: started } = await service.runReview('ws-1', pull.id, [agent]);
     const runId = started[0]!.run_id;
@@ -198,7 +225,7 @@ describe('ReviewService run cancellation', () => {
   });
 
   it('without a cancel the run saves one review and marks the commit reviewed', async () => {
-    const { service, runs, reviews, exited, marked, llm } = setup();
+    const { service, runs, reviews, exited, marked, llm } = setup(new SlowLLM());
 
     const { runs: started } = await service.runReview('ws-1', pull.id, [agent]);
     const runId = started[0]!.run_id;
@@ -213,5 +240,38 @@ describe('ReviewService run cancellation', () => {
     expect(reviews[0]!.findings).toHaveLength(1);
     expect(reviews[0]!.completion.findingsCount).toBe(1);
     expect(marked).toEqual([pull.id]);
+  });
+
+  it('a cancel aborts the LLM request in flight', async () => {
+    const { service, runs, reviews, exited, llm, bus } = setup(new AbortableLLM());
+
+    const { runs: started } = await service.runReview('ws-1', pull.id, [agent]);
+    const runId = started[0]!.run_id;
+
+    await llm.called.promise;
+    await service.cancelRun(runId);
+    // The LLM never answers on its own: only the abort lets the run exit.
+    await exited.promise;
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(runs.get(runId)?.status).toBe('cancelled');
+    expect(runs.get(runId)?.completion).toBeUndefined();
+    expect(reviews).toHaveLength(0);
+    expect(bus.isCancelled(runId)).toBe(false);
+  });
+
+  it('output that never validates fails the run and keeps its usage and cost', async () => {
+    const { service, runs, traces, exited } = setup(new InvalidOutputLLM());
+
+    const { runs: started } = await service.runReview('ws-1', pull.id, [agent]);
+    const runId = started[0]!.run_id;
+    await exited.promise;
+
+    const run = runs.get(runId);
+    expect(run?.status).toBe('failed');
+    expect(run?.completion).toMatchObject({ tokensIn: 300, tokensOut: 120, costUsd: 0.004 });
+    const trace = traces.get(runId) as RunTrace;
+    expect(trace.stats).toMatchObject({ tokens_in: 300, tokens_out: 120, cost_usd: 0.004 });
+    expect(trace.raw_output).toBe('{"bad":true}');
   });
 });

@@ -152,9 +152,12 @@ export type RepoContext = Pick<RepoIntel, 'getCallerSignatures' | 'getRepoMap' |
 
 /** The live run stream: publish and buffer (via RunLogger), plus cancel and completion. */
 export interface RunEvents extends RunEventBus {
+  /** Request cancellation: flags the run and aborts its `signal`. */
   cancel(runId: string): void;
   isCancelled(runId: string): boolean;
-  /** Forget a cancellation request; the run executor calls it when a run exits. */
+  /** Aborted when the run is cancelled; the executor passes it to the LLM call. */
+  signal(runId: string): AbortSignal;
+  /** Forget a cancellation request and the run's signal; the run executor calls it when a run exits. */
   clearCancelled(runId: string): void;
   complete(runId: string): void;
   /** Whether the bus still holds the run's events (live, or recently completed). */

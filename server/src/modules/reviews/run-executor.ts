@@ -1,4 +1,5 @@
-import type { Agent, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
+import type { Agent, LlmUsage, Review, RunTrace, UnifiedDiff } from '@devdigest/shared';
+import { StructuredOutputError } from '@devdigest/shared';
 import { reviewPullRequest, countBlockers } from '@devdigest/reviewer-core';
 import { RunLogger } from '../../platform/run-logger.js';
 import { MAX_DIFF_CHARS, REVIEW_MAX_OUTPUT_TOKENS, REVIEW_STRATEGY } from './constants.js';
@@ -230,6 +231,8 @@ export class ReviewRunExecutor {
         checkCancelled: () => {
           if (this.deps.events.isCancelled(runId)) throw new RunCancelledError();
         },
+        // Cancel aborts the LLM request in flight, not just the next checkpoint.
+        signal: this.deps.events.signal(runId),
       });
       const { tokensIn, tokensOut, costUsd, grounding } = outcome;
 
@@ -332,27 +335,32 @@ export class ReviewRunExecutor {
       // Failure/cancel: persist status + the error text + the log-so-far so the
       // run (and WHY it failed) is visible on the UI after a reload. A cancelled
       // run is already `cancelled` in the DB, so the guarded update is a no-op.
-      const cancelled = err instanceof RunCancelledError;
+      // An aborted LLM call surfaces as the SDK's abort error: still a cancel.
+      const cancelled = err instanceof RunCancelledError || this.deps.events.isCancelled(runId);
       const status = cancelled ? 'cancelled' : 'failed';
       const msg = cancelled ? 'Cancelled by user' : (err as Error).message;
+      // Output that never validated was still billed: keep its usage on the run.
+      const failed = !cancelled && err instanceof StructuredOutputError ? err : null;
+      const usage: LlmUsage = failed?.usage ?? { tokensIn: 0, tokensOut: 0, costUsd: null };
       runLog.error(cancelled ? 'Run cancelled by user' : `Run failed: ${msg}`);
       await this.deps.store
         .completeAgentRun(runId, {
           status,
           durationMs: Date.now() - start,
-          tokensIn: 0,
-          tokensOut: 0,
-          costUsd: null,
+          ...usage,
           findingsCount: 0,
           grounding: '0/0 passed',
           error: msg,
         })
         .catch(() => undefined);
       await this.deps.store
-        .saveRunTrace(runId, this.traceFromBuffer(runId, pull, agent, '0/0 passed', Date.now() - start))
+        .saveRunTrace(
+          runId,
+          this.traceFromBuffer(runId, pull, agent, '0/0 passed', Date.now() - start, usage, failed?.raw),
+        )
         .catch(() => undefined);
       this.deps.events.complete(runId);
-      throw err;
+      throw cancelled && !(err instanceof RunCancelledError) ? new RunCancelledError() : err;
     } finally {
       // The run has exited: its cancellation request (if any) is spent.
       this.deps.events.clearCancelled(runId);
@@ -457,6 +465,8 @@ export class ReviewRunExecutor {
     agent: Agent,
     grounding: string,
     durationMs = 0,
+    usage: LlmUsage = { tokensIn: 0, tokensOut: 0, costUsd: null },
+    rawOutput = '',
   ): RunTrace {
     return {
       config: {
@@ -467,10 +477,17 @@ export class ReviewRunExecutor {
         pr: pull.number,
         source: 'local',
       },
-      stats: { duration_ms: durationMs, tokens_in: 0, tokens_out: 0, cost_usd: null, findings: 0, grounding },
+      stats: {
+        duration_ms: durationMs,
+        tokens_in: usage.tokensIn,
+        tokens_out: usage.tokensOut,
+        cost_usd: usage.costUsd,
+        findings: 0,
+        grounding,
+      },
       prompt_assembly: { system: agent.system_prompt, skills: null, memory: null, specs: null, user: '' },
       tool_calls: [],
-      raw_output: '',
+      raw_output: rawOutput,
       memory_pulled: [],
       specs_read: [],
       log: this.deps.events.buffer(runId).map((e) => ({ t: e.t, kind: e.kind, msg: e.msg })),

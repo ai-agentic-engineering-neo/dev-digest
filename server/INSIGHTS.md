@@ -69,6 +69,8 @@ also uses.
 
 - 2026-11-28 — `reply.sse()` (fastify-sse-v2) hijacks the reply and never calls `return()` on the source iterator when the client disconnects, so a generator's `finally` does not run. Drop the bus subscription from an abort handler (`reply.raw` `close` → AbortController), not only in `finally`; and resolve/404 the run before calling `reply.sse`. Evidence: server/src/platform/sse.ts (`liveRunFrames`)
 
+- 2026-11-28 — The installed SDKs (openai 4.104, @anthropic-ai/sdk 0.33) take `signal`, `timeout` and `maxRetries` per request as the second argument of `create(body, options)` and as client defaults in the constructor; an aborted request rejects with the SDK's `APIUserAbortError`. The LLM adapters set timeout and retries on the client and pass `{ timeout, signal }` per call; do not wrap them in `withRetry`/`withTimeout` again (that nested the retries and the timeout only raced, never aborted). Evidence: server/src/adapters/llm/openai.ts:54
+
 ## Decisions
 
 <!-- A decision and the reason for it. -->
@@ -110,6 +112,8 @@ also uses.
 - 2026-11-27 — BE-2 + DB-4: cancel now cancels (flag cleared by the executor, checked again after the LLM, `status = 'running'` guard), and a run's outcome is saved by `saveReviewOutcome` in one transaction; `markReviewed` is best-effort after commit.
 
 - 2026-11-28 — BE-8: `/runs/:id/events` resolves the run through `ReviewService.runEventSource` (404 unknown; finished and off the bus → replay of the stored trace log, then end), unsubscribes on disconnect, sends a `:heartbeat` comment every 15 s; `RunBus` frees a completed run 5 min after `complete()`.
+
+- 2026-11-28 — BE-9: cancel aborts the in-flight LLM call (`RunBus.signal(runId)`, aborted by `cancel`, released by `clearCancelled`; the executor passes it through `reviewPullRequest` to `StructuredRequest.signal`), and a schema-validation failure throws `StructuredOutputError` (shared contract) whose usage, cost and raw output the executor stores on the failed run.
 
 ## Open Questions
 

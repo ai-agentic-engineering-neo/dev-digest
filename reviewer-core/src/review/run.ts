@@ -6,7 +6,7 @@ import type {
   RunEventKind,
   UnifiedDiff,
 } from '@devdigest/shared';
-import { Review as ReviewSchema } from '@devdigest/shared';
+import { Review as ReviewSchema, StructuredOutputError } from '@devdigest/shared';
 import { assemblePrompt } from '../prompt.js';
 import { groundFindings, groundingSummary } from '../grounding.js';
 import { reduceReviews, scoreFromFindings, sliceDiff } from './reduce.js';
@@ -97,6 +97,8 @@ export interface ReviewInput {
    * type, e.g. the server's RunCancelledError); the engine stays agnostic.
    */
   checkCancelled?: () => void;
+  /** Forwarded on every LLM call: aborting it aborts the request in flight. */
+  signal?: AbortSignal;
 }
 
 export interface ReviewOutcome {
@@ -179,15 +181,36 @@ export async function reviewPullRequest(input: ReviewInput): Promise<ReviewOutco
     );
     const a = assemblePrompt({ ...promptParts, diff: chunk.diffText });
     if (mode === 'single-pass') assembly = a.assembly;
-    const res = await input.llm.completeStructured<Review>({
-      model: input.model,
-      schema: ReviewSchema,
-      schemaName: 'Review',
-      messages: a.messages,
-      maxRetries,
-      ...(input.maxTokens ? { maxTokens: input.maxTokens } : {}),
-      ...(input.sessionId ? { sessionId: input.sessionId } : {}),
-    });
+    let res;
+    try {
+      res = await input.llm.completeStructured<Review>({
+        model: input.model,
+        schema: ReviewSchema,
+        schemaName: 'Review',
+        messages: a.messages,
+        maxRetries,
+        ...(input.maxTokens ? { maxTokens: input.maxTokens } : {}),
+        ...(input.sessionId ? { sessionId: input.sessionId } : {}),
+        ...(input.signal ? { signal: input.signal } : {}),
+      });
+    } catch (err) {
+      // A chunk that failed validation still billed its attempts: report the
+      // whole review's usage so far (earlier chunks included), not just its own.
+      if (err instanceof StructuredOutputError) {
+        const u = err.usage;
+        throw new StructuredOutputError(
+          err.message,
+          {
+            tokensIn: tokensIn + u.tokensIn,
+            tokensOut: tokensOut + u.tokensOut,
+            costUsd: costUsd == null || u.costUsd == null ? null : costUsd + u.costUsd,
+          },
+          [...raws, err.raw].join('\n---\n'),
+          err.attempts,
+        );
+      }
+      throw err;
+    }
     tokensIn += res.tokensIn;
     tokensOut += res.tokensOut;
     costUsd = costUsd == null || res.costUsd == null ? null : costUsd + res.costUsd;

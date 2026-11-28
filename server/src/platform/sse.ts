@@ -27,14 +27,28 @@ export class RunBus {
   private seq = new Map<string, number>();
   private completed = new Set<string>();
   private cancelled = new Set<string>();
+  private aborts = new Map<string, AbortController>();
   private expiry = new Map<string, NodeJS.Timeout>();
 
   constructor(private readonly bufferTtlMs = RUN_BUFFER_TTL_MS) {}
 
-  /** Request cancellation of an in-flight run. The runner checks `isCancelled`
-   *  at its next checkpoint (between map-reduce files) and stops. */
+  /** Request cancellation of an in-flight run: aborts its signal (the LLM call
+   *  in flight) and flags it for the runner's checkpoints (`isCancelled`). */
   cancel(runId: string): void {
     this.cancelled.add(runId);
+    this.aborts.get(runId)?.abort();
+  }
+
+  /** The run's abort signal, aborted by `cancel` (already aborted when the run
+   *  was cancelled before asking). Released by `clearCancelled`. */
+  signal(runId: string): AbortSignal {
+    let ctrl = this.aborts.get(runId);
+    if (!ctrl) {
+      ctrl = new AbortController();
+      if (this.cancelled.has(runId)) ctrl.abort();
+      this.aborts.set(runId, ctrl);
+    }
+    return ctrl.signal;
   }
 
   /** Whether cancellation has been requested for a run. */
@@ -42,10 +56,11 @@ export class RunBus {
     return this.cancelled.has(runId);
   }
 
-  /** Forget a run's cancellation request. Called by the run executor when the
-   *  run exits — not by `complete()`, which a cancel request itself calls to end
-   *  the stream while the runner may still be working. */
+  /** Forget a run's cancellation request and abort signal. Called by the run
+   *  executor when the run exits — not by `complete()`, which a cancel request
+   *  itself calls to end the stream while the runner may still be working. */
   clearCancelled(runId: string): void {
+    this.aborts.delete(runId);
     if (!this.cancelled.delete(runId)) return;
     // A cancelled run's expiry waits for the runner to exit (see `complete`).
     if (this.completed.has(runId)) this.armExpiry(runId);

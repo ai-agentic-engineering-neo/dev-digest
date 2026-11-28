@@ -30,6 +30,8 @@ export const reviews = pgTable(
   },
   (t) => ({
     prCreatedIdx: index('reviews_pr_created_idx').on(t.prId, t.createdAt.desc()),
+    runIdx: index('reviews_run_idx').on(t.runId),
+    agentIdx: index('reviews_agent_idx').on(t.agentId),
   }),
 );
 

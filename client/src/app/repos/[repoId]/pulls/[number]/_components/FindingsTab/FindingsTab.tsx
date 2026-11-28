@@ -83,19 +83,28 @@ export function FindingsTab({
     [onDelete],
   );
 
-  // Which review runs are open. Only the user's choices are stored; a run the
-  // user has not touched is open when it is the newest.
-  const [openOverride, setOpenOverride] = React.useState<Record<string, boolean>>({});
-  const isOpen = (reviewId: string, index: number) => openOverride[reviewId] ?? index === 0;
-  const toggleRun = (reviewId: string, index: number) =>
-    setOpenOverride((prev) => ({ ...prev, [reviewId]: !(prev[reviewId] ?? index === 0) }));
+  // Open state per review run. A run's default is recorded the first time it is
+  // seen (open when it is the newest), so a run arriving later does not collapse
+  // the one that was open. Seeded during render (React's derive-from-props
+  // pattern) rather than in an effect.
+  const [openById, setOpenById] = React.useState<Record<string, boolean>>({});
+  const unseen = runs.filter((r) => !(r.id in openById));
+  if (unseen.length > 0) {
+    const newestId = runs[0]?.id;
+    setOpenById((prev) => ({
+      ...prev,
+      ...Object.fromEntries(unseen.map((r) => [r.id, r.id === newestId] as const)),
+    }));
+  }
+  const toggleRun = (reviewId: string) =>
+    setOpenById((prev) => ({ ...prev, [reviewId]: !prev[reviewId] }));
 
   // Timeline → Review-runs navigation: clicking an agent name in the timeline
   // opens + scrolls to that run's accordion below.
   const handleGoToReview = (runId: string) => {
     const review = runs.find((r) => r.run_id === runId);
     if (!review) return;
-    setOpenOverride((prev) => ({ ...prev, [review.id]: true }));
+    setOpenById((prev) => ({ ...prev, [review.id]: true }));
     document.getElementById(reviewRunDomId(runId))?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
@@ -194,8 +203,8 @@ export function FindingsTab({
             key={review.id}
             review={review}
             prId={prId}
-            open={isOpen(review.id, i)}
-            onToggle={() => toggleRun(review.id, i)}
+            open={openById[review.id] ?? i === 0}
+            onToggle={() => toggleRun(review.id)}
             repoFullName={repoFullName}
             headSha={headSha}
             costUsd={review.run_id ? costByRunId.get(review.run_id) ?? null : null}

@@ -51,9 +51,12 @@ export function DiffTab({ prId, filesCount, files, canComment }: DiffTabProps) {
           commentsLoading ? (
             <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{t("diffTab.commentsLoading")}</span>
           ) : commentsError && !comments ? (
-            <Button kind="ghost" size="sm" icon="RefreshCw" onClick={() => refetchComments()}>
-              {t("diffTab.commentsError")} · {t("diffTab.commentsRetry")}
-            </Button>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{t("diffTab.commentsError")}</span>
+              <Button kind="ghost" size="sm" icon="RefreshCw" onClick={() => refetchComments()}>
+                {t("diffTab.commentsRetry")}
+              </Button>
+            </span>
           ) : commentCount > 0 ? (
             <Button
               kind="ghost"

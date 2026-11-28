@@ -40,6 +40,7 @@ describe("SettingsModels", () => {
   it("shows no pickers while settings load, so nothing can overwrite the saved choices", () => {
     state.settings = { data: undefined, isLoading: true, isError: false };
     renderModels();
+    expect(screen.getByText("Feature Models")).toBeInTheDocument();
     expect(screen.queryByText(FEATURE_MODELS[0]!.label)).not.toBeInTheDocument();
   });
 
